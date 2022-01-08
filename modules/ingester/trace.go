@@ -2,17 +2,13 @@ package ingester
 
 import (
 	"context"
-	"encoding/hex"
 	"time"
 
 	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
-	"github.com/gogo/status"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"google.golang.org/grpc/codes"
 
-	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -24,7 +20,7 @@ var (
 	}, []string{"tenant"})
 )
 
-type trace struct {
+type liveTrace struct {
 	traceBytes   *tempopb.TraceBytes
 	lastAppend   time.Time
 	traceID      []byte
@@ -37,8 +33,8 @@ type trace struct {
 	currentSearchBytes int
 }
 
-func newTrace(traceID []byte, maxBytes int, maxSearchBytes int) *trace {
-	return &trace{
+func newTrace(traceID []byte, maxBytes int, maxSearchBytes int) *liveTrace {
+	return &liveTrace{
 		traceBytes: &tempopb.TraceBytes{
 			Traces: make([][]byte, 0, 10), // 10 for luck
 		},
@@ -49,12 +45,12 @@ func newTrace(traceID []byte, maxBytes int, maxSearchBytes int) *trace {
 	}
 }
 
-func (t *trace) Push(_ context.Context, instanceID string, trace []byte, searchData []byte) error {
+func (t *liveTrace) Push(_ context.Context, instanceID string, trace []byte, searchData []byte) error {
 	t.lastAppend = time.Now()
 	if t.maxBytes != 0 {
 		reqSize := len(trace)
 		if t.currentBytes+reqSize > t.maxBytes {
-			return status.Errorf(codes.FailedPrecondition, "%s max size of trace (%d) exceeded while adding %d bytes to trace %s", overrides.ErrorPrefixTraceTooLarge, t.maxBytes, reqSize, hex.EncodeToString(t.traceID))
+			return newTraceTooLargeError(t.traceID, t.maxBytes, reqSize)
 		}
 
 		t.currentBytes += reqSize

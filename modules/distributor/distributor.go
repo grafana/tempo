@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
+	"github.com/opentracing/opentracing-go"
 	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/pkg/errors"
@@ -27,6 +28,7 @@ import (
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
+	_ "github.com/grafana/tempo/pkg/gogocodec" // force gogo codec registration
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
@@ -217,6 +219,9 @@ func (d *Distributor) stopping(_ error) error {
 
 // PushBatches pushes a batch of traces
 func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpans) (*tempopb.PushResponse, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "distributor.PushBatches")
+	defer span.Finish()
+
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		// can't record discarded spans here b/c there's no tenant
@@ -301,7 +306,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	}
 
 	err := ring.DoBatch(ctx, op, d.ingestersRing, keys, func(ingester ring.InstanceDesc, indexes []int) error {
-		localCtx, cancel := context.WithTimeout(context.Background(), d.clientCfg.RemoteTimeout)
+		localCtx, cancel := context.WithTimeout(ctx, d.clientCfg.RemoteTimeout)
 		defer cancel()
 		localCtx = user.InjectOrgID(localCtx, userID)
 

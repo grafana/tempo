@@ -249,11 +249,11 @@ querier:
     # Timeout for search requests    
     [search_query_timeout: <duration> | default = 30s]
 
-    # An external endpoint that the querier will use to offload backend search requests. It must  
+    # A list of external endpoints that the querier will use to offload backend search requests. They must  
     # take and return the same value as /api/search endpoint on the querier. This is intended to be
     # used with serverless technologies for massive parrallelization of the search path.
     # The default value of "" disables this feature.
-    [search_external_endpoint: <string> | default = ""]
+    [search_external_endpoints: <list of strings> | default = <empty list>]
 
     # config of the worker that connects to the query frontend
     frontend_worker:

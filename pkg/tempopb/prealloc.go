@@ -1,7 +1,7 @@
 package tempopb
 
 import (
-	"github.com/prometheus/prometheus/pkg/pool"
+	"github.com/prometheus/prometheus/util/pool"
 )
 
 var (

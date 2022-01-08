@@ -104,6 +104,13 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	resp := &tempopb.SearchResponse{
 		Metrics: &tempopb.SearchMetrics{},
 	}
+
+	decoder, err := model.NewDecoder(searchReq.DataEncoding)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	for {
 		id, obj, err := iter.Next(r.Context())
 		if err == io.EOF {
@@ -117,7 +124,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		resp.Metrics.InspectedTraces++
 		resp.Metrics.InspectedBytes += uint64(len(obj))
 
-		metadata, err := model.Matches(id, obj, searchReq.DataEncoding, searchReq.SearchReq)
+		metadata, err := decoder.Matches(id, obj, searchReq.SearchReq)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

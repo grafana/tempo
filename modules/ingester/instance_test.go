@@ -15,7 +15,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
@@ -24,6 +24,8 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 )
+
+const testTenantID = "fake"
 
 type ringCountMock struct {
 	count int
@@ -45,7 +47,7 @@ func TestInstance(t *testing.T) {
 	ingester, _, _ := defaultIngester(t, tempDir)
 	request := test.MakeRequest(10, []byte{})
 
-	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 	err = i.Push(context.Background(), request)
 	assert.NoError(t, err)
@@ -94,7 +96,7 @@ func TestInstanceFind(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	ingester, _, _ := defaultIngester(t, tempDir)
-	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	numTraces := 500
@@ -104,9 +106,9 @@ func TestInstanceFind(t *testing.T) {
 		id := make([]byte, 16)
 		rand.Read(id)
 
-		trace := test.MakeTrace(10, id)
-		model.SortTrace(trace)
-		traceBytes, err := trace.Marshal()
+		testTrace := test.MakeTrace(10, id)
+		trace.SortTrace(testTrace)
+		traceBytes, err := testTrace.Marshal()
 		require.NoError(t, err)
 
 		err = i.PushBytes(context.Background(), id, traceBytes, nil)
@@ -114,7 +116,7 @@ func TestInstanceFind(t *testing.T) {
 		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 		ids = append(ids, id)
-		traces = append(traces, trace)
+		traces = append(traces, testTrace)
 	}
 
 	queryAll(t, i, ids, traces)
@@ -177,7 +179,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 
 	ingester, _, _ := defaultIngester(t, tempDir)
 
-	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	end := make(chan struct{})
@@ -321,7 +323,7 @@ func TestInstanceLimits(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+			i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
 			require.NoError(t, err, "unexpected error creating new instance")
 
 			for j, push := range tt.pushes {
@@ -340,7 +342,7 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 	id := make([]byte, 16)
 	rand.Read(id)
 	tracepb := test.MakeTraceBytes(10, id)
-	pastTrace := &trace{
+	pastTrace := &liveTrace{
 		traceID:    id,
 		traceBytes: tracepb,
 		lastAppend: time.Now().Add(-time.Hour),
@@ -348,7 +350,7 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 
 	id = make([]byte, 16)
 	rand.Read(id)
-	nowTrace := &trace{
+	nowTrace := &liveTrace{
 		traceID:    id,
 		traceBytes: tracepb,
 		lastAppend: time.Now().Add(time.Hour),
@@ -358,9 +360,9 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 		name             string
 		cutoff           time.Duration
 		immediate        bool
-		input            []*trace
-		expectedExist    []*trace
-		expectedNotExist []*trace
+		input            []*liveTrace
+		expectedExist    []*liveTrace
+		expectedNotExist []*liveTrace
 	}{
 		{
 			name:      "empty",
@@ -371,23 +373,23 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 			name:             "cut immediate",
 			cutoff:           0,
 			immediate:        true,
-			input:            []*trace{pastTrace, nowTrace},
-			expectedNotExist: []*trace{pastTrace, nowTrace},
+			input:            []*liveTrace{pastTrace, nowTrace},
+			expectedNotExist: []*liveTrace{pastTrace, nowTrace},
 		},
 		{
 			name:             "cut recent",
 			cutoff:           0,
 			immediate:        false,
-			input:            []*trace{pastTrace, nowTrace},
-			expectedExist:    []*trace{nowTrace},
-			expectedNotExist: []*trace{pastTrace},
+			input:            []*liveTrace{pastTrace, nowTrace},
+			expectedExist:    []*liveTrace{nowTrace},
+			expectedNotExist: []*liveTrace{pastTrace},
 		},
 		{
 			name:             "cut all time",
 			cutoff:           2 * time.Hour,
 			immediate:        false,
-			input:            []*trace{pastTrace, nowTrace},
-			expectedNotExist: []*trace{pastTrace, nowTrace},
+			input:            []*liveTrace{pastTrace, nowTrace},
+			expectedNotExist: []*liveTrace{pastTrace, nowTrace},
 		},
 	}
 
@@ -501,8 +503,6 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 }
 
 func TestInstanceMetrics(t *testing.T) {
-	tenantID := "fake"
-
 	limits, err := overrides.NewOverrides(overrides.Limits{})
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
@@ -513,14 +513,14 @@ func TestInstanceMetrics(t *testing.T) {
 
 	ingester, _, _ := defaultIngester(t, tempDir)
 
-	i, err := newInstance(tenantID, limiter, ingester.store, ingester.local)
+	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	cutAndVerify := func(v int) {
 		err := i.CutCompleteTraces(0, true)
 		require.NoError(t, err)
 
-		liveTraces, err := test.GetGaugeVecValue(metricLiveTraces, tenantID)
+		liveTraces, err := test.GetGaugeVecValue(metricLiveTraces, testTenantID)
 		require.NoError(t, err)
 		require.Equal(t, v, int(liveTraces))
 	}
@@ -537,6 +537,51 @@ func TestInstanceMetrics(t *testing.T) {
 	cutAndVerify(count)
 
 	cutAndVerify(0)
+}
+
+func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
+	ctx := context.Background()
+	maxTraceBytes := 100
+	id := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+
+	tempDir, err := os.MkdirTemp("/tmp", "")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	ingester, _, _ := defaultIngester(t, tempDir)
+
+	limits, err := overrides.NewOverrides(overrides.Limits{
+		MaxBytesPerTrace: maxTraceBytes,
+	})
+	require.NoError(t, err)
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
+	require.NoError(t, err)
+
+	pushFn := func(byteCount int) error {
+		return i.PushBytes(ctx, id, make([]byte, byteCount), nil)
+	}
+
+	// Fill up trace to max
+	err = pushFn(maxTraceBytes)
+	require.NoError(t, err)
+
+	// Pushing again fails
+	err = pushFn(3)
+	require.Contains(t, err.Error(), (newTraceTooLargeError(id, maxTraceBytes, 3)).Error())
+
+	// Pushing still fails after flush
+	err = i.CutCompleteTraces(0, true)
+	require.NoError(t, err)
+	err = pushFn(5)
+	require.Contains(t, err.Error(), (newTraceTooLargeError(id, maxTraceBytes, 5)).Error())
+
+	// Cut block and then pushing works again
+	_, err = i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+	err = pushFn(maxTraceBytes)
+	require.NoError(t, err)
 }
 
 func defaultInstance(t require.TestingT, tmpDir string) *instance {
@@ -570,7 +615,7 @@ func defaultInstance(t require.TestingT, tmpDir string) *instance {
 	}, log.NewNopLogger())
 	assert.NoError(t, err, "unexpected error creating store")
 
-	instance, err := newInstance("fake", limiter, s, l)
+	instance, err := newInstance(testTenantID, limiter, s, l)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	return instance

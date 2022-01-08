@@ -15,6 +15,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
+	"github.com/opentracing/opentracing-go"
 	prom_client "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
@@ -170,8 +171,11 @@ func (r *receiversShim) stopping(_ error) error {
 	return nil
 }
 
-// implements consumer.Trace
+// ConsumeTraces implements consumer.Trace
 func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "distributor.ConsumeTraces")
+	defer span.Finish()
+
 	var err error
 
 	// Convert to bytes and back. This is unfortunate for efficiency but it works

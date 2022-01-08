@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -63,7 +64,7 @@ func (cmd *queryBlocksCmd) Run(ctx *globalOptions) error {
 
 		fmt.Println(jsonBytes.String())
 		jsonBytes.Reset()
-		combinedTrace, _, _, _ = model.CombineTraceProtos(result.trace, combinedTrace)
+		combinedTrace, _ = trace.CombineTraceProtos(result.trace, combinedTrace)
 	}
 
 	fmt.Println("combined:")
@@ -156,7 +157,7 @@ func queryBlock(ctx context.Context, r backend.Reader, c backend.Compactor, bloc
 		return nil, nil
 	}
 
-	trace, err := model.Unmarshal(obj, meta.DataEncoding)
+	trace, err := model.MustNewDecoder(meta.DataEncoding).PrepareForRead(obj)
 	if err != nil {
 		return nil, err
 	}

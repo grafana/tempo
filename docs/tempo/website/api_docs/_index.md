@@ -343,8 +343,11 @@ GET /status/config
 
 Displays the configuration.
 
-Optional Query Parameter:
-- `mode = (diff|defaults)`: Used to show the difference between the default values and the current configuration if `diff` is given. The default values will be shown if `defaults` is used.
+Displays the configuration currently applied to Tempo (in YAML format), including default values and settings via CLI flags.
+Sensitive data is masked. Please be aware that the exported configuration **doesn't include the per-tenant overrides**.
+
+Optional query parameter:
+- `mode = (diff|defaults)`: `diff` shows the difference between the default values and the current configuration. `defaults` shows the default values.
 
 ```
 GET /status/runtime_config
@@ -352,8 +355,6 @@ GET /status/runtime_config
 
 Displays the override configuration.
 
-Query Parameter:
-- `mode = (diff)`: Used to show the difference between defaults and overrides.
+Query parameter:
+- `mode = (diff)`: Show the difference between defaults and overrides.
 
-Displays the configuration currently applied to Tempo (in YAML format), including default values and settings via CLI flags.
-Sensitive data is masked. Please be aware that the exported configuration **doesn't include the per-tenant overrides**.

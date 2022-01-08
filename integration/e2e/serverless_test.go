@@ -8,7 +8,7 @@ import (
 	cortex_e2e_db "github.com/cortexproject/cortex/integration/e2e/db"
 	util "github.com/grafana/tempo/integration"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,7 +80,7 @@ func TestServerless(t *testing.T) {
 
 	// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 	now := time.Now()
-	searchAndAssertTraceBackend(t, apiClient, info, int(now.Add(-20*time.Minute).Unix()), int(now.Unix()))
+	searchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 }
 
 func newTempoServerless() *cortex_e2e.HTTPService {
