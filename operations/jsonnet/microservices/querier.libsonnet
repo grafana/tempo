@@ -20,7 +20,7 @@
       '-config.file=/conf/tempo.yaml',
       '-mem-ballast-size-mbs=' + $._config.ballast_size_mbs,
     ]) +
-    container.withEnvMixin($._config.variables_expansion_env_mixin) +
+    (if $._config.variables_expansion then container.withEnvMixin($._config.variables_expansion_env_mixin) else {}) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
       volumeMount.new(tempo_overrides_config_volume, '/overrides'),

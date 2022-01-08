@@ -10,7 +10,7 @@
   _config+:: {
     gossip_member_label: 'tempo-gossip-member',
     variables_expansion: false,
-    variables_expansion_env_mixin: [],
+    variables_expansion_env_mixin: null,
     compactor: {
       replicas: 1,
       resources: {
