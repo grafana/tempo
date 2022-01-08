@@ -5,13 +5,15 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/prometheus/storage"
+
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/prometheus/storage"
 )
 
 var (
@@ -64,6 +66,24 @@ func (i *instance) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 	}
 
 	return nil
+}
+
+func (i *instance) collectAndPushMetrics(ctx context.Context) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.collectAndPushMetrics")
+	defer span.Finish()
+
+	level.Debug(log.Logger).Log("msg", "collecting metrics", "tenant", i.instanceID)
+
+	appender := i.appendable.Appender(ctx)
+
+	for _, processor := range i.processors {
+		err := processor.CollectMetrics(ctx, appender)
+		if err != nil {
+			return err
+		}
+	}
+
+	return appender.Commit()
 }
 
 // Shutdown stops the instance and flushes any remaining data. After shutdown

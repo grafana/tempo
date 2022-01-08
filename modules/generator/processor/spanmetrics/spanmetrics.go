@@ -8,13 +8,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/storage"
+	semconv "go.opentelemetry.io/collector/model/semconv/v1.5.0"
+
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/prometheus/prometheus/storage"
-	semconv "go.opentelemetry.io/collector/model/semconv/v1.5.0"
 )
 
 const (
@@ -27,10 +29,6 @@ const (
 
 type processor struct {
 	namespace, tenant string
-
-	// TODO: pass storage.Appender instead?
-	//  appendable.Appender(ctx) creates a new Appender for every push.
-	appendable storage.Appendable
 
 	// TODO: possibly split mutex into two: one for the metrics and one for the cache.
 	//  cache's mutex should be RWMutex.
@@ -49,7 +47,6 @@ func New(tenant string, appendable storage.Appendable) gen.Processor {
 	return &processor{
 		namespace:           "tempo",
 		tenant:              tenant,
-		appendable:          appendable,
 		calls:               make(map[string]float64),
 		latencyCount:        make(map[string]float64),
 		latencySum:          make(map[string]float64),
@@ -65,7 +62,7 @@ func (p *processor) Name() string { return name }
 func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error {
 	p.aggregateMetrics(req.Batches)
 
-	return p.collectMetrics(ctx)
+	return nil
 }
 
 func (p *processor) Shutdown(context.Context) error { return nil }
@@ -110,63 +107,61 @@ func (p *processor) aggregateLatencyMetrics(key string, latencyMS float64) {
 	}
 }
 
-func (p *processor) collectMetrics(ctx context.Context) error {
+func (p *processor) CollectMetrics(ctx context.Context, appender storage.Appender) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "spanmetrics.CollectMetrics")
+	defer span.Finish()
+
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	t := time.Now().Unix()
+	timestampMs := time.Now().UnixMilli()
 
-	appender := p.appendable.Appender(ctx)
-
-	if err := p.collectCalls(appender, t); err != nil {
+	if err := p.collectCalls(appender, timestampMs); err != nil {
 		return err
 	}
 
-	if err := p.collectLatencyMetrics(appender, t); err != nil {
+	if err := p.collectLatencyMetrics(appender, timestampMs); err != nil {
 		return err
 	}
 
-	return appender.Commit()
+	return nil
 }
 
-func (p *processor) collectCalls(appender storage.Appender, t int64) error {
+func (p *processor) collectCalls(appender storage.Appender, timestampMs int64) error {
 	// TODO: only collect new data points.
 	for key, count := range p.calls {
 		lbls := p.getLabels(key, callsMetric)
 
-		if _, err := appender.Append(0, lbls, t, count); err != nil {
+		if _, err := appender.Append(0, lbls, timestampMs, count); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (p *processor) collectLatencyMetrics(appender storage.Appender, t int64) error {
+func (p *processor) collectLatencyMetrics(appender storage.Appender, timestampMs int64) error {
 	// TODO: only collect new data points.
-	for key, count := range p.latencyCount {
+	for key := range p.latencyCount {
 		// Collect latency count
 		lbls := p.getLabels(key, latencyCount)
-		if _, err := appender.Append(0, lbls, t, count); err != nil {
+		if _, err := appender.Append(0, lbls, timestampMs, p.latencyCount[key]); err != nil {
 			return err
 		}
 
 		// Collect latency sum
 		lbls = p.getLabels(key, latencySum)
-		if _, err := appender.Append(0, lbls, t, p.latencySum[key]); err != nil {
+		if _, err := appender.Append(0, lbls, timestampMs, p.latencySum[key]); err != nil {
 			return err
 		}
 
 		// Collect latency buckets
-		lbls = p.getLabels(key, latencyBucket)
 		for i, count := range p.latencyBucketCounts[key] {
 			if i == len(p.latencyBuckets) {
-				lbls = append(lbls, labels.Label{Name: "le", Value: "+Inf"})
-				_, err := appender.Append(0, lbls, t, count)
-				return err
+				lbls = append(p.getLabels(key, latencyBucket), labels.Label{Name: "le", Value: "+Inf"})
+			} else {
+				lbls = append(p.getLabels(key, latencyBucket), labels.Label{Name: "le", Value: strconv.Itoa(int(p.latencyBuckets[i]))})
 			}
-
-			lbls = append(lbls, labels.Label{Name: "le", Value: strconv.Itoa(int(p.latencyBuckets[i]))})
-			if _, err := appender.Append(0, lbls, t, count); err != nil {
+			if _, err := appender.Append(0, lbls, timestampMs, count); err != nil {
 				return err
 			}
 		}

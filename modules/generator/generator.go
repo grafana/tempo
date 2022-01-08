@@ -6,19 +6,21 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/weaveworks/common/user"
+
+	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 const userMetricsScrapeEndpoint = "/api/trace-metrics"
@@ -118,8 +120,18 @@ func (g *Generator) starting(ctx context.Context) error {
 }
 
 func (g *Generator) running(ctx context.Context) error {
+	// TODO make configurable
+	//  Should we make the collect interval configurable per tenant? Tenants might want to choose between 1 and 4 DPM
+	collectMetricsInterval := 15 * time.Second
+
+	collectMetricsTicker := time.NewTicker(collectMetricsInterval)
+	defer collectMetricsTicker.Stop()
+
 	for {
 		select {
+		case <-collectMetricsTicker.C:
+			g.collectMetrics()
+
 		case <-ctx.Done():
 			return nil
 
@@ -202,6 +214,20 @@ func (g *Generator) getInstanceByID(id string) (*instance, bool) {
 
 	inst, ok := g.instances[id]
 	return inst, ok
+}
+
+func (g *Generator) collectMetrics() {
+	span := opentracing.StartSpan("generator.collectMetrics")
+	defer span.Finish()
+
+	ctx := opentracing.ContextWithSpan(context.Background(), span)
+
+	for _, instance := range g.instances {
+		err := instance.collectAndPushMetrics(ctx)
+		if err != nil {
+			level.Error(log.Logger).Log("msg", "collecting and pushing metrics failed", "tenant", instance.instanceID, "err", err)
+		}
+	}
 }
 
 // Flush is called by the lifecycler on shutdown.
