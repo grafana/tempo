@@ -2,7 +2,6 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"testing"
 
@@ -27,6 +26,10 @@ import (
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
+)
+
+const (
+	configAllInOneLocal = "config-all-in-one-local.yaml"
 )
 
 func TestReceivers(t *testing.T) {
@@ -76,7 +79,7 @@ func TestReceivers(t *testing.T) {
 			require.NoError(t, err)
 			defer s.Close()
 
-			require.NoError(t, util.CopyFileToSharedDir(s, configCompression, "config.yaml"))
+			require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneLocal, "config.yaml"))
 			tempo := util.NewTempoAllInOne()
 			require.NoError(t, s.StartAndWaitReady(tempo))
 
@@ -133,10 +136,8 @@ func TestReceivers(t *testing.T) {
 			trace, err := client.QueryTrace(tempoUtil.TraceIDToHexString(traceID))
 			require.NoError(t, err)
 
-			fmt.Printf("%#v\n", trace.Batches[0])
-			fmt.Printf("%#v\n", req.Batch)
-
-			assert.True(t, equalTraces(&tempopb.Trace{Batches: []*v1_trace.ResourceSpans{req.Batch}}, trace))
+			// just compare spanCount because otel flattens all ILS into one
+			assert.Equal(t, spanCount(&tempopb.Trace{Batches: []*v1_trace.ResourceSpans{req.Batch}}), spanCount(trace))
 		})
 	}
 }

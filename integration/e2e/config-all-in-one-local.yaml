@@ -13,6 +13,9 @@ distributor:
     jaeger:
       protocols:
         grpc:
+    otlp:
+      protocols:
+        grpc:
   log_received_traces: true
 
 ingester:
