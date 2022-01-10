@@ -7,6 +7,7 @@ import (
 
 	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
@@ -14,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/model/otlp"
@@ -33,11 +35,19 @@ const (
 )
 
 func TestReceivers(t *testing.T) {
+	s, err := cortex_e2e.NewScenario("tempo_e2e")
+	require.NoError(t, err)
+	defer s.Close()
+
+	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneLocal, "config.yaml"))
+	tempo := util.NewTempoAllInOne()
+	require.NoError(t, s.StartAndWaitReady(tempo))
+
 	testReceivers := []struct {
-		name    string
-		factory component.ExporterFactory
-		config  func(component.ExporterFactory, string) config.Exporter
-		port    int
+		name     string
+		factory  component.ExporterFactory
+		config   func(component.ExporterFactory, string) config.Exporter
+		endpoint string
 	}{
 		{
 			"jaeger gRPC",
@@ -53,7 +63,7 @@ func TestReceivers(t *testing.T) {
 				}
 				return jaegerCfg
 			},
-			14250,
+			tempo.Endpoint(14250),
 		},
 		{
 			"otlp gRPC",
@@ -69,32 +79,42 @@ func TestReceivers(t *testing.T) {
 				}
 				return otlpCfg
 			},
-			4317,
+			tempo.Endpoint(4317),
+		},
+		{
+			"zipkin",
+			zipkinexporter.NewFactory(),
+			func(factory component.ExporterFactory, endpoint string) config.Exporter {
+				exporterCfg := factory.CreateDefaultConfig()
+				zipkinCfg := exporterCfg.(*zipkinexporter.Config)
+				zipkinCfg.HTTPClientSettings = confighttp.HTTPClientSettings{
+					Endpoint: endpoint,
+					TLSSetting: configtls.TLSClientSetting{
+						Insecure: true,
+					},
+				}
+				zipkinCfg.Format = "json"
+				return zipkinCfg
+			},
+			"http://" + tempo.Endpoint(9411),
 		},
 	}
 
 	for _, tc := range testReceivers {
 		t.Run(tc.name, func(t *testing.T) {
-			s, err := cortex_e2e.NewScenario("tempo_e2e")
-			require.NoError(t, err)
-			defer s.Close()
-
-			require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneLocal, "config.yaml"))
-			tempo := util.NewTempoAllInOne()
-			require.NoError(t, s.StartAndWaitReady(tempo))
-
 			// create exporter
+			logger, _ := zap.NewDevelopment()
 			exporter, err := tc.factory.CreateTracesExporter(
 				context.Background(),
 				component.ExporterCreateSettings{
 					TelemetrySettings: component.TelemetrySettings{
-						Logger:         zap.NewNop(),
+						Logger:         logger,
 						TracerProvider: trace.NewNoopTracerProvider(),
 						MeterProvider:  metric.NewNoopMeterProvider(),
 					},
 					BuildInfo: component.NewDefaultBuildInfo(),
 				},
-				tc.config(tc.factory, tempo.Endpoint(tc.port)),
+				tc.config(tc.factory, tc.endpoint),
 			)
 			require.NoError(t, err)
 
@@ -124,12 +144,6 @@ func TestReceivers(t *testing.T) {
 
 			// shutdown to ensure traces are flushed
 			require.NoError(t, exporter.Shutdown(context.Background()))
-
-			// test metrics
-			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(20), "tempo_distributor_spans_received_total"))
-
-			// ensure trace is created in ingester (trace_idle_time has passed)
-			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
 			// query for the trace
 			client := tempoUtil.NewClient("http://"+tempo.Endpoint(3200), tempoUtil.FakeTenantID)

@@ -16,6 +16,7 @@ distributor:
     otlp:
       protocols:
         grpc:
+    zipkin:
   log_received_traces: true
 
 ingester:

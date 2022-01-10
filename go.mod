@@ -8,7 +8,7 @@ require (
 	github.com/Azure/azure-pipeline-go v0.2.3
 	github.com/Azure/azure-storage-blob-go v0.13.0
 	github.com/alecthomas/kong v0.2.11
-	github.com/aws/aws-sdk-go v1.42.16
+	github.com/aws/aws-sdk-go v1.42.21
 	github.com/cespare/xxhash v1.1.0
 	github.com/cortexproject/cortex v1.10.1-0.20211214110443-07d6cfc4eb84
 	github.com/cristalhq/hedgedhttp v0.7.0
@@ -35,6 +35,8 @@ require (
 	github.com/klauspost/compress v1.13.6
 	github.com/minio/minio-go/v7 v7.0.16-0.20211116163909-d00629356463
 	github.com/olekukonko/tablewriter v0.0.2
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter v0.41.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.40.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.41.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.40.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.40.0
@@ -73,17 +75,15 @@ require (
 	go.uber.org/multierr v1.7.0
 	go.uber.org/zap v1.19.1
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
-	google.golang.org/api v0.60.0
+	google.golang.org/api v0.61.0
 	google.golang.org/grpc v1.42.0
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )
 
-require github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter v0.41.0
-
 require (
-	cloud.google.com/go v0.97.0 // indirect
+	cloud.google.com/go v0.99.0 // indirect
 	cloud.google.com/go/bigtable v1.3.0 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest v0.11.22 // indirect
@@ -97,7 +97,7 @@ require (
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
-	github.com/Shopify/sarama v1.30.0 // indirect
+	github.com/Shopify/sarama v1.30.1 // indirect
 	github.com/VividCortex/gohistogram v1.0.0 // indirect
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a // indirect
@@ -214,11 +214,11 @@ require (
 	github.com/ncw/swift v1.0.52 // indirect
 	github.com/oklog/run v1.1.0 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.40.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.41.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.41.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.40.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.40.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.40.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.41.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.41.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.41.0 // indirect
 	github.com/opentracing-contrib/go-stdlib v1.0.0 // indirect
 	github.com/openzipkin/zipkin-go v0.3.0 // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
@@ -270,7 +270,7 @@ require (
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20211129164237-f09f9a12af12 // indirect
+	google.golang.org/genproto v0.0.0-20211206160659-862468c7d6e0 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.63.2 // indirect
