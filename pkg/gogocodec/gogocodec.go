@@ -22,6 +22,7 @@ const (
 	cortexPath            = "github.com/cortexproject/cortex"
 	jaegerProtoGenPkgPath = "github.com/jaegertracing/jaeger/proto-gen"
 	jaegerModelPkgPath    = "github.com/jaegertracing/jaeger/model"
+	otelProtoPkgPath      = "go.opentelemetry.io/collector"
 )
 
 func init() {
@@ -71,5 +72,5 @@ func useGogo(t reflect.Type) bool {
 		return false
 	}
 	pkgPath := t.PkgPath()
-	return (strings.HasPrefix(pkgPath, tempoProtoGenPkgPath) || strings.HasPrefix(pkgPath, cortexPath) || strings.HasPrefix(pkgPath, jaegerProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerModelPkgPath))
+	return strings.HasPrefix(pkgPath, tempoProtoGenPkgPath) || strings.HasPrefix(pkgPath, cortexPath) || strings.HasPrefix(pkgPath, jaegerProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerModelPkgPath) || strings.HasPrefix(pkgPath, otelProtoPkgPath)
 }

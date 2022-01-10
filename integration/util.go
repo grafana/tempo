@@ -29,6 +29,7 @@ func NewTempoAllInOne() *cortex_e2e.HTTPService {
 		3200,  // http all things
 		14250, // jaeger grpc ingest
 		9411,  // zipkin ingest (used by load)
+		4317,  // otlp grpc
 	)
 
 	s.SetBackoff(TempoBackoff())

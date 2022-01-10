@@ -128,7 +128,7 @@ func (c *Client) QueryTrace(id string) (*tempopb.Trace, error) {
 	m := &tempopb.Trace{}
 	resp, err := c.getFor(c.BaseURL+QueryTraceEndpoint+"/"+id, m)
 	if err != nil {
-		if resp.StatusCode == http.StatusNotFound {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
 			return nil, ErrTraceNotFound
 		}
 		return nil, err

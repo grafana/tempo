@@ -621,11 +621,12 @@ Writing Providers and Parsers are easy. See the bundled implementations in the `
 
 | Package      | Parser                           | Description                                                                                                                                               |
 | ------------ | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| parsers/json | `json.Parser()`                  | Parses JSON bytes into a nested map                                                                                                                       |
-| parsers/yaml | `yaml.Parser()`                  | Parses YAML bytes into a nested map                                                                                                                       |
-| parsers/toml | `toml.Parser()`                  | Parses TOML bytes into a nested map                                                                                                                       |
-| parsers/dotenv | `dotenv.Parser()`              | Parses DotEnv bytes into a flat map                                                                                                                       |
-| parsers/hcl  | `hcl.Parser(flattenSlices bool)` | Parses Hashicorp HCL bytes into a nested map. `flattenSlices` is recommended to be set to true. [Read more](https://github.com/hashicorp/hcl/issues/162). |
+| parsers/json       | `json.Parser()`                  | Parses JSON bytes into a nested map                                                                                                                       |
+| parsers/yaml       | `yaml.Parser()`                  | Parses YAML bytes into a nested map                                                                                                                       |
+| parsers/toml       | `toml.Parser()`                  | Parses TOML bytes into a nested map                                                                                                                       |
+| parsers/dotenv     | `dotenv.Parser()`              | Parses DotEnv bytes into a flat map                                                                                                                       |
+| parsers/hcl        | `hcl.Parser(flattenSlices bool)` | Parses Hashicorp HCL bytes into a nested map. `flattenSlices` is recommended to be set to true. [Read more](https://github.com/hashicorp/hcl/issues/162). |
+| parsers/nestedtext | `nestedtext.Parser()`              | Parses NestedText bytes into a flat map                                                                                                                 |
 
 ### Instance functions
 
