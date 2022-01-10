@@ -14,7 +14,7 @@ import (
 func TestMarshalUnmarshal(t *testing.T) {
 	buffer := &bytes.Buffer{}
 	id := []byte{0x00, 0x01}
-	req := test.MakeRequest(10, id)
+	req := test.MakeTrace(10, id)
 
 	bReq, err := proto.Marshal(req)
 	assert.NoError(t, err)
@@ -27,7 +27,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, bytes.Equal(id, outID))
 
-	outReq := &tempopb.PushRequest{}
+	outReq := &tempopb.Trace{}
 	err = proto.Unmarshal(outObject, outReq)
 	assert.NoError(t, err)
 
@@ -36,13 +36,13 @@ func TestMarshalUnmarshal(t *testing.T) {
 
 func TestMarshalUnmarshalFromBuffer(t *testing.T) {
 	buffer := &bytes.Buffer{}
-	id := []byte{0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01}
+	id := make([]byte, 16)
 	rand.Read(id)
 
 	o := object{}
-	var reqs []*tempopb.PushRequest
+	var reqs []*tempopb.Trace
 	for i := 0; i < 10; i++ {
-		req := test.MakeRequest(10, id)
+		req := test.MakeTrace(10, id)
 		reqs = append(reqs, req)
 
 		bReq, err := proto.Marshal(req)
@@ -60,7 +60,7 @@ func TestMarshalUnmarshalFromBuffer(t *testing.T) {
 		actualBuffer, outID, outObject, err = o.UnmarshalAndAdvanceBuffer(actualBuffer)
 		assert.NoError(t, err)
 
-		outReq := &tempopb.PushRequest{}
+		outReq := &tempopb.Trace{}
 		err = proto.Unmarshal(outObject, outReq)
 		assert.NoError(t, err)
 

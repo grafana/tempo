@@ -3,7 +3,6 @@ package model
 import (
 	"fmt"
 
-	v0 "github.com/grafana/tempo/pkg/model/v0"
 	v1 "github.com/grafana/tempo/pkg/model/v1"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -15,7 +14,6 @@ const CurrentEncoding = v1.Encoding
 
 // allEncodings is used for testing
 var allEncodings = []string{
-	v0.Encoding,
 	v1.Encoding,
 }
 
@@ -39,8 +37,6 @@ type encoderDecoder interface {
 // NewDecoder returns a Decoder given the passed string.
 func NewDecoder(dataEncoding string) (Decoder, error) {
 	switch dataEncoding {
-	case v0.Encoding:
-		return v0.NewDecoder(), nil
 	case v1.Encoding:
 		return v1.NewDecoder(), nil
 	}

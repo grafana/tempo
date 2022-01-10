@@ -567,8 +567,8 @@ func TestDistributor(t *testing.T) {
 			// todo:  test limits
 			d := prepare(t, limits, nil)
 
-			request := test.MakeRequest(tc.lines, []byte{})
-			response, err := d.PushBatches(ctx, []*v1.ResourceSpans{request.Batch})
+			b := test.MakeBatch(tc.lines, []byte{})
+			response, err := d.PushBatches(ctx, []*v1.ResourceSpans{b})
 
 			assert.True(t, proto.Equal(tc.expectedResponse, response))
 			assert.Equal(t, tc.expectedError, err)
