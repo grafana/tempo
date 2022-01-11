@@ -35,9 +35,7 @@ require (
 	github.com/klauspost/compress v1.13.6
 	github.com/minio/minio-go/v7 v7.0.10
 	github.com/olekukonko/tablewriter v0.0.2
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.40.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.40.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanmetricsprocessor v0.40.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.40.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.40.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.40.0
@@ -108,6 +106,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.2 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/containerd/containerd v1.5.8 // indirect
 	github.com/coreos/etcd v3.3.25+incompatible // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf // indirect
@@ -169,6 +168,7 @@ require (
 	github.com/hashicorp/memberlist v0.2.4 // indirect
 	github.com/hashicorp/serf v0.9.5 // indirect
 	github.com/hashicorp/yamux v0.0.0-20190923154419-df201c70410d // indirect
+	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
@@ -211,9 +211,9 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.40.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.40.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.40.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.40.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.40.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.40.0 // indirect
+	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/opentracing-contrib/go-stdlib v1.0.0 // indirect
 	github.com/openzipkin/zipkin-go v0.3.0 // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
@@ -264,6 +264,7 @@ require (
 	golang.org/x/oauth2 v0.0.0-20211005180243-6b3c2da341f1 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20211013075003-97ac67df715c // indirect
+	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/appengine v1.6.7 // indirect

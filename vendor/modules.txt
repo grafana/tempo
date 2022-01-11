@@ -172,6 +172,8 @@ github.com/cespare/xxhash
 # github.com/cespare/xxhash/v2 v2.1.2
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
+# github.com/containerd/containerd v1.5.8
+## explicit; go 1.16
 # github.com/coreos/etcd v3.3.25+incompatible
 ## explicit
 github.com/coreos/etcd/pkg/fileutil
@@ -618,6 +620,8 @@ github.com/hashicorp/serf/coordinate
 # github.com/hashicorp/yamux v0.0.0-20190923154419-df201c70410d
 ## explicit
 github.com/hashicorp/yamux
+# github.com/imdario/mergo v0.3.12
+## explicit; go 1.13
 # github.com/inconshreveable/mousetrap v1.0.0
 ## explicit
 github.com/inconshreveable/mousetrap
@@ -870,9 +874,6 @@ github.com/olekukonko/tablewriter
 ## explicit; go 1.17
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter/internal/awsmsk
-# github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.40.0
-## explicit; go 1.17
-github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter
 # github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.40.0
 ## explicit; go 1.17
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils
@@ -881,9 +882,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/
 # github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.40.0
 ## explicit; go 1.17
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent
-# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.40.0
-## explicit; go 1.17
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry
 # github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.40.0
 ## explicit; go 1.17
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger
@@ -895,9 +893,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencen
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/internal/zipkin
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv1
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv2
-# github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanmetricsprocessor v0.40.0
-## explicit; go 1.17
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanmetricsprocessor
 # github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.40.0
 ## explicit; go 1.17
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver
@@ -912,6 +907,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusrec
 # github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.40.0
 ## explicit; go 1.17
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver
+# github.com/opencontainers/image-spec v1.0.2
+## explicit
 # github.com/opentracing-contrib/go-grpc v0.0.0-20210225150812-73cb765af46e
 ## explicit; go 1.11
 github.com/opentracing-contrib/go-grpc
@@ -1348,9 +1345,6 @@ go.opentelemetry.io/collector/receiver/otlpreceiver/external/metrics
 go.opentelemetry.io/collector/receiver/otlpreceiver/external/trace
 go.opentelemetry.io/collector/receiver/receiverhelper
 go.opentelemetry.io/collector/receiver/scrapererror
-go.opentelemetry.io/collector/service/external/builder
-go.opentelemetry.io/collector/service/external/components
-go.opentelemetry.io/collector/service/external/fanoutconsumer
 # go.opentelemetry.io/collector/model v0.40.0
 ## explicit; go 1.17
 go.opentelemetry.io/collector/model/internal
@@ -1498,6 +1492,8 @@ golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
+# golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
+## explicit; go 1.11
 # golang.org/x/text v0.3.7
 ## explicit; go 1.17
 golang.org/x/text/secure/bidirule
