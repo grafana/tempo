@@ -24,8 +24,6 @@ import (
 	"go.uber.org/zap"
 
 	util "github.com/grafana/tempo/integration"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 )
@@ -125,7 +123,7 @@ func TestReceivers(t *testing.T) {
 			traceID := make([]byte, 16)
 			_, err = rand.Read(traceID)
 			require.NoError(t, err)
-			req := test.MakeRequest(20, traceID)
+			req := test.MakeTrace(20, traceID)
 			b, err := req.Marshal()
 			require.NoError(t, err)
 
@@ -151,7 +149,7 @@ func TestReceivers(t *testing.T) {
 			require.NoError(t, err)
 
 			// just compare spanCount because otel flattens all ILS into one
-			assert.Equal(t, spanCount(&tempopb.Trace{Batches: []*v1_trace.ResourceSpans{req.Batch}}), spanCount(trace))
+			assert.Equal(t, spanCount(req), spanCount(trace))
 		})
 	}
 }

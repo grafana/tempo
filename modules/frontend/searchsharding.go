@@ -206,9 +206,11 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 			return nil, err
 		}
 	}
-	// add ingester request if we have one
+	// add ingester request if we have one. it's important to add the ingeste request to
+	// the beginning of the slice so it is prioritized over the possibly enormous
+	// number of backend requests
 	if ingesterReq != nil {
-		reqs = append(reqs, ingesterReq)
+		reqs = append([]*http.Request{ingesterReq}, reqs...)
 	}
 	span.SetTag("request-count", len(reqs))
 

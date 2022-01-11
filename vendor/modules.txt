@@ -993,7 +993,7 @@ github.com/pelletier/go-toml
 ## explicit
 github.com/pierrec/lz4
 github.com/pierrec/lz4/internal/xxh32
-# github.com/pierrec/lz4/v4 v4.1.3
+# github.com/pierrec/lz4/v4 v4.1.12
 ## explicit; go 1.14
 github.com/pierrec/lz4/v4
 github.com/pierrec/lz4/v4/internal/lz4block
