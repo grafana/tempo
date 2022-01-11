@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 	semconv "go.opentelemetry.io/collector/model/semconv/v1.5.0"
 

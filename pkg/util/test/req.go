@@ -4,8 +4,10 @@ import (
 	"math/rand"
 
 	"github.com/gogo/protobuf/proto"
+
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
@@ -14,6 +16,10 @@ func makeSpan(traceID []byte) *v1_trace.Span {
 		Name:    "test",
 		TraceId: traceID,
 		SpanId:  make([]byte, 8),
+		Kind:    v1_trace.Span_SPAN_KIND_CLIENT,
+		Status: &v1_trace.Status{
+			Code: 1,
+		},
 	}
 	rand.Read(s.SpanId)
 	return s
@@ -22,7 +28,20 @@ func makeSpan(traceID []byte) *v1_trace.Span {
 func MakeBatch(spans int, traceID []byte) *v1_trace.ResourceSpans {
 	traceID = populateTraceID(traceID)
 
-	batch := &v1_trace.ResourceSpans{}
+	batch := &v1_trace.ResourceSpans{
+		Resource: &v1_resource.Resource{
+			Attributes: []*v1_common.KeyValue{
+				{
+					Key: "service.name",
+					Value: &v1_common.AnyValue{
+						Value: &v1_common.AnyValue_StringValue{
+							StringValue: "test-service",
+						},
+					},
+				},
+			},
+		},
+	}
 	var ils *v1_trace.InstrumentationLibrarySpans
 
 	for i := 0; i < spans; i++ {

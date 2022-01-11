@@ -172,8 +172,6 @@ github.com/cespare/xxhash
 # github.com/cespare/xxhash/v2 v2.1.2
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
-# github.com/containerd/containerd v1.5.8
-## explicit; go 1.16
 # github.com/cncf/udpa/go v0.0.0-20201120205902-5459f2c99403
 ## explicit; go 1.11
 github.com/cncf/udpa/go/udpa/data/orca/v1
@@ -681,8 +679,6 @@ github.com/hashicorp/serf/coordinate
 # github.com/hashicorp/yamux v0.0.0-20190923154419-df201c70410d
 ## explicit
 github.com/hashicorp/yamux
-# github.com/imdario/mergo v0.3.12
-## explicit; go 1.13
 # github.com/inconshreveable/mousetrap v1.0.0
 ## explicit
 github.com/inconshreveable/mousetrap
@@ -974,8 +970,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusrec
 # github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.40.0
 ## explicit; go 1.17
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver
-# github.com/opencontainers/image-spec v1.0.2
-## explicit
 # github.com/opentracing-contrib/go-grpc v0.0.0-20210225150812-73cb765af46e
 ## explicit; go 1.11
 github.com/opentracing-contrib/go-grpc
@@ -999,7 +993,7 @@ github.com/pelletier/go-toml
 ## explicit
 github.com/pierrec/lz4
 github.com/pierrec/lz4/internal/xxh32
-# github.com/pierrec/lz4/v4 v4.1.3
+# github.com/pierrec/lz4/v4 v4.1.12
 ## explicit; go 1.14
 github.com/pierrec/lz4/v4
 github.com/pierrec/lz4/v4/internal/lz4block
@@ -1257,8 +1251,6 @@ github.com/thanos-io/thanos/pkg/strutil
 github.com/thanos-io/thanos/pkg/targets/targetspb
 github.com/thanos-io/thanos/pkg/testutil
 github.com/thanos-io/thanos/pkg/tracing
-# github.com/tidwall/pretty v1.2.0
-## explicit; go 1.16
 # github.com/uber-go/atomic v1.4.0
 ## explicit
 github.com/uber-go/atomic
@@ -1563,8 +1555,6 @@ golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
-# golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
-## explicit; go 1.11
 # golang.org/x/text v0.3.7
 ## explicit; go 1.17
 golang.org/x/text/secure/bidirule

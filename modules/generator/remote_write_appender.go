@@ -8,8 +8,8 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/golang/snappy"
-	"github.com/prometheus/prometheus/pkg/exemplar"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/model/exemplar"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 )
 
@@ -68,7 +68,7 @@ func (a *RemoteWriteAppendable) Appender(ctx context.Context) storage.Appender {
 	}
 }
 
-func (a *RemoteWriteAppender) Append(_ uint64, l labels.Labels, t int64, v float64) (uint64, error) {
+func (a *RemoteWriteAppender) Append(_ storage.SeriesRef, l labels.Labels, t int64, v float64) (storage.SeriesRef, error) {
 	a.labels = append(a.labels, l)
 	a.samples = append(a.samples, cortexpb.Sample{
 		TimestampMs: t,
@@ -77,7 +77,7 @@ func (a *RemoteWriteAppender) Append(_ uint64, l labels.Labels, t int64, v float
 	return 0, nil
 }
 
-func (a *RemoteWriteAppender) AppendExemplar(uint64, labels.Labels, exemplar.Exemplar) (uint64, error) {
+func (a *RemoteWriteAppender) AppendExemplar(storage.SeriesRef, labels.Labels, exemplar.Exemplar) (storage.SeriesRef, error) {
 	// TODO as a tracing backend, we should definitely support this 😅
 	return 0, errors.New("exemplars are unsupported")
 }
@@ -124,7 +124,7 @@ func (a *noopAppender) Appender(_ context.Context) storage.Appender {
 	return a
 }
 
-func (a *noopAppender) Append(_ uint64, _ labels.Labels, _ int64, _ float64) (uint64, error) {
+func (a *noopAppender) Append(_ storage.SeriesRef, _ labels.Labels, _ int64, _ float64) (storage.SeriesRef, error) {
 	return 0, errors.New("not implemented")
 }
 
@@ -136,6 +136,6 @@ func (a *noopAppender) Rollback() error {
 	return nil
 }
 
-func (a *noopAppender) AppendExemplar(_ uint64, _ labels.Labels, _ exemplar.Exemplar) (uint64, error) {
+func (a *noopAppender) AppendExemplar(_ storage.SeriesRef, _ labels.Labels, _ exemplar.Exemplar) (storage.SeriesRef, error) {
 	return 0, errors.New("not implemented")
 }

@@ -14,11 +14,6 @@ import (
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv/consul"
 	"github.com/grafana/dskit/ring"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/storage/remote"
@@ -26,6 +21,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
 	"gopkg.in/yaml.v3"
+
+	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/test"
 )
 
 type metric struct {
@@ -76,10 +77,12 @@ client:
 	err = generator.starting(context.Background())
 	require.NoError(t, err, "unexpected error starting ingester")
 
-	req := test.MakeRequest(10, nil)
+	req := test.MakeBatch(10, nil)
 	ctx := user.InjectOrgID(context.Background(), util.FakeTenantID)
-	_, err = generator.PushSpans(ctx, &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req.Batch}})
+	_, err = generator.PushSpans(ctx, &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}})
 	require.NoError(t, err, "unexpected error pushing spans")
+
+	generator.collectMetrics()
 
 	select {
 	case <-doneCh:
