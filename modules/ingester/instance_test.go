@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/overrides"
@@ -37,67 +36,67 @@ func (m *ringCountMock) HealthyInstancesCount() int {
 
 func TestInstance(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
-	assert.NoError(t, err, "unexpected error creating limits")
+	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
 	tempDir, err := os.MkdirTemp("/tmp", "")
-	assert.NoError(t, err, "unexpected error getting temp dir")
+	require.NoError(t, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 
 	ingester, _, _ := defaultIngester(t, tempDir)
 	request := test.MakeRequest(10, []byte{})
 
 	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
-	assert.NoError(t, err, "unexpected error creating new instance")
-	err = i.Push(context.Background(), request)
-	assert.NoError(t, err)
-	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+	require.NoError(t, err, "unexpected error creating new instance")
+	err = i.PushBytesRequest(context.Background(), request)
+	require.NoError(t, err)
+	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 	err = i.CutCompleteTraces(0, true)
-	assert.NoError(t, err)
-	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+	require.NoError(t, err)
+	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 	blockID, err := i.CutBlockIfReady(0, 0, false)
-	assert.NoError(t, err, "unexpected error cutting block")
-	assert.NotEqual(t, blockID, uuid.Nil)
+	require.NoError(t, err, "unexpected error cutting block")
+	require.NotEqual(t, blockID, uuid.Nil)
 
 	err = i.CompleteBlock(blockID)
-	assert.NoError(t, err, "unexpected error completing block")
+	require.NoError(t, err, "unexpected error completing block")
 
 	block := i.GetBlockToBeFlushed(blockID)
 	require.NotNil(t, block)
-	assert.Len(t, i.completingBlocks, 1)
-	assert.Len(t, i.completeBlocks, 1)
+	require.Len(t, i.completingBlocks, 1)
+	require.Len(t, i.completeBlocks, 1)
 
 	err = ingester.store.WriteBlock(context.Background(), block)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = i.ClearFlushedBlocks(30 * time.Hour)
-	assert.NoError(t, err)
-	assert.Len(t, i.completeBlocks, 1)
+	require.NoError(t, err)
+	require.Len(t, i.completeBlocks, 1)
 
 	err = i.ClearFlushedBlocks(0)
-	assert.NoError(t, err)
-	assert.Len(t, i.completeBlocks, 0)
+	require.NoError(t, err)
+	require.Len(t, i.completeBlocks, 0)
 
 	err = i.resetHeadBlock()
-	assert.NoError(t, err, "unexpected error resetting block")
+	require.NoError(t, err, "unexpected error resetting block")
 
-	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 }
 
 func TestInstanceFind(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
-	assert.NoError(t, err, "unexpected error creating limits")
+	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
 	tempDir, err := os.MkdirTemp("/tmp", "")
-	assert.NoError(t, err, "unexpected error getting temp dir")
+	require.NoError(t, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 
 	ingester, _, _ := defaultIngester(t, tempDir)
 	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
-	assert.NoError(t, err, "unexpected error creating new instance")
+	require.NoError(t, err, "unexpected error creating new instance")
 
 	numTraces := 500
 	ids := [][]byte{}
@@ -113,7 +112,7 @@ func TestInstanceFind(t *testing.T) {
 
 		err = i.PushBytes(context.Background(), id, traceBytes, nil)
 		require.NoError(t, err)
-		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+		require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 		ids = append(ids, id)
 		traces = append(traces, testTrace)
@@ -123,7 +122,7 @@ func TestInstanceFind(t *testing.T) {
 
 	err = i.CutCompleteTraces(0, true)
 	require.NoError(t, err)
-	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 	for j := 0; j < numTraces; j++ {
 		traceBytes, err := traces[j].Marshal()
@@ -137,7 +136,7 @@ func TestInstanceFind(t *testing.T) {
 
 	blockID, err := i.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
-	assert.NotEqual(t, blockID, uuid.Nil)
+	require.NotEqual(t, blockID, uuid.Nil)
 
 	queryAll(t, i, ids, traces)
 
@@ -163,24 +162,24 @@ func TestInstanceFind(t *testing.T) {
 func queryAll(t *testing.T, i *instance, ids [][]byte, traces []*tempopb.Trace) {
 	for j, id := range ids {
 		trace, err := i.FindTraceByID(context.Background(), id)
-		assert.NoError(t, err)
-		assert.Equal(t, traces[j], trace)
+		require.NoError(t, err)
+		require.Equal(t, traces[j], trace)
 	}
 }
 
 func TestInstanceDoesNotRace(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
-	assert.NoError(t, err, "unexpected error creating limits")
+	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
 	tempDir, err := os.MkdirTemp("/tmp", "")
-	assert.NoError(t, err, "unexpected error getting temp dir")
+	require.NoError(t, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 
 	ingester, _, _ := defaultIngester(t, tempDir)
 
 	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
-	assert.NoError(t, err, "unexpected error creating new instance")
+	require.NoError(t, err, "unexpected error creating new instance")
 
 	end := make(chan struct{})
 
@@ -196,35 +195,35 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	}
 	go concurrent(func() {
 		request := test.MakeRequest(10, []byte{})
-		err := i.Push(context.Background(), request)
-		assert.NoError(t, err, "error pushing traces")
+		err = i.PushBytesRequest(context.Background(), request)
+		require.NoError(t, err, "error pushing traces")
 	})
 
 	go concurrent(func() {
 		err := i.CutCompleteTraces(0, true)
-		assert.NoError(t, err, "error cutting complete traces")
+		require.NoError(t, err, "error cutting complete traces")
 	})
 
 	go concurrent(func() {
 		blockID, _ := i.CutBlockIfReady(0, 0, false)
 		if blockID != uuid.Nil {
 			err := i.CompleteBlock(blockID)
-			assert.NoError(t, err, "unexpected error completing block")
+			require.NoError(t, err, "unexpected error completing block")
 			block := i.GetBlockToBeFlushed(blockID)
 			require.NotNil(t, block)
 			err = ingester.store.WriteBlock(context.Background(), block)
-			assert.NoError(t, err, "error writing block")
+			require.NoError(t, err, "error writing block")
 		}
 	})
 
 	go concurrent(func() {
 		err := i.ClearFlushedBlocks(0)
-		assert.NoError(t, err, "error clearing flushed blocks")
+		require.NoError(t, err, "error clearing flushed blocks")
 	})
 
 	go concurrent(func() {
 		_, err := i.FindTraceByID(context.Background(), []byte{0x01})
-		assert.NoError(t, err, "error finding trace by id")
+		require.NoError(t, err, "error finding trace by id")
 	})
 
 	time.Sleep(100 * time.Millisecond)
@@ -249,7 +248,7 @@ func TestInstanceLimits(t *testing.T) {
 	ingester, _, _ := defaultIngester(t, tempDir)
 
 	type push struct {
-		req          *tempopb.PushRequest
+		req          *tempopb.PushBytesRequest
 		expectsError bool
 	}
 
@@ -327,9 +326,9 @@ func TestInstanceLimits(t *testing.T) {
 			require.NoError(t, err, "unexpected error creating new instance")
 
 			for j, push := range tt.pushes {
-				err := i.Push(context.Background(), push.req)
+				err = i.PushBytesRequest(context.Background(), push.req)
 
-				assert.Equalf(t, push.expectsError, err != nil, "push %d failed: %w", j, err)
+				require.Equalf(t, push.expectsError, err != nil, "push %d failed: %w", j, err)
 			}
 		})
 	}
@@ -405,15 +404,15 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 			err := instance.CutCompleteTraces(tc.cutoff, tc.immediate)
 			require.NoError(t, err)
 
-			assert.Equal(t, len(tc.expectedExist), len(instance.traces))
+			require.Equal(t, len(tc.expectedExist), len(instance.traces))
 			for _, expectedExist := range tc.expectedExist {
 				_, ok := instance.traces[instance.tokenForTraceID(expectedExist.traceID)]
-				assert.True(t, ok)
+				require.True(t, ok)
 			}
 
 			for _, expectedNotExist := range tc.expectedNotExist {
 				_, ok := instance.traces[instance.tokenForTraceID(expectedNotExist.traceID)]
-				assert.False(t, ok)
+				require.False(t, ok)
 			}
 		})
 	}
@@ -466,7 +465,7 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 
 			for i := 0; i < tc.pushCount; i++ {
 				request := test.MakeRequest(10, []byte{})
-				err := instance.Push(context.Background(), request)
+				err := instance.PushBytesRequest(context.Background(), request)
 				require.NoError(t, err)
 			}
 
@@ -489,7 +488,7 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 
 			err = instance.CompleteBlock(blockID)
 			if tc.expectedToCutBlock {
-				assert.NoError(t, err, "unexpected error completing block")
+				require.NoError(t, err, "unexpected error completing block")
 			}
 
 			// Wait for goroutine to finish flushing to avoid test flakiness
@@ -497,24 +496,24 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 				time.Sleep(time.Millisecond * 250)
 			}
 
-			assert.Equal(t, tc.expectedToCutBlock, instance.lastBlockCut.After(lastCutTime))
+			require.Equal(t, tc.expectedToCutBlock, instance.lastBlockCut.After(lastCutTime))
 		})
 	}
 }
 
 func TestInstanceMetrics(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
-	assert.NoError(t, err, "unexpected error creating limits")
+	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
 	tempDir, err := os.MkdirTemp("/tmp", "")
-	assert.NoError(t, err, "unexpected error getting temp dir")
+	require.NoError(t, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 
 	ingester, _, _ := defaultIngester(t, tempDir)
 
 	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
-	assert.NoError(t, err, "unexpected error creating new instance")
+	require.NoError(t, err, "unexpected error creating new instance")
 
 	cutAndVerify := func(v int) {
 		err := i.CutCompleteTraces(0, true)
@@ -531,7 +530,7 @@ func TestInstanceMetrics(t *testing.T) {
 	count := 100
 	for j := 0; j < count; j++ {
 		request := test.MakeRequest(10, []byte{})
-		err := i.Push(context.Background(), request)
+		err = i.PushBytesRequest(context.Background(), request)
 		require.NoError(t, err)
 	}
 	cutAndVerify(count)
@@ -586,7 +585,7 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 
 func defaultInstance(t require.TestingT, tmpDir string) *instance {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
-	assert.NoError(t, err, "unexpected error creating limits")
+	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
 	l, err := local.NewBackend(&local.Config{
@@ -613,17 +612,17 @@ func defaultInstance(t require.TestingT, tmpDir string) *instance {
 			},
 		},
 	}, log.NewNopLogger())
-	assert.NoError(t, err, "unexpected error creating store")
+	require.NoError(t, err, "unexpected error creating store")
 
 	instance, err := newInstance(testTenantID, limiter, s, l)
-	assert.NoError(t, err, "unexpected error creating new instance")
+	require.NoError(t, err, "unexpected error creating new instance")
 
 	return instance
 }
 
 func BenchmarkInstancePush(b *testing.B) {
 	tempDir, err := os.MkdirTemp("/tmp", "")
-	assert.NoError(b, err, "unexpected error getting temp dir")
+	require.NoError(b, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 
 	instance := defaultInstance(b, tempDir)
@@ -632,15 +631,15 @@ func BenchmarkInstancePush(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Rotate trace ID
-		binary.LittleEndian.PutUint32(request.Batch.InstrumentationLibrarySpans[0].Spans[0].TraceId, uint32(i))
-		err = instance.Push(context.Background(), request)
-		assert.NoError(b, err)
+		binary.LittleEndian.PutUint32(request.Ids[0].Slice, uint32(i))
+		err = instance.PushBytesRequest(context.Background(), request)
+		require.NoError(b, err)
 	}
 }
 
 func BenchmarkInstancePushExistingTrace(b *testing.B) {
 	tempDir, err := os.MkdirTemp("/tmp", "")
-	assert.NoError(b, err, "unexpected error getting temp dir")
+	require.NoError(b, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 
 	instance := defaultInstance(b, tempDir)
@@ -648,26 +647,26 @@ func BenchmarkInstancePushExistingTrace(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err = instance.Push(context.Background(), request)
-		assert.NoError(b, err)
+		err = instance.PushBytesRequest(context.Background(), request)
+		require.NoError(b, err)
 	}
 }
 
 func BenchmarkInstanceFindTraceByID(b *testing.B) {
 	tempDir, err := os.MkdirTemp("/tmp", "")
-	assert.NoError(b, err, "unexpected error getting temp dir")
+	require.NoError(b, err, "unexpected error getting temp dir")
 	defer os.RemoveAll(tempDir)
 
 	instance := defaultInstance(b, tempDir)
 	traceID := []byte{1, 2, 3, 4, 5, 6, 7, 8}
 	request := test.MakeRequest(10, traceID)
-	err = instance.Push(context.Background(), request)
-	assert.NoError(b, err)
+	err = instance.PushBytesRequest(context.Background(), request)
+	require.NoError(b, err)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		trace, err := instance.FindTraceByID(context.Background(), traceID)
-		assert.NotNil(b, trace)
-		assert.NoError(b, err)
+		require.NotNil(b, trace)
+		require.NoError(b, err)
 	}
 }

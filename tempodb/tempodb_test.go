@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -77,12 +78,12 @@ func TestDB(t *testing.T) {
 
 	// write
 	numMsgs := 10
-	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
+	reqs := make([]*v1.ResourceSpans, 0, numMsgs)
 	ids := make([][]byte, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
 		id := make([]byte, 16)
 		rand.Read(id)
-		req := test.MakeRequest(rand.Int()%1000, id)
+		req := test.MakeBatch(rand.Int()%1000, id)
 		reqs = append(reqs, req)
 		ids = append(ids, id)
 
@@ -105,7 +106,7 @@ func TestDB(t *testing.T) {
 		assert.Nil(t, failedBlocks)
 		assert.Equal(t, []string{testDataEncoding}, actualDataEncoding)
 
-		out := &tempopb.PushRequest{}
+		out := &v1.ResourceSpans{}
 		err = proto.Unmarshal(bFound[0], out)
 		assert.NoError(t, err)
 
@@ -132,7 +133,7 @@ func TestBlockSharding(t *testing.T) {
 	// add a trace to the block
 	id := make([]byte, 16)
 	rand.Read(id)
-	req := test.MakeRequest(rand.Int()%1000, id)
+	req := test.MakeTrace(rand.Int()%1000, id)
 
 	bReq, err := proto.Marshal(req)
 	assert.NoError(t, err)
@@ -158,7 +159,7 @@ func TestBlockSharding(t *testing.T) {
 	assert.Nil(t, failedBlocks)
 	assert.Greater(t, len(bFound), 0)
 
-	out := &tempopb.PushRequest{}
+	out := &tempopb.Trace{}
 	err = proto.Unmarshal(bFound[0], out)
 	assert.NoError(t, err)
 	assert.True(t, proto.Equal(out, req))
@@ -492,12 +493,12 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	// write
 	numMsgs := 10
-	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
+	reqs := make([]*tempopb.Trace, 0, numMsgs)
 	ids := make([][]byte, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
 		id := make([]byte, 16)
 		rand.Read(id)
-		req := test.MakeRequest(rand.Int()%1000, id)
+		req := test.MakeTrace(rand.Int()%1000, id)
 		reqs = append(reqs, req)
 		ids = append(ids, id)
 
@@ -523,7 +524,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Nil(t, failedBlocks)
 
-		out := &tempopb.PushRequest{}
+		out := &tempopb.Trace{}
 		err = proto.Unmarshal(bFound[0], out)
 		assert.NoError(t, err)
 
@@ -552,7 +553,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Nil(t, failedBlocks)
 
-		out := &tempopb.PushRequest{}
+		out := &tempopb.Trace{}
 		err = proto.Unmarshal(bFound[0], out)
 		assert.NoError(t, err)
 
@@ -572,12 +573,12 @@ func TestCompleteBlock(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating block")
 
 	numMsgs := 100
-	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
+	reqs := make([]*tempopb.Trace, 0, numMsgs)
 	ids := make([][]byte, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
 		id := make([]byte, 16)
 		rand.Read(id)
-		req := test.MakeRequest(rand.Int()%1000, id)
+		req := test.MakeTrace(rand.Int()%1000, id)
 		reqs = append(reqs, req)
 		ids = append(ids, id)
 		bReq, err := proto.Marshal(req)
@@ -590,7 +591,7 @@ func TestCompleteBlock(t *testing.T) {
 	require.NoError(t, err, "unexpected error completing block")
 
 	for i, id := range ids {
-		out := &tempopb.PushRequest{}
+		out := &tempopb.Trace{}
 		foundBytes, err := complete.Find(context.TODO(), id)
 		assert.NoError(t, err)
 

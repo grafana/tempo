@@ -10,3 +10,4 @@
 /example/docker-compose/**/gcs-data/
 .DS_Store
 /tempodb/encoding/benchmark_block
+/cmd/tempo-serverless/vendor/

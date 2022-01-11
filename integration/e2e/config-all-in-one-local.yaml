@@ -13,6 +13,11 @@ distributor:
     jaeger:
       protocols:
         grpc:
+    otlp:
+      protocols:
+        grpc:
+    zipkin:
+  log_received_traces: true
 
 ingester:
   lifecycler:
