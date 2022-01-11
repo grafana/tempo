@@ -28,7 +28,7 @@ const (
 )
 
 type processor struct {
-	namespace, tenant string
+	namespace string
 
 	// TODO: possibly split mutex into two: one for the metrics and one for the cache.
 	//  cache's mutex should be RWMutex.
@@ -43,10 +43,9 @@ type processor struct {
 	cache               map[string]labels.Labels
 }
 
-func New(tenant string, appendable storage.Appendable) gen.Processor {
+func New() gen.Processor {
 	return &processor{
 		namespace:           "tempo",
-		tenant:              tenant,
 		calls:               make(map[string]float64),
 		latencyCount:        make(map[string]float64),
 		latencySum:          make(map[string]float64),
@@ -193,7 +192,6 @@ func (p *processor) getLabels(key, metricName string) labels.Labels {
 	lbls := p.cache[key]
 
 	lbls = append(lbls, labels.Label{Name: "__name__", Value: fmt.Sprintf("%s_%s", p.namespace, metricName)})
-	lbls = append(lbls, labels.Label{Name: "tenant", Value: p.tenant})
 
 	return lbls
 }
