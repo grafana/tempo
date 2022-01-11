@@ -20,6 +20,8 @@ data:
         http_listen_port: 3200
     storage:
         trace:
+            azure:
+                container-name: tempo
             backend: gcs
             blocklist_poll: "0"
             cache: memcached
