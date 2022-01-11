@@ -399,10 +399,10 @@ func TestBuildSearchRequest(t *testing.T) {
 				},
 				Start:         10,
 				End:           20,
-				MinDurationMs: 30,
+				MaxDurationMs: 30,
 				Limit:         50,
 			},
-			query: "?end=20&limit=50&minDuration=30ms&start=10&tags=foo%3Dbar",
+			query: "?end=20&limit=50&maxDuration=30ms&start=10&tags=foo%3Dbar",
 		},
 		{
 			req: &tempopb.SearchRequest{
