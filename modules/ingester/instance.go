@@ -22,8 +22,8 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -33,6 +33,25 @@ import (
 	"github.com/grafana/tempo/tempodb/search"
 	"github.com/grafana/tempo/tempodb/wal"
 )
+
+type traceTooLargeError struct {
+	traceID           common.ID
+	maxBytes, reqSize int
+}
+
+func newTraceTooLargeError(traceID common.ID, maxBytes, reqSize int) *traceTooLargeError {
+	return &traceTooLargeError{
+		traceID:  traceID,
+		maxBytes: maxBytes,
+		reqSize:  reqSize,
+	}
+}
+
+func (e traceTooLargeError) Error() string {
+	return fmt.Sprintf(
+		"%s max size of trace (%d) exceeded while adding %d bytes to trace %s",
+		overrides.ErrorPrefixTraceTooLarge, e.maxBytes, e.reqSize, hex.EncodeToString(e.traceID))
+}
 
 // Errors returned on Query.
 var (
@@ -68,9 +87,10 @@ var (
 )
 
 type instance struct {
-	tracesMtx  sync.Mutex
-	traces     map[uint32]*trace
-	traceCount atomic.Int32
+	tracesMtx   sync.Mutex
+	traces      map[uint32]*liveTrace
+	largeTraces map[uint32]int // maxBytes that trace exceeded
+	traceCount  atomic.Int32
 
 	blocksMtx        sync.RWMutex
 	headBlock        *wal.AppendBlock
@@ -108,7 +128,8 @@ type searchLocalBlockEntry struct {
 
 func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
 	i := &instance{
-		traces:               map[uint32]*trace{},
+		traces:               map[uint32]*liveTrace{},
+		largeTraces:          map[uint32]int{},
 		searchAppendBlocks:   map[*wal.AppendBlock]*searchStreamingBlockEntry{},
 		searchCompleteBlocks: map[*wal.LocalBlock]*searchLocalBlockEntry{},
 
@@ -131,38 +152,21 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 	return i, nil
 }
 
-// Push is used to push an entire tempopb.PushRequest. It is depecrecated and only required
-// for older protocols.
-func (i *instance) Push(ctx context.Context, req *tempopb.PushRequest) error {
-	// check for max traces before grabbing the lock to better load shed
-	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, int(i.traceCount.Load()))
-	if err != nil {
-		return status.Errorf(codes.FailedPrecondition, "%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, i.instanceID, err)
+func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) error {
+	for j := range req.Traces {
+
+		// Search data is optional.
+		var searchData []byte
+		if len(req.SearchData) > j && len(req.SearchData[j].Slice) > 0 {
+			searchData = req.SearchData[j].Slice
+		}
+
+		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice, searchData)
+		if err != nil {
+			return err
+		}
 	}
-
-	i.tracesMtx.Lock()
-	defer i.tracesMtx.Unlock()
-
-	id, err := pushRequestTraceID(req)
-	if err != nil {
-		return err
-	}
-
-	t := &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{req.Batch},
-	}
-
-	// traceBytes eventually end up back into the bytepool
-	// allocating like this prevents panics by only putting slices into the bytepool
-	// that were retrieved from there
-	buffer := tempopb.SliceFromBytePool(t.Size())
-	_, err = t.MarshalToSizedBuffer(buffer)
-	if err != nil {
-		return err
-	}
-
-	trace := i.getOrCreateTrace(id)
-	return trace.Push(ctx, i.instanceID, buffer, nil)
+	return nil
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
@@ -179,11 +183,29 @@ func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, 
 		return status.Errorf(codes.FailedPrecondition, "%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, i.instanceID, err)
 	}
 
+	return i.push(ctx, id, traceBytes, searchData)
+}
+
+func (i *instance) push(ctx context.Context, id, traceBytes, searchData []byte) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
+	tkn := i.tokenForTraceID(id)
+
+	if maxBytes, ok := i.largeTraces[tkn]; ok {
+		return status.Errorf(codes.FailedPrecondition, (newTraceTooLargeError(id, maxBytes, len(traceBytes)).Error()))
+	}
+
 	trace := i.getOrCreateTrace(id)
-	return trace.Push(ctx, i.instanceID, traceBytes, searchData)
+	err := trace.Push(ctx, i.instanceID, traceBytes, searchData)
+	if err != nil {
+		if e, ok := err.(*traceTooLargeError); ok {
+			i.largeTraces[tkn] = trace.maxBytes
+			return status.Errorf(codes.FailedPrecondition, e.Error())
+		}
+	}
+
+	return err
 }
 
 func (i *instance) measureReceivedBytes(traceBytes []byte, searchData []byte) {
@@ -199,7 +221,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	tracesToCut := i.tracesToCut(cutoff, immediate)
 
 	for _, t := range tracesToCut {
-		model.SortTraceBytes(t.traceBytes)
+		trace.SortTraceBytes(t.traceBytes)
 
 		out, err := proto.Marshal(t.traceBytes)
 		if err != nil {
@@ -379,15 +401,20 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 
 func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace, error) {
 	var err error
-	var allBytes []byte
+	var completeTrace *tempopb.Trace
 
 	// live traces
 	i.tracesMtx.Lock()
 	if liveTrace, ok := i.traces[i.tokenForTraceID(id)]; ok {
-		allBytes, err = proto.Marshal(liveTrace.traceBytes)
+		allBytes, err := proto.Marshal(liveTrace.traceBytes)
 		if err != nil {
 			i.tracesMtx.Unlock()
 			return nil, fmt.Errorf("unable to marshal liveTrace: %w", err)
+		}
+		completeTrace, err = model.MustNewDecoder(model.CurrentEncoding).PrepareForRead(allBytes)
+		if err != nil {
+			i.tracesMtx.Unlock()
+			return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)
 		}
 	}
 	i.tracesMtx.Unlock()
@@ -400,9 +427,9 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	if err != nil {
 		return nil, fmt.Errorf("headBlock.Find failed: %w", err)
 	}
-	allBytes, _, err = model.CombineTraceBytes(allBytes, foundBytes, model.CurrentEncoding, i.headBlock.Meta().DataEncoding)
+	completeTrace, err = model.CombineForRead(foundBytes, i.headBlock.Meta().DataEncoding, completeTrace)
 	if err != nil {
-		return nil, fmt.Errorf("post headBlock combine failed: %w", err)
+		return nil, fmt.Errorf("headblock unmarshal failed in FindTraceByID")
 	}
 
 	// completingBlock
@@ -411,9 +438,9 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 		if err != nil {
 			return nil, fmt.Errorf("completingBlock.Find failed: %w", err)
 		}
-		allBytes, _, err = model.CombineTraceBytes(allBytes, foundBytes, model.CurrentEncoding, c.Meta().DataEncoding)
+		completeTrace, err = model.CombineForRead(foundBytes, c.Meta().DataEncoding, completeTrace)
 		if err != nil {
-			return nil, fmt.Errorf("post completingBlocks combine failed: %w", err)
+			return nil, fmt.Errorf("completingBlocks combine failed in FindTraceByID")
 		}
 	}
 
@@ -423,23 +450,13 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.Find failed: %w", err)
 		}
-		allBytes, _, err = model.CombineTraceBytes(allBytes, foundBytes, model.CurrentEncoding, c.BlockMeta().DataEncoding)
+		completeTrace, err = model.CombineForRead(foundBytes, c.BlockMeta().DataEncoding, completeTrace)
 		if err != nil {
-			return nil, fmt.Errorf("post completeBlocks combine failed: %w", err)
+			return nil, fmt.Errorf("completeBlock combine failed in FindTraceByID")
 		}
 	}
 
-	// now marshal it all
-	if allBytes != nil {
-		out, err := model.Unmarshal(allBytes, model.CurrentEncoding)
-		if err != nil {
-			return nil, err
-		}
-
-		return out, nil
-	}
-
-	return nil, nil
+	return completeTrace, nil
 }
 
 // AddCompletingBlock adds an AppendBlock directly to the slice of completing blocks.
@@ -460,7 +477,7 @@ func (i *instance) AddCompletingBlock(b *wal.AppendBlock, s *search.StreamingSea
 
 // getOrCreateTrace will return a new trace object for the given request
 //  It must be called under the i.tracesMtx lock
-func (i *instance) getOrCreateTrace(traceID []byte) *trace {
+func (i *instance) getOrCreateTrace(traceID []byte) *liveTrace {
 	fp := i.tokenForTraceID(traceID)
 	trace, ok := i.traces[fp]
 	if ok {
@@ -486,6 +503,12 @@ func (i *instance) tokenForTraceID(id []byte) uint32 {
 
 // resetHeadBlock() should be called under lock
 func (i *instance) resetHeadBlock() error {
+
+	// Clear large traces when cutting block
+	i.tracesMtx.Lock()
+	i.largeTraces = map[uint32]int{}
+	i.tracesMtx.Unlock()
+
 	oldHeadBlock := i.headBlock
 	var err error
 	newHeadBlock, err := i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding)
@@ -515,7 +538,7 @@ func (i *instance) resetHeadBlock() error {
 	return nil
 }
 
-func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
+func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*liveTrace {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
@@ -523,7 +546,7 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*trace {
 	metricLiveTraces.WithLabelValues(i.instanceID).Set(float64(len(i.traces)))
 
 	cutoffTime := time.Now().Add(cutoff)
-	tracesToCut := make([]*trace, 0, len(i.traces))
+	tracesToCut := make([]*liveTrace, 0, len(i.traces))
 
 	for key, trace := range i.traces {
 		if cutoffTime.After(trace.lastAppend) || immediate {
@@ -557,24 +580,6 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]
 	}
 
 	return nil
-}
-
-// pushRequestTraceID gets the TraceID of the first span in the batch and assumes its the trace ID throughout
-//  this assumption should hold b/c the distributors make sure each batch all belong to the same trace
-func pushRequestTraceID(req *tempopb.PushRequest) ([]byte, error) {
-	if req == nil || req.Batch == nil {
-		return nil, errors.New("req or req.Batch nil")
-	}
-
-	if len(req.Batch.InstrumentationLibrarySpans) == 0 {
-		return nil, errors.New("InstrumentationLibrarySpans has length 0")
-	}
-
-	if len(req.Batch.InstrumentationLibrarySpans[0].Spans) == 0 {
-		return nil, errors.New("Spans has length 0")
-	}
-
-	return req.Batch.InstrumentationLibrarySpans[0].Spans[0].TraceId, nil
 }
 
 func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*wal.LocalBlock, error) {

@@ -15,7 +15,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/golang/protobuf/proto"
 	"github.com/grafana/tempo/modules/querier"
-	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
 	"github.com/weaveworks/common/user"
@@ -139,7 +139,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			// happy path
 			statusCode = http.StatusOK
-			overallTrace, _, _, _ = model.CombineTraceProtos(overallTrace, traceResp.Trace)
+			overallTrace, _ = trace.CombineTraceProtos(overallTrace, traceResp.Trace)
 		}(req)
 	}
 	wg.Wait()

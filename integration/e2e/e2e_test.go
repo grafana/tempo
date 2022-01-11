@@ -13,7 +13,7 @@ import (
 	cortex_e2e_db "github.com/cortexproject/cortex/integration/e2e/db"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -22,7 +22,7 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/app"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
-	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
@@ -126,7 +126,7 @@ func TestAllInOne(t *testing.T) {
 
 			// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 			now := time.Now()
-			searchAndAssertTraceBackend(t, apiClient, info, int(now.Add(-20*time.Minute).Unix()), int(now.Unix()))
+			searchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 		})
 	}
 }
@@ -240,7 +240,7 @@ func TestMicroservices(t *testing.T) {
 
 	// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 	now := time.Now()
-	searchAndAssertTraceBackend(t, apiClient, info, int(now.Add(-20*time.Minute).Unix()), int(now.Unix()))
+	searchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 
 	// stop another ingester and confirm things fail
 	err = tempoIngester1.Kill()
@@ -436,7 +436,7 @@ func searchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUti
 
 // by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
 // to look in the backend blocks
-func searchAndAssertTraceBackend(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo, start int, end int) {
+func searchAndAssertTraceBackend(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo, start int64, end int64) {
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
@@ -475,8 +475,8 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 }
 
 func equalTraces(a, b *tempopb.Trace) bool {
-	model.SortTrace(a)
-	model.SortTrace(b)
+	trace.SortTrace(a)
+	trace.SortTrace(b)
 
 	return reflect.DeepEqual(a, b)
 }

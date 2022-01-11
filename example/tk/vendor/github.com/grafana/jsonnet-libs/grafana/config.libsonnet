@@ -1,6 +1,6 @@
 {
   _images+:: {
-    grafana: 'grafana/grafana:7.4.0',
+    grafana: 'grafana/grafana:8.2.5',
   },
 
   _config+:: {
@@ -27,8 +27,8 @@
         users: {
           default_theme: 'light',
         },
-        feature_toggle: {
-          enable: 'http_request_histogram, database_metrics',
+        'log.frontend': {
+          enabled: true,
         },
       },
     },

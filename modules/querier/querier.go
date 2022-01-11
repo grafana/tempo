@@ -5,9 +5,11 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"sort"
 	"sync"
+	"time"
 
 	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
 	"github.com/cortexproject/cortex/pkg/util/log"
@@ -22,6 +24,7 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
@@ -44,6 +47,12 @@ var (
 		Name:      "querier_ingester_clients",
 		Help:      "The current number of ingester clients.",
 	})
+	metricEndpointDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Name:      "querier_external_endpoint_duration_seconds",
+		Help:      "The duration of the external endpoints.",
+		Buckets:   prometheus.DefBuckets,
+	}, []string{"endpoint"})
 )
 
 // Querier handlers queries.
@@ -175,9 +184,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		}
 
 		for _, r := range responses {
-			trace := r.response.(*tempopb.TraceByIDResponse).Trace
-			if trace != nil {
-				completeTrace, _, _, spanCount = model.CombineTraceProtos(completeTrace, trace)
+			t := r.response.(*tempopb.TraceByIDResponse).Trace
+			if t != nil {
+				completeTrace, spanCount = trace.CombineTraceProtos(completeTrace, t)
 				spanCountTotal += spanCount
 				traceCountTotal++
 			}
@@ -206,24 +215,16 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		if len(partialTraces) != 0 {
 			traceCountTotal = 0
 			spanCountTotal = 0
-			// combine partialTraces
-			var allBytes []byte
-			baseEncoding := dataEncodings[0] // just arbitrarily choose an encoding. generally they will all be the same
+			var storeTrace *tempopb.Trace
+
 			for i, partialTrace := range partialTraces {
-				dataEncoding := dataEncodings[i]
-				allBytes, _, err = model.CombineTraceBytes(allBytes, partialTrace, baseEncoding, dataEncoding)
+				storeTrace, err = model.CombineForRead(partialTrace, dataEncodings[i], storeTrace)
 				if err != nil {
-					return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
+					return nil, errors.Wrap(err, "error combining in Querier.FindTraceByID")
 				}
 			}
 
-			// marshal to proto and add to completeTrace
-			storeTrace, err := model.Unmarshal(allBytes, baseEncoding)
-			if err != nil {
-				return nil, errors.Wrap(err, "error unmarshaling combined trace in Querier.FindTraceByID")
-			}
-
-			completeTrace, _, _, spanCount = model.CombineTraceProtos(completeTrace, storeTrace)
+			completeTrace, spanCount = trace.CombineTraceProtos(completeTrace, storeTrace)
 			spanCountTotal += spanCount
 			traceCountTotal++
 
@@ -391,9 +392,9 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	// todo: if the querier is not currently doing anything it should prefer handling the request itself to
 	//  offloading to the external endpoint
-	// check if we should offload this it to another endpoint
-	if q.cfg.SearchExternalEndpont != "" {
-		return searchExternalEndpoint(ctx, q.cfg.SearchExternalEndpont, req)
+	if len(q.cfg.SearchExternalEndpoints) != 0 {
+		endpoint := q.cfg.SearchExternalEndpoints[rand.Intn(len(q.cfg.SearchExternalEndpoints))]
+		return searchExternalEndpoint(ctx, endpoint, req)
 	}
 
 	tenantID, err := user.ExtractOrgID(ctx)
@@ -427,13 +428,18 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
+	decoder, err := model.NewDecoder(req.DataEncoding)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create NewDecoder: %w", err)
+	}
+
 	err = q.store.IterateObjects(ctx, meta, int(req.StartPage), int(req.PagesToSearch), func(id common.ID, obj []byte) bool {
 		respMtx.Lock()
 		resp.Metrics.InspectedTraces++
 		resp.Metrics.InspectedBytes += uint64(len(obj))
 		respMtx.Unlock()
 
-		metadata, err := model.Matches(id, obj, req.DataEncoding, req.SearchReq)
+		metadata, err := decoder.Matches(id, obj, req.SearchReq)
 
 		respMtx.Lock()
 		defer respMtx.Unlock()
@@ -483,7 +489,7 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 
 	for _, t := range traces {
 		if t.RootServiceName == "" {
-			t.RootServiceName = model.RootSpanNotYetReceivedText
+			t.RootServiceName = trace.RootSpanNotYetReceivedText
 		}
 		response.Traces = append(response.Traces, t)
 	}
@@ -512,7 +518,9 @@ func searchExternalEndpoint(ctx context.Context, externalEndpoint string, search
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to inject tenant id: %w", err)
 	}
+	start := time.Now()
 	resp, err := http.DefaultClient.Do(req)
+	metricEndpointDuration.WithLabelValues(externalEndpoint).Observe(time.Since(start).Seconds())
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to call http: %s, %w", externalEndpoint, err)
 	}

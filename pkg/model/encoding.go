@@ -3,75 +3,54 @@ package model
 import (
 	"fmt"
 
+	v1 "github.com/grafana/tempo/pkg/model/v1"
 	"github.com/grafana/tempo/pkg/tempopb"
-
-	"github.com/gogo/protobuf/proto"
 )
 
 // CurrentEncoding is a string representing the encoding that all new blocks should be created with
 //   "" = tempopb.Trace
 //   "v1" = tempopb.TraceBytes
-const CurrentEncoding = "v1"
-
-// TracePBEncoding is a string that represents the original TracePBEncoding. Pass this if you know that the
-// bytes are encoded *tracepb.Trace
-const TracePBEncoding = ""
+const CurrentEncoding = v1.Encoding
 
 // allEncodings is used for testing
 var allEncodings = []string{
-	CurrentEncoding,
-	TracePBEncoding,
+	v1.Encoding,
 }
 
-// Unmarshal converts a byte slice of the passed encoding into a *tempopb.Trace
-func Unmarshal(obj []byte, dataEncoding string) (*tempopb.Trace, error) {
-	trace := &tempopb.Trace{}
-
-	switch dataEncoding {
-	case "":
-		err := proto.Unmarshal(obj, trace)
-		if err != nil {
-			return nil, err
-		}
-	case "v1":
-		traceBytes := &tempopb.TraceBytes{}
-		err := proto.Unmarshal(obj, traceBytes)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, bytes := range traceBytes.Traces {
-			innerTrace := &tempopb.Trace{}
-			err = proto.Unmarshal(bytes, innerTrace)
-			if err != nil {
-				return nil, err
-			}
-
-			trace.Batches = append(trace.Batches, innerTrace.Batches...)
-		}
-	default:
-		return nil, fmt.Errorf("unrecognized dataEncoding in Unmarshal %s", dataEncoding)
-	}
-
-	return trace, nil
+// Decoder is used to work with opaque byte slices that contain trace data
+type Decoder interface {
+	// PrepareForRead converts the byte slice into a tempopb.Trace for reading. This can be very expensive
+	//  and should only be used when surfacing a byte slice from tempodb and preparing it for reads.
+	PrepareForRead(obj []byte) (*tempopb.Trace, error)
+	// Matches tests the passed byte slice and id to determine if it matches the criteria in tempopb.SearchRequest
+	Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error)
+	// Combine combines the passed byte slice
+	Combine(objs ...[]byte) ([]byte, error)
 }
 
-// marshal converts a tempopb.Trace into a byte slice encoded using dataEncoding
-func marshal(trace *tempopb.Trace, dataEncoding string) ([]byte, error) {
+// encoderDecoder is an internal interface to assist with testing in this package
+type encoderDecoder interface {
+	Decoder
+	Marshal(t *tempopb.Trace) ([]byte, error)
+}
+
+// NewDecoder returns a Decoder given the passed string.
+func NewDecoder(dataEncoding string) (Decoder, error) {
 	switch dataEncoding {
-	case "":
-		return proto.Marshal(trace)
-	case "v1":
-		traceBytes := &tempopb.TraceBytes{}
-		bytes, err := proto.Marshal(trace)
-		if err != nil {
-			return nil, err
-		}
-
-		traceBytes.Traces = append(traceBytes.Traces, bytes)
-
-		return proto.Marshal(traceBytes)
-	default:
-		return nil, fmt.Errorf("unrecognized dataEncoding in Unmarshal %s", dataEncoding)
+	case v1.Encoding:
+		return v1.NewDecoder(), nil
 	}
+
+	return nil, fmt.Errorf("unknown encoding %s. Supported encodings %v", dataEncoding, allEncodings)
+}
+
+// MustNewDecoder creates a new encoding or it panics
+func MustNewDecoder(dataEncoding string) Decoder {
+	decoder, err := NewDecoder(dataEncoding)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return decoder
 }

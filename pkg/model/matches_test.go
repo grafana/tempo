@@ -36,6 +36,18 @@ func TestMatches(t *testing.T) {
 										Key:   "foo",
 										Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "barricus"}},
 									},
+									{
+										Key:   "intfoo",
+										Value: &v1common.AnyValue{Value: &v1common.AnyValue_IntValue{IntValue: 42}},
+									},
+									{
+										Key:   "floatfoo",
+										Value: &v1common.AnyValue{Value: &v1common.AnyValue_DoubleValue{DoubleValue: 42.42}},
+									},
+									{
+										Key:   "boolfoo",
+										Value: &v1common.AnyValue{Value: &v1common.AnyValue_BoolValue{BoolValue: true}},
+									},
 								},
 							},
 						},
@@ -155,7 +167,7 @@ func TestMatches(t *testing.T) {
 			expected: testMetadata,
 		},
 		{
-			name:  "tag excludes",
+			name:  "string tag excludes",
 			trace: testTrace,
 			req: &tempopb.SearchRequest{
 				Start:         12,
@@ -167,7 +179,7 @@ func TestMatches(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name:  "tag includes",
+			name:  "string tag includes",
 			trace: testTrace,
 			req: &tempopb.SearchRequest{
 				Start:         12,
@@ -178,25 +190,100 @@ func TestMatches(t *testing.T) {
 			},
 			expected: testMetadata,
 		},
+		{
+			name:  "int tag excludes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start:         12,
+				End:           15,
+				MaxDurationMs: 1,
+				MinDurationMs: 10000,
+				Tags:          map[string]string{"intfoo": "blerg"},
+			},
+			expected: nil,
+		},
+		{
+			name:  "int tag includes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start:         12,
+				End:           15,
+				MaxDurationMs: 10000,
+				MinDurationMs: 5000,
+				Tags:          map[string]string{"intfoo": "42"},
+			},
+			expected: testMetadata,
+		},
+		{
+			name:  "float tag excludes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start:         12,
+				End:           15,
+				MaxDurationMs: 1,
+				MinDurationMs: 10000,
+				Tags:          map[string]string{"floatfoo": "42.4323"},
+			},
+			expected: nil,
+		},
+		{
+			name:  "float tag includes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start:         12,
+				End:           15,
+				MaxDurationMs: 10000,
+				MinDurationMs: 5000,
+				Tags:          map[string]string{"floatfoo": "42.42"},
+			},
+			expected: testMetadata,
+		},
+		{
+			name:  "bool tag excludes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start:         12,
+				End:           15,
+				MaxDurationMs: 1,
+				MinDurationMs: 10000,
+				Tags:          map[string]string{"boolfoo": "False"},
+			},
+			expected: nil,
+		},
+		{
+			name:  "bool tag includes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start:         12,
+				End:           15,
+				MaxDurationMs: 10000,
+				MinDurationMs: 5000,
+				Tags:          map[string]string{"boolfoo": "true"},
+			},
+			expected: testMetadata,
+		},
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			obj, err := marshal(tc.trace, CurrentEncoding)
-			require.NoError(t, err)
+		for _, e := range allEncodings {
+			t.Run(tc.name+":"+e, func(t *testing.T) {
+				d := MustNewDecoder(e)
 
-			actual, err := Matches([]byte{0x01}, obj, CurrentEncoding, tc.req)
-			require.NoError(t, err)
+				obj, err := d.(encoderDecoder).Marshal(tc.trace)
+				require.NoError(t, err)
 
-			assert.Equal(t, tc.expected, actual)
-		})
+				actual, err := d.Matches([]byte{0x01}, obj, tc.req)
+				require.NoError(t, err)
+
+				assert.Equal(t, tc.expected, actual)
+			})
+		}
 	}
 }
 
 func TestMatchesFails(t *testing.T) {
-	_, err := Matches([]byte{0x01}, []byte{0x02, 0x03}, "blerg", nil)
-	assert.Error(t, err)
-
-	_, err = Matches([]byte{0x01}, []byte{0x02, 0x03}, CurrentEncoding, nil)
-	assert.Error(t, err)
+	for _, e := range allEncodings {
+		_, err := MustNewDecoder(e).Matches([]byte{0x01}, []byte{0x02, 0x03}, nil)
+		assert.Error(t, err)
+	}
 }

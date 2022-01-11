@@ -8,8 +8,8 @@ linters:
     - typecheck
     - goimports
     - misspell
+    - revive
     - govet
-    - golint
     - ineffassign
     - gosimple
     - deadcode

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/model"
+	v1 "github.com/grafana/tempo/pkg/model/v1"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -92,7 +93,7 @@ func TestCompaction(t *testing.T) {
 	blockCount := 4
 	recordCount := 100
 
-	allReqs := make([]*tempopb.PushRequest, 0, blockCount*recordCount)
+	allReqs := make([]*tempopb.Trace, 0, blockCount*recordCount)
 	allIds := make([][]byte, 0, blockCount*recordCount)
 
 	for i := 0; i < blockCount; i++ {
@@ -100,14 +101,14 @@ func TestCompaction(t *testing.T) {
 		head, err := wal.NewBlock(blockID, testTenantID, "")
 		require.NoError(t, err)
 
-		reqs := make([]*tempopb.PushRequest, 0, recordCount)
+		reqs := make([]*tempopb.Trace, 0, recordCount)
 		ids := make([][]byte, 0, recordCount)
 		for j := 0; j < recordCount; j++ {
 			id := make([]byte, 16)
 			_, err = rand.Read(id)
 			require.NoError(t, err, "unexpected creating random id")
 
-			req := test.MakeRequest(10, id)
+			req := test.MakeTrace(10, id)
 			reqs = append(reqs, req)
 			ids = append(ids, id)
 
@@ -172,7 +173,7 @@ func TestCompaction(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Nil(t, failedBlocks)
 
-		out := &tempopb.PushRequest{}
+		out := &tempopb.Trace{}
 		err = proto.Unmarshal(b[0], out)
 		assert.NoError(t, err)
 
@@ -237,7 +238,7 @@ func TestSameIDCompaction(t *testing.T) {
 
 		reqs := make([][]byte, 0, requestShards)
 		for j := 0; j < requestShards; j++ {
-			buff, err := proto.Marshal(test.MakeRequest(1, id))
+			buff, err := proto.Marshal(test.MakeTrace(1, id))
 			require.NoError(t, err)
 			reqs = append(reqs, buff)
 		}
@@ -249,7 +250,7 @@ func TestSameIDCompaction(t *testing.T) {
 	// and write them to different blocks
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
-		head, err := wal.NewBlock(blockID, testTenantID, model.TracePBEncoding)
+		head, err := wal.NewBlock(blockID, testTenantID, v1.Encoding)
 		require.NoError(t, err)
 
 		for j := 0; j < recordCount; j++ {
@@ -292,10 +293,10 @@ func TestSameIDCompaction(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Nil(t, failedBlocks)
 
-		actualBytes, _, err := model.ObjectCombiner.Combine(model.TracePBEncoding, b...)
+		actualBytes, _, err := model.ObjectCombiner.Combine(v1.Encoding, b...)
 		require.NoError(t, err)
 
-		expectedBytes, _, err := model.ObjectCombiner.Combine(model.TracePBEncoding, allReqs[i]...)
+		expectedBytes, _, err := model.ObjectCombiner.Combine(v1.Encoding, allReqs[i]...)
 		require.NoError(t, err)
 
 		assert.Equal(t, expectedBytes, actualBytes)

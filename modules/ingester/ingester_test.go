@@ -13,13 +13,12 @@ import (
 	"github.com/grafana/dskit/kv/consul"
 	"github.com/grafana/dskit/ring"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -33,7 +32,7 @@ import (
 
 func TestPushQuery(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("/tmp", "")
-	assert.NoError(t, err, "unexpected error getting tempdir")
+	require.NoError(t, err, "unexpected error getting tempdir")
 	defer os.RemoveAll(tmpDir)
 
 	ctx := user.InjectOrgID(context.Background(), "test")
@@ -43,14 +42,14 @@ func TestPushQuery(t *testing.T) {
 		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 			TraceID: traceID,
 		})
-		assert.NoError(t, err, "unexpected error querying")
-		assert.Equal(t, foundTrace.Trace, traces[pos])
+		require.NoError(t, err, "unexpected error querying")
+		require.Equal(t, foundTrace.Trace, traces[pos])
 	}
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
 		err = instance.CutCompleteTraces(0, true)
-		assert.NoError(t, err, "unexpected error cutting traces")
+		require.NoError(t, err, "unexpected error cutting traces")
 	}
 
 	// should be able to find them now
@@ -58,15 +57,15 @@ func TestPushQuery(t *testing.T) {
 		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 			TraceID: traceID,
 		})
-		assert.NoError(t, err, "unexpected error querying")
+		require.NoError(t, err, "unexpected error querying")
 		equal := proto.Equal(traces[i], foundTrace.Trace)
-		assert.True(t, equal)
+		require.True(t, equal)
 	}
 }
 
 func TestFullTraceReturned(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("/tmp", "")
-	assert.NoError(t, err, "unexpected error getting tempdir")
+	require.NoError(t, err, "unexpected error getting tempdir")
 	defer os.RemoveAll(tmpDir)
 
 	ctx := user.InjectOrgID(context.Background(), "test")
@@ -74,88 +73,41 @@ func TestFullTraceReturned(t *testing.T) {
 
 	traceID := make([]byte, 16)
 	_, err = rand.Read(traceID)
-	assert.NoError(t, err)
-	trace := test.MakeTrace(2, traceID) // 2 batches
-	model.SortTrace(trace)
+	require.NoError(t, err)
+	testTrace := test.MakeTrace(2, traceID) // 2 batches
+	trace.SortTrace(testTrace)
 
 	// push the first batch
-	pushBatch(t, ingester, trace.Batches[0], traceID)
+	pushBatch(t, ingester, testTrace.Batches[0], traceID)
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
 		err = instance.CutCompleteTraces(0, true)
-		assert.NoError(t, err, "unexpected error cutting traces")
+		require.NoError(t, err, "unexpected error cutting traces")
 	}
 
 	// push the 2nd batch
-	pushBatch(t, ingester, trace.Batches[1], traceID)
+	pushBatch(t, ingester, testTrace.Batches[1], traceID)
 
 	// make sure the trace comes back whole
 	foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID: traceID,
 	})
-	assert.NoError(t, err, "unexpected error querying")
-	assert.True(t, proto.Equal(trace, foundTrace.Trace))
+	require.NoError(t, err, "unexpected error querying")
+	require.True(t, proto.Equal(testTrace, foundTrace.Trace))
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
 		err = instance.CutCompleteTraces(0, true)
-		assert.NoError(t, err, "unexpected error cutting traces")
+		require.NoError(t, err, "unexpected error cutting traces")
 	}
 
 	// make sure the trace comes back whole
 	foundTrace, err = ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID: traceID,
 	})
-	assert.NoError(t, err, "unexpected error querying")
-	assert.True(t, proto.Equal(trace, foundTrace.Trace))
-}
-
-func TestDeprecatedPush(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("/tmp", "")
-	assert.NoError(t, err, "unexpected error getting tempdir")
-	defer os.RemoveAll(tmpDir)
-
-	ctx := user.InjectOrgID(context.Background(), "test")
-	ingester, _, _ := defaultIngester(t, tmpDir)
-
-	traceID := make([]byte, 16)
-	_, err = rand.Read(traceID)
-	assert.NoError(t, err)
-	trace := test.MakeTrace(2, traceID) // 2 batches
-	model.SortTrace(trace)
-
-	// push the first batch using the deprecated method
-	pushDeprecatedBatch(t, ingester, trace.Batches[0])
-
-	// force cut all traces
-	for _, instance := range ingester.instances {
-		err = instance.CutCompleteTraces(0, true)
-		assert.NoError(t, err, "unexpected error cutting traces")
-	}
-
-	// push the 2nd batch
-	pushBatch(t, ingester, trace.Batches[1], traceID)
-
-	// make sure the trace comes back whole
-	foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
-		TraceID: traceID,
-	})
-	assert.NoError(t, err, "unexpected error querying")
-	assert.True(t, proto.Equal(trace, foundTrace.Trace))
-
-	// force cut all traces
-	for _, instance := range ingester.instances {
-		err = instance.CutCompleteTraces(0, true)
-		assert.NoError(t, err, "unexpected error cutting traces")
-	}
-
-	// make sure the trace comes back whole
-	foundTrace, err = ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
-		TraceID: traceID,
-	})
-	assert.NoError(t, err, "unexpected error querying")
-	assert.True(t, proto.Equal(trace, foundTrace.Trace))
+	require.NoError(t, err, "unexpected error querying")
+	require.True(t, proto.Equal(testTrace, foundTrace.Trace))
 }
 
 func TestWal(t *testing.T) {
@@ -220,7 +172,7 @@ func TestSearchWAL(t *testing.T) {
 
 	i := defaultIngesterModule(t, tmpDir)
 	inst, _ := i.getOrCreateInstance("test")
-	assert.NotNil(t, inst)
+	require.NotNil(t, inst)
 
 	// create some search data
 	id := make([]byte, 16)
@@ -235,7 +187,7 @@ func TestSearchWAL(t *testing.T) {
 	searchBytes := entry.ToBytes()
 
 	// push to instance
-	assert.NoError(t, inst.PushBytes(context.Background(), id, traceBytes, searchBytes))
+	require.NoError(t, inst.PushBytes(context.Background(), id, traceBytes, searchBytes))
 
 	// Write wal
 	require.NoError(t, inst.CutCompleteTraces(0, true))
@@ -246,8 +198,8 @@ func TestSearchWAL(t *testing.T) {
 		"foo": "bar",
 	}}
 	results, err := inst.Search(ctx, searchReq)
-	assert.NoError(t, err)
-	assert.Equal(t, uint32(1), results.Metrics.InspectedTraces)
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), results.Metrics.InspectedTraces)
 
 	// Shutdown
 	require.NoError(t, i.stopping(nil))
@@ -262,8 +214,8 @@ func TestSearchWAL(t *testing.T) {
 	require.True(t, ok)
 
 	results, err = inst.Search(ctx, searchReq)
-	assert.NoError(t, err)
-	assert.Equal(t, uint32(1), results.Metrics.InspectedTraces)
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), results.Metrics.InspectedTraces)
 }
 
 // TODO - This test is flaky and commented out until it's fixed
@@ -329,7 +281,7 @@ func TestFlush(t *testing.T) {
 			TraceID: traceID,
 		})
 		require.NoError(t, err, "unexpected error querying")
-		require.Equal(t, foundTrace.Trace, traces[pos])
+		require.Equal(t, traces[pos], foundTrace.Trace)
 	}
 
 	// stopping the ingester should force cut all live traces to disk
@@ -396,10 +348,10 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 		_, err := rand.Read(id)
 		require.NoError(t, err)
 
-		trace := test.MakeTrace(10, id)
-		model.SortTrace(trace)
+		testTrace := test.MakeTrace(10, id)
+		trace.SortTrace(testTrace)
 
-		traces = append(traces, trace)
+		traces = append(traces, testTrace)
 		traceIDs = append(traceIDs, id)
 	}
 
@@ -461,26 +413,6 @@ func pushBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 		Ids: []tempopb.PreallocBytes{
 			{
 				Slice: id,
-			},
-		},
-	})
-	require.NoError(t, err)
-}
-
-func pushDeprecatedBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans) {
-	ctx := user.InjectOrgID(context.Background(), "test")
-
-	pbTrace := &tempopb.PushRequest{
-		Batch: batch,
-	}
-
-	bytesTrace, err := proto.Marshal(pbTrace)
-	require.NoError(t, err)
-
-	_, err = i.PushBytes(ctx, &tempopb.PushBytesRequest{
-		Requests: []tempopb.PreallocBytes{
-			{
-				Slice: bytesTrace,
 			},
 		},
 	})

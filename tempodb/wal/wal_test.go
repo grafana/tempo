@@ -13,7 +13,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -57,9 +56,9 @@ func TestAppend(t *testing.T) {
 	require.NoError(t, err, "unexpected error creating block")
 
 	numMsgs := 100
-	reqs := make([]*tempopb.PushRequest, 0, numMsgs)
+	reqs := make([]*tempopb.Trace, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
-		req := test.MakeRequest(rand.Int()%1000, []byte{0x01})
+		req := test.MakeTrace(rand.Int()%1000, []byte{0x01})
 		reqs = append(reqs, req)
 		bReq, err := proto.Marshal(req)
 		require.NoError(t, err)
@@ -82,16 +81,16 @@ func TestAppend(t *testing.T) {
 		if err == io.EOF {
 			break
 		}
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
-		req := &tempopb.PushRequest{}
+		req := &tempopb.Trace{}
 		err = proto.Unmarshal(bytesObject, req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
-		assert.True(t, proto.Equal(req, reqs[i]))
+		require.True(t, proto.Equal(req, reqs[i]))
 		i++
 	}
-	assert.Equal(t, numMsgs, i)
+	require.Equal(t, numMsgs, i)
 }
 
 func TestCompletedDirIsRemoved(t *testing.T) {
@@ -99,21 +98,21 @@ func TestCompletedDirIsRemoved(t *testing.T) {
 
 	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
+	require.NoError(t, err, "unexpected error creating temp dir")
 
 	err = os.MkdirAll(path.Join(tempDir, completedDir), os.ModePerm)
-	assert.NoError(t, err, "unexpected error creating completedDir")
+	require.NoError(t, err, "unexpected error creating completedDir")
 
 	_, err = os.Create(path.Join(tempDir, completedDir, "testfile"))
-	assert.NoError(t, err, "unexpected error creating testfile")
+	require.NoError(t, err, "unexpected error creating testfile")
 
 	_, err = New(&Config{
 		Filepath: tempDir,
 	})
-	assert.NoError(t, err, "unexpected error creating temp wal")
+	require.NoError(t, err, "unexpected error creating temp wal")
 
 	_, err = os.Stat(path.Join(tempDir, completedDir))
-	assert.Error(t, err, "completedDir should not exist")
+	require.Error(t, err, "completedDir should not exist")
 }
 
 func TestErrorConditions(t *testing.T) {
@@ -137,7 +136,7 @@ func TestErrorConditions(t *testing.T) {
 	for i := 0; i < objects; i++ {
 		id := make([]byte, 16)
 		rand.Read(id)
-		obj := test.MakeRequest(rand.Int()%10, id)
+		obj := test.MakeTrace(rand.Int()%10, id)
 		bObj, err := proto.Marshal(obj)
 		require.NoError(t, err)
 
@@ -163,11 +162,11 @@ func TestErrorConditions(t *testing.T) {
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
-	assert.Equal(t, objects, blocks[0].appender.Length())
+	require.Equal(t, objects, blocks[0].appender.Length())
 
 	// confirm block has been removed
-	assert.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:gzip"))
-	assert.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
+	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:gzip"))
+	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
 }
 
 func TestAppendReplayFind(t *testing.T) {
@@ -200,7 +199,7 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	for i := 0; i < objects; i++ {
 		id := make([]byte, 16)
 		rand.Read(id)
-		obj := test.MakeRequest(rand.Int()%10, id)
+		obj := test.MakeTrace(rand.Int()%10, id)
 		ids = append(ids, id)
 		bObj, err := proto.Marshal(obj)
 		require.NoError(t, err)
@@ -213,7 +212,7 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	for i, id := range ids {
 		obj, err := block.Find(id, &mockCombiner{})
 		require.NoError(t, err)
-		assert.Equal(t, objs[i], obj)
+		require.Equal(t, objs[i], obj)
 	}
 
 	// write garbage data at the end to confirm a partial block will load
@@ -236,7 +235,7 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	for i, id := range ids {
 		obj, err := blocks[0].Find(id, &mockCombiner{})
 		require.NoError(t, err)
-		assert.Equal(t, objs[i], obj)
+		require.Equal(t, objs[i], obj)
 	}
 
 	i := 0
@@ -258,12 +257,12 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		}
 
 		require.True(t, found)
-		assert.Equal(t, objs[j], obj)
-		assert.Equal(t, ids[j], []byte(id))
+		require.Equal(t, objs[j], obj)
+		require.Equal(t, ids[j], []byte(id))
 		i++
 	}
 
-	assert.Equal(t, objects, i)
+	require.Equal(t, objects, i)
 
 	err = blocks[0].Clear()
 	require.NoError(t, err)
@@ -383,16 +382,16 @@ func TestParseFilename(t *testing.T) {
 			actualUUID, actualTenant, actualVersion, actualEncoding, actualDataEncoding, err := ParseFilename(tc.filename)
 
 			if tc.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
-			assert.Equal(t, tc.expectUUID, actualUUID)
-			assert.Equal(t, tc.expectTenant, actualTenant)
-			assert.Equal(t, tc.expectedEncoding, actualEncoding)
-			assert.Equal(t, tc.expectedVersion, actualVersion)
-			assert.Equal(t, tc.expectedDataEncoding, actualDataEncoding)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectUUID, actualUUID)
+			require.Equal(t, tc.expectTenant, actualTenant)
+			require.Equal(t, tc.expectedEncoding, actualEncoding)
+			require.Equal(t, tc.expectedVersion, actualVersion)
+			require.Equal(t, tc.expectedDataEncoding, actualDataEncoding)
 		})
 	}
 }

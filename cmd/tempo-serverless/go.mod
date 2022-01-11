@@ -6,7 +6,7 @@ require (
 	github.com/GoogleCloudPlatform/functions-framework-go v1.3.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/grafana/tempo v1.2.0-rc.0.0.20211029120833-dee59ebe564c
-	github.com/mitchellh/mapstructure v1.4.2
+	github.com/mitchellh/mapstructure v1.4.3
 	github.com/spf13/viper v1.9.0
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -32,4 +32,4 @@ replace (
 // Pin to the latest release of grpc-go with GenerateAndRegisterManualResolver
 // This function is used by jeagertracing/jaeger, but we can't update jaeger
 // without updating the open-telemetry/collector as well
-replace google.golang.org/grpc => google.golang.org/grpc v1.33.3
+replace google.golang.org/grpc => google.golang.org/grpc v1.38.0

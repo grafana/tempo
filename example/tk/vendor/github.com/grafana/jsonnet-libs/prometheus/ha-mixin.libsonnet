@@ -35,29 +35,27 @@ function(replicas=2) {
     },
   },
 
+  // Allows overriding fields on each of the generated ConfigMaps
+  _prometheus_config_maps:: {
+    [_config.name + '-' + i + '.yml']: this.prometheus_config {
+      global+: {
+        external_labels+: {
+          __replica__: _config.name + '-' + i,
+        },
+      },
+    }
+    for i in std.range(0, replicas - 1)
+  },
+
   local configMap = k.core.v1.configMap,
   prometheus_config_maps:
     [
       configMap.new('%s-config' % _config.name) +
       configMap.withData(
-        std.foldr(
-          function(i, acc)
-            local name = _config.name + '-' + i;
-            local config =
-              this.prometheus_config {
-                global+: {
-                  external_labels+: {
-                    __replica__: name,
-                  },
-                },
-              };
-            acc {
-              [name + '.yml']: k.util.manifestYaml(config),
-            },
-          std.range(0, replicas - 1),
-
-          {}
-        ),
+        {
+          [name]: k.util.manifestYaml(this._prometheus_config_maps[name])
+          for name in std.objectFields(this._prometheus_config_maps)
+        }
       ),
     ]
     + (

@@ -112,9 +112,11 @@ func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 	return m, nil
 }
 
-func (c *Client) SearchWithRange(tags string, start int, end int) (*tempopb.SearchResponse, error) {
+// SearchWithRange calls the /api/search endpoint. tags is expected to be in logfmt format and start/end are unix
+// epoch timestamps in seconds.
+func (c *Client) SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.BaseURL+"/api/search?tags="+url.QueryEscape(tags)+"&start="+strconv.Itoa(start)+"&end="+strconv.Itoa(end), m)
+	_, err := c.getFor(c.BaseURL+"/api/search?tags="+url.QueryEscape(tags)+"&start="+strconv.FormatInt(start, 10)+"&end="+strconv.FormatInt(end, 10), m)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +128,7 @@ func (c *Client) QueryTrace(id string) (*tempopb.Trace, error) {
 	m := &tempopb.Trace{}
 	resp, err := c.getFor(c.BaseURL+QueryTraceEndpoint+"/"+id, m)
 	if err != nil {
-		if resp.StatusCode == http.StatusNotFound {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
 			return nil, ErrTraceNotFound
 		}
 		return nil, err

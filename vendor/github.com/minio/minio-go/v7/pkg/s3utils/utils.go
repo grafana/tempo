@@ -171,6 +171,7 @@ func IsAmazonFIPSGovCloudEndpoint(endpointURL url.URL) bool {
 		return false
 	}
 	return endpointURL.Host == "s3-fips-us-gov-west-1.amazonaws.com" ||
+		endpointURL.Host == "s3-fips.us-gov-west-1.amazonaws.com" ||
 		endpointURL.Host == "s3-fips.dualstack.us-gov-west-1.amazonaws.com"
 }
 

@@ -9,11 +9,10 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/stretchr/testify/assert"
+	"github.com/grafana/tempo/pkg/model/trace"
+	v1 "github.com/grafana/tempo/pkg/model/v1"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -38,14 +37,13 @@ func (m *mockSharder) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool
 	if len(objs) != 2 {
 		return nil, false, nil
 	}
-	combined, wasCombined, _ := model.CombineTraceBytes(objs[0], objs[1], dataEncoding, dataEncoding)
-	return combined, wasCombined, nil
+	return model.ObjectCombiner.Combine(dataEncoding, objs...)
 }
 
 func TestReturnAllHits(t *testing.T) {
 	tempDir, err := os.MkdirTemp("/tmp", "")
 	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
+	require.NoError(t, err, "unexpected error creating temp dir")
 
 	r, w, _, err := tempodb.New(&tempodb.Config{
 		Backend: "local",
@@ -83,15 +81,17 @@ func TestReturnAllHits(t *testing.T) {
 	// keep track of traces sent
 	testTraces := make([]*tempopb.Trace, 0, blockCount)
 
+	d := v1.NewDecoder()
+
 	// split the same trace across multiple blocks
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
 		head, err := wal.NewBlock(blockID, util.FakeTenantID, "")
 		require.NoError(t, err)
 
-		req := test.MakeRequest(10, testTraceID)
-		testTraces = append(testTraces, &tempopb.Trace{Batches: []*v1.ResourceSpans{req.Batch}})
-		bReq, err := proto.Marshal(req)
+		req := test.MakeTrace(10, testTraceID)
+		testTraces = append(testTraces, req)
+		bReq, err := d.Marshal(req)
 		require.NoError(t, err)
 
 		err = head.Append(testTraceID, bReq)
@@ -106,21 +106,20 @@ func TestReturnAllHits(t *testing.T) {
 
 	// find should return both now
 	foundBytes, _, failedBLocks, err := r.Find(context.Background(), util.FakeTenantID, testTraceID, tempodb.BlockIDMin, tempodb.BlockIDMax)
-	assert.NoError(t, err)
-	assert.Nil(t, failedBLocks)
+	require.NoError(t, err)
+	require.Nil(t, failedBLocks)
 	require.Len(t, foundBytes, 2)
 
 	// expected trace
-	expectedTrace, _, _, _ := model.CombineTraceProtos(testTraces[0], testTraces[1])
-	model.SortTrace(expectedTrace)
+	expectedTrace, _ := trace.CombineTraceProtos(testTraces[0], testTraces[1])
+	trace.SortTrace(expectedTrace)
 
 	// actual trace
-	actualTraceBytes, _, err := model.CombineTraceBytes(foundBytes[1], foundBytes[0], "", "")
-	assert.NoError(t, err)
-	actualTrace := &tempopb.Trace{}
-	err = proto.Unmarshal(actualTraceBytes, actualTrace)
-	assert.NoError(t, err)
+	actualTraceBytes, _, err := model.ObjectCombiner.Combine(v1.Encoding, foundBytes...)
+	require.NoError(t, err)
+	actualTrace, err := d.PrepareForRead(actualTraceBytes)
+	require.NoError(t, err)
 
-	model.SortTrace(actualTrace)
-	assert.Equal(t, expectedTrace, actualTrace)
+	trace.SortTrace(actualTrace)
+	require.Equal(t, expectedTrace, actualTrace)
 }
