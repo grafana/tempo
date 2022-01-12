@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -87,6 +88,14 @@ var (
 		Help:      "The total number of samples that were discarded.",
 	}, []string{discardReasonLabel, "tenant"})
 )
+
+// rebatchedTrace is used to more cleanly pass the set of data
+type rebatchedTrace struct {
+	id    []byte
+	trace *tempopb.Trace
+	start uint32 // unix epoch seconds
+	end   uint32 // unix epoch seconds
+}
 
 // Distributor coordinates replicates and distribution of log streams.
 type Distributor struct {
@@ -261,7 +270,7 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 			size)
 	}
 
-	keys, traces, ids, err := requestsByTraceID(batches, userID, spanCount)
+	keys, rebatchedTraces, err := requestsByTraceID(batches, userID, spanCount)
 	if err != nil {
 		metricDiscardedSpans.WithLabelValues(reasonInternalError, userID).Add(float64(spanCount))
 		return nil, err
@@ -270,7 +279,7 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 	var searchData [][]byte
 	if d.searchEnabled {
 		perTenantAllowedTags := d.overrides.SearchTagsAllowList(userID)
-		searchData = extractSearchDataAll(traces, ids, func(tag string) bool {
+		searchData = extractSearchDataAll(rebatchedTraces, func(tag string) bool {
 			// if in per tenant override, extract
 			if _, ok := perTenantAllowedTags[tag]; ok {
 				return true
@@ -284,7 +293,7 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 		})
 	}
 
-	err = d.sendToIngestersViaBytes(ctx, userID, traces, searchData, keys, ids)
+	err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, searchData, keys)
 	if err != nil {
 		recordDiscaredSpans(err, userID, spanCount)
 	}
@@ -292,11 +301,11 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 	return nil, err // PushRequest is ignored, so no reason to create one
 }
 
-func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*tempopb.Trace, searchData [][]byte, keys []uint32, ids [][]byte) error {
+func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*rebatchedTrace, searchData [][]byte, keys []uint32) error {
 	// Marshal to bytes once
 	marshalledTraces := make([][]byte, len(traces))
 	for i, t := range traces {
-		b, err := d.traceEncoder.PrepareForWrite(t, 0, 0) // jpe start/end time
+		b, err := d.traceEncoder.PrepareForWrite(t.trace, t.start, t.end)
 		if err != nil {
 			return errors.Wrap(err, "failed to marshal PushRequest")
 		}
@@ -321,7 +330,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 
 		for i, j := range indexes {
 			req.Traces[i].Slice = marshalledTraces[j][0:]
-			req.Ids[i].Slice = ids[j]
+			req.Ids[i].Slice = traces[j].id
 
 			// Search data optional
 			if len(searchData) > j {
@@ -352,14 +361,9 @@ func (*Distributor) Check(_ context.Context, _ *grpc_health_v1.HealthCheckReques
 
 // requestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys for the hash ring
 // and traces to pass onto the ingesters.
-func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int) ([]uint32, []*tempopb.Trace, [][]byte, error) {
-	type traceAndID struct {
-		id    []byte
-		trace *tempopb.Trace
-	}
-
+func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int) ([]uint32, []*rebatchedTrace, error) {
 	const tracesPerBatch = 20 // p50 of internal env
-	tracesByID := make(map[uint32]*traceAndID, tracesPerBatch)
+	tracesByID := make(map[uint32]*rebatchedTrace, tracesPerBatch)
 
 	for _, b := range batches {
 		spansByILS := make(map[uint32]*v1.InstrumentationLibrarySpans)
@@ -368,7 +372,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 			for _, span := range ils.Spans {
 				traceID := span.TraceId
 				if !validation.ValidTraceID(traceID) {
-					return nil, nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit")
+					return nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit")
 				}
 
 				traceKey := util.TokenFor(userID, traceID)
@@ -378,8 +382,8 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 					ilsKey = fnv1a.AddString32(ilsKey, ils.InstrumentationLibrary.Version)
 				}
 
-				existingILS, ok := spansByILS[ilsKey]
-				if !ok {
+				existingILS, ilsAdded := spansByILS[ilsKey]
+				if !ilsAdded {
 					existingILS = &v1.InstrumentationLibrarySpans{
 						InstrumentationLibrary: ils.InstrumentationLibrary,
 						Spans:                  make([]*v1.Span, 0, spanCount/tracesPerBatch),
@@ -388,27 +392,34 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 				}
 				existingILS.Spans = append(existingILS.Spans, span)
 
-				// if we found an ILS we assume its already part of a request and can go to the next span
-				if ok {
-					continue
-				}
-
+				// now find and update the rebatchedTrace with a new start and end
 				existingTrace, ok := tracesByID[traceKey]
 				if !ok {
-					existingTrace = &traceAndID{
+					existingTrace = &rebatchedTrace{
 						id: traceID,
 						trace: &tempopb.Trace{
 							Batches: make([]*v1.ResourceSpans, 0, spanCount/tracesPerBatch),
 						},
+						start: math.MaxUint32,
+						end:   0,
 					}
 
 					tracesByID[traceKey] = existingTrace
 				}
 
-				existingTrace.trace.Batches = append(existingTrace.trace.Batches, &v1.ResourceSpans{
-					Resource:                    b.Resource,
-					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{existingILS},
-				})
+				start, end := startEndFromSpan(span)
+				if existingTrace.end < end {
+					existingTrace.end = end
+				}
+				if existingTrace.start > start {
+					existingTrace.start = start
+				}
+				if !ilsAdded {
+					existingTrace.trace.Batches = append(existingTrace.trace.Batches, &v1.ResourceSpans{
+						Resource:                    b.Resource,
+						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{existingILS},
+					})
+				}
 			}
 		}
 	}
@@ -416,16 +427,14 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 	metricTracesPerBatch.Observe(float64(len(tracesByID)))
 
 	keys := make([]uint32, 0, len(tracesByID))
-	traces := make([]*tempopb.Trace, 0, len(tracesByID))
-	ids := make([][]byte, 0, len(tracesByID))
+	traces := make([]*rebatchedTrace, 0, len(tracesByID))
 
 	for k, r := range tracesByID {
 		keys = append(keys, k)
-		traces = append(traces, r.trace)
-		ids = append(ids, r.id)
+		traces = append(traces, r)
 	}
 
-	return keys, traces, ids, nil
+	return keys, traces, nil
 }
 
 func recordDiscaredSpans(err error, userID string, spanCount int) {
@@ -452,4 +461,9 @@ func logTraces(batches []*v1.ResourceSpans) {
 			}
 		}
 	}
+}
+
+// startEndFromSpan returns a unix epoch timestamp in seconds for the start and end of a span
+func startEndFromSpan(span *v1.Span) (uint32, uint32) {
+	return uint32(span.StartTimeUnixNano / uint64(time.Second)), uint32(span.EndTimeUnixNano / uint64(time.Second))
 }

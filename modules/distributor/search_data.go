@@ -12,11 +12,11 @@ import (
 type extractTagFunc func(tag string) bool
 
 // extractSearchDataAll returns flatbuffer search data for every trace.
-func extractSearchDataAll(traces []*tempopb.Trace, ids [][]byte, extractTag extractTagFunc) [][]byte {
+func extractSearchDataAll(traces []*rebatchedTrace, extractTag extractTagFunc) [][]byte {
 	headers := make([][]byte, len(traces))
 
 	for i, t := range traces {
-		headers[i] = extractSearchData(t, ids[i], extractTag)
+		headers[i] = extractSearchData(t.trace, t.id, extractTag)
 	}
 
 	return headers
