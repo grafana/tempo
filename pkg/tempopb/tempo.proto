@@ -6,7 +6,9 @@ import "trace/v1/trace.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 service Pusher {
-  rpc PushBytes(PushBytesRequest) returns (PushResponse) {}; // jpe - make PushBytesV2 to push 
+  // different versions of PushBytes expect the trace data to be pushed in different formats
+  rpc PushBytes(PushBytesRequest) returns (PushResponse) {};   // ./pkg/model/v1
+  rpc PushBytesV2(PushBytesRequest) returns (PushResponse) {}; // ./pkg/model/v2
 }
 
 service Querier {

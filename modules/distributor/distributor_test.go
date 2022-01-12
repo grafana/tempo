@@ -628,6 +628,10 @@ func (i *mockIngester) PushBytes(ctx context.Context, in *tempopb.PushBytesReque
 	return nil, nil
 }
 
+func (i *mockIngester) PushBytesV2(ctx context.Context, in *tempopb.PushBytesRequest, opts ...grpc.CallOption) (*tempopb.PushResponse, error) {
+	return nil, nil
+}
+
 func (i *mockIngester) Close() error {
 	return nil
 }

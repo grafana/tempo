@@ -406,7 +406,7 @@ func pushBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 	buffer, err := batchDecoder.PrepareForWrite(pbTrace, 0, 0) // jpe 0s for start/end?
 	require.NoError(t, err)
 
-	_, err = i.PushBytes(ctx, &tempopb.PushBytesRequest{
+	_, err = i.PushBytesV2(ctx, &tempopb.PushBytesRequest{
 		Traces: []tempopb.PreallocBytes{
 			{
 				Slice: buffer,

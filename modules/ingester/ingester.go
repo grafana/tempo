@@ -164,8 +164,17 @@ func (i *Ingester) markUnavailable() {
 	i.stopIncomingRequests()
 }
 
-// PushBytes implements tempopb.Pusher.PushBytes
+// PushBytes implements tempopb.Pusher.PushBytes. Traces pushed to this endpoint are expected to be in the formats
+//  defined by ./pkg/model/v1
 func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
+	// jpe - convert forward from v1 to v2
+	// jpe - test
+	return nil, nil
+}
+
+// PushBytes implements tempopb.Pusher.PushBytes. Traces pushed to this endpoint are expected to be in the formats
+//  defined by ./pkg/model/v2
+func (i *Ingester) PushBytesV2(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
 	if i.readonly {
 		return nil, ErrReadOnly
 	}

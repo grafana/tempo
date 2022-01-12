@@ -293,7 +293,6 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 }
 
 func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*tempopb.Trace, searchData [][]byte, keys []uint32, ids [][]byte) error {
-	// jpe make encoder interface and use here
 	// Marshal to bytes once
 	marshalledTraces := make([][]byte, len(traces))
 	for i, t := range traces {
@@ -335,7 +334,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 			return err
 		}
 
-		_, err = c.(tempopb.PusherClient).PushBytes(localCtx, &req)
+		_, err = c.(tempopb.PusherClient).PushBytesV2(localCtx, &req)
 		metricIngesterAppends.WithLabelValues(ingester.Addr).Inc()
 		if err != nil {
 			metricIngesterAppendFailures.WithLabelValues(ingester.Addr).Inc()
