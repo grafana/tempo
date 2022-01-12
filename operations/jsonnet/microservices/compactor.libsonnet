@@ -21,12 +21,14 @@
       '-config.file=/conf/tempo.yaml',
       '-mem-ballast-size-mbs=' + $._config.ballast_size_mbs,
     ]) +
+    (if $._config.variables_expansion then container.withEnvMixin($._config.variables_expansion_env_mixin) else {}) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
       volumeMount.new(tempo_overrides_config_volume, '/overrides'),
     ]) +
     $.util.withResources($._config.compactor.resources) +
-    $.util.readinessProbe,
+    $.util.readinessProbe +
+    (if $._config.variables_expansion then container.withArgsMixin(['--config.expand-env=true']) else {}),
 
   tempo_compactor_deployment:
     deployment.new(target_name,
