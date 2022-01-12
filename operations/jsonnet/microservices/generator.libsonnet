@@ -1,6 +1,4 @@
 {
-  // TODO make this entire module optional
-
   local k = import 'ksonnet-util/kausal.libsonnet',
   local container = k.core.v1.container,
   local containerPort = k.core.v1.containerPort,
@@ -48,4 +46,7 @@
       volume.fromConfigMap(tempo_config_volume, $.tempo_metrics_generator_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
     ]),
+
+  tempo_metrics_generator_service:
+    k.util.serviceFor($.tempo_metrics_generator_deployment),
 }
