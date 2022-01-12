@@ -17,10 +17,15 @@ import (
 )
 
 var (
-	metricSpansReceivedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	metricSpansIngested = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_spans_received_total",
-		Help:      "The total number of spans received.",
+		Help:      "The total number of spans received per tenant",
+	}, []string{"tenant"})
+	metricBytesIngested = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_bytes_received_total",
+		Help:      "The total number of proto bytes received per tenant",
 	}, []string{"tenant"})
 )
 
@@ -33,7 +38,8 @@ type instance struct {
 
 	processors []processor.Processor
 
-	metricSpansReceivedTotal prometheus.Counter
+	metricSpansIngestedTotal prometheus.Counter
+	metricBytesIngestedTotal prometheus.Counter
 }
 
 func newInstance(instanceID string, overrides *overrides.Overrides, userMetricsRegisterer prometheus.Registerer, appendable storage.Appendable) (*instance, error) {
@@ -44,7 +50,8 @@ func newInstance(instanceID string, overrides *overrides.Overrides, userMetricsR
 		registerer: userMetricsRegisterer,
 		appendable: appendable,
 
-		metricSpansReceivedTotal: metricSpansReceivedTotal.WithLabelValues(instanceID),
+		metricSpansIngestedTotal: metricSpansIngested.WithLabelValues(instanceID),
+		metricBytesIngestedTotal: metricBytesIngested.WithLabelValues(instanceID),
 	}
 
 	// TODO we should build a pipeline based upon the overrides configured
@@ -57,7 +64,19 @@ func newInstance(instanceID string, overrides *overrides.Overrides, userMetricsR
 }
 
 func (i *instance) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error {
-	i.metricSpansReceivedTotal.Inc()
+	size := 0
+	spanCount := 0
+	for _, b := range req.Batches {
+		size += b.Size()
+		for _, ils := range b.InstrumentationLibrarySpans {
+			spanCount += len(ils.Spans)
+		}
+	}
+	if spanCount == 0 {
+		return nil
+	}
+	i.metricBytesIngestedTotal.Add(float64(size))
+	i.metricSpansIngestedTotal.Add(float64(spanCount))
 
 	for _, processor := range i.processors {
 		if err := processor.PushSpans(ctx, req); err != nil {

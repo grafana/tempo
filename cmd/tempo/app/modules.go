@@ -92,10 +92,9 @@ func (t *App) initRing() (services.Service, error) {
 }
 
 func (t *App) initGeneratorRing() (services.Service, error) {
-	// TODO should we directly use the dskit ring instead?
 	generatorRing, err := tempo_ring.New(t.cfg.Generator.LifecyclerConfig.RingConfig, "metrics-generator", t.cfg.Generator.OverrideRingKey, prometheus.DefaultRegisterer)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create generator ring %w", err)
+		return nil, fmt.Errorf("failed to create metrics-generator ring %w", err)
 	}
 	t.generatorRing = generatorRing
 
@@ -344,11 +343,7 @@ func (t *App) setupModuleManager() error {
 		ScalableSingleBinary: {SingleBinary},
 	}
 
-	// TODO don't hardcode, the distributor should somehow know there is a generator in the system
-	// TODO disabling this causes a segmentation violation because of a nil pointer dereference somewhere in the ring
-	generatorEnabled := true
-
-	if generatorEnabled {
+	if t.cfg.Distributor.EnableMetricsGeneratorRing {
 		deps[Distributor] = append(deps[Distributor], MetricsGeneratorRing)
 		deps[SingleBinary] = append(deps[SingleBinary], NetricsGenerator)
 	}

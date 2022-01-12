@@ -20,7 +20,6 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 )
 
 const userMetricsScrapeEndpoint = "/api/trace-metrics"
@@ -84,7 +83,7 @@ func New(cfg Config, overrides *overrides.Overrides, reg prometheus.Registerer) 
 		overrides: overrides,
 	}
 
-	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, g, "generator", cfg.OverrideRingKey, true, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
+	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, g, "metrics-generator", cfg.OverrideRingKey, true, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed %w", err)
 	}
@@ -168,11 +167,6 @@ func (g *Generator) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 		return nil, err
 	}
 	span.SetTag("instanceID", instanceID)
-
-	// TODO
-	if instanceID != util.FakeTenantID {
-		return nil, errors.New("metrics-generator does not support multi-tenancy yet")
-	}
 
 	instance, err := g.getOrCreateInstance(instanceID)
 	if err != nil {

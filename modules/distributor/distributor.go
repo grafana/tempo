@@ -130,7 +130,6 @@ type Distributor struct {
 }
 
 // New a distributor creates.
-// TODO this method has a lot of parameters
 func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, generatorClientCfg generator_client.Config, generatorsRing ring.ReadRing, o *overrides.Overrides, middleware receiver.Middleware, loggingLevel logging.Level, searchEnabled bool, reg prometheus.Registerer) (*Distributor, error) {
 	factory := cfg.factory
 	if factory == nil {
@@ -174,8 +173,8 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 	subservices = append(subservices, pool)
 
 	var generatorPool *ring_client.Pool
-	if generatorsRing != nil {
-		generatorPool = ring_client.NewPool("distributor_generator_pool",
+	if cfg.EnableMetricsGeneratorRing {
+		generatorPool = ring_client.NewPool("distributor_metrics_generator_pool",
 			generatorClientCfg.PoolConfig,
 			ring_client.NewRingServiceDiscovery(generatorsRing),
 			func(addr string) (ring_client.PoolClient, error) {
@@ -323,10 +322,11 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 		recordDiscaredSpans(err, userID, spanCount)
 	}
 
-	// TODO if pushing to the ingesters failed, should we still try to push to the generators? (probably not)
-	err = d.sendToGenerators(ctx, userID, batches, keys)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "pushing to generator failed", "err", err)
+	if err == nil {
+		generatorErr := d.sendToGenerators(ctx, userID, batches, keys)
+		if generatorErr != nil {
+			level.Error(log.Logger).Log("msg", "pushing to generator failed", "err", generatorErr)
+		}
 	}
 
 	return nil, err // PushRequest is ignored, so no reason to create one
@@ -391,7 +391,10 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, trace
 		return nil
 	}
 
-	// TODO read from the overrides to determine whether this tenant is included
+	// TODO
+	//  - read overrides to determine whether this tenant is included
+	//  - create batches similar to requestsByTraceID to shard across instance
+	//  - filter unneeded spans/tags
 
 	// If an instance is unhealthy write to the next one (i.e. write extend is enabled)
 	op := ring.Write
