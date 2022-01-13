@@ -56,7 +56,7 @@ func TestGenerateRandomString(t *testing.T) {
 	info := NewTraceInfo(seed, "")
 
 	strings := []string{
-		"XqaIBSJMJVGkEg",
+		"vulture-XqaIBSJMJVGkEg",
 	}
 
 	for _, s := range strings {
