@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 	semconv "go.opentelemetry.io/collector/model/semconv/v1.5.0"
@@ -27,6 +29,14 @@ const (
 	latencyBucket = "latency_bucket"
 )
 
+var (
+	metricActiveSeries = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "metrics_processor_span_metrics_active_series",
+		Help:      "The amount of series currently active",
+	}, []string{"tenant"})
+)
+
 type processor struct {
 	namespace string
 
@@ -41,9 +51,18 @@ type processor struct {
 	latencyBucketCounts map[string][]float64
 	latencyBuckets      []float64
 	cache               map[string]labels.Labels
+
+	// Crude mechanism to track if a key was recently updated. For every key store a counter
+	// - when a key is updated, reset the counter to 0
+	// - at every collect increase the value, if the value is above a threshold it's stale
+	// TODO is it even worth keeping track of 'staleness', why not just clear all the maps after a
+	//  collect?
+	stalenessCounter map[string]int
+
+	metricActiveSeries prometheus.Gauge
 }
 
-func New() gen.Processor {
+func New(tenant string) gen.Processor {
 	return &processor{
 		namespace:           "tempo",
 		calls:               make(map[string]float64),
@@ -53,6 +72,10 @@ func New() gen.Processor {
 		// TODO: make this configurable.
 		latencyBuckets: []float64{1, 10, 50, 100, 500},
 		cache:          make(map[string]labels.Labels),
+
+		stalenessCounter: make(map[string]int),
+
+		metricActiveSeries: metricActiveSeries.WithLabelValues(tenant),
 	}
 }
 
@@ -87,6 +110,7 @@ func (p *processor) aggregateMetricsForSpan(svcName string, span *v1_trace.Span)
 
 	p.mtx.Lock()
 	p.cacheLabels(key, svcName, span)
+	p.stalenessCounter[key] = 0
 	p.calls[key]++
 	p.aggregateLatencyMetrics(key, latencyMS)
 	p.mtx.Unlock()
@@ -112,6 +136,22 @@ func (p *processor) CollectMetrics(ctx context.Context, appender storage.Appende
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
+
+	// increment stateleness counters and filter out stale keys
+	for key := range p.stalenessCounter {
+		p.stalenessCounter[key]++
+		// hasn't been updated for 4 collects (i.e. 1 minute), remove it
+		if p.stalenessCounter[key] >= 4 {
+			delete(p.stalenessCounter, key)
+			delete(p.calls, key)
+			delete(p.latencyCount, key)
+			delete(p.latencySum, key)
+			delete(p.latencyBucketCounts, key)
+			delete(p.cache, key)
+		}
+	}
+
+	p.metricActiveSeries.Set(float64(len(p.calls)))
 
 	timestampMs := time.Now().UnixMilli()
 
