@@ -26,7 +26,7 @@ The Grafana Agent can be configured to run a set of tracing pipelines to collect
 Pipelines are built using OpenTelemetry,
 and consist of `receivers`, `processors` and `exporters`. The architecture mirrors that of the OTel Collector's [design](https://github.com/open-telemetry/opentelemetry-collector/blob/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/design.md).
 See the [configuration reference](https://grafana.com/docs/agent/latest/configuration/traces-config/) for all available config options. 
-For a quick start, refer to this [blog post](https://grafana.com/blog/2020/11/17/tracing-with-the-grafana-agent-and-grafana-tempo/).
+For a quick start, refer to this [blog post](https://grafana.com/blog/2020/11/17/tracing-with-the-grafana-cloud-agent-and-grafana-tempo/).
 
 <p align="center"><img src="https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/images/design-pipelines.png" alt="Tracing pipeline architecture"></p>
 
