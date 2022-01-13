@@ -6,13 +6,14 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	jaegerTrans "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"github.com/weaveworks/common/user"
 	"go.opentelemetry.io/collector/model/otlp"
+
+	"github.com/grafana/tempo/pkg/tempopb"
+	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 )
 
 var (
@@ -161,7 +162,7 @@ func (t *TraceInfo) generateRandomString() string {
 	for i := range s {
 		s[i] = letters[t.r.Intn(len(letters))]
 	}
-	return string(s)
+	return "vulture-" + string(s)
 }
 
 func (t *TraceInfo) generateRandomTags() []*thrift.Tag {
