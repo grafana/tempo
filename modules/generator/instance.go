@@ -30,6 +30,8 @@ var (
 )
 
 type instance struct {
+	cfg *Config
+
 	instanceID string
 	overrides  *overrides.Overrides
 
@@ -41,8 +43,9 @@ type instance struct {
 	metricBytesIngestedTotal prometheus.Counter
 }
 
-func newInstance(instanceID string, overrides *overrides.Overrides, appendable storage.Appendable) (*instance, error) {
+func newInstance(cfg *Config, instanceID string, overrides *overrides.Overrides, appendable storage.Appendable) (*instance, error) {
 	i := &instance{
+		cfg:        cfg,
 		instanceID: instanceID,
 		overrides:  overrides,
 
@@ -54,7 +57,7 @@ func newInstance(instanceID string, overrides *overrides.Overrides, appendable s
 
 	// TODO we should build a pipeline based upon the overrides configured
 	// TODO when the overrides change we should update all the processors/the pipeline
-	spanMetricsProcessor := spanmetrics.New(instanceID)
+	spanMetricsProcessor := spanmetrics.New(i.cfg.Processor.SpanMetrics, instanceID)
 
 	i.processors = []processor.Processor{spanMetricsProcessor}
 

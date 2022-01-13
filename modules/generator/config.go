@@ -10,12 +10,17 @@ import (
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
 	"github.com/prometheus/prometheus/config"
+
+	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 )
 
 // Config for a generator.
 type Config struct {
 	LifecyclerConfig ring.LifecyclerConfig `yaml:"lifecycler,omitempty"`
 	OverrideRingKey  string                `yaml:"override_ring_key"`
+
+	// Global processor settings
+	Processor ProcessorConfig `yaml:"processor"`
 
 	RemoteWrite RemoteWriteConfig `yaml:"remote_write,omitempty"`
 }
@@ -41,7 +46,17 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	// TODO other components have constants in dskit/ring/ring.go, does this value actually matter?
 	cfg.OverrideRingKey = "generator"
 
+	cfg.Processor.RegisterFlagsAndApplyDefaults(prefix, f)
+
 	cfg.RemoteWrite.RegisterFlagsAndApplyDefaults(prefix, f)
+}
+
+type ProcessorConfig struct {
+	SpanMetrics spanmetrics.Config `yaml:"span_metrics"`
+}
+
+func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	cfg.SpanMetrics.RegisterFlagsAndApplyDefaults(prefix, f)
 }
 
 type RemoteWriteConfig struct {

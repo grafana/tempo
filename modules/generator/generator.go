@@ -160,7 +160,7 @@ func (g *Generator) getOrCreateInstance(instanceID string) (*instance, error) {
 	inst, ok = g.instances[instanceID]
 	if !ok {
 		var err error
-		inst, err = newInstance(instanceID, g.overrides, g.appendableFactory(instanceID))
+		inst, err = newInstance(g.cfg, instanceID, g.overrides, g.appendableFactory(instanceID))
 		if err != nil {
 			return nil, err
 		}

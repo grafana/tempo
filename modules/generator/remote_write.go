@@ -53,7 +53,7 @@ func newRemoteWriteMetrics(reg prometheus.Registerer) *remoteWriteMetrics {
 	return &remoteWriteMetrics{
 		samplesSent: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "tempo",
-			Name:      "metrics_generator_samples_sent_total",
+			Name:      "metrics_generator_samples_sent",
 			Help:      "Number of samples sent per remote write",
 		}, []string{"tenant"}),
 		remoteWriteErrors: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{

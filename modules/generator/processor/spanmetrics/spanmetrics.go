@@ -32,19 +32,20 @@ const (
 var (
 	metricActiveSeries = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
-		Name:      "metrics_processor_span_metrics_active_series",
+		Name:      "metrics_generator_processor_span_metrics_active_series",
 		Help:      "The amount of series currently active",
 	}, []string{"tenant"})
 )
 
 type processor struct {
+	cfg       Config
 	namespace string
 
 	// TODO: possibly split mutex into two: one for the metrics and one for the cache.
 	//  cache's mutex should be RWMutex.
 	mtx sync.Mutex
-	// TODO: need a mechanism to clean up inactive series,
-	//  otherwise this is unbounded memory usage.
+
+	lastUpdate          map[string]time.Time
 	calls               map[string]float64
 	latencyCount        map[string]float64
 	latencySum          map[string]float64
@@ -52,19 +53,17 @@ type processor struct {
 	latencyBuckets      []float64
 	cache               map[string]labels.Labels
 
-	// Crude mechanism to track if a key was recently updated. For every key store a counter
-	// - when a key is updated, reset the counter to 0
-	// - at every collect increase the value, if the value is above a threshold it's stale
-	// TODO is it even worth keeping track of 'staleness', why not just clear all the maps after a
-	//  collect?
-	stalenessCounter map[string]int
-
 	metricActiveSeries prometheus.Gauge
+
+	// for testing
+	now func() time.Time
 }
 
-func New(tenant string) gen.Processor {
+func New(cfg Config, tenant string) gen.Processor {
 	return &processor{
+		cfg:                 cfg,
 		namespace:           "tempo",
+		lastUpdate:          make(map[string]time.Time),
 		calls:               make(map[string]float64),
 		latencyCount:        make(map[string]float64),
 		latencySum:          make(map[string]float64),
@@ -73,9 +72,9 @@ func New(tenant string) gen.Processor {
 		latencyBuckets: []float64{1, 10, 50, 100, 500},
 		cache:          make(map[string]labels.Labels),
 
-		stalenessCounter: make(map[string]int),
-
 		metricActiveSeries: metricActiveSeries.WithLabelValues(tenant),
+
+		now: time.Now,
 	}
 }
 
@@ -109,8 +108,8 @@ func (p *processor) aggregateMetricsForSpan(svcName string, span *v1_trace.Span)
 	latencyMS := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Millisecond.Nanoseconds())
 
 	p.mtx.Lock()
+	p.lastUpdate[key] = p.now()
 	p.cacheLabels(key, svcName, span)
-	p.stalenessCounter[key] = 0
 	p.calls[key]++
 	p.aggregateLatencyMetrics(key, latencyMS)
 	p.mtx.Unlock()
@@ -137,12 +136,11 @@ func (p *processor) CollectMetrics(ctx context.Context, appender storage.Appende
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	// increment stateleness counters and filter out stale keys
-	for key := range p.stalenessCounter {
-		p.stalenessCounter[key]++
-		// hasn't been updated for 4 collects (i.e. 1 minute), remove it
-		if p.stalenessCounter[key] >= 4 {
-			delete(p.stalenessCounter, key)
+	// remove inactive metrics
+	for key, lastUpdate := range p.lastUpdate {
+		sinceLastUpdate := p.now().Sub(lastUpdate)
+		if sinceLastUpdate > p.cfg.DeleteAfterLastUpdate {
+			delete(p.lastUpdate, key)
 			delete(p.calls, key)
 			delete(p.latencyCount, key)
 			delete(p.latencySum, key)
@@ -150,15 +148,13 @@ func (p *processor) CollectMetrics(ctx context.Context, appender storage.Appende
 			delete(p.cache, key)
 		}
 	}
-
 	p.metricActiveSeries.Set(float64(len(p.calls)))
 
-	timestampMs := time.Now().UnixMilli()
-
+	// collect samples
+	timestampMs := p.now().UnixMilli()
 	if err := p.collectCalls(appender, timestampMs); err != nil {
 		return err
 	}
-
 	if err := p.collectLatencyMetrics(appender, timestampMs); err != nil {
 		return err
 	}
@@ -167,7 +163,6 @@ func (p *processor) CollectMetrics(ctx context.Context, appender storage.Appende
 }
 
 func (p *processor) collectCalls(appender storage.Appender, timestampMs int64) error {
-	// TODO: only collect new data points.
 	for key, count := range p.calls {
 		lbls := p.getLabels(key, callsMetric)
 
@@ -179,7 +174,6 @@ func (p *processor) collectCalls(appender storage.Appender, timestampMs int64) e
 }
 
 func (p *processor) collectLatencyMetrics(appender storage.Appender, timestampMs int64) error {
-	// TODO: only collect new data points.
 	for key := range p.latencyCount {
 		// Collect latency count
 		lbls := p.getLabels(key, latencyCount)
