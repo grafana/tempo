@@ -44,7 +44,7 @@ type RemoteWriteAppender struct {
 	remoteWriter RemoteWriter
 	userID       string
 
-	// TODO Loki uses util.EvictingQueue here, investigate tradeoffs? This implementation is copied from cortex.PusherAppender
+	// TODO Loki uses util.EvictingQueue here to limit the amount of samples written per remote write request
 	labels    []labels.Labels
 	samples   []cortexpb.Sample
 	examplars []cortexpb.Exemplar
@@ -83,7 +83,8 @@ func (a *RemoteWriteAppender) AppendExemplar(storage.SeriesRef, labels.Labels, e
 }
 
 func (a *RemoteWriteAppender) Commit() error {
-	level.Debug(a.logger).Log("msg", "writing samples to remote_write target", "target", a.remoteWriter.Endpoint(), "count", len(a.samples))
+	level.Debug(a.logger).Log("msg", "writing samples to remote_write target", "tenant", a.userID, "target", a.remoteWriter.Endpoint(), "count", len(a.samples))
+	a.metrics.samplesSent.WithLabelValues(a.userID).Set(float64(len(a.samples)))
 	a.metrics.remoteWriteTotal.WithLabelValues(a.userID).Inc()
 
 	// TODO is cortexpb.RULE appropriate here? alternative is API...
@@ -96,9 +97,12 @@ func (a *RemoteWriteAppender) Commit() error {
 	}
 	reqBytes = snappy.Encode(nil, reqBytes)
 
+	// TODO I have seen requests fail because the message was to big (there is a limit of 10MB I think?), should we limit or split messages here?
+
 	err = a.remoteWriter.Store(a.ctx, reqBytes)
+	// TODO the returned error can be of type RecoverableError with a retryAfter duration, should we do something with this?
 	if err != nil {
-		level.Error(a.logger).Log("msg", "could not store metrics-generator samples", "err", err)
+		level.Error(a.logger).Log("msg", "could not store metrics-generator samples", "tenant", a.userID, "err", err)
 		a.metrics.remoteWriteErrors.WithLabelValues(a.userID).Inc()
 		return err
 	}
@@ -125,7 +129,11 @@ func (a *noopAppender) Appender(_ context.Context) storage.Appender {
 }
 
 func (a *noopAppender) Append(_ storage.SeriesRef, _ labels.Labels, _ int64, _ float64) (storage.SeriesRef, error) {
-	return 0, errors.New("not implemented")
+	return 0, nil
+}
+
+func (a *noopAppender) AppendExemplar(_ storage.SeriesRef, _ labels.Labels, _ exemplar.Exemplar) (storage.SeriesRef, error) {
+	return 0, nil
 }
 
 func (a *noopAppender) Commit() error {
@@ -134,8 +142,4 @@ func (a *noopAppender) Commit() error {
 
 func (a *noopAppender) Rollback() error {
 	return nil
-}
-
-func (a *noopAppender) AppendExemplar(_ storage.SeriesRef, _ labels.Labels, _ exemplar.Exemplar) (storage.SeriesRef, error) {
-	return 0, errors.New("not implemented")
 }

@@ -44,12 +44,18 @@ func NewRemoteWriter(cfg RemoteWriteConfig, userID string) (RemoteWriter, error)
 }
 
 type remoteWriteMetrics struct {
+	samplesSent       *prometheus.GaugeVec
 	remoteWriteErrors *prometheus.CounterVec
 	remoteWriteTotal  *prometheus.CounterVec
 }
 
 func newRemoteWriteMetrics(reg prometheus.Registerer) *remoteWriteMetrics {
 	return &remoteWriteMetrics{
+		samplesSent: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "tempo",
+			Name:      "metrics_generator_samples_sent_total",
+			Help:      "Number of samples sent per remote write",
+		}, []string{"tenant"}),
 		remoteWriteErrors: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Namespace: "tempo",
 			Name:      "metrics_generator_remote_write_errors",

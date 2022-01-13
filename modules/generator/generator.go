@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"sync"
 	"time"
 
@@ -14,15 +13,12 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
-
-const userMetricsScrapeEndpoint = "/api/trace-metrics"
 
 type AppendableFactory func(userID string) storage.Appendable
 
@@ -36,35 +32,6 @@ type Generator struct {
 
 	lifecycler *ring.Lifecycler
 	overrides  *overrides.Overrides
-
-	// TODO figure out how to gather metrics from a prometheus.Registerer and
-	//  push them into a storage.Appender
-	//
-	// Issue: the code to create metrics uses a Registerer, this is a concept from
-	// prometheus/client_golang, i.e. the instrumentation library.
-	// The code to work with storage uses storage.Appendable / storage.Appender, which
-	// is from prometheus/prometheus, i.e. the server implementation.
-	//
-	// Unfortunately these two worlds have different data models, you cannot combine
-	// a Registerer with an Appender. In a normal set up they never interact with each
-	// other directly but through HTTP scrapes.
-	//
-	// Current implementation:
-	// - create a single Registry dedicated for user metrics, this is used by processors
-	// - expose this Registry on an HTTP endpoint
-	// - an external Prometheus instance scrapes this endpoint
-	//
-	// Ideal scenario:
-	// - appendableFactory allows you to create a storage.Appender per tenant
-	// - for every instance/tenant:
-	//	 - create a dedicated Registerer to be used by the processors
-	//   - each tenant has a 'Collector' which scrapes the Registerer and pushes data into storage.Appender
-
-	// TODO since we only set up a single scrape endpoint, we have to use a global Registerer
-	//  until we move this Registerer into instance we cannot support multi-tenancy
-	userMetricsRegisterer     prometheus.Registerer
-	UserMetricsScrapeEndpoint string
-	UserMetricsHandler        http.Handler
 
 	appendableFactory AppendableFactory
 
@@ -83,19 +50,16 @@ func New(cfg Config, overrides *overrides.Overrides, reg prometheus.Registerer) 
 		overrides: overrides,
 	}
 
-	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, g, "metrics-generator", cfg.OverrideRingKey, true, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
+	// TODO should we use the BasicLifecycler so we can auto-forget unhealthy instances?
+	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, nil, "metrics-generator", cfg.OverrideRingKey, false, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed %w", err)
 	}
+	lc.SetUnregisterOnShutdown(true)
 	g.lifecycler = lc
 
 	g.subservicesWatcher = services.NewFailureWatcher()
 	g.subservicesWatcher.WatchService(g.lifecycler)
-
-	userMetricsRegistry := prometheus.NewRegistry()
-	g.userMetricsRegisterer = userMetricsRegistry
-	g.UserMetricsScrapeEndpoint = userMetricsScrapeEndpoint
-	g.UserMetricsHandler = promhttp.HandlerFor(userMetricsRegistry, promhttp.HandlerOpts{})
 
 	remoteWriteMetrics := newRemoteWriteMetrics(reg)
 	g.appendableFactory = func(userID string) storage.Appendable {
@@ -123,6 +87,7 @@ func (g *Generator) running(ctx context.Context) error {
 	//  Should we make the collect interval configurable per tenant? Tenants might want to choose between 1 and 4 DPM
 	collectMetricsInterval := 15 * time.Second
 
+	// TODO should we make this a separate service? This could simplify stop logic a little bit
 	collectMetricsTicker := time.NewTicker(collectMetricsInterval)
 	defer collectMetricsTicker.Stop()
 
@@ -141,7 +106,10 @@ func (g *Generator) running(ctx context.Context) error {
 }
 
 func (g *Generator) stopping(_ error) error {
-	// TODO remove tokens from the ring?
+	// TODO at shutdown we should:
+	//   - refuse new writes
+	//   - collect and push metrics a final time
+	//  Shutting down the instance/processors isn't necessary I think
 
 	err := services.StopAndAwaitTerminated(context.Background(), g.lifecycler)
 	if err != nil {
@@ -149,7 +117,7 @@ func (g *Generator) stopping(_ error) error {
 	}
 
 	for id, instance := range g.instances {
-		err := instance.Shutdown(context.Background())
+		err := instance.shutdown(context.Background())
 		if err != nil {
 			level.Warn(log.Logger).Log("msg", "failed to shutdown instance", "instanceID", id, "err", err)
 		}
@@ -187,13 +155,12 @@ func (g *Generator) getOrCreateInstance(instanceID string) (*instance, error) {
 		return inst, nil
 	}
 
-	// TODO: Take a RLock before Lock? 🔐
 	g.instancesMtx.Lock()
 	defer g.instancesMtx.Unlock()
 	inst, ok = g.instances[instanceID]
 	if !ok {
 		var err error
-		inst, err = newInstance(instanceID, g.overrides, g.userMetricsRegisterer, g.appendableFactory(instanceID))
+		inst, err = newInstance(instanceID, g.overrides, g.appendableFactory(instanceID))
 		if err != nil {
 			return nil, err
 		}
@@ -222,14 +189,6 @@ func (g *Generator) collectMetrics() {
 			level.Error(log.Logger).Log("msg", "collecting and pushing metrics failed", "tenant", instance.instanceID, "err", err)
 		}
 	}
-}
-
-// Flush is called by the lifecycler on shutdown.
-func (g *Generator) Flush() {
-}
-
-func (g *Generator) TransferOut(ctx context.Context) error {
-	return ring.ErrTransferDisabled
 }
 
 func (g *Generator) CheckReady(ctx context.Context) error {

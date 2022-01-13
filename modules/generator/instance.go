@@ -33,7 +33,6 @@ type instance struct {
 	instanceID string
 	overrides  *overrides.Overrides
 
-	registerer prometheus.Registerer
 	appendable storage.Appendable
 
 	processors []processor.Processor
@@ -42,12 +41,11 @@ type instance struct {
 	metricBytesIngestedTotal prometheus.Counter
 }
 
-func newInstance(instanceID string, overrides *overrides.Overrides, userMetricsRegisterer prometheus.Registerer, appendable storage.Appendable) (*instance, error) {
+func newInstance(instanceID string, overrides *overrides.Overrides, appendable storage.Appendable) (*instance, error) {
 	i := &instance{
 		instanceID: instanceID,
 		overrides:  overrides,
 
-		registerer: userMetricsRegisterer,
 		appendable: appendable,
 
 		metricSpansIngestedTotal: metricSpansIngested.WithLabelValues(instanceID),
@@ -105,9 +103,9 @@ func (i *instance) collectAndPushMetrics(ctx context.Context) error {
 	return appender.Commit()
 }
 
-// Shutdown stops the instance and flushes any remaining data. After shutdown
+// shutdown stops the instance and flushes any remaining data. After shutdown
 // is called PushSpans should not be called anymore.
-func (i *instance) Shutdown(ctx context.Context) error {
+func (i *instance) shutdown(ctx context.Context) error {
 	// TODO should we set a boolean to refuse push request once this is called?
 
 	for _, processor := range i.processors {

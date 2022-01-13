@@ -158,8 +158,6 @@ func (t *App) initGenerator() (services.Service, error) {
 	t.generator = generator
 
 	tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC, t.generator)
-	// Expose an endpoint to scrape generated metrics from, note these contain user data not operational metrics
-	t.Server.HTTP.Path(generator.UserMetricsScrapeEndpoint).Handler(generator.UserMetricsHandler)
 	return t.generator, nil
 }
 
