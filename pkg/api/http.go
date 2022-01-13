@@ -272,23 +272,32 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 	}
 
 	q := req.URL.Query()
+
 	q.Set(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
 	q.Set(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
-	q.Set(urlParamLimit, strconv.FormatUint(uint64(searchReq.Limit), 10))
-	q.Set(urlParamMaxDuration, strconv.FormatUint(uint64(searchReq.MaxDurationMs), 10)+"ms")
-	q.Set(urlParamMinDuration, strconv.FormatUint(uint64(searchReq.MinDurationMs), 10)+"ms")
-
-	builder := &strings.Builder{}
-	encoder := logfmt.NewEncoder(builder)
-
-	for k, v := range searchReq.Tags {
-		err := encoder.EncodeKeyval(k, v)
-		if err != nil {
-			return nil, err
-		}
+	if searchReq.Limit != 0 {
+		q.Set(urlParamLimit, strconv.FormatUint(uint64(searchReq.Limit), 10))
+	}
+	if searchReq.MaxDurationMs != 0 {
+		q.Set(urlParamMaxDuration, strconv.FormatUint(uint64(searchReq.MaxDurationMs), 10)+"ms")
+	}
+	if searchReq.MinDurationMs != 0 {
+		q.Set(urlParamMinDuration, strconv.FormatUint(uint64(searchReq.MinDurationMs), 10)+"ms")
 	}
 
-	q.Set(urlParamTags, builder.String())
+	if len(searchReq.Tags) > 0 {
+		builder := &strings.Builder{}
+		encoder := logfmt.NewEncoder(builder)
+
+		for k, v := range searchReq.Tags {
+			err := encoder.EncodeKeyval(k, v)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		q.Set(urlParamTags, builder.String())
+	}
 
 	req.URL.RawQuery = q.Encode()
 

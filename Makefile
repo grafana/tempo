@@ -184,9 +184,9 @@ vendor-check: gen-proto gen-flat
 	git diff --exit-code -- go.sum go.mod vendor/ pkg/tempopb/ pkg/tempofb/
 
 
-### Release (intended to be used in the .github/workflows/images.yml)
+### Release (intended to be used in the .github/workflows/release.yml)
 $(GORELEASER):
-	curl -sfL https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh | BINDIR=$(GOPATH)/bin sh
+	go install github.com/goreleaser/goreleaser@latest
 
 release: $(GORELEASER)
 	$(GORELEASER) build --skip-validate --rm-dist
