@@ -54,12 +54,14 @@ func (d *BatchDecoder) ToObject(batches [][]byte) ([]byte, error) {
 }
 
 func marshalWithStartEnd(pb proto.Message, start uint32, end uint32) ([]byte, error) {
+	const uint32Size = 4
+
 	sz := proto.Size(pb)
-	buff := make([]byte, 0, sz+8) // jpe confirm this prevents extra allocations, constant instead of 8?
+	buff := make([]byte, 0, sz+uint32Size*2) // proto buff size + start/end uint32s
 
 	buffer := proto.NewBuffer(buff)
 
-	_ = buffer.EncodeFixed32(uint64(start)) // jpe get errs
+	_ = buffer.EncodeFixed32(uint64(start)) // EncodeFixed32 can't return an error
 	_ = buffer.EncodeFixed32(uint64(end))
 	err := buffer.Marshal(pb)
 	if err != nil {
@@ -89,7 +91,7 @@ func stripStartEnd(buff []byte) ([]byte, uint32, uint32, error) {
 	return buff[8:], uint32(start), uint32(end), nil
 }
 
-func combineToProto(objs ...[]byte) (*tempopb.Trace, error) { // jpe bug with unmarshalling not caught by package tests?
+func combineToProto(objs ...[]byte) (*tempopb.Trace, error) {
 	var combinedTrace *tempopb.Trace
 	for _, obj := range objs {
 		obj, _, _, err := stripStartEnd(obj)
@@ -97,7 +99,7 @@ func combineToProto(objs ...[]byte) (*tempopb.Trace, error) { // jpe bug with un
 			return nil, fmt.Errorf("error stripping start/end: %w", err)
 		}
 
-		t := &tempopb.Trace{} // jpe not caught by local tests
+		t := &tempopb.Trace{}
 		err = proto.Unmarshal(obj, t)
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshaling trace: %w", err)

@@ -1,11 +1,13 @@
 package ingester
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
 	"hash"
 	"hash/fnv"
+	"sort"
 	"sync"
 	"time"
 
@@ -21,7 +23,6 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
@@ -220,9 +221,10 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	batchDecoder := model.MustNewBatchDecoder(model.CurrentEncoding)
 
 	for _, t := range tracesToCut {
-		trace.SortTraceBytes(t.traceBytes)
+		// sort batches before cutting to reduce combinations during compaction
+		sortByteSlices(t.batches)
 
-		out, err := batchDecoder.ToObject(t.traceBytes.Traces)
+		out, err := batchDecoder.ToObject(t.batches)
 		if err != nil {
 			return err
 		}
@@ -234,7 +236,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 
 		// return trace byte slices to be reused by proto marshalling
 		//  WARNING: can't reuse traceid's b/c the appender takes ownership of byte slices that are passed to it
-		tempopb.ReuseTraceBytes(t.traceBytes)
+		tempopb.ReuseByteSlices(t.batches)
 	}
 
 	return nil
@@ -405,7 +407,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	// live traces
 	i.tracesMtx.Lock()
 	if liveTrace, ok := i.traces[i.tokenForTraceID(id)]; ok {
-		completeTrace, err = model.MustNewBatchDecoder(model.CurrentEncoding).PrepareForRead(liveTrace.traceBytes.Traces)
+		completeTrace, err = model.MustNewBatchDecoder(model.CurrentEncoding).PrepareForRead(liveTrace.batches)
 		if err != nil {
 			i.tracesMtx.Unlock()
 			return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)
@@ -643,4 +645,14 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*wal.LocalBlock
 	}
 
 	return rediscoveredBlocks, nil
+}
+
+// sortByteSlices sorts a []byte
+func sortByteSlices(buffs [][]byte) {
+	sort.Slice(buffs, func(i, j int) bool {
+		traceI := buffs[i]
+		traceJ := buffs[j]
+
+		return bytes.Compare(traceI, traceJ) == -1
+	})
 }

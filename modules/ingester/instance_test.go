@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/overrides"
@@ -344,7 +345,6 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 	rand.Read(id)
 	pastTrace := &liveTrace{
 		traceID:    id,
-		traceBytes: &tempopb.TraceBytes{},
 		lastAppend: time.Now().Add(-time.Hour),
 	}
 
@@ -352,7 +352,6 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 	rand.Read(id)
 	nowTrace := &liveTrace{
 		traceID:    id,
-		traceBytes: &tempopb.TraceBytes{},
 		lastAppend: time.Now().Add(time.Hour),
 	}
 
@@ -582,6 +581,42 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	require.NoError(t, err)
 	err = pushFn(maxTraceBytes)
 	require.NoError(t, err)
+}
+
+func TestSortByteSlices(t *testing.T) {
+	numTraces := 100
+
+	// create first trace
+	traceBytes := &tempopb.TraceBytes{
+		Traces: make([][]byte, numTraces),
+	}
+	for i := range traceBytes.Traces {
+		traceBytes.Traces[i] = make([]byte, rand.Intn(10))
+		_, err := rand.Read(traceBytes.Traces[i])
+		require.NoError(t, err)
+	}
+
+	// dupe
+	traceBytes2 := &tempopb.TraceBytes{
+		Traces: make([][]byte, numTraces),
+	}
+	for i := range traceBytes.Traces {
+		traceBytes2.Traces[i] = make([]byte, len(traceBytes.Traces[i]))
+		copy(traceBytes2.Traces[i], traceBytes.Traces[i])
+	}
+
+	// randomize dupe
+	rand.Shuffle(len(traceBytes2.Traces), func(i, j int) {
+		traceBytes2.Traces[i], traceBytes2.Traces[j] = traceBytes2.Traces[j], traceBytes2.Traces[i]
+	})
+
+	assert.NotEqual(t, traceBytes, traceBytes2)
+
+	// sort and compare
+	sortByteSlices(traceBytes.Traces)
+	sortByteSlices(traceBytes2.Traces)
+
+	assert.Equal(t, traceBytes, traceBytes2)
 }
 
 func defaultInstance(t require.TestingT, tmpDir string) *instance {

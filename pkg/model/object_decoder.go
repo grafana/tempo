@@ -29,7 +29,7 @@ type ObjectDecoder interface {
 	Combine(objs ...[]byte) ([]byte, error)
 	// FastRange returns the start and end unix epoch timestamp of the trace. If its not possible to easily get these
 	// values from the underlying encoding then it should return decoder.ErrUnsupported
-	FastRange(obj []byte) (uint32, uint32, error) // jpe test with combine
+	FastRange(obj []byte) (uint32, uint32, error)
 }
 
 // NewObjectDecoder returns a Decoder given the passed string.

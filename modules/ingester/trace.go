@@ -8,8 +8,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-
-	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 var (
@@ -21,7 +19,7 @@ var (
 )
 
 type liveTrace struct {
-	traceBytes   *tempopb.TraceBytes // jpe - change to [][]byte
+	batches      [][]byte
 	lastAppend   time.Time
 	traceID      []byte
 	maxBytes     int
@@ -35,9 +33,7 @@ type liveTrace struct {
 
 func newTrace(traceID []byte, maxBytes int, maxSearchBytes int) *liveTrace {
 	return &liveTrace{
-		traceBytes: &tempopb.TraceBytes{
-			Traces: make([][]byte, 0, 10), // 10 for luck
-		},
+		batches:        make([][]byte, 0, 10), // 10 for luck
 		lastAppend:     time.Now(),
 		traceID:        traceID,
 		maxBytes:       maxBytes,
@@ -56,7 +52,7 @@ func (t *liveTrace) Push(_ context.Context, instanceID string, trace []byte, sea
 		t.currentBytes += reqSize
 	}
 
-	t.traceBytes.Traces = append(t.traceBytes.Traces, trace)
+	t.batches = append(t.batches, trace)
 
 	if searchDataSize := len(searchData); searchDataSize > 0 {
 		// disable limit when set to 0

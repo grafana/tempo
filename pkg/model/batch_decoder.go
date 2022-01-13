@@ -11,14 +11,14 @@ import (
 // BatchDecoder is used by the distributor/ingester to aggregate and pass batches of traces
 type BatchDecoder interface {
 	// PrepareForWrite takes a trace pointer and returns a record prepared for writing to an ingester
-	PrepareForWrite(trace *tempopb.Trace, start uint32, end uint32) ([]byte, error) // jpe test
+	PrepareForWrite(trace *tempopb.Trace, start uint32, end uint32) ([]byte, error)
 	// PrepareForRead converts a set of batches created using PrepareForWrite. These batches
 	//  are converted into a tempo.Trace. This operation can be quite costly and should be called for reading
-	PrepareForRead(batches [][]byte) (*tempopb.Trace, error) // jpe test
+	PrepareForRead(batches [][]byte) (*tempopb.Trace, error)
 	// ToObject converts a set of batches into an object ready to be written to the tempodb backend.
 	//  The resultant byte slice can then be manipulated using the corresponding ObjectDecoder.
 	//  ToObject is on the write path and should do as little as possible.
-	ToObject(batches [][]byte) ([]byte, error) // jpe test
+	ToObject(batches [][]byte) ([]byte, error)
 }
 
 // NewBatchDecoder returns a Decoder given the passed string.
@@ -27,7 +27,7 @@ func NewBatchDecoder(dataEncoding string) (BatchDecoder, error) {
 	case v1.Encoding:
 		return v1.NewBatchDecoder(), nil
 	case v2.Encoding:
-		return v2.NewBatchDecoder(), nil // jpe benchmark gogoproto vs protoproto
+		return v2.NewBatchDecoder(), nil
 	}
 
 	return nil, fmt.Errorf("unknown encoding %s. Supported encodings %v", dataEncoding, AllEncodings)
@@ -42,23 +42,4 @@ func MustNewBatchDecoder(dataEncoding string) BatchDecoder {
 	}
 
 	return decoder
-}
-
-func MustMarshalToObject(trace *tempopb.Trace, encoding string) []byte {
-	return mustMarshalToObjectWithRange(trace, encoding, 0, 0)
-}
-
-func mustMarshalToObjectWithRange(trace *tempopb.Trace, encoding string, start, end uint32) []byte {
-	b := MustNewBatchDecoder(encoding)
-	batch, err := b.PrepareForWrite(trace, start, end)
-	if err != nil {
-		panic(err)
-	}
-
-	obj, err := b.ToObject([][]byte{batch})
-	if err != nil {
-		panic(err)
-	}
-
-	return obj
 }

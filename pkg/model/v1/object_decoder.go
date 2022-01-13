@@ -68,7 +68,7 @@ func (d *ObjectDecoder) FastRange([]byte) (uint32, uint32, error) {
 }
 
 func (d *ObjectDecoder) Marshal(t *tempopb.Trace) ([]byte, error) {
-	traceBytes := &tempopb.TraceBytes{} // jpe: remove TraceBytes wrapper and support for the v0 encoding and have this implied
+	traceBytes := &tempopb.TraceBytes{}
 	bytes, err := proto.Marshal(t)
 	if err != nil {
 		return nil, err

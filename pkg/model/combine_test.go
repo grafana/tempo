@@ -47,40 +47,40 @@ func TestCombine(t *testing.T) {
 		},
 		{
 			name:     "same trace",
-			traces:   [][]byte{MustMarshalToObject(t1, CurrentEncoding), MustMarshalToObject(t1, CurrentEncoding)},
+			traces:   [][]byte{mustMarshalToObject(t1, CurrentEncoding), mustMarshalToObject(t1, CurrentEncoding)},
 			expected: t1,
 		},
 		{
 			name:           "3 traces",
-			traces:         [][]byte{MustMarshalToObject(t2a, CurrentEncoding), MustMarshalToObject(t2b, CurrentEncoding), MustMarshalToObject(t2c, CurrentEncoding)},
+			traces:         [][]byte{mustMarshalToObject(t2a, CurrentEncoding), mustMarshalToObject(t2b, CurrentEncoding), mustMarshalToObject(t2c, CurrentEncoding)},
 			expected:       t2,
 			expectCombined: true,
 		},
 		{
 			name:     "1 trace",
-			traces:   [][]byte{MustMarshalToObject(t1, CurrentEncoding)},
+			traces:   [][]byte{mustMarshalToObject(t1, CurrentEncoding)},
 			expected: t1,
 		},
 		{
 			name:           "nil trace",
-			traces:         [][]byte{MustMarshalToObject(t1, CurrentEncoding), nil},
+			traces:         [][]byte{mustMarshalToObject(t1, CurrentEncoding), nil},
 			expected:       t1,
 			expectCombined: true,
 		},
 		{
 			name:           "nil trace 2",
-			traces:         [][]byte{nil, MustMarshalToObject(t1, CurrentEncoding)},
+			traces:         [][]byte{nil, mustMarshalToObject(t1, CurrentEncoding)},
 			expected:       t1,
 			expectCombined: true,
 		},
 		{
 			name:        "bad trace",
-			traces:      [][]byte{MustMarshalToObject(t1, CurrentEncoding), {0x01, 0x02}},
+			traces:      [][]byte{mustMarshalToObject(t1, CurrentEncoding), {0x01, 0x02}},
 			expectError: true,
 		},
 		{
 			name:        "bad trace 2",
-			traces:      [][]byte{{0x01, 0x02}, MustMarshalToObject(t1, CurrentEncoding)},
+			traces:      [][]byte{{0x01, 0x02}, mustMarshalToObject(t1, CurrentEncoding)},
 			expectError: true,
 		},
 	}
@@ -95,7 +95,7 @@ func TestCombine(t *testing.T) {
 				require.NoError(t, err)
 			}
 			if tt.expected != nil {
-				expected := MustMarshalToObject(tt.expected, CurrentEncoding)
+				expected := mustMarshalToObject(tt.expected, CurrentEncoding)
 				assert.Equal(t, expected, actual)
 			}
 		})
@@ -116,4 +116,23 @@ func BenchmarkCombineTraceProtos(b *testing.B) {
 			}
 		})
 	}
+}
+
+func mustMarshalToObject(trace *tempopb.Trace, encoding string) []byte {
+	return mustMarshalToObjectWithRange(trace, encoding, 0, 0)
+}
+
+func mustMarshalToObjectWithRange(trace *tempopb.Trace, encoding string, start, end uint32) []byte {
+	b := MustNewBatchDecoder(encoding)
+	batch, err := b.PrepareForWrite(trace, start, end)
+	if err != nil {
+		panic(err)
+	}
+
+	obj, err := b.ToObject([][]byte{batch})
+	if err != nil {
+		panic(err)
+	}
+
+	return obj
 }

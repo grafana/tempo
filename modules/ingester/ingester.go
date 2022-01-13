@@ -188,7 +188,7 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 		}
 
 		now := uint32(time.Now().Unix())
-		v2Slice, err := v2Decoder.PrepareForWrite(trace, now, now) // jpe sync pool?
+		v2Slice, err := v2Decoder.PrepareForWrite(trace, now, now)
 		if err != nil {
 			return nil, fmt.Errorf("error calling v2.PrepareForWrite %w", err)
 		}

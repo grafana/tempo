@@ -25,7 +25,6 @@ func (d *ObjectDecoder) PrepareForRead(obj []byte) (*tempopb.Trace, error) {
 		return &tempopb.Trace{}, nil
 	}
 
-	// jpe - start/end time
 	obj, _, _, err := stripStartEnd(obj)
 	if err != nil {
 		return nil, err

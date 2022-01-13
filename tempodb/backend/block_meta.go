@@ -48,7 +48,7 @@ func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding E
 	return b
 }
 
-func (b *BlockMeta) ObjectAdded(id []byte) { // jpe - add start/end time
+func (b *BlockMeta) ObjectAdded(id []byte) {
 	b.EndTime = time.Now()
 
 	if len(b.MinID) == 0 || bytes.Compare(id, b.MinID) == -1 {
