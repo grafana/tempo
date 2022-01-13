@@ -17,7 +17,7 @@ import (
 func TestObjectDecoderMarshalUnmarshal(t *testing.T) {
 	empty := &tempopb.Trace{}
 
-	for _, e := range allEncodings {
+	for _, e := range AllEncodings {
 		t.Run(e, func(t *testing.T) {
 			encoding, err := NewObjectDecoder(e)
 			require.NoError(t, err)
@@ -44,7 +44,7 @@ func TestObjectDecoderMarshalUnmarshal(t *testing.T) {
 }
 
 func TestBatchDecoderToObjectDecoder(t *testing.T) {
-	for _, e := range allEncodings {
+	for _, e := range AllEncodings {
 		t.Run(e, func(t *testing.T) {
 			objectDecoder, err := NewObjectDecoder(e)
 			require.NoError(t, err)
@@ -330,7 +330,7 @@ func TestMatches(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		for _, e := range allEncodings {
+		for _, e := range AllEncodings {
 			t.Run(tc.name+":"+e, func(t *testing.T) {
 				d := MustNewObjectDecoder(e)
 				obj := mustMarshalToObjectWithRange(tc.trace, e, uint32(startSeconds), uint32(endSeconds))
@@ -345,7 +345,7 @@ func TestMatches(t *testing.T) {
 }
 
 func TestMatchesFails(t *testing.T) {
-	for _, e := range allEncodings {
+	for _, e := range AllEncodings {
 		_, err := MustNewObjectDecoder(e).Matches([]byte{0x01}, []byte{0x02, 0x03}, nil)
 		assert.Error(t, err)
 	}

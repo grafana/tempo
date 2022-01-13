@@ -11,8 +11,8 @@ import (
 // CurrentEncoding is a string representing the encoding that all new blocks should be created with
 const CurrentEncoding = v2.Encoding
 
-// allEncodings is used for testing
-var allEncodings = []string{
+// AllEncodings is used for testing
+var AllEncodings = []string{
 	v1.Encoding,
 	v2.Encoding,
 }
@@ -41,7 +41,7 @@ func NewObjectDecoder(dataEncoding string) (ObjectDecoder, error) {
 		return v2.NewObjectDecoder(), nil
 	}
 
-	return nil, fmt.Errorf("unknown encoding %s. Supported encodings %v", dataEncoding, allEncodings)
+	return nil, fmt.Errorf("unknown encoding %s. Supported encodings %v", dataEncoding, AllEncodings)
 }
 
 // MustNewObjectDecoder creates a new encoding or it panics

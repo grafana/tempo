@@ -19,8 +19,6 @@ type BatchDecoder interface {
 	//  The resultant byte slice can then be manipulated using the corresponding ObjectDecoder.
 	//  ToObject is on the write path and should do as little as possible.
 	ToObject(batches [][]byte) ([]byte, error) // jpe test
-
-	// jpe ConvertFromPrevious?
 }
 
 // NewBatchDecoder returns a Decoder given the passed string.
@@ -32,7 +30,7 @@ func NewBatchDecoder(dataEncoding string) (BatchDecoder, error) {
 		return v2.NewBatchDecoder(), nil // jpe benchmark gogoproto vs protoproto
 	}
 
-	return nil, fmt.Errorf("unknown encoding %s. Supported encodings %v", dataEncoding, allEncodings)
+	return nil, fmt.Errorf("unknown encoding %s. Supported encodings %v", dataEncoding, AllEncodings)
 }
 
 // MustNewBatchDecoder creates a new encoding or it panics

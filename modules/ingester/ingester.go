@@ -25,6 +25,9 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/flushqueues"
 	_ "github.com/grafana/tempo/pkg/gogocodec" // force gogo codec registration
+	"github.com/grafana/tempo/pkg/model"
+	v1 "github.com/grafana/tempo/pkg/model/v1"
+	v2 "github.com/grafana/tempo/pkg/model/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -166,10 +169,34 @@ func (i *Ingester) markUnavailable() {
 
 // PushBytes implements tempopb.Pusher.PushBytes. Traces pushed to this endpoint are expected to be in the formats
 //  defined by ./pkg/model/v1
+// This push function is extremely inefficient and is only provided as a migration path from the v1->v2 encodings
 func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
-	// jpe - convert forward from v1 to v2
-	// jpe - test
-	return nil, nil
+	var err error
+	v1Decoder, err := model.NewBatchDecoder(v1.Encoding)
+	if err != nil {
+		return nil, err
+	}
+	v2Decoder, err := model.NewBatchDecoder(v2.Encoding)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, t := range req.Traces {
+		trace, err := v1Decoder.PrepareForRead([][]byte{t.Slice})
+		if err != nil {
+			return nil, fmt.Errorf("error calling v1.PrepareForRead %w", err)
+		}
+
+		now := uint32(time.Now().Unix())
+		v2Slice, err := v2Decoder.PrepareForWrite(trace, now, now) // jpe sync pool?
+		if err != nil {
+			return nil, fmt.Errorf("error calling v2.PrepareForWrite %w", err)
+		}
+
+		req.Traces[i].Slice = v2Slice
+	}
+
+	return i.PushBytesV2(ctx, req)
 }
 
 // PushBytes implements tempopb.Pusher.PushBytes. Traces pushed to this endpoint are expected to be in the formats
