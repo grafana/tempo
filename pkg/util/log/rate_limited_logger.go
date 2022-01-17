@@ -1,18 +1,18 @@
-package util
+package log
 
 import (
 	"time"
 
-	"github.com/go-kit/log"
+	gkLog "github.com/go-kit/log"
 	"golang.org/x/time/rate"
 )
 
 type RateLimitedLogger struct {
 	limiter *rate.Limiter
-	logger  log.Logger
+	logger  gkLog.Logger
 }
 
-func NewRateLimitedLogger(logsPerSecond int, logger log.Logger) *RateLimitedLogger {
+func NewRateLimitedLogger(logsPerSecond int, logger gkLog.Logger) *RateLimitedLogger {
 	return &RateLimitedLogger{
 		limiter: rate.NewLimiter(rate.Limit(logsPerSecond), 1),
 		logger:  logger,

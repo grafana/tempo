@@ -3,12 +3,13 @@ package distributor
 import (
 	"testing"
 
-	"github.com/cortexproject/cortex/pkg/util/validation"
 	"github.com/grafana/dskit/limiter"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/pkg/util"
 )
 
 func TestIngestionRateStrategy(t *testing.T) {
@@ -20,7 +21,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 	}{
 		"local rate limiter should just return configured limits": {
 			limits: overrides.Limits{
-				IngestionRateStrategy:   validation.LocalIngestionRateStrategy,
+				IngestionRateStrategy:   util.LocalIngestionRateStrategy,
 				IngestionRateLimitBytes: 5,
 				IngestionBurstSizeBytes: 2,
 			},
@@ -30,7 +31,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 		},
 		"global rate limiter should share the limit across the number of distributors": {
 			limits: overrides.Limits{
-				IngestionRateStrategy:   validation.GlobalIngestionRateStrategy,
+				IngestionRateStrategy:   util.GlobalIngestionRateStrategy,
 				IngestionRateLimitBytes: 5,
 				IngestionBurstSizeBytes: 2,
 			},
@@ -56,9 +57,9 @@ func TestIngestionRateStrategy(t *testing.T) {
 
 			// Instance the strategy
 			switch testData.limits.IngestionRateStrategy {
-			case validation.LocalIngestionRateStrategy:
+			case util.LocalIngestionRateStrategy:
 				strategy = newLocalIngestionRateStrategy(overrides)
-			case validation.GlobalIngestionRateStrategy:
+			case util.GlobalIngestionRateStrategy:
 				strategy = newGlobalIngestionRateStrategy(overrides, testData.ring)
 			default:
 				require.Fail(t, "Unknown strategy")

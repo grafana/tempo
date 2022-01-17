@@ -5,10 +5,11 @@ import (
 	"os"
 	"time"
 
-	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
+
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb"
 )
 
@@ -45,7 +46,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	hostname, err := os.Hostname()
 	if err != nil {
-		level.Error(cortex_util.Logger).Log("msg", "failed to get hostname", "err", err)
+		level.Error(log.Logger).Log("msg", "failed to get hostname", "err", err)
 		os.Exit(1)
 	}
 	f.StringVar(&cfg.LifecyclerConfig.ID, prefix+".lifecycler.ID", hostname, "ID to register in the ring.")

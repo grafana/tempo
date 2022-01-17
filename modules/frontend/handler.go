@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/opentracing/opentracing-go"
@@ -16,6 +15,8 @@ import (
 	"github.com/weaveworks/common/httpgrpc/server"
 	"github.com/weaveworks/common/tracing"
 	"github.com/weaveworks/common/user"
+
+	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
