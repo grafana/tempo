@@ -138,7 +138,7 @@ func (t *TraceInfo) makeThriftBatch(TraceIDHigh int64, TraceIDLow int64) *thrift
 			TraceIdHigh:   TraceIDHigh,
 			SpanId:        t.r.Int63(),
 			ParentSpanId:  0,
-			OperationName: t.generateRandomString(),
+			OperationName: fmt.Sprintf("vulture-%d", t.generateRandomInt(0, 100)),
 			References:    nil,
 			Flags:         0,
 			StartTime:     unixMicro(t.timestamp),
@@ -162,7 +162,7 @@ func (t *TraceInfo) generateRandomString() string {
 	for i := range s {
 		s[i] = letters[t.r.Intn(len(letters))]
 	}
-	return "vulture-" + string(s)
+	return string(s)
 }
 
 func (t *TraceInfo) generateRandomTags() []*thrift.Tag {
