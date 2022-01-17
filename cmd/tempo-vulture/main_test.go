@@ -87,6 +87,7 @@ func TestResponseFixture(t *testing.T) {
 	var jsonTrace bytes.Buffer
 	marshaller := &jsonpb.Marshaler{}
 	err = marshaller.Marshal(&jsonTrace, generatedTrace)
+	require.NoError(t, err)
 	fmt.Println(jsonTrace.String())
 
 	assert.True(t, equalTraces(expected, generatedTrace))
