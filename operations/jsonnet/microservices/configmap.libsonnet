@@ -32,6 +32,9 @@
         s3: {
           bucket: $._config.bucket,
         },
+        azure: {
+          'container-name': $._config.bucket,
+        },
         pool: {
           queue_depth: 2000,
         },
@@ -60,7 +63,7 @@
     },
   },
 
-  tempo_ingester_config:: $.tempo_config{},
+  tempo_ingester_config:: $.tempo_config {},
 
   tempo_compactor_config:: $.tempo_config {
     compactor+: {
@@ -96,11 +99,11 @@
     querier+: {
       frontend_worker+: {
         frontend_address: 'query-frontend-discovery.%s.svc.cluster.local:9095' % [$._config.namespace],
-      }
-    }
+      },
+    },
   },
 
-  tempo_query_frontend_config:: $.tempo_config{},
+  tempo_query_frontend_config:: $.tempo_config {},
 
   // This will be the single configmap that stores `overrides.yaml`.
   overrides_config:
