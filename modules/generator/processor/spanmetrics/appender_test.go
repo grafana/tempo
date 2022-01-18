@@ -52,6 +52,7 @@ func (a *testAppender) Rollback() error {
 
 // Contains asserts that testAppender contains expectedSample.
 func (a *testAppender) Contains(t *testing.T, expectedSample testMetric) {
+	assert.Greater(t, len(a.samples), 0)
 	for _, sample := range a.samples {
 		if expectedSample.labels != sample.l.String() {
 			continue
@@ -76,6 +77,9 @@ func (a *testAppender) NotContains(t *testing.T, labels string) {
 // ContainsAll asserts that testAppender contains all of expectedSamples in the given order.
 // All samples should have a timestamp equal to timestamp with 1 millisecond of error margin.
 func (a *testAppender) ContainsAll(t *testing.T, expectedSamples []testMetric, timestamp time.Time) {
+	if len(expectedSamples) > 0 {
+		assert.NotEmpty(t, a.samples)
+	}
 	for i, sample := range a.samples {
 		assert.Equal(t, expectedSamples[i].labels, sample.l.String())
 		assert.InDelta(t, timestamp.UnixMilli(), sample.t, 1)

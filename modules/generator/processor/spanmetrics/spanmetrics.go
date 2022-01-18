@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -52,6 +53,7 @@ type processor struct {
 	latencyBucketCounts map[string][]float64
 	latencyBuckets      []float64
 	cache               map[string]labels.Labels
+	dimensions          []string
 
 	metricActiveSeries prometheus.Gauge
 
@@ -68,9 +70,9 @@ func New(cfg Config, tenant string) gen.Processor {
 		latencyCount:        make(map[string]float64),
 		latencySum:          make(map[string]float64),
 		latencyBucketCounts: make(map[string][]float64),
-		// TODO: make this configurable.
-		latencyBuckets: []float64{1, 10, 50, 100, 500},
-		cache:          make(map[string]labels.Labels),
+		latencyBuckets:      cfg.HistogramBuckets,
+		cache:               make(map[string]labels.Labels),
+		dimensions:          cfg.Dimensions,
 
 		metricActiveSeries: metricActiveSeries.WithLabelValues(tenant),
 
@@ -103,13 +105,13 @@ func (p *processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 }
 
 func (p *processor) aggregateMetricsForSpan(svcName string, span *v1_trace.Span) {
-	key := p.buildKey(svcName, span)
+	key, lbls := p.buildKey(svcName, span)
 
 	latencyMS := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Millisecond.Nanoseconds())
 
 	p.mtx.Lock()
 	p.lastUpdate[key] = p.now()
-	p.cacheLabels(key, svcName, span)
+	p.cacheLabels(key, lbls)
 	p.calls[key]++
 	p.aggregateLatencyMetrics(key, latencyMS)
 	p.mtx.Unlock()
@@ -192,7 +194,7 @@ func (p *processor) collectLatencyMetrics(appender storage.Appender, timestampMs
 			if i == len(p.latencyBuckets) {
 				lbls = append(p.getLabels(key, latencyBucket), labels.Label{Name: "le", Value: "+Inf"})
 			} else {
-				lbls = append(p.getLabels(key, latencyBucket), labels.Label{Name: "le", Value: strconv.Itoa(int(p.latencyBuckets[i]))})
+				lbls = append(p.getLabels(key, latencyBucket), labels.Label{Name: "le", Value: strconv.FormatFloat(p.latencyBuckets[i], 'f', -1, 64)})
 			}
 			if _, err := appender.Append(0, lbls, timestampMs, count); err != nil {
 				return err
@@ -203,21 +205,48 @@ func (p *processor) collectLatencyMetrics(appender storage.Appender, timestampMs
 	return nil
 }
 
-func (p *processor) buildKey(svcName string, span *v1_trace.Span) string {
-	// TODO: add more dimensions
-	key := fmt.Sprintf("%s_%s_%s_%s", svcName, span.Name, span.Kind, span.Status)
+func (p *processor) buildKey(svcName string, span *v1_trace.Span) (string, labels.Labels) {
+	lbls := make(labels.Labels, 0, len(p.dimensions)+4)
+	b := strings.Builder{}
+	// Build default dimensions
+	b.WriteString(svcName)
+	b.WriteString("_")
+	b.WriteString(span.Name)
+	b.WriteString("_")
+	b.WriteString(span.Kind.String())
+	b.WriteString("_")
+	b.WriteString(span.Status.String())
 
-	return key
-}
-
-// Must be called under lock
-func (p *processor) cacheLabels(key string, svcName string, span *v1_trace.Span) {
-	p.cache[key] = labels.Labels{
+	lbls = append(lbls, labels.Labels{
 		{Name: "service", Value: svcName},
 		{Name: "span_name", Value: span.Name},
 		{Name: "span_kind", Value: span.Kind.String()},
 		{Name: "span_status", Value: span.Status.Code.String()},
+	}...)
+
+	// TODO: this is super inefficient, we should only loop over the labels once
+	//  maybe use a map to store the labels? (we need to maintain the order)
+	// Build additional dimensions
+	for _, d := range p.dimensions {
+		for _, attr := range span.Attributes {
+			if d == attr.Key {
+				var str string
+				if attr.Value != nil {
+					str = attr.Value.GetStringValue()
+				}
+				b.WriteString("_")
+				b.WriteString(str)
+				lbls = append(lbls, labels.Label{Name: d, Value: str})
+			}
+		}
 	}
+
+	return b.String(), lbls
+}
+
+// Must be called under lock
+func (p *processor) cacheLabels(key string, lbls labels.Labels) {
+	p.cache[key] = lbls
 }
 
 // Must be called under lock
