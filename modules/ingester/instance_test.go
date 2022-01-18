@@ -47,7 +47,7 @@ func TestInstance(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	ingester, _, _ := defaultIngester(t, tempDir)
-	request := makeRequest(10, []byte{})
+	request := makeRequest([]byte{})
 
 	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
 	require.NoError(t, err, "unexpected error creating new instance")
@@ -197,7 +197,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 		}
 	}
 	go concurrent(func() {
-		request := makeRequest(10, []byte{})
+		request := makeRequest([]byte{})
 		err = i.PushBytesRequest(context.Background(), request)
 		require.NoError(t, err, "error pushing traces")
 	})
@@ -464,7 +464,7 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 			instance := defaultInstance(t, tempDir)
 
 			for i := 0; i < tc.pushCount; i++ {
-				request := makeRequest(10, []byte{})
+				request := makeRequest([]byte{})
 				err := instance.PushBytesRequest(context.Background(), request)
 				require.NoError(t, err)
 			}
@@ -529,7 +529,7 @@ func TestInstanceMetrics(t *testing.T) {
 	// Push some traces
 	count := 100
 	for j := 0; j < count; j++ {
-		request := makeRequest(10, []byte{})
+		request := makeRequest([]byte{})
 		err = i.PushBytesRequest(context.Background(), request)
 		require.NoError(t, err)
 	}
@@ -662,7 +662,7 @@ func BenchmarkInstancePush(b *testing.B) {
 	defer os.RemoveAll(tempDir)
 
 	instance := defaultInstance(b, tempDir)
-	request := makeRequest(10, []byte{})
+	request := makeRequest([]byte{})
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -679,7 +679,7 @@ func BenchmarkInstancePushExistingTrace(b *testing.B) {
 	defer os.RemoveAll(tempDir)
 
 	instance := defaultInstance(b, tempDir)
-	request := makeRequest(10, []byte{})
+	request := makeRequest([]byte{})
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -695,7 +695,7 @@ func BenchmarkInstanceFindTraceByID(b *testing.B) {
 
 	instance := defaultInstance(b, tempDir)
 	traceID := []byte{1, 2, 3, 4, 5, 6, 7, 8}
-	request := makeRequest(10, traceID)
+	request := makeRequest(traceID)
 	err = instance.PushBytesRequest(context.Background(), request)
 	require.NoError(b, err)
 
@@ -707,7 +707,9 @@ func BenchmarkInstanceFindTraceByID(b *testing.B) {
 	}
 }
 
-func makeRequest(spans int, traceID []byte) *tempopb.PushBytesRequest {
+func makeRequest(traceID []byte) *tempopb.PushBytesRequest {
+	const spans = 10
+
 	traceID = test.ValidTraceID(traceID)
 	return makePushBytesRequest(traceID, test.MakeBatch(spans, traceID))
 }

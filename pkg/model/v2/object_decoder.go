@@ -114,8 +114,6 @@ func (d *ObjectDecoder) marshal(t *tempopb.Trace, start, end uint32) ([]byte, er
 	if err != nil {
 		return nil, err
 	}
-
-	traceBytes.Marshal()
 	traceBytes.Traces = append(traceBytes.Traces, bytes)
 
 	return marshalWithStartEnd(traceBytes, start, end)
