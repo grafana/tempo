@@ -27,7 +27,7 @@ type ObjectDecoder interface {
 	Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error)
 	// Combine combines the passed byte slice
 	Combine(objs ...[]byte) ([]byte, error)
-	// FastRange returns the start and end unix epoch timestamp of the trace. If its not possible to easily get these
+	// FastRange returns the start and end unix epoch timestamp of the trace. If its not possible to efficiently get these
 	// values from the underlying encoding then it should return decoder.ErrUnsupported
 	FastRange(obj []byte) (uint32, uint32, error)
 }

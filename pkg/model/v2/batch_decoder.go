@@ -10,6 +10,11 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
+// BatchDecoder maintains the relationship between distributor -> ingester
+// Batch format:
+//  | uint32 | uint32 | variable length          |
+//  | start  | end    | marshalled tempopb.Trace |
+// start and end are unix epoch seconds
 type BatchDecoder struct {
 }
 
@@ -24,11 +29,27 @@ func (d *BatchDecoder) PrepareForWrite(trace *tempopb.Trace, start uint32, end u
 }
 
 func (d *BatchDecoder) PrepareForRead(batches [][]byte) (*tempopb.Trace, error) {
-	return combineToProto(batches...)
+	var combinedTrace *tempopb.Trace
+	for _, obj := range batches {
+		obj, _, _, err := stripStartEnd(obj)
+		if err != nil {
+			return nil, fmt.Errorf("error stripping start/end: %w", err)
+		}
+
+		t := &tempopb.Trace{}
+		err = proto.Unmarshal(obj, t)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshaling trace: %w", err)
+		}
+
+		combinedTrace, _ = trace.CombineTraceProtos(combinedTrace, t)
+	}
+
+	return combinedTrace, nil
 }
 
 func (d *BatchDecoder) ToObject(batches [][]byte) ([]byte, error) {
-	// strip start/end from individual batches and place it on the wrapper
+	// strip start/end from individual batches and place it in a TraceBytesWrapper
 	var err error
 	var minStart, maxEnd uint32
 	minStart = math.MaxUint32
@@ -89,24 +110,4 @@ func stripStartEnd(buff []byte) ([]byte, uint32, uint32, error) {
 	}
 
 	return buff[8:], uint32(start), uint32(end), nil
-}
-
-func combineToProto(objs ...[]byte) (*tempopb.Trace, error) {
-	var combinedTrace *tempopb.Trace
-	for _, obj := range objs {
-		obj, _, _, err := stripStartEnd(obj)
-		if err != nil {
-			return nil, fmt.Errorf("error stripping start/end: %w", err)
-		}
-
-		t := &tempopb.Trace{}
-		err = proto.Unmarshal(obj, t)
-		if err != nil {
-			return nil, fmt.Errorf("error unmarshaling trace: %w", err)
-		}
-
-		combinedTrace, _ = trace.CombineTraceProtos(combinedTrace, t)
-	}
-
-	return combinedTrace, nil
 }

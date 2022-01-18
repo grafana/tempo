@@ -16,6 +16,11 @@ type ObjectDecoder struct {
 
 var staticDecoder = &ObjectDecoder{}
 
+// ObjectDecoder translates between opaque byte slices and tempopb.Trace
+// Object format:
+//  | uint32 | uint32 | variable length               |
+//  | start  | end    | marshalled tempopb.TraceBytes |
+// start and end are unix epoch seconds. The byte slices in tempopb.TraceBytes are marshalled tempopb.Trace's
 func NewObjectDecoder() *ObjectDecoder {
 	return staticDecoder
 }
@@ -46,10 +51,11 @@ func (d *ObjectDecoder) PrepareForRead(obj []byte) (*tempopb.Trace, error) {
 
 		trace.Batches = append(trace.Batches, innerTrace.Batches...)
 	}
-	return trace, err
+	return trace, nil
 }
 
 func (d *ObjectDecoder) Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
+	// FastRange allows us to quickly filter out traces that do not intersect with the requested time range
 	start, end, err := d.FastRange(obj)
 	if err != nil {
 		return nil, err
@@ -95,26 +101,17 @@ func (d *ObjectDecoder) Combine(objs ...[]byte) ([]byte, error) {
 		combinedTrace, _ = trace.CombineTraceProtos(combinedTrace, t)
 	}
 
-	combinedBytes, err := d.marshal(combinedTrace, minStart, maxEnd)
+	traceBytes := &tempopb.TraceBytes{}
+	bytes, err := proto.Marshal(combinedTrace)
 	if err != nil {
-		return nil, fmt.Errorf("error marshaling combinedBytes: %w", err)
+		return nil, fmt.Errorf("error marshaling traceBytes: %w", err)
 	}
+	traceBytes.Traces = append(traceBytes.Traces, bytes)
 
-	return combinedBytes, nil
+	return marshalWithStartEnd(traceBytes, minStart, maxEnd)
 }
 
 func (d *ObjectDecoder) FastRange(buff []byte) (uint32, uint32, error) {
 	_, start, end, err := stripStartEnd(buff)
 	return start, end, err
-}
-
-func (d *ObjectDecoder) marshal(t *tempopb.Trace, start, end uint32) ([]byte, error) {
-	traceBytes := &tempopb.TraceBytes{}
-	bytes, err := proto.Marshal(t)
-	if err != nil {
-		return nil, err
-	}
-	traceBytes.Traces = append(traceBytes.Traces, bytes)
-
-	return marshalWithStartEnd(traceBytes, start, end)
 }

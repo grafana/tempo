@@ -50,9 +50,14 @@ func (d *ObjectDecoder) Matches(id []byte, obj []byte, req *tempopb.SearchReques
 }
 
 func (d *ObjectDecoder) Combine(objs ...[]byte) ([]byte, error) {
-	combinedTrace, err := combineToProto(objs...)
-	if err != nil {
-		return nil, err
+	var combinedTrace *tempopb.Trace
+	for _, obj := range objs {
+		t, err := staticDecoder.PrepareForRead(obj)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshaling trace: %w", err)
+		}
+
+		combinedTrace, _ = trace.CombineTraceProtos(combinedTrace, t)
 	}
 
 	combinedBytes, err := d.Marshal(combinedTrace)
@@ -77,18 +82,4 @@ func (d *ObjectDecoder) Marshal(t *tempopb.Trace) ([]byte, error) {
 	traceBytes.Traces = append(traceBytes.Traces, bytes)
 
 	return proto.Marshal(traceBytes)
-}
-
-func combineToProto(objs ...[]byte) (*tempopb.Trace, error) {
-	var combinedTrace *tempopb.Trace
-	for _, obj := range objs {
-		t, err := staticDecoder.PrepareForRead(obj)
-		if err != nil {
-			return nil, fmt.Errorf("error unmarshaling trace: %w", err)
-		}
-
-		combinedTrace, _ = trace.CombineTraceProtos(combinedTrace, t)
-	}
-
-	return combinedTrace, nil
 }
