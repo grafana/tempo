@@ -110,7 +110,7 @@ func TestInstanceFind(t *testing.T) {
 
 		testTrace := test.MakeTrace(10, id)
 		trace.SortTrace(testTrace)
-		traceBytes, err := model.MustNewBatchDecoder(model.CurrentEncoding).PrepareForWrite(testTrace, 0, 0)
+		traceBytes, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(testTrace, 0, 0)
 		require.NoError(t, err)
 
 		err = i.PushBytes(context.Background(), id, traceBytes, nil)
@@ -128,7 +128,7 @@ func TestInstanceFind(t *testing.T) {
 	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 	for j := 0; j < numTraces; j++ {
-		traceBytes, err := model.MustNewBatchDecoder(model.CurrentEncoding).PrepareForWrite(traces[j], 0, 0)
+		traceBytes, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(traces[j], 0, 0)
 		require.NoError(t, err)
 
 		err = i.PushBytes(context.Background(), ids[j], traceBytes, nil)
@@ -729,7 +729,7 @@ func makeRequestWithByteLimit(maxBytes int, traceID []byte) *tempopb.PushBytesRe
 func makePushBytesRequest(traceID []byte, batch *v1_trace.ResourceSpans) *tempopb.PushBytesRequest {
 	trace := &tempopb.Trace{Batches: []*v1_trace.ResourceSpans{batch}}
 
-	buffer, err := model.MustNewBatchDecoder(model.CurrentEncoding).PrepareForWrite(trace, 0, 0)
+	buffer, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(trace, 0, 0)
 	if err != nil {
 		panic(err)
 	}

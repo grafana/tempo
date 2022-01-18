@@ -10,25 +10,25 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// BatchDecoder maintains the relationship between distributor -> ingester
-// Batch format:
+// SegmentDecoder maintains the relationship between distributor -> ingester
+// Segment format:
 //  | uint32 | uint32 | variable length          |
 //  | start  | end    | marshalled tempopb.Trace |
 // start and end are unix epoch seconds
-type BatchDecoder struct {
+type SegmentDecoder struct {
 }
 
-var batchDecoder = &BatchDecoder{}
+var segmentDecoder = &SegmentDecoder{}
 
-func NewBatchDecoder() *BatchDecoder {
-	return batchDecoder
+func NewBatchDecoder() *SegmentDecoder {
+	return segmentDecoder
 }
 
-func (d *BatchDecoder) PrepareForWrite(trace *tempopb.Trace, start uint32, end uint32) ([]byte, error) {
+func (d *SegmentDecoder) PrepareForWrite(trace *tempopb.Trace, start uint32, end uint32) ([]byte, error) {
 	return marshalWithStartEnd(trace, start, end)
 }
 
-func (d *BatchDecoder) PrepareForRead(batches [][]byte) (*tempopb.Trace, error) {
+func (d *SegmentDecoder) PrepareForRead(batches [][]byte) (*tempopb.Trace, error) {
 	var combinedTrace *tempopb.Trace
 	for _, obj := range batches {
 		obj, _, _, err := stripStartEnd(obj)
@@ -48,7 +48,9 @@ func (d *BatchDecoder) PrepareForRead(batches [][]byte) (*tempopb.Trace, error) 
 	return combinedTrace, nil
 }
 
-func (d *BatchDecoder) ToObject(batches [][]byte) ([]byte, error) {
+// ToObject creates a byte slice that can be interpreted by ObjectDecoder in this package
+// see object_decoder.go for details on the format.
+func (d *SegmentDecoder) ToObject(batches [][]byte) ([]byte, error) {
 	// strip start/end from individual batches and place it in a TraceBytesWrapper
 	var err error
 	var minStart, maxEnd uint32

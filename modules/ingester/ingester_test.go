@@ -418,7 +418,7 @@ func defaultLimitsTestConfig() overrides.Limits {
 
 func pushBatchV2(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 	ctx := user.InjectOrgID(context.Background(), "test")
-	batchDecoder := model.MustNewBatchDecoder(model_v2.Encoding)
+	batchDecoder := model.MustNewSegmentDecoder(model_v2.Encoding)
 
 	pbTrace := &tempopb.Trace{
 		Batches: []*v1.ResourceSpans{batch},
@@ -445,7 +445,7 @@ func pushBatchV2(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) 
 func pushBatchV1(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 	ctx := user.InjectOrgID(context.Background(), "test")
 
-	batchDecoder := model.MustNewBatchDecoder(model_v1.Encoding)
+	batchDecoder := model.MustNewSegmentDecoder(model_v1.Encoding)
 
 	pbTrace := &tempopb.Trace{
 		Batches: []*v1.ResourceSpans{batch},

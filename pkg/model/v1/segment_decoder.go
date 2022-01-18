@@ -8,22 +8,22 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-type BatchDecoder struct {
+type SegmentDecoder struct {
 }
 
-var batchDecoder = &BatchDecoder{}
+var segmentDecoder = &SegmentDecoder{}
 
-// NewBatchDecoder() returns a v1 batch decoder.
-func NewBatchDecoder() *BatchDecoder {
-	return batchDecoder
+// NewSegmentDecoder() returns a v1 segment decoder.
+func NewSegmentDecoder() *SegmentDecoder {
+	return segmentDecoder
 }
 
-func (d *BatchDecoder) PrepareForWrite(trace *tempopb.Trace, start uint32, end uint32) ([]byte, error) {
+func (d *SegmentDecoder) PrepareForWrite(trace *tempopb.Trace, start uint32, end uint32) ([]byte, error) {
 	// v1 encoding doesn't support start/end
 	return proto.Marshal(trace)
 }
 
-func (d *BatchDecoder) PrepareForRead(batches [][]byte) (*tempopb.Trace, error) {
+func (d *SegmentDecoder) PrepareForRead(batches [][]byte) (*tempopb.Trace, error) {
 	// each slice is a marshalled tempopb.Trace, unmarshal and combine
 	var combinedTrace *tempopb.Trace
 	for _, batch := range batches {
@@ -39,7 +39,7 @@ func (d *BatchDecoder) PrepareForRead(batches [][]byte) (*tempopb.Trace, error) 
 	return combinedTrace, nil
 }
 
-func (d *BatchDecoder) ToObject(batches [][]byte) ([]byte, error) {
+func (d *SegmentDecoder) ToObject(batches [][]byte) ([]byte, error) {
 	// wrap byte slices in a tempopb.TraceBytes and marshal
 	wrapper := &tempopb.TraceBytes{
 		Traces: append([][]byte(nil), batches...),

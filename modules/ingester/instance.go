@@ -218,7 +218,7 @@ func (i *instance) measureReceivedBytes(traceBytes []byte, searchData []byte) {
 // Moves any complete traces out of the map to complete traces
 func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error {
 	tracesToCut := i.tracesToCut(cutoff, immediate)
-	batchDecoder := model.MustNewBatchDecoder(model.CurrentEncoding)
+	batchDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	for _, t := range tracesToCut {
 		// sort batches before cutting to reduce combinations during compaction
@@ -407,7 +407,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	// live traces
 	i.tracesMtx.Lock()
 	if liveTrace, ok := i.traces[i.tokenForTraceID(id)]; ok {
-		completeTrace, err = model.MustNewBatchDecoder(model.CurrentEncoding).PrepareForRead(liveTrace.batches)
+		completeTrace, err = model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForRead(liveTrace.batches)
 		if err != nil {
 			i.tracesMtx.Unlock()
 			return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)

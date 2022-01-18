@@ -107,7 +107,7 @@ type Distributor struct {
 	pool            *ring_client.Pool
 	DistributorRing *ring.Ring
 	overrides       *overrides.Overrides
-	traceEncoder    model.BatchDecoder
+	traceEncoder    model.SegmentDecoder
 
 	// search
 	searchEnabled    bool
@@ -180,7 +180,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		searchEnabled:        searchEnabled,
 		globalTagsToDrop:     tagsToDrop,
 		overrides:            o,
-		traceEncoder:         model.MustNewBatchDecoder(model.CurrentEncoding),
+		traceEncoder:         model.MustNewSegmentDecoder(model.CurrentEncoding),
 	}
 
 	cfgReceivers := cfg.Receivers

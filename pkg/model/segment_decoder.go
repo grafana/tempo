@@ -8,8 +8,8 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// BatchDecoder is used by the distributor/ingester to aggregate and pass batches of traces
-type BatchDecoder interface {
+// SegmentDecoder is used by the distributor/ingester to aggregate and pass batches of traces
+type SegmentDecoder interface {
 	// PrepareForWrite takes a trace pointer and returns a record prepared for writing to an ingester
 	PrepareForWrite(trace *tempopb.Trace, start uint32, end uint32) ([]byte, error)
 	// PrepareForRead converts a set of batches created using PrepareForWrite. These batches
@@ -21,11 +21,11 @@ type BatchDecoder interface {
 	ToObject(batches [][]byte) ([]byte, error)
 }
 
-// NewBatchDecoder returns a Decoder given the passed string.
-func NewBatchDecoder(dataEncoding string) (BatchDecoder, error) {
+// NewSegmentDecoder returns a Decoder given the passed string.
+func NewSegmentDecoder(dataEncoding string) (SegmentDecoder, error) {
 	switch dataEncoding {
 	case v1.Encoding:
-		return v1.NewBatchDecoder(), nil
+		return v1.NewSegmentDecoder(), nil
 	case v2.Encoding:
 		return v2.NewBatchDecoder(), nil
 	}
@@ -33,9 +33,9 @@ func NewBatchDecoder(dataEncoding string) (BatchDecoder, error) {
 	return nil, fmt.Errorf("unknown encoding %s. Supported encodings %v", dataEncoding, AllEncodings)
 }
 
-// MustNewBatchDecoder creates a new encoding or it panics
-func MustNewBatchDecoder(dataEncoding string) BatchDecoder {
-	decoder, err := NewBatchDecoder(dataEncoding)
+// MustNewSegmentDecoder creates a new encoding or it panics
+func MustNewSegmentDecoder(dataEncoding string) SegmentDecoder {
+	decoder, err := NewSegmentDecoder(dataEncoding)
 
 	if err != nil {
 		panic(err)

@@ -123,7 +123,7 @@ func mustMarshalToObject(trace *tempopb.Trace, encoding string) []byte {
 }
 
 func mustMarshalToObjectWithRange(trace *tempopb.Trace, encoding string, start, end uint32) []byte {
-	b := MustNewBatchDecoder(encoding)
+	b := MustNewSegmentDecoder(encoding)
 	batch, err := b.PrepareForWrite(trace, start, end)
 	if err != nil {
 		panic(err)

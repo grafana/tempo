@@ -172,11 +172,11 @@ func (i *Ingester) markUnavailable() {
 // This push function is extremely inefficient and is only provided as a migration path from the v1->v2 encodings
 func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
 	var err error
-	v1Decoder, err := model.NewBatchDecoder(v1.Encoding)
+	v1Decoder, err := model.NewSegmentDecoder(v1.Encoding)
 	if err != nil {
 		return nil, err
 	}
-	v2Decoder, err := model.NewBatchDecoder(v2.Encoding)
+	v2Decoder, err := model.NewSegmentDecoder(v2.Encoding)
 	if err != nil {
 		return nil, err
 	}

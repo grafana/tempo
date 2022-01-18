@@ -16,7 +16,7 @@ func TestBatchDecoderToObjectDecoder(t *testing.T) {
 			objectDecoder, err := NewObjectDecoder(e)
 			require.NoError(t, err)
 
-			batchDecoder, err := NewBatchDecoder(e)
+			batchDecoder, err := NewSegmentDecoder(e)
 			require.NoError(t, err)
 
 			// random trace
@@ -50,7 +50,7 @@ func TestBatchDecoderToObjectDecoderRange(t *testing.T) {
 			objectDecoder, err := NewObjectDecoder(e)
 			require.NoError(t, err)
 
-			batchDecoder, err := NewBatchDecoder(e)
+			batchDecoder, err := NewSegmentDecoder(e)
 			require.NoError(t, err)
 
 			// random trace
