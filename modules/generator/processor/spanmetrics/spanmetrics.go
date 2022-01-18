@@ -9,17 +9,15 @@ import (
 	"sync"
 	"time"
 
+	gen "github.com/grafana/tempo/modules/generator/processor"
+	"github.com/grafana/tempo/modules/generator/processor/util"
+	"github.com/grafana/tempo/pkg/tempopb"
+	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
-	semconv "go.opentelemetry.io/collector/model/semconv/v1.5.0"
-
-	gen "github.com/grafana/tempo/modules/generator/processor"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
 const (
@@ -92,7 +90,7 @@ func (p *processor) Shutdown(context.Context) error { return nil }
 
 func (p *processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	for _, rs := range resourceSpans {
-		svcName := getServiceName(rs.Resource)
+		svcName := util.GetServiceName(rs.Resource)
 		if svcName == "" {
 			continue
 		}
@@ -257,14 +255,4 @@ func (p *processor) getLabels(key, metricName string) labels.Labels {
 	lbls = append(lbls, labels.Label{Name: "__name__", Value: fmt.Sprintf("%s_%s", p.namespace, metricName)})
 
 	return lbls
-}
-
-func getServiceName(rs *v1_resource.Resource) string {
-	for _, attr := range rs.Attributes {
-		if attr.Key == semconv.AttributeServiceName {
-			return attr.Value.GetStringValue()
-		}
-	}
-
-	return ""
 }

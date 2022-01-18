@@ -1,4 +1,4 @@
-package servicegraphprocessor
+package store
 
 import (
 	"fmt"
@@ -9,18 +9,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var noopUpsertCb storeCallback = func(e *edge) {}
+var noopUpsertCb Callback = func(e *servicegraphprocessor.edge) {}
 
 func TestStore_upsertEdge(t *testing.T) {
 	const keyStr = "key"
 
 	var cbCallCount int
-	s := newStore(time.Hour, 1, func(e *edge) {
+	s := newStore(time.Hour, 1, func(e *servicegraphprocessor.edge) {
 		cbCallCount++
 	})
 	assert.Equal(t, 0, s.len())
 
-	_, err := s.upsertEdge(keyStr, func(e *edge) {})
+	_, err := s.upsertEdge(keyStr, func(e *servicegraphprocessor.edge) {})
 	require.NoError(t, err)
 	assert.Equal(t, 1, s.len())
 	assert.False(t, s.shouldEvictHead()) // ttl is set to 1h
@@ -30,13 +30,13 @@ func TestStore_upsertEdge(t *testing.T) {
 	assert.NotNil(t, e)
 	assert.Equal(t, keyStr, e.key)
 
-	_, err = s.upsertEdge(keyStr+keyStr, func(e *edge) {})
+	_, err = s.upsertEdge(keyStr+keyStr, func(e *servicegraphprocessor.edge) {})
 	assert.Error(t, err)
 
-	_, err = s.upsertEdge(keyStr, func(e *edge) {
+	_, err = s.upsertEdge(keyStr, func(e *servicegraphprocessor.edge) {
 		e.clientService = "client"
 		e.serverService = "server"
-		e.expiration = 0 // expire immediately
+		e.expiration = 0 // Expire immediately
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 0, cbCallCount)
@@ -59,7 +59,7 @@ func TestStore_expire(t *testing.T) {
 	}
 
 	// all new keys are immediately expired.
-	s := newStore(-time.Second, 100, func(e *edge) {
+	s := newStore(-time.Second, 100, func(e *servicegraphprocessor.edge) {
 		assert.True(t, keys[e.key])
 	})
 
@@ -72,10 +72,10 @@ func TestStore_expire(t *testing.T) {
 	assert.Equal(t, 0, s.len())
 }
 
-func getEdge(s *store, k string) *edge {
+func getEdge(s *Store, k string) *servicegraphprocessor.edge {
 	ele, ok := s.m[k]
 	if !ok {
 		return nil
 	}
-	return ele.Value.(*edge)
+	return ele.Value.(*servicegraphprocessor.edge)
 }
