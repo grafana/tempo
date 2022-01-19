@@ -3,6 +3,9 @@ title: Backend Search
 weight: 9
 ---
 
+<span style="background-color:#f3f973;">This is an experimental feature.</span>
+
+
 Backend search can be operationally more complex than traditionally operating Tempo. This is largely due
 to how new it is and how our defaults don't support it well. Search is very much a work in progress and 
 we expect this to improve as we continue to refine this feature. 
