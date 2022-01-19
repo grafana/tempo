@@ -20,7 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alecthomas/units"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/types"
@@ -1092,28 +1091,27 @@ func (s *BucketStore) Series(req *storepb.SeriesRequest, srv storepb.Store_Serie
 	defer func() {
 		s.metrics.seriesDataTouched.WithLabelValues("postings").Observe(float64(stats.postingsTouched))
 		s.metrics.seriesDataFetched.WithLabelValues("postings").Observe(float64(stats.postingsFetched))
-		s.metrics.seriesDataSizeTouched.WithLabelValues("postings").Observe(float64(stats.PostingsTouchedSizeSum))
-		s.metrics.seriesDataSizeFetched.WithLabelValues("postings").Observe(float64(stats.PostingsFetchedSizeSum))
+		s.metrics.seriesDataSizeTouched.WithLabelValues("postings").Observe(float64(stats.postingsTouchedSizeSum))
+		s.metrics.seriesDataSizeFetched.WithLabelValues("postings").Observe(float64(stats.postingsFetchedSizeSum))
 		s.metrics.seriesDataTouched.WithLabelValues("series").Observe(float64(stats.seriesTouched))
 		s.metrics.seriesDataFetched.WithLabelValues("series").Observe(float64(stats.seriesFetched))
-		s.metrics.seriesDataSizeTouched.WithLabelValues("series").Observe(float64(stats.SeriesTouchedSizeSum))
-		s.metrics.seriesDataSizeFetched.WithLabelValues("series").Observe(float64(stats.SeriesFetchedSizeSum))
+		s.metrics.seriesDataSizeTouched.WithLabelValues("series").Observe(float64(stats.seriesTouchedSizeSum))
+		s.metrics.seriesDataSizeFetched.WithLabelValues("series").Observe(float64(stats.seriesFetchedSizeSum))
 		s.metrics.seriesDataTouched.WithLabelValues("chunks").Observe(float64(stats.chunksTouched))
 		s.metrics.seriesDataFetched.WithLabelValues("chunks").Observe(float64(stats.chunksFetched))
-		s.metrics.seriesDataSizeTouched.WithLabelValues("chunks").Observe(float64(stats.ChunksTouchedSizeSum))
-		s.metrics.seriesDataSizeFetched.WithLabelValues("chunks").Observe(float64(stats.ChunksFetchedSizeSum))
+		s.metrics.seriesDataSizeTouched.WithLabelValues("chunks").Observe(float64(stats.chunksTouchedSizeSum))
+		s.metrics.seriesDataSizeFetched.WithLabelValues("chunks").Observe(float64(stats.chunksFetchedSizeSum))
 		s.metrics.resultSeriesCount.Observe(float64(stats.mergedSeriesCount))
 		s.metrics.cachedPostingsCompressions.WithLabelValues(labelEncode).Add(float64(stats.cachedPostingsCompressions))
 		s.metrics.cachedPostingsCompressions.WithLabelValues(labelDecode).Add(float64(stats.cachedPostingsDecompressions))
 		s.metrics.cachedPostingsCompressionErrors.WithLabelValues(labelEncode).Add(float64(stats.cachedPostingsCompressionErrors))
 		s.metrics.cachedPostingsCompressionErrors.WithLabelValues(labelDecode).Add(float64(stats.cachedPostingsDecompressionErrors))
-		s.metrics.cachedPostingsCompressionTimeSeconds.WithLabelValues(labelEncode).Add(stats.CachedPostingsCompressionTimeSum.Seconds())
-		s.metrics.cachedPostingsCompressionTimeSeconds.WithLabelValues(labelDecode).Add(stats.CachedPostingsDecompressionTimeSum.Seconds())
-		s.metrics.cachedPostingsOriginalSizeBytes.Add(float64(stats.CachedPostingsOriginalSizeSum))
-		s.metrics.cachedPostingsCompressedSizeBytes.Add(float64(stats.CachedPostingsCompressedSizeSum))
+		s.metrics.cachedPostingsCompressionTimeSeconds.WithLabelValues(labelEncode).Add(stats.cachedPostingsCompressionTimeSum.Seconds())
+		s.metrics.cachedPostingsCompressionTimeSeconds.WithLabelValues(labelDecode).Add(stats.cachedPostingsDecompressionTimeSum.Seconds())
+		s.metrics.cachedPostingsOriginalSizeBytes.Add(float64(stats.cachedPostingsOriginalSizeSum))
+		s.metrics.cachedPostingsCompressedSizeBytes.Add(float64(stats.cachedPostingsCompressedSizeSum))
 
 		level.Debug(s.logger).Log("msg", "stats query processed",
-			"request", req,
 			"stats", fmt.Sprintf("%+v", stats), "err", err)
 	}()
 
@@ -1131,8 +1129,8 @@ func (s *BucketStore) Series(req *storepb.SeriesRequest, srv storepb.Store_Serie
 			return status.Error(code, err.Error())
 		}
 		stats.blocksQueried = len(res)
-		stats.GetAllDuration = time.Since(begin)
-		s.metrics.seriesGetAllDuration.Observe(stats.GetAllDuration.Seconds())
+		stats.getAllDuration = time.Since(begin)
+		s.metrics.seriesGetAllDuration.Observe(stats.getAllDuration.Seconds())
 		s.metrics.seriesBlocksQueried.Observe(float64(stats.blocksQueried))
 	}
 	// Merge the sub-results from each selected block.
@@ -1166,8 +1164,8 @@ func (s *BucketStore) Series(req *storepb.SeriesRequest, srv storepb.Store_Serie
 			err = status.Error(codes.Unknown, errors.Wrap(set.Err(), "expand series set").Error())
 			return
 		}
-		stats.MergeDuration = time.Since(begin)
-		s.metrics.seriesMergeDuration.Observe(stats.MergeDuration.Seconds())
+		stats.mergeDuration = time.Since(begin)
+		s.metrics.seriesMergeDuration.Observe(stats.mergeDuration.Seconds())
 
 		err = nil
 	})
@@ -1991,7 +1989,7 @@ func (r *bucketIndexReader) fetchPostings(ctx context.Context, keys []labels.Lab
 		// Get postings for the given key from cache first.
 		if b, ok := fromCache[key]; ok {
 			r.stats.postingsTouched++
-			r.stats.PostingsTouchedSizeSum += units.Base2Bytes(len(b))
+			r.stats.postingsTouchedSizeSum += len(b)
 
 			// Even if this instance is not using compression, there may be compressed
 			// entries in the cache written by other stores.
@@ -2003,7 +2001,7 @@ func (r *bucketIndexReader) fetchPostings(ctx context.Context, keys []labels.Lab
 				s := time.Now()
 				l, err = diffVarintSnappyDecode(b)
 				r.stats.cachedPostingsDecompressions += 1
-				r.stats.CachedPostingsDecompressionTimeSum += time.Since(s)
+				r.stats.cachedPostingsDecompressionTimeSum += time.Since(s)
 				if err != nil {
 					r.stats.cachedPostingsDecompressionErrors += 1
 				}
@@ -2066,8 +2064,8 @@ func (r *bucketIndexReader) fetchPostings(ctx context.Context, keys []labels.Lab
 			r.mtx.Lock()
 			r.stats.postingsFetchCount++
 			r.stats.postingsFetched += j - i
-			r.stats.PostingsFetchDurationSum += fetchTime
-			r.stats.PostingsFetchedSizeSum += units.Base2Bytes(int(length))
+			r.stats.postingsFetchDurationSum += fetchTime
+			r.stats.postingsFetchedSizeSum += int(length)
 			r.mtx.Unlock()
 
 			for _, p := range ptrs[i:j] {
@@ -2107,12 +2105,12 @@ func (r *bucketIndexReader) fetchPostings(ctx context.Context, keys []labels.Lab
 
 				// If we just fetched it we still have to update the stats for touched postings.
 				r.stats.postingsTouched++
-				r.stats.PostingsTouchedSizeSum += units.Base2Bytes(len(pBytes))
+				r.stats.postingsTouchedSizeSum += len(pBytes)
 				r.stats.cachedPostingsCompressions += compressions
 				r.stats.cachedPostingsCompressionErrors += compressionErrors
-				r.stats.CachedPostingsOriginalSizeSum += units.Base2Bytes(len(pBytes))
-				r.stats.CachedPostingsCompressedSizeSum += units.Base2Bytes(compressedSize)
-				r.stats.CachedPostingsCompressionTimeSum += compressionTime
+				r.stats.cachedPostingsOriginalSizeSum += len(pBytes)
+				r.stats.cachedPostingsCompressedSizeSum += compressedSize
+				r.stats.cachedPostingsCompressionTimeSum += compressionTime
 				r.mtx.Unlock()
 			}
 			return nil
@@ -2228,8 +2226,8 @@ func (r *bucketIndexReader) loadSeries(ctx context.Context, ids []storage.Series
 	r.mtx.Lock()
 	r.stats.seriesFetchCount++
 	r.stats.seriesFetched += len(ids)
-	r.stats.SeriesFetchDurationSum += time.Since(begin)
-	r.stats.SeriesFetchedSizeSum += units.Base2Bytes(int(end - start))
+	r.stats.seriesFetchDurationSum += time.Since(begin)
+	r.stats.seriesFetchedSizeSum += int(end - start)
 	r.mtx.Unlock()
 
 	for i, id := range ids {
@@ -2333,7 +2331,7 @@ func (r *bucketIndexReader) LoadSeriesForTime(ref storage.SeriesRef, lset *[]sym
 	}
 
 	r.stats.seriesTouched++
-	r.stats.SeriesTouchedSizeSum += units.Base2Bytes(len(b))
+	r.stats.seriesTouchedSizeSum += len(b)
 	return decodeSeriesForTime(b, lset, chks, skipChunks, mint, maxt)
 }
 
@@ -2516,8 +2514,8 @@ func (r *bucketChunkReader) loadChunks(ctx context.Context, res []seriesEntry, a
 
 	r.stats.chunksFetchCount++
 	r.stats.chunksFetched += len(pIdxs)
-	r.stats.ChunksFetchDurationSum += time.Since(fetchBegin)
-	r.stats.ChunksFetchedSizeSum += units.Base2Bytes(int(part.End - part.Start))
+	r.stats.chunksFetchDurationSum += time.Since(fetchBegin)
+	r.stats.chunksFetchedSizeSum += int(part.End - part.Start)
 
 	var (
 		buf        []byte
@@ -2578,7 +2576,7 @@ func (r *bucketChunkReader) loadChunks(ctx context.Context, res []seriesEntry, a
 				return errors.Wrap(err, "populate chunk")
 			}
 			r.stats.chunksTouched++
-			r.stats.ChunksTouchedSizeSum += units.Base2Bytes(int(chunkDataLen))
+			r.stats.chunksTouchedSizeSum += int(chunkDataLen)
 			continue
 		}
 
@@ -2602,15 +2600,15 @@ func (r *bucketChunkReader) loadChunks(ctx context.Context, res []seriesEntry, a
 		locked = true
 
 		r.stats.chunksFetchCount++
-		r.stats.ChunksFetchDurationSum += time.Since(fetchBegin)
-		r.stats.ChunksFetchedSizeSum += units.Base2Bytes(len(*nb))
+		r.stats.chunksFetchDurationSum += time.Since(fetchBegin)
+		r.stats.chunksFetchedSizeSum += len(*nb)
 		err = populateChunk(&(res[pIdx.seriesEntry].chks[pIdx.chunk]), rawChunk((*nb)[n:]), aggrs, r.save)
 		if err != nil {
 			r.block.chunkPool.Put(nb)
 			return errors.Wrap(err, "populate chunk")
 		}
 		r.stats.chunksTouched++
-		r.stats.ChunksTouchedSizeSum += units.Base2Bytes(int(chunkDataLen))
+		r.stats.chunksTouchedSizeSum += int(chunkDataLen)
 
 		r.block.chunkPool.Put(nb)
 	}
@@ -2664,79 +2662,79 @@ type queryStats struct {
 	blocksQueried int
 
 	postingsTouched          int
-	PostingsTouchedSizeSum   units.Base2Bytes
+	postingsTouchedSizeSum   int
 	postingsToFetch          int
 	postingsFetched          int
-	PostingsFetchedSizeSum   units.Base2Bytes
+	postingsFetchedSizeSum   int
 	postingsFetchCount       int
-	PostingsFetchDurationSum time.Duration
+	postingsFetchDurationSum time.Duration
 
 	cachedPostingsCompressions         int
 	cachedPostingsCompressionErrors    int
-	CachedPostingsOriginalSizeSum      units.Base2Bytes
-	CachedPostingsCompressedSizeSum    units.Base2Bytes
-	CachedPostingsCompressionTimeSum   time.Duration
+	cachedPostingsOriginalSizeSum      int
+	cachedPostingsCompressedSizeSum    int
+	cachedPostingsCompressionTimeSum   time.Duration
 	cachedPostingsDecompressions       int
 	cachedPostingsDecompressionErrors  int
-	CachedPostingsDecompressionTimeSum time.Duration
+	cachedPostingsDecompressionTimeSum time.Duration
 
 	seriesTouched          int
-	SeriesTouchedSizeSum   units.Base2Bytes
+	seriesTouchedSizeSum   int
 	seriesFetched          int
-	SeriesFetchedSizeSum   units.Base2Bytes
+	seriesFetchedSizeSum   int
 	seriesFetchCount       int
-	SeriesFetchDurationSum time.Duration
+	seriesFetchDurationSum time.Duration
 
 	chunksTouched          int
-	ChunksTouchedSizeSum   units.Base2Bytes
+	chunksTouchedSizeSum   int
 	chunksFetched          int
-	ChunksFetchedSizeSum   units.Base2Bytes
+	chunksFetchedSizeSum   int
 	chunksFetchCount       int
-	ChunksFetchDurationSum time.Duration
+	chunksFetchDurationSum time.Duration
 
-	GetAllDuration    time.Duration
+	getAllDuration    time.Duration
 	mergedSeriesCount int
 	mergedChunksCount int
-	MergeDuration     time.Duration
+	mergeDuration     time.Duration
 }
 
 func (s queryStats) merge(o *queryStats) *queryStats {
 	s.blocksQueried += o.blocksQueried
 
 	s.postingsTouched += o.postingsTouched
-	s.PostingsTouchedSizeSum += o.PostingsTouchedSizeSum
+	s.postingsTouchedSizeSum += o.postingsTouchedSizeSum
 	s.postingsFetched += o.postingsFetched
-	s.PostingsFetchedSizeSum += o.PostingsFetchedSizeSum
+	s.postingsFetchedSizeSum += o.postingsFetchedSizeSum
 	s.postingsFetchCount += o.postingsFetchCount
-	s.PostingsFetchDurationSum += o.PostingsFetchDurationSum
+	s.postingsFetchDurationSum += o.postingsFetchDurationSum
 
 	s.cachedPostingsCompressions += o.cachedPostingsCompressions
 	s.cachedPostingsCompressionErrors += o.cachedPostingsCompressionErrors
-	s.CachedPostingsOriginalSizeSum += o.CachedPostingsOriginalSizeSum
-	s.CachedPostingsCompressedSizeSum += o.CachedPostingsCompressedSizeSum
-	s.CachedPostingsCompressionTimeSum += o.CachedPostingsCompressionTimeSum
+	s.cachedPostingsOriginalSizeSum += o.cachedPostingsOriginalSizeSum
+	s.cachedPostingsCompressedSizeSum += o.cachedPostingsCompressedSizeSum
+	s.cachedPostingsCompressionTimeSum += o.cachedPostingsCompressionTimeSum
 	s.cachedPostingsDecompressions += o.cachedPostingsDecompressions
 	s.cachedPostingsDecompressionErrors += o.cachedPostingsDecompressionErrors
-	s.CachedPostingsDecompressionTimeSum += o.CachedPostingsDecompressionTimeSum
+	s.cachedPostingsDecompressionTimeSum += o.cachedPostingsDecompressionTimeSum
 
 	s.seriesTouched += o.seriesTouched
-	s.SeriesTouchedSizeSum += o.SeriesTouchedSizeSum
+	s.seriesTouchedSizeSum += o.seriesTouchedSizeSum
 	s.seriesFetched += o.seriesFetched
-	s.SeriesFetchedSizeSum += o.SeriesFetchedSizeSum
+	s.seriesFetchedSizeSum += o.seriesFetchedSizeSum
 	s.seriesFetchCount += o.seriesFetchCount
-	s.SeriesFetchDurationSum += o.SeriesFetchDurationSum
+	s.seriesFetchDurationSum += o.seriesFetchDurationSum
 
 	s.chunksTouched += o.chunksTouched
-	s.ChunksTouchedSizeSum += o.ChunksTouchedSizeSum
+	s.chunksTouchedSizeSum += o.chunksTouchedSizeSum
 	s.chunksFetched += o.chunksFetched
-	s.ChunksFetchedSizeSum += o.ChunksFetchedSizeSum
+	s.chunksFetchedSizeSum += o.chunksFetchedSizeSum
 	s.chunksFetchCount += o.chunksFetchCount
-	s.ChunksFetchDurationSum += o.ChunksFetchDurationSum
+	s.chunksFetchDurationSum += o.chunksFetchDurationSum
 
-	s.GetAllDuration += o.GetAllDuration
+	s.getAllDuration += o.getAllDuration
 	s.mergedSeriesCount += o.mergedSeriesCount
 	s.mergedChunksCount += o.mergedChunksCount
-	s.MergeDuration += o.MergeDuration
+	s.mergeDuration += o.mergeDuration
 
 	return &s
 }

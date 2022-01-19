@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
-	cortex_e2e_db "github.com/cortexproject/cortex/integration/e2e/db"
+	"github.com/grafana/e2e"
+	e2e_db "github.com/grafana/e2e/db"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/prometheus/prometheus/model/labels"
@@ -58,7 +58,7 @@ func TestAllInOne(t *testing.T) {
 
 	for _, tc := range testBackends {
 		t.Run(tc.name, func(t *testing.T) {
-			s, err := cortex_e2e.NewScenario("tempo_e2e")
+			s, err := e2e.NewScenario("tempo_e2e")
 			require.NoError(t, err)
 			defer s.Close()
 
@@ -87,13 +87,13 @@ func TestAllInOne(t *testing.T) {
 			require.NoError(t, err)
 
 			// test metrics
-			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
+			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
 
 			// test echo
 			assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
 
 			// ensure trace is created in ingester (trace_idle_time has passed)
-			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
+			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
 			apiClient := tempoUtil.NewClient("http://"+tempo.Endpoint(3200), "")
 
@@ -104,7 +104,7 @@ func TestAllInOne(t *testing.T) {
 			searchAndAssertTrace(t, apiClient, info)
 
 			// flush trace to backend
-			res, err := cortex_e2e.GetRequest("http://" + tempo.Endpoint(3200) + "/flush")
+			res, err := e2e.GetRequest("http://" + tempo.Endpoint(3200) + "/flush")
 			require.NoError(t, err)
 			require.Equal(t, 204, res.StatusCode)
 
@@ -112,14 +112,14 @@ func TestAllInOne(t *testing.T) {
 			time.Sleep(5 * time.Second)
 
 			// force clear completed block
-			res, err = cortex_e2e.GetRequest("http://" + tempo.Endpoint(3200) + "/flush")
+			res, err = e2e.GetRequest("http://" + tempo.Endpoint(3200) + "/flush")
 			require.NoError(t, err)
 			require.Equal(t, 204, res.StatusCode)
 
 			// test metrics
-			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
-			require.NoError(t, tempo.WaitSumMetricsWithOptions(cortex_e2e.Equals(1), []string{"tempodb_blocklist_length"}, cortex_e2e.WaitMissingMetrics))
-			require.NoError(t, tempo.WaitSumMetrics(cortex_e2e.Equals(4), "tempo_query_frontend_queries_total"))
+			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
+			require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
+			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(4), "tempo_query_frontend_queries_total"))
 
 			// query trace - should fetch from backend
 			queryAndAssertTrace(t, apiClient, info)
@@ -132,11 +132,11 @@ func TestAllInOne(t *testing.T) {
 }
 
 func TestMicroservices(t *testing.T) {
-	s, err := cortex_e2e.NewScenario("tempo_e2e")
+	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
 
-	minio := cortex_e2e_db.NewMinio(9000, "tempo")
+	minio := e2e_db.NewMinio(9000, "tempo")
 	require.NotNil(t, minio)
 	require.NoError(t, s.StartAndWaitReady(minio))
 
@@ -164,7 +164,7 @@ func TestMicroservices(t *testing.T) {
 			Value: "ACTIVE",
 		},
 	}
-	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...), cortex_e2e.WaitMissingMetrics))
+	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
 
 	// Get port for the Jaeger gRPC receiver endpoint
 	c, err := newJaegerGRPCClient(tempoDistributor.Endpoint(14250))
@@ -178,15 +178,15 @@ func TestMicroservices(t *testing.T) {
 	require.NoError(t, err)
 
 	// test metrics
-	require.NoError(t, tempoDistributor.WaitSumMetrics(cortex_e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
+	require.NoError(t, tempoDistributor.WaitSumMetrics(e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
 
 	// test echo
 	assertEcho(t, "http://"+tempoQueryFrontend.Endpoint(3200)+"/api/echo")
 
 	// ensure trace is created in ingester (trace_idle_time has passed)
-	require.NoError(t, tempoIngester1.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
-	require.NoError(t, tempoIngester2.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
-	require.NoError(t, tempoIngester3.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
+	require.NoError(t, tempoIngester1.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
+	require.NoError(t, tempoIngester2.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
+	require.NoError(t, tempoIngester3.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
 	apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
 
@@ -197,15 +197,15 @@ func TestMicroservices(t *testing.T) {
 	searchAndAssertTrace(t, apiClient, info)
 
 	// flush trace to backend
-	res, err := cortex_e2e.GetRequest("http://" + tempoIngester1.Endpoint(3200) + "/flush")
+	res, err := e2e.GetRequest("http://" + tempoIngester1.Endpoint(3200) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
-	res, err = cortex_e2e.GetRequest("http://" + tempoIngester2.Endpoint(3200) + "/flush")
+	res, err = e2e.GetRequest("http://" + tempoIngester2.Endpoint(3200) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
-	res, err = cortex_e2e.GetRequest("http://" + tempoIngester3.Endpoint(3200) + "/flush")
+	res, err = e2e.GetRequest("http://" + tempoIngester3.Endpoint(3200) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
@@ -213,11 +213,11 @@ func TestMicroservices(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	// test metrics
-	for _, i := range []*cortex_e2e.HTTPService{tempoIngester1, tempoIngester2, tempoIngester3} {
-		require.NoError(t, i.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
+	for _, i := range []*e2e.HTTPService{tempoIngester1, tempoIngester2, tempoIngester3} {
+		require.NoError(t, i.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 	}
-	require.NoError(t, tempoQuerier.WaitSumMetrics(cortex_e2e.Equals(3), "tempodb_blocklist_length"))
-	require.NoError(t, tempoQueryFrontend.WaitSumMetrics(cortex_e2e.Equals(4), "tempo_query_frontend_queries_total"))
+	require.NoError(t, tempoQuerier.WaitSumMetrics(e2e.Equals(3), "tempodb_blocklist_length"))
+	require.NoError(t, tempoQueryFrontend.WaitSumMetrics(e2e.Equals(4), "tempo_query_frontend_queries_total"))
 
 	// query trace - should fetch from backend
 	queryAndAssertTrace(t, apiClient, info)
@@ -250,11 +250,11 @@ func TestMicroservices(t *testing.T) {
 }
 
 func TestScalableSingleBinary(t *testing.T) {
-	s, err := cortex_e2e.NewScenario("tempo_e2e")
+	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
 
-	minio := cortex_e2e_db.NewMinio(9000, "tempo")
+	minio := e2e_db.NewMinio(9000, "tempo")
 	require.NotNil(t, minio)
 	require.NoError(t, s.StartAndWaitReady(minio))
 
@@ -263,7 +263,7 @@ func TestScalableSingleBinary(t *testing.T) {
 
 	// start three scalable single binary tempos in parallel
 	var wg sync.WaitGroup
-	var tempo1, tempo2, tempo3 *cortex_e2e.HTTPService
+	var tempo1, tempo2, tempo3 *e2e.HTTPService
 	wg.Add(3)
 	go func() {
 		tempo1 = util.NewTempoScalableSingleBinary(1)
@@ -297,9 +297,9 @@ func TestScalableSingleBinary(t *testing.T) {
 
 	t.Logf("tempo1.Endpoint(): %+v", tempo1.Endpoint(3200))
 
-	require.NoError(t, tempo1.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...), cortex_e2e.WaitMissingMetrics))
-	require.NoError(t, tempo2.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...), cortex_e2e.WaitMissingMetrics))
-	require.NoError(t, tempo3.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...), cortex_e2e.WaitMissingMetrics))
+	require.NoError(t, tempo1.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
+	require.NoError(t, tempo2.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
+	require.NoError(t, tempo3.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
 
 	c1, err := newJaegerGRPCClient(tempo1.Endpoint(14250))
 	require.NoError(t, err)
@@ -320,15 +320,15 @@ func TestScalableSingleBinary(t *testing.T) {
 	require.NoError(t, err)
 
 	// test metrics
-	require.NoError(t, tempo1.WaitSumMetrics(cortex_e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
-	require.NoError(t, tempo1.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_traces_created_total"))
+	require.NoError(t, tempo1.WaitSumMetrics(e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
+	require.NoError(t, tempo1.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
-	for _, i := range []*cortex_e2e.HTTPService{tempo1, tempo2, tempo3} {
-		res, err := cortex_e2e.GetRequest("http://" + i.Endpoint(3200) + "/flush")
+	for _, i := range []*e2e.HTTPService{tempo1, tempo2, tempo3} {
+		res, err := e2e.GetRequest("http://" + i.Endpoint(3200) + "/flush")
 		require.NoError(t, err)
 		require.Equal(t, 204, res.StatusCode)
 
-		require.NoError(t, i.WaitSumMetrics(cortex_e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
+		require.NoError(t, i.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 	}
 
 	apiClient1 := tempoUtil.NewClient("http://"+tempo1.Endpoint(3200), "")
@@ -383,7 +383,7 @@ func makeThriftBatchWithSpanCount(n int) *thrift.Batch {
 }
 
 func assertEcho(t *testing.T, url string) {
-	res, err := cortex_e2e.GetRequest(url)
+	res, err := e2e.GetRequest(url)
 	require.NoError(t, err)
 	require.Equal(t, 200, res.StatusCode)
 	defer res.Body.Close()

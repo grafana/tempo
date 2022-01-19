@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
-	cortex_e2e_db "github.com/cortexproject/cortex/integration/e2e/db"
+	"github.com/grafana/e2e"
+	e2e_db "github.com/grafana/e2e/db"
 	util "github.com/grafana/tempo/integration"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/prometheus/model/labels"
@@ -13,11 +13,11 @@ import (
 )
 
 func TestServerless(t *testing.T) {
-	s, err := cortex_e2e.NewScenario("tempo_e2e")
+	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
 
-	minio := cortex_e2e_db.NewMinio(9000, "tempo")
+	minio := e2e_db.NewMinio(9000, "tempo")
 	require.NotNil(t, minio)
 	require.NoError(t, s.StartAndWaitReady(minio))
 
@@ -45,7 +45,7 @@ func TestServerless(t *testing.T) {
 			Value: "ACTIVE",
 		},
 	}
-	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(cortex_e2e.Equals(3), []string{`cortex_ring_members`}, cortex_e2e.WithLabelMatchers(matchers...), cortex_e2e.WaitMissingMetrics))
+	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
 
 	// Get port for the Jaeger gRPC receiver endpoint
 	c, err := newJaegerGRPCClient(tempoDistributor.Endpoint(14250))
@@ -56,22 +56,22 @@ func TestServerless(t *testing.T) {
 	require.NoError(t, info.EmitAllBatches(c))
 
 	// ensure trace is created in ingester (trace_idle_time has passed)
-	require.NoError(t, tempoIngester1.WaitSumMetrics(cortex_e2e.Greater(0), "tempo_ingester_traces_created_total"))
-	require.NoError(t, tempoIngester2.WaitSumMetrics(cortex_e2e.Greater(0), "tempo_ingester_traces_created_total"))
-	require.NoError(t, tempoIngester3.WaitSumMetrics(cortex_e2e.Greater(0), "tempo_ingester_traces_created_total"))
+	require.NoError(t, tempoIngester1.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
+	require.NoError(t, tempoIngester2.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
+	require.NoError(t, tempoIngester3.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
 
 	apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
 
 	// flush trace to backend
-	res, err := cortex_e2e.GetRequest("http://" + tempoIngester1.Endpoint(3200) + "/flush")
+	res, err := e2e.GetRequest("http://" + tempoIngester1.Endpoint(3200) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
-	res, err = cortex_e2e.GetRequest("http://" + tempoIngester2.Endpoint(3200) + "/flush")
+	res, err = e2e.GetRequest("http://" + tempoIngester2.Endpoint(3200) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
-	res, err = cortex_e2e.GetRequest("http://" + tempoIngester3.Endpoint(3200) + "/flush")
+	res, err = e2e.GetRequest("http://" + tempoIngester3.Endpoint(3200) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
@@ -83,8 +83,8 @@ func TestServerless(t *testing.T) {
 	searchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 }
 
-func newTempoServerless() *cortex_e2e.HTTPService {
-	s := cortex_e2e.NewHTTPService(
+func newTempoServerless() *e2e.HTTPService {
+	s := e2e.NewHTTPService(
 		"serverless",
 		"tempo-serverless", // created by buildpacks in ./cmd/tempo-serverless
 		nil,
@@ -95,8 +95,8 @@ func newTempoServerless() *cortex_e2e.HTTPService {
 	s.SetEnvVars(map[string]string{
 		"TEMPO_S3_BUCKET":     "tempo",
 		"TEMPO_S3_ENDPOINT":   "tempo_e2e-minio-9000:9000",
-		"TEMPO_S3_ACCESS_KEY": cortex_e2e_db.MinioAccessKey,
-		"TEMPO_S3_SECRET_KEY": cortex_e2e_db.MinioSecretKey,
+		"TEMPO_S3_ACCESS_KEY": e2e_db.MinioAccessKey,
+		"TEMPO_S3_SECRET_KEY": e2e_db.MinioSecretKey,
 		"TEMPO_S3_INSECURE":   "true",
 		"TEMPO_BACKEND":       "s3",
 	})
