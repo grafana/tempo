@@ -89,7 +89,7 @@ func (b *BufferedSeriesIterator) Seek(t int64) bool {
 		if !b.ok {
 			return false
 		}
-		b.lastTime, _ = b.At()
+		b.lastTime, _ = b.Values()
 	}
 
 	if b.lastTime >= t {
@@ -115,14 +115,14 @@ func (b *BufferedSeriesIterator) Next() bool {
 
 	b.ok = b.it.Next()
 	if b.ok {
-		b.lastTime, _ = b.At()
+		b.lastTime, _ = b.Values()
 	}
 
 	return b.ok
 }
 
-// At returns the current element of the iterator.
-func (b *BufferedSeriesIterator) At() (int64, float64) {
+// Values returns the current element of the iterator.
+func (b *BufferedSeriesIterator) Values() (int64, float64) {
 	return b.it.At()
 }
 

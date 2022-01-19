@@ -3,6 +3,7 @@ package ring
 import (
 	"encoding/json"
 	"errors"
+	"io/ioutil"
 	"os"
 	"sort"
 )
@@ -71,7 +72,7 @@ func (t Tokens) StoreToFile(tokenFilePath string) error {
 
 // LoadTokensFromFile loads tokens from given file path.
 func LoadTokensFromFile(tokenFilePath string) (Tokens, error) {
-	b, err := os.ReadFile(tokenFilePath)
+	b, err := ioutil.ReadFile(tokenFilePath)
 	if err != nil {
 		return nil, err
 	}

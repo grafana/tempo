@@ -130,24 +130,6 @@ func (r ReplicationSet) GetAddressesWithout(exclude string) []string {
 // HasReplicationSetChanged returns true if two replications sets are the same (with possibly different timestamps),
 // false if they differ in any way (number of instances, instance states, tokens, zones, ...).
 func HasReplicationSetChanged(before, after ReplicationSet) bool {
-	return hasReplicationSetChangedExcluding(before, after, func(i *InstanceDesc) {
-		i.Timestamp = 0
-	})
-}
-
-// HasReplicationSetChangedWithoutState returns true if two replications sets
-// are the same (with possibly different timestamps and instance states),
-// false if they differ in any other way (number of instances, tokens, zones, ...).
-func HasReplicationSetChangedWithoutState(before, after ReplicationSet) bool {
-	return hasReplicationSetChangedExcluding(before, after, func(i *InstanceDesc) {
-		i.Timestamp = 0
-		i.State = PENDING
-	})
-}
-
-// Do comparison of replicasets, but apply a function first
-// to be able to exclude (reset) some values
-func hasReplicationSetChangedExcluding(before, after ReplicationSet, exclude func(*InstanceDesc)) bool {
 	beforeInstances := before.Instances
 	afterInstances := after.Instances
 
@@ -162,8 +144,9 @@ func hasReplicationSetChangedExcluding(before, after ReplicationSet, exclude fun
 		b := beforeInstances[i]
 		a := afterInstances[i]
 
-		exclude(&a)
-		exclude(&b)
+		// Exclude the heartbeat timestamp from the comparison.
+		b.Timestamp = 0
+		a.Timestamp = 0
 
 		if !b.Equal(a) {
 			return true

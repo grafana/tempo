@@ -12,6 +12,7 @@ import (
 	consul "github.com/hashicorp/consul/api"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/grafana/dskit/closer"
 	"github.com/grafana/dskit/kv/codec"
 )
 
@@ -47,7 +48,7 @@ func NewInMemoryClientWithConfig(codec codec.Codec, cfg Config, logger log.Logge
 	// Create a closer function used to close the main loop and wait until it's done.
 	// We need to wait until done, otherwise the goroutine leak finder used in tests
 	// may still report it as leaked.
-	closer := closerFunc(func() error {
+	closer := closer.Func(func() error {
 		close(m.close)
 		m.closeWG.Wait()
 		return nil
@@ -64,12 +65,6 @@ func NewInMemoryClientWithConfig(codec codec.Codec, cfg Config, logger log.Logge
 		logger:        logger,
 		consulMetrics: newConsulMetrics(registerer),
 	}, closer
-}
-
-type closerFunc func() error
-
-func (c closerFunc) Close() error {
-	return c()
 }
 
 func copyKVPair(in *consul.KVPair) *consul.KVPair {

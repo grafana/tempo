@@ -96,19 +96,6 @@ func WaitInstanceState(ctx context.Context, r ReadRing, instanceID string, state
 // WaitRingStability monitors the ring topology for the provided operation and waits until it
 // keeps stable for at least minStability.
 func WaitRingStability(ctx context.Context, r *Ring, op Operation, minStability, maxWaiting time.Duration) error {
-	return waitStability(ctx, r, op, minStability, maxWaiting, HasReplicationSetChanged)
-}
-
-// WaitRingTokensStability waits for the Ring to be unchanged at
-// least for minStability time period, excluding transitioning between
-// allowed states (e.g. JOINING->ACTIVE if allowed by op).
-// This can be used to avoid wasting resources on moving data around
-// due to multiple changes in the Ring.
-func WaitRingTokensStability(ctx context.Context, r *Ring, op Operation, minStability, maxWaiting time.Duration) error {
-	return waitStability(ctx, r, op, minStability, maxWaiting, HasReplicationSetChangedWithoutState)
-}
-
-func waitStability(ctx context.Context, r *Ring, op Operation, minStability, maxWaiting time.Duration, isChanged func(ReplicationSet, ReplicationSet) bool) error {
 	// Configure the max waiting time as a context deadline.
 	ctx, cancel := context.WithTimeout(ctx, maxWaiting)
 	defer cancel()
@@ -130,7 +117,7 @@ func waitStability(ctx context.Context, r *Ring, op Operation, minStability, max
 			// replication set which we use to compare with the previous state.
 			currRingState, _ := r.GetAllHealthy(op) // nolint:errcheck
 
-			if isChanged(ringLastState, currRingState) {
+			if HasReplicationSetChanged(ringLastState, currRingState) {
 				ringLastState = currRingState
 				ringLastStateTs = time.Now()
 			} else if time.Since(ringLastStateTs) >= minStability {

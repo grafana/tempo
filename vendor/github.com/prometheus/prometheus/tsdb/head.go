@@ -473,9 +473,7 @@ const cardinalityCacheExpirationTime = time.Duration(30) * time.Second
 // limits the ingested samples to the head min valid time.
 func (h *Head) Init(minValidTime int64) error {
 	h.minValidTime.Store(minValidTime)
-	defer func() {
-		h.postings.EnsureOrder()
-	}()
+	defer h.postings.EnsureOrder()
 	defer h.gc() // After loading the wal remove the obsolete data from the head.
 	defer func() {
 		// Loading of m-mapped chunks and snapshot can make the mint of the Head

@@ -23,11 +23,23 @@ import (
 	"github.com/grafana/dskit/services"
 
 	"github.com/grafana/dskit/flagext"
-	dsmath "github.com/grafana/dskit/internal/math"
+	dsmath "github.com/grafana/dskit/math"
 )
 
 const (
 	unhealthy = "Unhealthy"
+
+	// IngesterRingKey is the key under which we store the ingesters ring in the KVStore.
+	IngesterRingKey = "ring"
+
+	// RulerRingKey is the key under which we store the rulers ring in the KVStore.
+	RulerRingKey = "ring"
+
+	// DistributorRingKey is the key under which we store the distributors ring in the KVStore.
+	DistributorRingKey = "distributor"
+
+	// CompactorRingKey is the key under which we store the compactors ring in the KVStore.
+	CompactorRingKey = "compactor"
 
 	// GetBufferSize is the suggested size of buffers passed to Ring.Get(). It's based on
 	// a typical replication factor 3, plus extra room for a JOINING + LEAVING instance.
@@ -186,7 +198,6 @@ type Ring struct {
 	totalTokensGauge        prometheus.Gauge
 	numTokensGaugeVec       *prometheus.GaugeVec
 	oldestTimestampGaugeVec *prometheus.GaugeVec
-	reportedOwners          map[string]struct{}
 
 	logger log.Logger
 }
@@ -274,9 +285,21 @@ func (r *Ring) starting(ctx context.Context) error {
 
 func (r *Ring) loop(ctx context.Context) error {
 	// Update the ring metrics at start of the main loop.
-	r.mtx.Lock()
-	r.updateRingMetrics(Different)
-	r.mtx.Unlock()
+	r.updateRingMetrics()
+	go func() {
+		// Start metrics update ticker to update the ring metrics.
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				r.updateRingMetrics()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	r.KVClient.WatchKey(ctx, r.key, func(value interface{}) bool {
 		if value == nil {
@@ -311,7 +334,6 @@ func (r *Ring) updateRingState(ringDesc *Desc) {
 		// when watching the ring for updates).
 		r.mtx.Lock()
 		r.ringDesc = ringDesc
-		r.updateRingMetrics(rc)
 		r.mtx.Unlock()
 		return
 	}
@@ -334,7 +356,6 @@ func (r *Ring) updateRingState(ringDesc *Desc) {
 		// Invalidate all cached subrings.
 		r.shuffledSubringCache = make(map[subringCacheKey]*Ring)
 	}
-	r.updateRingMetrics(rc)
 }
 
 // Get returns n (or more) instances which form the replicas for the given key.
@@ -543,16 +564,21 @@ func (r *Ring) countTokens() (map[string]uint32, map[string]uint32) {
 	return numTokens, owned
 }
 
-// updateRingMetrics updates ring metrics. Caller must be holding the Write lock!
-func (r *Ring) updateRingMetrics(compareResult CompareResult) {
-	if compareResult == Equal {
-		return
+// updateRingMetrics updates ring metrics.
+func (r *Ring) updateRingMetrics() {
+	r.mtx.RLock()
+	defer r.mtx.RUnlock()
+
+	numTokens, ownedRange := r.countTokens()
+	for id, totalOwned := range ownedRange {
+		r.memberOwnershipGaugeVec.WithLabelValues(id).Set(float64(totalOwned) / float64(math.MaxUint32))
+		r.numTokensGaugeVec.WithLabelValues(id).Set(float64(numTokens[id]))
 	}
 
 	numByState := map[string]int{}
 	oldestTimestampByState := map[string]int64{}
 
-	// Initialized to zero so we emit zero-metrics (instead of not emitting anything)
+	// Initialised to zero so we emit zero-metrics (instead of not emitting anything)
 	for _, s := range []string{unhealthy, ACTIVE.String(), LEAVING.String(), PENDING.String(), JOINING.String()} {
 		numByState[s] = 0
 		oldestTimestampByState[s] = 0
@@ -575,26 +601,6 @@ func (r *Ring) updateRingMetrics(compareResult CompareResult) {
 	for state, timestamp := range oldestTimestampByState {
 		r.oldestTimestampGaugeVec.WithLabelValues(state).Set(float64(timestamp))
 	}
-
-	if compareResult == EqualButStatesAndTimestamps {
-		return
-	}
-
-	prevOwners := r.reportedOwners
-	r.reportedOwners = make(map[string]struct{})
-	numTokens, ownedRange := r.countTokens()
-	for id, totalOwned := range ownedRange {
-		r.memberOwnershipGaugeVec.WithLabelValues(id).Set(float64(totalOwned) / float64(math.MaxUint32))
-		r.numTokensGaugeVec.WithLabelValues(id).Set(float64(numTokens[id]))
-		delete(prevOwners, id)
-		r.reportedOwners[id] = struct{}{}
-	}
-
-	for k := range prevOwners {
-		r.memberOwnershipGaugeVec.DeleteLabelValues(k)
-		r.numTokensGaugeVec.DeleteLabelValues(k)
-	}
-
 	r.totalTokensGauge.Set(float64(len(r.ringTokens)))
 }
 
