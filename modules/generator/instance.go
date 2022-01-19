@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/prometheus/storage"
 
 	"github.com/grafana/tempo/modules/generator/processor"
+	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -58,26 +59,15 @@ func newInstance(cfg *Config, instanceID string, overrides *overrides.Overrides,
 	// TODO we should build a pipeline based upon the overrides configured
 	// TODO when the overrides change we should update all the processors/the pipeline
 	spanMetricsProcessor := spanmetrics.New(i.cfg.Processor.SpanMetrics, instanceID)
+	serviceGraphProcessor := servicegraphs.New(i.cfg.Processor.ServiceGraphs, "traces", instanceID)
 
-	i.processors = []processor.Processor{spanMetricsProcessor}
+	i.processors = []processor.Processor{serviceGraphProcessor, spanMetricsProcessor}
 
 	return i, nil
 }
 
 func (i *instance) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error {
-	size := 0
-	spanCount := 0
-	for _, b := range req.Batches {
-		size += b.Size()
-		for _, ils := range b.InstrumentationLibrarySpans {
-			spanCount += len(ils.Spans)
-		}
-	}
-	if spanCount == 0 {
-		return nil
-	}
-	i.metricBytesIngestedTotal.Add(float64(size))
-	i.metricSpansIngestedTotal.Add(float64(spanCount))
+	i.updateMetrics(req)
 
 	for _, processor := range i.processors {
 		if err := processor.PushSpans(ctx, req); err != nil {
@@ -86,6 +76,19 @@ func (i *instance) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 	}
 
 	return nil
+}
+
+func (i *instance) updateMetrics(req *tempopb.PushSpansRequest) {
+	size := 0
+	spanCount := 0
+	for _, b := range req.Batches {
+		size += b.Size()
+		for _, ils := range b.InstrumentationLibrarySpans {
+			spanCount += len(ils.Spans)
+		}
+	}
+	i.metricBytesIngestedTotal.Add(float64(size))
+	i.metricSpansIngestedTotal.Add(float64(spanCount))
 }
 
 func (i *instance) collectAndPushMetrics(ctx context.Context) error {

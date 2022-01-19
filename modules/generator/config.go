@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/prometheus/prometheus/config"
 
+	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 )
 
@@ -52,10 +53,12 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 type ProcessorConfig struct {
-	SpanMetrics spanmetrics.Config `yaml:"span_metrics"`
+	ServiceGraphs servicegraphs.Config `yaml:"service_graphs"`
+	SpanMetrics   spanmetrics.Config   `yaml:"span_metrics"`
 }
 
 func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	cfg.ServiceGraphs.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.SpanMetrics.RegisterFlagsAndApplyDefaults(prefix, f)
 }
 

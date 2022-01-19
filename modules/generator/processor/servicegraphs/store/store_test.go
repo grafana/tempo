@@ -9,18 +9,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var noopUpsertCb Callback = func(e *servicegraphprocessor.edge) {}
+var noopUpsertCb Callback = func(e *Edge) {}
 
-func TestStore_upsertEdge(t *testing.T) {
+func TestStore_UpsertEdge(t *testing.T) {
 	const keyStr = "key"
 
 	var cbCallCount int
-	s := newStore(time.Hour, 1, func(e *servicegraphprocessor.edge) {
+	storeInterface := NewStore(time.Hour, 1, func(e *Edge) {
 		cbCallCount++
 	})
+	s := storeInterface.(*store)
 	assert.Equal(t, 0, s.len())
 
-	_, err := s.upsertEdge(keyStr, func(e *servicegraphprocessor.edge) {})
+	_, err := s.UpsertEdge(keyStr, func(e *Edge) {})
 	require.NoError(t, err)
 	assert.Equal(t, 1, s.len())
 	assert.False(t, s.shouldEvictHead()) // ttl is set to 1h
@@ -30,12 +31,12 @@ func TestStore_upsertEdge(t *testing.T) {
 	assert.NotNil(t, e)
 	assert.Equal(t, keyStr, e.key)
 
-	_, err = s.upsertEdge(keyStr+keyStr, func(e *servicegraphprocessor.edge) {})
+	_, err = s.UpsertEdge(keyStr+keyStr, func(e *Edge) {})
 	assert.Error(t, err)
 
-	_, err = s.upsertEdge(keyStr, func(e *servicegraphprocessor.edge) {
-		e.clientService = "client"
-		e.serverService = "server"
+	_, err = s.UpsertEdge(keyStr, func(e *Edge) {
+		e.ClientService = "client"
+		e.ServerService = "server"
 		e.expiration = 0 // Expire immediately
 	})
 	require.NoError(t, err)
@@ -43,8 +44,8 @@ func TestStore_upsertEdge(t *testing.T) {
 
 	e = getEdge(s, keyStr)
 	assert.NotNil(t, e)
-	assert.Equal(t, "client", e.clientService)
-	assert.Equal(t, "server", e.serverService)
+	assert.Equal(t, "client", e.ClientService)
+	assert.Equal(t, "server", e.ServerService)
 	assert.True(t, s.shouldEvictHead())
 
 	s.evictHead()
@@ -59,23 +60,27 @@ func TestStore_expire(t *testing.T) {
 	}
 
 	// all new keys are immediately expired.
-	s := newStore(-time.Second, 100, func(e *servicegraphprocessor.edge) {
+	storeInterface := NewStore(-time.Second, 100, func(e *Edge) {
 		assert.True(t, keys[e.key])
 	})
+	s := storeInterface.(*store)
 
 	for key := range keys {
-		_, err := s.upsertEdge(key, noopUpsertCb)
+		_, err := s.UpsertEdge(key, noopUpsertCb)
 		require.NoError(t, err)
 	}
 
-	s.expire()
+	s.Expire()
 	assert.Equal(t, 0, s.len())
 }
 
-func getEdge(s *Store, k string) *servicegraphprocessor.edge {
+// TODO add test for maxItems
+// tODO add test to verify concurrency
+
+func getEdge(s *store, k string) *Edge {
 	ele, ok := s.m[k]
 	if !ok {
 		return nil
 	}
-	return ele.Value.(*servicegraphprocessor.edge)
+	return ele.Value.(*Edge)
 }

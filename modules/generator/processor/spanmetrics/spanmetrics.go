@@ -9,15 +9,16 @@ import (
 	"sync"
 	"time"
 
-	gen "github.com/grafana/tempo/modules/generator/processor"
-	"github.com/grafana/tempo/modules/generator/processor/util"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
+
+	gen "github.com/grafana/tempo/modules/generator/processor"
+	"github.com/grafana/tempo/modules/generator/processor/util"
+	"github.com/grafana/tempo/pkg/tempopb"
+	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
 const (
@@ -81,6 +82,9 @@ func New(cfg Config, tenant string) gen.Processor {
 func (p *processor) Name() string { return name }
 
 func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "spanmetrics.PushSpans")
+	defer span.Finish()
+
 	p.aggregateMetrics(req.Batches)
 
 	return nil

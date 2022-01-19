@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -87,9 +88,20 @@ func (a *Appender) ContainsAll(t *testing.T, expectedSamples []Metric, timestamp
 	sort.Slice(a.samples, func(i, j int) bool {
 		return a.samples[i].l.String() < a.samples[j].l.String()
 	})
+
 	for i, sample := range a.samples {
-		assert.Equal(t, expectedSamples[i].Labels, sample.l.String())
-		assert.InDelta(t, timestamp.UnixMilli(), sample.t, 1)
-		assert.Equal(t, expectedSamples[i].Value, sample.v)
+		labelsEqual := assert.Equal(t, expectedSamples[i].Labels, sample.l.String())
+		if !labelsEqual {
+			// This will happen if a time series is missing or incorrect, instead of printing a wall
+			// of failed asserts as we continue iterating through the list, just dump the contents.
+			fmt.Println("Test appender contains the following metrics")
+			for i := range a.samples {
+				fmt.Printf("%s %g\n", a.samples[i].l.String(), a.samples[i].v)
+			}
+			return
+		}
+
+		assert.InDelta(t, timestamp.UnixMilli(), sample.t, 1, sample.l)
+		assert.Equal(t, expectedSamples[i].Value, sample.v, sample.l)
 	}
 }

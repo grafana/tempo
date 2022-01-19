@@ -10,16 +10,40 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-kit/log"
+	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/storage"
+
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
 	"github.com/grafana/tempo/modules/generator/processor/util"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/prometheus/model/labels"
-	"github.com/prometheus/prometheus/storage"
+)
+
+var (
+	// TODO we have this active series metric for every processor - make processor a label and move into a common config?
+	//  in fact, can we create a common component that handles active series?
+	//  this could also contain common namespace settings
+	metricActiveSeries = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_processor_service_graphs_active_series",
+		Help:      "The amount of series currently active",
+	}, []string{"tenant"})
+	metricDroppedSpans = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "generator_processor_service_graphs_dropped_spans",
+		Help:      "Number of dropped spans.",
+	}, []string{"tenant"})
+	metricUnpairedEdges = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "generator_processor_service_graphs_unpaired_edges",
+		Help:      "Number of expired edges (client or server).",
+	}, []string{"tenant"})
 )
 
 type tooManySpansError struct {
@@ -59,14 +83,14 @@ type processor struct {
 	dimensions     []string
 
 	metricActiveSeries  prometheus.Gauge
-	metricUnpairedEdges *prometheus.CounterVec
+	metricDroppedSpans  prometheus.Counter
+	metricUnpairedEdges prometheus.Counter
 
 	// for testing
-	now    func() time.Time
-	logger log.Logger
+	now func() time.Time
 }
 
-func New(cfg Config, namespace string) gen.Processor {
+func New(cfg Config, namespace string, tenant string) gen.Processor {
 	p := &processor{
 		cfg:       cfg,
 		namespace: namespace,
@@ -88,19 +112,15 @@ func New(cfg Config, namespace string) gen.Processor {
 		cache:                     make(map[string]labels.Labels),
 		dimensions:                make([]string, 0),
 
-		metricActiveSeries: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "tempo_generator_processor_service_graphs_active_series",
-			Help: "Number of active series.",
-		}),
-		metricUnpairedEdges: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "tempo_generator_processor_service_graphs_unpaired_edges",
-			Help: "Number of expired edges.",
-		}, []string{"client", "server"}),
+		// TODO we only have to pass tenant to be used in instrumentation, can we avoid doing this somehow?
+		metricActiveSeries:  metricActiveSeries.WithLabelValues(tenant),
+		metricDroppedSpans:  metricDroppedSpans.WithLabelValues(tenant),
+		metricUnpairedEdges: metricUnpairedEdges.WithLabelValues(tenant),
+
+		now: time.Now,
 	}
 
 	p.store = store.NewStore(cfg.Wait, cfg.MaxItems, p.collectEdge)
-
-	p.now = time.Now
 
 	return p
 }
@@ -108,14 +128,17 @@ func New(cfg Config, namespace string) gen.Processor {
 func (p *processor) Name() string { return "service_graphs" }
 
 func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "servicegraphs.PushSpans")
+	defer span.Finish()
+
 	// Evict expired edges
 	p.store.Expire()
 
 	if err := p.consume(req.Batches); err != nil {
 		if errors.As(err, &tooManySpansError{}) {
-			level.Warn(p.logger).Log("msg", "skipped processing of spans", "maxItems", p.maxItems, "err", err)
+			level.Warn(log.Logger).Log("msg", "skipped processing of spans", "maxItems", p.maxItems, "err", err)
 		} else {
-			level.Error(p.logger).Log("msg", "failed consuming traces", "err", err)
+			level.Error(log.Logger).Log("msg", "failed consuming traces", "err", err)
 		}
 		return nil
 	}
@@ -159,7 +182,7 @@ func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
 
 				if errors.Is(err, store.ErrTooManyItems) {
 					totalDroppedSpans++
-					// TODO: measure dropped spans
+					p.metricDroppedSpans.Inc()
 					continue
 				}
 
@@ -169,21 +192,27 @@ func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
 				}
 
 				if edge.IsCompleted() {
+					// TODO who is reading from this channel?
 					p.collectCh <- k
 				}
 			}
 		}
 	}
 
-	if totalDroppedSpans > 0 {
-		return &tooManySpansError{
-			droppedSpans: totalDroppedSpans,
-		}
-	}
+	// TODO should we return err on dropped spans? This will stop processing by other processors
+	//if totalDroppedSpans > 0 {
+	//	return &tooManySpansError{
+	//		droppedSpans: totalDroppedSpans,
+	//	}
+	//}
+
 	return nil
 }
 
 func (p *processor) CollectMetrics(ctx context.Context, appender storage.Appender) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "servicegraphs.CollectMetrics")
+	defer span.Finish()
+
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
@@ -211,20 +240,22 @@ func (p *processor) CollectMetrics(ctx context.Context, appender storage.Appende
 
 func (p *processor) collectCounters(appender storage.Appender, timestampMs int64) error {
 	for key, count := range p.requests {
-		lbls := p.getLabels(key, "client_requests_total")
+		lbls := p.getLabels(key, "service_graph_request_total")
 
 		if _, err := appender.Append(0, lbls, timestampMs, count); err != nil {
 			return err
 		}
+
+		// TODO we should also collect service_graph_request_failed_total
 	}
 	return nil
 }
 
 func (p *processor) collectHistograms(appender storage.Appender, timestampMs int64) error {
-	if err := p.collectHistogram(appender, timestampMs, p.clientLatencyCount, p.clientLatencySum, p.clientLatencyBucketCounts, "client_latency_count", "client_latency_sum", "client_latency_bucket"); err != nil {
+	if err := p.collectHistogram(appender, timestampMs, p.clientLatencyCount, p.clientLatencySum, p.clientLatencyBucketCounts, "service_graph_request_client_seconds"); err != nil {
 		return err
 	}
-	if err := p.collectHistogram(appender, timestampMs, p.serverLatencyCount, p.serverLatencySum, p.serverLatencyBucketCounts, "server_latency_count", "server_latency_sum", "server_latency_bucket"); err != nil {
+	if err := p.collectHistogram(appender, timestampMs, p.serverLatencyCount, p.serverLatencySum, p.serverLatencyBucketCounts, "service_graph_request_server_seconds"); err != nil {
 		return err
 	}
 	return nil
@@ -233,17 +264,17 @@ func (p *processor) collectHistograms(appender storage.Appender, timestampMs int
 func (p *processor) collectHistogram(
 	appender storage.Appender, timestampMs int64,
 	count, sum map[string]float64, bucketCounts map[string][]float64,
-	countName, sumName, bucketCountName string,
+	name string,
 ) error {
 	for key := range count {
 		// Collect latency count
-		lbls := p.getLabels(key, countName)
+		lbls := p.getLabels(key, name+"_count")
 		if _, err := appender.Append(0, lbls, timestampMs, count[key]); err != nil {
 			return err
 		}
 
 		// Collect latency sum
-		lbls = p.getLabels(key, sumName)
+		lbls = p.getLabels(key, name+"_sum")
 		if _, err := appender.Append(0, lbls, timestampMs, sum[key]); err != nil {
 			return err
 		}
@@ -251,9 +282,9 @@ func (p *processor) collectHistogram(
 		// Collect latency buckets
 		for i, count := range bucketCounts[key] {
 			if i == len(p.latencyBuckets) {
-				lbls = append(p.getLabels(key, bucketCountName), labels.Label{Name: "le", Value: "+Inf"})
+				lbls = append(p.getLabels(key, name+"_bucket"), labels.Label{Name: "le", Value: "+Inf"})
 			} else {
-				lbls = append(p.getLabels(key, bucketCountName), labels.Label{Name: "le", Value: strconv.FormatFloat(p.latencyBuckets[i], 'f', -1, 64)})
+				lbls = append(p.getLabels(key, name+"_bucket"), labels.Label{Name: "le", Value: strconv.FormatFloat(p.latencyBuckets[i], 'f', -1, 64)})
 			}
 			if _, err := appender.Append(0, lbls, timestampMs, count); err != nil {
 				return err
@@ -275,7 +306,7 @@ func (p *processor) getLabels(key, metricName string) labels.Labels {
 }
 
 func (p *processor) Shutdown(ctx context.Context) error {
-	panic("implement me :(")
+	return nil
 }
 
 // collectEdge records the metrics for the given edge.
@@ -289,12 +320,11 @@ func (p *processor) collectEdge(e *store.Edge) {
 		p.cache[key] = lbls
 		p.requests[key]++
 		p.aggregateLatencyMetrics(key, e)
-		// TODO: record latency metrics
 		// TODO: record failed metric
 		p.mtx.Unlock()
 
 	} else if e.IsExpired() {
-		p.metricUnpairedEdges.WithLabelValues(e.ClientService, e.ServerService).Inc()
+		p.metricUnpairedEdges.Inc()
 	}
 }
 
@@ -317,15 +347,15 @@ func (p *processor) aggregateClientLatencyMetrics(key string, latencyMS float64)
 }
 
 func (p *processor) aggregateServerLatencyMetrics(key string, latencyMS float64) {
-	if _, ok := p.clientLatencyBucketCounts[key]; !ok {
-		p.clientLatencyBucketCounts[key] = make([]float64, len(p.latencyBuckets)+1)
+	if _, ok := p.serverLatencyBucketCounts[key]; !ok {
+		p.serverLatencyBucketCounts[key] = make([]float64, len(p.latencyBuckets)+1)
 	}
 
-	p.clientLatencyCount[key]++
-	p.clientLatencySum[key] += latencyMS
+	p.serverLatencyCount[key]++
+	p.serverLatencySum[key] += latencyMS
 	idx := sort.SearchFloat64s(p.latencyBuckets, latencyMS)
 	for i := 0; i < idx; i++ {
-		p.clientLatencyBucketCounts[key][i]++
+		p.serverLatencyBucketCounts[key][i]++
 	}
 }
 

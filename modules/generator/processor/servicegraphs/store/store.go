@@ -54,7 +54,7 @@ func (s *store) shouldEvictHead() bool {
 		return false
 	}
 	edge := h.Value.(*Edge)
-	return edge.IsCompleted() || edge.IsCompleted()
+	return edge.IsCompleted() || edge.IsExpired()
 }
 
 // evictHead removes the head from the store (and map).
