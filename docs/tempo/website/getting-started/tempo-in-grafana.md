@@ -29,7 +29,7 @@ Tempo includes the ability to search recent traces.  Traces can be searched for 
 
 Enabling this feature requires the following:
 1. Run the Tempo 1.2 or the latest pre-release and enable search in the YAML config. For more information see the [Tempo configuration documentation](../../configuration#search).
-2. Run Grafana 8.2 or the latest pre-release and enable the `tempoSearch` [feature toggle](https://github.com/grafana/tempo/blob/2674b233d8663852f2ccc65cc47edfee36caba23/example/docker-compose/tempo-search/grafana.ini).
+2. Run Grafana 8.2 or the latest pre-release and enable the `tempoSearch` [feature toggle](https://github.com/grafana/tempo/blob/main/example/docker-compose/tempo-search/grafana.ini).
 
 <p align="center"><img src="../tempo-search.png" alt="Tempo Search"></p>
 
