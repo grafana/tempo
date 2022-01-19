@@ -36,12 +36,12 @@ var (
 	}, []string{"tenant"})
 	metricDroppedSpans = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
-		Name:      "generator_processor_service_graphs_dropped_spans",
+		Name:      "metrics_generator_processor_service_graphs_dropped_spans",
 		Help:      "Number of dropped spans.",
 	}, []string{"tenant"})
 	metricUnpairedEdges = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
-		Name:      "generator_processor_service_graphs_unpaired_edges",
+		Name:      "metrics_generator_processor_service_graphs_unpaired_edges",
 		Help:      "Number of expired edges (client or server).",
 	}, []string{"tenant"})
 )
