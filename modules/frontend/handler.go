@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-kit/log"
@@ -15,8 +16,6 @@ import (
 	"github.com/weaveworks/common/httpgrpc/server"
 	"github.com/weaveworks/common/tracing"
 	"github.com/weaveworks/common/user"
-
-	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -116,9 +115,14 @@ func writeError(w http.ResponseWriter, err error) {
 	case context.DeadlineExceeded:
 		err = errDeadlineExceeded
 	default:
-		if util.IsRequestBodyTooLarge(err) {
+		if isRequestBodyTooLarge(err) {
 			err = errRequestEntityTooLarge
 		}
 	}
 	server.WriteError(w, err)
+}
+
+// isRequestBodyTooLarge returns true if the error is "http: request body too large".
+func isRequestBodyTooLarge(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "http: request body too large")
 }

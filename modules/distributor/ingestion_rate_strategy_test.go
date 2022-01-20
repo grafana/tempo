@@ -4,12 +4,11 @@ import (
 	"testing"
 
 	"github.com/grafana/dskit/limiter"
-	"github.com/grafana/tempo/modules/overrides"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/modules/overrides"
 )
 
 func TestIngestionRateStrategy(t *testing.T) {
@@ -21,7 +20,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 	}{
 		"local rate limiter should just return configured limits": {
 			limits: overrides.Limits{
-				IngestionRateStrategy:   util.LocalIngestionRateStrategy,
+				IngestionRateStrategy:   overrides.LocalIngestionRateStrategy,
 				IngestionRateLimitBytes: 5,
 				IngestionBurstSizeBytes: 2,
 			},
@@ -31,7 +30,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 		},
 		"global rate limiter should share the limit across the number of distributors": {
 			limits: overrides.Limits{
-				IngestionRateStrategy:   util.GlobalIngestionRateStrategy,
+				IngestionRateStrategy:   overrides.GlobalIngestionRateStrategy,
 				IngestionRateLimitBytes: 5,
 				IngestionBurstSizeBytes: 2,
 			},
@@ -52,15 +51,15 @@ func TestIngestionRateStrategy(t *testing.T) {
 			var strategy limiter.RateLimiterStrategy
 
 			// Init limits overrides
-			overrides, err := overrides.NewOverrides(testData.limits)
+			o, err := overrides.NewOverrides(testData.limits)
 			require.NoError(t, err)
 
 			// Instance the strategy
 			switch testData.limits.IngestionRateStrategy {
-			case util.LocalIngestionRateStrategy:
-				strategy = newLocalIngestionRateStrategy(overrides)
-			case util.GlobalIngestionRateStrategy:
-				strategy = newGlobalIngestionRateStrategy(overrides, testData.ring)
+			case overrides.LocalIngestionRateStrategy:
+				strategy = newLocalIngestionRateStrategy(o)
+			case overrides.GlobalIngestionRateStrategy:
+				strategy = newGlobalIngestionRateStrategy(o, testData.ring)
 			default:
 				require.Fail(t, "Unknown strategy")
 			}
