@@ -33,6 +33,13 @@ Enabling this feature requires the following:
 
 <p align="center"><img src="../tempo-search.png" alt="Tempo Search"></p>
 
+### Full backend search
+Tempo 1.3 builds upon the recent traces search detailed above by adding the ability to search the entire backend. For more information about 
+operating full backend search with Tempo refer to the [documentation]({{< relref "../operations/backend_search" >}}).
+
+Enabling this feature requires the following:
+1. Run the Tempo 1.3 or the latest pre-release and enable search in the YAML config. For more information see the [Tempo configuration documentation](../../configuration#search). (This is the same configuration option required above.)
+2. Run Grafana 8.3.4 or the latest pre-release and enable the `tempoBackendSearch` [feature toggle](https://github.com/grafana/tempo/blob/main/example/docker-compose/tempo-search/grafana.ini). This will cause Grafana to pass the `start` and `end` parameters necessary for full backend search.
 
 ## View JSON file
 A local JSON file containing a trace can be uploaded and viewed in the Grafana UI.  This is useful in cases where access to the original Tempo datasource is limited, or for preserving traces outside of Tempo.  The JSON data can be downloaded via the Tempo API or the Inspector panel while viewing the trace in Grafana.
