@@ -92,7 +92,7 @@ func (t *App) initRing() (services.Service, error) {
 }
 
 func (t *App) initGeneratorRing() (services.Service, error) {
-	generatorRing, err := tempo_ring.New(t.cfg.Generator.LifecyclerConfig.RingConfig, "metrics-generator", t.cfg.Generator.OverrideRingKey, prometheus.DefaultRegisterer)
+	generatorRing, err := tempo_ring.New(t.cfg.Generator.Ring.ToRingConfig(), "metrics-generator", generator.RingKey, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics-generator ring %w", err)
 	}
@@ -150,7 +150,7 @@ func (t *App) initIngester() (services.Service, error) {
 }
 
 func (t *App) initGenerator() (services.Service, error) {
-	t.cfg.Generator.LifecyclerConfig.ListenPort = t.cfg.Server.GRPCListenPort
+	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
 	generator, err := generator.New(t.cfg.Generator, t.overrides, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics-generator %w", err)
@@ -297,7 +297,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.MemberlistKV = memberlist.NewKVInitService(&t.cfg.MemberlistKV, log.Logger, dnsProvider, reg)
 
 	t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
-	t.cfg.Generator.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.Generator.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 

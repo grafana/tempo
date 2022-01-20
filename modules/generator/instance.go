@@ -95,7 +95,7 @@ func (i *instance) collectAndPushMetrics(ctx context.Context) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.collectAndPushMetrics")
 	defer span.Finish()
 
-	level.Debug(log.Logger).Log("msg", "collecting metrics", "tenant", i.instanceID)
+	level.Info(log.Logger).Log("msg", "collecting metrics", "tenant", i.instanceID)
 
 	appender := i.appendable.Appender(ctx)
 

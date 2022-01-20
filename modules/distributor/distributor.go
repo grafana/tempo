@@ -322,11 +322,25 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 		recordDiscaredSpans(err, userID, spanCount)
 	}
 
-	if err == nil {
-		generatorErr := d.sendToGenerators(ctx, userID, batches, keys)
-		if generatorErr != nil {
-			level.Error(log.Logger).Log("msg", "pushing to generator failed", "err", generatorErr)
-		}
+	if d.cfg.EnableMetricsGeneratorRing && err == nil {
+		// TODO
+		//  - read overrides to determine whether this tenant is included
+		//  - filter unneeded spans/tags
+
+		// Handle requests sent to the metrics-genrator in a separate goroutine, this way we don't
+		// influence the write
+		// TODO should we use a pool here? Or maybe a channel?
+		go func() {
+			genKeys, genTraces, genErr := metricsGeneratorRequestsByTraceID(batches, userID, spanCount)
+			if err != nil {
+				level.Error(log.Logger).Log("msg", "build batches for metrics-generator failed", "err", genErr)
+			}
+
+			genErr = d.sendToGenerators(context.Background(), userID, genKeys, genTraces)
+			if genErr != nil {
+				level.Error(log.Logger).Log("msg", "pushing to metrics-generators failed", "err", genErr)
+			}
+		}()
 	}
 
 	return nil, err // PushRequest is ignored, so no reason to create one
@@ -386,31 +400,21 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 }
 
 // TODO can we include this in a test somewhere?
-func (d *Distributor) sendToGenerators(ctx context.Context, userID string, traces []*v1.ResourceSpans, keys []uint32) error {
-	if d.generatorsRing == nil {
-		return nil
-	}
-
-	// TODO
-	//  - read overrides to determine whether this tenant is included
-	//  - create batches similar to requestsByTraceID to shard across instance
-	//  - filter unneeded spans/tags
-
+func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys []uint32, traces []*tempopb.Trace) error {
 	// If an instance is unhealthy write to the next one (i.e. write extend is enabled)
 	op := ring.Write
 
 	err := ring.DoBatch(ctx, op, d.generatorsRing, keys, func(generator ring.InstanceDesc, indexes []int) error {
-		localCtx, cancel := context.WithTimeout(ctx, d.clientCfg.RemoteTimeout)
+		localCtx, cancel := context.WithTimeout(ctx, d.generatorClientCfg.RemoteTimeout)
 		defer cancel()
 		localCtx = user.InjectOrgID(localCtx, userID)
 
-		// TODO we should use indexes to shard data
-
-		// TODO if the generator does not need the full trace, trim down this request to safe processing time, i.e.
-		// 	- don't send spans if the tenant does not generate metrics
-		//  - only send relevant spans (e.g. span kind client and server for service graphs)
 		req := tempopb.PushSpansRequest{
-			Batches: traces,
+			// TODO can we prealloc anything here?
+			Batches: nil,
+		}
+		for _, j := range indexes {
+			req.Batches = append(req.Batches, traces[j].Batches...)
 		}
 
 		c, err := d.generatorPool.GetClientFor(generator.Addr)
@@ -422,8 +426,6 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, trace
 		metricGeneratorPushes.WithLabelValues(generator.Addr).Inc()
 		if err != nil {
 			metricGeneratorPushesFailures.WithLabelValues(generator.Addr).Inc()
-			// TODO don't log this (but it's useful for now)
-			level.Error(log.Logger).Log("msg", "pushing to generator failed", "addr", generator.Addr, "err", err)
 		}
 		return err
 	}, func() {})
@@ -512,6 +514,84 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 	}
 
 	return keys, traces, ids, nil
+}
+
+// metricsGeneratorRequestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys
+// for the hash ring and traces to pass onto the metrics-generator. This is the same logic as the
+// requestsByTraceID but specifically for the metrics-generators.
+// TODO consider merging both functions
+func metricsGeneratorRequestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int) (keys []uint32, traces []*tempopb.Trace, err error) {
+	type traceAndID struct {
+		id    []byte
+		trace *tempopb.Trace
+	}
+
+	const tracesPerBatch = 20 // p50 of internal env
+	tracesByID := make(map[uint32]*traceAndID, tracesPerBatch)
+
+	for _, b := range batches {
+		spansByILS := make(map[uint32]*v1.InstrumentationLibrarySpans)
+
+		for _, ils := range b.InstrumentationLibrarySpans {
+			for _, span := range ils.Spans {
+				traceID := span.TraceId
+				if !validation.ValidTraceID(traceID) {
+					return nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit")
+				}
+
+				traceKey := util.TokenFor(userID, traceID)
+				ilsKey := traceKey
+				if ils.InstrumentationLibrary != nil {
+					ilsKey = fnv1a.AddString32(ilsKey, ils.InstrumentationLibrary.Name)
+					ilsKey = fnv1a.AddString32(ilsKey, ils.InstrumentationLibrary.Version)
+				}
+
+				existingILS, ok := spansByILS[ilsKey]
+				if !ok {
+					existingILS = &v1.InstrumentationLibrarySpans{
+						InstrumentationLibrary: ils.InstrumentationLibrary,
+						Spans:                  make([]*v1.Span, 0, spanCount/tracesPerBatch),
+					}
+					spansByILS[ilsKey] = existingILS
+				}
+				existingILS.Spans = append(existingILS.Spans, span)
+
+				// if we found an ILS we assume its already part of a request and can go to the next span
+				if ok {
+					continue
+				}
+
+				existingTrace, ok := tracesByID[traceKey]
+				if !ok {
+					existingTrace = &traceAndID{
+						id: traceID,
+						trace: &tempopb.Trace{
+							Batches: make([]*v1.ResourceSpans, 0, spanCount/tracesPerBatch),
+						},
+					}
+
+					tracesByID[traceKey] = existingTrace
+				}
+
+				existingTrace.trace.Batches = append(existingTrace.trace.Batches, &v1.ResourceSpans{
+					Resource:                    b.Resource,
+					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{existingILS},
+				})
+			}
+		}
+	}
+
+	metricTracesPerBatch.Observe(float64(len(tracesByID)))
+
+	keys = make([]uint32, 0, len(tracesByID))
+	traces = make([]*tempopb.Trace, 0, len(tracesByID))
+
+	for k, r := range tracesByID {
+		keys = append(keys, k)
+		traces = append(traces, r.trace)
+	}
+
+	return keys, traces, nil
 }
 
 func recordDiscaredSpans(err error, userID string, spanCount int) {

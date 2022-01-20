@@ -131,9 +131,6 @@ func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 	span, ctx := opentracing.StartSpanFromContext(ctx, "servicegraphs.PushSpans")
 	defer span.Finish()
 
-	// Evict expired edges
-	p.store.Expire()
-
 	if err := p.consume(req.Batches); err != nil {
 		if errors.As(err, &tooManySpansError{}) {
 			level.Warn(log.Logger).Log("msg", "skipped processing of spans", "maxItems", p.maxItems, "err", err)
@@ -212,6 +209,9 @@ func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
 func (p *processor) CollectMetrics(ctx context.Context, appender storage.Appender) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "servicegraphs.CollectMetrics")
 	defer span.Finish()
+
+	// Evict expired edges
+	p.store.Expire()
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
