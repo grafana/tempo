@@ -299,7 +299,7 @@ func TestMatches(t *testing.T) {
 			req: &tempopb.SearchRequest{
 				Start: 12,
 				End:   15,
-				Tags:  map[string]string{"foo": "bar", "boolFoo": "true"},
+				Tags:  map[string]string{"foo": "bar", "boolfoo": "true"},
 			},
 			expected: testMetadata,
 		},
