@@ -71,7 +71,7 @@ func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (
 				}
 
 				spanAttsMatch := matchAttributes(req.Tags, s.Attributes)
-				// if either the batch OR the span explicitly match us then we're good
+				// if batch, span attributes or the span itself match then the trace matches
 				if spanAttsMatch == passedMatch || batchMatch == passedMatch || spanMatch == passedMatch {
 					traceMatch = passedMatch
 				}
