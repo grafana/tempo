@@ -24,7 +24,7 @@ Traces can be discovered by searching logs for entries containing trace IDs.  Th
 
 Tempo includes the ability to search recent traces held in ingesters.
 Traces can be searched for data originating from a specific service,
-duration range, and span and process-level attributes included in your application's instrumentation such as HTTP status code and customer ID.
+duration range, span, or process-level attributes included in your application's instrumentation, such as HTTP status code and customer ID.
 Search of recent traces is disabled by default.
 Ingesters default to storing the last 15 minutes of traces.
 
