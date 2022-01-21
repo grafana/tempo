@@ -1,17 +1,20 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/go-test/deep"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestHasMissingSpans(t *testing.T) {
@@ -70,19 +73,26 @@ func TestResponseFixture(t *testing.T) {
 	require.NoError(t, err)
 	defer f.Close()
 
-	response := &tempopb.Trace{}
-	err = jsonpb.Unmarshal(f, response)
+	expected := &tempopb.Trace{}
+	err = jsonpb.Unmarshal(f, expected)
 	require.NoError(t, err)
 
 	seed := time.Unix(1636729665, 0)
 	info := util.NewTraceInfo(seed, "")
 
-	expected, err := info.ConstructTraceFromEpoch()
+	generatedTrace, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
 
-	assert.True(t, equalTraces(expected, response))
+	// print the generated trace
+	var jsonTrace bytes.Buffer
+	marshaller := &jsonpb.Marshaler{}
+	err = marshaller.Marshal(&jsonTrace, generatedTrace)
+	require.NoError(t, err)
+	fmt.Println(jsonTrace.String())
 
-	if diff := deep.Equal(expected, response); diff != nil {
+	assert.True(t, equalTraces(expected, generatedTrace))
+
+	if diff := deep.Equal(expected, generatedTrace); diff != nil {
 		for _, d := range diff {
 			t.Error(d)
 		}

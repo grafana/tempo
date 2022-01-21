@@ -71,23 +71,6 @@ dashboard_utils {
           $.panel('Latency') +
           $.latencyPanel('tempodb_backend_request_duration_seconds', '{%s,operation="GET"}' % $.jobMatcher($._config.jobs.querier))
         )
-      )
-      .addRow(
-        g.row('TempoDB Access')
-        .addPanel(
-          g.panel('p99') +
-          g.queryPanel('histogram_quantile(.99, sum(rate(tempo_query_reads_bucket[$__interval])) by (layer, le))', '{{layer}}'),
-        )
-        .addPanel(
-          g.panel('p50') +
-          g.queryPanel('histogram_quantile(.5, sum(rate(tempo_query_reads_bucket[$__interval])) by (layer, le))', '{{layer}}'),
-        )
-        .addPanel(
-          g.panel('Bytes Read') +
-          g.queryPanel('histogram_quantile(.99, sum(rate(tempo_query_bytes_read_bucket[$__interval])) by (le))', '0.99') +
-          g.queryPanel('histogram_quantile(.9, sum(rate(tempo_query_bytes_read_bucket[$__interval])) by (le))', '0.9') +
-          g.queryPanel('histogram_quantile(.5, sum(rate(tempo_query_bytes_read_bucket[$__interval])) by (le))', '0.5'),
-        )
       ),
   },
 }

@@ -11,6 +11,7 @@
 * [CHANGE] **BREAKING CHANGE** Remove deprecated ingester gRPC endpoint and data encoding. The current data encoding was introduced in v1.0.  If running earlier versions, first upgrade to v1.0 through v1.2 and allow time for all blocks to be switched to the "v1" data encoding. [#1215](https://github.com/grafana/tempo/pull/1215) (@mdisibio)
 * [FEATURE] Added support for full backend search. [#1174](https://github.com/grafana/tempo/pull/1174) (@joe-elliott)
   **BREAKING CHANGE** Moved `querier.search_max_result_limit` and `querier.search_default_result_limit` to `query_frontend.search.max_result_limit` and `query_frontend.search.default_result_limit`
+* [ENHANCEMENT]: Improve variables expansion support [#1212](https://github.com/grafana/tempo/pull/1212) @irizzant
 * [ENHANCEMENT] Expose `upto` parameter on hedged requests for each backend with `hedge_requests_up_to`. [#1085](https://github.com/grafana/tempo/pull/1085) (@joe-elliott)
 * [ENHANCEMENT] Search: drop use of TagCache, extract tags and tag values on-demand [#1068](https://github.com/grafana/tempo/pull/1068) (@kvrhdn)
 * [ENHANCEMENT] Jsonnet: add `$._config.namespace` to filter by namespace in cortex metrics [#1098](https://github.com/grafana/tempo/pull/1098) (@mapno)
@@ -21,7 +22,7 @@
 * [ENHANCEMENT] Add Envoy Proxy panel to `Tempo / Writes` dashboard [#1137](https://github.com/grafana/tempo/pull/1137) (@kvrhdn)
 * [ENHANCEMENT] Reduce compactionCycle to improve performance in large multitenant environments [#1145](https://github.com/grafana/tempo/pull/1145) (@joe-elliott)
 * [ENHANCEMENT] Added max_time_per_tenant to allow for independently configuring polling and compaction cycle. [#1145](https://github.com/grafana/tempo/pull/1145) (@joe-elliott)
-* [ENHANCEMENT] Add `tempodb_compaction_outstanding_blocks` metric to measure compaction load [#1143](https://github.com/grafana/tempo/pull/1143) (@mapno)
+* [ENHANCEMENT] Add `tempodb_compaction_outstanding_blocks` metric to measure compaction load [#1144](https://github.com/grafana/tempo/pull/1144) (@mapno)
 * [ENHANCEMENT] Update mixin to use new backend metric [#1151](https://github.com/grafana/tempo/pull/1151) (@zalegrala)
 * [ENHANCEMENT] Make `TempoIngesterFlushesFailing` alert more actionable [#1157](https://github.com/grafana/tempo/pull/1157) (@dannykopping)
 * [ENHANCEMENT] Switch open-telemetry/opentelemetry-collector to grafana/opentelemetry-collectorl fork, update it to 0.40.0 and add missing dependencies due to the change [#1142](https://github.com/grafana/tempo/pull/1142) (@tete17)
@@ -37,6 +38,8 @@
 * [BUGFIX] Ensure that the admin client jsonnet has correct S3 bucket property. (@hedss)
 * [BUGFIX] Publish tenant index age correctly for tenant index writers. [#1146](https://github.com/grafana/tempo/pull/1146) (@joe-elliott)
 * [BUGFIX] Ingester startup panic `slice bounds out of range` [#1195](https://github.com/grafana/tempo/issues/1195) (@mdisibio)
+* [BUGFIX] Update goreleaser install method to `go install`. [#](https://github.com/grafana/tempo/) (@mapno)
+* [BUGFIX] tempo-mixin: remove TempoDB Access panel from `Tempo / Reads`, metrics don't exist anymore [#1218](https://github.com/grafana/tempo/issues/1218) (@kvrhdn)
 
 ## v1.2.1 / 2021-11-15
 * [BUGFIX] Fix defaults for MaxBytesPerTrace (ingester.max-bytes-per-trace) and MaxSearchBytesPerTrace (ingester.max-search-bytes-per-trace) [#1109](https://github.com/grafana/tempo/pull/1109) (@bitprocessor)
