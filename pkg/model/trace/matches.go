@@ -15,18 +15,18 @@ import (
 const RootSpanNotYetReceivedText = "<root span not yet received>"
 
 const (
-	attributesNotFound    = 1
-	attributesFailedMatch = 2
-	attributesPassedMatch = 3
+	notFound    = 1
+	failedMatch = 2
+	passedMatch = 3
 )
 
 func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
 	traceStart := uint64(math.MaxUint64)
 	traceEnd := uint64(0)
 
-	traceMatch := attributesNotFound
+	traceMatch := notFound
 	if len(req.Tags) == 0 {
-		traceMatch = attributesPassedMatch
+		traceMatch = passedMatch
 	}
 
 	var rootSpan *v1.Span
@@ -36,9 +36,9 @@ func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (
 		// check if the batch matches. we will use the value of batchMatch later to determine if
 		//  - we need to bother checking if the spans match
 		//  - we can mark the entire trace as matching
-		batchMatch := attributesNotFound
-		if traceMatch != attributesPassedMatch {
-			batchMatch = searchAttributes(req.Tags, b.Resource.Attributes)
+		batchMatch := notFound
+		if traceMatch != passedMatch {
+			batchMatch = matchAttributes(req.Tags, b.Resource.Attributes)
 		}
 
 		for _, ils := range b.InstrumentationLibrarySpans {
@@ -55,25 +55,31 @@ func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (
 				}
 
 				// if the trace has already matched we don't have to bother
-				if traceMatch == attributesPassedMatch {
+				if traceMatch == passedMatch {
 					continue
 				}
 
 				// if the batch explicitly doesn't match we don't have to bother
-				if batchMatch == attributesFailedMatch {
+				if batchMatch == failedMatch {
 					continue
 				}
 
-				spanMatch := searchAttributes(req.Tags, s.Attributes)
+				// checks non attribute span properties for matching
+				spanMatch := matchSpan(req.Tags, s)
+				if spanMatch == failedMatch {
+					continue
+				}
+
+				spanAttsMatch := matchAttributes(req.Tags, s.Attributes)
 				// if either the batch OR the span explicitly match us then we're good
-				if spanMatch == attributesPassedMatch || batchMatch == attributesPassedMatch {
-					traceMatch = attributesPassedMatch
+				if spanAttsMatch == passedMatch || batchMatch == passedMatch || spanMatch == passedMatch {
+					traceMatch = passedMatch
 				}
 			}
 		}
 	}
 
-	if traceMatch != attributesPassedMatch {
+	if traceMatch != passedMatch {
 		return nil, nil
 	}
 
@@ -114,11 +120,44 @@ func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (
 	}, nil
 }
 
-// searchAttributes returns an int that indicates if the passed tags match the trace attributes
+// matchSpan searches for two reserved tag names "name" and "error" and maps them to actual
+// properties of the span. it returns false if the span explicitly fails to match based on the
+// passed conditions and true otherwise.
+func matchSpan(tags map[string]string, s *v1.Span) int {
+	match := notFound
+
+	if name, ok := tags[search.SpanNameTag]; ok {
+		if name != s.Name {
+			return failedMatch
+		} else {
+			match = passedMatch
+		}
+	}
+
+	if err, ok := tags[search.ErrorTag]; ok {
+		if err == "true" && s.Status.Code != v1.Status_STATUS_CODE_ERROR {
+			return failedMatch
+		} else {
+			match = passedMatch
+		}
+	}
+
+	if status, ok := tags[search.StatusCodeTag]; ok {
+		if search.StatusCodeMapping[status] != int(s.Status.Code) {
+			return failedMatch
+		} else {
+			match = passedMatch
+		}
+	}
+
+	return match
+}
+
+// matchAttributes returns an int that indicates if the passed tags match the trace attributes
 //  possible values: attributesNotFound, attributesFailedMatch, attributesPassedMatch
-func searchAttributes(tags map[string]string, atts []*v1common.KeyValue) int {
+func matchAttributes(tags map[string]string, atts []*v1common.KeyValue) int {
 	// start with the assumption that we won't find any matching attributes
-	allMatch := attributesNotFound
+	allMatch := notFound
 
 	for _, a := range atts {
 		var searchString string
@@ -153,12 +192,12 @@ func searchAttributes(tags map[string]string, atts []*v1common.KeyValue) int {
 
 		// if an individual attribute failed to match we can bail here
 		if !match {
-			return attributesFailedMatch
+			return failedMatch
 		}
 
 		// if we're here we've found a match but we need to continue searching in case
 		//  a future tag fails to match
-		allMatch = attributesPassedMatch
+		allMatch = passedMatch
 	}
 
 	return allMatch
