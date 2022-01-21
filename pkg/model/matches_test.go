@@ -276,6 +276,26 @@ func TestMatches(t *testing.T) {
 			},
 			expected: nil,
 		},
+		{
+			name:  "both include. one resource tag",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start: 12,
+				End:   15,
+				Tags:  map[string]string{"foo": "bar", "service.name": "svc"},
+			},
+			expected: testMetadata,
+		},
+		{
+			name:  "both include",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start: 12,
+				End:   15,
+				Tags:  map[string]string{"foo": "bar", "boolFoo": "true"},
+			},
+			expected: testMetadata,
+		},
 	}
 
 	for _, tc := range tests {
