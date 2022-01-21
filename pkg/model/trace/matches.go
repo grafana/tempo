@@ -33,6 +33,9 @@ func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (
 	var rootBatch *v1.ResourceSpans
 	// todo: is it possible to shortcircuit this loop?
 	for _, b := range trace.Batches {
+		// check if the batch matches. we will use the value of batchMatch later to determine if
+		//  - we need to bother checking if the spans match
+		//  - we can mark the entire trace as matching
 		batchMatch := attributesNotFound
 		if traceMatch != attributesPassedMatch {
 			batchMatch = searchAttributes(req.Tags, b.Resource.Attributes)
