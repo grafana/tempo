@@ -14,31 +14,23 @@ import (
 
 const RootSpanNotYetReceivedText = "<root span not yet received>"
 
-const (
-	attributesNotFound    = 1
-	attributesFailedMatch = 2
-	attributesPassedMatch = 3
-)
-
 func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
 	traceStart := uint64(math.MaxUint64)
 	traceEnd := uint64(0)
 
-	traceMatch := attributesNotFound
-	if len(req.Tags) == 0 {
-		traceMatch = attributesPassedMatch
+	// copy the tags from tempopb.SearchRequest. This map is then mutated by the two match* functions below
+	// if, at the end of this loop, there are no more entries in the map then we matched all tags
+	tagsToFind := map[string]string{}
+	for k, v := range req.Tags {
+		tagsToFind[k] = v
 	}
 
 	var rootSpan *v1.Span
 	var rootBatch *v1.ResourceSpans
 	// todo: is it possible to shortcircuit this loop?
 	for _, b := range trace.Batches {
-		// check if the batch matches. we will use the value of batchMatch later to determine if
-		//  - we need to bother checking if the spans match
-		//  - we can mark the entire trace as matching
-		batchMatch := attributesNotFound
-		if traceMatch != attributesPassedMatch {
-			batchMatch = searchAttributes(req.Tags, b.Resource.Attributes)
+		if !allTagsFound(tagsToFind) {
+			matchAttributes(tagsToFind, b.Resource.Attributes)
 		}
 
 		for _, ils := range b.InstrumentationLibrarySpans {
@@ -55,25 +47,18 @@ func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (
 				}
 
 				// if the trace has already matched we don't have to bother
-				if traceMatch == attributesPassedMatch {
+				if allTagsFound(tagsToFind) {
 					continue
 				}
 
-				// if the batch explicitly doesn't match we don't have to bother
-				if batchMatch == attributesFailedMatch {
-					continue
-				}
-
-				spanMatch := searchAttributes(req.Tags, s.Attributes)
-				// if either the batch OR the span explicitly match us then we're good
-				if spanMatch == attributesPassedMatch || batchMatch == attributesPassedMatch {
-					traceMatch = attributesPassedMatch
-				}
+				// checks non attribute span properties for matching
+				matchSpan(tagsToFind, s)
+				matchAttributes(tagsToFind, s.Attributes)
 			}
 		}
 	}
 
-	if traceMatch != attributesPassedMatch {
+	if !allTagsFound(tagsToFind) {
 		return nil, nil
 	}
 
@@ -114,12 +99,37 @@ func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (
 	}, nil
 }
 
-// searchAttributes returns an int that indicates if the passed tags match the trace attributes
-//  possible values: attributesNotFound, attributesFailedMatch, attributesPassedMatch
-func searchAttributes(tags map[string]string, atts []*v1common.KeyValue) int {
-	// start with the assumption that we won't find any matching attributes
-	allMatch := attributesNotFound
+func allTagsFound(tagsToFind map[string]string) bool {
+	return len(tagsToFind) == 0
+}
 
+// matchSpan searches for reserved tag names and maps them to actual
+// properties of the span. it removes any matches it finds from
+// the provided tags map
+func matchSpan(tags map[string]string, s *v1.Span) {
+	if name, ok := tags[search.SpanNameTag]; ok {
+		if name == s.Name {
+			delete(tags, search.SpanNameTag)
+		}
+	}
+
+	if err, ok := tags[search.ErrorTag]; ok {
+		if err == "true" && s.Status.Code == v1.Status_STATUS_CODE_ERROR {
+			delete(tags, search.ErrorTag)
+		}
+	}
+
+	if status, ok := tags[search.StatusCodeTag]; ok {
+		if search.StatusCodeMapping[status] == int(s.Status.Code) {
+			delete(tags, search.StatusCodeTag)
+		}
+	}
+}
+
+// matchAttributes tests to see if any tags in the map match any passed attributes
+//  if it finds a match it removes the key from the map
+func matchAttributes(tags map[string]string, atts []*v1common.KeyValue) {
+	// start with the assumption that we won't find any matching attributes
 	for _, a := range atts {
 		var searchString string
 		var ok bool
@@ -151,15 +161,8 @@ func searchAttributes(tags map[string]string, atts []*v1common.KeyValue) int {
 			}
 		}
 
-		// if an individual attribute failed to match we can bail here
-		if !match {
-			return attributesFailedMatch
+		if match {
+			delete(tags, a.Key)
 		}
-
-		// if we're here we've found a match but we need to continue searching in case
-		//  a future tag fails to match
-		allMatch = attributesPassedMatch
 	}
-
-	return allMatch
 }

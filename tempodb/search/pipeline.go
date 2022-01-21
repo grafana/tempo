@@ -126,7 +126,7 @@ func (p *Pipeline) rewriteTagLookup(k, v string) (skip bool, newk, newv string) 
 
 	case StatusCodeTag:
 		// Convert status.code=string into status.code=int
-		for statusStr, statusID := range statusCodeMapping {
+		for statusStr, statusID := range StatusCodeMapping {
 			if v == statusStr {
 				return false, StatusCodeTag, strconv.Itoa(statusID)
 			}

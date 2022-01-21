@@ -22,6 +22,10 @@ func TestMatches(t *testing.T) {
 							Key:   "service.name",
 							Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "svc"}},
 						},
+						{
+							Key:   "cluster",
+							Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "prod"}},
+						},
 					},
 				},
 				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
@@ -48,6 +52,9 @@ func TestMatches(t *testing.T) {
 										Key:   "boolfoo",
 										Value: &v1common.AnyValue{Value: &v1common.AnyValue_BoolValue{BoolValue: true}},
 									},
+								},
+								Status: &v1.Status{
+									Code: v1.Status_STATUS_CODE_OK,
 								},
 							},
 						},
@@ -292,7 +299,87 @@ func TestMatches(t *testing.T) {
 			req: &tempopb.SearchRequest{
 				Start: 12,
 				End:   15,
-				Tags:  map[string]string{"foo": "bar", "boolFoo": "true"},
+				Tags:  map[string]string{"foo": "bar", "boolfoo": "true"},
+			},
+			expected: testMetadata,
+		},
+		{
+			name:  "two resource tags. one excludes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start: 12,
+				End:   15,
+				Tags:  map[string]string{"cluster": "prod", "service.name": "not"},
+			},
+			expected: nil,
+		},
+		{
+			name:  "name includes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start: 12,
+				End:   15,
+				Tags:  map[string]string{"name": "test"},
+			},
+			expected: testMetadata,
+		},
+		{
+			name:  "name excludes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start: 12,
+				End:   15,
+				Tags:  map[string]string{"name": "no"},
+			},
+			expected: nil,
+		},
+		{
+			name:  "name excludes with resource tag",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start: 12,
+				End:   15,
+				Tags:  map[string]string{"name": "no", "cluster": "prod"},
+			},
+			expected: nil,
+		},
+		{
+			name:  "name excludes with span tag",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start: 12,
+				End:   15,
+				Tags:  map[string]string{"name": "no", "foo": "barricus"},
+			},
+			expected: nil,
+		},
+		{
+			name:  "error excludes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start: 12,
+				End:   15,
+				Tags:  map[string]string{"error": "true"},
+			},
+			expected: nil,
+		},
+		{
+			name:  "status.code excludes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start: 12,
+				End:   15,
+				Tags:  map[string]string{"status.code": "error"},
+			},
+			expected: nil,
+		},
+		{
+			name:  "status.code includes",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start: 12,
+				End:   15,
+				Tags:  map[string]string{"status.code": "ok"},
 			},
 			expected: testMetadata,
 		},
