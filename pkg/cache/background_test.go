@@ -16,7 +16,7 @@ func TestBackground(t *testing.T) {
 		WriteBackBuffer:     100,
 	}, cache.NewMockCache(), nil)
 
-	keys, chunks := fillCache(t, c)
+	keys, chunks := fillCache(c)
 	cache.Flush(c)
 
 	testCacheSingle(t, c, keys, chunks)
@@ -24,7 +24,7 @@ func TestBackground(t *testing.T) {
 	testCacheMiss(t, c)
 }
 
-func fillCache(t *testing.T, cache cache.Cache) ([]string, [][]byte) {
+func fillCache(cache cache.Cache) ([]string, [][]byte) {
 
 	// put a set of chunks, larger than background batch size, with varying timestamps and values
 	keys := []string{}

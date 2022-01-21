@@ -68,6 +68,7 @@ func (c *RedisCache) Fetch(ctx context.Context, keys []string) (found []string, 
 		var err error
 		items, err = c.redis.MGet(ctx, keys)
 		if err != nil {
+			// nolint:errcheck
 			log.Error(err)
 			level.Error(c.logger).Log("msg", "failed to get from redis", "name", c.name, "err", err)
 			return err

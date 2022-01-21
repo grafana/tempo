@@ -158,26 +158,26 @@ func testMemcacheFailing(t *testing.T, memcache *cache.Memcached) {
 }
 
 func TestMemcacheStop(t *testing.T) {
-	t.Run("unbatched", func(t *testing.T) {
+	t.Run("unbatched", func(_ *testing.T) {
 		client := newMockMemcacheFailing()
 		memcache := cache.NewMemcached(cache.MemcachedConfig{}, client,
 			"test", nil, log.NewNopLogger())
 
-		testMemcachedStopping(t, memcache)
+		testMemcachedStopping(memcache)
 	})
 
-	t.Run("batched", func(t *testing.T) {
+	t.Run("batched", func(_ *testing.T) {
 		client := newMockMemcacheFailing()
 		memcache := cache.NewMemcached(cache.MemcachedConfig{
 			BatchSize:   10,
 			Parallelism: 5,
 		}, client, "test", nil, log.NewNopLogger())
 
-		testMemcachedStopping(t, memcache)
+		testMemcachedStopping(memcache)
 	})
 }
 
-func testMemcachedStopping(t *testing.T, memcache *cache.Memcached) {
+func testMemcachedStopping(memcache *cache.Memcached) {
 	numKeys := 1000
 	ctx := context.Background()
 	keys := make([]string, 0, numKeys)
