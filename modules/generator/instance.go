@@ -2,6 +2,7 @@ package generator
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
@@ -9,6 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/storage"
+	"github.com/weaveworks/common/tracing"
 
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
@@ -36,6 +38,7 @@ type instance struct {
 	instanceID string
 	overrides  *overrides.Overrides
 
+	registry   processor.Registry
 	appendable storage.Appendable
 
 	processors []processor.Processor
@@ -50,6 +53,7 @@ func newInstance(cfg *Config, instanceID string, overrides *overrides.Overrides,
 		instanceID: instanceID,
 		overrides:  overrides,
 
+		registry:   processor.NewRegistry(cfg.ExternalLabels),
 		appendable: appendable,
 
 		metricSpansIngestedTotal: metricSpansIngested.WithLabelValues(instanceID),
@@ -59,14 +63,21 @@ func newInstance(cfg *Config, instanceID string, overrides *overrides.Overrides,
 	// TODO we should build a pipeline based upon the overrides configured
 	// TODO when the overrides change we should update all the processors/the pipeline
 	spanMetricsProcessor := spanmetrics.New(i.cfg.Processor.SpanMetrics, instanceID)
-	serviceGraphProcessor := servicegraphs.New(i.cfg.Processor.ServiceGraphs, "traces", instanceID)
+	serviceGraphProcessor := servicegraphs.New(i.cfg.Processor.ServiceGraphs, instanceID)
 
 	i.processors = []processor.Processor{serviceGraphProcessor, spanMetricsProcessor}
+
+	for _, processor := range i.processors {
+		err := processor.RegisterMetrics(i.registry)
+		if err != nil {
+			return nil, fmt.Errorf("error registering metrics for %s: %w", processor.Name(), err)
+		}
+	}
 
 	return i, nil
 }
 
-func (i *instance) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error {
+func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error {
 	i.updateMetrics(req)
 
 	for _, processor := range i.processors {
@@ -95,15 +106,14 @@ func (i *instance) collectAndPushMetrics(ctx context.Context) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.collectAndPushMetrics")
 	defer span.Finish()
 
-	level.Info(log.Logger).Log("msg", "collecting metrics", "tenant", i.instanceID)
+	traceID, _ := tracing.ExtractTraceID(ctx)
+	level.Info(log.Logger).Log("msg", "collecting metrics", "tenant", i.instanceID, "traceID", traceID)
 
 	appender := i.appendable.Appender(ctx)
 
-	for _, processor := range i.processors {
-		err := processor.CollectMetrics(ctx, appender)
-		if err != nil {
-			return err
-		}
+	err := i.registry.Gather(appender)
+	if err != nil {
+		return err
 	}
 
 	return appender.Commit()
@@ -114,7 +124,14 @@ func (i *instance) collectAndPushMetrics(ctx context.Context) error {
 func (i *instance) shutdown(ctx context.Context) error {
 	// TODO should we set a boolean to refuse push request once this is called?
 
+	err := i.collectAndPushMetrics(ctx)
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "collecting metrics failed at shutdown", "tenant", i.instanceID, "err", err)
+	}
+
 	for _, processor := range i.processors {
+		processor.UnregisterMetrics(i.registry)
+
 		err := processor.Shutdown(ctx)
 		if err != nil {
 			level.Warn(log.Logger).Log("msg", "failed to shutdown processor", "processor", processor.Name(), "err", err)

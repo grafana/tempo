@@ -13,10 +13,9 @@ type Config struct {
 	// MaxItems is the amount of edges that will be stored in the storeMap
 	MaxItems int `mapstructure:"max_items"`
 
+	// TODO this isn't used anywhere right now
 	// Workers is the amount of workers that will be used to process the edges
 	Workers int `mapstructure:"workers"`
-
-	DeleteAfterLastUpdate time.Duration
 
 	// Buckets for latency histogram in seconds.
 	HistogramBuckets []float64 `yaml:"histogram_buckets"`
@@ -25,7 +24,6 @@ type Config struct {
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	cfg.DeleteAfterLastUpdate = time.Minute * 2
 	cfg.Wait = 10 * time.Second
 	cfg.MaxItems = 10_000
 	cfg.Workers = 10

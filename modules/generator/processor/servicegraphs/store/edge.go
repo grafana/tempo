@@ -6,8 +6,8 @@ import "time"
 type Edge struct {
 	key string
 
-	ServerService, ClientService string
-	ServerLatency, ClientLatency float64
+	ServerService, ClientService       string
+	ServerLatencySec, ClientLatencySec float64
 
 	// If either the client or the server spans have status code error,
 	// the Edge will be considered as failed.

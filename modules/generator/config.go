@@ -23,6 +23,9 @@ type Config struct {
 
 	Processor ProcessorConfig `yaml:"processor"`
 
+	// ExternalLabels are added to any time-series exported by this instance.
+	ExternalLabels map[string]string `yaml:"external_labels,omitempty"`
+
 	RemoteWrite RemoteWriteConfig `yaml:"remote_write,omitempty"`
 }
 

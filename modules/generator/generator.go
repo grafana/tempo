@@ -197,7 +197,7 @@ func (g *Generator) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 		return nil, err
 	}
 
-	err = instance.PushSpans(ctx, req)
+	err = instance.pushSpans(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +236,6 @@ func (g *Generator) getInstanceByID(id string) (*instance, bool) {
 func (g *Generator) collectMetrics() {
 	span := opentracing.StartSpan("generator.collectMetrics")
 	defer span.Finish()
-
 	ctx := opentracing.ContextWithSpan(context.Background(), span)
 
 	for _, instance := range g.instances {

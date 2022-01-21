@@ -18,7 +18,9 @@ type RingConfig struct {
 	HeartbeatPeriod  time.Duration `yaml:"heartbeat_period"`
 	HeartbeatTimeout time.Duration `yaml:"heartbeat_timeout"`
 
-	InstanceID string `yaml:"instance_id"`
+	InstanceID             string   `yaml:"instance_id"`
+	InstanceInterfaceNames []string `yaml:"instance_interface_names"`
+	InstanceAddr           string   `yaml:"instance_addr"`
 
 	// Injected internally
 	ListenPort int `yaml:"-"`
@@ -30,6 +32,8 @@ func (cfg *RingConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.Flag
 
 	cfg.HeartbeatPeriod = 5 * time.Second
 	cfg.HeartbeatTimeout = 1 * time.Minute
+
+	cfg.InstanceInterfaceNames = []string{"eth0", "en0"}
 }
 
 func (cfg *RingConfig) ToRingConfig() ring.Config {
@@ -52,7 +56,7 @@ func (cfg *RingConfig) toLifecyclerConfig() (ring.BasicLifecyclerConfig, error) 
 	}
 
 	// TODO make network interfaces configurable
-	instanceAddr, err := ring.GetInstanceAddr("", []string{"eth0", "en0"}, log.Logger)
+	instanceAddr, err := ring.GetInstanceAddr(cfg.InstanceAddr, cfg.InstanceInterfaceNames, log.Logger)
 	if err != nil {
 		return ring.BasicLifecyclerConfig{}, err
 	}

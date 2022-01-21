@@ -3,7 +3,7 @@ package processor
 import (
 	"context"
 
-	"github.com/prometheus/prometheus/storage"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -14,6 +14,9 @@ import (
 type Processor interface {
 	Name() string
 	PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error
-	CollectMetrics(ctx context.Context, appender storage.Appender) error
 	Shutdown(ctx context.Context) error
+
+	RegisterMetrics(reg prometheus.Registerer) error
+	// TODO can't we just unregister metrics during Shutdown?
+	UnregisterMetrics(reg prometheus.Registerer)
 }

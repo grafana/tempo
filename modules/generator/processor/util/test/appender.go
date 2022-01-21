@@ -82,6 +82,13 @@ func (a *Appender) ContainsAll(t *testing.T, expectedSamples []Metric, timestamp
 	if len(expectedSamples) > 0 {
 		assert.NotEmpty(t, a.samples)
 	}
+
+	if len(a.samples) != len(expectedSamples) {
+		t.Errorf("amount of recorded samples is not equal to expected, got %d expected %d", len(a.samples), len(expectedSamples))
+		a.printMetrics()
+		return
+	}
+
 	sort.Slice(expectedSamples, func(i, j int) bool {
 		return expectedSamples[i].Labels < expectedSamples[j].Labels
 	})
@@ -94,14 +101,19 @@ func (a *Appender) ContainsAll(t *testing.T, expectedSamples []Metric, timestamp
 		if !labelsEqual {
 			// This will happen if a time series is missing or incorrect, instead of printing a wall
 			// of failed asserts as we continue iterating through the list, just dump the contents.
-			fmt.Println("Test appender contains the following metrics")
-			for i := range a.samples {
-				fmt.Printf("%s %g\n", a.samples[i].l.String(), a.samples[i].v)
-			}
+			a.printMetrics()
 			return
 		}
 
 		assert.InDelta(t, timestamp.UnixMilli(), sample.t, 1, sample.l)
 		assert.Equal(t, expectedSamples[i].Value, sample.v, sample.l)
 	}
+}
+
+func (a *Appender) printMetrics() {
+	fmt.Println("Test appender contains the following metrics")
+	for i := range a.samples {
+		fmt.Printf("%s %g\n", a.samples[i].l.String(), a.samples[i].v)
+	}
+
 }
