@@ -13,4 +13,4 @@ Resources for deploying and running Tempo:
 - [Caching](caching)
 - [Tempo CLI](tempo_cli)
 - [Polling/Tenant Index](polling)
-- [Backend Search](backend_search)
+- [Backend search](backend_search)
