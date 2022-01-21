@@ -14,21 +14,31 @@ import (
 
 const RootSpanNotYetReceivedText = "<root span not yet received>"
 
+const (
+	attributesNotFound    = 1
+	attributesFailedMatch = 2
+	attributesPassedMatch = 3
+)
+
 func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
 	traceStart := uint64(math.MaxUint64)
 	traceEnd := uint64(0)
 
-	tagFound := false
+	traceMatch := attributesNotFound
 	if len(req.Tags) == 0 {
-		tagFound = true
+		traceMatch = attributesPassedMatch
 	}
 
 	var rootSpan *v1.Span
 	var rootBatch *v1.ResourceSpans
 	// todo: is it possible to shortcircuit this loop?
 	for _, b := range trace.Batches {
-		if !tagFound && searchAttributes(req.Tags, b.Resource.Attributes) {
-			tagFound = true
+		// check if the batch matches. we will use the value of batchMatch later to determine if
+		//  - we need to bother checking if the spans match
+		//  - we can mark the entire trace as matching
+		batchMatch := attributesNotFound
+		if traceMatch != attributesPassedMatch {
+			batchMatch = searchAttributes(req.Tags, b.Resource.Attributes)
 		}
 
 		for _, ils := range b.InstrumentationLibrarySpans {
@@ -44,18 +54,26 @@ func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (
 					rootBatch = b
 				}
 
-				if tagFound {
+				// if the trace has already matched we don't have to bother
+				if traceMatch == attributesPassedMatch {
 					continue
 				}
 
-				if searchAttributes(req.Tags, s.Attributes) {
-					tagFound = true
+				// if the batch explicitly doesn't match we don't have to bother
+				if batchMatch == attributesFailedMatch {
+					continue
+				}
+
+				spanMatch := searchAttributes(req.Tags, s.Attributes)
+				// if either the batch OR the span explicitly match us then we're good
+				if spanMatch == attributesPassedMatch || batchMatch == attributesPassedMatch {
+					traceMatch = attributesPassedMatch
 				}
 			}
 		}
 	}
 
-	if !tagFound {
+	if traceMatch != attributesPassedMatch {
 		return nil, nil
 	}
 
@@ -96,8 +114,12 @@ func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (
 	}, nil
 }
 
-// searchAttributes returns true if the tags passed are contained in the atts slice
-func searchAttributes(tags map[string]string, atts []*v1common.KeyValue) bool {
+// searchAttributes returns an int that indicates if the passed tags match the trace attributes
+//  possible values: attributesNotFound, attributesFailedMatch, attributesPassedMatch
+func searchAttributes(tags map[string]string, atts []*v1common.KeyValue) int {
+	// start with the assumption that we won't find any matching attributes
+	allMatch := attributesNotFound
+
 	for _, a := range atts {
 		var searchString string
 		var ok bool
@@ -106,27 +128,38 @@ func searchAttributes(tags map[string]string, atts []*v1common.KeyValue) bool {
 			continue
 		}
 
+		match := false
+
 		// todo: support AnyValue_ArrayValue and AnyValue_KvlistValue
 		switch v := a.Value.Value.(type) {
 		case *v1common.AnyValue_StringValue:
-			return strings.Contains(v.StringValue, searchString)
+			match = strings.Contains(v.StringValue, searchString)
 		case *v1common.AnyValue_IntValue:
 			n, err := strconv.ParseInt(searchString, 10, 64)
 			if err == nil {
-				return v.IntValue == n
+				match = v.IntValue == n
 			}
 		case *v1common.AnyValue_DoubleValue:
 			f, err := strconv.ParseFloat(searchString, 64)
 			if err == nil {
-				return v.DoubleValue == f
+				match = v.DoubleValue == f
 			}
 		case *v1common.AnyValue_BoolValue:
 			b, err := strconv.ParseBool(searchString)
 			if err == nil {
-				return v.BoolValue == b
+				match = v.BoolValue == b
 			}
 		}
+
+		// if an individual attribute failed to match we can bail here
+		if !match {
+			return attributesFailedMatch
+		}
+
+		// if we're here we've found a match but we need to continue searching in case
+		//  a future tag fails to match
+		allMatch = attributesPassedMatch
 	}
 
-	return false
+	return allMatch
 }
