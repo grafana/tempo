@@ -55,6 +55,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := time.Now()
 	orgID, _ := user.ExtractOrgID(ctx)
+	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	f.queriesPerTenant.WithLabelValues(orgID).Inc()
 
@@ -67,6 +68,17 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp, err := f.roundTripper.RoundTrip(r)
 	if err != nil {
 		writeError(w, err)
+		if err == context.Canceled {
+			level.Info(f.logger).Log(
+				"tenant", orgID,
+				"method", r.Method,
+				"traceID", traceID,
+				"url", r.URL.RequestURI(),
+				"duration", time.Since(start).String(),
+				"response_size", 0,
+				"status", StatusClientClosedRequest,
+			)
+		}
 		return
 	}
 
@@ -82,7 +94,6 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// request/response logging
-	traceID, _ := tracing.ExtractTraceID(ctx)
 	var statusCode int
 	var contentLength int64
 	if httpResp, ok := httpgrpc.HTTPResponseFromError(err); ok {
