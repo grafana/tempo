@@ -14,6 +14,7 @@ require (
 require (
 	cloud.google.com/go/functions v1.0.0 // indirect
 	cloud.google.com/go/kms v1.1.0 // indirect
+	github.com/cortexproject/cortex v1.10.1-0.20211214110443-07d6cfc4eb84 // indirect
 	github.com/google/uuid v1.3.0
 	github.com/grafana/dskit v0.0.0-20220112093026-95274ccc858d
 	github.com/weaveworks/common v0.0.0-20210913144402-035033b78a78
