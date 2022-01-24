@@ -43,14 +43,14 @@ local gh_token_secret = secret('gh_token', 'infra/data/ci/github/grafanabot', 'p
 
 ## Steps ##
 
+// the alpine/git image has apk errors when run on aarch64, this is the most recent image that does not have this issue
+// https://github.com/alpine-docker/git/issues/35
+local alpine_git_image = 'alpine/git:v2.30.2';
+
 local image_tag(arch = '') = {
   name: 'image-tag',
-  image: 'alpine/git',
-  commands: (
-    // the alpine/git image has apk errors when run in arm64, fix them before running any other apk command
-    // https://github.com/alpine-docker/git/issues/35
-    if arch == 'arm64' then ['apk fix'] else []
-  ) + [
+  image: alpine_git_image,
+  commands: [
     'apk --update --no-cache add bash',
     'git fetch origin --tags',
   ] + (
@@ -64,7 +64,7 @@ local image_tag(arch = '') = {
 
 local image_tag_for_cd() = {
     name: 'image-tag-for-cd',
-    image: 'alpine/git',
+    image: alpine_git_image,
     commands: [
       'apk --update --no-cache add bash',
       'git fetch origin --tags',
