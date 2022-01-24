@@ -317,4 +317,5 @@ replace go.opentelemetry.io/collector => github.com/grafana/opentelemetry-collec
 
 // these have been added due to cortex incompatibilies. they can be removed once we drop cortex as a dependency
 replace github.com/grafana/dskit => github.com/grafana/dskit v0.0.0-20211021180445-3bd016e9d7f1
+
 replace github.com/prometheus/prometheus => github.com/prometheus/prometheus v1.8.2-0.20211119115433-692a54649ed7
