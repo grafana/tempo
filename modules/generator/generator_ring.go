@@ -33,6 +33,12 @@ func (cfg *RingConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.Flag
 	cfg.HeartbeatPeriod = 5 * time.Second
 	cfg.HeartbeatTimeout = 1 * time.Minute
 
+	hostname, err := os.Hostname()
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "failed to get hostname", "err", err)
+		os.Exit(1)
+	}
+	cfg.InstanceID = hostname
 	cfg.InstanceInterfaceNames = []string{"eth0", "en0"}
 }
 
@@ -49,12 +55,6 @@ func (cfg *RingConfig) ToRingConfig() ring.Config {
 }
 
 func (cfg *RingConfig) toLifecyclerConfig() (ring.BasicLifecyclerConfig, error) {
-	hostname, err := os.Hostname()
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "failed to get hostname", "err", err)
-		return ring.BasicLifecyclerConfig{}, err
-	}
-
 	instanceAddr, err := ring.GetInstanceAddr(cfg.InstanceAddr, cfg.InstanceInterfaceNames, log.Logger)
 	if err != nil {
 		level.Error(log.Logger).Log("msg", "failed to get instance address", "err", err)
@@ -64,7 +64,7 @@ func (cfg *RingConfig) toLifecyclerConfig() (ring.BasicLifecyclerConfig, error) 
 	instancePort := cfg.ListenPort
 
 	return ring.BasicLifecyclerConfig{
-		ID:              hostname,
+		ID:              cfg.InstanceID,
 		Addr:            fmt.Sprintf("%s:%d", instanceAddr, instancePort),
 		HeartbeatPeriod: cfg.HeartbeatPeriod,
 		NumTokens:       ringNumTokens,

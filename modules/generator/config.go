@@ -26,6 +26,10 @@ type Config struct {
 	// ExternalLabels are added to any time-series exported by this instance.
 	ExternalLabels map[string]string `yaml:"external_labels,omitempty"`
 
+	// Add a label `tempo_instance_id` to every metric. This is necessary when running multiple
+	// instances of the metrics-generator as each instance will push the same time series.
+	AddInstanceIDLabel bool `yaml:"add_instance_id_label"`
+
 	RemoteWrite RemoteWriteConfig `yaml:"remote_write,omitempty"`
 }
 
@@ -33,6 +37,9 @@ type Config struct {
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.Ring.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Processor.RegisterFlagsAndApplyDefaults(prefix, f)
+
+	cfg.AddInstanceIDLabel = true
+
 	cfg.RemoteWrite.RegisterFlagsAndApplyDefaults(prefix, f)
 }
 
@@ -47,9 +54,11 @@ func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag
 }
 
 type RemoteWriteConfig struct {
-	Client  config.RemoteWriteConfig `yaml:"client"`
-	Enabled bool                     `yaml:"enabled"`
+	// Enable remote0write requests. If disabled all generated metrics will be discarded.
+	Enabled bool `yaml:"enabled"`
+
+	Client config.RemoteWriteConfig `yaml:"client"`
 }
 
-func (c *RemoteWriteConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+func (cfg *RemoteWriteConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 }

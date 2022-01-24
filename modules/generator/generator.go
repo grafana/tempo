@@ -57,6 +57,13 @@ func New(cfg *Config, overrides *overrides.Overrides, reg prometheus.Registerer)
 		return nil, errors.New("remote-write enabled but client URL is not configured")
 	}
 
+	if cfg.AddInstanceIDLabel {
+		if cfg.ExternalLabels == nil {
+			cfg.ExternalLabels = make(map[string]string)
+		}
+		cfg.ExternalLabels["tempo_instance_id"] = cfg.Ring.InstanceID
+	}
+
 	g := &Generator{
 		cfg:       cfg,
 		overrides: overrides,
