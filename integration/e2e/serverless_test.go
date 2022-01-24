@@ -63,15 +63,15 @@ func TestServerless(t *testing.T) {
 	apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
 
 	// flush trace to backend
-	res, err := e2e.GetRequest("http://" + tempoIngester1.Endpoint(3200) + "/flush")
+	res, err := e2e.DoGet("http://" + tempoIngester1.Endpoint(3200) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
-	res, err = e2e.GetRequest("http://" + tempoIngester2.Endpoint(3200) + "/flush")
+	res, err = e2e.DoGet("http://" + tempoIngester2.Endpoint(3200) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
-	res, err = e2e.GetRequest("http://" + tempoIngester3.Endpoint(3200) + "/flush")
+	res, err = e2e.DoGet("http://" + tempoIngester3.Endpoint(3200) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 

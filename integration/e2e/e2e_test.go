@@ -104,7 +104,7 @@ func TestAllInOne(t *testing.T) {
 			searchAndAssertTrace(t, apiClient, info)
 
 			// flush trace to backend
-			res, err := e2e.GetRequest("http://" + tempo.Endpoint(3200) + "/flush")
+			res, err := e2e.DoGet("http://" + tempo.Endpoint(3200) + "/flush")
 			require.NoError(t, err)
 			require.Equal(t, 204, res.StatusCode)
 
@@ -112,7 +112,7 @@ func TestAllInOne(t *testing.T) {
 			time.Sleep(5 * time.Second)
 
 			// force clear completed block
-			res, err = e2e.GetRequest("http://" + tempo.Endpoint(3200) + "/flush")
+			res, err = e2e.DoGet("http://" + tempo.Endpoint(3200) + "/flush")
 			require.NoError(t, err)
 			require.Equal(t, 204, res.StatusCode)
 
@@ -197,15 +197,15 @@ func TestMicroservices(t *testing.T) {
 	searchAndAssertTrace(t, apiClient, info)
 
 	// flush trace to backend
-	res, err := e2e.GetRequest("http://" + tempoIngester1.Endpoint(3200) + "/flush")
+	res, err := e2e.DoGet("http://" + tempoIngester1.Endpoint(3200) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
-	res, err = e2e.GetRequest("http://" + tempoIngester2.Endpoint(3200) + "/flush")
+	res, err = e2e.DoGet("http://" + tempoIngester2.Endpoint(3200) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
-	res, err = e2e.GetRequest("http://" + tempoIngester3.Endpoint(3200) + "/flush")
+	res, err = e2e.DoGet("http://" + tempoIngester3.Endpoint(3200) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
 
@@ -324,7 +324,7 @@ func TestScalableSingleBinary(t *testing.T) {
 	require.NoError(t, tempo1.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
 	for _, i := range []*e2e.HTTPService{tempo1, tempo2, tempo3} {
-		res, err := e2e.GetRequest("http://" + i.Endpoint(3200) + "/flush")
+		res, err := e2e.DoGet("http://" + i.Endpoint(3200) + "/flush")
 		require.NoError(t, err)
 		require.Equal(t, 204, res.StatusCode)
 
@@ -383,7 +383,7 @@ func makeThriftBatchWithSpanCount(n int) *thrift.Batch {
 }
 
 func assertEcho(t *testing.T, url string) {
-	res, err := e2e.GetRequest(url)
+	res, err := e2e.DoGet(url)
 	require.NoError(t, err)
 	require.Equal(t, 200, res.StatusCode)
 	defer res.Body.Close()
