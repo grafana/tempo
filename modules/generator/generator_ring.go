@@ -55,9 +55,9 @@ func (cfg *RingConfig) toLifecyclerConfig() (ring.BasicLifecyclerConfig, error) 
 		return ring.BasicLifecyclerConfig{}, err
 	}
 
-	// TODO make network interfaces configurable
 	instanceAddr, err := ring.GetInstanceAddr(cfg.InstanceAddr, cfg.InstanceInterfaceNames, log.Logger)
 	if err != nil {
+		level.Error(log.Logger).Log("msg", "failed to get instance address", "err", err)
 		return ring.BasicLifecyclerConfig{}, err
 	}
 

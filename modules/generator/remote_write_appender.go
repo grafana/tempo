@@ -8,40 +8,63 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/golang/snappy"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 )
 
-// RemoteWriteAppendable can create RemoteWriteAppender
-type RemoteWriteAppendable struct {
-	logger log.Logger
-	userID string
-	cfg    Config
+// remoteWriteAppendable is a Prometheus storage.Appendable that remote writes samples.
+type remoteWriteAppendable struct {
+	logger   log.Logger
+	tenantID string
+	cfg      *Config
 
 	// TODO add overrides/limits
 
 	metrics *remoteWriteMetrics
 }
 
-func newRemoteWriteAppendable(cfg Config, logger log.Logger, userID string, metrics *remoteWriteMetrics) storage.Appendable {
+var _ storage.Appendable = (*remoteWriteAppendable)(nil)
+
+// newRemoteWriteAppendable creates a Prometheus storage.Appendable that can remote write. If tenantID is not empty, it sets
+// the X-Scope-Orgid header on every request.
+func newRemoteWriteAppendable(cfg *Config, logger log.Logger, tenantID string, metrics *remoteWriteMetrics) storage.Appendable {
 	if !cfg.RemoteWrite.Enabled {
 		level.Info(logger).Log("msg", "remote-write is disabled")
 		return &noopAppender{}
 	}
 
-	return &RemoteWriteAppendable{
-		logger:  logger,
-		userID:  userID,
-		cfg:     cfg,
-		metrics: metrics,
+	return &remoteWriteAppendable{
+		logger:   logger,
+		tenantID: tenantID,
+		cfg:      cfg,
+		metrics:  metrics,
 	}
 }
 
-type RemoteWriteAppender struct {
+func (a *remoteWriteAppendable) Appender(ctx context.Context) storage.Appender {
+	client, err := newRemoteWriteClient(&a.cfg.RemoteWrite.Client, a.tenantID)
+	if err != nil {
+		level.Error(a.logger).Log("msg", "error creating remote-write client; setting appender as noop", "err", err, "tenant", a.tenantID)
+		return &noopAppender{}
+	}
+
+	return &remoteWriteAppender{
+		logger:       a.logger,
+		ctx:          ctx,
+		remoteWriter: client,
+		userID:       a.tenantID,
+		metrics:      a.metrics,
+	}
+}
+
+// remoteWriteAppender is a storage.Appender that remote writes samples.
+type remoteWriteAppender struct {
 	logger       log.Logger
 	ctx          context.Context
-	remoteWriter RemoteWriter
+	remoteWriter *remoteWriteClient
 	userID       string
 
 	// TODO Loki uses util.EvictingQueue here to limit the amount of samples written per remote write request
@@ -52,23 +75,9 @@ type RemoteWriteAppender struct {
 	metrics *remoteWriteMetrics
 }
 
-func (a *RemoteWriteAppendable) Appender(ctx context.Context) storage.Appender {
-	client, err := NewRemoteWriter(a.cfg.RemoteWrite, a.userID)
-	if err != nil {
-		level.Error(a.logger).Log("msg", "error creating remote-write client; setting appender as noop", "err", err, "tenant", a.userID)
-		return &noopAppender{}
-	}
+var _ storage.Appender = (*remoteWriteAppender)(nil)
 
-	return &RemoteWriteAppender{
-		logger:       a.logger,
-		ctx:          ctx,
-		remoteWriter: client,
-		userID:       a.userID,
-		metrics:      a.metrics,
-	}
-}
-
-func (a *RemoteWriteAppender) Append(_ storage.SeriesRef, l labels.Labels, t int64, v float64) (storage.SeriesRef, error) {
+func (a *remoteWriteAppender) Append(_ storage.SeriesRef, l labels.Labels, t int64, v float64) (storage.SeriesRef, error) {
 	a.labels = append(a.labels, l)
 	a.samples = append(a.samples, cortexpb.Sample{
 		TimestampMs: t,
@@ -77,18 +86,17 @@ func (a *RemoteWriteAppender) Append(_ storage.SeriesRef, l labels.Labels, t int
 	return 0, nil
 }
 
-func (a *RemoteWriteAppender) AppendExemplar(storage.SeriesRef, labels.Labels, exemplar.Exemplar) (storage.SeriesRef, error) {
+func (a *remoteWriteAppender) AppendExemplar(storage.SeriesRef, labels.Labels, exemplar.Exemplar) (storage.SeriesRef, error) {
 	// TODO as a tracing backend, we should definitely support this 😅
 	return 0, errors.New("exemplars are unsupported")
 }
 
-func (a *RemoteWriteAppender) Commit() error {
+func (a *remoteWriteAppender) Commit() error {
 	level.Debug(a.logger).Log("msg", "writing samples to remote_write target", "tenant", a.userID, "target", a.remoteWriter.Endpoint(), "count", len(a.samples))
 	a.metrics.samplesSent.WithLabelValues(a.userID).Set(float64(len(a.samples)))
 	a.metrics.remoteWriteTotal.WithLabelValues(a.userID).Inc()
 
-	// TODO is cortexpb.RULE appropriate here? alternative is API...
-	req := cortexpb.ToWriteRequest(a.labels, a.samples, nil, cortexpb.RULE)
+	req := cortexpb.ToWriteRequest(a.labels, a.samples, nil, cortexpb.API)
 	defer cortexpb.ReuseSlice(req.Timeseries)
 
 	reqBytes, err := req.Marshal()
@@ -97,7 +105,8 @@ func (a *RemoteWriteAppender) Commit() error {
 	}
 	reqBytes = snappy.Encode(nil, reqBytes)
 
-	// TODO I have seen requests fail because the message was to big (there is a limit of 10MB I think?), should we limit or split messages here?
+	// TODO sending too many samples at once can cause errors on the receiving side, we should add a configuration
+	//  to split requests above a certain threshold
 
 	err = a.remoteWriter.Store(a.ctx, reqBytes)
 	// TODO the returned error can be of type RecoverableError with a retryAfter duration, should we do something with this?
@@ -112,7 +121,7 @@ func (a *RemoteWriteAppender) Commit() error {
 	return nil
 }
 
-func (a *RemoteWriteAppender) Rollback() error {
+func (a *remoteWriteAppender) Rollback() error {
 	a.labels = nil
 	a.samples = nil
 	return nil
@@ -142,4 +151,30 @@ func (a *noopAppender) Commit() error {
 
 func (a *noopAppender) Rollback() error {
 	return nil
+}
+
+type remoteWriteMetrics struct {
+	samplesSent       *prometheus.GaugeVec
+	remoteWriteErrors *prometheus.CounterVec
+	remoteWriteTotal  *prometheus.CounterVec
+}
+
+func newRemoteWriteMetrics(reg prometheus.Registerer) *remoteWriteMetrics {
+	return &remoteWriteMetrics{
+		samplesSent: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "tempo",
+			Name:      "metrics_generator_samples_sent",
+			Help:      "Number of samples sent per remote write",
+		}, []string{"tenant"}),
+		remoteWriteErrors: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Namespace: "tempo",
+			Name:      "metrics_generator_remote_write_errors",
+			Help:      "Number of remote-write requests that failed due to error.",
+		}, []string{"tenant"}),
+		remoteWriteTotal: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Namespace: "tempo",
+			Name:      "metrics_generator_remote_write_total",
+			Help:      "Number of remote-write requests.",
+		}, []string{"tenant"}),
+	}
 }

@@ -151,7 +151,7 @@ func (t *App) initIngester() (services.Service, error) {
 
 func (t *App) initGenerator() (services.Service, error) {
 	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
-	generator, err := generator.New(t.cfg.Generator, t.overrides, prometheus.DefaultRegisterer)
+	generator, err := generator.New(&t.cfg.Generator, t.overrides, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics-generator %w", err)
 	}

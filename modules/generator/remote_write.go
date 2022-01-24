@@ -3,68 +3,57 @@ package generator
 import (
 	"fmt"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/storage/remote"
 
 	"github.com/grafana/tempo/cmd/tempo/build"
-	"github.com/grafana/tempo/pkg/util"
 )
 
-var UserAgent = fmt.Sprintf("tempo-remote-write/%s", build.Version)
+const (
+	userAgentHeader   = "User-Agent"
+	xScopeOrgIDHeader = "X-Scope-Orgid"
+)
 
-type RemoteWriter interface {
+var remoteWriteUserAgent = fmt.Sprintf("tempo-remote-write/%s", build.Version)
+
+type remoteWriteClient struct {
 	remote.WriteClient
 }
 
-type RemoteWriteClient struct {
-	remote.WriteClient
-}
+// newRemoteWriteClient creates a Prometheus remote.WriteClient. If tenantID is not empty, it sets
+// the X-Scope-Orgid header on every request.
+func newRemoteWriteClient(cfg *config.RemoteWriteConfig, tenantID string) (*remoteWriteClient, error) {
+	headers := copyMap(cfg.Headers)
+	headers[userAgentHeader] = remoteWriteUserAgent
+	if tenantID != "" {
+		headers[xScopeOrgIDHeader] = tenantID
+	}
 
-func NewRemoteWriter(cfg RemoteWriteConfig, userID string) (RemoteWriter, error) {
 	writeClient, err := remote.NewWriteClient(
 		"metrics_generator",
 		&remote.ClientConfig{
-			URL:              cfg.Client.URL,
-			Timeout:          cfg.Client.RemoteTimeout,
-			HTTPClientConfig: cfg.Client.HTTPClientConfig,
-			Headers: util.MergeMaps(cfg.Client.Headers, map[string]string{
-				"X-Scope-OrgID": userID,
-				"User-Agent":    UserAgent,
-			}),
+			URL:              cfg.URL,
+			Timeout:          cfg.RemoteTimeout,
+			HTTPClientConfig: cfg.HTTPClientConfig,
+			Headers:          headers,
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("could not create remote-write client for tenant: %s", userID)
+		return nil, fmt.Errorf("could not create remote-write client for tenant: %s", tenantID)
 	}
 
-	return &RemoteWriteClient{
+	return &remoteWriteClient{
 		WriteClient: writeClient,
 	}, nil
 }
 
-type remoteWriteMetrics struct {
-	samplesSent       *prometheus.GaugeVec
-	remoteWriteErrors *prometheus.CounterVec
-	remoteWriteTotal  *prometheus.CounterVec
-}
+// copyMap creates a new map containing all values from the given map.
+func copyMap(m map[string]string) map[string]string {
+	newMap := make(map[string]string, len(m))
 
-func newRemoteWriteMetrics(reg prometheus.Registerer) *remoteWriteMetrics {
-	return &remoteWriteMetrics{
-		samplesSent: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "tempo",
-			Name:      "metrics_generator_samples_sent",
-			Help:      "Number of samples sent per remote write",
-		}, []string{"tenant"}),
-		remoteWriteErrors: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
-			Namespace: "tempo",
-			Name:      "metrics_generator_remote_write_errors",
-			Help:      "Number of remote-write requests that failed due to error.",
-		}, []string{"tenant"}),
-		remoteWriteTotal: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
-			Namespace: "tempo",
-			Name:      "metrics_generator_remote_write_total",
-			Help:      "Number of remote-write requests.",
-		}, []string{"tenant"}),
+	for k, v := range m {
+		newMap[k] = v
 	}
+
+	return newMap
 }

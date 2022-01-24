@@ -45,7 +45,7 @@ func TestGenerator(t *testing.T) {
 	rwServer, doneCh := remoteWriteServer(t, expectedMetrics)
 	defer rwServer.Close()
 
-	var cfg Config
+	cfg := &Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
 	// Ring

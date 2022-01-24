@@ -52,13 +52,13 @@ type Generator struct {
 }
 
 // New makes a new Generator.
-func New(cfg Config, overrides *overrides.Overrides, reg prometheus.Registerer) (*Generator, error) {
+func New(cfg *Config, overrides *overrides.Overrides, reg prometheus.Registerer) (*Generator, error) {
 	if cfg.RemoteWrite.Enabled && cfg.RemoteWrite.Client.URL == nil {
 		return nil, errors.New("remote-write enabled but client URL is not configured")
 	}
 
 	g := &Generator{
-		cfg:       &cfg,
+		cfg:       cfg,
 		overrides: overrides,
 
 		instances: map[string]*instance{},
