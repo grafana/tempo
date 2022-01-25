@@ -1,4 +1,6 @@
 ## main / unreleased
+* [BUGFIX]: Remove unnecessary PersistentVolumeClaim [#1245](https://github.com/grafana/tempo/issues/1245)
+
 
 ## v1.3.0 / 2022-01-24
 * [FEATURE]: Add support for [inline environments](https://tanka.dev/inline-environments). [#1184](https://github.com/grafana/tempo/pull/1184) @irizzant
