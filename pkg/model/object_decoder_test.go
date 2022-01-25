@@ -98,6 +98,36 @@ func TestMatches(t *testing.T) {
 					},
 				},
 			},
+			{
+				Resource: &v1resource.Resource{
+					Attributes: []*v1common.KeyValue{
+						{
+							Key:   "service.name",
+							Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "svc2"}},
+						},
+					},
+				},
+				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+					{
+						Spans: []*v1.Span{
+							{
+								Name:              "test2",
+								StartTimeUnixNano: uint64(time.Duration(startSeconds) * time.Second),
+								EndTimeUnixNano:   uint64(time.Duration(endSeconds) * time.Second),
+								Attributes: []*v1common.KeyValue{
+									{
+										Key:   "foo2",
+										Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "barricus2"}},
+									},
+								},
+								Status: &v1.Status{
+									Code: v1.Status_STATUS_CODE_OK,
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 	testMetadata := &tempopb.TraceSearchMetadata{
@@ -337,6 +367,16 @@ func TestMatches(t *testing.T) {
 				Start: 12,
 				End:   15,
 				Tags:  map[string]string{"foo": "bar", "boolfoo": "true"},
+			},
+			expected: testMetadata,
+		},
+		{
+			name:  "both include across batches",
+			trace: testTrace,
+			req: &tempopb.SearchRequest{
+				Start: 12,
+				End:   15,
+				Tags:  map[string]string{"foo": "bar", "service.name": "svc2"},
 			},
 			expected: testMetadata,
 		},
