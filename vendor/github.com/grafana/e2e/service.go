@@ -3,6 +3,8 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -36,6 +38,7 @@ type ConcreteService struct {
 	env          map[string]string
 	user         string
 	command      *Command
+	cmd          *exec.Cmd
 	readiness    ReadinessProbe
 
 	// Maps container ports to dynamically binded local ports.
@@ -101,10 +104,10 @@ func (s *ConcreteService) Start(networkName, sharedDir string) (err error) {
 		}
 	}()
 
-	cmd := exec.Command("docker", s.buildDockerRunArgs(networkName, sharedDir)...)
-	cmd.Stdout = &LinePrefixLogger{prefix: s.name + ": ", logger: logger}
-	cmd.Stderr = &LinePrefixLogger{prefix: s.name + ": ", logger: logger}
-	if err = cmd.Start(); err != nil {
+	s.cmd = exec.Command("docker", s.buildDockerRunArgs(networkName, sharedDir)...)
+	s.cmd.Stdout = &LinePrefixLogger{prefix: s.name + ": ", logger: logger}
+	s.cmd.Stderr = &LinePrefixLogger{prefix: s.name + ": ", logger: logger}
+	if err = s.cmd.Start(); err != nil {
 		return err
 	}
 	s.usedNetworkName = networkName
@@ -152,7 +155,7 @@ func (s *ConcreteService) Stop() error {
 	}
 	s.usedNetworkName = ""
 
-	return nil
+	return s.cmd.Wait()
 }
 
 func (s *ConcreteService) Kill() error {
@@ -173,6 +176,7 @@ func (s *ConcreteService) Kill() error {
 
 	s.usedNetworkName = ""
 
+	logger.Log("Killed", s.name)
 	return nil
 }
 
@@ -384,23 +388,58 @@ type ReadinessProbe interface {
 	Ready(service *ConcreteService) (err error)
 }
 
-// HTTPReadinessProbe checks readiness by making HTTP call and checking for expected HTTP status code
+// HTTPReadinessProbe checks readiness by making HTTP(S) call and checking for expected response status code.
 type HTTPReadinessProbe struct {
+	schema                   string
 	port                     int
 	path                     string
 	expectedStatusRangeStart int
 	expectedStatusRangeEnd   int
 	expectedContent          []string
+
+	// The TLS config to use when issuing the HTTPS request.
+	clientTLSConfig *tls.Config
 }
 
 func NewHTTPReadinessProbe(port int, path string, expectedStatusRangeStart, expectedStatusRangeEnd int, expectedContent ...string) *HTTPReadinessProbe {
 	return &HTTPReadinessProbe{
+		schema:                   "http",
 		port:                     port,
 		path:                     path,
 		expectedStatusRangeStart: expectedStatusRangeStart,
 		expectedStatusRangeEnd:   expectedStatusRangeEnd,
 		expectedContent:          expectedContent,
 	}
+}
+
+func NewHTTPSReadinessProbe(port int, path, serverName, clientKeyFile, clientCertFile, rootCertFile string, expectedStatusRangeStart, expectedStatusRangeEnd int, expectedContent ...string) (*HTTPReadinessProbe, error) {
+	// Load client certificate and private key.
+	cert, err := tls.LoadX509KeyPair(clientCertFile, clientKeyFile)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error creating x509 keypair from client cert file %s and client key file %s", clientCertFile, clientKeyFile)
+	}
+
+	caCert, err := ioutil.ReadFile(rootCertFile)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error opening root CA cert file %s", rootCertFile)
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	return &HTTPReadinessProbe{
+		schema:                   "https",
+		port:                     port,
+		path:                     path,
+		expectedStatusRangeStart: expectedStatusRangeStart,
+		expectedStatusRangeEnd:   expectedStatusRangeEnd,
+		expectedContent:          expectedContent,
+		clientTLSConfig: &tls.Config{
+			Certificates: []tls.Certificate{cert},
+			RootCAs:      caCertPool,
+			ServerName:   serverName,
+		},
+	}, nil
 }
 
 func (p *HTTPReadinessProbe) Ready(service *ConcreteService) (err error) {
@@ -411,7 +450,7 @@ func (p *HTTPReadinessProbe) Ready(service *ConcreteService) (err error) {
 		return errors.New("service has stopped")
 	}
 
-	res, err := GetRequest("http://" + endpoint + p.path)
+	res, err := DoGetTLS(p.schema+"://"+endpoint+p.path, p.clientTLSConfig)
 	if err != nil {
 		return err
 	}
@@ -522,7 +561,7 @@ func (s *HTTPService) Metrics() (_ string, err error) {
 	localPort := s.networkPortsContainerToLocal[s.httpPort]
 
 	// Fetch metrics.
-	res, err := GetRequest(fmt.Sprintf("http://localhost:%d/metrics", localPort))
+	res, err := DoGet(fmt.Sprintf("http://localhost:%d/metrics", localPort))
 	if err != nil {
 		return "", err
 	}

@@ -7,7 +7,7 @@ import (
 	util "github.com/grafana/tempo/integration"
 	"github.com/prometheus/prometheus/model/labels"
 
-	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
+	"github.com/grafana/e2e"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +16,7 @@ const (
 )
 
 func TestLimits(t *testing.T) {
-	s, err := cortex_e2e.NewScenario("tempo_e2e")
+	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
 
@@ -42,19 +42,19 @@ func TestLimits(t *testing.T) {
 	require.Error(t, c.EmitBatch(context.Background(), batch))
 
 	// test limit metrics
-	err = tempo.WaitSumMetricsWithOptions(cortex_e2e.Equals(2),
+	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(2),
 		[]string{"tempo_discarded_spans_total"},
-		cortex_e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "trace_too_large")),
+		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "trace_too_large")),
 	)
 	require.NoError(t, err)
-	err = tempo.WaitSumMetricsWithOptions(cortex_e2e.Equals(1),
+	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(1),
 		[]string{"tempo_discarded_spans_total"},
-		cortex_e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "live_traces_exceeded")),
+		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "live_traces_exceeded")),
 	)
 	require.NoError(t, err)
-	err = tempo.WaitSumMetricsWithOptions(cortex_e2e.Equals(10),
+	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(10),
 		[]string{"tempo_discarded_spans_total"},
-		cortex_e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "rate_limited")),
+		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "rate_limited")),
 	)
 	require.NoError(t, err)
 }
