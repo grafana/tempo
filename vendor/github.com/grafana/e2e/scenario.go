@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
+	tsdb_errors "github.com/prometheus/prometheus/tsdb/errors"
 )
 
 const (
@@ -42,8 +44,19 @@ func NewScenario(networkName string) (*Scenario, error) {
 	// the previous tests run didn't cleanup correctly.
 	s.shutdown()
 
+	args := []string{
+		"network", "create", networkName,
+	}
+
+	if extraArgs := os.Getenv("DOCKER_NETWORK_CREATE_EXTRA_ARGS"); extraArgs != "" {
+		args = append(
+			args,
+			strings.Split(extraArgs, ",")...,
+		)
+	}
+
 	// Setup the docker network.
-	if out, err := RunCommandAndGetOutput("docker", "network", "create", networkName); err != nil {
+	if out, err := RunCommandAndGetOutput("docker", args...); err != nil {
 		logger.Log(string(out))
 		s.clean()
 		return nil, errors.Wrapf(err, "create docker network '%s'", networkName)
@@ -79,24 +92,51 @@ func (s *Scenario) StartAndWaitReady(services ...Service) error {
 }
 
 func (s *Scenario) Start(services ...Service) error {
-	for _, service := range services {
-		logger.Log("Starting", service.Name())
+	var (
+		wg        = sync.WaitGroup{}
+		startedMx = sync.Mutex{}
+		started   = make([]Service, 0, len(services))
+		errsMx    = sync.Mutex{}
+		errs      = tsdb_errors.NewMulti()
+	)
 
-		// Ensure another service with the same name doesn't exist.
-		if s.isRegistered(service.Name()) {
-			return fmt.Errorf("another service with the same name '%s' has already been started", service.Name())
-		}
-
-		// Start the service.
-		if err := service.Start(s.networkName, s.SharedDir()); err != nil {
-			return err
-		}
-
-		// Add to the list of services.
-		s.services = append(s.services, service)
+	// Ensure provided services don't conflict with existing ones.
+	if err := s.assertNoConflicts(services...); err != nil {
+		return err
 	}
 
-	return nil
+	// Start the services concurrently.
+	wg.Add(len(services))
+
+	for _, service := range services {
+		go func(service Service) {
+			defer wg.Done()
+
+			logger.Log("Starting", service.Name())
+
+			// Start the service.
+			if err := service.Start(s.networkName, s.SharedDir()); err != nil {
+				errsMx.Lock()
+				errs.Add(err)
+				errsMx.Unlock()
+				return
+			}
+
+			logger.Log("Started", service.Name())
+
+			startedMx.Lock()
+			started = append(started, service)
+			startedMx.Unlock()
+		}(service)
+	}
+
+	// Wait until all services have been started.
+	wg.Wait()
+
+	// Add the successfully started services to the scenario.
+	s.services = append(s.services, started...)
+
+	return errs.Err()
 }
 
 func (s *Scenario) Stop(services ...Service) error {
@@ -139,6 +179,25 @@ func (s *Scenario) Close() {
 	s.clean()
 }
 
+func (s *Scenario) assertNoConflicts(services ...Service) error {
+	// Build a map of services already registered.
+	names := map[string]struct{}{}
+	for _, service := range s.services {
+		names[service.Name()] = struct{}{}
+	}
+
+	// Check if input services conflict with already existing ones or between them.
+	for _, service := range services {
+		if _, exists := names[service.Name()]; exists {
+			return fmt.Errorf("another service with the same name '%s' exists", service.Name())
+		}
+
+		names[service.Name()] = struct{}{}
+	}
+
+	return nil
+}
+
 // TODO(bwplotka): Add comments.
 func (s *Scenario) clean() {
 	if err := os.RemoveAll(s.sharedDir); err != nil {
@@ -147,12 +206,22 @@ func (s *Scenario) clean() {
 }
 
 func (s *Scenario) shutdown() {
-	// Kill the services in the opposite order.
-	for i := len(s.services) - 1; i >= 0; i-- {
-		if err := s.services[i].Kill(); err != nil {
-			logger.Log("Unable to kill service", s.services[i].Name(), ":", err.Error())
-		}
+	// Kill the services concurrently.
+	wg := sync.WaitGroup{}
+	wg.Add(len(s.services))
+
+	for _, srv := range s.services {
+		go func(service Service) {
+			defer wg.Done()
+
+			if err := service.Kill(); err != nil {
+				logger.Log("Unable to kill service", service.Name(), ":", err.Error())
+			}
+		}(srv)
 	}
+
+	// Wait until all services have been killed.
+	wg.Wait()
 
 	// Ensure there are no leftover containers.
 	if out, err := RunCommandAndGetOutput(

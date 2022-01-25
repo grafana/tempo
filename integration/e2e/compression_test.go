@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/grafana/e2e"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
@@ -19,7 +19,7 @@ const (
 )
 
 func TestCompression(t *testing.T) {
-	s, err := cortex_e2e.NewScenario("tempo_e2e")
+	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
 

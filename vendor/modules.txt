@@ -200,9 +200,6 @@ github.com/coreos/go-systemd/v22/journal
 github.com/coreos/pkg/capnslog
 # github.com/cortexproject/cortex v1.10.1-0.20211214110443-07d6cfc4eb84
 ## explicit; go 1.16
-github.com/cortexproject/cortex/integration/e2e
-github.com/cortexproject/cortex/integration/e2e/db
-github.com/cortexproject/cortex/integration/e2e/images
 github.com/cortexproject/cortex/pkg/alertmanager
 github.com/cortexproject/cortex/pkg/alertmanager/alertmanagerpb
 github.com/cortexproject/cortex/pkg/alertmanager/alertspb
@@ -563,7 +560,7 @@ github.com/gorilla/handlers
 # github.com/gorilla/mux v1.8.0
 ## explicit; go 1.12
 github.com/gorilla/mux
-# github.com/grafana/dskit v0.0.0-20211021180445-3bd016e9d7f1
+# github.com/grafana/dskit v0.0.0-20220112093026-95274ccc858d => github.com/grafana/dskit v0.0.0-20211021180445-3bd016e9d7f1
 ## explicit; go 1.16
 github.com/grafana/dskit/backoff
 github.com/grafana/dskit/closer
@@ -591,6 +588,11 @@ github.com/grafana/dskit/runtimeconfig
 github.com/grafana/dskit/runutil
 github.com/grafana/dskit/services
 github.com/grafana/dskit/time
+# github.com/grafana/e2e v0.1.0
+## explicit; go 1.17
+github.com/grafana/e2e
+github.com/grafana/e2e/db
+github.com/grafana/e2e/images
 # github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 ## explicit; go 1.14
 github.com/grpc-ecosystem/go-grpc-middleware
@@ -1084,7 +1086,7 @@ github.com/prometheus/node_exporter/https
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
-# github.com/prometheus/prometheus v1.8.2-0.20211119115433-692a54649ed7
+# github.com/prometheus/prometheus v1.8.2-0.20211217191541-41f1a8125e66 => github.com/prometheus/prometheus v1.8.2-0.20211119115433-692a54649ed7
 ## explicit; go 1.14
 github.com/prometheus/prometheus/config
 github.com/prometheus/prometheus/discovery
@@ -1207,7 +1209,7 @@ github.com/stretchr/testify/require
 # github.com/subosito/gotenv v1.2.0
 ## explicit
 github.com/subosito/gotenv
-# github.com/thanos-io/thanos v0.22.0 => github.com/thanos-io/thanos v0.19.1-0.20211208205607-d1acaea2a11a
+# github.com/thanos-io/thanos v0.24.0
 ## explicit; go 1.15
 github.com/thanos-io/thanos/pkg/block
 github.com/thanos-io/thanos/pkg/block/indexheader
@@ -1779,4 +1781,7 @@ rsc.io/binaryregexp/syntax
 # google.golang.org/grpc => google.golang.org/grpc v1.38.0
 # github.com/soheilhy/cmux => github.com/soheilhy/cmux v0.1.5
 # go.opentelemetry.io/otel/bridge/opentracing => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348
+# github.com/thanos-io/thanos v0.22.0 => github.com/thanos-io/thanos v0.19.1-0.20211208205607-d1acaea2a11a
 # go.opentelemetry.io/collector => github.com/grafana/opentelemetry-collector v0.4.1-0.20211201123047-86905635e8f8
+# github.com/grafana/dskit => github.com/grafana/dskit v0.0.0-20211021180445-3bd016e9d7f1
+# github.com/prometheus/prometheus => github.com/prometheus/prometheus v1.8.2-0.20211119115433-692a54649ed7

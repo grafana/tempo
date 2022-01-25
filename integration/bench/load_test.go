@@ -7,8 +7,8 @@ import (
 
 	util "github.com/grafana/tempo/integration"
 
-	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
-	cortex_e2e_db "github.com/cortexproject/cortex/integration/e2e/db"
+	"github.com/grafana/e2e"
+	e2e_db "github.com/grafana/e2e/db"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,11 +17,11 @@ const (
 )
 
 func TestAllInOne(t *testing.T) {
-	s, err := cortex_e2e.NewScenario("tempo_e2e")
+	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
 
-	minio := cortex_e2e_db.NewMinio(9000, "tempo")
+	minio := e2e_db.NewMinio(9000, "tempo")
 	require.NotNil(t, minio)
 	require.NoError(t, s.StartAndWaitReady(minio))
 
@@ -40,9 +40,9 @@ func TestAllInOne(t *testing.T) {
 	require.NoError(t, runK6Test(k6, "stress_test_write_path.js"))
 }
 
-func runK6Test(k6 *cortex_e2e.ConcreteService, testjs string) error {
+func runK6Test(k6 *e2e.ConcreteService, testjs string) error {
 	fmt.Println("------ " + testjs + " ------")
-	stdout, stderr, err := k6.Exec(cortex_e2e.NewCommand("k6", "run", "--quiet", "--log-output", "none", filepath.Join(cortex_e2e.ContainerSharedDir, testjs)))
+	stdout, stderr, err := k6.Exec(e2e.NewCommand("k6", "run", "--quiet", "--log-output", "none", filepath.Join(e2e.ContainerSharedDir, testjs)))
 	fmt.Println("------ stdout ------")
 	fmt.Println(stdout)
 
@@ -54,12 +54,12 @@ func runK6Test(k6 *cortex_e2e.ConcreteService, testjs string) error {
 	return err
 }
 
-func newK6Runner(tempo *cortex_e2e.HTTPService) *cortex_e2e.ConcreteService {
-	s := cortex_e2e.NewConcreteService(
+func newK6Runner(tempo *e2e.HTTPService) *e2e.ConcreteService {
+	s := e2e.NewConcreteService(
 		"k6",
 		k6Image,
-		cortex_e2e.NewCommandWithoutEntrypoint("sh", "-c", "sleep 3600"),
-		cortex_e2e.NewCmdReadinessProbe(cortex_e2e.NewCommand("sh", "-c", "")),
+		e2e.NewCommandWithoutEntrypoint("sh", "-c", "sleep 3600"),
+		e2e.NewCmdReadinessProbe(e2e.NewCommand("sh", "-c", "")),
 	)
 
 	s.SetUser("0") // required so k6 can read the js files passed in
