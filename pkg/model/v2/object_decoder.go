@@ -65,6 +65,21 @@ func (d *ObjectDecoder) Matches(id []byte, obj []byte, req *tempopb.SearchReques
 		return nil, nil
 	}
 
+	// assert duration before we unmarshal
+	duration := end - start
+	if req.MaxDurationMs != 0 {
+		maxDuration := (req.MaxDurationMs / 1000) + 1
+		if duration > maxDuration {
+			return nil, nil
+		}
+	}
+	if req.MinDurationMs != 0 {
+		minDuration := req.MinDurationMs / 1000
+		if duration < minDuration {
+			return nil, nil
+		}
+	}
+
 	t, err := d.PrepareForRead(obj)
 	if err != nil {
 		return nil, err
