@@ -6,13 +6,14 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	jaegerTrans "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"github.com/weaveworks/common/user"
 	"go.opentelemetry.io/collector/model/otlp"
+
+	"github.com/grafana/tempo/pkg/tempopb"
+	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 )
 
 var (
@@ -137,7 +138,7 @@ func (t *TraceInfo) makeThriftBatch(TraceIDHigh int64, TraceIDLow int64) *thrift
 			TraceIdHigh:   TraceIDHigh,
 			SpanId:        t.r.Int63(),
 			ParentSpanId:  0,
-			OperationName: t.generateRandomString(),
+			OperationName: fmt.Sprintf("vulture-%d", t.generateRandomInt(0, 100)),
 			References:    nil,
 			Flags:         0,
 			StartTime:     unixMicro(t.timestamp),

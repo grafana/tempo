@@ -49,12 +49,12 @@ func (w *Writer) Apply(options ...Option) (err error) {
 	default:
 		return lz4errors.ErrOptionClosedOrError
 	}
+	w.Reset(w.src)
 	for _, o := range options {
 		if err = o(w); err != nil {
 			return
 		}
 	}
-	w.Reset(w.src)
 	return
 }
 
@@ -89,7 +89,7 @@ func (w *Writer) Write(buf []byte) (n int, err error) {
 
 	zn := len(w.data)
 	for len(buf) > 0 {
-		if w.idx == 0 && len(buf) >= zn {
+		if w.isNotConcurrent() && w.idx == 0 && len(buf) >= zn {
 			// Avoid a copy as there is enough data for a block.
 			if err = w.write(buf[:zn], false); err != nil {
 				return
