@@ -12,9 +12,9 @@ import (
 	"github.com/weaveworks/common/httpgrpc"
 	"google.golang.org/grpc"
 
-	"github.com/cortexproject/cortex/pkg/querier/stats"
-	querier_stats "github.com/cortexproject/cortex/pkg/querier/stats"
 	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
+	"github.com/grafana/tempo/modules/querier/stats"
+	querier_stats "github.com/grafana/tempo/modules/querier/stats"
 )
 
 var (

@@ -21,10 +21,10 @@ import (
 	"github.com/weaveworks/common/httpgrpc"
 	"go.uber.org/atomic"
 
-	"github.com/cortexproject/cortex/pkg/querier/stats"
 	"github.com/cortexproject/cortex/pkg/tenant"
 	"github.com/cortexproject/cortex/pkg/util/httpgrpcutil"
 	"github.com/grafana/tempo/modules/frontend/v2/frontendv2pb"
+	"github.com/grafana/tempo/modules/querier/stats"
 )
 
 // Config for a Frontend.
