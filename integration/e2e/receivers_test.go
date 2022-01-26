@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
-	cortex_e2e "github.com/cortexproject/cortex/integration/e2e"
+	"github.com/grafana/e2e"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +33,7 @@ const (
 )
 
 func TestReceivers(t *testing.T) {
-	s, err := cortex_e2e.NewScenario("tempo_e2e")
+	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
 

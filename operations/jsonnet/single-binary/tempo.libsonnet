@@ -18,7 +18,7 @@
   namespace:
     k.core.v1.namespace.new($._config.namespace),
 
-  tempo_pvc:
+  tempo_pvc::
     pvc.new() +
     pvc.mixin.spec.resources
     .withRequests({ storage: $._config.pvc_size }) +
