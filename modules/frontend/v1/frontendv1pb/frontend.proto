@@ -4,7 +4,7 @@ syntax = "proto3";
 // in order to not break backward compatibility.
 package frontend;
 
-option go_package = "github.com/grafana/tempo/modules/frontend/v1/frontendv1pb";
+option go_package = "modules/frontend/v1/frontendv1pb";
 
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "github.com/weaveworks/common/httpgrpc/httpgrpc.proto";
