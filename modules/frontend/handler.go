@@ -21,6 +21,8 @@ import (
 const (
 	// StatusClientClosedRequest is the status code for when a client request cancellation of an http request
 	StatusClientClosedRequest = 499
+	// nil reponse in ServeHTTP
+	NilResponseError = "nil resp in ServeHTTP"
 )
 
 var (
@@ -67,23 +69,32 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := f.roundTripper.RoundTrip(r)
 	if err != nil {
-		writeError(w, err)
-		if err == context.Canceled {
-			level.Info(f.logger).Log(
-				"tenant", orgID,
-				"method", r.Method,
-				"traceID", traceID,
-				"url", r.URL.RequestURI(),
-				"duration", time.Since(start).String(),
-				"response_size", 0,
-				"status", StatusClientClosedRequest,
-			)
-		}
+		err = writeError(w, err)
+		level.Info(f.logger).Log(
+			"tenant", orgID,
+			"method", r.Method,
+			"traceID", traceID,
+			"url", r.URL.RequestURI(),
+			"duration", time.Since(start).String(),
+			"response_size", 0,
+			"status", http.StatusInternalServerError,
+			"err", err.Error(),
+		)
 		return
 	}
 
 	if resp == nil {
-		writeError(w, errors.New("nil resp in ServeHTTP"))
+		err = writeError(w, errors.New(NilResponseError))
+		level.Info(f.logger).Log(
+			"tenant", orgID,
+			"method", r.Method,
+			"traceID", traceID,
+			"url", r.URL.RequestURI(),
+			"duration", time.Since(start).String(),
+			"response_size", 0,
+			"status", http.StatusInternalServerError,
+			"err", err.Error(),
+		)
 		return
 	}
 
@@ -118,8 +129,9 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // writeError handles writing errors to the http.ResponseWriter. It uses weavework common
 // server.WriteError() to handle httpgrc errors. The handler handles all incoming HTTP requests
 // to the query frontend which then distributes them via httpgrpc to the queriers. As a result
-// httpgrpc errors can bubble up to here and should be translated to http errors.
-func writeError(w http.ResponseWriter, err error) {
+// httpgrpc errors can bubble up to here and should be translated to http errors. It returns 
+// httpgrpc error.
+func writeError(w http.ResponseWriter, err error) error {
 	switch err {
 	case context.Canceled:
 		err = errCanceled
@@ -131,4 +143,5 @@ func writeError(w http.ResponseWriter, err error) {
 		}
 	}
 	server.WriteError(w, err)
+	return err
 }
