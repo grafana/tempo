@@ -4,7 +4,6 @@ import (
 	"flag"
 	"time"
 
-	cortex_distributor "github.com/cortexproject/cortex/pkg/distributor"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
@@ -27,7 +26,7 @@ var defaultReceivers = map[string]interface{}{
 // Config for a Distributor.
 type Config struct {
 	// Distributors ring
-	DistributorRing cortex_distributor.RingConfig `yaml:"ring,omitempty"`
+	DistributorRing RingConfig `yaml:"ring,omitempty"`
 	// receivers map for shim.
 	//  This receivers node is equivalent in format to the receiver node in the
 	//  otel collector: https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver
