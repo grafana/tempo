@@ -31,11 +31,15 @@ build-gcf-zip:
 #
 # build docker images for local testing and code zip files for aws lambda
 #
-#  to exercise the function after building
+#  to exercise the function after building using the raw lambda interface
 #    docker run -p 8080:8080 tempo-serverless
 #    curl -d '{}' http://localhost:8080/2015-03-31/functions/function/invocations
 #    passed body should be serializable to: events.ALBTargetGroupRequest
 #    response body will be: events.ALBTargetGroupResponse
+#
+#  to exercise the function after building using the built in e2e proxy
+#    docker run -p 8080:8081 -e _E2E_LISTEN_PROXY_ADDR=:8081 tempo-serverless
+#    curl http://localhost:8080/?start=1000&end=1001&...
 #
 .PHONY: build-lambda-docker
 build-lambda-docker: 
