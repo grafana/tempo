@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
+// jpe how to do i compile this to make sure everything is fine before attempting to deploy?
 func HandleLambdaEvent(event events.ALBTargetGroupRequest) (*tempopb.SearchResponse, error) {
 	// jpe do some magic to create an http.Requeset{}
 
