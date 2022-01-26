@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package stats;
 
-option go_package = "stats";
+option go_package = "github.com/grafana/tempo/modules/querier/stats";
 
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "google/protobuf/duration.proto";
