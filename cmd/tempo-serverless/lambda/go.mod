@@ -2,6 +2,12 @@ module github.com/grafana/tempo/cmd/tempo-serverless/lambda
 
 go 1.16
 
+require (
+	github.com/aws/aws-lambda-go v1.28.0
+	github.com/gogo/protobuf v1.3.2
+	github.com/grafana/tempo v0.0.0-00010101000000-000000000000
+)
+
 replace github.com/grafana/tempo => ../../../
 
 // additional Cortex or upstream required replaces
@@ -16,8 +22,3 @@ replace (
 // This function is used by jeagertracing/jaeger, but we can't update jaeger
 // without updating the open-telemetry/collector as well
 replace google.golang.org/grpc => google.golang.org/grpc v1.38.0
-
-require (
-	github.com/aws/aws-lambda-go v1.28.0
-	github.com/grafana/tempo v0.0.0-00010101000000-000000000000
-)
