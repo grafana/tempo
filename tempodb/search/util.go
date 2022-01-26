@@ -19,7 +19,7 @@ const (
 	StatusCodeError    = "error"
 )
 
-var statusCodeMapping = map[string]int{
+var StatusCodeMapping = map[string]int{
 	StatusCodeUnset: int(v1.Status_STATUS_CODE_UNSET),
 	StatusCodeOK:    int(v1.Status_STATUS_CODE_OK),
 	StatusCodeError: int(v1.Status_STATUS_CODE_ERROR),
