@@ -1,5 +1,6 @@
 ## main / unreleased
 * [BUGFIX]: Remove unnecessary PersistentVolumeClaim [#1245](https://github.com/grafana/tempo/issues/1245)
+* [BUGFIX] Fixed issue when query-frontend doesn't log request details when request is cancelled [#1136](https://github.com/grafana/tempo/issues/1136) (@adityapwr)
 
 
 ## v1.3.0 / 2022-01-24
@@ -43,7 +44,6 @@
 * [BUGFIX] Ingester startup panic `slice bounds out of range` [#1195](https://github.com/grafana/tempo/issues/1195) (@mdisibio)
 * [BUGFIX] Update goreleaser install method to `go install`. [#](https://github.com/grafana/tempo/) (@mapno)
 * [BUGFIX] tempo-mixin: remove TempoDB Access panel from `Tempo / Reads`, metrics don't exist anymore [#1218](https://github.com/grafana/tempo/issues/1218) (@kvrhdn)
-* [BUGFIX] Fixed issue when query-frontend doesn't log request details when request is cancelled [#1136](https://github.com/grafana/tempo/issues/1136) (@adityapwr)
 
 ## v1.2.1 / 2021-11-15
 * [BUGFIX] Fix defaults for MaxBytesPerTrace (ingester.max-bytes-per-trace) and MaxSearchBytesPerTrace (ingester.max-search-bytes-per-trace) [#1109](https://github.com/grafana/tempo/pull/1109) (@bitprocessor)
