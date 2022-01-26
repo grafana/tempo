@@ -15,14 +15,13 @@ func main() {
 	lambda.Start(HandleLambdaEvent)
 }
 
-// jpe how to do i compile this to make sure everything is fine before attempting to deploy?
-func HandleLambdaEvent(event events.ALBTargetGroupRequest) events.ALBTargetGroupResponse {
+func HandleLambdaEvent(event events.ALBTargetGroupRequest) (events.ALBTargetGroupResponse, error) {
 	req, err := httpRequest(event)
 	if err != nil {
 		return events.ALBTargetGroupResponse{
 			Body:       err.Error(),
 			StatusCode: http.StatusInternalServerError,
-		}
+		}, nil
 	}
 
 	resp, httpErr := serverless.Handler(req)
@@ -30,7 +29,7 @@ func HandleLambdaEvent(event events.ALBTargetGroupRequest) events.ALBTargetGroup
 		return events.ALBTargetGroupResponse{
 			Body:       httpErr.Err.Error(),
 			StatusCode: httpErr.Status,
-		}
+		}, nil
 	}
 
 	marshaller := &jsonpb.Marshaler{}
@@ -39,13 +38,13 @@ func HandleLambdaEvent(event events.ALBTargetGroupRequest) events.ALBTargetGroup
 		return events.ALBTargetGroupResponse{
 			Body:       err.Error(),
 			StatusCode: http.StatusInternalServerError,
-		}
+		}, nil
 	}
 
 	return events.ALBTargetGroupResponse{
 		Body:       body,
 		StatusCode: http.StatusOK,
-	}
+	}, nil
 }
 
 // adapted with love from: https://github.com/akrylysov/algnhsa/blob/4c6f78589c506c0f060512adf96b97e8285ac80c/request.go#L65

@@ -220,7 +220,7 @@ kube-manifests-check:
 ### serverless
 .PHONY: docker-serverless test-serverless
 docker-serverless:
-	$(MAKE) -C cmd/tempo-serverless build-docker
+	$(MAKE) -C cmd/tempo-serverless build-lambda-docker
 
 test-serverless:
 	$(MAKE) -C cmd/tempo-serverless test

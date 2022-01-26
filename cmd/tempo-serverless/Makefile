@@ -24,32 +24,37 @@ build-gcf-docker:
 .PHONY: build-gcf-zip
 build-gcf-zip:
 	$(IN_CLOUD_FUNCTIONS) go mod vendor
-	$(IN_CLOUD_FUNCTIONS) zip tempo-serverless-$(GIT_REVISION).zip ./* -r \
-		                   -x Makefile                      # exclude Makefile
-
+	$(IN_CLOUD_FUNCTIONS) zip tempo-serverless-$(GIT_REVISION).zip ./* -r
 	$(IN_CLOUD_FUNCTIONS) rm -rf vendor
 
 
 #
 # build docker images for local testing and code zip files for aws lambda
 #
+#  to exercise the function after building
+#    docker run -p 8080:8080 tempo-serverless
+#    curl -d '{}' http://localhost:8080/2015-03-31/functions/function/invocations
+#    passed body should be serializable to: events.ALBTargetGroupRequest
+#    response body will be: events.ALBTargetGroupResponse
+#
 .PHONY: build-lambda-docker
 build-lambda-docker: 
-	$(IN_LAMBDA) go mod vendor
-
-	$(IN_LAMBDA) $(PACK) build tempo-serverless \
-	  						--builder paketobuildpacks/builder:tiny  
-	  
-	$(IN_LAMBDA) rm -rf vendor
+	$(IN_LAMBDA) go build .
+	$(IN_LAMBDA) docker build -t tempo-serverless .
+	$(IN_LAMBDA) rm lambda
 
 .PHONY: build-lambda-zip
 build-lambda-zip:
 	$(IN_LAMBDA) go mod vendor
 	$(IN_LAMBDA) zip tempo-serverless-$(GIT_REVISION).zip ./* -r \
-		                   -x Makefile                      # exclude Makefile
+		                   -x Dockerfile
 
 	$(IN_LAMBDA) rm -rf vendor
 
 .PHONY: test
 test:
 	go test -v .
+
+
+# go build .
+# docker run --rm -e DOCKER_LAMBDA_WATCH=1 -e DOCKER_LAMBDA_STAY_OPEN=1 -p 9001:9001 -v "$PWD":/var/task lambci/lambda:go1.x lambda
