@@ -5,28 +5,29 @@
 PACK=pack
 GIT_REVISION := $(shell git rev-parse --short HEAD)
 
+IN_CLOUD_FUNCTIONS=cd cloud-functions &&
+
 # builds a docker image named "tempo-serverless" using the pack tool
 #   https://github.com/buildpacks/pack
 build-docker: 
-	go mod vendor
+	$(IN_CLOUD_FUNCTIONS) go mod vendor
 
-	$(PACK) build tempo-serverless \
-	  --builder gcr.io/buildpacks/builder:v1 \
-	  --env GOOGLE_RUNTIME=go \
-	  --env GOOGLE_FUNCTION_SIGNATURE_TYPE=http \
-	  --env GOOGLE_FUNCTION_TARGET=Handler 	  
+	$(IN_CLOUD_FUNCTIONS) $(PACK) build tempo-serverless \
+	  								--builder gcr.io/buildpacks/builder:v1 \
+	  								--env GOOGLE_RUNTIME=go \
+	  								--env GOOGLE_FUNCTION_SIGNATURE_TYPE=http \
+	  								--env GOOGLE_FUNCTION_TARGET=Handler 	  
 	  
-	rm -rf vendor
+	$(IN_CLOUD_FUNCTIONS) rm -rf vendor
 
 # builds tempo-serverless.zip file that can be copied to GCS and deployed
 # as a function
-build-zip:
-	go mod vendor
+build-gcf-zip:
+	$(IN_CLOUD_FUNCTIONS) go mod vendor
+	$(IN_CLOUD_FUNCTIONS) zip tempo-serverless-$(GIT_REVISION).zip ./* -r \
+		                   -x Makefile                      # exclude Makefile
 
-	zip tempo-serverless-$(GIT_REVISION).zip ./* -r \
-		-x Makefile                      # exclude Makefile
-
-	rm -rf vendor
+	$(IN_CLOUD_FUNCTIONS) rm -rf vendor
 
 test:
 	go test -v .

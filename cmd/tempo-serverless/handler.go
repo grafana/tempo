@@ -1,4 +1,4 @@
-package handler
+package serverless
 
 import (
 	"bytes"
@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/tempo/pkg/api"
@@ -26,9 +25,6 @@ import (
 	"github.com/spf13/viper"
 	"github.com/weaveworks/common/user"
 	"gopkg.in/yaml.v2"
-
-	// required by the goog
-	_ "github.com/GoogleCloudPlatform/functions-framework-go/funcframework"
 )
 
 const envConfigPrefix = "TEMPO"
@@ -41,38 +37,53 @@ var (
 	readerOnce   sync.Once
 )
 
+type HTTPError struct {
+	Err    error
+	Status int
+}
+
 // Handler is the main entrypoint for the serverless handler. it expects a tempopb.SearchBlockRequest
 // encoded in its parameters
-func Handler(w http.ResponseWriter, r *http.Request) {
+func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 	searchReq, err := api.ParseSearchBlockRequest(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		return nil, &HTTPError{
+			Err:    err,
+			Status: http.StatusBadRequest,
+		}
 	}
 
 	// load config, fields are set through env vars TEMPO_
 	reader, cfg, err := loadBackend()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, &HTTPError{
+			Err:    err,
+			Status: http.StatusInternalServerError,
+		}
 	}
 
 	tenant, _, err := user.ExtractOrgIDFromHTTPRequest(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		return nil, &HTTPError{
+			Err:    err,
+			Status: http.StatusBadRequest,
+		}
 	}
 
 	blockID, err := uuid.Parse(searchReq.BlockID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		return nil, &HTTPError{
+			Err:    err,
+			Status: http.StatusBadRequest,
+		}
 	}
 
 	enc, err := backend.ParseEncoding(searchReq.Encoding)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		return nil, &HTTPError{
+			Err:    err,
+			Status: http.StatusBadRequest,
+		}
 	}
 
 	// /giphy so meta
@@ -88,16 +99,20 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
 	block, err := encoding.NewBackendBlock(meta, reader)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, &HTTPError{
+			Err:    err,
+			Status: http.StatusInternalServerError,
+		}
 	}
 
 	// tempodb exposes an IterateObjects() method to basically perform the below loop. currently we are purposefully
 	// not using that so that the serverless function doesn't have to instantiate a full tempodb instance.
 	iter, err := block.PartialIterator(cfg.Search.ChunkSizeBytes, int(searchReq.StartPage), int(searchReq.PagesToSearch))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, &HTTPError{
+			Err:    err,
+			Status: http.StatusInternalServerError,
+		}
 	}
 	iter = encoding.NewPrefetchIterator(r.Context(), iter, cfg.Search.PrefetchTraceCount)
 
@@ -107,8 +122,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
 	decoder, err := model.NewDecoder(searchReq.DataEncoding)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, &HTTPError{
+			Err:    err,
+			Status: http.StatusInternalServerError,
+		}
 	}
 
 	for {
@@ -117,8 +134,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return nil, &HTTPError{
+				Err:    err,
+				Status: http.StatusInternalServerError,
+			}
 		}
 
 		resp.Metrics.InspectedTraces++
@@ -126,8 +145,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
 		metadata, err := decoder.Matches(id, obj, searchReq.SearchReq)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return nil, &HTTPError{
+				Err:    err,
+				Status: http.StatusInternalServerError,
+			}
 		}
 		if metadata == nil {
 			continue
@@ -139,12 +160,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	marshaller := &jsonpb.Marshaler{}
-	err = marshaller.Marshal(w, resp)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	return resp, nil
 }
 
 func loadBackend() (backend.Reader, *tempodb.Config, error) {

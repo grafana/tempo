@@ -1,4 +1,4 @@
-module github.com/grafana/tempo/cmd/tempo-serverless
+module github.com/grafana/tempo/cmd/tempo-serverless/cloud-functions
 
 go 1.16
 
@@ -6,21 +6,21 @@ require (
 	github.com/GoogleCloudPlatform/functions-framework-go v1.3.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/grafana/tempo v1.2.0-rc.0.0.20211029120833-dee59ebe564c
-	github.com/mitchellh/mapstructure v1.4.3
-	github.com/spf13/viper v1.9.0
-	gopkg.in/yaml.v2 v2.4.0
+	github.com/mitchellh/mapstructure v1.4.3 // indirect
+	github.com/spf13/viper v1.9.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 require (
 	cloud.google.com/go/functions v1.0.0 // indirect
 	cloud.google.com/go/kms v1.1.0 // indirect
 	github.com/cortexproject/cortex v1.10.1-0.20211214110443-07d6cfc4eb84 // indirect
-	github.com/google/uuid v1.3.0
-	github.com/grafana/dskit v0.0.0-20220112093026-95274ccc858d
-	github.com/weaveworks/common v0.0.0-20210913144402-035033b78a78
+	github.com/google/uuid v1.3.0 // indirect
+	github.com/grafana/dskit v0.0.0-20220112093026-95274ccc858d // indirect
+	github.com/weaveworks/common v0.0.0-20210913144402-035033b78a78 // indirect
 )
 
-replace github.com/grafana/tempo => ../../
+replace github.com/grafana/tempo => ../../../
 
 // additional Cortex or upstream required replaces
 replace (
