@@ -3,7 +3,7 @@ package storage
 import (
 	"flag"
 
-	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
+	"github.com/grafana/tempo/pkg/cache"
 
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
@@ -74,7 +74,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Trace.Local = &local.Config{}
 	f.StringVar(&cfg.Trace.Local.Path, util.PrefixConfig(prefix, "trace.local.path"), "", "path to store traces at.")
 
-	cfg.Trace.BackgroundCache = &cortex_cache.BackgroundConfig{}
+	cfg.Trace.BackgroundCache = &cache.BackgroundConfig{}
 	cfg.Trace.BackgroundCache.WriteBackBuffer = 10000
 	cfg.Trace.BackgroundCache.WriteBackGoroutines = 10
 

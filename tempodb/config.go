@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/cache/memcached"
 	"github.com/grafana/tempo/tempodb/backend/cache/redis"
@@ -49,12 +49,12 @@ type Config struct {
 	Azure   *azure.Config `yaml:"azure"`
 
 	// caches
-	Cache                   string                         `yaml:"cache"`
-	CacheMinCompactionLevel uint8                          `yaml:"cache_min_compaction_level"`
-	CacheMaxBlockAge        time.Duration                  `yaml:"cache_max_block_age"`
-	BackgroundCache         *cortex_cache.BackgroundConfig `yaml:"background_cache"`
-	Memcached               *memcached.Config              `yaml:"memcached"`
-	Redis                   *redis.Config                  `yaml:"redis"`
+	Cache                   string                  `yaml:"cache"`
+	CacheMinCompactionLevel uint8                   `yaml:"cache_min_compaction_level"`
+	CacheMaxBlockAge        time.Duration           `yaml:"cache_max_block_age"`
+	BackgroundCache         *cache.BackgroundConfig `yaml:"background_cache"`
+	Memcached               *memcached.Config       `yaml:"memcached"`
+	Redis                   *redis.Config           `yaml:"redis"`
 }
 
 type SearchConfig struct {
