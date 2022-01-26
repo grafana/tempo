@@ -242,7 +242,7 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 		errs := make(chan error, 1)
 		go func() {
 			err = server.Send(&frontendv1pb.FrontendToClient{
-				Type:         frontendv1pb.HTTP_REQUEST,
+				Type:         frontendv1pb.Type_HTTP_REQUEST,
 				HttpRequest:  req.request,
 				StatsEnabled: stats.IsEnabled(req.originalCtx),
 			})
@@ -294,7 +294,7 @@ func (f *Frontend) NotifyClientShutdown(_ context.Context, req *frontendv1pb.Not
 
 func getQuerierID(server frontendv1pb.Frontend_ProcessServer) (string, error) {
 	err := server.Send(&frontendv1pb.FrontendToClient{
-		Type: frontendv1pb.GET_ID,
+		Type: frontendv1pb.Type_GET_ID,
 		// Old queriers don't support GET_ID, and will try to use the request.
 		// To avoid confusing them, include dummy request.
 		HttpRequest: &httpgrpc.HTTPRequest{
