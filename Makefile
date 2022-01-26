@@ -174,6 +174,8 @@ gen-proto:
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto,./pkg/tempopb/)
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto,./pkg/tempopb/)
 	$(call PROTO_GEN,pkg/tempopb/tempo.proto,./)
+	protoc -I vendor -I . --go_out=./ --go_opt=paths=source_relative --go-grpc_out=./ --go-grpc_opt=paths=source_relative modules/frontend/v1/frontendv1pb/frontend.proto
+	protoc -I vendor -I . --go_out=./ --go_opt=paths=source_relative --go-grpc_out=./ --go-grpc_opt=paths=source_relative modules/frontend/v2/frontendv2pb/frontend.proto
 
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
