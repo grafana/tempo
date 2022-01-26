@@ -6,13 +6,13 @@ import (
 	"path"
 
 	"github.com/cortexproject/cortex/pkg/cortex"
-	cortex_frontend_v1pb "github.com/cortexproject/cortex/pkg/frontend/v1/frontendv1pb"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/kv/codec"
 	"github.com/grafana/dskit/kv/memberlist"
 	"github.com/grafana/dskit/modules"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
+	frontend_v1pb "github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/thanos-io/thanos/pkg/discovery/dns"
 	"github.com/weaveworks/common/middleware"
@@ -204,7 +204,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	searchHandler := middleware.Wrap(queryFrontend.Search)
 
 	// register grpc server for queriers to connect to
-	cortex_frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
+	frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
 
 	// http trace by id endpoint
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathTraces), traceByIDHandler)

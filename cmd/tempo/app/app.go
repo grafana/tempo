@@ -10,7 +10,6 @@ import (
 	"sort"
 	"time"
 
-	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend/v1"
 	"github.com/go-kit/log/level"
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/flagext"
@@ -33,6 +32,7 @@ import (
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	"github.com/grafana/tempo/modules/frontend"
+	frontend_v1 "github.com/grafana/tempo/modules/frontend/v1"
 	"github.com/grafana/tempo/modules/ingester"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
@@ -166,7 +166,7 @@ type App struct {
 	overrides    *overrides.Overrides
 	distributor  *distributor.Distributor
 	querier      *querier.Querier
-	frontend     *cortex_frontend.Frontend
+	frontend     *frontend_v1.Frontend
 	compactor    *compactor.Compactor
 	ingester     *ingester.Ingester
 	store        storage.Store
