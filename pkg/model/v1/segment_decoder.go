@@ -23,12 +23,12 @@ func (d *SegmentDecoder) PrepareForWrite(trace *tempopb.Trace, start uint32, end
 	return proto.Marshal(trace)
 }
 
-func (d *SegmentDecoder) PrepareForRead(batches [][]byte) (*tempopb.Trace, error) {
+func (d *SegmentDecoder) PrepareForRead(segments [][]byte) (*tempopb.Trace, error) {
 	// each slice is a marshalled tempopb.Trace, unmarshal and combine
 	var combinedTrace *tempopb.Trace
-	for _, batch := range batches {
+	for _, s := range segments {
 		t := &tempopb.Trace{}
-		err := proto.Unmarshal(batch, t)
+		err := proto.Unmarshal(s, t)
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshaling trace: %w", err)
 		}
@@ -39,10 +39,10 @@ func (d *SegmentDecoder) PrepareForRead(batches [][]byte) (*tempopb.Trace, error
 	return combinedTrace, nil
 }
 
-func (d *SegmentDecoder) ToObject(batches [][]byte) ([]byte, error) {
+func (d *SegmentDecoder) ToObject(segments [][]byte) ([]byte, error) {
 	// wrap byte slices in a tempopb.TraceBytes and marshal
 	wrapper := &tempopb.TraceBytes{
-		Traces: append([][]byte(nil), batches...),
+		Traces: append([][]byte(nil), segments...),
 	}
 	return proto.Marshal(wrapper)
 }

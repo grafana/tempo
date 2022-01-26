@@ -10,28 +10,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBatchDecoderToObjectDecoder(t *testing.T) {
+func TestSegmentDecoderToObjectDecoder(t *testing.T) {
 	for _, e := range AllEncodings {
 		t.Run(e, func(t *testing.T) {
 			objectDecoder, err := NewObjectDecoder(e)
 			require.NoError(t, err)
 
-			batchDecoder, err := NewSegmentDecoder(e)
+			segmentDecoder, err := NewSegmentDecoder(e)
 			require.NoError(t, err)
 
 			// random trace
 			trace := test.MakeTrace(100, nil)
 
-			batch, err := batchDecoder.PrepareForWrite(trace, 0, 0)
+			segment, err := segmentDecoder.PrepareForWrite(trace, 0, 0)
 			require.NoError(t, err)
 
-			// batch prepareforread
-			actual, err := batchDecoder.PrepareForRead([][]byte{batch})
+			// segment prepareforread
+			actual, err := segmentDecoder.PrepareForRead([][]byte{segment})
 			require.NoError(t, err)
 			require.True(t, proto.Equal(trace, actual))
 
 			// convert to object
-			object, err := batchDecoder.ToObject([][]byte{batch})
+			object, err := segmentDecoder.ToObject([][]byte{segment})
 			require.NoError(t, err)
 
 			actual, err = objectDecoder.PrepareForRead(object)
@@ -41,7 +41,7 @@ func TestBatchDecoderToObjectDecoder(t *testing.T) {
 	}
 }
 
-func TestBatchDecoderToObjectDecoderRange(t *testing.T) {
+func TestSegmentDecoderToObjectDecoderRange(t *testing.T) {
 	for _, e := range AllEncodings {
 		t.Run(e, func(t *testing.T) {
 			start := rand.Uint32()
@@ -50,17 +50,17 @@ func TestBatchDecoderToObjectDecoderRange(t *testing.T) {
 			objectDecoder, err := NewObjectDecoder(e)
 			require.NoError(t, err)
 
-			batchDecoder, err := NewSegmentDecoder(e)
+			segmentDecoder, err := NewSegmentDecoder(e)
 			require.NoError(t, err)
 
 			// random trace
 			trace := test.MakeTrace(100, nil)
 
-			batch, err := batchDecoder.PrepareForWrite(trace, start, end)
+			segment, err := segmentDecoder.PrepareForWrite(trace, start, end)
 			require.NoError(t, err)
 
 			// convert to object
-			object, err := batchDecoder.ToObject([][]byte{batch})
+			object, err := segmentDecoder.ToObject([][]byte{segment})
 			require.NoError(t, err)
 
 			// test range

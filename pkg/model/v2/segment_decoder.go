@@ -20,7 +20,7 @@ type SegmentDecoder struct {
 
 var segmentDecoder = &SegmentDecoder{}
 
-func NewBatchDecoder() *SegmentDecoder {
+func NewSegmentDecoder() *SegmentDecoder {
 	return segmentDecoder
 }
 
@@ -28,9 +28,9 @@ func (d *SegmentDecoder) PrepareForWrite(trace *tempopb.Trace, start uint32, end
 	return marshalWithStartEnd(trace, start, end)
 }
 
-func (d *SegmentDecoder) PrepareForRead(batches [][]byte) (*tempopb.Trace, error) {
+func (d *SegmentDecoder) PrepareForRead(segments [][]byte) (*tempopb.Trace, error) {
 	var combinedTrace *tempopb.Trace
-	for _, obj := range batches {
+	for _, obj := range segments {
 		obj, _, _, err := stripStartEnd(obj)
 		if err != nil {
 			return nil, fmt.Errorf("error stripping start/end: %w", err)
@@ -50,16 +50,16 @@ func (d *SegmentDecoder) PrepareForRead(batches [][]byte) (*tempopb.Trace, error
 
 // ToObject creates a byte slice that can be interpreted by ObjectDecoder in this package
 // see object_decoder.go for details on the format.
-func (d *SegmentDecoder) ToObject(batches [][]byte) ([]byte, error) {
-	// strip start/end from individual batches and place it in a TraceBytesWrapper
+func (d *SegmentDecoder) ToObject(segments [][]byte) ([]byte, error) {
+	// strip start/end from individual segments and place it in a TraceBytesWrapper
 	var err error
 	var minStart, maxEnd uint32
 	minStart = math.MaxUint32
 
-	for i, b := range batches {
+	for i, b := range segments {
 		var start, end uint32
 
-		batches[i], start, end, err = stripStartEnd(b)
+		segments[i], start, end, err = stripStartEnd(b)
 		if err != nil {
 			return nil, err
 		}
@@ -72,7 +72,7 @@ func (d *SegmentDecoder) ToObject(batches [][]byte) ([]byte, error) {
 	}
 
 	return marshalWithStartEnd(&tempopb.TraceBytes{
-		Traces: batches,
+		Traces: segments,
 	}, minStart, maxEnd)
 }
 
