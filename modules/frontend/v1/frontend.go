@@ -49,6 +49,7 @@ type Limits interface {
 // Frontend queues HTTP requests, dispatches them to backends, and handles retries
 // for requests which failed.
 type Frontend struct {
+	frontendv1pb.UnimplementedFrontendServer
 	services.Service
 
 	cfg    Config

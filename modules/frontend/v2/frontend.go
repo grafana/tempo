@@ -58,6 +58,7 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 // Frontend implements GrpcRoundTripper. It queues HTTP requests,
 // dispatches them to backends via gRPC, and handles retries for requests which failed.
 type Frontend struct {
+	frontendv2pb.UnimplementedFrontendForQuerierServer
 	services.Service
 
 	cfg Config
