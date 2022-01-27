@@ -46,9 +46,9 @@ type processor struct {
 
 	store store.Store
 
-	// TODO do we want to keep this? See other TODO note
 	// completed edges are pushed through this channel to be processed.
-	//collectCh chan string
+	collectCh chan string
+	closeCh   chan struct{}
 
 	serviceGraphRequestTotal           *prometheus.CounterVec
 	serviceGraphRequestFailedTotal     *prometheus.CounterVec
@@ -65,9 +65,8 @@ func New(cfg Config, tenant string) gen.Processor {
 	p := &processor{
 		cfg: cfg,
 
-		// TODO I've commented out this code for now since we are not reading this channel anywhere, I believe this is causing a memory leak
-		//  completed edges are collected during store.Expire(), we should decided whether this is okay or not
-		//collectCh: make(chan string, cfg.MaxItems),
+		collectCh: make(chan string, cfg.MaxItems),
+		closeCh:   make(chan struct{}, 1),
 
 		// TODO we only have to pass tenant to be used in instrumentation, can we avoid doing this somehow?
 		metricDroppedSpans:  metricDroppedSpans.WithLabelValues(tenant),
@@ -86,6 +85,20 @@ func New(cfg Config, tenant string) gen.Processor {
 			p.store.Expire()
 		}
 	}()
+
+	for i := 0; i < cfg.Workers; i++ {
+		go func() {
+			for {
+				select {
+				case k := <-p.collectCh:
+					p.store.EvictEdgeWithLock(k)
+
+				case <-p.closeCh:
+					return
+				}
+			}
+		}()
+	}
 
 	return p
 }
@@ -185,22 +198,22 @@ func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
 
 		for _, ils := range rs.InstrumentationLibrarySpans {
 			var (
-				//edge *store.Edge
-				k   string
-				err error
+				edge *store.Edge
+				k    string
+				err  error
 			)
 			for _, span := range ils.Spans {
 				switch span.Kind {
 				case v1.Span_SPAN_KIND_CLIENT:
 					k = key(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
-					_, err = p.store.UpsertEdge(k, func(e *store.Edge) {
+					edge, err = p.store.UpsertEdge(k, func(e *store.Edge) {
 						e.ClientService = svcName
 						e.ClientLatencySec = spanDurationSec(span)
 						e.Failed = e.Failed || p.spanFailed(span)
 					})
 				case v1.Span_SPAN_KIND_SERVER:
 					k = key(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
-					_, err = p.store.UpsertEdge(k, func(e *store.Edge) {
+					edge, err = p.store.UpsertEdge(k, func(e *store.Edge) {
 						e.ServerService = svcName
 						e.ServerLatencySec = spanDurationSec(span)
 						e.Failed = e.Failed || p.spanFailed(span)
@@ -220,10 +233,9 @@ func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
 					return err
 				}
 
-				// TODO no one is reading from this channel, we collect completed edges during store.Expire
-				//if edge.IsCompleted() {
-				//	p.collectCh <- k
-				//}
+				if edge.IsCompleted() {
+					p.collectCh <- k
+				}
 			}
 		}
 	}

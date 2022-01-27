@@ -13,7 +13,6 @@ type Config struct {
 	// MaxItems is the amount of edges that will be stored in the storeMap
 	MaxItems int `mapstructure:"max_items"`
 
-	// TODO this isn't used anywhere right now
 	// Workers is the amount of workers that will be used to process the edges
 	Workers int `mapstructure:"workers"`
 
