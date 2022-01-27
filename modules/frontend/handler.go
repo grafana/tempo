@@ -5,9 +5,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/opentracing/opentracing-go"
@@ -138,10 +138,15 @@ func writeError(w http.ResponseWriter, err error) error {
 	case context.DeadlineExceeded:
 		err = errDeadlineExceeded
 	default:
-		if util.IsRequestBodyTooLarge(err) {
+		if isRequestBodyTooLarge(err) {
 			err = errRequestEntityTooLarge
 		}
 	}
 	server.WriteError(w, err)
 	return err
+}
+
+// isRequestBodyTooLarge returns true if the error is "http: request body too large".
+func isRequestBodyTooLarge(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "http: request body too large")
 }

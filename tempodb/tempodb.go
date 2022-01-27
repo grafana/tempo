@@ -8,17 +8,18 @@ import (
 	"io"
 	"time"
 
-	"github.com/go-kit/log"
+	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/atomic"
 
-	log_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	pkg_cache "github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/cache"
@@ -33,7 +34,6 @@ import (
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/search"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/opentracing/opentracing-go"
 )
 
 const (
@@ -115,7 +115,7 @@ type readerWriter struct {
 	wal  *wal.WAL
 	pool *pool.Pool
 
-	logger log.Logger
+	logger gkLog.Logger
 	cfg    *Config
 
 	blocklistPoller *blocklist.Poller
@@ -128,7 +128,7 @@ type readerWriter struct {
 }
 
 // New creates a new tempodb
-func New(cfg *Config, logger log.Logger) (Reader, Writer, Compactor, error) {
+func New(cfg *Config, logger gkLog.Logger) (Reader, Writer, Compactor, error) {
 	var rawR backend.RawReader
 	var rawW backend.RawWriter
 	var c backend.Compactor
@@ -287,7 +287,7 @@ func (rw *readerWriter) BlockMetas(tenantID string) []*backend.BlockMeta {
 
 func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, []error, error) {
 	// tracing instrumentation
-	logger := log_util.WithContext(ctx, log_util.Logger)
+	logger := log.WithContext(ctx, log.Logger)
 	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
 	defer span.Finish()
 
