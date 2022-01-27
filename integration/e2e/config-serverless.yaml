@@ -52,6 +52,6 @@ memberlist:
 
 querier:
   search_external_endpoints: 
-  - http://tempo_e2e-serverless:8080/
+  - http://tempo_e2e-serverless:9000/
   frontend_worker:
     frontend_address: tempo_e2e-query-frontend:9095
