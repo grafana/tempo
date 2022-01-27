@@ -15,6 +15,9 @@ import (
 	"github.com/prometheus/prometheus/storage"
 )
 
+// TODO: Configure this in the config file.
+var maxWriteRequestSize = 3 * 1024 * 1024 // 3MB
+
 // remoteWriteAppendable is a Prometheus storage.Appendable that remote writes samples.
 type remoteWriteAppendable struct {
 	logger   log.Logger
@@ -96,29 +99,65 @@ func (a *remoteWriteAppender) Commit() error {
 	a.metrics.samplesSent.WithLabelValues(a.userID).Set(float64(len(a.samples)))
 	a.metrics.remoteWriteTotal.WithLabelValues(a.userID).Inc()
 
-	req := cortexpb.ToWriteRequest(a.labels, a.samples, nil, cortexpb.API)
-	defer cortexpb.ReuseSlice(req.Timeseries)
+	reqs := a.buildRequests()
 
-	reqBytes, err := req.Marshal()
-	if err != nil {
-		return err
-	}
-	reqBytes = snappy.Encode(nil, reqBytes)
+	// TODO: send requests in parallel.
+	for _, req := range reqs {
+		reqBytes, err := req.Marshal()
+		if err != nil {
+			cortexpb.ReuseSlice(req.Timeseries)
+			return err
+		}
+		reqBytes = snappy.Encode(nil, reqBytes)
 
-	// TODO sending too many samples at once can cause errors on the receiving side, we should add a configuration
-	//  to split requests above a certain threshold
+		err = a.remoteWriter.Store(a.ctx, reqBytes)
+		// TODO the returned error can be of type RecoverableError with a retryAfter duration, should we do something with this?
+		if err != nil {
+			level.Error(a.logger).Log("msg", "could not store metrics-generator samples", "tenant", a.userID, "err", err)
+			a.metrics.remoteWriteErrors.WithLabelValues(a.userID).Inc()
+			cortexpb.ReuseSlice(req.Timeseries)
+			return err
+		}
 
-	err = a.remoteWriter.Store(a.ctx, reqBytes)
-	// TODO the returned error can be of type RecoverableError with a retryAfter duration, should we do something with this?
-	if err != nil {
-		level.Error(a.logger).Log("msg", "could not store metrics-generator samples", "tenant", a.userID, "err", err)
-		a.metrics.remoteWriteErrors.WithLabelValues(a.userID).Inc()
-		return err
+		cortexpb.ReuseSlice(req.Timeseries)
 	}
 
 	a.labels = nil
 	a.samples = nil
 	return nil
+}
+
+// buildRequests builds a slice of *cortexpb.WriteRequest
+// It builds requests with a maximum size of maxWriteRequestSize (uncompressed).
+func (a *remoteWriteAppender) buildRequests() []*cortexpb.WriteRequest {
+	var requests []*cortexpb.WriteRequest
+	currentRequest := newWriteRequest()
+
+	for i, s := range a.samples {
+		ts := cortexpb.TimeseriesFromPool()
+		ts.Samples = append(ts.Samples, s)
+		ts.Labels = append(ts.Labels, cortexpb.FromLabelsToLabelAdapters(a.labels[i])...)
+
+		if currentRequest.Size()+ts.Size() >= maxWriteRequestSize {
+			requests = append(requests, currentRequest)
+			currentRequest = newWriteRequest()
+		}
+
+		currentRequest.Timeseries = append(currentRequest.Timeseries, cortexpb.PreallocTimeseries{TimeSeries: ts})
+	}
+
+	if len(currentRequest.Timeseries) != 0 {
+		requests = append(requests, currentRequest)
+	}
+
+	return requests
+}
+
+func newWriteRequest() *cortexpb.WriteRequest {
+	return &cortexpb.WriteRequest{
+		Timeseries: cortexpb.PreallocTimeseriesSliceFromPool(),
+		Source:     cortexpb.API,
+	}
 }
 
 func (a *remoteWriteAppender) Rollback() error {
