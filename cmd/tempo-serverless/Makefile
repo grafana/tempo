@@ -9,8 +9,8 @@ IN_LAMBDA=cd lambda &&
 #
 # build docker images for local testing and code zip files for google cloud functions
 #
-.PHONY: build-gcf-docker
-build-gcf-docker: 
+.PHONY: build-docker
+build-docker: 
 	$(IN_CLOUD_FUNCTIONS) go mod vendor
 	$(IN_CLOUD_FUNCTIONS) $(PACK) build tempo-serverless \
 	  								--builder gcr.io/buildpacks/builder:v1 \

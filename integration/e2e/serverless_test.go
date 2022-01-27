@@ -89,7 +89,7 @@ func newTempoServerless() *e2e.HTTPService {
 		"tempo-serverless", // created by buildpacks in ./cmd/tempo-serverless
 		nil,
 		nil,
-		9000,
+		8080,
 	)
 
 	s.SetEnvVars(map[string]string{
