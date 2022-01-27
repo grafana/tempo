@@ -35,8 +35,8 @@ RUN chmod +x /lambda-local-proxy
 
 RUN echo -e '\
 #!/bin/bash \n\
-/lambda-entrypoint.sh lambda & \n\
-AWS_REGION=dummy AWS_ACCESS_KEY_ID=dummy AWS_SECRET_ACCESS_KEY=dummy exec /lambda-local-proxy -e http://localhost:8080 -p 9000 -f function \n\
+AWS_REGION=dummy AWS_ACCESS_KEY_ID=dummy AWS_SECRET_ACCESS_KEY=dummy /lambda-local-proxy -e http://localhost:8080 -p 9000 -f function & \n\
+exec /lambda-entrypoint.sh lambda \n\
 ' > /run.sh
 RUN chmod +x /run.sh
 
