@@ -11,15 +11,14 @@ import (
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/atomic"
 
-	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
-	"github.com/opentracing/opentracing-go"
-
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
+	pkg_cache "github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
@@ -159,7 +158,7 @@ func New(cfg *Config, logger gkLog.Logger) (Reader, Writer, Compactor, error) {
 	uncachedReader := backend.NewReader(rawR)
 	uncachedWriter := backend.NewWriter(rawW)
 
-	var cacheBackend cortex_cache.Cache
+	var cacheBackend pkg_cache.Cache
 
 	switch cfg.Cache {
 	case "redis":

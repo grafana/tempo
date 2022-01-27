@@ -6,8 +6,8 @@ import (
 	"io"
 	"testing"
 
-	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 )
@@ -35,7 +35,7 @@ func (m *mockClient) Stop() {
 }
 
 // NewMockClient makes a new mockClient.
-func NewMockClient() cortex_cache.Cache {
+func NewMockClient() cache.Cache {
 	return &mockClient{
 		client: map[string][]byte{},
 	}

@@ -6,16 +6,16 @@ import (
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 
-	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
+	"github.com/grafana/tempo/pkg/cache"
 )
 
 type Config struct {
-	ClientConfig cortex_cache.RedisConfig `yaml:",inline"`
+	ClientConfig cache.RedisConfig `yaml:",inline"`
 
 	TTL time.Duration `yaml:"ttl"`
 }
 
-func NewClient(cfg *Config, cfgBackground *cortex_cache.BackgroundConfig, logger log.Logger) cortex_cache.Cache {
+func NewClient(cfg *Config, cfgBackground *cache.BackgroundConfig, logger log.Logger) cache.Cache {
 	if cfg.ClientConfig.Timeout == 0 {
 		cfg.ClientConfig.Timeout = 100 * time.Millisecond
 	}
@@ -23,8 +23,8 @@ func NewClient(cfg *Config, cfgBackground *cortex_cache.BackgroundConfig, logger
 		cfg.ClientConfig.Expiration = cfg.TTL
 	}
 
-	client := cortex_cache.NewRedisClient(&cfg.ClientConfig)
-	cache := cortex_cache.NewRedisCache("tempo", client, prometheus.DefaultRegisterer, logger)
+	client := cache.NewRedisClient(&cfg.ClientConfig)
+	c := cache.NewRedisCache("tempo", client, prometheus.DefaultRegisterer, logger)
 
-	return cortex_cache.NewBackground("tempo", *cfgBackground, cache, prometheus.DefaultRegisterer)
+	return cache.NewBackground("tempo", *cfgBackground, c, prometheus.DefaultRegisterer)
 }

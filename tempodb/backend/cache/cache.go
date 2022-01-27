@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	cortex_cache "github.com/cortexproject/cortex/pkg/chunk/cache"
+	"github.com/grafana/tempo/pkg/cache"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -15,10 +15,10 @@ import (
 type readerWriter struct {
 	nextReader backend.RawReader
 	nextWriter backend.RawWriter
-	cache      cortex_cache.Cache
+	cache      cache.Cache
 }
 
-func NewCache(nextReader backend.RawReader, nextWriter backend.RawWriter, cache cortex_cache.Cache) (backend.RawReader, backend.RawWriter, error) {
+func NewCache(nextReader backend.RawReader, nextWriter backend.RawWriter, cache cache.Cache) (backend.RawReader, backend.RawWriter, error) {
 	rw := &readerWriter{
 		cache:      cache,
 		nextReader: nextReader,

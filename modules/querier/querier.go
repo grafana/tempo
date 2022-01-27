@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
@@ -29,6 +28,7 @@ import (
 
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/querier/worker"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model"
@@ -100,7 +100,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 
 func (q *Querier) CreateAndRegisterWorker(handler http.Handler) error {
 	q.cfg.Worker.MaxConcurrentRequests = q.cfg.MaxConcurrentQueries
-	worker, err := cortex_worker.NewQuerierWorker(
+	worker, err := worker.NewQuerierWorker(
 		q.cfg.Worker,
 		httpgrpc_server.NewServer(handler),
 		log.Logger,
