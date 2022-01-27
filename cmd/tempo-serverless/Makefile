@@ -12,13 +12,11 @@ IN_LAMBDA=cd lambda &&
 .PHONY: build-gcf-docker
 build-gcf-docker: 
 	$(IN_CLOUD_FUNCTIONS) go mod vendor
-
 	$(IN_CLOUD_FUNCTIONS) $(PACK) build tempo-serverless \
 	  								--builder gcr.io/buildpacks/builder:v1 \
 	  								--env GOOGLE_RUNTIME=go \
 	  								--env GOOGLE_FUNCTION_SIGNATURE_TYPE=http \
 	  								--env GOOGLE_FUNCTION_TARGET=Handler 	  
-	  
 	$(IN_CLOUD_FUNCTIONS) rm -rf vendor
 
 .PHONY: build-gcf-zip
@@ -27,32 +25,23 @@ build-gcf-zip:
 	$(IN_CLOUD_FUNCTIONS) zip tempo-serverless-$(GIT_REVISION).zip ./* -r
 	$(IN_CLOUD_FUNCTIONS) rm -rf vendor
 
-
 #
 # build docker images for local testing and code zip files for aws lambda
 #
-#  to exercise the function after building using the raw lambda interface
-#    docker run -p 8080:8080 tempo-serverless
-#    curl -d '{}' http://localhost:8080/2015-03-31/functions/function/invocations
-#    passed body should be serializable to: events.ALBTargetGroupRequest
-#    response body will be: events.ALBTargetGroupResponse
-#
-#  to exercise the function after building using the built in e2e proxy
-#    docker run -p 8080:8081 -e _E2E_LISTEN_PROXY_ADDR=:8081 tempo-serverless
-#    curl http://localhost:8080/?start=1000&end=1001&...
-#
 .PHONY: build-lambda-docker
-build-lambda-docker: 
-	$(IN_LAMBDA) go build .
+build-lambda-docker:
+#   todo: build exe in docker?
+#	$(IN_LAMBDA) go mod vendor
+	$(IN_LAMBDA) go build -o ./lambda
 	$(IN_LAMBDA) docker build -t tempo-serverless .
-	$(IN_LAMBDA) rm lambda
+	$(IN_LAMBDA) rm ./lambda
+#	$(IN_LAMBDA) rm -rf vendor
 
 .PHONY: build-lambda-zip
 build-lambda-zip:
 	$(IN_LAMBDA) go mod vendor
 	$(IN_LAMBDA) zip tempo-serverless-$(GIT_REVISION).zip ./* -r \
 		                   -x Dockerfile
-
 	$(IN_LAMBDA) rm -rf vendor
 
 .PHONY: test

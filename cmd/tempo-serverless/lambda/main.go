@@ -12,7 +12,6 @@ import (
 )
 
 func main() {
-	startE2EProxy()
 	lambda.Start(HandleLambdaEvent)
 }
 
