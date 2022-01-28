@@ -66,8 +66,8 @@ func (s *store) evictHead() {
 	s.evictEdge(front.key)
 }
 
-// EvictEdgeWithLock evicts and Edge under lock
-func (s *store) EvictEdgeWithLock(key string) {
+// EvictEdge evicts and Edge under lock
+func (s *store) EvictEdge(key string) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 

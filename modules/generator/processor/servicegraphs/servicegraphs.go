@@ -91,7 +91,7 @@ func New(cfg Config, tenant string) gen.Processor {
 			for {
 				select {
 				case k := <-p.collectCh:
-					p.store.EvictEdgeWithLock(k)
+					p.store.EvictEdge(k)
 
 				case <-p.closeCh:
 					return
