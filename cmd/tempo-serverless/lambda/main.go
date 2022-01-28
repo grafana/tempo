@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 
@@ -15,7 +16,7 @@ func main() {
 	lambda.Start(HandleLambdaEvent)
 }
 
-func HandleLambdaEvent(event events.ALBTargetGroupRequest) (events.ALBTargetGroupResponse, error) {
+func HandleLambdaEvent(ctx context.Context, event events.ALBTargetGroupRequest) (events.ALBTargetGroupResponse, error) {
 	req, err := httpRequest(event)
 	if err != nil {
 		return events.ALBTargetGroupResponse{
@@ -24,7 +25,7 @@ func HandleLambdaEvent(event events.ALBTargetGroupRequest) (events.ALBTargetGrou
 		}, nil
 	}
 
-	resp, httpErr := serverless.Handler(req)
+	resp, httpErr := serverless.Handler(req.WithContext(ctx))
 	if httpErr != nil {
 		return events.ALBTargetGroupResponse{
 			Body:       httpErr.Err.Error(),
