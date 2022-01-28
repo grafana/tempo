@@ -250,6 +250,7 @@ func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
 }
 
 func (p *processor) Shutdown(ctx context.Context) error {
+	close(p.closeCh)
 	return nil
 }
 
