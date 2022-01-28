@@ -34,10 +34,10 @@ tempo {
   },
 
   _config+:: {
-    // enable to create the tokengen job, this job has to run once to create a token from the GET
-    // license. Once the token has been generated, this setting should be disabled to not update
-    // the job anymore.
-    run_tokengen_job: false,
+    // Enable to create the tokengen job, this job has to run once when installing GET to create a
+    // token from the GET license. Once the token has been generated, this setting should be
+    // disabled to not update the job anymore.
+    create_tokengen_job: false,
 
     http_api_prefix: '/tempo',
     otlp_port: 4317,
@@ -140,7 +140,7 @@ tempo {
 
   // tokengen target
   tokengen: {}
-    + (if $._config.run_tokengen_job then {
+    + (if $._config.create_tokengen_job then {
     local tokengen_args = {
       target: 'tokengen',
       'config.file': '/conf/tempo.yaml',
