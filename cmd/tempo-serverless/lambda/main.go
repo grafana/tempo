@@ -22,7 +22,7 @@ func HandleLambdaEvent(ctx context.Context, event events.ALBTargetGroupRequest) 
 		return events.ALBTargetGroupResponse{
 			Body:       err.Error(),
 			StatusCode: http.StatusInternalServerError,
-			Headers:    map[string]string{},
+			Headers:    map[string]string{}, // alb will 502 if we don't set this: https://github.com/awslabs/aws-lambda-go-api-proxy/issues/79
 		}, nil
 	}
 
