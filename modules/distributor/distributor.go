@@ -322,9 +322,8 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 		recordDiscaredSpans(err, userID, spanCount)
 	}
 
-	if d.cfg.EnableMetricsGeneratorRing && err == nil {
+	if d.cfg.EnableMetricsGeneratorRing && len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 && err == nil {
 		// TODO
-		//  - read overrides to determine whether this tenant is included
 		//  - filter unneeded spans/tags
 
 		// Handle requests sent to the metrics-genrator in a separate goroutine, this way we don't

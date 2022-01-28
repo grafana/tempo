@@ -99,6 +99,10 @@ func (a *remoteWriteAppender) Commit() error {
 	a.metrics.samplesSent.WithLabelValues(a.userID).Set(float64(len(a.samples)))
 	a.metrics.remoteWriteTotal.WithLabelValues(a.userID).Inc()
 
+	if len(a.samples) == 0 {
+		return nil
+	}
+
 	reqs := a.buildRequests()
 
 	// TODO: send requests in parallel.

@@ -262,6 +262,11 @@ func (o *Overrides) SearchTagsAllowList(userID string) map[string]struct{} {
 	return o.getOverridesForUser(userID).SearchTagsAllowList.GetMap()
 }
 
+// MetricsGeneratorProcessors returns the metrics-generator processors enabled for this tenant.
+func (o *Overrides) MetricsGeneratorProcessors(userID string) map[string]struct{} {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessors.GetMap()
+}
+
 // BlockRetention is the duration of the block retention for this tenant.
 func (o *Overrides) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).BlockRetention)
