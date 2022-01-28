@@ -12,9 +12,8 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
 	"github.com/aws/aws-sdk-go/service/s3"
-	log_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cristalhq/hedgedhttp"
-	"github.com/go-kit/log"
+	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/minio/minio-go/v7"
@@ -23,11 +22,12 @@ import (
 	"github.com/pkg/errors"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 // readerWriter can read/write from an s3 backend
 type readerWriter struct {
-	logger     log.Logger
+	logger     gkLog.Logger
 	cfg        *Config
 	core       *minio.Core
 	hedgedCore *minio.Core
@@ -74,7 +74,7 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 }
 
 func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
-	l := log_util.Logger
+	l := log.Logger
 
 	core, err := createCore(cfg, false)
 	if err != nil {

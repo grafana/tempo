@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 // New creates a new distributed consistent hash ring.  It shadows the cortex

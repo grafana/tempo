@@ -4,12 +4,12 @@ import (
 	"context"
 	"time"
 
-	cortex_util "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 var (
@@ -65,7 +65,7 @@ func (t *liveTrace) Push(_ context.Context, instanceID string, trace []byte, sea
 			t.currentSearchBytes += searchDataSize
 		} else {
 			// todo: info level since we are not expecting this limit to be hit, but calibrate accordingly in the future
-			level.Info(cortex_util.Logger).Log("msg", "size of search data exceeded max search bytes limit", "maxSearchBytes", t.maxSearchBytes, "discardedBytes", searchDataSize)
+			level.Info(log.Logger).Log("msg", "size of search data exceeded max search bytes limit", "maxSearchBytes", t.maxSearchBytes, "discardedBytes", searchDataSize)
 			metricTraceSearchBytesDiscardedTotal.WithLabelValues(instanceID).Add(float64(searchDataSize))
 		}
 	}
