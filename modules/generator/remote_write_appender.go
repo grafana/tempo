@@ -102,24 +102,11 @@ func (a *remoteWriteAppender) Commit() error {
 	reqs := a.buildRequests()
 
 	// TODO: send requests in parallel.
-	for _, req := range reqs {
-		reqBytes, err := req.Marshal()
-		if err != nil {
-			cortexpb.ReuseSlice(req.Timeseries)
-			return err
-		}
-		reqBytes = snappy.Encode(nil, reqBytes)
-
-		err = a.remoteWriter.Store(a.ctx, reqBytes)
-		// TODO the returned error can be of type RecoverableError with a retryAfter duration, should we do something with this?
-		if err != nil {
-			level.Error(a.logger).Log("msg", "could not store metrics-generator samples", "tenant", a.userID, "err", err)
-			a.metrics.remoteWriteErrors.WithLabelValues(a.userID).Inc()
-			cortexpb.ReuseSlice(req.Timeseries)
-			return err
-		}
-
-		cortexpb.ReuseSlice(req.Timeseries)
+	err := a.sendWriteRequests(reqs)
+	if err != nil {
+		level.Error(a.logger).Log("msg", "error sending remote-write requests", "tenant", a.userID, "target", a.remoteWriter.Endpoint(), "err", err)
+		a.metrics.remoteWriteErrors.WithLabelValues(a.userID).Inc()
+		return err
 	}
 
 	a.labels = nil
@@ -151,6 +138,28 @@ func (a *remoteWriteAppender) buildRequests() []*cortexpb.WriteRequest {
 	}
 
 	return requests
+}
+
+func (a *remoteWriteAppender) sendWriteRequests(reqs []*cortexpb.WriteRequest) error {
+	for _, req := range reqs {
+		err := a.sendWriteRequest(req)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (a *remoteWriteAppender) sendWriteRequest(req *cortexpb.WriteRequest) error {
+	defer cortexpb.ReuseSlice(req.Timeseries)
+	reqBytes, err := req.Marshal()
+	if err != nil {
+		return err
+	}
+	reqBytes = snappy.Encode(nil, reqBytes)
+
+	// TODO the returned error can be of type RecoverableError with a retryAfter duration, should we do something with this?
+	return a.remoteWriter.Store(a.ctx, reqBytes)
 }
 
 func newWriteRequest() *cortexpb.WriteRequest {
