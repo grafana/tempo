@@ -6,6 +6,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+const (
+	Name = "span-metrics"
+)
+
 type Config struct {
 	// Buckets for latency histogram in seconds.
 	HistogramBuckets []float64 `yaml:"histogram_buckets"`

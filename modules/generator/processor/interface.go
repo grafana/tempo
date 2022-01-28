@@ -8,15 +8,17 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// TODO review this interface
-//  we probably need something to update the configuration as well
-
 type Processor interface {
+	// Name returns the name of the processor
 	Name() string
-	PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error
-	Shutdown(ctx context.Context) error
 
+	// RegisterMetrics registers metrics that are emitted by this processor.
 	RegisterMetrics(reg prometheus.Registerer) error
-	// TODO can't we just unregister metrics during Shutdown?
-	UnregisterMetrics(reg prometheus.Registerer)
+
+	// PushSpans processes a batch of spans and updates the metrics register in RegisterMetrics.
+	PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error
+
+	// Shutdown releases any resources allocated by the processor and unregister metrics registered
+	// by RegisterMetrics.
+	Shutdown(ctx context.Context, reg prometheus.Registerer) error
 }

@@ -55,6 +55,9 @@ type Limits struct {
 	MaxBytesPerTrace       int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
 	MaxSearchBytesPerTrace int `yaml:"max_search_bytes_per_trace" json:"max_search_bytes_per_trace"`
 
+	// Metrics-generator processor config
+	MetricsGeneratorProcessors ListToMap `yaml:"metrics_generator_processors" json:"metrics_generator_processors"`
+
 	// Compactor enforced limits.
 	BlockRetention model.Duration `yaml:"block_retention" json:"block_retention"`
 

@@ -103,7 +103,7 @@ func New(cfg Config, tenant string) gen.Processor {
 	return p
 }
 
-func (p *processor) Name() string { return "service_graphs" }
+func (p *processor) Name() string { return Name }
 
 func (p *processor) RegisterMetrics(reg prometheus.Registerer) error {
 	p.serviceGraphRequestTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -157,7 +157,7 @@ func (p *processor) RegisterMetrics(reg prometheus.Registerer) error {
 	return nil
 }
 
-func (p *processor) UnregisterMetrics(reg prometheus.Registerer) {
+func (p *processor) unregisterMetrics(reg prometheus.Registerer) {
 	cs := []prometheus.Collector{
 		p.serviceGraphRequestTotal,
 		p.serviceGraphRequestFailedTotal,
@@ -249,8 +249,9 @@ func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
 	return nil
 }
 
-func (p *processor) Shutdown(ctx context.Context) error {
+func (p *processor) Shutdown(ctx context.Context, reg prometheus.Registerer) error {
 	close(p.closeCh)
+	p.unregisterMetrics(reg)
 	return nil
 }
 
