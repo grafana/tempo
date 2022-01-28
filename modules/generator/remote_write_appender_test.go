@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/prometheus/prometheus/storage/remote"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_remoteWriteAppendable(t *testing.T) {
@@ -103,4 +104,58 @@ func Test_remoteWriteAppendable_disabled(t *testing.T) {
 
 	err = appender.Commit()
 	assert.NoError(t, err)
+}
+
+func Test_remoteWriteAppendable_splitRequests(t *testing.T) {
+	now := time.Now()
+
+	originalMaxWriteRequestSize := maxWriteRequestSize
+	maxWriteRequestSize = 80
+	defer func() {
+		maxWriteRequestSize = originalMaxWriteRequestSize
+	}()
+
+	var capturedTimeseries []prompb.TimeSeries
+	var requestNum int
+	server := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		requestNum++
+		writeRequest, err := remote.DecodeWriteRequest(req.Body)
+		assert.NoError(t, err)
+
+		capturedTimeseries = append(capturedTimeseries, writeRequest.Timeseries...)
+	}))
+	defer server.Close()
+
+	url, err := url.Parse(fmt.Sprintf("http://%s/receive", server.Listener.Addr().String()))
+	assert.NoError(t, err)
+
+	clientCfg := config.DefaultRemoteWriteConfig
+	clientCfg.URL = &prometheus_common_config.URL{URL: url}
+
+	cfg := &Config{
+		RemoteWrite: RemoteWriteConfig{
+			Enabled: true,
+			Client:  clientCfg,
+		},
+	}
+
+	appendable := newRemoteWriteAppendable(cfg, gokitlog.NewLogfmtLogger(os.Stdout), "", newRemoteWriteMetrics(prometheus.NewRegistry()))
+	appender := appendable.Appender(context.Background())
+
+	for i := 0; i < 10; i++ {
+		_, err := appender.Append(0, labels.Labels{{"label", "value"}}, now.UnixMilli(), 0.1)
+		require.NoError(t, err)
+	}
+
+	err = appender.Commit()
+	assert.NoError(t, err)
+
+	assert.Equal(t, 5, requestNum)
+	assert.Len(t, capturedTimeseries, 10)
+	for i := 0; i < 10; i++ {
+		assert.Len(t, capturedTimeseries[i].Labels, 1)
+		assert.Equal(t, `name:"label" value:"value" `, capturedTimeseries[i].Labels[0].String())
+		assert.Len(t, capturedTimeseries[i].Samples, 1)
+		assert.Equal(t, fmt.Sprintf(`value:0.1 timestamp:%d `, now.UnixMilli()), capturedTimeseries[i].Samples[0].String())
+	}
 }
