@@ -37,12 +37,13 @@ build-lambda-docker:
 	$(IN_LAMBDA) rm ./lambda
 #	$(IN_LAMBDA) rm -rf vendor
 
+# lambda zips expect a compiled executable in root. the filename "main" is important
+# as that should the handler config option in aws
 .PHONY: build-lambda-zip
 build-lambda-zip:
-	$(IN_LAMBDA) go mod vendor
-	$(IN_LAMBDA) zip tempo-serverless-$(GIT_REVISION).zip ./* -r \
-		                   -x Dockerfile
-	$(IN_LAMBDA) rm -rf vendor
+	$(IN_LAMBDA) GOOS=linux GOARCH=amd64 go build -o main
+	$(IN_LAMBDA) zip tempo-serverless-$(GIT_REVISION).zip main
+	$(IN_LAMBDA) rm main
 
 .PHONY: test
 test:
