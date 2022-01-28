@@ -3,12 +3,12 @@ package receiver
 import (
 	"context"
 
-	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/weaveworks/common/user"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/model/pdata"
 
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 type ConsumeTracesFunc func(context.Context, pdata.Traces) error

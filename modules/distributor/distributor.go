@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/limiter"
@@ -34,6 +33,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 )
 

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"contrib.go.opencensus.io/exporter/prometheus"
-	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
@@ -38,7 +37,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	tempo_util "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 const (
@@ -63,7 +62,7 @@ type receiversShim struct {
 
 	receivers   []component.Receiver
 	pusher      BatchPusher
-	logger      *tempo_util.RateLimitedLogger
+	logger      *log.RateLimitedLogger
 	metricViews []*view.View
 }
 
@@ -74,7 +73,7 @@ func (r *receiversShim) Capabilities() consumer.Capabilities {
 func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Middleware, logLevel logging.Level) (services.Service, error) {
 	shim := &receiversShim{
 		pusher: pusher,
-		logger: tempo_util.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
+		logger: log.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
 	}
 
 	// shim otel observability

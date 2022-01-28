@@ -8,7 +8,6 @@ import (
 
 	"github.com/grafana/tempo/tempodb/search"
 
-	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/ring"
@@ -29,6 +28,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/model/v1"
 	v2 "github.com/grafana/tempo/pkg/model/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"

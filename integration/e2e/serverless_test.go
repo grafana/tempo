@@ -6,10 +6,11 @@ import (
 
 	"github.com/grafana/e2e"
 	e2e_db "github.com/grafana/e2e/db"
-	util "github.com/grafana/tempo/integration"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
+
+	util "github.com/grafana/tempo/integration"
+	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
 
 func TestServerless(t *testing.T) {

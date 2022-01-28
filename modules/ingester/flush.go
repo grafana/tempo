@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/util/log"
 	gklog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
@@ -21,6 +20,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/uber/jaeger-client-go"
 	"github.com/weaveworks/common/user"
+
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 var (
