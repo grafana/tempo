@@ -22,6 +22,7 @@ func HandleLambdaEvent(ctx context.Context, event events.ALBTargetGroupRequest) 
 		return events.ALBTargetGroupResponse{
 			Body:       err.Error(),
 			StatusCode: http.StatusInternalServerError,
+			Headers:    map[string]string{},
 		}, nil
 	}
 
@@ -30,6 +31,7 @@ func HandleLambdaEvent(ctx context.Context, event events.ALBTargetGroupRequest) 
 		return events.ALBTargetGroupResponse{
 			Body:       httpErr.Err.Error(),
 			StatusCode: httpErr.Status,
+			Headers:    map[string]string{},
 		}, nil
 	}
 
@@ -39,12 +41,14 @@ func HandleLambdaEvent(ctx context.Context, event events.ALBTargetGroupRequest) 
 		return events.ALBTargetGroupResponse{
 			Body:       err.Error(),
 			StatusCode: http.StatusInternalServerError,
+			Headers:    map[string]string{},
 		}, nil
 	}
 
 	return events.ALBTargetGroupResponse{
 		Body:       body,
 		StatusCode: http.StatusOK,
+		Headers:    map[string]string{},
 	}, nil
 }
 
