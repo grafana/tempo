@@ -23,5 +23,5 @@ If by any chance this query goes over the size configured there: it will return 
 
 There are two main course of actions to solve this issue:
 
-* either reduce the cardinality of tags pushed to Tempo: reducing the number of unique tag values will reduce the size returned by the tag search query later on.
+* reduce the cardinality of tags pushed to Tempo: reducing the number of unique tag values will reduce the size returned by the tag search query later on.
 * increase the `max_bytes_per_tag_values_query` in the override section of your Tempo configuration: there is no rule of thumb though 10Mb or even 50Mb is not unheard of.
