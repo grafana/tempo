@@ -26,6 +26,7 @@ func TestSpanMetrics(t *testing.T) {
 
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
 	req := test.MakeBatch(10, nil)
+
 	err = p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{req}})
 	assert.NoError(t, err)
 
@@ -41,20 +42,19 @@ func TestSpanMetrics(t *testing.T) {
 	expectedMetrics := []test_util.Metric{
 		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_calls_total"}`, 10},
 		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_count"}`, 10},
-		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_sum"}`, 0},
-		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.002"}`, 10},
-		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.004"}`, 10},
-		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.008"}`, 10},
-		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.016"}`, 10},
-		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.032"}`, 10},
-		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.064"}`, 10},
-		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.128"}`, 10},
-		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.256"}`, 10},
-		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.512"}`, 10},
+		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_sum"}`, 10},
+		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.002"}`, 0},
+		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.004"}`, 0},
+		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.008"}`, 0},
+		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.016"}`, 0},
+		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.032"}`, 0},
+		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.064"}`, 0},
+		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.128"}`, 0},
+		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.256"}`, 0},
+		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.512"}`, 0},
 		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="1.024"}`, 10},
 		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="2.048"}`, 10},
 		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="4.096"}`, 10},
-		//{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="+Inf"}`, 10},
 	}
 	appender.ContainsAll(t, expectedMetrics, collectTime)
 }
@@ -97,20 +97,20 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	expectedMetrics := []test_util.Metric{
 		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_calls_total"}`, 10},
 		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_count"}`, 10},
-		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_sum"}`, 0},
-		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.002"}`, 10},
-		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.004"}`, 10},
-		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.008"}`, 10},
-		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.016"}`, 10},
-		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.032"}`, 10},
-		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.064"}`, 10},
-		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.128"}`, 10},
-		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.256"}`, 10},
-		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.512"}`, 10},
+		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_sum"}`, 10},
+		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.002"}`, 0},
+		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.004"}`, 0},
+		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.008"}`, 0},
+		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.016"}`, 0},
+		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.032"}`, 0},
+		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.064"}`, 0},
+		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.128"}`, 0},
+		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.256"}`, 0},
+		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="0.512"}`, 0},
 		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="1.024"}`, 10},
 		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="2.048"}`, 10},
 		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="4.096"}`, 10},
-		//{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="+Inf"}`, 10},
+		// {`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_span_metrics_duration_seconds_bucket", le="+Inf"}`, 10},
 	}
 	appender.ContainsAll(t, expectedMetrics, collectTime)
 }

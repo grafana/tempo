@@ -2,6 +2,7 @@ package test
 
 import (
 	"math/rand"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 
@@ -12,6 +13,7 @@ import (
 )
 
 func makeSpan(traceID []byte) *v1_trace.Span {
+	now := time.Now()
 	s := &v1_trace.Span{
 		Name:    "test",
 		TraceId: traceID,
@@ -20,6 +22,8 @@ func makeSpan(traceID []byte) *v1_trace.Span {
 		Status: &v1_trace.Status{
 			Code: 1,
 		},
+		StartTimeUnixNano: uint64(now.UnixNano()),
+		EndTimeUnixNano:   uint64(now.Add(time.Second).UnixNano()),
 	}
 	rand.Read(s.SpanId)
 	return s
