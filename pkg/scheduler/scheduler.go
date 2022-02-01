@@ -22,13 +22,13 @@ import (
 	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc"
 
-	"github.com/cortexproject/cortex/pkg/frontend/v2/frontendv2pb"
+	"github.com/grafana/tempo/modules/frontend/v2/frontendv2pb"
 	"github.com/grafana/tempo/pkg/scheduler/queue"
 	"github.com/grafana/tempo/pkg/scheduler/schedulerpb"
-	"github.com/cortexproject/cortex/pkg/tenant"
-	"github.com/cortexproject/cortex/pkg/util"
-	"github.com/cortexproject/cortex/pkg/util/httpgrpcutil"
-	"github.com/cortexproject/cortex/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/tenant"
+	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
+	"github.com/grafana/tempo/pkg/util/validation"
 )
 
 var (

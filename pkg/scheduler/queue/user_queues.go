@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 // querier holds information about a querier registered in the queue.
