@@ -10,7 +10,7 @@ import (
 	otlog "github.com/opentracing/opentracing-go/log"
 
 	"github.com/cortexproject/cortex/pkg/tenant"
-	util_log "github.com/cortexproject/cortex/pkg/util/log"
+	util_log "github.com/grafana/tempo/pkg/util/log"
 )
 
 type loggerCtxMarker struct{}

@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/modules/frontend/transport"
 	v1 "github.com/grafana/tempo/modules/frontend/v1"
 	v2 "github.com/grafana/tempo/modules/frontend/v2"
