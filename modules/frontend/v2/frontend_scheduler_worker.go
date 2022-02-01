@@ -14,7 +14,7 @@ import (
 	"github.com/weaveworks/common/httpgrpc"
 	"google.golang.org/grpc"
 
-	"github.com/cortexproject/cortex/pkg/scheduler/schedulerpb"
+	"github.com/grafana/tempo/pkg/scheduler/schedulerpb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/modules/frontend/v2/frontendv2pb"
 )

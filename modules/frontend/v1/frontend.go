@@ -16,7 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/httpgrpc"
 
-	"github.com/cortexproject/cortex/pkg/scheduler/queue"
+	"github.com/grafana/tempo/pkg/scheduler/queue"
 	"github.com/grafana/tempo/pkg/tenant"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/httpgrpcutil"

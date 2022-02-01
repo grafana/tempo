@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/cortexproject/cortex/pkg/scheduler/schedulerpb"
+	"github.com/grafana/tempo/pkg/scheduler/schedulerpb"
 	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
 	util_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/modules/frontend/v2/frontendv2pb"
