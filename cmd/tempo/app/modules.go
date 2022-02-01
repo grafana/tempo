@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"path"
 
-	"github.com/cortexproject/cortex/pkg/cortex"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/kv/codec"
 	"github.com/grafana/dskit/kv/memberlist"
@@ -51,7 +50,7 @@ func (t *App) initServer() (services.Service, error) {
 	t.cfg.Server.MetricsNamespace = metricsNamespace
 	t.cfg.Server.ExcludeRequestInLog = true
 
-	cortex.DisableSignalHandling(&t.cfg.Server)
+	DisableSignalHandling(&t.cfg.Server)
 
 	server, err := server.New(t.cfg.Server)
 	if err != nil {
@@ -70,7 +69,7 @@ func (t *App) initServer() (services.Service, error) {
 	}
 
 	t.Server = server
-	s := cortex.NewServerService(server, servicesToWaitFor)
+	s := NewServerService(server, servicesToWaitFor)
 
 	return s, nil
 }
