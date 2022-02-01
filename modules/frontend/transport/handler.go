@@ -20,10 +20,10 @@ import (
 	"github.com/weaveworks/common/httpgrpc"
 	"github.com/weaveworks/common/httpgrpc/server"
 
+	querier_stats "github.com/grafana/tempo/modules/querier/stats"
 	"github.com/grafana/tempo/pkg/tenant"
 	"github.com/grafana/tempo/pkg/util"
 	util_log "github.com/grafana/tempo/pkg/util/log"
-	querier_stats "github.com/grafana/tempo/modules/querier/stats"
 )
 
 const (
