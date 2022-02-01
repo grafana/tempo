@@ -65,7 +65,7 @@ func (p *Pool) Put(s []byte) {
 	c := cap(s)
 	for i, size := range p.sizes {
 		if c == size {
-			p.buckets[i].Put(s)
+			p.buckets[i].Put(s) // nolint: staticcheck
 		}
 		if c < size {
 			return
