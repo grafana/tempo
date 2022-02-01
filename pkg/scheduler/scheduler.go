@@ -28,7 +28,7 @@ import (
 	"github.com/grafana/tempo/pkg/tenant"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
-	"github.com/grafana/tempo/pkg/util/validation"
+	"github.com/grafana/tempo/pkg/validation"
 )
 
 var (
