@@ -19,7 +19,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/scheduler/queue"
 	"github.com/cortexproject/cortex/pkg/tenant"
 	"github.com/cortexproject/cortex/pkg/util"
-	"github.com/cortexproject/cortex/pkg/util/httpgrpcutil"
+	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
 	"github.com/cortexproject/cortex/pkg/util/validation"
 	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 	"github.com/grafana/tempo/modules/querier/stats"
