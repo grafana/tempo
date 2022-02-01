@@ -9,7 +9,7 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 	otlog "github.com/opentracing/opentracing-go/log"
 
-	"github.com/cortexproject/cortex/pkg/tenant"
+	"github.com/grafana/tempo/pkg/tenant"
 	util_log "github.com/grafana/tempo/pkg/util/log"
 )
 

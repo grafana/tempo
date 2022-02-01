@@ -20,7 +20,7 @@ import (
 	"github.com/weaveworks/common/httpgrpc"
 	"github.com/weaveworks/common/httpgrpc/server"
 
-	"github.com/cortexproject/cortex/pkg/tenant"
+	"github.com/grafana/tempo/pkg/tenant"
 	"github.com/grafana/tempo/pkg/util"
 	util_log "github.com/grafana/tempo/pkg/util/log"
 	querier_stats "github.com/grafana/tempo/modules/querier/stats"
