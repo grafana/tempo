@@ -19,7 +19,6 @@ import (
 
 const (
 	tempoProtoGenPkgPath  = "github.com/grafana/tempo/pkg/tempopb"
-	cortexPath            = "github.com/cortexproject/cortex"
 	jaegerProtoGenPkgPath = "github.com/jaegertracing/jaeger/proto-gen"
 	jaegerModelPkgPath    = "github.com/jaegertracing/jaeger/model"
 	otelProtoPkgPath      = "go.opentelemetry.io/collector"
@@ -74,5 +73,5 @@ func useGogo(t reflect.Type) bool {
 		return false
 	}
 	pkgPath := t.PkgPath()
-	return strings.HasPrefix(pkgPath, tempoProtoGenPkgPath) || strings.HasPrefix(pkgPath, cortexPath) || strings.HasPrefix(pkgPath, jaegerProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerModelPkgPath) || strings.HasPrefix(pkgPath, otelProtoPkgPath) || strings.HasPrefix(pkgPath, etcdAPIProtoPkgPath)
+	return strings.HasPrefix(pkgPath, tempoProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerModelPkgPath) || strings.HasPrefix(pkgPath, otelProtoPkgPath) || strings.HasPrefix(pkgPath, etcdAPIProtoPkgPath)
 }
