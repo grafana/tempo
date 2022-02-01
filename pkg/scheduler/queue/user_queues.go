@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/dskit/ring/shard"
 )
 
 // querier holds information about a querier registered in the queue.
@@ -108,7 +108,7 @@ func (q *queues) getOrAddQueue(userID string, maxQueriers int) chan Request {
 	if uq == nil {
 		uq = &userQueue{
 			ch:    make(chan Request, q.maxUserQueueSize),
-			seed:  util.ShuffleShardSeed(userID, ""),
+			seed:  shard.ShuffleShardSeed(userID, ""),
 			index: -1,
 		}
 		q.userQueues[userID] = uq
