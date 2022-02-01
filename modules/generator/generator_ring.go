@@ -6,11 +6,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
+
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 type RingConfig struct {

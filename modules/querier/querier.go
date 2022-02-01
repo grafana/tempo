@@ -11,26 +11,12 @@ import (
 	"sync"
 	"time"
 
-	cortex_worker "github.com/cortexproject/cortex/pkg/querier/worker"
-	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
-	ingester_client "github.com/grafana/tempo/modules/ingester/client"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/validation"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/search"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
@@ -39,6 +25,21 @@ import (
 	httpgrpc_server "github.com/weaveworks/common/httpgrpc/server"
 	"github.com/weaveworks/common/user"
 	"go.uber.org/multierr"
+
+	ingester_client "github.com/grafana/tempo/modules/ingester/client"
+	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/modules/querier/worker"
+	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/search"
 )
 
 var (
@@ -99,7 +100,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 
 func (q *Querier) CreateAndRegisterWorker(handler http.Handler) error {
 	q.cfg.Worker.MaxConcurrentRequests = q.cfg.MaxConcurrentQueries
-	worker, err := cortex_worker.NewQuerierWorker(
+	worker, err := worker.NewQuerierWorker(
 		q.cfg.Worker,
 		httpgrpc_server.NewServer(handler),
 		log.Logger,

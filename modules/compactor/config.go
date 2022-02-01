@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	cortex_compactor "github.com/cortexproject/cortex/pkg/compactor"
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
@@ -14,9 +13,9 @@ import (
 )
 
 type Config struct {
-	ShardingRing    cortex_compactor.RingConfig `yaml:"ring,omitempty"`
-	Compactor       tempodb.CompactorConfig     `yaml:"compaction"`
-	OverrideRingKey string                      `yaml:"override_ring_key"`
+	ShardingRing    RingConfig              `yaml:"ring,omitempty"`
+	Compactor       tempodb.CompactorConfig `yaml:"compaction"`
+	OverrideRingKey string                  `yaml:"override_ring_key"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -40,7 +39,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.OverrideRingKey = ring.CompactorRingKey
 }
 
-func toBasicLifecyclerConfig(cfg cortex_compactor.RingConfig, logger log.Logger) (ring.BasicLifecyclerConfig, error) {
+func toBasicLifecyclerConfig(cfg RingConfig, logger log.Logger) (ring.BasicLifecyclerConfig, error) {
 	instanceAddr, err := ring.GetInstanceAddr(cfg.InstanceAddr, cfg.InstanceInterfaceNames, logger)
 	if err != nil {
 		return ring.BasicLifecyclerConfig{}, err

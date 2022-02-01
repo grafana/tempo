@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -18,6 +17,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor/util"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 var (

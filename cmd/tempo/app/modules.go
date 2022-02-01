@@ -8,7 +8,6 @@ import (
 	"github.com/cortexproject/cortex/pkg/cortex"
 	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend"
 	cortex_frontend_v1pb "github.com/cortexproject/cortex/pkg/frontend/v1/frontendv1pb"
-	"github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/kv/codec"
 	"github.com/grafana/dskit/kv/memberlist"
@@ -31,6 +30,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	tempo_ring "github.com/grafana/tempo/pkg/ring"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 // The various modules that make up tempo.

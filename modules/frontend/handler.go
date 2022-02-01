@@ -5,9 +5,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/cortexproject/cortex/pkg/util"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/opentracing/opentracing-go"
@@ -21,6 +21,8 @@ import (
 const (
 	// StatusClientClosedRequest is the status code for when a client request cancellation of an http request
 	StatusClientClosedRequest = 499
+	// nil response in ServeHTTP
+	NilResponseError = "nil resp in ServeHTTP"
 )
 
 var (
@@ -55,6 +57,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := time.Now()
 	orgID, _ := user.ExtractOrgID(ctx)
+	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	f.queriesPerTenant.WithLabelValues(orgID).Inc()
 
@@ -66,12 +69,32 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := f.roundTripper.RoundTrip(r)
 	if err != nil {
-		writeError(w, err)
+		err = writeError(w, err)
+		level.Info(f.logger).Log(
+			"tenant", orgID,
+			"method", r.Method,
+			"traceID", traceID,
+			"url", r.URL.RequestURI(),
+			"duration", time.Since(start).String(),
+			"response_size", 0,
+			"status", http.StatusInternalServerError,
+			"err", err.Error(),
+		)
 		return
 	}
 
 	if resp == nil {
-		writeError(w, errors.New("nil resp in ServeHTTP"))
+		err = writeError(w, errors.New(NilResponseError))
+		level.Info(f.logger).Log(
+			"tenant", orgID,
+			"method", r.Method,
+			"traceID", traceID,
+			"url", r.URL.RequestURI(),
+			"duration", time.Since(start).String(),
+			"response_size", 0,
+			"status", http.StatusInternalServerError,
+			"err", err.Error(),
+		)
 		return
 	}
 
@@ -82,7 +105,6 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// request/response logging
-	traceID, _ := tracing.ExtractTraceID(ctx)
 	var statusCode int
 	var contentLength int64
 	if httpResp, ok := httpgrpc.HTTPResponseFromError(err); ok {
@@ -107,17 +129,24 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // writeError handles writing errors to the http.ResponseWriter. It uses weavework common
 // server.WriteError() to handle httpgrc errors. The handler handles all incoming HTTP requests
 // to the query frontend which then distributes them via httpgrpc to the queriers. As a result
-// httpgrpc errors can bubble up to here and should be translated to http errors.
-func writeError(w http.ResponseWriter, err error) {
+// httpgrpc errors can bubble up to here and should be translated to http errors. It returns
+// httpgrpc error.
+func writeError(w http.ResponseWriter, err error) error {
 	switch err {
 	case context.Canceled:
 		err = errCanceled
 	case context.DeadlineExceeded:
 		err = errDeadlineExceeded
 	default:
-		if util.IsRequestBodyTooLarge(err) {
+		if isRequestBodyTooLarge(err) {
 			err = errRequestEntityTooLarge
 		}
 	}
 	server.WriteError(w, err)
+	return err
+}
+
+// isRequestBodyTooLarge returns true if the error is "http: request body too large".
+func isRequestBodyTooLarge(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "http: request body too large")
 }

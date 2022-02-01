@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cortexproject/cortex/integration/e2e"
-	cortex_e2e_db "github.com/cortexproject/cortex/integration/e2e/db"
+	"github.com/grafana/e2e"
+	e2e_db "github.com/grafana/e2e/db"
 	"github.com/grafana/tempo/cmd/tempo/app"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/tempodb/backend/azure"
@@ -36,7 +36,7 @@ func New(scenario *e2e.Scenario, cfg app.Config) (*e2e.HTTPService, error) {
 		if err != nil {
 			return nil, err
 		}
-		backendService = cortex_e2e_db.NewMinio(port, "tempo")
+		backendService = e2e_db.NewMinio(port, "tempo")
 		if backendService == nil {
 			return nil, fmt.Errorf("error creating minio backend")
 		}

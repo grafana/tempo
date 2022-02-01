@@ -21,7 +21,6 @@ type IndexCacheProvider string
 const (
 	INMEMORY  IndexCacheProvider = "IN-MEMORY"
 	MEMCACHED IndexCacheProvider = "MEMCACHED"
-	REDIS     IndexCacheProvider = "REDIS"
 )
 
 // IndexCacheConfig specifies the index cache config.
@@ -48,16 +47,10 @@ func NewIndexCache(logger log.Logger, confContentYaml []byte, reg prometheus.Reg
 	case string(INMEMORY):
 		cache, err = NewInMemoryIndexCache(logger, reg, backendConfig)
 	case string(MEMCACHED):
-		var memcached cacheutil.RemoteCacheClient
+		var memcached cacheutil.MemcachedClient
 		memcached, err = cacheutil.NewMemcachedClient(logger, "index-cache", backendConfig, reg)
 		if err == nil {
-			cache, err = NewRemoteIndexCache(logger, memcached, reg)
-		}
-	case string(REDIS):
-		var redisCache cacheutil.RemoteCacheClient
-		redisCache, err = cacheutil.NewRedisClient(logger, "index-cache", backendConfig, reg)
-		if err == nil {
-			cache, err = NewRemoteIndexCache(logger, redisCache, reg)
+			cache, err = NewMemcachedIndexCache(logger, memcached, reg)
 		}
 	default:
 		return nil, errors.Errorf("index cache with type %s is not supported", cacheConfig.Type)

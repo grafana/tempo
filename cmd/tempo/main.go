@@ -10,13 +10,8 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/cmd/tempo/build"
-	"gopkg.in/yaml.v2"
-
-	"github.com/go-kit/log/level"
-
 	"github.com/drone/envsubst"
+	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -33,8 +28,11 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	"gopkg.in/yaml.v2"
 
-	"github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/grafana/tempo/cmd/tempo/app"
+	"github.com/grafana/tempo/cmd/tempo/build"
+	"github.com/grafana/tempo/pkg/util/log"
 )
 
 const appName = "tempo"

@@ -13,3 +13,8 @@ cmd/tempo-query/
 operations/
 pkg/tempopb
 ```
+
+The following directories and their subdirectories are licensed under their original upstream licenses:
+
+```
+```
