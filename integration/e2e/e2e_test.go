@@ -138,32 +138,32 @@ func TestAllInOne(t *testing.T) {
 func TestMicroservicesWithKVStores(t *testing.T) {
 	testKVStores := []struct {
 		name     string
-		kvconfig func(port int) string
+		kvconfig func(hostname string, port int) string
 	}{
 		{
 			name: "memberlist",
-			kvconfig: func(int) string {
+			kvconfig: func(string, int) string {
 				return `
-		store: memberlist`
+        store: memberlist`
 			},
 		},
 		{
 			name: "etcd",
-			kvconfig: func(port int) string {
+			kvconfig: func(hostname string, port int) string {
 				return fmt.Sprintf(`
-		store: etcd
-		etcd:
-		  endpoints:
-		    - http://tempo_e2e-etcd:%d`, port)
+        store: etcd
+        etcd:
+          endpoints:
+            - http://tempo_e2e-%s:%d`, hostname, port)
 			},
 		},
 		{
 			name: "consul",
-			kvconfig: func(port int) string {
+			kvconfig: func(hostname string, port int) string {
 				return fmt.Sprintf(`
         store: consul
         consul:
-          host: http://tempo_e2e-consul:%d`, port)
+          host: http://tempo_e2e-%s:%d`, hostname, port)
 			},
 		},
 	}
@@ -191,9 +191,9 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			tmpl, err := template.New(filepath.Base(configMicroservices)).ParseFiles(configMicroservices)
 			require.NoError(t, err)
 
-			var KVStoreConfig string
+			KVStoreConfig := tc.kvconfig("", 0)
 			if kvstore != nil {
-				KVStoreConfig = tc.kvconfig(kvstore.HTTPPort())
+				KVStoreConfig = tc.kvconfig(kvstore.Name(), kvstore.HTTPPort())
 			}
 
 			var buf bytes.Buffer
