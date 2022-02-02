@@ -26,8 +26,8 @@
           {
             alert: 'TempoRequestLatency',
             expr: |||
-              %s_route:tempo_request_duration_seconds:99quantile{route!~"metrics|/frontend.Frontend/Process|debug_pprof"} > %s
-            ||| % [$._config.group_prefix_jobs, $._config.alerts.p99_request_threshold_seconds],
+              %s_route:tempo_request_duration_seconds:99quantile{route!~"%s"} > %s
+            ||| % [$._config.group_prefix_jobs, $._config.alerts.p99_request_exclude_regex, $._config.alerts.p99_request_threshold_seconds],
             'for': '15m',
             labels: {
               severity: 'critical',
