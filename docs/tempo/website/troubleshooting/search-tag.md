@@ -5,23 +5,22 @@ weight: 476
 
 # Tag search
 
-While searching for traces in Grafana Explore UI: `Service Name` and `Span Name` dropdown lists are empty with a *No options found* message.
+An issue occurs while searching for traces in Grafana Explore. The **Service Name** and **Span Name** drop down lists are empty, and there is a `No options found` message.
 
-HTTP calls to Tempo Query Frontend on `/api/search/tag/service.name/values` would answer an empty set.
+HTTP requests to Tempo query frontend endpoint at `/api/search/tag/service.name/values` would respond with an empty set.
 
 Note: this happens on Grafana Tempo 1.3 or higher.
 
 ## Root cause
 
-Grafana Tempo 1.3 has introduced another way of looking for tags to be used later in Grafana Explore UI, especially `service.name` and `name` tags that are used in the `Service Name` & `Span Name` dropdown lists respectively.
+The introduction of a cap on the size of tags causes this issue.
 
-Queries used to fetch those tags are now submitted to a size limit set with the `max_bytes_per_tag_values_query` parameter (documented here: [Tempo configuration overrides](https://grafana.com/docs/tempo/latest/configuration/#overrides)
+Configuration parameter `max_bytes_per_tag_values_query` causes the return of an empty result
+when a query exceeds the configured value.
 
-If by any chance this query goes over the size configured there: it will return an empty result.
+## Solutions
 
-## Resolution
+There are two main solutions to this issue:
 
-There are two main course of actions to solve this issue:
-
-* reduce the cardinality of tags pushed to Tempo: reducing the number of unique tag values will reduce the size returned by the tag search query later on.
-* increase the `max_bytes_per_tag_values_query` in the override section of your Tempo configuration: there is no rule of thumb though 10Mb or even 50Mb is not unheard of.
+* Reduce the cardinality of tags pushed to Tempo. Reducing the number of unique tag values will reduce the size returned by a tag search query.
+* Increase the `max_bytes_per_tag_values_query` parameter in the [overrides]({{< relref "../configuration/#overrides" >}}) block of your Tempo configuration to a value as high as 50MB.
