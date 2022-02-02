@@ -15,7 +15,6 @@ This document explains the configuration options for Tempo as well as the detail
   - [compactor](#compactor)
   - [storage](#storage)
   - [memberlist](#memberlist)
-  - [polling](#polling)
   - [overrides](#overrides)
   - [search](#search)
 
