@@ -39,7 +39,7 @@ func TestPool(t *testing.T) {
 	}
 }
 
-func TestPoolIgnoresRandomCapSlices(t *testing.T) {
+func TestPoolSlicesAreAlwaysLargeEnough(t *testing.T) {
 	testPool := New(1, 1024, 2, makeFunc)
 
 	for i := 0; i < 10000; i++ {
