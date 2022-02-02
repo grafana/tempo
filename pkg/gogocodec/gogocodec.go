@@ -23,13 +23,15 @@ const (
 	jaegerProtoGenPkgPath = "github.com/jaegertracing/jaeger/proto-gen"
 	jaegerModelPkgPath    = "github.com/jaegertracing/jaeger/model"
 	otelProtoPkgPath      = "go.opentelemetry.io/collector"
+	// etcd path can be removed once upgrade to grpc >v1.38 is released (tentatively next release from v3.5.1)
+	etcdAPIProtoPkgPath = "go.etcd.io/etcd/api/v3"
 )
 
 func init() {
 	encoding.RegisterCodec(newCodec())
 }
 
-// gogoCodec forces the use of gogo proto marshalling/unmarshalling for Tempo/Cortex/Jaeger structs
+// gogoCodec forces the use of gogo proto marshalling/unmarshalling for Tempo/Cortex/Jaeger/etcd structs
 type gogoCodec struct {
 }
 
@@ -48,7 +50,7 @@ func (c *gogoCodec) Name() string {
 func (c *gogoCodec) Marshal(v interface{}) ([]byte, error) {
 	t := reflect.TypeOf(v)
 	elem := t.Elem()
-	// use gogo proto only for Tempo/Cortex/Jaeger types
+	// use gogo proto only for Tempo/Cortex/Jaeger/etcd types
 	if useGogo(elem) {
 		return gogoproto.Marshal(v.(gogoproto.Message))
 	}
@@ -59,18 +61,18 @@ func (c *gogoCodec) Marshal(v interface{}) ([]byte, error) {
 func (c *gogoCodec) Unmarshal(data []byte, v interface{}) error {
 	t := reflect.TypeOf(v)
 	elem := t.Elem()
-	// use gogo proto only for Tempo/Cortex/Jaeger types
+	// use gogo proto only for Tempo/Cortex/Jaeger/etcd types
 	if useGogo(elem) {
 		return gogoproto.Unmarshal(data, v.(gogoproto.Message))
 	}
 	return proto.Unmarshal(data, v.(proto.Message))
 }
 
-// useGogo checks if the element belongs to Tempo/Cortex/Jaeger packages
+// useGogo checks if the element belongs to Tempo/Cortex/Jaeger/etcd packages
 func useGogo(t reflect.Type) bool {
 	if t == nil {
 		return false
 	}
 	pkgPath := t.PkgPath()
-	return strings.HasPrefix(pkgPath, tempoProtoGenPkgPath) || strings.HasPrefix(pkgPath, cortexPath) || strings.HasPrefix(pkgPath, jaegerProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerModelPkgPath) || strings.HasPrefix(pkgPath, otelProtoPkgPath)
+	return strings.HasPrefix(pkgPath, tempoProtoGenPkgPath) || strings.HasPrefix(pkgPath, cortexPath) || strings.HasPrefix(pkgPath, jaegerProtoGenPkgPath) || strings.HasPrefix(pkgPath, jaegerModelPkgPath) || strings.HasPrefix(pkgPath, otelProtoPkgPath) || strings.HasPrefix(pkgPath, etcdAPIProtoPkgPath)
 }

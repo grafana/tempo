@@ -600,7 +600,6 @@ github.com/eapache/go-xerial-snappy v0.0.0-20180814174437-776d5712da21/go.mod h1
 github.com/eapache/queue v1.1.0/go.mod h1:6eCeP0CKFpHLu8blIFXhExK/dRa7WDZfr6jVFPTqq+I=
 github.com/eclipse/paho.mqtt.golang v1.2.0/go.mod h1:H9keYFcgq3Qr5OUJm/JZI/i6U7joQ8SYLhZwfeOo6Ts=
 github.com/edsrzf/mmap-go v0.0.0-20170320065105-0bce6a688712/go.mod h1:YO35OhQPt3KJa3ryjFM5Bs14WD66h8eGKpfaBNrHW5M=
-github.com/edsrzf/mmap-go v1.0.0 h1:CEBF7HpRnUCSJgGUb5h1Gm7e3VkmVDrR8lvWVLtrOFw=
 github.com/edsrzf/mmap-go v1.0.0/go.mod h1:YO35OhQPt3KJa3ryjFM5Bs14WD66h8eGKpfaBNrHW5M=
 github.com/efficientgo/e2e v0.11.2-0.20211027134903-67d538984a47/go.mod h1:vDnF4AAEZmO0mvyFIATeDJPFaSRM7ywaOnKd61zaSoE=
 github.com/efficientgo/tools/core v0.0.0-20210129205121-421d0828c9a6/go.mod h1:OmVcnJopJL8d3X3sSXTiypGoUSgFq1aDGmlrdi9dn/M=
@@ -1047,7 +1046,6 @@ github.com/gorilla/sessions v1.2.1/go.mod h1:dk2InVEVJ0sfLlnXv9EAgkf6ecYs/i80K/z
 github.com/gorilla/websocket v0.0.0-20170926233335-4201258b820c/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=
 github.com/gorilla/websocket v1.4.0/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=
 github.com/gorilla/websocket v1.4.2/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
-github.com/grafana/dskit v0.0.0-20211021180445-3bd016e9d7f1 h1:Qf+/W3Tup0nO21tgJmO14WJK0yyrm4L2UJipZP+Zoow=
 github.com/grafana/dskit v0.0.0-20211021180445-3bd016e9d7f1/go.mod h1:uPG2nyK4CtgNDmWv7qyzYcdI+S90kHHRWvHnBtEMBXM=
 github.com/grafana/dskit v0.0.0-20220112093026-95274ccc858d h1:YwUtZIQFjlH6e2b5dFLfW1h/vTkTXNkZqv9qeU8b5h0=
 github.com/grafana/dskit v0.0.0-20220112093026-95274ccc858d/go.mod h1:M0/dlftwBvH7+hdNNpjMa/CUXD7gsew67mbkCuDlFXE=
@@ -1762,7 +1760,6 @@ github.com/prometheus/prometheus v1.8.2-0.20210215121130-6f488061dfb4/go.mod h1:
 github.com/prometheus/prometheus v1.8.2-0.20210315220929-1cba1741828b/go.mod h1:MS/bpdil77lPbfQeKk6OqVQ9OLnpN3Rszd0hka0EOWE=
 github.com/prometheus/prometheus v1.8.2-0.20210324152458-c7a62b95cea0/go.mod h1:sf7j/iAbhZahjeC0s3wwMmp5dksrJ/Za1UKdR+j6Hmw=
 github.com/prometheus/prometheus v1.8.2-0.20210519120135-d95b0972505f/go.mod h1:yUzDYX0hIYu5YVHmpj/JXLOclB6QcLNDgmagD3FUnSU=
-github.com/prometheus/prometheus v1.8.2-0.20211119115433-692a54649ed7 h1:8rwRA5BKEAWtawaP4ozroDm3xMDrp9POAoT3HkQ3ZHw=
 github.com/prometheus/prometheus v1.8.2-0.20211119115433-692a54649ed7/go.mod h1:outfylaI89+D5IO87TRPRmxfucIobTO3Rb0l2TKqpj0=
 github.com/prometheus/prometheus v1.8.2-0.20211217191541-41f1a8125e66 h1:Y4Cq+kBfu+yc4dbCUn4syvC2/F6rYhg1UoeyudhPq2o=
 github.com/prometheus/prometheus v1.8.2-0.20211217191541-41f1a8125e66/go.mod h1:bBByfKZ/sC+obk4CX3GpJ2Ul+fKZGtXneLYFG8C//nc=
@@ -1926,7 +1923,6 @@ github.com/thanos-io/thanos v0.13.1-0.20210204123931-82545cdd16fe/go.mod h1:ZLDG
 github.com/thanos-io/thanos v0.13.1-0.20210224074000-659446cab117/go.mod h1:kdqFpzdkveIKpNNECVJd75RPvgsAifQgJymwCdfev1w=
 github.com/thanos-io/thanos v0.13.1-0.20210226164558-03dace0a1aa1/go.mod h1:gMCy4oCteKTT7VuXVvXLTPGzzjovX1VPE5p+HgL1hyU=
 github.com/thanos-io/thanos v0.13.1-0.20210401085038-d7dff0c84d17/go.mod h1:zU8KqE+6A+HksK4wiep8e/3UvCZLm+Wrw9AqZGaAm9k=
-github.com/thanos-io/thanos v0.22.0 h1:bHTzC0ZaP5rBJ2pOeJ73+hO/p3U4tSshJoR3pumM6sA=
 github.com/thanos-io/thanos v0.22.0/go.mod h1:SZDWz3phcUcBr4MYFoPFRvl+Z9Nbi45HlwQlwSZSt+Q=
 github.com/thanos-io/thanos v0.24.0 h1:wG1y9Kx1GTIPA6wJ7EVBaoTEB7BKQfufaZEVyNQFrD8=
 github.com/thanos-io/thanos v0.24.0/go.mod h1:sfnKJG7cDA41ixNL4gsTJEa3w9Qt8lwAjw+dqRMSDG0=
@@ -2047,6 +2043,7 @@ go.etcd.io/etcd v0.5.0-alpha.5.0.20200910180754-dd1b699fc489/go.mod h1:yVHk9ub3C
 go.etcd.io/etcd v3.3.25+incompatible/go.mod h1:yaeTdrJi5lOmYerz05bd8+V7KubZs8YSFZfzsF9A6aI=
 go.etcd.io/etcd/api/v3 v3.5.0-alpha.0/go.mod h1:mPcW6aZJukV6Aa81LSKpBjQXTWlXB5r74ymPoSWa3Sw=
 go.etcd.io/etcd/api/v3 v3.5.0/go.mod h1:cbVKeC6lCfl7j/8jBhAK6aIYO9XOjdptoxU/nLQcPvs=
+go.etcd.io/etcd/api/v3 v3.5.1/go.mod h1:cbVKeC6lCfl7j/8jBhAK6aIYO9XOjdptoxU/nLQcPvs=
 go.etcd.io/etcd/client/pkg/v3 v3.5.0/go.mod h1:IJHfcCEKxYu1Os13ZdwCwIUTUVGYTSAM3YSwc9/Ac1g=
 go.etcd.io/etcd/client/v2 v2.305.0-alpha.0/go.mod h1:kdV+xzCJ3luEBSIeQyB/OEKkWKd8Zkux4sbDeANrosU=
 go.etcd.io/etcd/client/v2 v2.305.0/go.mod h1:h9puh54ZTgAKtEbut2oe9P4L/oqKCVB6xsXlzd7alYQ=

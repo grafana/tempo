@@ -1323,7 +1323,7 @@ go.etcd.io/bbolt
 # go.etcd.io/etcd v3.3.25+incompatible
 ## explicit
 go.etcd.io/etcd/pkg/transport
-# go.etcd.io/etcd/api/v3 v3.5.0
+# go.etcd.io/etcd/api/v3 v3.5.1
 ## explicit; go 1.16
 go.etcd.io/etcd/api/v3/authpb
 go.etcd.io/etcd/api/v3/etcdserverpb
