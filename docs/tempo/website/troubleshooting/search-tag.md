@@ -9,7 +9,6 @@ An issue occurs while searching for traces in Grafana Explore. The **Service Nam
 
 HTTP requests to Tempo query frontend endpoint at `/api/search/tag/service.name/values` would respond with an empty set.
 
-Note: this happens on Grafana Tempo 1.3 or higher.
 
 ## Root cause
 
