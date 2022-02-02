@@ -183,7 +183,7 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			case "consul":
 				kvstore = e2edb.NewConsul()
 				require.NoError(t, s.StartAndWaitReady(kvstore))
-			case "memeberlist":
+			case "memberlist":
 			default:
 				t.Errorf("unknown KVStore %s", tc.name)
 			}
