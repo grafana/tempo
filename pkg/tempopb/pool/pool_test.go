@@ -53,22 +53,3 @@ func TestPoolSlicesAreAlwaysLargeEnough(t *testing.T) {
 		require.True(t, cap(ret) >= size)
 	}
 }
-
-// TestPoolReusesSlice checks to make sure if a slice is reused in the pool. Since this depends on
-// the underlying sync.Pool implementation it's a bad-ish test and should be removed if it gets flakey.
-// Added to confirm that the Get/Put []byte methods choose the same buckets.
-func TestPoolReusesSlice(t *testing.T) {
-	testPool := New(1, 1024, 2, makeFunc)
-	size := 33
-	mark := byte(0x42)
-	markPos := 5
-
-	// get a slice and mark it so we can check its reused
-	s := testPool.Get(size)[:size]
-	s[markPos] = mark
-	testPool.Put(s)
-
-	// request a slice of the same size
-	s = testPool.Get(size)[:size]
-	require.Equal(t, mark, s[markPos])
-}
