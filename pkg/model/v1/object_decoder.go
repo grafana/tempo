@@ -4,22 +4,23 @@ import (
 	"fmt"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/model/decoder"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 const Encoding = "v1"
 
-type Decoder struct {
+type ObjectDecoder struct {
 }
 
-var staticDecoder = &Decoder{}
+var staticDecoder = &ObjectDecoder{}
 
-func NewDecoder() *Decoder {
+func NewObjectDecoder() *ObjectDecoder {
 	return staticDecoder
 }
 
-func (d *Decoder) PrepareForRead(obj []byte) (*tempopb.Trace, error) {
+func (d *ObjectDecoder) PrepareForRead(obj []byte) (*tempopb.Trace, error) {
 	trace := &tempopb.Trace{}
 	traceBytes := &tempopb.TraceBytes{}
 	err := proto.Unmarshal(obj, traceBytes)
@@ -39,7 +40,7 @@ func (d *Decoder) PrepareForRead(obj []byte) (*tempopb.Trace, error) {
 	return trace, err
 }
 
-func (d *Decoder) Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
+func (d *ObjectDecoder) Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
 	t, err := d.PrepareForRead(obj)
 	if err != nil {
 		return nil, err
@@ -48,10 +49,10 @@ func (d *Decoder) Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*t
 	return trace.MatchesProto(id, t, req)
 }
 
-func (d *Decoder) Combine(objs ...[]byte) ([]byte, error) {
+func (d *ObjectDecoder) Combine(objs ...[]byte) ([]byte, error) {
 	var combinedTrace *tempopb.Trace
 	for _, obj := range objs {
-		t, err := d.PrepareForRead(obj)
+		t, err := staticDecoder.PrepareForRead(obj)
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshaling trace: %w", err)
 		}
@@ -67,7 +68,11 @@ func (d *Decoder) Combine(objs ...[]byte) ([]byte, error) {
 	return combinedBytes, nil
 }
 
-func (d *Decoder) Marshal(t *tempopb.Trace) ([]byte, error) {
+func (d *ObjectDecoder) FastRange([]byte) (uint32, uint32, error) {
+	return 0, 0, decoder.ErrUnsupported
+}
+
+func (d *ObjectDecoder) Marshal(t *tempopb.Trace) ([]byte, error) {
 	traceBytes := &tempopb.TraceBytes{}
 	bytes, err := proto.Marshal(t)
 	if err != nil {

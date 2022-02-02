@@ -6,7 +6,9 @@ import "trace/v1/trace.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 service Pusher {
-  rpc PushBytes(PushBytesRequest) returns (PushResponse) {};
+  // different versions of PushBytes expect the trace data to be pushed in different formats
+  rpc PushBytes(PushBytesRequest) returns (PushResponse) {};   // ./pkg/model/v1
+  rpc PushBytesV2(PushBytesRequest) returns (PushResponse) {}; // ./pkg/model/v2
 }
 
 service Querier {
@@ -102,10 +104,9 @@ message Trace {
 message PushResponse {
 }
 
+// PushBytesRequest pushes slices of traces, ids and searchdata. Traces are encoded using the
+//  current BatchDecoder in ./pkg/model
 message PushBytesRequest {
-  // pre-marshalled PushRequests
-  //repeated bytes requests = 1 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes", deprecated=true];
-
   // pre-marshalled Traces. length must match ids
   repeated bytes traces = 2 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
   // trace ids. length must match traces
@@ -113,7 +114,6 @@ message PushBytesRequest {
   // search data, length must match traces
   repeated bytes searchData = 4 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
 }
-
 
 message TraceBytes {
   // pre-marshalled Traces
