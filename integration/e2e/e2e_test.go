@@ -154,7 +154,7 @@ func TestMicroservicesWithKVStores(t *testing.T) {
         store: etcd
         etcd:
           endpoints:
-            - http://tempo_e2e-%s:%d`, hostname, port)
+            - http://%s:%d`, hostname, port)
 			},
 		},
 		{
@@ -163,7 +163,7 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 				return fmt.Sprintf(`
         store: consul
         consul:
-          host: http://tempo_e2e-%s:%d`, hostname, port)
+          host: http://%s:%d`, hostname, port)
 			},
 		},
 	}
