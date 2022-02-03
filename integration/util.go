@@ -6,11 +6,20 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"testing"
 	"time"
+
+	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/e2e"
-	"github.com/pkg/errors"
+	"github.com/grafana/tempo/pkg/tempopb"
+	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -148,4 +157,79 @@ func TempoBackoff() backoff.Config {
 		MaxBackoff: time.Second,
 		MaxRetries: 300, // Sometimes the CI is slow ¯\_(ツ)_/¯
 	}
+}
+
+func NewJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
+	// new jaeger grpc exporter
+	conn, err := grpc.Dial(endpoint, grpc.WithInsecure())
+	if err != nil {
+		return nil, err
+	}
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		return nil, err
+	}
+	return jaeger_grpc.NewReporter(conn, nil, logger), err
+}
+
+func SearchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
+	expected, err := info.ConstructTraceFromEpoch()
+	require.NoError(t, err)
+
+	attr := tempoUtil.RandomAttrFromTrace(expected)
+
+	// verify attribute is present in tags
+	tagsResp, err := client.SearchTags()
+	require.NoError(t, err)
+	require.Contains(t, tagsResp.TagNames, attr.Key)
+
+	// verify attribute value is present in tag values
+	tagValuesResp, err := client.SearchTagValues(attr.Key)
+	require.NoError(t, err)
+	require.Contains(t, tagValuesResp.TagValues, strings.ToLower(attr.GetValue().GetStringValue()))
+
+	// verify trace can be found using attribute
+	resp, err := client.Search(attr.GetKey() + "=" + attr.GetValue().GetStringValue())
+	require.NoError(t, err)
+
+	hasHex := func(hexId string, resp *tempopb.SearchResponse) bool {
+		for _, s := range resp.Traces {
+			equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexId)
+			require.NoError(t, err)
+			if equal {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	require.True(t, hasHex(info.HexID(), resp))
+}
+
+// by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
+// to look in the backend blocks
+func SearchAndAssertTraceBackend(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo, start int64, end int64) {
+	expected, err := info.ConstructTraceFromEpoch()
+	require.NoError(t, err)
+
+	attr := tempoUtil.RandomAttrFromTrace(expected)
+
+	// verify trace can be found using attribute and time range
+	resp, err := client.SearchWithRange(attr.GetKey()+"="+attr.GetValue().GetStringValue(), start, end)
+	require.NoError(t, err)
+
+	hasHex := func(hexId string, resp *tempopb.SearchResponse) bool {
+		for _, s := range resp.Traces {
+			equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexId)
+			require.NoError(t, err)
+			if equal {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	require.True(t, hasHex(info.HexID(), resp))
 }

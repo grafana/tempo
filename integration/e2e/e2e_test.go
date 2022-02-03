@@ -7,22 +7,18 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"sync"
 	"testing"
 	"text/template"
 	"time"
 
-	"github.com/grafana/e2e"
-	e2edb "github.com/grafana/e2e/db"
-	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
 	"gopkg.in/yaml.v2"
 
+	"github.com/grafana/e2e"
+	e2edb "github.com/grafana/e2e/db"
 	"github.com/grafana/tempo/cmd/tempo/app"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
@@ -33,7 +29,6 @@ import (
 
 const (
 	configMicroservices = "config-microservices.tmpl.yaml"
-	configServerless    = "config-serverless.yaml"
 	configHA            = "config-scalable-single-binary.yaml"
 
 	configAllInOneS3      = "config-all-in-one-s3.yaml"
@@ -80,7 +75,7 @@ func TestAllInOne(t *testing.T) {
 			require.NoError(t, s.StartAndWaitReady(tempo))
 
 			// Get port for the Jaeger gRPC receiver endpoint
-			c, err := newJaegerGRPCClient(tempo.Endpoint(14250))
+			c, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
 			require.NoError(t, err)
 			require.NotNil(t, c)
 
@@ -105,7 +100,7 @@ func TestAllInOne(t *testing.T) {
 			queryAndAssertTrace(t, apiClient, info)
 
 			// search an in-memory trace
-			searchAndAssertTrace(t, apiClient, info)
+			util.SearchAndAssertTrace(t, apiClient, info)
 
 			// flush trace to backend
 			res, err := e2e.DoGet("http://" + tempo.Endpoint(3200) + "/flush")
@@ -130,7 +125,7 @@ func TestAllInOne(t *testing.T) {
 
 			// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 			now := time.Now()
-			searchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
+			util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 		})
 	}
 }
@@ -234,7 +229,7 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
 
 			// Get port for the Jaeger gRPC receiver endpoint
-			c, err := newJaegerGRPCClient(tempoDistributor.Endpoint(14250))
+			c, err := util.NewJaegerGRPCClient(tempoDistributor.Endpoint(14250))
 			require.NoError(t, err)
 			require.NotNil(t, c)
 
@@ -261,7 +256,7 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			queryAndAssertTrace(t, apiClient, info)
 
 			// search an in-memory trace
-			searchAndAssertTrace(t, apiClient, info)
+			util.SearchAndAssertTrace(t, apiClient, info)
 
 			// flush trace to backend
 			res, err := e2e.DoGet("http://" + tempoIngester1.Endpoint(3200) + "/flush")
@@ -303,11 +298,11 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			queryAndAssertTrace(t, apiClient, info)
 
 			// search an in-memory trace
-			searchAndAssertTrace(t, apiClient, info)
+			util.SearchAndAssertTrace(t, apiClient, info)
 
 			// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 			now := time.Now()
-			searchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
+			util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 
 			// stop another ingester and confirm things fail
 			err = tempoIngester1.Kill()
@@ -370,15 +365,15 @@ func TestScalableSingleBinary(t *testing.T) {
 	require.NoError(t, tempo2.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
 	require.NoError(t, tempo3.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
 
-	c1, err := newJaegerGRPCClient(tempo1.Endpoint(14250))
+	c1, err := util.NewJaegerGRPCClient(tempo1.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c1)
 
-	c2, err := newJaegerGRPCClient(tempo2.Endpoint(14250))
+	c2, err := util.NewJaegerGRPCClient(tempo2.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c2)
 
-	c3, err := newJaegerGRPCClient(tempo3.Endpoint(14250))
+	c3, err := util.NewJaegerGRPCClient(tempo3.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c3)
 
@@ -466,81 +461,6 @@ func queryAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil
 	require.NoError(t, err)
 
 	require.True(t, equalTraces(resp, expected))
-}
-
-func searchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
-	expected, err := info.ConstructTraceFromEpoch()
-	require.NoError(t, err)
-
-	attr := tempoUtil.RandomAttrFromTrace(expected)
-
-	// verify attribute is present in tags
-	tagsResp, err := client.SearchTags()
-	require.NoError(t, err)
-	require.Contains(t, tagsResp.TagNames, attr.Key)
-
-	// verify attribute value is present in tag values
-	tagValuesResp, err := client.SearchTagValues(attr.Key)
-	require.NoError(t, err)
-	require.Contains(t, tagValuesResp.TagValues, strings.ToLower(attr.GetValue().GetStringValue()))
-
-	// verify trace can be found using attribute
-	resp, err := client.Search(attr.GetKey() + "=" + attr.GetValue().GetStringValue())
-	require.NoError(t, err)
-
-	hasHex := func(hexId string, resp *tempopb.SearchResponse) bool {
-		for _, s := range resp.Traces {
-			equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexId)
-			require.NoError(t, err)
-			if equal {
-				return true
-			}
-		}
-
-		return false
-	}
-
-	require.True(t, hasHex(info.HexID(), resp))
-}
-
-// by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
-// to look in the backend blocks
-func searchAndAssertTraceBackend(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo, start int64, end int64) {
-	expected, err := info.ConstructTraceFromEpoch()
-	require.NoError(t, err)
-
-	attr := tempoUtil.RandomAttrFromTrace(expected)
-
-	// verify trace can be found using attribute and time range
-	resp, err := client.SearchWithRange(attr.GetKey()+"="+attr.GetValue().GetStringValue(), start, end)
-	require.NoError(t, err)
-
-	hasHex := func(hexId string, resp *tempopb.SearchResponse) bool {
-		for _, s := range resp.Traces {
-			equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexId)
-			require.NoError(t, err)
-			if equal {
-				return true
-			}
-		}
-
-		return false
-	}
-
-	require.True(t, hasHex(info.HexID(), resp))
-}
-
-func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
-	// new jaeger grpc exporter
-	conn, err := grpc.Dial(endpoint, grpc.WithInsecure())
-	if err != nil {
-		return nil, err
-	}
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		return nil, err
-	}
-	return jaeger_grpc.NewReporter(conn, nil, logger), err
 }
 
 func equalTraces(a, b *tempopb.Trace) bool {

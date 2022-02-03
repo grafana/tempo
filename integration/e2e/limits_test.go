@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	util "github.com/grafana/tempo/integration"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/e2e"
-	"github.com/stretchr/testify/require"
+	util "github.com/grafana/tempo/integration"
 )
 
 const (
@@ -25,7 +25,7 @@ func TestLimits(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// Get port for the otlp receiver endpoint
-	c, err := newJaegerGRPCClient(tempo.Endpoint(14250))
+	c, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 

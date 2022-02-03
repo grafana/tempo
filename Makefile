@@ -73,13 +73,19 @@ benchmark:
 test-with-cover: test-serverless
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
 
+# runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
-test-e2e: docker-tempo docker-serverless
+test-e2e: docker-tempo
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
+
+# runs only serverless e2e tests
+.PHONY: test-e2e-serverless
+test-e2e-serverless: docker-tempo docker-serverless
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/serverless
 
 # test-all/bench use a docker image so build it first to make sure we're up to date
 .PHONY: test-all
-test-all: test-with-cover test-e2e
+test-all: test-with-cover test-e2e test-e2e-serverless
 
 .PHONY: test-bench
 test-bench: docker-tempo
@@ -130,7 +136,7 @@ PROTO_INCLUDES = -I$(PROTO_INTERMEDIATE_DIR)
 PROTO_GEN = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
 
 .PHONY: gen-proto
-gen-proto: 
+gen-proto:
 	@echo --
 	@echo -- Deleting existing
 	@echo --
@@ -162,7 +168,7 @@ gen-proto:
 	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+import "opentelemetry/proto/+import "+g'
 
 	@echo --
-	@echo -- Gen proto -- 
+	@echo -- Gen proto --
 	@echo --
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/common/v1/common.proto,./pkg/tempopb/)
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto,./pkg/tempopb/)

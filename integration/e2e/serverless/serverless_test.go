@@ -1,16 +1,20 @@
-package e2e
+package serverless
 
 import (
 	"testing"
 	"time"
 
-	"github.com/grafana/e2e"
-	e2e_db "github.com/grafana/e2e/db"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/e2e"
+	e2e_db "github.com/grafana/e2e/db"
 	util "github.com/grafana/tempo/integration"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
+)
+
+const (
+	configServerless = "config-serverless.yaml"
 )
 
 func TestServerless(t *testing.T) {
@@ -49,7 +53,7 @@ func TestServerless(t *testing.T) {
 	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
 
 	// Get port for the Jaeger gRPC receiver endpoint
-	c, err := newJaegerGRPCClient(tempoDistributor.Endpoint(14250))
+	c, err := util.NewJaegerGRPCClient(tempoDistributor.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
@@ -81,7 +85,7 @@ func TestServerless(t *testing.T) {
 
 	// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 	now := time.Now()
-	searchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
+	util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 }
 
 func newTempoServerless() *e2e.HTTPService {
