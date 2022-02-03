@@ -179,7 +179,7 @@ gen-flat:
 ### Check vendored files and generated proto
 .PHONY: vendor-check
 vendor-check: gen-proto gen-flat update-mod
-	git diff --exit-code -- go.sum go.mod vendor/ pkg/tempopb/ pkg/tempofb/
+	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/tempofb/
 
 ### Tidy dependencies for tempo and tempo-serverless modules
 .PHONY: update-mod
