@@ -2,6 +2,7 @@ package generator
 
 import (
 	"flag"
+	"time"
 
 	"github.com/prometheus/prometheus/config"
 
@@ -23,6 +24,10 @@ type Config struct {
 
 	Processor ProcessorConfig `yaml:"processor"`
 
+	// CollectionInterval controls how often to collect and remote write metrics.
+	// Defaults to 15s.
+	CollectionInterval time.Duration `yaml:"collection_interval"`
+
 	// ExternalLabels are added to any time-series exported by this instance.
 	ExternalLabels map[string]string `yaml:"external_labels,omitempty"`
 
@@ -38,6 +43,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Ring.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Processor.RegisterFlagsAndApplyDefaults(prefix, f)
 
+	cfg.CollectionInterval = 15 * time.Second
 	cfg.AddInstanceIDLabel = true
 
 	cfg.RemoteWrite.RegisterFlagsAndApplyDefaults(prefix, f)

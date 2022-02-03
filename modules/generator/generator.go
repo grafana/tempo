@@ -16,7 +16,6 @@ import (
 	"github.com/prometheus/prometheus/storage"
 	"github.com/weaveworks/common/user"
 
-	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
 )
@@ -144,12 +143,7 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 }
 
 func (g *Generator) running(ctx context.Context) error {
-	// TODO make configurable
-	//  Should we make the collect interval configurable per tenant? Tenants might want to choose between 1 and 4 DPM
-	collectMetricsInterval := 15 * time.Second
-
-	// TODO should we make this a separate service? This could simplify stop logic a little bit
-	collectMetricsTicker := time.NewTicker(collectMetricsInterval)
+	collectMetricsTicker := time.NewTicker(g.cfg.CollectionInterval)
 	defer collectMetricsTicker.Stop()
 
 	for {
