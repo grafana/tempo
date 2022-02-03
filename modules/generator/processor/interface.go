@@ -18,7 +18,7 @@ type Processor interface {
 	// PushSpans processes a batch of spans and updates the metrics register in RegisterMetrics.
 	PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error
 
-	// Shutdown releases any resources allocated by the processor and unregister metrics registered
+	// Shutdown releases any resources allocated by the processor and unregisters metrics registered
 	// by RegisterMetrics.
 	Shutdown(ctx context.Context, reg prometheus.Registerer) error
 }

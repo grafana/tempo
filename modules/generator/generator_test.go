@@ -41,7 +41,7 @@ type metric struct {
 func TestGenerator(t *testing.T) {
 	// logs will be useful to debug problems
 	// TODO pass the logger as a parameter to generator.New instead of overriding a global variable
-	log.Logger = gokitlog.NewLogfmtLogger(os.Stdout)
+	log.Logger = gokitlog.NewLogfmtLogger(gokitlog.NewSyncWriter(os.Stdout))
 
 	rwServer, doneCh := remoteWriteServer(t, expectedMetrics)
 	defer rwServer.Close()
