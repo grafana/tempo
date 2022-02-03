@@ -1,12 +1,12 @@
 package tempopb
 
 import (
-	"github.com/prometheus/prometheus/util/pool"
+	"github.com/grafana/tempo/pkg/tempopb/pool"
 )
 
 var (
 	// buckets: [0.5KiB, 1KiB, 2KiB, 4KiB, 8KiB, 16KiB]
-	bytePool = pool.New(500, 16_000, 2, func(size int) interface{} { return make([]byte, 0, size) })
+	bytePool = pool.New(500, 16_000, 2, func(size int) []byte { return make([]byte, 0, size) })
 )
 
 // PreallocBytes is a (repeated bytes slices) which preallocs slices on Unmarshal.
@@ -16,7 +16,7 @@ type PreallocBytes struct {
 
 // Unmarshal implements proto.Message.
 func (r *PreallocBytes) Unmarshal(dAtA []byte) error {
-	r.Slice = bytePool.Get(len(dAtA)).([]byte)
+	r.Slice = bytePool.Get(len(dAtA))
 	r.Slice = r.Slice[:len(dAtA)]
 	copy(r.Slice, dAtA)
 	return nil
@@ -37,14 +37,14 @@ func (r *PreallocBytes) Size() (n int) {
 	return len(r.Slice)
 }
 
-// ReuseTraceBytes puts the byte slice back into bytePool for reuse.
-func ReuseTraceBytes(trace *TraceBytes) {
-	for _, t := range trace.Traces {
-		bytePool.Put(t[:0])
+// ReuseByteSlices puts the byte slice back into bytePool for reuse.
+func ReuseByteSlices(buffs [][]byte) {
+	for _, b := range buffs {
+		bytePool.Put(b[:0])
 	}
 }
 
 // SliceFromBytePool gets a slice from the byte pool
 func SliceFromBytePool(size int) []byte {
-	return bytePool.Get(size).([]byte)[:size]
+	return bytePool.Get(size)[:size]
 }

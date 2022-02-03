@@ -18,7 +18,10 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
+	model_v1 "github.com/grafana/tempo/pkg/model/v1"
+	model_v2 "github.com/grafana/tempo/pkg/model/v2"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -30,36 +33,52 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
-func TestPushQuery(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("/tmp", "")
-	require.NoError(t, err, "unexpected error getting tempdir")
-	defer os.RemoveAll(tmpDir)
+func TestPushQueryAllEncodings(t *testing.T) {
+	for _, e := range model.AllEncodings {
+		t.Run(e, func(t *testing.T) {
+			var push func(*testing.T, *Ingester, *v1.ResourceSpans, []byte)
 
-	ctx := user.InjectOrgID(context.Background(), "test")
-	ingester, traces, traceIDs := defaultIngester(t, tmpDir)
+			switch e {
+			case model_v1.Encoding:
+				push = pushBatchV1
+			case model_v2.Encoding:
+				push = pushBatchV2
+			default:
+				t.Fatal("unsupported encoding", e)
+			}
 
-	for pos, traceID := range traceIDs {
-		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
-			TraceID: traceID,
+			tmpDir, err := os.MkdirTemp("/tmp", "")
+			require.NoError(t, err, "unexpected error getting tempdir")
+			defer os.RemoveAll(tmpDir)
+
+			ctx := user.InjectOrgID(context.Background(), "test")
+			ingester, traces, traceIDs := defaultIngesterWithPush(t, tmpDir, push)
+
+			// live trace search
+			for pos, traceID := range traceIDs {
+				foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+					TraceID: traceID,
+				})
+				require.NoError(t, err, "unexpected error querying")
+				require.Equal(t, foundTrace.Trace, traces[pos])
+			}
+
+			// force cut all traces
+			for _, instance := range ingester.instances {
+				err = instance.CutCompleteTraces(0, true)
+				require.NoError(t, err, "unexpected error cutting traces")
+			}
+
+			// head block search
+			for i, traceID := range traceIDs {
+				foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+					TraceID: traceID,
+				})
+				require.NoError(t, err, "unexpected error querying")
+				equal := proto.Equal(traces[i], foundTrace.Trace)
+				require.True(t, equal)
+			}
 		})
-		require.NoError(t, err, "unexpected error querying")
-		require.Equal(t, foundTrace.Trace, traces[pos])
-	}
-
-	// force cut all traces
-	for _, instance := range ingester.instances {
-		err = instance.CutCompleteTraces(0, true)
-		require.NoError(t, err, "unexpected error cutting traces")
-	}
-
-	// should be able to find them now
-	for i, traceID := range traceIDs {
-		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
-			TraceID: traceID,
-		})
-		require.NoError(t, err, "unexpected error querying")
-		equal := proto.Equal(traces[i], foundTrace.Trace)
-		require.True(t, equal)
 	}
 }
 
@@ -78,7 +97,7 @@ func TestFullTraceReturned(t *testing.T) {
 	trace.SortTrace(testTrace)
 
 	// push the first batch
-	pushBatch(t, ingester, testTrace.Batches[0], traceID)
+	pushBatchV2(t, ingester, testTrace.Batches[0], traceID)
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
@@ -87,7 +106,7 @@ func TestFullTraceReturned(t *testing.T) {
 	}
 
 	// push the 2nd batch
-	pushBatch(t, ingester, testTrace.Batches[1], traceID)
+	pushBatchV2(t, ingester, testTrace.Batches[1], traceID)
 
 	// make sure the trace comes back whole
 	foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
@@ -337,6 +356,10 @@ func defaultIngesterModule(t *testing.T, tmpDir string) *Ingester {
 }
 
 func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, [][]byte) {
+	return defaultIngesterWithPush(t, tmpDir, pushBatchV2)
+}
+
+func defaultIngesterWithPush(t *testing.T, tmpDir string, push func(*testing.T, *Ingester, *v1.ResourceSpans, []byte)) (*Ingester, []*tempopb.Trace, [][]byte) {
 	ingester := defaultIngesterModule(t, tmpDir)
 
 	// make some fake traceIDs/requests
@@ -357,7 +380,7 @@ func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, 
 
 	for i, trace := range traces {
 		for _, batch := range trace.Batches {
-			pushBatch(t, ingester, batch, traceIDs[i])
+			push(t, ingester, batch, traceIDs[i])
 		}
 	}
 
@@ -393,15 +416,42 @@ func defaultLimitsTestConfig() overrides.Limits {
 	return limits
 }
 
-func pushBatch(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
+func pushBatchV2(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 	ctx := user.InjectOrgID(context.Background(), "test")
+	batchDecoder := model.MustNewSegmentDecoder(model_v2.Encoding)
 
 	pbTrace := &tempopb.Trace{
 		Batches: []*v1.ResourceSpans{batch},
 	}
 
-	buffer := tempopb.SliceFromBytePool(pbTrace.Size())
-	_, err := pbTrace.MarshalToSizedBuffer(buffer)
+	buffer, err := batchDecoder.PrepareForWrite(pbTrace, 0, 0)
+	require.NoError(t, err)
+
+	_, err = i.PushBytesV2(ctx, &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{
+			{
+				Slice: buffer,
+			},
+		},
+		Ids: []tempopb.PreallocBytes{
+			{
+				Slice: id,
+			},
+		},
+	})
+	require.NoError(t, err)
+}
+
+func pushBatchV1(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
+	ctx := user.InjectOrgID(context.Background(), "test")
+
+	batchDecoder := model.MustNewSegmentDecoder(model_v1.Encoding)
+
+	pbTrace := &tempopb.Trace{
+		Batches: []*v1.ResourceSpans{batch},
+	}
+
+	buffer, err := batchDecoder.PrepareForWrite(pbTrace, 0, 0)
 	require.NoError(t, err)
 
 	_, err = i.PushBytes(ctx, &tempopb.PushBytesRequest{

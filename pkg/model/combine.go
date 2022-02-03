@@ -36,7 +36,7 @@ func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bo
 		return objs[0], false, nil
 	}
 
-	encoding, err := NewDecoder(dataEncoding)
+	encoding, err := NewObjectDecoder(dataEncoding)
 	if err != nil {
 		return nil, false, fmt.Errorf("error getting decoder: %w", err)
 	}
@@ -53,7 +53,7 @@ func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bo
 // use of PrepareForRead() it is a costly method and should not be called during any write
 // or compaction operations.
 func CombineForRead(obj []byte, dataEncoding string, t *tempopb.Trace) (*tempopb.Trace, error) {
-	decoder, err := NewDecoder(dataEncoding)
+	decoder, err := NewObjectDecoder(dataEncoding)
 	if err != nil {
 		return nil, fmt.Errorf("error getting decoder: %w", err)
 	}
