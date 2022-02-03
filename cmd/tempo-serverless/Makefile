@@ -32,7 +32,7 @@ test:
 	go test -v .
 
 
-### Tidy dependencies for tempo and tempo-serverless modules
+### Tidy dependencies for tempo-serverless module
 .PHONY: update-mod
 update-mod:
 	go mod tidy -e
