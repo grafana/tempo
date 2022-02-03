@@ -186,7 +186,7 @@ vendor-check: gen-proto gen-flat update-mod
 update-mod:
 	go mod vendor
 	go mod tidy -e
-	cd cmd/tempo-serverless && go mod tidy -e
+	$(MAKE) -C cmd/tempo-serverless update-mod
 
 
 ### Release (intended to be used in the .github/workflows/release.yml)

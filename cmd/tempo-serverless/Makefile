@@ -30,3 +30,9 @@ build-zip:
 
 test:
 	go test -v .
+
+
+### Tidy dependencies for tempo and tempo-serverless modules
+.PHONY: update-mod
+update-mod:
+	go mod tidy -e
