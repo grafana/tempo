@@ -17,7 +17,6 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
-	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
 )
@@ -46,7 +45,7 @@ type instance struct {
 	cfg *Config
 
 	instanceID string
-	overrides  *overrides.Overrides
+	overrides  metricsGeneratorOverrides
 
 	registry   processor.Registry
 	appendable storage.Appendable
@@ -61,7 +60,7 @@ type instance struct {
 	metricBytesIngestedTotal prometheus.Counter
 }
 
-func newInstance(cfg *Config, instanceID string, overrides *overrides.Overrides, appendable storage.Appendable) (*instance, error) {
+func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, appendable storage.Appendable) (*instance, error) {
 	i := &instance{
 		cfg:        cfg,
 		instanceID: instanceID,
@@ -108,13 +107,14 @@ func (i *instance) watchOverrides() {
 }
 
 func (i *instance) updateProcessors(desiredProcessors map[string]struct{}) error {
+	i.processorsMtx.RLock()
+	defer i.processorsMtx.RUnlock()
+
 	// add missing processors
 	for processorName := range desiredProcessors {
-		i.processorsMtx.RLock()
 		_, ok := i.processors[processorName]
-		i.processorsMtx.RUnlock()
-
 		if ok {
+			// processor already exists
 			continue
 		}
 
@@ -134,7 +134,10 @@ func (i *instance) updateProcessors(desiredProcessors map[string]struct{}) error
 			return fmt.Errorf("unknown processor %s", processorName)
 		}
 
+		i.processorsMtx.RUnlock()
 		err := i.addProcessor(newProcessor)
+		i.processorsMtx.RLock()
+
 		if err != nil {
 			return err
 		}
@@ -144,10 +147,13 @@ func (i *instance) updateProcessors(desiredProcessors map[string]struct{}) error
 	for processorName := range i.processors {
 		_, ok := desiredProcessors[processorName]
 		if ok {
+			// processor is also in the desired list
 			continue
 		}
 
+		i.processorsMtx.RUnlock()
 		i.removeProcessor(processorName)
+		i.processorsMtx.RLock()
 	}
 
 	i.updateProcessorMetrics()
@@ -155,29 +161,21 @@ func (i *instance) updateProcessors(desiredProcessors map[string]struct{}) error
 	return nil
 }
 
-func (i *instance) updateProcessorMetrics() {
-	i.processorsMtx.RLock()
-	defer i.processorsMtx.RUnlock()
-
-	for _, processorName := range allSupportedProcessors {
-		isPresent := 0.0
-		if _, ok := i.processors[processorName]; ok {
-			isPresent = 1.0
-		}
-		metricActiveProcessors.WithLabelValues(i.instanceID, processorName).Set(isPresent)
-	}
-}
-
 func (i *instance) addProcessor(processor processor.Processor) error {
 	level.Debug(log.Logger).Log("msg", "adding processor", "processorName", processor.Name(), "tenant", i.instanceID)
+
+	i.processorsMtx.Lock()
+	defer i.processorsMtx.Unlock()
+
+	// check the processor wasn't added in the meantime
+	if _, ok := i.processors[processor.Name()]; ok {
+		return nil
+	}
 
 	err := processor.RegisterMetrics(i.registry)
 	if err != nil {
 		return fmt.Errorf("error registering metrics for %s: %w", processor.Name(), err)
 	}
-
-	i.processorsMtx.Lock()
-	defer i.processorsMtx.Unlock()
 
 	i.processors[processor.Name()] = processor
 
@@ -186,9 +184,14 @@ func (i *instance) addProcessor(processor processor.Processor) error {
 
 func (i *instance) removeProcessor(processorName string) {
 	i.processorsMtx.Lock()
-	deletedProcessor := i.processors[processorName]
+	defer i.processorsMtx.Unlock()
+
+	deletedProcessor, ok := i.processors[processorName]
+	if !ok {
+		return
+	}
+
 	delete(i.processors, processorName)
-	i.processorsMtx.Unlock()
 
 	err := deletedProcessor.Shutdown(context.TODO(), i.registry)
 	if err != nil {
@@ -196,6 +199,17 @@ func (i *instance) removeProcessor(processorName string) {
 	}
 
 	level.Debug(log.Logger).Log("msg", "removed processor", "processorName", processorName, "tenant", i.instanceID)
+}
+
+// updateProcessorMetrics updates the active processor metrics. Must be called under a read lock.
+func (i *instance) updateProcessorMetrics() {
+	for _, processorName := range allSupportedProcessors {
+		isPresent := 0.0
+		if _, ok := i.processors[processorName]; ok {
+			isPresent = 1.0
+		}
+		metricActiveProcessors.WithLabelValues(i.instanceID, processorName).Set(isPresent)
+	}
 }
 
 func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error {
@@ -255,9 +269,13 @@ func (i *instance) shutdown(ctx context.Context) error {
 		level.Error(log.Logger).Log("msg", "collecting metrics failed at shutdown", "tenant", i.instanceID, "err", err)
 	}
 
+	i.processorsMtx.RLock()
 	for processorName := range i.processors {
+		i.processorsMtx.RUnlock()
 		i.removeProcessor(processorName)
+		i.processorsMtx.RLock()
 	}
+	i.processorsMtx.RUnlock()
 
 	return nil
 }
