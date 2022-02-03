@@ -96,8 +96,6 @@ func (a *remoteWriteAppender) AppendExemplar(storage.SeriesRef, labels.Labels, e
 
 func (a *remoteWriteAppender) Commit() error {
 	level.Debug(a.logger).Log("msg", "writing samples to remote_write target", "tenant", a.userID, "target", a.remoteWriter.Endpoint(), "count", len(a.samples))
-	a.metrics.samplesSent.WithLabelValues(a.userID).Set(float64(len(a.samples)))
-	a.metrics.remoteWriteTotal.WithLabelValues(a.userID).Inc()
 
 	if len(a.samples) == 0 {
 		return nil
@@ -105,7 +103,9 @@ func (a *remoteWriteAppender) Commit() error {
 
 	reqs := a.buildRequests()
 
-	// TODO: send requests in parallel.
+	a.metrics.samplesSent.WithLabelValues(a.userID).Add(float64(len(a.samples)))
+	a.metrics.remoteWriteTotal.WithLabelValues(a.userID).Add(float64(len(reqs)))
+
 	err := a.sendWriteRequests(reqs)
 	if err != nil {
 		level.Error(a.logger).Log("msg", "error sending remote-write requests", "tenant", a.userID, "target", a.remoteWriter.Endpoint(), "err", err)
@@ -206,17 +206,17 @@ func (a *noopAppender) Rollback() error {
 }
 
 type remoteWriteMetrics struct {
-	samplesSent       *prometheus.GaugeVec
+	samplesSent       *prometheus.CounterVec
 	remoteWriteErrors *prometheus.CounterVec
 	remoteWriteTotal  *prometheus.CounterVec
 }
 
 func newRemoteWriteMetrics(reg prometheus.Registerer) *remoteWriteMetrics {
 	return &remoteWriteMetrics{
-		samplesSent: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
+		samplesSent: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Namespace: "tempo",
-			Name:      "metrics_generator_samples_sent",
-			Help:      "Number of samples sent per remote write",
+			Name:      "metrics_generator_samples_sent_total",
+			Help:      "Number of samples sent",
 		}, []string{"tenant"}),
 		remoteWriteErrors: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Namespace: "tempo",
