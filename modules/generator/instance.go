@@ -29,6 +29,11 @@ var (
 		Name:      "metrics_generator_active_processors",
 		Help:      "The active processors per tenant",
 	}, []string{"tenant", "processor"})
+	metricActiveProcessorsUpdateFailed = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_active_processors_update_failed_total",
+		Help:      "The total number of times updating the active processors failed",
+	}, []string{"tenant"})
 	metricSpansIngested = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_spans_received_total",
@@ -55,9 +60,6 @@ type instance struct {
 	processors    map[string]processor.Processor
 
 	shutdownCh chan struct{}
-
-	metricSpansIngestedTotal prometheus.Counter
-	metricBytesIngestedTotal prometheus.Counter
 }
 
 func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, appendable storage.Appendable) (*instance, error) {
@@ -72,9 +74,6 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		processors: make(map[string]processor.Processor),
 
 		shutdownCh: make(chan struct{}, 1),
-
-		metricSpansIngestedTotal: metricSpansIngested.WithLabelValues(instanceID),
-		metricBytesIngestedTotal: metricBytesIngested.WithLabelValues(instanceID),
 	}
 
 	err := i.updateProcessors(i.overrides.MetricsGeneratorProcessors(i.instanceID))
@@ -97,6 +96,7 @@ func (i *instance) watchOverrides() {
 		case <-ticker.C:
 			err := i.updateProcessors(i.overrides.MetricsGeneratorProcessors(i.instanceID))
 			if err != nil {
+				metricActiveProcessorsUpdateFailed.WithLabelValues(i.instanceID).Inc()
 				level.Error(log.Logger).Log("msg", "updating the processors failed", "err", err, "tenant", i.instanceID)
 			}
 
@@ -236,8 +236,8 @@ func (i *instance) updatePushMetrics(req *tempopb.PushSpansRequest) {
 			spanCount += len(ils.Spans)
 		}
 	}
-	i.metricBytesIngestedTotal.Add(float64(size))
-	i.metricSpansIngestedTotal.Add(float64(spanCount))
+	metricBytesIngested.WithLabelValues(i.instanceID).Add(float64(size))
+	metricSpansIngested.WithLabelValues(i.instanceID).Add(float64(spanCount))
 }
 
 func (i *instance) collectAndPushMetrics(ctx context.Context) error {
