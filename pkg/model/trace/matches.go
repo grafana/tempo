@@ -29,7 +29,7 @@ func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (
 	var rootBatch *v1.ResourceSpans
 	// todo: is it possible to shortcircuit this loop?
 	for _, b := range trace.Batches {
-		if !allTagsFound(tagsToFind) {
+		if !allTagsFound(tagsToFind) && b.Resource != nil {
 			matchAttributes(tagsToFind, b.Resource.Attributes)
 		}
 

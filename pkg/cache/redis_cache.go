@@ -10,8 +10,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	instr "github.com/weaveworks/common/instrument"
 
-	util_log "github.com/cortexproject/cortex/pkg/util/log"
-	"github.com/cortexproject/cortex/pkg/util/spanlogger"
+	util_log "github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/pkg/util/spanlogger"
 )
 
 // RedisCache type caches chunks in redis

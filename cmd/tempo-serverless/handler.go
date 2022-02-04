@@ -120,7 +120,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
-	decoder, err := model.NewDecoder(searchReq.DataEncoding)
+	decoder, err := model.NewObjectDecoder(searchReq.DataEncoding)
 	if err != nil {
 		return nil, &HTTPError{
 			Err:    err,

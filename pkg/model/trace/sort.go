@@ -48,13 +48,3 @@ func compareSpans(a *v1.Span, b *v1.Span) bool {
 
 	return a.StartTimeUnixNano < b.StartTimeUnixNano
 }
-
-// SortTraceBytes sorts a *tempopb.TraceBytes
-func SortTraceBytes(t *tempopb.TraceBytes) {
-	sort.Slice(t.Traces, func(i, j int) bool {
-		traceI := t.Traces[i]
-		traceJ := t.Traces[j]
-
-		return bytes.Compare(traceI, traceJ) == -1
-	})
-}

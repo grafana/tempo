@@ -10,12 +10,15 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -44,7 +47,7 @@ func TestInstance(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	ingester, _, _ := defaultIngester(t, tempDir)
-	request := test.MakeRequest(10, []byte{})
+	request := makeRequest([]byte{})
 
 	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
 	require.NoError(t, err, "unexpected error creating new instance")
@@ -107,7 +110,7 @@ func TestInstanceFind(t *testing.T) {
 
 		testTrace := test.MakeTrace(10, id)
 		trace.SortTrace(testTrace)
-		traceBytes, err := testTrace.Marshal()
+		traceBytes, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(testTrace, 0, 0)
 		require.NoError(t, err)
 
 		err = i.PushBytes(context.Background(), id, traceBytes, nil)
@@ -125,7 +128,7 @@ func TestInstanceFind(t *testing.T) {
 	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 	for j := 0; j < numTraces; j++ {
-		traceBytes, err := traces[j].Marshal()
+		traceBytes, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(traces[j], 0, 0)
 		require.NoError(t, err)
 
 		err = i.PushBytes(context.Background(), ids[j], traceBytes, nil)
@@ -194,7 +197,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 		}
 	}
 	go concurrent(func() {
-		request := test.MakeRequest(10, []byte{})
+		request := makeRequest([]byte{})
 		err = i.PushBytesRequest(context.Background(), request)
 		require.NoError(t, err, "error pushing traces")
 	})
@@ -260,13 +263,13 @@ func TestInstanceLimits(t *testing.T) {
 			name: "bytes - succeeds",
 			pushes: []push{
 				{
-					req: test.MakeRequestWithByteLimit(300, []byte{}),
+					req: makeRequestWithByteLimit(300, []byte{}),
 				},
 				{
-					req: test.MakeRequestWithByteLimit(500, []byte{}),
+					req: makeRequestWithByteLimit(500, []byte{}),
 				},
 				{
-					req: test.MakeRequestWithByteLimit(900, []byte{}),
+					req: makeRequestWithByteLimit(900, []byte{}),
 				},
 			},
 		},
@@ -274,14 +277,14 @@ func TestInstanceLimits(t *testing.T) {
 			name: "bytes - one fails",
 			pushes: []push{
 				{
-					req: test.MakeRequestWithByteLimit(300, []byte{}),
+					req: makeRequestWithByteLimit(300, []byte{}),
 				},
 				{
-					req:          test.MakeRequestWithByteLimit(1500, []byte{}),
+					req:          makeRequestWithByteLimit(1500, []byte{}),
 					expectsError: true,
 				},
 				{
-					req: test.MakeRequestWithByteLimit(900, []byte{}),
+					req: makeRequestWithByteLimit(900, []byte{}),
 				},
 			},
 		},
@@ -289,10 +292,10 @@ func TestInstanceLimits(t *testing.T) {
 			name: "bytes - multiple pushes same trace",
 			pushes: []push{
 				{
-					req: test.MakeRequestWithByteLimit(500, []byte{0x01}),
+					req: makeRequestWithByteLimit(500, []byte{0x01}),
 				},
 				{
-					req:          test.MakeRequestWithByteLimit(700, []byte{0x01}),
+					req:          makeRequestWithByteLimit(700, []byte{0x01}),
 					expectsError: true,
 				},
 			},
@@ -301,19 +304,19 @@ func TestInstanceLimits(t *testing.T) {
 			name: "max traces - too many",
 			pushes: []push{
 				{
-					req: test.MakeRequestWithByteLimit(100, []byte{}),
+					req: makeRequestWithByteLimit(100, []byte{}),
 				},
 				{
-					req: test.MakeRequestWithByteLimit(100, []byte{}),
+					req: makeRequestWithByteLimit(100, []byte{}),
 				},
 				{
-					req: test.MakeRequestWithByteLimit(100, []byte{}),
+					req: makeRequestWithByteLimit(100, []byte{}),
 				},
 				{
-					req: test.MakeRequestWithByteLimit(100, []byte{}),
+					req: makeRequestWithByteLimit(100, []byte{}),
 				},
 				{
-					req:          test.MakeRequestWithByteLimit(100, []byte{}),
+					req:          makeRequestWithByteLimit(100, []byte{}),
 					expectsError: true,
 				},
 			},
@@ -340,10 +343,8 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 
 	id := make([]byte, 16)
 	rand.Read(id)
-	tracepb := test.MakeTraceBytes(10, id)
 	pastTrace := &liveTrace{
 		traceID:    id,
-		traceBytes: tracepb,
 		lastAppend: time.Now().Add(-time.Hour),
 	}
 
@@ -351,7 +352,6 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 	rand.Read(id)
 	nowTrace := &liveTrace{
 		traceID:    id,
-		traceBytes: tracepb,
 		lastAppend: time.Now().Add(time.Hour),
 	}
 
@@ -464,7 +464,7 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 			instance := defaultInstance(t, tempDir)
 
 			for i := 0; i < tc.pushCount; i++ {
-				request := test.MakeRequest(10, []byte{})
+				request := makeRequest([]byte{})
 				err := instance.PushBytesRequest(context.Background(), request)
 				require.NoError(t, err)
 			}
@@ -529,7 +529,7 @@ func TestInstanceMetrics(t *testing.T) {
 	// Push some traces
 	count := 100
 	for j := 0; j < count; j++ {
-		request := test.MakeRequest(10, []byte{})
+		request := makeRequest([]byte{})
 		err = i.PushBytesRequest(context.Background(), request)
 		require.NoError(t, err)
 	}
@@ -583,6 +583,42 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSortByteSlices(t *testing.T) {
+	numTraces := 100
+
+	// create first trace
+	traceBytes := &tempopb.TraceBytes{
+		Traces: make([][]byte, numTraces),
+	}
+	for i := range traceBytes.Traces {
+		traceBytes.Traces[i] = make([]byte, rand.Intn(10))
+		_, err := rand.Read(traceBytes.Traces[i])
+		require.NoError(t, err)
+	}
+
+	// dupe
+	traceBytes2 := &tempopb.TraceBytes{
+		Traces: make([][]byte, numTraces),
+	}
+	for i := range traceBytes.Traces {
+		traceBytes2.Traces[i] = make([]byte, len(traceBytes.Traces[i]))
+		copy(traceBytes2.Traces[i], traceBytes.Traces[i])
+	}
+
+	// randomize dupe
+	rand.Shuffle(len(traceBytes2.Traces), func(i, j int) {
+		traceBytes2.Traces[i], traceBytes2.Traces[j] = traceBytes2.Traces[j], traceBytes2.Traces[i]
+	})
+
+	assert.NotEqual(t, traceBytes, traceBytes2)
+
+	// sort and compare
+	sortByteSlices(traceBytes.Traces)
+	sortByteSlices(traceBytes2.Traces)
+
+	assert.Equal(t, traceBytes, traceBytes2)
+}
+
 func defaultInstance(t require.TestingT, tmpDir string) *instance {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
 	require.NoError(t, err, "unexpected error creating limits")
@@ -626,7 +662,7 @@ func BenchmarkInstancePush(b *testing.B) {
 	defer os.RemoveAll(tempDir)
 
 	instance := defaultInstance(b, tempDir)
-	request := test.MakeRequest(10, []byte{})
+	request := makeRequest([]byte{})
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -643,7 +679,7 @@ func BenchmarkInstancePushExistingTrace(b *testing.B) {
 	defer os.RemoveAll(tempDir)
 
 	instance := defaultInstance(b, tempDir)
-	request := test.MakeRequest(10, []byte{})
+	request := makeRequest([]byte{})
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -659,7 +695,7 @@ func BenchmarkInstanceFindTraceByID(b *testing.B) {
 
 	instance := defaultInstance(b, tempDir)
 	traceID := []byte{1, 2, 3, 4, 5, 6, 7, 8}
-	request := test.MakeRequest(10, traceID)
+	request := makeRequest(traceID)
 	err = instance.PushBytesRequest(context.Background(), request)
 	require.NoError(b, err)
 
@@ -668,5 +704,42 @@ func BenchmarkInstanceFindTraceByID(b *testing.B) {
 		trace, err := instance.FindTraceByID(context.Background(), traceID)
 		require.NotNil(b, trace)
 		require.NoError(b, err)
+	}
+}
+
+func makeRequest(traceID []byte) *tempopb.PushBytesRequest {
+	const spans = 10
+
+	traceID = test.ValidTraceID(traceID)
+	return makePushBytesRequest(traceID, test.MakeBatch(spans, traceID))
+}
+
+// Note that this fn will generate a request with size **close to** maxBytes
+func makeRequestWithByteLimit(maxBytes int, traceID []byte) *tempopb.PushBytesRequest {
+	traceID = test.ValidTraceID(traceID)
+	batch := test.MakeBatch(1, traceID)
+
+	for batch.Size() < maxBytes {
+		batch.InstrumentationLibrarySpans[0].Spans = append(batch.InstrumentationLibrarySpans[0].Spans, test.MakeSpan(traceID))
+	}
+
+	return makePushBytesRequest(traceID, batch)
+}
+
+func makePushBytesRequest(traceID []byte, batch *v1_trace.ResourceSpans) *tempopb.PushBytesRequest {
+	trace := &tempopb.Trace{Batches: []*v1_trace.ResourceSpans{batch}}
+
+	buffer, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(trace, 0, 0)
+	if err != nil {
+		panic(err)
+	}
+
+	return &tempopb.PushBytesRequest{
+		Ids: []tempopb.PreallocBytes{{
+			Slice: traceID,
+		}},
+		Traces: []tempopb.PreallocBytes{{
+			Slice: buffer,
+		}},
 	}
 }

@@ -16,7 +16,7 @@ import (
 	"github.com/weaveworks/common/httpgrpc"
 	"google.golang.org/grpc"
 
-	"github.com/cortexproject/cortex/pkg/util"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 type Config struct {

@@ -73,13 +73,19 @@ benchmark:
 test-with-cover: test-serverless
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
 
+# runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
-test-e2e: docker-tempo docker-serverless
+test-e2e: docker-tempo
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
+
+# runs only serverless e2e tests
+.PHONY: test-e2e-serverless
+test-e2e-serverless: docker-tempo docker-serverless
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/serverless
 
 # test-all/bench use a docker image so build it first to make sure we're up to date
 .PHONY: test-all
-test-all: test-with-cover test-e2e
+test-all: test-with-cover test-e2e test-e2e-serverless
 
 .PHONY: test-bench
 test-bench: docker-tempo
@@ -128,16 +134,18 @@ PROTOC = docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PRO
 PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
 PROTO_INCLUDES = -I$(PROTO_INTERMEDIATE_DIR)
 PROTO_GEN = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
+PROTO_GEN_WITH_VENDOR = $(PROTOC) $(PROTO_INCLUDES) -Ivendor --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
 
 .PHONY: gen-proto
-gen-proto: 
+gen-proto:
 	@echo --
 	@echo -- Deleting existing
 	@echo --
 	rm -rf opentelemetry-proto
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 	find pkg/tempopb -name *.pb.go | xargs -L 1 -I rm
-	find pkg/tempopb -name *.proto | grep -v tempo.proto | xargs -L 1 -I rm
+	# Here we avoid removing our tempo.proto and our frontend.proto due to reliance on the gogoproto bits.
+	find pkg/tempopb -name *.proto | grep -v tempo.proto | grep -v frontend.proto | xargs -L 1 -I rm
 
 	@echo --
 	@echo -- Copying to $(PROTO_INTERMEDIATE_DIR)
@@ -162,12 +170,14 @@ gen-proto:
 	find $(PROTO_INTERMEDIATE_DIR) -name "*.proto" | xargs -L 1 sed -i $(SED_OPTS) 's+import "opentelemetry/proto/+import "+g'
 
 	@echo --
-	@echo -- Gen proto -- 
+	@echo -- Gen proto --
 	@echo --
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/common/v1/common.proto,./pkg/tempopb/)
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto,./pkg/tempopb/)
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto,./pkg/tempopb/)
 	$(call PROTO_GEN,pkg/tempopb/tempo.proto,./)
+	$(call PROTO_GEN_WITH_VENDOR,modules/frontend/v1/frontendv1pb/frontend.proto,./)
+	$(call PROTO_GEN_WITH_VENDOR,modules/frontend/v2/frontendv2pb/frontend.proto,./)
 
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
@@ -178,10 +188,15 @@ gen-flat:
 
 ### Check vendored files and generated proto
 .PHONY: vendor-check
-vendor-check: gen-proto gen-flat
+vendor-check: gen-proto gen-flat update-mod
+	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/tempofb/
+
+### Tidy dependencies for tempo and tempo-serverless modules
+.PHONY: update-mod
+update-mod:
 	go mod vendor
 	go mod tidy -e
-	git diff --exit-code -- go.sum go.mod vendor/ pkg/tempopb/ pkg/tempofb/
+	$(MAKE) -C cmd/tempo-serverless update-mod
 
 
 ### Release (intended to be used in the .github/workflows/release.yml)

@@ -49,6 +49,9 @@ build-lambda-zip:
 test:
 	go test -v .
 
-
-# go build .
-# docker run --rm -e DOCKER_LAMBDA_WATCH=1 -e DOCKER_LAMBDA_STAY_OPEN=1 -p 9001:9001 -v "$PWD":/var/task lambci/lambda:go1.x lambda
+### Tidy dependencies for tempo-serverless module
+.PHONY: update-mod
+update-mod:
+	$(IN_LAMBDA) go mod tidy -e
+	$(IN_CLOUD_FUNCTIONS) go mod tidy -e
+    

@@ -1,0 +1,52 @@
+search_enabled: true
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    jaeger:
+      protocols:
+        grpc:
+
+ingester:
+  lifecycler:
+    ring:
+      kvstore: {{ .KVStore }}
+      replication_factor: 3
+    heartbeat_period: 100ms
+  trace_idle_period: 1s
+  max_block_duration: 2s
+  complete_block_timeout: 5s
+  flush_check_period: 1s
+
+storage:
+  trace:
+    blocklist_poll: 2s
+    backend: s3
+    s3:
+      bucket: tempo
+      endpoint: tempo_e2e-minio-9000:9000  # TODO: this is brittle, fix this eventually
+      access_key: Cheescake # TODO: use cortex_e2e.MinioAccessKey
+      secret_key: supersecret # TODO: use cortex_e2e.MinioSecretKey
+      insecure: true
+    pool:
+      max_workers: 10
+      queue_depth: 100
+
+memberlist:
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members:
+  - tempo_e2e-distributor:7946
+  - tempo_e2e-ingester-1:7946
+  - tempo_e2e-ingester-2:7946
+  - tempo_e2e-ingester-3:7946
+  - tempo_e2e-querier:7946
+
+querier:
+  frontend_worker:
+    frontend_address: tempo_e2e-query-frontend:9095
+
+overrides:
+  max_search_bytes_per_trace: 50_000

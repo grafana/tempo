@@ -6,18 +6,11 @@ require (
 	github.com/GoogleCloudPlatform/functions-framework-go v1.3.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/grafana/tempo v1.2.0-rc.0.0.20211029120833-dee59ebe564c
-	github.com/mitchellh/mapstructure v1.4.3 // indirect
-	github.com/spf13/viper v1.9.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 require (
 	cloud.google.com/go/functions v1.0.0 // indirect
 	cloud.google.com/go/kms v1.1.0 // indirect
-	github.com/cortexproject/cortex v1.10.1-0.20211214110443-07d6cfc4eb84 // indirect
-	github.com/google/uuid v1.3.0 // indirect
-	github.com/grafana/dskit v0.0.0-20220112093026-95274ccc858d // indirect
-	github.com/weaveworks/common v0.0.0-20210913144402-035033b78a78 // indirect
 )
 
 replace github.com/grafana/tempo => ../../../
@@ -34,3 +27,6 @@ replace (
 // This function is used by jeagertracing/jaeger, but we can't update jaeger
 // without updating the open-telemetry/collector as well
 replace google.golang.org/grpc => google.golang.org/grpc v1.38.0
+
+// these have been added due to cortex incompatibilies. they can be removed once we drop cortex as a dependency
+replace github.com/grafana/dskit => github.com/grafana/dskit v0.0.0-20211021180445-3bd016e9d7f1

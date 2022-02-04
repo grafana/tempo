@@ -7,11 +7,12 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/stretchr/testify/require"
+
 	"github.com/grafana/e2e"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -28,7 +29,7 @@ func TestCompression(t *testing.T) {
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// Get port for the Jaeger gRPC receiver endpoint
-	c, err := newJaegerGRPCClient(tempo.Endpoint(14250))
+	c, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
