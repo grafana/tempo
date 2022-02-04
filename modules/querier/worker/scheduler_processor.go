@@ -23,11 +23,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/cortexproject/cortex/pkg/frontend/v2/frontendv2pb"
-	querier_stats "github.com/cortexproject/cortex/pkg/querier/stats"
-	"github.com/cortexproject/cortex/pkg/scheduler/schedulerpb"
-	"github.com/cortexproject/cortex/pkg/util/httpgrpcutil"
-	util_log "github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/grafana/tempo/modules/frontend/v2/frontendv2pb"
+	querier_stats "github.com/grafana/tempo/modules/querier/stats"
+	"github.com/grafana/tempo/pkg/scheduler/schedulerpb"
+	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
+	util_log "github.com/grafana/tempo/pkg/util/log"
 )
 
 func newSchedulerProcessor(cfg Config, handler RequestHandler, log log.Logger, reg prometheus.Registerer) (*schedulerProcessor, []services.Service) {

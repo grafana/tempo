@@ -12,9 +12,9 @@ import (
 	"github.com/weaveworks/common/httpgrpc"
 	"google.golang.org/grpc"
 
-	"github.com/cortexproject/cortex/pkg/frontend/v1/frontendv1pb"
-	"github.com/cortexproject/cortex/pkg/querier/stats"
-	querier_stats "github.com/cortexproject/cortex/pkg/querier/stats"
+	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
+	"github.com/grafana/tempo/modules/querier/stats"
+	querier_stats "github.com/grafana/tempo/modules/querier/stats"
 )
 
 var (
@@ -89,7 +89,7 @@ func (fp *frontendProcessor) process(c frontendv1pb.Frontend_ProcessClient) erro
 		}
 
 		switch request.Type {
-		case frontendv1pb.HTTP_REQUEST:
+		case frontendv1pb.Type_HTTP_REQUEST:
 			// Handle the request on a "background" goroutine, so we go back to
 			// blocking on c.Recv().  This allows us to detect the stream closing
 			// and cancel the query.  We don't actually handle queries in parallel
@@ -102,7 +102,7 @@ func (fp *frontendProcessor) process(c frontendv1pb.Frontend_ProcessClient) erro
 				})
 			})
 
-		case frontendv1pb.GET_ID:
+		case frontendv1pb.Type_GET_ID:
 			err := c.Send(&frontendv1pb.ClientToFrontend{ClientID: fp.querierID})
 			if err != nil {
 				return err
