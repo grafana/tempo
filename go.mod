@@ -255,7 +255,4 @@ replace github.com/thanos-io/thanos v0.22.0 => github.com/thanos-io/thanos v0.19
 // This is a temporary solution while a new configuration design is discussed for the collector (ref: https://github.com/open-telemetry/opentelemetry-collector/issues/3482).
 replace go.opentelemetry.io/collector => github.com/grafana/opentelemetry-collector v0.4.1-0.20211201123047-86905635e8f8
 
-// these have been added due to cortex incompatibilies. they can be removed once we drop cortex as a dependency
-replace github.com/grafana/dskit => github.com/grafana/dskit v0.0.0-20211021180445-3bd016e9d7f1
-
 replace github.com/prometheus/prometheus => github.com/prometheus/prometheus v1.8.2-0.20211119115433-692a54649ed7
