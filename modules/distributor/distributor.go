@@ -48,6 +48,8 @@ const (
 	reasonLiveTracesExceeded = "live_traces_exceeded"
 	// reasonInternalError indicates an unexpected error occurred processing these spans. analogous to a 500
 	reasonInternalError = "internal_error"
+
+	distributorRingKey = "distributor"
 )
 
 var (
