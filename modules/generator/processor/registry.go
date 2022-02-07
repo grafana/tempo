@@ -6,6 +6,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	prometheus_model "github.com/prometheus/client_model/go"
+	"github.com/prometheus/prometheus/model/exemplar"
 	prometheus_labels "github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 )
@@ -90,6 +91,19 @@ func (r *Registry) Gather(appender storage.Appender) error {
 					_, err = appender.Append(0, bucketWithLeLabels, timestamp, float64(bucket.GetCumulativeCount()))
 					if err != nil {
 						return err
+					}
+
+					e := bucket.GetExemplar()
+					if e != nil {
+						_, err = appender.AppendExemplar(0, bucketWithLeLabels, exemplar.Exemplar{
+							Labels: labelPairsToLabels(e.GetLabel()),
+							Value:  e.GetValue(),
+							Ts:     e.GetTimestamp().AsTime().UnixMilli(),
+							HasTs:  e.GetTimestamp() != nil,
+						})
+						if err != nil {
+							return err
+						}
 					}
 				}
 			}

@@ -17,7 +17,8 @@ import (
 type Appender struct {
 	IsCommitted, IsRolledback bool
 
-	samples []Sample
+	samples   []Sample
+	exemplars []Exemplar
 }
 
 type Metric struct {
@@ -31,6 +32,11 @@ type Sample struct {
 	v float64
 }
 
+type Exemplar struct {
+	l labels.Labels
+	e exemplar.Exemplar
+}
+
 var _ storage.Appender = (*Appender)(nil)
 
 func (a *Appender) Append(ref storage.SeriesRef, l labels.Labels, t int64, v float64) (storage.SeriesRef, error) {
@@ -39,7 +45,8 @@ func (a *Appender) Append(ref storage.SeriesRef, l labels.Labels, t int64, v flo
 }
 
 func (a *Appender) AppendExemplar(ref storage.SeriesRef, l labels.Labels, e exemplar.Exemplar) (storage.SeriesRef, error) {
-	panic("TODO add support for AppendExemplar")
+	a.exemplars = append(a.exemplars, Exemplar{l, e})
+	return 0, nil
 }
 
 func (a *Appender) Commit() error {
@@ -107,6 +114,20 @@ func (a *Appender) ContainsAll(t *testing.T, expectedSamples []Metric, timestamp
 
 		assert.InDelta(t, timestamp.UnixMilli(), sample.t, 1, sample.l)
 		assert.Equal(t, expectedSamples[i].Value, sample.v, sample.l)
+	}
+}
+
+func (a *Appender) ContainsAllExemplars(t *testing.T, l []string, e []exemplar.Exemplar) {
+	for i, exemplar := range a.exemplars {
+		labelsEqual := assert.Equal(t, l[i], exemplar.l.String())
+		if !labelsEqual {
+			return
+		}
+
+		assert.Equal(t, e[i].Labels, exemplar.e.Labels)
+		assert.Equal(t, e[i].Value, exemplar.e.Value)
+		assert.InDelta(t, e[i].Ts, exemplar.e.Ts, 5)
+		assert.Equal(t, e[i].HasTs, exemplar.e.HasTs)
 	}
 }
 

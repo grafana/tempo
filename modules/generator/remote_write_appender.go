@@ -2,7 +2,6 @@ package generator
 
 import (
 	"context"
-	"errors"
 
 	"github.com/cortexproject/cortex/pkg/cortexpb"
 	"github.com/go-kit/log"
@@ -71,9 +70,10 @@ type remoteWriteAppender struct {
 	userID       string
 
 	// TODO Loki uses util.EvictingQueue here to limit the amount of samples written per remote write request
-	labels    []labels.Labels
-	samples   []cortexpb.Sample
-	examplars []cortexpb.Exemplar
+	labels         []labels.Labels
+	samples        []cortexpb.Sample
+	exemplarLabels []labels.Labels
+	exemplars      []cortexpb.Exemplar
 
 	metrics *remoteWriteMetrics
 }
@@ -89,9 +89,14 @@ func (a *remoteWriteAppender) Append(_ storage.SeriesRef, l labels.Labels, t int
 	return 0, nil
 }
 
-func (a *remoteWriteAppender) AppendExemplar(storage.SeriesRef, labels.Labels, exemplar.Exemplar) (storage.SeriesRef, error) {
-	// TODO as a tracing backend, we should definitely support this 😅
-	return 0, errors.New("exemplars are unsupported")
+func (a *remoteWriteAppender) AppendExemplar(_ storage.SeriesRef, l labels.Labels, e exemplar.Exemplar) (storage.SeriesRef, error) {
+	a.exemplarLabels = append(a.exemplarLabels, l)
+	a.exemplars = append(a.exemplars, cortexpb.Exemplar{
+		Labels:      cortexpb.FromLabelsToLabelAdapters(e.Labels),
+		TimestampMs: e.Ts,
+		Value:       e.Value,
+	})
+	return 0, nil
 }
 
 func (a *remoteWriteAppender) Commit() error {
@@ -104,6 +109,7 @@ func (a *remoteWriteAppender) Commit() error {
 	reqs := a.buildRequests()
 
 	a.metrics.samplesSent.WithLabelValues(a.userID).Add(float64(len(a.samples)))
+	a.metrics.exemplarsSent.WithLabelValues(a.userID).Add(float64(len(a.exemplars)))
 	a.metrics.remoteWriteTotal.WithLabelValues(a.userID).Add(float64(len(reqs)))
 
 	err := a.sendWriteRequests(reqs)
@@ -128,6 +134,19 @@ func (a *remoteWriteAppender) buildRequests() []*cortexpb.WriteRequest {
 		ts := cortexpb.TimeseriesFromPool()
 		ts.Samples = append(ts.Samples, s)
 		ts.Labels = append(ts.Labels, cortexpb.FromLabelsToLabelAdapters(a.labels[i])...)
+
+		if currentRequest.Size()+ts.Size() >= maxWriteRequestSize {
+			requests = append(requests, currentRequest)
+			currentRequest = newWriteRequest()
+		}
+
+		currentRequest.Timeseries = append(currentRequest.Timeseries, cortexpb.PreallocTimeseries{TimeSeries: ts})
+	}
+
+	for i, e := range a.exemplars {
+		ts := cortexpb.TimeseriesFromPool()
+		ts.Exemplars = append(ts.Exemplars, e)
+		ts.Labels = append(ts.Labels, cortexpb.FromLabelsToLabelAdapters(a.exemplarLabels[i])...)
 
 		if currentRequest.Size()+ts.Size() >= maxWriteRequestSize {
 			requests = append(requests, currentRequest)
@@ -207,6 +226,7 @@ func (a *noopAppender) Rollback() error {
 
 type remoteWriteMetrics struct {
 	samplesSent       *prometheus.CounterVec
+	exemplarsSent     *prometheus.CounterVec
 	remoteWriteErrors *prometheus.CounterVec
 	remoteWriteTotal  *prometheus.CounterVec
 }
@@ -217,6 +237,11 @@ func newRemoteWriteMetrics(reg prometheus.Registerer) *remoteWriteMetrics {
 			Namespace: "tempo",
 			Name:      "metrics_generator_samples_sent_total",
 			Help:      "Number of samples sent",
+		}, []string{"tenant"}),
+		exemplarsSent: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Namespace: "tempo",
+			Name:      "metrics_generator_exemplars_sent_total",
+			Help:      "Number of exemplars sent",
 		}, []string{"tenant"}),
 		remoteWriteErrors: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Namespace: "tempo",

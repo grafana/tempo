@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/prometheus/model/exemplar"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/grafana/tempo/modules/generator/processor/util/test"
@@ -102,6 +104,64 @@ func TestRegistry(t *testing.T) {
 		//{Labels: `{label1="value2", __name__="test_my_histogram_vec_bucket", le="+Inf"}`, Value: 0},
 	}
 	testAppender.ContainsAll(t, expectedMetrics, *theTime)
+}
+
+func TestRegistry_exemplars(t *testing.T) {
+	now := time.Now()
+	theTime := &now
+
+	registry := NewRegistry(nil)
+	registry.now = func() time.Time {
+		return *theTime
+	}
+
+	// Register a Prometheus histogram
+	histogram := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "test",
+		Name:      "my_histogram",
+		Help:      "This is a test histogram",
+		Buckets:   prometheus.LinearBuckets(1, 1, 3),
+	})
+
+	registry.MustRegister(histogram)
+
+	// Observe some values with exemplars
+	histogram.(prometheus.ExemplarObserver).ObserveWithExemplar(
+		2, prometheus.Labels{"traceID": "1112"},
+	)
+	histogram.(prometheus.ExemplarObserver).ObserveWithExemplar(
+		3, prometheus.Labels{"traceID": "1113"},
+	)
+	histogram.(prometheus.ExemplarObserver).ObserveWithExemplar(
+		4, prometheus.Labels{"traceID": "1114"},
+	)
+
+	// Collect metrics
+	testAppender := &test.Appender{}
+	err := registry.Gather(testAppender)
+	assert.NoError(t, err)
+
+	expectedMetrics := []test.Metric{
+		{Labels: `{__name__="test_my_histogram_count"}`, Value: 3},
+		{Labels: `{__name__="test_my_histogram_sum"}`, Value: 9},
+		{Labels: `{__name__="test_my_histogram_bucket", le="1"}`, Value: 0},
+		{Labels: `{__name__="test_my_histogram_bucket", le="2"}`, Value: 1},
+		{Labels: `{__name__="test_my_histogram_bucket", le="3"}`, Value: 2},
+		{Labels: `{__name__="test_my_histogram_bucket", le="+Inf"}`, Value: 3},
+	}
+	testAppender.ContainsAll(t, expectedMetrics, *theTime)
+
+	expectedLabels := []string{
+		`{__name__="test_my_histogram_bucket", le="2"}`,
+		`{__name__="test_my_histogram_bucket", le="3"}`,
+		`{__name__="test_my_histogram_bucket", le="+Inf"}`,
+	}
+	expectedExemplars := []exemplar.Exemplar{
+		{Labels: []labels.Label{{Name: "traceID", Value: "1112"}}, Value: 2, Ts: theTime.UnixMilli(), HasTs: true},
+		{Labels: []labels.Label{{Name: "traceID", Value: "1113"}}, Value: 3, Ts: theTime.UnixMilli(), HasTs: true},
+		{Labels: []labels.Label{{Name: "traceID", Value: "1114"}}, Value: 4, Ts: theTime.UnixMilli(), HasTs: true},
+	}
+	testAppender.ContainsAllExemplars(t, expectedLabels, expectedExemplars)
 }
 
 func TestRegisterer_externalLabels(t *testing.T) {

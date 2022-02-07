@@ -20,5 +20,5 @@ type Config struct {
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	// TODO: Revisit this default value.
-	cfg.HistogramBuckets = prometheus.ExponentialBuckets(0.1, 2, 8)
+	cfg.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 12)
 }

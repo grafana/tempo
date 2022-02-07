@@ -8,9 +8,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
-	"github.com/grafana/tempo/modules/generator/processor/util"
+	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
 type processor struct {
@@ -91,7 +92,7 @@ func (p *processor) Shutdown(ctx context.Context, reg prometheus.Registerer) err
 
 func (p *processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	for _, rs := range resourceSpans {
-		svcName := util.GetServiceName(rs.Resource)
+		svcName := processor_util.GetServiceName(rs.Resource)
 		if svcName == "" {
 			continue
 		}
@@ -104,7 +105,7 @@ func (p *processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 }
 
 func (p *processor) aggregateMetricsForSpan(svcName string, span *v1_trace.Span) {
-	latencyMS := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Millisecond.Nanoseconds())
+	latencySeconds := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 
 	labelValues := []string{svcName, span.GetName(), span.GetKind().String(), span.GetStatus().GetCode().String()}
 
@@ -121,5 +122,7 @@ func (p *processor) aggregateMetricsForSpan(svcName string, span *v1_trace.Span)
 	}
 
 	p.spanMetricsCallsTotal.WithLabelValues(labelValues...).Inc()
-	p.spanMetricsDurationSeconds.WithLabelValues(labelValues...).Observe(latencyMS / 1000)
+	p.spanMetricsDurationSeconds.WithLabelValues(labelValues...).(prometheus.ExemplarObserver).ObserveWithExemplar(
+		latencySeconds, prometheus.Labels{"traceID": tempo_util.TraceIDToHexString(span.TraceId)},
+	)
 }
