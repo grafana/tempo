@@ -41,7 +41,7 @@ const (
 	Server               string = "server"
 	Distributor          string = "distributor"
 	Ingester             string = "ingester"
-	NetricsGenerator     string = "metrics-generator"
+	MetricsGenerator     string = "metrics-generator"
 	Querier              string = "querier"
 	QueryFrontend        string = "query-frontend"
 	Compactor            string = "compactor"
@@ -319,7 +319,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(Querier, t.initQuerier)
 	mm.RegisterModule(QueryFrontend, t.initQueryFrontend)
 	mm.RegisterModule(Compactor, t.initCompactor)
-	mm.RegisterModule(NetricsGenerator, t.initGenerator)
+	mm.RegisterModule(MetricsGenerator, t.initGenerator)
 	mm.RegisterModule(Store, t.initStore, modules.UserInvisibleModule)
 	mm.RegisterModule(SingleBinary, nil)
 	mm.RegisterModule(ScalableSingleBinary, nil)
@@ -334,7 +334,7 @@ func (t *App) setupModuleManager() error {
 		MetricsGeneratorRing: {Server, MemberlistKV},
 		Distributor:          {Ring, Server, Overrides},
 		Ingester:             {Store, Server, Overrides, MemberlistKV},
-		NetricsGenerator:     {Server, Overrides, MemberlistKV},
+		MetricsGenerator:     {Server, Overrides, MemberlistKV},
 		Querier:              {Store, Ring, Overrides},
 		Compactor:            {Store, Server, Overrides, MemberlistKV},
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor},
@@ -343,7 +343,7 @@ func (t *App) setupModuleManager() error {
 
 	if t.cfg.Distributor.EnableMetricsGeneratorRing {
 		deps[Distributor] = append(deps[Distributor], MetricsGeneratorRing)
-		deps[SingleBinary] = append(deps[SingleBinary], NetricsGenerator)
+		deps[SingleBinary] = append(deps[SingleBinary], MetricsGenerator)
 	}
 
 	for mod, targets := range deps {
