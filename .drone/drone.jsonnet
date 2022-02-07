@@ -1,6 +1,9 @@
 local apps = ['tempo', 'tempo-vulture', 'tempo-query'];
 local archs = ['amd64', 'arm64'];
 
+# gcs buckets to copy serverless functions to
+local gcs_serverless_buckets = [ 'ops-tools-tempo-function-source' ];
+
 ## Building blocks ##
 
 local pipeline(name, arch = 'amd64') = {
@@ -18,7 +21,7 @@ local pipeline(name, arch = 'amd64') = {
         'refs/tags/v*',
         // weekly release branches
         'refs/heads/r?',
-        'refs/heads/r??',
+        'refs/heads/r??',  // jpe name r* builds correctly. what branches do we execute on?
     ],
   },
 };
@@ -34,6 +37,10 @@ local secret(name, vault_path, vault_key) = {
 
 local docker_username_secret = secret('docker_username', 'infra/data/ci/docker_hub', 'username');
 local docker_password_secret = secret('docker_password', 'infra/data/ci/docker_hub', 'password');
+
+// secrets for pushing serverless code packages
+local fn_upload_ops_tools_secret = secret('ops_tools_fn_upload', 'infra/data/ci/tempo-ops-tools-function-upload', 'credentials.json');  
+// jpe? https://github.com/grafana/deployment_tools/blob/master/docker/terraform/terraform-provider-grafanainfra/resource_vault_gcp_service_account.go#L280
 
 // secret needed to access us.gcr.io in deploy_to_dev()
 local docker_config_json_secret = secret('dockerconfigjson', 'secret/data/common/gcr', '.dockerconfigjson');
@@ -193,8 +200,34 @@ local deploy_to_dev() = {
     ],
   },
 ] + [
+  // Build and deploy serverless code packages
+  pipeline('build-deploy-serverless') {
+    steps+: [
+      {
+        name: 'build-tempo-serverless',
+        image: 'golang:1.17-alpine',
+        commands: [
+          'cd ./cmd/tempo-serverless', 
+          'make build-gcf-zip',    
+          'make build-lambda-zip',
+        ],
+      },
+      {
+        name: 'deploy-tempo-serverless-gcs',
+        image: 'google/cloud-sdk',
+        commands: [
+          'cd ./cmd/tempo-serverless/cloud-functions',
+        ] + [
+          'gsutil cp tempo-serverless*.zip gs://%s' % bucket
+          for bucket in gcs_serverless_buckets
+        ],
+      },
+    ],
+  },
+] + [
   docker_username_secret,
   docker_password_secret,
   docker_config_json_secret,
   gh_token_secret,
+  fn_upload_ops_tools_secret,
 ]
