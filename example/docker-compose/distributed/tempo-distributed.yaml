@@ -17,6 +17,7 @@ distributor:
         http:
         grpc:
     opencensus:
+#  metrics_generator_enabled: true
 
 ingester:
   trace_idle_period: 10s               # the length of time after a trace has not received spans to consider it complete and flush it
@@ -46,6 +47,12 @@ querier:
   frontend_worker:
     frontend_address: query-frontend:9095
 
+metrics_generator:
+  remote_write:
+    enabled: true
+    client:
+      url: http://cortex:9009/api/prom/push
+
 storage:
   trace:
     backend: s3
@@ -63,3 +70,6 @@ storage:
     pool:
       max_workers: 100                 # worker pool determines the number of parallel requests to the object store backend
       queue_depth: 10000
+
+overrides:
+  metrics_generator_processors: ['service-graphs', 'span-metrics']

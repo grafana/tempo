@@ -63,6 +63,15 @@ services:
     ports:
       - "3200"   # tempo
 
+  metrics_generator:
+    image: tempo:latest
+    command: "-target=metrics-generator -config.file=/etc/tempo.yaml"
+    restart: always
+    volumes:
+      - ./tempo-distributed.yaml:/etc/tempo.yaml
+    ports:
+      - "3200"   # tempo
+
   minio:
     image: minio/minio:latest
     environment:
@@ -90,6 +99,16 @@ services:
       - ./prometheus.yaml:/etc/prometheus.yaml
     ports:
       - "9090:9090"
+
+  cortex:
+    image: cortexproject/cortex:v1.8.1
+    volumes:
+      - ./cortex.yaml:/etc/cortex.yaml
+    entrypoint:
+      - /bin/cortex
+      - -config.file=/etc/cortex.yaml
+    ports:
+      - "9009:9009"
 
   grafana:
     image: grafana/grafana:8.1.6
