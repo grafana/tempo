@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/prometheus/storage"
 	"github.com/weaveworks/common/user"
 
+	"github.com/grafana/tempo/modules/generator/remotewrite"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
 )
@@ -110,9 +111,9 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 	}
 
 	// Remote write
-	remoteWriteMetrics := newRemoteWriteMetrics(reg)
+	remoteWriteMetrics := remotewrite.NewMetrics(reg)
 	g.appendableFactory = func(userID string) storage.Appendable {
-		return newRemoteWriteAppendable(cfg, log.Logger, userID, remoteWriteMetrics)
+		return remotewrite.NewAppendable(&cfg.RemoteWrite, log.Logger, userID, remoteWriteMetrics)
 	}
 
 	g.Service = services.NewBasicService(g.starting, g.running, g.stopping)

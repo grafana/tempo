@@ -4,10 +4,9 @@ import (
 	"flag"
 	"time"
 
-	"github.com/prometheus/prometheus/config"
-
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/modules/generator/remotewrite"
 )
 
 const (
@@ -35,7 +34,7 @@ type Config struct {
 	// instances of the metrics-generator as each instance will push the same time series.
 	AddInstanceIDLabel bool `yaml:"add_instance_id_label"`
 
-	RemoteWrite RemoteWriteConfig `yaml:"remote_write,omitempty"`
+	RemoteWrite remotewrite.Config `yaml:"remote_write,omitempty"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -57,14 +56,4 @@ type ProcessorConfig struct {
 func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.ServiceGraphs.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.SpanMetrics.RegisterFlagsAndApplyDefaults(prefix, f)
-}
-
-type RemoteWriteConfig struct {
-	// Enable remote0write requests. If disabled all generated metrics will be discarded.
-	Enabled bool `yaml:"enabled"`
-
-	Client config.RemoteWriteConfig `yaml:"client"`
-}
-
-func (cfg *RemoteWriteConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 }

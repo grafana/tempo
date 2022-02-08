@@ -7,13 +7,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/grafana/tempo/modules/generator/remotewrite"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
 func Test_instance_concurrency(t *testing.T) {
-	instance, err := newInstance(&Config{}, "test", &mockOverrides{}, &noopAppender{})
+	instance, err := newInstance(&Config{}, "test", &mockOverrides{}, &remotewrite.NoopAppender{})
 	assert.NoError(t, err)
 
 	end := make(chan struct{})
