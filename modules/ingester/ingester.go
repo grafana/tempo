@@ -24,6 +24,9 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/flushqueues"
 	_ "github.com/grafana/tempo/pkg/gogocodec" // force gogo codec registration
+	"github.com/grafana/tempo/pkg/model"
+	v1 "github.com/grafana/tempo/pkg/model/v1"
+	v2 "github.com/grafana/tempo/pkg/model/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
@@ -40,6 +43,10 @@ var metricFlushQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 	Name:      "ingester_flush_queue_length",
 	Help:      "The total number of series pending in the flush queue.",
 })
+
+const (
+	ingesterRingKey = "ring"
+)
 
 // Ingester builds blocks out of incoming traces
 type Ingester struct {
@@ -164,8 +171,41 @@ func (i *Ingester) markUnavailable() {
 	i.stopIncomingRequests()
 }
 
-// PushBytes implements tempopb.Pusher.PushBytes
+// PushBytes implements tempopb.Pusher.PushBytes. Traces pushed to this endpoint are expected to be in the formats
+//  defined by ./pkg/model/v1
+// This push function is extremely inefficient and is only provided as a migration path from the v1->v2 encodings
 func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
+	var err error
+	v1Decoder, err := model.NewSegmentDecoder(v1.Encoding)
+	if err != nil {
+		return nil, err
+	}
+	v2Decoder, err := model.NewSegmentDecoder(v2.Encoding)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, t := range req.Traces {
+		trace, err := v1Decoder.PrepareForRead([][]byte{t.Slice})
+		if err != nil {
+			return nil, fmt.Errorf("error calling v1.PrepareForRead %w", err)
+		}
+
+		now := uint32(time.Now().Unix())
+		v2Slice, err := v2Decoder.PrepareForWrite(trace, now, now)
+		if err != nil {
+			return nil, fmt.Errorf("error calling v2.PrepareForWrite %w", err)
+		}
+
+		req.Traces[i].Slice = v2Slice
+	}
+
+	return i.PushBytesV2(ctx, req)
+}
+
+// PushBytes implements tempopb.Pusher.PushBytes. Traces pushed to this endpoint are expected to be in the formats
+//  defined by ./pkg/model/v2
+func (i *Ingester) PushBytesV2(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
 	if i.readonly {
 		return nil, ErrReadOnly
 	}

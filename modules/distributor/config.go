@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/flagext"
-	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
 )
 
@@ -53,7 +52,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.DistributorRing.KVStore.Store = "memberlist"
 	cfg.DistributorRing.HeartbeatTimeout = 5 * time.Minute
 
-	cfg.OverrideRingKey = ring.DistributorRingKey
+	cfg.OverrideRingKey = distributorRingKey
 	cfg.ExtendWrites = true
 
 	f.BoolVar(&cfg.LogReceivedTraces, prefix+".log-received-traces", false, "Enable to log every received trace id to help debug ingestion.")

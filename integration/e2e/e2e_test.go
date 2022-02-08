@@ -1,24 +1,24 @@
 package e2e
 
 import (
+	"bytes"
+	"fmt"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"reflect"
-	"strings"
 	"sync"
 	"testing"
+	"text/template"
 	"time"
 
-	"github.com/grafana/e2e"
-	e2e_db "github.com/grafana/e2e/db"
-	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
 	"gopkg.in/yaml.v2"
 
+	"github.com/grafana/e2e"
+	e2edb "github.com/grafana/e2e/db"
 	"github.com/grafana/tempo/cmd/tempo/app"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
@@ -28,8 +28,7 @@ import (
 )
 
 const (
-	configMicroservices = "config-microservices.yaml"
-	configServerless    = "config-serverless.yaml"
+	configMicroservices = "config-microservices.tmpl.yaml"
 	configHA            = "config-scalable-single-binary.yaml"
 
 	configAllInOneS3      = "config-all-in-one-s3.yaml"
@@ -76,7 +75,7 @@ func TestAllInOne(t *testing.T) {
 			require.NoError(t, s.StartAndWaitReady(tempo))
 
 			// Get port for the Jaeger gRPC receiver endpoint
-			c, err := newJaegerGRPCClient(tempo.Endpoint(14250))
+			c, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
 			require.NoError(t, err)
 			require.NotNil(t, c)
 
@@ -101,7 +100,7 @@ func TestAllInOne(t *testing.T) {
 			queryAndAssertTrace(t, apiClient, info)
 
 			// search an in-memory trace
-			searchAndAssertTrace(t, apiClient, info)
+			util.SearchAndAssertTrace(t, apiClient, info)
 
 			// flush trace to backend
 			res, err := e2e.DoGet("http://" + tempo.Endpoint(3200) + "/flush")
@@ -126,127 +125,192 @@ func TestAllInOne(t *testing.T) {
 
 			// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 			now := time.Now()
-			searchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
+			util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 		})
 	}
 }
 
-func TestMicroservices(t *testing.T) {
-	s, err := e2e.NewScenario("tempo_e2e")
-	require.NoError(t, err)
-	defer s.Close()
-
-	minio := e2e_db.NewMinio(9000, "tempo")
-	require.NotNil(t, minio)
-	require.NoError(t, s.StartAndWaitReady(minio))
-
-	require.NoError(t, util.CopyFileToSharedDir(s, configMicroservices, "config.yaml"))
-	tempoIngester1 := util.NewTempoIngester(1)
-	tempoIngester2 := util.NewTempoIngester(2)
-	tempoIngester3 := util.NewTempoIngester(3)
-
-	tempoDistributor := util.NewTempoDistributor()
-	tempoQueryFrontend := util.NewTempoQueryFrontend()
-	tempoQuerier := util.NewTempoQuerier()
-	require.NoError(t, s.StartAndWaitReady(tempoIngester1, tempoIngester2, tempoIngester3, tempoDistributor, tempoQueryFrontend, tempoQuerier))
-
-	// wait for active ingesters
-	time.Sleep(1 * time.Second)
-	matchers := []*labels.Matcher{
+func TestMicroservicesWithKVStores(t *testing.T) {
+	testKVStores := []struct {
+		name     string
+		kvconfig func(hostname string, port int) string
+	}{
 		{
-			Type:  labels.MatchEqual,
-			Name:  "name",
-			Value: "ingester",
+			name: "memberlist",
+			kvconfig: func(string, int) string {
+				return `
+        store: memberlist`
+			},
 		},
 		{
-			Type:  labels.MatchEqual,
-			Name:  "state",
-			Value: "ACTIVE",
+			name: "etcd",
+			kvconfig: func(hostname string, port int) string {
+				return fmt.Sprintf(`
+        store: etcd
+        etcd:
+          endpoints:
+            - http://%s:%d`, hostname, port)
+			},
+		},
+		{
+			name: "consul",
+			kvconfig: func(hostname string, port int) string {
+				return fmt.Sprintf(`
+        store: consul
+        consul:
+          host: http://%s:%d`, hostname, port)
+			},
 		},
 	}
-	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
 
-	// Get port for the Jaeger gRPC receiver endpoint
-	c, err := newJaegerGRPCClient(tempoDistributor.Endpoint(14250))
-	require.NoError(t, err)
-	require.NotNil(t, c)
+	for _, tc := range testKVStores {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := e2e.NewScenario("tempo_e2e")
+			require.NoError(t, err)
+			defer s.Close()
 
-	info := tempoUtil.NewTraceInfo(time.Now(), "")
-	require.NoError(t, info.EmitAllBatches(c))
+			// Set up KVStore
+			var kvstore *e2e.HTTPService
+			switch tc.name {
+			case "etcd":
+				kvstore = e2edb.NewETCD()
+				require.NoError(t, s.StartAndWaitReady(kvstore))
+			case "consul":
+				kvstore = e2edb.NewConsul()
+				require.NoError(t, s.StartAndWaitReady(kvstore))
+			case "memberlist":
+			default:
+				t.Errorf("unknown KVStore %s", tc.name)
+			}
 
-	expected, err := info.ConstructTraceFromEpoch()
-	require.NoError(t, err)
+			tmpl, err := template.New(filepath.Base(configMicroservices)).ParseFiles(configMicroservices)
+			require.NoError(t, err)
 
-	// test metrics
-	require.NoError(t, tempoDistributor.WaitSumMetrics(e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
+			KVStoreConfig := tc.kvconfig("", 0)
+			if kvstore != nil {
+				KVStoreConfig = tc.kvconfig(kvstore.Name(), kvstore.HTTPPort())
+			}
 
-	// test echo
-	assertEcho(t, "http://"+tempoQueryFrontend.Endpoint(3200)+"/api/echo")
+			var buf bytes.Buffer
+			kvconfig := map[string]interface{}{
+				"KVStore": KVStoreConfig,
+			}
+			require.NoError(t, tmpl.Execute(&buf, kvconfig))
 
-	// ensure trace is created in ingester (trace_idle_time has passed)
-	require.NoError(t, tempoIngester1.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
-	require.NoError(t, tempoIngester2.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
-	require.NoError(t, tempoIngester3.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
+			require.NoError(t, util.WriteFileToSharedDir(s, "config.yaml", buf.Bytes()))
 
-	apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
+			minio := e2edb.NewMinio(9000, "tempo")
+			require.NotNil(t, minio)
+			require.NoError(t, s.StartAndWaitReady(minio))
 
-	// query an in-memory trace
-	queryAndAssertTrace(t, apiClient, info)
+			tempoIngester1 := util.NewTempoIngester(1)
+			tempoIngester2 := util.NewTempoIngester(2)
+			tempoIngester3 := util.NewTempoIngester(3)
 
-	// search an in-memory trace
-	searchAndAssertTrace(t, apiClient, info)
+			tempoDistributor := util.NewTempoDistributor()
+			tempoQueryFrontend := util.NewTempoQueryFrontend()
+			tempoQuerier := util.NewTempoQuerier()
+			require.NoError(t, s.StartAndWaitReady(tempoIngester1, tempoIngester2, tempoIngester3, tempoDistributor, tempoQueryFrontend, tempoQuerier))
 
-	// flush trace to backend
-	res, err := e2e.DoGet("http://" + tempoIngester1.Endpoint(3200) + "/flush")
-	require.NoError(t, err)
-	require.Equal(t, 204, res.StatusCode)
+			// wait for active ingesters
+			time.Sleep(1 * time.Second)
+			matchers := []*labels.Matcher{
+				{
+					Type:  labels.MatchEqual,
+					Name:  "name",
+					Value: "ingester",
+				},
+				{
+					Type:  labels.MatchEqual,
+					Name:  "state",
+					Value: "ACTIVE",
+				},
+			}
+			require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
 
-	res, err = e2e.DoGet("http://" + tempoIngester2.Endpoint(3200) + "/flush")
-	require.NoError(t, err)
-	require.Equal(t, 204, res.StatusCode)
+			// Get port for the Jaeger gRPC receiver endpoint
+			c, err := util.NewJaegerGRPCClient(tempoDistributor.Endpoint(14250))
+			require.NoError(t, err)
+			require.NotNil(t, c)
 
-	res, err = e2e.DoGet("http://" + tempoIngester3.Endpoint(3200) + "/flush")
-	require.NoError(t, err)
-	require.Equal(t, 204, res.StatusCode)
+			info := tempoUtil.NewTraceInfo(time.Now(), "")
+			require.NoError(t, info.EmitAllBatches(c))
 
-	// sleep for one maintenance cycle
-	time.Sleep(5 * time.Second)
+			expected, err := info.ConstructTraceFromEpoch()
+			require.NoError(t, err)
 
-	// test metrics
-	for _, i := range []*e2e.HTTPService{tempoIngester1, tempoIngester2, tempoIngester3} {
-		require.NoError(t, i.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
+			// test metrics
+			require.NoError(t, tempoDistributor.WaitSumMetrics(e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
+
+			// test echo
+			assertEcho(t, "http://"+tempoQueryFrontend.Endpoint(3200)+"/api/echo")
+
+			// ensure trace is created in ingester (trace_idle_time has passed)
+			require.NoError(t, tempoIngester1.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
+			require.NoError(t, tempoIngester2.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
+			require.NoError(t, tempoIngester3.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
+
+			apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
+
+			// query an in-memory trace
+			queryAndAssertTrace(t, apiClient, info)
+
+			// search an in-memory trace
+			util.SearchAndAssertTrace(t, apiClient, info)
+
+			// flush trace to backend
+			res, err := e2e.DoGet("http://" + tempoIngester1.Endpoint(3200) + "/flush")
+			require.NoError(t, err)
+			require.Equal(t, 204, res.StatusCode)
+
+			res, err = e2e.DoGet("http://" + tempoIngester2.Endpoint(3200) + "/flush")
+			require.NoError(t, err)
+			require.Equal(t, 204, res.StatusCode)
+
+			res, err = e2e.DoGet("http://" + tempoIngester3.Endpoint(3200) + "/flush")
+			require.NoError(t, err)
+			require.Equal(t, 204, res.StatusCode)
+
+			// sleep for one maintenance cycle
+			time.Sleep(5 * time.Second)
+
+			// test metrics
+			for _, i := range []*e2e.HTTPService{tempoIngester1, tempoIngester2, tempoIngester3} {
+				require.NoError(t, i.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
+			}
+			require.NoError(t, tempoQuerier.WaitSumMetrics(e2e.Equals(3), "tempodb_blocklist_length"))
+			require.NoError(t, tempoQueryFrontend.WaitSumMetrics(e2e.Equals(4), "tempo_query_frontend_queries_total"))
+
+			// query trace - should fetch from backend
+			queryAndAssertTrace(t, apiClient, info)
+
+			// stop an ingester and confirm we can still write and query
+			err = tempoIngester2.Kill()
+			require.NoError(t, err)
+
+			// sleep for heartbeat timeout
+			time.Sleep(1 * time.Second)
+
+			info = tempoUtil.NewTraceInfo(time.Now(), "")
+			require.NoError(t, info.EmitAllBatches(c))
+
+			// query an in-memory trace
+			queryAndAssertTrace(t, apiClient, info)
+
+			// search an in-memory trace
+			util.SearchAndAssertTrace(t, apiClient, info)
+
+			// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
+			now := time.Now()
+			util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
+
+			// stop another ingester and confirm things fail
+			err = tempoIngester1.Kill()
+			require.NoError(t, err)
+
+			require.Error(t, info.EmitBatches(c))
+		})
 	}
-	require.NoError(t, tempoQuerier.WaitSumMetrics(e2e.Equals(3), "tempodb_blocklist_length"))
-	require.NoError(t, tempoQueryFrontend.WaitSumMetrics(e2e.Equals(4), "tempo_query_frontend_queries_total"))
-
-	// query trace - should fetch from backend
-	queryAndAssertTrace(t, apiClient, info)
-
-	// stop an ingester and confirm we can still write and query
-	err = tempoIngester2.Kill()
-	require.NoError(t, err)
-
-	// sleep for heartbeat timeout
-	time.Sleep(1 * time.Second)
-
-	info = tempoUtil.NewTraceInfo(time.Now(), "")
-	require.NoError(t, info.EmitAllBatches(c))
-
-	// query an in-memory trace
-	queryAndAssertTrace(t, apiClient, info)
-
-	// search an in-memory trace
-	searchAndAssertTrace(t, apiClient, info)
-
-	// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
-	now := time.Now()
-	searchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
-
-	// stop another ingester and confirm things fail
-	err = tempoIngester1.Kill()
-	require.NoError(t, err)
-
-	require.Error(t, info.EmitBatches(c))
 }
 
 func TestScalableSingleBinary(t *testing.T) {
@@ -254,7 +318,7 @@ func TestScalableSingleBinary(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 
-	minio := e2e_db.NewMinio(9000, "tempo")
+	minio := e2edb.NewMinio(9000, "tempo")
 	require.NotNil(t, minio)
 	require.NoError(t, s.StartAndWaitReady(minio))
 
@@ -301,15 +365,15 @@ func TestScalableSingleBinary(t *testing.T) {
 	require.NoError(t, tempo2.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
 	require.NoError(t, tempo3.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
 
-	c1, err := newJaegerGRPCClient(tempo1.Endpoint(14250))
+	c1, err := util.NewJaegerGRPCClient(tempo1.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c1)
 
-	c2, err := newJaegerGRPCClient(tempo2.Endpoint(14250))
+	c2, err := util.NewJaegerGRPCClient(tempo2.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c2)
 
-	c3, err := newJaegerGRPCClient(tempo3.Endpoint(14250))
+	c3, err := util.NewJaegerGRPCClient(tempo3.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c3)
 
@@ -397,81 +461,6 @@ func queryAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil
 	require.NoError(t, err)
 
 	require.True(t, equalTraces(resp, expected))
-}
-
-func searchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
-	expected, err := info.ConstructTraceFromEpoch()
-	require.NoError(t, err)
-
-	attr := tempoUtil.RandomAttrFromTrace(expected)
-
-	// verify attribute is present in tags
-	tagsResp, err := client.SearchTags()
-	require.NoError(t, err)
-	require.Contains(t, tagsResp.TagNames, attr.Key)
-
-	// verify attribute value is present in tag values
-	tagValuesResp, err := client.SearchTagValues(attr.Key)
-	require.NoError(t, err)
-	require.Contains(t, tagValuesResp.TagValues, strings.ToLower(attr.GetValue().GetStringValue()))
-
-	// verify trace can be found using attribute
-	resp, err := client.Search(attr.GetKey() + "=" + attr.GetValue().GetStringValue())
-	require.NoError(t, err)
-
-	hasHex := func(hexId string, resp *tempopb.SearchResponse) bool {
-		for _, s := range resp.Traces {
-			equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexId)
-			require.NoError(t, err)
-			if equal {
-				return true
-			}
-		}
-
-		return false
-	}
-
-	require.True(t, hasHex(info.HexID(), resp))
-}
-
-// by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
-// to look in the backend blocks
-func searchAndAssertTraceBackend(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo, start int64, end int64) {
-	expected, err := info.ConstructTraceFromEpoch()
-	require.NoError(t, err)
-
-	attr := tempoUtil.RandomAttrFromTrace(expected)
-
-	// verify trace can be found using attribute and time range
-	resp, err := client.SearchWithRange(attr.GetKey()+"="+attr.GetValue().GetStringValue(), start, end)
-	require.NoError(t, err)
-
-	hasHex := func(hexId string, resp *tempopb.SearchResponse) bool {
-		for _, s := range resp.Traces {
-			equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexId)
-			require.NoError(t, err)
-			if equal {
-				return true
-			}
-		}
-
-		return false
-	}
-
-	require.True(t, hasHex(info.HexID(), resp))
-}
-
-func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
-	// new jaeger grpc exporter
-	conn, err := grpc.Dial(endpoint, grpc.WithInsecure())
-	if err != nil {
-		return nil, err
-	}
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		return nil, err
-	}
-	return jaeger_grpc.NewReporter(conn, nil, logger), err
 }
 
 func equalTraces(a, b *tempopb.Trace) bool {

@@ -17,3 +17,4 @@ The topics in this section helps with day zero operational issues that may come 
 - [I am unable to find my traces in Tempo](unable-to-see-trace)
 - [I am getting error message "Too many jobs in the queue"](too-many-jobs-in-queue)
 - [Queries fail with 500 and "error using pageFinder"](bad-blocks)
+- [I can search traces, but there are no service name or span name values available](search-tag)

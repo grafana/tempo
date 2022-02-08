@@ -13,10 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -227,13 +225,12 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	for i := 0; i < numMsgs; i++ {
 		id := make([]byte, 16)
 		rand.Read(id)
-		req := test.MakeRequest(rand.Int()%10, id)
 		ids = append(ids, id)
-		bReq, err := proto.Marshal(req)
-		require.NoError(t, err)
-		reqs = append(reqs, bReq)
+		req := make([]byte, rand.Intn(100)+1)
+		rand.Read(req)
+		reqs = append(reqs, req)
 
-		err = appender.Append(id, bReq)
+		err = appender.Append(id, req)
 		require.NoError(t, err, "unexpected error writing req")
 
 		if len(maxID) == 0 || bytes.Compare(id, maxID) == 1 {

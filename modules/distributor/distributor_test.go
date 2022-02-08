@@ -54,6 +54,8 @@ func TestRequestsByTraceID(t *testing.T) {
 		expectedTraces []*tempopb.Trace
 		expectedIDs    [][]byte
 		expectedErr    error
+		expectedStarts []uint32
+		expectedEnds   []uint32
 	}{
 		{
 			name: "empty",
@@ -64,6 +66,8 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys:   []uint32{},
 			expectedTraces: []*tempopb.Trace{},
 			expectedIDs:    [][]byte{},
+			expectedStarts: []uint32{},
+			expectedEnds:   []uint32{},
 		},
 		{
 			name: "bad trace id",
@@ -90,7 +94,9 @@ func TestRequestsByTraceID(t *testing.T) {
 						{
 							Spans: []*v1.Span{
 								{
-									TraceId: traceIDA,
+									TraceId:           traceIDA,
+									StartTimeUnixNano: uint64(10 * time.Second),
+									EndTimeUnixNano:   uint64(20 * time.Second),
 								}}}}},
 			},
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA)},
@@ -102,13 +108,17 @@ func TestRequestsByTraceID(t *testing.T) {
 								{
 									Spans: []*v1.Span{
 										{
-											TraceId: traceIDA,
+											TraceId:           traceIDA,
+											StartTimeUnixNano: uint64(10 * time.Second),
+											EndTimeUnixNano:   uint64(20 * time.Second),
 										}}}}}},
 				},
 			},
 			expectedIDs: [][]byte{
 				traceIDA,
 			},
+			expectedStarts: []uint32{10},
+			expectedEnds:   []uint32{20},
 		},
 		{
 			name: "two traces, one batch",
@@ -118,10 +128,14 @@ func TestRequestsByTraceID(t *testing.T) {
 						{
 							Spans: []*v1.Span{
 								{
-									TraceId: traceIDA,
+									TraceId:           traceIDA,
+									StartTimeUnixNano: uint64(30 * time.Second),
+									EndTimeUnixNano:   uint64(40 * time.Second),
 								},
 								{
-									TraceId: traceIDB,
+									TraceId:           traceIDB,
+									StartTimeUnixNano: uint64(50 * time.Second),
+									EndTimeUnixNano:   uint64(60 * time.Second),
 								}}}}},
 			},
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
@@ -133,7 +147,9 @@ func TestRequestsByTraceID(t *testing.T) {
 								{
 									Spans: []*v1.Span{
 										{
-											TraceId: traceIDA,
+											TraceId:           traceIDA,
+											StartTimeUnixNano: uint64(30 * time.Second),
+											EndTimeUnixNano:   uint64(40 * time.Second),
 										}}}}}},
 				},
 				{
@@ -143,7 +159,9 @@ func TestRequestsByTraceID(t *testing.T) {
 								{
 									Spans: []*v1.Span{
 										{
-											TraceId: traceIDB,
+											TraceId:           traceIDB,
+											StartTimeUnixNano: uint64(50 * time.Second),
+											EndTimeUnixNano:   uint64(60 * time.Second),
 										}}}}}},
 				},
 			},
@@ -151,6 +169,8 @@ func TestRequestsByTraceID(t *testing.T) {
 				traceIDA,
 				traceIDB,
 			},
+			expectedStarts: []uint32{30, 50},
+			expectedEnds:   []uint32{40, 60},
 		},
 		{
 			name: "two traces, distinct batches",
@@ -163,7 +183,9 @@ func TestRequestsByTraceID(t *testing.T) {
 						{
 							Spans: []*v1.Span{
 								{
-									TraceId: traceIDA,
+									TraceId:           traceIDA,
+									StartTimeUnixNano: uint64(30 * time.Second),
+									EndTimeUnixNano:   uint64(40 * time.Second),
 								}}}}},
 				{
 					Resource: &v1_resource.Resource{
@@ -173,7 +195,9 @@ func TestRequestsByTraceID(t *testing.T) {
 						{
 							Spans: []*v1.Span{
 								{
-									TraceId: traceIDB,
+									TraceId:           traceIDB,
+									StartTimeUnixNano: uint64(50 * time.Second),
+									EndTimeUnixNano:   uint64(60 * time.Second),
 								}}}}},
 			},
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
@@ -188,7 +212,9 @@ func TestRequestsByTraceID(t *testing.T) {
 								{
 									Spans: []*v1.Span{
 										{
-											TraceId: traceIDA,
+											TraceId:           traceIDA,
+											StartTimeUnixNano: uint64(30 * time.Second),
+											EndTimeUnixNano:   uint64(40 * time.Second),
 										}}}}}},
 				},
 				{
@@ -201,7 +227,9 @@ func TestRequestsByTraceID(t *testing.T) {
 								{
 									Spans: []*v1.Span{
 										{
-											TraceId: traceIDB,
+											TraceId:           traceIDB,
+											StartTimeUnixNano: uint64(50 * time.Second),
+											EndTimeUnixNano:   uint64(60 * time.Second),
 										}}}}}},
 				},
 			},
@@ -209,6 +237,8 @@ func TestRequestsByTraceID(t *testing.T) {
 				traceIDA,
 				traceIDB,
 			},
+			expectedStarts: []uint32{30, 50},
+			expectedEnds:   []uint32{40, 60},
 		},
 		{
 			name: "resource copied",
@@ -221,10 +251,14 @@ func TestRequestsByTraceID(t *testing.T) {
 						{
 							Spans: []*v1.Span{
 								{
-									TraceId: traceIDA,
+									TraceId:           traceIDA,
+									StartTimeUnixNano: uint64(30 * time.Second),
+									EndTimeUnixNano:   uint64(40 * time.Second),
 								},
 								{
-									TraceId: traceIDB,
+									TraceId:           traceIDB,
+									StartTimeUnixNano: uint64(50 * time.Second),
+									EndTimeUnixNano:   uint64(60 * time.Second),
 								}}}}},
 			},
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
@@ -239,7 +273,9 @@ func TestRequestsByTraceID(t *testing.T) {
 								{
 									Spans: []*v1.Span{
 										{
-											TraceId: traceIDA,
+											TraceId:           traceIDA,
+											StartTimeUnixNano: uint64(30 * time.Second),
+											EndTimeUnixNano:   uint64(40 * time.Second),
 										}}}}}},
 				},
 				{
@@ -252,7 +288,9 @@ func TestRequestsByTraceID(t *testing.T) {
 								{
 									Spans: []*v1.Span{
 										{
-											TraceId: traceIDB,
+											TraceId:           traceIDB,
+											StartTimeUnixNano: uint64(50 * time.Second),
+											EndTimeUnixNano:   uint64(60 * time.Second),
 										}}}}}},
 				},
 			},
@@ -260,6 +298,8 @@ func TestRequestsByTraceID(t *testing.T) {
 				traceIDA,
 				traceIDB,
 			},
+			expectedStarts: []uint32{30, 50},
+			expectedEnds:   []uint32{40, 60},
 		},
 		{
 			name: "ils copied",
@@ -272,10 +312,14 @@ func TestRequestsByTraceID(t *testing.T) {
 							},
 							Spans: []*v1.Span{
 								{
-									TraceId: traceIDA,
+									TraceId:           traceIDA,
+									StartTimeUnixNano: uint64(30 * time.Second),
+									EndTimeUnixNano:   uint64(40 * time.Second),
 								},
 								{
-									TraceId: traceIDB,
+									TraceId:           traceIDB,
+									StartTimeUnixNano: uint64(50 * time.Second),
+									EndTimeUnixNano:   uint64(60 * time.Second),
 								}}}}},
 			},
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
@@ -290,7 +334,9 @@ func TestRequestsByTraceID(t *testing.T) {
 									},
 									Spans: []*v1.Span{
 										{
-											TraceId: traceIDA,
+											TraceId:           traceIDA,
+											StartTimeUnixNano: uint64(30 * time.Second),
+											EndTimeUnixNano:   uint64(40 * time.Second),
 										}}}}}},
 				},
 				{
@@ -303,7 +349,9 @@ func TestRequestsByTraceID(t *testing.T) {
 									},
 									Spans: []*v1.Span{
 										{
-											TraceId: traceIDB,
+											TraceId:           traceIDB,
+											StartTimeUnixNano: uint64(50 * time.Second),
+											EndTimeUnixNano:   uint64(60 * time.Second),
 										}}}}}},
 				},
 			},
@@ -311,6 +359,8 @@ func TestRequestsByTraceID(t *testing.T) {
 				traceIDA,
 				traceIDB,
 			},
+			expectedStarts: []uint32{30, 50},
+			expectedEnds:   []uint32{40, 60},
 		},
 		{
 			name: "one trace",
@@ -326,12 +376,16 @@ func TestRequestsByTraceID(t *testing.T) {
 							},
 							Spans: []*v1.Span{
 								{
-									TraceId: traceIDB,
-									Name:    "spanA",
+									TraceId:           traceIDB,
+									Name:              "spanA",
+									StartTimeUnixNano: uint64(30 * time.Second),
+									EndTimeUnixNano:   uint64(40 * time.Second),
 								},
 								{
-									TraceId: traceIDB,
-									Name:    "spanB",
+									TraceId:           traceIDB,
+									Name:              "spanB",
+									StartTimeUnixNano: uint64(50 * time.Second),
+									EndTimeUnixNano:   uint64(60 * time.Second),
 								}}}}},
 			},
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDB)},
@@ -349,18 +403,24 @@ func TestRequestsByTraceID(t *testing.T) {
 									},
 									Spans: []*v1.Span{
 										{
-											TraceId: traceIDB,
-											Name:    "spanA",
+											TraceId:           traceIDB,
+											Name:              "spanA",
+											StartTimeUnixNano: uint64(30 * time.Second),
+											EndTimeUnixNano:   uint64(40 * time.Second),
 										},
 										{
-											TraceId: traceIDB,
-											Name:    "spanB",
+											TraceId:           traceIDB,
+											Name:              "spanB",
+											StartTimeUnixNano: uint64(50 * time.Second),
+											EndTimeUnixNano:   uint64(60 * time.Second),
 										}}}}}},
 				},
 			},
 			expectedIDs: [][]byte{
 				traceIDB,
 			},
+			expectedStarts: []uint32{30},
+			expectedEnds:   []uint32{60},
 		},
 		{
 			name: "two traces - two batches - don't combine across batches",
@@ -376,16 +436,22 @@ func TestRequestsByTraceID(t *testing.T) {
 							},
 							Spans: []*v1.Span{
 								{
-									TraceId: traceIDB,
-									Name:    "spanA",
+									TraceId:           traceIDB,
+									Name:              "spanA",
+									StartTimeUnixNano: uint64(30 * time.Second),
+									EndTimeUnixNano:   uint64(40 * time.Second),
 								},
 								{
-									TraceId: traceIDB,
-									Name:    "spanC",
+									TraceId:           traceIDB,
+									Name:              "spanC",
+									StartTimeUnixNano: uint64(20 * time.Second),
+									EndTimeUnixNano:   uint64(50 * time.Second),
 								},
 								{
-									TraceId: traceIDA,
-									Name:    "spanE",
+									TraceId:           traceIDA,
+									Name:              "spanE",
+									StartTimeUnixNano: uint64(70 * time.Second),
+									EndTimeUnixNano:   uint64(80 * time.Second),
 								}}}}},
 				{
 					Resource: &v1_resource.Resource{
@@ -398,12 +464,16 @@ func TestRequestsByTraceID(t *testing.T) {
 							},
 							Spans: []*v1.Span{
 								{
-									TraceId: traceIDB,
-									Name:    "spanB",
+									TraceId:           traceIDB,
+									Name:              "spanB",
+									StartTimeUnixNano: uint64(10 * time.Second),
+									EndTimeUnixNano:   uint64(30 * time.Second),
 								},
 								{
-									TraceId: traceIDA,
-									Name:    "spanD",
+									TraceId:           traceIDA,
+									Name:              "spanD",
+									StartTimeUnixNano: uint64(60 * time.Second),
+									EndTimeUnixNano:   uint64(80 * time.Second),
 								}}}}},
 			},
 			expectedKeys: []uint32{
@@ -424,12 +494,16 @@ func TestRequestsByTraceID(t *testing.T) {
 									},
 									Spans: []*v1.Span{
 										{
-											TraceId: traceIDB,
-											Name:    "spanA",
+											TraceId:           traceIDB,
+											Name:              "spanA",
+											StartTimeUnixNano: uint64(30 * time.Second),
+											EndTimeUnixNano:   uint64(40 * time.Second),
 										},
 										{
-											TraceId: traceIDB,
-											Name:    "spanC",
+											TraceId:           traceIDB,
+											Name:              "spanC",
+											StartTimeUnixNano: uint64(20 * time.Second),
+											EndTimeUnixNano:   uint64(50 * time.Second),
 										}}}}},
 						{
 							Resource: &v1_resource.Resource{
@@ -442,8 +516,10 @@ func TestRequestsByTraceID(t *testing.T) {
 									},
 									Spans: []*v1.Span{
 										{
-											TraceId: traceIDB,
-											Name:    "spanB",
+											TraceId:           traceIDB,
+											Name:              "spanB",
+											StartTimeUnixNano: uint64(10 * time.Second),
+											EndTimeUnixNano:   uint64(30 * time.Second),
 										}}}}},
 					},
 				},
@@ -460,8 +536,10 @@ func TestRequestsByTraceID(t *testing.T) {
 									},
 									Spans: []*v1.Span{
 										{
-											TraceId: traceIDA,
-											Name:    "spanE",
+											TraceId:           traceIDA,
+											Name:              "spanE",
+											StartTimeUnixNano: uint64(70 * time.Second),
+											EndTimeUnixNano:   uint64(80 * time.Second),
 										}}}}},
 						{
 							Resource: &v1_resource.Resource{
@@ -474,8 +552,10 @@ func TestRequestsByTraceID(t *testing.T) {
 									},
 									Spans: []*v1.Span{
 										{
-											TraceId: traceIDA,
-											Name:    "spanD",
+											TraceId:           traceIDA,
+											Name:              "spanD",
+											StartTimeUnixNano: uint64(60 * time.Second),
+											EndTimeUnixNano:   uint64(80 * time.Second),
 										}}}}},
 					},
 				},
@@ -484,13 +564,15 @@ func TestRequestsByTraceID(t *testing.T) {
 				traceIDB,
 				traceIDA,
 			},
+			expectedStarts: []uint32{10, 60},
+			expectedEnds:   []uint32{50, 80},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			keys, reqs, ids, err := requestsByTraceID(tt.batches, util.FakeTenantID, 1)
-			require.Equal(t, len(keys), len(reqs))
+			keys, rebatchedTraces, err := requestsByTraceID(tt.batches, util.FakeTenantID, 1)
+			require.Equal(t, len(keys), len(rebatchedTraces))
 
 			for i, expectedKey := range tt.expectedKeys {
 				foundIndex := -1
@@ -499,14 +581,15 @@ func TestRequestsByTraceID(t *testing.T) {
 						foundIndex = j
 					}
 				}
-
 				require.NotEqual(t, -1, foundIndex, "expected key %d not found", foundIndex)
 
 				// now confirm that the request at this position is the expected one
 				expectedReq := tt.expectedTraces[i]
-				actualReq := reqs[foundIndex]
+				actualReq := rebatchedTraces[foundIndex].trace
 				assert.Equal(t, expectedReq, actualReq)
-				assert.Equal(t, tt.expectedIDs[i], ids[foundIndex])
+				assert.Equal(t, tt.expectedIDs[i], rebatchedTraces[foundIndex].id)
+				assert.Equal(t, tt.expectedStarts[i], rebatchedTraces[foundIndex].start)
+				assert.Equal(t, tt.expectedEnds[i], rebatchedTraces[foundIndex].end)
 			}
 
 			assert.Equal(t, tt.expectedErr, err)
@@ -535,7 +618,7 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		for _, blerg := range ils {
-			_, _, _, err := requestsByTraceID([]*v1.ResourceSpans{
+			_, _, err := requestsByTraceID([]*v1.ResourceSpans{
 				{
 					InstrumentationLibrarySpans: blerg,
 				},
@@ -625,6 +708,10 @@ type mockIngester struct {
 var _ tempopb.PusherClient = (*mockIngester)(nil)
 
 func (i *mockIngester) PushBytes(ctx context.Context, in *tempopb.PushBytesRequest, opts ...grpc.CallOption) (*tempopb.PushResponse, error) {
+	return nil, nil
+}
+
+func (i *mockIngester) PushBytesV2(ctx context.Context, in *tempopb.PushBytesRequest, opts ...grpc.CallOption) (*tempopb.PushResponse, error) {
 	return nil, nil
 }
 

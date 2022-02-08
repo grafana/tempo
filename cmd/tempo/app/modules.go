@@ -5,15 +5,13 @@ import (
 	"net/http"
 	"path"
 
-	"github.com/cortexproject/cortex/pkg/cortex"
-	cortex_frontend "github.com/cortexproject/cortex/pkg/frontend"
-	cortex_frontend_v1pb "github.com/cortexproject/cortex/pkg/frontend/v1/frontendv1pb"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/kv/codec"
 	"github.com/grafana/dskit/kv/memberlist"
 	"github.com/grafana/dskit/modules"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
+	frontend_v1pb "github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/thanos-io/thanos/pkg/discovery/dns"
 	"github.com/weaveworks/common/middleware"
@@ -55,7 +53,7 @@ func (t *App) initServer() (services.Service, error) {
 	t.cfg.Server.MetricsNamespace = metricsNamespace
 	t.cfg.Server.ExcludeRequestInLog = true
 
-	cortex.DisableSignalHandling(&t.cfg.Server)
+	DisableSignalHandling(&t.cfg.Server)
 
 	server, err := server.New(t.cfg.Server)
 	if err != nil {
@@ -74,7 +72,7 @@ func (t *App) initServer() (services.Service, error) {
 	}
 
 	t.Server = server
-	s := cortex.NewServerService(server, servicesToWaitFor)
+	s := NewServerService(server, servicesToWaitFor)
 
 	return s, nil
 }
@@ -210,7 +208,7 @@ func (t *App) initQuerier() (services.Service, error) {
 func (t *App) initQueryFrontend() (services.Service, error) {
 	// cortexTripper is a bridge between http and httpgrpc. it does the job of passing data to the cortex
 	// frontend code
-	cortexTripper, v1, _, err := cortex_frontend.InitFrontend(t.cfg.Frontend.Config, frontend.CortexNoQuerierLimits{}, 0, log.Logger, prometheus.DefaultRegisterer)
+	cortexTripper, v1, _, err := frontend.InitFrontend(t.cfg.Frontend.Config, frontend.CortexNoQuerierLimits{}, 0, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +230,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	searchHandler := middleware.Wrap(queryFrontend.Search)
 
 	// register grpc server for queriers to connect to
-	cortex_frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
+	frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
 
 	// http trace by id endpoint
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathTraces), traceByIDHandler)
