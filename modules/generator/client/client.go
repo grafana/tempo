@@ -16,7 +16,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// Config for an generator client.
+// Config for a generator client.
 type Config struct {
 	PoolConfig       ring_client.PoolConfig `yaml:"pool_config,omitempty"`
 	RemoteTimeout    time.Duration          `yaml:"remote_timeout,omitempty"`

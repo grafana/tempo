@@ -341,8 +341,10 @@ func (t *App) setupModuleManager() error {
 		ScalableSingleBinary: {SingleBinary},
 	}
 
-	if t.cfg.Distributor.EnableMetricsGeneratorRing {
+	if t.cfg.Distributor.MetricsGeneratorEnabled {
+		// If metrics-generator is enabled, set up its ring the distributor
 		deps[Distributor] = append(deps[Distributor], MetricsGeneratorRing)
+		// Add the metrics generator as dependency for when target is {,scalable-}single-binary
 		deps[SingleBinary] = append(deps[SingleBinary], MetricsGenerator)
 	}
 

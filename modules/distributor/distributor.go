@@ -173,15 +173,17 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 	subservices = append(subservices, pool)
 
 	var generatorPool *ring_client.Pool
-	if cfg.EnableMetricsGeneratorRing {
-		generatorPool = ring_client.NewPool("distributor_metrics_generator_pool",
+	if cfg.MetricsGeneratorEnabled {
+		generatorPool = ring_client.NewPool(
+			"distributor_metrics_generator_pool",
 			generatorClientCfg.PoolConfig,
 			ring_client.NewRingServiceDiscovery(generatorsRing),
 			func(addr string) (ring_client.PoolClient, error) {
 				return generator_client.New(addr, generatorClientCfg)
 			},
 			metricGeneratorClients,
-			log.Logger)
+			log.Logger,
+		)
 
 		subservices = append(subservices, generatorPool)
 	}
@@ -322,7 +324,7 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 		recordDiscaredSpans(err, userID, spanCount)
 	}
 
-	if d.cfg.EnableMetricsGeneratorRing && len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 && err == nil {
+	if d.cfg.MetricsGeneratorEnabled && len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 && err == nil {
 		// Handle requests sent to the metrics-generator in a separate goroutine, this way we don't
 		// influence the overall write
 		go func() {
