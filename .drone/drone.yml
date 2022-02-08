@@ -300,4 +300,8 @@ get:
   path: infra/data/ci/tempo-ops-tools-function-upload
   name: credentials.json
 
+---
+kind: signature
+hmac: adc2850e0146eddb266ff5642ea2b0e4fd31eefe0b38e0567835b12ec82ad6aa
+
 ...
