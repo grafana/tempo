@@ -92,7 +92,7 @@ func (d *ObjectDecoder) Combine(objs ...[]byte) ([]byte, error) {
 	var minStart, maxEnd uint32
 	minStart = math.MaxUint32
 
-	var combinedTrace *tempopb.Trace
+	c := trace.NewCombiner()
 	for _, obj := range objs {
 		t, err := d.PrepareForRead(obj)
 		if err != nil {
@@ -113,8 +113,10 @@ func (d *ObjectDecoder) Combine(objs ...[]byte) ([]byte, error) {
 			}
 		}
 
-		combinedTrace, _ = trace.CombineTraceProtos(combinedTrace, t)
+		c.Consume(t)
 	}
+
+	combinedTrace, _ := c.Result()
 
 	traceBytes := &tempopb.TraceBytes{}
 	bytes, err := proto.Marshal(combinedTrace)
