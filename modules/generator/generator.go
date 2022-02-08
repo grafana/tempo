@@ -247,11 +247,10 @@ func (g *Generator) collectMetrics() {
 	}
 }
 
-func (g *Generator) CheckReady(ctx context.Context) error {
-	// TODO do we need a check ready?
-	//if err := g.ringLifecycler.CheckReady(ctx); err != nil {
-	//	return fmt.Errorf("metrics-generator check ready failed %w", err)
-	//}
+func (g *Generator) CheckReady(_ context.Context) error {
+	if !g.ringLifecycler.IsRegistered() {
+		return fmt.Errorf("metrics-generator check ready failed: not registered in the ring")
+	}
 
 	return nil
 }
