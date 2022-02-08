@@ -1,9 +1,6 @@
 local apps = ['tempo', 'tempo-vulture', 'tempo-query'];
 local archs = ['amd64', 'arm64'];
 
-# gcs buckets to copy serverless functions to
-local gcs_serverless_buckets = [ 'ops-tools-tempo-function-source' ];
-
 ## Building blocks ##
 
 local pipeline(name, arch = 'amd64') = {
@@ -47,6 +44,14 @@ local docker_config_json_secret = secret('dockerconfigjson', 'secret/data/common
 
 // secret needed for dep-tools
 local gh_token_secret = secret('gh_token', 'infra/data/ci/github/grafanabot', 'pat');
+
+# gcs buckets to copy serverless functions to
+local gcp_serverless_deployments = [ 
+  { 
+    bucket: 'ops-tools-tempo-function-source',
+    secret: fn_upload_ops_tools_secret.name,
+  },
+];
 
 ## Steps ##
 
@@ -215,11 +220,16 @@ local deploy_to_dev() = {
       {
         name: 'deploy-tempo-serverless-gcs',
         image: 'google/cloud-sdk',
+        environment: {
+          [d.secret]: {
+            from_secret: d.secret,
+          } for d in gcp_serverless_deployments
+        },
         commands: [
           'cd ./cmd/tempo-serverless/cloud-functions',
         ] + [
-          'gsutil cp tempo-serverless*.zip gs://%s' % bucket
-          for bucket in gcs_serverless_buckets
+          'echo "$%s" > ./creds.json && gcloud auth activate-service-account --key-file ./creds.json && gsutil cp tempo-serverless*.zip gs://%s' % [d.secret, d.bucket]
+          for d in gcp_serverless_deployments
         ],
       },
     ],
@@ -231,3 +241,5 @@ local deploy_to_dev() = {
   gh_token_secret,
   fn_upload_ops_tools_secret,
 ]
+
+// gcloud auth activate-service-account --key-file /etc/backup-account.json jpe
