@@ -64,6 +64,7 @@ trigger:
   - refs/tags/v*
   - refs/heads/r?
   - refs/heads/r??
+  - drone-serverless
 
 ---
 kind: pipeline
@@ -131,6 +132,7 @@ trigger:
   - refs/tags/v*
   - refs/heads/r?
   - refs/heads/r??
+  - drone-serverless
 
 ---
 kind: pipeline
@@ -184,6 +186,7 @@ trigger:
   - refs/tags/v*
   - refs/heads/r?
   - refs/heads/r??
+  - drone-serverless
 
 depends_on:
 - docker-amd64
@@ -255,6 +258,7 @@ trigger:
   - refs/tags/v*
   - refs/heads/r?
   - refs/heads/r??
+  - drone-serverless
 
 ---
 kind: secret
