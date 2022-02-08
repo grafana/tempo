@@ -18,9 +18,7 @@ local pipeline(name, arch = 'amd64') = {
         'refs/tags/v*',
         // weekly release branches
         'refs/heads/r?',
-        'refs/heads/r??',  // jpe name r* builds correctly. what branches do we execute on?
-        // jpe remove
-        'drone-serverless',
+        'refs/heads/r??',
     ],
   },
 };
@@ -39,7 +37,6 @@ local docker_password_secret = secret('docker_password', 'infra/data/ci/docker_h
 
 // secrets for pushing serverless code packages
 local fn_upload_ops_tools_secret = secret('ops_tools_fn_upload', 'infra/data/ci/tempo-ops-tools-function-upload', 'credentials.json');  
-// jpe? https://github.com/grafana/deployment_tools/blob/master/docker/terraform/terraform-provider-grafanainfra/resource_vault_gcp_service_account.go#L280
 
 // secret needed to access us.gcr.io in deploy_to_dev()
 local docker_config_json_secret = secret('dockerconfigjson', 'secret/data/common/gcr', '.dockerconfigjson');
@@ -214,6 +211,7 @@ local deploy_to_dev() = {
         name: 'build-tempo-serverless',
         image: 'golang:1.17-alpine',
         commands: [
+          'apk add make git zip bash',
           'cd ./cmd/tempo-serverless', 
           'make build-gcf-zip',    
           'make build-lambda-zip',
@@ -230,7 +228,7 @@ local deploy_to_dev() = {
         commands: [
           'cd ./cmd/tempo-serverless/cloud-functions',
         ] + [
-          'echo "$%s" > ./creds.json && gcloud auth activate-service-account --key-file ./creds.json && gsutil cp tempo-serverless*.zip gs://%s' % [d.secret, d.bucket]
+          'printf "%%s" "$%s" > ./creds.json && gcloud auth activate-service-account --key-file ./creds.json && gsutil cp tempo-serverless*.zip gs://%s' % [d.secret, d.bucket]
           for d in gcp_serverless_deployments
         ],
       },
@@ -243,5 +241,3 @@ local deploy_to_dev() = {
   gh_token_secret,
   fn_upload_ops_tools_secret,
 ]
-
-// gcloud auth activate-service-account --key-file /etc/backup-account.json jpe

@@ -64,7 +64,6 @@ trigger:
   - refs/tags/v*
   - refs/heads/r?
   - refs/heads/r??
-  - drone-serverless
 
 ---
 kind: pipeline
@@ -132,7 +131,6 @@ trigger:
   - refs/tags/v*
   - refs/heads/r?
   - refs/heads/r??
-  - drone-serverless
 
 ---
 kind: pipeline
@@ -186,7 +184,6 @@ trigger:
   - refs/tags/v*
   - refs/heads/r?
   - refs/heads/r??
-  - drone-serverless
 
 depends_on:
 - docker-amd64
@@ -239,6 +236,7 @@ steps:
 - name: build-tempo-serverless
   image: golang:1.17-alpine
   commands:
+  - apk add make git zip bash
   - cd ./cmd/tempo-serverless
   - make build-gcf-zip
   - make build-lambda-zip
@@ -247,7 +245,7 @@ steps:
   image: google/cloud-sdk
   commands:
   - cd ./cmd/tempo-serverless/cloud-functions
-  - echo "$ops_tools_fn_upload" > ./creds.json && gcloud auth activate-service-account --key-file ./creds.json && gsutil cp tempo-serverless*.zip gs://ops-tools-tempo-function-source
+  - printf "%s" "$ops_tools_fn_upload" > ./creds.json && gcloud auth activate-service-account --key-file ./creds.json && gsutil cp tempo-serverless*.zip gs://ops-tools-tempo-function-source
   environment:
     ops_tools_fn_upload:
       from_secret: ops_tools_fn_upload
@@ -258,7 +256,6 @@ trigger:
   - refs/tags/v*
   - refs/heads/r?
   - refs/heads/r??
-  - drone-serverless
 
 ---
 kind: secret
@@ -302,6 +299,6 @@ get:
 
 ---
 kind: signature
-hmac: adc2850e0146eddb266ff5642ea2b0e4fd31eefe0b38e0567835b12ec82ad6aa
+hmac: b74b5484b1ef9bf55e1a392bf5ada72456e6624b93a250421f1124726ad48e13
 
 ...
