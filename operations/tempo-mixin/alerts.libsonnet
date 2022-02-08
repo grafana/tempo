@@ -69,6 +69,7 @@
           },
           {
             alert: 'TempoCompactionsFailing',
+            'for': '5m',
             expr: |||
               sum by (%s) (increase(tempodb_compaction_errors_total{}[1h])) > %s and
               sum by (%s) (increase(tempodb_compaction_errors_total{}[5m])) > 0
