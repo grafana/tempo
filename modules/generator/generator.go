@@ -178,8 +178,6 @@ func (g *Generator) stopping(_ error) error {
 		}
 	}
 
-	level.Info(log.Logger).Log("hola", "hola")
-
 	// Wait for generator to stop subservices, then shutdown instances and flush metrics
 	for id, instance := range g.instances {
 		err := instance.shutdown(context.Background())
@@ -255,9 +253,11 @@ func (g *Generator) getInstanceByID(id string) (*instance, bool) {
 }
 
 func (g *Generator) collectMetrics() {
-	span := opentracing.StartSpan("generator.collectMetrics")
+	ctx, cancel := context.WithTimeout(context.Background(), g.cfg.CollectionInterval)
+	defer cancel()
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "generator.collectMetrics")
 	defer span.Finish()
-	ctx := opentracing.ContextWithSpan(context.Background(), span)
 
 	for _, instance := range g.instances {
 		err := instance.collectAndPushMetrics(ctx)
