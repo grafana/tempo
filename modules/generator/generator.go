@@ -30,6 +30,8 @@ const (
 	ringNumTokens = 256
 )
 
+var ErrReadOnly = errors.New("metrics-generator is shutting down")
+
 type AppendableFactory func(userID string) storage.Appendable
 
 type Generator struct {
@@ -48,6 +50,10 @@ type Generator struct {
 
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
+
+	// When set to true, the generator will refuse incoming pushes
+	// and will flush any remaining metrics.
+	readOnly bool
 }
 
 // New makes a new Generator.
@@ -161,10 +167,8 @@ func (g *Generator) running(ctx context.Context) error {
 }
 
 func (g *Generator) stopping(_ error) error {
-	// TODO at shutdown we should:
-	//   - refuse new writes
-	//   - collect and push metrics a final time
-	//  Shutting down the instance/processors isn't necessary I think
+	// Mark as read-only
+	g.stopIncomingRequests()
 
 	if g.subservices != nil {
 		err := services.StopManagerAndAwaitStopped(context.Background(), g.subservices)
@@ -173,6 +177,9 @@ func (g *Generator) stopping(_ error) error {
 		}
 	}
 
+	level.Info(log.Logger).Log("hola", "hola")
+
+	// Wait for generator to stop subservices, then shutdown instances and flush metrics
 	for id, instance := range g.instances {
 		err := instance.shutdown(context.Background())
 		if err != nil {
@@ -183,7 +190,19 @@ func (g *Generator) stopping(_ error) error {
 	return nil
 }
 
+// stopIncomingRequests marks the generator as read-only, refusing push requests
+func (g *Generator) stopIncomingRequests() {
+	g.instancesMtx.Lock()
+	defer g.instancesMtx.Unlock()
+
+	g.readOnly = true
+}
+
 func (g *Generator) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
+	if g.readOnly {
+		return nil, ErrReadOnly
+	}
+
 	span, ctx := opentracing.StartSpanFromContext(ctx, "generator.PushSpans")
 	defer span.Finish()
 

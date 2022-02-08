@@ -260,9 +260,7 @@ func (i *instance) collectAndPushMetrics(ctx context.Context) error {
 // shutdown stops the instance and flushes any remaining data. After shutdown
 // is called PushSpans should not be called anymore.
 func (i *instance) shutdown(ctx context.Context) error {
-	// TODO should we set a boolean to refuse push request once this is called?
-
-	i.shutdownCh <- struct{}{}
+	close(i.shutdownCh)
 
 	err := i.collectAndPushMetrics(ctx)
 	if err != nil {

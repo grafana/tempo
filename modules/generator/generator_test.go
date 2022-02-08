@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv/consul"
 	"github.com/grafana/dskit/ring"
+	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 	prometheus_common_config "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
@@ -74,7 +75,7 @@ func TestGenerator(t *testing.T) {
 	require.NoError(t, err, "unexpected error creating generator")
 
 	err = generator.starting(context.Background())
-	require.NoError(t, err, "unexpected error starting ingester")
+	require.NoError(t, err, "unexpected error starting generator")
 
 	// Send some spans
 	req := test.MakeBatch(10, nil)
@@ -83,6 +84,63 @@ func TestGenerator(t *testing.T) {
 	require.NoError(t, err, "unexpected error pushing spans")
 
 	generator.collectMetrics()
+
+	select {
+	case <-doneCh:
+	case <-time.After(time.Second * 5):
+		t.Fatal("timeout while waiting for remote write server to receive spans")
+	}
+}
+
+func TestGenerator_shutdown(t *testing.T) {
+	// logs will be useful to debug problems
+	// TODO pass the logger as a parameter to generator.New instead of overriding a global variable
+	log.Logger = gokitlog.NewLogfmtLogger(gokitlog.NewSyncWriter(os.Stdout))
+
+	rwServer, doneCh := remoteWriteServer(t, expectedMetrics)
+	defer rwServer.Close()
+
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+
+	// Ring
+	mockStore, _ := consul.NewInMemoryClient(ring.GetCodec(), gokitlog.NewNopLogger(), nil)
+
+	cfg.Ring.KVStore.Mock = mockStore
+	cfg.Ring.ListenPort = 0
+	cfg.Ring.InstanceID = "localhost"
+	cfg.Ring.InstanceAddr = "localhost"
+
+	// Overrides
+	limitsTestConfig := defaultLimitsTestConfig()
+	limitsTestConfig.MetricsGeneratorProcessors = map[string]struct{}{"service-graphs": {}, "span-metrics": {}}
+	limits, err := overrides.NewOverrides(limitsTestConfig)
+	require.NoError(t, err, "unexpected error creating overrides")
+
+	// Remote write
+	url, err := url.Parse(fmt.Sprintf("http://%s/receive", rwServer.Listener.Addr().String()))
+	require.NoError(t, err)
+	cfg.RemoteWrite.Enabled = true
+	cfg.RemoteWrite.Client = prometheus_config.DefaultRemoteWriteConfig
+	cfg.RemoteWrite.Client.URL = &prometheus_common_config.URL{URL: url}
+
+	// Set incredibly high collection interval
+	cfg.CollectionInterval = time.Hour
+
+	generator, err := New(cfg, limits, prometheus.NewRegistry())
+	require.NoError(t, err, "unexpected error creating generator")
+
+	err = services.StartAndAwaitRunning(context.Background(), generator)
+	require.NoError(t, err, "unexpected error starting generator")
+
+	// Send some spans
+	req := test.MakeBatch(10, nil)
+	ctx := user.InjectOrgID(context.Background(), util.FakeTenantID)
+	_, err = generator.PushSpans(ctx, &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}})
+	require.NoError(t, err, "unexpected error pushing spans")
+
+	err = services.StopAndAwaitTerminated(context.Background(), generator)
+	require.NoError(t, err, "failed to terminate metrics-generator")
 
 	select {
 	case <-doneCh:
@@ -134,16 +192,16 @@ func remoteWriteServer(t *testing.T, expected []metric) (*httptest.Server, chan 
 var expectedMetrics = []metric{
 	{`traces_span_metrics_calls_total{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
 	{`traces_span_metrics_duration_seconds_count{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
-	{`traces_span_metrics_duration_seconds_sum{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.002", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.004", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.008", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.016", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.032", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.064", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.128", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.256", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.512", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
+	{`traces_span_metrics_duration_seconds_sum{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
+	{`traces_span_metrics_duration_seconds_bucket{le="0.002", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_span_metrics_duration_seconds_bucket{le="0.004", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_span_metrics_duration_seconds_bucket{le="0.008", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_span_metrics_duration_seconds_bucket{le="0.016", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_span_metrics_duration_seconds_bucket{le="0.032", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_span_metrics_duration_seconds_bucket{le="0.064", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_span_metrics_duration_seconds_bucket{le="0.128", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_span_metrics_duration_seconds_bucket{le="0.256", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_span_metrics_duration_seconds_bucket{le="0.512", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
 	{`traces_span_metrics_duration_seconds_bucket{le="1.024", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
 	{`traces_span_metrics_duration_seconds_bucket{le="2.048", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
 	{`traces_span_metrics_duration_seconds_bucket{le="4.096", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
