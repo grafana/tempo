@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/weaveworks/common/user"
+	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/modules/generator/remotewrite"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -54,7 +55,7 @@ type Generator struct {
 
 	// When set to true, the generator will refuse incoming pushes
 	// and will flush any remaining metrics.
-	readOnly bool
+	readOnly atomic.Bool
 }
 
 // New makes a new Generator.
@@ -191,14 +192,11 @@ func (g *Generator) stopping(_ error) error {
 
 // stopIncomingRequests marks the generator as read-only, refusing push requests
 func (g *Generator) stopIncomingRequests() {
-	g.instancesMtx.Lock()
-	defer g.instancesMtx.Unlock()
-
-	g.readOnly = true
+	g.readOnly.Store(true)
 }
 
 func (g *Generator) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) (*tempopb.PushResponse, error) {
-	if g.readOnly {
+	if g.readOnly.Load() {
 		return nil, ErrReadOnly
 	}
 
