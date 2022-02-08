@@ -19,6 +19,8 @@ local pipeline(name, arch = 'amd64') = {
         // weekly release branches
         'refs/heads/r?',
         'refs/heads/r??',  // jpe name r* builds correctly. what branches do we execute on?
+        // jpe remove
+        'drone-serverless',
     ],
   },
 };
