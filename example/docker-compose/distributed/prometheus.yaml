@@ -16,3 +16,4 @@ scrape_configs:
         - 'ingester-2:3200'
         - 'querier:3200'
         - 'query-frontend:3200'
+        - 'metrics-generator:3200'

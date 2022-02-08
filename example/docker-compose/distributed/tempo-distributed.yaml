@@ -51,7 +51,7 @@ metrics_generator:
   remote_write:
     enabled: true
     client:
-      url: http://cortex:9009/api/prom/push
+      url: http://prometheus:9090/api/v1/write
 
 storage:
   trace:

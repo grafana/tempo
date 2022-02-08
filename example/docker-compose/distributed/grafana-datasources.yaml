@@ -21,12 +21,3 @@ datasources:
   editable: false
   apiVersion: 1
   uid: tempo
-- name: Cortex
-  type: prometheus
-  access: proxy
-  orgId: 1
-  url: http://cortex:9009/api/prom
-  basicAuth: false
-  isDefault: false
-  version: 1
-  editable: false

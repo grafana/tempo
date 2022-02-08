@@ -94,21 +94,13 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    command: [ "--config.file=/etc/prometheus.yaml" ]
+    command:
+      - --config.file=/etc/prometheus.yaml
+      - --web.enable-remote-write-receiver
     volumes:
       - ./prometheus.yaml:/etc/prometheus.yaml
     ports:
       - "9090:9090"
-
-  cortex:
-    image: cortexproject/cortex:v1.8.1
-    volumes:
-      - ./cortex.yaml:/etc/cortex.yaml
-    entrypoint:
-      - /bin/cortex
-      - -config.file=/etc/cortex.yaml
-    ports:
-      - "9009:9009"
 
   grafana:
     image: grafana/grafana:8.1.6
