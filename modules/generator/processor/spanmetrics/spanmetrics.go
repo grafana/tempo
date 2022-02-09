@@ -41,12 +41,12 @@ func (p *processor) RegisterMetrics(reg prometheus.Registerer) error {
 
 	p.spanMetricsCallsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "traces",
-		Name:      "span_metrics_calls_total",
+		Name:      "spanmetrics_calls_total",
 		Help:      "Total count of the spans",
 	}, labelNames)
 	p.spanMetricsDurationSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "traces",
-		Name:      "span_metrics_duration_seconds",
+		Name:      "spanmetrics_duration_seconds",
 		Help:      "Latency of the spans",
 		Buckets:   p.cfg.HistogramBuckets,
 	}, labelNames)

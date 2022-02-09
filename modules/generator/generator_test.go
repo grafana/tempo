@@ -190,22 +190,22 @@ func remoteWriteServer(t *testing.T, expected []metric) (*httptest.Server, chan 
 }
 
 var expectedMetrics = []metric{
-	{`traces_span_metrics_calls_total{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
-	{`traces_span_metrics_duration_seconds_count{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
-	{`traces_span_metrics_duration_seconds_sum{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.002", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.004", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.008", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.016", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.032", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.064", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.128", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.256", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.512", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
-	{`traces_span_metrics_duration_seconds_bucket{le="1.024", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
-	{`traces_span_metrics_duration_seconds_bucket{le="2.048", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
-	{`traces_span_metrics_duration_seconds_bucket{le="4.096", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
-	{`traces_span_metrics_duration_seconds_bucket{le="0.002", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
+	{`traces_spanmetrics_calls_total{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
+	{`traces_spanmetrics_duration_seconds_count{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
+	{`traces_spanmetrics_duration_seconds_sum{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
+	{`traces_spanmetrics_duration_seconds_bucket{le="0.002", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_spanmetrics_duration_seconds_bucket{le="0.004", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_spanmetrics_duration_seconds_bucket{le="0.008", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_spanmetrics_duration_seconds_bucket{le="0.016", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_spanmetrics_duration_seconds_bucket{le="0.032", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_spanmetrics_duration_seconds_bucket{le="0.064", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_spanmetrics_duration_seconds_bucket{le="0.128", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_spanmetrics_duration_seconds_bucket{le="0.256", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_spanmetrics_duration_seconds_bucket{le="0.512", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 0},
+	{`traces_spanmetrics_duration_seconds_bucket{le="1.024", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
+	{`traces_spanmetrics_duration_seconds_bucket{le="2.048", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
+	{`traces_spanmetrics_duration_seconds_bucket{le="4.096", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
+	{`traces_spanmetrics_duration_seconds_bucket{le="0.002", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", tempo_instance_id="localhost"}`, 10},
 }
 
 func defaultLimitsTestConfig() overrides.Limits {
