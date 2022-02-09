@@ -50,6 +50,10 @@ local gcp_serverless_deployments = [
     bucket: 'ops-tools-tempo-function-source',
     secret: fn_upload_ops_tools_secret.name,
   },
+  { 
+    bucket: 'grafanalabs-global-tempo-function-source',
+    secret: fn_upload_ops_tools_secret.name,
+  },
 ];
 
 ## Steps ##
