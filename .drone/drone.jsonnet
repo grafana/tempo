@@ -35,11 +35,22 @@ local secret(name, vault_path, vault_key) = {
 local docker_username_secret = secret('docker_username', 'infra/data/ci/docker_hub', 'username');
 local docker_password_secret = secret('docker_password', 'infra/data/ci/docker_hub', 'password');
 
+// secrets for pushing serverless code packages
+local fn_upload_ops_tools_secret = secret('ops_tools_fn_upload', 'infra/data/ci/tempo-ops-tools-function-upload', 'credentials.json');  
+
 // secret needed to access us.gcr.io in deploy_to_dev()
 local docker_config_json_secret = secret('dockerconfigjson', 'secret/data/common/gcr', '.dockerconfigjson');
 
 // secret needed for dep-tools
 local gh_token_secret = secret('gh_token', 'infra/data/ci/github/grafanabot', 'pat');
+
+# gcs buckets to copy serverless functions to
+local gcp_serverless_deployments = [ 
+  { 
+    bucket: 'ops-tools-tempo-function-source',
+    secret: fn_upload_ops_tools_secret.name,
+  },
+];
 
 ## Steps ##
 
@@ -193,8 +204,40 @@ local deploy_to_dev() = {
     ],
   },
 ] + [
+  // Build and deploy serverless code packages
+  pipeline('build-deploy-serverless') {
+    steps+: [
+      {
+        name: 'build-tempo-serverless',
+        image: 'golang:1.17-alpine',
+        commands: [
+          'apk add make git zip bash',
+          'cd ./cmd/tempo-serverless', 
+          'make build-gcf-zip',    
+          'make build-lambda-zip',
+        ],
+      },
+      {
+        name: 'deploy-tempo-serverless-gcs',
+        image: 'google/cloud-sdk',
+        environment: {
+          [d.secret]: {
+            from_secret: d.secret,
+          } for d in gcp_serverless_deployments
+        },
+        commands: [
+          'cd ./cmd/tempo-serverless/cloud-functions',
+        ] + [
+          'printf "%%s" "$%s" > ./creds.json && gcloud auth activate-service-account --key-file ./creds.json && gsutil cp tempo-serverless*.zip gs://%s' % [d.secret, d.bucket]
+          for d in gcp_serverless_deployments
+        ],
+      },
+    ],
+  },
+] + [
   docker_username_secret,
   docker_password_secret,
   docker_config_json_secret,
   gh_token_secret,
+  fn_upload_ops_tools_secret,
 ]

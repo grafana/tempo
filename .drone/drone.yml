@@ -225,6 +225,39 @@ depends_on:
 - manifest
 
 ---
+kind: pipeline
+name: build-deploy-serverless
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: build-tempo-serverless
+  image: golang:1.17-alpine
+  commands:
+  - apk add make git zip bash
+  - cd ./cmd/tempo-serverless
+  - make build-gcf-zip
+  - make build-lambda-zip
+
+- name: deploy-tempo-serverless-gcs
+  image: google/cloud-sdk
+  commands:
+  - cd ./cmd/tempo-serverless/cloud-functions
+  - printf "%s" "$ops_tools_fn_upload" > ./creds.json && gcloud auth activate-service-account --key-file ./creds.json && gsutil cp tempo-serverless*.zip gs://ops-tools-tempo-function-source
+  environment:
+    ops_tools_fn_upload:
+      from_secret: ops_tools_fn_upload
+
+trigger:
+  ref:
+  - refs/heads/main
+  - refs/tags/v*
+  - refs/heads/r?
+  - refs/heads/r??
+
+---
 kind: secret
 name: docker_username
 
@@ -257,7 +290,15 @@ get:
   name: pat
 
 ---
+kind: secret
+name: ops_tools_fn_upload
+
+get:
+  path: infra/data/ci/tempo-ops-tools-function-upload
+  name: credentials.json
+
+---
 kind: signature
-hmac: dbde127696cdb509254bc4a59f8da3d09f9059ddad5062aab407594964897588
+hmac: b74b5484b1ef9bf55e1a392bf5ada72456e6624b93a250421f1124726ad48e13
 
 ...
