@@ -45,6 +45,7 @@ local docker_config_json_secret = secret('dockerconfigjson', 'secret/data/common
 local gh_token_secret = secret('gh_token', 'infra/data/ci/github/grafanabot', 'pat');
 
 # gcs buckets to copy serverless functions to
+local gcp_secrets = [ fn_upload_ops_tools_secret.name ];
 local gcp_serverless_deployments = [ 
   { 
     bucket: 'ops-tools-tempo-function-source',
@@ -225,9 +226,9 @@ local deploy_to_dev() = {
         name: 'deploy-tempo-serverless-gcs',
         image: 'google/cloud-sdk',
         environment: {
-          [d.secret]: {
-            from_secret: d.secret,
-          } for d in gcp_serverless_deployments
+          [s]: {
+            from_secret: s,
+          } for s in gcp_secrets
         },
         commands: [
           'cd ./cmd/tempo-serverless/cloud-functions',
