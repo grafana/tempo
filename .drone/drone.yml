@@ -246,6 +246,7 @@ steps:
   commands:
   - cd ./cmd/tempo-serverless/cloud-functions
   - printf "%s" "$ops_tools_fn_upload" > ./creds.json && gcloud auth activate-service-account --key-file ./creds.json && gsutil cp tempo-serverless*.zip gs://ops-tools-tempo-function-source
+  - printf "%s" "$ops_tools_fn_upload" > ./creds.json && gcloud auth activate-service-account --key-file ./creds.json && gsutil cp tempo-serverless*.zip gs://grafanalabs-global-tempo-function-source
   environment:
     ops_tools_fn_upload:
       from_secret: ops_tools_fn_upload
@@ -299,6 +300,6 @@ get:
 
 ---
 kind: signature
-hmac: b74b5484b1ef9bf55e1a392bf5ada72456e6624b93a250421f1124726ad48e13
+hmac: 5158168c568631c88b9b26b50d9103f0bd69785d124f4730566f9779a26024fd
 
 ...
