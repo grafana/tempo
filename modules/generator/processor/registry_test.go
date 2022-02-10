@@ -59,7 +59,7 @@ func TestRegistry(t *testing.T) {
 		{Labels: `{__name__="test_my_histogram_bucket", le="1"}`, Value: 0},
 		{Labels: `{__name__="test_my_histogram_bucket", le="2"}`, Value: 0},
 		{Labels: `{__name__="test_my_histogram_bucket", le="3"}`, Value: 0},
-		//{Labels: `{__name__="test_my_histogram_bucket", le="+Inf"}`, Value: 0},
+		{Labels: `{__name__="test_my_histogram_bucket", le="+Inf"}`, Value: 0},
 	}
 	testAppender.ContainsAll(t, expectedMetrics, *theTime)
 
@@ -89,19 +89,19 @@ func TestRegistry(t *testing.T) {
 		{Labels: `{__name__="test_my_histogram_bucket", le="1"}`, Value: 0},
 		{Labels: `{__name__="test_my_histogram_bucket", le="2"}`, Value: 1},
 		{Labels: `{__name__="test_my_histogram_bucket", le="3"}`, Value: 2},
-		//{Labels: `{__name__="test_my_histogram_bucket", le="+Inf"}`, Value: 0},
+		{Labels: `{__name__="test_my_histogram_bucket", le="+Inf"}`, Value: 3},
 		{Labels: `{label1="value1", __name__="test_my_histogram_vec_count"}`, Value: 1},
 		{Labels: `{label1="value1", __name__="test_my_histogram_vec_sum"}`, Value: 1},
 		{Labels: `{label1="value1", __name__="test_my_histogram_vec_bucket", le="1"}`, Value: 1},
 		{Labels: `{label1="value1", __name__="test_my_histogram_vec_bucket", le="2"}`, Value: 1},
 		{Labels: `{label1="value1", __name__="test_my_histogram_vec_bucket", le="4"}`, Value: 1},
-		//{Labels: `{label1="value1", __name__="test_my_histogram_vec_bucket", le="+Inf"}`, Value: 0},
+		{Labels: `{label1="value1", __name__="test_my_histogram_vec_bucket", le="+Inf"}`, Value: 1},
 		{Labels: `{label1="value2", __name__="test_my_histogram_vec_count"}`, Value: 1},
 		{Labels: `{label1="value2", __name__="test_my_histogram_vec_sum"}`, Value: 2},
 		{Labels: `{label1="value2", __name__="test_my_histogram_vec_bucket", le="1"}`, Value: 0},
 		{Labels: `{label1="value2", __name__="test_my_histogram_vec_bucket", le="2"}`, Value: 1},
 		{Labels: `{label1="value2", __name__="test_my_histogram_vec_bucket", le="4"}`, Value: 1},
-		//{Labels: `{label1="value2", __name__="test_my_histogram_vec_bucket", le="+Inf"}`, Value: 0},
+		{Labels: `{label1="value2", __name__="test_my_histogram_vec_bucket", le="+Inf"}`, Value: 1},
 	}
 	testAppender.ContainsAll(t, expectedMetrics, *theTime)
 }
@@ -202,6 +202,7 @@ func TestRegisterer_externalLabels(t *testing.T) {
 		{Labels: `{external_label="constant_value", __name__="test_my_histogram_bucket", le="1"}`, Value: 0},
 		{Labels: `{external_label="constant_value", __name__="test_my_histogram_bucket", le="2"}`, Value: 0},
 		{Labels: `{external_label="constant_value", __name__="test_my_histogram_bucket", le="3"}`, Value: 0},
+		{Labels: `{external_label="constant_value", __name__="test_my_histogram_bucket", le="+Inf"}`, Value: 0},
 	}
 	testAppender.ContainsAll(t, expectedMetrics, *theTime)
 }

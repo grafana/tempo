@@ -2,6 +2,7 @@ package processor
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -77,9 +78,15 @@ func (r *Registry) Gather(appender storage.Appender) error {
 					return err
 				}
 
+				addedInfBucket := false
+
 				// _bucket
 				bucketLabels := withLabel(labels, "__name__", fmt.Sprintf("%s_bucket", metricFamily.GetName()))
 				for _, bucket := range histogram.GetBucket() {
+
+					if bucket.GetUpperBound() == math.Inf(1) {
+						addedInfBucket = true
+					}
 
 					// TODO make a complete copy of this slice, not sure why this is needed
 					//  it works without in registry_test.go but fails in servicegraphs_test.go 🙃
@@ -104,6 +111,15 @@ func (r *Registry) Gather(appender storage.Appender) error {
 						if err != nil {
 							return err
 						}
+					}
+				}
+
+				if !addedInfBucket {
+					// _bucket, le="+Inf"
+					bucketInfLabels := withLabel(bucketLabels, "le", "+Inf")
+					_, err = appender.Append(0, bucketInfLabels, timestamp, float64(histogram.GetSampleCount()))
+					if err != nil {
+						return err
 					}
 				}
 			}

@@ -55,6 +55,7 @@ func TestSpanMetrics(t *testing.T) {
 		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="1.024"}`, 10},
 		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="2.048"}`, 10},
 		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="4.096"}`, 10},
+		{`{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="+Inf"}`, 10},
 	}
 	appender.ContainsAll(t, expectedMetrics, collectTime)
 }
@@ -110,7 +111,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="1.024"}`, 10},
 		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="2.048"}`, 10},
 		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="4.096"}`, 10},
-		// {`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="+Inf"}`, 10},
+		{`{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="+Inf"}`, 10},
 	}
 	appender.ContainsAll(t, expectedMetrics, collectTime)
 }
