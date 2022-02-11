@@ -275,5 +275,5 @@ func (i *instance) shutdown(ctx context.Context) error {
 	}
 	i.processorsMtx.RUnlock()
 
-	return nil
+	return err
 }

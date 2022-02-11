@@ -77,7 +77,7 @@ func (p *processor) unregisterMetrics(reg prometheus.Registerer) {
 }
 
 func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "spanmetrics.PushSpans")
+	span, _ := opentracing.StartSpanFromContext(ctx, "spanmetrics.PushSpans")
 	defer span.Finish()
 
 	p.aggregateMetrics(req.Batches)

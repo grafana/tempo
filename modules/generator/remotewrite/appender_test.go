@@ -39,13 +39,13 @@ func Test_remoteWriteAppendable_splitRequests(t *testing.T) {
 
 	// Send samples
 	for i := 0; i < 3; i++ {
-		_, err := appender.Append(0, labels.Labels{{"label", "value"}}, nowMs, float64(i+1))
+		_, err := appender.Append(0, labels.Labels{{Name: "label", Value: "value"}}, nowMs, float64(i+1))
 		assert.NoError(t, err)
 	}
 	// Send exemplars
 	for i := 0; i < 2; i++ {
-		_, err := appender.AppendExemplar(0, labels.Labels{{"label", "value"}}, exemplar.Exemplar{
-			Labels: labels.Labels{{"exemplarLabel", "exemplarValue"}},
+		_, err := appender.AppendExemplar(0, labels.Labels{{Name: "label", Value: "value"}}, exemplar.Exemplar{
+			Labels: labels.Labels{{Name: "exemplarLabel", Value: "exemplarValue"}},
 			Value:  float64(i + 1),
 			Ts:     nowMs,
 			HasTs:  true,

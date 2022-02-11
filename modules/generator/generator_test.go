@@ -34,6 +34,8 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
+const localhost = "localhost"
+
 type metric struct {
 	name string
 	val  float64
@@ -55,8 +57,8 @@ func TestGenerator(t *testing.T) {
 
 	cfg.Ring.KVStore.Mock = mockStore
 	cfg.Ring.ListenPort = 0
-	cfg.Ring.InstanceID = "localhost"
-	cfg.Ring.InstanceAddr = "localhost"
+	cfg.Ring.InstanceID = localhost
+	cfg.Ring.InstanceAddr = localhost
 
 	// Overrides
 	limitsTestConfig := defaultLimitsTestConfig()
@@ -108,8 +110,8 @@ func TestGenerator_shutdown(t *testing.T) {
 
 	cfg.Ring.KVStore.Mock = mockStore
 	cfg.Ring.ListenPort = 0
-	cfg.Ring.InstanceID = "localhost"
-	cfg.Ring.InstanceAddr = "localhost"
+	cfg.Ring.InstanceID = localhost
+	cfg.Ring.InstanceAddr = localhost
 
 	// Overrides
 	limitsTestConfig := defaultLimitsTestConfig()

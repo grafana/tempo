@@ -183,7 +183,7 @@ func (g *Generator) stopping(_ error) error {
 	for id, instance := range g.instances {
 		err := instance.shutdown(context.Background())
 		if err != nil {
-			level.Warn(log.Logger).Log("msg", "failed to shutdown instance", "instanceID", id, "err", err)
+			level.Warn(log.Logger).Log("msg", "shutdown completed with errors", "instanceID", id, "err", err)
 		}
 	}
 

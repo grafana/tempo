@@ -48,7 +48,7 @@ func Test_remoteWriteAppendable(t *testing.T) {
 
 	appender := appendable.Appender(context.Background())
 
-	_, err = appender.Append(0, labels.Labels{{"label", "append-before-rollback"}}, theTime.UnixMilli(), 0.1)
+	_, err = appender.Append(0, labels.Labels{{Name: "label", Value: "append-before-rollback"}}, theTime.UnixMilli(), 0.1)
 	assert.NoError(t, err)
 
 	// Rollback the appender, this should discard previously appended samples
@@ -60,7 +60,7 @@ func Test_remoteWriteAppendable(t *testing.T) {
 
 	assert.Len(t, capturedTimeseries, 0)
 
-	_, err = appender.Append(0, labels.Labels{{"label", "value"}}, theTime.UnixMilli(), 0.2)
+	_, err = appender.Append(0, labels.Labels{{Name: "label", Value: "value"}}, theTime.UnixMilli(), 0.2)
 	assert.NoError(t, err)
 
 	err = appender.Commit()
@@ -94,7 +94,7 @@ func Test_remoteWriteAppendable_disabled(t *testing.T) {
 
 	appender := appendable.Appender(context.Background())
 
-	_, err = appender.Append(0, labels.Labels{{"label", "value"}}, time.Now().UnixMilli(), 0.1)
+	_, err = appender.Append(0, labels.Labels{{Name: "label", Value: "value"}}, time.Now().UnixMilli(), 0.1)
 	assert.NoError(t, err)
 
 	err = appender.Commit()
