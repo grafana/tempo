@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
@@ -76,6 +77,27 @@ func MakeTrace(requests int, traceID []byte) *tempopb.Trace {
 	}
 
 	return trace
+}
+
+func MakeTraceBytes(requests int, traceID []byte) *tempopb.TraceBytes {
+	trace := &tempopb.Trace{
+		Batches: make([]*v1_trace.ResourceSpans, 0),
+	}
+
+	for i := 0; i < requests; i++ {
+		trace.Batches = append(trace.Batches, MakeBatch(rand.Int()%20+1, traceID))
+	}
+
+	bytes, err := proto.Marshal(trace)
+	if err != nil {
+		panic(err)
+	}
+
+	traceBytes := &tempopb.TraceBytes{
+		Traces: [][]byte{bytes},
+	}
+
+	return traceBytes
 }
 
 func MakeTraceWithSpanCount(requests int, spansEach int, traceID []byte) *tempopb.Trace {

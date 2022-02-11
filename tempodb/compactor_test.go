@@ -123,8 +123,8 @@ func TestCompaction(t *testing.T) {
 		_, err = w.CompleteBlock(head, &mockSharder{})
 		require.NoError(t, err)
 
-		//err = w.WriteBlock(context.Background(), complete)
-		//assert.NoError(t, err)
+		// err = w.WriteBlock(context.Background(), complete)
+		// assert.NoError(t, err)
 	}
 
 	rw := r.(*readerWriter)
@@ -238,7 +238,7 @@ func TestSameIDCompaction(t *testing.T) {
 
 		reqs := make([][]byte, 0, requestShards)
 		for j := 0; j < requestShards; j++ {
-			buff, err := proto.Marshal(test.MakeTrace(1, id))
+			buff, err := proto.Marshal(test.MakeTraceBytes(1, id))
 			require.NoError(t, err)
 			reqs = append(reqs, buff)
 		}
@@ -523,7 +523,7 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 			err = head.Append(
 				makeTraceID(i, j),
 				body)
-			//[]byte{0x01, 0x02, 0x03})
+			// []byte{0x01, 0x02, 0x03})
 			require.NoError(t, err, "unexpected error writing rec")
 		}
 
