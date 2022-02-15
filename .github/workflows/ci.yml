@@ -1,10 +1,13 @@
 name: CI
 on:
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - 'example/**'
-      - 'tools/**'
+# Requiring certain checks for PRs to be merge-able in Github, forces for those checks to be *always* run.
+# Even if the changes do not require them (i.e. the paths indicated below). That's why `paths-ignore` is commented out.
+#
+#    paths-ignore:
+#      - 'docs/**'
+#      - 'example/**'
+#      - 'tools/**'
 jobs:
 
   lint:
