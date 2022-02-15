@@ -75,23 +75,17 @@ func New(cfg Config, tenant string) gen.Processor {
 
 	p.store = store.NewStore(cfg.Wait, cfg.MaxItems, p.collectEdge)
 
-	// TODO quick hack to run store.Expire() in a separate thread, I believe this is causing writes to hang
-	//  we should add some logic to clean up this goroutine at shutdown
-	go func() {
-		ticker := time.NewTicker(2 * time.Second)
-
-		for {
-			<-ticker.C
-			p.store.Expire()
-		}
-	}()
-
+	expirationTicker := time.NewTicker(2 * time.Second)
 	for i := 0; i < cfg.Workers; i++ {
 		go func() {
 			for {
 				select {
 				case k := <-p.collectCh:
 					p.store.EvictEdge(k)
+
+				// Periodically cleans expired edges from the store
+				case <-expirationTicker.C:
+					p.store.Expire()
 
 				case <-p.closeCh:
 					return
