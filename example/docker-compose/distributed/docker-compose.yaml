@@ -103,12 +103,13 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:8.1.6
+    image: grafana/grafana:8.3.6
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
       - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_FEATURE_TOGGLES_ENABLE=tempoSearch tempoBackendSearch tempoServiceGraph
     ports:
       - "3000:3000"
