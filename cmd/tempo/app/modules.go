@@ -11,7 +11,6 @@ import (
 	"github.com/grafana/dskit/modules"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	frontend_v1pb "github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/thanos-io/thanos/pkg/discovery/dns"
 	"github.com/weaveworks/common/middleware"
@@ -20,6 +19,7 @@ import (
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/frontend"
+	frontend_v1pb "github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
@@ -119,7 +119,7 @@ func (t *App) initOverrides() (services.Service, error) {
 
 func (t *App) initDistributor() (services.Service, error) {
 	// todo: make ingester client a module instead of passing the config everywhere
-	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.cfg.GeneratorClient, t.generatorRing, t.overrides, t.TracesConsumerMiddleware, t.cfg.Server.LogLevel, t.cfg.SearchEnabled, prometheus.DefaultRegisterer)
+	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.cfg.GeneratorClient, t.generatorRing, t.overrides, t.TracesConsumerMiddleware, t.cfg.Server.LogLevel, t.cfg.SearchEnabled, t.cfg.MetricsGeneratorEnabled, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create distributor %w", err)
 	}
@@ -339,8 +339,8 @@ func (t *App) setupModuleManager() error {
 		ScalableSingleBinary: {SingleBinary},
 	}
 
-	if t.cfg.Distributor.MetricsGeneratorEnabled {
-		// If metrics-generator is enabled, set up its ring the distributor
+	if t.cfg.MetricsGeneratorEnabled {
+		// If metrics-generator is enabled, the distributor needs the metrics-generator ring
 		deps[Distributor] = append(deps[Distributor], MetricsGeneratorRing)
 		// Add the metrics generator as dependency for when target is {,scalable-}single-binary
 		deps[SingleBinary] = append(deps[SingleBinary], MetricsGenerator)

@@ -50,12 +50,13 @@ const apiDocs = "https://grafana.com/docs/tempo/latest/api_docs/"
 
 // Config is the root config for App.
 type Config struct {
-	Target              string `yaml:"target,omitempty"`
-	AuthEnabled         bool   `yaml:"auth_enabled,omitempty"`
-	MultitenancyEnabled bool   `yaml:"multitenancy_enabled,omitempty"`
-	SearchEnabled       bool   `yaml:"search_enabled,omitempty"`
-	HTTPAPIPrefix       string `yaml:"http_api_prefix"`
-	UseOTelTracer       bool   `yaml:"use_otel_tracer,omitempty"`
+	Target                  string `yaml:"target,omitempty"`
+	AuthEnabled             bool   `yaml:"auth_enabled,omitempty"`
+	MultitenancyEnabled     bool   `yaml:"multitenancy_enabled,omitempty"`
+	SearchEnabled           bool   `yaml:"search_enabled,omitempty"`
+	MetricsGeneratorEnabled bool   `yaml:"metrics_generator_enabled"`
+	HTTPAPIPrefix           string `yaml:"http_api_prefix"`
+	UseOTelTracer           bool   `yaml:"use_otel_tracer,omitempty"`
 
 	Server          server.Config           `yaml:"server,omitempty"`
 	Distributor     distributor.Config      `yaml:"distributor,omitempty"`
@@ -133,14 +134,19 @@ func (c *Config) MultitenancyIsEnabled() bool {
 
 // CheckConfig checks if config values are suspect.
 func (c *Config) CheckConfig() {
+	if c.Target == MetricsGenerator && !c.MetricsGeneratorEnabled {
+		level.Warn(log.Logger).Log("msg", "target == metrics-generator but metrics_generator_enabled != true",
+			"explain", "The metrics-generator will only receive data if metrics_generator_enabled is set to true globally")
+	}
+
 	if c.Ingester.CompleteBlockTimeout < c.StorageConfig.Trace.BlocklistPoll {
 		level.Warn(log.Logger).Log("msg", "ingester.complete_block_timeout < storage.trace.blocklist_poll",
-			"explan", "You may receive 404s between the time the ingesters have flushed a trace and the querier is aware of the new block")
+			"explain", "You may receive 404s between the time the ingesters have flushed a trace and the querier is aware of the new block")
 	}
 
 	if c.Compactor.Compactor.BlockRetention < c.StorageConfig.Trace.BlocklistPoll {
 		level.Warn(log.Logger).Log("msg", "compactor.compaction.compacted_block_timeout < storage.trace.blocklist_poll",
-			"explan", "Queriers and Compactors may attempt to read a block that no longer exists")
+			"explain", "Queriers and Compactors may attempt to read a block that no longer exists")
 	}
 
 	if c.Compactor.Compactor.RetentionConcurrency == 0 {
@@ -149,7 +155,7 @@ func (c *Config) CheckConfig() {
 
 	if c.StorageConfig.Trace.Backend == "s3" && c.Compactor.Compactor.FlushSizeBytes < 5242880 {
 		level.Warn(log.Logger).Log("msg", "c.Compactor.Compactor.FlushSizeBytes < 5242880",
-			"explan", "Compaction flush size should be 5MB or higher for S3 backend")
+			"explain", "Compaction flush size should be 5MB or higher for S3 backend")
 	}
 
 	if c.StorageConfig.Trace.BlocklistPollConcurrency == 0 {
@@ -169,7 +175,7 @@ type App struct {
 	cfg Config
 
 	Server        *server.Server
-	ring          *ring.Ring // TODO should we rename this to ingesterRing?
+	ring          *ring.Ring
 	generatorRing *ring.Ring
 	overrides     *overrides.Overrides
 	distributor   *distributor.Distributor

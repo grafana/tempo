@@ -37,9 +37,6 @@ type Config struct {
 	//  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
 	ExtendWrites bool `yaml:"extend_writes"`
 
-	// Enables writes to metric-generator instances
-	MetricsGeneratorEnabled bool `yaml:"metrics_generator_enabled"`
-
 	SearchTagsDenyList []string `yaml:"search_tags_deny_list"`
 
 	// For testing.
