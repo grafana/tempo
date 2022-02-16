@@ -132,6 +132,11 @@ func (r *Registry) Gather(appender storage.Appender) error {
 	return nil
 }
 
+// SetTimeNow is used for stubbing time.Now in testing
+func (r *Registry) SetTimeNow(now func() time.Time) {
+	r.now = now
+}
+
 func labelPairsToLabels(labelPairs []*prometheus_model.LabelPair) prometheus_labels.Labels {
 	labels := make(prometheus_labels.Labels, len(labelPairs))
 

@@ -70,6 +70,11 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	err := p.RegisterMetrics(registry)
 	assert.NoError(t, err)
 
+	now := time.Now()
+	registry.SetTimeNow(func() time.Time {
+		return now
+	})
+
 	batch := test.MakeBatch(10, nil)
 	for _, rs := range batch.InstrumentationLibrarySpans {
 		for _, s := range rs.Spans {
@@ -88,7 +93,6 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 
 	appender := &test_util.Appender{}
 
-	collectTime := time.Now()
 	err = registry.Gather(appender)
 	assert.NoError(t, err)
 
@@ -113,5 +117,5 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="4.096"}`, Value: 10},
 		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="+Inf"}`, Value: 10},
 	}
-	appender.ContainsAll(t, expectedMetrics, collectTime)
+	appender.ContainsAll(t, expectedMetrics, now)
 }

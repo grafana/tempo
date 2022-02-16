@@ -17,9 +17,9 @@ func TestRegistry(t *testing.T) {
 	theTime := &now
 
 	registry := NewRegistry(nil)
-	registry.now = func() time.Time {
+	registry.SetTimeNow(func() time.Time {
 		return *theTime
-	}
+	})
 
 	// Register some Prometheus metrics
 	counter := prometheus.NewCounter(prometheus.CounterOpts{
@@ -111,9 +111,9 @@ func TestRegistry_exemplars(t *testing.T) {
 	theTime := &now
 
 	registry := NewRegistry(nil)
-	registry.now = func() time.Time {
+	registry.SetTimeNow(func() time.Time {
 		return *theTime
-	}
+	})
 
 	// Register a Prometheus histogram
 	histogram := prometheus.NewHistogram(prometheus.HistogramOpts{
@@ -171,9 +171,9 @@ func TestRegisterer_externalLabels(t *testing.T) {
 	registry := NewRegistry(map[string]string{
 		"external_label": "constant_value",
 	})
-	registry.now = func() time.Time {
+	registry.SetTimeNow(func() time.Time {
 		return *theTime
-	}
+	})
 
 	// Register some Prometheus metrics
 	counter := prometheus.NewCounter(prometheus.CounterOpts{

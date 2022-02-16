@@ -24,6 +24,11 @@ func TestServiceGraphs(t *testing.T) {
 	err := p.RegisterMetrics(registry)
 	assert.NoError(t, err)
 
+	now := time.Now()
+	registry.SetTimeNow(func() time.Time {
+		return now
+	})
+
 	traces := testData(t, "testdata/test-sample.json")
 	err = p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: traces.Batches})
 	assert.NoError(t, err)
@@ -34,7 +39,7 @@ func TestServiceGraphs(t *testing.T) {
 
 	appender := &test_util.Appender{}
 
-	collectTime := time.Now()
+	collectTime := now
 	err = registry.Gather(appender)
 	assert.NoError(t, err)
 
