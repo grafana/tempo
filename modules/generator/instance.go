@@ -108,52 +108,24 @@ func (i *instance) watchOverrides() {
 
 func (i *instance) updateProcessors(desiredProcessors map[string]struct{}) error {
 	i.processorsMtx.RLock()
-	defer i.processorsMtx.RUnlock()
+	toAdd, toRemove := i.diffProcessors(desiredProcessors)
+	i.processorsMtx.RUnlock()
 
-	// add missing processors
-	for processorName := range desiredProcessors {
-		_, ok := i.processors[processorName]
-		if ok {
-			// processor already exists
-			continue
-		}
+	if len(toAdd) == 0 && len(toRemove) == 0 {
+		return nil
+	}
 
-		var newProcessor processor.Processor
-		switch processorName {
-		case spanmetrics.Name:
-			newProcessor = spanmetrics.New(i.cfg.Processor.SpanMetrics, i.instanceID)
-		case servicegraphs.Name:
-			newProcessor = servicegraphs.New(i.cfg.Processor.ServiceGraphs, i.instanceID)
-		default:
-			level.Error(log.Logger).Log(
-				"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(allSupportedProcessors, ", ")),
-				"processorName", processorName,
-				"tenant", i.instanceID,
-			)
-			// this is most likely a misconfiguration, abort updateProcessors before we remove any active processors
-			return fmt.Errorf("unknown processor %s", processorName)
-		}
+	i.processorsMtx.Lock()
+	defer i.processorsMtx.Unlock()
 
-		i.processorsMtx.RUnlock()
-		err := i.addProcessor(newProcessor)
-		i.processorsMtx.RLock()
-
+	for _, processorName := range toAdd {
+		err := i.addProcessor(processorName)
 		if err != nil {
 			return err
 		}
 	}
-
-	// remove processors that are not in desiredProcessors
-	for processorName := range i.processors {
-		_, ok := desiredProcessors[processorName]
-		if ok {
-			// processor is also in the desired list
-			continue
-		}
-
-		i.processorsMtx.RUnlock()
+	for _, processorName := range toRemove {
 		i.removeProcessor(processorName)
-		i.processorsMtx.RLock()
 	}
 
 	i.updateProcessorMetrics()
@@ -161,30 +133,61 @@ func (i *instance) updateProcessors(desiredProcessors map[string]struct{}) error
 	return nil
 }
 
-func (i *instance) addProcessor(processor processor.Processor) error {
-	level.Debug(log.Logger).Log("msg", "adding processor", "processorName", processor.Name(), "tenant", i.instanceID)
+// diffProcessors compares the existings processors with desiredProcessors. Must be called under a
+// read lock.
+func (i *instance) diffProcessors(desiredProcessors map[string]struct{}) (toAdd []string, toRemove []string) {
+	for processorName := range desiredProcessors {
+		if _, ok := i.processors[processorName]; !ok {
+			toAdd = append(toAdd, processorName)
+		}
+	}
+	for processorName := range i.processors {
+		if _, ok := desiredProcessors[processorName]; !ok {
+			toRemove = append(toRemove, processorName)
+		}
+	}
+	return toAdd, toRemove
+}
 
-	i.processorsMtx.Lock()
-	defer i.processorsMtx.Unlock()
+// addProcessor registers the processor and adds it to the processors map. Must be called under a
+// write lock.
+func (i *instance) addProcessor(processorName string) error {
+	level.Debug(log.Logger).Log("msg", "adding processor", "processorName", processorName, "tenant", i.instanceID)
+
+	var newProcessor processor.Processor
+	switch processorName {
+	case spanmetrics.Name:
+		newProcessor = spanmetrics.New(i.cfg.Processor.SpanMetrics, i.instanceID)
+	case servicegraphs.Name:
+		newProcessor = servicegraphs.New(i.cfg.Processor.ServiceGraphs, i.instanceID)
+	default:
+		level.Error(log.Logger).Log(
+			"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(allSupportedProcessors, ", ")),
+			"processorName", processorName,
+			"tenant", i.instanceID,
+		)
+		return fmt.Errorf("unknown processor %s", processorName)
+	}
 
 	// check the processor wasn't added in the meantime
-	if _, ok := i.processors[processor.Name()]; ok {
+	if _, ok := i.processors[processorName]; ok {
 		return nil
 	}
 
-	err := processor.RegisterMetrics(i.registry)
+	err := newProcessor.RegisterMetrics(i.registry)
 	if err != nil {
-		return fmt.Errorf("error registering metrics for %s: %w", processor.Name(), err)
+		return fmt.Errorf("error registering metrics for %s: %w", processorName, err)
 	}
 
-	i.processors[processor.Name()] = processor
+	i.processors[processorName] = newProcessor
 
 	return nil
 }
 
+// removeProcessor removes the processor from the processors map and shuts it down. Must be called
+// under a write lock.
 func (i *instance) removeProcessor(processorName string) {
-	i.processorsMtx.Lock()
-	defer i.processorsMtx.Unlock()
+	level.Debug(log.Logger).Log("msg", "removing processor", "processorName", processorName, "tenant", i.instanceID)
 
 	deletedProcessor, ok := i.processors[processorName]
 	if !ok {
@@ -193,12 +196,10 @@ func (i *instance) removeProcessor(processorName string) {
 
 	delete(i.processors, processorName)
 
-	err := deletedProcessor.Shutdown(context.TODO(), i.registry)
+	err := deletedProcessor.Shutdown(context.Background(), i.registry)
 	if err != nil {
 		level.Error(log.Logger).Log("msg", "processor did not shutdown cleanly", "name", deletedProcessor.Name(), "err", err, "tenant", i.instanceID)
 	}
-
-	level.Debug(log.Logger).Log("msg", "removed processor", "processorName", processorName, "tenant", i.instanceID)
 }
 
 // updateProcessorMetrics updates the active processor metrics. Must be called under a read lock.
@@ -258,7 +259,7 @@ func (i *instance) collectAndPushMetrics(ctx context.Context) error {
 }
 
 // shutdown stops the instance and flushes any remaining data. After shutdown
-// is called PushSpans should not be called anymore.
+// is called pushSpans should not be called anymore.
 func (i *instance) shutdown(ctx context.Context) error {
 	close(i.shutdownCh)
 
@@ -267,13 +268,12 @@ func (i *instance) shutdown(ctx context.Context) error {
 		level.Error(log.Logger).Log("msg", "collecting metrics failed at shutdown", "tenant", i.instanceID, "err", err)
 	}
 
-	i.processorsMtx.RLock()
+	i.processorsMtx.Lock()
+	defer i.processorsMtx.Unlock()
+
 	for processorName := range i.processors {
-		i.processorsMtx.RUnlock()
 		i.removeProcessor(processorName)
-		i.processorsMtx.RLock()
 	}
-	i.processorsMtx.RUnlock()
 
 	return err
 }
