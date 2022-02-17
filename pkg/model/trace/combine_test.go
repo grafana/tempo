@@ -75,7 +75,8 @@ func TestTokenForIDCollision(t *testing.T) {
 
 	spanID := make([]byte, 8)
 	for i := 0; i < n; i++ {
-		rand.Read(spanID)
+		_, err := rand.Read(spanID)
+		require.NoError(t, err)
 
 		copy := append([]byte(nil), spanID...)
 		IDs = append(IDs, copy)

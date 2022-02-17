@@ -8,6 +8,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
+// nolint: staticcheck
 // Deprecated: This is only capable of pairwise combination. It is replaced by Combiner.
 // CombineTraceProtos combines two trace protos into one.  Note that it is destructive.
 //  All spans are combined into traceA.  spanCountA, B, and Total are returned for
