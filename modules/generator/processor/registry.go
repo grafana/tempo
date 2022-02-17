@@ -50,7 +50,7 @@ func (r *Registry) Gather(appender storage.Appender) error {
 		case prometheus_model.MetricType_COUNTER:
 			for _, metric := range metricFamily.GetMetric() {
 				labels := labelPairsToLabels(metric.Label)
-				labels = withLabel(labels, "__name__", metricFamily.GetName())
+				labels = appendWithLabel(labels, "__name__", metricFamily.GetName())
 
 				_, err := appender.Append(0, labels, timestamp, metric.GetCounter().GetValue())
 				if err != nil {
@@ -65,14 +65,14 @@ func (r *Registry) Gather(appender storage.Appender) error {
 				histogram := metric.GetHistogram()
 
 				// _count
-				countLabels := withLabel(labels, "__name__", fmt.Sprintf("%s_count", metricFamily.GetName()))
+				countLabels := copyWithLabel(labels, "__name__", fmt.Sprintf("%s_count", metricFamily.GetName()))
 				_, err := appender.Append(0, countLabels, timestamp, float64(histogram.GetSampleCount()))
 				if err != nil {
 					return err
 				}
 
 				// _sum
-				sumLabels := withLabel(labels, "__name__", fmt.Sprintf("%s_sum", metricFamily.GetName()))
+				sumLabels := copyWithLabel(labels, "__name__", fmt.Sprintf("%s_sum", metricFamily.GetName()))
 				_, err = appender.Append(0, sumLabels, timestamp, histogram.GetSampleSum())
 				if err != nil {
 					return err
@@ -81,20 +81,14 @@ func (r *Registry) Gather(appender storage.Appender) error {
 				addedInfBucket := false
 
 				// _bucket
-				bucketLabels := withLabel(labels, "__name__", fmt.Sprintf("%s_bucket", metricFamily.GetName()))
+				bucketLabels := copyWithLabel(labels, "__name__", fmt.Sprintf("%s_bucket", metricFamily.GetName()))
 				for _, bucket := range histogram.GetBucket() {
 
 					if bucket.GetUpperBound() == math.Inf(1) {
 						addedInfBucket = true
 					}
 
-					// TODO make a complete copy of this slice, not sure why this is needed
-					//  it works without in registry_test.go but fails in servicegraphs_test.go 🙃
-					//  in the servicegraphs test the le labels gets overwritten with the latest value 🤷
-					bucketLabelsCopy := make(prometheus_labels.Labels, len(bucketLabels))
-					copy(bucketLabelsCopy, bucketLabels)
-
-					bucketWithLeLabels := withLabel(bucketLabelsCopy, "le", fmt.Sprintf("%g", bucket.GetUpperBound()))
+					bucketWithLeLabels := copyWithLabel(bucketLabels, "le", fmt.Sprintf("%g", bucket.GetUpperBound()))
 					_, err = appender.Append(0, bucketWithLeLabels, timestamp, float64(bucket.GetCumulativeCount()))
 					if err != nil {
 						return err
@@ -116,7 +110,7 @@ func (r *Registry) Gather(appender storage.Appender) error {
 
 				if !addedInfBucket {
 					// _bucket, le="+Inf"
-					bucketInfLabels := withLabel(bucketLabels, "le", "+Inf")
+					bucketInfLabels := copyWithLabel(bucketLabels, "le", "+Inf")
 					_, err = appender.Append(0, bucketInfLabels, timestamp, float64(histogram.GetSampleCount()))
 					if err != nil {
 						return err
@@ -150,9 +144,16 @@ func labelPairsToLabels(labelPairs []*prometheus_model.LabelPair) prometheus_lab
 	return labels
 }
 
-func withLabel(labels prometheus_labels.Labels, name, value string) prometheus_labels.Labels {
+func appendWithLabel(labels prometheus_labels.Labels, name, value string) prometheus_labels.Labels {
 	return append(labels, prometheus_labels.Label{
 		Name:  name,
 		Value: value,
 	})
+}
+
+func copyWithLabel(labels prometheus_labels.Labels, name, value string) prometheus_labels.Labels {
+	labelsCopy := make(prometheus_labels.Labels, len(labels), len(labels)+1)
+	copy(labelsCopy, labels)
+
+	return appendWithLabel(labelsCopy, name, value)
 }

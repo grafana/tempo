@@ -169,7 +169,8 @@ func TestRegisterer_externalLabels(t *testing.T) {
 	theTime := &now
 
 	registry := NewRegistry(map[string]string{
-		"external_label": "constant_value",
+		"external_label1": "constant_value1",
+		"external_label2": "constant_value2",
 	})
 	registry.SetTimeNow(func() time.Time {
 		return *theTime
@@ -196,13 +197,13 @@ func TestRegisterer_externalLabels(t *testing.T) {
 	assert.NoError(t, err)
 
 	expectedMetrics := []test.Metric{
-		{Labels: `{external_label="constant_value", __name__="test_my_counter"}`, Value: 0},
-		{Labels: `{external_label="constant_value", __name__="test_my_histogram_count"}`, Value: 0},
-		{Labels: `{external_label="constant_value", __name__="test_my_histogram_sum"}`, Value: 0},
-		{Labels: `{external_label="constant_value", __name__="test_my_histogram_bucket", le="1"}`, Value: 0},
-		{Labels: `{external_label="constant_value", __name__="test_my_histogram_bucket", le="2"}`, Value: 0},
-		{Labels: `{external_label="constant_value", __name__="test_my_histogram_bucket", le="3"}`, Value: 0},
-		{Labels: `{external_label="constant_value", __name__="test_my_histogram_bucket", le="+Inf"}`, Value: 0},
+		{Labels: `{external_label1="constant_value1", external_label2="constant_value2", __name__="test_my_counter"}`, Value: 0},
+		{Labels: `{external_label1="constant_value1", external_label2="constant_value2", __name__="test_my_histogram_count"}`, Value: 0},
+		{Labels: `{external_label1="constant_value1", external_label2="constant_value2", __name__="test_my_histogram_sum"}`, Value: 0},
+		{Labels: `{external_label1="constant_value1", external_label2="constant_value2", __name__="test_my_histogram_bucket", le="1"}`, Value: 0},
+		{Labels: `{external_label1="constant_value1", external_label2="constant_value2", __name__="test_my_histogram_bucket", le="2"}`, Value: 0},
+		{Labels: `{external_label1="constant_value1", external_label2="constant_value2", __name__="test_my_histogram_bucket", le="3"}`, Value: 0},
+		{Labels: `{external_label1="constant_value1", external_label2="constant_value2", __name__="test_my_histogram_bucket", le="+Inf"}`, Value: 0},
 	}
 	testAppender.ContainsAll(t, expectedMetrics, *theTime)
 }
