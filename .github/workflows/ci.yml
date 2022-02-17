@@ -130,6 +130,7 @@ jobs:
         uses: arduino/setup-protoc@v1
         with:
           version: '3.11.2'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check vendor
         run: make vendor-check
