@@ -51,13 +51,13 @@ func (d *ObjectDecoder) Matches(id []byte, obj []byte, req *tempopb.SearchReques
 
 func (d *ObjectDecoder) Combine(objs ...[]byte) ([]byte, error) {
 	c := trace.NewCombiner()
-	for _, obj := range objs {
+	for i, obj := range objs {
 		t, err := staticDecoder.PrepareForRead(obj)
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshaling trace: %w", err)
 		}
 
-		c.Consume(t)
+		c.ConsumeWithFinal(t, i == len(obj)-1)
 	}
 	combinedTrace, _ := c.Result()
 

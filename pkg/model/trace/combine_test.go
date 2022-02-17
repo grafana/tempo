@@ -64,7 +64,9 @@ func TestCombineProtoTotals(t *testing.T) {
 
 func TestTokenForIDCollision(t *testing.T) {
 
-	n := 100_000_0
+	// Estimate the hash collision rate of tokenForID.
+
+	n := 1_000_000
 	h := newHash()
 	buf := make([]byte, 4)
 
@@ -96,6 +98,7 @@ func TestTokenForIDCollision(t *testing.T) {
 		fmt.Printf("missing 1 out of every %.2f spans", float32(n)/float32(missing))
 	}
 
+	// There shouldn't be any collisions.
 	require.Equal(t, n, len(tokens))
 }
 
@@ -112,7 +115,7 @@ func BenchmarkTokenForID(b *testing.B) {
 
 func BenchmarkCombine(b *testing.B) {
 	parts := []int{2, 3, 4, 8}
-	requests := 100
+	requests := 100 // 100K spans per part
 	spansEach := 1000
 	id := test.ValidTraceID(nil)
 
@@ -134,7 +137,9 @@ func BenchmarkCombine(b *testing.B) {
 			"Combiner",
 			func(traces []*tempopb.Trace) int {
 				c := NewCombiner()
-				c.ConsumeAll(traces...)
+				for i := range traces {
+					c.ConsumeWithFinal(traces[i], i == len(traces)-1)
+				}
 				_, spanCount := c.Result()
 				return spanCount
 			}},

@@ -93,7 +93,7 @@ func (d *ObjectDecoder) Combine(objs ...[]byte) ([]byte, error) {
 	minStart = math.MaxUint32
 
 	c := trace.NewCombiner()
-	for _, obj := range objs {
+	for i, obj := range objs {
 		t, err := d.PrepareForRead(obj)
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshaling trace: %w", err)
@@ -113,7 +113,7 @@ func (d *ObjectDecoder) Combine(objs ...[]byte) ([]byte, error) {
 			}
 		}
 
-		c.Consume(t)
+		c.ConsumeWithFinal(t, i == len(objs)-1)
 	}
 
 	combinedTrace, _ := c.Result()

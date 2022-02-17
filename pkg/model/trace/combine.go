@@ -8,6 +8,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
+// Deprecated: This is only capable of pairwise combination. It is replaced by Combiner.
 // CombineTraceProtos combines two trace protos into one.  Note that it is destructive.
 //  All spans are combined into traceA.  spanCountA, B, and Total are returned for
 //  logging purposes.
@@ -70,13 +71,17 @@ func CombineTraceProtos(traceA, traceB *tempopb.Trace) (*tempopb.Trace, int) {
 	return traceA, spanCountTotal
 }
 
+// token is unint64 to reduce hash collision rates.  Experimentally, it was observed
+// that fnv32 could approach a collision rate of 1 in 10,000. fnv64 avoids collisions
+// when tested against traces with up to 1M spans (see matching test). A collision
+// results in a dropped span during combine.
 type token uint64
 
 func newHash() hash.Hash64 {
 	return fnv.New64()
 }
 
-// tokenForID returns a uint32 token for use in a hash map given a span id and span kind
+// tokenForID returns a token for use in a hash map given a span id and span kind
 //  buffer must be a 4 byte slice and is reused for writing the span kind to the hashing function
 //  kind is used along with the actual id b/c in zipkin traces span id is not guaranteed to be unique
 //  as it is shared between client and server spans.
@@ -89,6 +94,11 @@ func tokenForID(h hash.Hash64, buffer []byte, kind int32, b []byte) token {
 	return token(h.Sum64())
 }
 
+// Combiner combines multiple partial traces into one, deduping spans based on
+// ID and kind.  Note that it is destructive. There are several efficiency
+// improvements over the previous pairwise CombineTraceProtos:
+// * Only scan/hash the spans for each input once
+// * Only sort the final result once.
 type Combiner struct {
 	result   *tempopb.Trace
 	spans    map[token]struct{}
@@ -101,13 +111,14 @@ func NewCombiner() *Combiner {
 	}
 }
 
-func (c *Combiner) ConsumeAll(traces ...*tempopb.Trace) {
-	for _, t := range traces {
-		c.Consume(t)
-	}
+// Consume the given trace and destructively combines its contents.
+func (c *Combiner) Consume(tr *tempopb.Trace) (spanCount int) {
+	return c.ConsumeWithFinal(tr, false)
 }
 
-func (c *Combiner) Consume(tr *tempopb.Trace) {
+// ConsumeWithFinal consumes the trace, but allows for performance savings when
+// it is known that this is the last expected input trace.
+func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (spanCount int) {
 	if tr == nil {
 		return
 	}
@@ -140,12 +151,18 @@ func (c *Combiner) Consume(tr *tempopb.Trace) {
 				_, ok := c.spans[token]
 				if !ok {
 					notFoundSpans = append(notFoundSpans, s)
-					c.spans[token] = struct{}{}
+
+					// If last expected input, then we don't need to record
+					// the visited spans. Optimization has significant savings.
+					if !final {
+						c.spans[token] = struct{}{}
+					}
 				}
 			}
 
 			if len(notFoundSpans) > 0 {
 				ils.Spans = notFoundSpans
+				spanCount += len(notFoundSpans)
 				notFoundILS = append(notFoundILS, ils)
 			}
 		}
@@ -158,8 +175,10 @@ func (c *Combiner) Consume(tr *tempopb.Trace) {
 	}
 
 	c.combined = true
+	return
 }
 
+// Result returns the final trace and span count.
 func (c *Combiner) Result() (*tempopb.Trace, int) {
 	spanCount := -1
 

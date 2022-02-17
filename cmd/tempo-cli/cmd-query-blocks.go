@@ -47,13 +47,13 @@ func (cmd *queryBlocksCmd) Run(ctx *globalOptions) error {
 	}
 
 	var (
-		combinedTrace *tempopb.Trace
-		marshaller    = new(jsonpb.Marshaler)
-		jsonBytes     = bytes.Buffer{}
+		combiner   = trace.NewCombiner()
+		marshaller = new(jsonpb.Marshaler)
+		jsonBytes  = bytes.Buffer{}
 	)
 
 	fmt.Println()
-	for _, result := range results {
+	for i, result := range results {
 		fmt.Println(result.blockID, ":")
 
 		err := marshaller.Marshal(&jsonBytes, result.trace)
@@ -64,9 +64,10 @@ func (cmd *queryBlocksCmd) Run(ctx *globalOptions) error {
 
 		fmt.Println(jsonBytes.String())
 		jsonBytes.Reset()
-		combinedTrace, _ = trace.CombineTraceProtos(result.trace, combinedTrace)
+		combiner.ConsumeWithFinal(result.trace, i == len(results)-1)
 	}
 
+	combinedTrace, _ := combiner.Result()
 	fmt.Println("combined:")
 	err = marshaller.Marshal(&jsonBytes, combinedTrace)
 	if err != nil {
