@@ -80,8 +80,7 @@
       },
     },
     metrics_generator: {
-      replicas: 1,
-      // TODO set this again once we gather some experimental data
+      replicas: 0,
       resources: {
         requests:{
           cpu: '500m',
@@ -118,6 +117,7 @@
     backend: error 'Must specify a backend',  // gcs|s3
     bucket: error 'Must specify a bucket',
     search_enabled: false,
+    metrics_generator_enabled: false,
 
     overrides_configmap_name: 'tempo-overrides',
     overrides+:: {
