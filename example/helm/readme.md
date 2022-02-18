@@ -34,7 +34,7 @@ helm repo update
 Install Tempo, Grafana and synthetic-load-generator
 
 ```console
-helm upgrade --set traces.jaeger.thriftHttp=true --install tempo grafana/tempo-distributed
+helm upgrade -f microservices-tempo-values.yaml --install tempo grafana/tempo-distributed
 helm upgrade -f microservices-grafana-values.yaml --install grafana grafana/grafana
 kubectl create -f microservices-extras.yaml
 ```

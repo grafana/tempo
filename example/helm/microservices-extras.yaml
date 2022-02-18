@@ -687,3 +687,48 @@ spec:
       - configMap:
           name: synthetic-load-generator
         name: conf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: minio
+  name: minio
+  namespace: default
+spec:
+  ports:
+  - port: 9000
+    targetPort: 9000
+  selector:
+    app: minio
+    name: minio
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: default
+spec:
+  minReadySeconds: 10
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+      name: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+        name: minio
+    spec:
+      containers:
+      - env:
+        - name: MINIO_ACCESS_KEY
+          value: tempo
+        - name: MINIO_SECRET_KEY
+          value: supersecret
+        image: minio/minio:latest
+        imagePullPolicy: IfNotPresent
+        name: minio
+        command: ["sh"]
+        args: ["-euc", "mkdir -p /data/tempo && /opt/bin/minio server /data --console-address ':9001'"]
