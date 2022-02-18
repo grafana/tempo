@@ -24,6 +24,11 @@ func TestSpanMetrics(t *testing.T) {
 	err := p.RegisterMetrics(registry)
 	assert.NoError(t, err)
 
+	now := time.Now()
+	registry.SetTimeNow(func() time.Time {
+		return now
+	})
+
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
 	req := test.MakeBatch(10, nil)
 
@@ -32,7 +37,7 @@ func TestSpanMetrics(t *testing.T) {
 
 	appender := &test_util.Appender{}
 
-	collectTime := time.Now()
+	collectTime := now
 	err = registry.Gather(appender)
 	assert.NoError(t, err)
 
