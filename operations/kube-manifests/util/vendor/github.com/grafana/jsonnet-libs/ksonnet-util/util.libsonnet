@@ -1,12 +1,21 @@
 // util.libsonnet provides a number of useful (opinionated) shortcuts to replace boilerplate code
 
 local util(k) = {
+  // checkFlagsMap checks map for presence of flags that values with both with and without prefix set ('foo' and '-foo').
+  checkFlagsMap(map, prefix): [
+    error 'key "%(key)s" provided with value "%(value)s" but key "%(prefix)s%(key)s" was provided too with value "%(otherValue)s", if want to ignore this, set check=false in mapToFlags' %
+          { key: key, value: map[key], prefix: prefix, otherValue: map[prefix + key] }
+    for key in std.objectFields(map)
+    if map[key] != null && std.objectHas(map, prefix + key) && map[prefix + key] != null
+  ],
+
   // mapToFlags converts a map to a set of golang-style command line flags.
-  mapToFlags(map, prefix='-'): [
+  // if check=true, it will check for 'foo' and '-foo' presence, failing in that case.
+  mapToFlags(map, prefix='-', check=true): [
     '%s%s=%s' % [prefix, key, map[key]]
     for key in std.objectFields(map)
     if map[key] != null
-  ],
+  ] + if check then $.checkFlagsMap(map, prefix) else [],
 
   // serviceFor create service for a given deployment.
   serviceFor(deployment, ignored_labels=[], nameFormat='%(container)s-%(port)s')::

@@ -1,36 +1,38 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: compactor
+  name: metrics-generator
   namespace: tracing
 spec:
   minReadySeconds: 10
-  replicas: 5
+  replicas: 0
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      app: compactor
-      name: compactor
+      app: metrics-generator
+      name: metrics-generator
+      tempo-gossip-member: "true"
   strategy:
     rollingUpdate:
-      maxSurge: 50%
-      maxUnavailable: 100%
+      maxSurge: 3
+      maxUnavailable: 1
   template:
     metadata:
       annotations:
-        config_hash: 39135b35e93010b0064838bd8f37a47f
+        config_hash: 345364f17b5771460510d3d5b9028e3c
       labels:
-        app: compactor
-        name: compactor
+        app: metrics-generator
+        name: metrics-generator
+        tempo-gossip-member: "true"
     spec:
       containers:
       - args:
-        - -target=compactor
+        - -target=metrics-generator
         - -config.file=/conf/tempo.yaml
         - -mem-ballast-size-mbs=1024
         image: grafana/tempo:latest
         imagePullPolicy: IfNotPresent
-        name: compactor
+        name: metrics-generator
         ports:
         - containerPort: 3200
           name: prom-metrics
@@ -43,10 +45,10 @@ spec:
         resources:
           limits:
             cpu: "1"
-            memory: 5Gi
+            memory: 2Gi
           requests:
             cpu: 500m
-            memory: 3Gi
+            memory: 1Gi
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf
@@ -54,7 +56,7 @@ spec:
           name: overrides
       volumes:
       - configMap:
-          name: tempo-compactor
+          name: tempo-metrics-generator
         name: tempo-conf
       - configMap:
           name: tempo-overrides
