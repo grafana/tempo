@@ -2,8 +2,8 @@ package trace
 
 import (
 	"bytes"
-	"crypto/rand"
 	"fmt"
+	"math/rand"
 	"sort"
 	"strconv"
 	"testing"
@@ -17,7 +17,6 @@ import (
 func TestCombineProtoTotals(t *testing.T) {
 
 	methods := []func(a, b *tempopb.Trace) (*tempopb.Trace, int){
-		CombineTraceProtos,
 		func(a, b *tempopb.Trace) (*tempopb.Trace, int) {
 			c := NewCombiner()
 			c.Consume(a)
@@ -125,16 +124,6 @@ func BenchmarkCombine(b *testing.B) {
 		method func(traces []*tempopb.Trace) int
 	}{
 		{
-			"CombineTraceProtos",
-			func(traces []*tempopb.Trace) int {
-				var tr *tempopb.Trace
-				var spanCount int
-				for _, t := range traces {
-					tr, spanCount = CombineTraceProtos(tr, t)
-				}
-				return spanCount
-			}},
-		{
 			"Combiner",
 			func(traces []*tempopb.Trace) int {
 				c := NewCombiner()
@@ -143,7 +132,8 @@ func BenchmarkCombine(b *testing.B) {
 				}
 				_, spanCount := c.Result()
 				return spanCount
-			}},
+			},
+		},
 	}
 	for _, p := range parts {
 		b.Run(strconv.Itoa(p), func(b *testing.B) {

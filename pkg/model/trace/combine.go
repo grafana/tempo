@@ -8,71 +8,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// nolint: staticcheck
-// Deprecated: This is only capable of pairwise combination. It is replaced by Combiner.
-// CombineTraceProtos combines two trace protos into one.  Note that it is destructive.
-//  All spans are combined into traceA.  spanCountA, B, and Total are returned for
-//  logging purposes.
-func CombineTraceProtos(traceA, traceB *tempopb.Trace) (*tempopb.Trace, int) {
-	// if one or the other is nil just return 0 for the one that's nil and -1 for the other.  this will be a clear indication this
-	// code path was taken without unnecessarily counting spans
-	if traceA == nil {
-		return traceB, -1
-	}
-
-	if traceB == nil {
-		return traceA, -1
-	}
-
-	spanCountTotal := 0
-
-	h := newHash()
-	buffer := make([]byte, 4)
-
-	spansInA := make(map[token]struct{})
-	for _, batchA := range traceA.Batches {
-		for _, ilsA := range batchA.InstrumentationLibrarySpans {
-			for _, spanA := range ilsA.Spans {
-				spansInA[tokenForID(h, buffer, int32(spanA.Kind), spanA.SpanId)] = struct{}{}
-			}
-			spanCountTotal += len(ilsA.Spans)
-		}
-	}
-
-	// loop through every span and copy spans in B that don't exist to A
-	for _, batchB := range traceB.Batches {
-		notFoundILS := batchB.InstrumentationLibrarySpans[:0]
-
-		for _, ilsB := range batchB.InstrumentationLibrarySpans {
-			notFoundSpans := ilsB.Spans[:0]
-			for _, spanB := range ilsB.Spans {
-				// if found in A, remove from the batch
-				_, ok := spansInA[tokenForID(h, buffer, int32(spanB.Kind), spanB.SpanId)]
-				if !ok {
-					notFoundSpans = append(notFoundSpans, spanB)
-				}
-			}
-
-			if len(notFoundSpans) > 0 {
-				spanCountTotal += len(notFoundSpans)
-				ilsB.Spans = notFoundSpans
-				notFoundILS = append(notFoundILS, ilsB)
-			}
-		}
-
-		// if there were some spans not found in A, add everything left in the batch
-		if len(notFoundILS) > 0 {
-			batchB.InstrumentationLibrarySpans = notFoundILS
-			traceA.Batches = append(traceA.Batches, batchB)
-		}
-	}
-
-	SortTrace(traceA)
-
-	return traceA, spanCountTotal
-}
-
-// token is unint64 to reduce hash collision rates.  Experimentally, it was observed
+// token is uint64 to reduce hash collision rates.  Experimentally, it was observed
 // that fnv32 could approach a collision rate of 1 in 10,000. fnv64 avoids collisions
 // when tested against traces with up to 1M spans (see matching test). A collision
 // results in a dropped span during combine.
@@ -96,10 +32,11 @@ func tokenForID(h hash.Hash64, buffer []byte, kind int32, b []byte) token {
 }
 
 // Combiner combines multiple partial traces into one, deduping spans based on
-// ID and kind.  Note that it is destructive. There are several efficiency
-// improvements over the previous pairwise CombineTraceProtos:
-// * Only scan/hash the spans for each input once
-// * Only sort the final result once.
+// ID and kind.  Note that it is destructive. There are design decisions for
+// efficiency:
+// * Only scan/hash the spans for each input once, which is reused across calls.
+// * Only sort the final result once and if needed.
+// * Don't scan/hash the spans for the last input (final=true).
 type Combiner struct {
 	result   *tempopb.Trace
 	spans    map[token]struct{}
