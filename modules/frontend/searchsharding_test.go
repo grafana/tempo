@@ -320,7 +320,7 @@ func TestIngesterRequest(t *testing.T) {
 		searchReq, err := api.ParseSearchRequest(req)
 		require.NoError(t, err)
 
-		actualReq, err := s.ingesterRequest(context.Background(), "test", req, searchReq)
+		actualReq, err := s.ingesterRequest(context.Background(), "test", req, *searchReq)
 		if tc.expectedError != nil {
 			assert.Equal(t, tc.expectedError, err)
 			continue
