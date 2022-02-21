@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/grafana/tempo/modules/distributor/receiver"
+	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	_ "github.com/grafana/tempo/pkg/gogocodec" // force gogo codec registration
@@ -63,6 +64,16 @@ var (
 		Name:      "distributor_ingester_append_failures_total",
 		Help:      "The total number of failed batch appends sent to ingesters.",
 	}, []string{"ingester"})
+	metricGeneratorPushes = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_metrics_generator_pushes_total",
+		Help:      "The total number of span pushes sent to metrics-generators.",
+	}, []string{"metrics_generator"})
+	metricGeneratorPushesFailures = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_metrics_generator_pushes_failures_total",
+		Help:      "The total number of failed span pushes sent to metrics-generators.",
+	}, []string{"metrics_generator"})
 	metricSpansIngested = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_spans_received_total",
@@ -83,6 +94,11 @@ var (
 		Namespace: "tempo",
 		Name:      "distributor_ingester_clients",
 		Help:      "The current number of ingester clients.",
+	})
+	metricGeneratorClients = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "distributor_metrics_generator_clients",
+		Help:      "The current number of metrics-generator clients.",
 	})
 	metricDiscardedSpans = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
@@ -115,6 +131,12 @@ type Distributor struct {
 	searchEnabled    bool
 	globalTagsToDrop map[string]struct{}
 
+	// metrics-generator
+	metricsGeneratorEnabled bool
+	generatorClientCfg      generator_client.Config
+	generatorsRing          ring.ReadRing
+	generatorsPool          *ring_client.Pool
+
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
 
@@ -124,7 +146,7 @@ type Distributor struct {
 }
 
 // New a distributor creates.
-func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, o *overrides.Overrides, middleware receiver.Middleware, level logging.Level, searchEnabled bool, reg prometheus.Registerer) (*Distributor, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, generatorClientCfg generator_client.Config, generatorsRing ring.ReadRing, o *overrides.Overrides, middleware receiver.Middleware, loggingLevel logging.Level, searchEnabled bool, metricsGeneratorEnabled bool, reg prometheus.Registerer) (*Distributor, error) {
 	factory := cfg.factory
 	if factory == nil {
 		factory = func(addr string) (ring_client.PoolClient, error) {
@@ -166,6 +188,22 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	subservices = append(subservices, pool)
 
+	var generatorsPool *ring_client.Pool
+	if metricsGeneratorEnabled {
+		generatorsPool = ring_client.NewPool(
+			"distributor_metrics_generator_pool",
+			generatorClientCfg.PoolConfig,
+			ring_client.NewRingServiceDiscovery(generatorsRing),
+			func(addr string) (ring_client.PoolClient, error) {
+				return generator_client.New(addr, generatorClientCfg)
+			},
+			metricGeneratorClients,
+			log.Logger,
+		)
+
+		subservices = append(subservices, generatorsPool)
+	}
+
 	// turn list into map for efficient checking
 	tagsToDrop := map[string]struct{}{}
 	for _, tag := range cfg.SearchTagsDenyList {
@@ -173,16 +211,20 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 	}
 
 	d := &Distributor{
-		cfg:                  cfg,
-		clientCfg:            clientCfg,
-		ingestersRing:        ingestersRing,
-		pool:                 pool,
-		DistributorRing:      distributorRing,
-		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
-		searchEnabled:        searchEnabled,
-		globalTagsToDrop:     tagsToDrop,
-		overrides:            o,
-		traceEncoder:         model.MustNewSegmentDecoder(model.CurrentEncoding),
+		cfg:                     cfg,
+		clientCfg:               clientCfg,
+		ingestersRing:           ingestersRing,
+		pool:                    pool,
+		DistributorRing:         distributorRing,
+		ingestionRateLimiter:    limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
+		searchEnabled:           searchEnabled,
+		metricsGeneratorEnabled: metricsGeneratorEnabled,
+		generatorClientCfg:      generatorClientCfg,
+		generatorsRing:          generatorsRing,
+		generatorsPool:          generatorsPool,
+		globalTagsToDrop:        tagsToDrop,
+		overrides:               o,
+		traceEncoder:            model.MustNewSegmentDecoder(model.CurrentEncoding),
 	}
 
 	cfgReceivers := cfg.Receivers
@@ -190,7 +232,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		cfgReceivers = defaultReceivers
 	}
 
-	receivers, err := receiver.New(cfgReceivers, d, middleware, level)
+	receivers, err := receiver.New(cfgReceivers, d, middleware, loggingLevel)
 	if err != nil {
 		return nil, err
 	}
@@ -300,6 +342,17 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 		recordDiscaredSpans(err, userID, spanCount)
 	}
 
+	if d.metricsGeneratorEnabled && len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 && err == nil {
+		// Handle requests sent to the metrics-generator in a separate goroutine, this way we don't
+		// influence the overall write
+		go func() {
+			genErr := d.sendToGenerators(context.Background(), userID, keys, rebatchedTraces)
+			if genErr != nil {
+				level.Error(log.Logger).Log("msg", "pushing to metrics-generators failed", "err", genErr)
+			}
+		}()
+	}
+
 	return nil, err // PushRequest is ignored, so no reason to create one
 }
 
@@ -349,6 +402,38 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		metricIngesterAppends.WithLabelValues(ingester.Addr).Inc()
 		if err != nil {
 			metricIngesterAppendFailures.WithLabelValues(ingester.Addr).Inc()
+		}
+		return err
+	}, func() {})
+
+	return err
+}
+
+func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
+	// If an instance is unhealthy write to the next one (i.e. write extend is enabled)
+	op := ring.Write
+
+	err := ring.DoBatch(ctx, op, d.generatorsRing, keys, func(generator ring.InstanceDesc, indexes []int) error {
+		localCtx, cancel := context.WithTimeout(ctx, d.generatorClientCfg.RemoteTimeout)
+		defer cancel()
+		localCtx = user.InjectOrgID(localCtx, userID)
+
+		req := tempopb.PushSpansRequest{
+			Batches: nil,
+		}
+		for _, j := range indexes {
+			req.Batches = append(req.Batches, traces[j].trace.Batches...)
+		}
+
+		c, err := d.generatorsPool.GetClientFor(generator.Addr)
+		if err != nil {
+			return err
+		}
+
+		_, err = c.(tempopb.MetricsGeneratorClient).PushSpans(localCtx, &req)
+		metricGeneratorPushes.WithLabelValues(generator.Addr).Inc()
+		if err != nil {
+			metricGeneratorPushesFailures.WithLabelValues(generator.Addr).Inc()
 		}
 		return err
 	}, func() {})

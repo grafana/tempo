@@ -11,6 +11,10 @@ service Pusher {
   rpc PushBytesV2(PushBytesRequest) returns (PushResponse) {}; // ./pkg/model/v2
 }
 
+service MetricsGenerator {
+  rpc PushSpans(PushSpansRequest) returns (PushResponse) {};
+}
+
 service Querier {
   rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {};
   rpc SearchRecent(SearchRequest) returns (SearchResponse) {};
@@ -113,6 +117,11 @@ message PushBytesRequest {
   repeated bytes ids = 3 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
   // search data, length must match traces
   repeated bytes searchData = 4 [(gogoproto.nullable) = false, (gogoproto.customtype) = "PreallocBytes"];
+}
+
+message PushSpansRequest {
+  // just send entire OTel spans for now
+  repeated tempopb.trace.v1.ResourceSpans batches = 1;
 }
 
 message TraceBytes {

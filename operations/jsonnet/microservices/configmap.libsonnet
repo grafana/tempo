@@ -4,6 +4,7 @@
 
   tempo_config:: {
     search_enabled: $._config.search_enabled,
+    metrics_generator_enabled: $._config.metrics_generator_enabled,
     http_api_prefix: $._config.http_api_prefix,
 
     server: {
@@ -65,6 +66,8 @@
 
   tempo_ingester_config:: $.tempo_config {},
 
+  tempo_metrics_generator_config:: $.tempo_config{},
+
   tempo_compactor_config:: $.tempo_config {
     compactor+: {
       compaction+: {
@@ -124,6 +127,12 @@
     configMap.new('tempo-ingester') +
     configMap.withData({
       'tempo.yaml': k.util.manifestYaml($.tempo_ingester_config),
+    }),
+
+  tempo_metrics_generator_configmap:
+    configMap.new('tempo-metrics-generator') +
+    configMap.withData({
+      'tempo.yaml': $.util.manifestYaml($.tempo_metrics_generator_config),
     }),
 
   tempo_compactor_configmap:

@@ -79,6 +79,19 @@
         },
       },
     },
+    metrics_generator: {
+      replicas: 0,
+      resources: {
+        requests:{
+          cpu: '500m',
+          memory: '1Gi'
+        },
+        limits: {
+          cpu: '1',
+          memory: '2Gi',
+        },
+      },
+    },
     memcached: {
       replicas: 3,
       connection_limit: 4096,
@@ -104,6 +117,7 @@
     backend: error 'Must specify a backend',  // gcs|s3
     bucket: error 'Must specify a bucket',
     search_enabled: false,
+    metrics_generator_enabled: false,
 
     overrides_configmap_name: 'tempo-overrides',
     overrides+:: {
