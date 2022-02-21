@@ -8,6 +8,7 @@
 * [ENHACEMENT] Enterprise jsonnet: add config to create tokengen job explicitly [#1256](https://github.com/grafana/tempo/pull/1256) (@kvrhdn)
 * [BUGFIX]: Remove unnecessary PersistentVolumeClaim [#1245](https://github.com/grafana/tempo/issues/1245)
 * [BUGFIX] Fixed issue when query-frontend doesn't log request details when request is cancelled [#1136](https://github.com/grafana/tempo/issues/1136) (@adityapwr)
+* [BUGFIX] Fixed an issue where the query-frontend would mangle start/end time ranges on searches which included the ingesters [#1295] (@joe-elliott)
 
 ## v1.3.1 / 2022-02-02
 * [BUGFIX] Fixed panic when using etcd as ring's kvstore [#1260](https://github.com/grafana/tempo/pull/1260) (@mapno)
