@@ -365,6 +365,8 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 
 // queryIngesterWithin returns a new start and end time range for the backend as well as an http request
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
+// since this function modifies searchReq.Start and End we are taking a value instead of a pointer to prevent it from
+// unexpectedly changing the passed searchReq.
 func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.SearchRequest) (*http.Request, error) {
 	now := time.Now()
 	ingesterUntil := uint32(now.Add(-s.cfg.QueryIngestersUntil).Unix())
