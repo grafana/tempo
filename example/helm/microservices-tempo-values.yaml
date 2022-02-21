@@ -1,4 +1,3 @@
-#jpe - clean up tempo config. add a grafana that supports search
 traces:
   jaeger:
     thriftHttp: true
