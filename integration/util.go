@@ -26,13 +26,34 @@ const (
 	image = "tempo:latest"
 )
 
+// GetExtraArgs returns the extra args to pass to the Docker command used to run Tempo.
+func GetExtraArgs() []string {
+	// Get extra args from the TEMPO_EXTRA_ARGS env variable
+	// falling back to an empty list
+	if os.Getenv("TEMPO_EXTRA_ARGS") != "" {
+		return strings.Fields(os.Getenv("TEMPO_EXTRA_ARGS"))
+	}
+
+	return nil
+}
+
+func buildArgsWithExtra(args []string) []string {
+	extraArgs := GetExtraArgs()
+	if len(extraArgs) > 0 {
+		return append(extraArgs, args...)
+	}
+
+	return args
+}
+
 func NewTempoAllInOne() *e2e.HTTPService {
-	args := "-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml")
+	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml")}
+	args = buildArgsWithExtra(args)
 
 	s := e2e.NewHTTPService(
 		"tempo",
 		image,
-		e2e.NewCommandWithoutEntrypoint("/tempo", args),
+		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
 		3200,  // http all things
 		14250, // jaeger grpc ingest
@@ -47,6 +68,7 @@ func NewTempoAllInOne() *e2e.HTTPService {
 
 func NewTempoDistributor() *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=distributor"}
+	args = buildArgsWithExtra(args)
 
 	s := e2e.NewHTTPService(
 		"distributor",
@@ -64,6 +86,7 @@ func NewTempoDistributor() *e2e.HTTPService {
 
 func NewTempoIngester(replica int) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=ingester"}
+	args = buildArgsWithExtra(args)
 
 	s := e2e.NewHTTPService(
 		"ingester-"+strconv.Itoa(replica),
@@ -80,6 +103,7 @@ func NewTempoIngester(replica int) *e2e.HTTPService {
 
 func NewTempoQueryFrontend() *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=query-frontend"}
+	args = buildArgsWithExtra(args)
 
 	s := e2e.NewHTTPService(
 		"query-frontend",
@@ -96,6 +120,7 @@ func NewTempoQueryFrontend() *e2e.HTTPService {
 
 func NewTempoQuerier() *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=querier"}
+	args = buildArgsWithExtra(args)
 
 	s := e2e.NewHTTPService(
 		"querier",
@@ -112,6 +137,7 @@ func NewTempoQuerier() *e2e.HTTPService {
 
 func NewTempoScalableSingleBinary(replica int) *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=scalable-single-binary", "-querier.frontend-address=tempo-" + strconv.Itoa(replica) + ":9095"}
+	args = buildArgsWithExtra(args)
 
 	s := e2e.NewHTTPService(
 		"tempo-"+strconv.Itoa(replica),

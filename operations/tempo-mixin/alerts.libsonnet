@@ -155,6 +155,65 @@
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoTenantIndexTooOld',
             },
           },
+          {
+            alert: 'TempoBadOverrides',
+            expr: |||
+              sum(tempo_runtime_config_last_reload_successful{namespace=~"%s"} == 0) by (cluster, namespace, job)
+            ||| % $._config.namespace,
+            'for': '15m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: '{{ $labels.job }} failed to reload overrides.',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBadOverrides',
+            },
+          },
+          // ingesters
+          {
+            alert: 'TempoProvisioningTooManyWrites',
+            // 30MB/s written to the WAL per ingester max
+            expr: |||
+              avg by (cluster, namespace) (rate(tempo_ingester_bytes_received_total{job=~".+/ingester"}[1m])) / 1024 / 1024 > 30
+            |||,
+            'for': '15m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Ingesters in {{ $labels.cluster }}/{{ $labels.namespace }} are receiving more data/second than desired, add more ingesters.',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoProvisioningTooManyWrites',
+            },
+          },
+          // compactors
+          {
+            alert: 'TempoCompactorsTooManyOutstandingBlocks',
+            expr: |||
+              sum by (cluster, namespace, tenant) (tempodb_compaction_outstanding_blocks{container="compactor", namespace=~"%s"}) / ignoring(tenant) group_left count(tempo_build_info{container="compactor", namespace=~"%s"}) by (cluster, namespace) > %d
+            ||| % [$._config.namespace, $._config.namespace, $._config.alerts.outstanding_blocks_warning],
+            'for': '6h',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: "There are too many outstanding compaction blocks in {{ $labels.cluster }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase compactor's CPU or add more compactors.",
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactorsTooManyOutstandingBlocks',
+            },
+          },
+          {
+            alert: 'TempoCompactorsTooManyOutstandingBlocks',
+            expr: |||
+              sum by (cluster, namespace, tenant) (tempodb_compaction_outstanding_blocks{container="compactor", namespace=~"%s"}) / ignoring(tenant) group_left count(tempo_build_info{container="compactor", namespace=~"%s"}) by (cluster, namespace) > %d
+            ||| % [$._config.namespace, $._config.namespace, $._config.alerts.outstanding_blocks_critical],
+            'for': '24h',
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: "There are too many outstanding compaction blocks in {{ $labels.cluster }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}, increase compactor's CPU or add more compactors.",
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactorsTooManyOutstandingBlocks',
+            },
+          },
         ],
       },
     ],
