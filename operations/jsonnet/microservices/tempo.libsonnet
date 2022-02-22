@@ -4,6 +4,7 @@
 (import 'compactor.libsonnet') +
 (import 'distributor.libsonnet') +
 (import 'ingester.libsonnet') +
+(import 'generator.libsonnet') +
 (import 'frontend.libsonnet') +
 (import 'querier.libsonnet') +
 (import 'vulture.libsonnet') +

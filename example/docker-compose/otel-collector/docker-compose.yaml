@@ -27,8 +27,8 @@ services:
     ports:
       - "14268"  # jaeger ingest
       - "3200"   # tempo
-      - "55680"  # otlp grpc
-      - "55681"  # otlp http
+      - "4317"  # otlp grpc
+      - "4318"  # otlp http
       - "9411"   # zipkin
 
   prometheus:

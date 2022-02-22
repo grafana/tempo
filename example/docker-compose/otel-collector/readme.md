@@ -19,7 +19,7 @@ otel-collector_grafana_1                    /run.sh                          Up 
 otel-collector_otel-collector_1             /otelcol --config=/etc/ote ...   Up      55678/tcp, 55679/tcp
 otel-collector_synthetic-load-generator_1   ./start.sh                       Up
 otel-collector_tempo_1                      /tempo -config.file=/etc/t ...   Up      0.0.0.0:59538->14268/tcp, 0.0.0.0:59540->3200/tcp,
-                                                                                    0.0.0.0:59537->55680/tcp, 0.0.0.0:59536->55681/tcp,
+                                                                                    0.0.0.0:59537->4317/tcp, 0.0.0.0:59536->4318/tcp,
                                                                                     0.0.0.0:59539->9411/tcp
 ```
 
