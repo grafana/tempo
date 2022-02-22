@@ -188,7 +188,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardSearch")
 	defer span.Finish()
 
-	ingesterReq, err := s.ingesterRequest(ctx, tenantID, r, searchReq)
+	ingesterReq, err := s.ingesterRequest(ctx, tenantID, r, *searchReq)
 	if err != nil {
 		return nil, err
 	}
@@ -365,7 +365,9 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 
 // queryIngesterWithin returns a new start and end time range for the backend as well as an http request
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
-func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest) (*http.Request, error) {
+// since this function modifies searchReq.Start and End we are taking a value instead of a pointer to prevent it from
+// unexpectedly changing the passed searchReq.
+func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.SearchRequest) (*http.Request, error) {
 	now := time.Now()
 	ingesterUntil := uint32(now.Add(-s.cfg.QueryIngestersUntil).Unix())
 
@@ -392,7 +394,7 @@ func (s *searchSharder) ingesterRequest(ctx context.Context, tenantID string, pa
 
 	searchReq.Start = ingesterStart
 	searchReq.End = ingesterEnd
-	subR, err := api.BuildSearchRequest(subR, searchReq)
+	subR, err := api.BuildSearchRequest(subR, &searchReq)
 	if err != nil {
 		return nil, err
 	}
