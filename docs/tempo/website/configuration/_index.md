@@ -254,6 +254,12 @@ querier:
     # The default value of "" disables this feature.
     [search_external_endpoints: <list of strings> | default = <empty list>]
 
+    # The query frontend turns both trace by id (/api/traces/<id>) and search (/api/search?<params>) requests
+    # into subqueries that are then pulled and serviced by the queriers.
+    # This value controls the overall number of simultaneous subqueries that the querier will service at once. It does
+    # not distinguish between the types of queries.
+    [max_concurrent_queries: <int> | default = 5]
+
     # config of the worker that connects to the query frontend
     frontend_worker:
 
