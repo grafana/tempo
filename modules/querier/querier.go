@@ -412,7 +412,6 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 }
 
 func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
-
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "error extracting org id in Querier.BackendSearch")
