@@ -13,7 +13,7 @@
 * [BUGFIX] Update OTLP port in examples (docker-compose & kubernetes) from legacy ports (55680/55681) to new ports (4317/4318) [#1294](https://github.com/grafana/tempo/pull/1294) (@mapno)
 
 ## v1.3.2 / 2022-02-23
-* [BUGFIX] Fixed an issue where the query-frontend would mangle start/end time ranges on searches which included the ingesters [#1295] (@joe-elliott)
+* [BUGFIX] Fixed an issue where the query-frontend would corrupt start/end time ranges on searches which included the ingesters [#1295] (@joe-elliott)
 
 ## v1.3.1 / 2022-02-02
 * [BUGFIX] Fixed panic when using etcd as ring's kvstore [#1260](https://github.com/grafana/tempo/pull/1260) (@mapno)
