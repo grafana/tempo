@@ -254,6 +254,12 @@ querier:
     # The default value of "" disables this feature.
     [search_external_endpoints: <list of strings> | default = <empty list>]
 
+    # If search_external_endpoints is set then the querier will primarily act as a proxy for whatever serverless backend
+    # you have configured. This setting allows the operator to have the querier prefer itself for a configurable
+    # number of queries. In the default case of 2 the querier will process up to 2 search requests before starting
+    # to reach out to search_external_endpoints.
+    [search_prefer_self: <int> | default = 2 ]
+
     # The query frontend turns both trace by id (/api/traces/<id>) and search (/api/search?<params>) requests
     # into subqueries that are then pulled and serviced by the queriers.
     # This value controls the overall number of simultaneous subqueries that the querier will service at once. It does
