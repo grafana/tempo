@@ -62,7 +62,7 @@ services:
     entrypoint:
       - sh
       - -euc
-      - mkdir -p /data/tempo && /usr/bin/minio server /data
+      - mkdir -p /data/tempo && /opt/bin/minio server /data
 
   synthetic-load-generator:
     image: omnition/synthetic-load-generator:1.0.25
