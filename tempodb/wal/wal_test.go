@@ -41,12 +41,8 @@ func (m *mockCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, boo
 }
 
 func TestAppend(t *testing.T) {
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	require.NoError(t, err, "unexpected error creating temp dir")
-
 	wal, err := New(&Config{
-		Filepath: tempDir,
+		Filepath: t.TempDir(),
 	})
 	require.NoError(t, err, "unexpected error creating temp wal")
 
@@ -96,11 +92,9 @@ func TestAppend(t *testing.T) {
 func TestCompletedDirIsRemoved(t *testing.T) {
 	// Create /completed/testfile and verify it is removed.
 
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	require.NoError(t, err, "unexpected error creating temp dir")
+	tempDir := t.TempDir()
 
-	err = os.MkdirAll(path.Join(tempDir, completedDir), os.ModePerm)
+	err := os.MkdirAll(path.Join(tempDir, completedDir), os.ModePerm)
 	require.NoError(t, err, "unexpected error creating completedDir")
 
 	_, err = os.Create(path.Join(tempDir, completedDir, "testfile"))
@@ -116,9 +110,7 @@ func TestCompletedDirIsRemoved(t *testing.T) {
 }
 
 func TestErrorConditions(t *testing.T) {
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	require.NoError(t, err, "unexpected error creating temp dir")
+	tempDir := t.TempDir()
 
 	wal, err := New(&Config{
 		Filepath: tempDir,
@@ -178,12 +170,8 @@ func TestAppendReplayFind(t *testing.T) {
 }
 
 func testAppendReplayFind(t *testing.T, e backend.Encoding) {
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	require.NoError(t, err, "unexpected error creating temp dir")
-
 	wal, err := New(&Config{
-		Filepath: tempDir,
+		Filepath: t.TempDir(),
 		Encoding: e,
 	})
 	require.NoError(t, err, "unexpected error creating temp wal")
@@ -432,9 +420,8 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		tempDir, _ := os.MkdirTemp("/tmp", "")
 		wal, _ := New(&Config{
-			Filepath: tempDir,
+			Filepath: b.TempDir(),
 			Encoding: encoding,
 		})
 
@@ -457,7 +444,5 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 		// replay
 		_, err = wal.RescanBlocks(log.NewNopLogger())
 		require.NoError(b, err)
-
-		os.RemoveAll(tempDir)
 	}
 }
