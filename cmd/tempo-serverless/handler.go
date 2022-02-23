@@ -47,28 +47,28 @@ type HTTPError struct {
 func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 	searchReq, err := api.ParseSearchBlockRequest(r)
 	if err != nil {
-		return nil, httpError(err, http.StatusBadRequest)
+		return nil, httpError("parsing search request", err, http.StatusBadRequest)
 	}
 
 	// load config, fields are set through env vars TEMPO_
 	reader, cfg, err := loadBackend()
 	if err != nil {
-		return nil, httpError(err, http.StatusInternalServerError)
+		return nil, httpError("loading backend", err, http.StatusInternalServerError)
 	}
 
 	tenant, _, err := user.ExtractOrgIDFromHTTPRequest(r)
 	if err != nil {
-		return nil, httpError(err, http.StatusBadRequest)
+		return nil, httpError("extracting org id", err, http.StatusBadRequest)
 	}
 
 	blockID, err := uuid.Parse(searchReq.BlockID)
 	if err != nil {
-		return nil, httpError(err, http.StatusBadRequest)
+		return nil, httpError("parsing uuid", err, http.StatusBadRequest)
 	}
 
 	enc, err := backend.ParseEncoding(searchReq.Encoding)
 	if err != nil {
-		return nil, httpError(err, http.StatusBadRequest)
+		return nil, httpError("parsing encoding", err, http.StatusBadRequest)
 	}
 
 	// /giphy so meta
@@ -84,14 +84,14 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 
 	block, err := encoding.NewBackendBlock(meta, reader)
 	if err != nil {
-		return nil, httpError(err, http.StatusInternalServerError)
+		return nil, httpError("creating backend block", err, http.StatusInternalServerError)
 	}
 
 	// tempodb exposes an IterateObjects() method to basically perform the below loop. currently we are purposefully
 	// not using that so that the serverless function doesn't have to instantiate a full tempodb instance.
 	iter, err := block.PartialIterator(cfg.Search.ChunkSizeBytes, int(searchReq.StartPage), int(searchReq.PagesToSearch))
 	if err != nil {
-		return nil, httpError(err, http.StatusInternalServerError)
+		return nil, httpError("creating partial iterator", err, http.StatusInternalServerError)
 	}
 	iter = encoding.NewPrefetchIterator(r.Context(), iter, cfg.Search.PrefetchTraceCount)
 
@@ -101,7 +101,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 
 	decoder, err := model.NewObjectDecoder(searchReq.DataEncoding)
 	if err != nil {
-		return nil, httpError(err, http.StatusInternalServerError)
+		return nil, httpError("creating decoder", err, http.StatusInternalServerError)
 	}
 
 	for {
@@ -110,7 +110,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 			break
 		}
 		if err != nil {
-			return nil, httpError(err, http.StatusInternalServerError)
+			return nil, httpError("iterating", err, http.StatusInternalServerError)
 		}
 
 		resp.Metrics.InspectedTraces++
@@ -118,7 +118,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 
 		metadata, err := decoder.Matches(id, obj, searchReq.SearchReq)
 		if err != nil {
-			return nil, httpError(err, http.StatusInternalServerError)
+			return nil, httpError("matching", err, http.StatusInternalServerError)
 		}
 		if metadata == nil {
 			continue
@@ -241,9 +241,9 @@ func stringToFlagExt() mapstructure.DecodeHookFunc {
 	}
 }
 
-func httpError(err error, status int) *HTTPError {
+func httpError(action string, err error, status int) *HTTPError {
 	return &HTTPError{
-		Err:    fmt.Errorf("serverless handler: %w", err),
+		Err:    fmt.Errorf("serverless [%s]: %w", action, err),
 		Status: status,
 	}
 }
