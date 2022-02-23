@@ -45,7 +45,7 @@ Refer to the [search](../../configuration#search) configuration documentation.
 Further configration information is in [backend search](../../operations/backend_search).
 The Tempo configuration is the same for searching recent traces or
 for search of the backend datastore. 
--  Run Grafana 8.3.4 or a more recent version. Enable the `tempoBackendSearch` [feature toggle](https://github.com/grafana/tempo/blob/main/example/docker-compose/tempo-search/grafana.ini). This will cause Grafana to pass the `start` and `end` parameters necessary for the backend datastore search.
+-  Run Grafana 8.3.6 or a more recent version. Enable the `tempoBackendSearch` [feature toggle](https://github.com/grafana/tempo/blob/main/example/docker-compose/tempo-search/grafana.ini). This will cause Grafana to pass the `start` and `end` parameters necessary for the backend datastore search.
 
 ## View JSON file
 A local JSON file containing a trace can be uploaded and viewed in the Grafana UI.  This is useful in cases where access to the original Tempo datasource is limited, or for preserving traces outside of Tempo.  The JSON data can be downloaded via the Tempo API or the Inspector panel while viewing the trace in Grafana.
