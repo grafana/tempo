@@ -98,7 +98,8 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// write header and body
+	// write headers, status code and body
+	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
 	if resp.Body != nil {
 		_, _ = io.Copy(w, resp.Body)
@@ -124,6 +125,14 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"response_size", contentLength,
 		"status", statusCode,
 	)
+}
+
+func copyHeader(dst, src http.Header) {
+	for k, vv := range src {
+		for _, v := range vv {
+			dst.Add(k, v)
+		}
+	}
 }
 
 // writeError handles writing errors to the http.ResponseWriter. It uses weavework common

@@ -15,6 +15,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/golang/protobuf/proto"
 	"github.com/grafana/tempo/modules/querier"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
@@ -177,8 +178,10 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	return &http.Response{
-		StatusCode:    http.StatusOK,
-		Header:        http.Header{},
+		StatusCode: http.StatusOK,
+		Header: http.Header{
+			api.HeaderContentType: {api.HeaderAcceptProtobuf},
+		},
 		Body:          io.NopCloser(bytes.NewReader(buff)),
 		ContentLength: int64(len(buff)),
 	}, nil

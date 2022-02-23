@@ -193,6 +193,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
 }
 
 func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
@@ -217,6 +218,7 @@ func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
 }
 
 func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request) {
@@ -249,4 +251,5 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
 }

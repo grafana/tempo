@@ -295,8 +295,10 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	return &http.Response{
-		StatusCode:    http.StatusOK,
-		Header:        http.Header{},
+		StatusCode: http.StatusOK,
+		Header: http.Header{
+			api.HeaderContentType: {api.HeaderAcceptJSON},
+		},
 		Body:          io.NopCloser(strings.NewReader(bodyString)),
 		ContentLength: int64(len([]byte(bodyString))),
 	}, nil

@@ -327,6 +327,9 @@ func TestShardingWareDoRequest(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
+			if tc.expectedStatus == http.StatusOK {
+				assert.Equal(t, "application/protobuf", resp.Header.Get("Content-Type"))
+			}
 			if tc.expectedTrace != nil {
 				actualResp := &tempopb.TraceByIDResponse{}
 				bytesTrace, err := io.ReadAll(resp.Body)
