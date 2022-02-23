@@ -44,9 +44,7 @@ type Combiner struct {
 }
 
 func NewCombiner() *Combiner {
-	return &Combiner{
-		spans: map[token]struct{}{},
-	}
+	return &Combiner{}
 }
 
 // Consume the given trace and destructively combines its contents.
@@ -67,6 +65,17 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (spanCount in
 	// First call?
 	if c.result == nil {
 		c.result = tr
+
+		// Pre-alloc map with input size. This saves having to grow the
+		// map from the small starting size.
+		n := 0
+		for _, b := range c.result.Batches {
+			for _, ils := range b.InstrumentationLibrarySpans {
+				n += len(ils.Spans)
+			}
+		}
+		c.spans = make(map[token]struct{}, n)
+
 		for _, b := range c.result.Batches {
 			for _, ils := range b.InstrumentationLibrarySpans {
 				for _, s := range ils.Spans {
