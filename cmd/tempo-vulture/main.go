@@ -37,7 +37,6 @@ var (
 	tempoReadBackoffDuration      time.Duration
 	tempoSearchBackoffDuration    time.Duration
 	tempoRetentionDuration        time.Duration
-	tempoSearchRetentionDuration  time.Duration
 
 	logger *zap.Logger
 )
