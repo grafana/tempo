@@ -66,7 +66,7 @@ func (c *StreamingBlock) AddObject(id common.ID, object []byte) error {
 		return err
 	}
 	c.bufferedObjects++
-	c.compactedMeta.ObjectAdded(id)
+	c.compactedMeta.ObjectAdded(id, 0, 0) // streaming block handles start/end time by combining BlockMetas. See .BlockMeta()
 	c.bloom.Add(id)
 	return nil
 }

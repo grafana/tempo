@@ -43,7 +43,7 @@ func ReplayWALAndGetRecords(file *os.File, v encoding.VersionedEncoding, enc bac
 		// wal should only ever have one object per page, test that here
 		_, _, err = objectReader.UnmarshalObjectFromReader(reader)
 		if err != io.EOF {
-			warning = err
+			warning = err // jpe: ooof, improve
 			break
 		}
 
@@ -54,6 +54,7 @@ func ReplayWALAndGetRecords(file *os.File, v encoding.VersionedEncoding, enc bac
 			break
 		}
 
+		// jpe swap to an appender?
 		// make a copy so we don't hold onto the iterator buffer
 		recordID := append([]byte(nil), id...)
 		records = append(records, common.Record{

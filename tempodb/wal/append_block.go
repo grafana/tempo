@@ -104,12 +104,14 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, 
 	return b, warning, nil
 }
 
-func (a *AppendBlock) Append(id common.ID, b []byte) error {
+// Append adds an id and object to this wal block. start/end should indicate the time range
+// associated with the past object. They are unix epoch seconds.
+func (a *AppendBlock) Append(id common.ID, b []byte, start, end uint32) error {
 	err := a.appender.Append(id, b)
 	if err != nil {
 		return err
 	}
-	a.meta.ObjectAdded(id)
+	a.meta.ObjectAdded(id, start, end)
 	return nil
 }
 

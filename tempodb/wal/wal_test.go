@@ -58,7 +58,7 @@ func TestAppend(t *testing.T) {
 		reqs = append(reqs, req)
 		bReq, err := proto.Marshal(req)
 		require.NoError(t, err)
-		err = block.Append([]byte{0x01}, bReq)
+		err = block.Append([]byte{0x01}, bReq, 0, 0)
 		require.NoError(t, err, "unexpected error writing req")
 	}
 
@@ -132,7 +132,7 @@ func TestErrorConditions(t *testing.T) {
 		bObj, err := proto.Marshal(obj)
 		require.NoError(t, err)
 
-		err = block.Append(id, bObj)
+		err = block.Append(id, bObj, 0, 0)
 		require.NoError(t, err, "unexpected error writing req")
 	}
 	appendFile, err := os.OpenFile(block.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
@@ -193,7 +193,7 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		require.NoError(t, err)
 		objs = append(objs, bObj)
 
-		err = block.Append(id, bObj)
+		err = block.Append(id, bObj, 0, 0)
 		require.NoError(t, err, "unexpected error writing req")
 	}
 
@@ -431,7 +431,7 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 
 		// write
 		for j, obj := range objs {
-			err := block.Append(ids[j], obj)
+			err := block.Append(ids[j], obj, 0, 0)
 			require.NoError(b, err)
 		}
 
