@@ -218,18 +218,18 @@ func (i *instance) measureReceivedBytes(traceBytes []byte, searchData []byte) {
 // Moves any complete traces out of the map to complete traces
 func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error {
 	tracesToCut := i.tracesToCut(cutoff, immediate)
-	batchDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
+	segmentDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	for _, t := range tracesToCut {
 		// sort batches before cutting to reduce combinations during compaction
 		sortByteSlices(t.batches)
 
-		out, err := batchDecoder.ToObject(t.batches)
+		out, err := segmentDecoder.ToObject(t.batches)
 		if err != nil {
 			return err
 		}
 
-		err = i.writeTraceToHeadBlock(t.traceID, out, t.searchData)
+		err = i.writeTraceToHeadBlock(t.traceID, out, t.searchData, t.start, t.end)
 		if err != nil {
 			return err
 		}
@@ -555,11 +555,11 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*liveTrac
 	return tracesToCut
 }
 
-func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]byte) error {
+func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]byte, start, end uint32) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	err := i.headBlock.Append(id, b)
+	err := i.headBlock.Append(id, b, start, end)
 	if err != nil {
 		return err
 	}

@@ -2,12 +2,14 @@ package ingester
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
@@ -20,9 +22,13 @@ var (
 )
 
 type liveTrace struct {
-	batches      [][]byte
-	lastAppend   time.Time
-	traceID      []byte
+	batches    [][]byte
+	lastAppend time.Time
+	traceID    []byte
+	start      uint32 // jpe test
+	end        uint32
+
+	// byte limits
 	maxBytes     int
 	currentBytes int
 
@@ -53,7 +59,20 @@ func (t *liveTrace) Push(_ context.Context, instanceID string, trace []byte, sea
 		t.currentBytes += reqSize
 	}
 
+	// jpe -reinit every time? - oof technicaly this should be handled by segment decoder, but i happen to know that objectdecoder also works
+	//   add fastrange to segment decoder?
+	objectDecoder := model.MustNewObjectDecoder(model.CurrentEncoding)
+	start, end, err := objectDecoder.FastRange(trace)
+	if err != nil {
+		return fmt.Errorf("failed to get range while adding segment %w", err)
+	}
 	t.batches = append(t.batches, trace)
+	if t.start == 0 || start < t.start {
+		t.start = start
+	}
+	if t.end == 0 || end < t.end {
+		t.end = end
+	}
 
 	if searchDataSize := len(searchData); searchDataSize > 0 {
 		// disable limit when set to 0

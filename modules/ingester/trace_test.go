@@ -12,6 +12,7 @@ func TestTraceMaxSearchBytes(t *testing.T) {
 	tenantID := "fake"
 	maxSearchBytes := 100
 	tr := newTrace(nil, 0, maxSearchBytes)
+	fakeTrace := make([]byte, 64)
 
 	getMetric := func() float64 {
 		m := &prom_dto.Metric{}
@@ -20,17 +21,17 @@ func TestTraceMaxSearchBytes(t *testing.T) {
 		return m.Counter.GetValue()
 	}
 
-	err := tr.Push(context.TODO(), tenantID, nil, make([]byte, maxSearchBytes))
+	err := tr.Push(context.TODO(), tenantID, fakeTrace, make([]byte, maxSearchBytes))
 	require.NoError(t, err)
 	require.Equal(t, float64(0), getMetric())
 
 	tooMany := 123
 
-	err = tr.Push(context.TODO(), tenantID, nil, make([]byte, tooMany))
+	err = tr.Push(context.TODO(), tenantID, fakeTrace, make([]byte, tooMany))
 	require.NoError(t, err)
 	require.Equal(t, float64(tooMany), getMetric())
 
-	err = tr.Push(context.TODO(), tenantID, nil, make([]byte, tooMany))
+	err = tr.Push(context.TODO(), tenantID, fakeTrace, make([]byte, tooMany))
 	require.NoError(t, err)
 	require.Equal(t, float64(tooMany*2), getMetric())
 }
