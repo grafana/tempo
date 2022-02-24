@@ -42,12 +42,12 @@ Patches release should be cut for serious bug fixes or security issues.
 
 - Check to see if a release branch already exists. The release branch
   will match the same major and minor versions. If this branch doesn't exist then you will need to create it. See nested instructions.
-  `git checkout release-v1.0.0`
+  `git checkout release-vX.Y`
 
   - Checkout to the release tag we are branching off. e.g.:  
-    `git checkout v1.0.0`
+    `git checkout vX.Y.Z`
   - Create a new branch. It should be named `release-<base version>`.  
-    `git checkout -b release-v1.0.0`
+    `git checkout -b release-vX.Y`
 
 - Cherry-pick the [commit hash](https://github.com/grafana/tempo/commits/main) that you want to apply to this release.  
    `git cherry-pick <commit hash>`

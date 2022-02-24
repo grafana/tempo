@@ -9,7 +9,7 @@ tempo:
         protocols:
           thrift_http:
     remote_write:
-      - endpoint: tempo:55680
+      - endpoint: tempo:4317
         insecure: true
     batch:
       timeout: 5s

@@ -11,7 +11,6 @@ import (
 	"github.com/grafana/dskit/modules"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	frontend_v1pb "github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/thanos-io/thanos/pkg/discovery/dns"
 	"github.com/weaveworks/common/middleware"
@@ -20,6 +19,8 @@ import (
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/frontend"
+	frontend_v1pb "github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
+	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
@@ -33,10 +34,12 @@ import (
 // The various modules that make up tempo.
 const (
 	Ring                 string = "ring"
+	MetricsGeneratorRing string = "metrics-generator-ring"
 	Overrides            string = "overrides"
 	Server               string = "server"
 	Distributor          string = "distributor"
 	Ingester             string = "ingester"
+	MetricsGenerator     string = "metrics-generator"
 	Querier              string = "querier"
 	QueryFrontend        string = "query-frontend"
 	Compactor            string = "compactor"
@@ -86,6 +89,18 @@ func (t *App) initRing() (services.Service, error) {
 	return t.ring, nil
 }
 
+func (t *App) initGeneratorRing() (services.Service, error) {
+	generatorRing, err := tempo_ring.New(t.cfg.Generator.Ring.ToRingConfig(), "metrics-generator", generator.RingKey, prometheus.DefaultRegisterer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metrics-generator ring %w", err)
+	}
+	t.generatorRing = generatorRing
+
+	t.Server.HTTP.Handle("/metrics-generator/ring", t.generatorRing)
+
+	return t.generatorRing, nil
+}
+
 func (t *App) initOverrides() (services.Service, error) {
 	overrides, err := overrides.NewOverrides(t.cfg.LimitsConfig)
 	if err != nil {
@@ -104,7 +119,7 @@ func (t *App) initOverrides() (services.Service, error) {
 
 func (t *App) initDistributor() (services.Service, error) {
 	// todo: make ingester client a module instead of passing the config everywhere
-	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.overrides, t.TracesConsumerMiddleware, t.cfg.Server.LogLevel, t.cfg.SearchEnabled, prometheus.DefaultRegisterer)
+	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.cfg.GeneratorClient, t.generatorRing, t.overrides, t.TracesConsumerMiddleware, t.cfg.Server.LogLevel, t.cfg.SearchEnabled, t.cfg.MetricsGeneratorEnabled, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create distributor %w", err)
 	}
@@ -130,6 +145,18 @@ func (t *App) initIngester() (services.Service, error) {
 	t.Server.HTTP.Path("/flush").Handler(http.HandlerFunc(t.ingester.FlushHandler))
 	t.Server.HTTP.Path("/shutdown").Handler(http.HandlerFunc(t.ingester.ShutdownHandler))
 	return t.ingester, nil
+}
+
+func (t *App) initGenerator() (services.Service, error) {
+	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
+	generator, err := generator.New(&t.cfg.Generator, t.overrides, prometheus.DefaultRegisterer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metrics-generator %w", err)
+	}
+	t.generator = generator
+
+	tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC, t.generator)
+	return t.generator, nil
 }
 
 func (t *App) initQuerier() (services.Service, error) {
@@ -268,6 +295,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.MemberlistKV = memberlist.NewKVInitService(&t.cfg.MemberlistKV, log.Logger, dnsProvider, reg)
 
 	t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.Generator.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
@@ -282,12 +310,14 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(Server, t.initServer, modules.UserInvisibleModule)
 	mm.RegisterModule(MemberlistKV, t.initMemberlistKV, modules.UserInvisibleModule)
 	mm.RegisterModule(Ring, t.initRing, modules.UserInvisibleModule)
+	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
 	mm.RegisterModule(Overrides, t.initOverrides, modules.UserInvisibleModule)
 	mm.RegisterModule(Distributor, t.initDistributor)
 	mm.RegisterModule(Ingester, t.initIngester)
 	mm.RegisterModule(Querier, t.initQuerier)
 	mm.RegisterModule(QueryFrontend, t.initQueryFrontend)
 	mm.RegisterModule(Compactor, t.initCompactor)
+	mm.RegisterModule(MetricsGenerator, t.initGenerator)
 	mm.RegisterModule(Store, t.initStore, modules.UserInvisibleModule)
 	mm.RegisterModule(SingleBinary, nil)
 	mm.RegisterModule(ScalableSingleBinary, nil)
@@ -299,12 +329,21 @@ func (t *App) setupModuleManager() error {
 		MemberlistKV:         {Server},
 		QueryFrontend:        {Store, Server},
 		Ring:                 {Server, MemberlistKV},
+		MetricsGeneratorRing: {Server, MemberlistKV},
 		Distributor:          {Ring, Server, Overrides},
 		Ingester:             {Store, Server, Overrides, MemberlistKV},
+		MetricsGenerator:     {Server, Overrides, MemberlistKV},
 		Querier:              {Store, Ring, Overrides},
 		Compactor:            {Store, Server, Overrides, MemberlistKV},
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor},
 		ScalableSingleBinary: {SingleBinary},
+	}
+
+	if t.cfg.MetricsGeneratorEnabled {
+		// If metrics-generator is enabled, the distributor needs the metrics-generator ring
+		deps[Distributor] = append(deps[Distributor], MetricsGeneratorRing)
+		// Add the metrics generator as dependency for when target is {,scalable-}single-binary
+		deps[SingleBinary] = append(deps[SingleBinary], MetricsGenerator)
 	}
 
 	for mod, targets := range deps {

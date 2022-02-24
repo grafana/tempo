@@ -51,5 +51,5 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	}
 	f.StringVar(&cfg.LifecyclerConfig.ID, prefix+".lifecycler.ID", hostname, "ID to register in the ring.")
 
-	cfg.OverrideRingKey = ring.IngesterRingKey
+	cfg.OverrideRingKey = ingesterRingKey
 }

@@ -27,6 +27,3 @@ replace (
 // This function is used by jeagertracing/jaeger, but we can't update jaeger
 // without updating the open-telemetry/collector as well
 replace google.golang.org/grpc => google.golang.org/grpc v1.38.0
-
-// these have been added due to cortex incompatibilies. they can be removed once we drop cortex as a dependency
-replace github.com/grafana/dskit => github.com/grafana/dskit v0.0.0-20211021180445-3bd016e9d7f1

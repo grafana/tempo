@@ -44,6 +44,10 @@ var metricFlushQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 	Help:      "The total number of series pending in the flush queue.",
 })
 
+const (
+	ingesterRingKey = "ring"
+)
+
 // Ingester builds blocks out of incoming traces
 type Ingester struct {
 	services.Service

@@ -178,6 +178,10 @@ func loadConfig() (*app.Config, error) {
 		config.Ingester.LifecyclerConfig.RingConfig.KVStore.Store = "inmemory"
 		config.Ingester.LifecyclerConfig.RingConfig.ReplicationFactor = 1
 		config.Ingester.LifecyclerConfig.Addr = "127.0.0.1"
+
+		// Generator's ring
+		config.Generator.Ring.KVStore.Store = "inmemory"
+		config.Generator.Ring.InstanceAddr = "127.0.0.1"
 	}
 
 	return config, nil

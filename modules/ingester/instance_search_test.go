@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"os"
 	"testing"
 	"time"
 
@@ -44,9 +43,7 @@ func TestInstanceSearch(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	assert.NoError(t, err, "unexpected error getting temp dir")
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	ingester, _, _ := defaultIngester(t, tempDir)
 	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
@@ -148,11 +145,7 @@ func TestInstanceSearchNoData(t *testing.T) {
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	assert.NoError(t, err, "unexpected error getting temp dir")
-	defer os.RemoveAll(tempDir)
-
-	ingester, _, _ := defaultIngester(t, tempDir)
+	ingester, _, _ := defaultIngester(t, t.TempDir())
 	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 

@@ -1,7 +1,7 @@
 # todo: get docker run working?
 # PACK=docker run -u ${shell id -u} -v /var/run/docker.sock:/var/run/docker.sock -v $(PWD):/workspace -w /workspace buildpacksio/pack
 PACK=pack
-GIT_REVISION := $(shell git rev-parse --short HEAD)
+VERSION=$(shell ../../tools/image-tag | cut -d, -f 1)
 
 IN_CLOUD_FUNCTIONS=cd cloud-functions &&
 IN_LAMBDA=cd lambda &&
@@ -22,7 +22,7 @@ build-docker:
 .PHONY: build-gcf-zip
 build-gcf-zip:
 	$(IN_CLOUD_FUNCTIONS) go mod vendor
-	$(IN_CLOUD_FUNCTIONS) zip tempo-serverless-$(GIT_REVISION).zip ./* -r
+	$(IN_CLOUD_FUNCTIONS) zip tempo-serverless-$(VERSION).zip ./* -r
 	$(IN_CLOUD_FUNCTIONS) rm -rf vendor
 
 #
@@ -42,7 +42,7 @@ build-lambda-docker:
 .PHONY: build-lambda-zip
 build-lambda-zip:
 	$(IN_LAMBDA) GOOS=linux GOARCH=amd64 go build -o main
-	$(IN_LAMBDA) zip tempo-serverless-$(GIT_REVISION).zip main
+	$(IN_LAMBDA) zip tempo-serverless-$(VERSION).zip main
 	$(IN_LAMBDA) rm main
 
 .PHONY: test
