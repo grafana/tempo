@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"math/rand"
-	"os"
 	"path"
 	"testing"
 	"time"
@@ -51,9 +50,7 @@ func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
 }
 
 func TestCompaction(t *testing.T) {
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
+	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
 		Backend: "local",
@@ -184,9 +181,7 @@ func TestCompaction(t *testing.T) {
 // TestSameIDCompaction is a bit gross in that it has a bad dependency with on the /pkg/model
 // module to do a full e2e compaction/combination test.
 func TestSameIDCompaction(t *testing.T) {
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
+	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
 		Backend: "local",
@@ -304,9 +299,7 @@ func TestSameIDCompaction(t *testing.T) {
 }
 
 func TestCompactionUpdatesBlocklist(t *testing.T) {
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
+	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
 		Backend: "local",
@@ -374,9 +367,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 }
 
 func TestCompactionMetrics(t *testing.T) {
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
+	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
 		Backend: "local",
@@ -447,9 +438,7 @@ func TestCompactionMetrics(t *testing.T) {
 }
 
 func TestCompactionIteratesThroughTenants(t *testing.T) {
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
+	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
 		Backend: "local",

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"math/rand"
-	"os"
 	"testing"
 	"time"
 
@@ -42,11 +41,7 @@ func TestInstance(t *testing.T) {
 	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	require.NoError(t, err, "unexpected error getting temp dir")
-	defer os.RemoveAll(tempDir)
-
-	ingester, _, _ := defaultIngester(t, tempDir)
+	ingester, _, _ := defaultIngester(t, t.TempDir())
 	request := makeRequest([]byte{})
 
 	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
@@ -93,11 +88,7 @@ func TestInstanceFind(t *testing.T) {
 	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	require.NoError(t, err, "unexpected error getting temp dir")
-	defer os.RemoveAll(tempDir)
-
-	ingester, _, _ := defaultIngester(t, tempDir)
+	ingester, _, _ := defaultIngester(t, t.TempDir())
 	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
 	require.NoError(t, err, "unexpected error creating new instance")
 
@@ -175,11 +166,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	require.NoError(t, err, "unexpected error getting temp dir")
-	defer os.RemoveAll(tempDir)
-
-	ingester, _, _ := defaultIngester(t, tempDir)
+	ingester, _, _ := defaultIngester(t, t.TempDir())
 
 	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
 	require.NoError(t, err, "unexpected error creating new instance")
@@ -244,11 +231,7 @@ func TestInstanceLimits(t *testing.T) {
 	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	require.NoError(t, err, "unexpected error getting temp dir")
-	defer os.RemoveAll(tempDir)
-
-	ingester, _, _ := defaultIngester(t, tempDir)
+	ingester, _, _ := defaultIngester(t, t.TempDir())
 
 	type push struct {
 		req          *tempopb.PushBytesRequest
@@ -338,8 +321,7 @@ func TestInstanceLimits(t *testing.T) {
 }
 
 func TestInstanceCutCompleteTraces(t *testing.T) {
-	tempDir, _ := os.MkdirTemp("/tmp", "")
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	id := make([]byte, 16)
 	rand.Read(id)
@@ -419,8 +401,7 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 }
 
 func TestInstanceCutBlockIfReady(t *testing.T) {
-	tempDir, _ := os.MkdirTemp("/tmp", "")
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	tt := []struct {
 		name               string
@@ -506,11 +487,7 @@ func TestInstanceMetrics(t *testing.T) {
 	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	require.NoError(t, err, "unexpected error getting temp dir")
-	defer os.RemoveAll(tempDir)
-
-	ingester, _, _ := defaultIngester(t, tempDir)
+	ingester, _, _ := defaultIngester(t, t.TempDir())
 
 	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
 	require.NoError(t, err, "unexpected error creating new instance")
@@ -543,11 +520,7 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	maxTraceBytes := 100
 	id := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
-
-	ingester, _, _ := defaultIngester(t, tempDir)
+	ingester, _, _ := defaultIngester(t, t.TempDir())
 
 	limits, err := overrides.NewOverrides(overrides.Limits{
 		MaxBytesPerTrace: maxTraceBytes,
@@ -657,46 +630,34 @@ func defaultInstance(t require.TestingT, tmpDir string) *instance {
 }
 
 func BenchmarkInstancePush(b *testing.B) {
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	require.NoError(b, err, "unexpected error getting temp dir")
-	defer os.RemoveAll(tempDir)
-
-	instance := defaultInstance(b, tempDir)
+	instance := defaultInstance(b, b.TempDir())
 	request := makeRequest([]byte{})
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Rotate trace ID
 		binary.LittleEndian.PutUint32(request.Ids[0].Slice, uint32(i))
-		err = instance.PushBytesRequest(context.Background(), request)
+		err := instance.PushBytesRequest(context.Background(), request)
 		require.NoError(b, err)
 	}
 }
 
 func BenchmarkInstancePushExistingTrace(b *testing.B) {
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	require.NoError(b, err, "unexpected error getting temp dir")
-	defer os.RemoveAll(tempDir)
-
-	instance := defaultInstance(b, tempDir)
+	instance := defaultInstance(b, b.TempDir())
 	request := makeRequest([]byte{})
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err = instance.PushBytesRequest(context.Background(), request)
+		err := instance.PushBytesRequest(context.Background(), request)
 		require.NoError(b, err)
 	}
 }
 
 func BenchmarkInstanceFindTraceByID(b *testing.B) {
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	require.NoError(b, err, "unexpected error getting temp dir")
-	defer os.RemoveAll(tempDir)
-
-	instance := defaultInstance(b, tempDir)
+	instance := defaultInstance(b, b.TempDir())
 	traceID := []byte{1, 2, 3, 4, 5, 6, 7, 8}
 	request := makeRequest(traceID)
-	err = instance.PushBytesRequest(context.Background(), request)
+	err := instance.PushBytesRequest(context.Background(), request)
 	require.NoError(b, err)
 
 	b.ResetTimer()
