@@ -167,7 +167,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.FindTraceByID")
 	defer span.Finish()
 
-	var completeTrace *tempopb.Trace
+	combiner := trace.NewCombiner()
 	var spanCount, spanCountTotal, traceCountTotal int
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
 		replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
@@ -184,16 +184,18 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			return nil, errors.Wrap(err, "error querying ingesters in Querier.FindTraceByID")
 		}
 
+		found := false
 		for _, r := range responses {
 			t := r.response.(*tempopb.TraceByIDResponse).Trace
 			if t != nil {
-				completeTrace, spanCount = trace.CombineTraceProtos(completeTrace, t)
+				spanCount = combiner.Consume(t)
 				spanCountTotal += spanCount
 				traceCountTotal++
+				found = true
 			}
 		}
 		span.LogFields(ot_log.String("msg", "done searching ingesters"),
-			ot_log.Bool("found", completeTrace != nil),
+			ot_log.Bool("found", found),
 			ot_log.Int("combinedSpans", spanCountTotal),
 			ot_log.Int("combinedTraces", traceCountTotal))
 	}
@@ -225,16 +227,18 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 				}
 			}
 
-			completeTrace, spanCount = trace.CombineTraceProtos(completeTrace, storeTrace)
+			spanCount = combiner.Consume(storeTrace)
 			spanCountTotal += spanCount
 			traceCountTotal++
 
 			span.LogFields(ot_log.String("msg", "combined trace protos from store"),
-				ot_log.Bool("found", completeTrace != nil),
+				ot_log.Bool("found", len(partialTraces) > 0),
 				ot_log.Int("combinedSpans", spanCountTotal),
 				ot_log.Int("combinedTraces", traceCountTotal))
 		}
 	}
+
+	completeTrace, _ := combiner.Result()
 
 	return &tempopb.TraceByIDResponse{
 		Trace: completeTrace,

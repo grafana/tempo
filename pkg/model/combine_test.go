@@ -1,7 +1,6 @@
 package model
 
 import (
-	"fmt"
 	"math/rand"
 	"testing"
 
@@ -97,22 +96,6 @@ func TestCombine(t *testing.T) {
 			if tt.expected != nil {
 				expected := mustMarshalToObject(tt.expected, CurrentEncoding)
 				assert.Equal(t, expected, actual)
-			}
-		})
-	}
-}
-
-func BenchmarkCombineTraceProtos(b *testing.B) {
-	sizes := []int{1, 10, 1000, 10000, 100000}
-
-	for _, size := range sizes {
-		b.Run(fmt.Sprint(size), func(b *testing.B) {
-			t1 := test.MakeTraceWithSpanCount(1, size, []byte{0x01, 0x02})
-			t2 := test.MakeTraceWithSpanCount(1, size, []byte{0x01, 0x03})
-
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				trace.CombineTraceProtos(t1, t2)
 			}
 		})
 	}
