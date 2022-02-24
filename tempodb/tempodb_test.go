@@ -27,13 +27,11 @@ import (
 const (
 	testTenantID     = "fake"
 	testTenantID2    = "fake2"
-	tmpdir           = "/tmp"
 	testDataEncoding = "blerg"
 )
 
 func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration) (Reader, Writer, Compactor, string) {
-	tempDir, err := os.MkdirTemp(tmpdir, "")
-	require.NoError(t, err)
+	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
 		Backend: "local",
@@ -57,8 +55,7 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration)
 }
 
 func TestDB(t *testing.T) {
-	r, w, c, tempDir := testConfig(t, backend.EncGZIP, 0)
-	defer os.RemoveAll(tempDir)
+	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:          10,
@@ -118,8 +115,7 @@ func TestBlockSharding(t *testing.T) {
 	// push a req with some traceID
 	// cut headblock & write to backend
 	// search with different shards and check if its respecting the params
-	r, w, _, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
-	defer os.RemoveAll(tempDir)
+	r, w, _, _ := testConfig(t, backend.EncLZ4_256k, 0)
 
 	r.EnablePolling(&mockJobSharder{})
 
@@ -174,8 +170,7 @@ func TestBlockSharding(t *testing.T) {
 }
 
 func TestNilOnUnknownTenantID(t *testing.T) {
-	r, _, _, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
-	defer os.RemoveAll(tempDir)
+	r, _, _, _ := testConfig(t, backend.EncLZ4_256k, 0)
 
 	buff, _, failedBlocks, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax)
 	assert.Nil(t, buff)
@@ -185,7 +180,6 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 
 func TestBlockCleanup(t *testing.T) {
 	r, w, c, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
-	defer os.RemoveAll(tempDir)
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:          10,
@@ -474,8 +468,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 }
 
 func TestSearchCompactedBlocks(t *testing.T) {
-	r, w, c, tempDir := testConfig(t, backend.EncLZ4_256k, time.Minute)
-	defer os.RemoveAll(tempDir)
+	r, w, c, _ := testConfig(t, backend.EncLZ4_256k, time.Minute)
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:          10,
@@ -562,8 +555,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 }
 
 func TestCompleteBlock(t *testing.T) {
-	_, w, _, tempDir := testConfig(t, backend.EncLZ4_256k, time.Minute)
-	defer os.RemoveAll(tempDir)
+	_, w, _, _ := testConfig(t, backend.EncLZ4_256k, time.Minute)
 
 	wal := w.WAL()
 
@@ -603,9 +595,7 @@ func TestCompleteBlock(t *testing.T) {
 }
 
 func TestShouldCache(t *testing.T) {
-	tempDir, err := os.MkdirTemp(tmpdir, "")
-	defer os.RemoveAll(tempDir)
-	require.NoError(t, err)
+	tempDir := t.TempDir()
 
 	r, _, _, err := New(&Config{
 		Backend: "local",

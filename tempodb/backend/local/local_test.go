@@ -19,16 +19,12 @@ import (
 const objectName = "test"
 
 func TestReadWrite(t *testing.T) {
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	assert.NoError(t, err, "unexpected error creating temp dir")
-
 	fakeTracesFile, err := os.CreateTemp("/tmp", "")
 	defer os.Remove(fakeTracesFile.Name())
 	assert.NoError(t, err, "unexpected error creating temp file")
 
 	r, w, _, err := New(&Config{
-		Path: tempDir,
+		Path: t.TempDir(),
 	})
 	assert.NoError(t, err, "unexpected error creating local backend")
 

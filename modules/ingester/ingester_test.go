@@ -47,10 +47,7 @@ func TestPushQueryAllEncodings(t *testing.T) {
 				t.Fatal("unsupported encoding", e)
 			}
 
-			tmpDir, err := os.MkdirTemp("/tmp", "")
-			require.NoError(t, err, "unexpected error getting tempdir")
-			defer os.RemoveAll(tmpDir)
-
+			tmpDir := t.TempDir()
 			ctx := user.InjectOrgID(context.Background(), "test")
 			ingester, traces, traceIDs := defaultIngesterWithPush(t, tmpDir, push)
 
@@ -65,7 +62,7 @@ func TestPushQueryAllEncodings(t *testing.T) {
 
 			// force cut all traces
 			for _, instance := range ingester.instances {
-				err = instance.CutCompleteTraces(0, true)
+				err := instance.CutCompleteTraces(0, true)
 				require.NoError(t, err, "unexpected error cutting traces")
 			}
 
@@ -83,15 +80,11 @@ func TestPushQueryAllEncodings(t *testing.T) {
 }
 
 func TestFullTraceReturned(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("/tmp", "")
-	require.NoError(t, err, "unexpected error getting tempdir")
-	defer os.RemoveAll(tmpDir)
-
 	ctx := user.InjectOrgID(context.Background(), "test")
-	ingester, _, _ := defaultIngester(t, tmpDir)
+	ingester, _, _ := defaultIngester(t, t.TempDir())
 
 	traceID := make([]byte, 16)
-	_, err = rand.Read(traceID)
+	_, err := rand.Read(traceID)
 	require.NoError(t, err)
 	testTrace := test.MakeTrace(2, traceID) // 2 batches
 	trace.SortTrace(testTrace)
@@ -130,9 +123,7 @@ func TestFullTraceReturned(t *testing.T) {
 }
 
 func TestWal(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("/tmp", "")
-	require.NoError(t, err, "unexpected error getting tempdir")
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	ctx := user.InjectOrgID(context.Background(), "test")
 	ingester, traces, traceIDs := defaultIngester(t, tmpDir)
@@ -288,9 +279,7 @@ func TestSearchWAL(t *testing.T) {
 */
 
 func TestFlush(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("/tmp", "")
-	require.NoError(t, err, "unexpected error getting tempdir")
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	ctx := user.InjectOrgID(context.Background(), "test")
 	ingester, traces, traceIDs := defaultIngester(t, tmpDir)

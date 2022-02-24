@@ -153,12 +153,8 @@ func TestStreamingBlockAll(t *testing.T) {
 }
 
 func testStreamingBlockToBackendBlock(t *testing.T, cfg *BlockConfig) {
-	backendTmpDir, err := os.MkdirTemp("/tmp", "")
-	defer os.RemoveAll(backendTmpDir)
-	require.NoError(t, err, "unexpected error creating temp dir")
-
 	rawR, rawW, _, err := local.New(&local.Config{
-		Path: backendTmpDir,
+		Path: t.TempDir(),
 	})
 
 	r := backend.NewReader(rawR)
@@ -348,10 +344,6 @@ func BenchmarkReadS2(b *testing.B) {
 // Download a block from your backend and place in ./benchmark_block/<tenant id>/<guid>
 //nolint:unparam
 func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsample int, benchRead bool) {
-	tempDir, err := os.MkdirTemp("/tmp", "")
-	defer os.RemoveAll(tempDir)
-	require.NoError(b, err, "unexpected error creating temp dir")
-
 	rawR, _, _, err := local.New(&local.Config{
 		Path: "./benchmark_block",
 	})
@@ -367,9 +359,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	iter, err := backendBlock.Iterator(10 * 1024 * 1024)
 	require.NoError(b, err, "error creating iterator")
 
-	backendTmpDir, err := os.MkdirTemp("/tmp", "")
-	defer os.RemoveAll(backendTmpDir)
-	require.NoError(b, err, "unexpected error creating temp dir")
+	backendTmpDir := b.TempDir()
 
 	_, rawW, _, err := local.New(&local.Config{
 		Path: backendTmpDir,
