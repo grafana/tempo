@@ -155,6 +155,8 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 				span.SetTag("contentType", marshallingFormat)
 			}
 
+			resp.Header.Set(api.HeaderContentType, marshallingFormat)
+
 			return resp, err
 		})
 	})

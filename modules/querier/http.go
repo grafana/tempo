@@ -79,6 +79,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		w.Header().Set(api.HeaderContentType, api.HeaderAcceptProtobuf)
 		_, err = w.Write(b)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -94,6 +95,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
 }
 
 // return values are (blockStart, blockEnd, queryMode, error)
@@ -193,6 +195,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
 }
 
 func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
@@ -217,6 +220,7 @@ func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
 }
 
 func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request) {
@@ -249,4 +253,5 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
 }

@@ -38,6 +38,7 @@ const (
 	urlParamVersion       = "version"
 
 	HeaderAccept         = "Accept"
+	HeaderContentType    = "Content-Type"
 	HeaderAcceptProtobuf = "application/protobuf"
 	HeaderAcceptJSON     = "application/json"
 

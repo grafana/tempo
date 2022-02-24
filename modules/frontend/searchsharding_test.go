@@ -618,6 +618,9 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
+			if tc.expectedStatus == http.StatusOK {
+				assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+			}
 			if tc.expectedResponse != nil {
 				actualResp := &tempopb.SearchResponse{}
 				bytesResp, err := io.ReadAll(resp.Body)
