@@ -74,6 +74,7 @@ type CompactorConfig struct {
 	RetentionConcurrency    uint          `yaml:"retention_concurrency"`
 	IteratorBufferSize      int           `yaml:"iterator_buffer_size"`
 	MaxTimePerTenant        time.Duration `yaml:"max_time_per_tenant"`
+	CompactionCycle         time.Duration `yaml:"compaction_cycle"`
 }
 
 func validateConfig(cfg *Config) error {
