@@ -20,7 +20,7 @@ func TestServiceGraphs(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	p := New(cfg, "test")
 
-	registry := gen.NewRegistry(nil)
+	registry := gen.NewRegistry(nil, "test-tenant")
 	err := p.RegisterMetrics(registry)
 	assert.NoError(t, err)
 
