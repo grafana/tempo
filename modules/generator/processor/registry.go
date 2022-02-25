@@ -75,7 +75,7 @@ func (r *Registry) Gather(appender storage.Appender) (err error) {
 				if err != nil {
 					return err
 				}
-				activeSeriesCount += 1
+				activeSeriesCount++
 			}
 
 		case prometheus_model.MetricType_HISTOGRAM:
@@ -90,7 +90,7 @@ func (r *Registry) Gather(appender storage.Appender) (err error) {
 				if err != nil {
 					return err
 				}
-				activeSeriesCount += 1
+				activeSeriesCount++
 
 				// _sum
 				sumLabels := copyWithLabel(labels, "__name__", fmt.Sprintf("%s_sum", metricFamily.GetName()))
@@ -98,7 +98,7 @@ func (r *Registry) Gather(appender storage.Appender) (err error) {
 				if err != nil {
 					return err
 				}
-				activeSeriesCount += 1
+				activeSeriesCount++
 
 				addedInfBucket := false
 
@@ -115,7 +115,7 @@ func (r *Registry) Gather(appender storage.Appender) (err error) {
 					if err != nil {
 						return err
 					}
-					activeSeriesCount += 1
+					activeSeriesCount++
 
 					e := bucket.GetExemplar()
 					if e != nil {
@@ -138,7 +138,7 @@ func (r *Registry) Gather(appender storage.Appender) (err error) {
 					if err != nil {
 						return err
 					}
-					activeSeriesCount += 1
+					activeSeriesCount++
 				}
 			}
 
