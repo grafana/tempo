@@ -17,10 +17,11 @@ var maxWriteRequestSize = 3 * 1024 * 1024 // 3MB
 
 // remoteWriteAppender is a storage.Appender that remote writes samples and exemplars.
 type remoteWriteAppender struct {
-	logger       log.Logger
-	ctx          context.Context
-	remoteWriter *remoteWriteClient
-	userID       string
+	logger        log.Logger
+	ctx           context.Context
+	remoteWriter  *remoteWriteClient
+	sendExamplars bool
+	userID        string
 
 	// TODO Loki uses util.EvictingQueue here to limit the amount of samples written per remote write request
 	labels         [][]prompb.Label
@@ -43,6 +44,10 @@ func (a *remoteWriteAppender) Append(_ storage.SeriesRef, l labels.Labels, t int
 }
 
 func (a *remoteWriteAppender) AppendExemplar(_ storage.SeriesRef, l labels.Labels, e exemplar.Exemplar) (storage.SeriesRef, error) {
+	if !a.sendExamplars {
+		return 0, nil
+	}
+
 	a.exemplarLabels = append(a.exemplarLabels, labelsToLabelsProto(l))
 	a.exemplars = append(a.exemplars, prompb.Exemplar{
 		Labels:    labelsToLabelsProto(e.Labels),

@@ -45,10 +45,11 @@ func (a *remoteWriteAppendable) Appender(ctx context.Context) storage.Appender {
 	}
 
 	return &remoteWriteAppender{
-		logger:       a.logger,
-		ctx:          ctx,
-		remoteWriter: client,
-		userID:       a.tenantID,
-		metrics:      a.metrics,
+		logger:        a.logger,
+		ctx:           ctx,
+		remoteWriter:  client,
+		sendExamplars: a.cfg.Client.SendExemplars,
+		userID:        a.tenantID,
+		metrics:       a.metrics,
 	}
 }
