@@ -20,7 +20,7 @@ func TestSpanMetrics(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	p := New(cfg, "test")
 
-	registry := gen.NewRegistry(nil)
+	registry := gen.NewRegistry(nil, "test-tenant")
 	err := p.RegisterMetrics(registry)
 	assert.NoError(t, err)
 
@@ -71,7 +71,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	cfg.Dimensions = []string{"foo", "bar"}
 	p := New(cfg, "test")
 
-	registry := gen.NewRegistry(nil)
+	registry := gen.NewRegistry(nil, "test-tenant")
 	err := p.RegisterMetrics(registry)
 	assert.NoError(t, err)
 

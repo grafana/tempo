@@ -68,7 +68,7 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		instanceID: instanceID,
 		overrides:  overrides,
 
-		registry:   processor.NewRegistry(cfg.ExternalLabels),
+		registry:   processor.NewRegistry(cfg.ExternalLabels, instanceID),
 		appendable: appendable,
 
 		processors: make(map[string]processor.Processor),
