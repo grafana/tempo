@@ -30,11 +30,12 @@ func Test_remoteWriteAppendable_splitRequests(t *testing.T) {
 	mockWriteClient := &mockWriteClient{}
 
 	appender := &remoteWriteAppender{
-		logger:       gokitlog.NewLogfmtLogger(os.Stdout),
-		ctx:          context.Background(),
-		remoteWriter: &remoteWriteClient{WriteClient: mockWriteClient},
-		userID:       "",
-		metrics:      NewMetrics(prometheus.NewRegistry()),
+		logger:        gokitlog.NewLogfmtLogger(os.Stdout),
+		ctx:           context.Background(),
+		remoteWriter:  &remoteWriteClient{WriteClient: mockWriteClient},
+		userID:        "",
+		sendExamplars: true,
+		metrics:       NewMetrics(prometheus.NewRegistry()),
 	}
 
 	// Send samples
