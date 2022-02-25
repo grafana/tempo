@@ -2,6 +2,7 @@ package servicegraphs
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -95,6 +96,17 @@ func TestServiceGraphs(t *testing.T) {
 		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_total"}`, Value: 3},
 	}
 	appender.ContainsAll(t, expectedMetrics, collectTime)
+}
+
+func TestServiceGraphs_tooManySpansErr(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.MaxItems = 0
+	p := New(cfg, "test")
+
+	traces := testData(t, "testdata/test-sample.json")
+	err := p.(*processor).consume(traces.Batches)
+	assert.True(t, errors.As(err, &tooManySpansError{}))
 }
 
 func testData(t *testing.T, path string) *tempopb.Trace {

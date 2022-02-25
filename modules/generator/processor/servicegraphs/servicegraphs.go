@@ -235,7 +235,7 @@ func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
 	}
 
 	if totalDroppedSpans > 0 {
-		return &tooManySpansError{
+		return tooManySpansError{
 			droppedSpans: totalDroppedSpans,
 		}
 	}
