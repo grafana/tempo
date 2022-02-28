@@ -86,7 +86,7 @@ func TestDB(t *testing.T) {
 
 		bReq, err := proto.Marshal(req)
 		assert.NoError(t, err)
-		err = head.Append(id, bReq, 0, 0) // jpe should one of these tests or wal tests pass real values here and do something?
+		err = head.Append(id, bReq, 0, 0)
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 

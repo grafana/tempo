@@ -73,12 +73,12 @@ func newAppendBlockFromFile(filename string, path string, fn RangeFunc) (*Append
 	var warning error
 	blockID, tenantID, version, e, dataEncoding, err := ParseFilename(filename)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("parsing wal filename: %w", err)
 	}
 
 	v, err := encoding.FromVersion(version)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("parsing version: %w", err)
 	}
 
 	b := &AppendBlock{
@@ -90,7 +90,7 @@ func newAppendBlockFromFile(filename string, path string, fn RangeFunc) (*Append
 	// replay file to extract records
 	f, err := b.file()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("accessing file: %w", err)
 	}
 
 	blockStart := uint32(math.MaxUint32)
