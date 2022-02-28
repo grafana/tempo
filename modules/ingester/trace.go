@@ -63,7 +63,7 @@ func (t *liveTrace) Push(_ context.Context, instanceID string, trace []byte, sea
 
 	start, end, err := t.decoder.FastRange(trace)
 	if err != nil {
-		return fmt.Errorf("failed to get range while adding segment %w", err)
+		return fmt.Errorf("failed to get range while adding segment: %w", err)
 	}
 	t.batches = append(t.batches, trace)
 	if t.start == 0 || start < t.start {
