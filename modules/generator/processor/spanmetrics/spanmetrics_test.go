@@ -32,8 +32,7 @@ func TestSpanMetrics(t *testing.T) {
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
 	req := test.MakeBatch(10, nil)
 
-	err = p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{req}})
-	assert.NoError(t, err)
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{req}})
 
 	appender := &test_util.Appender{}
 
@@ -93,8 +92,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 			})
 		}
 	}
-	err = p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
-	assert.NoError(t, err)
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
 
 	appender := &test_util.Appender{}
 

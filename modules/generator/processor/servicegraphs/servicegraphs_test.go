@@ -31,8 +31,7 @@ func TestServiceGraphs(t *testing.T) {
 	})
 
 	traces := testData(t, "testdata/test-sample.json")
-	err = p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: traces.Batches})
-	assert.NoError(t, err)
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: traces.Batches})
 
 	// Manually call expire to force collection of edges.
 	sgp := p.(*processor)

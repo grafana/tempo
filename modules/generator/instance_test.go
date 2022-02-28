@@ -33,8 +33,7 @@ func Test_instance_concurrency(t *testing.T) {
 
 	go accessor(func() {
 		req := test.MakeBatch(1, nil)
-		err := instance.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}})
-		assert.NoError(t, err)
+		instance.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}})
 	})
 
 	go accessor(func() {

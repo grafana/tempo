@@ -166,7 +166,7 @@ func (p *processor) unregisterMetrics(reg prometheus.Registerer) {
 	}
 }
 
-func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error {
+func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
 	span, _ := opentracing.StartSpanFromContext(ctx, "servicegraphs.PushSpans")
 	defer span.Finish()
 
@@ -177,8 +177,6 @@ func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 			level.Error(log.Logger).Log("msg", "failed consuming traces", "err", err)
 		}
 	}
-
-	return nil
 }
 
 func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
