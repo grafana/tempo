@@ -70,7 +70,7 @@ func (t *liveTrace) Push(_ context.Context, instanceID string, trace []byte, sea
 	if t.start == 0 || start < t.start {
 		t.start = start
 	}
-	if t.end == 0 || end < t.end {
+	if t.end == 0 || end > t.end {
 		t.end = end
 	}
 
