@@ -25,8 +25,9 @@ type liveTrace struct {
 	batches    [][]byte
 	lastAppend time.Time
 	traceID    []byte
-	start      uint32 // jpe test
+	start      uint32
 	end        uint32
+	decoder    model.SegmentDecoder
 
 	// byte limits
 	maxBytes     int
@@ -45,6 +46,7 @@ func newTrace(traceID []byte, maxBytes int, maxSearchBytes int) *liveTrace {
 		traceID:        traceID,
 		maxBytes:       maxBytes,
 		maxSearchBytes: maxSearchBytes,
+		decoder:        model.MustNewSegmentDecoder(model.CurrentEncoding),
 	}
 }
 
@@ -59,10 +61,7 @@ func (t *liveTrace) Push(_ context.Context, instanceID string, trace []byte, sea
 		t.currentBytes += reqSize
 	}
 
-	// jpe -reinit every time? - oof technicaly this should be handled by segment decoder, but i happen to know that objectdecoder also works
-	//   add fastrange to segment decoder?
-	objectDecoder := model.MustNewObjectDecoder(model.CurrentEncoding)
-	start, end, err := objectDecoder.FastRange(trace)
+	start, end, err := t.decoder.FastRange(trace)
 	if err != nil {
 		return fmt.Errorf("failed to get range while adding segment %w", err)
 	}
