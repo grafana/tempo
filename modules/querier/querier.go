@@ -25,6 +25,7 @@ import (
 	httpgrpc_server "github.com/weaveworks/common/httpgrpc/server"
 	"github.com/weaveworks/common/user"
 	"go.uber.org/multierr"
+	"golang.org/x/sync/semaphore"
 
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
@@ -66,6 +67,8 @@ type Querier struct {
 	store  storage.Store
 	limits *overrides.Overrides
 
+	searchPreferSelf *semaphore.Weighted
+
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
 }
@@ -90,8 +93,9 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 			factory,
 			metricIngesterClients,
 			log.Logger),
-		store:  store,
-		limits: limits,
+		store:            store,
+		limits:           limits,
+		searchPreferSelf: semaphore.NewWeighted(int64(cfg.SearchPreferSelf)),
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
@@ -395,13 +399,23 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 
 // SearchBlock searches the specified subset of the block for the passed tags.
 func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
-	// todo: if the querier is not currently doing anything it should prefer handling the request itself to
-	//  offloading to the external endpoint
-	if len(q.cfg.SearchExternalEndpoints) != 0 {
-		endpoint := q.cfg.SearchExternalEndpoints[rand.Intn(len(q.cfg.SearchExternalEndpoints))]
-		return searchExternalEndpoint(ctx, endpoint, req)
+	// if we have no external configuration always search in the querier
+	if len(q.cfg.SearchExternalEndpoints) == 0 {
+		return q.internalSearchBlock(ctx, req)
 	}
 
+	// if we have external configuration but there's an open slot locally then search in the querier
+	if q.searchPreferSelf.TryAcquire(1) {
+		defer q.searchPreferSelf.Release(1)
+		return q.internalSearchBlock(ctx, req)
+	}
+
+	// proxy externally!
+	endpoint := q.cfg.SearchExternalEndpoints[rand.Intn(len(q.cfg.SearchExternalEndpoints))]
+	return searchExternalEndpoint(ctx, endpoint, req)
+}
+
+func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "error extracting org id in Querier.BackendSearch")
