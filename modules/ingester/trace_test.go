@@ -47,7 +47,7 @@ func TestTraceStartEndTime(t *testing.T) {
 	// initial push
 	buff, err := s.PrepareForWrite(&tempopb.Trace{}, 10, 20)
 	require.NoError(t, err)
-	err = tr.Push(nil, "test", buff, nil)
+	err = tr.Push(context.Background(), "test", buff, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, uint32(10), tr.start)
@@ -56,7 +56,7 @@ func TestTraceStartEndTime(t *testing.T) {
 	// overwrite start
 	buff, err = s.PrepareForWrite(&tempopb.Trace{}, 5, 15)
 	require.NoError(t, err)
-	err = tr.Push(nil, "test", buff, nil)
+	err = tr.Push(context.Background(), "test", buff, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, uint32(5), tr.start)
@@ -65,7 +65,7 @@ func TestTraceStartEndTime(t *testing.T) {
 	// overwrite end
 	buff, err = s.PrepareForWrite(&tempopb.Trace{}, 15, 25)
 	require.NoError(t, err)
-	err = tr.Push(nil, "test", buff, nil)
+	err = tr.Push(context.Background(), "test", buff, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, uint32(5), tr.start)
