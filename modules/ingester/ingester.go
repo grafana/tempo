@@ -25,6 +25,7 @@ import (
 	"github.com/grafana/tempo/pkg/flushqueues"
 	_ "github.com/grafana/tempo/pkg/gogocodec" // force gogo codec registration
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/decoder"
 	v1 "github.com/grafana/tempo/pkg/model/v1"
 	v2 "github.com/grafana/tempo/pkg/model/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -326,7 +327,22 @@ func (i *Ingester) TransferOut(ctx context.Context) error {
 func (i *Ingester) replayWal() error {
 	level.Info(log.Logger).Log("msg", "beginning wal replay")
 
-	blocks, err := i.store.WAL().RescanBlocks(log.Logger)
+	blocks, err := i.store.WAL().RescanBlocks(func(b []byte, dataEncoding string) (uint32, uint32, error) {
+		d, err := model.NewObjectDecoder(dataEncoding)
+		if err != nil {
+			return 0, 0, nil
+		}
+
+		start, end, err := d.FastRange(b)
+		if err == decoder.ErrUnsupported {
+			now := uint32(time.Now().Unix())
+			return now, now, nil
+		}
+		if err != nil {
+			return 0, 0, err
+		}
+		return start, end, nil
+	}, log.Logger)
 	if err != nil {
 		return fmt.Errorf("fatal error replaying wal %w", err)
 	}

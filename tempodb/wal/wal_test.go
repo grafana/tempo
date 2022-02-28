@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/proto"
@@ -150,7 +151,9 @@ func TestErrorConditions(t *testing.T) {
 	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"), []byte{}, 0644)
 	require.NoError(t, err)
 
-	blocks, err := wal.RescanBlocks(log.NewNopLogger())
+	blocks, err := wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
+		return 0, 0, nil
+	}, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
@@ -159,6 +162,46 @@ func TestErrorConditions(t *testing.T) {
 	// confirm block has been removed
 	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:gzip"))
 	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
+}
+
+func TestAppendBlockStartEnd(t *testing.T) {
+	wal, err := New(&Config{
+		Filepath: t.TempDir(),
+		Encoding: backend.EncNone,
+	})
+	require.NoError(t, err, "unexpected error creating temp wal")
+
+	blockID := uuid.New()
+	block, err := wal.NewBlock(blockID, testTenantID, "")
+	require.NoError(t, err, "unexpected error creating block")
+
+	// create a new block and confirm start/end times are correct
+	blockStart := uint32(time.Now().Unix())
+	blockEnd := uint32(time.Now().Add(time.Minute).Unix())
+
+	for i := 0; i < 10; i++ {
+		bytes := make([]byte, 16)
+		rand.Read(bytes)
+
+		err = block.Append(bytes, bytes, blockStart, blockEnd)
+		require.NoError(t, err, "unexpected error writing req")
+	}
+
+	require.Equal(t, blockStart, uint32(block.meta.StartTime.Unix()))
+	require.Equal(t, blockEnd, uint32(block.meta.EndTime.Unix()))
+
+	// rescan the block and make sure that start/end times are correct
+	blockStart = uint32(time.Now().Add(time.Hour).Unix())
+	blockEnd = uint32(time.Now().Add(2 * time.Hour).Unix())
+
+	blocks, err := wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
+		return blockStart, blockEnd, nil
+	}, log.NewNopLogger())
+	require.NoError(t, err, "unexpected error getting blocks")
+	require.Len(t, blocks, 1)
+
+	require.Equal(t, blockStart, uint32(blocks[0].meta.StartTime.Unix()))
+	require.Equal(t, blockEnd, uint32(blocks[0].meta.EndTime.Unix()))
 }
 
 func TestAppendReplayFind(t *testing.T) {
@@ -211,7 +254,9 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	err = appendFile.Close()
 	require.NoError(t, err)
 
-	blocks, err := wal.RescanBlocks(log.NewNopLogger())
+	blocks, err := wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
+		return 0, 0, nil
+	}, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
@@ -442,7 +487,9 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 		}
 
 		// replay
-		_, err = wal.RescanBlocks(log.NewNopLogger())
+		_, err = wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
+			return 0, 0, nil
+		}, log.NewNopLogger())
 		require.NoError(b, err)
 	}
 }
