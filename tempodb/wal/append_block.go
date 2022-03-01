@@ -3,10 +3,12 @@ package wal
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -67,16 +69,16 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 
 // newAppendBlockFromFile returns an AppendBlock that can not be appended to, but can
 // be completed. It can return a warning or a fatal error
-func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, error) {
+func newAppendBlockFromFile(filename string, path string, fn RangeFunc) (*AppendBlock, error, error) {
 	var warning error
 	blockID, tenantID, version, e, dataEncoding, err := ParseFilename(filename)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("parsing wal filename: %w", err)
 	}
 
 	v, err := encoding.FromVersion(version)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("parsing version: %w", err)
 	}
 
 	b := &AppendBlock{
@@ -88,10 +90,23 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, 
 	// replay file to extract records
 	f, err := b.file()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("accessing file: %w", err)
 	}
 
+	blockStart := uint32(math.MaxUint32)
+	blockEnd := uint32(0)
+
 	records, warning, err := ReplayWALAndGetRecords(f, v, e, func(bytes []byte) error {
+		start, end, err := fn(bytes, dataEncoding)
+		if err != nil {
+			return err
+		}
+		if start < blockStart {
+			blockStart = start
+		}
+		if end > blockEnd {
+			blockEnd = end
+		}
 		return nil
 	})
 	if err != nil {
@@ -100,16 +115,20 @@ func newAppendBlockFromFile(filename string, path string) (*AppendBlock, error, 
 
 	b.appender = encoding.NewRecordAppender(records)
 	b.meta.TotalObjects = b.appender.Length()
+	b.meta.StartTime = time.Unix(int64(blockStart), 0)
+	b.meta.EndTime = time.Unix(int64(blockEnd), 0)
 
 	return b, warning, nil
 }
 
-func (a *AppendBlock) Append(id common.ID, b []byte) error {
+// Append adds an id and object to this wal block. start/end should indicate the time range
+// associated with the past object. They are unix epoch seconds.
+func (a *AppendBlock) Append(id common.ID, b []byte, start, end uint32) error {
 	err := a.appender.Append(id, b)
 	if err != nil {
 		return err
 	}
-	a.meta.ObjectAdded(id)
+	a.meta.ObjectAdded(id, start, end)
 	return nil
 }
 

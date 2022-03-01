@@ -1,10 +1,9 @@
 package backend
 
 import (
-	"bytes"
 	"encoding/json"
-	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +13,7 @@ const (
 	testTenantID = "fake"
 )
 
-func TestBlockMeta(t *testing.T) {
+func TestNewBlockMeta(t *testing.T) {
 	testVersion := "blerg"
 	testEncoding := EncLZ4_256k
 	testDataEncoding := "blarg"
@@ -27,20 +26,72 @@ func TestBlockMeta(t *testing.T) {
 	assert.Equal(t, testVersion, b.Version)
 	assert.Equal(t, testEncoding, b.Encoding)
 	assert.Equal(t, testDataEncoding, b.DataEncoding)
+}
 
-	randID1 := make([]byte, 10)
-	randID2 := make([]byte, 10)
+func TestBlockMetaObjectAdded(t *testing.T) {
+	now := time.Unix(time.Now().Unix(), 0)
 
-	rand.Read(randID1)
-	rand.Read(randID2)
+	tests := []struct {
+		ids             [][]byte
+		starts          []uint32
+		ends            []uint32
+		expectedMaxID   []byte
+		expectedMinID   []byte
+		expectedStart   time.Time
+		expectedEnd     time.Time
+		expectedObjects int
+	}{
+		{},
+		{
+			ids: [][]byte{
+				{0x01},
+			},
+			starts: []uint32{
+				uint32(now.Unix()),
+			},
+			ends: []uint32{
+				uint32(now.Add(time.Minute).Unix()),
+			},
+			expectedMaxID:   []byte{0x01},
+			expectedMinID:   []byte{0x01},
+			expectedStart:   now,
+			expectedEnd:     now.Add(time.Minute),
+			expectedObjects: 1,
+		},
+		{
+			ids: [][]byte{
+				{0x01},
+				{0x02},
+			},
+			starts: []uint32{
+				uint32(now.Unix()),
+				uint32(now.Add(-time.Minute).Unix()),
+			},
+			ends: []uint32{
+				uint32(now.Add(time.Hour).Unix()),
+				uint32(now.Add(time.Minute).Unix()),
+			},
+			expectedMaxID:   []byte{0x02},
+			expectedMinID:   []byte{0x01},
+			expectedStart:   now.Add(-time.Minute),
+			expectedEnd:     now.Add(time.Hour),
+			expectedObjects: 2,
+		},
+	}
 
-	assert.Equal(t, b.StartTime, b.EndTime)
+	for _, tc := range tests {
+		b := &BlockMeta{}
 
-	b.ObjectAdded(randID1)
-	b.ObjectAdded(randID2)
-	assert.True(t, b.EndTime.After(b.StartTime))
-	assert.Equal(t, 1, bytes.Compare(b.MaxID, b.MinID))
-	assert.Equal(t, 2, b.TotalObjects)
+		for i := 0; i < len(tc.ids); i++ {
+			b.ObjectAdded(tc.ids[i], tc.starts[i], tc.ends[i])
+		}
+
+		assert.Equal(t, tc.expectedMaxID, b.MaxID)
+		assert.Equal(t, tc.expectedMinID, b.MinID)
+		assert.Equal(t, tc.expectedStart, b.StartTime)
+		assert.Equal(t, tc.expectedEnd, b.EndTime)
+		assert.Equal(t, tc.expectedObjects, b.TotalObjects)
+	}
 }
 
 func TestBlockMetaParsing(t *testing.T) {
