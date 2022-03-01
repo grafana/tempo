@@ -215,24 +215,28 @@ func (c *Compactor) Owns(hash string) bool {
 
 // Combine implements tempodb.CompactorSharder
 func (c *Compactor) Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error) {
-	if len(objs) <= 0 {
-		return nil, false, errors.New("no objects provided")
-	}
-
-	maxBytes := c.overrides.MaxBytesPerTrace(tenantID)
 	combinedObj, wasCombined, err := model.ObjectCombiner.Combine(dataEncoding, objs...)
 	if err != nil {
 		return nil, false, err
 	}
 
-	if len(combinedObj) > maxBytes {
-		spansDiscarded := countSpans(dataEncoding, objs[1:]...)
-		overrides.RecordDiscardedSpans(spansDiscarded, reasonCompactorDiscardedSpans, tenantID)
+	maxBytes := c.overrides.MaxBytesPerTrace(tenantID)
+	if len(combinedObj) < maxBytes {
+		return combinedObj, wasCombined, nil
+	}
 
+	// technically neither of these conditions should ever be true, we are adding them as guard code
+	// for the following logic
+	if len(objs) == 0 {
+		return []byte{}, wasCombined, nil
+	}
+	if len(objs) == 1 {
 		return objs[0], wasCombined, nil
 	}
 
-	return combinedObj, wasCombined, nil
+	spansDiscarded := countSpans(dataEncoding, objs[1:]...)
+	overrides.RecordDiscardedSpans(spansDiscarded, reasonCompactorDiscardedSpans, tenantID)
+	return objs[0], wasCombined, nil
 }
 
 // BlockRetentionForTenant implements CompactorOverrides
