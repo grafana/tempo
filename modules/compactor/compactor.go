@@ -30,7 +30,7 @@ const (
 
 	compactorRingKey = "compactor"
 
-	reasonCompactorDiscardedSpans = "trace_too_large_compaction"
+	reasonCompactorDiscardedSpans = "trace_too_large_to_compact"
 )
 
 var (
