@@ -29,6 +29,7 @@ For the sake of clarity, in this document we have grouped API endpoints by servi
 | [Shutdown](#shutdown) | Ingester |  HTTP | `GET,POST /shutdown` |
 | [Distributor ring status](#distributor-ring-status) (*) | Distributor |  HTTP | `GET /distributor/ring` |
 | [Ingesters ring status](#ingesters-ring-status) | Distributor, Querier |  HTTP | `GET /ingester/ring` |
+| [Metrics-generator ring status](#metrics-generator-ring-status) (*) | Distributor |  HTTP | `GET /metrics-generator/ring` |
 | [Compactor ring status](#compactor-ring-status) | Compactor |  HTTP | `GET /compactor/ring` |
 | [Status](#status) | Status |  HTTP | `GET /status` |
 
@@ -299,7 +300,17 @@ Displays a web page with the ingesters hash ring status, including the state, he
 
 _For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring)._
 
+### Metrics-generators ring status
 
+> Note: this endpoint is only available when the metrics-generator is enabled. See [configuration](../configuration/_index.md#metrics-generator).
+
+```
+GET /metrics-generator/ring
+```
+
+Displays a web page with the metrics-generators hash ring status, including the state, healthy and last heartbeat time of each metrics-generator.
+
+_For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring)._
 
 ### Compactor ring status
 
