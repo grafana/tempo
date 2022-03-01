@@ -39,8 +39,6 @@ import (
 )
 
 const (
-	discardReasonLabel = "reason"
-
 	// reasonRateLimited indicates that the tenants spans/second exceeded their limits
 	reasonRateLimited = "rate_limited"
 	// reasonTraceTooLarge indicates that a single trace has too many spans
@@ -100,11 +98,6 @@ var (
 		Name:      "distributor_metrics_generator_clients",
 		Help:      "The current number of metrics-generator clients.",
 	})
-	metricDiscardedSpans = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "discarded_spans_total",
-		Help:      "The total number of samples that were discarded.",
-	}, []string{discardReasonLabel, "tenant"})
 )
 
 // rebatchedTrace is used to more cleanly pass the set of data
@@ -306,7 +299,7 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 	// check limits
 	now := time.Now()
 	if !d.ingestionRateLimiter.AllowN(now, userID, size) {
-		metricDiscardedSpans.WithLabelValues(reasonRateLimited, userID).Add(float64(spanCount))
+		overrides.RecordDiscardedSpans(spanCount, reasonRateLimited, userID)
 		return nil, status.Errorf(codes.ResourceExhausted,
 			"%s ingestion rate limit (%d bytes) exceeded while adding %d bytes",
 			overrides.ErrorPrefixRateLimited,
@@ -316,7 +309,7 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 
 	keys, rebatchedTraces, err := requestsByTraceID(batches, userID, spanCount)
 	if err != nil {
-		metricDiscardedSpans.WithLabelValues(reasonInternalError, userID).Add(float64(spanCount))
+		overrides.RecordDiscardedSpans(spanCount, reasonInternalError, userID)
 		return nil, err
 	}
 
@@ -532,11 +525,11 @@ func recordDiscaredSpans(err error, userID string, spanCount int) {
 	desc := s.Message()
 
 	if strings.HasPrefix(desc, overrides.ErrorPrefixLiveTracesExceeded) {
-		metricDiscardedSpans.WithLabelValues(reasonLiveTracesExceeded, userID).Add(float64(spanCount))
+		overrides.RecordDiscardedSpans(spanCount, reasonLiveTracesExceeded, userID)
 	} else if strings.HasPrefix(desc, overrides.ErrorPrefixTraceTooLarge) {
-		metricDiscardedSpans.WithLabelValues(reasonTraceTooLarge, userID).Add(float64(spanCount))
+		overrides.RecordDiscardedSpans(spanCount, reasonTraceTooLarge, userID)
 	} else {
-		metricDiscardedSpans.WithLabelValues(reasonInternalError, userID).Add(float64(spanCount))
+		overrides.RecordDiscardedSpans(spanCount, reasonInternalError, userID)
 	}
 }
 
