@@ -53,6 +53,11 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		return nil, httpError("parsing search request", err, http.StatusBadRequest)
 	}
 
+	maxBytes, err := api.ExtractServerlessParams(r)
+	if err != nil {
+		return nil, httpError("extracting serverless params", err, http.StatusBadRequest)
+	}
+
 	// load config, fields are set through env vars TEMPO_
 	reader, cfg, err := loadBackend()
 	if err != nil {
@@ -118,6 +123,11 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 
 		resp.Metrics.InspectedTraces++
 		resp.Metrics.InspectedBytes += uint64(len(obj))
+
+		if maxBytes > 0 && len(obj) > maxBytes {
+			resp.Metrics.SkippedTraces++
+			continue
+		}
 
 		metadata, err := decoder.Matches(id, obj, searchReq.SearchReq)
 		if err != nil {

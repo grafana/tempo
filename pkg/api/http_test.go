@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/tempo/cmd/tempo-query/tempo"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // For licensing reasons these strings exist in two packages. This test exists to make sure they don't
@@ -445,4 +446,31 @@ func TestBuildSearchRequest(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, tc.query, actualURL.URL.String())
 	}
+}
+
+func TestAddServerlessParams(t *testing.T) {
+	actualURL := AddServerlessParams(nil, 10)
+	assert.Equal(t, "?maxBytes=10", actualURL.URL.String())
+
+	req, err := http.NewRequest("GET", "http://example.com", nil)
+	require.NoError(t, err)
+
+	actualURL = AddServerlessParams(req, 10)
+	assert.Equal(t, "http://example.com?maxBytes=10", actualURL.URL.String())
+}
+
+func TestExtractServerlessParam(t *testing.T) {
+	r := httptest.NewRequest("GET", "http://example.com", nil)
+	maxBytes, err := ExtractServerlessParams(r)
+	require.NoError(t, err)
+	assert.Equal(t, 0, maxBytes)
+
+	r = httptest.NewRequest("GET", "http://example.com?maxBytes=13", nil)
+	maxBytes, err = ExtractServerlessParams(r)
+	require.NoError(t, err)
+	assert.Equal(t, 13, maxBytes)
+
+	r = httptest.NewRequest("GET", "http://example.com?maxBytes=blerg", nil)
+	maxBytes, err = ExtractServerlessParams(r)
+	assert.Error(t, err)
 }

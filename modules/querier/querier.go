@@ -411,8 +411,14 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 	}
 
 	// proxy externally!
+	tenantID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "error extracting org id for externalEndpoint")
+	}
+	maxBytes := q.limits.MaxBytesPerTrace(tenantID)
+
 	endpoint := q.cfg.SearchExternalEndpoints[rand.Intn(len(q.cfg.SearchExternalEndpoints))]
-	return searchExternalEndpoint(ctx, endpoint, req)
+	return searchExternalEndpoint(ctx, endpoint, maxBytes, req)
 }
 
 func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
@@ -533,7 +539,7 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 	return response
 }
 
-func searchExternalEndpoint(ctx context.Context, externalEndpoint string, searchReq *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
+func searchExternalEndpoint(ctx context.Context, externalEndpoint string, maxBytes int, searchReq *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	req, err := http.NewRequest(http.MethodGet, externalEndpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to make new request: %w", err)
@@ -542,6 +548,7 @@ func searchExternalEndpoint(ctx context.Context, externalEndpoint string, search
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to build search block request: %w", err)
 	}
+	req = api.AddServerlessParams(req, maxBytes)
 	err = user.InjectOrgIDIntoHTTPRequest(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to inject tenant id: %w", err)
