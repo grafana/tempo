@@ -52,7 +52,6 @@ type Limits struct {
 	// Ingester enforced limits.
 	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user" json:"max_traces_per_user"`
 	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user" json:"max_global_traces_per_user"`
-	MaxBytesPerTrace       int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
 	MaxSearchBytesPerTrace int `yaml:"max_search_bytes_per_trace" json:"max_search_bytes_per_trace"`
 
 	// Metrics-generator processor config
@@ -63,6 +62,10 @@ type Limits struct {
 
 	// Querier enforced limits.
 	MaxBytesPerTagValuesQuery int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
+
+	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search) and Serverless (Search). It
+	//  it not enforce currently when doing a trace by id lookup.
+	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
 
 	// Configuration for overrides, convenient if it goes here.
 	PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`
