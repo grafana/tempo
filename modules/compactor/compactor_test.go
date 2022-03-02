@@ -44,7 +44,7 @@ func TestCombineLimitsNotHit(t *testing.T) {
 	assert.Equal(t, encode(t, trace), actual) // entire trace should be returned
 }
 
-func TestCombineLimitsNHit(t *testing.T) {
+func TestCombineLimitsHit(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Limits{
 		MaxBytesPerTrace: 1,
 	})
@@ -72,6 +72,36 @@ func TestCombineLimitsNHit(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, true, wasCombined)
 	assert.Equal(t, encode(t, t1), actual) // only t1 was returned b/c the combined trace was greater than the threshold
+}
+
+func TestCombineDoesntEnforceZero(t *testing.T) {
+	o, err := overrides.NewOverrides(overrides.Limits{
+		MaxBytesPerTrace: 0,
+	})
+	require.NoError(t, err)
+
+	c := &Compactor{
+		overrides: o,
+	}
+
+	trace := test.MakeTraceWithSpanCount(2, 10, nil)
+	t1 := &tempopb.Trace{
+		Batches: []*v1.ResourceSpans{
+			trace.Batches[0],
+		},
+	}
+	t2 := &tempopb.Trace{
+		Batches: []*v1.ResourceSpans{
+			trace.Batches[1],
+		},
+	}
+	obj1 := encode(t, t1)
+	obj2 := encode(t, t2)
+
+	actual, wasCombined, err := c.Combine(model.CurrentEncoding, "test", obj1, obj2)
+	assert.NoError(t, err)
+	assert.Equal(t, true, wasCombined)
+	assert.Equal(t, encode(t, trace), actual) // entire trace should be returned
 }
 
 func TestCountSpans(t *testing.T) {

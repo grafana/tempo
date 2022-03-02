@@ -221,7 +221,7 @@ func (c *Compactor) Combine(dataEncoding string, tenantID string, objs ...[]byte
 	}
 
 	maxBytes := c.overrides.MaxBytesPerTrace(tenantID)
-	if len(combinedObj) < maxBytes {
+	if maxBytes == 0 || len(combinedObj) < maxBytes {
 		return combinedObj, wasCombined, nil
 	}
 
