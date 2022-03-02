@@ -26,6 +26,9 @@ type SegmentDecoder interface {
 	//  The resultant byte slice can then be manipulated using the corresponding ObjectDecoder.
 	//  ToObject is on the write path and should do as little as possible.
 	ToObject(segments [][]byte) ([]byte, error)
+	// FastRange returns the start and end unix epoch timestamp of the provided segment. If its not possible to efficiently get these
+	// values from the underlying encoding then it should return decoder.ErrUnsupported
+	FastRange(segment []byte) (uint32, uint32, error)
 }
 
 // NewSegmentDecoder returns a Decoder given the passed string.

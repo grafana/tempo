@@ -82,6 +82,7 @@ func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
 	r.resultsMetrics.InspectedBytes += res.Metrics.InspectedBytes
 	r.resultsMetrics.InspectedTraces += res.Metrics.InspectedTraces
 	r.resultsMetrics.SkippedBlocks += res.Metrics.SkippedBlocks
+	r.resultsMetrics.SkippedTraces += res.Metrics.SkippedTraces
 }
 
 func (r *searchResponse) shouldQuit() bool {

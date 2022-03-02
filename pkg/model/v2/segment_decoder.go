@@ -78,6 +78,11 @@ func (d *SegmentDecoder) ToObject(segments [][]byte) ([]byte, error) {
 	}, minStart, maxEnd)
 }
 
+func (d *SegmentDecoder) FastRange(buff []byte) (uint32, uint32, error) {
+	_, start, end, err := stripStartEnd(buff)
+	return start, end, err
+}
+
 func marshalWithStartEnd(pb proto.Message, start uint32, end uint32) ([]byte, error) {
 	const uint32Size = 4
 

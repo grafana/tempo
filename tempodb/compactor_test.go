@@ -118,7 +118,7 @@ func TestCompaction(t *testing.T) {
 
 			bReq, err := proto.Marshal(req)
 			require.NoError(t, err)
-			err = head.Append(id, bReq)
+			err = head.Append(id, bReq, 0, 0)
 			require.NoError(t, err, "unexpected error writing req")
 		}
 		allReqs = append(allReqs, reqs...)
@@ -260,7 +260,7 @@ func TestSameIDCompaction(t *testing.T) {
 			id := allIds[j]
 
 			if i < len(req) {
-				err = head.Append(id, req[i])
+				err = head.Append(id, req[i], 0, 0)
 				require.NoError(t, err, "unexpected error writing req")
 			}
 		}
@@ -516,10 +516,8 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 			body := make([]byte, 1024)
 			rand.Read(body)
 
-			err = head.Append(
-				makeTraceID(i, j),
-				body)
-			// []byte{0x01, 0x02, 0x03})
+			now := uint32(time.Now().Unix())
+			err = head.Append(makeTraceID(i, j), body, now, now)
 			require.NoError(t, err, "unexpected error writing rec")
 		}
 

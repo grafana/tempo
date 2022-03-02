@@ -2,6 +2,7 @@ package wal
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 
@@ -30,27 +31,27 @@ func ReplayWALAndGetRecords(file *os.File, v encoding.VersionedEncoding, enc bac
 			break
 		}
 		if err != nil {
-			warning = err
+			warning = fmt.Errorf("accessing NextPage while replaying wal: %w", err)
 			break
 		}
 
 		reader := bytes.NewReader(buffer)
 		id, buffer, err = objectReader.UnmarshalObjectFromReader(reader)
 		if err != nil {
-			warning = err
+			warning = fmt.Errorf("unmarshalling object while replaying wal: %w", err)
 			break
 		}
 		// wal should only ever have one object per page, test that here
 		_, _, err = objectReader.UnmarshalObjectFromReader(reader)
 		if err != io.EOF {
-			warning = err
+			warning = fmt.Errorf("expected EOF while replaying wal: %w", err)
 			break
 		}
 
 		// handleObj is primarily used by search replay to record search data in block header
 		err = handleObj(buffer)
 		if err != nil {
-			warning = err
+			warning = fmt.Errorf("custom obj handler while replaying wal: %w", err)
 			break
 		}
 

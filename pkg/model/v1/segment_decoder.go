@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/model/decoder"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -47,4 +48,8 @@ func (d *SegmentDecoder) ToObject(segments [][]byte) ([]byte, error) {
 		Traces: append([][]byte(nil), segments...),
 	}
 	return proto.Marshal(wrapper)
+}
+
+func (d *SegmentDecoder) FastRange([]byte) (uint32, uint32, error) {
+	return 0, 0, decoder.ErrUnsupported
 }

@@ -32,15 +32,12 @@ type BlockMeta struct {
 }
 
 func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
-	now := time.Now()
 	b := &BlockMeta{
 		Version:      version,
 		BlockID:      blockID,
 		MinID:        []byte{},
 		MaxID:        []byte{},
 		TenantID:     tenantID,
-		StartTime:    now,
-		EndTime:      now,
 		Encoding:     encoding,
 		DataEncoding: dataEncoding,
 	}
@@ -48,13 +45,22 @@ func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding E
 	return b
 }
 
-func (b *BlockMeta) ObjectAdded(id []byte) {
-	b.EndTime = time.Now()
+// ObjectAdded updates the block meta appropriately based on information about an added record
+//  start/end are unix epoch seconds
+func (b *BlockMeta) ObjectAdded(id []byte, start uint32, end uint32) {
+	startTime := time.Unix(int64(start), 0)
+	endTime := time.Unix(int64(end), 0)
+
+	if b.StartTime.IsZero() || startTime.Before(b.StartTime) {
+		b.StartTime = startTime
+	}
+	if b.EndTime.IsZero() || endTime.After(b.EndTime) {
+		b.EndTime = endTime
+	}
 
 	if len(b.MinID) == 0 || bytes.Compare(id, b.MinID) == -1 {
 		b.MinID = id
 	}
-
 	if len(b.MaxID) == 0 || bytes.Compare(id, b.MaxID) == 1 {
 		b.MaxID = id
 	}
