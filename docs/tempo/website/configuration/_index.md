@@ -791,8 +791,12 @@ overrides:
     #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes
     [ingestion_rate_limit_bytes: <int> | default = 15000000 (15MB) ]
 
-    # Maximum size of a single trace in bytes.  `0` to disable. 
-    # Results in errors like
+    # Maximum size of a single trace in bytes.  `0` to disable
+    # This limit is used in 3 places:
+    #  - During search traces will be skipped when they exceed this threshold.
+    #  - During ingestion traces that exceeds this threshold will be refused.
+    #  - During compaction traces that exceed this threshold will be partially dropped.
+    # During ingestion it results in errors like
     #    TRACE_TOO_LARGE: max size of trace (5000000) exceeded while adding 387 bytes
     [max_bytes_per_trace: <int> | default = 5000000 (5MB) ]
 

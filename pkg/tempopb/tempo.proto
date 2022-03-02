@@ -83,6 +83,7 @@ message SearchMetrics {
   uint64 inspectedBytes = 2;
   uint32 inspectedBlocks = 3;
   uint32 skippedBlocks = 4;
+  uint32 skippedTraces = 5;
 }
 
 message SearchTagsRequest {
