@@ -28,8 +28,7 @@ import (
 )
 
 const (
-	envConfigPrefix     = "TEMPO"
-	envMaxBytesPerTrace = envConfigPrefix + "_MAX_BYTES_PER_TRACE"
+	envConfigPrefix = "TEMPO"
 )
 
 // used to initialize a reader one time

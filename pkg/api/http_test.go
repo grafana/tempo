@@ -471,6 +471,6 @@ func TestExtractServerlessParam(t *testing.T) {
 	assert.Equal(t, 13, maxBytes)
 
 	r = httptest.NewRequest("GET", "http://example.com?maxBytes=blerg", nil)
-	maxBytes, err = ExtractServerlessParams(r)
+	_, err = ExtractServerlessParams(r)
 	assert.Error(t, err)
 }
