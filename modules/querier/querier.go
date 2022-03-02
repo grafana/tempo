@@ -441,6 +441,8 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		DataEncoding:  req.DataEncoding,
 	}
 
+	maxBytes := q.limits.MaxBytesPerTrace(tenantID)
+
 	var searchErr error
 	respMtx := sync.Mutex{}
 	resp := &tempopb.SearchResponse{
@@ -457,6 +459,13 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		resp.Metrics.InspectedTraces++
 		resp.Metrics.InspectedBytes += uint64(len(obj))
 		respMtx.Unlock()
+
+		if maxBytes > 0 && len(obj) > maxBytes {
+			respMtx.Lock()
+			resp.Metrics.SkippedTraces++
+			respMtx.Unlock()
+			return false
+		}
 
 		metadata, err := decoder.Matches(id, obj, req.SearchReq)
 

@@ -27,7 +27,10 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const envConfigPrefix = "TEMPO"
+const (
+	envConfigPrefix     = "TEMPO"
+	envMaxBytesPerTrace = envConfigPrefix + "_MAX_BYTES_PER_TRACE"
+)
 
 // used to initialize a reader one time
 var (

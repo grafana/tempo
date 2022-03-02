@@ -37,6 +37,9 @@ const (
 	urlParamDataEncoding  = "dataEncoding"
 	urlParamVersion       = "version"
 
+	// maxBytes (serverless only)
+	urlParamMaxBytes = "maxBytes"
+
 	HeaderAccept         = "Accept"
 	HeaderContentType    = "Content-Type"
 	HeaderAcceptProtobuf = "application/protobuf"
