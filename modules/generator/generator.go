@@ -214,10 +214,7 @@ func (g *Generator) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 		return nil, err
 	}
 
-	err = instance.pushSpans(ctx, req)
-	if err != nil {
-		return nil, err
-	}
+	instance.pushSpans(ctx, req)
 
 	return &tempopb.PushResponse{}, nil
 }

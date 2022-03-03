@@ -213,19 +213,15 @@ func (i *instance) updateProcessorMetrics() {
 	}
 }
 
-func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest) error {
+func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
 	i.updatePushMetrics(req)
 
 	i.processorsMtx.RLock()
 	defer i.processorsMtx.RUnlock()
 
 	for _, processor := range i.processors {
-		if err := processor.PushSpans(ctx, req); err != nil {
-			return err
-		}
+		processor.PushSpans(ctx, req)
 	}
-
-	return nil
 }
 
 func (i *instance) updatePushMetrics(req *tempopb.PushSpansRequest) {
