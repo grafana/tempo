@@ -300,15 +300,15 @@ Displays a web page with the ingesters hash ring status, including the state, he
 
 _For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring)._
 
-### Metrics-generators ring status
-
-> Note: this endpoint is only available when the metrics-generator is enabled. See [configuration](../configuration/_index.md#metrics-generator).
+### Metrics-generator ring status
 
 ```
 GET /metrics-generator/ring
 ```
 
-Displays a web page with the metrics-generators hash ring status, including the state, healthy and last heartbeat time of each metrics-generator.
+Displays a web page with the metrics-generator hash ring status, including the state, health, and last heartbeat time of each metrics-generator.
+
+This endpoint is only available when the metrics-generator is enabled. See [metrics-generator](../configuration/_index.md#metrics-generator).
 
 _For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring)._
 
