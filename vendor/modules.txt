@@ -516,7 +516,6 @@ github.com/klauspost/compress/gzip
 github.com/klauspost/compress/huff0
 github.com/klauspost/compress/internal/snapref
 github.com/klauspost/compress/s2
-github.com/klauspost/compress/snappy
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
 # github.com/klauspost/cpuid v1.3.1
@@ -601,6 +600,9 @@ github.com/mwitkow/go-conntrack
 # github.com/oklog/run v1.1.0
 ## explicit; go 1.13
 github.com/oklog/run
+# github.com/oklog/ulid v1.3.1
+## explicit
+github.com/oklog/ulid
 # github.com/olekukonko/tablewriter v0.0.2
 ## explicit; go 1.12
 github.com/olekukonko/tablewriter
@@ -728,11 +730,14 @@ github.com/prometheus/prometheus/prompb
 github.com/prometheus/prometheus/scrape
 github.com/prometheus/prometheus/storage
 github.com/prometheus/prometheus/storage/remote
+github.com/prometheus/prometheus/tsdb
+github.com/prometheus/prometheus/tsdb/agent
 github.com/prometheus/prometheus/tsdb/chunkenc
 github.com/prometheus/prometheus/tsdb/chunks
 github.com/prometheus/prometheus/tsdb/encoding
 github.com/prometheus/prometheus/tsdb/errors
 github.com/prometheus/prometheus/tsdb/fileutil
+github.com/prometheus/prometheus/tsdb/goversion
 github.com/prometheus/prometheus/tsdb/index
 github.com/prometheus/prometheus/tsdb/record
 github.com/prometheus/prometheus/tsdb/tombstones
@@ -1107,6 +1112,7 @@ golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
 # golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 ## explicit
+golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
 # golang.org/x/sys v0.0.0-20220222172238-00053529121e
 ## explicit; go 1.17

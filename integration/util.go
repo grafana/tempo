@@ -102,6 +102,23 @@ func NewTempoIngester(replica int) *e2e.HTTPService {
 	return s
 }
 
+func NewTempoMetricsGenerator() *e2e.HTTPService {
+	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=metrics-generator"}
+	args = buildArgsWithExtra(args)
+
+	s := e2e.NewHTTPService(
+		"metrics-generator",
+		image,
+		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
+		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		3200,
+	)
+
+	s.SetBackoff(TempoBackoff())
+
+	return s
+}
+
 func NewTempoQueryFrontend() *e2e.HTTPService {
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=query-frontend"}
 	args = buildArgsWithExtra(args)
