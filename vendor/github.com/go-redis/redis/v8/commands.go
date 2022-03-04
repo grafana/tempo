@@ -190,10 +190,12 @@ type Cmdable interface {
 	LSet(ctx context.Context, key string, index int64, value interface{}) *StatusCmd
 	LTrim(ctx context.Context, key string, start, stop int64) *StatusCmd
 	RPop(ctx context.Context, key string) *StringCmd
+	RPopCount(ctx context.Context, key string, count int) *StringSliceCmd
 	RPopLPush(ctx context.Context, source, destination string) *StringCmd
 	RPush(ctx context.Context, key string, values ...interface{}) *IntCmd
 	RPushX(ctx context.Context, key string, values ...interface{}) *IntCmd
 	LMove(ctx context.Context, source, destination, srcpos, destpos string) *StringCmd
+	BLMove(ctx context.Context, source, destination, srcpos, destpos string, timeout time.Duration) *StringCmd
 
 	SAdd(ctx context.Context, key string, members ...interface{}) *IntCmd
 	SCard(ctx context.Context, key string) *IntCmd
@@ -235,6 +237,8 @@ type Cmdable interface {
 	XPendingExt(ctx context.Context, a *XPendingExtArgs) *XPendingExtCmd
 	XClaim(ctx context.Context, a *XClaimArgs) *XMessageSliceCmd
 	XClaimJustID(ctx context.Context, a *XClaimArgs) *StringSliceCmd
+	XAutoClaim(ctx context.Context, a *XAutoClaimArgs) *XAutoClaimCmd
+	XAutoClaimJustID(ctx context.Context, a *XAutoClaimArgs) *XAutoClaimJustIDCmd
 
 	// TODO: XTrim and XTrimApprox remove in v9.
 	XTrim(ctx context.Context, key string, maxLen int64) *IntCmd
@@ -245,6 +249,7 @@ type Cmdable interface {
 	XTrimMinIDApprox(ctx context.Context, key string, minID string, limit int64) *IntCmd
 	XInfoGroups(ctx context.Context, key string) *XInfoGroupsCmd
 	XInfoStream(ctx context.Context, key string) *XInfoStreamCmd
+	XInfoStreamFull(ctx context.Context, key string, count int) *XInfoStreamFullCmd
 	XInfoConsumers(ctx context.Context, key string, group string) *XInfoConsumersCmd
 
 	BZPopMax(ctx context.Context, timeout time.Duration, keys ...string) *ZWithKeyCmd
@@ -380,6 +385,9 @@ type Cmdable interface {
 	GeoRadiusStore(ctx context.Context, key string, longitude, latitude float64, query *GeoRadiusQuery) *IntCmd
 	GeoRadiusByMember(ctx context.Context, key, member string, query *GeoRadiusQuery) *GeoLocationCmd
 	GeoRadiusByMemberStore(ctx context.Context, key, member string, query *GeoRadiusQuery) *IntCmd
+	GeoSearch(ctx context.Context, key string, q *GeoSearchQuery) *StringSliceCmd
+	GeoSearchLocation(ctx context.Context, key string, q *GeoSearchLocationQuery) *GeoSearchLocationCmd
+	GeoSearchStore(ctx context.Context, key, store string, q *GeoSearchStoreQuery) *IntCmd
 	GeoDist(ctx context.Context, key string, member1, member2, unit string) *FloatCmd
 	GeoHash(ctx context.Context, key string, members ...string) *StringSliceCmd
 }
@@ -1449,6 +1457,12 @@ func (c cmdable) RPop(ctx context.Context, key string) *StringCmd {
 	return cmd
 }
 
+func (c cmdable) RPopCount(ctx context.Context, key string, count int) *StringSliceCmd {
+	cmd := NewStringSliceCmd(ctx, "rpop", key, count)
+	_ = c(ctx, cmd)
+	return cmd
+}
+
 func (c cmdable) RPopLPush(ctx context.Context, source, destination string) *StringCmd {
 	cmd := NewStringCmd(ctx, "rpoplpush", source, destination)
 	_ = c(ctx, cmd)
@@ -1477,6 +1491,15 @@ func (c cmdable) RPushX(ctx context.Context, key string, values ...interface{}) 
 
 func (c cmdable) LMove(ctx context.Context, source, destination, srcpos, destpos string) *StringCmd {
 	cmd := NewStringCmd(ctx, "lmove", source, destination, srcpos, destpos)
+	_ = c(ctx, cmd)
+	return cmd
+}
+
+func (c cmdable) BLMove(
+	ctx context.Context, source, destination, srcpos, destpos string, timeout time.Duration,
+) *StringCmd {
+	cmd := NewStringCmd(ctx, "blmove", source, destination, srcpos, destpos, formatSec(ctx, timeout))
+	cmd.setReadTimeout(timeout)
 	_ = c(ctx, cmd)
 	return cmd
 }
@@ -3334,6 +3357,38 @@ func (c cmdable) GeoRadiusByMemberStore(
 		cmd.SetErr(errors.New("GeoRadiusByMemberStore requires Store or StoreDist"))
 		return cmd
 	}
+	_ = c(ctx, cmd)
+	return cmd
+}
+
+func (c cmdable) GeoSearch(ctx context.Context, key string, q *GeoSearchQuery) *StringSliceCmd {
+	args := make([]interface{}, 0, 13)
+	args = append(args, "geosearch", key)
+	args = geoSearchArgs(q, args)
+	cmd := NewStringSliceCmd(ctx, args...)
+	_ = c(ctx, cmd)
+	return cmd
+}
+
+func (c cmdable) GeoSearchLocation(
+	ctx context.Context, key string, q *GeoSearchLocationQuery,
+) *GeoSearchLocationCmd {
+	args := make([]interface{}, 0, 16)
+	args = append(args, "geosearch", key)
+	args = geoSearchLocationArgs(q, args)
+	cmd := NewGeoSearchLocationCmd(ctx, q, args...)
+	_ = c(ctx, cmd)
+	return cmd
+}
+
+func (c cmdable) GeoSearchStore(ctx context.Context, key, store string, q *GeoSearchStoreQuery) *IntCmd {
+	args := make([]interface{}, 0, 15)
+	args = append(args, "geosearchstore", store, key)
+	args = geoSearchArgs(&q.GeoSearchQuery, args)
+	if q.StoreDist {
+		args = append(args, "storedist")
+	}
+	cmd := NewIntCmd(ctx, args...)
 	_ = c(ctx, cmd)
 	return cmd
 }

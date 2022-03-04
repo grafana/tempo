@@ -261,6 +261,7 @@ struct ltchars {
 #include <linux/vm_sockets.h>
 #include <linux/wait.h>
 #include <linux/watchdog.h>
+#include <linux/wireguard.h>
 
 #include <mtd/ubi-user.h>
 #include <mtd/mtd-user.h>
@@ -596,6 +597,7 @@ ccflags="$@"
 		$2 ~ /^DEVLINK_/ ||
 		$2 ~ /^ETHTOOL_/ ||
 		$2 ~ /^LWTUNNEL_IP/ ||
+		$2 ~ /^ITIMER_/ ||
 		$2 !~ "WMESGLEN" &&
 		$2 ~ /^W[A-Z0-9]+$/ ||
 		$2 ~/^PPPIOC/ ||
@@ -606,6 +608,7 @@ ccflags="$@"
 		$2 ~ /^MTD/ ||
 		$2 ~ /^OTP/ ||
 		$2 ~ /^MEM/ ||
+		$2 ~ /^WG/ ||
 		$2 ~ /^BLK[A-Z]*(GET$|SET$|BUF$|PART$|SIZE)/ {printf("\t%s = C.%s\n", $2, $2)}
 		$2 ~ /^__WCOREFLAG$/ {next}
 		$2 ~ /^__W[A-Z0-9]+$/ {printf("\t%s = C.%s\n", substr($2,3), $2)}

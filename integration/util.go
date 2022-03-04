@@ -10,14 +10,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/dskit/backoff"
+	"github.com/grafana/e2e"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/grafana/dskit/backoff"
-	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
@@ -187,7 +188,7 @@ func TempoBackoff() backoff.Config {
 
 func NewJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	// new jaeger grpc exporter
-	conn, err := grpc.Dial(endpoint, grpc.WithInsecure())
+	conn, err := grpc.Dial(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
