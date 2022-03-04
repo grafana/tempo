@@ -13,16 +13,17 @@ import (
 	"time"
 
 	"github.com/go-test/deep"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
-
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/grafana/tempo/pkg/model/trace"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 var (
@@ -276,7 +277,7 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	)
 
 	// new jaeger grpc exporter
-	conn, err := grpc.Dial(u.Host+":14250", grpc.WithInsecure())
+	conn, err := grpc.Dial(u.Host+":14250", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
