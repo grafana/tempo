@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -141,6 +142,8 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 			break
 		}
 	}
+
+	runtime.GC()
 
 	return resp, nil
 }
