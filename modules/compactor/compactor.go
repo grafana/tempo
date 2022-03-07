@@ -29,6 +29,8 @@ const (
 	ringNumTokens = 512
 
 	compactorRingKey = "compactor"
+
+	reasonCompactorDiscardedSpans = "trace_too_large_to_compact"
 )
 
 var (
@@ -211,9 +213,30 @@ func (c *Compactor) Owns(hash string) bool {
 	return rs.Instances[0].Addr == ringAddr
 }
 
-// Combine implements common.ObjectCombiner
-func (c *Compactor) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
-	return model.ObjectCombiner.Combine(dataEncoding, objs...)
+// Combine implements tempodb.CompactorSharder
+func (c *Compactor) Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error) {
+	combinedObj, wasCombined, err := model.ObjectCombiner.Combine(dataEncoding, objs...)
+	if err != nil {
+		return nil, false, err
+	}
+
+	maxBytes := c.overrides.MaxBytesPerTrace(tenantID)
+	if maxBytes == 0 || len(combinedObj) < maxBytes {
+		return combinedObj, wasCombined, nil
+	}
+
+	// technically neither of these conditions should ever be true, we are adding them as guard code
+	// for the following logic
+	if len(objs) == 0 {
+		return []byte{}, wasCombined, nil
+	}
+	if len(objs) == 1 {
+		return objs[0], wasCombined, nil
+	}
+
+	spansDiscarded := countSpans(dataEncoding, objs[1:]...)
+	overrides.RecordDiscardedSpans(spansDiscarded, reasonCompactorDiscardedSpans, tenantID)
+	return objs[0], wasCombined, nil
 }
 
 // BlockRetentionForTenant implements CompactorOverrides
@@ -258,4 +281,28 @@ func (c *Compactor) OnRingInstanceStopping(lifecycler *ring.BasicLifecycler) {}
 // OnRingInstanceHeartbeat is called while the instance is updating its heartbeat
 // in the ring.
 func (c *Compactor) OnRingInstanceHeartbeat(lifecycler *ring.BasicLifecycler, ringDesc *ring.Desc, instanceDesc *ring.InstanceDesc) {
+}
+
+//
+func countSpans(dataEncoding string, objs ...[]byte) int {
+	decoder, err := model.NewObjectDecoder(dataEncoding)
+	if err != nil {
+		return 0
+	}
+	spans := 0
+
+	for _, o := range objs {
+		t, err := decoder.PrepareForRead(o)
+		if err != nil {
+			continue
+		}
+
+		for _, b := range t.Batches {
+			for _, ilm := range b.InstrumentationLibrarySpans {
+				spans += len(ilm.Spans)
+			}
+		}
+	}
+
+	return spans
 }

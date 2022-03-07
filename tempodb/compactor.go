@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -186,6 +185,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	var tracker backend.AppendTracker
 
 	combiner := instrumentedObjectCombiner{
+		tenant:               tenantID,
 		inner:                rw.compactorSharder,
 		compactionLevelLabel: compactionLevelLabel,
 	}
@@ -335,13 +335,14 @@ func measureOutstandingBlocks(tenantID string, blockSelector CompactionBlockSele
 }
 
 type instrumentedObjectCombiner struct {
+	tenant               string
 	compactionLevelLabel string
-	inner                common.ObjectCombiner
+	inner                CompactorSharder
 }
 
 // Combine wraps the inner combiner with combined metrics
 func (i instrumentedObjectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
-	b, wasCombined, err := i.inner.Combine(dataEncoding, objs...)
+	b, wasCombined, err := i.inner.Combine(dataEncoding, i.tenant, objs...)
 	if wasCombined {
 		metricCompactionObjectsCombined.WithLabelValues(i.compactionLevelLabel).Inc()
 	}

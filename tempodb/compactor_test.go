@@ -33,7 +33,14 @@ func (m *mockSharder) Owns(hash string) bool {
 	return true
 }
 
-func (m *mockSharder) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
+func (m *mockSharder) Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error) {
+	return model.ObjectCombiner.Combine(dataEncoding, objs...)
+}
+
+type mockCombiner struct {
+}
+
+func (m *mockCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
 	return model.ObjectCombiner.Combine(dataEncoding, objs...)
 }
 
@@ -117,7 +124,7 @@ func TestCompaction(t *testing.T) {
 		allReqs = append(allReqs, reqs...)
 		allIds = append(allIds, ids...)
 
-		_, err = w.CompleteBlock(head, &mockSharder{})
+		_, err = w.CompleteBlock(head, &mockCombiner{})
 		require.NoError(t, err)
 
 		// err = w.WriteBlock(context.Background(), complete)
@@ -258,7 +265,7 @@ func TestSameIDCompaction(t *testing.T) {
 			}
 		}
 
-		_, err = w.CompleteBlock(head, &mockSharder{})
+		_, err = w.CompleteBlock(head, &mockCombiner{})
 		require.NoError(t, err)
 	}
 
@@ -514,7 +521,7 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 			require.NoError(t, err, "unexpected error writing rec")
 		}
 
-		b, err := w.CompleteBlock(head, &mockSharder{})
+		b, err := w.CompleteBlock(head, &mockCombiner{})
 		require.NoError(t, err)
 		blocks = append(blocks, b)
 	}

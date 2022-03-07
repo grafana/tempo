@@ -90,7 +90,7 @@ func TestDB(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
-	_, err = w.CompleteBlock(head, &mockSharder{})
+	_, err = w.CompleteBlock(head, &mockCombiner{})
 	assert.NoError(t, err)
 
 	// poll
@@ -137,7 +137,7 @@ func TestBlockSharding(t *testing.T) {
 	assert.NoError(t, err, "unexpected error writing req")
 
 	// write block to backend
-	_, err = w.CompleteBlock(head, &mockSharder{})
+	_, err = w.CompleteBlock(head, &mockCombiner{})
 	assert.NoError(t, err)
 
 	// poll
@@ -197,7 +197,7 @@ func TestBlockCleanup(t *testing.T) {
 	head, err := wal.NewBlock(blockID, testTenantID, "")
 	assert.NoError(t, err)
 
-	_, err = w.CompleteBlock(head, &mockSharder{})
+	_, err = w.CompleteBlock(head, &mockCombiner{})
 	assert.NoError(t, err)
 
 	rw := r.(*readerWriter)
@@ -501,7 +501,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
-	complete, err := w.CompleteBlock(head, &mockSharder{})
+	complete, err := w.CompleteBlock(head, &mockCombiner{})
 	assert.NoError(t, err)
 
 	blockID := complete.BlockMeta().BlockID.String()
@@ -579,7 +579,7 @@ func TestCompleteBlock(t *testing.T) {
 		assert.NoError(t, err, "unexpected error writing req")
 	}
 
-	complete, err := w.CompleteBlock(block, &mockSharder{})
+	complete, err := w.CompleteBlock(block, &mockCombiner{})
 	require.NoError(t, err, "unexpected error completing block")
 
 	for i, id := range ids {

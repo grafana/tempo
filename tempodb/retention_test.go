@@ -54,7 +54,7 @@ func TestRetention(t *testing.T) {
 	head, err := wal.NewBlock(blockID, testTenantID, "")
 	assert.NoError(t, err)
 
-	complete, err := w.CompleteBlock(head, &mockSharder{})
+	complete, err := w.CompleteBlock(head, &mockCombiner{})
 	assert.NoError(t, err)
 	blockID = complete.BlockMeta().BlockID
 

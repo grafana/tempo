@@ -91,7 +91,7 @@ type Compactor interface {
 }
 
 type CompactorSharder interface {
-	common.ObjectCombiner
+	Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error)
 	Owns(hash string) bool
 }
 
