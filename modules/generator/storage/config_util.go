@@ -24,7 +24,7 @@ func generateTenantRemoteWriteConfigs(originalCfgs []*prometheus_config.RemoteWr
 
 		// Ensure that no variation of the X-Scope-OrgId header can be added, which might trick authentication
 		for k, v := range cloneCfg.Headers {
-			if strings.ToLower(user.OrgIDHeaderName) == strings.ToLower(strings.TrimSpace(k)) {
+			if strings.EqualFold(user.OrgIDHeaderName, strings.TrimSpace(k)) {
 				level.Warn(logger).Log("msg", "discarding X-Scope-OrgId header", "key", k, "value", v)
 				delete(cloneCfg.Headers, k)
 			}

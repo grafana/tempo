@@ -16,11 +16,11 @@ func Test_generateTenantRemoteWriteConfigs(t *testing.T) {
 
 	original := []*prometheus_config.RemoteWriteConfig{
 		{
-			URL:     &prometheus_common_config.URL{urlMustParse("http://prometheus-1/api/prom/push")},
+			URL:     &prometheus_common_config.URL{URL: urlMustParse("http://prometheus-1/api/prom/push")},
 			Headers: map[string]string{},
 		},
 		{
-			URL: &prometheus_common_config.URL{urlMustParse("http://prometheus-2/api/prom/push")},
+			URL: &prometheus_common_config.URL{URL: urlMustParse("http://prometheus-2/api/prom/push")},
 			Headers: map[string]string{
 				"foo":           "bar",
 				"x-scope-orgid": "fake-tenant",
