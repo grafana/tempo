@@ -22,7 +22,7 @@ const reasonOutsideIngestionSlack = "outside_ingestion_time_slack"
 
 var (
 	metricWarnings = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempodb",
+		Namespace: "tempo",
 		Name:      "warnings_total",
 		Help:      "The total number of warnings per tenant with reason.",
 	}, []string{"tenant", "reason"})
