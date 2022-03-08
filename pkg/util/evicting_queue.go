@@ -156,15 +156,11 @@ func (q *EvictingQueue) Clear() {
 func (q *EvictingQueue) loop(interval time.Duration) {
 	t := time.NewTicker(interval)
 	// TODO: add a way to stop the loop
-	for {
-		select {
-		case <-t.C:
-			// TODO: add a way to return early from the fan-out loop
-			// 	maybe by having a context that can be cancelled
-			q.fanOut(context.Background())
-		}
+	for range t.C {
+		// TODO: add a way to return early from the fan-out loop
+		// 	maybe by having a context that can be cancelled
+		q.fanOut(context.Background())
 	}
-
 }
 
 // fanOut sends all entries to all subscribers.

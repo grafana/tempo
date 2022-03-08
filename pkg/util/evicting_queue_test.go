@@ -122,13 +122,10 @@ func TestQueueSubscribe(t *testing.T) {
 	subscriber := q.Subscribe()
 	go func() {
 		var c int
-		for {
-			select {
-			case entry := <-subscriber:
-				c++
-				require.Equal(t, c, entry)
-				wg.Done()
-			}
+		for entry := range subscriber {
+			c++
+			require.Equal(t, c, entry)
+			wg.Done()
 		}
 	}()
 
@@ -202,11 +199,8 @@ func benchmarkAppendAndSubscribe(b *testing.B, interval time.Duration, buffer in
 	sub := make(chan interface{}, buffer)
 	q.subscribers = append(q.subscribers, sub)
 	go func() {
-		for {
-			select {
-			case <-sub:
-				consumptions++
-			}
+		for range sub {
+			consumptions++
 		}
 	}()
 
