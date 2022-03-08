@@ -136,7 +136,7 @@ func (t *App) initIngester() (services.Service, error) {
 	t.cfg.Ingester.LifecyclerConfig.ListenPort = t.cfg.Server.GRPCListenPort
 	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.overrides, prometheus.DefaultRegisterer)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create ingester %w", err)
+		return nil, fmt.Errorf("failed to create ingester: %w", err)
 	}
 	t.ingester = ingester
 
