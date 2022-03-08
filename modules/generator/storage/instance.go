@@ -45,13 +45,9 @@ func New(cfg *Config, tenant string, reg prometheus.Registerer, logger log.Logge
 	level.Info(logger).Log("msg", "creating WAL", "dir", walDir)
 
 	// Create WAL directory with necessary permissions
-	err := os.MkdirAll(walDir, 0o755)
-	if err != nil {
-		level.Warn(logger).Log("msg", "could not create directory for metrics WAL", "err", err)
-	}
-	// Already create the wal subdir: remote storage logs an error if it starts tailing the WAL
-	// before it has been created
-	err = os.MkdirAll(filepath.Join(walDir, "wal"), 0o755)
+	// This creates both <walDir>/<tenant>/ and <walDir>/<tenant>/wal/. If we don't create the wal
+	// subdirectory remote storage logs a scary error.
+	err := os.MkdirAll(filepath.Join(walDir, "wal"), 0o755)
 	if err != nil {
 		level.Warn(logger).Log("msg", "could not create directory for metrics WAL", "err", err)
 	}
