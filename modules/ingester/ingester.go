@@ -327,6 +327,10 @@ func (i *Ingester) TransferOut(ctx context.Context) error {
 func (i *Ingester) replayWal() error {
 	level.Info(log.Logger).Log("msg", "beginning wal replay")
 
+	// pass i.cfg.MaxBlockDuration into RescanBlocks to make an attempt to set the start time
+	// of the blocks correctly. as we are scanning traces in the blocks we read their start/end times
+	// and attempt to set start/end times appropriately. we use now - max_block_duration - ingestion_slack
+	// as the minimum acceptable start time for a replayed block.
 	blocks, err := i.store.WAL().RescanBlocks(func(b []byte, dataEncoding string) (uint32, uint32, error) {
 		d, err := model.NewObjectDecoder(dataEncoding)
 		if err != nil {
@@ -342,7 +346,7 @@ func (i *Ingester) replayWal() error {
 			return 0, 0, err
 		}
 		return start, end, nil
-	}, log.Logger)
+	}, i.cfg.MaxBlockDuration, log.Logger)
 	if err != nil {
 		return fmt.Errorf("fatal error replaying wal: %w", err)
 	}

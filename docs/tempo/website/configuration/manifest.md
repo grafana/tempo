@@ -316,6 +316,7 @@ storage:
       blocksfilepath: /tmp/tempo/wal/blocks
       encoding: snappy
       search_encoding: none
+      ingestion_time_range_slack: 2m0s
     block:
       index_downsample_bytes: 1048576
       index_page_size_bytes: 256000
