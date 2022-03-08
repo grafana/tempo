@@ -20,6 +20,7 @@ import (
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/prometheus/prometheus/storage/remote"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
 	"go.uber.org/atomic"
 )
@@ -128,13 +129,15 @@ func TestInstance_multiTenancy(t *testing.T) {
 	// WAL should be empty again
 	entries, err := os.ReadDir(cfg.Path)
 	assert.NoError(t, err)
-	assert.Len(t, entries, 0)
+
+	require.Len(t, entries, 0)
 
 	for i := range instances {
-		assert.Len(t, mockServer.timeSeries[strconv.Itoa(i)], 1)
-
-		sample := mockServer.timeSeries[strconv.Itoa(i)][0]
-		assert.Equal(t, float64(i), sample.GetSamples()[0].GetValue())
+		lenOk := assert.Len(t, mockServer.timeSeries[strconv.Itoa(i)], 1, "instance %d did not receive the expected amount of time series", i)
+		if lenOk {
+			sample := mockServer.timeSeries[strconv.Itoa(i)][0]
+			assert.Equal(t, float64(i), sample.GetSamples()[0].GetValue())
+		}
 	}
 }
 
