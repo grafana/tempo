@@ -153,7 +153,7 @@ func TestErrorConditions(t *testing.T) {
 
 	blocks, err := wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
 		return 0, 0, nil
-	}, log.NewNopLogger())
+	}, 0, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
@@ -164,10 +164,11 @@ func TestErrorConditions(t *testing.T) {
 	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
 }
 
-func TestAppendBlockStartEnd(t *testing.T) {
+func TestAppendBlockStartEnd(t *testing.T) { // jpe extend
 	wal, err := New(&Config{
-		Filepath: t.TempDir(),
-		Encoding: backend.EncNone,
+		Filepath:       t.TempDir(),
+		Encoding:       backend.EncNone,
+		IngestionSlack: 2 * time.Minute,
 	})
 	require.NoError(t, err, "unexpected error creating temp wal")
 
@@ -191,12 +192,12 @@ func TestAppendBlockStartEnd(t *testing.T) {
 	require.Equal(t, blockEnd, uint32(block.meta.EndTime.Unix()))
 
 	// rescan the block and make sure that start/end times are correct
-	blockStart = uint32(time.Now().Add(time.Hour).Unix())
-	blockEnd = uint32(time.Now().Add(2 * time.Hour).Unix())
+	blockStart = uint32(time.Now().Add(-time.Hour).Unix())
+	blockEnd = uint32(time.Now().Unix())
 
 	blocks, err := wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
 		return blockStart, blockEnd, nil
-	}, log.NewNopLogger())
+	}, time.Hour, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
@@ -256,7 +257,7 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 
 	blocks, err := wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
 		return 0, 0, nil
-	}, log.NewNopLogger())
+	}, 0, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
@@ -489,7 +490,7 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 		// replay
 		_, err = wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
 			return 0, 0, nil
-		}, log.NewNopLogger())
+		}, 0, log.NewNopLogger())
 		require.NoError(b, err)
 	}
 }

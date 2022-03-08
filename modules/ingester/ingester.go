@@ -342,7 +342,7 @@ func (i *Ingester) replayWal() error {
 			return 0, 0, err
 		}
 		return start, end, nil
-	}, log.Logger)
+	}, i.cfg.MaxBlockDuration, log.Logger)
 	if err != nil {
 		return fmt.Errorf("fatal error replaying wal %w", err)
 	}

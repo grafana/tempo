@@ -36,6 +36,7 @@ type Config struct {
 	BlocksFilepath    string
 	Encoding          backend.Encoding `yaml:"encoding"`
 	SearchEncoding    backend.Encoding `yaml:"search_encoding"`
+	IngestionSlack    time.Duration    `yaml:"ingestion_time_range_slack"`
 }
 
 func New(c *Config) (*WAL, error) {
@@ -84,7 +85,7 @@ func New(c *Config) (*WAL, error) {
 }
 
 // RescanBlocks returns a slice of append blocks from the wal folder
-func (w *WAL) RescanBlocks(fn RangeFunc, log log.Logger) ([]*AppendBlock, error) {
+func (w *WAL) RescanBlocks(fn RangeFunc, additionalStartSlack time.Duration, log log.Logger) ([]*AppendBlock, error) {
 	files, err := os.ReadDir(w.c.Filepath)
 	if err != nil {
 		return nil, err
@@ -103,7 +104,7 @@ func (w *WAL) RescanBlocks(fn RangeFunc, log log.Logger) ([]*AppendBlock, error)
 		}
 
 		level.Info(log).Log("msg", "beginning replay", "file", f.Name(), "size", fileInfo.Size())
-		b, warning, err := newAppendBlockFromFile(f.Name(), w.c.Filepath, fn)
+		b, warning, err := newAppendBlockFromFile(f.Name(), w.c.Filepath, w.c.IngestionSlack, additionalStartSlack, fn)
 
 		remove := false
 		if err != nil {
@@ -138,7 +139,7 @@ func (w *WAL) RescanBlocks(fn RangeFunc, log log.Logger) ([]*AppendBlock, error)
 }
 
 func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (*AppendBlock, error) {
-	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding)
+	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.IngestionSlack)
 }
 
 func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File, string, backend.Encoding, error) {

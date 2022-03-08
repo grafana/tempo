@@ -651,6 +651,13 @@ storage:
             # Options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
             [search_encoding: <string> | default = none]
 
+            # When a span is written to the WAL it adjusts the start and end times of the block it is written to.
+            # This block start and end time range is then used when choosing blocks for search. To prevent spans too far
+            # in the past or future from impacting the block start and end times we use this configuration option.
+            # This option only allows spans that occur within the configured duration to adjust the block start and
+            # end times.
+            [ingestion_time_range_slack: <duration> | default = 2m]
+
         # block configuration
         block:
 
@@ -671,7 +678,6 @@ storage:
 
             # number of bytes per search page
             [search_page_size_bytes: <int> | default = 1MiB]
-
 ```
 
 ## Memberlist

@@ -21,8 +21,9 @@ const maxDataEncodingLength = 32
 // AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
 // in the order it was received and an in memory sorted index.
 type AppendBlock struct {
-	meta     *backend.BlockMeta
-	encoding encoding.VersionedEncoding
+	meta           *backend.BlockMeta
+	encoding       encoding.VersionedEncoding
+	ingestionSlack time.Duration
 
 	appendFile *os.File
 	appender   encoding.Appender
@@ -32,7 +33,7 @@ type AppendBlock struct {
 	once     sync.Once
 }
 
-func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string) (*AppendBlock, error) {
+func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (*AppendBlock, error) {
 	if strings.ContainsRune(dataEncoding, ':') ||
 		len([]rune(dataEncoding)) > maxDataEncodingLength {
 		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
@@ -44,9 +45,10 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 	}
 
 	h := &AppendBlock{
-		encoding: v,
-		meta:     backend.NewBlockMeta(tenantID, id, v.Version(), e, dataEncoding),
-		filepath: filepath,
+		encoding:       v,
+		meta:           backend.NewBlockMeta(tenantID, id, v.Version(), e, dataEncoding),
+		filepath:       filepath,
+		ingestionSlack: ingestionSlack,
 	}
 
 	name := h.fullFilename()
@@ -69,7 +71,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 
 // newAppendBlockFromFile returns an AppendBlock that can not be appended to, but can
 // be completed. It can return a warning or a fatal error
-func newAppendBlockFromFile(filename string, path string, fn RangeFunc) (*AppendBlock, error, error) {
+func newAppendBlockFromFile(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration, fn RangeFunc) (*AppendBlock, error, error) {
 	var warning error
 	blockID, tenantID, version, e, dataEncoding, err := ParseFilename(filename)
 	if err != nil {
@@ -82,9 +84,10 @@ func newAppendBlockFromFile(filename string, path string, fn RangeFunc) (*Append
 	}
 
 	b := &AppendBlock{
-		meta:     backend.NewBlockMeta(tenantID, blockID, version, e, dataEncoding),
-		filepath: path,
-		encoding: v,
+		meta:           backend.NewBlockMeta(tenantID, blockID, version, e, dataEncoding),
+		filepath:       path,
+		encoding:       v,
+		ingestionSlack: ingestionSlack,
 	}
 
 	// replay file to extract records
@@ -101,6 +104,7 @@ func newAppendBlockFromFile(filename string, path string, fn RangeFunc) (*Append
 		if err != nil {
 			return err
 		}
+		start, end = b.adjustTimeRangeForSlack(start, end, additionalStartSlack)
 		if start < blockStart {
 			blockStart = start
 		}
@@ -128,6 +132,7 @@ func (a *AppendBlock) Append(id common.ID, b []byte, start, end uint32) error {
 	if err != nil {
 		return err
 	}
+	start, end = a.adjustTimeRangeForSlack(start, end, 0)
 	a.meta.ObjectAdded(id, start, end)
 	return nil
 }
@@ -237,4 +242,19 @@ func (a *AppendBlock) file() (*os.File, error) {
 	})
 
 	return a.readFile, err
+}
+
+func (a *AppendBlock) adjustTimeRangeForSlack(start uint32, end uint32, additionalStartSlack time.Duration) (uint32, uint32) {
+	now := time.Now()
+	startOfRange := uint32(now.Add(-a.ingestionSlack).Add(-additionalStartSlack).Unix())
+	endOfRange := uint32(now.Add(a.ingestionSlack).Unix())
+
+	if start < startOfRange {
+		start = startOfRange // jpe prefer now
+	}
+	if end > endOfRange {
+		end = endOfRange
+	}
+
+	return start, end
 }
