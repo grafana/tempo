@@ -69,6 +69,9 @@ func TestInstance(t *testing.T) {
 
 	// Wait until remote.Storage has tried at least once to send data
 	err = waitUntil(10*time.Second, func() bool {
+		mockServer.mtx.Lock()
+		defer mockServer.mtx.Unlock()
+
 		return mockServer.refusedRequests > 0
 	})
 	require.NoError(t, err, "timed out while waiting for refused requests")
@@ -122,7 +125,7 @@ func TestInstance_multiTenancy(t *testing.T) {
 			appender := instance.Appender(context.Background())
 
 			lbls := labels.FromMap(map[string]string{"__name__": "my-metric"})
-			_, err = appender.Append(0, lbls, time.Now().UnixMilli(), float64(i))
+			_, err := appender.Append(0, lbls, time.Now().UnixMilli(), float64(i))
 			assert.NoError(t, err)
 
 			err = appender.Commit()
@@ -132,6 +135,9 @@ func TestInstance_multiTenancy(t *testing.T) {
 
 	// Wait until every tenant received at least one request
 	err = waitUntil(10*time.Second, func() bool {
+		mockServer.mtx.Lock()
+		defer mockServer.mtx.Unlock()
+
 		for i := range instances {
 			if mockServer.acceptedRequests[strconv.Itoa(i)] == 0 {
 				return false
