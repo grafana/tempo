@@ -9,6 +9,7 @@ import (
 
 type EvictingQueue struct {
 	sync.RWMutex
+	closeCh chan struct{}
 
 	capacity int
 	entries  []interface{}
@@ -23,6 +24,7 @@ func NewEvictingQueue(capacity int, interval time.Duration, onEvict func()) (*Ev
 	}
 
 	queue := &EvictingQueue{
+		closeCh:     make(chan struct{}),
 		onEvict:     onEvict,
 		entries:     make([]interface{}, 0, capacity),
 		subscribers: make([]chan interface{}, 0),
@@ -38,6 +40,17 @@ func NewEvictingQueue(capacity int, interval time.Duration, onEvict func()) (*Ev
 	}
 
 	return queue, nil
+}
+
+func (q *EvictingQueue) Close() {
+	q.Lock()
+	defer q.Unlock()
+
+	q.onEvict = nil
+	q.capacity = 0
+	q.entries = nil
+	q.subscribers = nil
+	close(q.closeCh)
 }
 
 // Append adds an entry to the end of the queue.
@@ -91,12 +104,6 @@ func (q *EvictingQueue) pop() interface{} {
 	q.entries = append(q.entries[:0], q.entries[1:]...)
 
 	return e
-}
-
-// isEmpty returns true if the queue is empty.
-// Must be called under lock.
-func (q *EvictingQueue) isEmpty() bool {
-	return q.length() == 0
 }
 
 // Entries returns a copy of the queue's entries.
@@ -155,11 +162,15 @@ func (q *EvictingQueue) Clear() {
 
 func (q *EvictingQueue) loop(interval time.Duration) {
 	t := time.NewTicker(interval)
-	// TODO: add a way to stop the loop
-	for range t.C {
-		// TODO: add a way to return early from the fan-out loop
-		// 	maybe by having a context that can be cancelled
-		q.fanOut(context.Background())
+	for {
+		select {
+		case <-t.C:
+			// TODO: add a way to return early from the fan-out loop
+			// 	maybe by having a context that can be cancelled
+			q.fanOut(context.Background())
+		case <-q.closeCh:
+			return
+		}
 	}
 }
 
@@ -168,10 +179,10 @@ func (q *EvictingQueue) fanOut(ctx context.Context) {
 	q.Lock()
 	defer q.Unlock()
 
-	for _, sub := range q.subscribers {
-		for !q.isEmpty() {
+	for entry := q.pop(); entry != nil; entry = q.pop() {
+		for _, sub := range q.subscribers {
 			select {
-			case sub <- q.pop():
+			case sub <- entry:
 			case <-ctx.Done():
 				return
 			}

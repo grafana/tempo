@@ -113,12 +113,22 @@ func TestQueueSubscribe(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 
-	for i := 1; i <= 3; i++ {
-		q.Append(i)
-		wg.Add(1)
+	// Start 3 synchronous subscribers
+	for i := 0; i < 3; i++ {
+		subscriberHelper(t, &wg, q)
 	}
 
-	// Synchronous subscription
+	for i := 1; i <= 3; i++ {
+		q.Append(i)
+		wg.Add(3)
+	}
+
+	wg.Wait()
+
+	require.Equal(t, 0, q.Length())
+}
+
+func subscriberHelper(t *testing.T, wg *sync.WaitGroup, q *EvictingQueue) {
 	subscriber := q.Subscribe()
 	go func() {
 		var c int
@@ -130,8 +140,6 @@ func TestQueueSubscribe(t *testing.T) {
 	}()
 
 	wg.Wait()
-
-	require.Equal(t, 0, q.Length())
 }
 
 type queueEntry struct {
@@ -159,50 +167,64 @@ func BenchmarkAppendAndEvict(b *testing.B) {
 
 // consumption/total performance is severely affected by the loop interval
 func BenchmarkAppendAndSubscribe1ms(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, time.Millisecond, 0)
+	benchmarkAppendAndSubscribe(b, time.Millisecond, 0, 1)
 }
 
 func BenchmarkAppendAndSubscribe10ms(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, 10*time.Millisecond, 0)
+	benchmarkAppendAndSubscribe(b, 10*time.Millisecond, 0, 1)
 }
 
 func BenchmarkAppendAndSubscribe100ms(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, 100*time.Millisecond, 0)
+	benchmarkAppendAndSubscribe(b, 100*time.Millisecond, 0, 1)
 }
 
 func BenchmarkAppendAndSubscribe500ms(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, 500*time.Millisecond, 0)
+	benchmarkAppendAndSubscribe(b, 500*time.Millisecond, 0, 1)
 }
 
 // consumption/total performance drops as the subscription buffer size increases.
 func BenchmarkAppendAndSubscribeBuffer0(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, time.Millisecond, 0)
+	benchmarkAppendAndSubscribe(b, time.Millisecond, 0, 1)
 }
 
 func BenchmarkAppendAndSubscribeBuffer10(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, time.Millisecond, 10)
+	benchmarkAppendAndSubscribe(b, time.Millisecond, 10, 1)
 }
 
 func BenchmarkAppendAndSubscribeBuffer100(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, time.Millisecond, 100)
+	benchmarkAppendAndSubscribe(b, time.Millisecond, 100, 1)
 }
 
 func BenchmarkAppendAndSubscribeBuffer1000(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, time.Millisecond, 1000)
+	benchmarkAppendAndSubscribe(b, time.Millisecond, 1000, 1)
 }
 
-func benchmarkAppendAndSubscribe(b *testing.B, interval time.Duration, buffer int) {
+// consumption/total performance drops as the number of subscriptions increases.
+// we expect to have a low number of subscriptions, so it shouldn't be a big deal.
+func BenchmarkAppendAndSubscribe1Sub(b *testing.B) {
+	benchmarkAppendAndSubscribe(b, time.Millisecond, 0, 1)
+}
+func BenchmarkAppendAndSubscribe10Sub(b *testing.B) {
+	benchmarkAppendAndSubscribe(b, time.Millisecond, 0, 10)
+}
+func BenchmarkAppendAndSubscribe100Sub(b *testing.B) {
+	benchmarkAppendAndSubscribe(b, time.Millisecond, 0, 100)
+}
+
+func benchmarkAppendAndSubscribe(b *testing.B, interval time.Duration, buffer int, subscribers int) {
 	var consumptions float64
 	q, err := NewEvictingQueue(5000, interval, noopOnEvict)
 	require.Nil(b, err)
 
-	sub := make(chan interface{}, buffer)
-	q.subscribers = append(q.subscribers, sub)
-	go func() {
-		for range sub {
-			consumptions++
-		}
-	}()
+	for i := 0; i < subscribers; i++ {
+		sub := make(chan interface{}, buffer)
+		q.subscribers = append(q.subscribers, sub)
+		go func() {
+			for range sub {
+				consumptions++
+			}
+		}()
+	}
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -214,5 +236,5 @@ func benchmarkAppendAndSubscribe(b *testing.B, interval time.Duration, buffer in
 		})
 	}
 
-	b.ReportMetric(consumptions/float64(b.N), "consumed/total")
+	b.ReportMetric(consumptions/float64(b.N*subscribers), "consumed/total")
 }
