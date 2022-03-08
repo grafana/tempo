@@ -108,9 +108,17 @@ type rebatchedTrace struct {
 	end   uint32 // unix epoch seconds
 }
 
+type pushRingRequest struct {
+	userID string
+	keys   []uint32
+	traces []*rebatchedTrace
+}
+
 // Distributor coordinates replicates and distribution of log streams.
 type Distributor struct {
 	services.Service
+
+	shutdownCh chan struct{}
 
 	cfg             Config
 	clientCfg       ingester_client.Config
@@ -129,6 +137,7 @@ type Distributor struct {
 	generatorClientCfg      generator_client.Config
 	generatorsRing          ring.ReadRing
 	generatorsPool          *ring_client.Pool
+	generatorsQueue         *util.EvictingQueue
 
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
@@ -203,7 +212,13 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		tagsToDrop[tag] = struct{}{}
 	}
 
+	generatorQueue, err := util.NewEvictingQueue(100, 100*time.Millisecond, func() {})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create generator queue: %w", err)
+	}
+
 	d := &Distributor{
+		shutdownCh:              make(chan struct{}),
 		cfg:                     cfg,
 		clientCfg:               clientCfg,
 		ingestersRing:           ingestersRing,
@@ -215,6 +230,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		generatorClientCfg:      generatorClientCfg,
 		generatorsRing:          generatorsRing,
 		generatorsPool:          generatorsPool,
+		generatorsQueue:         generatorQueue,
 		globalTagsToDrop:        tagsToDrop,
 		overrides:               o,
 		traceEncoder:            model.MustNewSegmentDecoder(model.CurrentEncoding),
@@ -249,6 +265,9 @@ func (d *Distributor) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start subservices %w", err)
 	}
 
+	// Start the generator queue
+	go d.loopGeneratorsQueue()
+
 	return nil
 }
 
@@ -263,6 +282,8 @@ func (d *Distributor) running(ctx context.Context) error {
 
 // Called after distributor is asked to stop via StopAsync.
 func (d *Distributor) stopping(_ error) error {
+	close(d.shutdownCh)
+
 	return services.StopManagerAndAwaitStopped(context.Background(), d.subservices)
 }
 
@@ -333,17 +354,11 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 	err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, searchData, keys)
 	if err != nil {
 		recordDiscaredSpans(err, userID, spanCount)
+		return nil, err
 	}
 
-	if d.metricsGeneratorEnabled && len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 && err == nil {
-		// Handle requests sent to the metrics-generator in a separate goroutine, this way we don't
-		// influence the overall write
-		go func() {
-			genErr := d.sendToGenerators(context.Background(), userID, keys, rebatchedTraces)
-			if genErr != nil {
-				level.Error(log.Logger).Log("msg", "pushing to metrics-generators failed", "err", genErr)
-			}
-		}()
+	if d.metricsGeneratorEnabled && len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
+		d.queueToGenerator(userID, keys, rebatchedTraces)
 	}
 
 	return nil, err // PushRequest is ignored, so no reason to create one
@@ -400,6 +415,32 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	}, func() {})
 
 	return err
+}
+
+func (d *Distributor) queueToGenerator(userID string, keys []uint32, traces []*rebatchedTrace) {
+	req := &pushRingRequest{
+		userID: userID,
+		traces: traces,
+		keys:   keys,
+	}
+	d.generatorsQueue.Append(req)
+}
+
+// loopGeneratorsQueue loops over the queue and sends the traces to the metrics-generator
+func (d *Distributor) loopGeneratorsQueue() {
+	subscription := d.generatorsQueue.Subscribe()
+	for {
+		select {
+		case <-d.shutdownCh:
+			return
+		case req := <-subscription:
+			ringRequest := req.(*pushRingRequest)
+			err := d.sendToGenerators(context.Background(), ringRequest.userID, ringRequest.keys, ringRequest.traces)
+			if err != nil {
+				level.Error(log.Logger).Log("msg", "pushing to metrics-generators failed", "err", err)
+			}
+		}
+	}
 }
 
 func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
