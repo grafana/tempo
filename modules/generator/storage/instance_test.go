@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -40,37 +41,42 @@ func TestInstance(t *testing.T) {
 	cfg.RemoteWrite = mockServer.remoteWriteConfig()
 
 	instance, err := New(&cfg, "test-tenant", prometheus.DefaultRegisterer, logger)
-	assert.NoError(t, err)
-
-	// Remote storage must start tailing the WAL before we append data, the WAL watcher has a timeout of 5 seconds
-	time.Sleep(6 * time.Second)
+	require.NoError(t, err)
 
 	// Refuse requests - the WAL should buffer data until requests succeed
 	mockServer.refuseRequests.Store(true)
 
-	// Append some data
-	appender := instance.Appender(context.Background())
+	sendCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	lbls := labels.FromMap(map[string]string{"__name__": "my-metrics"})
-	ref, err := appender.Append(0, lbls, time.Now().UnixMilli(), 1.0)
-	assert.NoError(t, err)
+	// Append some data every second
+	go poll(sendCtx, time.Second, func() {
+		appender := instance.Appender(context.Background())
 
-	_, err = appender.AppendExemplar(ref, lbls, exemplar.Exemplar{
-		Labels: labels.FromMap(map[string]string{"traceID": "123"}),
-		Value:  1.2,
+		lbls := labels.FromMap(map[string]string{"__name__": "my-metrics"})
+		ref, err := appender.Append(0, lbls, time.Now().UnixMilli(), 1.0)
+		assert.NoError(t, err)
+
+		_, err = appender.AppendExemplar(ref, lbls, exemplar.Exemplar{
+			Labels: labels.FromMap(map[string]string{"traceID": "123"}),
+			Value:  1.2,
+		})
+		assert.NoError(t, err)
+
+		err = appender.Commit()
+		assert.NoError(t, err)
 	})
-	assert.NoError(t, err)
 
-	err = appender.Commit()
-	assert.NoError(t, err)
-
-	// Give remote write some time to try sending data
-	time.Sleep(100 * time.Millisecond)
+	// Wait until remote.Storage has tried at least once to send data
+	err = waitUntil(10*time.Second, func() bool {
+		return mockServer.refusedRequests > 0
+	})
+	require.NoError(t, err, "timed out while waiting for refused requests")
 
 	// Allow requests
 	mockServer.refuseRequests.Store(false)
 
-	// Shutdown the instance - remote write should flush pending data
+	// Shutdown the instance - even though previous requests failed, remote.Storage should flush pending data
 	err = instance.Close()
 	assert.NoError(t, err)
 
@@ -81,8 +87,9 @@ func TestInstance(t *testing.T) {
 
 	// Verify we received metrics
 	assert.Len(t, mockServer.timeSeries, 1)
-	// We should have received 2 time series: one for the sample and one for the examplar
-	assert.Len(t, mockServer.timeSeries["test-tenant"], 2)
+	assert.Contains(t, mockServer.timeSeries, "test-tenant")
+	// We should have received at least 2 time series: one for the sample and one for the examplar
+	assert.GreaterOrEqual(t, len(mockServer.timeSeries["test-tenant"]), 2)
 }
 
 // Verify multiple instances function next to each other, don't trample over each other and are isolated.
@@ -100,25 +107,39 @@ func TestInstance_multiTenancy(t *testing.T) {
 
 	var instances []Storage
 
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 3; i++ {
 		instance, err := New(&cfg, strconv.Itoa(i), prometheus.DefaultRegisterer, logger)
 		assert.NoError(t, err)
 		instances = append(instances, instance)
 	}
 
-	// Remote storage must start tailing the WAL before we append data, the WAL watcher has a timeout of 5 seconds
-	time.Sleep(6 * time.Second)
+	sendCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	for i, instance := range instances {
-		appender := instance.Appender(context.Background())
+	// Append some data every second
+	go poll(sendCtx, time.Second, func() {
+		for i, instance := range instances {
+			appender := instance.Appender(context.Background())
 
-		lbls := labels.FromMap(map[string]string{"__name__": "my-metrics"})
-		_, err = appender.Append(0, lbls, time.Now().UnixMilli(), float64(i))
-		assert.NoError(t, err)
+			lbls := labels.FromMap(map[string]string{"__name__": "my-metric"})
+			_, err = appender.Append(0, lbls, time.Now().UnixMilli(), float64(i))
+			assert.NoError(t, err)
 
-		err = appender.Commit()
-		assert.NoError(t, err)
-	}
+			err = appender.Commit()
+			assert.NoError(t, err)
+		}
+	})
+
+	// Wait until every tenant received at least one request
+	err = waitUntil(10*time.Second, func() bool {
+		for i, _ := range instances {
+			if mockServer.acceptedRequests[strconv.Itoa(i)] == 0 {
+				return false
+			}
+		}
+		return true
+	})
+	require.NoError(t, err, "timed out while waiting for accepted requests")
 
 	for _, instance := range instances {
 		// Shutdown the instance - remote write should flush pending data
@@ -129,11 +150,10 @@ func TestInstance_multiTenancy(t *testing.T) {
 	// WAL should be empty again
 	entries, err := os.ReadDir(cfg.Path)
 	assert.NoError(t, err)
-
 	require.Len(t, entries, 0)
 
 	for i := range instances {
-		lenOk := assert.Len(t, mockServer.timeSeries[strconv.Itoa(i)], 1, "instance %d did not receive the expected amount of time series", i)
+		lenOk := assert.GreaterOrEqual(t, len(mockServer.timeSeries[strconv.Itoa(i)]), 1, "instance %d did not receive the expected amount of time series", i)
 		if lenOk {
 			sample := mockServer.timeSeries[strconv.Itoa(i)][0]
 			assert.Equal(t, float64(i), sample.GetSamples()[0].GetValue())
@@ -142,9 +162,15 @@ func TestInstance_multiTenancy(t *testing.T) {
 }
 
 type mockPrometheusRemoteWriteServer struct {
+	mtx sync.Mutex
+
 	server         *httptest.Server
 	refuseRequests *atomic.Bool
 	timeSeries     map[string][]prompb.TimeSeries
+
+	// metrics
+	refusedRequests  int
+	acceptedRequests map[string]int
 
 	logger log.Logger
 }
@@ -153,9 +179,10 @@ func newMockPrometheusRemoteWriterServer(logger log.Logger) *mockPrometheusRemot
 	logger = log.With(logger, "component", "mockserver")
 
 	m := &mockPrometheusRemoteWriteServer{
-		refuseRequests: atomic.NewBool(false),
-		timeSeries:     make(map[string][]prompb.TimeSeries),
-		logger:         logger,
+		refuseRequests:   atomic.NewBool(false),
+		timeSeries:       make(map[string][]prompb.TimeSeries),
+		acceptedRequests: map[string]int{},
+		logger:           logger,
 	}
 	m.server = httptest.NewServer(m)
 	return m
@@ -171,14 +198,19 @@ func (m *mockPrometheusRemoteWriteServer) remoteWriteConfig() []*config.RemoteWr
 }
 
 func (m *mockPrometheusRemoteWriteServer) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
 	if m.refuseRequests.Load() {
 		m.logger.Log("msg", "refusing request")
+		m.refusedRequests++
 		http.Error(res, "request refused", http.StatusServiceUnavailable)
 		return
 	}
 
 	tenant := req.Header.Get(user.OrgIDHeaderName)
 	m.logger.Log("msg", "received request", "tenant", tenant)
+	m.acceptedRequests[tenant]++
 
 	writeRequest, err := remote.DecodeWriteRequest(req.Body)
 	if err != nil {
@@ -190,5 +222,38 @@ func (m *mockPrometheusRemoteWriteServer) ServeHTTP(res http.ResponseWriter, req
 }
 
 func (m *mockPrometheusRemoteWriteServer) close() {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
 	m.server.Close()
+}
+
+// poll executes f every interval until ctx is done or cancelled.
+func poll(ctx context.Context, interval time.Duration, f func()) {
+	ticker := time.NewTicker(interval)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			f()
+		}
+	}
+}
+
+// waitUntil executes f until it returns true or timeout is reached.
+func waitUntil(timeout time.Duration, f func() bool) error {
+	start := time.Now()
+
+	for {
+		if f() {
+			return nil
+		}
+		if time.Since(start) > timeout {
+			return fmt.Errorf("timed out while waiting for condition")
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
 }
