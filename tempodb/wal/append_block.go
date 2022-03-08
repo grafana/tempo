@@ -250,10 +250,12 @@ func (a *AppendBlock) adjustTimeRangeForSlack(start uint32, end uint32, addition
 	endOfRange := uint32(now.Add(a.ingestionSlack).Unix())
 
 	if start < startOfRange {
-		start = startOfRange // jpe prefer now
+		metricWarnings.WithLabelValues(a.meta.TenantID, reasonOutsideIngestionSlack).Inc()
+		start = uint32(now.Unix())
 	}
 	if end > endOfRange {
-		end = endOfRange
+		metricWarnings.WithLabelValues(a.meta.TenantID, reasonOutsideIngestionSlack).Inc()
+		end = uint32(now.Unix())
 	}
 
 	return start, end

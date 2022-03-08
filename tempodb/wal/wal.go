@@ -10,10 +10,22 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	versioned_encoding "github.com/grafana/tempo/tempodb/encoding"
+)
+
+const reasonOutsideIngestionSlack = "outside_ingestion_time_slack"
+
+var (
+	metricWarnings = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempodb",
+		Name:      "warnings_total",
+		Help:      "The total number of warnings per tenant with reason.",
+	}, []string{"tenant", "reason"})
 )
 
 // extracts a time range from an object. start/end times returned are unix epoch
