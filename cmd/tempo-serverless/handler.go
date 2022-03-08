@@ -102,6 +102,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		return nil, httpError("creating partial iterator", err, http.StatusInternalServerError)
 	}
 	iter = encoding.NewPrefetchIterator(r.Context(), iter, cfg.Search.PrefetchTraceCount)
+	defer iter.Close()
 
 	resp := &tempopb.SearchResponse{
 		Metrics: &tempopb.SearchMetrics{},
