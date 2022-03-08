@@ -91,7 +91,7 @@ func New(cfg Config, store storage.Store, limits *overrides.Overrides, reg prome
 
 	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", cfg.OverrideRingKey, true, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
 	if err != nil {
-		return nil, fmt.Errorf("NewLifecycler failed %w", err)
+		return nil, fmt.Errorf("NewLifecycler failed: %w", err)
 	}
 	i.lifecycler = lc
 
@@ -109,21 +109,21 @@ func New(cfg Config, store storage.Store, limits *overrides.Overrides, reg prome
 func (i *Ingester) starting(ctx context.Context) error {
 	err := i.replayWal()
 	if err != nil {
-		return fmt.Errorf("failed to replay wal %w", err)
+		return fmt.Errorf("failed to replay wal: %w", err)
 	}
 
 	err = i.rediscoverLocalBlocks()
 	if err != nil {
-		return fmt.Errorf("failed to rediscover local blocks %w", err)
+		return fmt.Errorf("failed to rediscover local blocks: %w", err)
 	}
 
 	// Now that user states have been created, we can start the lifecycler.
 	// Important: we want to keep lifecycler running until we ask it to stop, so we need to give it independent context
 	if err := i.lifecycler.StartAsync(context.Background()); err != nil {
-		return fmt.Errorf("failed to start lifecycler %w", err)
+		return fmt.Errorf("failed to start lifecycler: %w", err)
 	}
 	if err := i.lifecycler.AwaitRunning(ctx); err != nil {
-		return fmt.Errorf("failed to start lifecycle %w", err)
+		return fmt.Errorf("failed to start lifecycle: %w", err)
 	}
 
 	return nil
@@ -344,12 +344,12 @@ func (i *Ingester) replayWal() error {
 		return start, end, nil
 	}, log.Logger)
 	if err != nil {
-		return fmt.Errorf("fatal error replaying wal %w", err)
+		return fmt.Errorf("fatal error replaying wal: %w", err)
 	}
 
 	searchBlocks, err := search.RescanBlocks(i.store.WAL().GetFilepath())
 	if err != nil {
-		return fmt.Errorf("fatal error replaying search wal %w", err)
+		return fmt.Errorf("fatal error replaying search wal: %w", err)
 	}
 
 	// clear any searchBlock that does not have a matching wal block

@@ -215,7 +215,7 @@ func (i *instance) measureReceivedBytes(traceBytes []byte, searchData []byte) {
 	i.bytesReceivedTotal.WithLabelValues(i.instanceID, searchDataType).Add(float64(len(searchData)))
 }
 
-// Moves any complete traces out of the map to complete traces
+// Moves any complete traces out of the map to complete traces.
 func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error {
 	tracesToCut := i.tracesToCut(cutoff, immediate)
 	segmentDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -242,8 +242,8 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	return nil
 }
 
-// CutBlockIfReady cuts a completingBlock from the HeadBlock if ready
-// Returns a bool indicating if a block was cut along with the error (if any).
+// CutBlockIfReady cuts a completingBlock from the HeadBlock if ready.
+// Returns the ID of a block if one was cut or a nil ID if one was not cut, along with the error (if any).
 func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes uint64, immediate bool) (uuid.UUID, error) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
@@ -269,7 +269,7 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 	return uuid.Nil, nil
 }
 
-// CompleteBlock() moves a completingBlock to a completeBlock. The new completeBlock has the same ID
+// CompleteBlock moves a completingBlock to a completeBlock. The new completeBlock has the same ID.
 func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
 
@@ -353,7 +353,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 	return errors.New("Error finding wal completingBlock to clear")
 }
 
-// GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend
+// GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend.
 func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *wal.LocalBlock {
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
@@ -425,7 +425,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	}
 	completeTrace, err = model.CombineForRead(foundBytes, i.headBlock.Meta().DataEncoding, completeTrace)
 	if err != nil {
-		return nil, fmt.Errorf("headblock unmarshal failed in FindTraceByID")
+		return nil, fmt.Errorf("headblock unmarshal failed in FindTraceByID: %w", err)
 	}
 
 	// completingBlock
@@ -436,7 +436,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 		}
 		completeTrace, err = model.CombineForRead(foundBytes, c.Meta().DataEncoding, completeTrace)
 		if err != nil {
-			return nil, fmt.Errorf("completingBlocks combine failed in FindTraceByID")
+			return nil, fmt.Errorf("completingBlocks combine failed in FindTraceByID: %w", err)
 		}
 	}
 
@@ -448,7 +448,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 		}
 		completeTrace, err = model.CombineForRead(foundBytes, c.BlockMeta().DataEncoding, completeTrace)
 		if err != nil {
-			return nil, fmt.Errorf("completeBlock combine failed in FindTraceByID")
+			return nil, fmt.Errorf("completeBlock combine failed in FindTraceByID: %w", err)
 		}
 	}
 
