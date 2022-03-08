@@ -1,4 +1,4 @@
-package serverless
+package e2e
 
 import (
 	"context"
