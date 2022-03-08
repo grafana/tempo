@@ -132,7 +132,7 @@ func TestInstance_multiTenancy(t *testing.T) {
 
 	// Wait until every tenant received at least one request
 	err = waitUntil(10*time.Second, func() bool {
-		for i, _ := range instances {
+		for i := range instances {
 			if mockServer.acceptedRequests[strconv.Itoa(i)] == 0 {
 				return false
 			}
