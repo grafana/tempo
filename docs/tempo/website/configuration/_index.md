@@ -231,6 +231,15 @@ query_frontend:
 
         # (default: 1h)
         [query_ingesters_until: <duration>]
+
+        # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
+        # be set to p99 of search requests to reduce long tail latency.
+        # (default: 5s)
+        [hedge_requests_at: <duration>]
+
+        # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
+        # (default: 3)
+        [hedge_requests_up_to: <int>]
 ```
 
 ## Querier
