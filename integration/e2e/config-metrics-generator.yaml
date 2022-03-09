@@ -18,7 +18,7 @@ ingester:
 metrics_generator:
   collection_interval: 1s
   storage:
-    path: /var/tempo-metrics-generator
+    path: /var/tempo
     remote_write:
       - url: http://tempo_e2e-prometheus:9090/api/v1/write
         send_exemplars: true
