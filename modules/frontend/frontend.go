@@ -66,17 +66,10 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 	}, []string{"tenant", "op"})
 
 	retryWare := newRetryWare(cfg.MaxRetries, registerer)
-
-	wrapper := func(r http.RoundTripper) http.RoundTripper {
-		ret, err := hedgedhttp.NewRoundTripper(5*time.Second, 3, r)
-		if err != nil {
-			panic(err)
-		}
-		return ret
-	}
+	hedgedRequestWare := newHedgedRequestWare()
 
 	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
-	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, store, logger), MiddlewareFunc(wrapper), retryWare)
+	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, store, logger), hedgedRequestWare, retryWare)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
 		"op": traceByIDOp,
@@ -207,4 +200,14 @@ func buildUpstreamRequestURI(originalURI string, params url.Values) string {
 	}
 
 	return uri
+}
+
+func newHedgedRequestWare() Middleware {
+	return MiddlewareFunc(func(r http.RoundTripper) http.RoundTripper {
+		ret, err := hedgedhttp.NewRoundTripper(5*time.Second, 3, r)
+		if err != nil {
+			panic(err)
+		}
+		return ret
+	})
 }
