@@ -66,7 +66,7 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 	}, []string{"tenant", "op"})
 
 	retryWare := newRetryWare(cfg.MaxRetries, registerer)
-	hedgedRequestWare := newHedgedRequestWare()
+	hedgedRequestWare := newHedgedRequestWare(cfg.Search.HedgeRequestsAt, cfg.Search.HedgeRequestsUpTo)
 
 	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
 	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, store, logger), hedgedRequestWare, retryWare)
@@ -169,7 +169,7 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 func newSearchMiddleware(cfg Config, reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		ingesterSearchRT := next
-		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, cfg.Search, logger))
+		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, cfg.Search.SearchSharderConfig, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// backend search queries require sharding so we pass through a special roundtripper
@@ -202,9 +202,9 @@ func buildUpstreamRequestURI(originalURI string, params url.Values) string {
 	return uri
 }
 
-func newHedgedRequestWare() Middleware {
+func newHedgedRequestWare(hedgeRequestsAt time.Duration, hedgeRequestsUpTo int) Middleware {
 	return MiddlewareFunc(func(r http.RoundTripper) http.RoundTripper {
-		ret, err := hedgedhttp.NewRoundTripper(5*time.Second, 3, r)
+		ret, err := hedgedhttp.NewRoundTripper(hedgeRequestsAt, hedgeRequestsUpTo, r)
 		if err != nil {
 			panic(err)
 		}
