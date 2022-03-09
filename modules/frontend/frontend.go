@@ -8,7 +8,9 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
+	"github.com/cristalhq/hedgedhttp"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/golang/protobuf/jsonpb"
@@ -65,8 +67,16 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 
 	retryWare := newRetryWare(cfg.MaxRetries, registerer)
 
+	wrapper := func(r http.RoundTripper) http.RoundTripper {
+		ret, err := hedgedhttp.NewRoundTripper(5*time.Second, 3, r)
+		if err != nil {
+			panic(err)
+		}
+		return ret
+	}
+
 	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
-	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, store, logger), retryWare)
+	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, store, logger), MiddlewareFunc(wrapper), retryWare)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
 		"op": traceByIDOp,
