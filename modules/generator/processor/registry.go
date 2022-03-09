@@ -111,7 +111,7 @@ func (r *Registry) Gather(appender storage.Appender) (err error) {
 					}
 
 					bucketWithLeLabels := copyWithLabel(bucketLabels, "le", fmt.Sprintf("%g", bucket.GetUpperBound()))
-					_, err = appender.Append(0, bucketWithLeLabels, timestamp, float64(bucket.GetCumulativeCount()))
+					ref, err := appender.Append(0, bucketWithLeLabels, timestamp, float64(bucket.GetCumulativeCount()))
 					if err != nil {
 						return err
 					}
@@ -119,7 +119,7 @@ func (r *Registry) Gather(appender storage.Appender) (err error) {
 
 					e := bucket.GetExemplar()
 					if e != nil {
-						_, err = appender.AppendExemplar(0, bucketWithLeLabels, exemplar.Exemplar{
+						_, err = appender.AppendExemplar(ref, bucketWithLeLabels, exemplar.Exemplar{
 							Labels: labelPairsToLabels(e.GetLabel()),
 							Value:  e.GetValue(),
 							Ts:     e.GetTimestamp().AsTime().UnixMilli(),

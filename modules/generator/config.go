@@ -6,7 +6,7 @@ import (
 
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
-	"github.com/grafana/tempo/modules/generator/remotewrite"
+	"github.com/grafana/tempo/modules/generator/storage"
 )
 
 const (
@@ -34,7 +34,7 @@ type Config struct {
 	// instances of the metrics-generator as each instance will push the same time series.
 	AddInstanceIDLabel bool `yaml:"add_instance_id_label"`
 
-	RemoteWrite remotewrite.Config `yaml:"remote_write,omitempty"`
+	Storage storage.Config `yaml:"storage"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -45,7 +45,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.CollectionInterval = 15 * time.Second
 	cfg.AddInstanceIDLabel = true
 
-	cfg.RemoteWrite.RegisterFlagsAndApplyDefaults(prefix, f)
+	cfg.Storage.RegisterFlagsAndApplyDefaults(prefix, f)
 }
 
 type ProcessorConfig struct {

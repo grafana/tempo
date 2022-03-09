@@ -11,12 +11,12 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/prometheus/storage"
 	"github.com/weaveworks/common/tracing"
 
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
 )
@@ -52,8 +52,8 @@ type instance struct {
 	instanceID string
 	overrides  metricsGeneratorOverrides
 
-	registry   processor.Registry
-	appendable storage.Appendable
+	registry processor.Registry
+	wal      storage.Storage
 
 	// processorsMtx protects the processors map, not the processors itself
 	processorsMtx sync.RWMutex
@@ -62,14 +62,14 @@ type instance struct {
 	shutdownCh chan struct{}
 }
 
-func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, appendable storage.Appendable) (*instance, error) {
+func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage) (*instance, error) {
 	i := &instance{
 		cfg:        cfg,
 		instanceID: instanceID,
 		overrides:  overrides,
 
-		registry:   processor.NewRegistry(cfg.ExternalLabels, instanceID),
-		appendable: appendable,
+		registry: processor.NewRegistry(cfg.ExternalLabels, instanceID),
+		wal:      wal,
 
 		processors: make(map[string]processor.Processor),
 
@@ -237,14 +237,14 @@ func (i *instance) updatePushMetrics(req *tempopb.PushSpansRequest) {
 	metricSpansIngested.WithLabelValues(i.instanceID).Add(float64(spanCount))
 }
 
-func (i *instance) collectAndPushMetrics(ctx context.Context) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.collectAndPushMetrics")
+func (i *instance) collectMetrics(ctx context.Context) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.collectMetrics")
 	defer span.Finish()
 
 	traceID, _ := tracing.ExtractTraceID(ctx)
 	level.Info(log.Logger).Log("msg", "collecting metrics", "tenant", i.instanceID, "traceID", traceID)
 
-	appender := i.appendable.Appender(ctx)
+	appender := i.wal.Appender(ctx)
 
 	err := i.registry.Gather(appender)
 	if err != nil {
@@ -256,12 +256,17 @@ func (i *instance) collectAndPushMetrics(ctx context.Context) error {
 
 // shutdown stops the instance and flushes any remaining data. After shutdown
 // is called pushSpans should not be called anymore.
-func (i *instance) shutdown(ctx context.Context) error {
+func (i *instance) shutdown(ctx context.Context) {
 	close(i.shutdownCh)
 
-	err := i.collectAndPushMetrics(ctx)
+	err := i.collectMetrics(ctx)
 	if err != nil {
 		level.Error(log.Logger).Log("msg", "collecting metrics failed at shutdown", "tenant", i.instanceID, "err", err)
+	}
+
+	err = i.wal.Close()
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "closing wal failed", "tenant", i.instanceID, "err", err)
 	}
 
 	i.processorsMtx.Lock()
@@ -270,6 +275,4 @@ func (i *instance) shutdown(ctx context.Context) error {
 	for processorName := range i.processors {
 		i.removeProcessor(processorName)
 	}
-
-	return err
 }
