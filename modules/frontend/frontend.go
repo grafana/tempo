@@ -8,9 +8,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
-	"time"
 
-	"github.com/cristalhq/hedgedhttp"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/golang/protobuf/jsonpb"
@@ -209,14 +207,4 @@ func buildUpstreamRequestURI(originalURI string, params url.Values) string {
 	}
 
 	return uri
-}
-
-func newHedgedRequestWare(hedgeRequestsAt time.Duration, hedgeRequestsUpTo int) Middleware {
-	return MiddlewareFunc(func(r http.RoundTripper) http.RoundTripper {
-		ret, err := hedgedhttp.NewRoundTripper(hedgeRequestsAt, hedgeRequestsUpTo, r)
-		if err != nil {
-			panic(err)
-		}
-		return ret
-	})
 }
