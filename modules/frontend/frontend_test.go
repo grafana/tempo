@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/stretchr/testify/assert"
@@ -67,7 +68,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 	f, err = New(Config{QueryShards: maxQueryShards,
 		Search: SearchConfig{
 			Sharder: SearchSharderConfig{
-				ConcurrentRequests:    defaultConcurrentRequests,
+				ConcurrentRequests:    0,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			},
 		},
@@ -79,7 +80,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 		Search: SearchConfig{
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
-				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				TargetBytesPerRequest: 0,
 			},
 		},
 	}, nil, nil, log.NewNopLogger(), nil)
@@ -91,6 +92,8 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				QueryIngestersUntil:   time.Minute,
+				QueryBackendAfter:     time.Hour,
 			},
 		},
 	}, nil, nil, log.NewNopLogger(), nil)
