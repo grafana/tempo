@@ -25,9 +25,9 @@ type Config struct {
 }
 
 type SearchConfig struct {
-	SearchSharderConfig
-	HedgeRequestsAt   time.Duration `yaml:"hedge_requests_at"`
-	HedgeRequestsUpTo int           `yaml:"hedge_requests_up_to"`
+	Sharder           SearchSharderConfig `yaml:",inline"`
+	HedgeRequestsAt   time.Duration       `yaml:"hedge_requests_at"`
+	HedgeRequestsUpTo int                 `yaml:"hedge_requests_up_to"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -40,7 +40,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Search = SearchConfig{
 		HedgeRequestsAt:   5 * time.Second,
 		HedgeRequestsUpTo: 3,
-		SearchSharderConfig: SearchSharderConfig{
+		Sharder: SearchSharderConfig{
 			QueryBackendAfter:     15 * time.Minute,
 			QueryIngestersUntil:   time.Hour,
 			DefaultLimit:          20,

@@ -25,7 +25,7 @@ func TestFrontendRoundTripsSearch(t *testing.T) {
 	next := &mockNextTripperware{}
 	f, err := New(Config{QueryShards: minQueryShards,
 		Search: SearchConfig{
-			SearchSharderConfig: SearchSharderConfig{
+			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			},
@@ -44,7 +44,7 @@ func TestFrontendRoundTripsSearch(t *testing.T) {
 func TestFrontendBadConfigFails(t *testing.T) {
 	f, err := New(Config{QueryShards: minQueryShards - 1,
 		Search: SearchConfig{
-			SearchSharderConfig: SearchSharderConfig{
+			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			},
@@ -55,7 +55,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 
 	f, err = New(Config{QueryShards: maxQueryShards + 1,
 		Search: SearchConfig{
-			SearchSharderConfig: SearchSharderConfig{
+			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			},
@@ -66,7 +66,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 
 	f, err = New(Config{QueryShards: maxQueryShards,
 		Search: SearchConfig{
-			SearchSharderConfig: SearchSharderConfig{
+			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			},
@@ -77,7 +77,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 
 	f, err = New(Config{QueryShards: maxQueryShards,
 		Search: SearchConfig{
-			SearchSharderConfig: SearchSharderConfig{
+			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			},
@@ -88,7 +88,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 
 	f, err = New(Config{QueryShards: maxQueryShards,
 		Search: SearchConfig{
-			SearchSharderConfig: SearchSharderConfig{
+			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			},
