@@ -20,6 +20,7 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/tmp
 
 ```yaml
 target: all
+metrics_generator_enabled: false
 http_api_prefix: ""
 server:
   http_listen_network: tcp
@@ -126,10 +127,34 @@ ingester_client:
     tls_ca_path: ""
     tls_server_name: ""
     tls_insecure_skip_verify: false
+metrics_generator_client:
+  pool_config:
+    checkinterval: 15s
+    healthcheckenabled: true
+    healthchecktimeout: 1s
+  remote_timeout: 5s
+  grpc_client_config:
+    max_recv_msg_size: 104857600
+    max_send_msg_size: 16777216
+    grpc_compression: snappy
+    rate_limit: 0
+    rate_limit_burst: 0
+    backoff_on_ratelimits: false
+    backoff_config:
+      min_period: 100ms
+      max_period: 10s
+      max_retries: 10
+    tls_enabled: false
+    tls_cert_path: ""
+    tls_key_path: ""
+    tls_ca_path: ""
+    tls_server_name: ""
+    tls_insecure_skip_verify: false
 querier:
   query_timeout: 10s
   search_query_timeout: 30s
   search_external_endpoints: []
+  search_prefer_self: 2
   max_concurrent_queries: 5
   frontend_worker:
     frontend_address: 127.0.0.1:9095
@@ -195,6 +220,8 @@ query_frontend:
     max_duration: 1h1m0s
     query_backend_after: 15m0s
     query_ingesters_until: 1h0m0s
+    hedge_requests_at: 5s
+    hedge_requests_up_to: 3
 compactor:
   ring:
     kvstore:
@@ -305,6 +332,84 @@ ingester:
   max_block_bytes: 1073741824
   complete_block_timeout: 15m0s
   override_ring_key: ring
+metrics_generator:
+  ring:
+    kvstore:
+      store: inmemory
+      prefix: collectors/
+      consul:
+        host: localhost:8500
+        acl_token: ""
+        http_client_timeout: 20s
+        consistent_reads: false
+        watch_rate_limit: 1
+        watch_burst_size: 1
+      etcd:
+        endpoints: []
+        dial_timeout: 10s
+        max_retries: 10
+        tls_enabled: false
+        tls_cert_path: ""
+        tls_key_path: ""
+        tls_ca_path: ""
+        tls_server_name: ""
+        tls_insecure_skip_verify: false
+        username: ""
+        password: ""
+      multi:
+        primary: ""
+        secondary: ""
+        mirror_enabled: false
+        mirror_timeout: 2s
+    heartbeat_period: 5s
+    heartbeat_timeout: 1m0s
+    instance_id: hostname
+    instance_interface_names:
+      - eth0
+      - en0
+    instance_addr: 127.0.0.1
+  processor:
+    service_graphs:
+      wait: 10s
+      max_items: 10000
+      workers: 10
+      histogram_buckets:
+        - 0.1
+        - 0.2
+        - 0.4
+        - 0.8
+        - 1.6
+        - 3.2
+        - 6.4
+        - 12.8
+    span_metrics:
+      histogram_buckets:
+        - 0.002
+        - 0.004
+        - 0.008
+        - 0.016
+        - 0.032
+        - 0.064
+        - 0.128
+        - 0.256
+        - 0.512
+        - 1.024
+        - 2.048
+        - 4.096
+      dimensions: []
+  collection_interval: 15s
+  add_instance_id_label: true
+  storage:
+    path: ""
+    wal:
+      wal_segment_size: 134217728
+      wal_compression: false
+      stripe_size: 16384
+      truncate_frequency: 2h0m0s
+      min_wal_time: 300000
+      max_wal_time: 14400000
+      no_lockfile: false
+    remote_write_flush_deadline: 1m0s
 storage:
   trace:
     pool:
@@ -379,10 +484,11 @@ overrides:
   search_tags_allow_list: null
   max_traces_per_user: 10000
   max_global_traces_per_user: 0
-  max_bytes_per_trace: 5000000
   max_search_bytes_per_trace: 5000
+  metrics_generator_processors: null
   block_retention: 0s
   max_bytes_per_tag_values_query: 5000000
+  max_bytes_per_trace: 5000000
   per_tenant_override_config: ""
   per_tenant_override_period: 10s
 memberlist:
