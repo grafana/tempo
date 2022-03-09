@@ -16,7 +16,7 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/tmp
 
 ## Complete Configuration
 
-> **Note**: This manifest was generated on 2021-10-27.
+> **Note**: This manifest was generated on 2022-03-09.
 
 ```yaml
 target: all
