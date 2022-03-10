@@ -2,10 +2,10 @@ package generator
 
 import (
 	"flag"
-	"time"
 
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
 )
 
@@ -19,32 +19,17 @@ const (
 
 // Config for a generator.
 type Config struct {
-	Ring RingConfig `yaml:"ring"`
-
+	Ring      RingConfig      `yaml:"ring"`
 	Processor ProcessorConfig `yaml:"processor"`
-
-	// CollectionInterval controls how often to collect and remote write metrics.
-	// Defaults to 15s.
-	CollectionInterval time.Duration `yaml:"collection_interval"`
-
-	// ExternalLabels are added to any time-series exported by this instance.
-	ExternalLabels map[string]string `yaml:"external_labels,omitempty"`
-
-	// Add a label `tempo_instance_id` to every metric. This is necessary when running multiple
-	// instances of the metrics-generator as each instance will push the same time series.
-	AddInstanceIDLabel bool `yaml:"add_instance_id_label"`
-
-	Storage storage.Config `yaml:"storage"`
+	Registry  registry.Config `yaml:"registry"`
+	Storage   storage.Config  `yaml:"storage"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.Ring.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Processor.RegisterFlagsAndApplyDefaults(prefix, f)
-
-	cfg.CollectionInterval = 15 * time.Second
-	cfg.AddInstanceIDLabel = true
-
+	cfg.Registry.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Storage.RegisterFlagsAndApplyDefaults(prefix, f)
 }
 

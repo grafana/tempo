@@ -3,119 +3,111 @@ package servicegraphs
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
 	"os"
+	"strconv"
 	"testing"
-	"time"
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	gen "github.com/grafana/tempo/modules/generator/processor"
-	test_util "github.com/grafana/tempo/modules/generator/processor/util/test"
+	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 func TestServiceGraphs(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
-	p := New(cfg, "test", log.NewNopLogger())
 
-	registry := gen.NewRegistry(nil, "test-tenant")
-	err := p.RegisterMetrics(registry)
-	assert.NoError(t, err)
+	cfg.HistogramBuckets = []float64{2.0, 3.0}
 
-	now := time.Now()
-	registry.SetTimeNow(func() time.Time {
-		return now
-	})
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
 
-	traces := testData(t, "testdata/test-sample.json")
+	traces, err := loadTestData("testdata/test-sample.json")
+	require.NoError(t, err)
+
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: traces.Batches})
 
 	// Manually call expire to force collection of edges.
 	sgp := p.(*processor)
 	sgp.store.Expire()
 
-	appender := &test_util.Appender{}
+	lbAppLabels := labels.FromMap(map[string]string{
+		"client": "lb",
+		"server": "app",
+	})
+	appDbLabels := labels.FromMap(map[string]string{
+		"client": "app",
+		"server": "db",
+	})
 
-	collectTime := now
-	err = registry.Gather(appender)
-	assert.NoError(t, err)
+	fmt.Println(testRegistry)
 
-	assert.False(t, appender.IsCommitted)
-	assert.False(t, appender.IsRolledback)
+	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_total`, appDbLabels))
 
-	expectedMetrics := []test_util.Metric{
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_client_seconds_bucket", le="0.1"}`, Value: 0},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_client_seconds_bucket", le="0.2"}`, Value: 0},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_client_seconds_bucket", le="0.4"}`, Value: 0},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_client_seconds_bucket", le="0.8"}`, Value: 0},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_client_seconds_bucket", le="1.6"}`, Value: 2},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_client_seconds_bucket", le="3.2"}`, Value: 3},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_client_seconds_bucket", le="6.4"}`, Value: 3},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_client_seconds_bucket", le="12.8"}`, Value: 3},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_client_seconds_bucket", le="+Inf"}`, Value: 3},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_client_seconds_count"}`, Value: 3},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_client_seconds_sum"}`, Value: 4.4},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_server_seconds_bucket", le="0.1"}`, Value: 0},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_server_seconds_bucket", le="0.2"}`, Value: 0},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_server_seconds_bucket", le="0.4"}`, Value: 0},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_server_seconds_bucket", le="0.8"}`, Value: 0},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_server_seconds_bucket", le="1.6"}`, Value: 2},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_server_seconds_bucket", le="3.2"}`, Value: 3},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_server_seconds_bucket", le="6.4"}`, Value: 3},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_server_seconds_bucket", le="12.8"}`, Value: 3},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_server_seconds_bucket", le="+Inf"}`, Value: 3},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_server_seconds_count"}`, Value: 3},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_server_seconds_sum"}`, Value: 5},
-		{Labels: `{client="app", server="db", __name__="traces_service_graph_request_total"}`, Value: 3},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_client_seconds_bucket", le="0.1"}`, Value: 0},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_client_seconds_bucket", le="0.2"}`, Value: 0},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_client_seconds_bucket", le="0.4"}`, Value: 0},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_client_seconds_bucket", le="0.8"}`, Value: 0},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_client_seconds_bucket", le="1.6"}`, Value: 1},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_client_seconds_bucket", le="3.2"}`, Value: 2},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_client_seconds_bucket", le="6.4"}`, Value: 3},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_client_seconds_bucket", le="12.8"}`, Value: 3},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_client_seconds_bucket", le="+Inf"}`, Value: 3},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_client_seconds_count"}`, Value: 3},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_client_seconds_sum"}`, Value: 7.8},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_server_seconds_bucket", le="0.1"}`, Value: 0},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_server_seconds_bucket", le="0.2"}`, Value: 0},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_server_seconds_bucket", le="0.4"}`, Value: 0},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_server_seconds_bucket", le="0.8"}`, Value: 0},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_server_seconds_bucket", le="1.6"}`, Value: 1},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_server_seconds_bucket", le="3.2"}`, Value: 3},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_server_seconds_bucket", le="6.4"}`, Value: 3},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_server_seconds_bucket", le="12.8"}`, Value: 3},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_server_seconds_bucket", le="+Inf"}`, Value: 3},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_server_seconds_count"}`, Value: 3},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_server_seconds_sum"}`, Value: 6.2},
-		{Labels: `{client="lb", server="app", __name__="traces_service_graph_request_total"}`, Value: 3},
-	}
-	appender.ContainsAll(t, expectedMetrics, collectTime)
+	assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(appDbLabels, 2.0)))
+	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(appDbLabels, 3.0)))
+	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(appDbLabels, math.Inf(1))))
+	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_client_seconds_count`, appDbLabels))
+	assert.Equal(t, 4.4, testRegistry.Query(`traces_service_graph_request_client_seconds_sum`, appDbLabels))
+
+	assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(appDbLabels, 2.0)))
+	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(appDbLabels, 3.0)))
+	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(appDbLabels, math.Inf(1))))
+	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_server_seconds_count`, appDbLabels))
+	assert.Equal(t, 5.0, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, appDbLabels))
+
+	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_total`, lbAppLabels))
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(lbAppLabels, 2.0)))
+	assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(lbAppLabels, 3.0)))
+	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(lbAppLabels, math.Inf(1))))
+	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_client_seconds_count`, lbAppLabels))
+	assert.Equal(t, 7.8, testRegistry.Query(`traces_service_graph_request_client_seconds_sum`, lbAppLabels))
+
+	assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(lbAppLabels, 2.0)))
+	assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(lbAppLabels, 3.0)))
+	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(lbAppLabels, math.Inf(1))))
+	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_server_seconds_count`, lbAppLabels))
+	assert.Equal(t, 6.2, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, lbAppLabels))
 }
 
 func TestServiceGraphs_tooManySpansErr(t *testing.T) {
+	testRegistry := registry.TestRegistry{}
+
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
-	cfg.MaxItems = 0
-	p := New(cfg, "test", log.NewNopLogger())
+	cfg.MaxItems = 1
+	p := New(cfg, "test", &testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
 
-	traces := testData(t, "testdata/test-sample.json")
-	err := p.(*processor).consume(traces.Batches)
+	traces, err := loadTestData("testdata/test-sample.json")
+	require.NoError(t, err)
+
+	err = p.(*processor).consume(traces.Batches)
 	assert.True(t, errors.As(err, &tooManySpansError{}))
 }
 
-func testData(t *testing.T, path string) *tempopb.Trace {
+func loadTestData(path string) (*tempopb.Trace, error) {
 	f, err := os.Open(path)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 
 	trace := &tempopb.Trace{}
 	err = jsonpb.Unmarshal(f, trace)
-	require.NoError(t, err)
+	return trace, err
+}
 
-	return trace
+func withLe(lbls labels.Labels, le float64) labels.Labels {
+	lb := labels.NewBuilder(lbls)
+	lb = lb.Set(labels.BucketLabel, strconv.FormatFloat(le, 'f', -1, 64))
+	return lb.Labels()
 }

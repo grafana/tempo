@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -60,13 +59,6 @@ type Generator struct {
 func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer, logger log.Logger) (*Generator, error) {
 	if cfg.Storage.Path == "" {
 		return nil, errors.New("must configure metrics_generator.storage.path")
-	}
-
-	if cfg.AddInstanceIDLabel {
-		if cfg.ExternalLabels == nil {
-			cfg.ExternalLabels = make(map[string]string)
-		}
-		cfg.ExternalLabels["tempo_instance_id"] = cfg.Ring.InstanceID
 	}
 
 	g := &Generator{
@@ -146,14 +138,8 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 }
 
 func (g *Generator) running(ctx context.Context) error {
-	collectMetricsTicker := time.NewTicker(g.cfg.CollectionInterval)
-	defer collectMetricsTicker.Stop()
-
 	for {
 		select {
-		case <-collectMetricsTicker.C:
-			g.collectMetrics()
-
 		case <-ctx.Done():
 			return nil
 
@@ -179,7 +165,7 @@ func (g *Generator) stopping(_ error) error {
 
 	for _, inst := range g.instances {
 		go func(inst *instance) {
-			inst.shutdown(context.Background())
+			inst.shutdown()
 			wg.Done()
 		}(inst)
 	}
@@ -255,21 +241,6 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 	}
 
 	return newInstance(g.cfg, id, g.overrides, wal, g.reg, g.logger)
-}
-
-func (g *Generator) collectMetrics() {
-	ctx, cancel := context.WithTimeout(context.Background(), g.cfg.CollectionInterval)
-	defer cancel()
-
-	span, ctx := opentracing.StartSpanFromContext(ctx, "generator.collectMetrics")
-	defer span.Finish()
-
-	for _, instance := range g.instances {
-		err := instance.collectMetrics(ctx)
-		if err != nil {
-			level.Error(g.logger).Log("msg", "collecting metrics failed", "tenant", instance.instanceID, "err", err)
-		}
-	}
 }
 
 func (g *Generator) CheckReady(_ context.Context) error {

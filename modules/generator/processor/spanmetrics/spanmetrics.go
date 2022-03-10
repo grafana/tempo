@@ -5,76 +5,40 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/prometheus/model/labels"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
+	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	tempo_util "github.com/grafana/tempo/pkg/util"
+)
+
+const (
+	metricCallsTotal      = "traces_spanmetrics_calls_total"
+	metricDurationSeconds = "traces_spanmetrics_duration_seconds"
 )
 
 type processor struct {
 	cfg Config
 
-	spanMetricsCallsTotal      *prometheus.CounterVec
-	spanMetricsDurationSeconds *prometheus.HistogramVec
+	spanMetricsCallsTotal      registry.Counter
+	spanMetricsDurationSeconds registry.Histogram
 
 	// for testing
 	now func() time.Time
 }
 
-func New(cfg Config, tenant string) gen.Processor {
+func New(cfg Config, registry registry.Registry) gen.Processor {
 	return &processor{
-		cfg: cfg,
-		now: time.Now,
+		cfg:                        cfg,
+		spanMetricsCallsTotal:      registry.NewCounter(metricCallsTotal),
+		spanMetricsDurationSeconds: registry.NewHistogram(metricDurationSeconds, cfg.HistogramBuckets),
+		now:                        time.Now,
 	}
 }
 
 func (p *processor) Name() string { return Name }
-
-func (p *processor) RegisterMetrics(reg prometheus.Registerer) error {
-	labelNames := []string{"service", "span_name", "span_kind", "span_status"}
-	if len(p.cfg.Dimensions) > 0 {
-		labelNames = append(labelNames, p.cfg.Dimensions...)
-	}
-
-	p.spanMetricsCallsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "traces",
-		Name:      "spanmetrics_calls_total",
-		Help:      "Total count of the spans",
-	}, labelNames)
-	p.spanMetricsDurationSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "traces",
-		Name:      "spanmetrics_duration_seconds",
-		Help:      "Latency of the spans",
-		Buckets:   p.cfg.HistogramBuckets,
-	}, labelNames)
-
-	cs := []prometheus.Collector{
-		p.spanMetricsCallsTotal,
-		p.spanMetricsDurationSeconds,
-	}
-
-	for _, c := range cs {
-		if err := reg.Register(c); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (p *processor) unregisterMetrics(reg prometheus.Registerer) {
-	cs := []prometheus.Collector{
-		p.spanMetricsCallsTotal,
-		p.spanMetricsDurationSeconds,
-	}
-
-	for _, c := range cs {
-		reg.Unregister(c)
-	}
-}
 
 func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
 	span, _ := opentracing.StartSpanFromContext(ctx, "spanmetrics.PushSpans")
@@ -83,9 +47,7 @@ func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 	p.aggregateMetrics(req.Batches)
 }
 
-func (p *processor) Shutdown(ctx context.Context, reg prometheus.Registerer) error {
-	p.unregisterMetrics(reg)
-	return nil
+func (p *processor) Shutdown(ctx context.Context) {
 }
 
 func (p *processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
@@ -105,22 +67,31 @@ func (p *processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 func (p *processor) aggregateMetricsForSpan(svcName string, span *v1_trace.Span) {
 	latencySeconds := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 
+	labelNames := []string{"service", "span_name", "span_kind", "span_status"}
 	labelValues := []string{svcName, span.GetName(), span.GetKind().String(), span.GetStatus().GetCode().String()}
+
+	lb := labels.NewBuilder(nil)
+
+	for i := range labelNames {
+		lb = lb.Set(labelNames[i], labelValues[i])
+	}
 
 	if len(p.cfg.Dimensions) > 0 {
 		// Build additional dimensions
+		// TODO optimise this for-loop by iterating across all attributes and then adding the dimensions
 		for _, d := range p.cfg.Dimensions {
 			for _, attr := range span.Attributes {
 				if d == attr.Key {
-					labelValues = append(labelValues, attr.GetValue().GetStringValue())
+					// TODO we should convert keys into valid prometheus labels, i.e. k8s.ip -> k8s_ip
+					lb = lb.Set(d, attr.GetValue().GetStringValue())
 				}
 			}
 		}
-
 	}
 
-	p.spanMetricsCallsTotal.WithLabelValues(labelValues...).Inc()
-	p.spanMetricsDurationSeconds.WithLabelValues(labelValues...).(prometheus.ExemplarObserver).ObserveWithExemplar(
-		latencySeconds, prometheus.Labels{"traceID": tempo_util.TraceIDToHexString(span.TraceId)},
-	)
+	lbls := lb.Labels()
+
+	p.spanMetricsCallsTotal.Inc(lbls, 1)
+	// TODO observe exemplar prometheus.Labels{"traceID": tempo_util.TraceIDToHexString(span.TraceId)}
+	p.spanMetricsDurationSeconds.Observe(lbls, latencySeconds)
 }

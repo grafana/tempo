@@ -2,13 +2,15 @@ package spanmetrics
 
 import (
 	"context"
+	"fmt"
+	"math"
+	"strconv"
 	"testing"
-	"time"
 
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 
-	gen "github.com/grafana/tempo/modules/generator/processor"
-	test_util "github.com/grafana/tempo/modules/generator/processor/util/test"
+	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -16,70 +18,53 @@ import (
 )
 
 func TestSpanMetrics(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
-	p := New(cfg, "test")
+	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	registry := gen.NewRegistry(nil, "test-tenant")
-	err := p.RegisterMetrics(registry)
-	assert.NoError(t, err)
-
-	now := time.Now()
-	registry.SetTimeNow(func() time.Time {
-		return now
-	})
+	p := New(cfg, testRegistry)
+	defer p.Shutdown(context.Background())
 
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
-	req := test.MakeBatch(10, nil)
+	batch := test.MakeBatch(10, nil)
 
-	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{req}})
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
 
-	appender := &test_util.Appender{}
+	fmt.Println(testRegistry)
 
-	collectTime := now
-	err = registry.Gather(appender)
-	assert.NoError(t, err)
+	lbls := labels.FromMap(map[string]string{
+		"service":     "test-service",
+		"span_name":   "test",
+		"span_kind":   "SPAN_KIND_CLIENT",
+		"span_status": "STATUS_CODE_OK",
+	})
 
-	assert.False(t, appender.IsCommitted)
-	assert.False(t, appender.IsRolledback)
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
 
-	expectedMetrics := []test_util.Metric{
-		{Labels: `{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_calls_total"}`, Value: 10},
-		{Labels: `{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_count"}`, Value: 10},
-		{Labels: `{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_sum"}`, Value: 10},
-		{Labels: `{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.002"}`, Value: 0},
-		{Labels: `{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.004"}`, Value: 0},
-		{Labels: `{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.008"}`, Value: 0},
-		{Labels: `{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.016"}`, Value: 0},
-		{Labels: `{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.032"}`, Value: 0},
-		{Labels: `{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.064"}`, Value: 0},
-		{Labels: `{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.128"}`, Value: 0},
-		{Labels: `{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.256"}`, Value: 0},
-		{Labels: `{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.512"}`, Value: 0},
-		{Labels: `{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="1.024"}`, Value: 10},
-		{Labels: `{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="2.048"}`, Value: 10},
-		{Labels: `{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="4.096"}`, Value: 10},
-		{Labels: `{service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="+Inf"}`, Value: 10},
-	}
-	appender.ContainsAll(t, expectedMetrics, collectTime)
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, 0.5)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, 1)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, math.Inf(1))))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_count", lbls))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_sum", lbls))
 }
 
 func TestSpanMetrics_dimensions(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.Dimensions = []string{"foo", "bar"}
-	p := New(cfg, "test")
 
-	registry := gen.NewRegistry(nil, "test-tenant")
-	err := p.RegisterMetrics(registry)
-	assert.NoError(t, err)
+	p := New(cfg, testRegistry)
+	defer p.Shutdown(context.Background())
 
-	now := time.Now()
-	registry.SetTimeNow(func() time.Time {
-		return now
-	})
-
+	// TODO create some spans that are missing the custom dimensions/tags
 	batch := test.MakeBatch(10, nil)
+
+	// Add some attributes
 	for _, rs := range batch.InstrumentationLibrarySpans {
 		for _, s := range rs.Spans {
 			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
@@ -92,33 +77,31 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 			})
 		}
 	}
+
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
 
-	appender := &test_util.Appender{}
+	fmt.Println(testRegistry)
 
-	err = registry.Gather(appender)
-	assert.NoError(t, err)
+	lbls := labels.FromMap(map[string]string{
+		"service":     "test-service",
+		"span_name":   "test",
+		"span_kind":   "SPAN_KIND_CLIENT",
+		"span_status": "STATUS_CODE_OK",
+		"foo":         "foo-value",
+		"bar":         "bar-value",
+	})
 
-	assert.False(t, appender.IsCommitted)
-	assert.False(t, appender.IsRolledback)
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
 
-	expectedMetrics := []test_util.Metric{
-		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_calls_total"}`, Value: 10},
-		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_count"}`, Value: 10},
-		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_sum"}`, Value: 10},
-		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.002"}`, Value: 0},
-		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.004"}`, Value: 0},
-		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.008"}`, Value: 0},
-		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.016"}`, Value: 0},
-		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.032"}`, Value: 0},
-		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.064"}`, Value: 0},
-		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.128"}`, Value: 0},
-		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.256"}`, Value: 0},
-		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="0.512"}`, Value: 0},
-		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="1.024"}`, Value: 10},
-		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="2.048"}`, Value: 10},
-		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="4.096"}`, Value: 10},
-		{Labels: `{bar="bar-value", foo="foo-value", service="test-service", span_kind="SPAN_KIND_CLIENT", span_name="test", span_status="STATUS_CODE_OK", __name__="traces_spanmetrics_duration_seconds_bucket", le="+Inf"}`, Value: 10},
-	}
-	appender.ContainsAll(t, expectedMetrics, now)
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, 0.5)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, 1)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, math.Inf(1))))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_count", lbls))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_sum", lbls))
+}
+
+func withLe(lbls labels.Labels, le float64) labels.Labels {
+	lb := labels.NewBuilder(lbls)
+	lb = lb.Set(labels.BucketLabel, strconv.FormatFloat(le, 'f', -1, 64))
+	return lb.Labels()
 }
