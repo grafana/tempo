@@ -19,6 +19,7 @@ import (
 
 	"github.com/grafana/e2e"
 	e2edb "github.com/grafana/e2e/db"
+
 	"github.com/grafana/tempo/cmd/tempo/app"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
@@ -92,7 +93,7 @@ func TestAllInOne(t *testing.T) {
 			assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
 
 			// ensure trace is created in ingester (trace_idle_time has passed)
-			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
+			require.NoError(t, tempo.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
 
 			apiClient := tempoUtil.NewClient("http://"+tempo.Endpoint(3200), "")
 
@@ -246,9 +247,9 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			assertEcho(t, "http://"+tempoQueryFrontend.Endpoint(3200)+"/api/echo")
 
 			// ensure trace is created in ingester (trace_idle_time has passed)
-			require.NoError(t, tempoIngester1.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
-			require.NoError(t, tempoIngester2.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
-			require.NoError(t, tempoIngester3.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
+			require.NoError(t, tempoIngester1.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
+			require.NoError(t, tempoIngester2.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
+			require.NoError(t, tempoIngester3.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
 
 			apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
 
@@ -385,7 +386,7 @@ func TestScalableSingleBinary(t *testing.T) {
 
 	// test metrics
 	require.NoError(t, tempo1.WaitSumMetrics(e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
-	require.NoError(t, tempo1.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
+	require.NoError(t, tempo1.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
 
 	for _, i := range []*e2e.HTTPService{tempo1, tempo2, tempo3} {
 		res, err := e2e.DoGet("http://" + i.Endpoint(3200) + "/flush")
