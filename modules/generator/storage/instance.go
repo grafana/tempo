@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -49,7 +50,7 @@ func New(cfg *Config, tenant string, reg prometheus.Registerer, logger log.Logge
 	// subdirectory remote storage logs a scary error.
 	err := os.MkdirAll(filepath.Join(walDir, "wal"), 0o755)
 	if err != nil {
-		level.Warn(logger).Log("msg", "could not create directory for metrics WAL", "err", err)
+		return nil, fmt.Errorf("could not create directory for metrics WAL: %w", err)
 	}
 
 	// Set up remote storage writer
