@@ -104,17 +104,13 @@ func TestAllInOne(t *testing.T) {
 			util.SearchAndAssertTrace(t, apiClient, info)
 
 			// flush trace to backend
-			res, err := e2e.DoGet("http://" + tempo.Endpoint(3200) + "/flush")
-			require.NoError(t, err)
-			require.Equal(t, 204, res.StatusCode)
+			callFlush(t, tempo)
 
 			// sleep for one maintenance cycle
 			time.Sleep(5 * time.Second)
 
 			// force clear completed block
-			res, err = e2e.DoGet("http://" + tempo.Endpoint(3200) + "/flush")
-			require.NoError(t, err)
-			require.Equal(t, 204, res.StatusCode)
+			callFlush(t, tempo)
 
 			// test metrics
 			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
@@ -260,17 +256,9 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			util.SearchAndAssertTrace(t, apiClient, info)
 
 			// flush trace to backend
-			res, err := e2e.DoGet("http://" + tempoIngester1.Endpoint(3200) + "/flush")
-			require.NoError(t, err)
-			require.Equal(t, 204, res.StatusCode)
-
-			res, err = e2e.DoGet("http://" + tempoIngester2.Endpoint(3200) + "/flush")
-			require.NoError(t, err)
-			require.Equal(t, 204, res.StatusCode)
-
-			res, err = e2e.DoGet("http://" + tempoIngester3.Endpoint(3200) + "/flush")
-			require.NoError(t, err)
-			require.Equal(t, 204, res.StatusCode)
+			callFlush(t, tempoIngester1)
+			callFlush(t, tempoIngester2)
+			callFlush(t, tempoIngester3)
 
 			// sleep for one maintenance cycle
 			time.Sleep(5 * time.Second)
@@ -389,10 +377,7 @@ func TestScalableSingleBinary(t *testing.T) {
 	require.NoError(t, tempo1.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
 
 	for _, i := range []*e2e.HTTPService{tempo1, tempo2, tempo3} {
-		res, err := e2e.DoGet("http://" + i.Endpoint(3200) + "/flush")
-		require.NoError(t, err)
-		require.Equal(t, 204, res.StatusCode)
-
+		callFlush(t, i)
 		require.NoError(t, i.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 	}
 
@@ -445,6 +430,13 @@ func makeThriftBatchWithSpanCount(n int) *thrift.Batch {
 	}
 
 	return &thrift.Batch{Spans: spans}
+}
+
+func callFlush(t *testing.T, ingester *e2e.HTTPService) {
+	fmt.Printf("Calling /flush on %s\n", ingester.Name())
+	res, err := e2e.DoGet("http://" + ingester.Endpoint(3200) + "/flush")
+	require.NoError(t, err)
+	require.Equal(t, 204, res.StatusCode)
 }
 
 func assertEcho(t *testing.T, url string) {
