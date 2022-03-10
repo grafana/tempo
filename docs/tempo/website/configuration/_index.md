@@ -800,7 +800,7 @@ overrides:
     #  - During search, traces will be skipped when they exceed this threshold.
     #  - During ingestion, traces that exceed this threshold will be refused.
     #  - During compaction, traces that exceed this threshold will be partially dropped.
-    # Exceeding the threshold results in errors like
+    # During ingestion, exceeding the threshold results in errors like
     #    TRACE_TOO_LARGE: max size of trace (5000000) exceeded while adding 387 bytes
     [max_bytes_per_trace: <int> | default = 5000000 (5MB) ]
 
@@ -823,8 +823,9 @@ overrides:
     # This override limit is used by the ingester and the querier.
     [max_bytes_per_tag_values_query: <int> | default = 5000000 (5MB) ]
 
-    # Tenant-specific overrides settings configuration file.
-    [per_tenant_override_config: <string> | default = "/conf/overrides.yaml"]
+    # Tenant-specific overrides settings configuration file. The empty string (default
+    # value) disables using an overrides file.
+    [per_tenant_override_config: <string> | default = ""]
 ```
 
 #### Tenant-specific overrides
