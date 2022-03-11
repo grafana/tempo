@@ -23,7 +23,7 @@ ingester:
 storage:
   trace:
     blocklist_poll: 2s
-    blocklist_poll_stale_tenant_index: 15s
+    blocklist_poll_stale_tenant_index: 1s # force components to always fall back to polling
     backend: s3
     s3:
       bucket: tempo
