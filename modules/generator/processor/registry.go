@@ -6,10 +6,19 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	prometheus_model "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/exemplar"
 	prometheus_labels "github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
+)
+
+var (
+	activeSeries = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_active_series",
+		Help:      "Number of active series in the metrics registry",
+	}, []string{"tenant"})
 )
 
 // Registry is a prometheus.Registerer that can gather metrics and push them directly into a
@@ -19,24 +28,34 @@ import (
 type Registry struct {
 	prometheus.Registerer
 
-	gatherer prometheus.Gatherer
+	gatherer     prometheus.Gatherer
+	activeSeries prometheus.Gauge
 
+	// for testing
 	now func() time.Time
 }
 
-func NewRegistry(externalLabels map[string]string) Registry {
+func NewRegistry(externalLabels map[string]string, tenant string) Registry {
 	registry := prometheus.NewRegistry()
 
 	registerer := prometheus.WrapRegistererWith(externalLabels, registry)
 
 	return Registry{
-		Registerer: registerer,
-		gatherer:   registry,
-		now:        time.Now,
+		Registerer:   registerer,
+		gatherer:     registry,
+		activeSeries: activeSeries.WithLabelValues(tenant),
+		now:          time.Now,
 	}
 }
 
-func (r *Registry) Gather(appender storage.Appender) error {
+func (r *Registry) Gather(appender storage.Appender) (err error) {
+	activeSeriesCount := 0.0
+	defer func() {
+		if err == nil {
+			r.activeSeries.Set(activeSeriesCount)
+		}
+	}()
+
 	metricFamilies, err := r.gatherer.Gather()
 	if err != nil {
 		return err
@@ -56,6 +75,7 @@ func (r *Registry) Gather(appender storage.Appender) error {
 				if err != nil {
 					return err
 				}
+				activeSeriesCount++
 			}
 
 		case prometheus_model.MetricType_HISTOGRAM:
@@ -70,6 +90,7 @@ func (r *Registry) Gather(appender storage.Appender) error {
 				if err != nil {
 					return err
 				}
+				activeSeriesCount++
 
 				// _sum
 				sumLabels := copyWithLabel(labels, "__name__", fmt.Sprintf("%s_sum", metricFamily.GetName()))
@@ -77,6 +98,7 @@ func (r *Registry) Gather(appender storage.Appender) error {
 				if err != nil {
 					return err
 				}
+				activeSeriesCount++
 
 				addedInfBucket := false
 
@@ -89,14 +111,15 @@ func (r *Registry) Gather(appender storage.Appender) error {
 					}
 
 					bucketWithLeLabels := copyWithLabel(bucketLabels, "le", fmt.Sprintf("%g", bucket.GetUpperBound()))
-					_, err = appender.Append(0, bucketWithLeLabels, timestamp, float64(bucket.GetCumulativeCount()))
+					ref, err := appender.Append(0, bucketWithLeLabels, timestamp, float64(bucket.GetCumulativeCount()))
 					if err != nil {
 						return err
 					}
+					activeSeriesCount++
 
 					e := bucket.GetExemplar()
 					if e != nil {
-						_, err = appender.AppendExemplar(0, bucketWithLeLabels, exemplar.Exemplar{
+						_, err = appender.AppendExemplar(ref, bucketWithLeLabels, exemplar.Exemplar{
 							Labels: labelPairsToLabels(e.GetLabel()),
 							Value:  e.GetValue(),
 							Ts:     e.GetTimestamp().AsTime().UnixMilli(),
@@ -115,6 +138,7 @@ func (r *Registry) Gather(appender storage.Appender) error {
 					if err != nil {
 						return err
 					}
+					activeSeriesCount++
 				}
 			}
 

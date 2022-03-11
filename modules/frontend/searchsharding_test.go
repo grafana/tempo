@@ -493,6 +493,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 					InspectedBlocks: 2,
 					InspectedBytes:  3,
 					SkippedBlocks:   4,
+					SkippedTraces:   9,
 				}},
 			status2: 200,
 			response2: &tempopb.SearchResponse{
@@ -507,6 +508,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 					InspectedBlocks: 6,
 					InspectedBytes:  7,
 					SkippedBlocks:   8,
+					SkippedTraces:   10,
 				}},
 			expectedStatus: 200,
 			expectedResponse: &tempopb.SearchResponse{
@@ -525,6 +527,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 					InspectedBlocks: 1,
 					InspectedBytes:  10,
 					SkippedBlocks:   12,
+					SkippedTraces:   19,
 				}},
 		},
 		{
@@ -618,6 +621,9 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
+			if tc.expectedStatus == http.StatusOK {
+				assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+			}
 			if tc.expectedResponse != nil {
 				actualResp := &tempopb.SearchResponse{}
 				bytesResp, err := io.ReadAll(resp.Body)

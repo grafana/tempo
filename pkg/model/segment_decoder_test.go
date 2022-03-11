@@ -75,3 +75,31 @@ func TestSegmentDecoderToObjectDecoderRange(t *testing.T) {
 		})
 	}
 }
+
+func TestSegmentDecoderFastRange(t *testing.T) {
+	for _, e := range AllEncodings {
+		t.Run(e, func(t *testing.T) {
+			start := rand.Uint32()
+			end := rand.Uint32()
+
+			segmentDecoder, err := NewSegmentDecoder(e)
+			require.NoError(t, err)
+
+			// random trace
+			trace := test.MakeTrace(100, nil)
+
+			segment, err := segmentDecoder.PrepareForWrite(trace, start, end)
+			require.NoError(t, err)
+
+			// test range
+			actualStart, actualEnd, err := segmentDecoder.FastRange(segment)
+			if err == decoder.ErrUnsupported {
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, start, actualStart)
+			require.Equal(t, end, actualEnd)
+		})
+	}
+}

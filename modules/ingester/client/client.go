@@ -11,6 +11,7 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/weaveworks/common/middleware"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -43,7 +44,7 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 // New returns a new ingester client.
 func New(addr string, cfg Config) (*Client, error) {
 	opts := []grpc.DialOption{
-		grpc.WithInsecure(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}
 
 	instrumentationOpts, err := cfg.GRPCClientConfig.DialOption(instrumentation())

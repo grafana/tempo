@@ -20,7 +20,7 @@ func TestSpanMetrics(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	p := New(cfg, "test")
 
-	registry := gen.NewRegistry(nil)
+	registry := gen.NewRegistry(nil, "test-tenant")
 	err := p.RegisterMetrics(registry)
 	assert.NoError(t, err)
 
@@ -32,8 +32,7 @@ func TestSpanMetrics(t *testing.T) {
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
 	req := test.MakeBatch(10, nil)
 
-	err = p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{req}})
-	assert.NoError(t, err)
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{req}})
 
 	appender := &test_util.Appender{}
 
@@ -71,7 +70,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	cfg.Dimensions = []string{"foo", "bar"}
 	p := New(cfg, "test")
 
-	registry := gen.NewRegistry(nil)
+	registry := gen.NewRegistry(nil, "test-tenant")
 	err := p.RegisterMetrics(registry)
 	assert.NoError(t, err)
 
@@ -93,8 +92,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 			})
 		}
 	}
-	err = p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
-	assert.NoError(t, err)
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
 
 	appender := &test_util.Appender{}
 

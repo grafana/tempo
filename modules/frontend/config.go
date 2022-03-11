@@ -21,7 +21,13 @@ type Config struct {
 	MaxRetries           int                    `yaml:"max_retries,omitempty"`
 	QueryShards          int                    `yaml:"query_shards,omitempty"`
 	TolerateFailedBlocks int                    `yaml:"tolerate_failed_blocks,omitempty"`
-	Search               SearchSharderConfig    `yaml:"search"`
+	Search               SearchConfig           `yaml:"search"`
+}
+
+type SearchConfig struct {
+	Sharder           SearchSharderConfig `yaml:",inline"`
+	HedgeRequestsAt   time.Duration       `yaml:"hedge_requests_at"`
+	HedgeRequestsUpTo int                 `yaml:"hedge_requests_up_to"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -31,14 +37,18 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MaxRetries = 2
 	cfg.QueryShards = 20
 	cfg.TolerateFailedBlocks = 0
-	cfg.Search = SearchSharderConfig{
-		QueryBackendAfter:     15 * time.Minute,
-		QueryIngestersUntil:   time.Hour,
-		DefaultLimit:          20,
-		MaxLimit:              0,
-		MaxDuration:           61 * time.Minute,
-		ConcurrentRequests:    defaultConcurrentRequests,
-		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+	cfg.Search = SearchConfig{
+		HedgeRequestsAt:   5 * time.Second,
+		HedgeRequestsUpTo: 3,
+		Sharder: SearchSharderConfig{
+			QueryBackendAfter:     15 * time.Minute,
+			QueryIngestersUntil:   time.Hour,
+			DefaultLimit:          20,
+			MaxLimit:              0,
+			MaxDuration:           61 * time.Minute,
+			ConcurrentRequests:    defaultConcurrentRequests,
+			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		},
 	}
 }
 

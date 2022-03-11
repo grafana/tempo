@@ -15,6 +15,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/golang/protobuf/proto"
 	"github.com/grafana/tempo/modules/querier"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
@@ -65,7 +66,8 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	var overallError error
 	var totalFailedBlocks uint32
-	overallTrace := &tempopb.Trace{}
+	combiner := trace.NewCombiner()
+	combiner.Consume(&tempopb.Trace{}) // The query path returns a non-nil result even if no inputs (which is different than other paths which return nil for no inputs)
 	statusCode := http.StatusNotFound
 	statusMsg := "trace not found"
 
@@ -139,7 +141,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			// happy path
 			statusCode = http.StatusOK
-			overallTrace, _ = trace.CombineTraceProtos(overallTrace, traceResp.Trace)
+			combiner.Consume(traceResp.Trace)
 		}(req)
 	}
 	wg.Wait()
@@ -148,6 +150,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, overallError
 	}
 
+	overallTrace, _ := combiner.Result()
 	if overallTrace == nil || statusCode != http.StatusOK {
 		// translate non-404s into 500s. if, for instance, we get a 400 back from an internal component
 		// it means that we created a bad request. 400 should not be propagated back to the user b/c
@@ -175,8 +178,10 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	return &http.Response{
-		StatusCode:    http.StatusOK,
-		Header:        http.Header{},
+		StatusCode: http.StatusOK,
+		Header: http.Header{
+			api.HeaderContentType: {api.HeaderAcceptProtobuf},
+		},
 		Body:          io.NopCloser(bytes.NewReader(buff)),
 		ContentLength: int64(len(buff)),
 	}, nil

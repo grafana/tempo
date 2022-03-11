@@ -29,8 +29,8 @@ func (d *SegmentDecoder) PrepareForWrite(trace *tempopb.Trace, start uint32, end
 }
 
 func (d *SegmentDecoder) PrepareForRead(segments [][]byte) (*tempopb.Trace, error) {
-	var combinedTrace *tempopb.Trace
-	for _, obj := range segments {
+	combiner := trace.NewCombiner()
+	for i, obj := range segments {
 		obj, _, _, err := stripStartEnd(obj)
 		if err != nil {
 			return nil, fmt.Errorf("error stripping start/end: %w", err)
@@ -42,8 +42,10 @@ func (d *SegmentDecoder) PrepareForRead(segments [][]byte) (*tempopb.Trace, erro
 			return nil, fmt.Errorf("error unmarshaling trace: %w", err)
 		}
 
-		combinedTrace, _ = trace.CombineTraceProtos(combinedTrace, t)
+		combiner.ConsumeWithFinal(t, i == len(segments)-1)
 	}
+
+	combinedTrace, _ := combiner.Result()
 
 	return combinedTrace, nil
 }
@@ -74,6 +76,11 @@ func (d *SegmentDecoder) ToObject(segments [][]byte) ([]byte, error) {
 	return marshalWithStartEnd(&tempopb.TraceBytes{
 		Traces: segments,
 	}, minStart, maxEnd)
+}
+
+func (d *SegmentDecoder) FastRange(buff []byte) (uint32, uint32, error) {
+	_, start, end, err := stripStartEnd(buff)
+	return start, end, err
 }
 
 func marshalWithStartEnd(pb proto.Message, start uint32, end uint32) ([]byte, error) {

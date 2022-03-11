@@ -48,10 +48,11 @@ querier:
     frontend_address: query-frontend:9095
 
 metrics_generator:
-  remote_write:
-    enabled: true
-    client:
-      url: http://prometheus:9090/api/v1/write
+  storage:
+    path: /tmp/tempo/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
 
 storage:
   trace:

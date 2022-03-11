@@ -37,7 +37,11 @@ const (
 	urlParamDataEncoding  = "dataEncoding"
 	urlParamVersion       = "version"
 
+	// maxBytes (serverless only)
+	urlParamMaxBytes = "maxBytes"
+
 	HeaderAccept         = "Accept"
+	HeaderContentType    = "Content-Type"
 	HeaderAcceptProtobuf = "application/protobuf"
 	HeaderAcceptJSON     = "application/json"
 
@@ -331,6 +335,37 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 	req.URL.RawQuery = q.Encode()
 
 	return req, nil
+}
+
+// AddServerlessParams takes an already existing http.Request and adds maxBytes
+//  to it
+func AddServerlessParams(req *http.Request, maxBytes int) *http.Request {
+	if req == nil {
+		req = &http.Request{
+			URL: &url.URL{},
+		}
+	}
+
+	q := req.URL.Query()
+	q.Set(urlParamMaxBytes, strconv.FormatInt(int64(maxBytes), 10))
+	req.URL.RawQuery = q.Encode()
+
+	return req
+}
+
+// ExtractServerlessParams extracts params for the serverless functions from
+//  an http.Request
+func ExtractServerlessParams(req *http.Request) (int, error) {
+	s, exists := extractQueryParam(req, urlParamMaxBytes)
+	if !exists {
+		return 0, nil
+	}
+	maxBytes, err := strconv.ParseInt(s, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("invalid maxBytes: %w", err)
+	}
+
+	return int(maxBytes), nil
 }
 
 func extractQueryParam(r *http.Request, param string) (string, bool) {

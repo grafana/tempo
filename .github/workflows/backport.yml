@@ -1,0 +1,33 @@
+# This checks merged PRs for labels like "backport release-x.y" 
+# and opens a new PR backporting the same commit to the release branch.
+# This workflow also runs when the PR is labeled or opened, but will
+# will only check a few things and detect that the PR is not yet merged. 
+# At this time only squashed PRs are supported since the cherry-pick 
+# command does not include "-m <n>" arg required for merge commits.
+name: Backport
+on:
+  pull_request_target:
+    types:
+      - closed
+      - labeled
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@v2
+        with:
+          repository: "grafana/grafana-github-actions"
+          path: ./actions
+          ref: main
+
+      - name: Install Actions
+        run: npm install --production --prefix ./actions
+
+      - name: Run backport
+        uses: ./actions/backport
+        with:
+          token: ${{secrets.GITHUB_TOKEN}}
+          labelsToAdd: "backport"
+          title: "[{{base}}] {{originalTitle}}"

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/model/decoder"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -25,16 +26,18 @@ func (d *SegmentDecoder) PrepareForWrite(trace *tempopb.Trace, start uint32, end
 
 func (d *SegmentDecoder) PrepareForRead(segments [][]byte) (*tempopb.Trace, error) {
 	// each slice is a marshalled tempopb.Trace, unmarshal and combine
-	var combinedTrace *tempopb.Trace
-	for _, s := range segments {
+	combiner := trace.NewCombiner()
+	for i, s := range segments {
 		t := &tempopb.Trace{}
 		err := proto.Unmarshal(s, t)
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshaling trace: %w", err)
 		}
 
-		combinedTrace, _ = trace.CombineTraceProtos(combinedTrace, t)
+		combiner.ConsumeWithFinal(t, i == len(segments)-1)
 	}
+
+	combinedTrace, _ := combiner.Result()
 
 	return combinedTrace, nil
 }
@@ -45,4 +48,8 @@ func (d *SegmentDecoder) ToObject(segments [][]byte) ([]byte, error) {
 		Traces: append([][]byte(nil), segments...),
 	}
 	return proto.Marshal(wrapper)
+}
+
+func (d *SegmentDecoder) FastRange([]byte) (uint32, uint32, error) {
+	return 0, 0, decoder.ErrUnsupported
 }

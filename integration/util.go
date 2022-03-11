@@ -10,14 +10,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/dskit/backoff"
+	"github.com/grafana/e2e"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/grafana/dskit/backoff"
-	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
@@ -90,6 +91,23 @@ func NewTempoIngester(replica int) *e2e.HTTPService {
 
 	s := e2e.NewHTTPService(
 		"ingester-"+strconv.Itoa(replica),
+		image,
+		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
+		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		3200,
+	)
+
+	s.SetBackoff(TempoBackoff())
+
+	return s
+}
+
+func NewTempoMetricsGenerator() *e2e.HTTPService {
+	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml"), "-target=metrics-generator"}
+	args = buildArgsWithExtra(args)
+
+	s := e2e.NewHTTPService(
+		"metrics-generator",
 		image,
 		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
@@ -187,7 +205,7 @@ func TempoBackoff() backoff.Config {
 
 func NewJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	// new jaeger grpc exporter
-	conn, err := grpc.Dial(endpoint, grpc.WithInsecure())
+	conn, err := grpc.Dial(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}

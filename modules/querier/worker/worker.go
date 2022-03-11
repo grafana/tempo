@@ -26,7 +26,7 @@ type Config struct {
 
 	Parallelism           int  `yaml:"parallelism"`
 	MatchMaxConcurrency   bool `yaml:"match_max_concurrent"`
-	MaxConcurrentRequests int  `yaml:"-"` // Must be same as passed to PromQL Engine.
+	MaxConcurrentRequests int  `yaml:"-"`
 
 	QuerierID string `yaml:"id"`
 

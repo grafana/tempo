@@ -5,17 +5,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/prometheus/model/exemplar"
+	"github.com/prometheus/prometheus/model/labels"
+	prometheus_storage "github.com/prometheus/prometheus/storage"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
-	"github.com/grafana/tempo/modules/generator/remotewrite"
+	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
 func Test_instance_concurrency(t *testing.T) {
-	instance, err := newInstance(&Config{}, "test", &mockOverrides{}, &remotewrite.NoopAppender{})
+	instance, err := newInstance(&Config{}, "test", &mockOverrides{}, &noopStorage{})
 	assert.NoError(t, err)
 
 	end := make(chan struct{})
@@ -33,12 +36,11 @@ func Test_instance_concurrency(t *testing.T) {
 
 	go accessor(func() {
 		req := test.MakeBatch(1, nil)
-		err := instance.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}})
-		assert.NoError(t, err)
+		instance.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}})
 	})
 
 	go accessor(func() {
-		err := instance.collectAndPushMetrics(context.Background())
+		err := instance.collectMetrics(context.Background())
 		assert.NoError(t, err)
 	})
 
@@ -60,8 +62,7 @@ func Test_instance_concurrency(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	err = instance.shutdown(context.Background())
-	assert.NoError(t, err)
+	instance.shutdown(context.Background())
 
 	time.Sleep(10 * time.Millisecond)
 	close(end)
@@ -69,12 +70,11 @@ func Test_instance_concurrency(t *testing.T) {
 }
 
 func Test_instance_updateProcessors(t *testing.T) {
-	instance, err := newInstance(&Config{}, "test", &mockOverrides{}, &remotewrite.NoopAppender{})
+	instance, err := newInstance(&Config{}, "test", &mockOverrides{}, &noopStorage{})
 	assert.NoError(t, err)
 
-	// shutdown the instance to stop the update goroutine
-	err = instance.shutdown(context.Background())
-	assert.NoError(t, err)
+	// stop the update goroutine
+	close(instance.shutdownCh)
 
 	// no processors should be present initially
 	assert.Len(t, instance.processors, 0)
@@ -118,4 +118,36 @@ var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
 
 func (m *mockOverrides) MetricsGeneratorProcessors(userID string) map[string]struct{} {
 	return m.processors
+}
+
+type noopStorage struct{}
+
+var _ storage.Storage = (*noopStorage)(nil)
+
+func (m noopStorage) Appender(ctx context.Context) prometheus_storage.Appender {
+	return &noopAppender{}
+}
+
+func (m noopStorage) Close() error {
+	return nil
+}
+
+type noopAppender struct{}
+
+var _ prometheus_storage.Appender = (*noopAppender)(nil)
+
+func (n noopAppender) Append(ref prometheus_storage.SeriesRef, l labels.Labels, t int64, v float64) (prometheus_storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (n noopAppender) AppendExemplar(ref prometheus_storage.SeriesRef, l labels.Labels, e exemplar.Exemplar) (prometheus_storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (n noopAppender) Commit() error {
+	return nil
+}
+
+func (n noopAppender) Rollback() error {
+	return nil
 }

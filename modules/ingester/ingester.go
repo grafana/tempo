@@ -25,6 +25,7 @@ import (
 	"github.com/grafana/tempo/pkg/flushqueues"
 	_ "github.com/grafana/tempo/pkg/gogocodec" // force gogo codec registration
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/decoder"
 	v1 "github.com/grafana/tempo/pkg/model/v1"
 	v2 "github.com/grafana/tempo/pkg/model/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -90,7 +91,7 @@ func New(cfg Config, store storage.Store, limits *overrides.Overrides, reg prome
 
 	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", cfg.OverrideRingKey, true, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
 	if err != nil {
-		return nil, fmt.Errorf("NewLifecycler failed %w", err)
+		return nil, fmt.Errorf("NewLifecycler failed: %w", err)
 	}
 	i.lifecycler = lc
 
@@ -108,21 +109,21 @@ func New(cfg Config, store storage.Store, limits *overrides.Overrides, reg prome
 func (i *Ingester) starting(ctx context.Context) error {
 	err := i.replayWal()
 	if err != nil {
-		return fmt.Errorf("failed to replay wal %w", err)
+		return fmt.Errorf("failed to replay wal: %w", err)
 	}
 
 	err = i.rediscoverLocalBlocks()
 	if err != nil {
-		return fmt.Errorf("failed to rediscover local blocks %w", err)
+		return fmt.Errorf("failed to rediscover local blocks: %w", err)
 	}
 
 	// Now that user states have been created, we can start the lifecycler.
 	// Important: we want to keep lifecycler running until we ask it to stop, so we need to give it independent context
 	if err := i.lifecycler.StartAsync(context.Background()); err != nil {
-		return fmt.Errorf("failed to start lifecycler %w", err)
+		return fmt.Errorf("failed to start lifecycler: %w", err)
 	}
 	if err := i.lifecycler.AwaitRunning(ctx); err != nil {
-		return fmt.Errorf("failed to start lifecycle %w", err)
+		return fmt.Errorf("failed to start lifecycle: %w", err)
 	}
 
 	return nil
@@ -326,14 +327,33 @@ func (i *Ingester) TransferOut(ctx context.Context) error {
 func (i *Ingester) replayWal() error {
 	level.Info(log.Logger).Log("msg", "beginning wal replay")
 
-	blocks, err := i.store.WAL().RescanBlocks(log.Logger)
+	// pass i.cfg.MaxBlockDuration into RescanBlocks to make an attempt to set the start time
+	// of the blocks correctly. as we are scanning traces in the blocks we read their start/end times
+	// and attempt to set start/end times appropriately. we use now - max_block_duration - ingestion_slack
+	// as the minimum acceptable start time for a replayed block.
+	blocks, err := i.store.WAL().RescanBlocks(func(b []byte, dataEncoding string) (uint32, uint32, error) {
+		d, err := model.NewObjectDecoder(dataEncoding)
+		if err != nil {
+			return 0, 0, nil
+		}
+
+		start, end, err := d.FastRange(b)
+		if err == decoder.ErrUnsupported {
+			now := uint32(time.Now().Unix())
+			return now, now, nil
+		}
+		if err != nil {
+			return 0, 0, err
+		}
+		return start, end, nil
+	}, i.cfg.MaxBlockDuration, log.Logger)
 	if err != nil {
-		return fmt.Errorf("fatal error replaying wal %w", err)
+		return fmt.Errorf("fatal error replaying wal: %w", err)
 	}
 
 	searchBlocks, err := search.RescanBlocks(i.store.WAL().GetFilepath())
 	if err != nil {
-		return fmt.Errorf("fatal error replaying search wal %w", err)
+		return fmt.Errorf("fatal error replaying search wal: %w", err)
 	}
 
 	// clear any searchBlock that does not have a matching wal block

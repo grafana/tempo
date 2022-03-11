@@ -33,7 +33,14 @@ func (m *mockSharder) Owns(hash string) bool {
 	return true
 }
 
-func (m *mockSharder) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
+func (m *mockSharder) Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error) {
+	return model.ObjectCombiner.Combine(dataEncoding, objs...)
+}
+
+type mockCombiner struct {
+}
+
+func (m *mockCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
 	return model.ObjectCombiner.Combine(dataEncoding, objs...)
 }
 
@@ -111,13 +118,13 @@ func TestCompaction(t *testing.T) {
 
 			bReq, err := proto.Marshal(req)
 			require.NoError(t, err)
-			err = head.Append(id, bReq)
+			err = head.Append(id, bReq, 0, 0)
 			require.NoError(t, err, "unexpected error writing req")
 		}
 		allReqs = append(allReqs, reqs...)
 		allIds = append(allIds, ids...)
 
-		_, err = w.CompleteBlock(head, &mockSharder{})
+		_, err = w.CompleteBlock(head, &mockCombiner{})
 		require.NoError(t, err)
 
 		// err = w.WriteBlock(context.Background(), complete)
@@ -253,12 +260,12 @@ func TestSameIDCompaction(t *testing.T) {
 			id := allIds[j]
 
 			if i < len(req) {
-				err = head.Append(id, req[i])
+				err = head.Append(id, req[i], 0, 0)
 				require.NoError(t, err, "unexpected error writing req")
 			}
 		}
 
-		_, err = w.CompleteBlock(head, &mockSharder{})
+		_, err = w.CompleteBlock(head, &mockCombiner{})
 		require.NoError(t, err)
 	}
 
@@ -509,14 +516,12 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 			body := make([]byte, 1024)
 			rand.Read(body)
 
-			err = head.Append(
-				makeTraceID(i, j),
-				body)
-			// []byte{0x01, 0x02, 0x03})
+			now := uint32(time.Now().Unix())
+			err = head.Append(makeTraceID(i, j), body, now, now)
 			require.NoError(t, err, "unexpected error writing rec")
 		}
 
-		b, err := w.CompleteBlock(head, &mockSharder{})
+		b, err := w.CompleteBlock(head, &mockCombiner{})
 		require.NoError(t, err)
 		blocks = append(blocks, b)
 	}

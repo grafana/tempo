@@ -16,7 +16,7 @@ func TestRegistry(t *testing.T) {
 	now := time.Now()
 	theTime := &now
 
-	registry := NewRegistry(nil)
+	registry := NewRegistry(nil, "test-tenant")
 	registry.SetTimeNow(func() time.Time {
 		return *theTime
 	})
@@ -110,7 +110,7 @@ func TestRegistry_exemplars(t *testing.T) {
 	now := time.Now()
 	theTime := &now
 
-	registry := NewRegistry(nil)
+	registry := NewRegistry(nil, "test-tenant")
 	registry.SetTimeNow(func() time.Time {
 		return *theTime
 	})
@@ -171,7 +171,7 @@ func TestRegisterer_externalLabels(t *testing.T) {
 	registry := NewRegistry(map[string]string{
 		"external_label1": "constant_value1",
 		"external_label2": "constant_value2",
-	})
+	}, "test-tenant")
 	registry.SetTimeNow(func() time.Time {
 		return *theTime
 	})

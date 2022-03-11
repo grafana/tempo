@@ -43,6 +43,18 @@ dashboard_utils {
         )
       )
       .addRow(
+        g.row('Metrics-generator')
+        .addPanel(
+          $.containerCPUUsagePanel('CPU', $._config.jobs.metrics_generator),
+        )
+        .addPanel(
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.metrics_generator),
+        )
+        .addPanel(
+          $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.metrics_generator)),
+        )
+      )
+      .addRow(
         g.row('Query Frontend')
         .addPanel(
           $.containerCPUUsagePanel('CPU', $._config.jobs.query_frontend),

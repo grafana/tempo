@@ -21,43 +21,45 @@ import (
 	"go.opentelemetry.io/otel/metric/number"
 )
 
-type noopInstrument struct{}
-type noopBoundInstrument struct{}
+type noopInstrument struct {
+	descriptor Descriptor
+}
 type noopSyncInstrument struct{ noopInstrument }
 type noopAsyncInstrument struct{ noopInstrument }
 
 var _ SyncImpl = noopSyncInstrument{}
-var _ BoundSyncImpl = noopBoundInstrument{}
 var _ AsyncImpl = noopAsyncInstrument{}
 
 // NewNoopSyncInstrument returns a No-op implementation of the
 // synchronous instrument interface.
 func NewNoopSyncInstrument() SyncImpl {
-	return noopSyncInstrument{}
+	return noopSyncInstrument{
+		noopInstrument{
+			descriptor: Descriptor{
+				instrumentKind: CounterInstrumentKind,
+			},
+		},
+	}
 }
 
 // NewNoopAsyncInstrument returns a No-op implementation of the
 // asynchronous instrument interface.
 func NewNoopAsyncInstrument() AsyncImpl {
-	return noopAsyncInstrument{}
+	return noopAsyncInstrument{
+		noopInstrument{
+			descriptor: Descriptor{
+				instrumentKind: CounterObserverInstrumentKind,
+			},
+		},
+	}
 }
 
 func (noopInstrument) Implementation() interface{} {
 	return nil
 }
 
-func (noopInstrument) Descriptor() Descriptor {
-	return Descriptor{}
-}
-
-func (noopBoundInstrument) RecordOne(context.Context, number.Number) {
-}
-
-func (noopBoundInstrument) Unbind() {
-}
-
-func (noopSyncInstrument) Bind([]attribute.KeyValue) BoundSyncImpl {
-	return noopBoundInstrument{}
+func (n noopInstrument) Descriptor() Descriptor {
+	return n.descriptor
 }
 
 func (noopSyncInstrument) RecordOne(context.Context, number.Number, []attribute.KeyValue) {

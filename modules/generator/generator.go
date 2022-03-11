@@ -13,11 +13,10 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/prometheus/storage"
 	"github.com/weaveworks/common/user"
 	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/modules/generator/remotewrite"
+	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
 )
@@ -34,8 +33,6 @@ const (
 
 var ErrReadOnly = errors.New("metrics-generator is shutting down")
 
-type AppendableFactory func(userID string) storage.Appendable
-
 type Generator struct {
 	services.Service
 
@@ -48,20 +45,20 @@ type Generator struct {
 	instancesMtx sync.RWMutex
 	instances    map[string]*instance
 
-	appendableFactory AppendableFactory
-
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
 
 	// When set to true, the generator will refuse incoming pushes
 	// and will flush any remaining metrics.
 	readOnly atomic.Bool
+
+	reg prometheus.Registerer
 }
 
 // New makes a new Generator.
 func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer) (*Generator, error) {
-	if cfg.RemoteWrite.Enabled && cfg.RemoteWrite.Client.URL == nil {
-		return nil, errors.New("remote-write enabled but client URL is not configured")
+	if cfg.Storage.Path == "" {
+		return nil, errors.New("must configure metrics_generator.storage.path")
 	}
 
 	if cfg.AddInstanceIDLabel {
@@ -76,6 +73,8 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		overrides: overrides,
 
 		instances: map[string]*instance{},
+
+		reg: reg,
 	}
 
 	// Lifecycler and ring
@@ -109,12 +108,6 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 	g.ring, err = ring.NewWithStoreClientAndStrategy(ringCfg, ringNameForServer, RingKey, ringStore, ring.NewIgnoreUnhealthyInstancesReplicationStrategy(), prometheus.WrapRegistererWithPrefix("cortex_", reg), log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("create ring client: %w", err)
-	}
-
-	// Remote write
-	remoteWriteMetrics := remotewrite.NewMetrics(reg)
-	g.appendableFactory = func(userID string) storage.Appendable {
-		return remotewrite.NewAppendable(&cfg.RemoteWrite, log.Logger, userID, remoteWriteMetrics)
 	}
 
 	g.Service = services.NewBasicService(g.starting, g.running, g.stopping)
@@ -179,13 +172,17 @@ func (g *Generator) stopping(_ error) error {
 		}
 	}
 
-	// Wait for generator to stop subservices, then shutdown instances and flush metrics
-	for id, instance := range g.instances {
-		err := instance.shutdown(context.Background())
-		if err != nil {
-			level.Warn(log.Logger).Log("msg", "shutdown completed with errors", "instanceID", id, "err", err)
-		}
+	var wg sync.WaitGroup
+	wg.Add(len(g.instances))
+
+	for _, inst := range g.instances {
+		go func(inst *instance) {
+			inst.shutdown(context.Background())
+			wg.Done()
+		}(inst)
 	}
+
+	wg.Wait()
 
 	return nil
 }
@@ -214,10 +211,7 @@ func (g *Generator) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 		return nil, err
 	}
 
-	err = instance.pushSpans(ctx, req)
-	if err != nil {
-		return nil, err
-	}
+	instance.pushSpans(ctx, req)
 
 	return &tempopb.PushResponse{}, nil
 }
@@ -230,15 +224,17 @@ func (g *Generator) getOrCreateInstance(instanceID string) (*instance, error) {
 
 	g.instancesMtx.Lock()
 	defer g.instancesMtx.Unlock()
+
 	inst, ok = g.instances[instanceID]
-	if !ok {
-		var err error
-		inst, err = newInstance(g.cfg, instanceID, g.overrides, g.appendableFactory(instanceID))
-		if err != nil {
-			return nil, err
-		}
-		g.instances[instanceID] = inst
+	if ok {
+		return inst, nil
 	}
+
+	inst, err := g.createInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+	g.instances[instanceID] = inst
 	return inst, nil
 }
 
@@ -250,6 +246,15 @@ func (g *Generator) getInstanceByID(id string) (*instance, bool) {
 	return inst, ok
 }
 
+func (g *Generator) createInstance(id string) (*instance, error) {
+	wal, err := storage.New(&g.cfg.Storage, id, g.reg, log.Logger)
+	if err != nil {
+		return nil, err
+	}
+
+	return newInstance(g.cfg, id, g.overrides, wal)
+}
+
 func (g *Generator) collectMetrics() {
 	ctx, cancel := context.WithTimeout(context.Background(), g.cfg.CollectionInterval)
 	defer cancel()
@@ -258,9 +263,9 @@ func (g *Generator) collectMetrics() {
 	defer span.Finish()
 
 	for _, instance := range g.instances {
-		err := instance.collectAndPushMetrics(ctx)
+		err := instance.collectMetrics(ctx)
 		if err != nil {
-			level.Error(log.Logger).Log("msg", "collecting and pushing metrics failed", "tenant", instance.instanceID, "err", err)
+			level.Error(log.Logger).Log("msg", "collecting metrics failed", "tenant", instance.instanceID, "err", err)
 		}
 	}
 }

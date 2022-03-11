@@ -2,6 +2,7 @@ package storage
 
 import (
 	"flag"
+	"time"
 
 	"github.com/grafana/tempo/pkg/cache"
 
@@ -36,6 +37,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.Trace.WAL.Filepath, util.PrefixConfig(prefix, "trace.wal.path"), "/var/tempo/wal", "Path at which store WAL blocks.")
 	cfg.Trace.WAL.Encoding = backend.EncSnappy
 	cfg.Trace.WAL.SearchEncoding = backend.EncNone
+	cfg.Trace.WAL.IngestionSlack = 2 * time.Minute
 
 	cfg.Trace.Search = &tempodb.SearchConfig{}
 	cfg.Trace.Search.ChunkSizeBytes = tempodb.DefaultSearchChunkSizeBytes

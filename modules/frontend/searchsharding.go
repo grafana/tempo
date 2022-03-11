@@ -82,6 +82,7 @@ func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
 	r.resultsMetrics.InspectedBytes += res.Metrics.InspectedBytes
 	r.resultsMetrics.InspectedTraces += res.Metrics.InspectedTraces
 	r.resultsMetrics.SkippedBlocks += res.Metrics.SkippedBlocks
+	r.resultsMetrics.SkippedTraces += res.Metrics.SkippedTraces
 }
 
 func (r *searchResponse) shouldQuit() bool {
@@ -295,8 +296,10 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	return &http.Response{
-		StatusCode:    http.StatusOK,
-		Header:        http.Header{},
+		StatusCode: http.StatusOK,
+		Header: http.Header{
+			api.HeaderContentType: {api.HeaderAcceptJSON},
+		},
 		Body:          io.NopCloser(strings.NewReader(bodyString)),
 		ContentLength: int64(len([]byte(bodyString))),
 	}, nil

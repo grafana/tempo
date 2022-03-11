@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -27,7 +28,9 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const envConfigPrefix = "TEMPO"
+const (
+	envConfigPrefix = "TEMPO"
+)
 
 // used to initialize a reader one time
 var (
@@ -48,6 +51,11 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 	searchReq, err := api.ParseSearchBlockRequest(r)
 	if err != nil {
 		return nil, httpError("parsing search request", err, http.StatusBadRequest)
+	}
+
+	maxBytes, err := api.ExtractServerlessParams(r)
+	if err != nil {
+		return nil, httpError("extracting serverless params", err, http.StatusBadRequest)
 	}
 
 	// load config, fields are set through env vars TEMPO_
@@ -94,6 +102,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		return nil, httpError("creating partial iterator", err, http.StatusInternalServerError)
 	}
 	iter = encoding.NewPrefetchIterator(r.Context(), iter, cfg.Search.PrefetchTraceCount)
+	defer iter.Close()
 
 	resp := &tempopb.SearchResponse{
 		Metrics: &tempopb.SearchMetrics{},
@@ -116,6 +125,11 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		resp.Metrics.InspectedTraces++
 		resp.Metrics.InspectedBytes += uint64(len(obj))
 
+		if maxBytes > 0 && len(obj) > maxBytes {
+			resp.Metrics.SkippedTraces++
+			continue
+		}
+
 		metadata, err := decoder.Matches(id, obj, searchReq.SearchReq)
 		if err != nil {
 			return nil, httpError("matching", err, http.StatusInternalServerError)
@@ -129,6 +143,8 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 			break
 		}
 	}
+
+	runtime.GC()
 
 	return resp, nil
 }

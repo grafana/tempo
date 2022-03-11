@@ -14,6 +14,7 @@ type Config struct {
 	TraceLookupQueryTimeout time.Duration `yaml:"query_timeout"`
 	SearchQueryTimeout      time.Duration `yaml:"search_query_timeout"`
 	SearchExternalEndpoints []string      `yaml:"search_external_endpoints"`
+	SearchPreferSelf        int           `yaml:"search_prefer_self"`
 	ExtraQueryDelay         time.Duration `yaml:"extra_query_delay,omitempty"`
 	MaxConcurrentQueries    int           `yaml:"max_concurrent_queries"`
 	Worker                  worker.Config `yaml:"frontend_worker"`
@@ -25,6 +26,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.SearchQueryTimeout = 30 * time.Second
 	cfg.ExtraQueryDelay = 0
 	cfg.MaxConcurrentQueries = 5
+	cfg.SearchPreferSelf = 2
 	cfg.Worker = worker.Config{
 		MatchMaxConcurrency:   true,
 		MaxConcurrentRequests: cfg.MaxConcurrentQueries,

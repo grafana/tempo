@@ -1,4 +1,4 @@
-# tempo-servless
+# tempo-serverless
 
 This folder is intended to wrap a simple handler for searching backend storage for traces. Eventually it
 will encapsulate all of the code and tooling necessary to build and test this code as a serverless function 

@@ -25,6 +25,7 @@ import (
 	httpgrpc_server "github.com/weaveworks/common/httpgrpc/server"
 	"github.com/weaveworks/common/user"
 	"go.uber.org/multierr"
+	"golang.org/x/sync/semaphore"
 
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
@@ -66,6 +67,8 @@ type Querier struct {
 	store  storage.Store
 	limits *overrides.Overrides
 
+	searchPreferSelf *semaphore.Weighted
+
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
 }
@@ -90,8 +93,9 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 			factory,
 			metricIngesterClients,
 			log.Logger),
-		store:  store,
-		limits: limits,
+		store:            store,
+		limits:           limits,
+		searchPreferSelf: semaphore.NewWeighted(int64(cfg.SearchPreferSelf)),
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
@@ -167,7 +171,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.FindTraceByID")
 	defer span.Finish()
 
-	var completeTrace *tempopb.Trace
+	combiner := trace.NewCombiner()
 	var spanCount, spanCountTotal, traceCountTotal int
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
 		replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
@@ -184,16 +188,18 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			return nil, errors.Wrap(err, "error querying ingesters in Querier.FindTraceByID")
 		}
 
+		found := false
 		for _, r := range responses {
 			t := r.response.(*tempopb.TraceByIDResponse).Trace
 			if t != nil {
-				completeTrace, spanCount = trace.CombineTraceProtos(completeTrace, t)
+				spanCount = combiner.Consume(t)
 				spanCountTotal += spanCount
 				traceCountTotal++
+				found = true
 			}
 		}
 		span.LogFields(ot_log.String("msg", "done searching ingesters"),
-			ot_log.Bool("found", completeTrace != nil),
+			ot_log.Bool("found", found),
 			ot_log.Int("combinedSpans", spanCountTotal),
 			ot_log.Int("combinedTraces", traceCountTotal))
 	}
@@ -225,16 +231,18 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 				}
 			}
 
-			completeTrace, spanCount = trace.CombineTraceProtos(completeTrace, storeTrace)
+			spanCount = combiner.Consume(storeTrace)
 			spanCountTotal += spanCount
 			traceCountTotal++
 
 			span.LogFields(ot_log.String("msg", "combined trace protos from store"),
-				ot_log.Bool("found", completeTrace != nil),
+				ot_log.Bool("found", len(partialTraces) > 0),
 				ot_log.Int("combinedSpans", spanCountTotal),
 				ot_log.Int("combinedTraces", traceCountTotal))
 		}
 	}
+
+	completeTrace, _ := combiner.Result()
 
 	return &tempopb.TraceByIDResponse{
 		Trace: completeTrace,
@@ -391,13 +399,29 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 
 // SearchBlock searches the specified subset of the block for the passed tags.
 func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
-	// todo: if the querier is not currently doing anything it should prefer handling the request itself to
-	//  offloading to the external endpoint
-	if len(q.cfg.SearchExternalEndpoints) != 0 {
-		endpoint := q.cfg.SearchExternalEndpoints[rand.Intn(len(q.cfg.SearchExternalEndpoints))]
-		return searchExternalEndpoint(ctx, endpoint, req)
+	// if we have no external configuration always search in the querier
+	if len(q.cfg.SearchExternalEndpoints) == 0 {
+		return q.internalSearchBlock(ctx, req)
 	}
 
+	// if we have external configuration but there's an open slot locally then search in the querier
+	if q.searchPreferSelf.TryAcquire(1) {
+		defer q.searchPreferSelf.Release(1)
+		return q.internalSearchBlock(ctx, req)
+	}
+
+	// proxy externally!
+	tenantID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "error extracting org id for externalEndpoint")
+	}
+	maxBytes := q.limits.MaxBytesPerTrace(tenantID)
+
+	endpoint := q.cfg.SearchExternalEndpoints[rand.Intn(len(q.cfg.SearchExternalEndpoints))]
+	return searchExternalEndpoint(ctx, endpoint, maxBytes, req)
+}
+
+func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "error extracting org id in Querier.BackendSearch")
@@ -423,6 +447,8 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 		DataEncoding:  req.DataEncoding,
 	}
 
+	maxBytes := q.limits.MaxBytesPerTrace(tenantID)
+
 	var searchErr error
 	respMtx := sync.Mutex{}
 	resp := &tempopb.SearchResponse{
@@ -439,6 +465,13 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 		resp.Metrics.InspectedTraces++
 		resp.Metrics.InspectedBytes += uint64(len(obj))
 		respMtx.Unlock()
+
+		if maxBytes > 0 && len(obj) > maxBytes {
+			respMtx.Lock()
+			resp.Metrics.SkippedTraces++
+			respMtx.Unlock()
+			return false
+		}
 
 		metadata, err := decoder.Matches(id, obj, req.SearchReq)
 
@@ -506,7 +539,7 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 	return response
 }
 
-func searchExternalEndpoint(ctx context.Context, externalEndpoint string, searchReq *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
+func searchExternalEndpoint(ctx context.Context, externalEndpoint string, maxBytes int, searchReq *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	req, err := http.NewRequest(http.MethodGet, externalEndpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to make new request: %w", err)
@@ -515,6 +548,7 @@ func searchExternalEndpoint(ctx context.Context, externalEndpoint string, search
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to build search block request: %w", err)
 	}
+	req = api.AddServerlessParams(req, maxBytes)
 	err = user.InjectOrgIDIntoHTTPRequest(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to inject tenant id: %w", err)

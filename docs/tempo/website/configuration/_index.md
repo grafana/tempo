@@ -231,6 +231,15 @@ query_frontend:
 
         # (default: 1h)
         [query_ingesters_until: <duration>]
+
+        # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
+        # be set to p99 of search requests to reduce long tail latency.
+        # (default: 5s)
+        [hedge_requests_at: <duration>]
+
+        # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
+        # (default: 3)
+        [hedge_requests_up_to: <int>]
 ```
 
 ## Querier
@@ -253,6 +262,19 @@ querier:
     # used with serverless technologies for massive parrallelization of the search path.
     # The default value of "" disables this feature.
     [search_external_endpoints: <list of strings> | default = <empty list>]
+
+    # If search_external_endpoints is set then the querier will primarily act as a proxy for whatever serverless backend
+    # you have configured. This setting allows the operator to have the querier prefer itself for a configurable
+    # number of subqueries. In the default case of 2 the querier will process up to 2 search requests subqueries before starting
+    # to reach out to search_external_endpoints. 
+    # Setting this to 0 will disable this feature and the querier will proxy all search subqueries to search_external_endpoints.
+    [search_prefer_self: <int> | default = 2 ]
+
+    # The query frontend turns both trace by id (/api/traces/<id>) and search (/api/search?<params>) requests
+    # into subqueries that are then pulled and serviced by the queriers.
+    # This value controls the overall number of simultaneous subqueries that the querier will service at once. It does
+    # not distinguish between the types of queries.
+    [max_concurrent_queries: <int> | default = 5]
 
     # config of the worker that connects to the query frontend
     frontend_worker:
@@ -642,6 +664,13 @@ storage:
             # Options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
             [search_encoding: <string> | default = none]
 
+            # When a span is written to the WAL it adjusts the start and end times of the block it is written to.
+            # This block start and end time range is then used when choosing blocks for search. To prevent spans too far
+            # in the past or future from impacting the block start and end times we use this configuration option.
+            # This option only allows spans that occur within the configured duration to adjust the block start and
+            # end times.
+            [ingestion_time_range_slack: <duration> | default = 2m]
+
         # block configuration
         block:
 
@@ -662,7 +691,6 @@ storage:
 
             # number of bytes per search page
             [search_page_size_bytes: <int> | default = 1MiB]
-
 ```
 
 ## Memberlist
@@ -768,46 +796,56 @@ overrides:
     
     # Global ingestion limits configurations
 
-    # Specifies whether the ingestion rate limits should be applied by each instance of the distributor and ingester
-    # individually, or the limits are to be shared across all instances. See the "override strategies" section for an example.
+    # Specifies whether the ingestion rate limits should be applied by each instance
+    # of the distributor and ingester individually, or the limits are to be shared
+    # across all instances. See the "override strategies" section for an example.
     [ingestion_rate_strategy: <global|local> | default = local]
 
     # Burst size (bytes) used in ingestion.
     # Results in errors like
-    #   RATE_LIMITED: ingestion rate limit (20000000 bytes) exceeded while adding 10 bytes
+    #   RATE_LIMITED: ingestion rate limit (20000000 bytes) exceeded while
+    #   adding 10 bytes
     [ingestion_burst_size_bytes: <int> | default = 20000000 (20MB) ]
 
     # Per-user ingestion rate limit (bytes) used in ingestion. 
     # Results in errors like
-    #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes
+    #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while
+    #   adding 10 bytes
     [ingestion_rate_limit_bytes: <int> | default = 15000000 (15MB) ]
 
-    # Maximum size of a single trace in bytes.  `0` to disable. 
-    # Results in errors like
+    # Maximum size of a single trace in bytes.  A value of 0 disables the size
+    # check.
+    # This limit is used in 3 places:
+    #  - During search, traces will be skipped when they exceed this threshold.
+    #  - During ingestion, traces that exceed this threshold will be refused.
+    #  - During compaction, traces that exceed this threshold will be partially dropped.
+    # During ingestion, exceeding the threshold results in errors like
     #    TRACE_TOO_LARGE: max size of trace (5000000) exceeded while adding 387 bytes
     [max_bytes_per_trace: <int> | default = 5000000 (5MB) ]
 
-    # Maximum number of active traces per user, per ingester. `0` to disable. 
+    # Maximum number of active traces per user, per ingester. A value of 0
+    # disables the check.
     # Results in errors like
-    #    LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded: per-user traces limit (local: 10000 global: 0 actual local: 1) exceeded
+    #    LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded:
+    #    per-user traces limit (local: 10000 global: 0 actual local: 1) exceeded
     # This override limit is used by the ingester.
     [max_traces_per_user: <int> | default = 10000]
 
-    # Maximum size of search data for a single trace in bytes. `0` to disable.
-    # From an operational perspective, the size of search data is proportional to the total size of all tags in a trace
+    # Maximum size of search data for a single trace in bytes. A value of 0 
+    # disables the check. From an operational perspective, the size of search
+    # data is proportional to the total size of all tags in a trace.
     [max_search_bytes_per_trace: <int> | default = 5000]
 
-    # Maximum size in bytes of a tag-values query. Tag-values query is used mainly to populate the autocomplete dropdown.
-    # Limit added to protect from tags with high cardinality or large values (like HTTP URLs or SQL queries)
+    # Maximum size in bytes of a tag-values query. Tag-values query is used mainly
+    # to populate the autocomplete dropdown. This limit protects the system from
+    # tags with high cardinality or large values such as HTTP URLs or SQL queries.
     # This override limit is used by the ingester and the querier.
     [max_bytes_per_tag_values_query: <int> | default = 5000000 (5MB) ]
 
-    # Tenant-specific overrides
-
-    # Tenant-specific overrides settings configuration file. See the "Tenant-specific overrides" section for an example.
-    [per_tenant_override_config: /conf/overrides.yaml]
+    # Tenant-specific overrides settings configuration file. The empty string (default
+    # value) disables using an overrides file.
+    [per_tenant_override_config: <string> | default = ""]
 ```
-
 
 #### Tenant-specific overrides
 

@@ -63,7 +63,10 @@ func CombineForRead(obj []byte, dataEncoding string, t *tempopb.Trace) (*tempopb
 		return nil, fmt.Errorf("error unmarshalling obj (%s): %w", dataEncoding, err)
 	}
 
-	combined, _ := trace.CombineTraceProtos(objTrace, t)
+	c := trace.NewCombiner()
+	c.Consume(objTrace)
+	c.ConsumeWithFinal(t, true)
+	combined, _ := c.Result()
 
 	return combined, nil
 }
