@@ -8,6 +8,7 @@ import (
 
 	"github.com/grafana/e2e"
 	e2e_db "github.com/grafana/e2e/db"
+
 	"github.com/grafana/tempo/cmd/tempo/app"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/tempodb/backend/azure"
@@ -15,7 +16,7 @@ import (
 
 const (
 	azuriteImage = "mcr.microsoft.com/azure-storage/azurite"
-	gcsImage     = "fsouza/fake-gcs-server"
+	gcsImage     = "fsouza/fake-gcs-server:1.36.3"
 )
 
 func parsePort(endpoint string) (int, error) {
