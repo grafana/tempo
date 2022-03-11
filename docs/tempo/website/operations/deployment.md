@@ -48,7 +48,7 @@ Which mode is deployed is determined by the runtime configuration `target`, or
 by using the `-target` flag on the command line. The default target is `all`,
 which is the monolithic deployment mode.
 
-> **Note:** _Monolithic mode_ was previously called _single binary mode_. Similarly _scalable monolithic mode_ was previously called _scalable single binary mode_. While the documentation has been updated to reflect this change, some URL names and deployment tooling (e.g. Helm charts) may still not reflect this change. 
+> **Note:** _Monolithic mode_ was previously called _single binary mode_. Similarly _scalable monolithic mode_ was previously called _scalable single binary mode_. While the documentation has been updated to reflect this change, some URL names and deployment tooling (e.g. Helm charts) do not yet reflect this change. 
 
 ## Monolithic
 
