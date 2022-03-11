@@ -336,6 +336,10 @@ compactor:
 
         # Optional. The maximum amount of time to spend compacting a single tenant before moving to the next. Default is 5m.
         [max_time_per_tenant: <duration>] 
+
+        # Optional. The time between compaction cycles. Default is 30s.
+        # Note: The default will be used if the value is set to 0.
+        [compaction_cycle: <duration>]
 ```
 
 ## Storage
