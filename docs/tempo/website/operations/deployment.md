@@ -17,8 +17,8 @@ Tempo can be easily deployed through a number of tools as explained in this docu
 
 The Jsonnet files that you need to deploy Tempo with Tanka are available here:
 
-- [single binary](https://github.com/grafana/tempo/tree/main/operations/jsonnet/single-binary)
-- [microservices](https://github.com/grafana/tempo/tree/main/operations/jsonnet/microservices)
+- [monolithic mode](https://github.com/grafana/tempo/tree/main/operations/jsonnet/single-binary)
+- [microservices mode](https://github.com/grafana/tempo/tree/main/operations/jsonnet/microservices)
 
 Here are a few [examples](https://github.com/grafana/tempo/tree/main/example/tk) that use official Jsonnet files.
 They display the full range of configurations available to Tempo.
@@ -27,8 +27,8 @@ They display the full range of configurations available to Tempo.
 
 Helm charts are available in the grafana/helm-charts repo:
 
-- [single binary](https://github.com/grafana/helm-charts/tree/main/charts/tempo)
-- [microservices](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed)
+- [monolithic mode](https://github.com/grafana/helm-charts/tree/main/charts/tempo)
+- [microservices mode](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed)
 
 ## Kubernetes manifests
 
@@ -46,7 +46,9 @@ Tempo can be deployed in one of three modes:
 
 Which mode is deployed is determined by the runtime configuration `target`, or
 by using the `-target` flag on the command line. The default target is `all`,
-which is the single binary deployment mode.
+which is the monolithic deployment mode.
+
+> **Note:** _Monolithic mode_ was previously called _single binary mode_. Similarly _scalable monolithic mode_ was previously called _scalable single binary mode_. While the documentation has been updated to reflect this change, some URL names and deployment tooling (e.g. Helm charts) may still not reflect this change. 
 
 ## Monolithic
 
