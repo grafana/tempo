@@ -175,6 +175,20 @@ func TestInstance_multiTenancy(t *testing.T) {
 	}
 }
 
+func TestInstance_cantWriteToWAL(t *testing.T) {
+	var cfg Config
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	// We are obviously not allowed to write here
+	cfg.Path = "/root"
+
+	// We should be able to attempt to create the instance multiple times
+	_, err := New(&cfg, "test-tenant", prometheus.DefaultRegisterer, log.NewNopLogger())
+	require.Error(t, err)
+	_, err = New(&cfg, "test-tenant", prometheus.DefaultRegisterer, log.NewNopLogger())
+	require.Error(t, err)
+}
+
 type mockPrometheusRemoteWriteServer struct {
 	mtx sync.Mutex
 
