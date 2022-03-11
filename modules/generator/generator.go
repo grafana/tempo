@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
@@ -18,7 +19,6 @@ import (
 
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/log"
 )
 
 const (
@@ -52,11 +52,12 @@ type Generator struct {
 	// and will flush any remaining metrics.
 	readOnly atomic.Bool
 
-	reg prometheus.Registerer
+	reg    prometheus.Registerer
+	logger log.Logger
 }
 
 // New makes a new Generator.
-func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer) (*Generator, error) {
+func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer, logger log.Logger) (*Generator, error) {
 	if cfg.Storage.Path == "" {
 		return nil, errors.New("must configure metrics_generator.storage.path")
 	}
@@ -74,7 +75,8 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 
 		instances: map[string]*instance{},
 
-		reg: reg,
+		reg:    reg,
+		logger: logger,
 	}
 
 	// Lifecycler and ring
@@ -82,7 +84,7 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		cfg.Ring.KVStore,
 		ring.GetCodec(),
 		kv.RegistererWithKVName(prometheus.WrapRegistererWithPrefix("cortex_", reg), "metrics-generator"),
-		log.Logger,
+		g.logger,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create KV store client: %w", err)
@@ -96,16 +98,16 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 	// Define lifecycler delegates in reverse order (last to be called defined first because they're
 	// chained via "next delegate").
 	delegate := ring.BasicLifecyclerDelegate(g)
-	delegate = ring.NewLeaveOnStoppingDelegate(delegate, log.Logger)
-	delegate = ring.NewAutoForgetDelegate(ringAutoForgetUnhealthyPeriods*cfg.Ring.HeartbeatTimeout, delegate, log.Logger)
+	delegate = ring.NewLeaveOnStoppingDelegate(delegate, g.logger)
+	delegate = ring.NewAutoForgetDelegate(ringAutoForgetUnhealthyPeriods*cfg.Ring.HeartbeatTimeout, delegate, g.logger)
 
-	g.ringLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, ringNameForServer, RingKey, ringStore, delegate, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
+	g.ringLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, ringNameForServer, RingKey, ringStore, delegate, g.logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
 	if err != nil {
 		return nil, fmt.Errorf("create ring lifecycler: %w", err)
 	}
 
 	ringCfg := cfg.Ring.ToRingConfig()
-	g.ring, err = ring.NewWithStoreClientAndStrategy(ringCfg, ringNameForServer, RingKey, ringStore, ring.NewIgnoreUnhealthyInstancesReplicationStrategy(), prometheus.WrapRegistererWithPrefix("cortex_", reg), log.Logger)
+	g.ring, err = ring.NewWithStoreClientAndStrategy(ringCfg, ringNameForServer, RingKey, ringStore, ring.NewIgnoreUnhealthyInstancesReplicationStrategy(), prometheus.WrapRegistererWithPrefix("cortex_", reg), g.logger)
 	if err != nil {
 		return nil, fmt.Errorf("create ring client: %w", err)
 	}
@@ -124,7 +126,7 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 		}
 
 		if stopErr := services.StopManagerAndAwaitStopped(context.Background(), g.subservices); stopErr != nil {
-			level.Error(log.Logger).Log("msg", "failed to gracefully stop metrics-generator dependencies", "err", stopErr)
+			level.Error(g.logger).Log("msg", "failed to gracefully stop metrics-generator dependencies", "err", stopErr)
 		}
 	}()
 
@@ -168,7 +170,7 @@ func (g *Generator) stopping(_ error) error {
 	if g.subservices != nil {
 		err := services.StopManagerAndAwaitStopped(context.Background(), g.subservices)
 		if err != nil {
-			level.Error(log.Logger).Log("msg", "failed to stop metrics-generator dependencies", "err", err)
+			level.Error(g.logger).Log("msg", "failed to stop metrics-generator dependencies", "err", err)
 		}
 	}
 
@@ -247,12 +249,12 @@ func (g *Generator) getInstanceByID(id string) (*instance, bool) {
 }
 
 func (g *Generator) createInstance(id string) (*instance, error) {
-	wal, err := storage.New(&g.cfg.Storage, id, g.reg, log.Logger)
+	wal, err := storage.New(&g.cfg.Storage, id, g.reg, g.logger)
 	if err != nil {
 		return nil, err
 	}
 
-	return newInstance(g.cfg, id, g.overrides, wal)
+	return newInstance(g.cfg, id, g.overrides, wal, g.reg, g.logger)
 }
 
 func (g *Generator) collectMetrics() {
@@ -265,7 +267,7 @@ func (g *Generator) collectMetrics() {
 	for _, instance := range g.instances {
 		err := instance.collectMetrics(ctx)
 		if err != nil {
-			level.Error(log.Logger).Log("msg", "collecting metrics failed", "tenant", instance.instanceID, "err", err)
+			level.Error(g.logger).Log("msg", "collecting metrics failed", "tenant", instance.instanceID, "err", err)
 		}
 	}
 }
