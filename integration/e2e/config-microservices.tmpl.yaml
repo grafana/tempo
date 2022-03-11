@@ -23,6 +23,7 @@ ingester:
 storage:
   trace:
     blocklist_poll: 2s
+    blocklist_poll_stale_tenant_index: 15s
     backend: s3
     s3:
       bucket: tempo
