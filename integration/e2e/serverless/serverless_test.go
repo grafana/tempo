@@ -9,6 +9,7 @@ import (
 
 	"github.com/grafana/e2e"
 	e2e_db "github.com/grafana/e2e/db"
+
 	util "github.com/grafana/tempo/integration"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
@@ -60,10 +61,11 @@ func TestServerless(t *testing.T) {
 	info := tempoUtil.NewTraceInfo(time.Now(), "")
 	require.NoError(t, info.EmitAllBatches(c))
 
-	// ensure trace is created in ingester (trace_idle_time has passed)
-	require.NoError(t, tempoIngester1.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
-	require.NoError(t, tempoIngester2.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
-	require.NoError(t, tempoIngester3.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
+	// wait trace_idle_time and ensure trace is created in ingester
+	time.Sleep(1 * time.Second)
+	require.NoError(t, tempoIngester1.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
+	require.NoError(t, tempoIngester2.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
+	require.NoError(t, tempoIngester3.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
 	apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
 

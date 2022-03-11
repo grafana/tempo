@@ -92,8 +92,9 @@ func TestAllInOne(t *testing.T) {
 			// test echo
 			assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
 
-			// ensure trace is created in ingester (trace_idle_time has passed)
-			require.NoError(t, tempo.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
+			// wait trace_idle_time and ensure trace is created in ingester
+			time.Sleep(2 * time.Second)
+			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
 			apiClient := tempoUtil.NewClient("http://"+tempo.Endpoint(3200), "")
 
@@ -242,10 +243,11 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			// test echo
 			assertEcho(t, "http://"+tempoQueryFrontend.Endpoint(3200)+"/api/echo")
 
-			// ensure trace is created in ingester (trace_idle_time has passed)
-			require.NoError(t, tempoIngester1.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
-			require.NoError(t, tempoIngester2.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
-			require.NoError(t, tempoIngester3.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
+			// wait trace_idle_time and ensure trace is created in ingester
+			time.Sleep(1 * time.Second)
+			require.NoError(t, tempoIngester1.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
+			require.NoError(t, tempoIngester2.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
+			require.NoError(t, tempoIngester3.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
 			apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
 
@@ -374,7 +376,10 @@ func TestScalableSingleBinary(t *testing.T) {
 
 	// test metrics
 	require.NoError(t, tempo1.WaitSumMetrics(e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
-	require.NoError(t, tempo1.WaitSumMetrics(e2e.Greater(0), "tempo_ingester_traces_created_total"))
+
+	// wait trace_idle_time and ensure trace is created in ingester
+	time.Sleep(1 * time.Second)
+	require.NoError(t, tempo1.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
 
 	for _, i := range []*e2e.HTTPService{tempo1, tempo2, tempo3} {
 		callFlush(t, i)
