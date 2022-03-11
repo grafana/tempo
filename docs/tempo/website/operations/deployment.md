@@ -66,8 +66,8 @@ Find docker-compose deployment examples at:
 ## Scalable monolithic
 
 Scalable monolithic mode is similar to the monolithic mode in
-that all components are run within one binary. Horizontal scale out is
-achieved by instantiating more than one binary, with each binary having `-target` set to `scalable-single-binary`. 
+that all components are run within one process. Horizontal scale out is
+achieved by instantiating more than one process, with each having `-target` set to `scalable-single-binary`. 
 
 This mode offers some
 flexibility of scaling without the configuration complexity of the full
