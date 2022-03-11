@@ -38,20 +38,20 @@ folder.  These are generated using the Tanka / Jsonnet.
 
 # Deployment scenarios
 
-Tempo can be deployed in one of three modes.
+Tempo can be deployed in one of three modes:
 
-- Single binary
-- Scalable single binary
+- monolithic
+- Scalable monolithic
 - Microservices
 
 Which mode is deployed is determined by the runtime configuration `target`, or
 by using the `-target` flag on the command line. The default target is `all`,
 which is the single binary deployment mode.
 
-## Single binary
+## Monolithic
 
-A single binary mode deployment runs all top-level components in a single
-process, forming an instance of Tempo.  The single binary mode is the simplest
+Monolithic mode deployment runs all top-level components in a single
+process, forming an instance of Tempo.  The monolithic mode is the simplest
 to deploy, but can not horizontally scale out by increasing the quantity of
 components.  Refer to [Architecture]({{< relref "./architecture" >}}) for
 descriptions of the components.
@@ -63,18 +63,18 @@ Find docker-compose deployment examples at:
 - [https://github.com/grafana/tempo/tree/main/example/docker-compose/local](https://github.com/grafana/tempo/tree/main/example/docker-compose/local)
 - [https://github.com/grafana/tempo/tree/main/example/docker-compose/s3](https://github.com/grafana/tempo/tree/main/example/docker-compose/s3)
 
-## Scalable single binary
+## Scalable monolithic
 
-A scalable single binary deployment is similar to the single binary mode in
-that all components are deployed within one binary. Horizontal scale out is
-achieved by instantiating more than one single binary. This mode offers some
+Scalable monolithic mode is similar to the monolithic mode in
+that all components are run within one binary. Horizontal scale out is
+achieved by instantiating more than one binary, with each binary having `-target` set to `scalable-single-binary`. 
+
+This mode offers some
 flexibility of scaling without the configuration complexity of the full
 microservices deployment.
 
 Each of the `queriers` will perform a DNS lookup for the `frontend_address` and
 connect to the addresses found within the DNS record.
-
-To enable this mode, `-target=scalable-single-binary` is used.
 
 Find a docker-compose deployment example at:
 
