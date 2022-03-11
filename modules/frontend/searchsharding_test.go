@@ -32,8 +32,8 @@ type mockReader struct {
 	metas []*backend.BlockMeta
 }
 
-func (m *mockReader) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, []error, error) {
-	return nil, nil, nil, nil
+func (m *mockReader) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]*tempopb.Trace, []error, error) {
+	return nil, nil, nil
 }
 
 func (m *mockReader) BlockMetas(tenantID string) []*backend.BlockMeta {

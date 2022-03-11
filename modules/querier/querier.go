@@ -207,7 +207,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	var failedBlocks int
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.LogFields(ot_log.String("msg", "searching store"))
-		partialTraces, dataEncodings, blockErrs, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
+		partialTraces, blockErrs, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
 		if err != nil {
 			return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 		}
@@ -217,28 +217,12 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			_ = level.Warn(log.Logger).Log("msg", fmt.Sprintf("failed to query %d blocks", failedBlocks), "blockErrs", multierr.Combine(blockErrs...))
 		}
 
-		span.LogFields(ot_log.String("msg", "done searching store"))
+		span.LogFields(
+			ot_log.String("msg", "done searching store"),
+			ot_log.Int("foundPartialTraces", len(partialTraces)))
 
-		if len(partialTraces) != 0 {
-			traceCountTotal = 0
-			spanCountTotal = 0
-			var storeTrace *tempopb.Trace
-
-			for i, partialTrace := range partialTraces {
-				storeTrace, err = model.CombineForRead(partialTrace, dataEncodings[i], storeTrace)
-				if err != nil {
-					return nil, errors.Wrap(err, "error combining in Querier.FindTraceByID")
-				}
-			}
-
-			spanCount = combiner.Consume(storeTrace)
-			spanCountTotal += spanCount
-			traceCountTotal++
-
-			span.LogFields(ot_log.String("msg", "combined trace protos from store"),
-				ot_log.Bool("found", len(partialTraces) > 0),
-				ot_log.Int("combinedSpans", spanCountTotal),
-				ot_log.Int("combinedTraces", traceCountTotal))
+		for _, partialTrace := range partialTraces {
+			combiner.Consume(partialTrace)
 		}
 	}
 

@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	pkg_cache "github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
@@ -79,7 +80,7 @@ type Writer interface {
 type IterateObjectCallback func(id common.ID, obj []byte) bool
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, []error, error)
+	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]*tempopb.Trace, []error, error)
 	IterateObjects(ctx context.Context, meta *backend.BlockMeta, startPage int, totalPages int, callback IterateObjectCallback) error
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(sharder blocklist.JobSharder)
@@ -286,7 +287,7 @@ func (rw *readerWriter) BlockMetas(tenantID string) []*backend.BlockMeta {
 	return rw.blocklist.Metas(tenantID)
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, []error, error) {
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]*tempopb.Trace, []error, error) {
 	// tracing instrumentation
 	logger := log.WithContext(ctx, log.Logger)
 	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
@@ -294,19 +295,19 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 
 	blockStartUUID, err := uuid.Parse(blockStart)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	blockStartBytes, err := blockStartUUID.MarshalBinary()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	blockEndUUID, err := uuid.Parse(blockEnd)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	blockEndBytes, err := blockEndUUID.MarshalBinary()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	// gather appropriate blocks
@@ -329,39 +330,39 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		}
 	}
 	if len(copiedBlocklist) == 0 {
-		return nil, nil, nil, nil
+		return nil, nil, nil
 	}
 
 	curTime := time.Now()
-	partialTraces, dataEncodings, funcErrs, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) ([]byte, string, error) {
+	partialTraces, funcErrs, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) (interface{}, error) {
 		meta := payload.(*backend.BlockMeta)
 		r := rw.getReaderForBlock(meta, curTime)
 		block, err := encoding.NewBackendBlock(meta, r)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
 
-		foundObject, err := block.Find(ctx, id)
+		foundObject, err := block.FindTraceByID(ctx, id)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
 
 		level.Info(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
-		return foundObject, meta.DataEncoding, nil
+		return foundObject, nil
 	})
 
-	size := 0
-	for _, b := range partialTraces {
-		size += len(b)
+	partialTraceObjs := make([]*tempopb.Trace, len(partialTraces))
+	for i := range partialTraces {
+		partialTraceObjs[i] = partialTraces[i].(*tempopb.Trace)
 	}
-	span.SetTag("bytesFound", size)
+
 	span.SetTag("blockErrs", len(funcErrs))
 	span.SetTag("liveBlocks", len(blocklist))
 	span.SetTag("liveBlocksSearched", blocksSearched)
 	span.SetTag("compactedBlocks", len(compactedBlocklist))
 	span.SetTag("compactedBlocksSearched", compactedBlocksSearched)
 
-	return partialTraces, dataEncodings, funcErrs, err
+	return partialTraceObjs, funcErrs, err
 }
 
 // IterateObjects iterates through all objects for the provided blockID, startPage and totalPages

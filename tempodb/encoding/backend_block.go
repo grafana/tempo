@@ -153,6 +153,10 @@ func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID) (*tempop
 	if err != nil {
 		return nil, err
 	}
+	if obj == nil {
+		// Not found in this block
+		return nil, nil
+	}
 
 	dec, err := model.NewObjectDecoder(b.meta.DataEncoding)
 	if err != nil {
@@ -173,6 +177,11 @@ func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 		o(&opt)
 	}
 
+	decoder, err := model.NewObjectDecoder(b.meta.DataEncoding)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create NewDecoder: %w", err)
+	}
+
 	// Iterator
 	var iter Iterator
 	if opt.totalPages > 0 {
@@ -191,11 +200,6 @@ func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	respMtx := sync.Mutex{}
 	resp = &tempopb.SearchResponse{
 		Metrics: &tempopb.SearchMetrics{},
-	}
-
-	decoder, err := model.NewObjectDecoder(b.meta.DataEncoding)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create NewDecoder: %w", err)
 	}
 
 	var searchErr error

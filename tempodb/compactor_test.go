@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	v1 "github.com/grafana/tempo/pkg/model/v1"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -22,6 +23,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -97,38 +99,34 @@ func TestCompaction(t *testing.T) {
 	blockCount := 4
 	recordCount := 100
 
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
 	allReqs := make([]*tempopb.Trace, 0, blockCount*recordCount)
-	allIds := make([][]byte, 0, blockCount*recordCount)
+	allIds := make([]common.ID, 0, blockCount*recordCount)
 
 	for i := 0; i < blockCount; i++ {
 		blockID := uuid.New()
-		head, err := wal.NewBlock(blockID, testTenantID, "")
+		head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
 		require.NoError(t, err)
 
-		reqs := make([]*tempopb.Trace, 0, recordCount)
-		ids := make([][]byte, 0, recordCount)
 		for j := 0; j < recordCount; j++ {
-			id := make([]byte, 16)
-			_, err = rand.Read(id)
-			require.NoError(t, err, "unexpected creating random id")
-
+			id := test.ValidTraceID(nil)
 			req := test.MakeTrace(10, id)
-			reqs = append(reqs, req)
-			ids = append(ids, id)
+			allReqs = append(allReqs, req)
+			allIds = append(allIds, id)
 
-			bReq, err := proto.Marshal(req)
+			bReq, err := dec.PrepareForWrite(req, 0, 0)
 			require.NoError(t, err)
-			err = head.Append(id, bReq, 0, 0)
+
+			bReq2, err := dec.ToObject([][]byte{bReq})
+			require.NoError(t, err)
+
+			err = head.Append(id, bReq2, 0, 0)
 			require.NoError(t, err, "unexpected error writing req")
 		}
-		allReqs = append(allReqs, reqs...)
-		allIds = append(allIds, ids...)
 
 		_, err = w.CompleteBlock(head, &mockCombiner{})
 		require.NoError(t, err)
-
-		// err = w.WriteBlock(context.Background(), complete)
-		// assert.NoError(t, err)
 	}
 
 	rw := r.(*readerWriter)
@@ -173,15 +171,21 @@ func TestCompaction(t *testing.T) {
 
 	// now see if we can find our ids
 	for i, id := range allIds {
-		b, _, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
-		assert.NoError(t, err)
-		assert.Nil(t, failedBlocks)
+		trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
+		require.NoError(t, err)
+		require.Nil(t, failedBlocks)
+		require.NotNil(t, trs)
 
-		out := &tempopb.Trace{}
-		err = proto.Unmarshal(b[0], out)
-		assert.NoError(t, err)
+		c := trace.NewCombiner()
+		for _, tr := range trs {
+			c.Consume(tr)
+		}
+		tr, _ := c.Result()
 
-		assert.True(t, proto.Equal(allReqs[i], out))
+		// Traces come out of the combiner sorted,
+		// so do the same here.
+		trace.SortTrace(allReqs[i])
+		require.True(t, proto.Equal(allReqs[i], tr))
 	}
 }
 
@@ -211,7 +215,7 @@ func TestSameIDCompaction(t *testing.T) {
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:          10,
@@ -225,6 +229,8 @@ func TestSameIDCompaction(t *testing.T) {
 	wal := w.WAL()
 	assert.NoError(t, err)
 
+	dec := model.MustNewSegmentDecoder(v1.Encoding)
+
 	blockCount := 5
 	recordCount := 100
 
@@ -232,17 +238,18 @@ func TestSameIDCompaction(t *testing.T) {
 	allReqs := make([][][]byte, 0, recordCount)
 	allIds := make([][]byte, 0, recordCount)
 	for i := 0; i < recordCount; i++ {
-		id := make([]byte, 16)
-		_, err = rand.Read(id)
-		require.NoError(t, err, "unexpected creating random id")
+		id := test.ValidTraceID(nil)
 
 		requestShards := rand.Intn(blockCount) + 1
-
 		reqs := make([][]byte, 0, requestShards)
 		for j := 0; j < requestShards; j++ {
-			buff, err := proto.Marshal(test.MakeTraceBytes(1, id))
+			buff, err := dec.PrepareForWrite(test.MakeTrace(1, id), 0, 0)
 			require.NoError(t, err)
-			reqs = append(reqs, buff)
+
+			buff2, err := dec.ToObject([][]byte{buff})
+			require.NoError(t, err)
+
+			reqs = append(reqs, buff2)
 		}
 
 		allReqs = append(allReqs, reqs)
@@ -291,17 +298,25 @@ func TestSameIDCompaction(t *testing.T) {
 
 	// search for all ids
 	for i, id := range allIds {
-		b, _, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
+		trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax)
 		assert.NoError(t, err)
 		assert.Nil(t, failedBlocks)
 
-		actualBytes, _, err := model.StaticCombiner.Combine(v1.Encoding, b...)
+		c := trace.NewCombiner()
+		for _, tr := range trs {
+			c.Consume(tr)
+		}
+		tr, _ := c.Result()
+		b1, err := dec.PrepareForWrite(tr, 0, 0)
+		require.NoError(t, err)
+
+		b2, err := dec.ToObject([][]byte{b1})
 		require.NoError(t, err)
 
 		expectedBytes, _, err := model.StaticCombiner.Combine(v1.Encoding, allReqs[i]...)
 		require.NoError(t, err)
 
-		assert.Equal(t, expectedBytes, actualBytes)
+		require.Equal(t, expectedBytes, b2)
 	}
 }
 
@@ -329,7 +344,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:          10,
@@ -350,25 +365,25 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 
 	// compact everything
 	err = rw.compact(rw.blocklist.Metas(testTenantID), testTenantID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// New blocklist contains 1 compacted block with everything
 	blocks := rw.blocklist.Metas(testTenantID)
-	assert.Equal(t, 1, len(blocks))
-	assert.Equal(t, uint8(1), blocks[0].CompactionLevel)
-	assert.Equal(t, blockCount*recordCount, blocks[0].TotalObjects)
+	require.Equal(t, 1, len(blocks))
+	require.Equal(t, uint8(1), blocks[0].CompactionLevel)
+	require.Equal(t, blockCount*recordCount, blocks[0].TotalObjects)
 
 	// Compacted list contains all old blocks
-	assert.Equal(t, blockCount, len(rw.blocklist.CompactedMetas(testTenantID)))
+	require.Equal(t, blockCount, len(rw.blocklist.CompactedMetas(testTenantID)))
 
 	// Make sure all expected traces are found.
 	for i := 0; i < blockCount; i++ {
 		for j := 0; j < recordCount; j++ {
-			trace, _, failedBlocks, err := rw.Find(context.TODO(), testTenantID, makeTraceID(i, j), BlockIDMin, BlockIDMax)
-			assert.NotNil(t, trace)
-			assert.Greater(t, len(trace), 0)
-			assert.NoError(t, err)
-			assert.Nil(t, failedBlocks)
+			trace, failedBlocks, err := rw.Find(context.TODO(), testTenantID, makeTraceID(i, j), BlockIDMin, BlockIDMax)
+			require.NotNil(t, trace)
+			require.Greater(t, len(trace), 0)
+			require.NoError(t, err)
+			require.Nil(t, failedBlocks)
 		}
 	}
 }
@@ -505,19 +520,23 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 
 func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, recordCount int) []*encoding.BackendBlock {
 	blocks := make([]*encoding.BackendBlock, 0)
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	wal := w.WAL()
 	for i := 0; i < blockCount; i++ {
-		head, err := wal.NewBlock(uuid.New(), tenantID, "")
+		head, err := wal.NewBlock(uuid.New(), tenantID, model.CurrentEncoding)
 		require.NoError(t, err)
 
 		for j := 0; j < recordCount; j++ {
-			// Use i and j to ensure unique ids
-			body := make([]byte, 1024)
-			rand.Read(body)
+			tr := test.MakeTrace(1, makeTraceID(i, j))
+
+			b1, err := dec.PrepareForWrite(tr, 0, 0)
+			require.NoError(t, err)
+			b2, err := dec.ToObject([][]byte{b1})
+			require.NoError(t, err)
 
 			now := uint32(time.Now().Unix())
-			err = head.Append(makeTraceID(i, j), body, now, now)
+			err = head.Append(makeTraceID(i, j), b2, now, now)
 			require.NoError(t, err, "unexpected error writing rec")
 		}
 
