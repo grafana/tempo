@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +20,7 @@ import (
 func TestServiceGraphs(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
-	p := New(cfg, "test")
+	p := New(cfg, "test", log.NewNopLogger())
 
 	registry := gen.NewRegistry(nil, "test-tenant")
 	err := p.RegisterMetrics(registry)
@@ -101,7 +102,7 @@ func TestServiceGraphs_tooManySpansErr(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.MaxItems = 0
-	p := New(cfg, "test")
+	p := New(cfg, "test", log.NewNopLogger())
 
 	traces := testData(t, "testdata/test-sample.json")
 	err := p.(*processor).consume(traces.Batches)

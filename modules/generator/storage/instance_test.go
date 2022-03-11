@@ -63,6 +63,10 @@ func TestInstance(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
+		if sendCtx.Err() != nil {
+			return
+		}
+
 		err = appender.Commit()
 		assert.NoError(t, err)
 	})
@@ -127,6 +131,10 @@ func TestInstance_multiTenancy(t *testing.T) {
 			lbls := labels.FromMap(map[string]string{"__name__": "my-metric"})
 			_, err := appender.Append(0, lbls, time.Now().UnixMilli(), float64(i))
 			assert.NoError(t, err)
+
+			if sendCtx.Err() != nil {
+				return
+			}
 
 			err = appender.Commit()
 			assert.NoError(t, err)
