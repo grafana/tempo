@@ -41,8 +41,8 @@ folder.  These are generated using the Tanka / Jsonnet.
 Tempo can be deployed in one of three modes:
 
 - monolithic
-- Scalable monolithic
-- Microservices
+- scalable monolithic
+- microservices
 
 Which mode is deployed is determined by the runtime configuration `target`, or
 by using the `-target` flag on the command line. The default target is `all`,
