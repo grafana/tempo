@@ -2,12 +2,9 @@ package search
 
 import (
 	"github.com/grafana/tempo/pkg/tempofb"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type DataCombiner struct{}
-
-var _ common.ObjectCombiner = (*DataCombiner)(nil)
 
 var staticCombiner = DataCombiner{}
 

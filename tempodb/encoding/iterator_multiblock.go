@@ -10,13 +10,14 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 
 	"github.com/uber-go/atomic"
 )
 
 type multiblockIterator struct {
-	combiner     common.ObjectCombiner
+	combiner     model.ObjectCombiner
 	bookmarks    []*bookmark
 	dataEncoding string
 	resultsCh    chan iteratorResult
@@ -34,7 +35,7 @@ type iteratorResult struct {
 
 // NewMultiblockIterator Creates a new multiblock iterator. Iterates concurrently in a separate goroutine and results are buffered.
 // Traces are deduped and combined using the object combiner.
-func NewMultiblockIterator(ctx context.Context, inputs []Iterator, bufferSize int, combiner common.ObjectCombiner, dataEncoding string, logger log.Logger) Iterator {
+func NewMultiblockIterator(ctx context.Context, inputs []Iterator, bufferSize int, combiner model.ObjectCombiner, dataEncoding string, logger log.Logger) Iterator {
 	i := multiblockIterator{
 		combiner:     combiner,
 		dataEncoding: dataEncoding,

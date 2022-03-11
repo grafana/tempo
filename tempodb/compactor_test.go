@@ -34,14 +34,14 @@ func (m *mockSharder) Owns(hash string) bool {
 }
 
 func (m *mockSharder) Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error) {
-	return model.ObjectCombiner.Combine(dataEncoding, objs...)
+	return model.StaticCombiner.Combine(dataEncoding, objs...)
 }
 
 type mockCombiner struct {
 }
 
 func (m *mockCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
-	return model.ObjectCombiner.Combine(dataEncoding, objs...)
+	return model.StaticCombiner.Combine(dataEncoding, objs...)
 }
 
 type mockJobSharder struct{}
@@ -295,10 +295,10 @@ func TestSameIDCompaction(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Nil(t, failedBlocks)
 
-		actualBytes, _, err := model.ObjectCombiner.Combine(v1.Encoding, b...)
+		actualBytes, _, err := model.StaticCombiner.Combine(v1.Encoding, b...)
 		require.NoError(t, err)
 
-		expectedBytes, _, err := model.ObjectCombiner.Combine(v1.Encoding, allReqs[i]...)
+		expectedBytes, _, err := model.StaticCombiner.Combine(v1.Encoding, allReqs[i]...)
 		require.NoError(t, err)
 
 		assert.Equal(t, expectedBytes, actualBytes)

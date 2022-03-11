@@ -4,10 +4,16 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"sync"
 
 	"github.com/opentracing/opentracing-go"
 	willf_bloom "github.com/willf/bloom"
+	"go.uber.org/atomic"
 
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -138,4 +144,127 @@ func (b *BackendBlock) NewIndexReader() (common.IndexReader, error) {
 
 func (b *BackendBlock) BlockMeta() *backend.BlockMeta {
 	return b.meta
+}
+
+var _ Finder = (*BackendBlock)(nil)
+
+func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID) (*tempopb.Trace, error) {
+	obj, err := b.Find(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	dec, err := model.NewObjectDecoder(b.meta.DataEncoding)
+	if err != nil {
+		return nil, err
+	}
+	return dec.PrepareForRead(obj)
+}
+
+var _ Searcher = (*BackendBlock)(nil)
+
+func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts ...SearchOption) (resp *tempopb.SearchResponse, err error) {
+
+	// Options
+	opt := SearchOptions{
+		chunkSizeBytes: 10_000_000,
+	}
+	for _, o := range opts {
+		o(&opt)
+	}
+
+	// Iterator
+	var iter Iterator
+	if opt.totalPages > 0 {
+		iter, err = b.PartialIterator(opt.chunkSizeBytes, opt.startPage, opt.totalPages)
+	} else {
+		iter, err = b.Iterator(opt.chunkSizeBytes)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if opt.prefetchTraceCount > 0 {
+		iter = NewPrefetchIterator(ctx, iter, opt.prefetchTraceCount)
+	}
+	defer iter.Close()
+
+	respMtx := sync.Mutex{}
+	resp = &tempopb.SearchResponse{
+		Metrics: &tempopb.SearchMetrics{},
+	}
+
+	decoder, err := model.NewObjectDecoder(b.meta.DataEncoding)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create NewDecoder: %w", err)
+	}
+
+	var searchErr error
+	wg := boundedwaitgroup.New(5)
+	done := atomic.Bool{}
+	for {
+		id, obj, err := iter.Next(ctx)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error iterating %s, %w", b.meta.BlockID, err)
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			isDone, err := search(decoder, opt.maxBytes, id, obj, &respMtx, req, resp)
+			if isDone {
+				done.Store(true)
+			}
+
+			if err != nil {
+				respMtx.Lock()
+				searchErr = err
+				respMtx.Unlock()
+			}
+		}()
+
+		if done.Load() {
+			break
+		}
+	}
+	wg.Wait()
+
+	if err != nil {
+		return nil, err
+	}
+	if searchErr != nil {
+		return nil, searchErr
+	}
+	return resp, nil
+}
+
+func search(decoder model.ObjectDecoder, maxBytes int, id common.ID, obj []byte, respMtx *sync.Mutex, req *tempopb.SearchRequest, resp *tempopb.SearchResponse) (bool, error) {
+	respMtx.Lock()
+	resp.Metrics.InspectedTraces++
+	resp.Metrics.InspectedBytes += uint64(len(obj))
+	respMtx.Unlock()
+
+	if maxBytes > 0 && len(obj) > maxBytes {
+		respMtx.Lock()
+		resp.Metrics.SkippedTraces++
+		respMtx.Unlock()
+		return false, nil
+	}
+
+	metadata, err := decoder.Matches(id, obj, req)
+
+	respMtx.Lock()
+	defer respMtx.Unlock()
+	if err != nil {
+		return false, err
+	}
+	if metadata == nil {
+		return false, nil // No match, keep going.
+	}
+
+	// Found a match
+	resp.Traces = append(resp.Traces, metadata)
+	return len(resp.Traces) >= int(req.Limit), nil
 }

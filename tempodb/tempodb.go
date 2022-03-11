@@ -19,6 +19,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	pkg_cache "github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
@@ -69,8 +70,8 @@ var (
 
 type Writer interface {
 	WriteBlock(ctx context.Context, block WriteableBlock) error
-	CompleteBlock(block *wal.AppendBlock, combiner common.ObjectCombiner) (*encoding.BackendBlock, error)
-	CompleteBlockWithBackend(ctx context.Context, block *wal.AppendBlock, combiner common.ObjectCombiner, r backend.Reader, w backend.Writer) (*encoding.BackendBlock, error)
+	CompleteBlock(block *wal.AppendBlock, combiner model.ObjectCombiner) (*encoding.BackendBlock, error)
+	CompleteBlockWithBackend(ctx context.Context, block *wal.AppendBlock, combiner model.ObjectCombiner, r backend.Reader, w backend.Writer) (*encoding.BackendBlock, error)
 	CompleteSearchBlockWithBackend(block *search.StreamingSearchBlock, blockID uuid.UUID, tenantID string, r backend.Reader, w backend.Writer) (*search.BackendSearchBlock, error)
 	WAL() *wal.WAL
 }
@@ -202,13 +203,13 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c WriteableBlock) error 
 }
 
 // CompleteBlock iterates the given WAL block and flushes it to the TempoDB backend.
-func (rw *readerWriter) CompleteBlock(block *wal.AppendBlock, combiner common.ObjectCombiner) (*encoding.BackendBlock, error) {
+func (rw *readerWriter) CompleteBlock(block *wal.AppendBlock, combiner model.ObjectCombiner) (*encoding.BackendBlock, error) {
 	return rw.CompleteBlockWithBackend(context.TODO(), block, combiner, rw.r, rw.w)
 }
 
 // CompleteBlock iterates the given WAL block but flushes it to the given backend instead of the default TempoDB backend. The
 // new block will have the same ID as the input block.
-func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal.AppendBlock, combiner common.ObjectCombiner, r backend.Reader, w backend.Writer) (*encoding.BackendBlock, error) {
+func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal.AppendBlock, combiner model.ObjectCombiner, r backend.Reader, w backend.Writer) (*encoding.BackendBlock, error) {
 	meta := block.Meta()
 	blockID := meta.BlockID
 	tenantID := meta.TenantID

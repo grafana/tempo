@@ -5,12 +5,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/tempodb/search"
 )
 
 func TestExtractSearchData(t *testing.T) {
@@ -64,11 +64,11 @@ func TestExtractSearchData(t *testing.T) {
 			searchData: &tempofb.SearchEntryMutable{
 				TraceID: traceIDA,
 				Tags: tempofb.NewSearchDataMapWithData(map[string][]string{
-					"foo":                     {"bar"},
-					search.RootSpanNameTag:    {"firstSpan"},
-					search.SpanNameTag:        {"firstSpan"},
-					search.RootServiceNameTag: {"baz"},
-					search.ServiceNameTag:     {"baz"},
+					"foo":                    {"bar"},
+					trace.RootSpanNameTag:    {"firstSpan"},
+					trace.SpanNameTag:        {"firstSpan"},
+					trace.RootServiceNameTag: {"baz"},
+					trace.ServiceNameTag:     {"baz"},
 				}),
 				StartTimeUnixNano: 0,
 				EndTimeUnixNano:   0,

@@ -86,7 +86,7 @@ func TestCombine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual, combined, err := ObjectCombiner.Combine(CurrentEncoding, tt.traces...)
+			actual, combined, err := StaticCombiner.Combine(CurrentEncoding, tt.traces...)
 			assert.Equal(t, tt.expectCombined, combined)
 			if tt.expectError {
 				require.Error(t, err)
