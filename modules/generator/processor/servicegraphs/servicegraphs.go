@@ -12,7 +12,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/prometheus/model/labels"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
@@ -75,16 +74,18 @@ type processor struct {
 }
 
 func New(cfg Config, tenant string, registry registry.Registry, logger log.Logger) gen.Processor {
+	clientServerLabels := []string{"client", "server"}
+
 	p := &processor{
 		cfg: cfg,
 
 		collectCh: make(chan string, cfg.MaxItems),
 		closeCh:   make(chan struct{}, 1),
 
-		serviceGraphRequestTotal:                  registry.NewCounter(metricRequestTotal),
-		serviceGraphRequestFailedTotal:            registry.NewCounter(metricRequestFailedTotal),
-		serviceGraphRequestServerSecondsHistogram: registry.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets),
-		serviceGraphRequestClientSecondsHistogram: registry.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets),
+		serviceGraphRequestTotal:                  registry.NewCounter(metricRequestTotal, clientServerLabels),
+		serviceGraphRequestFailedTotal:            registry.NewCounter(metricRequestFailedTotal, clientServerLabels),
+		serviceGraphRequestServerSecondsHistogram: registry.NewHistogram(metricRequestServerSeconds, clientServerLabels, cfg.HistogramBuckets),
+		serviceGraphRequestClientSecondsHistogram: registry.NewHistogram(metricRequestClientSeconds, clientServerLabels, cfg.HistogramBuckets),
 
 		metricDroppedSpans:  metricDroppedSpans.WithLabelValues(tenant),
 		metricUnpairedEdges: metricUnpairedEdges.WithLabelValues(tenant),
@@ -200,18 +201,15 @@ func (p *processor) Shutdown(ctx context.Context) {
 // Returns true if the edge is completed or expired and should be deleted.
 func (p *processor) collectEdge(e *store.Edge) {
 	if e.IsCompleted() {
-		clientServerLabels := labels.NewBuilder(nil).
-			Set("client", e.ClientService).
-			Set("server", e.ServerService).
-			Labels()
+		clientServerLabelValues := []string{e.ClientService, e.ServerService}
 
-		p.serviceGraphRequestTotal.Inc(clientServerLabels, 1)
+		p.serviceGraphRequestTotal.Inc(clientServerLabelValues, 1)
 		if e.Failed {
-			p.serviceGraphRequestFailedTotal.Inc(clientServerLabels, 1)
+			p.serviceGraphRequestFailedTotal.Inc(clientServerLabelValues, 1)
 		}
 
-		p.serviceGraphRequestServerSecondsHistogram.Observe(clientServerLabels, e.ServerLatencySec)
-		p.serviceGraphRequestClientSecondsHistogram.Observe(clientServerLabels, e.ClientLatencySec)
+		p.serviceGraphRequestServerSecondsHistogram.Observe(clientServerLabelValues, e.ServerLatencySec)
+		p.serviceGraphRequestClientSecondsHistogram.Observe(clientServerLabelValues, e.ClientLatencySec)
 	} else if e.IsExpired() {
 		p.metricUnpairedEdges.Inc()
 	}

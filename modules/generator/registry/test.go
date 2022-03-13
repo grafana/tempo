@@ -23,18 +23,20 @@ func NewTestRegistry() *TestRegistry {
 	}
 }
 
-func (t *TestRegistry) NewCounter(name string) Counter {
+func (t *TestRegistry) NewCounter(name string, labels []string) Counter {
 	return &testCounter{
 		name:     name,
+		labels:   labels,
 		registry: t,
 	}
 }
 
-func (t *TestRegistry) NewHistogram(name string, buckets []float64) Histogram {
+func (t *TestRegistry) NewHistogram(name string, labels []string, buckets []float64) Histogram {
 	return &testHistogram{
 		nameSum:    name + "_sum",
 		nameCount:  name + "_count",
 		nameBucket: name + "_bucket",
+		labels:     labels,
 		buckets:    buckets,
 		registry:   t,
 	}
@@ -66,15 +68,23 @@ func (t *TestRegistry) String() string {
 
 type testCounter struct {
 	name     string
+	labels   []string
 	registry *TestRegistry
 }
 
 var _ Counter = (*testCounter)(nil)
 
-func (t testCounter) Inc(lbls labels.Labels, value float64) {
+func (t testCounter) Inc(values []string, value float64) {
 	if value < 0 {
 		panic("counter can only increase")
 	}
+
+	lbls := make(labels.Labels, len(t.labels))
+	for i, label := range t.labels {
+		lbls[i] = labels.Label{Name: label, Value: values[i]}
+	}
+	sort.Sort(lbls)
+
 	t.registry.addToMetric(t.name, lbls, value)
 }
 
@@ -82,11 +92,18 @@ type testHistogram struct {
 	nameSum    string
 	nameCount  string
 	nameBucket string
+	labels     []string
 	buckets    []float64
 	registry   *TestRegistry
 }
 
-func (t testHistogram) Observe(lbls labels.Labels, value float64) {
+func (t testHistogram) Observe(values []string, value float64) {
+	lbls := make(labels.Labels, len(t.labels))
+	for i, label := range t.labels {
+		lbls[i] = labels.Label{Name: label, Value: values[i]}
+	}
+	sort.Sort(lbls)
+
 	t.registry.addToMetric(t.nameCount, lbls, 1)
 	t.registry.addToMetric(t.nameSum, lbls, value)
 

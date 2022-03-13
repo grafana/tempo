@@ -151,6 +151,12 @@ func TestMetricsGenerator(t *testing.T) {
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_duration_seconds_bucket", append(lbls, "le", "+Inf")))
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_duration_seconds_count", lbls))
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_duration_seconds_sum", lbls))
+
+	// Verify metrics
+	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(2), "tempo_metrics_generator_spans_received_total"))
+
+	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(23), "tempo_metrics_generator_registry_active_series"))
+	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(23), "tempo_metrics_generator_registry_series_added_total"))
 }
 
 func newPrometheus() *e2e.HTTPService {

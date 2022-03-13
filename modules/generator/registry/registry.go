@@ -12,8 +12,8 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
+	"go.uber.org/atomic"
 )
 
 var (
@@ -21,6 +21,16 @@ var (
 		Namespace: "tempo",
 		Name:      "metrics_generator_registry_active_series",
 		Help:      "The active series per tenant",
+	}, []string{"tenant"})
+	metricTotalSeriesAdded = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_registry_series_added_total",
+		Help:      "The total amount of series created per tenant",
+	}, []string{"tenant"})
+	metricTotalSeriesRemoved = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_registry_series_removed_total",
+		Help:      "The total amount of series removed after they have become stale per tenant",
 	}, []string{"tenant"})
 	metricTotalSeriesLimited = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
@@ -47,22 +57,20 @@ type ManagedRegistry struct {
 	tenant         string
 	externalLabels map[string]string
 
-	metricsMtx sync.Mutex
-	metrics    map[uint64]metric
+	metricsMtx sync.RWMutex
+	// TODO we should not allow duplicate metrics, make this map[name]metric?
+	metrics      []*metric
+	activeSeries atomic.Uint32
 
 	appendable storage.Appendable
 
 	logger                   log.Logger
 	metricActiveSeries       prometheus.Gauge
+	metricTotalSeriesAdded   prometheus.Counter
+	metricTotalSeriesRemoved prometheus.Counter
 	metricTotalSeriesLimited prometheus.Counter
 	metricTotalScrapes       prometheus.Counter
 	metricFailedScrapes      prometheus.Counter
-}
-
-type metric struct {
-	lbls       labels.Labels
-	value      float64
-	lastUpdate time.Time
 }
 
 var _ Registry = (*ManagedRegistry)(nil)
@@ -87,74 +95,48 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		tenant:         tenant,
 		externalLabels: externalLabels,
 
-		metrics: make(map[uint64]metric),
-
 		appendable: appendable,
 
 		logger:                   logger,
 		metricActiveSeries:       metricActiveSeries.WithLabelValues(tenant),
+		metricTotalSeriesAdded:   metricTotalSeriesAdded.WithLabelValues(tenant),
+		metricTotalSeriesRemoved: metricTotalSeriesRemoved.WithLabelValues(tenant),
 		metricTotalSeriesLimited: metricTotalSeriesLimited.WithLabelValues(tenant),
 		metricTotalScrapes:       metricTotalScrapes.WithLabelValues(tenant),
 		metricFailedScrapes:      metricFailedScrapes.WithLabelValues(tenant),
 	}
 
 	go job(instanceCtx, r.scrape, r.scrapeInterval)
-	go job(instanceCtx, r.removeStaleMetrics, constantInterval(5*time.Minute))
+	go job(instanceCtx, r.removeStaleSeries, constantInterval(5*time.Minute))
 
 	return r
 }
 
-func (r *ManagedRegistry) NewCounter(name string) Counter {
-	return &counter{
-		name:     name,
-		registry: r,
-	}
-}
-
-func (r *ManagedRegistry) NewHistogram(name string, buckets []float64) Histogram {
-	return &histogram{
-		nameSum:    fmt.Sprintf("%s_sum", name),
-		nameCount:  fmt.Sprintf("%s_count", name),
-		nameBucket: fmt.Sprintf("%s_bucket", name),
-		buckets:    buckets,
-		registry:   r,
-	}
-}
-
-// incrementMetric adds value to the metric identified by lbls.
-// Must be called under lock.
-func (r *ManagedRegistry) incrementMetric(lbls labels.Labels, value float64) {
-	hash := lbls.Hash()
-
-	s, ok := r.metrics[hash]
-	if ok {
-		s.value += value
-		s.lastUpdate = time.Now()
-		r.metrics[hash] = s
-		return
-	}
-
-	// TODO divide by the amount of instances
+func (r *ManagedRegistry) onAddMetricSeries() bool {
 	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
-	if maxActiveSeries != 0 && len(r.metrics)+1 > maxActiveSeries {
+	if maxActiveSeries != 0 && r.activeSeries.Load() >= maxActiveSeries {
 		r.metricTotalSeriesLimited.Inc()
 		level.Warn(r.logger).Log("msg", "reached max active series", "active_series", len(r.metrics), "max_active_series", maxActiveSeries)
-		return
+		return false
 	}
 
-	r.metrics[hash] = metric{
-		lbls:       lbls,
-		value:      value,
-		lastUpdate: time.Now(),
-	}
+	r.activeSeries.Inc()
+
+	r.metricTotalSeriesAdded.Inc()
 	r.metricActiveSeries.Inc()
+	return true
+}
+
+func (r *ManagedRegistry) onRemoveMetricSeries() {
+	r.activeSeries.Dec()
+
+	r.metricTotalSeriesRemoved.Inc()
+	r.metricActiveSeries.Dec()
 }
 
 func (r *ManagedRegistry) scrape(ctx context.Context) {
-	r.metricsMtx.Lock()
-	defer r.metricsMtx.Unlock()
-
-	level.Info(r.logger).Log("msg", "scraping registry", "active_series", len(r.metrics))
+	r.metricsMtx.RLock()
+	defer r.metricsMtx.RUnlock()
 
 	var err error
 	defer func() {
@@ -165,33 +147,29 @@ func (r *ManagedRegistry) scrape(ctx context.Context) {
 		}
 	}()
 
+	var activeSeries uint32
+
 	appender := r.appendable.Appender(ctx)
 	scrapeTimeMs := time.Now().UnixMilli()
 
-	for _, s := range r.metrics {
-		lb := labels.NewBuilder(s.lbls)
-		for k, v := range r.externalLabels {
-			lb.Set(k, v)
-		}
-		lbls := lb.Labels()
-
-		_, err = appender.Append(0, lbls, scrapeTimeMs, s.value)
+	for _, m := range r.metrics {
+		active, err := m.scrape(appender, scrapeTimeMs, r.externalLabels)
 		if err != nil {
 			return
 		}
-		//// TODO support exemplars
-		//_, err = appender.AppendExemplar(ref, lbls, exemplar.Exemplar{
-		//	Labels: s.exemplarLabels,
-		//	Value:  s.exemplarValue,
-		//	HasTs:  true,
-		//	Ts:     scrapeTimeMs,
-		//})
-		//if err != nil {
-		//	return
-		//}
+		activeSeries += uint32(active)
 	}
 
+	// set active series in case there is drift
+	r.activeSeries.Store(activeSeries)
+	r.metricActiveSeries.Set(float64(activeSeries))
+
 	err = appender.Commit()
+	if err != nil {
+		return
+	}
+
+	level.Info(r.logger).Log("msg", "scraped registry", "active_series", activeSeries)
 }
 
 func (r *ManagedRegistry) scrapeInterval() time.Duration {
@@ -202,20 +180,17 @@ func (r *ManagedRegistry) scrapeInterval() time.Duration {
 	return r.cfg.ScrapeInterval
 }
 
-func (r *ManagedRegistry) removeStaleMetrics(_ context.Context) {
-	r.metricsMtx.Lock()
-	defer r.metricsMtx.Unlock()
+func (r *ManagedRegistry) removeStaleSeries(_ context.Context) {
+	r.metricsMtx.RLock()
+	defer r.metricsMtx.RUnlock()
 
-	lenBefore := len(r.metrics)
+	timeMs := time.Now().Add(-1 * r.cfg.StaleDuration).UnixMilli()
 
-	for hash, serie := range r.metrics {
-		if time.Since(serie.lastUpdate) > r.cfg.StaleDuration {
-			delete(r.metrics, hash)
-			r.metricActiveSeries.Dec()
-		}
+	for _, m := range r.metrics {
+		m.removeStaleSeries(timeMs)
 	}
 
-	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", len(r.metrics), "deleted", lenBefore-len(r.metrics))
+	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", r.activeSeries.Load())
 }
 
 func (r *ManagedRegistry) Close() {
@@ -224,55 +199,87 @@ func (r *ManagedRegistry) Close() {
 }
 
 type counter struct {
-	name     string
-	registry *ManagedRegistry
+	m *metric
 }
 
 var _ Counter = (*counter)(nil)
 
-func (c counter) Inc(lbls labels.Labels, value float64) {
+func (r *ManagedRegistry) NewCounter(name string, labels []string) Counter {
+	c := &counter{
+		m: newMetric(name, labels, r.onAddMetricSeries, r.onRemoveMetricSeries),
+	}
+
+	r.metricsMtx.Lock()
+	defer r.metricsMtx.Unlock()
+
+	r.metrics = append(r.metrics, c.m)
+
+	return c
+}
+
+func (c counter) Inc(labelValues []string, value float64) {
 	if value < 0 {
 		panic("counter can only increase")
 	}
-
-	lb := labels.NewBuilder(lbls).Set(labels.MetricName, c.name)
-
-	c.registry.metricsMtx.Lock()
-	defer c.registry.metricsMtx.Unlock()
-
-	c.registry.incrementMetric(lb.Labels(), value)
+	c.m.add(labelValues, value)
 }
 
 type histogram struct {
-	nameSum    string
-	nameCount  string
-	nameBucket string
-	buckets    []float64
-	registry   *ManagedRegistry
+	// TODO this is not ideal, we are manageing series for every individual metric while they all share the same label values
+	//  instead of updating, scraping and removing stale series from each metric, we can do them all at once
+	sum          *metric
+	count        *metric
+	bucketLabels map[float64]string
+	buckets      map[float64]*metric
+	bucketInf    *metric
 }
 
 var _ Histogram = (*histogram)(nil)
 
-func (h histogram) Observe(lbls labels.Labels, value float64) {
-	lb := labels.NewBuilder(lbls)
-
-	h.registry.metricsMtx.Lock()
-	defer h.registry.metricsMtx.Unlock()
-
-	lb.Set(labels.MetricName, h.nameCount)
-	h.registry.incrementMetric(lb.Labels(), 1)
-
-	lb.Set(labels.MetricName, h.nameSum)
-	h.registry.incrementMetric(lb.Labels(), value)
-
-	lb.Set(labels.MetricName, h.nameBucket)
-	for _, bucket := range h.buckets {
-		lb.Set(labels.BucketLabel, formatFloat(bucket))
-		h.registry.incrementMetric(lb.Labels(), isLe(value, bucket))
+func (r *ManagedRegistry) NewHistogram(name string, labels []string, buckets []float64) Histogram {
+	h := &histogram{
+		sum:          newMetric(fmt.Sprintf("%s_sum", name), labels, r.onAddMetricSeries, r.onRemoveMetricSeries),
+		count:        newMetric(fmt.Sprintf("%s_count", name), labels, r.onAddMetricSeries, r.onRemoveMetricSeries),
+		bucketLabels: make(map[float64]string),
+		buckets:      make(map[float64]*metric),
+		bucketInf:    nil,
 	}
 
-	lb.Set(labels.BucketLabel, "+Inf")
-	h.registry.incrementMetric(lb.Labels(), 1.0)
+	nameBucket := fmt.Sprintf("%s_bucket", name)
+	labelsWithLe := append(labels, "le")
+
+	for _, bucket := range buckets {
+		h.bucketLabels[bucket] = formatFloat(bucket)
+		h.buckets[bucket] = newMetric(nameBucket, labelsWithLe, r.onAddMetricSeries, r.onRemoveMetricSeries)
+	}
+
+	h.bucketInf = newMetric(nameBucket, labelsWithLe, r.onAddMetricSeries, r.onRemoveMetricSeries)
+
+	r.metricsMtx.Lock()
+	defer r.metricsMtx.Unlock()
+
+	r.metrics = append(r.metrics, h.sum, h.count, h.bucketInf)
+	for _, m := range h.buckets {
+		r.metrics = append(r.metrics, m)
+	}
+
+	return h
+}
+
+func (h histogram) Observe(labelValues []string, value float64) {
+	h.sum.add(labelValues, value)
+	h.count.add(labelValues, 1)
+
+	labelValuesWithLe := append(labelValues, "")
+	leIndex := len(labelValuesWithLe) - 1
+
+	for bucket, m := range h.buckets {
+		labelValuesWithLe[leIndex] = h.bucketLabels[bucket]
+		m.add(labelValuesWithLe, isLe(value, bucket))
+	}
+
+	labelValuesWithLe[leIndex] = "+Inf"
+	h.bucketInf.add(labelValuesWithLe, 1)
 }
 
 func isLe(value, bucket float64) float64 {

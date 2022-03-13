@@ -57,7 +57,7 @@ type Limits struct {
 
 	// Metrics-generator processor config
 	MetricsGeneratorProcessors      ListToMap     `yaml:"metrics_generator_processors" json:"metrics_generator_processors"`
-	MetricsGeneratorMaxActiveSeries int           `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
+	MetricsGeneratorMaxActiveSeries uint32        `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
 	MetricsGeneratorScrapeInterval  time.Duration `yaml:"metrics_generator_scrape_interval" json:"metrics_generator_scrape_interval"`
 
 	// Compactor enforced limits.

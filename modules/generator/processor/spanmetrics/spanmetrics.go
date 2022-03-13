@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/prometheus/model/labels"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
@@ -30,10 +29,16 @@ type processor struct {
 }
 
 func New(cfg Config, registry registry.Registry) gen.Processor {
+	labels := []string{"service", "span_name", "span_kind", "span_status"}
+	if cfg.Dimensions != nil {
+		// TODO we should convert keys into valid prometheus labels, i.e. k8s.ip -> k8s_ip
+		labels = append(labels, cfg.Dimensions...)
+	}
+
 	return &processor{
 		cfg:                        cfg,
-		spanMetricsCallsTotal:      registry.NewCounter(metricCallsTotal),
-		spanMetricsDurationSeconds: registry.NewHistogram(metricDurationSeconds, cfg.HistogramBuckets),
+		spanMetricsCallsTotal:      registry.NewCounter(metricCallsTotal, labels),
+		spanMetricsDurationSeconds: registry.NewHistogram(metricDurationSeconds, labels, cfg.HistogramBuckets),
 		now:                        time.Now,
 	}
 }
@@ -67,31 +72,17 @@ func (p *processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 func (p *processor) aggregateMetricsForSpan(svcName string, span *v1_trace.Span) {
 	latencySeconds := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 
-	labelNames := []string{"service", "span_name", "span_kind", "span_status"}
 	labelValues := []string{svcName, span.GetName(), span.GetKind().String(), span.GetStatus().GetCode().String()}
 
-	lb := labels.NewBuilder(nil)
-
-	for i := range labelNames {
-		lb = lb.Set(labelNames[i], labelValues[i])
-	}
-
-	if len(p.cfg.Dimensions) > 0 {
-		// Build additional dimensions
-		// TODO optimise this for-loop by iterating across all attributes and then adding the dimensions
-		for _, d := range p.cfg.Dimensions {
-			for _, attr := range span.Attributes {
-				if d == attr.Key {
-					// TODO we should convert keys into valid prometheus labels, i.e. k8s.ip -> k8s_ip
-					lb = lb.Set(d, attr.GetValue().GetStringValue())
-				}
+	for _, d := range p.cfg.Dimensions {
+		for _, attr := range span.Attributes {
+			if d == attr.Key {
+				labelValues = append(labelValues, attr.GetValue().GetStringValue())
 			}
 		}
 	}
 
-	lbls := lb.Labels()
-
-	p.spanMetricsCallsTotal.Inc(lbls, 1)
+	p.spanMetricsCallsTotal.Inc(labelValues, 1)
 	// TODO observe exemplar prometheus.Labels{"traceID": tempo_util.TraceIDToHexString(span.TraceId)}
-	p.spanMetricsDurationSeconds.Observe(lbls, latencySeconds)
+	p.spanMetricsDurationSeconds.Observe(labelValues, latencySeconds)
 }

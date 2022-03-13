@@ -113,7 +113,7 @@ type mockOverrides struct {
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
 
-func (m *mockOverrides) MetricsGeneratorMaxActiveSeries(userID string) int {
+func (m *mockOverrides) MetricsGeneratorMaxActiveSeries(userID string) uint32 {
 	return 0
 }
 

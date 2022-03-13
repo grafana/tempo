@@ -270,7 +270,7 @@ func (o *Overrides) MetricsGeneratorProcessors(userID string) map[string]struct{
 
 // MetricsGeneratorMaxActiveSeries is the maximum amount of active series in the metrics-generator
 // registry for this tenant.
-func (o *Overrides) MetricsGeneratorMaxActiveSeries(userID string) int {
+func (o *Overrides) MetricsGeneratorMaxActiveSeries(userID string) uint32 {
 	return o.getOverridesForUser(userID).MetricsGeneratorMaxActiveSeries
 }
 

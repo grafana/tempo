@@ -7,7 +7,7 @@ import (
 )
 
 type Overrides interface {
-	MetricsGeneratorMaxActiveSeries(userID string) int
+	MetricsGeneratorMaxActiveSeries(userID string) uint32
 	MetricsGeneratorScrapeInterval(userID string) time.Duration
 }
 
