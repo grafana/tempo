@@ -642,7 +642,7 @@ storage:
         # the worker pool is used primarily when finding traces by id, but is also used by other
         pool:
 
-            # total number of workers pulling jobs from the queue (default: 30)
+            # total number of workers pulling jobs from the queue (default: 50)
             [max_workers: <int>] 
 
             # length of job queue. imporatant for querier as it queues a job for every block it has to search
