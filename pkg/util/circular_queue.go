@@ -21,7 +21,7 @@ type circularQueue struct {
 	size int
 }
 
-func NewCircularQueue(size int) *circularQueue {
+func NewCircularQueue(size int) CircularQueue {
 	if size <= 0 {
 		panic("size must be greater than 0")
 	}
