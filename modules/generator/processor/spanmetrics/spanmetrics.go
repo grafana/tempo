@@ -72,7 +72,8 @@ func (p *processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 func (p *processor) aggregateMetricsForSpan(svcName string, span *v1_trace.Span) {
 	latencySeconds := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 
-	labelValues := []string{svcName, span.GetName(), span.GetKind().String(), span.GetStatus().GetCode().String()}
+	labelValues := make([]string, 0, 4+len(p.cfg.Dimensions))
+	labelValues = append(labelValues, svcName, span.GetName(), span.GetKind().String(), span.GetStatus().GetCode().String())
 
 	for _, d := range p.cfg.Dimensions {
 		for _, attr := range span.Attributes {
