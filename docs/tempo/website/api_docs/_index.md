@@ -8,7 +8,7 @@ weight: 350
 Tempo exposes an API for pushing and querying traces, and operating the cluster itself.
 
 For the sake of clarity, in this document we have grouped API endpoints by service, but keep in mind that they're exposed both when running Tempo in microservices and monolithic mode:
-- **Microservices**: each service exposes its own endpoints
+- **microservices**: each service exposes its own endpoints
 - **monolithic**: the Tempo process exposes all API endpoints for the services running internally
 
 ## Endpoints
