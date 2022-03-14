@@ -1,11 +1,11 @@
 package util
 
 import (
+	"context"
 	"math"
 	"math/rand"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -13,7 +13,7 @@ import (
 func noopOnEvict() {}
 
 func TestQueueAppend(t *testing.T) {
-	q, err := NewEvictingQueue(10, 0, noopOnEvict)
+	q, err := NewEvictingQueue(10, noopOnEvict)
 	require.Nil(t, err)
 
 	q.Append(1)
@@ -26,7 +26,7 @@ func TestQueueAppend(t *testing.T) {
 }
 
 func TestQueueCapacity(t *testing.T) {
-	q, err := NewEvictingQueue(9, 0, noopOnEvict)
+	q, err := NewEvictingQueue(9, noopOnEvict)
 	require.Nil(t, err)
 	require.Equal(t, 9, q.Capacity())
 
@@ -35,19 +35,19 @@ func TestQueueCapacity(t *testing.T) {
 }
 
 func TestZeroCapacityQueue(t *testing.T) {
-	q, err := NewEvictingQueue(0, 0, noopOnEvict)
+	q, err := NewEvictingQueue(0, noopOnEvict)
 	require.Error(t, err)
 	require.Nil(t, q)
 }
 
 func TestNegativeCapacityQueue(t *testing.T) {
-	q, err := NewEvictingQueue(-1, 0, noopOnEvict)
+	q, err := NewEvictingQueue(-1, noopOnEvict)
 	require.Error(t, err)
 	require.Nil(t, q)
 }
 
 func TestQueueEvict(t *testing.T) {
-	q, err := NewEvictingQueue(3, 0, noopOnEvict)
+	q, err := NewEvictingQueue(3, noopOnEvict)
 	require.Nil(t, err)
 
 	// appending 5 entries will cause the first (oldest) 2 entries to be evicted
@@ -61,7 +61,7 @@ func TestQueueEvict(t *testing.T) {
 }
 
 func TestQueueClear(t *testing.T) {
-	q, err := NewEvictingQueue(3, 0, noopOnEvict)
+	q, err := NewEvictingQueue(3, noopOnEvict)
 	require.Nil(t, err)
 
 	q.Append(1)
@@ -73,7 +73,7 @@ func TestQueueClear(t *testing.T) {
 func TestQueueEvictionCallback(t *testing.T) {
 	var evictionCallbackCalls int
 
-	q, err := NewEvictingQueue(3, 0, func() {
+	q, err := NewEvictingQueue(3, func() {
 		evictionCallbackCalls++
 	})
 	require.Nil(t, err)
@@ -86,7 +86,7 @@ func TestQueueEvictionCallback(t *testing.T) {
 }
 
 func TestSafeConcurrentAccess(t *testing.T) {
-	q, err := NewEvictingQueue(3, 0, noopOnEvict)
+	q, err := NewEvictingQueue(3, noopOnEvict)
 	require.Nil(t, err)
 
 	var wg sync.WaitGroup
@@ -107,32 +107,19 @@ func TestSafeConcurrentAccess(t *testing.T) {
 	require.Equal(t, 3, q.Length())
 }
 
-func TestQueueSubscribe(t *testing.T) {
-	q, err := NewEvictingQueue(3, 100*time.Millisecond, noopOnEvict)
+func TestQueueOut(t *testing.T) {
+	q, err := NewEvictingQueue(3, noopOnEvict)
 	require.Nil(t, err)
 
 	wg := sync.WaitGroup{}
-
-	// Start 3 synchronous subscribers
-	for i := 0; i < 3; i++ {
-		subscriberHelper(t, &wg, q)
-	}
-
 	for i := 1; i <= 3; i++ {
 		q.Append(i)
-		wg.Add(3)
+		wg.Add(1)
 	}
 
-	wg.Wait()
-
-	require.Equal(t, 0, q.Length())
-}
-
-func subscriberHelper(t *testing.T, wg *sync.WaitGroup, q *EvictingQueue) {
-	subscriber := q.Subscribe()
 	go func() {
 		var c int
-		for entry := range subscriber {
+		for entry := range q.Out(context.Background()) {
 			c++
 			require.Equal(t, c, entry)
 			wg.Done()
@@ -140,6 +127,8 @@ func subscriberHelper(t *testing.T, wg *sync.WaitGroup, q *EvictingQueue) {
 	}()
 
 	wg.Wait()
+
+	require.Equal(t, 0, q.Length())
 }
 
 type queueEntry struct {
@@ -149,7 +138,7 @@ type queueEntry struct {
 
 func BenchmarkAppendAndEvict(b *testing.B) {
 	capacity := 5000
-	q, err := NewEvictingQueue(capacity, 0, noopOnEvict)
+	q, err := NewEvictingQueue(capacity, noopOnEvict)
 	require.Nil(b, err)
 
 	b.ResetTimer()
@@ -165,66 +154,39 @@ func BenchmarkAppendAndEvict(b *testing.B) {
 	require.EqualValues(b, math.Min(float64(b.N), float64(capacity)), q.Length())
 }
 
-// consumption/total performance is severely affected by the loop interval
-func BenchmarkAppendAndSubscribe1ms(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, time.Millisecond, 0, 1)
+// consumption/total performance improves when capacity is increased
+func BenchmarkAppendAndConsumeCap10(b *testing.B) {
+	benchmarkAppendAndConsume(b, 10)
 }
 
-func BenchmarkAppendAndSubscribe10ms(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, 10*time.Millisecond, 0, 1)
+func BenchmarkAppendAndConsumeCap100(b *testing.B) {
+	benchmarkAppendAndConsume(b, 100)
 }
 
-func BenchmarkAppendAndSubscribe100ms(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, 100*time.Millisecond, 0, 1)
+func BenchmarkAppendAndConsumeCap1000(b *testing.B) {
+	benchmarkAppendAndConsume(b, 1000)
 }
 
-func BenchmarkAppendAndSubscribe500ms(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, 500*time.Millisecond, 0, 1)
+func BenchmarkAppendAndConsumeCap5000(b *testing.B) {
+	benchmarkAppendAndConsume(b, 5000)
 }
 
-// consumption/total performance drops as the subscription buffer size increases.
-func BenchmarkAppendAndSubscribeBuffer0(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, time.Millisecond, 0, 1)
+func BenchmarkAppendAndConsumeCap10000(b *testing.B) {
+	benchmarkAppendAndConsume(b, 10000)
 }
 
-func BenchmarkAppendAndSubscribeBuffer10(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, time.Millisecond, 10, 1)
-}
-
-func BenchmarkAppendAndSubscribeBuffer100(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, time.Millisecond, 100, 1)
-}
-
-func BenchmarkAppendAndSubscribeBuffer1000(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, time.Millisecond, 1000, 1)
-}
-
-// consumption/total performance drops as the number of subscriptions increases.
-// we expect to have a low number of subscriptions, so it shouldn't be a big deal.
-func BenchmarkAppendAndSubscribe1Sub(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, time.Millisecond, 0, 1)
-}
-func BenchmarkAppendAndSubscribe10Sub(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, time.Millisecond, 0, 10)
-}
-func BenchmarkAppendAndSubscribe100Sub(b *testing.B) {
-	benchmarkAppendAndSubscribe(b, time.Millisecond, 0, 100)
-}
-
-func benchmarkAppendAndSubscribe(b *testing.B, interval time.Duration, buffer int, subscribers int) {
+func benchmarkAppendAndConsume(b *testing.B, capacity int) {
 	var consumptions float64
-	q, err := NewEvictingQueue(5000, interval, noopOnEvict)
+	q, err := NewEvictingQueue(capacity, noopOnEvict)
 	require.Nil(b, err)
 
-	for i := 0; i < subscribers; i++ {
-		sub := make(chan interface{}, buffer)
-		q.subscribers = append(q.subscribers, sub)
-		go func() {
-			for range sub {
+	go func() {
+		for {
+			for range q.Out(context.Background()) {
 				consumptions++
 			}
-		}()
-	}
+		}
+	}()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -236,5 +198,5 @@ func benchmarkAppendAndSubscribe(b *testing.B, interval time.Duration, buffer in
 		})
 	}
 
-	b.ReportMetric(consumptions/float64(b.N*subscribers), "consumed/total")
+	b.ReportMetric(consumptions/float64(b.N), "consumed/total")
 }

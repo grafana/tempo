@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"time"
 )
 
 type EvictingQueue struct {
@@ -15,28 +14,24 @@ type EvictingQueue struct {
 	entries  []interface{}
 	onEvict  func()
 
-	subscribers []chan interface{}
+	outCh chan interface{}
 }
 
-func NewEvictingQueue(capacity int, interval time.Duration, onEvict func()) (*EvictingQueue, error) {
+func NewEvictingQueue(capacity int, onEvict func()) (*EvictingQueue, error) {
 	if err := validateCapacity(capacity); err != nil {
 		return nil, err
 	}
 
 	queue := &EvictingQueue{
-		closeCh:     make(chan struct{}),
-		onEvict:     onEvict,
-		entries:     make([]interface{}, 0, capacity),
-		subscribers: make([]chan interface{}, 0),
+		closeCh: make(chan struct{}),
+		onEvict: onEvict,
+		entries: make([]interface{}, 0, capacity),
+		outCh:   make(chan interface{}),
 	}
 
 	err := queue.SetCapacity(capacity)
 	if err != nil {
 		return nil, err
-	}
-
-	if interval > 0 {
-		go queue.loop(interval)
 	}
 
 	return queue, nil
@@ -49,7 +44,6 @@ func (q *EvictingQueue) Close() {
 	q.onEvict = nil
 	q.capacity = 0
 	q.entries = nil
-	q.subscribers = nil
 	close(q.closeCh)
 }
 
@@ -64,17 +58,6 @@ func (q *EvictingQueue) Append(entry interface{}) {
 	}
 
 	q.entries = append(q.entries, entry)
-}
-
-// Subscribe returns a channel that will receive entries as they are added to the queue.
-func (q *EvictingQueue) Subscribe() chan interface{} {
-	q.Lock()
-	defer q.Unlock()
-
-	sub := make(chan interface{})
-	q.subscribers = append(q.subscribers, sub)
-
-	return sub
 }
 
 // evictOldest removes the oldest entry from the queue.
@@ -160,34 +143,34 @@ func (q *EvictingQueue) Clear() {
 	q.entries = q.entries[:0]
 }
 
-func (q *EvictingQueue) loop(interval time.Duration) {
-	t := time.NewTicker(interval)
-	for {
-		select {
-		case <-t.C:
-			// TODO: add a way to return early from the fan-out loop
-			// 	maybe by having a context that can be cancelled
-			q.fanOut(context.Background())
-		case <-q.closeCh:
-			return
-		}
-	}
-}
-
-// fanOut sends all entries to all subscribers.
-func (q *EvictingQueue) fanOut(ctx context.Context) {
+// Out returns a channel which will emit the queue's entries as they are
+// removed from the queue.
+func (q *EvictingQueue) Out(ctx context.Context) <-chan interface{} {
 	q.Lock()
-	defer q.Unlock()
 
-	for entry := q.pop(); entry != nil; entry = q.pop() {
-		for _, sub := range q.subscribers {
+	// TODO: Creating a new channel each time is not efficient.
+	//  We should be able to use the same channel.
+	outCh := make(chan interface{})
+	go func() {
+		defer q.Unlock()
+		defer close(outCh)
+		for {
 			select {
-			case sub <- entry:
 			case <-ctx.Done():
 				return
+			case <-q.closeCh:
+				return
+			default:
+				e := q.pop()
+				if e == nil {
+					return
+				}
+				outCh <- e
 			}
 		}
-	}
+	}()
+
+	return outCh
 }
 
 // validateCapacity returns an error if the capacity is not positive.

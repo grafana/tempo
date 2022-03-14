@@ -212,7 +212,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		tagsToDrop[tag] = struct{}{}
 	}
 
-	generatorQueue, err := util.NewEvictingQueue(100, 100*time.Millisecond, func() {})
+	generatorQueue, err := util.NewEvictingQueue(100, func() {})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create generator queue: %w", err)
 	}
@@ -428,12 +428,13 @@ func (d *Distributor) queueToGenerator(userID string, keys []uint32, traces []*r
 
 // loopGeneratorsQueue loops over the queue and sends the traces to the metrics-generator
 func (d *Distributor) loopGeneratorsQueue() {
-	subscription := d.generatorsQueue.Subscribe()
 	for {
 		select {
 		case <-d.shutdownCh:
 			return
-		case req := <-subscription:
+		// TODO: add a way to cancel consuming from the queue
+		//   maybe by cancelling the context?
+		case req := <-d.generatorsQueue.Out(context.Background()):
 			ringRequest := req.(*pushRingRequest)
 			err := d.sendToGenerators(context.Background(), ringRequest.userID, ringRequest.keys, ringRequest.traces)
 			if err != nil {
