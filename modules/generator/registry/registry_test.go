@@ -202,7 +202,7 @@ func scrapeRegistryAndAssert(t *testing.T, r *ManagedRegistry, appender *capturi
 	scrapeTimeMs := time.Now().UnixMilli()
 	r.scrape(context.Background())
 
-	for i, _ := range expectedSamples {
+	for i := range expectedSamples {
 		expectedSamples[i].t = scrapeTimeMs
 	}
 

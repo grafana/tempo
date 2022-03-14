@@ -116,7 +116,7 @@ func (r *ManagedRegistry) onAddMetricSeries() bool {
 	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
 	if maxActiveSeries != 0 && r.activeSeries.Load() >= maxActiveSeries {
 		r.metricTotalSeriesLimited.Inc()
-		level.Warn(r.logger).Log("msg", "reached max active series", "active_series", len(r.metrics), "max_active_series", maxActiveSeries)
+		level.Warn(r.logger).Log("msg", "reached max active series", "active_series", r.activeSeries.Load(), "max_active_series", maxActiveSeries)
 		return false
 	}
 
@@ -225,7 +225,7 @@ func (c counter) Inc(labelValues []string, value float64) {
 }
 
 type histogram struct {
-	// TODO this is not ideal, we are manageing series for every individual metric while they all share the same label values
+	// TODO this is not ideal, we are managing series for every individual metric while they all share the same label values
 	//  instead of updating, scraping and removing stale series from each metric, we can do them all at once
 	sum          *metric
 	count        *metric
