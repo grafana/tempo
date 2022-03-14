@@ -29,9 +29,10 @@ type Config struct {
 	// receivers map for shim.
 	//  This receivers node is equivalent in format to the receiver node in the
 	//  otel collector: https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver
-	Receivers         map[string]interface{} `yaml:"receivers"`
-	OverrideRingKey   string                 `yaml:"override_ring_key"`
-	LogReceivedTraces bool                   `yaml:"log_received_traces"`
+	Receivers                  map[string]interface{} `yaml:"receivers"`
+	OverrideRingKey            string                 `yaml:"override_ring_key"`
+	LogReceivedTraces          bool                   `yaml:"log_received_traces"`
+	GeneratorQueueLoopInterval time.Duration          `yaml:"generator_queue_loop_interval"`
 
 	// disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
 	//  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
@@ -51,6 +52,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.OverrideRingKey = distributorRingKey
 	cfg.ExtendWrites = true
+
+	cfg.GeneratorQueueLoopInterval = time.Second
 
 	f.BoolVar(&cfg.LogReceivedTraces, prefix+".log-received-traces", false, "Enable to log every received trace id to help debug ingestion.")
 }

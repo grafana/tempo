@@ -137,7 +137,7 @@ type Distributor struct {
 	generatorClientCfg      generator_client.Config
 	generatorsRing          ring.ReadRing
 	generatorsPool          *ring_client.Pool
-	generatorsQueue         *util.EvictingQueue
+	generatorsQueue         util.CircularQueue
 
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
@@ -212,10 +212,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		tagsToDrop[tag] = struct{}{}
 	}
 
-	generatorQueue, err := util.NewEvictingQueue(100, func() {})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create generator queue: %w", err)
-	}
+	generatorQueue := util.NewCircularQueue(10)
 
 	d := &Distributor{
 		shutdownCh:              make(chan struct{}),
@@ -418,24 +415,28 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 }
 
 func (d *Distributor) queueToGenerator(userID string, keys []uint32, traces []*rebatchedTrace) {
-	req := &pushRingRequest{
+	d.generatorsQueue.Write(&pushRingRequest{
 		userID: userID,
 		traces: traces,
 		keys:   keys,
-	}
-	d.generatorsQueue.Append(req)
+	})
 }
 
 // loopGeneratorsQueue loops over the queue and sends the traces to the metrics-generator
 func (d *Distributor) loopGeneratorsQueue() {
+
 	for {
 		select {
-		case <-d.shutdownCh:
+		case <-time.After(d.cfg.GeneratorQueueLoopInterval):
 			return
-		// TODO: add a way to cancel consuming from the queue
-		//   maybe by cancelling the context?
-		case req := <-d.generatorsQueue.Out(context.Background()):
-			ringRequest := req.(*pushRingRequest)
+		default:
+			// TODO: add a way to cancel consuming from the queue
+			//   maybe by cancelling the context?
+			v := d.generatorsQueue.Read()
+			if v == nil {
+				continue
+			}
+			ringRequest := v.(*pushRingRequest)
 			err := d.sendToGenerators(context.Background(), ringRequest.userID, ringRequest.keys, ringRequest.traces)
 			if err != nil {
 				level.Error(log.Logger).Log("msg", "pushing to metrics-generators failed", "err", err)
