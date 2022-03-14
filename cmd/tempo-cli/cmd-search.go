@@ -3,16 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 const (
@@ -125,58 +122,4 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 	}
 
 	return nil
-}
-
-func searchIterator(iter encoding.Iterator, dataEncoding string, name string, value string, limit int) ([]common.ID, error) {
-	ctx := context.Background()
-	found := []common.ID{}
-
-	for {
-		id, obj, err := iter.Next(ctx)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		// todo : parrallelize unmarshal and search
-		trace, err := model.MustNewObjectDecoder(dataEncoding).PrepareForRead(obj)
-		if err != nil {
-			return nil, err
-		}
-
-		if traceContainsKeyValue(trace, name, value) {
-			found = append(found, id)
-		}
-
-		if len(found) >= limit {
-			break
-		}
-	}
-
-	return found, nil
-}
-
-func traceContainsKeyValue(trace *tempopb.Trace, name string, value string) bool {
-	// todo : support other attribute types besides string
-	for _, b := range trace.Batches {
-		for _, a := range b.Resource.Attributes {
-			if a.Key == name && a.Value.GetStringValue() == value {
-				return true
-			}
-		}
-
-		for _, ils := range b.InstrumentationLibrarySpans {
-			for _, s := range ils.Spans {
-				for _, a := range s.Attributes {
-					if a.Key == name && a.Value.GetStringValue() == value {
-						return true
-					}
-				}
-			}
-		}
-	}
-
-	return false
 }
