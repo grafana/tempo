@@ -108,7 +108,9 @@ func (t testHistogram) Observe(values []string, value float64) {
 	t.registry.addToMetric(t.nameSum, lbls, value)
 
 	for _, bucket := range t.buckets {
-		t.registry.addToMetric(t.nameBucket, withLe(lbls, bucket), isLe(value, bucket))
+		if value <= bucket {
+			t.registry.addToMetric(t.nameBucket, withLe(lbls, bucket), 1)
+		}
 	}
 	t.registry.addToMetric(t.nameBucket, withLe(lbls, math.Inf(1)), 1)
 }

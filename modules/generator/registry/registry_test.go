@@ -108,8 +108,9 @@ func TestManagedRegistry_histogram(t *testing.T) {
 		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "instance": mustGetHostname(), "le": "+Inf"}, 0, 2),
 		newSample(map[string]string{"__name__": "histogram_count", "label": "value-2", "instance": mustGetHostname()}, 0, 1),
 		newSample(map[string]string{"__name__": "histogram_sum", "label": "value-2", "instance": mustGetHostname()}, 0, 2.5),
-		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-2", "instance": mustGetHostname(), "le": "1"}, 0, 0),
-		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-2", "instance": mustGetHostname(), "le": "2"}, 0, 0),
+		// 0 values are omitted
+		//newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-2", "instance": mustGetHostname(), "le": "1"}, 0, 0),
+		//newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-2", "instance": mustGetHostname(), "le": "2"}, 0, 0),
 		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-2", "instance": mustGetHostname(), "le": "+Inf"}, 0, 1),
 	}
 	scrapeRegistryAndAssert(t, registry, appender, expectedSamples)

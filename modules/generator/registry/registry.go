@@ -270,23 +270,19 @@ func (h histogram) Observe(labelValues []string, value float64) {
 	h.sum.add(labelValues, value)
 	h.count.add(labelValues, 1)
 
+	// avoid allocations by reusing the same slice and overwriting the le value
 	labelValuesWithLe := append(labelValues, "")
 	leIndex := len(labelValuesWithLe) - 1
 
 	for bucket, m := range h.buckets {
-		labelValuesWithLe[leIndex] = h.bucketLabels[bucket]
-		m.add(labelValuesWithLe, isLe(value, bucket))
+		if value <= bucket {
+			labelValuesWithLe[leIndex] = h.bucketLabels[bucket]
+			m.add(labelValuesWithLe, 1)
+		}
 	}
 
 	labelValuesWithLe[leIndex] = "+Inf"
 	h.bucketInf.add(labelValuesWithLe, 1)
-}
-
-func isLe(value, bucket float64) float64 {
-	if value <= bucket {
-		return 1.0
-	}
-	return 0.0
 }
 
 func formatFloat(value float64) string {
