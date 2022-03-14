@@ -81,15 +81,7 @@ func TestDB(t *testing.T) {
 	for i := 0; i < numMsgs; i++ {
 		ids[i] = test.ValidTraceID(nil)
 		reqs[i] = test.MakeTrace(10, ids[i])
-
-		bReq, err := dec.PrepareForWrite(reqs[i], 0, 0)
-		require.NoError(t, err)
-
-		bReq2, err := dec.ToObject([][]byte{bReq})
-		require.NoError(t, err)
-
-		err = head.Append(ids[i], bReq2, 0, 0)
-		require.NoError(t, err, "unexpected error writing req")
+		writeTraceToWal(t, head, dec, ids[i], reqs[i], 0, 0)
 	}
 
 	_, err = w.CompleteBlock(head, &mockCombiner{})
@@ -126,15 +118,7 @@ func TestBlockSharding(t *testing.T) {
 	// add a trace to the block
 	id := test.ValidTraceID(nil)
 	req := test.MakeTrace(1, id)
-
-	b1, err := dec.PrepareForWrite(req, 0, 0)
-	require.NoError(t, err)
-	b2, err := dec.ToObject([][]byte{b1})
-	require.NoError(t, err)
-
-	assert.NoError(t, err)
-	err = head.Append(id, b2, 0, 0)
-	assert.NoError(t, err, "unexpected error writing req")
+	writeTraceToWal(t, head, dec, id, req, 0, 0)
 
 	// write block to backend
 	_, err = w.CompleteBlock(head, &mockCombiner{})
@@ -487,20 +471,11 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	reqs := make([]*tempopb.Trace, 0, numMsgs)
 	ids := make([][]byte, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
-		id := make([]byte, 16)
-		rand.Read(id)
+		id := test.ValidTraceID(nil)
 		req := test.MakeTrace(rand.Int()%1000, id)
+		writeTraceToWal(t, head, dec, id, req, 0, 0)
 		reqs = append(reqs, req)
 		ids = append(ids, id)
-
-		bReq, err := dec.PrepareForWrite(req, 0, 0)
-		require.NoError(t, err)
-
-		bReq2, err := dec.ToObject([][]byte{bReq})
-		require.NoError(t, err)
-
-		err = head.Append(id, bReq2, 0, 0)
-		require.NoError(t, err, "unexpected error writing req")
 	}
 
 	complete, err := w.CompleteBlock(head, &mockCombiner{})
@@ -649,4 +624,15 @@ func TestShouldCache(t *testing.T) {
 			assert.Equal(t, tt.cache, rw.shouldCache(&backend.BlockMeta{CompactionLevel: tt.compactionLevel, StartTime: tt.startTime}, time.Now()))
 		})
 	}
+}
+
+func writeTraceToWal(t require.TestingT, b *wal.AppendBlock, dec model.SegmentDecoder, id common.ID, tr *tempopb.Trace, start, end uint32) {
+	b1, err := dec.PrepareForWrite(tr, 0, 0)
+	require.NoError(t, err)
+
+	b2, err := dec.ToObject([][]byte{b1})
+	require.NoError(t, err)
+
+	err = b.Append(id, b2, start, end)
+	require.NoError(t, err, "unexpected error writing req")
 }

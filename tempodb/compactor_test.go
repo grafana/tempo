@@ -112,17 +112,10 @@ func TestCompaction(t *testing.T) {
 		for j := 0; j < recordCount; j++ {
 			id := test.ValidTraceID(nil)
 			req := test.MakeTrace(10, id)
+			writeTraceToWal(t, head, dec, id, req, 0, 0)
+
 			allReqs = append(allReqs, req)
 			allIds = append(allIds, id)
-
-			bReq, err := dec.PrepareForWrite(req, 0, 0)
-			require.NoError(t, err)
-
-			bReq2, err := dec.ToObject([][]byte{bReq})
-			require.NoError(t, err)
-
-			err = head.Append(id, bReq2, 0, 0)
-			require.NoError(t, err, "unexpected error writing req")
 		}
 
 		_, err = w.CompleteBlock(head, &mockCombiner{})
@@ -528,16 +521,10 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 		require.NoError(t, err)
 
 		for j := 0; j < recordCount; j++ {
-			tr := test.MakeTrace(1, makeTraceID(i, j))
-
-			b1, err := dec.PrepareForWrite(tr, 0, 0)
-			require.NoError(t, err)
-			b2, err := dec.ToObject([][]byte{b1})
-			require.NoError(t, err)
-
+			id := makeTraceID(i, j)
+			tr := test.MakeTrace(1, id)
 			now := uint32(time.Now().Unix())
-			err = head.Append(makeTraceID(i, j), b2, now, now)
-			require.NoError(t, err, "unexpected error writing rec")
+			writeTraceToWal(t, head, dec, id, tr, now, now)
 		}
 
 		b, err := w.CompleteBlock(head, &mockCombiner{})
