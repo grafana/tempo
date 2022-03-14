@@ -22,6 +22,7 @@ import (
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
@@ -441,18 +442,18 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	}
 
 	// completeBlock
+	combiner := trace.NewCombiner()
+	combiner.Consume(completeTrace)
 	for _, c := range i.completeBlocks {
-		foundBytes, err = c.Find(ctx, id)
+		found, err := c.FindTraceByID(ctx, id)
 		if err != nil {
-			return nil, fmt.Errorf("completeBlock.Find failed: %w", err)
+			return nil, fmt.Errorf("completeBlock.FindTraceByID failed: %w", err)
 		}
-		completeTrace, err = model.CombineForRead(foundBytes, c.BlockMeta().DataEncoding, completeTrace)
-		if err != nil {
-			return nil, fmt.Errorf("completeBlock combine failed in FindTraceByID: %w", err)
-		}
+		combiner.Consume(found)
 	}
 
-	return completeTrace, nil
+	result, _ := combiner.Result()
+	return result, nil
 }
 
 // AddCompletingBlock adds an AppendBlock directly to the slice of completing blocks.

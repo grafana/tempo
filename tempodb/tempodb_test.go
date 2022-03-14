@@ -528,36 +528,29 @@ func TestCompleteBlock(t *testing.T) {
 
 	blockID := uuid.New()
 
-	block, err := wal.NewBlock(blockID, testTenantID, "")
-	assert.NoError(t, err, "unexpected error creating block")
+	block, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	require.NoError(t, err, "unexpected error creating block")
+
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	numMsgs := 100
 	reqs := make([]*tempopb.Trace, 0, numMsgs)
 	ids := make([][]byte, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
-		id := make([]byte, 16)
-		rand.Read(id)
+		id := test.ValidTraceID(nil)
 		req := test.MakeTrace(rand.Int()%1000, id)
+		writeTraceToWal(t, block, dec, id, req, 0, 0)
 		reqs = append(reqs, req)
 		ids = append(ids, id)
-		bReq, err := proto.Marshal(req)
-		assert.NoError(t, err)
-		err = block.Append(id, bReq, 0, 0)
-		assert.NoError(t, err, "unexpected error writing req")
 	}
 
 	complete, err := w.CompleteBlock(block, &mockCombiner{})
 	require.NoError(t, err, "unexpected error completing block")
 
 	for i, id := range ids {
-		out := &tempopb.Trace{}
-		foundBytes, err := complete.Find(context.TODO(), id)
-		assert.NoError(t, err)
-
-		err = proto.Unmarshal(foundBytes, out)
-		assert.NoError(t, err)
-
-		assert.True(t, proto.Equal(out, reqs[i]))
+		found, err := complete.FindTraceByID(context.TODO(), id)
+		require.NoError(t, err)
+		require.True(t, proto.Equal(found, reqs[i]))
 	}
 }
 

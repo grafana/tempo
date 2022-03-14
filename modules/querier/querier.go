@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"net/http"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -32,14 +31,13 @@ import (
 	"github.com/grafana/tempo/modules/querier/worker"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/search"
 )
 
@@ -433,53 +431,7 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 
 	maxBytes := q.limits.MaxBytesPerTrace(tenantID)
 
-	var searchErr error
-	respMtx := sync.Mutex{}
-	resp := &tempopb.SearchResponse{
-		Metrics: &tempopb.SearchMetrics{},
-	}
-
-	decoder, err := model.NewObjectDecoder(req.DataEncoding)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create NewDecoder: %w", err)
-	}
-
-	err = q.store.IterateObjects(ctx, meta, int(req.StartPage), int(req.PagesToSearch), func(id common.ID, obj []byte) bool {
-		respMtx.Lock()
-		resp.Metrics.InspectedTraces++
-		resp.Metrics.InspectedBytes += uint64(len(obj))
-		respMtx.Unlock()
-
-		if maxBytes > 0 && len(obj) > maxBytes {
-			respMtx.Lock()
-			resp.Metrics.SkippedTraces++
-			respMtx.Unlock()
-			return false
-		}
-
-		metadata, err := decoder.Matches(id, obj, req.SearchReq)
-
-		respMtx.Lock()
-		defer respMtx.Unlock()
-		if err != nil {
-			searchErr = err
-			return false
-		}
-		if metadata == nil {
-			return false
-		}
-
-		resp.Traces = append(resp.Traces, metadata)
-		return len(resp.Traces) >= int(req.SearchReq.Limit)
-	})
-	if err != nil {
-		return nil, err
-	}
-	if searchErr != nil {
-		return nil, searchErr
-	}
-
-	return resp, nil
+	return q.store.Search(ctx, meta, req.SearchReq, encoding.WithPages(int(req.StartPage), int(req.PagesToSearch)), encoding.WithMaxBytes(maxBytes))
 }
 
 func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []responseFromIngesters) *tempopb.SearchResponse {

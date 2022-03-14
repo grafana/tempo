@@ -15,9 +15,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	pkg_cache "github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -81,7 +79,7 @@ type IterateObjectCallback func(id common.ID, obj []byte) bool
 
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]*tempopb.Trace, []error, error)
-	IterateObjects(ctx context.Context, meta *backend.BlockMeta, startPage int, totalPages int, callback IterateObjectCallback) error
+	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts ...encoding.SearchOption) (*tempopb.SearchResponse, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(sharder blocklist.JobSharder)
 
@@ -365,49 +363,15 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	return partialTraceObjs, funcErrs, err
 }
 
-// IterateObjects iterates through all objects for the provided blockID, startPage and totalPages
-// calling the provided callback for each object. If the callback returns true then iteration
-// is stopped and the function returns. Note that the callback needs to be threadsafe as it is called
-// concurrently.
-func (rw *readerWriter) IterateObjects(ctx context.Context, meta *backend.BlockMeta, startPage int, totalPages int, callback IterateObjectCallback) error {
+// Search the given block.  This method takes the pre-loaded block meta instead of a block ID, which
+// eliminates a read per search request.
+func (rw *readerWriter) Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts ...encoding.SearchOption) (*tempopb.SearchResponse, error) {
 	block, err := encoding.NewBackendBlock(meta, rw.r)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// todo: a graduated chunk size would allow for faster iteration
-	iter, err := block.PartialIterator(rw.cfg.Search.ChunkSizeBytes, startPage, totalPages)
-	if err != nil {
-		return err
-	}
-	iter = encoding.NewPrefetchIterator(ctx, iter, rw.cfg.Search.PrefetchTraceCount)
-	wg := boundedwaitgroup.New(5)
-	done := atomic.Bool{}
-	for {
-		id, obj, err := iter.Next(ctx)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("error iterating %s, %w", meta.BlockID, err)
-		}
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			isDone := callback(id, obj)
-			if isDone {
-				done.Store(true)
-			}
-		}()
-
-		if done.Load() {
-			break
-		}
-	}
-	wg.Wait()
-
-	return nil
+	return block.Search(ctx, req, opts...)
 }
 
 func (rw *readerWriter) Shutdown() {

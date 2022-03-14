@@ -26,6 +26,9 @@ type BackendBlock struct {
 	reader backend.Reader
 }
 
+var _ Finder = (*BackendBlock)(nil)
+var _ Searcher = (*BackendBlock)(nil)
+
 // NewBackendBlock returns a BackendBlock for the given backend.BlockMeta
 //  It is version aware.
 func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (*BackendBlock, error) {
@@ -42,7 +45,7 @@ func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (*BackendBlock, 
 }
 
 // Find searches a block for the ID and returns an object if found.
-func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
+func (b *BackendBlock) find(ctx context.Context, id common.ID) ([]byte, error) {
 	var err error
 	span, ctx := opentracing.StartSpanFromContext(ctx, "BackendBlock.Find")
 	defer func() {
@@ -115,8 +118,8 @@ func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (Iterator, error) {
 	return newPagedIterator(chunkSizeBytes, reader, dataReader, b.encoding.NewObjectReaderWriter()), nil
 }
 
-// PartialIterator returns an Iterator that iterates over the a subset of pages in the block from the backend
-func (b *BackendBlock) PartialIterator(chunkSizeBytes uint32, startPage int, totalPages int) (Iterator, error) {
+// partialIterator returns an Iterator that iterates over the a subset of pages in the block from the backend
+func (b *BackendBlock) partialIterator(chunkSizeBytes uint32, startPage int, totalPages int) (Iterator, error) {
 	// read index
 	ra := backend.NewContextReader(b.meta, nameObjects, b.reader, false)
 	dataReader, err := b.encoding.NewDataReader(ra, b.meta.Encoding)
@@ -146,10 +149,8 @@ func (b *BackendBlock) BlockMeta() *backend.BlockMeta {
 	return b.meta
 }
 
-var _ Finder = (*BackendBlock)(nil)
-
 func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID) (*tempopb.Trace, error) {
-	obj, err := b.Find(ctx, id)
+	obj, err := b.find(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -164,8 +165,6 @@ func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID) (*tempop
 	}
 	return dec.PrepareForRead(obj)
 }
-
-var _ Searcher = (*BackendBlock)(nil)
 
 func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts ...SearchOption) (resp *tempopb.SearchResponse, err error) {
 
@@ -185,7 +184,7 @@ func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	// Iterator
 	var iter Iterator
 	if opt.totalPages > 0 {
-		iter, err = b.PartialIterator(opt.chunkSizeBytes, opt.startPage, opt.totalPages)
+		iter, err = b.partialIterator(opt.chunkSizeBytes, opt.startPage, opt.totalPages)
 	} else {
 		iter, err = b.Iterator(opt.chunkSizeBytes)
 	}
