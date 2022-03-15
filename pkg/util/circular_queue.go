@@ -10,7 +10,8 @@ import (
 // The queue is circular and will overwrite the oldest item when the
 // maximum size is reached.
 type CircularQueue struct {
-	mutex sync.RWMutex
+	mutex       sync.RWMutex
+	overwriteFn func() // Called when the queue is full and an item is added
 
 	buf  []interface{}
 	head int // write index
@@ -18,15 +19,16 @@ type CircularQueue struct {
 	size int
 }
 
-func NewCircularQueue(size int) *CircularQueue {
+func NewCircularQueue(size int, overwriteFn func()) *CircularQueue {
 	if size <= 0 {
 		panic("size must be greater than 0")
 	}
 
 	return &CircularQueue{
-		mutex: sync.RWMutex{},
-		buf:   make([]interface{}, size+1),
-		size:  size + 1,
+		mutex:       sync.RWMutex{},
+		overwriteFn: overwriteFn,
+		buf:         make([]interface{}, size+1),
+		size:        size + 1,
 	}
 }
 
@@ -39,6 +41,9 @@ func (cb *CircularQueue) Write(v interface{}) {
 	cb.buf[cb.head] = v
 	cb.head = (cb.head + 1) % cb.size
 	if cb.head == cb.tail {
+		if cb.overwriteFn != nil {
+			cb.overwriteFn()
+		}
 		cb.tail = (cb.tail + 1) % cb.size
 	}
 }
@@ -110,6 +115,7 @@ func (cb *CircularQueue) len() int {
 	return cb.size - cb.tail + cb.head
 }
 
+// CanRead returns true if there are unread elements in the queue.
 func (cb *CircularQueue) CanRead() bool {
 	cb.mutex.RLock()
 	defer cb.mutex.RUnlock()

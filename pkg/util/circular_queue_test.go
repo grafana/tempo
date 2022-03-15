@@ -9,18 +9,25 @@ import (
 )
 
 func TestCircularQueueWrite(t *testing.T) {
-	cb := NewCircularQueue(10)
+	var overwrites int
+	cb := NewCircularQueue(10, func() {
+		overwrites++
+	})
 	for i := 0; i < 10; i++ {
 		cb.Write(i)
 	}
 
 	require.Equal(t, 10, cb.Len())
+	require.Equal(t, 0, overwrites)
 }
 
-func TestCircularQueueEvict(t *testing.T) {
+func TestCircularQueueOverwrite(t *testing.T) {
+	var overwrites int
 	// Write 5 items with a capacity of 5
 	// First 5 items [0,4] will be overwritten
-	cb := NewCircularQueue(5)
+	cb := NewCircularQueue(5, func() {
+		overwrites++
+	})
 	for i := 0; i < 10; i++ {
 		cb.Write(i)
 	}
@@ -31,10 +38,14 @@ func TestCircularQueueEvict(t *testing.T) {
 	}
 
 	require.Equal(t, 0, cb.Len())
+	require.Equal(t, 5, overwrites)
 }
 
 func TestCircularQueueSafeConcurrentAccess(t *testing.T) {
-	cb := NewCircularQueue(5)
+	var overwrites int
+	cb := NewCircularQueue(5, func() {
+		overwrites++
+	})
 
 	var wg sync.WaitGroup
 
@@ -51,6 +62,7 @@ func TestCircularQueueSafeConcurrentAccess(t *testing.T) {
 	wg.Wait()
 
 	require.Equal(t, 5, cb.Len())
+	require.Equal(t, 9995, overwrites)
 }
 
 type queueEntry struct {
@@ -59,7 +71,7 @@ type queueEntry struct {
 }
 
 func BenchmarkCircularQueueWrite(b *testing.B) {
-	cb := NewCircularQueue(10)
+	cb := NewCircularQueue(10, func() {})
 
 	b.ResetTimer()
 	b.ReportAllocs()
