@@ -4,15 +4,12 @@ import (
 	"sync"
 )
 
-type CircularQueue interface {
-	Write(interface{})
-	Read() interface{}
-	ReadAll() []interface{}
-	Peek() interface{}
-	Len() int
-}
+// TODO: Move to generics with Go 1.18
 
-type circularQueue struct {
+// CircularQueue is a thread-safe queue that can be used to store items.
+// The queue is circular and will overwrite the oldest item when the
+// maximum size is reached.
+type CircularQueue struct {
 	mutex sync.RWMutex
 
 	buf  []interface{}
@@ -21,12 +18,12 @@ type circularQueue struct {
 	size int
 }
 
-func NewCircularQueue(size int) CircularQueue {
+func NewCircularQueue(size int) *CircularQueue {
 	if size <= 0 {
 		panic("size must be greater than 0")
 	}
 
-	return &circularQueue{
+	return &CircularQueue{
 		mutex: sync.RWMutex{},
 		buf:   make([]interface{}, size+1),
 		size:  size + 1,
@@ -35,7 +32,7 @@ func NewCircularQueue(size int) CircularQueue {
 
 // Write writes an element to the circular queue.
 // If the queue is full, it overwrites the oldest element.
-func (cb *circularQueue) Write(v interface{}) {
+func (cb *CircularQueue) Write(v interface{}) {
 	cb.mutex.Lock()
 	defer cb.mutex.Unlock()
 
@@ -48,7 +45,7 @@ func (cb *circularQueue) Write(v interface{}) {
 
 // Read reads an element from the circular queue.
 // If the queue is empty, it returns nil.
-func (cb *circularQueue) Read() interface{} {
+func (cb *CircularQueue) Read() interface{} {
 	cb.mutex.RLock()
 	defer cb.mutex.RUnlock()
 
@@ -56,7 +53,7 @@ func (cb *circularQueue) Read() interface{} {
 }
 
 // ReadAll reads all elements from the circular queue.
-func (cb *circularQueue) ReadAll() []interface{} {
+func (cb *CircularQueue) ReadAll() []interface{} {
 	cb.mutex.Lock()
 	defer cb.mutex.Unlock()
 
@@ -73,7 +70,7 @@ func (cb *circularQueue) ReadAll() []interface{} {
 // After a read, the tail is moved forward.
 //
 // This method is not thread-safe.
-func (cb *circularQueue) read() interface{} {
+func (cb *CircularQueue) read() interface{} {
 	if cb.head == cb.tail {
 		return nil
 	}
@@ -84,14 +81,14 @@ func (cb *circularQueue) read() interface{} {
 
 // Peek reads the oldest element from the circular queue,
 // but does not move the tail forward.
-func (cb *circularQueue) Peek() interface{} {
+func (cb *CircularQueue) Peek() interface{} {
 	cb.mutex.RLock()
 	defer cb.mutex.RUnlock()
 
 	return cb.peek()
 }
 
-func (cb *circularQueue) peek() interface{} {
+func (cb *CircularQueue) peek() interface{} {
 	if cb.head == cb.tail {
 		return nil
 	}
@@ -99,16 +96,23 @@ func (cb *circularQueue) peek() interface{} {
 }
 
 // Len returns the number of elements in the queue.
-func (cb *circularQueue) Len() int {
+func (cb *CircularQueue) Len() int {
 	cb.mutex.RLock()
 	defer cb.mutex.RUnlock()
 
 	return cb.len()
 }
 
-func (cb *circularQueue) len() int {
+func (cb *CircularQueue) len() int {
 	if cb.head >= cb.tail {
 		return cb.head - cb.tail
 	}
 	return cb.size - cb.tail + cb.head
+}
+
+func (cb *CircularQueue) CanRead() bool {
+	cb.mutex.RLock()
+	defer cb.mutex.RUnlock()
+
+	return cb.head != cb.tail
 }
