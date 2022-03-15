@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -18,7 +19,6 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/log"
 )
 
 var (
@@ -60,9 +60,14 @@ type instance struct {
 	processors    map[string]processor.Processor
 
 	shutdownCh chan struct{}
+
+	reg    prometheus.Registerer
+	logger log.Logger
 }
 
-func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage) (*instance, error) {
+func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, reg prometheus.Registerer, logger log.Logger) (*instance, error) {
+	logger = log.With(logger, "tenant", instanceID)
+
 	i := &instance{
 		cfg:        cfg,
 		instanceID: instanceID,
@@ -74,6 +79,9 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		processors: make(map[string]processor.Processor),
 
 		shutdownCh: make(chan struct{}, 1),
+
+		reg:    reg,
+		logger: logger,
 	}
 
 	err := i.updateProcessors(i.overrides.MetricsGeneratorProcessors(i.instanceID))
@@ -97,7 +105,7 @@ func (i *instance) watchOverrides() {
 			err := i.updateProcessors(i.overrides.MetricsGeneratorProcessors(i.instanceID))
 			if err != nil {
 				metricActiveProcessorsUpdateFailed.WithLabelValues(i.instanceID).Inc()
-				level.Error(log.Logger).Log("msg", "updating the processors failed", "err", err, "tenant", i.instanceID)
+				level.Error(i.logger).Log("msg", "updating the processors failed", "err", err)
 			}
 
 		case <-i.shutdownCh:
@@ -152,19 +160,18 @@ func (i *instance) diffProcessors(desiredProcessors map[string]struct{}) (toAdd 
 // addProcessor registers the processor and adds it to the processors map. Must be called under a
 // write lock.
 func (i *instance) addProcessor(processorName string) error {
-	level.Debug(log.Logger).Log("msg", "adding processor", "processorName", processorName, "tenant", i.instanceID)
+	level.Debug(i.logger).Log("msg", "adding processor", "processorName", processorName)
 
 	var newProcessor processor.Processor
 	switch processorName {
 	case spanmetrics.Name:
 		newProcessor = spanmetrics.New(i.cfg.Processor.SpanMetrics, i.instanceID)
 	case servicegraphs.Name:
-		newProcessor = servicegraphs.New(i.cfg.Processor.ServiceGraphs, i.instanceID)
+		newProcessor = servicegraphs.New(i.cfg.Processor.ServiceGraphs, i.instanceID, i.logger)
 	default:
-		level.Error(log.Logger).Log(
+		level.Error(i.logger).Log(
 			"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(allSupportedProcessors, ", ")),
 			"processorName", processorName,
-			"tenant", i.instanceID,
 		)
 		return fmt.Errorf("unknown processor %s", processorName)
 	}
@@ -187,7 +194,7 @@ func (i *instance) addProcessor(processorName string) error {
 // removeProcessor removes the processor from the processors map and shuts it down. Must be called
 // under a write lock.
 func (i *instance) removeProcessor(processorName string) {
-	level.Debug(log.Logger).Log("msg", "removing processor", "processorName", processorName, "tenant", i.instanceID)
+	level.Debug(i.logger).Log("msg", "removing processor", "processorName", processorName)
 
 	deletedProcessor, ok := i.processors[processorName]
 	if !ok {
@@ -198,7 +205,7 @@ func (i *instance) removeProcessor(processorName string) {
 
 	err := deletedProcessor.Shutdown(context.Background(), i.registry)
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "processor did not shutdown cleanly", "name", deletedProcessor.Name(), "err", err, "tenant", i.instanceID)
+		level.Error(i.logger).Log("msg", "processor did not shutdown cleanly", "name", deletedProcessor.Name(), "err", err)
 	}
 }
 
@@ -242,7 +249,7 @@ func (i *instance) collectMetrics(ctx context.Context) error {
 	defer span.Finish()
 
 	traceID, _ := tracing.ExtractTraceID(ctx)
-	level.Info(log.Logger).Log("msg", "collecting metrics", "tenant", i.instanceID, "traceID", traceID)
+	level.Info(i.logger).Log("msg", "collecting metrics", "traceID", traceID)
 
 	appender := i.wal.Appender(ctx)
 
@@ -261,12 +268,12 @@ func (i *instance) shutdown(ctx context.Context) {
 
 	err := i.collectMetrics(ctx)
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "collecting metrics failed at shutdown", "tenant", i.instanceID, "err", err)
+		level.Error(i.logger).Log("msg", "collecting metrics failed at shutdown", "err", err)
 	}
 
 	err = i.wal.Close()
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "closing wal failed", "tenant", i.instanceID, "err", err)
+		level.Error(i.logger).Log("msg", "closing wal failed", "tenant", i.instanceID, "err", err)
 	}
 
 	i.processorsMtx.Lock()

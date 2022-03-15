@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -17,7 +18,6 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor/util"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util/log"
 )
 
 var (
@@ -59,9 +59,10 @@ type processor struct {
 
 	metricDroppedSpans  prometheus.Counter
 	metricUnpairedEdges prometheus.Counter
+	logger              log.Logger
 }
 
-func New(cfg Config, tenant string) gen.Processor {
+func New(cfg Config, tenant string, logger log.Logger) gen.Processor {
 	p := &processor{
 		cfg: cfg,
 
@@ -71,6 +72,7 @@ func New(cfg Config, tenant string) gen.Processor {
 		// TODO we only have to pass tenant to be used in instrumentation, can we avoid doing this somehow?
 		metricDroppedSpans:  metricDroppedSpans.WithLabelValues(tenant),
 		metricUnpairedEdges: metricUnpairedEdges.WithLabelValues(tenant),
+		logger:              logger,
 	}
 
 	p.store = store.NewStore(cfg.Wait, cfg.MaxItems, p.collectEdge)
@@ -172,9 +174,9 @@ func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 
 	if err := p.consume(req.Batches); err != nil {
 		if errors.As(err, &tooManySpansError{}) {
-			level.Warn(log.Logger).Log("msg", "skipped processing of spans", "maxItems", p.cfg.MaxItems, "err", err)
+			level.Warn(p.logger).Log("msg", "skipped processing of spans", "maxItems", p.cfg.MaxItems, "err", err)
 		} else {
-			level.Error(log.Logger).Log("msg", "failed consuming traces", "err", err)
+			level.Error(p.logger).Log("msg", "failed consuming traces", "err", err)
 		}
 	}
 }

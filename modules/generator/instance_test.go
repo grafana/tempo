@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/labels"
 	prometheus_storage "github.com/prometheus/prometheus/storage"
@@ -18,7 +20,7 @@ import (
 )
 
 func Test_instance_concurrency(t *testing.T) {
-	instance, err := newInstance(&Config{}, "test", &mockOverrides{}, &noopStorage{})
+	instance, err := newInstance(&Config{}, "test", &mockOverrides{}, &noopStorage{}, prometheus.DefaultRegisterer, log.NewNopLogger())
 	assert.NoError(t, err)
 
 	end := make(chan struct{})
@@ -70,7 +72,7 @@ func Test_instance_concurrency(t *testing.T) {
 }
 
 func Test_instance_updateProcessors(t *testing.T) {
-	instance, err := newInstance(&Config{}, "test", &mockOverrides{}, &noopStorage{})
+	instance, err := newInstance(&Config{}, "test", &mockOverrides{}, &noopStorage{}, prometheus.DefaultRegisterer, log.NewNopLogger())
 	assert.NoError(t, err)
 
 	// stop the update goroutine

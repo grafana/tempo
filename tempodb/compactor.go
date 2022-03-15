@@ -56,7 +56,7 @@ const (
 	inputBlocks  = 2
 	outputBlocks = 1
 
-	compactionCycle = 500 * time.Millisecond
+	DefaultCompactionCycle = 30 * time.Second
 
 	DefaultFlushSizeBytes uint32 = 30 * 1024 * 1024 // 30 MiB
 
@@ -65,6 +65,11 @@ const (
 
 // todo: pass a context/chan in to cancel this cleanly
 func (rw *readerWriter) compactionLoop() {
+	compactionCycle := DefaultCompactionCycle
+	if rw.compactorCfg.CompactionCycle > 0 {
+		compactionCycle = rw.compactorCfg.CompactionCycle
+	}
+
 	ticker := time.NewTicker(compactionCycle)
 	for range ticker.C {
 		rw.doCompaction()
