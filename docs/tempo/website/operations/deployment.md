@@ -17,8 +17,8 @@ Tempo can be easily deployed through a number of tools as explained in this docu
 
 The Jsonnet files that you need to deploy Tempo with Tanka are available here:
 
-- [single binary](https://github.com/grafana/tempo/tree/main/operations/jsonnet/single-binary)
-- [microservices](https://github.com/grafana/tempo/tree/main/operations/jsonnet/microservices)
+- [monolithic mode](https://github.com/grafana/tempo/tree/main/operations/jsonnet/single-binary)
+- [microservices mode](https://github.com/grafana/tempo/tree/main/operations/jsonnet/microservices)
 
 Here are a few [examples](https://github.com/grafana/tempo/tree/main/example/tk) that use official Jsonnet files.
 They display the full range of configurations available to Tempo.
@@ -27,8 +27,8 @@ They display the full range of configurations available to Tempo.
 
 Helm charts are available in the grafana/helm-charts repo:
 
-- [single binary](https://github.com/grafana/helm-charts/tree/main/charts/tempo)
-- [microservices](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed)
+- [monolithic mode](https://github.com/grafana/helm-charts/tree/main/charts/tempo)
+- [microservices mode](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed)
 
 ## Kubernetes manifests
 
@@ -38,20 +38,22 @@ folder.  These are generated using the Tanka / Jsonnet.
 
 # Deployment scenarios
 
-Tempo can be deployed in one of three modes.
+Tempo can be deployed in one of three modes:
 
-- Single binary
-- Scalable single binary
-- Microservices
+- monolithic
+- scalable monolithic
+- microservices
 
 Which mode is deployed is determined by the runtime configuration `target`, or
 by using the `-target` flag on the command line. The default target is `all`,
-which is the single binary deployment mode.
+which is the monolithic deployment mode.
 
-## Single binary
+> **Note:** _Monolithic mode_ was previously called _single binary mode_. Similarly _scalable monolithic mode_ was previously called _scalable single binary mode_. While the documentation has been updated to reflect this change, some URL names and deployment tooling (e.g. Helm charts) do not yet reflect this change. 
 
-A single binary mode deployment runs all top-level components in a single
-process, forming an instance of Tempo.  The single binary mode is the simplest
+## Monolithic
+
+Monolithic mode deployment runs all top-level components in a single
+process, forming an instance of Tempo.  The monolithic mode is the simplest
 to deploy, but can not horizontally scale out by increasing the quantity of
 components.  Refer to [Architecture]({{< relref "./architecture" >}}) for
 descriptions of the components.
@@ -63,18 +65,18 @@ Find docker-compose deployment examples at:
 - [https://github.com/grafana/tempo/tree/main/example/docker-compose/local](https://github.com/grafana/tempo/tree/main/example/docker-compose/local)
 - [https://github.com/grafana/tempo/tree/main/example/docker-compose/s3](https://github.com/grafana/tempo/tree/main/example/docker-compose/s3)
 
-## Scalable single binary
+## Scalable monolithic
 
-A scalable single binary deployment is similar to the single binary mode in
-that all components are deployed within one binary. Horizontal scale out is
-achieved by instantiating more than one single binary. This mode offers some
+Scalable monolithic mode is similar to the monolithic mode in
+that all components are run within one process. Horizontal scale out is
+achieved by instantiating more than one process, with each having `-target` set to `scalable-single-binary`. 
+
+This mode offers some
 flexibility of scaling without the configuration complexity of the full
 microservices deployment.
 
 Each of the `queriers` will perform a DNS lookup for the `frontend_address` and
 connect to the addresses found within the DNS record.
-
-To enable this mode, `-target=scalable-single-binary` is used.
 
 Find a docker-compose deployment example at:
 

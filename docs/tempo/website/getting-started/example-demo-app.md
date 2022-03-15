@@ -27,12 +27,12 @@ Check the above link for all kinds of examples including:
 ## Tanka
 
 The Jsonnet based [example](https://github.com/grafana/tempo/tree/main/example/tk) shows a complete microservice based deployment. 
-There are single binary and microservices examples.
+There are monolithic mode and microservices examples.
 
 ## Helm
 
 The Helm [example](https://github.com/grafana/tempo/tree/main/example/helm) shows a complete microservice based deployment. 
-There are single binary and microservices examples.
+There are monolithic mode and microservices examples.
 
 ## The New Stack (TNS) Demo
 
