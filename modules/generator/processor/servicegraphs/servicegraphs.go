@@ -201,7 +201,7 @@ func (p *processor) Shutdown(ctx context.Context) {
 // Returns true if the edge is completed or expired and should be deleted.
 func (p *processor) collectEdge(e *store.Edge) {
 	if e.IsCompleted() {
-		clientServerLabelValues := []string{e.ClientService, e.ServerService}
+		clientServerLabelValues := registry.NewLabelValues([]string{e.ClientService, e.ServerService})
 
 		p.serviceGraphRequestTotal.Inc(clientServerLabelValues, 1)
 		if e.Failed {

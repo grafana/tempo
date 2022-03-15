@@ -74,14 +74,14 @@ type testCounter struct {
 
 var _ Counter = (*testCounter)(nil)
 
-func (t testCounter) Inc(values []string, value float64) {
+func (t testCounter) Inc(values *LabelValues, value float64) {
 	if value < 0 {
 		panic("counter can only increase")
 	}
 
 	lbls := make(labels.Labels, len(t.labels))
 	for i, label := range t.labels {
-		lbls[i] = labels.Label{Name: label, Value: values[i]}
+		lbls[i] = labels.Label{Name: label, Value: values.values[i]}
 	}
 	sort.Sort(lbls)
 
@@ -97,10 +97,12 @@ type testHistogram struct {
 	registry   *TestRegistry
 }
 
-func (t testHistogram) Observe(values []string, value float64) {
+var _ Histogram = (*testHistogram)(nil)
+
+func (t testHistogram) Observe(values *LabelValues, value float64) {
 	lbls := make(labels.Labels, len(t.labels))
 	for i, label := range t.labels {
-		lbls[i] = labels.Label{Name: label, Value: values[i]}
+		lbls[i] = labels.Label{Name: label, Value: values.values[i]}
 	}
 	sort.Sort(lbls)
 

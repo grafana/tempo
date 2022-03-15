@@ -13,10 +13,10 @@ func TestTestRegistry_counter(t *testing.T) {
 
 	counter := testRegistry.NewCounter("counter", []string{"foo", "bar"})
 
-	values := []string{"foo-value", "bar-value"}
-	counter.Inc(values, 1.0)
-	counter.Inc(values, 2.0)
-	counter.Inc(values, 1.5)
+	labelValues := NewLabelValues([]string{"foo-value", "bar-value"})
+	counter.Inc(labelValues, 1.0)
+	counter.Inc(labelValues, 2.0)
+	counter.Inc(labelValues, 1.5)
 
 	lbls := labels.FromMap(map[string]string{
 		"foo": "foo-value",
@@ -30,10 +30,10 @@ func TestTestRegistry_histogram(t *testing.T) {
 
 	histogram := testRegistry.NewHistogram("histogram", []string{"foo", "bar"}, []float64{1.0, 2.0})
 
-	values := []string{"foo-value", "bar-value"}
-	histogram.Observe(values, 1.0)
-	histogram.Observe(values, 2.0)
-	histogram.Observe(values, 2.5)
+	labelValues := NewLabelValues([]string{"foo-value", "bar-value"})
+	histogram.Observe(labelValues, 1.0)
+	histogram.Observe(labelValues, 2.0)
+	histogram.Observe(labelValues, 2.5)
 
 	lbls := labels.FromMap(map[string]string{
 		"foo": "foo-value",

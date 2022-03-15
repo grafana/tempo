@@ -2,9 +2,7 @@ package registry
 
 import (
 	"context"
-	"fmt"
 	"os"
-	"strconv"
 	"sync"
 	"time"
 
@@ -59,7 +57,7 @@ type ManagedRegistry struct {
 
 	metricsMtx sync.RWMutex
 	// TODO we should not allow duplicate metrics, make this map[name]metric?
-	metrics      []*metric
+	metrics      []metric
 	activeSeries atomic.Uint32
 
 	appendable storage.Appendable
@@ -71,6 +69,13 @@ type ManagedRegistry struct {
 	metricTotalSeriesLimited prometheus.Counter
 	metricTotalScrapes       prometheus.Counter
 	metricFailedScrapes      prometheus.Counter
+}
+
+// metric is the interface for a metric that is managed by ManagedRegistry.
+type metric interface {
+	setCallbacks(onAddSeries func(count uint32) bool, onRemoveSeries func(count uint32))
+	scrape(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error)
+	removeStaleSeries(staleTimeMs int64)
 }
 
 var _ Registry = (*ManagedRegistry)(nil)
@@ -112,26 +117,47 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 	return r
 }
 
-func (r *ManagedRegistry) onAddMetricSeries() bool {
+func (r *ManagedRegistry) NewCounter(name string, labels []string) Counter {
+	c := newCounter(name, labels)
+	r.registerMetric(c)
+	return c
+}
+
+func (r *ManagedRegistry) NewHistogram(name string, labels []string, buckets []float64) Histogram {
+	h := newHistogram(name, labels, buckets)
+	r.registerMetric(h)
+	return h
+}
+
+func (r *ManagedRegistry) registerMetric(m metric) {
+	m.setCallbacks(r.onAddMetricSeries, r.onRemoveMetricSeries)
+
+	r.metricsMtx.Lock()
+	defer r.metricsMtx.Unlock()
+
+	r.metrics = append(r.metrics, m)
+}
+
+func (r *ManagedRegistry) onAddMetricSeries(count uint32) bool {
 	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
-	if maxActiveSeries != 0 && r.activeSeries.Load() >= maxActiveSeries {
+	if maxActiveSeries != 0 && r.activeSeries.Load()+count > maxActiveSeries {
 		r.metricTotalSeriesLimited.Inc()
 		level.Warn(r.logger).Log("msg", "reached max active series", "active_series", r.activeSeries.Load(), "max_active_series", maxActiveSeries)
 		return false
 	}
 
-	r.activeSeries.Inc()
+	r.activeSeries.Add(count)
 
-	r.metricTotalSeriesAdded.Inc()
-	r.metricActiveSeries.Inc()
+	r.metricTotalSeriesAdded.Add(float64(count))
+	r.metricActiveSeries.Add(float64(count))
 	return true
 }
 
-func (r *ManagedRegistry) onRemoveMetricSeries() {
-	r.activeSeries.Dec()
+func (r *ManagedRegistry) onRemoveMetricSeries(count uint32) {
+	r.activeSeries.Sub(count)
 
-	r.metricTotalSeriesRemoved.Inc()
-	r.metricActiveSeries.Dec()
+	r.metricTotalSeriesRemoved.Add(float64(count))
+	r.metricActiveSeries.Sub(float64(count))
 }
 
 func (r *ManagedRegistry) scrape(ctx context.Context) {
@@ -196,95 +222,4 @@ func (r *ManagedRegistry) removeStaleSeries(_ context.Context) {
 func (r *ManagedRegistry) Close() {
 	level.Info(r.logger).Log("msg", "closing registry")
 	r.onShutdown()
-}
-
-type counter struct {
-	m *metric
-}
-
-var _ Counter = (*counter)(nil)
-
-func (r *ManagedRegistry) NewCounter(name string, labels []string) Counter {
-	c := &counter{
-		m: newMetric(name, labels, r.onAddMetricSeries, r.onRemoveMetricSeries),
-	}
-
-	r.metricsMtx.Lock()
-	defer r.metricsMtx.Unlock()
-
-	r.metrics = append(r.metrics, c.m)
-
-	return c
-}
-
-func (c counter) Inc(labelValues []string, value float64) {
-	if value < 0 {
-		panic("counter can only increase")
-	}
-	c.m.add(labelValues, value)
-}
-
-type histogram struct {
-	// TODO this is not ideal, we are managing series for every individual metric while they all share the same label values
-	//  instead of updating, scraping and removing stale series from each metric, we can do them all at once
-	sum          *metric
-	count        *metric
-	bucketLabels map[float64]string
-	buckets      map[float64]*metric
-	bucketInf    *metric
-}
-
-var _ Histogram = (*histogram)(nil)
-
-func (r *ManagedRegistry) NewHistogram(name string, labels []string, buckets []float64) Histogram {
-	h := &histogram{
-		sum:          newMetric(fmt.Sprintf("%s_sum", name), labels, r.onAddMetricSeries, r.onRemoveMetricSeries),
-		count:        newMetric(fmt.Sprintf("%s_count", name), labels, r.onAddMetricSeries, r.onRemoveMetricSeries),
-		bucketLabels: make(map[float64]string),
-		buckets:      make(map[float64]*metric),
-		bucketInf:    nil,
-	}
-
-	nameBucket := fmt.Sprintf("%s_bucket", name)
-	labelsWithLe := append(labels, "le")
-
-	for _, bucket := range buckets {
-		h.bucketLabels[bucket] = formatFloat(bucket)
-		h.buckets[bucket] = newMetric(nameBucket, labelsWithLe, r.onAddMetricSeries, r.onRemoveMetricSeries)
-	}
-
-	h.bucketInf = newMetric(nameBucket, labelsWithLe, r.onAddMetricSeries, r.onRemoveMetricSeries)
-
-	r.metricsMtx.Lock()
-	defer r.metricsMtx.Unlock()
-
-	r.metrics = append(r.metrics, h.sum, h.count, h.bucketInf)
-	for _, m := range h.buckets {
-		r.metrics = append(r.metrics, m)
-	}
-
-	return h
-}
-
-func (h histogram) Observe(labelValues []string, value float64) {
-	h.sum.add(labelValues, value)
-	h.count.add(labelValues, 1)
-
-	// avoid allocations by reusing the same slice and overwriting the le value
-	labelValuesWithLe := append(labelValues, "")
-	leIndex := len(labelValuesWithLe) - 1
-
-	for bucket, m := range h.buckets {
-		if value <= bucket {
-			labelValuesWithLe[leIndex] = h.bucketLabels[bucket]
-			m.add(labelValuesWithLe, 1)
-		}
-	}
-
-	labelValuesWithLe[leIndex] = "+Inf"
-	h.bucketInf.add(labelValuesWithLe, 1)
-}
-
-func formatFloat(value float64) string {
-	return strconv.FormatFloat(value, 'f', -1, 64)
 }

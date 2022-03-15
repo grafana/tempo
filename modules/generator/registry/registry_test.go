@@ -2,7 +2,6 @@ package registry
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"os"
 	"testing"
@@ -30,21 +29,6 @@ func TestManagedRegistry_concurrency(t *testing.T) {
 				f()
 			}
 		}
-	}
-
-	for i := 0; i < 4; i++ {
-		counter := registry.NewCounter(fmt.Sprintf("counter_%d", i), []string{"label"})
-		go accessor(func() {
-			counter.Inc([]string{"value-1"}, 1.0)
-			counter.Inc([]string{"value-2"}, 2.0)
-		})
-	}
-
-	for i := 0; i < 4; i++ {
-		histogram := registry.NewHistogram(fmt.Sprintf("counter_%d", i), []string{"label"}, []float64{1.0, 2.0})
-		go accessor(func() {
-			histogram.Observe([]string{"value-1"}, 1.0)
-		})
 	}
 
 	// this goroutine constantly creates new counters
@@ -77,13 +61,10 @@ func TestManagedRegistry_counter(t *testing.T) {
 
 	counter := registry.NewCounter("my_counter", []string{"label"})
 
-	counter.Inc([]string{"value-1"}, 0.5)
-	counter.Inc([]string{"value-1"}, 0.5)
-	counter.Inc([]string{"value-2"}, 2.0)
+	counter.Inc(NewLabelValues([]string{"value-1"}), 1.0)
 
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "instance": mustGetHostname()}, 0, 1),
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-2", "instance": mustGetHostname()}, 0, 2),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "instance": mustGetHostname()}, 0, 1.0),
 	}
 	scrapeRegistryAndAssert(t, registry, appender, expectedSamples)
 }
@@ -96,22 +77,14 @@ func TestManagedRegistry_histogram(t *testing.T) {
 
 	histogram := registry.NewHistogram("histogram", []string{"label"}, []float64{1.0, 2.0})
 
-	histogram.Observe([]string{"value-1"}, 1.0)
-	histogram.Observe([]string{"value-1"}, 2.0)
-	histogram.Observe([]string{"value-2"}, 2.5)
+	histogram.Observe(NewLabelValues([]string{"value-1"}), 1.0)
 
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "histogram_count", "label": "value-1", "instance": mustGetHostname()}, 0, 2),
-		newSample(map[string]string{"__name__": "histogram_sum", "label": "value-1", "instance": mustGetHostname()}, 0, 3),
-		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "instance": mustGetHostname(), "le": "1"}, 0, 1),
-		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "instance": mustGetHostname(), "le": "2"}, 0, 2),
-		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "instance": mustGetHostname(), "le": "+Inf"}, 0, 2),
-		newSample(map[string]string{"__name__": "histogram_count", "label": "value-2", "instance": mustGetHostname()}, 0, 1),
-		newSample(map[string]string{"__name__": "histogram_sum", "label": "value-2", "instance": mustGetHostname()}, 0, 2.5),
-		// 0 values are omitted
-		//newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-2", "instance": mustGetHostname(), "le": "1"}, 0, 0),
-		//newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-2", "instance": mustGetHostname(), "le": "2"}, 0, 0),
-		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-2", "instance": mustGetHostname(), "le": "+Inf"}, 0, 1),
+		newSample(map[string]string{"__name__": "histogram_count", "label": "value-1", "instance": mustGetHostname()}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_sum", "label": "value-1", "instance": mustGetHostname()}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "instance": mustGetHostname(), "le": "1"}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "instance": mustGetHostname(), "le": "2"}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "instance": mustGetHostname(), "le": "+Inf"}, 0, 1.0),
 	}
 	scrapeRegistryAndAssert(t, registry, appender, expectedSamples)
 }
@@ -133,7 +106,6 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 
 	registry.removeStaleSeries(context.Background())
 
-	assert.Equal(t, registry.activeSeries.Load(), uint32(2))
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "metric_1", "instance": mustGetHostname()}, 0, 1),
 		newSample(map[string]string{"__name__": "metric_2", "instance": mustGetHostname()}, 0, 2),
@@ -148,7 +120,6 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 
 	registry.removeStaleSeries(context.Background())
 
-	assert.Equal(t, registry.activeSeries.Load(), uint32(1))
 	expectedSamples = []sample{
 		newSample(map[string]string{"__name__": "metric_2", "instance": mustGetHostname()}, 0, 4),
 	}
@@ -187,12 +158,12 @@ func TestManagedRegistry_maxSeries(t *testing.T) {
 	counter1 := registry.NewCounter("metric_1", []string{"label"})
 	counter2 := registry.NewCounter("metric_2", nil)
 
-	counter1.Inc([]string{"value-1"}, 1.0)
+	counter1.Inc(NewLabelValues([]string{"value-1"}), 1.0)
 	// these series should be discarded
-	counter1.Inc([]string{"value-2"}, 1.0)
+	counter1.Inc(NewLabelValues([]string{"value-2"}), 1.0)
 	counter2.Inc(nil, 1.0)
 
-	assert.Equal(t, registry.activeSeries.Load(), uint32(1))
+	assert.Equal(t, uint32(1), registry.activeSeries.Load())
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "metric_1", "label": "value-1", "instance": mustGetHostname()}, 0, 1),
 	}
@@ -200,6 +171,8 @@ func TestManagedRegistry_maxSeries(t *testing.T) {
 }
 
 func scrapeRegistryAndAssert(t *testing.T, r *ManagedRegistry, appender *capturingAppender, expectedSamples []sample) {
+	assert.Equal(t, uint32(len(expectedSamples)), r.activeSeries.Load())
+
 	scrapeTimeMs := time.Now().UnixMilli()
 	r.scrape(context.Background())
 

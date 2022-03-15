@@ -1,0 +1,133 @@
+package registry
+
+import (
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/storage"
+	"go.uber.org/atomic"
+)
+
+type counter struct {
+	name   string
+	labels []string
+
+	// seriesMtx is used to sync modifications to the map, not to the data in series
+	seriesMtx sync.RWMutex
+	series    map[uint64]*counterSeries
+
+	onAddSeries    func(count uint32) bool
+	onRemoveSeries func(count uint32)
+}
+
+type counterSeries struct {
+	// labelValues should not be modified after creation
+	labelValues []string
+	value       *atomic.Float64
+	lastUpdated *atomic.Int64
+}
+
+var _ Counter = (*counter)(nil)
+var _ metric = (*counter)(nil)
+
+func newCounter(name string, labels []string) *counter {
+	return &counter{
+		name:   name,
+		labels: labels,
+		series: make(map[uint64]*counterSeries),
+	}
+}
+
+func (c *counter) setCallbacks(onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) {
+	c.onAddSeries = onAddSeries
+	c.onRemoveSeries = onRemoveSeries
+}
+
+func (c *counter) Inc(labelValues *LabelValues, value float64) {
+	if value < 0 {
+		panic("counter can only increase")
+	}
+	if len(c.labels) != len(labelValues.getValues()) {
+		panic(fmt.Sprintf("length of given label values does not match with labels, labels: %v, label values: %v", c.labels, labelValues))
+	}
+
+	hash := labelValues.getHash()
+
+	c.seriesMtx.RLock()
+	s, ok := c.series[hash]
+	c.seriesMtx.RUnlock()
+
+	if ok {
+		s.value.Add(value)
+		s.lastUpdated.Store(time.Now().UnixMilli())
+		return
+	}
+
+	if !c.onAddSeries(1) {
+		return
+	}
+
+	newSeries := &counterSeries{
+		labelValues: labelValues.getValuesCopy(),
+		value:       atomic.NewFloat64(value),
+		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
+	}
+
+	c.seriesMtx.Lock()
+	defer c.seriesMtx.Unlock()
+
+	s, ok = c.series[hash]
+	if ok {
+		s.value.Add(value)
+		s.lastUpdated.Store(time.Now().UnixMilli())
+		return
+	}
+	c.series[hash] = newSeries
+}
+
+func (c *counter) scrape(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
+	c.seriesMtx.RLock()
+	defer c.seriesMtx.RUnlock()
+
+	activeSeries = len(c.series)
+
+	lbls := make(labels.Labels, 1+len(externalLabels)+len(c.labels))
+	lb := labels.NewBuilder(lbls)
+
+	// set metric name
+	lb.Set("__name__", c.name)
+	// set external labels
+	for name, value := range externalLabels {
+		lb.Set(name, value)
+	}
+
+	for _, s := range c.series {
+		// set series-specific labels
+		for i, name := range c.labels {
+			lb.Set(name, s.labelValues[i])
+		}
+
+		_, err = appender.Append(0, lb.Labels(), timeMs, s.value.Load())
+		if err != nil {
+			return
+		}
+
+		// TODO support exemplars
+	}
+
+	return
+}
+
+func (c *counter) removeStaleSeries(staleTimeMs int64) {
+	c.seriesMtx.Lock()
+	defer c.seriesMtx.Unlock()
+
+	for hash, s := range c.series {
+		if s.lastUpdated.Load() < staleTimeMs {
+			delete(c.series, hash)
+			c.onRemoveSeries(1)
+		}
+	}
+}

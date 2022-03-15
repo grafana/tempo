@@ -83,7 +83,9 @@ func (p *processor) aggregateMetricsForSpan(svcName string, span *v1_trace.Span)
 		}
 	}
 
-	p.spanMetricsCallsTotal.Inc(labelValues, 1)
+	registrylabelValues := registry.NewLabelValues(labelValues)
+
+	p.spanMetricsCallsTotal.Inc(registrylabelValues, 1)
 	// TODO observe exemplar prometheus.Labels{"traceID": tempo_util.TraceIDToHexString(span.TraceId)}
-	p.spanMetricsDurationSeconds.Observe(labelValues, latencySeconds)
+	p.spanMetricsDurationSeconds.Observe(registrylabelValues, latencySeconds)
 }
