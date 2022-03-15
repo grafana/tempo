@@ -112,8 +112,6 @@ type rebatchedTrace struct {
 type Distributor struct {
 	services.Service
 
-	shutdownCh chan struct{}
-
 	cfg             Config
 	clientCfg       ingester_client.Config
 	ingestersRing   ring.ReadRing
@@ -207,7 +205,6 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 	}
 
 	d := &Distributor{
-		shutdownCh:              make(chan struct{}),
 		cfg:                     cfg,
 		clientCfg:               clientCfg,
 		ingestersRing:           ingestersRing,
@@ -270,8 +267,6 @@ func (d *Distributor) running(ctx context.Context) error {
 
 // Called after distributor is asked to stop via StopAsync.
 func (d *Distributor) stopping(_ error) error {
-	close(d.shutdownCh)
-
 	return services.StopManagerAndAwaitStopped(context.Background(), d.subservices)
 }
 
