@@ -29,10 +29,12 @@ type forwarder struct {
 
 func newForwarder(fn func(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error) *forwarder {
 	rf := &forwarder{
+		// TODO: Make this configurable
 		queue:       util.NewCircularQueue(10),
 		forwardFunc: fn,
 	}
 
+	// TODO: Make this configurable
 	rf.Service = services.NewTimerService(time.Millisecond*10, nil, rf.forward, nil).WithName("forwarder")
 
 	return rf
