@@ -11,7 +11,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-type pagedFinder struct {
+type PagedFinder struct {
 	r            common.DataReader
 	index        common.IndexReader
 	combiner     model.ObjectCombiner
@@ -22,8 +22,8 @@ type pagedFinder struct {
 // NewPagedFinder returns a paged. This finder is used for searching
 //  a set of records and returning an object. If a set of consecutive records has
 //  matching ids they will be combined using the ObjectCombiner.
-func NewPagedFinder(index common.IndexReader, r common.DataReader, combiner model.ObjectCombiner, objectRW common.ObjectReaderWriter, dataEncoding string) *pagedFinder {
-	return &pagedFinder{
+func NewPagedFinder(index common.IndexReader, r common.DataReader, combiner model.ObjectCombiner, objectRW common.ObjectReaderWriter, dataEncoding string) *PagedFinder {
+	return &PagedFinder{
 		r:            r,
 		index:        index,
 		combiner:     combiner,
@@ -32,7 +32,7 @@ func NewPagedFinder(index common.IndexReader, r common.DataReader, combiner mode
 	}
 }
 
-func (f *pagedFinder) Find(ctx context.Context, id common.ID) ([]byte, error) {
+func (f *PagedFinder) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	var bytesFound []byte
 	record, i, err := f.index.Find(ctx, id)
 	if err != nil {
@@ -76,7 +76,7 @@ func (f *pagedFinder) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	return bytesFound, nil
 }
 
-func (f *pagedFinder) findOne(ctx context.Context, id common.ID, record common.Record) ([]byte, error) {
+func (f *PagedFinder) findOne(ctx context.Context, id common.ID, record common.Record) ([]byte, error) {
 	pages, _, err := f.r.Read(ctx, []common.Record{record}, nil, nil)
 	if err != nil {
 		return nil, err
