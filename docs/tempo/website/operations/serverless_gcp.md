@@ -1,3 +1,8 @@
+---
+title: Backend search - serverless GCP setup
+weight: 10
+---
+
 # Google Cloud Functions
 
 This document will walk you through setting up a Google Cloud Function for serverless backend search.
