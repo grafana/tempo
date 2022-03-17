@@ -221,7 +221,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		traceEncoder:            model.MustNewSegmentDecoder(model.CurrentEncoding),
 	}
 
-	d.generatorQueue = newForwarder(d.sendToGenerators)
+	d.generatorQueue = newForwarder(d.sendToGenerators, o)
 	subservices = append(subservices, d.generatorQueue)
 
 	cfgReceivers := cfg.Receivers
@@ -247,10 +247,10 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 }
 
 func (d *Distributor) starting(ctx context.Context) error {
-	// Only report success if all sub-services start properly
+	// Only report success if all sub-services startWorkers properly
 	err := services.StartManagerAndAwaitHealthy(ctx, d.subservices)
 	if err != nil {
-		return fmt.Errorf("failed to start subservices %w", err)
+		return fmt.Errorf("failed to startWorkers subservices %w", err)
 	}
 
 	return nil
@@ -341,7 +341,7 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 	}
 
 	if d.metricsGeneratorEnabled && len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
-		d.generatorQueue.ForwardTraces(ctx, userID, keys, rebatchedTraces)
+		d.generatorQueue.SendTraces(ctx, userID, keys, rebatchedTraces)
 	}
 
 	return nil, err // PushRequest is ignored, so no reason to create one
@@ -472,7 +472,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 				}
 				existingILS.Spans = append(existingILS.Spans, span)
 
-				// now find and update the rebatchedTrace with a new start and end
+				// now find and update the rebatchedTrace with a new startWorkers and end
 				existingTrace, ok := tracesByID[traceKey]
 				if !ok {
 					existingTrace = &rebatchedTrace{
@@ -543,7 +543,7 @@ func logTraces(batches []*v1.ResourceSpans) {
 	}
 }
 
-// startEndFromSpan returns a unix epoch timestamp in seconds for the start and end of a span
+// startEndFromSpan returns a unix epoch timestamp in seconds for the startWorkers and end of a span
 func startEndFromSpan(span *v1.Span) (uint32, uint32) {
 	return uint32(span.StartTimeUnixNano / uint64(time.Second)), uint32(span.EndTimeUnixNano / uint64(time.Second))
 }

@@ -22,14 +22,16 @@ const (
 	ErrorPrefixRateLimited = "RATE_LIMITED:"
 
 	// metrics
-	MetricMaxLocalTracesPerUser     = "max_local_traces_per_user"
-	MetricMaxGlobalTracesPerUser    = "max_global_traces_per_user"
-	MetricMaxBytesPerTrace          = "max_bytes_per_trace"
-	MetricMaxSearchBytesPerTrace    = "max_search_bytes_per_trace"
-	MetricMaxBytesPerTagValuesQuery = "max_bytes_per_tag_values_query"
-	MetricIngestionRateLimitBytes   = "ingestion_rate_limit_bytes"
-	MetricIngestionBurstSizeBytes   = "ingestion_burst_size_bytes"
-	MetricBlockRetention            = "block_retention"
+	MetricMaxLocalTracesPerUser         = "max_local_traces_per_user"
+	MetricMaxGlobalTracesPerUser        = "max_global_traces_per_user"
+	MetricMaxBytesPerTrace              = "max_bytes_per_trace"
+	MetricMaxSearchBytesPerTrace        = "max_search_bytes_per_trace"
+	MetricMaxBytesPerTagValuesQuery     = "max_bytes_per_tag_values_query"
+	MetricIngestionRateLimitBytes       = "ingestion_rate_limit_bytes"
+	MetricIngestionBurstSizeBytes       = "ingestion_burst_size_bytes"
+	MetricBlockRetention                = "block_retention"
+	MetricMetricsGeneratorSendQueueSize = "metrics_generator_send_queue_size"
+	MetricMetricsGeneratorSendWorkers   = "metrics_generator_send_workers"
 )
 
 var (
@@ -61,6 +63,8 @@ type Limits struct {
 	MetricsGeneratorMaxActiveSeries    uint32        `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
 	MetricsGeneratorCollectionInterval time.Duration `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
 	MetricsGeneratorDisableCollection  bool          `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
+	MetricsGeneratorSendQueueSize      int           `yaml:"metrics_generator_send_queue_size" json:"metrics_generator_send_queue_size"`
+	MetricsGeneratorSendWorkers        int           `yaml:"metrics_generator_send_workers" json:"metrics_generator_send_workers"`
 
 	// Compactor enforced limits.
 	BlockRetention model.Duration `yaml:"block_retention" json:"block_retention"`
@@ -96,6 +100,9 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	f.StringVar(&l.PerTenantOverrideConfig, "limits.per-user-override-config", "", "File name of per-user overrides.")
 	_ = l.PerTenantOverridePeriod.Set("10s")
 	f.Var(&l.PerTenantOverridePeriod, "limits.per-user-override-period", "Period with this to reload the overrides.")
+
+	f.IntVar(&l.MetricsGeneratorSendQueueSize, "metrics-generator.send-queue-size", 10, "Length of sending buffer queue")
+	f.IntVar(&l.MetricsGeneratorSendWorkers, "metrics-generator.send-workers", 1, "Number of workers sending traces to the metrics generators")
 }
 
 func (l *Limits) Describe(ch chan<- *prometheus.Desc) {
