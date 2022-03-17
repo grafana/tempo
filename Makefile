@@ -55,6 +55,10 @@ tempo-cli:
 tempo-vulture:
 	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-vulture-$(GOARCH) $(BUILD_INFO) ./cmd/tempo-vulture
 
+.PHONY: tempo-serverless/lambda
+tempo-serverless/lambda:
+	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-serverless-lambda-$(GOARCH) $(BUILD_INFO) ./cmd/tempo-serverless/lambda
+
 .PHONY: exe
 exe:
 	GOOS=linux $(MAKE) $(COMPONENT)
@@ -118,6 +122,10 @@ docker-tempo-query:
 .PHONY: docker-tempo-vulture
 docker-tempo-vulture:
 	COMPONENT=tempo-vulture $(MAKE) docker-component
+
+.PHONY: docker-tempo-serverless-lambda
+docker-tempo-serverless-lambda:
+	COMPONENT=tempo-serverless/lambda $(MAKE) docker-component
 
 .PHONY: docker-images
 docker-images: docker-tempo docker-tempo-query docker-tempo-vulture
