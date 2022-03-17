@@ -5,13 +5,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sync"
 
 	"github.com/opentracing/opentracing-go"
 	willf_bloom "github.com/willf/bloom"
-	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -170,7 +167,7 @@ func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 
 	// Options
 	opt := SearchOptions{
-		chunkSizeBytes: 10_000_000,
+		chunkSizeBytes: 1_000_000,
 	}
 	for _, o := range opts {
 		o(&opt)
@@ -196,14 +193,10 @@ func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	}
 	defer iter.Close()
 
-	respMtx := sync.Mutex{}
 	resp = &tempopb.SearchResponse{
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
-	var searchErr error
-	wg := boundedwaitgroup.New(5)
-	done := atomic.Bool{}
 	for {
 		id, obj, err := iter.Next(ctx)
 		if err == io.EOF {
@@ -213,61 +206,41 @@ func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 			return nil, fmt.Errorf("error iterating %s, %w", b.meta.BlockID, err)
 		}
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			isDone, err := search(decoder, opt.maxBytes, id, obj, &respMtx, req, resp)
-			if isDone {
-				done.Store(true)
-			}
+		err = search(decoder, opt.maxBytes, id, obj, req, resp)
+		if err != nil {
+			return nil, err
+		}
 
-			if err != nil {
-				respMtx.Lock()
-				searchErr = err
-				respMtx.Unlock()
-			}
-		}()
-
-		if done.Load() {
+		if len(resp.Traces) >= int(req.Limit) {
 			break
 		}
 	}
-	wg.Wait()
 
 	if err != nil {
 		return nil, err
 	}
-	if searchErr != nil {
-		return nil, searchErr
-	}
+
 	return resp, nil
 }
 
-func search(decoder model.ObjectDecoder, maxBytes int, id common.ID, obj []byte, respMtx *sync.Mutex, req *tempopb.SearchRequest, resp *tempopb.SearchResponse) (bool, error) {
-	respMtx.Lock()
+func search(decoder model.ObjectDecoder, maxBytes int, id common.ID, obj []byte, req *tempopb.SearchRequest, resp *tempopb.SearchResponse) error {
 	resp.Metrics.InspectedTraces++
 	resp.Metrics.InspectedBytes += uint64(len(obj))
-	respMtx.Unlock()
 
 	if maxBytes > 0 && len(obj) > maxBytes {
-		respMtx.Lock()
 		resp.Metrics.SkippedTraces++
-		respMtx.Unlock()
-		return false, nil
+		return nil
 	}
 
 	metadata, err := decoder.Matches(id, obj, req)
-
-	respMtx.Lock()
-	defer respMtx.Unlock()
 	if err != nil {
-		return false, err
-	}
-	if metadata == nil {
-		return false, nil // No match, keep going.
+		return err
 	}
 
-	// Found a match
-	resp.Traces = append(resp.Traces, metadata)
-	return len(resp.Traces) >= int(req.Limit), nil
+	if metadata != nil {
+		// Found a match
+		resp.Traces = append(resp.Traces, metadata)
+	}
+
+	return nil
 }
