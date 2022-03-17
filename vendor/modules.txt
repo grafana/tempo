@@ -51,6 +51,13 @@ github.com/apache/thrift/lib/go/thrift
 ## explicit; go 1.12
 github.com/armon/go-metrics
 github.com/armon/go-metrics/prometheus
+# github.com/aws/aws-lambda-go v1.28.0
+## explicit; go 1.12
+github.com/aws/aws-lambda-go/events
+github.com/aws/aws-lambda-go/lambda
+github.com/aws/aws-lambda-go/lambda/handlertrace
+github.com/aws/aws-lambda-go/lambda/messages
+github.com/aws/aws-lambda-go/lambdacontext
 # github.com/aws/aws-sdk-go v1.43.4
 ## explicit; go 1.11
 github.com/aws/aws-sdk-go/aws
