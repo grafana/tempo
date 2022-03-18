@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	configServerless = "config-serverless.yaml"
+	configServerlessGCF    = "config-serverless-gcf.yaml"
+	configServerlessLambda = "config-serverless-lambda.yaml"
 )
 
 func TestServerless(t *testing.T) {
@@ -23,14 +24,17 @@ func TestServerless(t *testing.T) {
 	testClouds := []struct {
 		name       string
 		serverless *e2e.HTTPService
+		config     string
 	}{
 		{
 			name:       "gcf",
 			serverless: newTempoServerlessGCF(),
+			config:     configServerlessGCF,
 		},
 		{
 			name:       "lambda",
 			serverless: newTempoServerlessLambda(),
+			config:     configServerlessLambda,
 		},
 	}
 
@@ -44,7 +48,7 @@ func TestServerless(t *testing.T) {
 			require.NotNil(t, minio)
 			require.NoError(t, s.StartAndWaitReady(minio))
 
-			require.NoError(t, util.CopyFileToSharedDir(s, configServerless, "config.yaml"))
+			require.NoError(t, util.CopyFileToSharedDir(s, tc.config, "config.yaml"))
 			tempoIngester1 := util.NewTempoIngester(1)
 			tempoIngester2 := util.NewTempoIngester(2)
 			tempoIngester3 := util.NewTempoIngester(3)
