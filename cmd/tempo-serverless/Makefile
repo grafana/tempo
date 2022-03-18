@@ -10,7 +10,10 @@ IN_LAMBDA=cd lambda &&
 # build docker images for local testing and code zip files for google cloud functions
 #
 .PHONY: build-docker
-build-docker: 
+build-docker: build-docker-gcf build-docker-lambda-local-proxy
+
+.PHONY: build-docker-gcf
+build-docker-gcf: 
 	$(IN_CLOUD_FUNCTIONS) go mod vendor
 	$(IN_CLOUD_FUNCTIONS) $(PACK) build tempo-serverless \
 	  								--builder gcr.io/buildpacks/builder:v1 \
@@ -28,8 +31,8 @@ build-gcf-zip:
 #
 # build docker images for local testing and code zip files for aws lambda
 #
-.PHONY: build-lambda-docke-local-proxy
-build-lambda-docker-local-proxy:
+.PHONY: build-docker-lambda-local-proxy
+build-docker-lambda-local-proxy:
 	$(IN_LAMBDA) CGO_ENABLED=0 go build -o ./lambda
 	$(IN_LAMBDA) docker build -f ./Dockerfile.proxy -t tempo-serverless-lambda-proxy .
 
