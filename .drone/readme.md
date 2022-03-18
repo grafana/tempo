@@ -9,7 +9,7 @@ branches (`r**`).
 # Pipelines
 
 The pipelines are `docker-amd64`, `docker-arm64`, and `manifest`. The two docker pipelines
-run concurrently and create images tagged like `tempo:<tag>-<arch>` or `tempo:<branch>-<sha>-<arch>.
+run concurrently and create images tagged like `tempo:<tag>-<arch>` or `tempo:<branch>-<sha>-<arch>`.
 E.g. `tempo:1.1.0-arm64` or `tempo:main-e2a314-amd64`. The manifest step then creates a manifest 
 that combines the mentioned images into one multiarch image named as you would expect: 
 `tempo:1.1.0` or `tempo:main-e2a314`.  
