@@ -9,6 +9,7 @@ require (
 	github.com/Azure/azure-storage-blob-go v0.14.0
 	github.com/alecthomas/kong v0.2.11
 	github.com/alicebob/miniredis/v2 v2.14.3
+	github.com/aws/aws-lambda-go v1.28.0
 	github.com/aws/aws-sdk-go v1.43.4
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/cespare/xxhash v1.1.0
@@ -88,8 +89,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )
-
-require github.com/aws/aws-lambda-go v1.28.0
 
 require (
 	cloud.google.com/go v0.100.2 // indirect
