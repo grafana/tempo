@@ -7,9 +7,9 @@ weight: 350
 
 Tempo exposes an API for pushing and querying traces, and operating the cluster itself.
 
-For the sake of clarity, in this document we have grouped API endpoints by service, but keep in mind that they're exposed both when running Tempo in microservices and singly-binary mode:
-- **Microservices**: each service exposes its own endpoints
-- **Single-binary**: the Tempo process exposes all API endpoints for the services running internally
+For the sake of clarity, in this document we have grouped API endpoints by service, but keep in mind that they're exposed both when running Tempo in microservices and monolithic mode:
+- **microservices**: each service exposes its own endpoints
+- **monolithic**: the Tempo process exposes all API endpoints for the services running internally
 
 ## Endpoints
 
@@ -87,7 +87,7 @@ _For information on how to use the Zipkin endpoint with curl (for debugging purp
 ### Query
 
 Tempo's Query API is simple. The following request is used to retrieve a trace from the query frontend service in 
-a microservices deployment, or the Tempo endpoint in a single binary deployment.
+a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
 
 ```
 GET /api/traces/<traceid>
@@ -123,7 +123,7 @@ but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is
 <span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
 
 Tempo's Search API finds traces based on span and process attributes (tags and values).  The API is available in the query frontend service in
-a microservices deployment, or the Tempo endpoint in a single binary deployment.  The following request is used to find traces containing spans
+a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.  The following request is used to find traces containing spans
 from service "myservice" and the url contains "api/myapi".
 
 ```
@@ -180,7 +180,7 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.nam
 <span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
 
 This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
-a microservices deployment, or the Tempo endpoint in a single binary deployment.
+a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
 
 ```
 GET /api/search/tags
@@ -221,7 +221,7 @@ $ curl -G -s http://localhost:3200/api/search/tags  | jq
 <span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
 
 This endpoint retrieves all discovered values for the given tag, which can be used in search.  The endpoint is available in the query frontend service in
-a microservices deployment, or the Tempo endpoint in a single binary deployment.  The following request will return all discovered service names.
+a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.  The following request will return all discovered service names.
 
 ```
 GET /api/search/tag/service.name/values

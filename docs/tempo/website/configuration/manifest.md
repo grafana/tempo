@@ -414,7 +414,7 @@ storage:
   trace:
     pool:
       max_workers: 50
-      queue_depth: 200
+      queue_depth: 10000
     wal:
       path: /tmp/tempo/wal
       completedfilepath: /tmp/tempo/wal/completed

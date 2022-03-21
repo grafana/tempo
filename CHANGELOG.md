@@ -2,6 +2,7 @@
 
 * [CHANGE] Vulture now exercises search at any point during the block retention to test full backend search. 
   **BREAKING CHANGE** Dropped `tempo-search-retention-duration` parameter.  [#1297](https://github.com/grafana/tempo/pull/1297) (@joe-elliott)
+* [CHANGE] Updated storage.trace.pool.queue_depth default from 200->10000. [#1345](https://github.com/grafana/tempo/pull/1345) (@joe-elliott)
 * [FEATURE]: v2 object encoding added. This encoding adds a start/end timestamp to every record to reduce proto marshalling and increase search speed.  
   **BREAKING CHANGE** After this rollout the distributors will use a new API on the ingesters. As such you must rollout all ingesters before rolling the 
   distributors. Also, during this period, the ingesters will use considerably more resources and as such should be scaled up (or incoming traffic should be
