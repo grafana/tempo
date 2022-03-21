@@ -274,10 +274,10 @@ func (o *Overrides) MetricsGeneratorMaxActiveSeries(userID string) uint32 {
 	return o.getOverridesForUser(userID).MetricsGeneratorMaxActiveSeries
 }
 
-// MetricsGeneratorScrapeInterval is scrape interval of the metrics-generator registry for this
-// tenant
-func (o *Overrides) MetricsGeneratorScrapeInterval(userID string) time.Duration {
-	return o.getOverridesForUser(userID).MetricsGeneratorScrapeInterval
+// MetricsGeneratorCollectionInterval is the collection interval of the metrics-generator registry
+// for this tenant.
+func (o *Overrides) MetricsGeneratorCollectionInterval(userID string) time.Duration {
+	return o.getOverridesForUser(userID).MetricsGeneratorCollectionInterval
 }
 
 // BlockRetention is the duration of the block retention for this tenant.

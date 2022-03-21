@@ -125,7 +125,7 @@ func (h *histogram) Observe(labelValues *LabelValues, value float64) {
 	h.series[hash] = newSerie
 }
 
-func (h *histogram) scrape(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
+func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
 	h.seriesMtx.RLock()
 	defer h.seriesMtx.RUnlock()
 

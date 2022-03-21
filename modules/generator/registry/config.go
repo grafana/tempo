@@ -6,9 +6,9 @@ import (
 )
 
 type Config struct {
-	// ScrapeInterval controls how often to collect metrics.
+	// CollectionInterval controls how often to collect metrics.
 	// Defaults to 15s.
-	ScrapeInterval time.Duration `yaml:"scrape_interval"`
+	CollectionInterval time.Duration `yaml:"collection_interval"`
 
 	// StaleDuration controls how quickly series become stale and are deleted from the registry. An active
 	// series is deleted if it hasn't been updated more stale duration.
@@ -21,6 +21,6 @@ type Config struct {
 
 // RegisterFlagsAndApplyDefaults registers the flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	cfg.ScrapeInterval = 15 * time.Second
+	cfg.CollectionInterval = 15 * time.Second
 	cfg.StaleDuration = 15 * time.Minute
 }

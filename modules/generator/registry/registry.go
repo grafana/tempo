@@ -35,15 +35,15 @@ var (
 		Name:      "metrics_generator_registry_series_limited_total",
 		Help:      "The total amount of series not created because of limits per tenant",
 	}, []string{"tenant"})
-	metricTotalScrapes = promauto.NewCounterVec(prometheus.CounterOpts{
+	metricTotalCollections = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
-		Name:      "metrics_generator_registry_scrapes_total",
-		Help:      "The total amount of registry scrapes per tenant",
+		Name:      "metrics_generator_registry_collections_total",
+		Help:      "The total amount of metrics collections per tenant",
 	}, []string{"tenant"})
-	metricFailedScrapes = promauto.NewCounterVec(prometheus.CounterOpts{
+	metricFailedCollections = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
-		Name:      "metrics_generator_registry_scrapes_failed_total",
-		Help:      "The total amount of failed registry scrapes per tenant",
+		Name:      "metrics_generator_registry_collections_failed_total",
+		Help:      "The total amount of failed metrics collections per tenant",
 	}, []string{"tenant"})
 )
 
@@ -67,14 +67,14 @@ type ManagedRegistry struct {
 	metricTotalSeriesAdded   prometheus.Counter
 	metricTotalSeriesRemoved prometheus.Counter
 	metricTotalSeriesLimited prometheus.Counter
-	metricTotalScrapes       prometheus.Counter
-	metricFailedScrapes      prometheus.Counter
+	metricTotalCollections   prometheus.Counter
+	metricFailedCollections  prometheus.Counter
 }
 
 // metric is the interface for a metric that is managed by ManagedRegistry.
 type metric interface {
 	setCallbacks(onAddSeries func(count uint32) bool, onRemoveSeries func(count uint32))
-	scrape(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error)
+	collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error)
 	removeStaleSeries(staleTimeMs int64)
 }
 
@@ -107,11 +107,11 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		metricTotalSeriesAdded:   metricTotalSeriesAdded.WithLabelValues(tenant),
 		metricTotalSeriesRemoved: metricTotalSeriesRemoved.WithLabelValues(tenant),
 		metricTotalSeriesLimited: metricTotalSeriesLimited.WithLabelValues(tenant),
-		metricTotalScrapes:       metricTotalScrapes.WithLabelValues(tenant),
-		metricFailedScrapes:      metricFailedScrapes.WithLabelValues(tenant),
+		metricTotalCollections:   metricTotalCollections.WithLabelValues(tenant),
+		metricFailedCollections:  metricFailedCollections.WithLabelValues(tenant),
 	}
 
-	go job(instanceCtx, r.scrape, r.scrapeInterval)
+	go job(instanceCtx, r.collectMetrics, r.collectionInterval)
 	go job(instanceCtx, r.removeStaleSeries, constantInterval(5*time.Minute))
 
 	return r
@@ -160,26 +160,26 @@ func (r *ManagedRegistry) onRemoveMetricSeries(count uint32) {
 	r.metricActiveSeries.Sub(float64(count))
 }
 
-func (r *ManagedRegistry) scrape(ctx context.Context) {
+func (r *ManagedRegistry) collectMetrics(ctx context.Context) {
 	r.metricsMtx.RLock()
 	defer r.metricsMtx.RUnlock()
 
 	var err error
 	defer func() {
-		r.metricTotalScrapes.Inc()
+		r.metricTotalCollections.Inc()
 		if err != nil {
-			level.Error(r.logger).Log("msg", "scraping registry failed", "err", err)
-			r.metricFailedScrapes.Inc()
+			level.Error(r.logger).Log("msg", "collecting metrics failed", "err", err)
+			r.metricFailedCollections.Inc()
 		}
 	}()
 
 	var activeSeries uint32
 
 	appender := r.appendable.Appender(ctx)
-	scrapeTimeMs := time.Now().UnixMilli()
+	collectionTimeMs := time.Now().UnixMilli()
 
 	for _, m := range r.metrics {
-		active, err := m.scrape(appender, scrapeTimeMs, r.externalLabels)
+		active, err := m.collectMetrics(appender, collectionTimeMs, r.externalLabels)
 		if err != nil {
 			return
 		}
@@ -195,15 +195,15 @@ func (r *ManagedRegistry) scrape(ctx context.Context) {
 		return
 	}
 
-	level.Info(r.logger).Log("msg", "scraped registry", "active_series", activeSeries)
+	level.Info(r.logger).Log("msg", "collecting metrics", "active_series", activeSeries)
 }
 
-func (r *ManagedRegistry) scrapeInterval() time.Duration {
-	interval := r.overrides.MetricsGeneratorScrapeInterval(r.tenant)
+func (r *ManagedRegistry) collectionInterval() time.Duration {
+	interval := r.overrides.MetricsGeneratorCollectionInterval(r.tenant)
 	if interval != 0 {
 		return interval
 	}
-	return r.cfg.ScrapeInterval
+	return r.cfg.CollectionInterval
 }
 
 func (r *ManagedRegistry) removeStaleSeries(_ context.Context) {

@@ -42,7 +42,7 @@ func TestManagedRegistry_concurrency(t *testing.T) {
 	})
 
 	go accessor(func() {
-		registry.scrape(context.Background())
+		registry.collectMetrics(context.Background())
 	})
 
 	go accessor(func() {
@@ -66,7 +66,7 @@ func TestManagedRegistry_counter(t *testing.T) {
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "instance": mustGetHostname()}, 0, 1.0),
 	}
-	scrapeRegistryAndAssert(t, registry, appender, expectedSamples)
+	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
 
 func TestManagedRegistry_histogram(t *testing.T) {
@@ -86,7 +86,7 @@ func TestManagedRegistry_histogram(t *testing.T) {
 		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "instance": mustGetHostname(), "le": "2"}, 0, 1.0),
 		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "instance": mustGetHostname(), "le": "+Inf"}, 0, 1.0),
 	}
-	scrapeRegistryAndAssert(t, registry, appender, expectedSamples)
+	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
 
 func TestManagedRegistry_removeStaleSeries(t *testing.T) {
@@ -110,7 +110,7 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 		newSample(map[string]string{"__name__": "metric_1", "instance": mustGetHostname()}, 0, 1),
 		newSample(map[string]string{"__name__": "metric_2", "instance": mustGetHostname()}, 0, 2),
 	}
-	scrapeRegistryAndAssert(t, registry, appender, expectedSamples)
+	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 
 	appender.samples = nil
 
@@ -123,7 +123,7 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 	expectedSamples = []sample{
 		newSample(map[string]string{"__name__": "metric_2", "instance": mustGetHostname()}, 0, 4),
 	}
-	scrapeRegistryAndAssert(t, registry, appender, expectedSamples)
+	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
 
 func TestManagedRegistry_externalLabels(t *testing.T) {
@@ -143,7 +143,7 @@ func TestManagedRegistry_externalLabels(t *testing.T) {
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_counter", "instance": mustGetHostname(), "foo": "bar"}, 0, 1),
 	}
-	scrapeRegistryAndAssert(t, registry, appender, expectedSamples)
+	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
 
 func TestManagedRegistry_maxSeries(t *testing.T) {
@@ -167,17 +167,17 @@ func TestManagedRegistry_maxSeries(t *testing.T) {
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "metric_1", "label": "value-1", "instance": mustGetHostname()}, 0, 1),
 	}
-	scrapeRegistryAndAssert(t, registry, appender, expectedSamples)
+	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
 
-func scrapeRegistryAndAssert(t *testing.T, r *ManagedRegistry, appender *capturingAppender, expectedSamples []sample) {
+func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender *capturingAppender, expectedSamples []sample) {
 	assert.Equal(t, uint32(len(expectedSamples)), r.activeSeries.Load())
 
-	scrapeTimeMs := time.Now().UnixMilli()
-	r.scrape(context.Background())
+	collectionTimeMs := time.Now().UnixMilli()
+	r.collectMetrics(context.Background())
 
 	for i := range expectedSamples {
-		expectedSamples[i].t = scrapeTimeMs
+		expectedSamples[i].t = collectionTimeMs
 	}
 
 	assert.Equal(t, true, appender.isCommitted)
@@ -195,7 +195,7 @@ func (m *mockOverrides) MetricsGeneratorMaxActiveSeries(userID string) uint32 {
 	return m.maxActiveSeries
 }
 
-func (m *mockOverrides) MetricsGeneratorScrapeInterval(userID string) time.Duration {
+func (m *mockOverrides) MetricsGeneratorCollectionInterval(userID string) time.Duration {
 	return 15 * time.Second
 }
 

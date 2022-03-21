@@ -87,7 +87,7 @@ func (c *counter) Inc(labelValues *LabelValues, value float64) {
 	c.series[hash] = newSeries
 }
 
-func (c *counter) scrape(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
+func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
 	c.seriesMtx.RLock()
 	defer c.seriesMtx.RUnlock()
 

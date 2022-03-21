@@ -117,7 +117,7 @@ func (m *mockOverrides) MetricsGeneratorMaxActiveSeries(userID string) uint32 {
 	return 0
 }
 
-func (m *mockOverrides) MetricsGeneratorScrapeInterval(userID string) time.Duration {
+func (m *mockOverrides) MetricsGeneratorCollectionInterval(userID string) time.Duration {
 	return 15 * time.Second
 }
 

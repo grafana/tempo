@@ -25,45 +25,45 @@ func Test_histogram(t *testing.T) {
 
 	assert.Equal(t, 2, seriesAdded)
 
-	scrapeTimeMs := time.Now().UnixMilli()
+	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2"}, scrapeTimeMs, 1.5),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, scrapeTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, scrapeTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2"}, collectionTimeMs, 1.5),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 1),
 	}
-	scrapeMetricAndAssert(t, h, scrapeTimeMs, nil, 10, expectedSamples)
+	collectMetricAndAssert(t, h, collectionTimeMs, nil, 10, expectedSamples)
 
 	h.Observe(NewLabelValues([]string{"value-2"}), 2.5)
 	h.Observe(NewLabelValues([]string{"value-3"}), 3.0)
 
 	assert.Equal(t, 3, seriesAdded)
 
-	scrapeTimeMs = time.Now().UnixMilli()
+	collectionTimeMs = time.Now().UnixMilli()
 	expectedSamples = []sample{
-		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, scrapeTimeMs, 2),
-		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2"}, scrapeTimeMs, 4.0),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, scrapeTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, scrapeTimeMs, 2),
-		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-3"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-3"}, scrapeTimeMs, 3),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-3", "le": "1"}, scrapeTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-3", "le": "2"}, scrapeTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-3", "le": "+Inf"}, scrapeTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, collectionTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2"}, collectionTimeMs, 4.0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-3"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-3"}, collectionTimeMs, 3),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-3", "le": "1"}, collectionTimeMs, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-3", "le": "2"}, collectionTimeMs, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-3", "le": "+Inf"}, collectionTimeMs, 1),
 	}
-	scrapeMetricAndAssert(t, h, scrapeTimeMs, nil, 15, expectedSamples)
+	collectMetricAndAssert(t, h, collectionTimeMs, nil, 15, expectedSamples)
 }
 
 func Test_histogram_invalidLabelValues(t *testing.T) {
@@ -94,20 +94,20 @@ func Test_histogram_cantAdd(t *testing.T) {
 	h.Observe(NewLabelValues([]string{"value-1"}), 1.0)
 	h.Observe(NewLabelValues([]string{"value-2"}), 1.5)
 
-	scrapeTimeMs := time.Now().UnixMilli()
+	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2"}, scrapeTimeMs, 1.5),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, scrapeTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, scrapeTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2"}, collectionTimeMs, 1.5),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 1),
 	}
-	scrapeMetricAndAssert(t, h, scrapeTimeMs, nil, 10, expectedSamples)
+	collectMetricAndAssert(t, h, collectionTimeMs, nil, 10, expectedSamples)
 
 	// block new series - existing series can still be updated
 	canAdd = false
@@ -115,20 +115,20 @@ func Test_histogram_cantAdd(t *testing.T) {
 	h.Observe(NewLabelValues([]string{"value-2"}), 2.5)
 	h.Observe(NewLabelValues([]string{"value-3"}), 3.0)
 
-	scrapeTimeMs = time.Now().UnixMilli()
+	collectionTimeMs = time.Now().UnixMilli()
 	expectedSamples = []sample{
-		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, scrapeTimeMs, 2),
-		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2"}, scrapeTimeMs, 4.0),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, scrapeTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, scrapeTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, collectionTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2"}, collectionTimeMs, 4.0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 2),
 	}
-	scrapeMetricAndAssert(t, h, scrapeTimeMs, nil, 10, expectedSamples)
+	collectMetricAndAssert(t, h, collectionTimeMs, nil, 10, expectedSamples)
 }
 
 func Test_histogram_removeStaleSeries(t *testing.T) {
@@ -149,20 +149,20 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 
 	assert.Equal(t, 0, removedSeries)
 
-	scrapeTimeMs := time.Now().UnixMilli()
+	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2"}, scrapeTimeMs, 1.5),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, scrapeTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, scrapeTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2"}, collectionTimeMs, 1.5),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 1),
 	}
-	scrapeMetricAndAssert(t, h, scrapeTimeMs, nil, 10, expectedSamples)
+	collectMetricAndAssert(t, h, collectionTimeMs, nil, 10, expectedSamples)
 
 	time.Sleep(10 * time.Millisecond)
 	timeMs = time.Now().UnixMilli()
@@ -174,15 +174,15 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 
 	assert.Equal(t, 1, removedSeries)
 
-	scrapeTimeMs = time.Now().UnixMilli()
+	collectionTimeMs = time.Now().UnixMilli()
 	expectedSamples = []sample{
-		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, scrapeTimeMs, 2),
-		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2"}, scrapeTimeMs, 4.0),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, scrapeTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, scrapeTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, collectionTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2"}, collectionTimeMs, 4.0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 2),
 	}
-	scrapeMetricAndAssert(t, h, scrapeTimeMs, nil, 5, expectedSamples)
+	collectMetricAndAssert(t, h, collectionTimeMs, nil, 5, expectedSamples)
 }
 
 func Test_histogram_externalLabels(t *testing.T) {
@@ -192,20 +192,20 @@ func Test_histogram_externalLabels(t *testing.T) {
 	h.Observe(NewLabelValues([]string{"value-1"}), 1.0)
 	h.Observe(NewLabelValues([]string{"value-2"}), 1.5)
 
-	scrapeTimeMs := time.Now().UnixMilli()
+	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1", "external_label": "external_value"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1", "external_label": "external_value"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1", "external_label": "external_value"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2", "external_label": "external_value"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf", "external_label": "external_value"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2", "external_label": "external_value"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2", "external_label": "external_value"}, scrapeTimeMs, 1.5),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1", "external_label": "external_value"}, scrapeTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2", "external_label": "external_value"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf", "external_label": "external_value"}, scrapeTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1", "external_label": "external_value"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1", "external_label": "external_value"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1", "external_label": "external_value"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2", "external_label": "external_value"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf", "external_label": "external_value"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2", "external_label": "external_value"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2", "external_label": "external_value"}, collectionTimeMs, 1.5),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1", "external_label": "external_value"}, collectionTimeMs, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2", "external_label": "external_value"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf", "external_label": "external_value"}, collectionTimeMs, 1),
 	}
-	scrapeMetricAndAssert(t, h, scrapeTimeMs, map[string]string{"external_label": "external_value"}, 10, expectedSamples)
+	collectMetricAndAssert(t, h, collectionTimeMs, map[string]string{"external_label": "external_value"}, 10, expectedSamples)
 }
 
 func Test_histogram_concurrencyDataRace(t *testing.T) {
@@ -243,7 +243,7 @@ func Test_histogram_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		_, err := h.scrape(&noopAppender{}, 0, nil)
+		_, err := h.collectMetrics(&noopAppender{}, 0, nil)
 		assert.NoError(t, err)
 	})
 
@@ -285,13 +285,13 @@ func Test_histogram_concurrencyCorrectness(t *testing.T) {
 
 	wg.Wait()
 
-	scrapeTimeMs := time.Now().UnixMilli()
+	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, scrapeTimeMs, float64(totalCount.Load())),
-		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, scrapeTimeMs, 2*float64(totalCount.Load())),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, scrapeTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, scrapeTimeMs, float64(totalCount.Load())),
-		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, scrapeTimeMs, float64(totalCount.Load())),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeMs, float64(totalCount.Load())),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, collectionTimeMs, 2*float64(totalCount.Load())),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 0),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, float64(totalCount.Load())),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, float64(totalCount.Load())),
 	}
-	scrapeMetricAndAssert(t, h, scrapeTimeMs, nil, 5, expectedSamples)
+	collectMetricAndAssert(t, h, collectionTimeMs, nil, 5, expectedSamples)
 }

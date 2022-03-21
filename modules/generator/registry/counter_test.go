@@ -25,25 +25,25 @@ func Test_counter(t *testing.T) {
 
 	assert.Equal(t, 2, seriesAdded)
 
-	scrapeTimeMs := time.Now().UnixMilli()
+	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, scrapeTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	scrapeMetricAndAssert(t, c, scrapeTimeMs, nil, 2, expectedSamples)
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples)
 
 	c.Inc(NewLabelValues([]string{"value-2"}), 2.0)
 	c.Inc(NewLabelValues([]string{"value-3"}), 3.0)
 
 	assert.Equal(t, 3, seriesAdded)
 
-	scrapeTimeMs = time.Now().UnixMilli()
+	collectionTimeMs = time.Now().UnixMilli()
 	expectedSamples = []sample{
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, scrapeTimeMs, 4),
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-3"}, scrapeTimeMs, 3),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 4),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-3"}, collectionTimeMs, 3),
 	}
-	scrapeMetricAndAssert(t, c, scrapeTimeMs, nil, 3, expectedSamples)
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 3, expectedSamples)
 }
 
 func Test_counter_invalidLabelValues(t *testing.T) {
@@ -74,12 +74,12 @@ func Test_counter_cantAdd(t *testing.T) {
 	c.Inc(NewLabelValues([]string{"value-1"}), 1.0)
 	c.Inc(NewLabelValues([]string{"value-2"}), 2.0)
 
-	scrapeTimeMs := time.Now().UnixMilli()
+	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, scrapeTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	scrapeMetricAndAssert(t, c, scrapeTimeMs, nil, 2, expectedSamples)
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples)
 
 	// block new series - existing series can still be updated
 	canAdd = false
@@ -87,12 +87,12 @@ func Test_counter_cantAdd(t *testing.T) {
 	c.Inc(NewLabelValues([]string{"value-2"}), 2.0)
 	c.Inc(NewLabelValues([]string{"value-3"}), 3.0)
 
-	scrapeTimeMs = time.Now().UnixMilli()
+	collectionTimeMs = time.Now().UnixMilli()
 	expectedSamples = []sample{
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, scrapeTimeMs, 4),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 4),
 	}
-	scrapeMetricAndAssert(t, c, scrapeTimeMs, nil, 2, expectedSamples)
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples)
 }
 
 func Test_counter_removeStaleSeries(t *testing.T) {
@@ -113,12 +113,12 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 
 	assert.Equal(t, 0, removedSeries)
 
-	scrapeTimeMs := time.Now().UnixMilli()
+	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, scrapeTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	scrapeMetricAndAssert(t, c, scrapeTimeMs, nil, 2, expectedSamples)
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples)
 
 	time.Sleep(10 * time.Millisecond)
 	timeMs = time.Now().UnixMilli()
@@ -130,11 +130,11 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 
 	assert.Equal(t, 1, removedSeries)
 
-	scrapeTimeMs = time.Now().UnixMilli()
+	collectionTimeMs = time.Now().UnixMilli()
 	expectedSamples = []sample{
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, scrapeTimeMs, 4),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 4),
 	}
-	scrapeMetricAndAssert(t, c, scrapeTimeMs, nil, 1, expectedSamples)
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 1, expectedSamples)
 }
 
 func Test_counter_externalLabels(t *testing.T) {
@@ -144,12 +144,12 @@ func Test_counter_externalLabels(t *testing.T) {
 	c.Inc(NewLabelValues([]string{"value-1"}), 1.0)
 	c.Inc(NewLabelValues([]string{"value-2"}), 2.0)
 
-	scrapeTimeMs := time.Now().UnixMilli()
+	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "external_label": "external_value"}, scrapeTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-2", "external_label": "external_value"}, scrapeTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "external_label": "external_value"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-2", "external_label": "external_value"}, collectionTimeMs, 2),
 	}
-	scrapeMetricAndAssert(t, c, scrapeTimeMs, map[string]string{"external_label": "external_value"}, 2, expectedSamples)
+	collectMetricAndAssert(t, c, collectionTimeMs, map[string]string{"external_label": "external_value"}, 2, expectedSamples)
 }
 
 func Test_counter_concurrencyDataRace(t *testing.T) {
@@ -187,7 +187,7 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		_, err := c.scrape(&noopAppender{}, 0, nil)
+		_, err := c.collectMetrics(&noopAppender{}, 0, nil)
 		assert.NoError(t, err)
 	})
 
@@ -229,17 +229,17 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 
 	wg.Wait()
 
-	scrapeTimeMs := time.Now().UnixMilli()
+	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, scrapeTimeMs, float64(totalCount.Load())),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, float64(totalCount.Load())),
 	}
-	scrapeMetricAndAssert(t, c, scrapeTimeMs, nil, 1, expectedSamples)
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 1, expectedSamples)
 }
 
-func scrapeMetricAndAssert(t *testing.T, m metric, scrapeTimeMs int64, externalLabels map[string]string, expectedActiveSeries int, expectedSamples []sample) {
+func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, externalLabels map[string]string, expectedActiveSeries int, expectedSamples []sample) {
 	appender := &capturingAppender{}
 
-	activeSeries, err := m.scrape(appender, scrapeTimeMs, externalLabels)
+	activeSeries, err := m.collectMetrics(appender, collectionTimeMs, externalLabels)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedActiveSeries, activeSeries)
 

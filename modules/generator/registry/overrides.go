@@ -8,7 +8,7 @@ import (
 
 type Overrides interface {
 	MetricsGeneratorMaxActiveSeries(userID string) uint32
-	MetricsGeneratorScrapeInterval(userID string) time.Duration
+	MetricsGeneratorCollectionInterval(userID string) time.Duration
 }
 
 var _ Overrides = (*overrides.Overrides)(nil)
