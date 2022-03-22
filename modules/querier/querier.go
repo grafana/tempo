@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cristalhq/hedgedhttp"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
@@ -67,6 +68,7 @@ type Querier struct {
 	store  storage.Store
 	limits *overrides.Overrides
 
+	searchClient     *http.Client
 	searchPreferSelf *semaphore.Weighted
 
 	subservices        *services.Manager
@@ -96,6 +98,13 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 		store:            store,
 		limits:           limits,
 		searchPreferSelf: semaphore.NewWeighted(int64(cfg.SearchPreferSelf)),
+	}
+
+	//
+	var err error
+	q.searchClient, err = hedgedhttp.NewClient(5*time.Second, 2, http.DefaultClient)
+	if err != nil {
+		return nil, err
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
@@ -539,7 +548,7 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 	return response
 }
 
-func searchExternalEndpoint(ctx context.Context, externalEndpoint string, maxBytes int, searchReq *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
+func (q *Querier) searchExternalEndpoint(ctx context.Context, externalEndpoint string, maxBytes int, searchReq *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	req, err := http.NewRequest(http.MethodGet, externalEndpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to make new request: %w", err)
@@ -554,7 +563,7 @@ func searchExternalEndpoint(ctx context.Context, externalEndpoint string, maxByt
 		return nil, fmt.Errorf("external endpoint failed to inject tenant id: %w", err)
 	}
 	start := time.Now()
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := q.searchClient.Do(req)
 	metricEndpointDuration.WithLabelValues(externalEndpoint).Observe(time.Since(start).Seconds())
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to call http: %s, %w", externalEndpoint, err)
