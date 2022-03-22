@@ -427,7 +427,7 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 	maxBytes := q.limits.MaxBytesPerTrace(tenantID)
 
 	endpoint := q.cfg.SearchExternalEndpoints[rand.Intn(len(q.cfg.SearchExternalEndpoints))]
-	return searchExternalEndpoint(ctx, endpoint, maxBytes, req)
+	return q.searchExternalEndpoint(ctx, endpoint, maxBytes, req)
 }
 
 func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
