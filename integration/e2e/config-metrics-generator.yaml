@@ -22,7 +22,7 @@ metrics_generator:
     span_metrics:
       histogram_buckets: [1, 2]  # seconds
   registry:
-    scrape_interval: 1s
+    collection_interval: 1s
   storage:
     path: /var/tempo
     remote_write:
