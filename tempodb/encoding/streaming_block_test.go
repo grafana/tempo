@@ -175,7 +175,7 @@ func testStreamingBlockToBackendBlock(t *testing.T, cfg *BlockConfig) {
 
 	// test Find
 	for i, id := range ids {
-		foundBytes, err := backendBlock.Find(context.Background(), id)
+		foundBytes, err := backendBlock.find(context.Background(), id)
 		assert.NoError(t, err)
 
 		assert.Equal(t, reqs[i], foundBytes)

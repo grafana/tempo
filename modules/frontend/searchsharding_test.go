@@ -18,9 +18,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/blocklist"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,15 +32,15 @@ type mockReader struct {
 	metas []*backend.BlockMeta
 }
 
-func (m *mockReader) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([][]byte, []string, []error, error) {
-	return nil, nil, nil, nil
+func (m *mockReader) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]*tempopb.Trace, []error, error) {
+	return nil, nil, nil
 }
 
 func (m *mockReader) BlockMetas(tenantID string) []*backend.BlockMeta {
 	return m.metas
 }
-func (m *mockReader) IterateObjects(ctx context.Context, meta *backend.BlockMeta, startPage int, totalPages int, callback tempodb.IterateObjectCallback) error {
-	return nil
+func (m *mockReader) Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts encoding.SearchOptions) (*tempopb.SearchResponse, error) {
+	return nil, nil
 }
 func (m *mockReader) EnablePolling(sharder blocklist.JobSharder) {}
 func (m *mockReader) Shutdown()                                  {}

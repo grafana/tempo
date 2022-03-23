@@ -60,7 +60,7 @@ func testLegacyBlock(t *testing.T, ids [][]byte, objs [][]byte, meta *backend.Bl
 
 	// test Find
 	for i, id := range ids {
-		foundBytes, err := backendBlock.Find(context.Background(), id)
+		foundBytes, err := backendBlock.find(context.Background(), id)
 		assert.NoError(t, err)
 
 		assert.Equal(t, objs[i], foundBytes)

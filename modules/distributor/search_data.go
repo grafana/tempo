@@ -3,10 +3,10 @@ package distributor
 import (
 	"strconv"
 
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	"github.com/grafana/tempo/tempodb/search"
 )
 
 type extractTagFunc func(tag string) bool
@@ -25,12 +25,12 @@ func extractSearchDataAll(traces []*rebatchedTrace, extractTag extractTagFunc) [
 // extractSearchData returns the flatbuffer search data for the given trace.  It is extracted here
 // in the distributor because this is the only place on the ingest path where the trace is available
 // in object form.
-func extractSearchData(trace *tempopb.Trace, id []byte, extractTag extractTagFunc) []byte {
+func extractSearchData(tr *tempopb.Trace, id []byte, extractTag extractTagFunc) []byte {
 	data := &tempofb.SearchEntryMutable{}
 
 	data.TraceID = id
 
-	for _, b := range trace.Batches {
+	for _, b := range tr.Batches {
 		// Batch attrs
 		if b.Resource != nil {
 			for _, a := range b.Resource.Attributes {
@@ -50,14 +50,14 @@ func extractSearchData(trace *tempopb.Trace, id []byte, extractTag extractTagFun
 				if len(s.ParentSpanId) == 0 {
 
 					// Collect root.name
-					data.AddTag(search.RootSpanNameTag, s.Name)
+					data.AddTag(trace.RootSpanNameTag, s.Name)
 
 					// Collect root.service.name
 					if b.Resource != nil {
 						for _, a := range b.Resource.Attributes {
-							if a.Key == search.ServiceNameTag {
+							if a.Key == trace.ServiceNameTag {
 								if s, ok := extractValueAsString(a.Value); ok {
-									data.AddTag(search.RootServiceNameTag, s)
+									data.AddTag(trace.RootServiceNameTag, s)
 								}
 							}
 						}
@@ -65,9 +65,9 @@ func extractSearchData(trace *tempopb.Trace, id []byte, extractTag extractTagFun
 				}
 
 				// Collect for any spans
-				data.AddTag(search.SpanNameTag, s.Name)
+				data.AddTag(trace.SpanNameTag, s.Name)
 				if s.Status != nil {
-					data.AddTag(search.StatusCodeTag, strconv.Itoa(int(s.Status.Code)))
+					data.AddTag(trace.StatusCodeTag, strconv.Itoa(int(s.Status.Code)))
 				}
 				data.SetStartTimeUnixNano(s.StartTimeUnixNano)
 				data.SetEndTimeUnixNano(s.EndTimeUnixNano)

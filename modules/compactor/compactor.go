@@ -215,7 +215,7 @@ func (c *Compactor) Owns(hash string) bool {
 
 // Combine implements tempodb.CompactorSharder
 func (c *Compactor) Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error) {
-	combinedObj, wasCombined, err := model.ObjectCombiner.Combine(dataEncoding, objs...)
+	combinedObj, wasCombined, err := model.StaticCombiner.Combine(dataEncoding, objs...)
 	if err != nil {
 		return nil, false, err
 	}

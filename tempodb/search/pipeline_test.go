@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -51,14 +52,14 @@ func TestPipelineMatchesTags(t *testing.T) {
 		},
 		{
 			name:        "rewriteError",
-			searchData:  map[string][]string{StatusCodeTag: {strconv.Itoa(int(v1.Status_STATUS_CODE_ERROR))}},
+			searchData:  map[string][]string{trace.StatusCodeTag: {strconv.Itoa(int(v1.Status_STATUS_CODE_ERROR))}},
 			request:     map[string]string{"error": "true"},
 			shouldMatch: true,
 		},
 		{
 			name:        "rewriteStatusCode",
-			searchData:  map[string][]string{StatusCodeTag: {strconv.Itoa(int(v1.Status_STATUS_CODE_ERROR))}},
-			request:     map[string]string{StatusCodeTag: StatusCodeError},
+			searchData:  map[string][]string{trace.StatusCodeTag: {strconv.Itoa(int(v1.Status_STATUS_CODE_ERROR))}},
+			request:     map[string]string{trace.StatusCodeTag: trace.StatusCodeError},
 			shouldMatch: true,
 		},
 	}
