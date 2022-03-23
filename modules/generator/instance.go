@@ -240,17 +240,17 @@ func (i *instance) updatePushMetrics(req *tempopb.PushSpansRequest) {
 func (i *instance) shutdown() {
 	close(i.shutdownCh)
 
-	i.registry.Close()
-
-	err := i.wal.Close()
-	if err != nil {
-		level.Error(i.logger).Log("msg", "closing wal failed", "tenant", i.instanceID, "err", err)
-	}
-
 	i.processorsMtx.Lock()
 	defer i.processorsMtx.Unlock()
 
 	for processorName := range i.processors {
 		i.removeProcessor(processorName)
+	}
+
+	i.registry.Close()
+
+	err := i.wal.Close()
+	if err != nil {
+		level.Error(i.logger).Log("msg", "closing wal failed", "tenant", i.instanceID, "err", err)
 	}
 }
