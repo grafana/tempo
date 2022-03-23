@@ -98,13 +98,16 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 		store:            store,
 		limits:           limits,
 		searchPreferSelf: semaphore.NewWeighted(int64(cfg.Search.PreferSelf)),
+		searchClient:     http.DefaultClient,
 	}
 
 	//
-	var err error
-	q.searchClient, err = hedgedhttp.NewClient(cfg.Search.HedgeRequestsAt, cfg.Search.HedgeRequestsUpTo, http.DefaultClient)
-	if err != nil {
-		return nil, err
+	if cfg.Search.HedgeRequestsAt != 0 {
+		var err error
+		q.searchClient, err = hedgedhttp.NewClient(cfg.Search.HedgeRequestsAt, cfg.Search.HedgeRequestsUpTo, http.DefaultClient)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
