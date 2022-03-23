@@ -24,7 +24,7 @@ type SearchConfig struct {
 	PreferSelf        int           `yaml:"prefer_self"`
 	ExternalEndpoints []string      `yaml:"external_endpoints"`
 	HedgeRequestsAt   time.Duration `yaml:"external_hedge_requests_at"`
-	HedgeRequestsUpTo int           `yaml:"external_hedge_requests_up_to`
+	HedgeRequestsUpTo int           `yaml:"external_hedge_requests_up_to"`
 }
 
 // RegisterFlagsAndApplyDefaults register flags.
