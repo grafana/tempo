@@ -406,7 +406,9 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 	// If an instance is unhealthy write to the next one (i.e. write extend is enabled)
 	op := ring.Write
 
-	err := ring.DoBatch(ctx, op, d.generatorsRing, keys, func(generator ring.InstanceDesc, indexes []int) error {
+	readRing := d.generatorsRing.ShuffleShard(userID, d.overrides.MetricsGeneratorRingSize(userID))
+
+	err := ring.DoBatch(ctx, op, readRing, keys, func(generator ring.InstanceDesc, indexes []int) error {
 		localCtx, cancel := context.WithTimeout(ctx, d.generatorClientCfg.RemoteTimeout)
 		defer cancel()
 		localCtx = user.InjectOrgID(localCtx, userID)
