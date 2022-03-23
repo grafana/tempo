@@ -93,11 +93,13 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		return nil, httpError("creating backend block", err, http.StatusInternalServerError)
 	}
 
-	resp, err := block.Search(r.Context(), searchReq.SearchReq,
-		encoding.WithPages(int(searchReq.StartPage), int(searchReq.PagesToSearch)),
-		encoding.WithPrefetchTraceCount(cfg.Search.PrefetchTraceCount),
-		encoding.WithMaxBytes(maxBytes),
-	)
+	opts := encoding.DefaultSearchOptions()
+	opts.StartPage = int(searchReq.StartPage)
+	opts.TotalPages = int(searchReq.PagesToSearch)
+	opts.PrefetchTraceCount = cfg.Search.PrefetchTraceCount
+	opts.MaxBytes = maxBytes
+
+	resp, err := block.Search(r.Context(), searchReq.SearchReq, opts)
 	if err != nil {
 		return nil, httpError("searching block", err, http.StatusInternalServerError)
 	}

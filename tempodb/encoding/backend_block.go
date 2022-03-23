@@ -163,15 +163,7 @@ func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID) (*tempop
 	return dec.PrepareForRead(obj)
 }
 
-func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts ...SearchOption) (resp *tempopb.SearchResponse, err error) {
-
-	// Options
-	opt := SearchOptions{
-		chunkSizeBytes: 1_000_000,
-	}
-	for _, o := range opts {
-		o(&opt)
-	}
+func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opt SearchOptions) (resp *tempopb.SearchResponse, err error) {
 
 	decoder, err := model.NewObjectDecoder(b.meta.DataEncoding)
 	if err != nil {
@@ -180,16 +172,16 @@ func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 
 	// Iterator
 	var iter Iterator
-	if opt.totalPages > 0 {
-		iter, err = b.partialIterator(opt.chunkSizeBytes, opt.startPage, opt.totalPages)
+	if opt.TotalPages > 0 {
+		iter, err = b.partialIterator(opt.ChunkSizeBytes, opt.StartPage, opt.TotalPages)
 	} else {
-		iter, err = b.Iterator(opt.chunkSizeBytes)
+		iter, err = b.Iterator(opt.ChunkSizeBytes)
 	}
 	if err != nil {
 		return nil, err
 	}
-	if opt.prefetchTraceCount > 0 {
-		iter = NewPrefetchIterator(ctx, iter, opt.prefetchTraceCount)
+	if opt.PrefetchTraceCount > 0 {
+		iter = NewPrefetchIterator(ctx, iter, opt.PrefetchTraceCount)
 	}
 	defer iter.Close()
 
@@ -206,7 +198,7 @@ func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 			return nil, fmt.Errorf("error iterating %s, %w", b.meta.BlockID, err)
 		}
 
-		err = search(decoder, opt.maxBytes, id, obj, req, resp)
+		err = search(decoder, opt.MaxBytes, id, obj, req, resp)
 		if err != nil {
 			return nil, err
 		}

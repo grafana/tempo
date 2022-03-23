@@ -79,7 +79,7 @@ type IterateObjectCallback func(id common.ID, obj []byte) bool
 
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]*tempopb.Trace, []error, error)
-	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts ...encoding.SearchOption) (*tempopb.SearchResponse, error)
+	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts encoding.SearchOptions) (*tempopb.SearchResponse, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(sharder blocklist.JobSharder)
 
@@ -365,13 +365,13 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 
 // Search the given block.  This method takes the pre-loaded block meta instead of a block ID, which
 // eliminates a read per search request.
-func (rw *readerWriter) Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts ...encoding.SearchOption) (*tempopb.SearchResponse, error) {
+func (rw *readerWriter) Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts encoding.SearchOptions) (*tempopb.SearchResponse, error) {
 	block, err := encoding.NewBackendBlock(meta, rw.r)
 	if err != nil {
 		return nil, err
 	}
 
-	return block.Search(ctx, req, opts...)
+	return block.Search(ctx, req, opts)
 }
 
 func (rw *readerWriter) Shutdown() {

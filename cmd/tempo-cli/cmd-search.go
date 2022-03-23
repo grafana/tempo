@@ -91,6 +91,10 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 		blockmetas = append(blockmetas, q)
 	}
 
+	searchOpts := encoding.DefaultSearchOptions()
+	searchOpts.ChunkSizeBytes = chunkSize
+	searchOpts.PrefetchTraceCount = iteratorBuffer
+
 	fmt.Println("Blocks In Range:", len(blockmetas))
 	foundids := []string{}
 	for _, meta := range blockmetas {
@@ -99,7 +103,7 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 			return err
 		}
 
-		resp, err := block.Search(ctx, searchReq, encoding.WithPrefetchTraceCount(iteratorBuffer), encoding.WithChunkSize(chunkSize))
+		resp, err := block.Search(ctx, searchReq, searchOpts)
 		if err != nil {
 			fmt.Println("Error searching block:", err)
 			return nil

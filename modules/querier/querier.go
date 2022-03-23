@@ -429,9 +429,12 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		DataEncoding:  req.DataEncoding,
 	}
 
-	maxBytes := q.limits.MaxBytesPerTrace(tenantID)
+	opts := encoding.DefaultSearchOptions()
+	opts.StartPage = int(req.StartPage)
+	opts.TotalPages = int(req.PagesToSearch)
+	opts.MaxBytes = q.limits.MaxBytesPerTrace(tenantID)
 
-	return q.store.Search(ctx, meta, req.SearchReq, encoding.WithPages(int(req.StartPage), int(req.PagesToSearch)), encoding.WithMaxBytes(maxBytes))
+	return q.store.Search(ctx, meta, req.SearchReq, opts)
 }
 
 func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []responseFromIngesters) *tempopb.SearchResponse {

@@ -12,40 +12,19 @@ type Finder interface {
 }
 
 type Searcher interface {
-	Search(ctx context.Context, req *tempopb.SearchRequest, opts ...SearchOption) (*tempopb.SearchResponse, error)
+	Search(ctx context.Context, req *tempopb.SearchRequest, opts SearchOptions) (*tempopb.SearchResponse, error)
 }
 
 type SearchOptions struct {
-	chunkSizeBytes     uint32
-	startPage          int
-	totalPages         int
-	maxBytes           int
-	prefetchTraceCount int
+	ChunkSizeBytes     uint32 // Buffer size to read from backend storage.
+	StartPage          int    // Controls searching only a subset of the block. Which page to begin searching at.
+	TotalPages         int    // Controls searching only a subset of the block. How many pages to search.
+	MaxBytes           int    // Max allowable trace size in bytes. Traces exceeding this are not searched.
+	PrefetchTraceCount int    // How many traces to prefetch async.
 }
 
-type SearchOption func(*SearchOptions)
-
-func WithPages(startPage, totalPages int) SearchOption {
-	return func(opt *SearchOptions) {
-		opt.startPage = startPage
-		opt.totalPages = totalPages
-	}
-}
-
-func WithChunkSize(chunkSizeBytes uint32) SearchOption {
-	return func(opt *SearchOptions) {
-		opt.chunkSizeBytes = chunkSizeBytes
-	}
-}
-
-func WithMaxBytes(maxBytes int) SearchOption {
-	return func(opt *SearchOptions) {
-		opt.maxBytes = maxBytes
-	}
-}
-
-func WithPrefetchTraceCount(count int) SearchOption {
-	return func(opt *SearchOptions) {
-		opt.prefetchTraceCount = count
+func DefaultSearchOptions() SearchOptions {
+	return SearchOptions{
+		ChunkSizeBytes: 1_000_000,
 	}
 }
