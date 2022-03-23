@@ -102,7 +102,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 
 	//
 	var err error
-	q.searchClient, err = hedgedhttp.NewClient(5*time.Second, 2, http.DefaultClient)
+	q.searchClient, err = hedgedhttp.NewClient(3*time.Second, 3, http.DefaultClient)
 	if err != nil {
 		return nil, err
 	}
