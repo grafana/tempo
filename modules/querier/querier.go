@@ -97,12 +97,12 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 			log.Logger),
 		store:            store,
 		limits:           limits,
-		searchPreferSelf: semaphore.NewWeighted(int64(cfg.SearchPreferSelf)),
+		searchPreferSelf: semaphore.NewWeighted(int64(cfg.Search.PreferSelf)),
 	}
 
 	//
 	var err error
-	q.searchClient, err = hedgedhttp.NewClient(10*time.Second, 3, http.DefaultClient)
+	q.searchClient, err = hedgedhttp.NewClient(cfg.Search.HedgeRequestsAt, cfg.Search.HedgeRequestsUpTo, http.DefaultClient)
 	if err != nil {
 		return nil, err
 	}
@@ -409,7 +409,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 // SearchBlock searches the specified subset of the block for the passed tags.
 func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	// if we have no external configuration always search in the querier
-	if len(q.cfg.SearchExternalEndpoints) == 0 {
+	if len(q.cfg.Search.ExternalEndpoints) == 0 {
 		return q.internalSearchBlock(ctx, req)
 	}
 
@@ -426,7 +426,7 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 	}
 	maxBytes := q.limits.MaxBytesPerTrace(tenantID)
 
-	endpoint := q.cfg.SearchExternalEndpoints[rand.Intn(len(q.cfg.SearchExternalEndpoints))]
+	endpoint := q.cfg.Search.ExternalEndpoints[rand.Intn(len(q.cfg.Search.ExternalEndpoints))]
 	return q.searchExternalEndpoint(ctx, endpoint, maxBytes, req)
 }
 
