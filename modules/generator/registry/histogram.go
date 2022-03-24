@@ -146,21 +146,21 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 		}
 
 		// sum
-		lb.Set("__name__", h.nameSum)
+		lb.Set(labels.MetricName, h.nameSum)
 		_, err = appender.Append(0, lb.Labels(), timeMs, s.sum.Load())
 		if err != nil {
 			return
 		}
 
 		// count
-		lb.Set("__name__", h.nameCount)
+		lb.Set(labels.MetricName, h.nameCount)
 		_, err = appender.Append(0, lb.Labels(), timeMs, s.count.Load())
 		if err != nil {
 			return
 		}
 
 		// bucket
-		lb.Set("__name__", h.nameBucket)
+		lb.Set(labels.MetricName, h.nameBucket)
 
 		for i, bucketLabel := range h.bucketLabels {
 			lb.Set(labels.BucketLabel, bucketLabel)

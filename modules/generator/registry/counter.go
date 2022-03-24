@@ -97,7 +97,7 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 	lb := labels.NewBuilder(lbls)
 
 	// set metric name
-	lb.Set("__name__", c.name)
+	lb.Set(labels.MetricName, c.name)
 	// set external labels
 	for name, value := range externalLabels {
 		lb.Set(name, value)
