@@ -60,8 +60,7 @@ func (c *counter) Inc(labelValues *LabelValues, value float64) {
 	c.seriesMtx.RUnlock()
 
 	if ok {
-		s.value.Add(value)
-		s.lastUpdated.Store(time.Now().UnixMilli())
+		c.updateSeries(s, value)
 		return
 	}
 
@@ -69,22 +68,30 @@ func (c *counter) Inc(labelValues *LabelValues, value float64) {
 		return
 	}
 
-	newSeries := &counterSeries{
-		labelValues: labelValues.getValuesCopy(),
-		value:       atomic.NewFloat64(value),
-		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
-	}
+	newSeries := c.newSeries(labelValues, value)
 
 	c.seriesMtx.Lock()
 	defer c.seriesMtx.Unlock()
 
 	s, ok = c.series[hash]
 	if ok {
-		s.value.Add(value)
-		s.lastUpdated.Store(time.Now().UnixMilli())
+		c.updateSeries(s, value)
 		return
 	}
 	c.series[hash] = newSeries
+}
+
+func (c *counter) newSeries(labelValues *LabelValues, value float64) *counterSeries {
+	return &counterSeries{
+		labelValues: labelValues.getValuesCopy(),
+		value:       atomic.NewFloat64(value),
+		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
+	}
+}
+
+func (c *counter) updateSeries(s *counterSeries, value float64) {
+	s.value.Add(value)
+	s.lastUpdated.Store(time.Now().UnixMilli())
 }
 
 func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {

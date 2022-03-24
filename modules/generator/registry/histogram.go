@@ -74,15 +74,7 @@ func (h *histogram) Observe(labelValues *LabelValues, value float64) {
 	h.seriesMtx.RUnlock()
 
 	if ok {
-		s.count.Add(1)
-		s.sum.Add(value)
-		for i, bucket := range h.buckets {
-			if value <= bucket {
-				s.buckets[i].Add(1)
-			}
-		}
-		s.bucketInf.Add(1)
-		s.lastUpdated.Store(time.Now().UnixMilli())
+		h.updateSeries(s, value)
 		return
 	}
 
@@ -90,7 +82,21 @@ func (h *histogram) Observe(labelValues *LabelValues, value float64) {
 		return
 	}
 
-	newSerie := &histogramSeries{
+	newSeries := h.newSeries(labelValues, value)
+
+	h.seriesMtx.Lock()
+	defer h.seriesMtx.Unlock()
+
+	s, ok = h.series[hash]
+	if ok {
+		h.updateSeries(s, value)
+		return
+	}
+	h.series[hash] = newSeries
+}
+
+func (h *histogram) newSeries(labelValues *LabelValues, value float64) *histogramSeries {
+	newSeries := &histogramSeries{
 		labelValues: labelValues.getValuesCopy(),
 		count:       atomic.NewFloat64(1),
 		sum:         atomic.NewFloat64(value),
@@ -100,29 +106,24 @@ func (h *histogram) Observe(labelValues *LabelValues, value float64) {
 	}
 	for _, bucket := range h.buckets {
 		if value <= bucket {
-			newSerie.buckets = append(newSerie.buckets, atomic.NewFloat64(1))
+			newSeries.buckets = append(newSeries.buckets, atomic.NewFloat64(1))
 		} else {
-			newSerie.buckets = append(newSerie.buckets, atomic.NewFloat64(0))
+			newSeries.buckets = append(newSeries.buckets, atomic.NewFloat64(0))
 		}
 	}
+	return newSeries
+}
 
-	h.seriesMtx.Lock()
-	defer h.seriesMtx.Unlock()
-
-	s, ok = h.series[hash]
-	if ok {
-		s.count.Add(1)
-		s.sum.Add(value)
-		for i, bucket := range h.buckets {
-			if value <= bucket {
-				s.buckets[i].Add(1)
-			}
+func (h *histogram) updateSeries(s *histogramSeries, value float64) {
+	s.count.Add(1)
+	s.sum.Add(value)
+	for i, bucket := range h.buckets {
+		if value <= bucket {
+			s.buckets[i].Add(1)
 		}
-		s.bucketInf.Add(1)
-		s.lastUpdated.Store(time.Now().UnixMilli())
-		return
 	}
-	h.series[hash] = newSerie
+	s.bucketInf.Add(1)
+	s.lastUpdated.Store(time.Now().UnixMilli())
 }
 
 func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
