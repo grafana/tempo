@@ -25,6 +25,8 @@ type VersionedEncoding interface {
 
 	NewObjectReaderWriter() common.ObjectReaderWriter
 	NewRecordReaderWriter() common.RecordReaderWriter
+
+	NewCompactor() Compactor
 }
 
 // FromVersion returns a versioned encoding for the provided string
@@ -72,4 +74,7 @@ func (v v2Encoding) NewObjectReaderWriter() common.ObjectReaderWriter {
 }
 func (v v2Encoding) NewRecordReaderWriter() common.RecordReaderWriter {
 	return v2.NewRecordReaderWriter()
+}
+func (v v2Encoding) NewCompactor() Compactor {
+	return NewCompactor()
 }

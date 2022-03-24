@@ -2,8 +2,11 @@ package encoding
 
 import (
 	"context"
+	"time"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -26,5 +29,26 @@ type SearchOptions struct {
 func DefaultSearchOptions() SearchOptions {
 	return SearchOptions{
 		ChunkSizeBytes: 1_000_000,
+	}
+}
+
+type Compactor interface {
+	Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta, opts CompactionOptions) ([]*backend.BlockMeta, error)
+}
+
+type CompactionOptions struct {
+	ChunkSizeBytes     uint32
+	FlushSizeBytes     uint32
+	PrefetchTraceCount int // How many traces to prefetch async.
+	OutputBlocks       uint8
+	BlockConfig        BlockConfig
+}
+
+func DefaultCompactionOptions() CompactionOptions {
+	return CompactionOptions{
+		ChunkSizeBytes:     1_000_000,
+		FlushSizeBytes:     30 * 1024 * 1024, // 30 MiB
+		PrefetchTraceCount: 1000,
+		OutputBlocks:       1,
 	}
 }

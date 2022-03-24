@@ -3,53 +3,14 @@ package tempodb
 import (
 	"context"
 	"fmt"
-	"io"
-	"runtime"
 	"sort"
 	"strconv"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/go-kit/log/level"
-	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-)
-
-var (
-	metricCompactionBlocks = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempodb",
-		Name:      "compaction_blocks_total",
-		Help:      "Total number of blocks compacted.",
-	}, []string{"level"})
-	metricCompactionObjectsWritten = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempodb",
-		Name:      "compaction_objects_written_total",
-		Help:      "Total number of objects written to backend during compaction.",
-	}, []string{"level"})
-	metricCompactionBytesWritten = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempodb",
-		Name:      "compaction_bytes_written_total",
-		Help:      "Total number of bytes written to backend during compaction.",
-	}, []string{"level"})
-	metricCompactionErrors = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "tempodb",
-		Name:      "compaction_errors_total",
-		Help:      "Total number of errors occurring during compaction.",
-	})
-	metricCompactionObjectsCombined = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempodb",
-		Name:      "compaction_objects_combined_total",
-		Help:      "Total number of objects combined during compaction.",
-	}, []string{"level"})
-	metricCompactionOutstandingBlocks = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempodb",
-		Name:      "compaction_outstanding_blocks",
-		Help:      "Number of blocks remaining to be compacted before next maintenance cycle",
-	}, []string{"tenant"})
+	"github.com/grafana/tempo/tempodb/metrics"
 )
 
 const (
@@ -119,7 +80,7 @@ func (rw *readerWriter) doCompaction() {
 			level.Warn(rw.logger).Log("msg", "unable to find meta during compaction.  trying again on this block list", "err", err)
 		} else if err != nil {
 			level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
-			metricCompactionErrors.Inc()
+			metrics.MetricCompactionErrors.Inc()
 		}
 
 		// after a maintenance cycle bail out
@@ -142,162 +103,53 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		return nil
 	}
 
-	compactionLevel := compactionLevelForBlocks(blockMetas)
-	compactionLevelLabel := strconv.Itoa(int(compactionLevel))
-	nextCompactionLevel := compactionLevel + 1
-
 	var err error
-	iters := make([]encoding.Iterator, 0, len(blockMetas))
 
-	// cleanup compaction
 	defer func() {
 		level.Info(rw.logger).Log("msg", "compaction complete")
-		for _, iter := range iters {
-			iter.Close()
-		}
 	}()
 
 	var totalRecords int
-	var dataEncoding string
 	for _, blockMeta := range blockMetas {
 		level.Info(rw.logger).Log("msg", "compacting block", "block", fmt.Sprintf("%+v", blockMeta))
 		totalRecords += blockMeta.TotalObjects
-		dataEncoding = blockMeta.DataEncoding // blocks chosen for compaction always have the same data encoding
 
 		// Make sure block still exists
 		_, err = rw.r.BlockMeta(ctx, blockMeta.BlockID, tenantID)
 		if err != nil {
 			return err
 		}
-
-		// Open iterator
-		block, err := encoding.NewBackendBlock(blockMeta, rw.r)
-		if err != nil {
-			return err
-		}
-
-		iter, err := block.Iterator(rw.compactorCfg.ChunkSizeBytes)
-		if err != nil {
-			return err
-		}
-
-		iters = append(iters, iter)
 	}
 
-	recordsPerBlock := (totalRecords / outputBlocks)
-	var newCompactedBlocks []*backend.BlockMeta
-	var currentBlock *encoding.StreamingBlock
-	var tracker backend.AppendTracker
+	enc, err := encoding.FromVersion(blockMetas[0].Version)
+	if err != nil {
+		return err
+	}
 
-	combiner := instrumentedObjectCombiner{
+	/*combiner := instrumentedObjectCombiner{
 		tenant:               tenantID,
 		inner:                rw.compactorSharder,
 		compactionLevelLabel: compactionLevelLabel,
-	}
+	}*/
 
-	iter := encoding.NewMultiblockIterator(ctx, iters, rw.compactorCfg.IteratorBufferSize, combiner, dataEncoding, rw.logger)
-	defer iter.Close()
-
-	for {
-
-		id, body, err := iter.Next(ctx)
-		if err == io.EOF {
-			break
-		}
-
-		if err != nil {
-			return errors.Wrap(err, "error iterating input blocks")
-		}
-
-		// make a new block if necessary
-		if currentBlock == nil {
-			currentBlock, err = encoding.NewStreamingBlock(rw.cfg.Block, uuid.New(), tenantID, blockMetas, recordsPerBlock)
-			if err != nil {
-				return errors.Wrap(err, "error making new compacted block")
-			}
-			currentBlock.BlockMeta().CompactionLevel = nextCompactionLevel
-			newCompactedBlocks = append(newCompactedBlocks, currentBlock.BlockMeta())
-		}
-
-		err = currentBlock.AddObject(id, body)
-		if err != nil {
-			return err
-		}
-
-		// write partial block
-		if currentBlock.CurrentBufferLength() >= int(rw.compactorCfg.FlushSizeBytes) {
-			runtime.GC()
-			tracker, err = appendBlock(rw, tracker, currentBlock)
-			if err != nil {
-				return errors.Wrap(err, "error writing partial block")
-			}
-		}
-
-		// ship block to backend if done
-		if currentBlock.Length() >= recordsPerBlock {
-			err = finishBlock(rw, tracker, currentBlock)
-			if err != nil {
-				return errors.Wrap(err, "error shipping block to backend")
-			}
-			currentBlock = nil
-			tracker = nil
-		}
-	}
-
-	// ship final block to backend
-	if currentBlock != nil {
-		err = finishBlock(rw, tracker, currentBlock)
-		if err != nil {
-			return errors.Wrap(err, "error shipping block to backend")
-		}
+	compactor := enc.NewCompactor()
+	opts := encoding.DefaultCompactionOptions()
+	opts.BlockConfig = *rw.cfg.Block
+	opts.ChunkSizeBytes = rw.compactorCfg.ChunkSizeBytes
+	opts.FlushSizeBytes = rw.compactorCfg.FlushSizeBytes
+	opts.OutputBlocks = outputBlocks
+	newCompactedBlocks, err := compactor.Compact(ctx, rw.logger, rw.r, rw.getWriterForBlock, blockMetas, opts)
+	if err != nil {
+		return err
 	}
 
 	// mark old blocks compacted so they don't show up in polling
 	markCompacted(rw, tenantID, blockMetas, newCompactedBlocks)
 
-	metricCompactionBlocks.WithLabelValues(compactionLevelLabel).Add(float64(len(blockMetas)))
+	compactionLabel := strconv.Itoa(int(newCompactedBlocks[0].CompactionLevel - 1))
+	metrics.MetricCompactionBlocks.WithLabelValues(compactionLabel).Add(float64(len(blockMetas)))
 
 	return nil
-}
-
-func appendBlock(rw *readerWriter, tracker backend.AppendTracker, block *encoding.StreamingBlock) (backend.AppendTracker, error) {
-	compactionLevelLabel := strconv.Itoa(int(block.BlockMeta().CompactionLevel - 1))
-	metricCompactionObjectsWritten.WithLabelValues(compactionLevelLabel).Add(float64(block.CurrentBufferedObjects()))
-
-	tracker, bytesFlushed, err := block.FlushBuffer(context.TODO(), tracker, rw.w)
-	if err != nil {
-		return nil, err
-	}
-	metricCompactionBytesWritten.WithLabelValues(compactionLevelLabel).Add(float64(bytesFlushed))
-
-	return tracker, nil
-}
-
-func finishBlock(rw *readerWriter, tracker backend.AppendTracker, block *encoding.StreamingBlock) error {
-	level.Info(rw.logger).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", block.BlockMeta()))
-
-	w := rw.getWriterForBlock(block.BlockMeta(), time.Now())
-
-	bytesFlushed, err := block.Complete(context.TODO(), tracker, w)
-	if err != nil {
-		return err
-	}
-	compactionLevelLabel := strconv.Itoa(int(block.BlockMeta().CompactionLevel - 1))
-	metricCompactionBytesWritten.WithLabelValues(compactionLevelLabel).Add(float64(bytesFlushed))
-
-	return nil
-}
-
-func compactionLevelForBlocks(blockMetas []*backend.BlockMeta) uint8 {
-	level := uint8(0)
-
-	for _, m := range blockMetas {
-		if m.CompactionLevel > level {
-			level = m.CompactionLevel
-		}
-	}
-
-	return level
 }
 
 func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.BlockMeta, newBlocks []*backend.BlockMeta) {
@@ -305,7 +157,7 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.Block
 		// Mark in the backend
 		if err := rw.c.MarkBlockCompacted(meta.BlockID, tenantID); err != nil {
 			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
-			metricCompactionErrors.Inc()
+			metrics.MetricCompactionErrors.Inc()
 		}
 	}
 
@@ -336,10 +188,10 @@ func measureOutstandingBlocks(tenantID string, blockSelector CompactionBlockSele
 		}
 		totalOutstandingBlocks += len(leftToBeCompacted)
 	}
-	metricCompactionOutstandingBlocks.WithLabelValues(tenantID).Set(float64(totalOutstandingBlocks))
+	metrics.MetricCompactionOutstandingBlocks.WithLabelValues(tenantID).Set(float64(totalOutstandingBlocks))
 }
 
-type instrumentedObjectCombiner struct {
+/*type instrumentedObjectCombiner struct {
 	tenant               string
 	compactionLevelLabel string
 	inner                CompactorSharder
@@ -352,4 +204,4 @@ func (i instrumentedObjectCombiner) Combine(dataEncoding string, objs ...[]byte)
 		metricCompactionObjectsCombined.WithLabelValues(i.compactionLevelLabel).Inc()
 	}
 	return b, wasCombined, err
-}
+}*/
