@@ -39,9 +39,6 @@ const (
 	metricRequestFailedTotal   = "traces_service_graph_request_failed_total"
 	metricRequestServerSeconds = "traces_service_graph_request_server_seconds"
 	metricRequestClientSeconds = "traces_service_graph_request_client_seconds"
-	// TODO should these be operational metrics instead?
-	//metricUnpairedSpansTotal = "traces_service_graph_unpaired_spans_total"
-	//metricDroppedSpansTotal  = "traces_service_graph_dropped_spans_total"
 )
 
 type tooManySpansError struct {
@@ -65,8 +62,6 @@ type processor struct {
 	serviceGraphRequestFailedTotal            registry.Counter
 	serviceGraphRequestServerSecondsHistogram registry.Histogram
 	serviceGraphRequestClientSecondsHistogram registry.Histogram
-	//serviceGraphUnpairedSpansTotal            registry.Counter
-	//serviceGraphDroppedSpansTotal             registry.Counter
 
 	metricDroppedSpans  prometheus.Counter
 	metricUnpairedEdges prometheus.Counter
