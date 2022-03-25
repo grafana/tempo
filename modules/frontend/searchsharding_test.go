@@ -20,7 +20,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/blocklist"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,7 +38,7 @@ func (m *mockReader) Find(ctx context.Context, tenantID string, id common.ID, bl
 func (m *mockReader) BlockMetas(tenantID string) []*backend.BlockMeta {
 	return m.metas
 }
-func (m *mockReader) Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts encoding.SearchOptions) (*tempopb.SearchResponse, error) {
+func (m *mockReader) Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
 	return nil, nil
 }
 func (m *mockReader) EnablePolling(sharder blocklist.JobSharder) {}

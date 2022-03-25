@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/encoding"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 type viewIndexCmd struct {
@@ -32,7 +32,7 @@ func (cmd *viewIndexCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	b, err := encoding.NewBackendBlock(meta, r)
+	b, err := v2.NewBackendBlock(meta, r)
 	if err != nil {
 		return err
 	}

@@ -19,7 +19,8 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/viper"
 	"github.com/weaveworks/common/user"
@@ -88,12 +89,12 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		DataEncoding:  searchReq.DataEncoding,
 	}
 
-	block, err := encoding.NewBackendBlock(meta, reader)
+	block, err := v2.NewBackendBlock(meta, reader)
 	if err != nil {
 		return nil, httpError("creating backend block", err, http.StatusInternalServerError)
 	}
 
-	opts := encoding.DefaultSearchOptions()
+	opts := common.DefaultSearchOptions()
 	opts.StartPage = int(searchReq.StartPage)
 	opts.TotalPages = int(searchReq.PagesToSearch)
 	opts.PrefetchTraceCount = cfg.Search.PrefetchTraceCount

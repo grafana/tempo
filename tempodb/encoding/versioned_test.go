@@ -7,6 +7,7 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -70,7 +71,7 @@ func testDataWriterReader(t *testing.T, v VersionedEncoding, e backend.Encoding)
 		require.NoError(t, err)
 		require.Len(t, actual, 1)
 
-		i := NewIterator(bytes.NewReader(actual[0]), v.NewObjectReaderWriter())
+		i := v2.NewIterator(bytes.NewReader(actual[0]), v.NewObjectReaderWriter())
 		defer i.Close()
 
 		id, obj, err := i.Next(context.Background())

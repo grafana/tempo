@@ -29,7 +29,7 @@ import (
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -320,7 +320,7 @@ func defaultIngesterModule(t *testing.T, tmpDir string) *Ingester {
 			Local: &local.Config{
 				Path: tmpDir,
 			},
-			Block: &encoding.BlockConfig{
+			Block: &common.BlockConfig{
 				IndexDownsampleBytes: 2,
 				BloomFP:              0.01,
 				BloomShardSizeBytes:  100_000,

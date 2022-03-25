@@ -19,8 +19,8 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
 	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 type valueStats struct {
@@ -85,7 +85,7 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 	if scan {
 		fmt.Println("Scanning block contents.  Press CRTL+C to quit ...")
 
-		block, err := encoding.NewBackendBlock(&unifiedMeta.BlockMeta, r)
+		block, err := v2.NewBackendBlock(&unifiedMeta.BlockMeta, r)
 		if err != nil {
 			return err
 		}

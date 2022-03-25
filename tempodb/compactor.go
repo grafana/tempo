@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/metrics"
 )
 
@@ -133,7 +134,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	}*/
 
 	compactor := enc.NewCompactor()
-	opts := encoding.DefaultCompactionOptions()
+	opts := common.DefaultCompactionOptions()
 	opts.BlockConfig = *rw.cfg.Block
 	opts.ChunkSizeBytes = rw.compactorCfg.ChunkSizeBytes
 	opts.FlushSizeBytes = rw.compactorCfg.FlushSizeBytes

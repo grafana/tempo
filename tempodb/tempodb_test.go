@@ -19,7 +19,6 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -37,7 +36,7 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration)
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		Block: &encoding.BlockConfig{
+		Block: &common.BlockConfig{
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
@@ -562,7 +561,7 @@ func TestShouldCache(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		Block: &encoding.BlockConfig{
+		Block: &common.BlockConfig{
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,

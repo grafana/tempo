@@ -1,4 +1,4 @@
-package encoding
+package v2
 
 import (
 	"hash"

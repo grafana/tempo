@@ -1,4 +1,4 @@
-package encoding
+package v2
 
 import (
 	"bufio"
@@ -18,7 +18,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,7 +55,7 @@ func TestStreamingBlockAddObject(t *testing.T) {
 	}
 
 	numObjects := (rand.Int() % 20) + 1
-	cb, err := NewStreamingBlock(&BlockConfig{
+	cb, err := NewStreamingBlock(&common.BlockConfig{
 		BloomFP:              0.01,
 		BloomShardSizeBytes:  100,
 		IndexDownsampleBytes: indexDownsample,
@@ -139,7 +138,7 @@ func TestStreamingBlockAll(t *testing.T) {
 		for _, enc := range backend.SupportedEncoding {
 			t.Run(enc.String(), func(t *testing.T) {
 				testStreamingBlockToBackendBlock(t,
-					&BlockConfig{
+					&common.BlockConfig{
 						IndexDownsampleBytes: indexDownsampleBytes,
 						BloomFP:              bloomFP,
 						BloomShardSizeBytes:  bloomShardSize,
@@ -152,7 +151,7 @@ func TestStreamingBlockAll(t *testing.T) {
 	}
 }
 
-func testStreamingBlockToBackendBlock(t *testing.T, cfg *BlockConfig) {
+func testStreamingBlockToBackendBlock(t *testing.T, cfg *common.BlockConfig) {
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: t.TempDir(),
 	})
@@ -176,9 +175,9 @@ func testStreamingBlockToBackendBlock(t *testing.T, cfg *BlockConfig) {
 	// test Find
 	for i, id := range ids {
 		foundBytes, err := backendBlock.find(context.Background(), id)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
-		assert.Equal(t, reqs[i], foundBytes)
+		require.Equal(t, reqs[i], foundBytes)
 	}
 
 	// test Iterator
@@ -197,20 +196,20 @@ func testStreamingBlockToBackendBlock(t *testing.T, cfg *BlockConfig) {
 			break
 		}
 
-		assert.NoError(t, err)
-		assert.Equal(t, ids[i], []byte(id))
-		assert.Equal(t, idsToObjs[util.TokenForTraceID(id)], obj)
+		require.NoError(t, err)
+		require.Equal(t, ids[i], []byte(id))
+		require.Equal(t, idsToObjs[util.TokenForTraceID(id)], obj)
 		i++
 	}
-	assert.Equal(t, len(ids), i)
+	require.Equal(t, len(ids), i)
 }
 
-func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*StreamingBlock, [][]byte, [][]byte) {
+func streamingBlock(t *testing.T, cfg *common.BlockConfig, w backend.Writer) (*StreamingBlock, [][]byte, [][]byte) {
 	rand.Seed(time.Now().Unix())
 
 	buffer := &bytes.Buffer{}
 	writer := bufio.NewWriter(buffer)
-	dataWriter, err := v2.NewDataWriter(writer, backend.EncNone)
+	dataWriter, err := NewDataWriter(writer, backend.EncNone)
 	require.NoError(t, err)
 	appender := NewAppender(dataWriter)
 
@@ -248,11 +247,11 @@ func streamingBlock(t *testing.T, cfg *BlockConfig, w backend.Writer) (*Streamin
 	originatingMeta.TotalObjects = numMsgs
 
 	// calc expected records
-	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(buffer.Bytes())), backend.EncNone)
+	dataReader, err := NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(buffer.Bytes())), backend.EncNone)
 	require.NoError(t, err)
 	iter := NewRecordIterator(appender.Records(),
 		dataReader,
-		v2.NewObjectReaderWriter())
+		NewObjectReaderWriter())
 
 	block, err := NewStreamingBlock(cfg, originatingMeta.BlockID, originatingMeta.TenantID, []*backend.BlockMeta{originatingMeta}, originatingMeta.TotalObjects)
 	require.NoError(t, err, "unexpected error completing block")
@@ -371,7 +370,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 		b.ResetTimer()
 	}
 
-	block, err := NewStreamingBlock(&BlockConfig{
+	block, err := NewStreamingBlock(&common.BlockConfig{
 		IndexDownsampleBytes: indexDownsample,
 		BloomFP:              .05,
 		Encoding:             encoding,
@@ -411,11 +410,11 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 	fullFilename := path.Join(backendTmpDir, block.compactedMeta.TenantID, block.compactedMeta.BlockID.String(), "data")
 	file, err := os.Open(fullFilename)
 	require.NoError(b, err)
-	pr, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(file), encoding)
+	pr, err := NewDataReader(backend.NewContextReaderWithAllReader(file), encoding)
 	require.NoError(b, err)
 
 	var tempBuffer []byte
-	o := v2.NewObjectReaderWriter()
+	o := NewObjectReaderWriter()
 	for {
 		tempBuffer, _, err = pr.NextPage(tempBuffer)
 		if err == io.EOF {

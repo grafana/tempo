@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/encoding"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -98,7 +99,7 @@ func newStreamingSearchBlockFromWALReplay(searchFilepath, filename string) (*Str
 	return &StreamingSearchBlock{
 		blockID:  blockID,
 		file:     f,
-		appender: encoding.NewRecordAppender(records),
+		appender: v2.NewRecordAppender(records),
 		header:   blockHeader,
 		v:        v,
 		enc:      enc,

@@ -15,12 +15,13 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 // StreamingSearchBlock is search data that is read/write, i.e. for traces in the WAL.
 type StreamingSearchBlock struct {
 	blockID   uuid.UUID // todo: add the full meta?
-	appender  encoding.Appender
+	appender  v2.Appender
 	file      *os.File
 	closed    atomic.Bool
 	header    *tempofb.SearchBlockHeaderMutable
@@ -63,7 +64,7 @@ func NewStreamingSearchBlockForFile(f *os.File, blockID uuid.UUID, version strin
 		return nil, err
 	}
 
-	a := encoding.NewAppender(dataWriter)
+	a := v2.NewAppender(dataWriter)
 	s.appender = a
 
 	return s, nil
@@ -172,7 +173,7 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 	return nil
 }
 
-func (s *StreamingSearchBlock) Iterator() (encoding.Iterator, error) {
+func (s *StreamingSearchBlock) Iterator() (v2.Iterator, error) {
 	iter := &streamingSearchBlockIterator{
 		records:     s.appender.Records(),
 		file:        s.file,
@@ -190,7 +191,7 @@ func (s *StreamingSearchBlock) Iterator() (encoding.Iterator, error) {
 	combiner := &DataCombiner{}
 
 	// Streaming (wal) blocks have to be deduped.
-	return encoding.NewDedupingIterator(iter, combiner, "")
+	return v2.NewDedupingIterator(iter, combiner, "")
 }
 
 type streamingSearchBlockIterator struct {
@@ -203,7 +204,7 @@ type streamingSearchBlockIterator struct {
 	pagesBuffer [][]byte
 }
 
-var _ encoding.Iterator = (*streamingSearchBlockIterator)(nil)
+var _ v2.Iterator = (*streamingSearchBlockIterator)(nil)
 
 func (s *streamingSearchBlockIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	if s.currentIndex >= len(s.records) {

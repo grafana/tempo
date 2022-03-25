@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 type listIndexCmd struct {
@@ -33,7 +33,7 @@ func (cmd *listIndexCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	b, err := encoding.NewBackendBlock(meta, r)
+	b, err := v2.NewBackendBlock(meta, r)
 	if err != nil {
 		return err
 	}

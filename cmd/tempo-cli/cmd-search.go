@@ -9,7 +9,8 @@ import (
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 const (
@@ -91,14 +92,14 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 		blockmetas = append(blockmetas, q)
 	}
 
-	searchOpts := encoding.DefaultSearchOptions()
+	searchOpts := common.DefaultSearchOptions()
 	searchOpts.ChunkSizeBytes = chunkSize
 	searchOpts.PrefetchTraceCount = iteratorBuffer
 
 	fmt.Println("Blocks In Range:", len(blockmetas))
 	foundids := []string{}
 	for _, meta := range blockmetas {
-		block, err := encoding.NewBackendBlock(meta, r)
+		block, err := v2.NewBackendBlock(meta, r)
 		if err != nil {
 			return err
 		}

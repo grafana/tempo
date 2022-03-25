@@ -1,4 +1,4 @@
-package encoding
+package v2
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/metrics"
 	"github.com/pkg/errors"
 )
@@ -20,13 +21,13 @@ import (
 type compactor struct {
 }
 
-var _ Compactor = (*compactor)(nil)
+var _ common.Compactor = (*compactor)(nil)
 
 func NewCompactor() *compactor {
 	return &compactor{}
 }
 
-func (*compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta, opts CompactionOptions) (newCompactedBlocks []*backend.BlockMeta, err error) {
+func (*compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta, opts common.CompactionOptions) (newCompactedBlocks []*backend.BlockMeta, err error) {
 
 	tenantID := inputs[0].TenantID
 	dataEncoding := inputs[0].DataEncoding // blocks chosen for compaction always have the same data encoding

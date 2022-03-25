@@ -1,4 +1,4 @@
-package encoding
+package v2
 
 import (
 	"bytes"
@@ -11,8 +11,6 @@ import (
 )
 
 type StreamingBlock struct {
-	encoding VersionedEncoding
-
 	compactedMeta *backend.BlockMeta
 	inMetas       []*backend.BlockMeta
 
@@ -22,11 +20,11 @@ type StreamingBlock struct {
 	appendBuffer    *bytes.Buffer
 	appender        Appender
 
-	cfg *BlockConfig
+	cfg *common.BlockConfig
 }
 
 // NewStreamingBlock creates a ... new streaming block. Objects are appended one at a time to the backend.
-func NewStreamingBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []*backend.BlockMeta, estimatedObjects int) (*StreamingBlock, error) {
+func NewStreamingBlock(cfg *common.BlockConfig, id uuid.UUID, tenantID string, metas []*backend.BlockMeta, estimatedObjects int) (*StreamingBlock, error) {
 	if len(metas) == 0 {
 		return nil, fmt.Errorf("empty block meta list")
 	}
@@ -39,15 +37,14 @@ func NewStreamingBlock(cfg *BlockConfig, id uuid.UUID, tenantID string, metas []
 	}
 
 	c := &StreamingBlock{
-		encoding:      LatestEncoding(),
-		compactedMeta: backend.NewBlockMeta(tenantID, id, currentVersion, cfg.Encoding, dataEncoding),
+		compactedMeta: backend.NewBlockMeta(tenantID, id, versionString, cfg.Encoding, dataEncoding),
 		bloom:         common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(estimatedObjects)),
 		inMetas:       metas,
 		cfg:           cfg,
 	}
 
 	c.appendBuffer = &bytes.Buffer{}
-	dataWriter, err := c.encoding.NewDataWriter(c.appendBuffer, cfg.Encoding)
+	dataWriter, err := NewDataWriter(c.appendBuffer, cfg.Encoding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create page writer: %w", err)
 	}
@@ -124,7 +121,7 @@ func (c *StreamingBlock) Complete(ctx context.Context, tracker backend.AppendTra
 	records := c.appender.Records()
 	meta := c.BlockMeta()
 
-	indexWriter := c.encoding.NewIndexWriter(c.cfg.IndexPageSizeBytes)
+	indexWriter := NewIndexWriter(c.cfg.IndexPageSizeBytes)
 	indexBytes, err := indexWriter.Write(records)
 	if err != nil {
 		return 0, err
