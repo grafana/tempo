@@ -40,26 +40,32 @@ type histogramSeries struct {
 var _ Histogram = (*histogram)(nil)
 var _ metric = (*histogram)(nil)
 
-func newHistogram(name string, labels []string, buckets []float64) *histogram {
+func newHistogram(name string, labels []string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) *histogram {
+	if onAddSeries == nil {
+		onAddSeries = func(uint32) bool {
+			return true
+		}
+	}
+	if onRemoveSeries == nil {
+		onRemoveSeries = func(uint32) {}
+	}
+
 	bucketLabels := make([]string, len(buckets))
 	for i, bucket := range buckets {
 		bucketLabels[i] = formatFloat(bucket)
 	}
 
 	return &histogram{
-		nameCount:    fmt.Sprintf("%s_count", name),
-		nameSum:      fmt.Sprintf("%s_sum", name),
-		nameBucket:   fmt.Sprintf("%s_bucket", name),
-		labels:       labels,
-		buckets:      buckets,
-		bucketLabels: bucketLabels,
-		series:       make(map[uint64]*histogramSeries),
+		nameCount:     fmt.Sprintf("%s_count", name),
+		nameSum:       fmt.Sprintf("%s_sum", name),
+		nameBucket:    fmt.Sprintf("%s_bucket", name),
+		labels:        labels,
+		buckets:       buckets,
+		bucketLabels:  bucketLabels,
+		series:        make(map[uint64]*histogramSeries),
+		onAddSerie:    onAddSeries,
+		onRemoveSerie: onRemoveSeries,
 	}
-}
-
-func (h *histogram) setCallbacks(onAddSeries func(count uint32) bool, onRemoveSeries func(count uint32)) {
-	h.onAddSerie = onAddSeries
-	h.onRemoveSerie = onRemoveSeries
 }
 
 func (h *histogram) Observe(labelValues *LabelValues, value float64) {

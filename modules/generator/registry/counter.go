@@ -32,17 +32,23 @@ type counterSeries struct {
 var _ Counter = (*counter)(nil)
 var _ metric = (*counter)(nil)
 
-func newCounter(name string, labels []string) *counter {
-	return &counter{
-		name:   name,
-		labels: labels,
-		series: make(map[uint64]*counterSeries),
+func newCounter(name string, labels []string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) *counter {
+	if onAddSeries == nil {
+		onAddSeries = func(uint32) bool {
+			return true
+		}
 	}
-}
+	if onRemoveSeries == nil {
+		onRemoveSeries = func(uint32) {}
+	}
 
-func (c *counter) setCallbacks(onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) {
-	c.onAddSeries = onAddSeries
-	c.onRemoveSeries = onRemoveSeries
+	return &counter{
+		name:           name,
+		labels:         labels,
+		series:         make(map[uint64]*counterSeries),
+		onAddSeries:    onAddSeries,
+		onRemoveSeries: onRemoveSeries,
+	}
 }
 
 func (c *counter) Inc(labelValues *LabelValues, value float64) {

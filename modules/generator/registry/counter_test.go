@@ -17,8 +17,7 @@ func Test_counter(t *testing.T) {
 		return true
 	}
 
-	c := newCounter("my_counter", []string{"label"})
-	c.setCallbacks(onAdd, noopOnRemove)
+	c := newCounter("my_counter", []string{"label"}, onAdd, nil)
 
 	c.Inc(NewLabelValues([]string{"value-1"}), 1.0)
 	c.Inc(NewLabelValues([]string{"value-2"}), 2.0)
@@ -47,8 +46,7 @@ func Test_counter(t *testing.T) {
 }
 
 func Test_counter_invalidLabelValues(t *testing.T) {
-	c := newCounter("my_counter", []string{"label"})
-	c.setCallbacks(noopOnAdd, noopOnRemove)
+	c := newCounter("my_counter", []string{"label"}, nil, nil)
 
 	assert.Panics(t, func() {
 		c.Inc(nil, 1.0)
@@ -65,8 +63,7 @@ func Test_counter_cantAdd(t *testing.T) {
 		return canAdd
 	}
 
-	c := newCounter("my_counter", []string{"label"})
-	c.setCallbacks(onAdd, noopOnRemove)
+	c := newCounter("my_counter", []string{"label"}, onAdd, nil)
 
 	// allow adding new series
 	canAdd = true
@@ -102,8 +99,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 		removedSeries++
 	}
 
-	c := newCounter("my_counter", []string{"label"})
-	c.setCallbacks(noopOnAdd, onRemove)
+	c := newCounter("my_counter", []string{"label"}, nil, onRemove)
 
 	timeMs := time.Now().UnixMilli()
 	c.Inc(NewLabelValues([]string{"value-1"}), 1.0)
@@ -138,8 +134,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 }
 
 func Test_counter_externalLabels(t *testing.T) {
-	c := newCounter("my_counter", []string{"label"})
-	c.setCallbacks(noopOnAdd, noopOnRemove)
+	c := newCounter("my_counter", []string{"label"}, nil, nil)
 
 	c.Inc(NewLabelValues([]string{"value-1"}), 1.0)
 	c.Inc(NewLabelValues([]string{"value-2"}), 2.0)
@@ -153,8 +148,7 @@ func Test_counter_externalLabels(t *testing.T) {
 }
 
 func Test_counter_concurrencyDataRace(t *testing.T) {
-	c := newCounter("my_counter", []string{"label"})
-	c.setCallbacks(noopOnAdd, noopOnRemove)
+	c := newCounter("my_counter", []string{"label"}, nil, nil)
 
 	end := make(chan struct{})
 
@@ -200,8 +194,7 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 }
 
 func Test_counter_concurrencyCorrectness(t *testing.T) {
-	c := newCounter("my_counter", []string{"label"})
-	c.setCallbacks(noopOnAdd, noopOnRemove)
+	c := newCounter("my_counter", []string{"label"}, nil, nil)
 
 	var wg sync.WaitGroup
 	end := make(chan struct{})
@@ -246,11 +239,4 @@ func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, exte
 	assert.False(t, appender.isCommitted)
 	assert.False(t, appender.isRolledback)
 	assert.ElementsMatch(t, expectedSamples, appender.samples)
-}
-
-func noopOnAdd(count uint32) bool {
-	return true
-}
-
-func noopOnRemove(count uint32) {
 }

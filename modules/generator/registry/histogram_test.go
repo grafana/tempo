@@ -17,8 +17,7 @@ func Test_histogram(t *testing.T) {
 		return true
 	}
 
-	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0})
-	h.setCallbacks(onAdd, noopOnRemove)
+	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, onAdd, nil)
 
 	h.Observe(NewLabelValues([]string{"value-1"}), 1.0)
 	h.Observe(NewLabelValues([]string{"value-2"}), 1.5)
@@ -67,8 +66,7 @@ func Test_histogram(t *testing.T) {
 }
 
 func Test_histogram_invalidLabelValues(t *testing.T) {
-	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0})
-	h.setCallbacks(noopOnAdd, noopOnRemove)
+	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, nil, nil)
 
 	assert.Panics(t, func() {
 		h.Observe(nil, 1.0)
@@ -85,8 +83,7 @@ func Test_histogram_cantAdd(t *testing.T) {
 		return canAdd
 	}
 
-	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0})
-	h.setCallbacks(onAdd, noopOnRemove)
+	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, onAdd, nil)
 
 	// allow adding new series
 	canAdd = true
@@ -138,8 +135,7 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 		removedSeries++
 	}
 
-	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0})
-	h.setCallbacks(noopOnAdd, onRemove)
+	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, nil, onRemove)
 
 	timeMs := time.Now().UnixMilli()
 	h.Observe(NewLabelValues([]string{"value-1"}), 1.0)
@@ -186,8 +182,7 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 }
 
 func Test_histogram_externalLabels(t *testing.T) {
-	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0})
-	h.setCallbacks(noopOnAdd, noopOnRemove)
+	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, nil, nil)
 
 	h.Observe(NewLabelValues([]string{"value-1"}), 1.0)
 	h.Observe(NewLabelValues([]string{"value-2"}), 1.5)
@@ -209,8 +204,7 @@ func Test_histogram_externalLabels(t *testing.T) {
 }
 
 func Test_histogram_concurrencyDataRace(t *testing.T) {
-	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0})
-	h.setCallbacks(noopOnAdd, noopOnRemove)
+	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, nil, nil)
 
 	end := make(chan struct{})
 
@@ -256,8 +250,7 @@ func Test_histogram_concurrencyDataRace(t *testing.T) {
 }
 
 func Test_histogram_concurrencyCorrectness(t *testing.T) {
-	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0})
-	h.setCallbacks(noopOnAdd, noopOnRemove)
+	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, nil, nil)
 
 	var wg sync.WaitGroup
 	end := make(chan struct{})

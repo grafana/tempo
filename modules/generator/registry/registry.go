@@ -73,7 +73,6 @@ type ManagedRegistry struct {
 
 // metric is the interface for a metric that is managed by ManagedRegistry.
 type metric interface {
-	setCallbacks(onAddSeries func(count uint32) bool, onRemoveSeries func(count uint32))
 	collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error)
 	removeStaleSeries(staleTimeMs int64)
 }
@@ -118,20 +117,18 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 }
 
 func (r *ManagedRegistry) NewCounter(name string, labels []string) Counter {
-	c := newCounter(name, labels)
+	c := newCounter(name, labels, r.onAddMetricSeries, r.onRemoveMetricSeries)
 	r.registerMetric(c)
 	return c
 }
 
 func (r *ManagedRegistry) NewHistogram(name string, labels []string, buckets []float64) Histogram {
-	h := newHistogram(name, labels, buckets)
+	h := newHistogram(name, labels, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries)
 	r.registerMetric(h)
 	return h
 }
 
 func (r *ManagedRegistry) registerMetric(m metric) {
-	m.setCallbacks(r.onAddMetricSeries, r.onRemoveMetricSeries)
-
 	r.metricsMtx.Lock()
 	defer r.metricsMtx.Unlock()
 
