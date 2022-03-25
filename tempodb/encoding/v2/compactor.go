@@ -18,16 +18,16 @@ import (
 	"github.com/pkg/errors"
 )
 
-type compactor struct {
+type Compactor struct {
 }
 
-var _ common.Compactor = (*compactor)(nil)
+var _ common.Compactor = (*Compactor)(nil)
 
-func NewCompactor() *compactor {
-	return &compactor{}
+func NewCompactor() *Compactor {
+	return &Compactor{}
 }
 
-func (*compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta, opts common.CompactionOptions) (newCompactedBlocks []*backend.BlockMeta, err error) {
+func (*Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta, opts common.CompactionOptions) (newCompactedBlocks []*backend.BlockMeta, err error) {
 
 	tenantID := inputs[0].TenantID
 	dataEncoding := inputs[0].DataEncoding // blocks chosen for compaction always have the same data encoding
@@ -138,7 +138,7 @@ func appendBlock(ctx context.Context, writerCallback func(*backend.BlockMeta, ti
 	compactionLevelLabel := strconv.Itoa(int(block.BlockMeta().CompactionLevel - 1))
 	metrics.MetricCompactionObjectsWritten.WithLabelValues(compactionLevelLabel).Add(float64(block.CurrentBufferedObjects()))
 
-	tracker, bytesFlushed, err := block.FlushBuffer(context.TODO(), tracker, writerCallback(block.BlockMeta(), time.Now()))
+	tracker, bytesFlushed, err := block.FlushBuffer(ctx, tracker, writerCallback(block.BlockMeta(), time.Now()))
 	if err != nil {
 		return nil, err
 	}

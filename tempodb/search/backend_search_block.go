@@ -11,7 +11,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/v2"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 const defaultBackendSearchBlockPageSize = 2 * 1024 * 1024
