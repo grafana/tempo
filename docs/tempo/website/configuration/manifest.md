@@ -16,7 +16,7 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/tmp
 
 ## Complete Configuration
 
-> **Note**: This manifest was generated on 2022-03-09.
+> **Note**: This manifest was generated on 2022-03-23.
 
 ```yaml
 target: all
@@ -151,10 +151,13 @@ metrics_generator_client:
     tls_server_name: ""
     tls_insecure_skip_verify: false
 querier:
+  search:
+    query_timeout: 30s
+    prefer_self: 2
+    external_endpoints: []
+    external_hedge_requests_at: 4s
+    external_hedge_requests_up_to: 3
   query_timeout: 10s
-  search_query_timeout: 30s
-  search_external_endpoints: []
-  search_prefer_self: 2
   max_concurrent_queries: 5
   frontend_worker:
     frontend_address: 127.0.0.1:9095
@@ -220,8 +223,6 @@ query_frontend:
     max_duration: 1h1m0s
     query_backend_after: 15m0s
     query_ingesters_until: 1h0m0s
-    hedge_requests_at: 5s
-    hedge_requests_up_to: 3
 compactor:
   ring:
     kvstore:
@@ -273,6 +274,7 @@ compactor:
     retention_concurrency: 10
     iterator_buffer_size: 1000
     max_time_per_tenant: 5m0s
+    compaction_cycle: 30s
   override_ring_key: compactor
 ingester:
   lifecycler:

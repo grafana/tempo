@@ -32,7 +32,9 @@ func TestQuerierUsesSearchExternalEndpoint(t *testing.T) {
 		// SearchExternalEndpoints is respected
 		{
 			cfg: Config{
-				SearchExternalEndpoints: []string{srv.URL},
+				Search: SearchConfig{
+					ExternalEndpoints: []string{srv.URL},
+				},
 			},
 			queriesToExecute: 3,
 			externalExpected: 3,

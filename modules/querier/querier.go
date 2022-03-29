@@ -10,6 +10,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/cristalhq/hedgedhttp"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
@@ -65,6 +66,7 @@ type Querier struct {
 	store  storage.Store
 	limits *overrides.Overrides
 
+	searchClient     *http.Client
 	searchPreferSelf *semaphore.Weighted
 
 	subservices        *services.Manager
@@ -93,7 +95,17 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 			log.Logger),
 		store:            store,
 		limits:           limits,
-		searchPreferSelf: semaphore.NewWeighted(int64(cfg.SearchPreferSelf)),
+		searchPreferSelf: semaphore.NewWeighted(int64(cfg.Search.PreferSelf)),
+		searchClient:     http.DefaultClient,
+	}
+
+	//
+	if cfg.Search.HedgeRequestsAt != 0 {
+		var err error
+		q.searchClient, err = hedgedhttp.NewClient(cfg.Search.HedgeRequestsAt, cfg.Search.HedgeRequestsUpTo, http.DefaultClient)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
@@ -382,7 +394,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 // SearchBlock searches the specified subset of the block for the passed tags.
 func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	// if we have no external configuration always search in the querier
-	if len(q.cfg.SearchExternalEndpoints) == 0 {
+	if len(q.cfg.Search.ExternalEndpoints) == 0 {
 		return q.internalSearchBlock(ctx, req)
 	}
 
@@ -399,8 +411,8 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 	}
 	maxBytes := q.limits.MaxBytesPerTrace(tenantID)
 
-	endpoint := q.cfg.SearchExternalEndpoints[rand.Intn(len(q.cfg.SearchExternalEndpoints))]
-	return searchExternalEndpoint(ctx, endpoint, maxBytes, req)
+	endpoint := q.cfg.Search.ExternalEndpoints[rand.Intn(len(q.cfg.Search.ExternalEndpoints))]
+	return q.searchExternalEndpoint(ctx, endpoint, maxBytes, req)
 }
 
 func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
@@ -478,7 +490,7 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 	return response
 }
 
-func searchExternalEndpoint(ctx context.Context, externalEndpoint string, maxBytes int, searchReq *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
+func (q *Querier) searchExternalEndpoint(ctx context.Context, externalEndpoint string, maxBytes int, searchReq *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	req, err := http.NewRequest(http.MethodGet, externalEndpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to make new request: %w", err)
@@ -493,7 +505,7 @@ func searchExternalEndpoint(ctx context.Context, externalEndpoint string, maxByt
 		return nil, fmt.Errorf("external endpoint failed to inject tenant id: %w", err)
 	}
 	start := time.Now()
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := q.searchClient.Do(req)
 	metricEndpointDuration.WithLabelValues(externalEndpoint).Observe(time.Since(start).Seconds())
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to call http: %s, %w", externalEndpoint, err)

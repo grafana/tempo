@@ -149,7 +149,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	isSearchBlock := api.IsSearchBlock(r)
 
 	// Enforce the query timeout while querying backends
-	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.SearchQueryTimeout))
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchHandler")
@@ -200,7 +200,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 
 func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
-	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.SearchQueryTimeout))
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagsHandler")
@@ -225,7 +225,7 @@ func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 
 func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
-	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.SearchQueryTimeout))
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagValuesHandler")

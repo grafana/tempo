@@ -67,16 +67,7 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 
 	// tracebyid middleware
 	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
-
-	// search pipeline and middleware
-	searchPipeline := []Middleware{
-		newSearchMiddleware(cfg, store, logger),
-	}
-	if cfg.Search.HedgeRequestsAt > 0 {
-		searchPipeline = append(searchPipeline, newHedgedRequestWare(cfg.Search.HedgeRequestsAt, cfg.Search.HedgeRequestsUpTo))
-	}
-	searchPipeline = append(searchPipeline, retryWare)
-	searchMiddleware := MergeMiddlewares(searchPipeline...)
+	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, store, logger), retryWare)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
 		"op": traceByIDOp,

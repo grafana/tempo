@@ -19,13 +19,29 @@
 * [ENHANCEMENT] Partially persist traces that exceed `max_bytes_per_trace` during compaction [#1317](https://github.com/grafana/tempo/pull/1317) (@joe-elliott)
 * [ENHANCEMENT] Make search respect per tenant `max_bytes_per_trace` and added `skippedTraces` to returned search metrics. [#1318](https://github.com/grafana/tempo/pull/1318) (@joe-elliott)
 * [ENHANCEMENT] Improve serverless consistency by forcing a GC before returning. [#1324](https://github.com/grafana/tempo/pull/1324) (@joe-elliott)
-* [ENHANCEMENT] Add hedging to sharded search queries created by the frontend. [#1334](https://github.com/grafana/tempo/pull/1334) (@joe-elliott)
+* [ENHANCEMENT] Add hedging to queries to external endpoints. [#1350](https://github.com/grafana/tempo/pull/1350) (@joe-elliott)
   New config options and defaults:
   ```
-  query_frontend:
+  querier:
     search:
-      hedge_requests_at: 5s
-      hedge_requests_up_to: 3
+      external_hedge_requests_at: 5s
+      external_hedge_requests_up_to: 3
+  ```
+  ** BREAKING CHANGE **
+  Querier options related to search have moved under a `search` block:
+  ```
+  querier:
+   search_query_timeout: 30s
+   search_external_endpoints: []
+   search_prefer_self: 2
+  ```
+  becomes
+  ```
+  querier:
+    search:
+      query_timeout: 30s
+      prefer_self: 2
+      external_endpoints: []
   ```
 * [BUGFIX]: Enable compaction and retention in Tanka single-binary [#1352](https://github.com/grafana/tempo/issues/1352)
 * [BUGFIX]: Remove unnecessary PersistentVolumeClaim [#1245](https://github.com/grafana/tempo/issues/1245)

@@ -45,10 +45,11 @@ querier:
   # Increase this greatly to permit needed throughput.
   max_concurrent_queries: 100
 
-  # A list of endpoints to query. Load will be spread evenly across
-  # these multiple serverless functions.
-  search_external_endpoints:
-  - https://<serverless endpoint>
+  search:
+    # A list of endpoints to query. Load will be spread evenly across
+    # these multiple serverless functions.
+    external_endpoints:
+    - https://<serverless endpoint>
 ```
 
 ### Query frontend
@@ -94,18 +95,28 @@ settings to configure Tempo to use the serverless:
 
 ```
 querier:
+  search:
     # A list of external endpoints that the querier will use to offload backend search requests. They must  
     # take and return the same value as /api/search endpoint on the querier. This is intended to be
     # used with serverless technologies for massive parrallelization of the search path.
     # The default value of "" disables this feature.
-    [search_external_endpoints: <list of strings> | default = <empty list>]
+    [external_endpoints: <list of strings> | default = <empty list>]
 
-    # If search_external_endpoints is set then the querier will primarily act as a proxy for whatever serverless backend
+    # If external_endpoints is set then the querier will primarily act as a proxy for whatever serverless backend
     # you have configured. This setting allows the operator to have the querier prefer itself for a configurable
     # number of subqueries. In the default case of 2 the querier will process up to 2 search requests subqueries before starting
-    # to reach out to search_external_endpoints. 
-    # Setting this to 0 will disable this feature and the querier will proxy all search subqueries to search_external_endpoints.
-    [search_prefer_self: <int> | default = 2 ]
+    # to reach out to external_endpoints. 
+    # Setting this to 0 will disable this feature and the querier will proxy all search subqueries to external_endpoints.
+    [prefer_self: <int> | default = 2 ]
+
+    # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
+    # be set to p99 of external search requests to reduce long tail latency.
+    # (default: 4s)
+    [external_hedge_requests_at: <duration>]
+
+    # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
+    # (default: 3)
+    [external_hedge_requests_up_to: <int>]
 ```
 
 See here for cloud-specific details:
