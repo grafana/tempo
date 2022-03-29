@@ -263,6 +263,12 @@ func (o *Overrides) SearchTagsAllowList(userID string) map[string]struct{} {
 	return o.getOverridesForUser(userID).SearchTagsAllowList.GetMap()
 }
 
+// MetricsGeneratorRingSize is the desired size of the metrics-generator ring for this tenant.
+// Using shuffle sharding, a tenant can use a smaller ring than the entire ring.
+func (o *Overrides) MetricsGeneratorRingSize(userID string) int {
+	return o.getOverridesForUser(userID).MetricsGeneratorRingSize
+}
+
 // MetricsGeneratorProcessors returns the metrics-generator processors enabled for this tenant.
 func (o *Overrides) MetricsGeneratorProcessors(userID string) map[string]struct{} {
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessors.GetMap()
