@@ -30,12 +30,12 @@ type SearchConfig struct {
 // RegisterFlagsAndApplyDefaults register flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.TraceLookupQueryTimeout = 10 * time.Second
-	cfg.Search.QueryTimeout = 30 * time.Second
 	cfg.ExtraQueryDelay = 0
 	cfg.MaxConcurrentQueries = 5
 	cfg.Search.PreferSelf = 2
 	cfg.Search.HedgeRequestsAt = 4 * time.Second
 	cfg.Search.HedgeRequestsUpTo = 3
+	cfg.Search.QueryTimeout = 30 * time.Second
 	cfg.Worker = worker.Config{
 		MatchMaxConcurrency:   true,
 		MaxConcurrentRequests: cfg.MaxConcurrentQueries,

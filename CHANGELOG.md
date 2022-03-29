@@ -28,7 +28,7 @@
       external_hedge_requests_up_to: 3
   ```
   ** BREAKING CHANGE **
-  Querier options related to search have moved under at `search` block:
+  Querier options related to search have moved under a `search` block:
   ```
   querier:
    search_query_timeout: 30s
