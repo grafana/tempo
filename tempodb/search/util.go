@@ -1,41 +1,23 @@
 package search
 
 import (
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
 )
 
-const (
-	RootServiceNameTag = "root.service.name"
-	ServiceNameTag     = "service.name"
-	RootSpanNameTag    = "root.name"
-	SpanNameTag        = "name"
-	ErrorTag           = "error"
-	StatusCodeTag      = "status.code"
-	StatusCodeUnset    = "unset"
-	StatusCodeOK       = "ok"
-	StatusCodeError    = "error"
-)
-
-var StatusCodeMapping = map[string]int{
-	StatusCodeUnset: int(v1.Status_STATUS_CODE_UNSET),
-	StatusCodeOK:    int(v1.Status_STATUS_CODE_OK),
-	StatusCodeError: int(v1.Status_STATUS_CODE_ERROR),
-}
-
 func GetVirtualTags() []string {
-	return []string{ErrorTag}
+	return []string{trace.ErrorTag}
 }
 
 func GetVirtualTagValues(tagName string) []string {
 	switch tagName {
 
-	case StatusCodeTag:
-		return []string{StatusCodeUnset, StatusCodeOK, StatusCodeError}
+	case trace.StatusCodeTag:
+		return []string{trace.StatusCodeUnset, trace.StatusCodeOK, trace.StatusCodeError}
 
-	case ErrorTag:
+	case trace.ErrorTag:
 		return []string{"true"}
 	}
 
@@ -45,8 +27,8 @@ func GetVirtualTagValues(tagName string) []string {
 func GetSearchResultFromData(s *tempofb.SearchEntry) *tempopb.TraceSearchMetadata {
 	return &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(s.Id()),
-		RootServiceName:   s.Get(RootServiceNameTag),
-		RootTraceName:     s.Get(RootSpanNameTag),
+		RootServiceName:   s.Get(trace.RootServiceNameTag),
+		RootTraceName:     s.Get(trace.RootSpanNameTag),
 		StartTimeUnixNano: s.StartTimeUnixNano(),
 		DurationMs:        uint32((s.EndTimeUnixNano() - s.StartTimeUnixNano()) / 1_000_000),
 	}

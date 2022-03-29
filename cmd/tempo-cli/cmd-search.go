@@ -3,17 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 const (
@@ -48,6 +44,11 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 		return err
 	}
 
+	searchReq := &tempopb.SearchRequest{
+		Tags:  map[string]string{cmd.Name: cmd.Value},
+		Limit: limit,
+	}
+
 	ctx := context.Background()
 
 	blockIDs, err := r.Blocks(ctx, cmd.TenantID)
@@ -72,7 +73,7 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 				return
 			}
 			if err != nil {
-				fmt.Println("Error querying block:", err)
+				fmt.Println("Error reading block meta:", err)
 				return
 			}
 			if meta.StartTime.Unix() <= endTime.Unix() &&
@@ -90,29 +91,30 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 		blockmetas = append(blockmetas, q)
 	}
 
+	searchOpts := encoding.DefaultSearchOptions()
+	searchOpts.ChunkSizeBytes = chunkSize
+	searchOpts.PrefetchTraceCount = iteratorBuffer
+
 	fmt.Println("Blocks In Range:", len(blockmetas))
-	foundids := []common.ID{}
+	foundids := []string{}
 	for _, meta := range blockmetas {
 		block, err := encoding.NewBackendBlock(meta, r)
 		if err != nil {
 			return err
 		}
 
-		// todo : graduated chunk sizes will increase throughput. i.e. first request should be small to feed the below parsing faster
-		//  later queries should use larger chunk sizes to be more efficient
-		iter, err := block.Iterator(chunkSize)
+		resp, err := block.Search(ctx, searchReq, searchOpts)
 		if err != nil {
-			return err
+			fmt.Println("Error searching block:", err)
+			return nil
 		}
 
-		prefetchIter := encoding.NewPrefetchIterator(ctx, iter, iteratorBuffer)
-		ids, err := searchIterator(prefetchIter, meta.DataEncoding, cmd.Name, cmd.Value, limit)
-		prefetchIter.Close()
-		if err != nil {
-			return err
+		if resp != nil {
+			for _, r := range resp.Traces {
+				foundids = append(foundids, r.TraceID)
+			}
 		}
 
-		foundids = append(foundids, ids...)
 		if len(foundids) >= limit {
 			break
 		}
@@ -120,62 +122,8 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 
 	fmt.Println("Matching Traces:", len(foundids))
 	for _, id := range foundids {
-		fmt.Println("  ", util.TraceIDToHexString(id))
+		fmt.Println("  ", id)
 	}
 
 	return nil
-}
-
-func searchIterator(iter encoding.Iterator, dataEncoding string, name string, value string, limit int) ([]common.ID, error) {
-	ctx := context.Background()
-	found := []common.ID{}
-
-	for {
-		id, obj, err := iter.Next(ctx)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		// todo : parrallelize unmarshal and search
-		trace, err := model.MustNewObjectDecoder(dataEncoding).PrepareForRead(obj)
-		if err != nil {
-			return nil, err
-		}
-
-		if traceContainsKeyValue(trace, name, value) {
-			found = append(found, id)
-		}
-
-		if len(found) >= limit {
-			break
-		}
-	}
-
-	return found, nil
-}
-
-func traceContainsKeyValue(trace *tempopb.Trace, name string, value string) bool {
-	// todo : support other attribute types besides string
-	for _, b := range trace.Batches {
-		for _, a := range b.Resource.Attributes {
-			if a.Key == name && a.Value.GetStringValue() == value {
-				return true
-			}
-		}
-
-		for _, ils := range b.InstrumentationLibrarySpans {
-			for _, s := range ils.Spans {
-				for _, a := range s.Attributes {
-					if a.Key == name && a.Value.GetStringValue() == value {
-						return true
-					}
-				}
-			}
-		}
-	}
-
-	return false
 }

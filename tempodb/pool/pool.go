@@ -29,11 +29,10 @@ var (
 	})
 )
 
-type JobFunc func(ctx context.Context, payload interface{}) ([]byte, string, error)
+type JobFunc func(ctx context.Context, payload interface{}) (interface{}, error)
 
 type result struct {
-	data []byte
-	enc  string
+	data interface{}
 	err  error
 }
 
@@ -80,7 +79,7 @@ func NewPool(cfg *Config) *Pool {
 	return p
 }
 
-func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) ([][]byte, []string, []error, error) {
+func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) ([]interface{}, []error, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -88,7 +87,7 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 
 	// sanity check before we even attempt to start adding jobs
 	if int(p.size.Load())+totalJobs > p.cfg.QueueDepth {
-		return nil, nil, nil, fmt.Errorf("queue doesn't have room for %d jobs", len(payloads))
+		return nil, nil, fmt.Errorf("queue doesn't have room for %d jobs", len(payloads))
 	}
 
 	resultsCh := make(chan result, totalJobs) // way for jobs to send back results
@@ -114,7 +113,7 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 		default:
 			wg.Done()
 			stop.Store(true)
-			return nil, nil, nil, fmt.Errorf("failed to add a job to work queue")
+			return nil, nil, fmt.Errorf("failed to add a job to work queue")
 		}
 	}
 
@@ -125,19 +124,17 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 	close(resultsCh)
 
 	// read all from results channel
-	var data [][]byte
-	var enc []string
+	var data []interface{}
 	var funcErrs []error
 	for res := range resultsCh {
 		if res.err != nil {
 			funcErrs = append(funcErrs, res.err)
 		} else {
 			data = append(data, res.data)
-			enc = append(enc, res.enc)
 		}
 	}
 
-	return data, enc, funcErrs, nil
+	return data, funcErrs, nil
 }
 
 func (p *Pool) Shutdown() {
@@ -183,7 +180,7 @@ func runJob(job *job) {
 		return
 	}
 
-	data, enc, err := job.fn(job.ctx, job.payload)
+	data, err := job.fn(job.ctx, job.payload)
 	if data != nil || err != nil {
 		// Commenting out job cancellations for now because of a resource leak suspected in the GCS golang client.
 		// Issue logged here: https://github.com/googleapis/google-cloud-go/issues/3018
@@ -191,7 +188,6 @@ func runJob(job *job) {
 		select {
 		case job.resultsCh <- result{
 			data: data,
-			enc:  enc,
 			err:  err,
 		}:
 		default: // if we hit default it means that something else already returned a good result.  /shrug

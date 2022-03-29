@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -117,18 +118,18 @@ func (p *Pipeline) rewriteTagLookup(k, v string) (skip bool, newk, newv string) 
 		// Skip
 		return true, "", ""
 
-	case ErrorTag:
+	case trace.ErrorTag:
 		if v == "true" {
 			// Error = true
-			return false, StatusCodeTag, strconv.Itoa(int(v1.Status_STATUS_CODE_ERROR))
+			return false, trace.StatusCodeTag, strconv.Itoa(int(v1.Status_STATUS_CODE_ERROR))
 		}
 		// Else fall-through
 
-	case StatusCodeTag:
+	case trace.StatusCodeTag:
 		// Convert status.code=string into status.code=int
-		for statusStr, statusID := range StatusCodeMapping {
+		for statusStr, statusID := range trace.StatusCodeMapping {
 			if v == statusStr {
-				return false, StatusCodeTag, strconv.Itoa(statusID)
+				return false, trace.StatusCodeTag, strconv.Itoa(statusID)
 			}
 		}
 		// Unknown mapping = fall-through

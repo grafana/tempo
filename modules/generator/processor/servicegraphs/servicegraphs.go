@@ -16,6 +16,7 @@ import (
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
 	"github.com/grafana/tempo/modules/generator/processor/util"
+	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
@@ -31,6 +32,13 @@ var (
 		Name:      "metrics_generator_processor_service_graphs_unpaired_edges",
 		Help:      "Number of expired edges (client or server).",
 	}, []string{"tenant"})
+)
+
+const (
+	metricRequestTotal         = "traces_service_graph_request_total"
+	metricRequestFailedTotal   = "traces_service_graph_request_failed_total"
+	metricRequestServerSeconds = "traces_service_graph_request_server_seconds"
+	metricRequestClientSeconds = "traces_service_graph_request_client_seconds"
 )
 
 type tooManySpansError struct {
@@ -50,26 +58,30 @@ type processor struct {
 	collectCh chan string
 	closeCh   chan struct{}
 
-	serviceGraphRequestTotal           *prometheus.CounterVec
-	serviceGraphRequestFailedTotal     *prometheus.CounterVec
-	serviceGraphRequestServerHistogram *prometheus.HistogramVec
-	serviceGraphRequestClientHistogram *prometheus.HistogramVec
-	serviceGraphUnpairedSpansTotal     *prometheus.CounterVec
-	serviceGraphDroppedSpansTotal      *prometheus.CounterVec
+	serviceGraphRequestTotal                  registry.Counter
+	serviceGraphRequestFailedTotal            registry.Counter
+	serviceGraphRequestServerSecondsHistogram registry.Histogram
+	serviceGraphRequestClientSecondsHistogram registry.Histogram
 
 	metricDroppedSpans  prometheus.Counter
 	metricUnpairedEdges prometheus.Counter
 	logger              log.Logger
 }
 
-func New(cfg Config, tenant string, logger log.Logger) gen.Processor {
+func New(cfg Config, tenant string, registry registry.Registry, logger log.Logger) gen.Processor {
+	clientServerLabels := []string{"client", "server"}
+
 	p := &processor{
 		cfg: cfg,
 
 		collectCh: make(chan string, cfg.MaxItems),
 		closeCh:   make(chan struct{}, 1),
 
-		// TODO we only have to pass tenant to be used in instrumentation, can we avoid doing this somehow?
+		serviceGraphRequestTotal:                  registry.NewCounter(metricRequestTotal, clientServerLabels),
+		serviceGraphRequestFailedTotal:            registry.NewCounter(metricRequestFailedTotal, clientServerLabels),
+		serviceGraphRequestServerSecondsHistogram: registry.NewHistogram(metricRequestServerSeconds, clientServerLabels, cfg.HistogramBuckets),
+		serviceGraphRequestClientSecondsHistogram: registry.NewHistogram(metricRequestClientSeconds, clientServerLabels, cfg.HistogramBuckets),
+
 		metricDroppedSpans:  metricDroppedSpans.WithLabelValues(tenant),
 		metricUnpairedEdges: metricUnpairedEdges.WithLabelValues(tenant),
 		logger:              logger,
@@ -100,73 +112,6 @@ func New(cfg Config, tenant string, logger log.Logger) gen.Processor {
 }
 
 func (p *processor) Name() string { return Name }
-
-func (p *processor) RegisterMetrics(reg prometheus.Registerer) error {
-	p.serviceGraphRequestTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "traces",
-		Name:      "service_graph_request_total",
-		Help:      "Total count of requests between two nodes",
-	}, []string{"client", "server"})
-	p.serviceGraphRequestFailedTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "traces",
-		Name:      "service_graph_request_failed_total",
-		Help:      "Total count of failed requests between two nodes",
-	}, []string{"client", "server"})
-	p.serviceGraphRequestServerHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "traces",
-		Name:      "service_graph_request_server_seconds",
-		Help:      "Time for a request between two nodes as seen from the server",
-		Buckets:   p.cfg.HistogramBuckets,
-	}, []string{"client", "server"})
-	p.serviceGraphRequestClientHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "traces",
-		Name:      "service_graph_request_client_seconds",
-		Help:      "Time for a request between two nodes as seen from the client",
-		Buckets:   p.cfg.HistogramBuckets,
-	}, []string{"client", "server"})
-	p.serviceGraphUnpairedSpansTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "traces",
-		Name:      "service_graph_unpaired_spans_total",
-		Help:      "Total count of unpaired spans",
-	}, []string{"client", "server"})
-	p.serviceGraphDroppedSpansTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "traces",
-		Name:      "service_graph_dropped_spans_total",
-		Help:      "Total count of dropped spans",
-	}, []string{"client", "server"})
-
-	cs := []prometheus.Collector{
-		p.serviceGraphRequestTotal,
-		p.serviceGraphRequestFailedTotal,
-		p.serviceGraphRequestServerHistogram,
-		p.serviceGraphRequestClientHistogram,
-		p.serviceGraphUnpairedSpansTotal,
-		p.serviceGraphDroppedSpansTotal,
-	}
-
-	for _, c := range cs {
-		if err := reg.Register(c); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (p *processor) unregisterMetrics(reg prometheus.Registerer) {
-	cs := []prometheus.Collector{
-		p.serviceGraphRequestTotal,
-		p.serviceGraphRequestFailedTotal,
-		p.serviceGraphRequestServerHistogram,
-		p.serviceGraphRequestClientHistogram,
-		p.serviceGraphUnpairedSpansTotal,
-		p.serviceGraphDroppedSpansTotal,
-	}
-
-	for _, c := range cs {
-		reg.Unregister(c)
-	}
-}
 
 func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
 	span, _ := opentracing.StartSpanFromContext(ctx, "servicegraphs.PushSpans")
@@ -243,22 +188,23 @@ func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
 	return nil
 }
 
-func (p *processor) Shutdown(ctx context.Context, reg prometheus.Registerer) error {
+func (p *processor) Shutdown(ctx context.Context) {
 	close(p.closeCh)
-	p.unregisterMetrics(reg)
-	return nil
 }
 
 // collectEdge records the metrics for the given edge.
 // Returns true if the edge is completed or expired and should be deleted.
 func (p *processor) collectEdge(e *store.Edge) {
 	if e.IsCompleted() {
-		p.serviceGraphRequestTotal.WithLabelValues(e.ClientService, e.ServerService).Inc()
+		clientServerLabelValues := registry.NewLabelValues([]string{e.ClientService, e.ServerService})
+
+		p.serviceGraphRequestTotal.Inc(clientServerLabelValues, 1)
 		if e.Failed {
-			p.serviceGraphRequestFailedTotal.WithLabelValues(e.ClientService, e.ServerService).Inc()
+			p.serviceGraphRequestFailedTotal.Inc(clientServerLabelValues, 1)
 		}
-		p.serviceGraphRequestServerHistogram.WithLabelValues(e.ClientService, e.ServerService).Observe(e.ServerLatencySec)
-		p.serviceGraphRequestClientHistogram.WithLabelValues(e.ClientService, e.ServerService).Observe(e.ClientLatencySec)
+
+		p.serviceGraphRequestServerSecondsHistogram.Observe(clientServerLabelValues, e.ServerLatencySec)
+		p.serviceGraphRequestClientSecondsHistogram.Observe(clientServerLabelValues, e.ClientLatencySec)
 	} else if e.IsExpired() {
 		p.metricUnpairedEdges.Inc()
 	}

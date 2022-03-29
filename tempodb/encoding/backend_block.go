@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/opentracing/opentracing-go"
 	willf_bloom "github.com/willf/bloom"
 
+	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -19,6 +22,9 @@ type BackendBlock struct {
 	meta   *backend.BlockMeta
 	reader backend.Reader
 }
+
+var _ Finder = (*BackendBlock)(nil)
+var _ Searcher = (*BackendBlock)(nil)
 
 // NewBackendBlock returns a BackendBlock for the given backend.BlockMeta
 //  It is version aware.
@@ -36,7 +42,7 @@ func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (*BackendBlock, 
 }
 
 // Find searches a block for the ID and returns an object if found.
-func (b *BackendBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
+func (b *BackendBlock) find(ctx context.Context, id common.ID) ([]byte, error) {
 	var err error
 	span, ctx := opentracing.StartSpanFromContext(ctx, "BackendBlock.Find")
 	defer func() {
@@ -109,8 +115,8 @@ func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (Iterator, error) {
 	return newPagedIterator(chunkSizeBytes, reader, dataReader, b.encoding.NewObjectReaderWriter()), nil
 }
 
-// PartialIterator returns an Iterator that iterates over the a subset of pages in the block from the backend
-func (b *BackendBlock) PartialIterator(chunkSizeBytes uint32, startPage int, totalPages int) (Iterator, error) {
+// partialIterator returns an Iterator that iterates over the a subset of pages in the block from the backend
+func (b *BackendBlock) partialIterator(chunkSizeBytes uint32, startPage int, totalPages int) (Iterator, error) {
 	// read index
 	ra := backend.NewContextReader(b.meta, nameObjects, b.reader, false)
 	dataReader, err := b.encoding.NewDataReader(ra, b.meta.Encoding)
@@ -138,4 +144,95 @@ func (b *BackendBlock) NewIndexReader() (common.IndexReader, error) {
 
 func (b *BackendBlock) BlockMeta() *backend.BlockMeta {
 	return b.meta
+}
+
+func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID) (*tempopb.Trace, error) {
+	obj, err := b.find(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if obj == nil {
+		// Not found in this block
+		return nil, nil
+	}
+
+	dec, err := model.NewObjectDecoder(b.meta.DataEncoding)
+	if err != nil {
+		return nil, err
+	}
+	return dec.PrepareForRead(obj)
+}
+
+func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opt SearchOptions) (resp *tempopb.SearchResponse, err error) {
+
+	decoder, err := model.NewObjectDecoder(b.meta.DataEncoding)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create NewDecoder: %w", err)
+	}
+
+	// Iterator
+	var iter Iterator
+	if opt.TotalPages > 0 {
+		iter, err = b.partialIterator(opt.ChunkSizeBytes, opt.StartPage, opt.TotalPages)
+	} else {
+		iter, err = b.Iterator(opt.ChunkSizeBytes)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if opt.PrefetchTraceCount > 0 {
+		iter = NewPrefetchIterator(ctx, iter, opt.PrefetchTraceCount)
+	}
+	defer iter.Close()
+
+	resp = &tempopb.SearchResponse{
+		Metrics: &tempopb.SearchMetrics{},
+	}
+
+	for {
+		id, obj, err := iter.Next(ctx)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error iterating %s, %w", b.meta.BlockID, err)
+		}
+
+		err = search(decoder, opt.MaxBytes, id, obj, req, resp)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(resp.Traces) >= int(req.Limit) {
+			break
+		}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+func search(decoder model.ObjectDecoder, maxBytes int, id common.ID, obj []byte, req *tempopb.SearchRequest, resp *tempopb.SearchResponse) error {
+	resp.Metrics.InspectedTraces++
+	resp.Metrics.InspectedBytes += uint64(len(obj))
+
+	if maxBytes > 0 && len(obj) > maxBytes {
+		resp.Metrics.SkippedTraces++
+		return nil
+	}
+
+	metadata, err := decoder.Matches(id, obj, req)
+	if err != nil {
+		return err
+	}
+
+	if metadata != nil {
+		// Found a match
+		resp.Traces = append(resp.Traces, metadata)
+	}
+
+	return nil
 }

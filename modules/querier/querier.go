@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"net/http"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/cristalhq/hedgedhttp"
@@ -33,14 +32,13 @@ import (
 	"github.com/grafana/tempo/modules/querier/worker"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/search"
 )
 
@@ -219,7 +217,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	var failedBlocks int
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.LogFields(ot_log.String("msg", "searching store"))
-		partialTraces, dataEncodings, blockErrs, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
+		partialTraces, blockErrs, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
 		if err != nil {
 			return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 		}
@@ -229,28 +227,12 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			_ = level.Warn(log.Logger).Log("msg", fmt.Sprintf("failed to query %d blocks", failedBlocks), "blockErrs", multierr.Combine(blockErrs...))
 		}
 
-		span.LogFields(ot_log.String("msg", "done searching store"))
+		span.LogFields(
+			ot_log.String("msg", "done searching store"),
+			ot_log.Int("foundPartialTraces", len(partialTraces)))
 
-		if len(partialTraces) != 0 {
-			traceCountTotal = 0
-			spanCountTotal = 0
-			var storeTrace *tempopb.Trace
-
-			for i, partialTrace := range partialTraces {
-				storeTrace, err = model.CombineForRead(partialTrace, dataEncodings[i], storeTrace)
-				if err != nil {
-					return nil, errors.Wrap(err, "error combining in Querier.FindTraceByID")
-				}
-			}
-
-			spanCount = combiner.Consume(storeTrace)
-			spanCountTotal += spanCount
-			traceCountTotal++
-
-			span.LogFields(ot_log.String("msg", "combined trace protos from store"),
-				ot_log.Bool("found", len(partialTraces) > 0),
-				ot_log.Int("combinedSpans", spanCountTotal),
-				ot_log.Int("combinedTraces", traceCountTotal))
+		for _, partialTrace := range partialTraces {
+			combiner.Consume(partialTrace)
 		}
 	}
 
@@ -459,55 +441,12 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		DataEncoding:  req.DataEncoding,
 	}
 
-	maxBytes := q.limits.MaxBytesPerTrace(tenantID)
+	opts := encoding.DefaultSearchOptions()
+	opts.StartPage = int(req.StartPage)
+	opts.TotalPages = int(req.PagesToSearch)
+	opts.MaxBytes = q.limits.MaxBytesPerTrace(tenantID)
 
-	var searchErr error
-	respMtx := sync.Mutex{}
-	resp := &tempopb.SearchResponse{
-		Metrics: &tempopb.SearchMetrics{},
-	}
-
-	decoder, err := model.NewObjectDecoder(req.DataEncoding)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create NewDecoder: %w", err)
-	}
-
-	err = q.store.IterateObjects(ctx, meta, int(req.StartPage), int(req.PagesToSearch), func(id common.ID, obj []byte) bool {
-		respMtx.Lock()
-		resp.Metrics.InspectedTraces++
-		resp.Metrics.InspectedBytes += uint64(len(obj))
-		respMtx.Unlock()
-
-		if maxBytes > 0 && len(obj) > maxBytes {
-			respMtx.Lock()
-			resp.Metrics.SkippedTraces++
-			respMtx.Unlock()
-			return false
-		}
-
-		metadata, err := decoder.Matches(id, obj, req.SearchReq)
-
-		respMtx.Lock()
-		defer respMtx.Unlock()
-		if err != nil {
-			searchErr = err
-			return false
-		}
-		if metadata == nil {
-			return false
-		}
-
-		resp.Traces = append(resp.Traces, metadata)
-		return len(resp.Traces) >= int(req.SearchReq.Limit)
-	})
-	if err != nil {
-		return nil, err
-	}
-	if searchErr != nil {
-		return nil, searchErr
-	}
-
-	return resp, nil
+	return q.store.Search(ctx, meta, req.SearchReq, opts)
 }
 
 func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []responseFromIngesters) *tempopb.SearchResponse {
