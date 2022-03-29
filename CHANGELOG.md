@@ -27,6 +27,7 @@
       hedge_requests_at: 5s
       hedge_requests_up_to: 3
   ```
+* [BUGFIX]: Enable compaction and retention in Tanka single-binary [#1352](https://github.com/grafana/tempo/issues/1352)
 * [BUGFIX]: Remove unnecessary PersistentVolumeClaim [#1245](https://github.com/grafana/tempo/issues/1245)
 * [BUGFIX] Fixed issue when query-frontend doesn't log request details when request is cancelled [#1136](https://github.com/grafana/tempo/issues/1136) (@adityapwr)
 * [BUGFIX] Update OTLP port in examples (docker-compose & kubernetes) from legacy ports (55680/55681) to new ports (4317/4318) [#1294](https://github.com/grafana/tempo/pull/1294) (@mapno)
