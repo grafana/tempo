@@ -9,14 +9,13 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/weaveworks/common/tracing"
 
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -52,7 +51,7 @@ type instance struct {
 	instanceID string
 	overrides  metricsGeneratorOverrides
 
-	registry processor.Registry
+	registry *registry.ManagedRegistry
 	wal      storage.Storage
 
 	// processorsMtx protects the processors map, not the processors itself
@@ -73,7 +72,7 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		instanceID: instanceID,
 		overrides:  overrides,
 
-		registry: processor.NewRegistry(cfg.ExternalLabels, instanceID),
+		registry: registry.New(&cfg.Registry, overrides, instanceID, wal, logger),
 		wal:      wal,
 
 		processors: make(map[string]processor.Processor),
@@ -165,9 +164,9 @@ func (i *instance) addProcessor(processorName string) error {
 	var newProcessor processor.Processor
 	switch processorName {
 	case spanmetrics.Name:
-		newProcessor = spanmetrics.New(i.cfg.Processor.SpanMetrics, i.instanceID)
+		newProcessor = spanmetrics.New(i.cfg.Processor.SpanMetrics, i.registry)
 	case servicegraphs.Name:
-		newProcessor = servicegraphs.New(i.cfg.Processor.ServiceGraphs, i.instanceID, i.logger)
+		newProcessor = servicegraphs.New(i.cfg.Processor.ServiceGraphs, i.instanceID, i.registry, i.logger)
 	default:
 		level.Error(i.logger).Log(
 			"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(allSupportedProcessors, ", ")),
@@ -179,11 +178,6 @@ func (i *instance) addProcessor(processorName string) error {
 	// check the processor wasn't added in the meantime
 	if _, ok := i.processors[processorName]; ok {
 		return nil
-	}
-
-	err := newProcessor.RegisterMetrics(i.registry)
-	if err != nil {
-		return fmt.Errorf("error registering metrics for %s: %w", processorName, err)
 	}
 
 	i.processors[processorName] = newProcessor
@@ -203,10 +197,7 @@ func (i *instance) removeProcessor(processorName string) {
 
 	delete(i.processors, processorName)
 
-	err := deletedProcessor.Shutdown(context.Background(), i.registry)
-	if err != nil {
-		level.Error(i.logger).Log("msg", "processor did not shutdown cleanly", "name", deletedProcessor.Name(), "err", err)
-	}
+	deletedProcessor.Shutdown(context.Background())
 }
 
 // updateProcessorMetrics updates the active processor metrics. Must be called under a read lock.
@@ -244,42 +235,22 @@ func (i *instance) updatePushMetrics(req *tempopb.PushSpansRequest) {
 	metricSpansIngested.WithLabelValues(i.instanceID).Add(float64(spanCount))
 }
 
-func (i *instance) collectMetrics(ctx context.Context) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.collectMetrics")
-	defer span.Finish()
-
-	traceID, _ := tracing.ExtractTraceID(ctx)
-	level.Info(i.logger).Log("msg", "collecting metrics", "traceID", traceID)
-
-	appender := i.wal.Appender(ctx)
-
-	err := i.registry.Gather(appender)
-	if err != nil {
-		return err
-	}
-
-	return appender.Commit()
-}
-
 // shutdown stops the instance and flushes any remaining data. After shutdown
 // is called pushSpans should not be called anymore.
-func (i *instance) shutdown(ctx context.Context) {
+func (i *instance) shutdown() {
 	close(i.shutdownCh)
-
-	err := i.collectMetrics(ctx)
-	if err != nil {
-		level.Error(i.logger).Log("msg", "collecting metrics failed at shutdown", "err", err)
-	}
-
-	err = i.wal.Close()
-	if err != nil {
-		level.Error(i.logger).Log("msg", "closing wal failed", "tenant", i.instanceID, "err", err)
-	}
 
 	i.processorsMtx.Lock()
 	defer i.processorsMtx.Unlock()
 
 	for processorName := range i.processors {
 		i.removeProcessor(processorName)
+	}
+
+	i.registry.Close()
+
+	err := i.wal.Close()
+	if err != nil {
+		level.Error(i.logger).Log("msg", "closing wal failed", "tenant", i.instanceID, "err", err)
 	}
 }

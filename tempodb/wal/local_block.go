@@ -6,6 +6,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -24,6 +25,8 @@ type LocalBlock struct {
 
 	flushedTime atomic.Int64 // protecting flushedTime b/c it's accessed from the store on flush and from the ingester instance checking flush time
 }
+
+var _ encoding.Finder = (*LocalBlock)(nil)
 
 func NewLocalBlock(ctx context.Context, existingBlock *encoding.BackendBlock, l *local.Backend) (*LocalBlock, error) {
 
@@ -45,8 +48,8 @@ func NewLocalBlock(ctx context.Context, existingBlock *encoding.BackendBlock, l 
 	return c, nil
 }
 
-func (c *LocalBlock) Find(ctx context.Context, id common.ID) ([]byte, error) {
-	return c.BackendBlock.Find(ctx, id)
+func (c *LocalBlock) FindTraceByID(ctx context.Context, id common.ID) (*tempopb.Trace, error) {
+	return c.BackendBlock.FindTraceByID(ctx, id)
 }
 
 // FlushedTime returns the time the block was flushed.  Will return 0

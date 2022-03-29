@@ -274,6 +274,18 @@ func (o *Overrides) MetricsGeneratorProcessors(userID string) map[string]struct{
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessors.GetMap()
 }
 
+// MetricsGeneratorMaxActiveSeries is the maximum amount of active series in the metrics-generator
+// registry for this tenant. Note this is a local limit enforced in every instance separately.
+func (o *Overrides) MetricsGeneratorMaxActiveSeries(userID string) uint32 {
+	return o.getOverridesForUser(userID).MetricsGeneratorMaxActiveSeries
+}
+
+// MetricsGeneratorCollectionInterval is the collection interval of the metrics-generator registry
+// for this tenant.
+func (o *Overrides) MetricsGeneratorCollectionInterval(userID string) time.Duration {
+	return o.getOverridesForUser(userID).MetricsGeneratorCollectionInterval
+}
+
 // BlockRetention is the duration of the block retention for this tenant.
 func (o *Overrides) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).BlockRetention)

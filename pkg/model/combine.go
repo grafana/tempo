@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/grafana/tempo/tempodb/encoding/common"
-
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/pkg/errors"
@@ -13,9 +11,11 @@ import (
 
 type objectCombiner struct{}
 
-var ObjectCombiner = objectCombiner{}
+type ObjectCombiner interface {
+	Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error)
+}
 
-var _ common.ObjectCombiner = (*objectCombiner)(nil)
+var StaticCombiner = objectCombiner{}
 
 // Combine implements tempodb/encoding/common.ObjectCombiner
 func (o objectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {

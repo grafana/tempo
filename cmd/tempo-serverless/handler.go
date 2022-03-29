@@ -3,7 +3,6 @@ package serverless
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"net/http"
 	"reflect"
 	"runtime"
@@ -13,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -95,53 +93,15 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		return nil, httpError("creating backend block", err, http.StatusInternalServerError)
 	}
 
-	// tempodb exposes an IterateObjects() method to basically perform the below loop. currently we are purposefully
-	// not using that so that the serverless function doesn't have to instantiate a full tempodb instance.
-	iter, err := block.PartialIterator(cfg.Search.ChunkSizeBytes, int(searchReq.StartPage), int(searchReq.PagesToSearch))
+	opts := encoding.DefaultSearchOptions()
+	opts.StartPage = int(searchReq.StartPage)
+	opts.TotalPages = int(searchReq.PagesToSearch)
+	opts.PrefetchTraceCount = cfg.Search.PrefetchTraceCount
+	opts.MaxBytes = maxBytes
+
+	resp, err := block.Search(r.Context(), searchReq.SearchReq, opts)
 	if err != nil {
-		return nil, httpError("creating partial iterator", err, http.StatusInternalServerError)
-	}
-	iter = encoding.NewPrefetchIterator(r.Context(), iter, cfg.Search.PrefetchTraceCount)
-	defer iter.Close()
-
-	resp := &tempopb.SearchResponse{
-		Metrics: &tempopb.SearchMetrics{},
-	}
-
-	decoder, err := model.NewObjectDecoder(searchReq.DataEncoding)
-	if err != nil {
-		return nil, httpError("creating decoder", err, http.StatusInternalServerError)
-	}
-
-	for {
-		id, obj, err := iter.Next(r.Context())
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, httpError("iterating", err, http.StatusInternalServerError)
-		}
-
-		resp.Metrics.InspectedTraces++
-		resp.Metrics.InspectedBytes += uint64(len(obj))
-
-		if maxBytes > 0 && len(obj) > maxBytes {
-			resp.Metrics.SkippedTraces++
-			continue
-		}
-
-		metadata, err := decoder.Matches(id, obj, searchReq.SearchReq)
-		if err != nil {
-			return nil, httpError("matching", err, http.StatusInternalServerError)
-		}
-		if metadata == nil {
-			continue
-		}
-
-		resp.Traces = append(resp.Traces, metadata)
-		if len(resp.Traces) >= int(searchReq.SearchReq.Limit) {
-			break
-		}
+		return nil, httpError("searching block", err, http.StatusInternalServerError)
 	}
 
 	runtime.GC()

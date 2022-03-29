@@ -8,9 +8,9 @@ import (
 	"math/rand"
 	"net/http"
 	"sort"
-	"sync"
 	"time"
 
+	"github.com/cristalhq/hedgedhttp"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
@@ -32,14 +32,13 @@ import (
 	"github.com/grafana/tempo/modules/querier/worker"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/search"
 )
 
@@ -67,6 +66,7 @@ type Querier struct {
 	store  storage.Store
 	limits *overrides.Overrides
 
+	searchClient     *http.Client
 	searchPreferSelf *semaphore.Weighted
 
 	subservices        *services.Manager
@@ -95,7 +95,17 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 			log.Logger),
 		store:            store,
 		limits:           limits,
-		searchPreferSelf: semaphore.NewWeighted(int64(cfg.SearchPreferSelf)),
+		searchPreferSelf: semaphore.NewWeighted(int64(cfg.Search.PreferSelf)),
+		searchClient:     http.DefaultClient,
+	}
+
+	//
+	if cfg.Search.HedgeRequestsAt != 0 {
+		var err error
+		q.searchClient, err = hedgedhttp.NewClient(cfg.Search.HedgeRequestsAt, cfg.Search.HedgeRequestsUpTo, http.DefaultClient)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
@@ -207,7 +217,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	var failedBlocks int
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.LogFields(ot_log.String("msg", "searching store"))
-		partialTraces, dataEncodings, blockErrs, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
+		partialTraces, blockErrs, err := q.store.Find(opentracing.ContextWithSpan(ctx, span), userID, req.TraceID, req.BlockStart, req.BlockEnd)
 		if err != nil {
 			return nil, errors.Wrap(err, "error querying store in Querier.FindTraceByID")
 		}
@@ -217,28 +227,12 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			_ = level.Warn(log.Logger).Log("msg", fmt.Sprintf("failed to query %d blocks", failedBlocks), "blockErrs", multierr.Combine(blockErrs...))
 		}
 
-		span.LogFields(ot_log.String("msg", "done searching store"))
+		span.LogFields(
+			ot_log.String("msg", "done searching store"),
+			ot_log.Int("foundPartialTraces", len(partialTraces)))
 
-		if len(partialTraces) != 0 {
-			traceCountTotal = 0
-			spanCountTotal = 0
-			var storeTrace *tempopb.Trace
-
-			for i, partialTrace := range partialTraces {
-				storeTrace, err = model.CombineForRead(partialTrace, dataEncodings[i], storeTrace)
-				if err != nil {
-					return nil, errors.Wrap(err, "error combining in Querier.FindTraceByID")
-				}
-			}
-
-			spanCount = combiner.Consume(storeTrace)
-			spanCountTotal += spanCount
-			traceCountTotal++
-
-			span.LogFields(ot_log.String("msg", "combined trace protos from store"),
-				ot_log.Bool("found", len(partialTraces) > 0),
-				ot_log.Int("combinedSpans", spanCountTotal),
-				ot_log.Int("combinedTraces", traceCountTotal))
+		for _, partialTrace := range partialTraces {
+			combiner.Consume(partialTrace)
 		}
 	}
 
@@ -400,7 +394,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 // SearchBlock searches the specified subset of the block for the passed tags.
 func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	// if we have no external configuration always search in the querier
-	if len(q.cfg.SearchExternalEndpoints) == 0 {
+	if len(q.cfg.Search.ExternalEndpoints) == 0 {
 		return q.internalSearchBlock(ctx, req)
 	}
 
@@ -417,8 +411,8 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 	}
 	maxBytes := q.limits.MaxBytesPerTrace(tenantID)
 
-	endpoint := q.cfg.SearchExternalEndpoints[rand.Intn(len(q.cfg.SearchExternalEndpoints))]
-	return searchExternalEndpoint(ctx, endpoint, maxBytes, req)
+	endpoint := q.cfg.Search.ExternalEndpoints[rand.Intn(len(q.cfg.Search.ExternalEndpoints))]
+	return q.searchExternalEndpoint(ctx, endpoint, maxBytes, req)
 }
 
 func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
@@ -447,55 +441,12 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		DataEncoding:  req.DataEncoding,
 	}
 
-	maxBytes := q.limits.MaxBytesPerTrace(tenantID)
+	opts := encoding.DefaultSearchOptions()
+	opts.StartPage = int(req.StartPage)
+	opts.TotalPages = int(req.PagesToSearch)
+	opts.MaxBytes = q.limits.MaxBytesPerTrace(tenantID)
 
-	var searchErr error
-	respMtx := sync.Mutex{}
-	resp := &tempopb.SearchResponse{
-		Metrics: &tempopb.SearchMetrics{},
-	}
-
-	decoder, err := model.NewObjectDecoder(req.DataEncoding)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create NewDecoder: %w", err)
-	}
-
-	err = q.store.IterateObjects(ctx, meta, int(req.StartPage), int(req.PagesToSearch), func(id common.ID, obj []byte) bool {
-		respMtx.Lock()
-		resp.Metrics.InspectedTraces++
-		resp.Metrics.InspectedBytes += uint64(len(obj))
-		respMtx.Unlock()
-
-		if maxBytes > 0 && len(obj) > maxBytes {
-			respMtx.Lock()
-			resp.Metrics.SkippedTraces++
-			respMtx.Unlock()
-			return false
-		}
-
-		metadata, err := decoder.Matches(id, obj, req.SearchReq)
-
-		respMtx.Lock()
-		defer respMtx.Unlock()
-		if err != nil {
-			searchErr = err
-			return false
-		}
-		if metadata == nil {
-			return false
-		}
-
-		resp.Traces = append(resp.Traces, metadata)
-		return len(resp.Traces) >= int(req.SearchReq.Limit)
-	})
-	if err != nil {
-		return nil, err
-	}
-	if searchErr != nil {
-		return nil, searchErr
-	}
-
-	return resp, nil
+	return q.store.Search(ctx, meta, req.SearchReq, opts)
 }
 
 func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []responseFromIngesters) *tempopb.SearchResponse {
@@ -539,7 +490,7 @@ func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []resp
 	return response
 }
 
-func searchExternalEndpoint(ctx context.Context, externalEndpoint string, maxBytes int, searchReq *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
+func (q *Querier) searchExternalEndpoint(ctx context.Context, externalEndpoint string, maxBytes int, searchReq *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	req, err := http.NewRequest(http.MethodGet, externalEndpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to make new request: %w", err)
@@ -554,7 +505,7 @@ func searchExternalEndpoint(ctx context.Context, externalEndpoint string, maxByt
 		return nil, fmt.Errorf("external endpoint failed to inject tenant id: %w", err)
 	}
 	start := time.Now()
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := q.searchClient.Do(req)
 	metricEndpointDuration.WithLabelValues(externalEndpoint).Observe(time.Since(start).Seconds())
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to call http: %s, %w", externalEndpoint, err)

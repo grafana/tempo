@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -149,7 +150,7 @@ func (a *AppendBlock) Meta() *backend.BlockMeta {
 	return a.meta
 }
 
-func (a *AppendBlock) Iterator(combiner common.ObjectCombiner) (encoding.Iterator, error) {
+func (a *AppendBlock) Iterator(combiner model.ObjectCombiner) (encoding.Iterator, error) {
 	if a.appendFile != nil {
 		err := a.appendFile.Close()
 		if err != nil {
@@ -178,7 +179,7 @@ func (a *AppendBlock) Iterator(combiner common.ObjectCombiner) (encoding.Iterato
 	return iterator, nil
 }
 
-func (a *AppendBlock) Find(id common.ID, combiner common.ObjectCombiner) ([]byte, error) {
+func (a *AppendBlock) Find(id common.ID, combiner model.ObjectCombiner) ([]byte, error) {
 	records := a.appender.RecordsForID(id)
 	file, err := a.file()
 	if err != nil {

@@ -72,6 +72,7 @@ The endpoint can be retrieved from the trigger tab in Google Cloud Functions:
 
     ```
     querier:
-      search_external_endpoints:
-      - <trigger url from console>
+      search:
+        external_endpoints:
+        - <trigger url from console>
     ```

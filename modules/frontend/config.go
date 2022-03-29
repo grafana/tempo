@@ -25,9 +25,7 @@ type Config struct {
 }
 
 type SearchConfig struct {
-	Sharder           SearchSharderConfig `yaml:",inline"`
-	HedgeRequestsAt   time.Duration       `yaml:"hedge_requests_at"`
-	HedgeRequestsUpTo int                 `yaml:"hedge_requests_up_to"`
+	Sharder SearchSharderConfig `yaml:",inline"` // jpe - what did this look like before
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -38,8 +36,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.QueryShards = 20
 	cfg.TolerateFailedBlocks = 0
 	cfg.Search = SearchConfig{
-		HedgeRequestsAt:   5 * time.Second,
-		HedgeRequestsUpTo: 3,
 		Sharder: SearchSharderConfig{
 			QueryBackendAfter:     15 * time.Minute,
 			QueryIngestersUntil:   time.Hour,

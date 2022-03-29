@@ -14,7 +14,7 @@
     },
     compactor: {
       compaction: {
-        compacted_block_retention: "24h",
+        block_retention: "24h",
       }
     },
     storage: {

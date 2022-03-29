@@ -9,10 +9,26 @@ import (
 	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/search"
 )
 
-const RootSpanNotYetReceivedText = "<root span not yet received>"
+const (
+	RootSpanNotYetReceivedText = "<root span not yet received>"
+	RootServiceNameTag         = "root.service.name"
+	ServiceNameTag             = "service.name"
+	RootSpanNameTag            = "root.name"
+	SpanNameTag                = "name"
+	ErrorTag                   = "error"
+	StatusCodeTag              = "status.code"
+	StatusCodeUnset            = "unset"
+	StatusCodeOK               = "ok"
+	StatusCodeError            = "error"
+)
+
+var StatusCodeMapping = map[string]int{
+	StatusCodeUnset: int(v1.Status_STATUS_CODE_UNSET),
+	StatusCodeOK:    int(v1.Status_STATUS_CODE_OK),
+	StatusCodeError: int(v1.Status_STATUS_CODE_ERROR),
+}
 
 func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
 	traceStart := uint64(math.MaxUint64)
@@ -83,7 +99,7 @@ func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (
 		rootSpanName = rootSpan.Name
 
 		for _, a := range rootBatch.Resource.Attributes {
-			if a.Key == search.ServiceNameTag {
+			if a.Key == ServiceNameTag {
 				rootServiceName = a.Value.GetStringValue()
 				break
 			}
@@ -107,21 +123,21 @@ func allTagsFound(tagsToFind map[string]string) bool {
 // properties of the span. it removes any matches it finds from
 // the provided tags map
 func matchSpan(tags map[string]string, s *v1.Span) {
-	if name, ok := tags[search.SpanNameTag]; ok {
+	if name, ok := tags[SpanNameTag]; ok {
 		if name == s.Name {
-			delete(tags, search.SpanNameTag)
+			delete(tags, SpanNameTag)
 		}
 	}
 
-	if err, ok := tags[search.ErrorTag]; ok {
+	if err, ok := tags[ErrorTag]; ok {
 		if err == "true" && s.Status.Code == v1.Status_STATUS_CODE_ERROR {
-			delete(tags, search.ErrorTag)
+			delete(tags, ErrorTag)
 		}
 	}
 
-	if status, ok := tags[search.StatusCodeTag]; ok {
-		if search.StatusCodeMapping[status] == int(s.Status.Code) {
-			delete(tags, search.StatusCodeTag)
+	if status, ok := tags[StatusCodeTag]; ok {
+		if StatusCodeMapping[status] == int(s.Status.Code) {
+			delete(tags, StatusCodeTag)
 		}
 	}
 }

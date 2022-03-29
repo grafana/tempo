@@ -42,11 +42,6 @@ func Test_instance_concurrency(t *testing.T) {
 	})
 
 	go accessor(func() {
-		err := instance.collectMetrics(context.Background())
-		assert.NoError(t, err)
-	})
-
-	go accessor(func() {
 		processors := map[string]struct{}{
 			"span-metrics": {},
 		}
@@ -64,7 +59,7 @@ func Test_instance_concurrency(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	instance.shutdown(context.Background())
+	instance.shutdown()
 
 	time.Sleep(10 * time.Millisecond)
 	close(end)
@@ -117,6 +112,14 @@ type mockOverrides struct {
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
+
+func (m *mockOverrides) MetricsGeneratorMaxActiveSeries(userID string) uint32 {
+	return 0
+}
+
+func (m *mockOverrides) MetricsGeneratorCollectionInterval(userID string) time.Duration {
+	return 15 * time.Second
+}
 
 func (m *mockOverrides) MetricsGeneratorProcessors(userID string) map[string]struct{} {
 	return m.processors

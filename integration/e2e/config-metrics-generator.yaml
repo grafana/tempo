@@ -16,17 +16,18 @@ ingester:
       replication_factor: 1
 
 metrics_generator:
-  collection_interval: 1s
-  storage:
-    path: /var/tempo
-    remote_write:
-      - url: http://tempo_e2e-prometheus:9090/api/v1/write
-        send_exemplars: true
   processor:
     service_graphs:
       histogram_buckets: [1, 2]  # seconds
     span_metrics:
       histogram_buckets: [1, 2]  # seconds
+  registry:
+    collection_interval: 1s
+  storage:
+    path: /var/tempo
+    remote_write:
+      - url: http://tempo_e2e-prometheus:9090/api/v1/write
+        send_exemplars: true
 
 storage:
   trace:

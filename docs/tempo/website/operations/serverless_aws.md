@@ -76,6 +76,7 @@ For more guidance on configuration options for full backend search [check here](
 
     ```
     querier:
-      search_external_endpoints:
-      - http://<alb dns hostname>
+      search:
+        external_endpoints:
+        - http://<alb dns hostname>
     ```

@@ -9,7 +9,6 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
@@ -149,18 +148,13 @@ func queryBlock(ctx context.Context, r backend.Reader, c backend.Compactor, bloc
 		return nil, err
 	}
 
-	obj, err := block.Find(ctx, traceID)
+	trace, err := block.FindTraceByID(ctx, traceID)
 	if err != nil {
 		return nil, err
 	}
 
-	if obj == nil {
+	if trace == nil {
 		return nil, nil
-	}
-
-	trace, err := model.MustNewObjectDecoder(meta.DataEncoding).PrepareForRead(obj)
-	if err != nil {
-		return nil, err
 	}
 
 	return &queryResults{
