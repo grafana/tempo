@@ -129,7 +129,7 @@ type Distributor struct {
 	generatorClientCfg      generator_client.Config
 	generatorsRing          ring.ReadRing
 	generatorsPool          *ring_client.Pool
-	generatorQueue          *forwarder
+	generatorForwarder      *forwarder
 
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
@@ -182,22 +182,6 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	subservices = append(subservices, pool)
 
-	var generatorsPool *ring_client.Pool
-	if metricsGeneratorEnabled {
-		generatorsPool = ring_client.NewPool(
-			"distributor_metrics_generator_pool",
-			generatorClientCfg.PoolConfig,
-			ring_client.NewRingServiceDiscovery(generatorsRing),
-			func(addr string) (ring_client.PoolClient, error) {
-				return generator_client.New(addr, generatorClientCfg)
-			},
-			metricGeneratorClients,
-			log.Logger,
-		)
-
-		subservices = append(subservices, generatorsPool)
-	}
-
 	// turn list into map for efficient checking
 	tagsToDrop := map[string]struct{}{}
 	for _, tag := range cfg.SearchTagsDenyList {
@@ -215,14 +199,28 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		metricsGeneratorEnabled: metricsGeneratorEnabled,
 		generatorClientCfg:      generatorClientCfg,
 		generatorsRing:          generatorsRing,
-		generatorsPool:          generatorsPool,
 		globalTagsToDrop:        tagsToDrop,
 		overrides:               o,
 		traceEncoder:            model.MustNewSegmentDecoder(model.CurrentEncoding),
 	}
 
-	d.generatorQueue = newForwarder(d.sendToGenerators, o)
-	subservices = append(subservices, d.generatorQueue)
+	if metricsGeneratorEnabled {
+		d.generatorsPool = ring_client.NewPool(
+			"distributor_metrics_generator_pool",
+			generatorClientCfg.PoolConfig,
+			ring_client.NewRingServiceDiscovery(generatorsRing),
+			func(addr string) (ring_client.PoolClient, error) {
+				return generator_client.New(addr, generatorClientCfg)
+			},
+			metricGeneratorClients,
+			log.Logger,
+		)
+
+		subservices = append(subservices, d.generatorsPool)
+
+		d.generatorForwarder = newForwarder(d.sendToGenerators, o)
+		subservices = append(subservices, d.generatorForwarder)
+	}
 
 	cfgReceivers := cfg.Receivers
 	if len(cfgReceivers) == 0 {
@@ -247,10 +245,10 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 }
 
 func (d *Distributor) starting(ctx context.Context) error {
-	// Only report success if all sub-services startWorkers properly
+	// Only report success if all sub-services start properly
 	err := services.StartManagerAndAwaitHealthy(ctx, d.subservices)
 	if err != nil {
-		return fmt.Errorf("failed to startWorkers subservices %w", err)
+		return fmt.Errorf("failed to start subservices %w", err)
 	}
 
 	return nil
@@ -341,7 +339,7 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 	}
 
 	if d.metricsGeneratorEnabled && len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
-		d.generatorQueue.SendTraces(ctx, userID, keys, rebatchedTraces)
+		d.generatorForwarder.SendTraces(ctx, userID, keys, rebatchedTraces)
 	}
 
 	return nil, err // PushRequest is ignored, so no reason to create one
@@ -472,7 +470,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 				}
 				existingILS.Spans = append(existingILS.Spans, span)
 
-				// now find and update the rebatchedTrace with a new startWorkers and end
+				// now find and update the rebatchedTrace with a new start and end
 				existingTrace, ok := tracesByID[traceKey]
 				if !ok {
 					existingTrace = &rebatchedTrace{
@@ -543,7 +541,7 @@ func logTraces(batches []*v1.ResourceSpans) {
 	}
 }
 
-// startEndFromSpan returns a unix epoch timestamp in seconds for the startWorkers and end of a span
+// startEndFromSpan returns a unix epoch timestamp in seconds for the start and end of a span
 func startEndFromSpan(span *v1.Span) (uint32, uint32) {
 	return uint32(span.StartTimeUnixNano / uint64(time.Second)), uint32(span.EndTimeUnixNano / uint64(time.Second))
 }

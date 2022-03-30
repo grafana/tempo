@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.uber.org/atomic"
 	"go.uber.org/multierr"
 )
 
@@ -23,7 +24,7 @@ var (
 	}, []string{"tenant"})
 )
 
-type forwardFunc func(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error
+type forwardFunc func(ctx context.Context, tenantID string, keys []uint32, traces []*rebatchedTrace) error
 
 type pushRingRequest struct {
 	keys   []uint32
@@ -40,72 +41,93 @@ type forwarder struct {
 
 	forwardFunc forwardFunc
 
-	o        *overrides.Overrides
-	shutdown chan interface{}
+	o                 *overrides.Overrides
+	overridesInterval time.Duration
+	shutdown          chan interface{}
+	closing           *atomic.Bool
 }
 
 func newForwarder(fn forwardFunc, o *overrides.Overrides) *forwarder {
 	rf := &forwarder{
-		queueManagers: make(map[string]*queueManager),
-		mutex:         sync.Mutex{},
-		forwardFunc:   fn,
-		o:             o,
-		shutdown:      make(chan interface{}),
+		queueManagers:     make(map[string]*queueManager),
+		mutex:             sync.Mutex{},
+		forwardFunc:       fn,
+		o:                 o,
+		overridesInterval: time.Minute, // TODO: Make this configurable
+		shutdown:          make(chan interface{}),
 	}
 
-	rf.Service = services.NewBasicService(rf.start, rf.running, rf.stop)
+	rf.Service = services.NewIdleService(rf.start, rf.stop)
 
 	return rf
 }
 
 // SendTraces queues up traces to be sent to the metrics-generators
-func (rf *forwarder) SendTraces(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) {
-	rf.mutex.Lock()
-	defer rf.mutex.Unlock()
+func (f *forwarder) SendTraces(ctx context.Context, tenantID string, keys []uint32, traces []*rebatchedTrace) {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
 
-	if _, ok := rf.queueManagers[userID]; !ok {
-		rf.queueManagers[userID] = newQueueManager(userID, rf.forwardFunc, rf.o)
+	select {
+	case <-f.shutdown:
+		return
+	default:
 	}
 
-	err := rf.queueManagers[userID].push(ctx, &pushRingRequest{keys: keys, traces: traces})
+	if _, ok := f.queueManagers[tenantID]; !ok {
+		queueSize := f.o.MetricsGeneratorForwarderQueueSize(tenantID)
+		workerCount := f.o.MetricsGeneratorForwarderWorkers(tenantID)
+		f.queueManagers[tenantID] = newQueueManager(tenantID, queueSize, workerCount, f.forwardFunc)
+	}
+
+	err := f.queueManagers[tenantID].push(ctx, &pushRingRequest{keys: keys, traces: traces})
 	if err != nil {
-		metricForwarderDroppedPushes.WithLabelValues(userID).Inc()
+		// TODO: log the err
+		metricForwarderDroppedPushes.WithLabelValues(tenantID).Inc()
 	}
 }
 
 // watchOverrides watches the overrides for changes
 // and updates the queueManagers accordingly
-func (rf *forwarder) watchOverrides() {
+func (f *forwarder) watchOverrides() {
 	for {
 		select {
-		case <-time.After(time.Second * 5):
-			rf.mutex.Lock()
-			for _, tm := range rf.queueManagers {
-				tm.watchOverrides(rf.o)
+		case <-time.After(f.overridesInterval):
+			f.mutex.Lock()
+			for tenantID, tm := range f.queueManagers {
+				queueSize := f.o.MetricsGeneratorForwarderQueueSize(tenantID)
+				workerCount := f.o.MetricsGeneratorForwarderWorkers(tenantID)
+
+				// if the queue size or worker count has changed, shutdown the queue manager and create a new one
+				if tm.shouldUpdate(queueSize, workerCount) {
+					go func() {
+						// shutdown the queue manager
+						// this will block until all workers have finished and the queue is drained
+						if err := tm.shutdown(); err != nil {
+							level.Error(log.Logger).Log("msg", "error shutting down queue manager", "tenant", tenantID, "err", err)
+						}
+					}()
+					delete(f.queueManagers, tenantID)
+					f.queueManagers[tenantID] = newQueueManager(tenantID, queueSize, workerCount, f.forwardFunc)
+				}
 			}
-			rf.mutex.Unlock()
-		case <-rf.shutdown:
+			f.mutex.Unlock()
+		case <-f.shutdown:
 			return
 		}
 	}
 }
 
-func (rf *forwarder) start(_ context.Context) error {
-	go rf.watchOverrides()
+func (f *forwarder) start(_ context.Context) error {
+	go f.watchOverrides()
 
 	return nil
 
 }
 
-func (rf *forwarder) running(ctx context.Context) error {
-	<-ctx.Done()
-	return nil
-}
-
-func (rf *forwarder) stop(_ error) error {
-	close(rf.shutdown)
+func (f *forwarder) stop(_ error) error {
+	close(f.shutdown)
 	var errs []error
-	for _, tm := range rf.queueManagers {
+	for _, tm := range f.queueManagers {
 		if err := tm.shutdown(); err != nil {
 			errs = append(errs, err)
 		}
@@ -115,95 +137,118 @@ func (rf *forwarder) stop(_ error) error {
 
 // queueManager manages a single tenant's queue
 type queueManager struct {
-	mutex sync.Mutex
-	wg    sync.WaitGroup
+	// wg is used to wait for the workers to drain the queue while stopping
+	wg sync.WaitGroup
 
-	tenantID       string
-	numWorkers     int
-	queueSize      int
-	reqChan        chan *pushRingRequest
-	fn             forwardFunc
-	workersCloseCh chan struct{}
+	tenantID         string
+	workerCount      int
+	workerAliveCount *atomic.Int32
+	queueSize        int
+	reqChan          chan *pushRingRequest
+	fn               forwardFunc
+	workersCloseCh   chan struct{}
 
-	shutdownCh chan struct{}
+	readOnly *atomic.Bool
 }
 
-func newQueueManager(tenantID string, fn forwardFunc, o *overrides.Overrides) *queueManager {
+func newQueueManager(tenantID string, queueSize, workerCount int, fn forwardFunc) *queueManager {
 	m := &queueManager{
-		mutex:      sync.Mutex{},
-		tenantID:   tenantID,
-		fn:         fn,
-		shutdownCh: make(chan struct{}),
+		tenantID:         tenantID,
+		workerCount:      workerCount,
+		queueSize:        queueSize,
+		workerAliveCount: atomic.NewInt32(0),
+		reqChan:          make(chan *pushRingRequest, queueSize),
+		fn:               fn,
+		workersCloseCh:   make(chan struct{}),
+		readOnly:         atomic.NewBool(false),
 	}
 
-	m.watchOverrides(o)
+	m.startWorkers()
+
 	return m
 }
 
 // push a trace to the queue
 // if the queue is full, the trace is dropped
 func (m *queueManager) push(ctx context.Context, req *pushRingRequest) error {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	if m.readOnly.Load() {
+		return fmt.Errorf("queue is read-only")
+	}
 
 	select {
 	case m.reqChan <- req:
 		// TODO: Record some metric
 	case <-ctx.Done():
-		return fmt.Errorf("failed to push traces to tenant %s queue", m.tenantID)
+		return fmt.Errorf("failed to push traces to tenant %s queue: %w", m.tenantID, ctx.Err())
+	default:
+		// Fail fast if the queue is full
+		return fmt.Errorf("failed to push traces to tenant %s queue: queue is full", m.tenantID)
+
 	}
 
 	return nil
 }
 
-// watchOverrides watches the overrides for the tenant and updates the queue and workers
-func (m *queueManager) watchOverrides(o *overrides.Overrides) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+func (m *queueManager) startWorkers() {
+	for i := 0; i < m.workerCount; i++ {
+		m.wg.Add(1)
+		m.workerAliveCount.Inc()
 
-	numWorkers := o.MetricsGeneratorSendWorkers(m.tenantID)
-	queueSize := o.MetricsGeneratorSendQueueSize(m.tenantID)
-
-	if !m.shouldUpdate(numWorkers, queueSize) {
-		return
+		go m.worker()
 	}
-
-	if err := m.stopWorkers(); err != nil {
-		level.Error(log.Logger).Log("msg", "failed to stop tenant workers", "err", err)
-		return
-	}
-
-	m.updateConfig(numWorkers, queueSize)
-
-	m.startWorkers()
 }
 
-func (m *queueManager) startWorkers() {
-	m.workersCloseCh = make(chan struct{})
-	m.workerLoop(m.numWorkers)
+func (m *queueManager) worker() {
+	go func() {
+		defer func() {
+			m.wg.Done()
+			m.workerAliveCount.Dec()
+		}()
+
+		for {
+			select {
+			case req := <-m.reqChan:
+				// TODO: add timeout to context
+				m.forwardRequest(context.Background(), req)
+			default:
+				// Forces to always trying to pull from the queue before exiting
+				// This is important during shutdown to ensure that the queue is drained
+				select {
+				case req := <-m.reqChan:
+					m.forwardRequest(context.Background(), req)
+				case <-m.workersCloseCh:
+					// If the queue isn't empty, force to start the loop from the beginning
+					if len(m.reqChan) > 0 {
+						continue
+					}
+					return
+				}
+			}
+		}
+	}()
+}
+
+func (m *queueManager) forwardRequest(ctx context.Context, req *pushRingRequest) {
+	if err := m.fn(ctx, m.tenantID, req.keys, req.traces); err != nil {
+		level.Error(log.Logger).Log("msg", "pushing to metrics-generators failed", "err", err)
+	}
 }
 
 func (m *queueManager) shutdown() error {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
-	// TODO: Flush the queue before exiting
-	return m.stopWorkers()
-}
-
-func (m *queueManager) updateConfig(numWorkers int, queueSize int) {
-	m.numWorkers = numWorkers
-	m.reqChan = make(chan *pushRingRequest, queueSize)
-}
-
-func (m *queueManager) stopWorkers() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	if m.workersCloseCh == nil {
+	// Already being shutdown
+	if m.readOnly.Load() {
 		return nil
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	m.readOnly.Store(true)
+
+	return m.stopWorkers(ctx)
+}
+
+func (m *queueManager) stopWorkers(ctx context.Context) error {
 	// Close workersCloseCh and wait for all workers to return
 	close(m.workersCloseCh)
 
@@ -215,34 +260,16 @@ func (m *queueManager) stopWorkers() error {
 
 	select {
 	case <-ctx.Done():
-		return fmt.Errorf("failed to stop tenant %s queueManager", m.tenantID)
+		return fmt.Errorf("failed to stop tenant %s queueManager: %w", m.tenantID, ctx.Err())
 	case <-doneCh:
 		return nil
 	}
 }
 
-func (m *queueManager) workerLoop(n int) {
-	for i := 0; i < n; i++ {
-		m.wg.Add(1)
-		go func() {
-			defer m.wg.Done()
-			for {
-				select {
-				case req := <-m.reqChan:
-					// TODO: add timeout to context?
-					if err := m.fn(context.Background(), m.tenantID, req.keys, req.traces); err != nil {
-						level.Error(log.Logger).Log("msg", "pushing to metrics-generators failed", "err", err)
-					}
-				case <-m.workersCloseCh:
-					return
-				}
-			}
-		}()
-	}
-}
-
+// shouldUpdate returns true if the queue size or worker count (alive or total) has changed
 func (m *queueManager) shouldUpdate(numWorkers int, queueSize int) bool {
-	// TODO: check if new workers are needed too (e.g. one panicked)
-	//  maybe change sync.WaitGroup for an atomic int?
-	return m.queueSize != queueSize || m.numWorkers != numWorkers
+	// TODO: worker alive count could be 0 and shutting down the queue manager would be impossible
+	//  it'd be better if we were able to spawn new workers instead of just closing the queueManager
+	//  and creating a new one
+	return m.queueSize != queueSize || m.workerCount != numWorkers || m.workerAliveCount.Load() != int32(numWorkers)
 }
