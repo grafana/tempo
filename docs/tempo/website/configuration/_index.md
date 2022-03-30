@@ -177,7 +177,7 @@ ingester:
 ## Metrics-generator
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
 
-The metrics-generator processes spans and write metrics to a Prometheus-compatible database.
+The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
 
 The metrics-generator is an optional component, it can be enabled by setting the following top-level setting.
 In microservices mode, it must be set for the distributors and the metrics-generators.
