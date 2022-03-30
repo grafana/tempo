@@ -44,7 +44,6 @@ type forwarder struct {
 	o                 *overrides.Overrides
 	overridesInterval time.Duration
 	shutdown          chan interface{}
-	closing           *atomic.Bool
 }
 
 func newForwarder(fn forwardFunc, o *overrides.Overrides) *forwarder {

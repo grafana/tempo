@@ -20,11 +20,12 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const tenantID = "tenant-id"
+
 func TestForwarder(t *testing.T) {
 	oCfg := overrides.Limits{}
 	oCfg.RegisterFlags(&flag.FlagSet{})
 
-	tenantID := "tenant-id"
 	id, err := util.HexStringToTraceID("1234567890abcdef")
 	require.NoError(t, err)
 
@@ -66,7 +67,6 @@ func TestForwarder_pushesQueued(t *testing.T) {
 	}
 	oCfg.RegisterFlags(&flag.FlagSet{})
 
-	tenantID := "tenant-id"
 	id, err := util.HexStringToTraceID("1234567890abcdef")
 	require.NoError(t, err)
 
@@ -105,7 +105,6 @@ func TestForwarder_shutdown(t *testing.T) {
 	oCfg.RegisterFlags(&flag.FlagSet{})
 	oCfg.MetricsGeneratorForwarderQueueSize = 200
 
-	tenantID := "tenant-id"
 	id, err := util.HexStringToTraceID("1234567890abcdef")
 	require.NoError(t, err)
 
@@ -118,9 +117,7 @@ func TestForwarder_shutdown(t *testing.T) {
 
 	signalCh := make(chan struct{})
 	f := newForwarder(func(ctx context.Context, userID string, k []uint32, traces []*rebatchedTrace) error {
-		select {
-		case <-signalCh:
-		}
+		<-signalCh
 
 		assert.Equal(t, tenantID, userID)
 		assert.Equal(t, keys, k)
@@ -146,7 +143,6 @@ func TestForwarder_shutdown(t *testing.T) {
 
 func TestForwarder_overrides(t *testing.T) {
 	overridesReloadInterval := 100 * time.Millisecond
-	tenantID := "tenant-id"
 	limits := overrides.Limits{}
 	overridesFile := filepath.Join(t.TempDir(), "overrides.yaml")
 
