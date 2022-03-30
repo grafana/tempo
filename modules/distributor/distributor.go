@@ -342,7 +342,7 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 		d.generatorForwarder.SendTraces(ctx, userID, keys, rebatchedTraces)
 	}
 
-	return nil, err // PushRequest is ignored, so no reason to create one
+	return nil, nil // PushRequest is ignored, so no reason to create one
 }
 
 func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*rebatchedTrace, searchData [][]byte, keys []uint32) error {
