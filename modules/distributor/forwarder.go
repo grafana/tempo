@@ -27,6 +27,11 @@ var (
 		Name:      "distributor_forwarder_dropped_pushes",
 		Help:      "Total number of failed pushes to the queue for a tenant to the forwarder",
 	}, []string{"tenant"})
+	metricForwarderQueueLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "distributor_forwarder_queue_length",
+		Help:      "Number of queued requests for a tenant",
+	}, []string{"tenant"})
 )
 
 type forwardFunc func(ctx context.Context, tenantID string, keys []uint32, traces []*rebatchedTrace) error
@@ -122,8 +127,30 @@ func (f *forwarder) watchOverrides() {
 	}
 }
 
+// TODO: Collecting in intervals instead of synchronously can hide spike loads
+//  Measure impact of updating the metric synchronously and consider changing the implementation
+func (f *forwarder) watchMetrics() {
+	collectInterval := 5 * time.Second
+	t := time.NewTicker(collectInterval)
+
+	for {
+		select {
+		case <-t.C:
+			f.mutex.Lock()
+			for tenant, qm := range f.queueManagers {
+				metricForwarderQueueLength.WithLabelValues(tenant).Set(float64(qm.queueLen()))
+			}
+			f.mutex.Unlock()
+		case <-f.shutdown:
+			return
+		}
+	}
+}
+
 func (f *forwarder) start(_ context.Context) error {
 	go f.watchOverrides()
+
+	go f.watchMetrics()
 
 	return nil
 
@@ -269,6 +296,10 @@ func (m *queueManager) stopWorkers(ctx context.Context) error {
 	case <-doneCh:
 		return nil
 	}
+}
+
+func (m *queueManager) queueLen() int {
+	return len(m.reqChan)
 }
 
 // shouldUpdate returns true if the queue size or worker count (alive or total) has changed
