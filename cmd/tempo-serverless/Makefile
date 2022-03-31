@@ -34,7 +34,7 @@ build-gcf-zip:
 .PHONY: build-docker-lambda-local-proxy
 build-docker-lambda-local-proxy:
 	$(IN_LAMBDA) CGO_ENABLED=0 go build -o ./lambda
-	$(IN_LAMBDA) docker build -f ./Dockerfile.proxy -t tempo-serverless-lambda-proxy .
+	$(IN_LAMBDA) docker build -f ./Dockerfile -t tempo-serverless-lambda-proxy .
 
 # lambda zips expect a compiled executable in root. the filename "main" is important
 # as that should the handler config option in aws
