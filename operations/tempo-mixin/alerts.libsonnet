@@ -84,12 +84,28 @@
           },
           {
             // wait 5m for failed flushes to self-heal using retries
-            alert: 'TempoIngesterFlushesFailing',
+            alert: 'TempoIngesterFlushesUnhealthy',
             expr: |||
               sum by (%s) (increase(tempo_ingester_failed_flushes_total{}[1h])) > %s and
               sum by (%s) (increase(tempo_ingester_failed_flushes_total{}[5m])) > 0
             ||| % [$._config.group_by_cluster, $._config.alerts.flushes_per_hour_failed, $._config.group_by_cluster],
             'for': '5m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'Greater than %s flushes have failed in the past hour.' % $._config.alerts.flushes_per_hour_failed,
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterFlushesFailing',
+            },
+          },
+          {
+            // wait 10m for failed flushes to self-heal using retries
+            alert: 'TempoIngesterFlushesFailing',
+            expr: |||
+              sum by (%s) (increase(tempo_ingester_failed_flushes_total{}[1h])) > %s and
+              sum by (%s) (increase(tempo_ingester_failed_flushes_total{}[5m])) > 0
+            ||| % [$._config.group_by_cluster, $._config.alerts.flushes_per_hour_failed, $._config.group_by_cluster],
+            'for': '10m',
             labels: {
               severity: 'critical',
             },
