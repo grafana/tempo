@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 const maxDataEncodingLength = 32
@@ -27,7 +28,7 @@ type AppendBlock struct {
 	ingestionSlack time.Duration
 
 	appendFile *os.File
-	appender   encoding.Appender
+	appender   v2.Appender
 
 	filepath string
 	readFile *os.File
@@ -65,7 +66,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 		return nil, err
 	}
 
-	h.appender = encoding.NewAppender(dataWriter)
+	h.appender = v2.NewAppender(dataWriter)
 
 	return h, nil
 }
@@ -118,7 +119,7 @@ func newAppendBlockFromFile(filename string, path string, ingestionSlack time.Du
 		return nil, nil, err
 	}
 
-	b.appender = encoding.NewRecordAppender(records)
+	b.appender = v2.NewRecordAppender(records)
 	b.meta.TotalObjects = b.appender.Length()
 	b.meta.StartTime = time.Unix(int64(blockStart), 0)
 	b.meta.EndTime = time.Unix(int64(blockEnd), 0)
@@ -150,7 +151,7 @@ func (a *AppendBlock) Meta() *backend.BlockMeta {
 	return a.meta
 }
 
-func (a *AppendBlock) Iterator(combiner model.ObjectCombiner) (encoding.Iterator, error) {
+func (a *AppendBlock) Iterator(combiner model.ObjectCombiner) (v2.Iterator, error) {
 	if a.appendFile != nil {
 		err := a.appendFile.Close()
 		if err != nil {
@@ -170,8 +171,8 @@ func (a *AppendBlock) Iterator(combiner model.ObjectCombiner) (encoding.Iterator
 		return nil, err
 	}
 
-	iterator := encoding.NewRecordIterator(records, dataReader, a.encoding.NewObjectReaderWriter())
-	iterator, err = encoding.NewDedupingIterator(iterator, combiner, a.meta.DataEncoding)
+	iterator := v2.NewRecordIterator(records, dataReader, a.encoding.NewObjectReaderWriter())
+	iterator, err = v2.NewDedupingIterator(iterator, combiner, a.meta.DataEncoding)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +195,7 @@ func (a *AppendBlock) Find(id common.ID, combiner model.ObjectCombiner) ([]byte,
 		return nil, err
 	}
 	defer dataReader.Close()
-	finder := encoding.NewPagedFinder(common.Records(records), dataReader, combiner, a.encoding.NewObjectReaderWriter(), a.meta.DataEncoding)
+	finder := v2.NewPagedFinder(common.Records(records), dataReader, combiner, a.encoding.NewObjectReaderWriter(), a.meta.DataEncoding)
 
 	return finder.Find(context.Background(), id)
 }

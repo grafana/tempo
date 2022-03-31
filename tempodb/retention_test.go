@@ -11,7 +11,7 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -23,7 +23,7 @@ func TestRetention(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		Block: &encoding.BlockConfig{
+		Block: &common.BlockConfig{
 			IndexDownsampleBytes: 17,
 			BloomFP:              0.01,
 			BloomShardSizeBytes:  100_000,
@@ -79,7 +79,7 @@ func TestBlockRetentionOverride(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		Block: &encoding.BlockConfig{
+		Block: &common.BlockConfig{
 			IndexDownsampleBytes: 17,
 			BloomFP:              0.01,
 			BloomShardSizeBytes:  100_000,

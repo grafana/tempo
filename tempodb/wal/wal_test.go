@@ -20,7 +20,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 const (
@@ -70,7 +70,7 @@ func TestAppend(t *testing.T) {
 
 	dataReader, err := block.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), backend.EncNone)
 	require.NoError(t, err)
-	iterator := encoding.NewRecordIterator(records, dataReader, block.encoding.NewObjectReaderWriter())
+	iterator := v2.NewRecordIterator(records, dataReader, block.encoding.NewObjectReaderWriter())
 	defer iterator.Close()
 	i := 0
 

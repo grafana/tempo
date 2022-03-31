@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 // ContextReader is an io.ReaderAt interface that passes context.  It is used to simplify access to backend objects
@@ -48,7 +48,7 @@ func (b *backendReader) ReadAll(ctx context.Context) ([]byte, error) {
 
 // Reader implements ContextReader
 func (b *backendReader) Reader() (io.Reader, error) {
-	return nil, common.ErrUnsupported
+	return nil, util.ErrUnsupported
 }
 
 // AllReader is an interface that supports both io.Reader and io.ReaderAt methods

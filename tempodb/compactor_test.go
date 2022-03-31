@@ -22,8 +22,9 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/blocklist"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+	"github.com/grafana/tempo/tempodb/metrics"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -70,7 +71,7 @@ func TestCompaction(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		Block: &encoding.BlockConfig{
+		Block: &common.BlockConfig{
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
@@ -196,7 +197,7 @@ func TestSameIDCompaction(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		Block: &encoding.BlockConfig{
+		Block: &common.BlockConfig{
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
@@ -325,7 +326,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		Block: &encoding.BlockConfig{
+		Block: &common.BlockConfig{
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
@@ -393,7 +394,7 @@ func TestCompactionMetrics(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		Block: &encoding.BlockConfig{
+		Block: &common.BlockConfig{
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
@@ -425,13 +426,13 @@ func TestCompactionMetrics(t *testing.T) {
 	rw.pollBlocklist()
 
 	// Get starting metrics
-	processedStart, err := test.GetCounterVecValue(metricCompactionObjectsWritten, "0")
+	processedStart, err := test.GetCounterVecValue(metrics.MetricCompactionObjectsWritten, "0")
 	assert.NoError(t, err)
 
-	blocksStart, err := test.GetCounterVecValue(metricCompactionBlocks, "0")
+	blocksStart, err := test.GetCounterVecValue(metrics.MetricCompactionBlocks, "0")
 	assert.NoError(t, err)
 
-	bytesStart, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0")
+	bytesStart, err := test.GetCounterVecValue(metrics.MetricCompactionBytesWritten, "0")
 	assert.NoError(t, err)
 
 	// compact everything
@@ -439,15 +440,15 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Check metric
-	processedEnd, err := test.GetCounterVecValue(metricCompactionObjectsWritten, "0")
+	processedEnd, err := test.GetCounterVecValue(metrics.MetricCompactionObjectsWritten, "0")
 	assert.NoError(t, err)
 	assert.Equal(t, float64(blockCount*recordCount), processedEnd-processedStart)
 
-	blocksEnd, err := test.GetCounterVecValue(metricCompactionBlocks, "0")
+	blocksEnd, err := test.GetCounterVecValue(metrics.MetricCompactionBlocks, "0")
 	assert.NoError(t, err)
 	assert.Equal(t, float64(blockCount), blocksEnd-blocksStart)
 
-	bytesEnd, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0")
+	bytesEnd, err := test.GetCounterVecValue(metrics.MetricCompactionBytesWritten, "0")
 	assert.NoError(t, err)
 	assert.Greater(t, bytesEnd, bytesStart) // calculating the exact bytes requires knowledge of the bytes as written in the blocks.  just make sure it goes up
 }
@@ -464,7 +465,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		Block: &encoding.BlockConfig{
+		Block: &common.BlockConfig{
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
@@ -511,8 +512,8 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID2)))
 }
 
-func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, recordCount int) []*encoding.BackendBlock {
-	blocks := make([]*encoding.BackendBlock, 0)
+func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, recordCount int) []*v2.BackendBlock {
+	blocks := make([]*v2.BackendBlock, 0)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	wal := w.WAL()
@@ -554,7 +555,7 @@ func BenchmarkCompaction(b *testing.B) {
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
 		},
-		Block: &encoding.BlockConfig{
+		Block: &common.BlockConfig{
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,

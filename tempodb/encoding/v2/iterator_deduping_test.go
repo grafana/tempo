@@ -1,4 +1,4 @@
-package encoding
+package v2
 
 import (
 	"bytes"
@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +42,7 @@ func (*mockCombiner) Combine(_ string, objs ...[]byte) ([]byte, bool, error) {
 
 func TestEmptyNestedIterator(t *testing.T) {
 	r := bytes.NewReader([]byte{})
-	i := NewIterator(r, v2.NewObjectReaderWriter())
+	i := NewIterator(r, NewObjectReaderWriter())
 
 	id, obj, err := i.Next(context.Background())
 	assert.Nil(t, id)

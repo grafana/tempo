@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 type bloomCmd struct {
@@ -55,7 +56,7 @@ func ReplayBlockAndDoForEachRecord(meta *backend.BlockMeta, filepath string, for
 			return fmt.Errorf("error reading page from datareader: %w", err)
 		}
 
-		iter := encoding.NewIterator(bytes.NewReader(buffer), objectRW)
+		iter := v2.NewIterator(bytes.NewReader(buffer), objectRW)
 		var iterErr error
 		for {
 			var id common.ID

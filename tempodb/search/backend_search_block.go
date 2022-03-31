@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 const defaultBackendSearchBlockPageSize = 2 * 1024 * 1024
@@ -47,7 +48,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, rw backend.Writer, block
 	if err != nil {
 		return err
 	}
-	a := encoding.NewBufferedAppenderGeneric(w, pageSizeBytes)
+	a := v2.NewBufferedAppenderGeneric(w, pageSizeBytes)
 
 	iter, err := input.Iterator()
 	if err != nil {

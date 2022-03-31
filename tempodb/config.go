@@ -12,7 +12,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -30,10 +30,10 @@ const (
 // Config holds the entirety of tempodb configuration
 // Defaults are in modules/storage/config.go
 type Config struct {
-	Pool   *pool.Config          `yaml:"pool,omitempty"`
-	WAL    *wal.Config           `yaml:"wal"`
-	Block  *encoding.BlockConfig `yaml:"block"`
-	Search *SearchConfig         `yaml:"search"`
+	Pool   *pool.Config        `yaml:"pool,omitempty"`
+	WAL    *wal.Config         `yaml:"wal"`
+	Block  *common.BlockConfig `yaml:"block"`
+	Search *SearchConfig       `yaml:"search"`
 
 	BlocklistPoll                    time.Duration `yaml:"blocklist_poll"`
 	BlocklistPollConcurrency         uint          `yaml:"blocklist_poll_concurrency"`
@@ -86,7 +86,7 @@ func validateConfig(cfg *Config) error {
 		return errors.New("block config should be non-nil")
 	}
 
-	err := encoding.ValidateConfig(cfg.Block)
+	err := common.ValidateConfig(cfg.Block)
 	if err != nil {
 		return fmt.Errorf("block config validation failed: %w", err)
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 type indexCmd struct {
@@ -53,7 +54,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 			break
 		}
 
-		iter := encoding.NewIterator(bytes.NewReader(buffer), objectRW)
+		iter := v2.NewIterator(bytes.NewReader(buffer), objectRW)
 		var lastID common.ID
 		var iterErr error
 		for {
