@@ -17,16 +17,21 @@ import (
 )
 
 var (
+	metricForwarderPushes = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_forwarder_pushes",
+		Help:      "Total number of successful requests queued up for a tenant to the forwarder",
+	}, []string{"tenant"})
 	metricForwarderDroppedPushes = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_forwarder_dropped_pushes",
-		Help:      "Total number of dropped pushes for a tenant to the metrics-generator's",
+		Help:      "Total number of failed pushes to the queue for a tenant to the forwarder",
 	}, []string{"tenant"})
 )
 
 type forwardFunc func(ctx context.Context, tenantID string, keys []uint32, traces []*rebatchedTrace) error
 
-type pushRingRequest struct {
+type request struct {
 	keys   []uint32
 	traces []*rebatchedTrace
 }
@@ -78,9 +83,10 @@ func (f *forwarder) SendTraces(ctx context.Context, tenantID string, keys []uint
 		f.queueManagers[tenantID] = newQueueManager(tenantID, queueSize, workerCount, f.forwardFunc)
 	}
 
-	err := f.queueManagers[tenantID].push(ctx, &pushRingRequest{keys: keys, traces: traces})
+	err := f.queueManagers[tenantID].pushToQueue(ctx, &request{keys: keys, traces: traces})
+	metricForwarderPushes.WithLabelValues(tenantID).Inc()
 	if err != nil {
-		// TODO: log the err
+		// TODO: we may want to log the err
 		metricForwarderDroppedPushes.WithLabelValues(tenantID).Inc()
 	}
 }
@@ -143,7 +149,7 @@ type queueManager struct {
 	workerCount      int
 	workerAliveCount *atomic.Int32
 	queueSize        int
-	reqChan          chan *pushRingRequest
+	reqChan          chan *request
 	fn               forwardFunc
 	workersCloseCh   chan struct{}
 
@@ -156,7 +162,7 @@ func newQueueManager(tenantID string, queueSize, workerCount int, fn forwardFunc
 		workerCount:      workerCount,
 		queueSize:        queueSize,
 		workerAliveCount: atomic.NewInt32(0),
-		reqChan:          make(chan *pushRingRequest, queueSize),
+		reqChan:          make(chan *request, queueSize),
 		fn:               fn,
 		workersCloseCh:   make(chan struct{}),
 		readOnly:         atomic.NewBool(false),
@@ -167,9 +173,9 @@ func newQueueManager(tenantID string, queueSize, workerCount int, fn forwardFunc
 	return m
 }
 
-// push a trace to the queue
+// pushToQueue a trace to the queue
 // if the queue is full, the trace is dropped
-func (m *queueManager) push(ctx context.Context, req *pushRingRequest) error {
+func (m *queueManager) pushToQueue(ctx context.Context, req *request) error {
 	if m.readOnly.Load() {
 		return fmt.Errorf("queue is read-only")
 	}
@@ -178,10 +184,10 @@ func (m *queueManager) push(ctx context.Context, req *pushRingRequest) error {
 	case m.reqChan <- req:
 		// TODO: Record some metric
 	case <-ctx.Done():
-		return fmt.Errorf("failed to push traces to tenant %s queue: %w", m.tenantID, ctx.Err())
+		return fmt.Errorf("failed to pushToQueue traces to tenant %s queue: %w", m.tenantID, ctx.Err())
 	default:
 		// Fail fast if the queue is full
-		return fmt.Errorf("failed to push traces to tenant %s queue: queue is full", m.tenantID)
+		return fmt.Errorf("failed to pushToQueue traces to tenant %s queue: queue is full", m.tenantID)
 
 	}
 
@@ -227,7 +233,7 @@ func (m *queueManager) worker() {
 	}()
 }
 
-func (m *queueManager) forwardRequest(ctx context.Context, req *pushRingRequest) {
+func (m *queueManager) forwardRequest(ctx context.Context, req *request) {
 	if err := m.fn(ctx, m.tenantID, req.keys, req.traces); err != nil {
 		level.Error(log.Logger).Log("msg", "pushing to metrics-generators failed", "err", err)
 	}
