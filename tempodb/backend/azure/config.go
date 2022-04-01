@@ -7,7 +7,7 @@ import (
 )
 
 type Config struct {
-	StorageAccountName flagext.Secret `yaml:"storage-account-name"`
+	StorageAccountName string         `yaml:"storage-account-name"`
 	StorageAccountKey  flagext.Secret `yaml:"storage-account-key"`
 	ContainerName      string         `yaml:"container-name"`
 	Endpoint           string         `yaml:"endpoint-suffix"`

@@ -53,8 +53,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Trace.Block.SearchPageSizeBytes = 1024 * 1024 // 1 MB
 
 	cfg.Trace.Azure = &azure.Config{}
-	f.StringVar(&cfg.Trace.Azure.StorageAccountName.Value, util.PrefixConfig(prefix, "trace.azure.storage-account-name"), "", "Azure storage account name.")
-	f.StringVar(&cfg.Trace.Azure.StorageAccountKey.Value, util.PrefixConfig(prefix, "trace.azure.storage-account-key"), "", "Azure storage access key.")
+	f.StringVar(&cfg.Trace.Azure.StorageAccountName, util.PrefixConfig(prefix, "trace.azure.storage-account-name"), "", "Azure storage account name.")
+	f.Var(&cfg.Trace.Azure.StorageAccountKey, util.PrefixConfig(prefix, "trace.azure.storage-account-key"), "Azure storage access key.")
 	f.StringVar(&cfg.Trace.Azure.ContainerName, util.PrefixConfig(prefix, "trace.azure.container-name"), "", "Azure container name to store blocks in.")
 	f.StringVar(&cfg.Trace.Azure.Endpoint, util.PrefixConfig(prefix, "trace.azure.endpoint"), "blob.core.windows.net", "Azure endpoint to push blocks to.")
 	f.IntVar(&cfg.Trace.Azure.MaxBuffers, util.PrefixConfig(prefix, "trace.azure.max-buffers"), 4, "Number of simultaneous uploads.")
@@ -64,8 +64,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Trace.S3 = &s3.Config{}
 	f.StringVar(&cfg.Trace.S3.Bucket, util.PrefixConfig(prefix, "trace.s3.bucket"), "", "s3 bucket to store blocks in.")
 	f.StringVar(&cfg.Trace.S3.Endpoint, util.PrefixConfig(prefix, "trace.s3.endpoint"), "", "s3 endpoint to push blocks to.")
-	f.StringVar(&cfg.Trace.S3.AccessKey.Value, util.PrefixConfig(prefix, "trace.s3.access_key"), "", "s3 access key.")
-	f.StringVar(&cfg.Trace.S3.SecretKey.Value, util.PrefixConfig(prefix, "trace.s3.secret_key"), "", "s3 secret key.")
+	f.StringVar(&cfg.Trace.S3.AccessKey, util.PrefixConfig(prefix, "trace.s3.access_key"), "", "s3 access key.")
+	f.Var(&cfg.Trace.S3.SecretKey, util.PrefixConfig(prefix, "trace.s3.secret_key"), "s3 secret key.")
 	cfg.Trace.S3.HedgeRequestsUpTo = 2
 
 	cfg.Trace.GCS = &gcs.Config{}
