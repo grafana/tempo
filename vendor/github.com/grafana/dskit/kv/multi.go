@@ -16,11 +16,11 @@ import (
 
 // MultiConfig is a configuration for MultiClient.
 type MultiConfig struct {
-	Primary   string `yaml:"primary"`
-	Secondary string `yaml:"secondary"`
+	Primary   string `yaml:"primary" category:"advanced"`
+	Secondary string `yaml:"secondary" category:"advanced"`
 
-	MirrorEnabled bool          `yaml:"mirror_enabled"`
-	MirrorTimeout time.Duration `yaml:"mirror_timeout"`
+	MirrorEnabled bool          `yaml:"mirror_enabled" category:"advanced"`
+	MirrorTimeout time.Duration `yaml:"mirror_timeout" category:"advanced"`
 
 	// ConfigProvider returns channel with MultiRuntimeConfig updates.
 	ConfigProvider func() <-chan MultiRuntimeConfig `yaml:"-"`
@@ -98,6 +98,10 @@ func NewMultiClient(cfg MultiConfig, clients []kvclient, logger log.Logger, regi
 		logger: log.With(logger, "component", "multikv"),
 	}
 
+	c.registerMetrics(registerer)
+	c.updatePrimaryStoreGauge()
+	c.updateMirrorEnabledGauge()
+
 	ctx, cancelFn := context.WithCancel(context.Background())
 	c.cancel = cancelFn
 
@@ -105,9 +109,6 @@ func NewMultiClient(cfg MultiConfig, clients []kvclient, logger log.Logger, regi
 		go c.watchConfigChannel(ctx, cfg.ConfigProvider())
 	}
 
-	c.registerMetrics(registerer)
-	c.updatePrimaryStoreGauge()
-	c.updateMirrorEnabledGauge()
 	return c
 }
 
