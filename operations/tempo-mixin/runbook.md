@@ -86,9 +86,10 @@ How it **works**:
 - If flushing fails, the ingester will keep retrying until restarted
 - Blocks that have been flushed successfully will be deleted from the ingester, by default after 15m
 
-Failed flushes could be caused by any number of different things: bad block, permissions issues, rate limiting, failing backend,...
-Tempo will continue to retry sending the blocks until it succeeds, but at some point your WAL files will start failing to write due
-to out of disk issues.
+Failed flushes could be caused by any number of different things: bad block,
+permissions issues, rate limiting, failing backend, etc. Tempo will continue to
+retry sending the blocks until it succeeds, but at some point your WAL files
+will start failing to write due to out of disk issues.
 
 Known issue: this can trigger during a rollout of the ingesters, see [tempo#1035](https://github.com/grafana/tempo/issues/1035).
 
