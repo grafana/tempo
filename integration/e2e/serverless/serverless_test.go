@@ -144,7 +144,6 @@ func newTempoServerlessLambda() *e2e.HTTPService {
 		"tempo-serverless-lambda", // created by build-docker-lambda make target
 		nil,
 		nil,
-		8080,
 		9000,
 	)
 
