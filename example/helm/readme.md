@@ -53,7 +53,7 @@ helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
 ```
 
-Install Tempo, Grafand and synthetic-load-generator
+Install Tempo, Grafana and synthetic-load-generator
 
 ```console
 helm upgrade --install tempo grafana/tempo
