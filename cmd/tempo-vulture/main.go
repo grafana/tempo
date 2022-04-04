@@ -332,7 +332,7 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 		zap.String("hexID", hexID),
 		zap.Duration("ago", time.Since(seed)),
 		zap.String("key", attr.Key),
-		zap.String("value", attr.Value.GetStringValue()),
+		zap.String("value", util.StringifyAnyValue(attr.Value)),
 	)
 	logger.Info("searching Tempo")
 

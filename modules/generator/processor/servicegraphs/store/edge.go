@@ -14,14 +14,17 @@ type Edge struct {
 	// the Edge will be considered as failed.
 	Failed bool
 
+	// Additional dimension to add to the metrics
+	Dimensions map[string]string
+
 	// expiration is the time at which the Edge expires, expressed as Unix time
 	expiration int64
 }
 
 func NewEdge(key string, ttl time.Duration) *Edge {
 	return &Edge{
-		key: key,
-
+		key:        key,
+		Dimensions: make(map[string]string),
 		expiration: time.Now().Add(ttl).Unix(),
 	}
 }
