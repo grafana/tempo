@@ -47,7 +47,7 @@ type forwarder struct {
 
 	// per-tenant queue managers
 	queueManagers map[string]*queueManager
-	mutex         sync.Mutex
+	mutex         sync.RWMutex
 
 	forwardFunc forwardFunc
 
@@ -59,7 +59,7 @@ type forwarder struct {
 func newForwarder(fn forwardFunc, o *overrides.Overrides) *forwarder {
 	rf := &forwarder{
 		queueManagers:     make(map[string]*queueManager),
-		mutex:             sync.Mutex{},
+		mutex:             sync.RWMutex{},
 		forwardFunc:       fn,
 		o:                 o,
 		overridesInterval: time.Minute,
@@ -73,27 +73,43 @@ func newForwarder(fn forwardFunc, o *overrides.Overrides) *forwarder {
 
 // SendTraces queues up traces to be sent to the metrics-generators
 func (f *forwarder) SendTraces(ctx context.Context, tenantID string, keys []uint32, traces []*rebatchedTrace) {
-	f.mutex.Lock()
-	defer f.mutex.Unlock()
-
 	select {
 	case <-f.shutdown:
 		return
 	default:
 	}
 
-	if _, ok := f.queueManagers[tenantID]; !ok {
-		queueSize := f.o.MetricsGeneratorForwarderQueueSize(tenantID)
-		workerCount := f.o.MetricsGeneratorForwarderWorkers(tenantID)
-		f.queueManagers[tenantID] = newQueueManager(tenantID, queueSize, workerCount, f.forwardFunc)
+	qm := f.getOrCreateQueueManager(tenantID)
+	if err := qm.pushToQueue(ctx, &request{keys: keys, traces: traces}); err != nil {
+		level.Error(log.Logger).Log("msg", "failed to push traces to queue", "tenant", tenantID, "err", err)
+		metricForwarderDroppedPushes.WithLabelValues(tenantID).Inc()
+	} else {
+		metricForwarderPushes.WithLabelValues(tenantID).Inc()
+	}
+}
+
+func (f *forwarder) getOrCreateQueueManager(tenantID string) *queueManager {
+	qm, ok := f.getQueueManager(tenantID)
+	if ok {
+		return qm
 	}
 
-	err := f.queueManagers[tenantID].pushToQueue(ctx, &request{keys: keys, traces: traces})
-	metricForwarderPushes.WithLabelValues(tenantID).Inc()
-	if err != nil {
-		// TODO: we may want to log the err
-		metricForwarderDroppedPushes.WithLabelValues(tenantID).Inc()
-	}
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	queueSize := f.o.MetricsGeneratorForwarderQueueSize(tenantID)
+	workerCount := f.o.MetricsGeneratorForwarderWorkers(tenantID)
+	f.queueManagers[tenantID] = newQueueManager(tenantID, queueSize, workerCount, f.forwardFunc)
+
+	return f.queueManagers[tenantID]
+}
+
+func (f *forwarder) getQueueManager(tenantID string) (*queueManager, bool) {
+	f.mutex.RLock()
+	defer f.mutex.RUnlock()
+
+	qm, ok := f.queueManagers[tenantID]
+	return qm, ok
 }
 
 // watchOverrides watches the overrides for changes
@@ -136,11 +152,11 @@ func (f *forwarder) watchMetrics() {
 	for {
 		select {
 		case <-t.C:
-			f.mutex.Lock()
+			f.mutex.RLock()
 			for tenant, qm := range f.queueManagers {
 				metricForwarderQueueLength.WithLabelValues(tenant).Set(float64(qm.queueLen()))
 			}
-			f.mutex.Unlock()
+			f.mutex.RUnlock()
 		case <-f.shutdown:
 			return
 		}
