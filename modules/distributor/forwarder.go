@@ -62,7 +62,7 @@ func newForwarder(fn forwardFunc, o *overrides.Overrides) *forwarder {
 		mutex:             sync.Mutex{},
 		forwardFunc:       fn,
 		o:                 o,
-		overridesInterval: time.Minute, // TODO: Make this configurable
+		overridesInterval: time.Minute,
 		shutdown:          make(chan interface{}),
 	}
 
@@ -231,33 +231,31 @@ func (m *queueManager) startWorkers() {
 }
 
 func (m *queueManager) worker() {
-	go func() {
-		defer func() {
-			m.wg.Done()
-			m.workerAliveCount.Dec()
-		}()
+	defer func() {
+		m.wg.Done()
+		m.workerAliveCount.Dec()
+	}()
 
-		for {
+	for {
+		select {
+		case req := <-m.reqChan:
+			// TODO: add timeout to context
+			m.forwardRequest(context.Background(), req)
+		default:
+			// Forces to always trying to pull from the queue before exiting
+			// This is important during shutdown to ensure that the queue is drained
 			select {
 			case req := <-m.reqChan:
-				// TODO: add timeout to context
 				m.forwardRequest(context.Background(), req)
-			default:
-				// Forces to always trying to pull from the queue before exiting
-				// This is important during shutdown to ensure that the queue is drained
-				select {
-				case req := <-m.reqChan:
-					m.forwardRequest(context.Background(), req)
-				case <-m.workersCloseCh:
-					// If the queue isn't empty, force to start the loop from the beginning
-					if len(m.reqChan) > 0 {
-						continue
-					}
-					return
+			case <-m.workersCloseCh:
+				// If the queue isn't empty, force to start the loop from the beginning
+				if len(m.reqChan) > 0 {
+					continue
 				}
+				return
 			}
 		}
-	}()
+	}
 }
 
 func (m *queueManager) forwardRequest(ctx context.Context, req *request) {
