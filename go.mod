@@ -12,6 +12,7 @@ require (
 	github.com/aws/aws-sdk-go v1.43.4
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/cespare/xxhash v1.1.0
+	github.com/cespare/xxhash/v2 v2.1.2
 	github.com/cristalhq/hedgedhttp v0.7.0
 	github.com/drone/envsubst v1.0.3
 	github.com/dustin/go-humanize v1.0.0
@@ -28,7 +29,7 @@ require (
 	github.com/google/go-cmp v0.5.7
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
-	github.com/grafana/dskit v0.0.0-20220112093026-95274ccc858d
+	github.com/grafana/dskit v0.0.0-20220331160727-49faf69f72ca
 	github.com/grafana/e2e v0.1.0
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v1.0.0
@@ -102,7 +103,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.2 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.3.0 // indirect
-	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/coreos/etcd v3.3.25+incompatible // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf // indirect

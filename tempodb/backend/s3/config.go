@@ -10,7 +10,7 @@ type Config struct {
 	Bucket            string         `yaml:"bucket"`
 	Endpoint          string         `yaml:"endpoint"`
 	Region            string         `yaml:"region"`
-	AccessKey         flagext.Secret `yaml:"access_key"`
+	AccessKey         string         `yaml:"access_key"`
 	SecretKey         flagext.Secret `yaml:"secret_key"`
 	Insecure          bool           `yaml:"insecure"`
 	PartSize          uint64         `yaml:"part_size"`

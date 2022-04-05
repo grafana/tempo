@@ -212,9 +212,7 @@ func stringToFlagExt() mapstructure.DecodeHookFunc {
 		if t != reflect.TypeOf(flagext.Secret{}) {
 			return data, nil
 		}
-		return flagext.Secret{
-			Value: data.(string),
-		}, nil
+		return flagext.SecretWithValue(data.(string)), nil
 	}
 }
 

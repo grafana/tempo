@@ -324,7 +324,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		wrapCredentialsProvider(&credentials.EnvAWS{}),
 		wrapCredentialsProvider(&credentials.Static{
 			Value: credentials.Value{
-				AccessKeyID:     cfg.AccessKey.String(),
+				AccessKeyID:     cfg.AccessKey,
 				SecretAccessKey: cfg.SecretKey.String(),
 			},
 		}),

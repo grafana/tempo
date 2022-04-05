@@ -49,8 +49,8 @@ func TestHedge(t *testing.T) {
 
 			r, w, _, err := New(&Config{
 				Region:            "blerg",
-				AccessKey:         flagext.Secret{Value: "test"},
-				SecretKey:         flagext.Secret{Value: "test"},
+				AccessKey:         "test",
+				SecretKey:         flagext.SecretWithValue("test"),
 				Bucket:            "blerg",
 				Insecure:          true,
 				Endpoint:          server.URL[7:], // [7:] -> strip http://
