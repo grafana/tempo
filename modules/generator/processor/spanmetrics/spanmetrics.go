@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -86,6 +87,5 @@ func (p *processor) aggregateMetricsForSpan(svcName string, span *v1_trace.Span)
 	registrylabelValues := registry.NewLabelValues(labelValues)
 
 	p.spanMetricsCallsTotal.Inc(registrylabelValues, 1)
-	// TODO observe exemplar prometheus.Labels{"traceID": tempo_util.TraceIDToHexString(span.TraceId)}
-	p.spanMetricsDurationSeconds.Observe(registrylabelValues, latencySeconds)
+	p.spanMetricsDurationSeconds.Observe(registrylabelValues, latencySeconds, util.TraceIDToHexString(span.TraceId))
 }

@@ -36,6 +36,7 @@ func (n noopAppender) Rollback() error {
 
 type capturingAppender struct {
 	samples      []sample
+	exemplars    []exemplarSample
 	isCommitted  bool
 	isRolledback bool
 }
@@ -46,11 +47,23 @@ type sample struct {
 	v float64
 }
 
+type exemplarSample struct {
+	l labels.Labels
+	e exemplar.Exemplar
+}
+
 func newSample(lbls map[string]string, t int64, v float64) sample {
 	return sample{
 		l: labels.FromMap(lbls),
 		t: t,
 		v: v,
+	}
+}
+
+func newExemplar(lbls map[string]string, e exemplar.Exemplar) exemplarSample {
+	return exemplarSample{
+		l: labels.FromMap(lbls),
+		e: e,
 	}
 }
 
@@ -70,6 +83,11 @@ func (c *capturingAppender) Append(ref storage.SeriesRef, l labels.Labels, t int
 	return ref, nil
 }
 
+func (c *capturingAppender) AppendExemplar(ref storage.SeriesRef, l labels.Labels, e exemplar.Exemplar) (storage.SeriesRef, error) {
+	c.exemplars = append(c.exemplars, exemplarSample{l, e})
+	return ref, nil
+}
+
 func (c *capturingAppender) Commit() error {
 	c.isCommitted = true
 	return nil
@@ -78,8 +96,4 @@ func (c *capturingAppender) Commit() error {
 func (c *capturingAppender) Rollback() error {
 	c.isRolledback = true
 	return nil
-}
-
-func (c *capturingAppender) AppendExemplar(ref storage.SeriesRef, l labels.Labels, e exemplar.Exemplar) (storage.SeriesRef, error) {
-	panic("AppendExemplar is not supported")
 }

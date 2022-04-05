@@ -99,7 +99,7 @@ type testHistogram struct {
 
 var _ Histogram = (*testHistogram)(nil)
 
-func (t testHistogram) Observe(values *LabelValues, value float64) {
+func (t testHistogram) Observe(values *LabelValues, value float64, traceID string) {
 	lbls := make(labels.Labels, len(t.labels))
 	for i, label := range t.labels {
 		lbls[i] = labels.Label{Name: label, Value: values.values[i]}

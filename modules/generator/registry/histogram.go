@@ -2,10 +2,13 @@ package registry
 
 import (
 	"fmt"
+	"math"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
@@ -32,9 +35,12 @@ type histogramSeries struct {
 	labelValues []string
 	count       *atomic.Float64
 	sum         *atomic.Float64
-	buckets     []*atomic.Float64
-	bucketInf   *atomic.Float64
-	lastUpdated *atomic.Int64
+	// buckets includes the +Inf bucket
+	buckets []*atomic.Float64
+	// exemplar is stored as a single traceID
+	exemplars      []*atomic.String
+	exemplarValues []*atomic.Float64
+	lastUpdated    *atomic.Int64
 }
 
 var _ Histogram = (*histogram)(nil)
@@ -49,6 +55,9 @@ func newHistogram(name string, labels []string, buckets []float64, onAddSeries f
 	if onRemoveSeries == nil {
 		onRemoveSeries = func(uint32) {}
 	}
+
+	// add +Inf bucket
+	buckets = append(buckets, math.Inf(1))
 
 	bucketLabels := make([]string, len(buckets))
 	for i, bucket := range buckets {
@@ -68,7 +77,7 @@ func newHistogram(name string, labels []string, buckets []float64, onAddSeries f
 	}
 }
 
-func (h *histogram) Observe(labelValues *LabelValues, value float64) {
+func (h *histogram) Observe(labelValues *LabelValues, value float64, traceID string) {
 	if len(h.labels) != len(labelValues.getValues()) {
 		panic(fmt.Sprintf("length of given label values does not match with labels, labels: %v, label values: %v", h.labels, labelValues))
 	}
@@ -80,7 +89,7 @@ func (h *histogram) Observe(labelValues *LabelValues, value float64) {
 	h.seriesMtx.RUnlock()
 
 	if ok {
-		h.updateSeries(s, value)
+		h.updateSeries(s, value, traceID)
 		return
 	}
 
@@ -88,47 +97,53 @@ func (h *histogram) Observe(labelValues *LabelValues, value float64) {
 		return
 	}
 
-	newSeries := h.newSeries(labelValues, value)
+	newSeries := h.newSeries(labelValues, value, traceID)
 
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
 	s, ok = h.series[hash]
 	if ok {
-		h.updateSeries(s, value)
+		h.updateSeries(s, value, traceID)
 		return
 	}
 	h.series[hash] = newSeries
 }
 
-func (h *histogram) newSeries(labelValues *LabelValues, value float64) *histogramSeries {
+func (h *histogram) newSeries(labelValues *LabelValues, value float64, traceID string) *histogramSeries {
 	newSeries := &histogramSeries{
 		labelValues: labelValues.getValuesCopy(),
-		count:       atomic.NewFloat64(1),
-		sum:         atomic.NewFloat64(value),
+		count:       atomic.NewFloat64(0),
+		sum:         atomic.NewFloat64(0),
 		buckets:     nil,
-		bucketInf:   atomic.NewFloat64(1),
-		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
+		exemplars:   nil,
+		lastUpdated: atomic.NewInt64(0),
 	}
-	for _, bucket := range h.buckets {
-		if value <= bucket {
-			newSeries.buckets = append(newSeries.buckets, atomic.NewFloat64(1))
-		} else {
-			newSeries.buckets = append(newSeries.buckets, atomic.NewFloat64(0))
-		}
+	for i := 0; i < len(h.buckets); i++ {
+		newSeries.buckets = append(newSeries.buckets, atomic.NewFloat64(0))
+		newSeries.exemplars = append(newSeries.exemplars, atomic.NewString(""))
+		newSeries.exemplarValues = append(newSeries.exemplarValues, atomic.NewFloat64(0))
 	}
+
+	h.updateSeries(newSeries, value, traceID)
+
 	return newSeries
 }
 
-func (h *histogram) updateSeries(s *histogramSeries, value float64) {
+func (h *histogram) updateSeries(s *histogramSeries, value float64, traceID string) {
 	s.count.Add(1)
 	s.sum.Add(value)
+
 	for i, bucket := range h.buckets {
 		if value <= bucket {
 			s.buckets[i].Add(1)
 		}
 	}
-	s.bucketInf.Add(1)
+
+	bucket := sort.SearchFloat64s(h.buckets, value)
+	s.exemplars[bucket].Store(traceID)
+	s.exemplarValues[bucket].Store(value)
+
 	s.lastUpdated.Store(time.Now().UnixMilli())
 }
 
@@ -171,19 +186,28 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 
 		for i, bucketLabel := range h.bucketLabels {
 			lb.Set(labels.BucketLabel, bucketLabel)
-			_, err = appender.Append(0, lb.Labels(), timeMs, s.buckets[i].Load())
+			ref, err := appender.Append(0, lb.Labels(), timeMs, s.buckets[i].Load())
 			if err != nil {
-				return
+				return activeSeries, err
 			}
-		}
 
-		lb.Set(labels.BucketLabel, "+Inf")
-		_, err = appender.Append(0, lb.Labels(), timeMs, s.bucketInf.Load())
-		if err != nil {
-			return
+			ex := s.exemplars[i].Load()
+			if ex != "" {
+				_, err = appender.AppendExemplar(ref, lb.Labels(), exemplar.Exemplar{
+					Labels: []labels.Label{{
+						Name:  "traceID",
+						Value: ex,
+					}},
+					Value: s.exemplarValues[i].Load(),
+					Ts:    timeMs,
+				})
+				if err != nil {
+					return activeSeries, err
+				}
+			}
+			// clear the exemplar so we don't emit it again
+			s.exemplars[i].Store("")
 		}
-
-		// TODO support exemplars
 
 		lb.Del(labels.BucketLabel)
 	}
@@ -204,8 +228,8 @@ func (h *histogram) removeStaleSeries(staleTimeMs int64) {
 }
 
 func (h *histogram) activeSeriesPerHistogramSerie() uint32 {
-	// sum + count + +Inf + #buckets
-	return uint32(3 + len(h.buckets))
+	// sum + count + #buckets
+	return uint32(2 + len(h.buckets))
 }
 
 func formatFloat(value float64) string {

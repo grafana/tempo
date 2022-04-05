@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
 var (
@@ -146,6 +147,7 @@ func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
 				case v1.Span_SPAN_KIND_CLIENT:
 					k = key(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
 					edge, err = p.store.UpsertEdge(k, func(e *store.Edge) {
+						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
 						e.ClientService = svcName
 						e.ClientLatencySec = spanDurationSec(span)
 						e.Failed = e.Failed || p.spanFailed(span)
@@ -153,6 +155,7 @@ func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
 				case v1.Span_SPAN_KIND_SERVER:
 					k = key(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
 					edge, err = p.store.UpsertEdge(k, func(e *store.Edge) {
+						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
 						e.ServerService = svcName
 						e.ServerLatencySec = spanDurationSec(span)
 						e.Failed = e.Failed || p.spanFailed(span)
@@ -203,8 +206,8 @@ func (p *processor) collectEdge(e *store.Edge) {
 			p.serviceGraphRequestFailedTotal.Inc(clientServerLabelValues, 1)
 		}
 
-		p.serviceGraphRequestServerSecondsHistogram.Observe(clientServerLabelValues, e.ServerLatencySec)
-		p.serviceGraphRequestClientSecondsHistogram.Observe(clientServerLabelValues, e.ClientLatencySec)
+		p.serviceGraphRequestServerSecondsHistogram.Observe(clientServerLabelValues, e.ServerLatencySec, e.TraceID)
+		p.serviceGraphRequestClientSecondsHistogram.Observe(clientServerLabelValues, e.ClientLatencySec, e.TraceID)
 	} else if e.IsExpired() {
 		p.metricUnpairedEdges.Inc()
 	}
