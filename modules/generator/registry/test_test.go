@@ -31,9 +31,9 @@ func TestTestRegistry_histogram(t *testing.T) {
 	histogram := testRegistry.NewHistogram("histogram", []string{"foo", "bar"}, []float64{1.0, 2.0})
 
 	labelValues := NewLabelValues([]string{"foo-value", "bar-value"})
-	histogram.Observe(labelValues, 1.0, "")
-	histogram.Observe(labelValues, 2.0, "")
-	histogram.Observe(labelValues, 2.5, "")
+	histogram.ObserveWithExemplar(labelValues, 1.0, "")
+	histogram.ObserveWithExemplar(labelValues, 2.0, "")
+	histogram.ObserveWithExemplar(labelValues, 2.5, "")
 
 	lbls := labels.FromMap(map[string]string{
 		"foo": "foo-value",

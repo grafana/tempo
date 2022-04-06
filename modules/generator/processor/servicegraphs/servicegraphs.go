@@ -206,8 +206,8 @@ func (p *processor) collectEdge(e *store.Edge) {
 			p.serviceGraphRequestFailedTotal.Inc(clientServerLabelValues, 1)
 		}
 
-		p.serviceGraphRequestServerSecondsHistogram.Observe(clientServerLabelValues, e.ServerLatencySec, e.TraceID)
-		p.serviceGraphRequestClientSecondsHistogram.Observe(clientServerLabelValues, e.ClientLatencySec, e.TraceID)
+		p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(clientServerLabelValues, e.ServerLatencySec, e.TraceID)
+		p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(clientServerLabelValues, e.ClientLatencySec, e.TraceID)
 	} else if e.IsExpired() {
 		p.metricUnpairedEdges.Inc()
 	}

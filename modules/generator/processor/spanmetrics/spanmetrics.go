@@ -87,5 +87,5 @@ func (p *processor) aggregateMetricsForSpan(svcName string, span *v1_trace.Span)
 	registrylabelValues := registry.NewLabelValues(labelValues)
 
 	p.spanMetricsCallsTotal.Inc(registrylabelValues, 1)
-	p.spanMetricsDurationSeconds.Observe(registrylabelValues, latencySeconds, util.TraceIDToHexString(span.TraceId))
+	p.spanMetricsDurationSeconds.ObserveWithExemplar(registrylabelValues, latencySeconds, util.TraceIDToHexString(span.TraceId))
 }

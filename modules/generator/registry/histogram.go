@@ -77,7 +77,7 @@ func newHistogram(name string, labels []string, buckets []float64, onAddSeries f
 	}
 }
 
-func (h *histogram) Observe(labelValues *LabelValues, value float64, traceID string) {
+func (h *histogram) ObserveWithExemplar(labelValues *LabelValues, value float64, traceID string) {
 	if len(h.labels) != len(labelValues.getValues()) {
 		panic(fmt.Sprintf("length of given label values does not match with labels, labels: %v, label values: %v", h.labels, labelValues))
 	}
