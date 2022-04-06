@@ -749,6 +749,7 @@ github.com/prometheus/prometheus/util/gate
 github.com/prometheus/prometheus/util/logging
 github.com/prometheus/prometheus/util/osutil
 github.com/prometheus/prometheus/util/pool
+github.com/prometheus/prometheus/util/strutil
 github.com/prometheus/prometheus/util/testutil
 # github.com/prometheus/statsd_exporter v0.21.0
 ## explicit; go 1.13

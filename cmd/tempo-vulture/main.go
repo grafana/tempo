@@ -340,7 +340,7 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 	//  around the seed.
 	start := seed.Add(-30 * time.Minute).Unix()
 	end := seed.Add(30 * time.Minute).Unix()
-	resp, err := client.SearchWithRange(fmt.Sprintf("%s=%s", attr.Key, attr.Value.GetStringValue()), start, end)
+	resp, err := client.SearchWithRange(fmt.Sprintf("%s=%s", attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with tag %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++

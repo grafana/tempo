@@ -1,7 +1,6 @@
 package util
 
 import (
-	"regexp"
 	"strconv"
 
 	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -34,11 +33,4 @@ func StringifyAnyValue(anyValue *v1common.AnyValue) string {
 	}
 
 	return ""
-}
-
-var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
-
-// SanitizeLabelName sanitizes a label name for Prometheus.
-func SanitizeLabelName(name string) string {
-	return invalidLabelCharRE.ReplaceAllString(name, "_")
 }

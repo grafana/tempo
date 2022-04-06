@@ -12,6 +12,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/prometheus/util/strutil"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
@@ -74,7 +75,7 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 	labels := []string{"client", "server"}
 
 	for _, d := range cfg.Dimensions {
-		labels = append(labels, tempo_util.SanitizeLabelName(d))
+		labels = append(labels, strutil.SanitizeLabelName(d))
 	}
 
 	p := &processor{
@@ -206,7 +207,10 @@ func (p *processor) Shutdown(_ context.Context) {
 // Returns true if the edge is completed or expired and should be deleted.
 func (p *processor) collectEdge(e *store.Edge) {
 	if e.IsCompleted() {
-		values := []string{e.ClientService, e.ServerService}
+		values := make([]string, 0, 2+len(p.cfg.Dimensions))
+		values = append(values, e.ClientService)
+		values = append(values, e.ServerService)
+
 		for _, dimension := range p.cfg.Dimensions {
 			values = append(values, e.Dimensions[dimension])
 		}
@@ -224,22 +228,23 @@ func (p *processor) collectEdge(e *store.Edge) {
 	}
 }
 
-func (p *processor) upsertDimensions(m map[string]string, resourceAttr []*v1common.KeyValue, attr []*v1common.KeyValue) {
+func (p *processor) upsertDimensions(m map[string]string, resourceAttr []*v1common.KeyValue, spanAttr []*v1common.KeyValue) {
 	for _, dim := range p.cfg.Dimensions {
-		for _, kv := range resourceAttr {
-			key := kv.Key
-			if key == dim {
-				m[key] = tempo_util.StringifyAnyValue(kv.Value)
-				continue
-			}
+		if v, found := p.findAttrValue(dim, resourceAttr, spanAttr); found {
+			m[dim] = v
 		}
-		for _, kv := range attr {
-			key := kv.Key
-			if key == dim {
-				m[key] = tempo_util.StringifyAnyValue(kv.Value)
+	}
+}
+
+func (p *processor) findAttrValue(key string, attrSlices ...[]*v1common.KeyValue) (string, bool) {
+	for _, attrs := range attrSlices {
+		for _, kv := range attrs {
+			if key == kv.Key {
+				return tempo_util.StringifyAnyValue(kv.Value), true
 			}
 		}
 	}
+	return "", false
 }
 
 func (p *processor) spanFailed(_ *v1.Span) bool {

@@ -91,29 +91,3 @@ func TestStringifyAnyValue(t *testing.T) {
 		})
 	}
 }
-
-func TestSanitizeLabelName(t *testing.T) {
-	testCases := []struct {
-		name     string
-		label    string
-		expected string
-	}{
-		{
-			name:     "label with no special characters",
-			label:    "label",
-			expected: "label",
-		},
-		{
-			name:     "label with special characters",
-			label:    "label-with.special/characters",
-			expected: "label_with_special_characters",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			str := SanitizeLabelName(tc.label)
-			assert.Equal(t, tc.expected, str)
-		})
-	}
-}
