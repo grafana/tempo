@@ -6,6 +6,7 @@ import "time"
 type Edge struct {
 	key string
 
+	TraceID                            string
 	ServerService, ClientService       string
 	ServerLatencySec, ClientLatencySec float64
 

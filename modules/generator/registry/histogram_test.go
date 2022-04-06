@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/prometheus/model/exemplar"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 )
@@ -19,8 +21,8 @@ func Test_histogram(t *testing.T) {
 
 	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, onAdd, nil)
 
-	h.Observe(NewLabelValues([]string{"value-1"}), 1.0)
-	h.Observe(NewLabelValues([]string{"value-2"}), 1.5)
+	h.ObserveWithExemplar(NewLabelValues([]string{"value-1"}), 1.0, "trace-1")
+	h.ObserveWithExemplar(NewLabelValues([]string{"value-2"}), 1.5, "trace-2")
 
 	assert.Equal(t, 2, seriesAdded)
 
@@ -37,10 +39,22 @@ func Test_histogram(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 1),
 	}
-	collectMetricAndAssert(t, h, collectionTimeMs, nil, 10, expectedSamples)
+	expectedExemplars := []exemplarSample{
+		newExemplar(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, exemplar.Exemplar{
+			Labels: labels.FromMap(map[string]string{"traceID": "trace-1"}),
+			Value:  1.0,
+			Ts:     collectionTimeMs,
+		}),
+		newExemplar(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, exemplar.Exemplar{
+			Labels: labels.FromMap(map[string]string{"traceID": "trace-2"}),
+			Value:  1.5,
+			Ts:     collectionTimeMs,
+		}),
+	}
+	collectMetricAndAssert(t, h, collectionTimeMs, nil, 10, expectedSamples, expectedExemplars)
 
-	h.Observe(NewLabelValues([]string{"value-2"}), 2.5)
-	h.Observe(NewLabelValues([]string{"value-3"}), 3.0)
+	h.ObserveWithExemplar(NewLabelValues([]string{"value-2"}), 2.5, "trace-2.2")
+	h.ObserveWithExemplar(NewLabelValues([]string{"value-3"}), 3.0, "trace-3")
 
 	assert.Equal(t, 3, seriesAdded)
 
@@ -62,17 +76,29 @@ func Test_histogram(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-3", "le": "2"}, collectionTimeMs, 0),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-3", "le": "+Inf"}, collectionTimeMs, 1),
 	}
-	collectMetricAndAssert(t, h, collectionTimeMs, nil, 15, expectedSamples)
+	expectedExemplars = []exemplarSample{
+		newExemplar(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, exemplar.Exemplar{
+			Labels: labels.FromMap(map[string]string{"traceID": "trace-2.2"}),
+			Value:  2.5,
+			Ts:     collectionTimeMs,
+		}),
+		newExemplar(map[string]string{"__name__": "my_histogram_bucket", "label": "value-3", "le": "+Inf"}, exemplar.Exemplar{
+			Labels: labels.FromMap(map[string]string{"traceID": "trace-3"}),
+			Value:  3.0,
+			Ts:     collectionTimeMs,
+		}),
+	}
+	collectMetricAndAssert(t, h, collectionTimeMs, nil, 15, expectedSamples, expectedExemplars)
 }
 
 func Test_histogram_invalidLabelValues(t *testing.T) {
 	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, nil, nil)
 
 	assert.Panics(t, func() {
-		h.Observe(nil, 1.0)
+		h.ObserveWithExemplar(nil, 1.0, "")
 	})
 	assert.Panics(t, func() {
-		h.Observe(NewLabelValues([]string{"value-1", "value-2"}), 1.0)
+		h.ObserveWithExemplar(NewLabelValues([]string{"value-1", "value-2"}), 1.0, "")
 	})
 }
 
@@ -88,8 +114,8 @@ func Test_histogram_cantAdd(t *testing.T) {
 	// allow adding new series
 	canAdd = true
 
-	h.Observe(NewLabelValues([]string{"value-1"}), 1.0)
-	h.Observe(NewLabelValues([]string{"value-2"}), 1.5)
+	h.ObserveWithExemplar(NewLabelValues([]string{"value-1"}), 1.0, "")
+	h.ObserveWithExemplar(NewLabelValues([]string{"value-2"}), 1.5, "")
 
 	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
@@ -104,13 +130,13 @@ func Test_histogram_cantAdd(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 1),
 	}
-	collectMetricAndAssert(t, h, collectionTimeMs, nil, 10, expectedSamples)
+	collectMetricAndAssert(t, h, collectionTimeMs, nil, 10, expectedSamples, nil)
 
 	// block new series - existing series can still be updated
 	canAdd = false
 
-	h.Observe(NewLabelValues([]string{"value-2"}), 2.5)
-	h.Observe(NewLabelValues([]string{"value-3"}), 3.0)
+	h.ObserveWithExemplar(NewLabelValues([]string{"value-2"}), 2.5, "")
+	h.ObserveWithExemplar(NewLabelValues([]string{"value-3"}), 3.0, "")
 
 	collectionTimeMs = time.Now().UnixMilli()
 	expectedSamples = []sample{
@@ -125,7 +151,7 @@ func Test_histogram_cantAdd(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, h, collectionTimeMs, nil, 10, expectedSamples)
+	collectMetricAndAssert(t, h, collectionTimeMs, nil, 10, expectedSamples, nil)
 }
 
 func Test_histogram_removeStaleSeries(t *testing.T) {
@@ -138,8 +164,8 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, nil, onRemove)
 
 	timeMs := time.Now().UnixMilli()
-	h.Observe(NewLabelValues([]string{"value-1"}), 1.0)
-	h.Observe(NewLabelValues([]string{"value-2"}), 1.5)
+	h.ObserveWithExemplar(NewLabelValues([]string{"value-1"}), 1.0, "")
+	h.ObserveWithExemplar(NewLabelValues([]string{"value-2"}), 1.5, "")
 
 	h.removeStaleSeries(timeMs)
 
@@ -158,13 +184,13 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 1),
 	}
-	collectMetricAndAssert(t, h, collectionTimeMs, nil, 10, expectedSamples)
+	collectMetricAndAssert(t, h, collectionTimeMs, nil, 10, expectedSamples, nil)
 
 	time.Sleep(10 * time.Millisecond)
 	timeMs = time.Now().UnixMilli()
 
 	// update value-2 series
-	h.Observe(NewLabelValues([]string{"value-2"}), 2.5)
+	h.ObserveWithExemplar(NewLabelValues([]string{"value-2"}), 2.5, "")
 
 	h.removeStaleSeries(timeMs)
 
@@ -178,14 +204,14 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, h, collectionTimeMs, nil, 5, expectedSamples)
+	collectMetricAndAssert(t, h, collectionTimeMs, nil, 5, expectedSamples, nil)
 }
 
 func Test_histogram_externalLabels(t *testing.T) {
 	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, nil, nil)
 
-	h.Observe(NewLabelValues([]string{"value-1"}), 1.0)
-	h.Observe(NewLabelValues([]string{"value-2"}), 1.5)
+	h.ObserveWithExemplar(NewLabelValues([]string{"value-1"}), 1.0, "")
+	h.ObserveWithExemplar(NewLabelValues([]string{"value-2"}), 1.5, "")
 
 	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
@@ -200,7 +226,7 @@ func Test_histogram_externalLabels(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2", "external_label": "external_value"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf", "external_label": "external_value"}, collectionTimeMs, 1),
 	}
-	collectMetricAndAssert(t, h, collectionTimeMs, map[string]string{"external_label": "external_value"}, 10, expectedSamples)
+	collectMetricAndAssert(t, h, collectionTimeMs, map[string]string{"external_label": "external_value"}, 10, expectedSamples, nil)
 }
 
 func Test_histogram_concurrencyDataRace(t *testing.T) {
@@ -221,8 +247,8 @@ func Test_histogram_concurrencyDataRace(t *testing.T) {
 
 	for i := 0; i < 4; i++ {
 		go accessor(func() {
-			h.Observe(NewLabelValues([]string{"value-1"}), 1.0)
-			h.Observe(NewLabelValues([]string{"value-2"}), 1.5)
+			h.ObserveWithExemplar(NewLabelValues([]string{"value-1"}), 1.0, "")
+			h.ObserveWithExemplar(NewLabelValues([]string{"value-2"}), 1.5, "")
 		})
 	}
 
@@ -233,7 +259,7 @@ func Test_histogram_concurrencyDataRace(t *testing.T) {
 		for i := range s {
 			s[i] = letters[rand.Intn(len(letters))]
 		}
-		h.Observe(NewLabelValues([]string{string(s)}), 1.0)
+		h.ObserveWithExemplar(NewLabelValues([]string{string(s)}), 1.0, "")
 	})
 
 	go accessor(func() {
@@ -266,7 +292,7 @@ func Test_histogram_concurrencyCorrectness(t *testing.T) {
 				case <-end:
 					return
 				default:
-					h.Observe(NewLabelValues([]string{"value-1"}), 2.0)
+					h.ObserveWithExemplar(NewLabelValues([]string{"value-1"}), 2.0, "")
 					totalCount.Inc()
 				}
 			}
@@ -286,5 +312,5 @@ func Test_histogram_concurrencyCorrectness(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, float64(totalCount.Load())),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, float64(totalCount.Load())),
 	}
-	collectMetricAndAssert(t, h, collectionTimeMs, nil, 5, expectedSamples)
+	collectMetricAndAssert(t, h, collectionTimeMs, nil, 5, expectedSamples, nil)
 }

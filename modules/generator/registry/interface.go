@@ -15,9 +15,8 @@ type Counter interface {
 // Histogram
 // https://prometheus.io/docs/concepts/metric_types/#histogram
 type Histogram interface {
-	Observe(values *LabelValues, value float64)
-	// TODO support exemplars
-	//ObserveWithExemplar(lbls labels.Labels, value float64, exemplarLbls labels.Labels)
+	// ObserveWithExemplar observes a datapoint with the given values. traceID will be added as exemplar.
+	ObserveWithExemplar(values *LabelValues, value float64, traceID string)
 }
 
 // LabelValues is a wrapper around a slice of label values. It has the ability to cache the hash of
