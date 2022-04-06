@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
@@ -11,7 +12,6 @@ import (
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -79,7 +79,7 @@ func (p *processor) aggregateMetricsForSpan(svcName string, span *v1_trace.Span)
 	for _, d := range p.cfg.Dimensions {
 		for _, attr := range span.Attributes {
 			if d == attr.Key {
-				labelValues = append(labelValues, attr.GetValue().GetStringValue())
+				labelValues = append(labelValues, util.StringifyAnyValue(attr.Value))
 			}
 		}
 	}

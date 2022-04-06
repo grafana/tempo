@@ -26,6 +26,7 @@ func TestServiceGraphs(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 
 	cfg.HistogramBuckets = []float64{2.0, 3.0}
+	cfg.Dimensions = []string{"component"}
 
 	p := New(cfg, "test", testRegistry, log.NewNopLogger())
 	defer p.Shutdown(context.Background())
@@ -40,12 +41,14 @@ func TestServiceGraphs(t *testing.T) {
 	sgp.store.Expire()
 
 	lbAppLabels := labels.FromMap(map[string]string{
-		"client": "lb",
-		"server": "app",
+		"client":    "lb",
+		"server":    "app",
+		"component": "net/http",
 	})
 	appDbLabels := labels.FromMap(map[string]string{
-		"client": "app",
-		"server": "db",
+		"client":    "app",
+		"server":    "db",
+		"component": "net/http",
 	})
 
 	fmt.Println(testRegistry)

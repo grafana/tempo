@@ -23,6 +23,11 @@ type Config struct {
 	// Buckets for latency histogram in seconds.
 	HistogramBuckets []float64 `yaml:"histogram_buckets"`
 
+	// Additional dimensions (labels) to be added to the metric along with the default ones.
+	// If client and server spans have the same attribute, behaviour is undetermined
+	// (either value could get used)
+	Dimensions []string `yaml:"dimensions"`
+
 	// SuccessCodes *successCodes `yaml:"success_codes"`
 }
 
