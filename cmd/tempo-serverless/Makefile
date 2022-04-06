@@ -10,7 +10,7 @@ IN_LAMBDA=cd lambda &&
 # build docker images for local testing and code zip files for google cloud functions
 #
 .PHONY: build-docker
-build-docker: build-docker-gcf build-docker-lambda
+build-docker: build-docker-gcf build-docker-lambda-test
 
 .PHONY: build-docker-gcf
 build-docker-gcf: 
@@ -31,8 +31,8 @@ build-gcf-zip:
 #
 # build docker images for local testing and code zip files for aws lambda
 #
-.PHONY: build-docker-lambda
-build-docker-lambda:
+.PHONY: build-docker-lambda-test
+build-docker-lambda-test:
 	$(IN_LAMBDA) CGO_ENABLED=0 go build -o ./lambda
 	$(IN_LAMBDA) docker build -f ./Dockerfile -t tempo-serverless-lambda .
 

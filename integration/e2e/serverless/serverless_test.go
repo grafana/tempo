@@ -141,7 +141,7 @@ func newTempoServerlessGCF() *e2e.HTTPService {
 func newTempoServerlessLambda() *e2e.HTTPService {
 	s := e2e.NewHTTPService(
 		"serverless",
-		"tempo-serverless-lambda", // created by build-docker-lambda make target
+		"tempo-serverless-lambda", // created by build-docker-lambda-test make target
 		nil,
 		nil,
 		9000,
