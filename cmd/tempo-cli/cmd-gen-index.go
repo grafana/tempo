@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
@@ -22,11 +21,6 @@ type indexCmd struct {
 }
 
 func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]common.Record, error, error) {
-	v, err := encoding.FromVersion(meta.Version)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	var replayError error
 	// replay file to extract records
 	f, err := os.OpenFile(filepath, os.O_RDONLY, 0644)
@@ -34,7 +28,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 		return nil, nil, err
 	}
 
-	dataReader, err := v.NewDataReader(backend.NewContextReaderWithAllReader(f), meta.Encoding)
+	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(f), meta.Encoding)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -42,7 +36,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 
 	var buffer []byte
 	var records []common.Record
-	objectRW := v.NewObjectReaderWriter()
+	objectRW := v2.NewObjectReaderWriter()
 	currentOffset := uint64(0)
 	for {
 		buffer, pageLen, err := dataReader.NextPage(buffer)
@@ -121,6 +115,10 @@ func (cmd *indexCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
+	if meta.Version != v2.VersionString {
+		return fmt.Errorf("unsupported block version: %s", meta.Version)
+	}
+
 	// replay file to extract records
 	records, replayError, err := ReplayBlockAndGetRecords(meta, cmd.backendOptions.Bucket+cmd.TenantID+"/"+cmd.BlockID+"/"+dataFilename)
 	if replayError != nil {
@@ -133,13 +131,7 @@ func (cmd *indexCmd) Run(ctx *globalOptions) error {
 	}
 
 	// write using IndexWriter
-	v, err := encoding.FromVersion(meta.Version)
-	if err != nil {
-		fmt.Println("error creating versioned encoding", err)
-		return err
-	}
-
-	indexWriter := v.NewIndexWriter(int(meta.IndexPageSize))
+	indexWriter := v2.NewIndexWriter(int(meta.IndexPageSize))
 	indexBytes, err := indexWriter.Write(records)
 	if err != nil {
 		fmt.Println("error writing records to indexWriter", err)
@@ -165,7 +157,7 @@ func (cmd *indexCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	indexReader, err := v.NewIndexReader(backend.NewContextReaderWithAllReader(indexFile), int(meta.IndexPageSize), len(records))
+	indexReader, err := v2.NewIndexReader(backend.NewContextReaderWithAllReader(indexFile), int(meta.IndexPageSize), len(records))
 	if err != nil {
 		fmt.Println("error reading index file")
 		return err
@@ -179,7 +171,7 @@ func (cmd *indexCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	dataReader, err := v.NewDataReader(backend.NewContextReaderWithAllReader(dataFile), meta.Encoding)
+	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(dataFile), meta.Encoding)
 	if err != nil {
 		fmt.Println("error reading data file")
 		return err

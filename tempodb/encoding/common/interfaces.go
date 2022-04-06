@@ -51,3 +51,15 @@ func DefaultCompactionOptions() CompactionOptions {
 		OutputBlocks:       1,
 	}
 }
+
+type IDIterator interface {
+	Next(ctx context.Context) (ID, error)
+	Close()
+}
+
+type BackendBlock interface {
+	Finder
+	Searcher
+
+	BlockMeta() *backend.BlockMeta
+}

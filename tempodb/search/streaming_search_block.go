@@ -13,7 +13,6 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
@@ -26,7 +25,6 @@ type StreamingSearchBlock struct {
 	closed    atomic.Bool
 	header    *tempofb.SearchBlockHeaderMutable
 	headerMtx sync.RWMutex
-	v         encoding.VersionedEncoding
 	enc       backend.Encoding
 }
 
@@ -45,21 +43,16 @@ func (s *StreamingSearchBlock) Clear() error {
 
 // NewStreamingSearchBlockForFile creates a new streaming block that will read/write the given file.
 // File must be opened for read/write permissions.
-func NewStreamingSearchBlockForFile(f *os.File, blockID uuid.UUID, version string, enc backend.Encoding) (*StreamingSearchBlock, error) {
-	v, err := encoding.FromVersion(version)
-	if err != nil {
-		return nil, err
-	}
+func NewStreamingSearchBlockForFile(f *os.File, blockID uuid.UUID, enc backend.Encoding) (*StreamingSearchBlock, error) {
 	s := &StreamingSearchBlock{
 		blockID: blockID,
 		file:    f,
 		header:  tempofb.NewSearchBlockHeaderMutable(),
-		v:       v,
 		enc:     enc,
 	}
 
 	// Use versioned encoding to create paged entries
-	dataWriter, err := s.v.NewDataWriter(f, enc)
+	dataWriter, err := v2.NewDataWriter(f, enc)
 	if err != nil {
 		return nil, err
 	}
@@ -180,13 +173,13 @@ func (s *StreamingSearchBlock) Iterator() (v2.Iterator, error) {
 		pagesBuffer: make([][]byte, 1),
 	}
 
-	dr, err := s.v.NewDataReader(backend.NewContextReaderWithAllReader(s.file), s.enc)
+	dr, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(s.file), s.enc)
 	if err != nil {
 		return nil, err
 	}
 	iter.dataReader = dr
 
-	iter.objectRW = s.v.NewObjectReaderWriter()
+	iter.objectRW = v2.NewObjectReaderWriter()
 
 	combiner := &DataCombiner{}
 

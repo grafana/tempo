@@ -1,8 +1,8 @@
 package encoding
 
 import (
+	"context"
 	"fmt"
-	"io"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -15,15 +15,11 @@ import (
 type VersionedEncoding interface {
 	Version() string
 
-	NewDataWriter(writer io.Writer, encoding backend.Encoding) (common.DataWriter, error)
-	NewIndexWriter(pageSizeBytes int) common.IndexWriter
-
-	NewDataReader(ra backend.ContextReader, encoding backend.Encoding) (common.DataReader, error)
-	NewIndexReader(ra backend.ContextReader, pageSizeBytes int, totalPages int) (common.IndexReader, error)
-
-	NewObjectReaderWriter() common.ObjectReaderWriter
+	OpenBackendBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error)
 
 	NewCompactor() common.Compactor
+
+	CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error
 }
 
 // FromVersion returns a versioned encoding for the provided string
@@ -46,4 +42,22 @@ func allEncodings() []VersionedEncoding {
 	return []VersionedEncoding{
 		v2.Encoding{},
 	}
+}
+
+// These helpers choose the right encoding for the given block.
+
+func OpenBackendBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error) {
+	v, err := FromVersion(meta.Version)
+	if err != nil {
+		return nil, err
+	}
+	return v.OpenBackendBlock(meta, r)
+}
+
+func CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error {
+	v, err := FromVersion(meta.Version)
+	if err != nil {
+		return err
+	}
+	return v.CopyBlock(ctx, meta, from, to)
 }

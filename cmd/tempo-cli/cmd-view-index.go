@@ -32,6 +32,10 @@ func (cmd *viewIndexCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
+	if meta.Version != v2.VersionString {
+		return fmt.Errorf("unsupported block version: %s", meta.Version)
+	}
+
 	b, err := v2.NewBackendBlock(meta, r)
 	if err != nil {
 		return err

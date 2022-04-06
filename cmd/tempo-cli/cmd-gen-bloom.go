@@ -12,7 +12,6 @@ import (
 	willf_bloom "github.com/willf/bloom"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
@@ -28,50 +27,31 @@ type bloomCmd struct {
 type forEachRecord func(id common.ID) error
 
 func ReplayBlockAndDoForEachRecord(meta *backend.BlockMeta, filepath string, forEach forEachRecord) error {
-	v, err := encoding.FromVersion(meta.Version)
-	if err != nil {
-		return err
-	}
-
 	// replay file to extract records
 	f, err := os.OpenFile(filepath, os.O_RDONLY, 0644)
 	if err != nil {
 		return err
 	}
 
-	dataReader, err := v.NewDataReader(backend.NewContextReaderWithAllReader(f), meta.Encoding)
+	iter, err := v2.NewIDIterator(backend.NewContextReaderWithAllReader(f), meta.Encoding)
 	if err != nil {
 		return fmt.Errorf("error creating data reader: %w", err)
 	}
-	defer dataReader.Close()
+	defer iter.Close()
 
-	var buffer []byte
-	objectRW := v.NewObjectReaderWriter()
 	for {
-		buffer, _, err := dataReader.NextPage(buffer)
+		var id common.ID
+		id, err = iter.Next(context.TODO())
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return fmt.Errorf("error reading page from datareader: %w", err)
+			return err
 		}
 
-		iter := v2.NewIterator(bytes.NewReader(buffer), objectRW)
-		var iterErr error
-		for {
-			var id common.ID
-			id, _, iterErr = iter.Next(context.TODO())
-			if iterErr != nil {
-				break
-			}
-			err := forEach(id)
-			if err != nil {
-				return fmt.Errorf("error adding to bloom filter: %w", err)
-			}
-		}
-
-		if iterErr != io.EOF {
-			return iterErr
+		err := forEach(id)
+		if err != nil {
+			return fmt.Errorf("error adding to bloom filter: %w", err)
 		}
 	}
 
@@ -92,6 +72,10 @@ func (cmd *bloomCmd) Run(ctx *globalOptions) error {
 	meta, err := r.BlockMeta(context.TODO(), blockID, cmd.TenantID)
 	if err != nil {
 		return err
+	}
+
+	if meta.Version != v2.VersionString {
+		return fmt.Errorf("unsupported block version: %s", meta.Version)
 	}
 
 	// replay file and add records to bloom filter

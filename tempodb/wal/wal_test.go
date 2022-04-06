@@ -68,9 +68,9 @@ func TestAppend(t *testing.T) {
 	file, err := block.file()
 	require.NoError(t, err)
 
-	dataReader, err := block.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), backend.EncNone)
+	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(file), backend.EncNone)
 	require.NoError(t, err)
-	iterator := v2.NewRecordIterator(records, dataReader, block.encoding.NewObjectReaderWriter())
+	iterator := v2.NewRecordIterator(records, dataReader, v2.NewObjectReaderWriter())
 	defer iterator.Close()
 	i := 0
 

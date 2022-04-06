@@ -25,7 +25,6 @@ var _ common.Finder = (*BackendBlock)(nil)
 var _ common.Searcher = (*BackendBlock)(nil)
 
 // NewBackendBlock returns a BackendBlock for the given backend.BlockMeta
-//  It is version aware.
 func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (*BackendBlock, error) {
 
 	return &BackendBlock{
@@ -92,6 +91,10 @@ func (b *BackendBlock) find(ctx context.Context, id common.ID) ([]byte, error) {
 }
 
 // Iterator returns an Iterator that iterates over the objects in the block from the backend
+func (b *BackendBlock) IDIterator() (common.IDIterator, error) {
+	return NewIDIterator(backend.NewContextReader(b.meta, common.NameObjects, b.reader, false), b.meta.Encoding)
+}
+
 func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (Iterator, error) {
 	// read index
 	ra := backend.NewContextReader(b.meta, common.NameObjects, b.reader, false)

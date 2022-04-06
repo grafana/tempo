@@ -29,6 +29,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/blocklist"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/pool"
@@ -335,7 +336,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	partialTraces, funcErrs, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) (interface{}, error) {
 		meta := payload.(*backend.BlockMeta)
 		r := rw.getReaderForBlock(meta, curTime)
-		block, err := v2.NewBackendBlock(meta, r)
+		block, err := encoding.OpenBackendBlock(meta, r)
 		if err != nil {
 			return nil, err
 		}
@@ -366,7 +367,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 // Search the given block.  This method takes the pre-loaded block meta instead of a block ID, which
 // eliminates a read per search request.
 func (rw *readerWriter) Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
-	block, err := v2.NewBackendBlock(meta, rw.r)
+	block, err := encoding.OpenBackendBlock(meta, rw.r)
 	if err != nil {
 		return nil, err
 	}
