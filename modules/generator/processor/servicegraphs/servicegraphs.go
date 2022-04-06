@@ -218,8 +218,7 @@ func (p *processor) collectEdge(e *store.Edge) {
 		labelValues = append(labelValues, e.ClientService, e.ServerService)
 
 		for _, dimension := range p.cfg.Dimensions {
-			value, _ := e.Dimensions[dimension]
-			labelValues = append(labelValues, value)
+			labelValues = append(labelValues, e.Dimensions[dimension])
 		}
 
 		registryLabelValues := registry.NewLabelValues(labelValues)
