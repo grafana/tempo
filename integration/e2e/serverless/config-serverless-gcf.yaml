@@ -32,7 +32,7 @@ storage:
     backend: s3
     s3:
       bucket: tempo
-      endpoint: tempo_e2e-minio-9000:9000  # TODO: this is brittle, fix this eventually
+      endpoint: tempo_e2e-minio-9000:9000 # TODO: this is brittle, fix this eventually
       access_key: Cheescake # TODO: use cortex_e2e.MinioAccessKey
       secret_key: supersecret # TODO: use cortex_e2e.MinioSecretKey
       insecure: true
@@ -44,15 +44,15 @@ memberlist:
   abort_if_cluster_join_fails: false
   bind_port: 7946
   join_members:
-  - tempo_e2e-distributor:7946
-  - tempo_e2e-ingester-1:7946
-  - tempo_e2e-ingester-2:7946
-  - tempo_e2e-ingester-3:7946
-  - tempo_e2e-querier:7946
+    - tempo_e2e-distributor:7946
+    - tempo_e2e-ingester-1:7946
+    - tempo_e2e-ingester-2:7946
+    - tempo_e2e-ingester-3:7946
+    - tempo_e2e-querier:7946
 
 querier:
   search:
-    external_endpoints: 
-    - http://tempo_e2e-serverless:8080/
+    external_endpoints:
+      - http://tempo_e2e-serverless:8080/
   frontend_worker:
     frontend_address: tempo_e2e-query-frontend:9095
