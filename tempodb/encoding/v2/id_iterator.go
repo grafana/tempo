@@ -10,29 +10,29 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-type idIterator struct {
+type IDIterator struct {
 	dr     common.DataReader
 	or     common.ObjectReaderWriter
 	iter   Iterator
 	buffer []byte
 }
 
-var _ common.IDIterator = (*idIterator)(nil)
+var _ common.IDIterator = (*IDIterator)(nil)
 
-func NewIDIterator(cr backend.ContextReader, enc backend.Encoding) (*idIterator, error) {
+func NewIDIterator(cr backend.ContextReader, enc backend.Encoding) (*IDIterator, error) {
 	dr, err := NewDataReader(cr, enc)
 	if err != nil {
 		return nil, fmt.Errorf("error creating data reader: %w", err)
 	}
 
-	i := &idIterator{
+	i := &IDIterator{
 		dr: dr,
 		or: NewObjectReaderWriter(),
 	}
 	return i, nil
 }
 
-func (i *idIterator) Next(ctx context.Context) (id common.ID, err error) {
+func (i *IDIterator) Next(ctx context.Context) (id common.ID, err error) {
 
 	// Read from current iterator until done
 	if i.iter != nil {
@@ -60,6 +60,6 @@ func (i *idIterator) Next(ctx context.Context) (id common.ID, err error) {
 	return id, err
 }
 
-func (i *idIterator) Close() {
+func (i *IDIterator) Close() {
 	i.dr.Close()
 }
