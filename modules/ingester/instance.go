@@ -623,7 +623,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*wal.LocalBlock
 			return nil, err
 		}
 
-		b, err := encoding.OpenBackendBlock(meta, i.localReader)
+		b, err := encoding.OpenBlock(meta, i.localReader)
 		if err != nil {
 			return nil, err
 		}

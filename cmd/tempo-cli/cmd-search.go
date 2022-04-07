@@ -99,7 +99,7 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 	fmt.Println("Blocks In Range:", len(blockmetas))
 	foundids := []string{}
 	for _, meta := range blockmetas {
-		block, err := encoding.OpenBackendBlock(meta, r)
+		block, err := encoding.OpenBlock(meta, r)
 		if err != nil {
 			return err
 		}

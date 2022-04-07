@@ -15,7 +15,7 @@ import (
 type VersionedEncoding interface {
 	Version() string
 
-	OpenBackendBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error)
+	OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error)
 
 	NewCompactor() common.Compactor
 
@@ -46,12 +46,12 @@ func allEncodings() []VersionedEncoding {
 
 // These helpers choose the right encoding for the given block.
 
-func OpenBackendBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error) {
+func OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error) {
 	v, err := FromVersion(meta.Version)
 	if err != nil {
 		return nil, err
 	}
-	return v.OpenBackendBlock(meta, r)
+	return v.OpenBlock(meta, r)
 }
 
 func CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error {

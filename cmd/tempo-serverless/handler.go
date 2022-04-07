@@ -89,7 +89,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		DataEncoding:  searchReq.DataEncoding,
 	}
 
-	block, err := encoding.OpenBackendBlock(meta, reader)
+	block, err := encoding.OpenBlock(meta, reader)
 	if err != nil {
 		return nil, httpError("creating backend block", err, http.StatusInternalServerError)
 	}

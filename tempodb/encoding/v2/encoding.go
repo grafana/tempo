@@ -20,7 +20,7 @@ func (v Encoding) NewCompactor() common.Compactor {
 	return NewCompactor()
 }
 
-func (v Encoding) OpenBackendBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error) {
+func (v Encoding) OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error) {
 	return NewBackendBlock(meta, r)
 }
 

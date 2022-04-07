@@ -143,7 +143,7 @@ func queryBlock(ctx context.Context, r backend.Reader, c backend.Compactor, bloc
 		meta = &compactedMeta.BlockMeta
 	}
 
-	block, err := encoding.OpenBackendBlock(meta, r)
+	block, err := encoding.OpenBlock(meta, r)
 	if err != nil {
 		return nil, err
 	}
