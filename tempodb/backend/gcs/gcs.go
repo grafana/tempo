@@ -14,7 +14,10 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/cristalhq/hedgedhttp"
-	"github.com/opentracing/opentracing-go"
+	gkLog "github.com/go-kit/log"
+	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/pkg/util/log"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -25,6 +28,7 @@ import (
 )
 
 type readerWriter struct {
+	logger       gkLog.Logger
 	cfg          *Config
 	bucket       *storage.BucketHandle
 	hedgedBucket *storage.BucketHandle
@@ -35,7 +39,7 @@ func NewNoConfirm(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Co
 	return internalNew(cfg, false)
 }
 
-// New gets the S3 backend
+// New gets the GCS backend
 func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
 	return internalNew(cfg, true)
 }
@@ -62,6 +66,7 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 
 	rw := &readerWriter{
 		cfg:          cfg,
+		logger:       log.Logger,
 		bucket:       bucket,
 		hedgedBucket: hedgedBucket,
 	}
@@ -168,7 +173,15 @@ func (rw *readerWriter) Shutdown() {
 }
 
 func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer {
-	w := rw.bucket.Object(name).NewWriter(ctx)
+	o := rw.bucket.Object(name)
+	if configuredObjectAttributes(rw.cfg.ObjAttrs) {
+		_, err := o.Update(ctx, rw.cfg.ObjAttrs)
+		if err != nil {
+			level.Error(rw.logger).Log("msg", "failed to update object attributes", "objectName", name, "err", err)
+			return nil
+		}
+	}
+	w := o.NewWriter(ctx)
 	w.ChunkSize = rw.cfg.ChunkBufferSize
 	return w
 }
@@ -276,4 +289,49 @@ func readError(err error) error {
 	}
 
 	return err
+}
+
+// configuredObjectAttributes returns a boolean to indicate if any of the supported GCS Object Attributes have been set in the configuration.
+func configuredObjectAttributes(o storage.ObjectAttrsToUpdate) bool {
+	if o.EventBasedHold != nil {
+		return true
+	}
+
+	if o.TemporaryHold != nil {
+		return true
+	}
+
+	if o.ContentType != nil {
+		return true
+	}
+
+	if o.ContentLanguage != nil {
+		return true
+	}
+
+	if o.ContentEncoding != nil {
+		return true
+	}
+
+	if o.ContentDisposition != nil {
+		return true
+	}
+
+	if o.CacheControl != nil {
+		return true
+	}
+
+	if o.Metadata != nil {
+		return true
+	}
+
+	if !o.CustomTime.IsZero() {
+		return true
+	}
+
+	if o.ACL != nil {
+		return true
+	}
+
+	return false
 }
