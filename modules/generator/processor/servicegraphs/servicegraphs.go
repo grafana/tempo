@@ -16,11 +16,11 @@ import (
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
-	"github.com/grafana/tempo/modules/generator/processor/util"
+	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
@@ -73,7 +73,6 @@ type processor struct {
 
 func New(cfg Config, tenant string, registry registry.Registry, logger log.Logger) gen.Processor {
 	labels := []string{"client", "server"}
-
 	for _, d := range cfg.Dimensions {
 		labels = append(labels, strutil.SanitizeLabelName(d))
 	}
@@ -133,12 +132,12 @@ func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 	}
 }
 
-func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
+func (p *processor) consume(resourceSpans []*v1_trace.ResourceSpans) error {
 	var totalDroppedSpans int
 
 	for _, rs := range resourceSpans {
-		svcName := util.GetServiceName(rs.Resource)
-		if svcName == "" {
+		svcName, ok := processor_util.FindServiceName(rs.Resource.Attributes)
+		if !ok {
 			continue
 		}
 
@@ -150,7 +149,7 @@ func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
 			)
 			for _, span := range ils.Spans {
 				switch span.Kind {
-				case v1.Span_SPAN_KIND_CLIENT:
+				case v1_trace.Span_SPAN_KIND_CLIENT:
 					k = key(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
 					edge, err = p.store.UpsertEdge(k, func(e *store.Edge) {
 						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
@@ -159,7 +158,7 @@ func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
 						e.Failed = e.Failed || p.spanFailed(span)
 						p.upsertDimensions(e.Dimensions, rs.Resource.Attributes, span.Attributes)
 					})
-				case v1.Span_SPAN_KIND_SERVER:
+				case v1_trace.Span_SPAN_KIND_SERVER:
 					k = key(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
 					edge, err = p.store.UpsertEdge(k, func(e *store.Edge) {
 						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
@@ -199,6 +198,14 @@ func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
 	return nil
 }
 
+func (p *processor) upsertDimensions(m map[string]string, resourceAttr []*v1_common.KeyValue, spanAttr []*v1_common.KeyValue) {
+	for _, dim := range p.cfg.Dimensions {
+		if v, ok := processor_util.FindAttributeValue(dim, resourceAttr, spanAttr); ok {
+			m[dim] = v
+		}
+	}
+}
+
 func (p *processor) Shutdown(_ context.Context) {
 	close(p.closeCh)
 }
@@ -207,51 +214,32 @@ func (p *processor) Shutdown(_ context.Context) {
 // Returns true if the edge is completed or expired and should be deleted.
 func (p *processor) collectEdge(e *store.Edge) {
 	if e.IsCompleted() {
-		values := make([]string, 0, 2+len(p.cfg.Dimensions))
-		values = append(values, e.ClientService)
-		values = append(values, e.ServerService)
+		labelValues := make([]string, 0, 2+len(p.cfg.Dimensions))
+		labelValues = append(labelValues, e.ClientService, e.ServerService)
 
 		for _, dimension := range p.cfg.Dimensions {
-			values = append(values, e.Dimensions[dimension])
+			labelValues = append(labelValues, e.Dimensions[dimension])
 		}
-		labelValues := registry.NewLabelValues(values)
 
-		p.serviceGraphRequestTotal.Inc(labelValues, 1)
+		registryLabelValues := registry.NewLabelValues(labelValues)
+
+		p.serviceGraphRequestTotal.Inc(registryLabelValues, 1)
 		if e.Failed {
-			p.serviceGraphRequestFailedTotal.Inc(labelValues, 1)
+			p.serviceGraphRequestFailedTotal.Inc(registryLabelValues, 1)
 		}
 
-		p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(labelValues, e.ServerLatencySec, e.TraceID)
-		p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(labelValues, e.ClientLatencySec, e.TraceID)
+		p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID)
+		p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID)
 	} else if e.IsExpired() {
 		p.metricExpiredSpans.Inc()
 	}
 }
 
-func (p *processor) upsertDimensions(m map[string]string, resourceAttr []*v1common.KeyValue, spanAttr []*v1common.KeyValue) {
-	for _, dim := range p.cfg.Dimensions {
-		if v, found := p.findAttrValue(dim, resourceAttr, spanAttr); found {
-			m[dim] = v
-		}
-	}
-}
-
-func (p *processor) findAttrValue(key string, attrSlices ...[]*v1common.KeyValue) (string, bool) {
-	for _, attrs := range attrSlices {
-		for _, kv := range attrs {
-			if key == kv.Key {
-				return tempo_util.StringifyAnyValue(kv.Value), true
-			}
-		}
-	}
-	return "", false
-}
-
-func (p *processor) spanFailed(_ *v1.Span) bool {
+func (p *processor) spanFailed(_ *v1_trace.Span) bool {
 	return false
 }
 
-func spanDurationSec(span *v1.Span) float64 {
+func spanDurationSec(span *v1_trace.Span) float64 {
 	return float64(span.EndTimeUnixNano-span.StartTimeUnixNano) / float64(time.Second.Nanoseconds())
 }
 
