@@ -27,8 +27,9 @@ services:
   prometheus:
     image: prom/prometheus:latest
     command:
-      - "--config.file=/etc/prometheus.yaml"
-      - "--web.enable-remote-write-receiver"
+      - --config.file=/etc/prometheus.yaml
+      - --web.enable-remote-write-receiver
+      - --enable-feature=exemplar-storage
     volumes:
       - ../shared/prometheus.yaml:/etc/prometheus.yaml
     ports:
