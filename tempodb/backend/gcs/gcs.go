@@ -14,9 +14,6 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/cristalhq/hedgedhttp"
-	gkLog "github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/pkg/util/log"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
@@ -28,7 +25,6 @@ import (
 )
 
 type readerWriter struct {
-	logger       gkLog.Logger
 	cfg          *Config
 	bucket       *storage.BucketHandle
 	hedgedBucket *storage.BucketHandle
@@ -66,7 +62,6 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 
 	rw := &readerWriter{
 		cfg:          cfg,
-		logger:       log.Logger,
 		bucket:       bucket,
 		hedgedBucket: hedgedBucket,
 	}
@@ -76,8 +71,12 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 
 // StreamWriter implements backend.Writer
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
-	w := rw.writer(ctx, backend.ObjectFileName(keypath, name))
-	_, err := io.Copy(w, data)
+	w, err := rw.writer(ctx, backend.ObjectFileName(keypath, name))
+	if err != nil {
+		return errors.Wrap(err, "failed to get new writer")
+	}
+
+	_, err = io.Copy(w, data)
 	if err != nil {
 		w.Close()
 		return err
@@ -90,7 +89,11 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
 	var w *storage.Writer
 	if tracker == nil {
-		w = rw.writer(ctx, backend.ObjectFileName(keypath, name))
+		var err error
+		w, err = rw.writer(ctx, backend.ObjectFileName(keypath, name))
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get new writer")
+		}
 	} else {
 		w = tracker.(*storage.Writer)
 	}
@@ -172,18 +175,17 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 func (rw *readerWriter) Shutdown() {
 }
 
-func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer {
+func (rw *readerWriter) writer(ctx context.Context, name string) (*storage.Writer, error) {
 	o := rw.bucket.Object(name)
 	if configuredObjectAttributes(rw.cfg.ObjAttrs) {
 		_, err := o.Update(ctx, rw.cfg.ObjAttrs)
 		if err != nil {
-			level.Error(rw.logger).Log("msg", "failed to update object attributes", "objectName", name, "err", err)
-			return nil
+			return nil, errors.Wrap(err, "failed to update object object attributes")
 		}
 	}
 	w := o.NewWriter(ctx)
 	w.ChunkSize = rw.cfg.ChunkBufferSize
-	return w
+	return w, nil
 }
 
 func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {
