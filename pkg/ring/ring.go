@@ -14,7 +14,7 @@ import (
 // New creates a new distributed consistent hash ring.  It shadows the cortex
 // ring.New method so we can use our own replication strategy for repl factor = 2
 func New(cfg ring.Config, name, key string, reg prometheus.Registerer) (*ring.Ring, error) {
-	reg = prometheus.WrapRegistererWith(prometheus.Labels{"component": name}, prometheus.WrapRegistererWithPrefix("cortex_", reg))
+	reg = prometheus.WrapRegistererWithPrefix("cortex_", reg)
 
 	if cfg.ReplicationFactor == 2 {
 		return newEventuallyConsistentRing(cfg, name, key, reg)

@@ -66,7 +66,7 @@ func New(cfg Config, store storage.Store, overrides *overrides.Overrides, reg pr
 		lifecyclerStore, err := kv.NewClient(
 			cfg.ShardingRing.KVStore,
 			ring.GetCodec(),
-			kv.RegistererWithKVName(prometheus.WrapRegistererWith(prometheus.Labels{"component": "compactor"}, reg), compactorRingKey+"-lifecycler"),
+			kv.RegistererWithKVName(reg, compactorRingKey+"-lifecycler"),
 			log.Logger,
 		)
 		if err != nil {
@@ -82,7 +82,7 @@ func New(cfg Config, store storage.Store, overrides *overrides.Overrides, reg pr
 			return nil, err
 		}
 
-		c.ringLifecycler, err = ring.NewBasicLifecycler(bcfg, compactorRingKey, cfg.OverrideRingKey, lifecyclerStore, delegate, log.Logger, prometheus.WrapRegistererWith(prometheus.Labels{"component": "compactor"}, reg))
+		c.ringLifecycler, err = ring.NewBasicLifecycler(bcfg, compactorRingKey, cfg.OverrideRingKey, lifecyclerStore, delegate, log.Logger, reg)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring lifecycler")
 		}
