@@ -67,4 +67,5 @@ type BackendBlock interface {
 	Searcher
 
 	BlockMeta() *backend.BlockMeta
+	IDIterator() (IDIterator, error)
 }

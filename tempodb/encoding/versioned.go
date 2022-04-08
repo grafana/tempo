@@ -16,12 +16,19 @@ import (
 type VersionedEncoding interface {
 	Version() string
 
+	// OpenBlock for reading
 	OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error)
 
+	// NewCompactor creates a Compactor that can be used to combine blocks of this
+	// encoding. It is expected to use internal details for efficiency.
 	NewCompactor() common.Compactor
 
-	// CreateBlock with the trace contents of the iterator. The new block will have the same ID
+	// CreateBlock with the given attributes and trace contents.
+	// TODO: This is a lot of args and it's more readable than
+	// previously passing in a blockmeta, but can we make it better?
 	CreateBlock(ctx context.Context, cfg *common.BlockConfig, tenantID string, blockID uuid.UUID, encoding backend.Encoding, dataEncoding string, estimatedTotalObjects int, i common.TraceIterator, to backend.Writer) (*backend.BlockMeta, error)
+
+	// CopyBlock from one backend to another.
 	CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error
 }
 
@@ -47,8 +54,7 @@ func allEncodings() []VersionedEncoding {
 	}
 }
 
-// These helpers choose the right encoding for the given block.
-
+// OpenBlock for reading in the backend. It automatically chooes the encoding for the given block.
 func OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error) {
 	v, err := FromVersion(meta.Version)
 	if err != nil {
@@ -57,6 +63,7 @@ func OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, 
 	return v.OpenBlock(meta, r)
 }
 
+// CopyBlock from one backend to another. It automatically chooses the encoding for the given block.
 func CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error {
 	v, err := FromVersion(meta.Version)
 	if err != nil {
