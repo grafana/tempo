@@ -33,25 +33,39 @@ func ReplayBlockAndDoForEachRecord(meta *backend.BlockMeta, filepath string, for
 		return err
 	}
 
-	iter, err := v2.NewIDIterator(backend.NewContextReaderWithAllReader(f), meta.Encoding)
+	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(f), meta.Encoding)
 	if err != nil {
 		return fmt.Errorf("error creating data reader: %w", err)
 	}
-	defer iter.Close()
+	defer dataReader.Close()
 
+	var buffer []byte
+	objectRW := v2.NewObjectReaderWriter()
 	for {
-		var id common.ID
-		id, err = iter.Next(context.TODO())
+		buffer, _, err := dataReader.NextPage(buffer)
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return err
+			return fmt.Errorf("error reading page from datareader: %w", err)
 		}
 
-		err := forEach(id)
-		if err != nil {
-			return fmt.Errorf("error adding to bloom filter: %w", err)
+		iter := v2.NewIterator(bytes.NewReader(buffer), objectRW)
+		var iterErr error
+		for {
+			var id common.ID
+			id, _, iterErr = iter.Next(context.TODO())
+			if iterErr != nil {
+				break
+			}
+			err := forEach(id)
+			if err != nil {
+				return fmt.Errorf("error adding to bloom filter: %w", err)
+			}
+		}
+
+		if iterErr != io.EOF {
+			return iterErr
 		}
 	}
 

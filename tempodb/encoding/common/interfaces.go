@@ -52,11 +52,6 @@ func DefaultCompactionOptions() CompactionOptions {
 	}
 }
 
-type IDIterator interface {
-	Next(ctx context.Context) (ID, error)
-	Close()
-}
-
 type TraceIterator interface {
 	Next(ctx context.Context) (ID, *tempopb.Trace, error)
 	Close()
@@ -67,5 +62,4 @@ type BackendBlock interface {
 	Searcher
 
 	BlockMeta() *backend.BlockMeta
-	IDIterator() (IDIterator, error)
 }
