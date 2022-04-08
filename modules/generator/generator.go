@@ -39,7 +39,6 @@ type Generator struct {
 	overrides metricsGeneratorOverrides
 
 	ringLifecycler *ring.BasicLifecycler
-	ring           *ring.Ring
 
 	instancesMtx sync.RWMutex
 	instances    map[string]*instance
@@ -75,7 +74,7 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 	ringStore, err := kv.NewClient(
 		cfg.Ring.KVStore,
 		ring.GetCodec(),
-		kv.RegistererWithKVName(prometheus.WrapRegistererWithPrefix("cortex_", reg), "metrics-generator"),
+		kv.RegistererWithKVName(prometheus.WrapRegistererWith(prometheus.Labels{"component": "metrics-generator"}, prometheus.WrapRegistererWithPrefix("cortex_", reg)), "metrics-generator"),
 		g.logger,
 	)
 	if err != nil {
@@ -93,15 +92,9 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 	delegate = ring.NewLeaveOnStoppingDelegate(delegate, g.logger)
 	delegate = ring.NewAutoForgetDelegate(ringAutoForgetUnhealthyPeriods*cfg.Ring.HeartbeatTimeout, delegate, g.logger)
 
-	g.ringLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, ringNameForServer, RingKey, ringStore, delegate, g.logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
+	g.ringLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, ringNameForServer, RingKey, ringStore, delegate, g.logger, prometheus.WrapRegistererWith(prometheus.Labels{"component": "metrics-generator"}, prometheus.WrapRegistererWithPrefix("cortex_", reg)))
 	if err != nil {
 		return nil, fmt.Errorf("create ring lifecycler: %w", err)
-	}
-
-	ringCfg := cfg.Ring.ToRingConfig()
-	g.ring, err = ring.NewWithStoreClientAndStrategy(ringCfg, ringNameForServer, RingKey, ringStore, ring.NewIgnoreUnhealthyInstancesReplicationStrategy(), prometheus.WrapRegistererWithPrefix("cortex_", reg), g.logger)
-	if err != nil {
-		return nil, fmt.Errorf("create ring client: %w", err)
 	}
 
 	g.Service = services.NewBasicService(g.starting, g.running, g.stopping)
@@ -122,7 +115,7 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 		}
 	}()
 
-	g.subservices, err = services.NewManager(g.ringLifecycler, g.ring)
+	g.subservices, err = services.NewManager(g.ringLifecycler)
 	if err != nil {
 		return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
 	}
