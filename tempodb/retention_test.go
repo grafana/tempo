@@ -8,7 +8,9 @@ import (
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -51,7 +53,7 @@ func TestRetention(t *testing.T) {
 	wal := w.WAL()
 	assert.NoError(t, err)
 
-	head, err := wal.NewBlock(blockID, testTenantID, "")
+	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
 	assert.NoError(t, err)
 
 	complete, err := w.CompleteBlock(head, &mockCombiner{})
@@ -91,7 +93,7 @@ func TestBlockRetentionOverride(t *testing.T) {
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	overrides := &mockOverrides{}
 
@@ -106,24 +108,29 @@ func TestBlockRetentionOverride(t *testing.T) {
 
 	cutTestBlocks(t, w, testTenantID, 10, 10)
 
+	// The test spans are all 1 second long, so we have to sleep to put all the
+	// data in the past
+	time.Sleep(time.Second)
+
 	rw := r.(*readerWriter)
 	rw.pollBlocklist()
+	require.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
 
 	// Retention = 1 hour, does nothing
 	overrides.blockRetention = time.Hour
 	r.(*readerWriter).doRetention()
 	rw.pollBlocklist()
-	assert.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
+	require.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
 
-	// Retention = 0, use default, still does nothing
+	// Retention = 1 minute, still does nothing
 	overrides.blockRetention = time.Minute
 	r.(*readerWriter).doRetention()
 	rw.pollBlocklist()
-	assert.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
+	require.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
 
 	// Retention = 1ns, deletes everything
 	overrides.blockRetention = time.Nanosecond
 	r.(*readerWriter).doRetention()
 	rw.pollBlocklist()
-	assert.Equal(t, 0, len(rw.blocklist.Metas(testTenantID)))
+	require.Equal(t, 0, len(rw.blocklist.Metas(testTenantID)))
 }

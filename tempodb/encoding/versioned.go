@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
@@ -19,6 +20,8 @@ type VersionedEncoding interface {
 
 	NewCompactor() common.Compactor
 
+	// CreateBlock with the trace contents of the iterator. The new block will have the same ID
+	CreateBlock(ctx context.Context, cfg *common.BlockConfig, tenantID string, blockID uuid.UUID, encoding backend.Encoding, dataEncoding string, estimatedTotalObjects int, i common.TraceIterator, to backend.Writer) (*backend.BlockMeta, error)
 	CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error
 }
 

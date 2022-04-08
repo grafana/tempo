@@ -23,7 +23,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/metrics"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -512,8 +511,8 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID2)))
 }
 
-func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, recordCount int) []*v2.BackendBlock {
-	blocks := make([]*v2.BackendBlock, 0)
+func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, recordCount int) []common.BackendBlock {
+	blocks := make([]common.BackendBlock, 0)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	wal := w.WAL()

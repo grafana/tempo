@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
@@ -166,6 +167,18 @@ func (a *AppendBlock) Iterator(combiner model.ObjectCombiner) (v2.Iterator, erro
 	return iterator, nil
 }
 
+func (a *AppendBlock) TraceIterator(combiner model.ObjectCombiner) (common.TraceIterator, error) {
+	iter, err := a.Iterator(combiner)
+	if err != nil {
+		return nil, err
+	}
+
+	return &appendBlockTraceIterator{
+		iter: iter,
+		dec:  model.MustNewObjectDecoder(a.meta.DataEncoding),
+	}, nil
+}
+
 func (a *AppendBlock) Find(id common.ID, combiner model.ObjectCombiner) ([]byte, error) {
 	records := a.appender.RecordsForID(id)
 	file, err := a.file()
@@ -252,4 +265,29 @@ func (a *AppendBlock) adjustTimeRangeForSlack(start uint32, end uint32, addition
 	}
 
 	return start, end
+}
+
+type appendBlockTraceIterator struct {
+	iter v2.Iterator
+	dec  model.ObjectDecoder
+}
+
+var _ common.TraceIterator = (*appendBlockTraceIterator)(nil)
+
+func (a *appendBlockTraceIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, error) {
+	id, obj, err := a.iter.Next(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tr, err := a.dec.PrepareForRead(obj)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return id, tr, nil
+}
+
+func (a *appendBlockTraceIterator) Close() {
+	a.iter.Close()
 }

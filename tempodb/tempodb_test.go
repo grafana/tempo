@@ -173,7 +173,7 @@ func TestBlockCleanup(t *testing.T) {
 
 	wal := w.WAL()
 
-	head, err := wal.NewBlock(blockID, testTenantID, "")
+	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
 	assert.NoError(t, err)
 
 	_, err = w.CompleteBlock(head, &mockCombiner{})

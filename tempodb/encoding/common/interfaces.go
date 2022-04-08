@@ -57,6 +57,11 @@ type IDIterator interface {
 	Close()
 }
 
+type TraceIterator interface {
+	Next(ctx context.Context) (ID, *tempopb.Trace, error)
+	Close()
+}
+
 type BackendBlock interface {
 	Finder
 	Searcher

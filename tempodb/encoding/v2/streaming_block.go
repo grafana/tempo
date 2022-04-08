@@ -36,8 +36,22 @@ func NewStreamingBlock(cfg *common.BlockConfig, id uuid.UUID, tenantID string, m
 		}
 	}
 
+	// Start with times from input metas,
+	// But allow modification later
+	compactedMeta := backend.NewBlockMeta(tenantID, id, VersionString, cfg.Encoding, dataEncoding)
+	compactedMeta.StartTime = metas[0].StartTime
+	compactedMeta.EndTime = metas[0].EndTime
+	for _, m := range metas[1:] {
+		if m.StartTime.Before(compactedMeta.StartTime) {
+			compactedMeta.StartTime = m.StartTime
+		}
+		if m.EndTime.After(compactedMeta.EndTime) {
+			compactedMeta.EndTime = m.EndTime
+		}
+	}
+
 	c := &StreamingBlock{
-		compactedMeta: backend.NewBlockMeta(tenantID, id, VersionString, cfg.Encoding, dataEncoding),
+		compactedMeta: compactedMeta,
 		bloom:         common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(estimatedObjects)),
 		inMetas:       metas,
 		cfg:           cfg,
@@ -136,20 +150,6 @@ func (c *StreamingBlock) Complete(ctx context.Context, tracker backend.AppendTra
 
 func (c *StreamingBlock) BlockMeta() *backend.BlockMeta {
 	meta := c.compactedMeta
-
-	meta.StartTime = c.inMetas[0].StartTime
-	meta.EndTime = c.inMetas[0].EndTime
 	meta.Size = c.appender.DataLength()
-
-	// everything should be correct here except the start/end times which we will get from the passed in metas
-	for _, m := range c.inMetas[1:] {
-		if m.StartTime.Before(meta.StartTime) {
-			meta.StartTime = m.StartTime
-		}
-		if m.EndTime.After(meta.EndTime) {
-			meta.EndTime = m.EndTime
-		}
-	}
-
 	return meta
 }
