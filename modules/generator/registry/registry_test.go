@@ -77,7 +77,7 @@ func TestManagedRegistry_histogram(t *testing.T) {
 
 	histogram := registry.NewHistogram("histogram", []string{"label"}, []float64{1.0, 2.0})
 
-	histogram.Observe(NewLabelValues([]string{"value-1"}), 1.0)
+	histogram.ObserveWithExemplar(NewLabelValues([]string{"value-1"}), 1.0, "")
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "histogram_count", "label": "value-1", "instance": mustGetHostname()}, 0, 1.0),

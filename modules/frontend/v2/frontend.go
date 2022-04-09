@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/grpcclient"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/dskit/tenant"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -23,7 +24,6 @@ import (
 
 	"github.com/grafana/tempo/modules/frontend/v2/frontendv2pb"
 	"github.com/grafana/tempo/modules/querier/stats"
-	"github.com/grafana/tempo/pkg/tenant"
 	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
 )
 

@@ -21,7 +21,7 @@ const (
 )
 
 func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.ContainerURL, error) {
-	accountName := cfg.StorageAccountName.String()
+	accountName := cfg.StorageAccountName
 	accountKey := cfg.StorageAccountKey.String()
 
 	if accountName == "" {

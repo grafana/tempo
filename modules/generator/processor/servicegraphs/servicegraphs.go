@@ -12,13 +12,16 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/prometheus/util/strutil"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
-	"github.com/grafana/tempo/modules/generator/processor/util"
+	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
 var (
@@ -27,10 +30,10 @@ var (
 		Name:      "metrics_generator_processor_service_graphs_dropped_spans",
 		Help:      "Number of dropped spans.",
 	}, []string{"tenant"})
-	metricUnpairedEdges = promauto.NewCounterVec(prometheus.CounterOpts{
+	metricExpiredSpans = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
-		Name:      "metrics_generator_processor_service_graphs_unpaired_edges",
-		Help:      "Number of expired edges (client or server).",
+		Name:      "metrics_generator_processor_service_graphs_expired_spans",
+		Help:      "Number of spans that expired before finding their pair",
 	}, []string{"tenant"})
 )
 
@@ -63,13 +66,16 @@ type processor struct {
 	serviceGraphRequestServerSecondsHistogram registry.Histogram
 	serviceGraphRequestClientSecondsHistogram registry.Histogram
 
-	metricDroppedSpans  prometheus.Counter
-	metricUnpairedEdges prometheus.Counter
-	logger              log.Logger
+	metricDroppedSpans prometheus.Counter
+	metricExpiredSpans prometheus.Counter
+	logger             log.Logger
 }
 
 func New(cfg Config, tenant string, registry registry.Registry, logger log.Logger) gen.Processor {
-	clientServerLabels := []string{"client", "server"}
+	labels := []string{"client", "server"}
+	for _, d := range cfg.Dimensions {
+		labels = append(labels, strutil.SanitizeLabelName(d))
+	}
 
 	p := &processor{
 		cfg: cfg,
@@ -77,14 +83,14 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 		collectCh: make(chan string, cfg.MaxItems),
 		closeCh:   make(chan struct{}, 1),
 
-		serviceGraphRequestTotal:                  registry.NewCounter(metricRequestTotal, clientServerLabels),
-		serviceGraphRequestFailedTotal:            registry.NewCounter(metricRequestFailedTotal, clientServerLabels),
-		serviceGraphRequestServerSecondsHistogram: registry.NewHistogram(metricRequestServerSeconds, clientServerLabels, cfg.HistogramBuckets),
-		serviceGraphRequestClientSecondsHistogram: registry.NewHistogram(metricRequestClientSeconds, clientServerLabels, cfg.HistogramBuckets),
+		serviceGraphRequestTotal:                  registry.NewCounter(metricRequestTotal, labels),
+		serviceGraphRequestFailedTotal:            registry.NewCounter(metricRequestFailedTotal, labels),
+		serviceGraphRequestServerSecondsHistogram: registry.NewHistogram(metricRequestServerSeconds, labels, cfg.HistogramBuckets),
+		serviceGraphRequestClientSecondsHistogram: registry.NewHistogram(metricRequestClientSeconds, labels, cfg.HistogramBuckets),
 
-		metricDroppedSpans:  metricDroppedSpans.WithLabelValues(tenant),
-		metricUnpairedEdges: metricUnpairedEdges.WithLabelValues(tenant),
-		logger:              logger,
+		metricDroppedSpans: metricDroppedSpans.WithLabelValues(tenant),
+		metricExpiredSpans: metricExpiredSpans.WithLabelValues(tenant),
+		logger:             logger,
 	}
 
 	p.store = store.NewStore(cfg.Wait, cfg.MaxItems, p.collectEdge)
@@ -126,12 +132,12 @@ func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 	}
 }
 
-func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
+func (p *processor) consume(resourceSpans []*v1_trace.ResourceSpans) error {
 	var totalDroppedSpans int
 
 	for _, rs := range resourceSpans {
-		svcName := util.GetServiceName(rs.Resource)
-		if svcName == "" {
+		svcName, ok := processor_util.FindServiceName(rs.Resource.Attributes)
+		if !ok {
 			continue
 		}
 
@@ -143,19 +149,23 @@ func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
 			)
 			for _, span := range ils.Spans {
 				switch span.Kind {
-				case v1.Span_SPAN_KIND_CLIENT:
+				case v1_trace.Span_SPAN_KIND_CLIENT:
 					k = key(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
 					edge, err = p.store.UpsertEdge(k, func(e *store.Edge) {
+						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
 						e.ClientService = svcName
 						e.ClientLatencySec = spanDurationSec(span)
 						e.Failed = e.Failed || p.spanFailed(span)
+						p.upsertDimensions(e.Dimensions, rs.Resource.Attributes, span.Attributes)
 					})
-				case v1.Span_SPAN_KIND_SERVER:
+				case v1_trace.Span_SPAN_KIND_SERVER:
 					k = key(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
 					edge, err = p.store.UpsertEdge(k, func(e *store.Edge) {
+						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
 						e.ServerService = svcName
 						e.ServerLatencySec = spanDurationSec(span)
 						e.Failed = e.Failed || p.spanFailed(span)
+						p.upsertDimensions(e.Dimensions, rs.Resource.Attributes, span.Attributes)
 					})
 				default:
 					continue
@@ -188,7 +198,15 @@ func (p *processor) consume(resourceSpans []*v1.ResourceSpans) error {
 	return nil
 }
 
-func (p *processor) Shutdown(ctx context.Context) {
+func (p *processor) upsertDimensions(m map[string]string, resourceAttr []*v1_common.KeyValue, spanAttr []*v1_common.KeyValue) {
+	for _, dim := range p.cfg.Dimensions {
+		if v, ok := processor_util.FindAttributeValue(dim, resourceAttr, spanAttr); ok {
+			m[dim] = v
+		}
+	}
+}
+
+func (p *processor) Shutdown(_ context.Context) {
 	close(p.closeCh)
 }
 
@@ -196,25 +214,32 @@ func (p *processor) Shutdown(ctx context.Context) {
 // Returns true if the edge is completed or expired and should be deleted.
 func (p *processor) collectEdge(e *store.Edge) {
 	if e.IsCompleted() {
-		clientServerLabelValues := registry.NewLabelValues([]string{e.ClientService, e.ServerService})
+		labelValues := make([]string, 0, 2+len(p.cfg.Dimensions))
+		labelValues = append(labelValues, e.ClientService, e.ServerService)
 
-		p.serviceGraphRequestTotal.Inc(clientServerLabelValues, 1)
-		if e.Failed {
-			p.serviceGraphRequestFailedTotal.Inc(clientServerLabelValues, 1)
+		for _, dimension := range p.cfg.Dimensions {
+			labelValues = append(labelValues, e.Dimensions[dimension])
 		}
 
-		p.serviceGraphRequestServerSecondsHistogram.Observe(clientServerLabelValues, e.ServerLatencySec)
-		p.serviceGraphRequestClientSecondsHistogram.Observe(clientServerLabelValues, e.ClientLatencySec)
+		registryLabelValues := registry.NewLabelValues(labelValues)
+
+		p.serviceGraphRequestTotal.Inc(registryLabelValues, 1)
+		if e.Failed {
+			p.serviceGraphRequestFailedTotal.Inc(registryLabelValues, 1)
+		}
+
+		p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID)
+		p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID)
 	} else if e.IsExpired() {
-		p.metricUnpairedEdges.Inc()
+		p.metricExpiredSpans.Inc()
 	}
 }
 
-func (p *processor) spanFailed(span *v1.Span) bool {
+func (p *processor) spanFailed(_ *v1_trace.Span) bool {
 	return false
 }
 
-func spanDurationSec(span *v1.Span) float64 {
+func spanDurationSec(span *v1_trace.Span) float64 {
 	return float64(span.EndTimeUnixNano-span.StartTimeUnixNano) / float64(time.Second.Nanoseconds())
 }
 

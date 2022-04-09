@@ -55,7 +55,7 @@ func NewRedisClient(cfg *RedisConfig) *RedisClient {
 	opt := &redis.UniversalOptions{
 		Addrs:       strings.Split(cfg.Endpoint, ","),
 		MasterName:  cfg.MasterName,
-		Password:    cfg.Password.Value,
+		Password:    cfg.Password.String(),
 		DB:          cfg.DB,
 		PoolSize:    cfg.PoolSize,
 		IdleTimeout: cfg.IdleTimeout,

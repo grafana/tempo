@@ -66,8 +66,8 @@ func TestHedge(t *testing.T) {
 			server := fakeServer(t, tc.returnIn, &count)
 
 			r, w, _, err := New(&Config{
-				StorageAccountName: flagext.Secret{Value: "testing"},
-				StorageAccountKey:  flagext.Secret{Value: "YQo="},
+				StorageAccountName: "testing",
+				StorageAccountKey:  flagext.SecretWithValue("YQo="),
 				MaxBuffers:         3,
 				BufferSize:         1000,
 				ContainerName:      "blerg",

@@ -4,6 +4,8 @@
   **BREAKING CHANGE** Dropped `tempo-search-retention-duration` parameter.  [#1297](https://github.com/grafana/tempo/pull/1297) (@joe-elliott)
 * [CHANGE] Updated storage.trace.pool.queue_depth default from 200->10000. [#1345](https://github.com/grafana/tempo/pull/1345) (@joe-elliott)
 * [CHANGE] Update alpine images to 3.15 [#1330](https://github.com/grafana/tempo/pull/1330) (@zalegrala)
+* [CHANGE] Updated flags `-storage.trace.azure.storage-account-name` and `-storage.trace.s3.access_key` to no longer to be considered as secrets [#1356](https://github.com/grafana/tempo/pull/1356) (@simonswine)
+* [CHANGE] Include lambda in serverless e2e tests [#1357](https://github.com/grafana/tempo/pull/1357) (@zalegrala)
 * [FEATURE]: v2 object encoding added. This encoding adds a start/end timestamp to every record to reduce proto marshalling and increase search speed.  
   **BREAKING CHANGE** After this rollout the distributors will use a new API on the ingesters. As such you must rollout all ingesters before rolling the 
   distributors. Also, during this period, the ingesters will use considerably more resources and as such should be scaled up (or incoming traffic should be
