@@ -14,6 +14,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/cristalhq/hedgedhttp"
+	"github.com/imdario/mergo"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
@@ -180,7 +181,9 @@ func (rw *readerWriter) writer(ctx context.Context, name string) (*storage.Write
 	w := o.NewWriter(ctx)
 	w.ChunkSize = rw.cfg.ChunkBufferSize
 	if rw.cfg.ObjAttrs != nil {
-		w.ObjectAttrs = *rw.cfg.ObjAttrs
+		if err := mergo.Merge(&w.ObjectAttrs, *rw.cfg.ObjAttrs); err != nil {
+			w.ObjectAttrs = *rw.cfg.ObjAttrs
+		}
 	}
 	return w, nil
 }
