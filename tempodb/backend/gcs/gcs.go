@@ -182,7 +182,7 @@ func (rw *readerWriter) writer(ctx context.Context, name string) (*storage.Write
 	w.ChunkSize = rw.cfg.ChunkBufferSize
 	if rw.cfg.ObjAttrs != nil {
 		if err := mergo.Merge(&w.ObjectAttrs, *rw.cfg.ObjAttrs); err != nil {
-			w.ObjectAttrs = *rw.cfg.ObjAttrs
+			return nil, err
 		}
 	}
 	return w, nil
