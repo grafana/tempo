@@ -79,7 +79,7 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 	_, err = io.Copy(w, data)
 	if err != nil {
 		w.Close()
-		return err
+		return errors.Wrap(err, "failed to write")
 	}
 
 	return w.Close()
@@ -177,14 +177,11 @@ func (rw *readerWriter) Shutdown() {
 
 func (rw *readerWriter) writer(ctx context.Context, name string) (*storage.Writer, error) {
 	o := rw.bucket.Object(name)
-	if configuredObjectAttributes(rw.cfg.ObjAttrs) {
-		_, err := o.Update(ctx, rw.cfg.ObjAttrs)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to update object object attributes")
-		}
-	}
 	w := o.NewWriter(ctx)
 	w.ChunkSize = rw.cfg.ChunkBufferSize
+	if rw.cfg.ObjAttrs != nil {
+		w.ObjectAttrs = *rw.cfg.ObjAttrs
+	}
 	return w, nil
 }
 
@@ -291,49 +288,4 @@ func readError(err error) error {
 	}
 
 	return err
-}
-
-// configuredObjectAttributes returns a boolean to indicate if any of the supported GCS Object Attributes have been set in the configuration.
-func configuredObjectAttributes(o storage.ObjectAttrsToUpdate) bool {
-	if o.EventBasedHold != nil {
-		return true
-	}
-
-	if o.TemporaryHold != nil {
-		return true
-	}
-
-	if o.ContentType != nil {
-		return true
-	}
-
-	if o.ContentLanguage != nil {
-		return true
-	}
-
-	if o.ContentEncoding != nil {
-		return true
-	}
-
-	if o.ContentDisposition != nil {
-		return true
-	}
-
-	if o.CacheControl != nil {
-		return true
-	}
-
-	if o.Metadata != nil {
-		return true
-	}
-
-	if !o.CustomTime.IsZero() {
-		return true
-	}
-
-	if o.ACL != nil {
-		return true
-	}
-
-	return false
 }

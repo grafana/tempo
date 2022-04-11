@@ -101,12 +101,12 @@ func TestReadError(t *testing.T) {
 func TestObjectConfigAttributes(t *testing.T) {
 	tests := []struct {
 		name           string
-		config         storage.ObjectAttrsToUpdate
+		config         storage.ObjectAttrs
 		expectedObject raw.Object
 	}{
 		{
 			name:           "cache controle enabled",
-			config:         storage.ObjectAttrsToUpdate{CacheControl: "no-cache"},
+			config:         storage.ObjectAttrs{CacheControl: "no-cache"},
 			expectedObject: raw.Object{Bucket: "blerg2", CacheControl: "no-cache"},
 		},
 	}
@@ -120,7 +120,7 @@ func TestObjectConfigAttributes(t *testing.T) {
 				BucketName: "blerg2",
 				Endpoint:   server.URL,
 				Insecure:   true,
-				ObjAttrs:   tc.config,
+				ObjAttrs:   &tc.config,
 			})
 			require.NoError(t, err)
 
