@@ -94,7 +94,7 @@
               severity: 'warning',
             },
             annotations: {
-              message: 'Greater than %s flushes have failed in the past hour.' % $._config.alerts.flushes_per_hour_failed,
+              message: 'Greater than %s flush retries have occurred in the past hour.' % $._config.alerts.flushes_per_hour_failed,
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterFlushesFailing',
             },
           },
@@ -110,7 +110,7 @@
               severity: 'critical',
             },
             annotations: {
-              message: 'Greater than %s flushes have failed in the past hour.' % $._config.alerts.flushes_per_hour_failed,
+              message: 'Greater than %s flush retries have failed in the past hour.' % $._config.alerts.flushes_per_hour_failed,
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterFlushesFailing',
             },
           },
