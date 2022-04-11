@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -107,7 +110,7 @@ func TestObjectConfigAttributes(t *testing.T) {
 		{
 			name:           "cache controle enabled",
 			config:         storage.ObjectAttrs{CacheControl: "no-cache"},
-			expectedObject: raw.Object{Bucket: "blerg2", CacheControl: "no-cache"},
+			expectedObject: raw.Object{Name: "test/object", Bucket: "blerg2", CacheControl: "no-cache"},
 		},
 	}
 
@@ -149,9 +152,28 @@ func fakeServerWithObjectAttributes(t *testing.T, o *raw.Object) *httptest.Serve
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		// Check that we are making the call to update the attributes before attempting to decode the request body.
-		if strings.HasPrefix(r.RequestURI, "/b/blerg2/o") {
-			err := json.NewDecoder(r.Body).Decode(&o)
+		if strings.HasPrefix(r.RequestURI, "/upload/storage/v1/b/blerg2") {
+
+			_, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			require.NoError(t, err)
+
+			reader := multipart.NewReader(r.Body, params["boundary"])
+			defer r.Body.Close()
+
+			for {
+				part, err := reader.NextPart()
+				if err == io.EOF {
+					break
+				}
+				require.NoError(t, err)
+				defer part.Close()
+
+				switch part.Header.Get("Content-Type") {
+				case "application/json":
+					err = json.NewDecoder(r.Body).Decode(&o)
+					require.NoError(t, err)
+				}
+			}
 		}
 
 		_, _ = w.Write([]byte(`{}`))
