@@ -104,13 +104,19 @@ func TestReadError(t *testing.T) {
 func TestObjectConfigAttributes(t *testing.T) {
 	tests := []struct {
 		name           string
-		config         storage.ObjectAttrs
+		cacheControl   string
+		metadata       map[string]string
 		expectedObject raw.Object
 	}{
 		{
 			name:           "cache controle enabled",
-			config:         storage.ObjectAttrs{CacheControl: "no-cache"},
+			cacheControl:   "no-cache",
 			expectedObject: raw.Object{Name: "test/object", Bucket: "blerg2", CacheControl: "no-cache"},
+		},
+		{
+			name:           "medata set",
+			metadata:       map[string]string{"one": "1"},
+			expectedObject: raw.Object{Name: "test/object", Bucket: "blerg2", Metadata: map[string]string{"one": "1"}},
 		},
 	}
 
@@ -120,10 +126,11 @@ func TestObjectConfigAttributes(t *testing.T) {
 			server := fakeServerWithObjectAttributes(t, &rawObject)
 
 			_, w, _, err := New(&Config{
-				BucketName: "blerg2",
-				Endpoint:   server.URL,
-				Insecure:   true,
-				ObjAttrs:   &tc.config,
+				BucketName:   "blerg2",
+				Endpoint:     server.URL,
+				Insecure:     true,
+				CacheControl: tc.cacheControl,
+				Metadata:     tc.metadata,
 			})
 			require.NoError(t, err)
 

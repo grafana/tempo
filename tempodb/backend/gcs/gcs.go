@@ -14,7 +14,6 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/cristalhq/hedgedhttp"
-	"github.com/imdario/mergo"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
@@ -72,12 +71,9 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 
 // StreamWriter implements backend.Writer
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
-	w, err := rw.writer(ctx, backend.ObjectFileName(keypath, name))
-	if err != nil {
-		return errors.Wrap(err, "failed to get new writer")
-	}
+	w := rw.writer(ctx, backend.ObjectFileName(keypath, name))
 
-	_, err = io.Copy(w, data)
+	_, err := io.Copy(w, data)
 	if err != nil {
 		w.Close()
 		return errors.Wrap(err, "failed to write")
@@ -90,11 +86,7 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
 	var w *storage.Writer
 	if tracker == nil {
-		var err error
-		w, err = rw.writer(ctx, backend.ObjectFileName(keypath, name))
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get new writer")
-		}
+		w = rw.writer(ctx, backend.ObjectFileName(keypath, name))
 	} else {
 		w = tracker.(*storage.Writer)
 	}
@@ -176,16 +168,20 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 func (rw *readerWriter) Shutdown() {
 }
 
-func (rw *readerWriter) writer(ctx context.Context, name string) (*storage.Writer, error) {
+func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer {
 	o := rw.bucket.Object(name)
 	w := o.NewWriter(ctx)
 	w.ChunkSize = rw.cfg.ChunkBufferSize
-	if rw.cfg.ObjAttrs != nil {
-		if err := mergo.Merge(&w.ObjectAttrs, *rw.cfg.ObjAttrs); err != nil {
-			return nil, err
-		}
+
+	if rw.cfg.Metadata != nil {
+		w.Metadata = rw.cfg.Metadata
 	}
-	return w, nil
+
+	if rw.cfg.CacheControl != "" {
+		w.CacheControl = rw.cfg.CacheControl
+	}
+
+	return w
 }
 
 func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {

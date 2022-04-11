@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
@@ -198,7 +197,6 @@ func setDecodeHooks(c *mapstructure.DecoderConfig) {
 		mapstructure.StringToTimeDurationHookFunc(),
 		mapstructure.StringToSliceHookFunc(","),
 		stringToFlagExt(),
-		mapstructure.StringToTimeHookFunc(time.RFC3339),
 	)
 }
 
