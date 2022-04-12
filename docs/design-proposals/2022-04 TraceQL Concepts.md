@@ -69,13 +69,13 @@ Every span has certain intrinsic fields that can be referenced when selecting sp
 | `parent`   | the parent of this span | 
 
 **Examples**
-Find traces that contain spans whose duration is greater than 2 seconds:
+Find traces that contain spans whose duration is greater than 2 seconds:  
 `{ duration > 2s }`
 
-Find traces that contain a span named "HTTP POST":
+Find traces that contain a span named "HTTP POST":  
 `{ name = "HTTP POST"  }`
 
-Find traces that cross service boundaries:
+Find traces that cross service boundaries:  
 `{ parent.service.name != service.name }`
 
 ### Attribute fields
@@ -84,10 +84,10 @@ We can refer to dynamic attributes (also known as tags) on the span or the span'
 
 **Examples**
 
-Find traces with the GET http method:
+Find traces with the GET http method:  
 `{ http.method = "GET" }`
 
-Find traces that passed through the prod namespace:
+Find traces that passed through the prod namespace:  
 `{ namespace = "prod" }`
 
 ### Field expressions
@@ -96,22 +96,20 @@ Fields can also be combined in various expected ways.
 
 **Examples**
 
-Find traces where the difference of the duration of a set of parent/child spans exceeds 500ms.
+Find traces where the difference of the duration of a set of parent/child spans exceeds 500ms:  
 `{ parent.duration - duration > 500ms }`
 
-Find traces with "success" http status codes:
+Find traces with "success" http status codes:  
 `{ http.status >= 200 && http.status < 300 }`
 
 Note that the second expression requires both conditions to be true on the same span. The entire expression inside of `{}` must be evaluated as true on a single span for it to be included in the resultset.
 
 ## Combining Spansets
 
-Logical operators combine sets of spans. For example, if we wanted to find a trace that went through two specific regions:
-
+Logical operators combine sets of spans. For example, if we wanted to find a trace that went through two specific regions:  
 `{ region = "eu-west-0" } && { region = "eu-west-1" } `
 
-Note the difference between the above and the following. 
-
+Note the difference between the above and the following:  
 `{ region = "eu-west-0"  && region = "eu-west-1" } `
 
 The second expression will return no traces because it's impossible for both conditions to be simultaneously true on the same span.
@@ -120,13 +118,13 @@ The second expression will return no traces because it's impossible for both con
 
 Structural operators evaluate traces based on the span relationships within the span tree. 
 
-`{ } >> { }`
+`{ } >> { }`  
   This is the descendant operator. The spans returned from this operator will match the right hand side conditions while also being descendants of spans that match the left hand side conditions.
 
-`{ } > { }`
+`{ } > { }`  
   This is the child operator. The spans returned from this operator will match the right hand side conditions while also being children of spans that match the left hand side conditions.
 
-`{ } ~ { }`
+`{ } ~ { }`  
   This is the sibling operator. The spans returned from this operator will match the right hand side conditions while also being siblings of spans that match the left hand side conditions.
 
 ## Aggregators
@@ -135,12 +133,10 @@ All of the above expressions involve asking questions about individual spans. Ho
 
 **Examples**
 
-Find traces where the total number of spans is greater than 10:
-
+Find traces where the total number of spans is greater than 10:  
 `count() > 10`
 
-Find traces where the average duration is greater than 1s:
-
+Find traces where the average duration is greater than 1s:  
 `avg(duration) > 1s`
 
 ## Expression Pipelining
@@ -149,8 +145,7 @@ Pipelining allows us to "pipe" a set of spans from one expression to the next. T
 
 **Examples**
 
-Find traces where that have more than 3 spans with an attribute`http.status` with a value of `200`:
-
+Find traces where that have more than 3 spans with an attribute`http.status` with a value of `200`:  
 `{ http.status = 200 } | count() > 3`
 
 ## Grouping
@@ -159,46 +154,45 @@ Grouping allows us to take a trace and break it down into sets of spans that are
 
 **Examples**
 
-Find traces that have more than 5 spans in any region:
-
+Find traces that have more than 5 spans in any region:  
 `by(region) | count() > 5 `
 
 ## Examples
 
-Any span matches an attribute
+Any span matches an attribute:  
 `{ namespace = "prod" }`
 
-Two attributes appear on the same span
+Two attributes appear on the same span:  
 `{ namespace = "prod" && http.status = 200 }`
 
-Two attributes appear anywhere within a trace. 
+Two attributes appear anywhere within a trace:  
 `{ namespace = "prod" } && { http.status = 200 }`
 
-Any span has a duration over one second.
+Any span has a duration over one second:  
 `{ duration > 1s }`
 
-The trace as a whole has a duration of over one second.
+The trace as a whole has a duration of over one second:  
 `max(end) - min(start) > 1s`
 
-Any span has a duration of over one second and any span has a specific attribute. These spans can be the same or different.
+Any span has a duration of over one second and any span has a specific attribute. These spans can be the same or different:  
 `max(duration) > 1s && { namespace = "prod" }`
 
-A trace has over 5 spans with http.status = 200 in any given namespace.
+A trace has over 5 spans with http.status = 200 in any given namespace:  
 `by(namespace) | { http.status = 200 } | count() > 5`
 
-A trace passed through two regions in a specific order.
+A trace passed through two regions in a specific order:  
 `{ region = "eu-west-0" } >> { region = "eu-west-1" }`
 
-A trace sees network latency > 1s when passing between any two services.
+A trace sees network latency > 1s when passing between any two services:  
 `{ parent.service.name != service.name } | max(parent.duration - duration) > 1s`
 
 ### Shorthand
 
 The following rules are proposed to make using TraceQL easy to use for simple cases.
 
-1. A bare condition is wrapped in `{}`
+1. A bare condition is wrapped in `{}`  
   `http.status = 200` -> `{ http.status = 200 }`
 
-2. Multiple bare conditions are individually wrapped in `{}`
+2. Multiple bare conditions are individually wrapped in `{}`    
   `http.status = 200 && namespace = "prod"` ->
    `{ http.status = 200 } && { namespace = "prod" }`
