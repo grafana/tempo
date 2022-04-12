@@ -32,7 +32,7 @@ remote_write:
 	walCfg := agentDefaultOptions()
 	walCfg.WALCompression = true
 
-	remoteWriteConfig := &prometheus_config.DefaultRemoteWriteConfig
+	remoteWriteConfig := prometheus_config.DefaultRemoteWriteConfig
 	prometheusURL, err := url.Parse("http://prometheus/api/prom/push")
 	assert.NoError(t, err)
 	remoteWriteConfig.URL = &prometheus_common_config.URL{URL: prometheusURL}
@@ -44,7 +44,7 @@ remote_write:
 		Path:                     "/var/wal/tempo",
 		Wal:                      walCfg,
 		RemoteWriteFlushDeadline: 5 * time.Minute,
-		RemoteWrite: []*prometheus_config.RemoteWriteConfig{
+		RemoteWrite: []prometheus_config.RemoteWriteConfig{
 			remoteWriteConfig,
 		},
 	}

@@ -12,12 +12,12 @@ import (
 // generateTenantRemoteWriteConfigs creates a copy of the remote write configurations with the
 // X-Scope-OrgID header present for the given tenant. If the remote write config already contains
 // this header it will be overwritten.
-func generateTenantRemoteWriteConfigs(originalCfgs []*prometheus_config.RemoteWriteConfig, tenant string, logger log.Logger) []*prometheus_config.RemoteWriteConfig {
+func generateTenantRemoteWriteConfigs(originalCfgs []prometheus_config.RemoteWriteConfig, tenant string, logger log.Logger) []*prometheus_config.RemoteWriteConfig {
 	var cloneCfgs []*prometheus_config.RemoteWriteConfig
 
 	for _, originalCfg := range originalCfgs {
 		cloneCfg := &prometheus_config.RemoteWriteConfig{}
-		*cloneCfg = *originalCfg
+		*cloneCfg = originalCfg
 
 		// Copy headers so we can modify them
 		cloneCfg.Headers = copyMap(cloneCfg.Headers)
