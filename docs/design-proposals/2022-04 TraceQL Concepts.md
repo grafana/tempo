@@ -60,13 +60,13 @@ If the trace does contain spans with an attribute`http.status` with the value `2
 Every span has certain intrinsic fields that can be referenced when selecting spans
 
 | field name | description |
-| —--------- | ----------- |
-| `start`      | start time of the span |
-| `end`        | end time of the span |
-| `duration`   | end - start time of the span |
-| `name`       | operation or span name |
-| `status`     | status values are "error", "ok", or "unset" |
-| `parent`     | the parent of this span | 
+| ---------- | ----------- |
+| `start`    | start time of the span |
+| `end`      | end time of the span |
+| `duration` | end - start time of the span |
+| `name`     | operation or span name |
+| `status`   | status values are "error", "ok", or "unset" |
+| `parent`   | the parent of this span | 
 
 **Examples**
 Find traces that contain spans whose duration is greater than 2 seconds:
@@ -82,7 +82,7 @@ Find traces that cross service boundaries:
 
 We can refer to dynamic attributes (also known as tags) on the span or the span's resource.
 
-** Examples **
+**Examples**
 
 Find traces with the GET http method:
 `{ http.method = "GET" }`
@@ -94,7 +94,7 @@ Find traces that passed through the prod namespace:
 
 Fields can also be combined in various expected ways.
 
-** Examples **
+**Examples**
 
 Find traces where the difference of the duration of a set of parent/child spans exceeds 500ms.
 `{ parent.duration - duration > 500ms }`
@@ -133,7 +133,7 @@ Structural operators evaluate traces based on the span relationships within the 
 
 All of the above expressions involve asking questions about individual spans. However, sometimes we want to ask questions about a set of spans. For that we have aggregate functions.
 
-** Examples **
+**Examples**
 
 Find traces where the total number of spans is greater than 10:
 
@@ -147,7 +147,7 @@ Find traces where the average duration is greater than 1s:
 
 Pipelining allows us to "pipe" a set of spans from one expression to the next. This is particularly useful if you want to perform an aggregate over a subset of a trace.
 
-** Examples **
+**Examples**
 
 Find traces where that have more than 3 spans with an attribute`http.status` with a value of `200`:
 
@@ -157,7 +157,7 @@ Find traces where that have more than 3 spans with an attribute`http.status` wit
 
 Grouping allows us to take a trace and break it down into sets of spans that are evaluated by future pipeline entries. Each set of spans created by the group is _individually_ evaluated by downstream expressions.
 
-** Examples **
+**Examples**
 
 Find traces that have more than 5 spans in any region:
 
