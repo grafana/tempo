@@ -286,6 +286,11 @@ func (o *Overrides) MetricsGeneratorCollectionInterval(userID string) time.Durat
 	return o.getOverridesForUser(userID).MetricsGeneratorCollectionInterval
 }
 
+// MetricsGeneratorDisableRemoteWrite controls whether metrics are remote written for this tenant.
+func (o *Overrides) MetricsGeneratorDisableCollection(userID string) bool {
+	return o.getOverridesForUser(userID).MetricsGeneratorDisableCollection
+}
+
 // BlockRetention is the duration of the block retention for this tenant.
 func (o *Overrides) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).BlockRetention)
