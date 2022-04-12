@@ -22,6 +22,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/mitchellh/mapstructure"
+	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/weaveworks/common/user"
 	"gopkg.in/yaml.v2"
@@ -164,11 +165,11 @@ func loadConfig() (*tempodb.Config, error) {
 	v := viper.NewWithOptions()
 	b, err := yaml.Marshal(defaultConfig)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to marshal default config")
 	}
 	v.SetConfigType("yaml")
-	if err := v.MergeConfig(bytes.NewReader(b)); err != nil {
-		return nil, err
+	if err = v.MergeConfig(bytes.NewReader(b)); err != nil {
+		return nil, errors.Wrap(err, "failed to merge config")
 	}
 
 	v.AutomaticEnv()
@@ -178,7 +179,7 @@ func loadConfig() (*tempodb.Config, error) {
 	cfg := &tempodb.Config{}
 	err = v.Unmarshal(cfg, setTagName, setDecodeHooks)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to unmarshal config")
 	}
 
 	return cfg, nil

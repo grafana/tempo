@@ -15,7 +15,7 @@ func TestLoadConfig(t *testing.T) {
 	// purposefully not using testfiy to reduce dependencies and keep the serverless packages small
 	cfg, err := loadConfig()
 	if err != nil {
-		t.Error("failed to load config", err)
+		t.Error("failed to load config:", err)
 		return
 	}
 	if cfg.Backend != "gcs" {

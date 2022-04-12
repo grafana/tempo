@@ -376,7 +376,7 @@ storage:
 
             # Buffer size for reads. Default is 10MB
             # Example: "chunk_buffer_size: 5_000_000"
-            [chunk_buffer_size: <int>] 
+            [chunk_buffer_size: <int>]
 
             # Optional
             # Api endpoint override
@@ -386,7 +386,7 @@ storage:
             # Optional. Default is false.
             # Example: "insecure: true"
             # Set to true to enable authentication and certificate checks on gcs requests
-            [insecure: <bool>] 
+            [insecure: <bool>]
 
             # Optional. Default is 0 (disabled)
             # Example: "hedge_requests_at: 500ms"
@@ -399,6 +399,19 @@ storage:
             # Example: "hedge_requests_up_to: 2"
             # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
             [hedge_requests_up_to: <int>]
+
+            # Optional
+            # Example: "object_cache_control: "no-cache""
+            # A string to specify the behavior with respect to caching of the objects stored in GCS.
+            # See the GCS documentation for more detail: https://cloud.google.com/storage/docs/metadata
+            [object_cache_control: <string>]
+
+            # Optional
+            # Example: "object_metadata: {'key': 'value'}"
+            # A map key value strings for user metadata to store on the GCS objects.
+            # See the GCS documentation for more detail: https://cloud.google.com/storage/docs/metadata
+            [object_metadata: <map[string]string>]
+
 
         # S3 configuration. Will be used only if value of backend is "s3"
         # Check the S3 doc within this folder for information on s3 specific permissions.

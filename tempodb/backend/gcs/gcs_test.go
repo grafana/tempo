@@ -3,9 +3,14 @@ package gcs
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,6 +19,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	raw "google.golang.org/api/storage/v1"
 )
 
 func TestHedge(t *testing.T) {
@@ -85,6 +91,57 @@ func TestHedge(t *testing.T) {
 	}
 }
 
+func TestReadError(t *testing.T) {
+	errA := storage.ErrObjectNotExist
+	errB := readError(errA)
+	assert.Equal(t, backend.ErrDoesNotExist, errB)
+
+	wups := fmt.Errorf("wups")
+	errB = readError(wups)
+	assert.Equal(t, wups, errB)
+}
+
+func TestObjectConfigAttributes(t *testing.T) {
+	tests := []struct {
+		name           string
+		cacheControl   string
+		metadata       map[string]string
+		expectedObject raw.Object
+	}{
+		{
+			name:           "cache controle enabled",
+			cacheControl:   "no-cache",
+			expectedObject: raw.Object{Name: "test/object", Bucket: "blerg2", CacheControl: "no-cache"},
+		},
+		{
+			name:           "medata set",
+			metadata:       map[string]string{"one": "1"},
+			expectedObject: raw.Object{Name: "test/object", Bucket: "blerg2", Metadata: map[string]string{"one": "1"}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rawObject := raw.Object{}
+			server := fakeServerWithObjectAttributes(t, &rawObject)
+
+			_, w, _, err := New(&Config{
+				BucketName:         "blerg2",
+				Endpoint:           server.URL,
+				Insecure:           true,
+				ObjectCacheControl: tc.cacheControl,
+				ObjectMetadata:     tc.metadata,
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+
+			_ = w.Write(ctx, "object", []string{"test"}, bytes.NewReader([]byte{}), 0, false)
+			assert.Equal(t, tc.expectedObject, rawObject)
+		})
+	}
+}
+
 func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.Server {
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(returnIn)
@@ -98,12 +155,38 @@ func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.
 	return server
 }
 
-func TestReadError(t *testing.T) {
-	errA := storage.ErrObjectNotExist
-	errB := readError(errA)
-	assert.Equal(t, backend.ErrDoesNotExist, errB)
+func fakeServerWithObjectAttributes(t *testing.T, o *raw.Object) *httptest.Server {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-	wups := fmt.Errorf("wups")
-	errB = readError(wups)
-	assert.Equal(t, wups, errB)
+		// Check that we are making the call to update the attributes before attempting to decode the request body.
+		if strings.HasPrefix(r.RequestURI, "/upload/storage/v1/b/blerg2") {
+
+			_, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+			require.NoError(t, err)
+
+			reader := multipart.NewReader(r.Body, params["boundary"])
+			defer r.Body.Close()
+
+			for {
+				part, err := reader.NextPart()
+				if err == io.EOF {
+					break
+				}
+				require.NoError(t, err)
+				defer part.Close()
+
+				switch part.Header.Get("Content-Type") {
+				case "application/json":
+					err = json.NewDecoder(r.Body).Decode(&o)
+					require.NoError(t, err)
+				}
+			}
+		}
+
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	return server
 }

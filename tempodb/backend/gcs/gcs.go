@@ -14,7 +14,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/cristalhq/hedgedhttp"
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -35,7 +35,7 @@ func NewNoConfirm(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Co
 	return internalNew(cfg, false)
 }
 
-// New gets the S3 backend
+// New gets the GCS backend
 func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
 	return internalNew(cfg, true)
 }
@@ -72,10 +72,11 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 // StreamWriter implements backend.Writer
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
 	w := rw.writer(ctx, backend.ObjectFileName(keypath, name))
+
 	_, err := io.Copy(w, data)
 	if err != nil {
 		w.Close()
-		return err
+		return errors.Wrap(err, "failed to write")
 	}
 
 	return w.Close()
@@ -168,8 +169,18 @@ func (rw *readerWriter) Shutdown() {
 }
 
 func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer {
-	w := rw.bucket.Object(name).NewWriter(ctx)
+	o := rw.bucket.Object(name)
+	w := o.NewWriter(ctx)
 	w.ChunkSize = rw.cfg.ChunkBufferSize
+
+	if rw.cfg.ObjectMetadata != nil {
+		w.Metadata = rw.cfg.ObjectMetadata
+	}
+
+	if rw.cfg.ObjectCacheControl != "" {
+		w.CacheControl = rw.cfg.ObjectCacheControl
+	}
+
 	return w
 }
 

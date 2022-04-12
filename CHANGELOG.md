@@ -13,6 +13,7 @@
   ingesters during the rollout. [#1227](https://github.com/grafana/tempo/pull/1227) (@joe-elliott)
 * [FEATURE] Added metrics-generator: an optional components to generate metrics from ingested traces [#1282](https://github.com/grafana/tempo/pull/1282) (@mapno, @kvrhdn)
 * [FEATURE] Allow the compaction cycle to be configurable with a default of 30 seconds [#1335](https://github.com/grafana/tempo/pull/1335) (@willdot)
+* [FEATURE] Add new config options for setting GCS metadata on new objects [](https://github.com/grafana/tempo/pull/1368) (@zalegrala)
 * [ENHANCEMENT] Enterprise jsonnet: add config to create tokengen job explicitly [#1256](https://github.com/grafana/tempo/pull/1256) (@kvrhdn)
 * [ENHANCEMENT] Add new scaling alerts to the tempo-mixin [#1292](https://github.com/grafana/tempo/pull/1292) (@mapno)
 * [ENHANCEMENT] Improve serverless handler error messages [#1305](https://github.com/grafana/tempo/pull/1305) (@joe-elliott)
