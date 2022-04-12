@@ -173,12 +173,12 @@ func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer
 	w := o.NewWriter(ctx)
 	w.ChunkSize = rw.cfg.ChunkBufferSize
 
-	if rw.cfg.Metadata != nil {
-		w.Metadata = rw.cfg.Metadata
+	if rw.cfg.ObjectMetadata != nil {
+		w.Metadata = rw.cfg.ObjectMetadata
 	}
 
-	if rw.cfg.CacheControl != "" {
-		w.CacheControl = rw.cfg.CacheControl
+	if rw.cfg.ObjectCacheControl != "" {
+		w.CacheControl = rw.cfg.ObjectCacheControl
 	}
 
 	return w

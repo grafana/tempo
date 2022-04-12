@@ -126,11 +126,11 @@ func TestObjectConfigAttributes(t *testing.T) {
 			server := fakeServerWithObjectAttributes(t, &rawObject)
 
 			_, w, _, err := New(&Config{
-				BucketName:   "blerg2",
-				Endpoint:     server.URL,
-				Insecure:     true,
-				CacheControl: tc.cacheControl,
-				Metadata:     tc.metadata,
+				BucketName:         "blerg2",
+				Endpoint:           server.URL,
+				Insecure:           true,
+				ObjectCacheControl: tc.cacheControl,
+				ObjectMetadata:     tc.metadata,
 			})
 			require.NoError(t, err)
 
