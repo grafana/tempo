@@ -450,6 +450,8 @@ storage:
       insecure: false
       hedge_requests_at: 0s
       hedge_requests_up_to: 2
+      object_cache_control: ""
+      object_metadata: {}
     s3:
       bucket: ""
       endpoint: ""
