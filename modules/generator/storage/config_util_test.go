@@ -14,7 +14,7 @@ import (
 func Test_generateTenantRemoteWriteConfigs(t *testing.T) {
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
 
-	original := []*prometheus_config.RemoteWriteConfig{
+	original := []prometheus_config.RemoteWriteConfig{
 		{
 			URL:     &prometheus_common_config.URL{URL: urlMustParse("http://prometheus-1/api/prom/push")},
 			Headers: map[string]string{},
