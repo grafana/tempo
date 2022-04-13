@@ -145,7 +145,7 @@ Pipelining allows us to "pipe" a set of spans from one expression to the next. T
 
 **Examples**
 
-Find traces where that have more than 3 spans with an attribute`http.status` with a value of `200`:  
+Find traces that have more than 3 spans with an attribute `http.status` with a value of `200`:  
 `{ http.status = 200 } | count() > 3`
 
 ## Grouping
