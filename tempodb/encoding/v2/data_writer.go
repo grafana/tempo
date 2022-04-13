@@ -48,10 +48,10 @@ func (p *dataWriter) Write(id common.ID, obj []byte) (int, error) {
 }
 
 // CutPage implements DataWriter
-func (p *dataWriter) CutPage() (int, error) {
+func (p *dataWriter) CutPage() (n int, err error) {
 	// compress the raw object buffer
 	buffer := p.objectBuffer.Bytes()
-	_, err := p.compressionWriter.Write(buffer)
+	_, err = p.compressionWriter.Write(buffer)
 	if err != nil {
 		return 0, err
 	}
@@ -59,21 +59,25 @@ func (p *dataWriter) CutPage() (int, error) {
 	// force flush everything
 	p.compressionWriter.Close()
 
+	defer func() {
+		// reset buffers for the next write
+		var resetErr error
+		p.objectBuffer.Reset()
+		p.compressedBuffer.Reset()
+		p.compressionWriter, resetErr = p.pool.ResetWriter(p.compressedBuffer, p.compressionWriter)
+		if resetErr != nil { // set return variables
+			n = 0
+			err = resetErr
+		}
+	}()
+
 	// now marshal the buffer as a page to the output
-	bytesWritten, err := marshalPageToWriter(p.compressedBuffer.Bytes(), p.outputWriter, constDataHeader)
+	n, err = marshalPageToWriter(p.compressedBuffer.Bytes(), p.outputWriter, constDataHeader)
 	if err != nil {
 		return 0, err
 	}
 
-	// reset buffers for the next write
-	p.objectBuffer.Reset()
-	p.compressedBuffer.Reset()
-	p.compressionWriter, err = p.pool.ResetWriter(p.compressedBuffer, p.compressionWriter)
-	if err != nil {
-		return 0, err
-	}
-
-	return bytesWritten, err
+	return n, err
 }
 
 // Complete implements DataWriter
