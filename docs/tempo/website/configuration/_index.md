@@ -10,6 +10,7 @@ This document explains the configuration options for Tempo as well as the detail
   - [server](#server)
   - [distributor](#distributor)
   - [ingester](#ingester)
+  - [metrics-generator](#metrics-generator)
   - [query-frontend](#query-frontend)
   - [querier](#querier)
   - [compactor](#compactor)
@@ -171,6 +172,89 @@ ingester:
     # duration to keep blocks in the ingester after they have been flushed
     # (default: 15m)
     [ complete_block_timeout: <duration>]
+```
+
+## Metrics-generator
+For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
+
+The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
+
+The metrics-generator is an optional component, it can be enabled by setting the following top-level setting.
+In microservices mode, it must be set for the distributors and the metrics-generators.
+
+```yaml
+metrics_generator_enabled: true
+```
+
+```yaml
+# Metrics-generator configuration block
+metrics_generator:
+
+    # Ring configuration
+    ring:
+
+      kvstore:
+
+        # The metrics-generator uses the ring to balance work across instances. The ring is stored
+        # in a key-vault store.
+        [store: <string> | default = memberlist]
+
+    # Processor-specific configuration
+    processor:
+
+        service_graphs:
+
+            # Wait is the value to wait for an edge to be completed.
+            [wait: <duration> | default = 10s]
+
+            # MaxItems is the amount of edges that will be stored in the store.
+            [max_items: <int> | default = 10000]
+
+            # Workers is the amount of workers that will be used to process the edges
+            [workers: <int> | default = 10]
+
+            # Buckets for the latency histogram in seconds.
+            [histogram_buckets: <list of float> | default = 0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8]
+
+        span_metrics:
+
+            # Buckets for the latency histogram in seconds.
+            [histogram_buckets: <list of float> | default = 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.02, 2.05, 4.10]
+
+            # Additional dimensions to add to the metrics along with the default dimensions
+            # (service, span_name, span_kind and span_status). Dimensions are searched for in the
+            # span attributes and are added to the metrics if present.
+            [dimensions: <list of string>]
+
+    # Registry configuration
+    registry:
+
+        # Interval to collect metrics and remote write them.
+        [collection_interval: <duration> | default = 15s]
+
+        # Interval after which a series is considered stale and will be deleted from the registry.
+        # Once a metrics series is deleted it won't be emitted anymore, keeping active series low.
+        [stale_duration: <duration> | default = 15m]
+
+        # A list of labels that will be added to all generated metrics.
+        [external_labels: <map>]
+
+    # Storage and remote write configuration
+    storage:
+
+        # Path to store the WAL. Each tenant will be stored in its own subdirectory.
+        path: <string>
+
+        # Configuration for the Prometheus Agent WAL
+        wal:
+
+        # How long to wait when flushing samples on shutdown
+        [remote_write_flush_deadline: <duration> | default = 1m]     
+
+        # A list of remote write endpoints.
+        # https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
+        remote_write:
+            [- <Prometheus remote write config>]  
 ```
 
 ## Query-frontend
@@ -855,6 +939,35 @@ overrides:
     # tags with high cardinality or large values such as HTTP URLs or SQL queries.
     # This override limit is used by the ingester and the querier.
     [max_bytes_per_tag_values_query: <int> | default = 5000000 (5MB) ]
+
+    # Metrics-generator configurations
+
+    # Per-user configuration of the metrics-generator ring size. If set, the tenant will use a
+    # ring with at most the given amount of instances. Shuffle sharding is used to spread out
+    # smaller rings across all instances. If the value 0 or a value larger than the total amount
+    # of instances is used, all instances will be included in the ring.
+    #
+    # Together with metrics_generator_max_active_series this can be used to control the total
+    # amount of active series. The total max active series for a specific tenant will be:
+    #   metrics_generator_ring_size * metrics_generator_max_active_series
+    [metrics_generator_ring_size: <int>]
+
+    # Per-user configuration of the metrics-generator processors. The following processors are
+    # supported:
+    #  - service-graphs
+    #  - span-metrics
+    [metrics_generator_processors: <list of strings>]
+
+    # Maximum number of active series in the registry, per instance of the metrics-generator. A
+    # value of 0 disables this check.
+    # If the limit is reached, no new series will be added but existing series will still be
+    # updated. The amount of limited series can be observed with the metric
+    #   tempo_metrics_generator_registry_series_limited_total
+    [metrics_generator_max_active_series: <int>]
+
+    # Per-user configuration of the collection interval. A value of 0 means the global default is
+    # used set in the metrics_generator config block.
+    [metrics_generator_collection_interval: <duration>]
 
     # Tenant-specific overrides settings configuration file. The empty string (default
     # value) disables using an overrides file.
