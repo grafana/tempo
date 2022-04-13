@@ -40,9 +40,13 @@ The TraceQL language is designed to use the same syntax and semantics as PromQL 
 
 ## Structure
 
-A query is an expression that is evaluated on one trace at a time, and iterates, evaluating each trace. The expression is evaluated on each trace as a whole, one at a time. If the evaluation produces a set of spans, then the trace and the set of spans is part of the result set.
+A query is an expression that is evaluated on one trace at a time. The query is structured as a set of chained
+expressions (a pipeline). Each expression in the pipeline selects or discards spansets from being included in the results set. E.g.
 
-The structure of a query is an expression or set of chained expressions (a pipeline). Chained expressions are evaluated left to right.  Each expression selects or discards this trace from being included in the results set.
+`{ http.status = 200 } | by(namespace) | count() > 3`
+
+Queries select sets of spans and filter them through a pipeline of aggregators and conditions. If a spanset is produced after evaluation
+on a trace then this spanset (and by extension the trace) is included in the resultset of the query.
 
 ## Selecting spans
 
