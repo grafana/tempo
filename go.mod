@@ -68,7 +68,7 @@ require (
 	github.com/weaveworks/common v0.0.0-20210913144402-035033b78a78
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.23.0
-	go.opentelemetry.io/collector v0.41.0
+	go.opentelemetry.io/collector v0.48.0
 	go.opentelemetry.io/collector/model v0.41.0
 	go.opentelemetry.io/otel v1.4.1
 	go.opentelemetry.io/otel/bridge/opencensus v0.25.0
