@@ -237,8 +237,8 @@ The following metrics should be exported:
 
 | Metric                               | Type      | Labels     | Description             |
 |--------------------------------------|-----------|------------|-------------------------|
-| traces_span_metrics_duration_seconds | Histogram | Dimensions | Duration of the span    |
-| traces_span_metrics_calls_total      | Counter   | Dimensions | Total count of the span |
+| traces_spanmetrics_duration_seconds | Histogram | Dimensions | Duration of the span    |
+| traces_spanmetrics_calls_total      | Counter   | Dimensions | Total count of the span |
 
 The following aspects should be configurable:
 - `dimensions`:  the labels to include in the generated metrics, each dimension must match with an attribute of the span.
