@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	model_v2 "github.com/grafana/tempo/pkg/model/v2"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -20,9 +20,12 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, tenantID string, 
 	dataEncoding string, estimatedTotalObjects int, i common.TraceIterator, to backend.Writer) (*backend.BlockMeta, error) {
 	defer i.Close()
 
-	newMeta := backend.NewBlockMeta(tenantID, blockID, VersionString, encoding, model_v2.Encoding)
+	newMeta := backend.NewBlockMeta(tenantID, blockID, VersionString, encoding, dataEncoding)
 
-	dec := model_v2.NewSegmentDecoder()
+	dec, err := model.NewSegmentDecoder(dataEncoding)
+	if err != nil {
+		return nil, err
+	}
 
 	newBlock, err := NewStreamingBlock(cfg, blockID, tenantID, []*backend.BlockMeta{newMeta}, estimatedTotalObjects)
 	if err != nil {

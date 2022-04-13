@@ -30,7 +30,6 @@ import (
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/search"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -217,10 +216,9 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal
 
 	meta := block.Meta()
 
-	// Pinning to v2 here
-	vers := &v2.Encoding{}
+	vers := encoding.LatestEncoding()
 
-	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, meta.TenantID, meta.BlockID, meta.Encoding, meta.DataEncoding, meta.TotalObjects, iter, w)
+	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, meta.TenantID, meta.BlockID, rw.cfg.Block.Encoding, model.CurrentEncoding, meta.TotalObjects, iter, w)
 	if err != nil {
 		return nil, errors.Wrap(err, "error creating block")
 	}
