@@ -553,6 +553,54 @@ func TestCompleteBlock(t *testing.T) {
 	}
 }
 
+func TestCompleteBlockHonorsStartStopTimes(t *testing.T) {
+
+	tempDir := t.TempDir()
+
+	_, w, _, err := New(&Config{
+		Backend: "local",
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Encoding:             backend.EncNone,
+			IndexPageSizeBytes:   1000,
+		},
+		WAL: &wal.Config{
+			IngestionSlack: time.Minute,
+			Filepath:       path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, log.NewNopLogger())
+	require.NoError(t, err)
+
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	wal := w.WAL()
+
+	now := time.Now().Unix()
+	oneHourAgo := time.Now().Add(-1 * time.Hour).Unix()
+	oneHour := time.Now().Add(time.Hour).Unix()
+
+	block, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
+	require.NoError(t, err, "unexpected error creating block")
+
+	// Write a trace from 1 hour ago.
+	// The wal slack time will adjust it to 1 minute ago
+	id := test.ValidTraceID(nil)
+	req := test.MakeTrace(10, id)
+	writeTraceToWal(t, block, dec, id, req, uint32(oneHourAgo), uint32(oneHour))
+
+	complete, err := w.CompleteBlock(block, &mockCombiner{})
+	require.NoError(t, err, "unexpected error completing block")
+
+	// Verify the block time was constrained to the slack time.
+	require.Equal(t, now, complete.BlockMeta().StartTime.Unix())
+	require.Equal(t, now, complete.BlockMeta().EndTime.Unix())
+}
 func TestShouldCache(t *testing.T) {
 	tempDir := t.TempDir()
 

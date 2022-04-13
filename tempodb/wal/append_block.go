@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/decoder"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -274,18 +275,23 @@ type appendBlockTraceIterator struct {
 
 var _ common.TraceIterator = (*appendBlockTraceIterator)(nil)
 
-func (a *appendBlockTraceIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, error) {
+func (a *appendBlockTraceIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, uint32, uint32, error) {
 	id, obj, err := a.iter.Next(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, 0, err
+	}
+
+	s, e, err := a.dec.FastRange(obj)
+	if err != nil && err != decoder.ErrUnsupported {
+		return nil, nil, 0, 0, err
 	}
 
 	tr, err := a.dec.PrepareForRead(obj)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, 0, err
 	}
 
-	return id, tr, nil
+	return id, tr, s, e, nil
 }
 
 func (a *appendBlockTraceIterator) Close() {

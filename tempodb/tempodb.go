@@ -214,11 +214,24 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal
 		return nil, err
 	}
 
-	meta := block.Meta()
+	walMeta := block.Meta()
+
+	inMeta := &backend.BlockMeta{
+		// From the wal block
+		TenantID:     walMeta.TenantID,
+		BlockID:      walMeta.BlockID,
+		TotalObjects: walMeta.TotalObjects,
+		StartTime:    walMeta.StartTime,
+		EndTime:      walMeta.EndTime,
+
+		// Other
+		Encoding:     rw.cfg.Block.Encoding,
+		DataEncoding: model.CurrentEncoding,
+	}
 
 	vers := encoding.LatestEncoding()
 
-	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, meta.TenantID, meta.BlockID, rw.cfg.Block.Encoding, model.CurrentEncoding, meta.TotalObjects, iter, w)
+	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, w)
 	if err != nil {
 		return nil, errors.Wrap(err, "error creating block")
 	}

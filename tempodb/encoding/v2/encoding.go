@@ -3,7 +3,6 @@ package v2
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -29,7 +28,6 @@ func (v Encoding) CopyBlock(ctx context.Context, meta *backend.BlockMeta, from b
 	return CopyBlock(ctx, meta, from, to)
 }
 
-func (v Encoding) CreateBlock(ctx context.Context, cfg *common.BlockConfig, tenantID string, blockID uuid.UUID, encoding backend.Encoding,
-	dataEncoding string, estimatedTotalObjects int, i common.TraceIterator, to backend.Writer) (*backend.BlockMeta, error) {
-	return CreateBlock(ctx, cfg, tenantID, blockID, encoding, dataEncoding, estimatedTotalObjects, i, to)
+func (v Encoding) CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.TraceIterator, to backend.Writer) (*backend.BlockMeta, error) {
+	return CreateBlock(ctx, cfg, meta, i, to)
 }

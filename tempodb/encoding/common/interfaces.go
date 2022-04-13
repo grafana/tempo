@@ -53,7 +53,9 @@ func DefaultCompactionOptions() CompactionOptions {
 }
 
 type TraceIterator interface {
-	Next(ctx context.Context) (ID, *tempopb.Trace, error)
+	// Next returns the next trace and optionally the start and stop times
+	// for the trace that may have been adjusted.
+	Next(ctx context.Context) (ID, *tempopb.Trace, uint32, uint32, error)
 	Close()
 }
 

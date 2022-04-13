@@ -3,12 +3,8 @@ package v2
 import (
 	"context"
 	"io"
-	"math"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/pkg/errors"
@@ -16,43 +12,28 @@ import (
 
 const DefaultFlushSizeBytes int = 30 * 1024 * 1024 // 30 MiB
 
-func CreateBlock(ctx context.Context, cfg *common.BlockConfig, tenantID string, blockID uuid.UUID, encoding backend.Encoding,
-	dataEncoding string, estimatedTotalObjects int, i common.TraceIterator, to backend.Writer) (*backend.BlockMeta, error) {
+func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.TraceIterator, to backend.Writer) (*backend.BlockMeta, error) {
 	defer i.Close()
 
-	newMeta := backend.NewBlockMeta(tenantID, blockID, VersionString, encoding, dataEncoding)
-
-	dec, err := model.NewSegmentDecoder(dataEncoding)
+	dec, err := model.NewSegmentDecoder(meta.DataEncoding)
 	if err != nil {
 		return nil, err
 	}
 
-	newBlock, err := NewStreamingBlock(cfg, blockID, tenantID, []*backend.BlockMeta{newMeta}, estimatedTotalObjects)
+	newBlock, err := NewStreamingBlock(cfg, meta.BlockID, meta.TenantID, []*backend.BlockMeta{meta}, meta.TotalObjects)
 	if err != nil {
 		return nil, errors.Wrap(err, "error creating streaming block")
 	}
 
-	start := uint32(0)
-	end := uint32(0)
 	var tracker backend.AppendTracker
 	for {
-		id, tr, err := i.Next(ctx)
+		id, tr, s, e, err := i.Next(ctx)
 		if err != nil && err != io.EOF {
 			return nil, errors.Wrap(err, "error iterating")
 		}
 
 		if id == nil {
 			break
-		}
-
-		// Gather timestamps for individual traces
-		// and also the whole block time range
-		s, e := timestampsForTrace(tr)
-		if s < start || start == 0 {
-			start = s
-		}
-		if e > end {
-			end = e
 		}
 
 		data, err := dec.PrepareForWrite(tr, s, e)
@@ -78,33 +59,10 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, tenantID string, 
 		}
 	}
 
-	newBlock.BlockMeta().StartTime = time.Unix(int64(start), 0)
-	newBlock.BlockMeta().EndTime = time.Unix(int64(end), 0)
-
 	_, err = newBlock.Complete(ctx, tracker, to)
 	if err != nil {
 		return nil, errors.Wrap(err, "error completing compactor block")
 	}
 
 	return newBlock.BlockMeta(), nil
-}
-
-func timestampsForTrace(t *tempopb.Trace) (uint32, uint32) {
-	start := uint64(math.MaxUint64)
-	end := uint64(0)
-
-	for _, b := range t.Batches {
-		for _, ils := range b.InstrumentationLibrarySpans {
-			for _, s := range ils.Spans {
-				if s.StartTimeUnixNano < start {
-					start = s.StartTimeUnixNano
-				}
-				if s.EndTimeUnixNano > end {
-					end = s.EndTimeUnixNano
-				}
-			}
-		}
-	}
-
-	return uint32(start / uint64(time.Second)), uint32(end / uint64(time.Second))
 }

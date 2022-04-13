@@ -11,8 +11,7 @@ import (
 )
 
 type StreamingBlock struct {
-	compactedMeta *backend.BlockMeta
-	inMetas       []*backend.BlockMeta
+	meta *backend.BlockMeta
 
 	bloom *common.ShardedBloomFilter
 
@@ -36,25 +35,23 @@ func NewStreamingBlock(cfg *common.BlockConfig, id uuid.UUID, tenantID string, m
 		}
 	}
 
-	// Start with times from input metas,
-	// But allow modification later
-	compactedMeta := backend.NewBlockMeta(tenantID, id, VersionString, cfg.Encoding, dataEncoding)
-	compactedMeta.StartTime = metas[0].StartTime
-	compactedMeta.EndTime = metas[0].EndTime
+	// Start with times from input metas.
+	newMeta := backend.NewBlockMeta(tenantID, id, VersionString, cfg.Encoding, dataEncoding)
+	newMeta.StartTime = metas[0].StartTime
+	newMeta.EndTime = metas[0].EndTime
 	for _, m := range metas[1:] {
-		if m.StartTime.Before(compactedMeta.StartTime) {
-			compactedMeta.StartTime = m.StartTime
+		if m.StartTime.Before(newMeta.StartTime) {
+			newMeta.StartTime = m.StartTime
 		}
-		if m.EndTime.After(compactedMeta.EndTime) {
-			compactedMeta.EndTime = m.EndTime
+		if m.EndTime.After(newMeta.EndTime) {
+			newMeta.EndTime = m.EndTime
 		}
 	}
 
 	c := &StreamingBlock{
-		compactedMeta: compactedMeta,
-		bloom:         common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(estimatedObjects)),
-		inMetas:       metas,
-		cfg:           cfg,
+		meta:  newMeta,
+		bloom: common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(estimatedObjects)),
+		cfg:   cfg,
 	}
 
 	c.appendBuffer = &bytes.Buffer{}
@@ -77,7 +74,7 @@ func (c *StreamingBlock) AddObject(id common.ID, object []byte) error {
 		return err
 	}
 	c.bufferedObjects++
-	c.compactedMeta.ObjectAdded(id, 0, 0) // streaming block handles start/end time by combining BlockMetas. See .BlockMeta()
+	c.meta.ObjectAdded(id, 0, 0) // streaming block handles start/end time by combining BlockMetas. See .BlockMeta()
 	c.bloom.Add(id)
 	return nil
 }
@@ -149,7 +146,7 @@ func (c *StreamingBlock) Complete(ctx context.Context, tracker backend.AppendTra
 }
 
 func (c *StreamingBlock) BlockMeta() *backend.BlockMeta {
-	meta := c.compactedMeta
+	meta := c.meta
 	meta.Size = c.appender.DataLength()
 	return meta
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
@@ -24,9 +23,15 @@ type VersionedEncoding interface {
 	NewCompactor() common.Compactor
 
 	// CreateBlock with the given attributes and trace contents.
-	// TODO: This is a lot of args and it's more readable than
-	// previously passing in a blockmeta, but can we make it better?
-	CreateBlock(ctx context.Context, cfg *common.BlockConfig, tenantID string, blockID uuid.UUID, encoding backend.Encoding, dataEncoding string, estimatedTotalObjects int, i common.TraceIterator, to backend.Writer) (*backend.BlockMeta, error)
+	// BlockMeta is used as a container for many options. Required fields:
+	// * BlockID
+	// * TenantID
+	// * Encoding
+	// * DataEncoding
+	// * StartTime
+	// * EndTime
+	// * TotalObjects
+	CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.TraceIterator, to backend.Writer) (*backend.BlockMeta, error)
 
 	// CopyBlock from one backend to another.
 	CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error
