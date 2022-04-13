@@ -1,9 +1,9 @@
 local apps = ['tempo', 'tempo-vulture', 'tempo-query'];
 local archs = ['amd64', 'arm64'];
 
-## Building blocks ##
+//# Building blocks ##
 
-local pipeline(name, arch = 'amd64') = {
+local pipeline(name, arch='amd64') = {
   kind: 'pipeline',
   name: name,
   platform: {
@@ -14,11 +14,11 @@ local pipeline(name, arch = 'amd64') = {
   depends_on: [],
   trigger: {
     ref: [
-        'refs/heads/main',
-        'refs/tags/v*',
-        // weekly release branches
-        'refs/heads/r?',
-        'refs/heads/r??',
+      'refs/heads/main',
+      'refs/tags/v*',
+      // weekly release branches
+      'refs/heads/r?',
+      'refs/heads/r??',
     ],
   },
 };
@@ -36,7 +36,9 @@ local docker_username_secret = secret('docker_username', 'infra/data/ci/docker_h
 local docker_password_secret = secret('docker_password', 'infra/data/ci/docker_hub', 'password');
 
 // secrets for pushing serverless code packages
-local fn_upload_ops_tools_secret = secret('ops_tools_fn_upload', 'infra/data/ci/tempo-ops-tools-function-upload', 'credentials.json');  
+local fn_upload_ops_tools_secret = secret('ops_tools_fn_upload', 'infra/data/ci/tempo-ops-tools-function-upload', 'credentials.json');
+local aws_access_key_id = secret('AWS_ACCESS_KEY_ID', 'infra/data/ci/tempo-dev-aws-function-upload', 'access_key_id');
+local aws_secret_access_key = secret('AWS_SECRET_ACCESS_KEY', 'infra/data/ci/tempo-dev-aws-function-upload', 'secret_access_key');
 
 // secret needed to access us.gcr.io in deploy_to_dev()
 local docker_config_json_secret = secret('dockerconfigjson', 'secret/data/common/gcr', '.dockerconfigjson');
@@ -44,26 +46,33 @@ local docker_config_json_secret = secret('dockerconfigjson', 'secret/data/common
 // secret needed for dep-tools
 local gh_token_secret = secret('gh_token', 'infra/data/ci/github/grafanabot', 'pat');
 
-# gcs buckets to copy serverless functions to
-local gcp_secrets = [ fn_upload_ops_tools_secret.name ];
-local gcp_serverless_deployments = [ 
-  { 
+// gcs buckets to copy serverless functions to
+local gcp_secrets = [fn_upload_ops_tools_secret.name];
+local gcp_serverless_deployments = [
+  {
     bucket: 'ops-tools-tempo-function-source',
     secret: fn_upload_ops_tools_secret.name,
   },
-  { 
+  {
     bucket: 'grafanalabs-global-tempo-function-source',
     secret: fn_upload_ops_tools_secret.name,
   },
 ];
 
-## Steps ##
+local aws_secrets = [aws_access_key_id.name, aws_secret_access_key.name];
+local aws_serverless_deployments = [
+  {
+    bucket: 'dev-workloads-tempo-function-source',
+  },
+];
+
+//# Steps ##
 
 // the alpine/git image has apk errors when run on aarch64, this is the most recent image that does not have this issue
 // https://github.com/alpine-docker/git/issues/35
 local alpine_git_image = 'alpine/git:v2.30.2';
 
-local image_tag(arch = '') = {
+local image_tag(arch='') = {
   name: 'image-tag',
   image: alpine_git_image,
   commands: [
@@ -71,23 +80,23 @@ local image_tag(arch = '') = {
     'git fetch origin --tags',
   ] + (
     if arch == '' then [
-      'echo $(./tools/image-tag) > .tags'
+      'echo $(./tools/image-tag) > .tags',
     ] else [
-      'echo $(./tools/image-tag)-%s > .tags' % arch
+      'echo $(./tools/image-tag)-%s > .tags' % arch,
     ]
   ),
 };
 
 local image_tag_for_cd() = {
-    name: 'image-tag-for-cd',
-    image: alpine_git_image,
-    commands: [
-      'apk --update --no-cache add bash',
-      'git fetch origin --tags',
-      'echo "grafana/tempo:$(./tools/image-tag)" > .tags-for-cd-tempo',
-      'echo "grafana/tempo-query:$(./tools/image-tag)" > .tags-for-cd-tempo_query',
-      'echo "grafana/tempo-vulture:$(./tools/image-tag)" > .tags-for-cd-tempo_vulture',
-    ],
+  name: 'image-tag-for-cd',
+  image: alpine_git_image,
+  commands: [
+    'apk --update --no-cache add bash',
+    'git fetch origin --tags',
+    'echo "grafana/tempo:$(./tools/image-tag)" > .tags-for-cd-tempo',
+    'echo "grafana/tempo-query:$(./tools/image-tag)" > .tags-for-cd-tempo_query',
+    'echo "grafana/tempo-vulture:$(./tools/image-tag)" > .tags-for-cd-tempo_vulture',
+  ],
 };
 
 local build_binaries(arch) = {
@@ -136,7 +145,7 @@ local deploy_to_dev() = {
         pull_request_branch_prefix: 'cd-tempo-dev',
         pull_request_enabled: false,
         pull_request_team_reviewers: [
-          'tempo'
+          'tempo',
         ],
         repo_name: 'deployment_tools',
         update_jsonnet_attribute_configs: [
@@ -151,12 +160,12 @@ local deploy_to_dev() = {
       '  '
     ),
     github_token: {
-        from_secret: gh_token_secret.name,
+      from_secret: gh_token_secret.name,
     },
   },
 };
 
-## Pipelines & resources
+//# Pipelines & resources
 
 [
   // A pipeline to build Docker images for every app and for every arch
@@ -217,8 +226,8 @@ local deploy_to_dev() = {
         image: 'golang:1.17-alpine',
         commands: [
           'apk add make git zip bash',
-          'cd ./cmd/tempo-serverless', 
-          'make build-gcf-zip',    
+          'cd ./cmd/tempo-serverless',
+          'make build-gcf-zip',
           'make build-lambda-zip',
         ],
       },
@@ -228,13 +237,30 @@ local deploy_to_dev() = {
         environment: {
           [s]: {
             from_secret: s,
-          } for s in gcp_secrets
+          }
+          for s in gcp_secrets
         },
         commands: [
           'cd ./cmd/tempo-serverless/cloud-functions',
         ] + [
           'printf "%%s" "$%s" > ./creds.json && gcloud auth activate-service-account --key-file ./creds.json && gsutil cp tempo-serverless*.zip gs://%s' % [d.secret, d.bucket]
           for d in gcp_serverless_deployments
+        ],
+      },
+      {
+        name: 'deploy-tempo-serverless-lambda',
+        image: 'amazon/aws-cli',
+        environment: {
+          [s]: {
+            from_secret: s,
+          }
+          for s in aws_secrets
+        },
+        commands: [
+          'cd ./cmd/tempo-serverless/lambda',
+        ] + [
+          'aws s3 cp tempo-serverless*.zip s3://%s' % d.bucket
+          for d in aws_serverless_deployments
         ],
       },
     ],
@@ -245,4 +271,5 @@ local deploy_to_dev() = {
   docker_config_json_secret,
   gh_token_secret,
   fn_upload_ops_tools_secret,
+
 ]
