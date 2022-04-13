@@ -178,7 +178,7 @@ Any span has a duration of over one second and any span has a specific attribute
 `max(duration) > 1s && { namespace = "prod" }`
 
 A trace has over 5 spans with http.status = 200 in any given namespace:  
-`by(namespace) | { http.status = 200 } | count() > 5`
+`{ http.status = 200 } | by(namespace) | count() > 5`
 
 A trace passed through two regions in a specific order:  
 `{ region = "eu-west-0" } >> { region = "eu-west-1" }`
