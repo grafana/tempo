@@ -309,4 +309,20 @@ get:
   path: infra/data/ci/tempo-ops-tools-function-upload
   name: credentials.json
 
+---
+kind: secret
+name: AWS_ACCESS_KEY_ID-tempo-dev-02
+
+get:
+  path: secret/tempo-dev-02/dev-us-east-0/aws-credentials-drone
+  name: access_key_id
+
+---
+kind: secret
+name: AWS_SECRET_ACCESS_KEY-tempo-dev-02
+
+get:
+  path: secret/tempo-dev-02/dev-us-east-0/aws-credentials-drone
+  name: secret_access_key
+
 ...
