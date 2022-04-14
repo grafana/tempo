@@ -37,8 +37,6 @@ local docker_password_secret = secret('docker_password', 'infra/data/ci/docker_h
 
 // secrets for pushing serverless code packages
 local fn_upload_ops_tools_secret = secret('ops_tools_fn_upload', 'infra/data/ci/tempo-ops-tools-function-upload', 'credentials.json');
-local aws_access_key_id = secret('AWS_ACCESS_KEY_ID', 'infra/data/ci/tempo-dev-aws-function-upload', 'access_key_id');
-local aws_secret_access_key = secret('AWS_SECRET_ACCESS_KEY', 'infra/data/ci/tempo-dev-aws-function-upload', 'secret_access_key');
 
 // secret needed to access us.gcr.io in deploy_to_dev()
 local docker_config_json_secret = secret('dockerconfigjson', 'secret/data/common/gcr', '.dockerconfigjson');
@@ -59,10 +57,15 @@ local gcp_serverless_deployments = [
   },
 ];
 
-local aws_secrets = [aws_access_key_id.name, aws_secret_access_key.name];
 local aws_serverless_deployments = [
   {
-    bucket: 'dev-workloads-tempo-function-source',
+    local cluster = 'dev-us-east-0',
+    local namespace = 'tempo-dev-02',
+    bucket: '%s-%s-fn-source' % [cluster, namespace],
+    secrets: [
+      secret('AWS_ACCESS_KEY_ID', 'secret/%s/%s/aws-credentials-drone', 'access_key_id').name % [namespace, cluster],
+      secret('AWS_SECRET_ACCESS_KEY', 'secret/%s/%s/aws-credentials-drone', 'secret_access_key').name % [namespace, cluster],
+    ],
   },
 ];
 
@@ -254,7 +257,8 @@ local deploy_to_dev() = {
           [s]: {
             from_secret: s,
           }
-          for s in aws_secrets
+          for d in aws_serverless_deployments
+          for s in d.secrets
         },
         commands: [
           'cd ./cmd/tempo-serverless/lambda',
