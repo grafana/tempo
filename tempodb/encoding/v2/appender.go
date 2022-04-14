@@ -1,7 +1,6 @@
 package v2
 
 import (
-	"hash"
 	"sync"
 
 	"github.com/cespare/xxhash"
@@ -22,7 +21,6 @@ type appender struct {
 	dataWriter    common.DataWriter
 	records       map[uint64][]common.Record
 	recordsMtx    sync.RWMutex
-	hash          hash.Hash64
 	currentOffset uint64
 }
 
@@ -32,7 +30,6 @@ func NewAppender(dataWriter common.DataWriter) Appender {
 	return &appender{
 		dataWriter: dataWriter,
 		records:    map[uint64][]common.Record{},
-		hash:       xxhash.New(),
 	}
 }
 
@@ -49,9 +46,9 @@ func (a *appender) Append(id common.ID, b []byte) error {
 		return err
 	}
 
-	a.hash.Reset()
-	_, _ = a.hash.Write(id)
-	hash := a.hash.Sum64()
+	hasher := xxhash.New()
+	_, _ = hasher.Write(id)
+	hash := hasher.Sum64()
 
 	a.addRecord(hash, id, bytesWritten)
 	a.currentOffset += uint64(bytesWritten)
@@ -87,9 +84,9 @@ func (a *appender) Records() []common.Record {
 }
 
 func (a *appender) RecordsForID(id common.ID) []common.Record {
-	a.hash.Reset()
-	_, _ = a.hash.Write(id)
-	hash := a.hash.Sum64()
+	hasher := xxhash.New()
+	_, _ = hasher.Write(id)
+	hash := hasher.Sum64()
 
 	a.recordsMtx.RLock()
 	defer a.recordsMtx.RUnlock()
