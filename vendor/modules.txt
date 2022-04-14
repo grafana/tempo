@@ -941,7 +941,7 @@ go.opencensus.io/trace
 go.opencensus.io/trace/internal
 go.opencensus.io/trace/propagation
 go.opencensus.io/trace/tracestate
-# go.opentelemetry.io/collector v0.41.0 => github.com/grafana/opentelemetry-collector v0.4.1-0.20211201123047-86905635e8f8
+# go.opentelemetry.io/collector v0.49.0 => github.com/grafana/opentelemetry-collector v0.4.1-0.20211201123047-86905635e8f8
 ## explicit; go 1.17
 go.opentelemetry.io/collector/client
 go.opentelemetry.io/collector/component
