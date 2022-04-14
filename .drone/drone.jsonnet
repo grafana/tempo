@@ -63,8 +63,8 @@ local aws_serverless_deployments = [
     local namespace = 'tempo-dev-02',
     bucket: '%s-%s-fn-source' % [cluster, namespace],
     secrets: [
-      secret('AWS_ACCESS_KEY_ID', 'secret/%s/%s/aws-credentials-drone', 'access_key_id').name % [namespace, cluster],
-      secret('AWS_SECRET_ACCESS_KEY', 'secret/%s/%s/aws-credentials-drone', 'secret_access_key').name % [namespace, cluster],
+      secret('AWS_ACCESS_KEY_ID-%s' % namespace, 'secret/%s/%s/aws-credentials-drone' % [namespace, cluster], 'access_key_id').name,
+      secret('AWS_SECRET_ACCESS_KEY-%s' % namespace, 'secret/%s/%s/aws-credentials-drone' % [namespace, cluster], 'secret_access_key').name,
     ],
   },
 ];
