@@ -47,6 +47,7 @@
       prefer_self: 2
       external_endpoints: []
   ```
+* [ENHANCEMENT] Added tenant ID (instance ID) to `trace too large message`. [#1385](https://github.com/grafana/tempo/pull/1385) (@cristiangsp)
 * [BUGFIX]: Enable compaction and retention in Tanka single-binary [#1352](https://github.com/grafana/tempo/issues/1352)
 * [BUGFIX]: Remove unnecessary PersistentVolumeClaim [#1245](https://github.com/grafana/tempo/issues/1245)
 * [BUGFIX] Fixed issue when query-frontend doesn't log request details when request is cancelled [#1136](https://github.com/grafana/tempo/issues/1136) (@adityapwr)
