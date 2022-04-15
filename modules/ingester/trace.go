@@ -55,7 +55,7 @@ func (t *liveTrace) Push(_ context.Context, instanceID string, trace []byte, sea
 	if t.maxBytes != 0 {
 		reqSize := len(trace)
 		if t.currentBytes+reqSize > t.maxBytes {
-			return newTraceTooLargeError(t.traceID, t.maxBytes, reqSize)
+			return newTraceTooLargeError(t.traceID, instanceID, t.maxBytes, reqSize)
 		}
 
 		t.currentBytes += reqSize
