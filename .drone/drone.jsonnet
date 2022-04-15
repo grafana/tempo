@@ -254,7 +254,7 @@ local deploy_to_dev() = {
         name: 'deploy-tempo-serverless-lambda',
         image: 'amazon/aws-cli',
         environment: {
-          [s.name]: {
+          [std.split(s.name, '-')[0]]: {
             from_secret: s.name,
           }
           for d in aws_serverless_deployments

@@ -257,9 +257,9 @@ steps:
   - cd ./cmd/tempo-serverless/lambda
   - aws s3 cp tempo-serverless*.zip s3://dev-us-east-0-tempo-dev-02-fn-source
   environment:
-    AWS_ACCESS_KEY_ID-tempo-dev-02:
+    AWS_ACCESS_KEY_ID:
       from_secret: AWS_ACCESS_KEY_ID-tempo-dev-02
-    AWS_SECRET_ACCESS_KEY-tempo-dev-02:
+    AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY-tempo-dev-02
 
 trigger:
@@ -327,6 +327,6 @@ get:
 
 ---
 kind: signature
-hmac: e6212506cadc20d3e9925ba3109bb824250e42054ab5eb483dc37c649874f4a3
+hmac: d6887e2043b8ae9fb13d026f0b33374acb33d39f0b2f3007b9ffaa10e1e3b527
 
 ...
