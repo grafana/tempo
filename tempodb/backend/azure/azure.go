@@ -264,7 +264,7 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 			},
 		},
 	); err != nil {
-		return errors.Wrapf(err, "cannot download blob, name: %s", name)
+		return err
 	}
 
 	_, err = bytes.NewReader(destBuffer).Read(destBuffer)
@@ -296,7 +296,7 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 			},
 		},
 	); err != nil {
-		return nil, errors.Wrapf(err, "cannot download blob, name: %s", name)
+		return nil, err
 	}
 
 	return destBuffer, nil
@@ -307,7 +307,7 @@ func readError(err error) error {
 	if !ok {
 		return errors.Wrap(err, "reading storage container")
 	}
-	if ret.ServiceCode() == "BlobNotFound" {
+	if ret.ServiceCode() == blob.ServiceCodeBlobNotFound {
 		return backend.ErrDoesNotExist
 	}
 	return errors.Wrap(err, "reading Azure blob container")
