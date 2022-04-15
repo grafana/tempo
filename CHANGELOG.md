@@ -47,6 +47,7 @@
       prefer_self: 2
       external_endpoints: []
   ```
+* [ENHANCEMENT] Added tenant ID (instance ID) to `trace too large message`. [#1385](https://github.com/grafana/tempo/pull/1385) (@cristiangsp)
 * [BUGFIX] Correct issue where Azure "Blob Not Found" errors were sometimes not handled correctly [#1390](https://github.com/grafana/tempo/pull/1390) (@joe-elliott)
 * [BUGFIX]: Enable compaction and retention in Tanka single-binary [#1352](https://github.com/grafana/tempo/issues/1352)
 * [BUGFIX]: Remove unnecessary PersistentVolumeClaim [#1245](https://github.com/grafana/tempo/issues/1245)

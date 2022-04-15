@@ -158,6 +158,10 @@ func (r *ManagedRegistry) onRemoveMetricSeries(count uint32) {
 }
 
 func (r *ManagedRegistry) collectMetrics(ctx context.Context) {
+	if r.overrides.MetricsGeneratorDisableCollection(r.tenant) {
+		return
+	}
+
 	r.metricsMtx.RLock()
 	defer r.metricsMtx.RUnlock()
 
