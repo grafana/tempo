@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -22,6 +23,8 @@ const (
 	BlockStartKey = "blockStart"
 	BlockEndKey   = "blockEnd"
 	QueryModeKey  = "mode"
+	TimeStartKey  = "timeStart"
+	TimeEndKey    = "timeEnd"
 
 	QueryModeIngesters = "ingesters"
 	QueryModeBlocks    = "blocks"
@@ -44,7 +47,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// validate request
-	blockStart, blockEnd, queryMode, err := validateAndSanitizeRequest(r)
+	blockStart, blockEnd, queryMode, timeStart, timeEnd, err := validateAndSanitizeRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -53,14 +56,16 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		ot_log.String("msg", "validated request"),
 		ot_log.String("blockStart", blockStart),
 		ot_log.String("blockEnd", blockEnd),
-		ot_log.String("queryMode", queryMode))
+		ot_log.String("queryMode", queryMode),
+		ot_log.String("timeStart", fmt.Sprint(timeStart)),
+		ot_log.String("timeEnd", fmt.Sprint(timeEnd)))
 
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID:    byteID,
 		BlockStart: blockStart,
 		BlockEnd:   blockEnd,
 		QueryMode:  queryMode,
-	})
+	}, timeStart, timeEnd)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -99,11 +104,13 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // return values are (blockStart, blockEnd, queryMode, error)
-func validateAndSanitizeRequest(r *http.Request) (string, string, string, error) {
+func validateAndSanitizeRequest(r *http.Request) (string, string, string, int64, int64, error) {
 	q := r.URL.Query().Get(QueryModeKey)
 
 	// validate queryMode. it should either be empty or one of (QueryModeIngesters|QueryModeBlocks|QueryModeAll)
 	var queryMode string
+	var startTime int64
+	var endTime int64
 	if len(q) == 0 || q == QueryModeAll {
 		queryMode = QueryModeAll
 	} else if q == QueryModeIngesters {
@@ -111,16 +118,18 @@ func validateAndSanitizeRequest(r *http.Request) (string, string, string, error)
 	} else if q == QueryModeBlocks {
 		queryMode = QueryModeBlocks
 	} else {
-		return "", "", "", fmt.Errorf("invalid value for mode %s", q)
+		return "", "", "", 0, 0, fmt.Errorf("invalid value for mode %s", q)
 	}
 
 	// no need to validate/sanitize other parameters if queryMode == QueryModeIngesters
 	if queryMode == QueryModeIngesters {
-		return "", "", queryMode, nil
+		return "", "", queryMode, 0, 0, nil
 	}
 
 	start := r.URL.Query().Get(BlockStartKey)
 	end := r.URL.Query().Get(BlockEndKey)
+	timeStart := r.URL.Query().Get(TimeStartKey)
+	timeEnd := r.URL.Query().Get(TimeEndKey)
 
 	// validate start. it should either be empty or a valid uuid
 	if len(start) == 0 {
@@ -128,7 +137,7 @@ func validateAndSanitizeRequest(r *http.Request) (string, string, string, error)
 	} else {
 		_, err := uuid.Parse(start)
 		if err != nil {
-			return "", "", "", errors.Wrap(err, "invalid value for blockStart")
+			return "", "", "", 0, 0, errors.Wrap(err, "invalid value for blockStart")
 		}
 	}
 
@@ -138,11 +147,36 @@ func validateAndSanitizeRequest(r *http.Request) (string, string, string, error)
 	} else {
 		_, err := uuid.Parse(end)
 		if err != nil {
-			return "", "", "", errors.Wrap(err, "invalid value for blockEnd")
+			return "", "", "", 0, 0, errors.Wrap(err, "invalid value for blockEnd")
 		}
 	}
 
-	return start, end, queryMode, nil
+	if len(timeStart) == 0 {
+		startTime = 0
+	} else {
+		var err error
+		startTime, err = strconv.ParseInt(timeStart, 10, 64)
+		if err != nil {
+			return "", "", "", 0, 0, errors.Wrap(err, "invalid value for timeStart")
+		}
+	}
+
+	// validate timeEnd. it should either be empty or a valid time
+	if len(timeEnd) == 0 {
+		endTime = 0
+	} else {
+		var err error
+		endTime, err = strconv.ParseInt(timeEnd, 10, 64)
+		if err != nil {
+			return "", "", "", 0, 0, errors.Wrap(err, "invalid value for timeEnd")
+		}
+	}
+
+	if endTime < startTime {
+		return "", "", "", 0, 0, errors.Wrap(errors.New("endTime can not be less than startTime"), "invalid value for timeEnd")
+	}
+
+	return start, end, queryMode, startTime, endTime, nil
 }
 
 func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
