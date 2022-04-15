@@ -303,12 +303,14 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 }
 
 func readError(err error) error {
-	ret, ok := err.(blob.StorageError)
-	if !ok {
+	var storageError blob.StorageError
+	errors.As(err, &storageError)
+
+	if storageError == nil {
 		return errors.Wrap(err, "reading storage container")
 	}
-	if ret.ServiceCode() == blob.ServiceCodeBlobNotFound {
+	if storageError.ServiceCode() == blob.ServiceCodeBlobNotFound {
 		return backend.ErrDoesNotExist
 	}
-	return errors.Wrap(err, "reading Azure blob container")
+	return errors.Wrap(storageError, "reading Azure blob container")
 }

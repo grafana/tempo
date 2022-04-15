@@ -5,14 +5,17 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"os"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	blob "github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -124,4 +127,37 @@ func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.
 	t.Cleanup(server.Close)
 
 	return server
+}
+
+func TestReadError(t *testing.T) {
+	// confirm blobNotFoundError converts to ErrDoesNotExist
+	blobNotFoundError := blobStorageError(string(blob.ServiceCodeBlobNotFound))
+	err := readError(blobNotFoundError)
+	require.Equal(t, backend.ErrDoesNotExist, err)
+
+	// wrap blob not found error and confirm it still converts to ErrDoesNotExist
+	wrappedBlobNotFoundError := errors.Wrap(blobNotFoundError, "wrap!")
+	err = readError(wrappedBlobNotFoundError)
+	require.Equal(t, backend.ErrDoesNotExist, err)
+
+	// rando error is not returned as ErrDoesNotExist
+	randoError := errors.New("blerg")
+	err = readError(randoError)
+	require.NotEqual(t, backend.ErrDoesNotExist, err)
+
+	// other azure error is not returned as ErrDoesNotExist
+	otherAzureError := blobStorageError(string(blob.ServiceCodeInternalError))
+	err = readError(otherAzureError)
+	require.NotEqual(t, backend.ErrDoesNotExist, err)
+}
+
+func blobStorageError(serviceCode string) error {
+	resp := &http.Response{
+		Header: http.Header{
+			textproto.CanonicalMIMEHeaderKey("x-ms-error-code"): []string{serviceCode},
+		},
+		Request: httptest.NewRequest("GET", "/blobby/blob", nil), // azure error handling code will panic if Request is unset
+	}
+
+	return blob.NewResponseError(nil, resp, "")
 }
