@@ -57,17 +57,8 @@ local gcp_serverless_deployments = [
   },
 ];
 
-local aws_serverless_deployments = [
-  {
-    local cluster = 'dev-us-east-0',
-    local namespace = 'tempo-dev-02',
-    bucket: '%s-%s-fn-source' % [cluster, namespace],
-    secrets: [
-      secret('AWS_ACCESS_KEY_ID-%s' % namespace, 'secret/%s/%s/aws-credentials-drone' % [namespace, cluster], 'access_key_id'),
-      secret('AWS_SECRET_ACCESS_KEY-%s' % namespace, 'secret/%s/%s/aws-credentials-drone' % [namespace, cluster], 'secret_access_key'),
-    ],
-  },
-];
+local aws_dev_access_key_id = secret('AWS_ACCESS_KEY_ID-dev', 'secret/tempo-dev/aws-credentials-drone', 'access_key_id');
+local aws_dev_secret_access_key = secret('AWS_SECRET_ACCESS_KEY-dev', 'secret/tempo-dev/aws-credentials-drone', 'secret_access_key');
 
 //# Steps ##
 
@@ -254,17 +245,16 @@ local deploy_to_dev() = {
         name: 'deploy-tempo-serverless-lambda',
         image: 'amazon/aws-cli',
         environment: {
-          [std.split(s.name, '-')[0]]: {
-            from_secret: s.name,
-          }
-          for d in aws_serverless_deployments
-          for s in d.secrets
+          AWS_ACCESS_KEY_ID: {
+            from_secret: aws_dev_access_key_id.name,
+          },
+          AWS_SECRET_ACCESS_KEY: {
+            from_secret: aws_dev_secret_access_key.name,
+          },
         },
         commands: [
           'cd ./cmd/tempo-serverless/lambda',
-        ] + [
-          'aws s3 cp tempo-serverless*.zip s3://%s' % d.bucket
-          for d in aws_serverless_deployments
+          'aws s3 cp tempo-serverless*.zip s3://tempo-dev-fn-source',
         ],
       },
     ],
@@ -275,8 +265,6 @@ local deploy_to_dev() = {
   docker_config_json_secret,
   gh_token_secret,
   fn_upload_ops_tools_secret,
-] + [
-  s
-  for d in aws_serverless_deployments
-  for s in d.secrets
+  aws_dev_access_key_id,
+  aws_dev_secret_access_key,
 ]
