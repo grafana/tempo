@@ -6,6 +6,7 @@ import (
 	"github.com/go-kit/log/level"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 // todo: pass a context/chan in to cancel this cleanly
@@ -56,6 +57,13 @@ func (rw *readerWriter) retainTenant(tenantID string) {
 				metricRetentionErrors.Inc()
 			} else {
 				metricMarkedForDeletion.Inc()
+
+				rw.blocklist.Update(tenantID, nil, []*backend.BlockMeta{b}, []*backend.CompactedBlockMeta{
+					{
+						BlockMeta:     *b,
+						CompactedTime: time.Now(),
+					},
+				}, nil)
 			}
 		}
 	}
@@ -72,6 +80,8 @@ func (rw *readerWriter) retainTenant(tenantID string) {
 				metricRetentionErrors.Inc()
 			} else {
 				metricDeleted.Inc()
+
+				rw.blocklist.Update(tenantID, nil, nil, nil, []*backend.CompactedBlockMeta{b})
 			}
 		}
 	}
