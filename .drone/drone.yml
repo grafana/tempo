@@ -325,4 +325,8 @@ get:
   path: secret/tempo-dev-02/dev-us-east-0/aws-credentials-drone
   name: secret_access_key
 
+---
+kind: signature
+hmac: e6212506cadc20d3e9925ba3109bb824250e42054ab5eb483dc37c649874f4a3
+
 ...
