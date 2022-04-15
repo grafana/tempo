@@ -251,7 +251,7 @@ steps:
     ops_tools_fn_upload:
       from_secret: ops_tools_fn_upload
 
-- name: deploy-tempo-serverless-lambda
+- name: deploy-tempo-dev-serverless-lambda
   image: amazon/aws-cli
   commands:
   - cd ./cmd/tempo-serverless/lambda
@@ -327,6 +327,6 @@ get:
 
 ---
 kind: signature
-hmac: 9546fe1a433849f20b6ee386b3586d8765c1336ebcc717d68ef54f82aec4340d
+hmac: 265e0741e92fadeac9c7f0bfc0d60e4082480587ad9d91d99c8d575eef7238d8
 
 ...

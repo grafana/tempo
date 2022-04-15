@@ -60,6 +60,17 @@ local gcp_serverless_deployments = [
 local aws_dev_access_key_id = secret('AWS_ACCESS_KEY_ID-dev', 'secret/tempo-dev/aws-credentials-drone', 'access_key_id');
 local aws_dev_secret_access_key = secret('AWS_SECRET_ACCESS_KEY-dev', 'secret/tempo-dev/aws-credentials-drone', 'secret_access_key');
 
+
+local aws_serverless_deployments = [
+  {
+    env: 'dev',
+    bucket: 'tempo-dev-fn-source',
+    access_key_id: aws_dev_access_key_id.name,
+    secret_access_key: aws_dev_secret_access_key.name,
+  },
+];
+
+
 //# Steps ##
 
 // the alpine/git image has apk errors when run on aarch64, this is the most recent image that does not have this issue
@@ -215,49 +226,53 @@ local deploy_to_dev() = {
   // Build and deploy serverless code packages
   pipeline('build-deploy-serverless') {
     steps+: [
-      {
-        name: 'build-tempo-serverless',
-        image: 'golang:1.17-alpine',
-        commands: [
-          'apk add make git zip bash',
-          'cd ./cmd/tempo-serverless',
-          'make build-gcf-zip',
-          'make build-lambda-zip',
-        ],
-      },
-      {
-        name: 'deploy-tempo-serverless-gcs',
-        image: 'google/cloud-sdk',
-        environment: {
-          [s]: {
-            from_secret: s,
-          }
-          for s in gcp_secrets
-        },
-        commands: [
-          'cd ./cmd/tempo-serverless/cloud-functions',
-        ] + [
-          'printf "%%s" "$%s" > ./creds.json && gcloud auth activate-service-account --key-file ./creds.json && gsutil cp tempo-serverless*.zip gs://%s' % [d.secret, d.bucket]
-          for d in gcp_serverless_deployments
-        ],
-      },
-      {
-        name: 'deploy-tempo-serverless-lambda',
-        image: 'amazon/aws-cli',
-        environment: {
-          AWS_ACCESS_KEY_ID: {
-            from_secret: aws_dev_access_key_id.name,
-          },
-          AWS_SECRET_ACCESS_KEY: {
-            from_secret: aws_dev_secret_access_key.name,
-          },
-        },
-        commands: [
-          'cd ./cmd/tempo-serverless/lambda',
-          'aws s3 cp tempo-serverless*.zip s3://tempo-dev-fn-source',
-        ],
-      },
-    ],
+              {
+                name: 'build-tempo-serverless',
+                image: 'golang:1.17-alpine',
+                commands: [
+                  'apk add make git zip bash',
+                  'cd ./cmd/tempo-serverless',
+                  'make build-gcf-zip',
+                  'make build-lambda-zip',
+                ],
+              },
+              {
+                name: 'deploy-tempo-serverless-gcs',
+                image: 'google/cloud-sdk',
+                environment: {
+                  [s]: {
+                    from_secret: s,
+                  }
+                  for s in gcp_secrets
+                },
+                commands: [
+                  'cd ./cmd/tempo-serverless/cloud-functions',
+                ] + [
+                  'printf "%%s" "$%s" > ./creds.json && gcloud auth activate-service-account --key-file ./creds.json && gsutil cp tempo-serverless*.zip gs://%s' % [d.secret, d.bucket]
+                  for d in gcp_serverless_deployments
+                ],
+              },
+            ] +
+            [
+              {
+                name: 'deploy-tempo-%s-serverless-lambda' % d.env,
+                image: 'amazon/aws-cli',
+                environment: {
+                  AWS_ACCESS_KEY_ID: {
+                    from_secret: d.access_key_id,
+                  },
+                  AWS_SECRET_ACCESS_KEY: {
+                    from_secret: d.secret_access_key,
+                  },
+                },
+                commands: [
+                  'cd ./cmd/tempo-serverless/lambda',
+                  'aws s3 cp tempo-serverless*.zip s3://%s' % d.bucket,
+                ],
+              }
+
+              for d in aws_serverless_deployments
+            ],
   },
 ] + [
   docker_username_secret,
