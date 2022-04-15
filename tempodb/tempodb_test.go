@@ -2,6 +2,7 @@ package tempodb
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"os"
 	"path"
@@ -675,4 +676,51 @@ func writeTraceToWal(t require.TestingT, b *wal.AppendBlock, dec model.SegmentDe
 
 	err = b.Append(id, b2, start, end)
 	require.NoError(t, err, "unexpected error writing req")
+}
+
+func BenchmarkCompleteBlock(b *testing.B) {
+	// Create a WAL block with traces
+	traceCount := 10_000
+	tempDir := b.TempDir()
+	_, w, _, err := New(&Config{
+		Backend: "local",
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Encoding:             backend.EncNone,
+			IndexPageSizeBytes:   1000,
+		},
+		WAL: &wal.Config{
+			IngestionSlack: time.Minute,
+			Filepath:       path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, log.NewNopLogger())
+	require.NoError(b, err)
+
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	wal := w.WAL()
+	blk, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
+	require.NoError(b, err)
+
+	for i := 0; i < traceCount; i++ {
+		id := test.ValidTraceID(nil)
+		req := test.MakeTrace(10, id)
+		writeTraceToWal(b, blk, dec, id, req, 0, 0)
+	}
+
+	fmt.Println("Created wal block")
+
+	b.ResetTimer()
+
+	// Complete it
+	for i := 0; i < b.N; i++ {
+		_, err := w.CompleteBlock(blk, model.StaticCombiner)
+		require.NoError(b, err)
+	}
 }
