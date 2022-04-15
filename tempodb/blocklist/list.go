@@ -129,6 +129,7 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 		for _, rem := range remove {
 			if b.BlockID == rem.BlockID {
 				matchedRemovals[rem.BlockID] = struct{}{}
+				break
 			}
 		}
 	}
