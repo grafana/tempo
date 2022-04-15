@@ -186,6 +186,8 @@ In microservices mode, it must be set for the distributors and the metrics-gener
 metrics_generator_enabled: true
 ```
 
+Metrics-generator processors are disabled by default, to enable it for a specific tenant set `metrics_generator_processors` in the [overrides](#overrides) section.
+
 ```yaml
 # Metrics-generator configuration block
 metrics_generator:
@@ -216,6 +218,10 @@ metrics_generator:
             # Buckets for the latency histogram in seconds.
             [histogram_buckets: <list of float> | default = 0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8]
 
+            # Additional dimensions to add to the metrics. Dimensions are searched for in the
+            # resource and span attributes and are added to the metrics if present.
+            [dimensions: <list of string>]
+
         span_metrics:
 
             # Buckets for the latency histogram in seconds.
@@ -223,7 +229,7 @@ metrics_generator:
 
             # Additional dimensions to add to the metrics along with the default dimensions
             # (service, span_name, span_kind and span_status). Dimensions are searched for in the
-            # span attributes and are added to the metrics if present.
+            # resource and span attributes and are added to the metrics if present.
             [dimensions: <list of string>]
 
     # Registry configuration
