@@ -136,7 +136,7 @@ func TestReadError(t *testing.T) {
 	require.Equal(t, backend.ErrDoesNotExist, err)
 
 	// wrap blob not found error and confirm it still converts to ErrDoesNotExist
-	wrappedBlobNotFoundError := errors.Wrap(blobNotFoundError, "wrap!")
+	wrappedBlobNotFoundError := errors.Wrap(blobNotFoundError, "wrap")
 	err = readError(wrappedBlobNotFoundError)
 	require.Equal(t, backend.ErrDoesNotExist, err)
 
