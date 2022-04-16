@@ -97,7 +97,7 @@ GET /api/traces/<traceid>
 The following query API is also provided on the querier service for _debugging_ purposes.
 
 ```
-GET /querier/api/traces/<traceid>?mode=xxxx&blockStart=0000&blockEnd=FFFF
+GET /querier/api/traces/<traceid>?mode=xxxx&blockStart=0000&blockEnd=FFFF&start=<start>&end=<end>
 ```
 Parameters:
 - `mode = (blocks|ingesters|all)`
@@ -111,6 +111,10 @@ Parameters:
   Specifies the blockID finish boundary. If specified, the querier will only search blocks with IDs < blockEnd.
   Default = `FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF`
   Example: `blockStart=FFFFFFFF-FFFF-FFFF-FFFF-456787652341`
+- `start = (unix epoch seconds)`
+  Optional.  Along with `end` define a time range from which traces should be returned. 
+- `end = (unix epoch seconds)`
+  Optional.  Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` will include blocks for the specified time range only. If the parameters are not provided then Tempo will check for the trace across all blocks in backend. If the parameters are provided, it will only check in the blocks within the specified time range, this can result in trace not being found or partial results if it does not fall in the specified time range.
 
 Note that this API is not meant to be used directly unless for debugging the sharding functionality of the query 
 frontend.

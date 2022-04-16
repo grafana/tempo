@@ -107,6 +107,16 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 				}, nil
 			}
 
+			//validate start and end parameter
+			_, _, _, _, _, reqErr := api.ValidateAndSanitizeRequest(r)
+			if reqErr != nil {
+				return &http.Response{
+					StatusCode: http.StatusBadRequest,
+					Body:       io.NopCloser(strings.NewReader(reqErr.Error())),
+					Header:     http.Header{},
+				}, nil
+			}
+
 			// check marshalling format
 			marshallingFormat := api.HeaderAcceptJSON
 			if r.Header.Get(api.HeaderAccept) == api.HeaderAcceptProtobuf {

@@ -230,8 +230,8 @@ func TestIncludeBlock(t *testing.T) {
 		searchID   common.ID
 		blockStart uuid.UUID
 		blockEnd   uuid.UUID
-		timeStart  int64
-		timeEnd    int64
+		start      int64
+		end        int64
 		meta       *backend.BlockMeta
 		expected   bool
 	}{
@@ -246,9 +246,9 @@ func TestIncludeBlock(t *testing.T) {
 				MinID:   []byte{0x00},
 				MaxID:   []byte{0x10},
 			},
-			timeStart: 0,
-			timeEnd:   0,
-			expected:  true,
+			start:    0,
+			end:      0,
+			expected: true,
 		},
 		{
 			name:       "include - min id range",
@@ -260,9 +260,9 @@ func TestIncludeBlock(t *testing.T) {
 				MinID:   []byte{0x00},
 				MaxID:   []byte{0x10},
 			},
-			timeStart: 0,
-			timeEnd:   0,
-			expected:  true,
+			start:    0,
+			end:      0,
+			expected: true,
 		},
 		{
 			name:       "include - max id range",
@@ -274,9 +274,9 @@ func TestIncludeBlock(t *testing.T) {
 				MinID:   []byte{0x00},
 				MaxID:   []byte{0x10},
 			},
-			timeStart: 0,
-			timeEnd:   0,
-			expected:  true,
+			start:    0,
+			end:      0,
+			expected: true,
 		},
 		{
 			name:       "include - min block range",
@@ -288,9 +288,9 @@ func TestIncludeBlock(t *testing.T) {
 				MinID:   []byte{0x00},
 				MaxID:   []byte{0x10},
 			},
-			timeStart: 0,
-			timeEnd:   0,
-			expected:  true,
+			start:    0,
+			end:      0,
+			expected: true,
 		},
 		{
 			name:       "include - max block range",
@@ -298,13 +298,15 @@ func TestIncludeBlock(t *testing.T) {
 			blockStart: uuid.MustParse(BlockIDMin),
 			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
-				MinID:   []byte{0x00},
-				MaxID:   []byte{0x10},
+				BlockID:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				MinID:     []byte{0x00},
+				MaxID:     []byte{0x10},
+				StartTime: time.Unix(10000, 0),
+				EndTime:   time.Unix(20000, 0),
 			},
-			timeStart: 0,
-			timeEnd:   0,
-			expected:  true,
+			start:    10000,
+			end:      20000,
+			expected: true,
 		},
 		{
 			name:       "include - exact hit",
@@ -316,9 +318,9 @@ func TestIncludeBlock(t *testing.T) {
 				MinID:   []byte{0x05},
 				MaxID:   []byte{0x05},
 			},
-			timeStart: 0,
-			timeEnd:   0,
-			expected:  true,
+			start:    0,
+			end:      0,
+			expected: true,
 		},
 		// excludes
 		{
@@ -385,7 +387,7 @@ func TestIncludeBlock(t *testing.T) {
 			e, err := tc.blockEnd.MarshalBinary()
 			require.NoError(t, err)
 
-			assert.Equal(t, tc.expected, includeBlock(tc.meta, tc.searchID, s, e, 0, 0))
+			assert.Equal(t, tc.expected, includeBlock(tc.meta, tc.searchID, s, e, tc.start, tc.end))
 		})
 	}
 }
@@ -398,8 +400,8 @@ func TestIncludeCompactedBlock(t *testing.T) {
 		blockStart uuid.UUID
 		blockEnd   uuid.UUID
 		meta       *backend.CompactedBlockMeta
-		timeStart  int64
-		timeEnd    int64
+		start      int64
+		end        int64
 		expected   bool
 	}{
 		{
@@ -407,8 +409,8 @@ func TestIncludeCompactedBlock(t *testing.T) {
 			searchID:   []byte{0x05},
 			blockStart: uuid.MustParse(BlockIDMin),
 			blockEnd:   uuid.MustParse(BlockIDMax),
-			timeStart:  0,
-			timeEnd:    0,
+			start:      0,
+			end:        0,
 			meta: &backend.CompactedBlockMeta{
 				BlockMeta: backend.BlockMeta{
 					BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
@@ -424,8 +426,8 @@ func TestIncludeCompactedBlock(t *testing.T) {
 			searchID:   []byte{0x05},
 			blockStart: uuid.MustParse(BlockIDMin),
 			blockEnd:   uuid.MustParse(BlockIDMax),
-			timeStart:  0,
-			timeEnd:    0,
+			start:      0,
+			end:        0,
 			meta: &backend.CompactedBlockMeta{
 				BlockMeta: backend.BlockMeta{
 					BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
@@ -441,8 +443,8 @@ func TestIncludeCompactedBlock(t *testing.T) {
 			searchID:   []byte{0x05},
 			blockStart: uuid.MustParse("40000000-0000-0000-0000-000000000000"),
 			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
-			timeStart:  0,
-			timeEnd:    0,
+			start:      0,
+			end:        0,
 			meta: &backend.CompactedBlockMeta{
 				BlockMeta: backend.BlockMeta{
 					BlockID: uuid.MustParse("51000000-0000-0000-0000-000000000000"),
@@ -462,7 +464,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 			e, err := tc.blockEnd.MarshalBinary()
 			require.NoError(t, err)
 
-			assert.Equal(t, tc.expected, includeCompactedBlock(tc.meta, tc.searchID, s, e, blocklistPoll, 0, 0))
+			assert.Equal(t, tc.expected, includeCompactedBlock(tc.meta, tc.searchID, s, e, blocklistPoll, tc.start, tc.end))
 		})
 	}
 

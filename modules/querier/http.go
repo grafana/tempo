@@ -4,27 +4,23 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/tempodb"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
-	"github.com/pkg/errors"
 )
 
 const (
 	BlockStartKey = "blockStart"
 	BlockEndKey   = "blockEnd"
 	QueryModeKey  = "mode"
-	TimeStartKey  = "timeStart"
-	TimeEndKey    = "timeEnd"
+	TimeStartKey  = "start"
+	TimeEndKey    = "end"
 
 	QueryModeIngesters = "ingesters"
 	QueryModeBlocks    = "blocks"
@@ -47,7 +43,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// validate request
-	blockStart, blockEnd, queryMode, timeStart, timeEnd, err := validateAndSanitizeRequest(r)
+	blockStart, blockEnd, queryMode, timeStart, timeEnd, err := api.ValidateAndSanitizeRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -101,82 +97,6 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
-}
-
-// return values are (blockStart, blockEnd, queryMode, error)
-func validateAndSanitizeRequest(r *http.Request) (string, string, string, int64, int64, error) {
-	q := r.URL.Query().Get(QueryModeKey)
-
-	// validate queryMode. it should either be empty or one of (QueryModeIngesters|QueryModeBlocks|QueryModeAll)
-	var queryMode string
-	var startTime int64
-	var endTime int64
-	if len(q) == 0 || q == QueryModeAll {
-		queryMode = QueryModeAll
-	} else if q == QueryModeIngesters {
-		queryMode = QueryModeIngesters
-	} else if q == QueryModeBlocks {
-		queryMode = QueryModeBlocks
-	} else {
-		return "", "", "", 0, 0, fmt.Errorf("invalid value for mode %s", q)
-	}
-
-	// no need to validate/sanitize other parameters if queryMode == QueryModeIngesters
-	if queryMode == QueryModeIngesters {
-		return "", "", queryMode, 0, 0, nil
-	}
-
-	start := r.URL.Query().Get(BlockStartKey)
-	end := r.URL.Query().Get(BlockEndKey)
-	timeStart := r.URL.Query().Get(TimeStartKey)
-	timeEnd := r.URL.Query().Get(TimeEndKey)
-
-	// validate start. it should either be empty or a valid uuid
-	if len(start) == 0 {
-		start = tempodb.BlockIDMin
-	} else {
-		_, err := uuid.Parse(start)
-		if err != nil {
-			return "", "", "", 0, 0, errors.Wrap(err, "invalid value for blockStart")
-		}
-	}
-
-	// validate end. it should either be empty or a valid uuid
-	if len(end) == 0 {
-		end = tempodb.BlockIDMax
-	} else {
-		_, err := uuid.Parse(end)
-		if err != nil {
-			return "", "", "", 0, 0, errors.Wrap(err, "invalid value for blockEnd")
-		}
-	}
-
-	if len(timeStart) == 0 {
-		startTime = 0
-	} else {
-		var err error
-		startTime, err = strconv.ParseInt(timeStart, 10, 64)
-		if err != nil {
-			return "", "", "", 0, 0, errors.Wrap(err, "invalid value for timeStart")
-		}
-	}
-
-	// validate timeEnd. it should either be empty or a valid time
-	if len(timeEnd) == 0 {
-		endTime = 0
-	} else {
-		var err error
-		endTime, err = strconv.ParseInt(timeEnd, 10, 64)
-		if err != nil {
-			return "", "", "", 0, 0, errors.Wrap(err, "invalid value for timeEnd")
-		}
-	}
-
-	if endTime < startTime {
-		return "", "", "", 0, 0, errors.Wrap(errors.New("endTime can not be less than startTime"), "invalid value for timeEnd")
-	}
-
-	return start, end, queryMode, startTime, endTime, nil
 }
 
 func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
