@@ -39,6 +39,7 @@
     container.withPorts([
       containerPort.new('prom-metrics', $._config.tempo.port),
       containerPort.new('memberlist', 9095),
+      containerPort.new('otlp', 4317),
     ]) +
     container.withArgs([
       '-target=scalable-single-binary',
