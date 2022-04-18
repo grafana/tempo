@@ -55,81 +55,82 @@ Here is the proposed parquet schema. It is mainly a directly transation of OTLP 
 ```
 message Trace {
     # Trace-level attributes
-	required binary TraceID (STRING);
+    required binary TraceID (STRING);
     required binary RootServiceName (STRING);
-	required binary RootSpanName (STRING);
-	required int64 StartTimeUnixNano (INT(64,false));
-	required int64 DurationNanos (INT(64,false));
-	
-	repeated group ResourceSpans {
-		required group Resource {
-			repeated group Attrs {
-				required binary Key (STRING);
-				optional binary Value (STRING);
-				optional binary ValueArray;
-				optional boolean ValueBool;
-				optional double ValueDouble;
-				optional int64 ValueInt (INT(64,true));
-				optional binary ValueKVList;
-			}
+    required binary RootSpanName (STRING);
+    required int64 StartTimeUnixNano (INT(64,false));
+    required int64 DurationNanos (INT(64,false));
+    
+    repeated group ResourceSpans {
+        required group Resource {
+            repeated group Attrs {
+                required binary Key (STRING);
+                optional binary Value (STRING);
+                optional binary ValueArray;
+                optional boolean ValueBool;
+                optional double ValueDouble;
+                optional int64 ValueInt (INT(64,true));
+                optional binary ValueKVList;
+            }
 
             # Dedicated columns for common attributes
-			required binary ServiceName (STRING);
-			optional binary Cluster (STRING);
-			optional binary Container (STRING);
-			optional binary Namespace (STRING);
-			optional binary Pod (STRING);
-			optional binary K8sClusterName (STRING);
-			optional binary K8sContainerName (STRING);
-			optional binary K8sNamespaceName (STRING);
-			optional binary K8sPodName (STRING);
-		}
-		repeated group InstrumentationLibrarySpans {
-			repeated group Spans {
-				required binary ID;
-				required int32 DroppedAttributesCount (INT(32,true));
-				required int32 DroppedEventsCount (INT(32,true));
-				
-				required int32 Kind (INT(8,true));
-				required binary Name (STRING);
-				required binary ParentSpanID (STRING);
-				required int64 StartUnixNanos (INT(64,false));
-				required int64 EndUnixNanos (INT(64,false));
-				required binary TraceState (STRING);
+            required binary ServiceName (STRING);
+            optional binary Cluster (STRING);
+            optional binary Container (STRING);
+            optional binary Namespace (STRING);
+            optional binary Pod (STRING);
+            optional binary K8sClusterName (STRING);
+            optional binary K8sContainerName (STRING);
+            optional binary K8sNamespaceName (STRING);
+            optional binary K8sPodName (STRING);
+        }
+        repeated group InstrumentationLibrarySpans {
+            repeated group Spans {
+                required binary ID;
+                required int32 DroppedAttributesCount (INT(32,true));
+                required int32 DroppedEventsCount (INT(32,true));
+                
+                required int32 Kind (INT(8,true));
+                required binary Name (STRING);
+                required binary ParentSpanID (STRING);
+                required int64 StartUnixNanos (INT(64,false));
+                required int64 EndUnixNanos (INT(64,false));
+                required binary TraceState (STRING);
                 required int32 StatusCode (INT(8,true));
-				required binary StatusMessage (STRING);
-				
-    			repeated group Attrs {
-    				required binary Key (STRING);
-					optional binary Value (STRING);
-					optional binary ValueArray;
-					optional boolean ValueBool;
-					optional double ValueDouble;
-					optional int64 ValueInt (INT(64,true));
-					optional binary ValueKVList;
-				}
+                required binary StatusMessage (STRING);
+                
+                repeated group Attrs {
+                    required binary Key (STRING);
+                    optional binary Value (STRING);
+                    optional binary ValueArray;
+                    optional boolean ValueBool;
+                    optional double ValueDouble;
+                    optional int64 ValueInt (INT(64,true));
+                    optional binary ValueKVList;
+                }
 
                 repeated group Events {
-					repeated group Attrs {
-						required binary Key (STRING);
-						required binary Value (STRING);
-					}
-					required int32 DroppedAttributesCount (INT(32,true));
-					required binary Name (STRING);
-					required int64 TimeUnixNano (INT(64,false));
-				}
+                    repeated group Attrs {
+                        required binary Key (STRING);
+                        required binary Value (STRING);
+                    }
+                    required int32 DroppedAttributesCount (INT(32,true));
+                    required binary Name (STRING);
+                    required int64 TimeUnixNano (INT(64,false));
+                }
 
                 # Dedicated columns for common span attributes
                 optional binary HttpMethod (STRING);
-				optional binary HttpUrl (STRING);
-				optional int64 HttpStatusCode (INT(64,true));
-			}
-			required group InstrumentationLibrary {
-				required binary Name (STRING);
-				required binary Version (STRING);
-			}
-		}
-	}
+                optional binary HttpUrl (STRING);
+                optional int64 HttpStatusCode (INT(64,true));
+            }
+
+            required group InstrumentationLibrary {
+                required binary Name (STRING);
+                required binary Version (STRING);
+            }
+        }
+    }
 }
 ```
 
@@ -145,16 +146,16 @@ For speed and ease-of-use, we are projecting several values to columns at the tr
 Projecting attributes to their own columns has massive benefits for speed and size, and these are too good to pass up on.  Therefore we are taking an opinionated approach and projecting some common attributes to their own columns.  All other attributes are stored in the generic key/value maps and are still searchable, but not as quickly.  We chose these attributes based on what we commonly use ourselves (scratching our own itch), but we think they will be useful to most workloads.  There is an associated cost for unused attributes as it will still store a column of nulls, however the cost should be minimal.  We can be more generous with unused resource-level attributes because their overhead is the smallest of all, we are finding it to be ~.05% (0.0005) of the total block size.
 
 Resource-level:
-* Service.name
-* cluster and k8s.cluster.name
-* namespace and k8s.namespace.name
-* pod and k8s.pod.name
-* container and k8s.container.name
+* `service.name`
+* `cluster` and `k8s.cluster.name`
+* `namespace` and `k8s.namespace.name`
+* `pod` and `k8s.pod.name`
+* `container` and `k8s.container.name`
 
 Span-level
-* http.method
-* http.url
-* http.status_code (int)
+* `http.method`
+* `http.url`
+* `http.status_code` (int)
 
 
 ### "Any"-type Attributes
@@ -186,7 +187,7 @@ Cons:
 * A lot of nulls - as each attribute only populates 1 column, the other 5 are guaranteed to be null. This has a non-trivial increase in storage size.
 
 ### Event Attributes
-Span events are stored as JSON-encoded strings in a generic key/value map. This is by far the most space-efficient encoding and the trade-off of decreased searchability seems worthwhile.  Storing event attributes this way reduces the block size ~16% for our dataset, which is huge.  There are currently no use cases to search event attributes, and we can revisit this in the future if needed. 
+Span event attributes are stored as JSON-encoded strings in a generic key/value map. This is by far the most space-efficient encoding and the trade-off of decreased searchability seems worthwhile.  Storing event attributes this way reduces the block size ~16% for our dataset, which is huge.  There are currently no use cases to search event attributes, and we can revisit this in the future if needed. 
 
 ### Compression and Encoding
 Parquet has robust support for many compression algorithms and data encodings. We have found excellent combinations of storage size and performance with the following:
