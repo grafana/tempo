@@ -92,10 +92,6 @@ func TestAllInOne(t *testing.T) {
 			// test echo
 			assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
 
-			// wait trace_idle_time and ensure trace is created in ingester
-			time.Sleep(2 * time.Second)
-			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
-
 			apiClient := tempoUtil.NewClient("http://"+tempo.Endpoint(3200), "")
 
 			// query an in-memory trace
@@ -104,11 +100,14 @@ func TestAllInOne(t *testing.T) {
 			// search an in-memory trace
 			util.SearchAndAssertTrace(t, apiClient, info)
 
+			// wait trace_idle_time and ensure trace is created in ingester
+			require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+
 			// flush trace to backend
 			callFlush(t, tempo)
 
-			// sleep for one maintenance cycle
-			time.Sleep(5 * time.Second)
+			// sleep
+			time.Sleep(10 * time.Second)
 
 			// force clear completed block
 			callFlush(t, tempo)
@@ -243,12 +242,6 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			// test echo
 			assertEcho(t, "http://"+tempoQueryFrontend.Endpoint(3200)+"/api/echo")
 
-			// wait trace_idle_time and ensure trace is created in ingester
-			time.Sleep(1 * time.Second)
-			require.NoError(t, tempoIngester1.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
-			require.NoError(t, tempoIngester2.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
-			require.NoError(t, tempoIngester3.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
-
 			apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
 
 			// query an in-memory trace
@@ -256,6 +249,11 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 
 			// search an in-memory trace
 			util.SearchAndAssertTrace(t, apiClient, info)
+
+			// wait trace_idle_time and ensure trace is created in ingester
+			require.NoError(t, tempoIngester1.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+			require.NoError(t, tempoIngester2.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+			require.NoError(t, tempoIngester3.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 
 			// flush trace to backend
 			callFlush(t, tempoIngester1)
@@ -379,7 +377,7 @@ func TestScalableSingleBinary(t *testing.T) {
 
 	// wait trace_idle_time and ensure trace is created in ingester
 	time.Sleep(1 * time.Second)
-	require.NoError(t, tempo1.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_traces_created_total"))
+	require.NoError(t, tempo1.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 
 	for _, i := range []*e2e.HTTPService{tempo1, tempo2, tempo3} {
 		callFlush(t, i)
