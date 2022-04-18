@@ -259,6 +259,7 @@ steps:
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: AWS_ACCESS_KEY_ID-dev
+    AWS_DEFAULT_REGION: us-east-2
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY-dev
 
@@ -327,6 +328,6 @@ get:
 
 ---
 kind: signature
-hmac: 265e0741e92fadeac9c7f0bfc0d60e4082480587ad9d91d99c8d575eef7238d8
+hmac: c50423e7f6592db81da7b389659a3f748c379b17113e72eed6520e61ad935c11
 
 ...
