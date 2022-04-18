@@ -78,7 +78,7 @@ type Writer interface {
 type IterateObjectCallback func(id common.ID, obj []byte) bool
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]*tempopb.Trace, []error, error)
+	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64) ([]*tempopb.Trace, []error, error)
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(sharder blocklist.JobSharder)
@@ -285,7 +285,7 @@ func (rw *readerWriter) BlockMetas(tenantID string) []*backend.BlockMeta {
 	return rw.blocklist.Metas(tenantID)
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string) ([]*tempopb.Trace, []error, error) {
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64) ([]*tempopb.Trace, []error, error) {
 	// tracing instrumentation
 	logger := log.WithContext(ctx, log.Logger)
 	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
@@ -316,13 +316,13 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	compactedBlocksSearched := 0
 
 	for _, b := range blocklist {
-		if includeBlock(b, id, blockStartBytes, blockEndBytes) {
+		if includeBlock(b, id, blockStartBytes, blockEndBytes, timeStart, timeEnd) {
 			copiedBlocklist = append(copiedBlocklist, b)
 			blocksSearched++
 		}
 	}
 	for _, c := range compactedBlocklist {
-		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll) {
+		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll, timeStart, timeEnd) {
 			copiedBlocklist = append(copiedBlocklist, &c.BlockMeta)
 			compactedBlocksSearched++
 		}
@@ -489,9 +489,15 @@ func (rw *readerWriter) getWriterForBlock(meta *backend.BlockMeta, curTime time.
 }
 
 // includeBlock indicates whether a given block should be included in a backend search
-func includeBlock(b *backend.BlockMeta, id common.ID, blockStart []byte, blockEnd []byte) bool {
+func includeBlock(b *backend.BlockMeta, id common.ID, blockStart []byte, blockEnd []byte, timeStart int64, timeEnd int64) bool {
 	if bytes.Compare(id, b.MinID) == -1 || bytes.Compare(id, b.MaxID) == 1 {
 		return false
+	}
+
+	if timeStart != 0 && timeEnd != 0 {
+		if b.StartTime.Unix() >= timeEnd || b.EndTime.Unix() <= timeStart {
+			return false
+		}
 	}
 
 	blockIDBytes, _ := b.BlockID.MarshalBinary()
@@ -505,10 +511,10 @@ func includeBlock(b *backend.BlockMeta, id common.ID, blockStart []byte, blockEn
 }
 
 // if block is compacted within lookback period, and is within shard ranges, include it in search
-func includeCompactedBlock(c *backend.CompactedBlockMeta, id common.ID, blockStart []byte, blockEnd []byte, poll time.Duration) bool {
+func includeCompactedBlock(c *backend.CompactedBlockMeta, id common.ID, blockStart []byte, blockEnd []byte, poll time.Duration, timeStart int64, timeEnd int64) bool {
 	lookback := time.Now().Add(-(2 * poll))
 	if c.CompactedTime.Before(lookback) {
 		return false
 	}
-	return includeBlock(&c.BlockMeta, id, blockStart, blockEnd)
+	return includeBlock(&c.BlockMeta, id, blockStart, blockEnd, timeStart, timeEnd)
 }
