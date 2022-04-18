@@ -18,6 +18,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/Shopify/sarama"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/consumer"
@@ -39,6 +40,8 @@ const (
 	defaultMetadataFull = true
 	// default max.message.bytes for the producer
 	defaultProducerMaxMessageBytes = 1000000
+	// default required_acks for the producer
+	defaultProducerRequiredAcks = sarama.WaitForLocal
 )
 
 // FactoryOption applies changes to kafkaExporterFactory.
@@ -63,21 +66,21 @@ func NewFactory(options ...FactoryOption) component.ExporterFactory {
 	for _, o := range options {
 		o(f)
 	}
-	return exporterhelper.NewFactory(
+	return component.NewExporterFactory(
 		typeStr,
 		createDefaultConfig,
-		exporterhelper.WithTraces(f.createTracesExporter),
-		exporterhelper.WithMetrics(f.createMetricsExporter),
-		exporterhelper.WithLogs(f.createLogsExporter),
+		component.WithTracesExporter(f.createTracesExporter),
+		component.WithMetricsExporter(f.createMetricsExporter),
+		component.WithLogsExporter(f.createLogsExporter),
 	)
 }
 
 func createDefaultConfig() config.Exporter {
 	return &Config{
 		ExporterSettings: config.NewExporterSettings(config.NewComponentID(typeStr)),
-		TimeoutSettings:  exporterhelper.DefaultTimeoutSettings(),
-		RetrySettings:    exporterhelper.DefaultRetrySettings(),
-		QueueSettings:    exporterhelper.DefaultQueueSettings(),
+		TimeoutSettings:  exporterhelper.NewDefaultTimeoutSettings(),
+		RetrySettings:    exporterhelper.NewDefaultRetrySettings(),
+		QueueSettings:    exporterhelper.NewDefaultQueueSettings(),
 		Brokers:          []string{defaultBroker},
 		// using an empty topic to track when it has not been set by user, default is based on traces or metrics.
 		Topic:    "",
@@ -91,6 +94,7 @@ func createDefaultConfig() config.Exporter {
 		},
 		Producer: Producer{
 			MaxMessageBytes: defaultProducerMaxMessageBytes,
+			RequiredAcks:    defaultProducerRequiredAcks,
 		},
 	}
 }
@@ -109,6 +113,9 @@ func (f *kafkaExporterFactory) createTracesExporter(
 	oCfg := cfg.(*Config)
 	if oCfg.Topic == "" {
 		oCfg.Topic = defaultTracesTopic
+	}
+	if oCfg.Encoding == "otlp_json" {
+		set.Logger.Info("otlp_json is considered experimental and should not be used in a production environment")
 	}
 	exp, err := newTracesExporter(*oCfg, set, f.tracesMarshalers)
 	if err != nil {
@@ -136,6 +143,9 @@ func (f *kafkaExporterFactory) createMetricsExporter(
 	if oCfg.Topic == "" {
 		oCfg.Topic = defaultMetricsTopic
 	}
+	if oCfg.Encoding == "otlp_json" {
+		set.Logger.Info("otlp_json is considered experimental and should not be used in a production environment")
+	}
 	exp, err := newMetricsExporter(*oCfg, set, f.metricsMarshalers)
 	if err != nil {
 		return nil, err
@@ -161,6 +171,9 @@ func (f *kafkaExporterFactory) createLogsExporter(
 	oCfg := cfg.(*Config)
 	if oCfg.Topic == "" {
 		oCfg.Topic = defaultLogsTopic
+	}
+	if oCfg.Encoding == "otlp_json" {
+		set.Logger.Info("otlp_json is considered experimental and should not be used in a production environment")
 	}
 	exp, err := newLogsExporter(*oCfg, set, f.logsMarshalers)
 	if err != nil {

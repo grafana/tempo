@@ -12,5 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package receiverhelper contains utilities for receivers.
-package receiverhelper // import "go.opentelemetry.io/collector/receiver/receiverhelper"
+package componenttest // import "go.opentelemetry.io/collector/component/componenttest"
+
+import (
+	"go.opentelemetry.io/collector/component"
+)
+
+type nopComponent struct {
+	component.StartFunc
+	component.ShutdownFunc
+}

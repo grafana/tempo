@@ -38,17 +38,17 @@ const (
 
 // NewFactory creates a factory for Zipkin exporter.
 func NewFactory() component.ExporterFactory {
-	return exporterhelper.NewFactory(
+	return component.NewExporterFactory(
 		typeStr,
 		createDefaultConfig,
-		exporterhelper.WithTraces(createTracesExporter))
+		component.WithTracesExporter(createTracesExporter))
 }
 
 func createDefaultConfig() config.Exporter {
 	return &Config{
 		ExporterSettings: config.NewExporterSettings(config.NewComponentID(typeStr)),
-		RetrySettings:    exporterhelper.DefaultRetrySettings(),
-		QueueSettings:    exporterhelper.DefaultQueueSettings(),
+		RetrySettings:    exporterhelper.NewDefaultRetrySettings(),
+		QueueSettings:    exporterhelper.NewDefaultQueueSettings(),
 		HTTPClientSettings: confighttp.HTTPClientSettings{
 			Timeout: defaultTimeout,
 			// We almost read 0 bytes, so no need to tune ReadBufferSize.
@@ -71,7 +71,7 @@ func createTracesExporter(
 		return nil, errors.New("exporter config requires a non-empty 'endpoint'")
 	}
 
-	ze, err := createZipkinExporter(zc)
+	ze, err := createZipkinExporter(zc, set.TelemetrySettings)
 	if err != nil {
 		return nil, err
 	}
