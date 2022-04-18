@@ -258,6 +258,7 @@ local deploy_to_dev() = {
                 name: 'deploy-tempo-%s-serverless-lambda' % d.env,
                 image: 'amazon/aws-cli',
                 environment: {
+                  AWS_DEFAULT_REGION: 'us-east-2',
                   AWS_ACCESS_KEY_ID: {
                     from_secret: d.access_key_id,
                   },
