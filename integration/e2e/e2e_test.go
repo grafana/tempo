@@ -93,7 +93,6 @@ func TestAllInOne(t *testing.T) {
 			assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
 
 			// wait trace_idle_time and ensure trace is created in ingester
-			time.Sleep(2 * time.Second)
 			require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 
 			apiClient := tempoUtil.NewClient("http://"+tempo.Endpoint(3200), "")
@@ -244,7 +243,6 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			assertEcho(t, "http://"+tempoQueryFrontend.Endpoint(3200)+"/api/echo")
 
 			// wait trace_idle_time and ensure trace is created in ingester
-			time.Sleep(1 * time.Second)
 			require.NoError(t, tempoIngester1.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 			require.NoError(t, tempoIngester2.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 			require.NoError(t, tempoIngester3.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))

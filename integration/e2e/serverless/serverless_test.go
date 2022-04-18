@@ -83,7 +83,6 @@ func TestServerless(t *testing.T) {
 			require.NoError(t, info.EmitAllBatches(c))
 
 			// wait trace_idle_time and ensure trace is created in ingester
-			time.Sleep(1 * time.Second)
 			require.NoError(t, tempoIngester1.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 			require.NoError(t, tempoIngester2.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 			require.NoError(t, tempoIngester3.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
