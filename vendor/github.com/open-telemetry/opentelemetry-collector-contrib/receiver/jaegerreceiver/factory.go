@@ -28,7 +28,6 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/receiver/receiverhelper"
 )
 
 const (
@@ -50,10 +49,10 @@ const (
 
 // NewFactory creates a new Jaeger receiver factory.
 func NewFactory() component.ReceiverFactory {
-	return receiverhelper.NewFactory(
+	return component.NewReceiverFactory(
 		typeStr,
 		createDefaultConfig,
-		receiverhelper.WithTraces(createTracesReceiver))
+		component.WithTracesReceiver(createTracesReceiver))
 }
 
 // CreateDefaultConfig creates the default configuration for Jaeger receiver.
@@ -134,6 +133,7 @@ func createTracesReceiver(
 		// strategies are served over grpc so if grpc is not enabled and strategies are present return an error
 		if len(remoteSamplingConfig.StrategyFile) != 0 {
 			config.RemoteSamplingStrategyFile = remoteSamplingConfig.StrategyFile
+			config.RemoteSamplingStrategyFileReloadInterval = remoteSamplingConfig.StrategyFileReloadInterval
 		}
 	}
 

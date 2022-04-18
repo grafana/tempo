@@ -91,9 +91,6 @@ package client // import "go.opentelemetry.io/collector/client"
 import (
 	"context"
 	"net"
-	"net/http"
-
-	"google.golang.org/grpc/peer"
 )
 
 type ctxKey struct{}
@@ -109,6 +106,15 @@ type Info struct {
 	// configauth.ServerAuthenticator implementations tied to the receiver for
 	// this connection.
 	Auth AuthData
+
+	// Metadata is the request metadata from the client connecting to this connector.
+	// Experimental: *NOTE* this structure is subject to change or removal in the future.
+	Metadata Metadata
+}
+
+// Metadata is an immutable map, meant to contain request metadata.
+type Metadata struct {
+	data map[string][]string
 }
 
 // AuthData represents the authentication data as seen by authenticators tied to
@@ -124,6 +130,8 @@ type AuthData interface {
 	// data.
 	GetAttributeNames() []string
 }
+
+const MetadataHostName = "Host"
 
 // NewContext takes an existing context and derives a new context with the
 // client.Info value stored on it.
@@ -141,32 +149,22 @@ func FromContext(ctx context.Context) Info {
 	return c
 }
 
-// FromGRPC takes a GRPC context and tries to extract client information from it
-func FromGRPC(ctx context.Context) (Info, bool) {
-	if p, ok := peer.FromContext(ctx); ok {
-		ip := parseIP(p.Addr.String())
-		if ip != nil {
-			return Info{Addr: ip}, true
-		}
+// NewMetadata creates a new Metadata object to use in Info. md is used as-is.
+func NewMetadata(md map[string][]string) Metadata {
+	return Metadata{
+		data: md,
 	}
-	return Info{}, false
 }
 
-// FromHTTP takes a net/http Request object and tries to extract client information from it
-func FromHTTP(r *http.Request) (Info, bool) {
-	ip := parseIP(r.RemoteAddr)
-	if ip == nil {
-		return Info{}, false
+// Get gets the value of the key from metadata, returning a copy.
+func (m Metadata) Get(key string) []string {
+	vals := m.data[key]
+	if len(vals) == 0 {
+		return nil
 	}
-	return Info{Addr: ip}, true
-}
 
-func parseIP(source string) net.Addr {
-	ipstr, _, err := net.SplitHostPort(source)
-	if err == nil {
-		source = ipstr
-	}
-	return &net.IPAddr{
-		IP: net.ParseIP(source),
-	}
+	ret := make([]string, len(vals))
+	copy(ret, vals)
+
+	return ret
 }

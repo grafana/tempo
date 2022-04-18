@@ -41,11 +41,7 @@ type LogsSizer interface {
 }
 
 // Logs is the top-level struct that is propagated through the logs pipeline.
-//
-// This is a reference type (like builtin map).
-//
-// Must use NewLogs functions to create new instances.
-// Important: zero-initialized instance is not valid for use.
+// Use NewLogs to create new instance, zero-initialized instance is not valid for use.
 type Logs struct {
 	orig *otlplogs.LogsData
 }
@@ -69,6 +65,13 @@ func (ld Logs) InternalRep() internal.LogsWrapper {
 	return internal.LogsFromOtlp(ld.orig)
 }
 
+// MoveTo moves all properties from the current struct to dest
+// resetting the current instance to its zero value.
+func (ld Logs) MoveTo(dest Logs) {
+	*dest.orig = *ld.orig
+	*ld.orig = otlplogs.LogsData{}
+}
+
 // Clone returns a copy of Logs.
 func (ld Logs) Clone() Logs {
 	cloneLd := NewLogs()
@@ -85,7 +88,7 @@ func (ld Logs) LogRecordCount() int {
 		ill := rs.InstrumentationLibraryLogs()
 		for i := 0; i < ill.Len(); i++ {
 			logs := ill.At(i)
-			logCount += logs.Logs().Len()
+			logCount += logs.LogRecords().Len()
 		}
 	}
 	return logCount

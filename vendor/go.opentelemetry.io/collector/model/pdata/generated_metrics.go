@@ -167,7 +167,6 @@ func (es ResourceMetricsSlice) RemoveIf(f func(ResourceMetrics) bool) {
 //
 // Must use NewResourceMetrics function to create new instances.
 // Important: zero-initialized instance is not valid for use.
-//
 type ResourceMetrics struct {
 	orig *otlpmetrics.ResourceMetrics
 }
@@ -362,7 +361,6 @@ func (es InstrumentationLibraryMetricsSlice) RemoveIf(f func(InstrumentationLibr
 //
 // Must use NewInstrumentationLibraryMetrics function to create new instances.
 // Important: zero-initialized instance is not valid for use.
-//
 type InstrumentationLibraryMetrics struct {
 	orig *otlpmetrics.InstrumentationLibraryMetrics
 }
@@ -558,7 +556,6 @@ func (es MetricSlice) RemoveIf(f func(Metric) bool) {
 //
 // Must use NewMetric function to create new instances.
 // Important: zero-initialized instance is not valid for use.
-//
 type Metric struct {
 	orig *otlpmetrics.Metric
 }
@@ -612,22 +609,91 @@ func (ms Metric) SetUnit(v string) {
 	(*ms.orig).Unit = v
 }
 
+// DataType returns the type of the data for this Metric.
+// Calling this function on zero-initialized Metric will cause a panic.
+func (ms Metric) DataType() MetricDataType {
+	switch ms.orig.Data.(type) {
+	case *otlpmetrics.Metric_Gauge:
+		return MetricDataTypeGauge
+	case *otlpmetrics.Metric_Sum:
+		return MetricDataTypeSum
+	case *otlpmetrics.Metric_Histogram:
+		return MetricDataTypeHistogram
+	case *otlpmetrics.Metric_ExponentialHistogram:
+		return MetricDataTypeExponentialHistogram
+	case *otlpmetrics.Metric_Summary:
+		return MetricDataTypeSummary
+	}
+	return MetricDataTypeNone
+}
+
+// Gauge returns the gauge associated with this Metric.
+// Calling this function when DataType() != MetricDataTypeGauge will cause a panic.
+// Calling this function on zero-initialized Metric will cause a panic.
+func (ms Metric) Gauge() Gauge {
+	return newGauge((*ms.orig).Data.(*otlpmetrics.Metric_Gauge).Gauge)
+}
+
+// Sum returns the sum associated with this Metric.
+// Calling this function when DataType() != MetricDataTypeSum will cause a panic.
+// Calling this function on zero-initialized Metric will cause a panic.
+func (ms Metric) Sum() Sum {
+	return newSum((*ms.orig).Data.(*otlpmetrics.Metric_Sum).Sum)
+}
+
+// Histogram returns the histogram associated with this Metric.
+// Calling this function when DataType() != MetricDataTypeHistogram will cause a panic.
+// Calling this function on zero-initialized Metric will cause a panic.
+func (ms Metric) Histogram() Histogram {
+	return newHistogram((*ms.orig).Data.(*otlpmetrics.Metric_Histogram).Histogram)
+}
+
+// ExponentialHistogram returns the exponentialhistogram associated with this Metric.
+// Calling this function when DataType() != MetricDataTypeExponentialHistogram will cause a panic.
+// Calling this function on zero-initialized Metric will cause a panic.
+func (ms Metric) ExponentialHistogram() ExponentialHistogram {
+	return newExponentialHistogram((*ms.orig).Data.(*otlpmetrics.Metric_ExponentialHistogram).ExponentialHistogram)
+}
+
+// Summary returns the summary associated with this Metric.
+// Calling this function when DataType() != MetricDataTypeSummary will cause a panic.
+// Calling this function on zero-initialized Metric will cause a panic.
+func (ms Metric) Summary() Summary {
+	return newSummary((*ms.orig).Data.(*otlpmetrics.Metric_Summary).Summary)
+}
+
 // CopyTo copies all properties from the current struct to the dest.
 func (ms Metric) CopyTo(dest Metric) {
 	dest.SetName(ms.Name())
 	dest.SetDescription(ms.Description())
 	dest.SetUnit(ms.Unit())
-	copyData(ms.orig, dest.orig)
+	switch ms.DataType() {
+	case MetricDataTypeGauge:
+		dest.SetDataType(MetricDataTypeGauge)
+		ms.Gauge().CopyTo(dest.Gauge())
+	case MetricDataTypeSum:
+		dest.SetDataType(MetricDataTypeSum)
+		ms.Sum().CopyTo(dest.Sum())
+	case MetricDataTypeHistogram:
+		dest.SetDataType(MetricDataTypeHistogram)
+		ms.Histogram().CopyTo(dest.Histogram())
+	case MetricDataTypeExponentialHistogram:
+		dest.SetDataType(MetricDataTypeExponentialHistogram)
+		ms.ExponentialHistogram().CopyTo(dest.ExponentialHistogram())
+	case MetricDataTypeSummary:
+		dest.SetDataType(MetricDataTypeSummary)
+		ms.Summary().CopyTo(dest.Summary())
+	}
+
 }
 
-// Gauge represents the type of a double scalar metric that always exports the "current value" for every data point.
+// Gauge represents the type of a numeric metric that always exports the "current value" for every data point.
 //
 // This is a reference type, if passed by value and callee modifies it the
 // caller will see the modification.
 //
 // Must use NewGauge function to create new instances.
 // Important: zero-initialized instance is not valid for use.
-//
 type Gauge struct {
 	orig *otlpmetrics.Gauge
 }
@@ -661,14 +727,13 @@ func (ms Gauge) CopyTo(dest Gauge) {
 	ms.DataPoints().CopyTo(dest.DataPoints())
 }
 
-// Sum represents the type of a numeric double scalar metric that is calculated as a sum of all reported measurements over a time interval.
+// Sum represents the type of a numeric metric that is calculated as a sum of all reported measurements over a time interval.
 //
 // This is a reference type, if passed by value and callee modifies it the
 // caller will see the modification.
 //
 // Must use NewSum function to create new instances.
 // Important: zero-initialized instance is not valid for use.
-//
 type Sum struct {
 	orig *otlpmetrics.Sum
 }
@@ -731,7 +796,6 @@ func (ms Sum) CopyTo(dest Sum) {
 //
 // Must use NewHistogram function to create new instances.
 // Important: zero-initialized instance is not valid for use.
-//
 type Histogram struct {
 	orig *otlpmetrics.Histogram
 }
@@ -784,7 +848,6 @@ func (ms Histogram) CopyTo(dest Histogram) {
 //
 // Must use NewExponentialHistogram function to create new instances.
 // Important: zero-initialized instance is not valid for use.
-//
 type ExponentialHistogram struct {
 	orig *otlpmetrics.ExponentialHistogram
 }
@@ -836,7 +899,6 @@ func (ms ExponentialHistogram) CopyTo(dest ExponentialHistogram) {
 //
 // Must use NewSummary function to create new instances.
 // Important: zero-initialized instance is not valid for use.
-//
 type Summary struct {
 	orig *otlpmetrics.Summary
 }
@@ -1014,7 +1076,6 @@ func (es NumberDataPointSlice) RemoveIf(f func(NumberDataPoint) bool) {
 //
 // Must use NewNumberDataPoint function to create new instances.
 // Important: zero-initialized instance is not valid for use.
-//
 type NumberDataPoint struct {
 	orig *otlpmetrics.NumberDataPoint
 }
@@ -1063,6 +1124,18 @@ func (ms NumberDataPoint) SetTimestamp(v Timestamp) {
 	(*ms.orig).TimeUnixNano = uint64(v)
 }
 
+// ValueType returns the type of the value for this NumberDataPoint.
+// Calling this function on zero-initialized NumberDataPoint will cause a panic.
+func (ms NumberDataPoint) ValueType() MetricValueType {
+	switch ms.orig.Value.(type) {
+	case *otlpmetrics.NumberDataPoint_AsDouble:
+		return MetricValueTypeDouble
+	case *otlpmetrics.NumberDataPoint_AsInt:
+		return MetricValueTypeInt
+	}
+	return MetricValueTypeNone
+}
+
 // DoubleVal returns the doubleval associated with this NumberDataPoint.
 func (ms NumberDataPoint) DoubleVal() float64 {
 	return (*ms.orig).GetAsDouble()
@@ -1107,7 +1180,7 @@ func (ms NumberDataPoint) CopyTo(dest NumberDataPoint) {
 	ms.Attributes().CopyTo(dest.Attributes())
 	dest.SetStartTimestamp(ms.StartTimestamp())
 	dest.SetTimestamp(ms.Timestamp())
-	switch ms.Type() {
+	switch ms.ValueType() {
 	case MetricValueTypeDouble:
 		dest.SetDoubleVal(ms.DoubleVal())
 	case MetricValueTypeInt:
@@ -1262,7 +1335,6 @@ func (es HistogramDataPointSlice) RemoveIf(f func(HistogramDataPoint) bool) {
 //
 // Must use NewHistogramDataPoint function to create new instances.
 // Important: zero-initialized instance is not valid for use.
-//
 type HistogramDataPoint struct {
 	orig *otlpmetrics.HistogramDataPoint
 }
@@ -1526,7 +1598,6 @@ func (es ExponentialHistogramDataPointSlice) RemoveIf(f func(ExponentialHistogra
 //
 // Must use NewExponentialHistogramDataPoint function to create new instances.
 // Important: zero-initialized instance is not valid for use.
-//
 type ExponentialHistogramDataPoint struct {
 	orig *otlpmetrics.ExponentialHistogramDataPoint
 }
@@ -1662,7 +1733,6 @@ func (ms ExponentialHistogramDataPoint) CopyTo(dest ExponentialHistogramDataPoin
 //
 // Must use NewBuckets function to create new instances.
 // Important: zero-initialized instance is not valid for use.
-//
 type Buckets struct {
 	orig *otlpmetrics.ExponentialHistogramDataPoint_Buckets
 }
@@ -1856,7 +1926,6 @@ func (es SummaryDataPointSlice) RemoveIf(f func(SummaryDataPoint) bool) {
 //
 // Must use NewSummaryDataPoint function to create new instances.
 // Important: zero-initialized instance is not valid for use.
-//
 type SummaryDataPoint struct {
 	orig *otlpmetrics.SummaryDataPoint
 }
@@ -2095,7 +2164,6 @@ func (es ValueAtQuantileSlice) RemoveIf(f func(ValueAtQuantile) bool) {
 //
 // Must use NewValueAtQuantile function to create new instances.
 // Important: zero-initialized instance is not valid for use.
-//
 type ValueAtQuantile struct {
 	orig *otlpmetrics.SummaryDataPoint_ValueAtQuantile
 }
@@ -2273,7 +2341,6 @@ func (es ExemplarSlice) RemoveIf(f func(Exemplar) bool) {
 //
 // Must use NewExemplar function to create new instances.
 // Important: zero-initialized instance is not valid for use.
-//
 type Exemplar struct {
 	orig *otlpmetrics.Exemplar
 }
@@ -2305,6 +2372,18 @@ func (ms Exemplar) Timestamp() Timestamp {
 // SetTimestamp replaces the timestamp associated with this Exemplar.
 func (ms Exemplar) SetTimestamp(v Timestamp) {
 	(*ms.orig).TimeUnixNano = uint64(v)
+}
+
+// ValueType returns the type of the value for this Exemplar.
+// Calling this function on zero-initialized Exemplar will cause a panic.
+func (ms Exemplar) ValueType() MetricValueType {
+	switch ms.orig.Value.(type) {
+	case *otlpmetrics.Exemplar_AsDouble:
+		return MetricValueTypeDouble
+	case *otlpmetrics.Exemplar_AsInt:
+		return MetricValueTypeInt
+	}
+	return MetricValueTypeNone
 }
 
 // DoubleVal returns the doubleval associated with this Exemplar.
@@ -2359,7 +2438,7 @@ func (ms Exemplar) SetSpanID(v SpanID) {
 // CopyTo copies all properties from the current struct to the dest.
 func (ms Exemplar) CopyTo(dest Exemplar) {
 	dest.SetTimestamp(ms.Timestamp())
-	switch ms.Type() {
+	switch ms.ValueType() {
 	case MetricValueTypeDouble:
 		dest.SetDoubleVal(ms.DoubleVal())
 	case MetricValueTypeInt:

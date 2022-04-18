@@ -24,7 +24,7 @@ import (
 
 	zipkinmodel "github.com/openzipkin/zipkin-go/model"
 	"go.opentelemetry.io/collector/model/pdata"
-	conventions "go.opentelemetry.io/collector/model/semconv/v1.5.0"
+	conventions "go.opentelemetry.io/collector/model/semconv/v1.6.1"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator"
@@ -95,10 +95,10 @@ func resourceSpansToZipkinSpans(rs pdata.ResourceSpans, estSpanCount int) ([]*zi
 
 func extractInstrumentationLibraryTags(il pdata.InstrumentationLibrary, zTags map[string]string) {
 	if ilName := il.Name(); ilName != "" {
-		zTags[conventions.InstrumentationLibraryName] = ilName
+		zTags[conventions.OtelLibraryName] = ilName
 	}
 	if ilVer := il.Version(); ilVer != "" {
-		zTags[conventions.InstrumentationLibraryVersion] = ilVer
+		zTags[conventions.OtelLibraryVersion] = ilVer
 	}
 }
 

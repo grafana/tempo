@@ -128,8 +128,7 @@ func newSaramaProducer(config Config) (sarama.SyncProducer, error) {
 	// These setting are required by the sarama.SyncProducer implementation.
 	c.Producer.Return.Successes = true
 	c.Producer.Return.Errors = true
-	// Wait only the local commit to succeed before responding.
-	c.Producer.RequiredAcks = sarama.WaitForLocal
+	c.Producer.RequiredAcks = config.Producer.RequiredAcks
 	// Because sarama does not accept a Context for every message, set the Timeout here.
 	c.Producer.Timeout = config.Timeout
 	c.Metadata.Full = config.Metadata.Full
