@@ -107,14 +107,11 @@ func TestAllInOne(t *testing.T) {
 			// flush trace to backend
 			callFlush(t, tempo)
 
-			// sleep for one maintenance cycle
-			time.Sleep(5 * time.Second)
+			// sleep
+			time.Sleep(10 * time.Second)
 
 			// force clear completed block
 			callFlush(t, tempo)
-
-			// sleep for one maintenance cycle
-			time.Sleep(5 * time.Second)
 
 			// test metrics
 			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
