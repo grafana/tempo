@@ -40,7 +40,7 @@ build-docker-lambda-test:
 # as that should the handler config option in aws
 .PHONY: build-lambda-zip
 build-lambda-zip:
-	$(IN_LAMBDA) GOOS=linux GOARCH=amd64 go build -o main
+	$(IN_LAMBDA) CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o main
 	$(IN_LAMBDA) zip tempo-serverless-$(VERSION).zip main
 	$(IN_LAMBDA) rm main
 
