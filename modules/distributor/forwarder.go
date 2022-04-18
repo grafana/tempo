@@ -308,10 +308,6 @@ func (m *queueManager) stopWorkers(ctx context.Context) error {
 	}
 }
 
-func (m *queueManager) queueLen() int {
-	return len(m.reqChan)
-}
-
 // shouldUpdate returns true if the queue size or worker count (alive or total) has changed
 func (m *queueManager) shouldUpdate(numWorkers int, queueSize int) bool {
 	// TODO: worker alive count could be 0 and shutting down the queue manager would be impossible
