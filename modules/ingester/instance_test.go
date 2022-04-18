@@ -541,13 +541,13 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 
 	// Pushing again fails
 	err = pushFn(3)
-	require.Contains(t, err.Error(), (newTraceTooLargeError(id, maxTraceBytes, 3)).Error())
+	require.Contains(t, err.Error(), (newTraceTooLargeError(id, i.instanceID, maxTraceBytes, 3)).Error())
 
 	// Pushing still fails after flush
 	err = i.CutCompleteTraces(0, true)
 	require.NoError(t, err)
 	err = pushFn(5)
-	require.Contains(t, err.Error(), (newTraceTooLargeError(id, maxTraceBytes, 5)).Error())
+	require.Contains(t, err.Error(), (newTraceTooLargeError(id, i.instanceID, maxTraceBytes, 5)).Error())
 
 	// Cut block and then pushing works again
 	_, err = i.CutBlockIfReady(0, 0, true)

@@ -60,6 +60,7 @@ type Limits struct {
 	MetricsGeneratorProcessors         ListToMap     `yaml:"metrics_generator_processors" json:"metrics_generator_processors"`
 	MetricsGeneratorMaxActiveSeries    uint32        `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
 	MetricsGeneratorCollectionInterval time.Duration `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
+	MetricsGeneratorDisableCollection  bool          `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
 
 	// Compactor enforced limits.
 	BlockRetention model.Duration `yaml:"block_retention" json:"block_retention"`

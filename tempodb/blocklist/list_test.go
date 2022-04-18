@@ -302,7 +302,7 @@ func TestUpdate(t *testing.T) {
 			l := New()
 
 			l.metas[testTenantID] = tt.existing
-			l.Update(testTenantID, tt.add, tt.remove, nil)
+			l.Update(testTenantID, tt.add, tt.remove, nil, nil)
 
 			assert.Equal(t, len(tt.expected), len(l.metas[testTenantID]))
 
@@ -318,6 +318,7 @@ func TestUpdateCompacted(t *testing.T) {
 		name     string
 		existing []*backend.CompactedBlockMeta
 		add      []*backend.CompactedBlockMeta
+		remove   []*backend.CompactedBlockMeta
 		expected []*backend.CompactedBlockMeta
 	}{
 		{
@@ -407,6 +408,47 @@ func TestUpdateCompacted(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "add and remove",
+			existing: []*backend.CompactedBlockMeta{
+				{
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+				{
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					},
+				},
+			},
+			add: []*backend.CompactedBlockMeta{
+				{
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					},
+				},
+			},
+			remove: []*backend.CompactedBlockMeta{
+				{
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					},
+				},
+			},
+			expected: []*backend.CompactedBlockMeta{
+				{
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					},
+				},
+				{
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -414,7 +456,7 @@ func TestUpdateCompacted(t *testing.T) {
 			l := New()
 
 			l.compactedMetas[testTenantID] = tt.existing
-			l.Update(testTenantID, nil, nil, tt.add)
+			l.Update(testTenantID, nil, nil, tt.add, tt.remove)
 
 			assert.Equal(t, len(tt.expected), len(l.compactedMetas[testTenantID]))
 
@@ -585,7 +627,7 @@ func TestUpdatesSaved(t *testing.T) {
 	for _, tc := range tests {
 		l.ApplyPollResults(tc.applyMetas, tc.applyCompacted)
 		if tc.updateTenant != "" {
-			l.Update(tc.updateTenant, tc.addMetas, tc.removeMetas, tc.addCompacted)
+			l.Update(tc.updateTenant, tc.addMetas, tc.removeMetas, tc.addCompacted, nil)
 		}
 
 		actualTenants := l.Tenants()
