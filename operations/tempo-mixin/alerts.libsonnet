@@ -86,8 +86,8 @@
             // wait 5m for failed flushes to self-heal using retries
             alert: 'TempoIngesterFlushesUnhealthy',
             expr: |||
-              sum by (%s) (increase(tempo_ingester_flush_failed_retries_total{}[1h])) > %s and
-              sum by (%s) (increase(tempo_ingester_flush_failed_retries_total{}[5m])) > 0
+              sum by (%s) (increase(tempo_ingester_failed_flushes_total{}[1h])) > %s and
+              sum by (%s) (increase(tempo_ingester_failed_flushes_total{}[5m])) > 0
             ||| % [$._config.group_by_cluster, $._config.alerts.flushes_per_hour_failed, $._config.group_by_cluster],
             'for': '5m',
             labels: {
@@ -105,7 +105,7 @@
               sum by (%s) (increase(tempo_ingester_flush_failed_retries_total{}[1h])) > %s and
               sum by (%s) (increase(tempo_ingester_flush_failed_retries_total{}[5m])) > 0
             ||| % [$._config.group_by_cluster, $._config.alerts.flushes_per_hour_failed, $._config.group_by_cluster],
-            'for': '10m',
+            'for': '5m',
             labels: {
               severity: 'critical',
             },
