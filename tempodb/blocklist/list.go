@@ -20,9 +20,10 @@ type List struct {
 	compactedMetas PerTenantCompacted
 
 	// used by the compactor to track local changes it is aware of
-	added          PerTenant
-	removed        PerTenant
-	compactedAdded PerTenantCompacted
+	added            PerTenant
+	removed          PerTenant
+	compactedAdded   PerTenantCompacted
+	compactedRemoved PerTenantCompacted
 }
 
 func New() *List {
@@ -30,9 +31,10 @@ func New() *List {
 		metas:          make(PerTenant),
 		compactedMetas: make(PerTenantCompacted),
 
-		added:          make(PerTenant),
-		removed:        make(PerTenant),
-		compactedAdded: make(PerTenantCompacted),
+		added:            make(PerTenant),
+		removed:          make(PerTenant),
+		compactedAdded:   make(PerTenantCompacted),
+		compactedRemoved: make(PerTenantCompacted),
 	}
 }
 
@@ -88,17 +90,18 @@ func (l *List) ApplyPollResults(m PerTenant, c PerTenantCompacted) {
 
 	// now reapply all updates and clear
 	for tenantID := range l.added {
-		l.updateInternal(tenantID, l.added[tenantID], l.removed[tenantID], l.compactedAdded[tenantID])
+		l.updateInternal(tenantID, l.added[tenantID], l.removed[tenantID], l.compactedAdded[tenantID], l.compactedRemoved[tenantID])
 	}
 
 	l.added = make(PerTenant)
 	l.removed = make(PerTenant)
 	l.compactedAdded = make(PerTenantCompacted)
+	l.compactedRemoved = make(PerTenantCompacted)
 }
 
 // Update Adds and removes regular or compacted blocks from the in-memory blocklist.
 // Changes are temporary and will be preserved only for one poll
-func (l *List) Update(tenantID string, add []*backend.BlockMeta, remove []*backend.BlockMeta, compactedAdd []*backend.CompactedBlockMeta) {
+func (l *List) Update(tenantID string, add []*backend.BlockMeta, remove []*backend.BlockMeta, compactedAdd []*backend.CompactedBlockMeta, compactedRemove []*backend.CompactedBlockMeta) {
 	if tenantID == "" {
 		return
 	}
@@ -106,17 +109,18 @@ func (l *List) Update(tenantID string, add []*backend.BlockMeta, remove []*backe
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	l.updateInternal(tenantID, add, remove, compactedAdd)
+	l.updateInternal(tenantID, add, remove, compactedAdd, compactedRemove)
 
 	// save off, they are retained for an additional polling cycle
 	l.added[tenantID] = append(l.added[tenantID], add...)
 	l.removed[tenantID] = append(l.removed[tenantID], remove...)
 	l.compactedAdded[tenantID] = append(l.compactedAdded[tenantID], compactedAdd...)
+	l.compactedRemoved[tenantID] = append(l.compactedRemoved[tenantID], compactedRemove...)
 }
 
 // updateInternal exists to do the work of applying updates to held PerTenant and PerTenantCompacted maps
 //  it must be called under lock
-func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove []*backend.BlockMeta, compactedAdd []*backend.CompactedBlockMeta) {
+func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove []*backend.BlockMeta, compactedAdd []*backend.CompactedBlockMeta, compactedRemove []*backend.CompactedBlockMeta) {
 	// ******** Regular blocks ********
 	blocklist := l.metas[tenantID]
 
@@ -125,6 +129,7 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 		for _, rem := range remove {
 			if b.BlockID == rem.BlockID {
 				matchedRemovals[rem.BlockID] = struct{}{}
+				break
 			}
 		}
 	}
@@ -148,12 +153,26 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 
 	// ******** Compacted blocks ********
 	compactedBlocklist := l.compactedMetas[tenantID]
+
+	compactedRemovals := map[uuid.UUID]struct{}{}
+	for _, c := range compactedBlocklist {
+		for _, rem := range compactedRemove {
+			if c.BlockID == rem.BlockID {
+				compactedRemovals[rem.BlockID] = struct{}{}
+				break
+			}
+		}
+	}
+
 	existingMetas = make(map[uuid.UUID]struct{})
-	newCompactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(compactedBlocklist)+len(compactedAdd))
+	newCompactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(compactedBlocklist)-len(compactedRemovals)+len(compactedAdd))
+	// rebuild the blocklist dropping all removals
 	for _, b := range compactedBlocklist {
 		existingMetas[b.BlockID] = struct{}{}
+		if _, ok := compactedRemovals[b.BlockID]; !ok {
+			newCompactedBlocklist = append(newCompactedBlocklist, b)
+		}
 	}
-	newCompactedBlocklist = append(newCompactedBlocklist, compactedBlocklist...)
 	for _, b := range compactedAdd {
 		if _, ok := existingMetas[b.BlockID]; !ok {
 			newCompactedBlocklist = append(newCompactedBlocklist, b)
