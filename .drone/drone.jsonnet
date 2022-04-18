@@ -64,7 +64,7 @@ local aws_dev_secret_access_key = secret('AWS_SECRET_ACCESS_KEY-dev', 'infra/dat
 local aws_serverless_deployments = [
   {
     env: 'dev',
-    bucket: 'tempo-dev-fn-source',
+    bucket: 'dev-tempo-fn-source',
     access_key_id: aws_dev_access_key_id.name,
     secret_access_key: aws_dev_secret_access_key.name,
   },
