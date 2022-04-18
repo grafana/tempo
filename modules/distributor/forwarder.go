@@ -143,30 +143,8 @@ func (f *forwarder) watchOverrides() {
 	}
 }
 
-// TODO: Collecting in intervals instead of synchronously can hide spike loads
-//  Measure impact of updating the metric synchronously and consider changing the implementation
-func (f *forwarder) watchMetrics() {
-	collectInterval := 5 * time.Second
-	t := time.NewTicker(collectInterval)
-
-	for {
-		select {
-		case <-t.C:
-			f.mutex.RLock()
-			for tenant, qm := range f.queueManagers {
-				metricForwarderQueueLength.WithLabelValues(tenant).Set(float64(qm.queueLen()))
-			}
-			f.mutex.RUnlock()
-		case <-f.shutdown:
-			return
-		}
-	}
-}
-
 func (f *forwarder) start(_ context.Context) error {
 	go f.watchOverrides()
-
-	go f.watchMetrics()
 
 	return nil
 
@@ -225,7 +203,7 @@ func (m *queueManager) pushToQueue(ctx context.Context, req *request) error {
 
 	select {
 	case m.reqChan <- req:
-		// TODO: Record some metric
+		metricForwarderQueueLength.WithLabelValues(m.tenantID).Inc()
 	case <-ctx.Done():
 		return fmt.Errorf("failed to pushToQueue traces to tenant %s queue: %w", m.tenantID, ctx.Err())
 	default:
@@ -255,13 +233,14 @@ func (m *queueManager) worker() {
 	for {
 		select {
 		case req := <-m.reqChan:
-			// TODO: add timeout to context
+			metricForwarderQueueLength.WithLabelValues(m.tenantID).Dec()
 			m.forwardRequest(context.Background(), req)
 		default:
 			// Forces to always trying to pull from the queue before exiting
 			// This is important during shutdown to ensure that the queue is drained
 			select {
 			case req := <-m.reqChan:
+				metricForwarderQueueLength.WithLabelValues(m.tenantID).Dec()
 				m.forwardRequest(context.Background(), req)
 			case <-m.workersCloseCh:
 				// If the queue isn't empty, force to start the loop from the beginning
