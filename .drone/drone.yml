@@ -255,7 +255,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - cd ./cmd/tempo-serverless/lambda
-  - aws s3 cp tempo-serverless*.zip s3://tempo-dev-fn-source
+  - aws s3 cp tempo-serverless*.zip s3://dev-tempo-fn-source
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: AWS_ACCESS_KEY_ID-dev
@@ -328,6 +328,6 @@ get:
 
 ---
 kind: signature
-hmac: ee553cac222920255f676f9e12e053a82c8735946590240a4591b42d5c6b52d2
+hmac: 306d5b56e5f06e40d09d32286254b36ec57e4919bcd0cb6af7eb1ccea710c4f8
 
 ...
