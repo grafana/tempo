@@ -19,8 +19,6 @@ const (
 	BlockStartKey = "blockStart"
 	BlockEndKey   = "blockEnd"
 	QueryModeKey  = "mode"
-	TimeStartKey  = "start"
-	TimeEndKey    = "end"
 
 	QueryModeIngesters = "ingesters"
 	QueryModeBlocks    = "blocks"

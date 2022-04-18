@@ -91,8 +91,13 @@ Tempo's Query API is simple. The following request is used to retrieve a trace f
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
 
 ```
-GET /api/traces/<traceid>
+GET /api/traces/<traceid>?start=<start>&end=<end>
 ```
+Parameters:
+- `start = (unix epoch seconds)`
+  Optional.  Along with `end` define a time range from which traces should be returned. 
+- `end = (unix epoch seconds)`
+  Optional.  Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` will include traces for the specified time range only. 
 
 The following query API is also provided on the querier service for _debugging_ purposes.
 

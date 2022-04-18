@@ -309,6 +309,22 @@ func TestIncludeBlock(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:       "include - max block range",
+			searchID:   []byte{0x05},
+			blockStart: uuid.MustParse(BlockIDMin),
+			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			meta: &backend.BlockMeta{
+				BlockID:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				MinID:     []byte{0x00},
+				MaxID:     []byte{0x10},
+				StartTime: time.Unix(1650285326, 0),
+				EndTime:   time.Unix(1650288990, 0),
+			},
+			start:    10000,
+			end:      20000,
+			expected: false,
+		},
+		{
 			name:       "include - exact hit",
 			searchID:   []byte{0x05},
 			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
