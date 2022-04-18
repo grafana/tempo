@@ -315,7 +315,7 @@ kind: secret
 name: AWS_ACCESS_KEY_ID-dev
 
 get:
-  path: secret/tempo-dev/aws-credentials-drone
+  path: infra/data/ci/tempo-dev/aws-credentials-drone
   name: access_key_id
 
 ---
@@ -323,11 +323,11 @@ kind: secret
 name: AWS_SECRET_ACCESS_KEY-dev
 
 get:
-  path: secret/tempo-dev/aws-credentials-drone
+  path: infra/data/ci/tempo-dev/aws-credentials-drone
   name: secret_access_key
 
 ---
 kind: signature
-hmac: c50423e7f6592db81da7b389659a3f748c379b17113e72eed6520e61ad935c11
+hmac: ee553cac222920255f676f9e12e053a82c8735946590240a4591b42d5c6b52d2
 
 ...
