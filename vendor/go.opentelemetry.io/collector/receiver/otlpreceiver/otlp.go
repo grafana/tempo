@@ -16,6 +16,7 @@ package otlpreceiver // import "go.opentelemetry.io/collector/receiver/otlprecei
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -85,7 +86,7 @@ func (r *otlpReceiver) startGRPCServer(cfg *configgrpc.GRPCServerSettings, host 
 func (r *otlpReceiver) startHTTPServer(cfg *confighttp.HTTPServerSettings, host component.Host) error {
 	r.settings.Logger.Info("Starting HTTP server on endpoint " + cfg.Endpoint)
 	var hln net.Listener
-	hln, err := r.cfg.HTTP.ToListener()
+	hln, err := cfg.ToListener()
 	if err != nil {
 		return err
 	}
@@ -128,26 +129,19 @@ func (r *otlpReceiver) startProtocolServers(host component.Host) error {
 		}
 	}
 	if r.cfg.HTTP != nil {
-		r.serverHTTP = r.cfg.HTTP.ToServer(
-			r.httpMux,
+		r.serverHTTP, err = r.cfg.HTTP.ToServer(
+			host,
 			r.settings.TelemetrySettings,
+			r.httpMux,
 			confighttp.WithErrorHandler(errorHandler),
 		)
-		err = r.startHTTPServer(r.cfg.HTTP, host)
 		if err != nil {
 			return err
 		}
-		if r.cfg.HTTP.Endpoint == defaultHTTPEndpoint {
-			r.settings.Logger.Info("Setting up a second HTTP listener on legacy endpoint " + legacyHTTPEndpoint)
 
-			// Copy the config.
-			cfgLegacyHTTP := r.cfg.HTTP
-			// And use the legacy endpoint.
-			cfgLegacyHTTP.Endpoint = legacyHTTPEndpoint
-			err = r.startHTTPServer(cfgLegacyHTTP, host)
-			if err != nil {
-				return err
-			}
+		err = r.startHTTPServer(r.cfg.HTTP, host)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -185,17 +179,12 @@ func (r *otlpReceiver) registerTraceConsumer(tc consumer.Traces) error {
 		r.httpMux.HandleFunc("/v1/traces", func(resp http.ResponseWriter, req *http.Request) {
 			handleTraces(resp, req, r.traceReceiver, pbEncoder)
 		}).Methods(http.MethodPost).Headers("Content-Type", pbContentType)
-		// For backwards compatibility see https://github.com/open-telemetry/opentelemetry-collector/issues/1968
-		r.httpMux.HandleFunc("/v1/trace", func(resp http.ResponseWriter, req *http.Request) {
-			handleTraces(resp, req, r.traceReceiver, pbEncoder)
-		}).Methods(http.MethodPost).Headers("Content-Type", pbContentType)
 		r.httpMux.HandleFunc("/v1/traces", func(resp http.ResponseWriter, req *http.Request) {
 			handleTraces(resp, req, r.traceReceiver, jsEncoder)
 		}).Methods(http.MethodPost).Headers("Content-Type", jsonContentType)
-		// For backwards compatibility see https://github.com/open-telemetry/opentelemetry-collector/issues/1968
-		r.httpMux.HandleFunc("/v1/trace", func(resp http.ResponseWriter, req *http.Request) {
-			handleTraces(resp, req, r.traceReceiver, jsEncoder)
-		}).Methods(http.MethodPost).Headers("Content-Type", jsonContentType)
+		r.httpMux.HandleFunc("/v1/traces", func(resp http.ResponseWriter, req *http.Request) {
+			handleUnmatchedRequests(resp, req)
+		})
 	}
 	return nil
 }
@@ -212,6 +201,9 @@ func (r *otlpReceiver) registerMetricsConsumer(mc consumer.Metrics) error {
 		r.httpMux.HandleFunc("/v1/metrics", func(resp http.ResponseWriter, req *http.Request) {
 			handleMetrics(resp, req, r.metricsReceiver, jsEncoder)
 		}).Methods(http.MethodPost).Headers("Content-Type", jsonContentType)
+		r.httpMux.HandleFunc("/v1/metrics", func(resp http.ResponseWriter, req *http.Request) {
+			handleUnmatchedRequests(resp, req)
+		})
 	}
 	return nil
 }
@@ -228,6 +220,22 @@ func (r *otlpReceiver) registerLogsConsumer(lc consumer.Logs) error {
 		r.httpMux.HandleFunc("/v1/logs", func(w http.ResponseWriter, req *http.Request) {
 			handleLogs(w, req, r.logReceiver, jsEncoder)
 		}).Methods(http.MethodPost).Headers("Content-Type", jsonContentType)
+		r.httpMux.HandleFunc("/v1/logs", func(resp http.ResponseWriter, req *http.Request) {
+			handleUnmatchedRequests(resp, req)
+		})
 	}
 	return nil
+}
+
+func handleUnmatchedRequests(resp http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		status := http.StatusMethodNotAllowed
+		writeResponse(resp, "text/plain", status, []byte(fmt.Sprintf("%v method not allowed, supported: [POST]", status)))
+		return
+	}
+	if req.Header.Get("Content-Type") == "" {
+		status := http.StatusUnsupportedMediaType
+		writeResponse(resp, "text/plain", status, []byte(fmt.Sprintf("%v unsupported media type, supported: [%s, %s]", status, jsonContentType, pbContentType)))
+		return
+	}
 }

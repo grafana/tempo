@@ -18,10 +18,10 @@ import (
 	"context"
 	"time"
 
+	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/receiver/receiverhelper"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter"
 )
@@ -80,6 +80,8 @@ func WithLogsUnmarshalers(logsUnmarshalers ...LogsUnmarshaler) FactoryOption {
 
 // NewFactory creates Kafka receiver factory.
 func NewFactory(options ...FactoryOption) component.ReceiverFactory {
+	_ = view.Register(MetricViews()...)
+
 	f := &kafkaReceiverFactory{
 		tracesUnmarshalers:  defaultTracesUnmarshalers(),
 		metricsUnmarshalers: defaultMetricsUnmarshalers(),
@@ -88,12 +90,12 @@ func NewFactory(options ...FactoryOption) component.ReceiverFactory {
 	for _, o := range options {
 		o(f)
 	}
-	return receiverhelper.NewFactory(
+	return component.NewReceiverFactory(
 		typeStr,
 		createDefaultConfig,
-		receiverhelper.WithTraces(f.createTracesReceiver),
-		receiverhelper.WithMetrics(f.createMetricsReceiver),
-		receiverhelper.WithLogs(f.createLogsReceiver),
+		component.WithTracesReceiver(f.createTracesReceiver),
+		component.WithMetricsReceiver(f.createMetricsReceiver),
+		component.WithLogsReceiver(f.createLogsReceiver),
 	)
 }
 

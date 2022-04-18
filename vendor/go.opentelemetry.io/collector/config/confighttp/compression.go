@@ -1,10 +1,10 @@
-// Copyright The OpenTelemetry Authors
+// Copyright  The OpenTelemetry Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//       http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package middleware // import "go.opentelemetry.io/collector/external/middleware"
+// This file contains helper functions regarding compression/decompression for confighttp.
+
+package confighttp // import "go.opentelemetry.io/collector/config/confighttp"
 
 import (
 	"bytes"
@@ -20,25 +22,52 @@ import (
 	"compress/zlib"
 	"io"
 	"net/http"
+
+	"github.com/golang/snappy"
+	"github.com/klauspost/compress/zstd"
+
+	"go.opentelemetry.io/collector/config/configcompression"
 )
 
-const (
-	headerContentEncoding = "Content-Encoding"
-	headerValueGZIP       = "gzip"
-)
-
-type CompressRoundTripper struct {
-	http.RoundTripper
+type compressRoundTripper struct {
+	RoundTripper    http.RoundTripper
+	compressionType configcompression.CompressionType
+	writer          func(*bytes.Buffer) (io.WriteCloser, error)
 }
 
-func NewCompressRoundTripper(rt http.RoundTripper) *CompressRoundTripper {
-	return &CompressRoundTripper{
-		RoundTripper: rt,
+func newCompressRoundTripper(rt http.RoundTripper, compressionType configcompression.CompressionType) *compressRoundTripper {
+	return &compressRoundTripper{
+		RoundTripper:    rt,
+		compressionType: compressionType,
+		writer:          writerFactory(compressionType),
 	}
 }
 
-func (r *CompressRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+// writerFactory defines writer field in CompressRoundTripper.
+// The validity of input is already checked when NewCompressRoundTripper was called in confighttp,
+func writerFactory(compressionType configcompression.CompressionType) func(*bytes.Buffer) (io.WriteCloser, error) {
+	switch compressionType {
+	case configcompression.Gzip:
+		return func(buf *bytes.Buffer) (io.WriteCloser, error) {
+			return gzip.NewWriter(buf), nil
+		}
+	case configcompression.Snappy:
+		return func(buf *bytes.Buffer) (io.WriteCloser, error) {
+			return snappy.NewBufferedWriter(buf), nil
+		}
+	case configcompression.Zstd:
+		return func(buf *bytes.Buffer) (io.WriteCloser, error) {
+			return zstd.NewWriter(buf)
+		}
+	case configcompression.Zlib, configcompression.Deflate:
+		return func(buf *bytes.Buffer) (io.WriteCloser, error) {
+			return zlib.NewWriter(buf), nil
+		}
+	}
+	return nil
+}
 
+func (r *compressRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req.Header.Get(headerContentEncoding) != "" {
 		// If the header already specifies a content encoding then skip compression
 		// since we don't want to compress it again. This is a safeguard that normally
@@ -47,19 +76,23 @@ func (r *CompressRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 		return r.RoundTripper.RoundTrip(req)
 	}
 
-	// Gzip the body.
+	// Compress the body.
 	buf := bytes.NewBuffer([]byte{})
-	gzipWriter := gzip.NewWriter(buf)
-	_, copyErr := io.Copy(gzipWriter, req.Body)
+	compressWriter, writerErr := r.writer(buf)
+	if writerErr != nil {
+		return nil, writerErr
+	}
+	_, copyErr := io.Copy(compressWriter, req.Body)
 	closeErr := req.Body.Close()
 
-	if err := gzipWriter.Close(); err != nil {
+	if err := compressWriter.Close(); err != nil {
 		return nil, err
 	}
 
 	if copyErr != nil {
 		return nil, copyErr
 	}
+
 	if closeErr != nil {
 		return nil, closeErr
 	}
@@ -73,30 +106,30 @@ func (r *CompressRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 
 	// Clone the headers and add gzip encoding header.
 	cReq.Header = req.Header.Clone()
-	cReq.Header.Add(headerContentEncoding, headerValueGZIP)
+	cReq.Header.Add(headerContentEncoding, string(r.compressionType))
 
 	return r.RoundTripper.RoundTrip(cReq)
 }
 
-type ErrorHandler func(w http.ResponseWriter, r *http.Request, errorMsg string, statusCode int)
+type errorHandler func(w http.ResponseWriter, r *http.Request, errorMsg string, statusCode int)
 
 type decompressor struct {
-	errorHandler ErrorHandler
+	errorHandler
 }
 
-type DecompressorOption func(d *decompressor)
+type decompressorOption func(d *decompressor)
 
-func WithErrorHandler(e ErrorHandler) DecompressorOption {
+func withErrorHandlerForDecompressor(e errorHandler) decompressorOption {
 	return func(d *decompressor) {
 		d.errorHandler = e
 	}
 }
 
-// HTTPContentDecompressor is a middleware that offloads the task of handling compressed
-// HTTP requests by identifying the compression format in the "Content-Encoding" header and re-writing
+// httpContentDecompressor offloads the task of handling compressed HTTP requests
+// by identifying the compression format in the "Content-Encoding" header and re-writing
 // request body so that the handlers further in the chain can work on decompressed data.
 // It supports gzip and deflate/zlib compression.
-func HTTPContentDecompressor(h http.Handler, opts ...DecompressorOption) http.Handler {
+func httpContentDecompressor(h http.Handler, opts ...decompressorOption) http.Handler {
 	d := &decompressor{}
 	for _, o := range opts {
 		o(d)

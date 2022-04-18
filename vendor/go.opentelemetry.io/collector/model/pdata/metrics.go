@@ -40,11 +40,8 @@ type MetricsSizer interface {
 	MetricsSize(md Metrics) int
 }
 
-// Metrics is an opaque interface that allows transition to the new internal Metrics data, but also facilitates the
-// transition to the new components, especially for traces.
-//
-// Outside of the core repository, the metrics pipeline cannot be converted to the new model since data.MetricData is
-// part of the internal package.
+// Metrics is the top-level struct that is propagated through the metrics pipeline.
+// Use NewMetrics to create new instance, zero-initialized instance is not valid for use.
 type Metrics struct {
 	orig *otlpmetrics.MetricsData
 }
@@ -71,6 +68,13 @@ func (md Metrics) Clone() Metrics {
 	cloneMd := NewMetrics()
 	md.ResourceMetrics().CopyTo(cloneMd.ResourceMetrics())
 	return cloneMd
+}
+
+// MoveTo moves all properties from the current struct to dest
+// resetting the current instance to its zero value.
+func (md Metrics) MoveTo(dest Metrics) {
+	*dest.orig = *md.orig
+	*md.orig = otlpmetrics.MetricsData{}
 }
 
 // ResourceMetrics returns the ResourceMetricsSlice associated with this Metrics.
@@ -153,24 +157,6 @@ func (mdt MetricDataType) String() string {
 	return ""
 }
 
-// DataType returns the type of the data for this Metric.
-// Calling this function on zero-initialized Metric will cause a panic.
-func (ms Metric) DataType() MetricDataType {
-	switch ms.orig.Data.(type) {
-	case *otlpmetrics.Metric_Gauge:
-		return MetricDataTypeGauge
-	case *otlpmetrics.Metric_Sum:
-		return MetricDataTypeSum
-	case *otlpmetrics.Metric_Histogram:
-		return MetricDataTypeHistogram
-	case *otlpmetrics.Metric_ExponentialHistogram:
-		return MetricDataTypeExponentialHistogram
-	case *otlpmetrics.Metric_Summary:
-		return MetricDataTypeSummary
-	}
-	return MetricDataTypeNone
-}
-
 // SetDataType clears any existing data and initialize it with an empty data of the given type.
 // Calling this function on zero-initialized Metric will cause a panic.
 func (ms Metric) SetDataType(ty MetricDataType) {
@@ -185,66 +171,6 @@ func (ms Metric) SetDataType(ty MetricDataType) {
 		ms.orig.Data = &otlpmetrics.Metric_ExponentialHistogram{ExponentialHistogram: &otlpmetrics.ExponentialHistogram{}}
 	case MetricDataTypeSummary:
 		ms.orig.Data = &otlpmetrics.Metric_Summary{Summary: &otlpmetrics.Summary{}}
-	}
-}
-
-// Gauge returns the data as Gauge.
-// Calling this function when DataType() != MetricDataTypeGauge will cause a panic.
-// Calling this function on zero-initialized Metric will cause a panic.
-func (ms Metric) Gauge() Gauge {
-	return newGauge(ms.orig.Data.(*otlpmetrics.Metric_Gauge).Gauge)
-}
-
-// Sum returns the data as Sum.
-// Calling this function when DataType() != MetricDataTypeSum will cause a panic.
-// Calling this function on zero-initialized Metric will cause a panic.
-func (ms Metric) Sum() Sum {
-	return newSum(ms.orig.Data.(*otlpmetrics.Metric_Sum).Sum)
-}
-
-// Histogram returns the data as Histogram.
-// Calling this function when DataType() != MetricDataTypeHistogram will cause a panic.
-// Calling this function on zero-initialized Metric will cause a panic.
-func (ms Metric) Histogram() Histogram {
-	return newHistogram(ms.orig.Data.(*otlpmetrics.Metric_Histogram).Histogram)
-}
-
-// ExponentialHistogram returns the data as ExponentialHistogram.
-// Calling this function when DataType() != MetricDataTypeExponentialHistogram will cause a panic.
-// Calling this function on zero-initialized Metric will cause a panic.
-func (ms Metric) ExponentialHistogram() ExponentialHistogram {
-	return newExponentialHistogram(ms.orig.Data.(*otlpmetrics.Metric_ExponentialHistogram).ExponentialHistogram)
-}
-
-// Summary returns the data as Summary.
-// Calling this function when DataType() != MetricDataTypeSummary will cause a panic.
-// Calling this function on zero-initialized Metric will cause a panic.
-func (ms Metric) Summary() Summary {
-	return newSummary(ms.orig.Data.(*otlpmetrics.Metric_Summary).Summary)
-}
-
-func copyData(src, dest *otlpmetrics.Metric) {
-	switch srcData := (src).Data.(type) {
-	case *otlpmetrics.Metric_Gauge:
-		data := &otlpmetrics.Metric_Gauge{Gauge: &otlpmetrics.Gauge{}}
-		newGauge(srcData.Gauge).CopyTo(newGauge(data.Gauge))
-		dest.Data = data
-	case *otlpmetrics.Metric_Sum:
-		data := &otlpmetrics.Metric_Sum{Sum: &otlpmetrics.Sum{}}
-		newSum(srcData.Sum).CopyTo(newSum(data.Sum))
-		dest.Data = data
-	case *otlpmetrics.Metric_Histogram:
-		data := &otlpmetrics.Metric_Histogram{Histogram: &otlpmetrics.Histogram{}}
-		newHistogram(srcData.Histogram).CopyTo(newHistogram(data.Histogram))
-		dest.Data = data
-	case *otlpmetrics.Metric_ExponentialHistogram:
-		data := &otlpmetrics.Metric_ExponentialHistogram{ExponentialHistogram: &otlpmetrics.ExponentialHistogram{}}
-		newExponentialHistogram(srcData.ExponentialHistogram).CopyTo(newExponentialHistogram(data.ExponentialHistogram))
-		dest.Data = data
-	case *otlpmetrics.Metric_Summary:
-		data := &otlpmetrics.Metric_Summary{Summary: &otlpmetrics.Summary{}}
-		newSummary(srcData.Summary).CopyTo(newSummary(data.Summary))
-		dest.Data = data
 	}
 }
 
@@ -327,26 +253,12 @@ func (mdt MetricValueType) String() string {
 	return ""
 }
 
-// Type returns the type of the value for this NumberDataPoint.
-// Calling this function on zero-initialized NumberDataPoint will cause a panic.
+// Deprecated: [v0.45.0] Use ValueType instead.
 func (ms NumberDataPoint) Type() MetricValueType {
-	switch ms.orig.Value.(type) {
-	case *otlpmetrics.NumberDataPoint_AsDouble:
-		return MetricValueTypeDouble
-	case *otlpmetrics.NumberDataPoint_AsInt:
-		return MetricValueTypeInt
-	}
-	return MetricValueTypeNone
+	return ms.ValueType()
 }
 
-// Type returns the type of the value for this Exemplar.
-// Calling this function on zero-initialized Exemplar will cause a panic.
+// Deprecated: [v0.45.0] Use ValueType instead.
 func (ms Exemplar) Type() MetricValueType {
-	switch ms.orig.Value.(type) {
-	case *otlpmetrics.Exemplar_AsDouble:
-		return MetricValueTypeDouble
-	case *otlpmetrics.Exemplar_AsInt:
-		return MetricValueTypeInt
-	}
-	return MetricValueTypeNone
+	return ms.ValueType()
 }

@@ -15,7 +15,7 @@
 package configtelemetry // import "go.opentelemetry.io/collector/config/configtelemetry"
 
 import (
-	"flag"
+	"encoding"
 	"fmt"
 	"strings"
 )
@@ -34,31 +34,20 @@ const (
 	levelBasicStr    = "basic"
 	levelNormalStr   = "normal"
 	levelDetailedStr = "detailed"
-
-	metricsLevelCfg = "metrics-level"
 )
 
+// Deprecated: UseOpenTelemetryForInternalMetrics has been deprecated. Uses feature flag in
+// telemetry.useOtelForInternalMetrics to handle this feature
 const UseOpenTelemetryForInternalMetrics = false
-
-var metricsLevelPtr = new(Level)
-
-// Flags is a helper function to add telemetry config flags to the service that exposes
-// the application flags.
-func Flags(flags *flag.FlagSet) {
-	flags.Var(
-		metricsLevelPtr,
-		metricsLevelCfg,
-		"Output level of telemetry metrics (none, basic, normal, detailed)")
-}
 
 // Level is the level of internal telemetry (metrics, logs, traces about the component itself)
 // that every component should generate.
-type Level int8
+type Level int32
 
-var _ flag.Value = (*Level)(nil)
+var _ encoding.TextUnmarshaler = (*Level)(nil)
 
-func (l *Level) String() string {
-	switch *l {
+func (l Level) String() string {
+	switch l {
 	case LevelNone:
 		return levelNoneStr
 	case LevelBasic:
@@ -71,47 +60,17 @@ func (l *Level) String() string {
 	return "unknown"
 }
 
-// Set sets the telemetry level.
-func (l *Level) Set(s string) error {
-	lvl, err := parseLevel(s)
-	if err != nil {
-		return err
+// UnmarshalText unmarshals text to a Level.
+func (l *Level) UnmarshalText(text []byte) error {
+	if l == nil {
+		return fmt.Errorf("cannot unmarshal to a nil *Level")
 	}
-	*l = lvl
-	return nil
+	var err error
+	*l, err = parseLevel(string(text))
+	return err
 }
 
-// GetMetricsLevelFlagValue returns the value of the "--metrics-level" flag.
-// IMPORTANT: This must be used only in the core collector code for the moment.
-func GetMetricsLevelFlagValue() Level {
-	return *metricsLevelPtr
-}
-
-// TelemetrySetting exposes the common Telemetry configuration for one component.
-type TelemetrySetting struct {
-	// MetricsLevelStr is the level of telemetry metrics, the possible values are:
-	//  - "none" indicates that no telemetry data should be collected;
-	//  - "basic" is the recommended and covers the basics of the service telemetry.
-	//  - "normal" adds some other indicators on top of basic.
-	//  - "detailed" adds dimensions and views to the previous levels.
-	MetricsLevelStr string `mapstructure:"metrics_level"`
-}
-
-// DefaultTelemetrySetting returns the default TelemetrySetting.
-// The level is set to the "--metrics-level" flag if set, otherwise the default "basic" level.
-func DefaultTelemetrySetting() TelemetrySetting {
-	return TelemetrySetting{
-		MetricsLevelStr: metricsLevelPtr.String(),
-	}
-}
-
-// GetMetricsLevel returns the parsed level, or error if unknown value.
-// Empty string is consider unknown value.
-func (ts TelemetrySetting) GetMetricsLevel() (Level, error) {
-	return parseLevel(ts.MetricsLevelStr)
-}
-
-// ParseLevel returns the Level represented by the string. The parsing is case-insensitive
+// parseLevel returns the Level represented by the string. The parsing is case-insensitive
 // and it returns error if the string value is unknown.
 func parseLevel(str string) (Level, error) {
 	str = strings.ToLower(str)

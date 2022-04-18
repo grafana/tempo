@@ -16,16 +16,8 @@ package configauth // import "go.opentelemetry.io/collector/config/configauth"
 
 import (
 	"context"
-	"errors"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 
 	"go.opentelemetry.io/collector/component"
-)
-
-var (
-	errMetadataNotFound = errors.New("no request metadata found")
 )
 
 // ServerAuthenticator is an Extension that can be used as an authenticator for the configauth.Authentication option.
@@ -45,66 +37,8 @@ type ServerAuthenticator interface {
 	// on tenancy as determined by the group membership, or passing through the authentication data to the next collector/backend.
 	// The context keys to be used are not defined yet.
 	Authenticate(ctx context.Context, headers map[string][]string) (context.Context, error)
-
-	// GRPCUnaryServerInterceptor is a helper method to provide a gRPC-compatible UnaryServerInterceptor, typically calling the authenticator's Authenticate method.
-	// While the context is the typical source of authentication data, the interceptor is free to determine where the auth data should come from. For instance, some
-	// receivers might implement an interceptor that looks into the payload instead.
-	// Once the authentication succeeds, the interceptor is expected to call the handler.
-	// See https://pkg.go.dev/google.golang.org/grpc#UnaryServerInterceptor.
-	GRPCUnaryServerInterceptor(ctx context.Context, req interface{}, srvInfo *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error)
-
-	// GRPCStreamServerInterceptor is a helper method to provide a gRPC-compatible StreamServerInterceptor, typically calling the authenticator's Authenticate method.
-	// While the context is the typical source of authentication data, the interceptor is free to determine where the auth data should come from. For instance, some
-	// receivers might implement an interceptor that looks into the payload instead.
-	// Once the authentication succeeds, the interceptor is expected to call the handler.
-	// See https://pkg.go.dev/google.golang.org/grpc#StreamServerInterceptor.
-	GRPCStreamServerInterceptor(srv interface{}, stream grpc.ServerStream, srvInfo *grpc.StreamServerInfo, handler grpc.StreamHandler) error
 }
 
 // AuthenticateFunc defines the signature for the function responsible for performing the authentication based on the given headers map.
 // See ServerAuthenticator.Authenticate.
 type AuthenticateFunc func(ctx context.Context, headers map[string][]string) (context.Context, error)
-
-// GRPCUnaryInterceptorFunc defines the signature for the function intercepting unary gRPC calls, useful for authenticators to use as
-// types for internal structs, making it easier to mock them in tests.
-// See ServerAuthenticator.GRPCUnaryServerInterceptor.
-type GRPCUnaryInterceptorFunc func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler, authenticate AuthenticateFunc) (interface{}, error)
-
-// GRPCStreamInterceptorFunc defines the signature for the function intercepting streaming gRPC calls, useful for authenticators to use as
-// types for internal structs, making it easier to mock them in tests.
-// See ServerAuthenticator.GRPCStreamServerInterceptor.
-type GRPCStreamInterceptorFunc func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler, authenticate AuthenticateFunc) error
-
-// DefaultGRPCUnaryServerInterceptor provides a default implementation of GRPCUnaryInterceptorFunc, useful for most authenticators.
-// It extracts the headers from the incoming request, under the assumption that the credentials will be part of the resulting map.
-func DefaultGRPCUnaryServerInterceptor(ctx context.Context, req interface{}, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler, authenticate AuthenticateFunc) (interface{}, error) {
-	headers, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return nil, errMetadataNotFound
-	}
-
-	ctx, err := authenticate(ctx, headers)
-	if err != nil {
-		return nil, err
-	}
-
-	return handler(ctx, req)
-}
-
-// DefaultGRPCStreamServerInterceptor provides a default implementation of GRPCStreamInterceptorFunc, useful for most authenticators.
-// It extracts the headers from the incoming request, under the assumption that the credentials will be part of the resulting map.
-func DefaultGRPCStreamServerInterceptor(srv interface{}, stream grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler, authenticate AuthenticateFunc) error {
-	ctx := stream.Context()
-	headers, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return errMetadataNotFound
-	}
-
-	// TODO: propagate the context down the stream
-	_, err := authenticate(ctx, headers)
-	if err != nil {
-		return err
-	}
-
-	return handler(srv, stream)
-}
