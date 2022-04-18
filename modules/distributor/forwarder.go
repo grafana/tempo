@@ -16,6 +16,11 @@ import (
 	"go.uber.org/multierr"
 )
 
+const (
+	defaultWorkerCount = 2
+	defaultQueueSize   = 100
+)
+
 var (
 	metricForwarderPushes = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
@@ -88,6 +93,20 @@ func (f *forwarder) SendTraces(ctx context.Context, tenantID string, keys []uint
 	}
 }
 
+// getQueueManagerConfig returns queueSize and workerCount for the given tenant
+func (f *forwarder) getQueueManagerConfig(tenantID string) (queueSize, workerCount int) {
+	queueSize = f.o.MetricsGeneratorForwarderQueueSize(tenantID)
+	if queueSize == 0 {
+		queueSize = defaultQueueSize
+	}
+
+	workerCount = f.o.MetricsGeneratorForwarderWorkers(tenantID)
+	if workerCount == 0 {
+		workerCount = defaultWorkerCount
+	}
+	return queueSize, workerCount
+}
+
 func (f *forwarder) getOrCreateQueueManager(tenantID string) *queueManager {
 	qm, ok := f.getQueueManager(tenantID)
 	if ok {
@@ -97,8 +116,7 @@ func (f *forwarder) getOrCreateQueueManager(tenantID string) *queueManager {
 	f.mutex.Lock()
 	defer f.mutex.Unlock()
 
-	queueSize := f.o.MetricsGeneratorForwarderQueueSize(tenantID)
-	workerCount := f.o.MetricsGeneratorForwarderWorkers(tenantID)
+	queueSize, workerCount := f.getQueueManagerConfig(tenantID)
 	f.queueManagers[tenantID] = newQueueManager(tenantID, queueSize, workerCount, f.forwardFunc)
 
 	return f.queueManagers[tenantID]
@@ -120,8 +138,7 @@ func (f *forwarder) watchOverrides() {
 		case <-time.After(f.overridesInterval):
 			f.mutex.Lock()
 			for tenantID, tm := range f.queueManagers {
-				queueSize := f.o.MetricsGeneratorForwarderQueueSize(tenantID)
-				workerCount := f.o.MetricsGeneratorForwarderWorkers(tenantID)
+				queueSize, workerCount := f.getQueueManagerConfig(tenantID)
 
 				// if the queue size or worker count has changed, shutdown the queue manager and create a new one
 				if tm.shouldUpdate(queueSize, workerCount) {
