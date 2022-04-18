@@ -24,12 +24,12 @@ const (
 var (
 	metricForwarderPushes = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
-		Name:      "distributor_forwarder_pushes",
+		Name:      "distributor_forwarder_pushes_total",
 		Help:      "Total number of successful requests queued up for a tenant to the forwarder",
 	}, []string{"tenant"})
-	metricForwarderDroppedPushes = promauto.NewCounterVec(prometheus.CounterOpts{
+	metricForwarderPushesFailures = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
-		Name:      "distributor_forwarder_dropped_pushes",
+		Name:      "tempo_distributor_forwarder_pushes_failures_total",
 		Help:      "Total number of failed pushes to the queue for a tenant to the forwarder",
 	}, []string{"tenant"})
 	metricForwarderQueueLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
@@ -87,7 +87,7 @@ func (f *forwarder) SendTraces(ctx context.Context, tenantID string, keys []uint
 	qm := f.getOrCreateQueueManager(tenantID)
 	if err := qm.pushToQueue(ctx, &request{keys: keys, traces: traces}); err != nil {
 		level.Error(log.Logger).Log("msg", "failed to push traces to queue", "tenant", tenantID, "err", err)
-		metricForwarderDroppedPushes.WithLabelValues(tenantID).Inc()
+		metricForwarderPushesFailures.WithLabelValues(tenantID).Inc()
 	} else {
 		metricForwarderPushes.WithLabelValues(tenantID).Inc()
 	}
