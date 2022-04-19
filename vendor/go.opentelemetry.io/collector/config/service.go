@@ -15,9 +15,9 @@
 package config // import "go.opentelemetry.io/collector/config"
 
 import (
-	"fmt"
-
 	"go.uber.org/zap/zapcore"
+
+	"go.opentelemetry.io/collector/config/configtelemetry"
 )
 
 // Service defines the configurable components of the service.
@@ -34,11 +34,8 @@ type Service struct {
 
 // ServiceTelemetry defines the configurable settings for service telemetry.
 type ServiceTelemetry struct {
-	Logs ServiceTelemetryLogs `mapstructure:"logs"`
-}
-
-func (srvT *ServiceTelemetry) validate() error {
-	return srvT.Logs.validate()
+	Logs    ServiceTelemetryLogs    `mapstructure:"logs"`
+	Metrics ServiceTelemetryMetrics `mapstructure:"metrics"`
 }
 
 // ServiceTelemetryLogs defines the configurable settings for service telemetry logs.
@@ -46,22 +43,71 @@ func (srvT *ServiceTelemetry) validate() error {
 // the collector uses mapstructure and not yaml tags.
 type ServiceTelemetryLogs struct {
 	// Level is the minimum enabled logging level.
+	// (default = "INFO")
 	Level zapcore.Level `mapstructure:"level"`
 
 	// Development puts the logger in development mode, which changes the
 	// behavior of DPanicLevel and takes stacktraces more liberally.
+	// (default = false)
 	Development bool `mapstructure:"development"`
 
 	// Encoding sets the logger's encoding.
-	// Valid values are "json" and "console".
+	// Example values are "json", "console".
 	Encoding string `mapstructure:"encoding"`
+
+	// DisableCaller stops annotating logs with the calling function's file
+	// name and line number. By default, all logs are annotated.
+	// (default = false)
+	DisableCaller bool `mapstructure:"disable_caller"`
+
+	// DisableStacktrace completely disables automatic stacktrace capturing. By
+	// default, stacktraces are captured for WarnLevel and above logs in
+	// development and ErrorLevel and above in production.
+	// (default = false)
+	DisableStacktrace bool `mapstructure:"disable_stacktrace"`
+
+	// OutputPaths is a list of URLs or file paths to write logging output to.
+	// The URLs could only be with "file" schema or without schema.
+	// The URLs with "file" schema must be an absolute path.
+	// The URLs without schema are treated as local file paths.
+	// "stdout" and "stderr" are interpreted as os.Stdout and os.Stderr.
+	// see details at Open in zap/writer.go.
+	// (default = ["stderr"])
+	OutputPaths []string `mapstructure:"output_paths"`
+
+	// ErrorOutputPaths is a list of URLs or file paths to write zap internal logger errors to.
+	// The URLs could only be with "file" schema or without schema.
+	// The URLs with "file" schema must use absolute paths.
+	// The URLs without schema are treated as local file paths.
+	// "stdout" and "stderr" are interpreted as os.Stdout and os.Stderr.
+	// see details at Open in zap/writer.go.
+	//
+	// Note that this setting only affects the zap internal logger errors.
+	// (default = ["stderr"])
+	ErrorOutputPaths []string `mapstructure:"error_output_paths"`
+
+	// InitialFields is a collection of fields to add to the root logger.
+	// Example:
+	//
+	// 		initial_fields:
+	//	   		foo: "bar"
+	//
+	// By default, there is no initial field.
+	InitialFields map[string]interface{} `mapstructure:"initial_fields"`
 }
 
-func (srvTL *ServiceTelemetryLogs) validate() error {
-	if srvTL.Encoding != "json" && srvTL.Encoding != "console" {
-		return fmt.Errorf(`service telemetry logs invalid encoding: %q, valid values are "json" and "console"`, srvTL.Encoding)
-	}
-	return nil
+// ServiceTelemetryMetrics exposes the common Telemetry configuration for one component.
+// Experimental: *NOTE* this structure is subject to change or removal in the future.
+type ServiceTelemetryMetrics struct {
+	// Level is the level of telemetry metrics, the possible values are:
+	//  - "none" indicates that no telemetry data should be collected;
+	//  - "basic" is the recommended and covers the basics of the service telemetry.
+	//  - "normal" adds some other indicators on top of basic.
+	//  - "detailed" adds dimensions and views to the previous levels.
+	Level configtelemetry.Level `mapstructure:"level"`
+
+	// Address is the [address]:port that metrics exposition should be bound to.
+	Address string `mapstructure:"address"`
 }
 
 // DataType is a special Type that represents the data types supported by the collector. We currently support

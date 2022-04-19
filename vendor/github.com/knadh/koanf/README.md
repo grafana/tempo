@@ -25,6 +25,7 @@ koanf comes with built in support for reading configuration from files, command 
 - [Setting default values](#setting-default-values)
 - [Order of merge and key case senstivity](#order-of-merge-and-key-case-sensitivity)
 - [Custom Providers and Parsers](#custom-providers-and-parsers)
+- [Custom Merge Strategies](#custom-merge-strategies)
 - [List of Providers, Parsers, and functions](#api)
 
 ### Concepts
@@ -586,6 +587,47 @@ A Provider can provide a nested map[string]interface{} config that can be loaded
 
 Writing Providers and Parsers are easy. See the bundled implementations in the `providers` and `parses` directory.
 
+### Custom merge strategies
+
+By default, when merging two config sources using `Load()`, koanf recursively merges keys of nested maps (`map[string]interface{}`),
+while static values are overwritten (slices, strings, etc). This behaviour can be changed by providing a custom merge function with the `WithMergeFunc` option.
+
+```go
+package main
+
+import (
+	"errors"
+	"log"
+
+	"github.com/knadh/koanf"
+	"github.com/knadh/koanf/maps"
+	"github.com/knadh/koanf/parsers/json"
+	"github.com/knadh/koanf/parsers/yaml"
+	"github.com/knadh/koanf/providers/file"
+)
+
+var conf = koanf.Conf{
+	Delim:       ".",
+	StrictMerge: true,
+}
+var k = koanf.NewWithConf(conf)
+
+func main() {
+	yamlPath := "mock/mock.yml"
+	if err := k.Load(file.Provider(yamlPath), yaml.Parser()); err != nil {
+		log.Fatalf("error loading config: %v", err)
+	}
+
+	jsonPath := "mock/mock.json"
+	if err := k.Load(file.Provider(jsonPath), json.Parser(), koanf.WithMergeFunc(func(src, dest map[string]interface{}) error {
+     // Your custom logic, copying values from src into dst
+     return nil
+    })); err != nil {
+		log.Fatalf("error loading config: %v", err)
+	}
+}
+```
+
 ## API
 
 ### Instantiation methods
@@ -630,21 +672,21 @@ Writing Providers and Parsers are easy. See the bundled implementations in the `
 
 ### Instance functions
 
-| Method                                                       | Description                                                  |
-| ------------------------------------------------------------ | ------------------------------------------------------------ |
-| `Load(p Provider, pa Parser) error`                          | Loads config from a Provider. If a koanf.Parser is provided, the config is assumed to be raw bytes that's then parsed with the Parser. |
-| `Keys() []string`                                            | Returns the list of flattened key paths that can be used to access config values |
-| `KeyMap() map[string][]string`                               | Returns a map of all possible key path combinations possible in the loaded nested conf map |
-| `All() map[string]interface{}`                               | Returns a flat map of flattened key paths and their corresponding config values |
-| `Raw() map[string]interface{}`                               | Returns a copy of the raw nested conf map                    |
-| `Print()`                                                    | Prints a human readable copy of the flattened key paths and their values for debugging |
-| `Sprint()`                                                   | Returns a human readable copy of the flattened key paths and their values for debugging |
-| `Cut(path string) *Koanf`                                    | Cuts the loaded nested conf map at the given path and returns a new Koanf instance with the children |
-| `Copy() *Koanf`                                              | Returns a copy of the Koanf instance                         |
-| `Merge(*Koanf)`                                              | Merges the config map of a Koanf instance into the current instance |
-| `Delete(path string)`                                        | Delete the value at the given path, and does nothing if path doesn't exist. |
-| `MergeAt(in *Koanf, path string)`                            | Merges the config map of a Koanf instance into the current instance, at the given key path. |
-| `Unmarshal(path string, o interface{}) error`                | Scans the given nested key path into a given struct (like json.Unmarshal) where fields are denoted by the `koanf` tag |
+| Method                                                                 | Description                                                  |
+|------------------------------------------------------------------------| ------------------------------------------------------------ |
+| `Load(p Provider, pa Parser, opts ...Option) error`                    | Loads config from a Provider. If a koanf.Parser is provided, the config is assumed to be raw bytes that's then parsed with the Parser. |
+| `Keys() []string`                                                      | Returns the list of flattened key paths that can be used to access config values |
+| `KeyMap() map[string][]string`                                         | Returns a map of all possible key path combinations possible in the loaded nested conf map |
+| `All() map[string]interface{}`                                         | Returns a flat map of flattened key paths and their corresponding config values |
+| `Raw() map[string]interface{}`                                         | Returns a copy of the raw nested conf map                    |
+| `Print()`                                                              | Prints a human readable copy of the flattened key paths and their values for debugging |
+| `Sprint()`                                                             | Returns a human readable copy of the flattened key paths and their values for debugging |
+| `Cut(path string) *Koanf`                                              | Cuts the loaded nested conf map at the given path and returns a new Koanf instance with the children |
+| `Copy() *Koanf`                                                        | Returns a copy of the Koanf instance                         |
+| `Merge(*Koanf)`                                                        | Merges the config map of a Koanf instance into the current instance |
+| `Delete(path string)`                                                  | Delete the value at the given path, and does nothing if path doesn't exist. |
+| `MergeAt(in *Koanf, path string)`                                      | Merges the config map of a Koanf instance into the current instance, at the given key path. |
+| `Unmarshal(path string, o interface{}) error`                          | Scans the given nested key path into a given struct (like json.Unmarshal) where fields are denoted by the `koanf` tag |
 | `UnmarshalWithConf(path string, o interface{}, c UnmarshalConf) error` | Like Unmarshal but with customizable options                 |
 
 ### Getter functions

@@ -19,9 +19,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componenthelper"
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumerhelper"
 	"go.opentelemetry.io/collector/exporter/exporterhelper/external"
@@ -34,8 +32,11 @@ type TimeoutSettings struct {
 	Timeout time.Duration `mapstructure:"timeout"`
 }
 
-// DefaultTimeoutSettings returns the default settings for TimeoutSettings.
-func DefaultTimeoutSettings() TimeoutSettings {
+// Deprecated: [v0.46.0] use NewDefaultTimeoutSettings instead.
+var DefaultTimeoutSettings = NewDefaultTimeoutSettings
+
+// NewDefaultTimeoutSettings returns the default settings for TimeoutSettings.
+func NewDefaultTimeoutSettings() TimeoutSettings {
 	return TimeoutSettings{
 		Timeout: 5 * time.Second,
 	}
@@ -89,8 +90,9 @@ func (req *baseRequest) OnProcessingFinished() {
 
 // baseSettings represents all the options that users can configure.
 type baseSettings struct {
-	componentOptions []componenthelper.Option
-	consumerOptions  []consumerhelper.Option
+	component.StartFunc
+	component.ShutdownFunc
+	consumerOptions []consumerhelper.Option
 	TimeoutSettings
 	QueueSettings
 	RetrySettings
@@ -100,7 +102,7 @@ type baseSettings struct {
 func fromOptions(options ...Option) *baseSettings {
 	// Start from the default options:
 	opts := &baseSettings{
-		TimeoutSettings: DefaultTimeoutSettings(),
+		TimeoutSettings: NewDefaultTimeoutSettings(),
 		// TODO: Enable queuing by default (call DefaultQueueSettings)
 		QueueSettings: QueueSettings{Enabled: false},
 		// TODO: Enable retry by default (call DefaultRetrySettings)
@@ -119,17 +121,17 @@ type Option func(*baseSettings)
 
 // WithStart overrides the default Start function for an exporter.
 // The default start function does nothing and always returns nil.
-func WithStart(start componenthelper.StartFunc) Option {
+func WithStart(start component.StartFunc) Option {
 	return func(o *baseSettings) {
-		o.componentOptions = append(o.componentOptions, componenthelper.WithStart(start))
+		o.StartFunc = start
 	}
 }
 
 // WithShutdown overrides the default Shutdown function for an exporter.
 // The default shutdown function does nothing and always returns nil.
-func WithShutdown(shutdown componenthelper.ShutdownFunc) Option {
+func WithShutdown(shutdown component.ShutdownFunc) Option {
 	return func(o *baseSettings) {
-		o.componentOptions = append(o.componentOptions, componenthelper.WithShutdown(shutdown))
+		o.ShutdownFunc = shutdown
 	}
 }
 
@@ -168,25 +170,38 @@ func WithCapabilities(capabilities consumer.Capabilities) Option {
 
 // baseExporter contains common fields between different exporter types.
 type baseExporter struct {
-	component.Component
+	component.StartFunc
+	component.ShutdownFunc
 	obsrep   *obsExporter
 	sender   requestSender
 	qrSender *queuedRetrySender
 }
 
 func newBaseExporter(cfg config.Exporter, set component.ExporterCreateSettings, bs *baseSettings, signal config.DataType, reqUnmarshaler internal.RequestUnmarshaler) *baseExporter {
-	be := &baseExporter{
-		Component: componenthelper.New(bs.componentOptions...),
-	}
+	be := &baseExporter{}
 
 	be.obsrep = newObsExporter(obsreport.ExporterSettings{
-		Level:                  configtelemetry.GetMetricsLevelFlagValue(),
+		Level:                  set.MetricsLevel,
 		ExporterID:             cfg.ID(),
 		ExporterCreateSettings: set,
 	}, globalInstruments)
 	be.qrSender = newQueuedRetrySender(cfg.ID(), signal, bs.QueueSettings, bs.RetrySettings, reqUnmarshaler, &timeoutSender{cfg: bs.TimeoutSettings}, set.Logger)
 	be.sender = be.qrSender
+	be.StartFunc = func(ctx context.Context, host component.Host) error {
+		// First start the wrapped exporter.
+		if err := bs.StartFunc.Start(ctx, host); err != nil {
+			return err
+		}
 
+		// If no error then start the queuedRetrySender.
+		return be.qrSender.start(ctx, host)
+	}
+	be.ShutdownFunc = func(ctx context.Context) error {
+		// First shutdown the queued retry sender
+		be.qrSender.shutdown()
+		// Last shutdown the wrapped exporter itself.
+		return bs.ShutdownFunc.Shutdown(ctx)
+	}
 	return be
 }
 
@@ -194,25 +209,6 @@ func newBaseExporter(cfg config.Exporter, set component.ExporterCreateSettings, 
 // This can be used to wrap with observability (create spans, record metrics) the consumer sender.
 func (be *baseExporter) wrapConsumerSender(f func(consumer requestSender) requestSender) {
 	be.qrSender.consumerSender = f(be.qrSender.consumerSender)
-}
-
-// Start all senders and exporter and is invoked during service start.
-func (be *baseExporter) Start(ctx context.Context, host component.Host) error {
-	// First start the wrapped exporter.
-	if err := be.Component.Start(ctx, host); err != nil {
-		return err
-	}
-
-	// If no error then start the queuedRetrySender.
-	return be.qrSender.start(ctx, host)
-}
-
-// Shutdown all senders and exporter and is invoked during service shutdown.
-func (be *baseExporter) Shutdown(ctx context.Context) error {
-	// First shutdown the queued retry sender
-	be.qrSender.shutdown()
-	// Last shutdown the wrapped exporter itself.
-	return be.Component.Shutdown(ctx)
 }
 
 // timeoutSender is a request sender that adds a `timeout` to every request that passes this sender.

@@ -34,7 +34,7 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/metadata"
 
-	jaegertranslator "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 )
 
 // newTracesExporter returns a new Jaeger gRPC exporter.
@@ -95,7 +95,7 @@ func (s *protoGRPCSender) pushTraces(
 	td pdata.Traces,
 ) error {
 
-	batches, err := jaegertranslator.InternalTracesToJaegerProto(td)
+	batches, err := jaeger.ProtoFromTraces(td)
 	if err != nil {
 		return consumererror.NewPermanent(fmt.Errorf("failed to push trace data via Jaeger exporter: %w", err))
 	}

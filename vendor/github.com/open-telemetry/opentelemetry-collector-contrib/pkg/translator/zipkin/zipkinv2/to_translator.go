@@ -27,7 +27,7 @@ import (
 
 	zipkinmodel "github.com/openzipkin/zipkin-go/model"
 	"go.opentelemetry.io/collector/model/pdata"
-	conventions "go.opentelemetry.io/collector/model/semconv/v1.5.0"
+	conventions "go.opentelemetry.io/collector/model/semconv/v1.6.1"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/occonventions"
@@ -93,8 +93,8 @@ var nonSpanAttributes = func() map[string]struct{} {
 		attrs[key] = struct{}{}
 	}
 	attrs[zipkin.TagServiceNameSource] = struct{}{}
-	attrs[conventions.InstrumentationLibraryName] = struct{}{}
-	attrs[conventions.InstrumentationLibraryVersion] = struct{}{}
+	attrs[conventions.OtelLibraryName] = struct{}{}
+	attrs[conventions.OtelLibraryVersion] = struct{}{}
 	attrs[occonventions.AttributeProcessStartTime] = struct{}{}
 	attrs[occonventions.AttributeExporterVersion] = struct{}{}
 	attrs[conventions.AttributeProcessPID] = struct{}{}
@@ -383,7 +383,7 @@ func populateResourceFromZipkinSpan(tags map[string]string, localServiceName str
 	delete(tags, zipkin.TagServiceNameSource)
 
 	for key := range nonSpanAttributes {
-		if key == conventions.InstrumentationLibraryName || key == conventions.InstrumentationLibraryVersion {
+		if key == conventions.OtelLibraryName || key == conventions.OtelLibraryVersion {
 			continue
 		}
 		if value, ok := tags[key]; ok {
@@ -397,13 +397,13 @@ func populateILFromZipkinSpan(tags map[string]string, instrLibName string, libra
 	if instrLibName == "" {
 		return
 	}
-	if value, ok := tags[conventions.InstrumentationLibraryName]; ok {
+	if value, ok := tags[conventions.OtelLibraryName]; ok {
 		library.SetName(value)
-		delete(tags, conventions.InstrumentationLibraryName)
+		delete(tags, conventions.OtelLibraryName)
 	}
-	if value, ok := tags[conventions.InstrumentationLibraryVersion]; ok {
+	if value, ok := tags[conventions.OtelLibraryVersion]; ok {
 		library.SetVersion(value)
-		delete(tags, conventions.InstrumentationLibraryVersion)
+		delete(tags, conventions.OtelLibraryVersion)
 	}
 }
 
@@ -426,7 +426,7 @@ func extractInstrumentationLibrary(zspan *zipkinmodel.SpanModel) string {
 	if zspan == nil || len(zspan.Tags) == 0 {
 		return ""
 	}
-	return zspan.Tags[conventions.InstrumentationLibraryName]
+	return zspan.Tags[conventions.OtelLibraryName]
 }
 
 func setTimestampsV2(zspan *zipkinmodel.SpanModel, dest pdata.Span, destAttrs pdata.AttributeMap) {

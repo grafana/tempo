@@ -251,6 +251,18 @@ steps:
     ops_tools_fn_upload:
       from_secret: ops_tools_fn_upload
 
+- name: deploy-tempo-dev-serverless-lambda
+  image: amazon/aws-cli
+  commands:
+  - cd ./cmd/tempo-serverless/lambda
+  - aws s3 cp tempo-serverless*.zip s3://dev-tempo-fn-source
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID-dev
+    AWS_DEFAULT_REGION: us-east-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY-dev
+
 trigger:
   ref:
   - refs/heads/main
@@ -299,7 +311,23 @@ get:
   name: credentials.json
 
 ---
+kind: secret
+name: AWS_ACCESS_KEY_ID-dev
+
+get:
+  path: infra/data/ci/tempo-dev/aws-credentials-drone
+  name: access_key_id
+
+---
+kind: secret
+name: AWS_SECRET_ACCESS_KEY-dev
+
+get:
+  path: infra/data/ci/tempo-dev/aws-credentials-drone
+  name: secret_access_key
+
+---
 kind: signature
-hmac: 5158168c568631c88b9b26b50d9103f0bd69785d124f4730566f9779a26024fd
+hmac: 306d5b56e5f06e40d09d32286254b36ec57e4919bcd0cb6af7eb1ccea710c4f8
 
 ...

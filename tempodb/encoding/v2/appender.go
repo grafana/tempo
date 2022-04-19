@@ -87,9 +87,9 @@ func (a *appender) Records() []common.Record {
 }
 
 func (a *appender) RecordsForID(id common.ID) []common.Record {
-	a.hash.Reset()
-	_, _ = a.hash.Write(id)
-	hash := a.hash.Sum64()
+	hasher := xxhash.New()
+	_, _ = hasher.Write(id)
+	hash := hasher.Sum64()
 
 	a.recordsMtx.RLock()
 	defer a.recordsMtx.RUnlock()

@@ -172,7 +172,7 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.Block
 	}
 
 	// Update blocklist in memory
-	rw.blocklist.Update(tenantID, newBlocks, oldBlocks, newCompactions)
+	rw.blocklist.Update(tenantID, newBlocks, oldBlocks, newCompactions, nil)
 }
 
 func measureOutstandingBlocks(tenantID string, blockSelector CompactionBlockSelector, owned func(hash string) bool) {

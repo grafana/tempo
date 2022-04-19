@@ -16,6 +16,7 @@ package jaegerreceiver // import "github.com/open-telemetry/opentelemetry-collec
 
 import (
 	"fmt"
+	"time"
 
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -35,8 +36,9 @@ const (
 
 // RemoteSamplingConfig defines config key for remote sampling fetch endpoint
 type RemoteSamplingConfig struct {
-	HostEndpoint                  string `mapstructure:"host_endpoint"`
-	StrategyFile                  string `mapstructure:"strategy_file"`
+	HostEndpoint                  string        `mapstructure:"host_endpoint"`
+	StrategyFile                  string        `mapstructure:"strategy_file"`
+	StrategyFileReloadInterval    time.Duration `mapstructure:"strategy_file_reload_interval"`
 	configgrpc.GRPCClientSettings `mapstructure:",squash"`
 }
 
@@ -124,6 +126,10 @@ func (cfg *Config) Validate() error {
 
 		if len(cfg.RemoteSampling.StrategyFile) != 0 && grpcPort == 0 {
 			return fmt.Errorf("strategy file requires the gRPC protocol to be enabled")
+		}
+
+		if cfg.RemoteSampling.StrategyFileReloadInterval < 0 {
+			return fmt.Errorf("strategy file reload interval should be great or equal zero")
 		}
 	}
 
