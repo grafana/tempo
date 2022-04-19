@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"io"
 
+	"github.com/pkg/errors"
+
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -60,10 +62,7 @@ func (p *dataWriter) CutPage() (int, error) {
 	p.compressionWriter.Close()
 
 	// now marshal the buffer as a page to the output
-	bytesWritten, err := marshalPageToWriter(p.compressedBuffer.Bytes(), p.outputWriter, constDataHeader)
-	if err != nil {
-		return 0, err
-	}
+	bytesWritten, marshalErr := marshalPageToWriter(p.compressedBuffer.Bytes(), p.outputWriter, constDataHeader)
 
 	// reset buffers for the next write
 	p.objectBuffer.Reset()
@@ -71,6 +70,13 @@ func (p *dataWriter) CutPage() (int, error) {
 	p.compressionWriter, err = p.pool.ResetWriter(p.compressedBuffer, p.compressionWriter)
 	if err != nil {
 		return 0, err
+	}
+
+	// deliberately checking marshalErr after resetting the compression writer to avoid "writer is closed" errors in
+	// case of issues while writing to disk
+	// for more details hop on to https://github.com/grafana/tempo/issues/1374
+	if marshalErr != nil {
+		return 0, errors.Wrap(marshalErr, "error marshalling page to writer")
 	}
 
 	return bytesWritten, err
