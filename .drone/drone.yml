@@ -339,7 +339,23 @@ get:
   name: secret_access_key
 
 ---
+kind: secret
+name: AWS_ACCESS_KEY_ID-prod
+
+get:
+  path: infra/data/ci/tempo-prod/aws-credentials-drone
+  name: access_key_id
+
+---
+kind: secret
+name: AWS_SECRET_ACCESS_KEY-prod
+
+get:
+  path: infra/data/ci/tempo-prod/aws-credentials-drone
+  name: secret_access_key
+
+---
 kind: signature
-hmac: 122bb399e20537be0ac90aed1057aefa515c3d873d3c4d70daacb01434b4deee
+hmac: f6b369054ba6fc3a405267392d59434ef37a0609dad4bd37f6eecd136bb422fc
 
 ...
