@@ -10,16 +10,23 @@ Last updated: 2022-04-18
 
 This design document describes adding a new columnar block format to Tempo based on Apache Parquet.  A columnar block format has many advantages within Tempo such as enabling faster search but also downstream by enabling a large ecosystem of tools access to the underlying trace data.
 
+## Context
+Over the last few months, the Tempo Team has invested a lot of effort in implementing efficient search queries over trace data spanning long time ranges. We mainly worked on two major initiatives to enable search and summarise our findings below:
+
+1. **Scaling up the existing Protobuf-based blocks**.  Tempo currently leverages massively-parallel serverless functions to perform full backend-search.  However even with thousands of functions, Tempo search is not able to achieve the search speeds that we would like on larger datasets.  Each trace is stored as an individual proto message and must be unmarshaled to look for things like service names and tags.  Even with scanning speeds of 60 gb/s from object storage, the large I/O makes it infeasible to query >24h periods over larger datasets.
+
+2. **Implementing a Flatbuffer-based storage format**.  Tempo currently uses flatbuffer-based data to power ingester search.  Flatbuffers improve search speeds by incurring no deserialization cost as the on-disk format matches the in-memory format.  However, the current ingester data is very limited to the current application and stores only a subset of searchable data.  Storing a 100% roundtrippable version of traces proved to be ~50% larger than the existing block size and is not feasible. This is due to the design of flatbuffers for alignment of various values, padding, and inability to use space-efficient data encodings such as variable-width integers.
+
 ## Design Goals and Requirements
 The main design goals in choosing a new block format are to increase the speed and efficiency of Tempo search, and power the upcoming TraceQL language for querying and extracting metrics from traces.
 
-We also had the following requirements:
+We also had the following requirements of the new format:
 * Roundtrippable with OTLP - A new block format must support full trace read/write, so it must be able to return be converted from OTLP and back again.
 * More efficient search - Reduce i/o
 * Faster search - There's no point in having a new format that is slower
 * Similar or better block size - No significant increase in storage requirements for the same data
-* Object storage - Works with only object storage
-* Shardable - Ability to scan a block by multiple queriers concurrently, with no upper limit (i.e. 1000's of workers) 
+* Object storage - Works with object storage as the only dependency
+* Shardable - Ability to scan a block by multiple queriers concurrently, with no upper limit (i.e. 1000's of workers)
 
 ### Why parquet
 Parquet fits all of the requirements:
@@ -30,24 +37,17 @@ Parquet fits all of the requirements:
 * Object storage - Parquet is a file-based approach which translates well to Tempo's block-based design
 * Shardable - Parquet naturally includes sub-block structures such as row groups and column chunks which can be processed independently.
 
-### Alternatives considered
-A lot of effort has been invested in other alternatives before deciding on Parquet. 
-
-1. Scaling up the existing proto-based blocks.  Tempo currently leverages massively-parallel serverless functions to perform full backend-search.  However even with thousands of functions, Tempo search is not able to achieve the search speeds that we would like on larger datasets.  Each trace is stored as an individual proto message and must be unmarshaled to look for things like service names and tags. 
-
-2. Flatbuffer blocks.  Tempo currently uses flatbuffer-based side data to power ingester search.  Flatbuffers improve search speeds by incurring no deserialization cost as the on-disk format matches the in-memory format.  However, the current ingester data is very limited to the current application and stores only a subset of searchable data.  Storing a 100% roundtrippable version of traces proved to be ~50% larger than the existing block size and is not feasible. This is due to the design of flatbuffers for alignment of various values, padding, and inability to use space-efficient data encodings such as variable-width integers.
-
 ## Schema
 
 ### Nested vs. flat
 There are two overall approaches to a columnar schema: flat or nested.  Flat means storing traces destructured where each row is a span, and span attributes such as name and duration are individual columns.  A nested schema means the current trace structures such as Resource/InstrumentationLibrary/Spans/Events are preserved (nested data is natively supported in Parquet), and the individual leaf values such as span name and duration are still individual columns.
 
-We chose the nested schema for several reasons. (a) The block size is much smaller for the nested schema. This is due to the high data duplication incurred when flattening resource-level attributes such as service.name to each individual span. (b) A flat schema is not truly "flat" because each span still contains nested data such as attributes and events.  (c) Nested schema is much faster to search for resource-level attributes because the resource-level columns are very small (1 row for each batch) (d) Translation to/from OTLP is very straightforward (d) Easily add computed columns at multiple levels such as per-trace, per-batch, etc. 
+We chose the nested schema for several reasons. (a) The block size is much smaller for the nested schema. This is due to the high data duplication incurred when flattening resource-level attributes such as service.name to each individual span. (b) A flat schema is not truly "flat" because each span still contains nested data such as attributes and events.  (c) Nested schema is much faster to search for resource-level attributes because the resource-level columns are very small (1 row for each batch) (d) Translation to/from OTLP is very straightforward (e) Easily add computed columns (ex: Trace duration) at multiple levels such as per-trace, per-batch, etc.
 
 ### Static vs Dynamic columns
-Additionally there is another layer to the schema which is dynamic vs static columns.  A dynamic schema means storing each attribute such as "service.name" and "http.status_code" as its own column, and the columns in each parquet file can be different.  A static schema means it is irresponsive to the shape of the data, and all attributes are stored in generic key/value containers.  
+Additionally there is another layer to the schema which is dynamic vs static columns.  A dynamic schema means storing each attribute such as "service.name" and "http.status_code" as its own column, and the columns in each parquet file can be different.  A static schema means it is irresponsive to the shape of the data, and all attributes are stored in generic key/value containers.
 
-The dynamic schema is the ultimate "dream" for a columnar format but it is too complex for a first release. However the benefits of that approach are also too good to pass up, so we propose a hybrid approach.  It is primarily a static schema but with some dynamic columns.
+The dynamic schema is the ultimate "dream" for a columnar format but it is too complex for a first release. However the benefits of that approach are also too good to pass up, so we propose a hybrid approach.  It is primarily a static schema but with some dynamic columns extracted from trace data based on some heuristics of frequently queried attributes.  We plan to continue investing in this direction to implement a fully dynamic schema where trace attributes are blown out into independent parquet columns at runtime.
 
 ### Nested Schema
 Here is the proposed parquet schema. It is mainly a directly transation of OTLP but with some key differences. We will discuss details and rationale of several areas below:
@@ -60,7 +60,7 @@ message Trace {
     required binary RootSpanName (STRING);
     required int64 StartTimeUnixNano (INT(64,false));
     required int64 DurationNanos (INT(64,false));
-    
+
     repeated group ResourceSpans {
         required group Resource {
             repeated group Attrs {
@@ -89,7 +89,7 @@ message Trace {
                 required binary ID;
                 required int32 DroppedAttributesCount (INT(32,true));
                 required int32 DroppedEventsCount (INT(32,true));
-                
+
                 required int32 Kind (INT(8,true));
                 required binary Name (STRING);
                 required binary ParentSpanID (STRING);
@@ -98,7 +98,7 @@ message Trace {
                 required binary TraceState (STRING);
                 required int32 StatusCode (INT(8,true));
                 required binary StatusMessage (STRING);
-                
+
                 repeated group Attrs {
                     required binary Key (STRING);
                     optional binary Value (STRING);
@@ -159,7 +159,7 @@ Span-level
 
 
 ### "Any"-type Attributes
-OTLP attributes have variable data types, which is easy accomplish in formats like protocol-buffers, but does not translate directly to Parquet.  Each column must have a concrete type.  
+OTLP attributes have variable data types, which is easy accomplish in formats like protocol-buffers, but does not translate directly to Parquet.  Each column must have a concrete type.
 
 There are several possibilities here but we chose to have an optional values for each concrete type.  We aren't 100% sold on this approach and open to feedback.  Array and KeyValueList types are stored as JSON-encoded strings. The data is portable and still searchable at extremely basic levels.
 
@@ -187,7 +187,7 @@ Cons:
 * A lot of nulls - as each attribute only populates 1 column, the other 5 are guaranteed to be null. This has a non-trivial increase in storage size.
 
 ### Event Attributes
-Span event attributes are stored as JSON-encoded strings in a generic key/value map. This is by far the most space-efficient encoding and the trade-off of decreased searchability seems worthwhile.  Storing event attributes this way reduces the block size ~16% for our dataset, which is huge.  There are currently no use cases to search event attributes, and we can revisit this in the future if needed. 
+Span event attributes are stored as JSON-encoded strings in a generic key/value map. This is by far the most space-efficient encoding and the trade-off of decreased searchability seems worthwhile.  Storing event attributes this way reduces the block size ~16% for our dataset, which is huge.  There are currently no use cases to search event attributes, and we can revisit this in the future if needed.
 
 ### Compression and Encoding
 Parquet has robust support for many compression algorithms and data encodings. We have found excellent combinations of storage size and performance with the following:
@@ -200,13 +200,47 @@ Parquet has robust support for many compression algorithms and data encodings. W
 ### Bloom Filters
 Parquet has native support for bloom filters however we are not using them at this time.  Tempo already has sophisticated support for sharding and caching bloom filters, and we will continue to leverage that for now.
 
+## Results from Local Testing
+Here are some interesting column sizes from a block of size ~600MB containing 294K traces:
+
+```
+column.Trace.ResourceSpans.Resource.ServiceName <>MB
+column.Trace.ResourceSpans.InstrumentationLibrarySpans.Spans.ID <>MB  # this is never used!
+```
+
+Some super early benchmarks on local SSDs:
+
+* Searching protobuf data for a simple query `cluster=ops and minDuration=1s`
+
+```
+=== RUN   TestSearchProto
+Traces : 55
+Read   : 597 MB
+--- PASS: TestSearchProto (21.99s)
+```
+
+* Same query on Parquet blocks
+
+```
+=== RUN   TestNewFastSearch
+Traces : 55
+Reads  : 127 2.40 MB
+--- PASS: TestSegmentIONewFastSearch (0.14s)
+```
+
 ## Implementation
 We have been refactoring Tempo recently in anticipation of this, therefore Parquet-formatted blocks should be as easy as creating a new folder `/tempodb/encoding/vparquet` and implementing the `VersionedEncoding` interface. Tempo's parquet support will be based on the new library https://github.com/segmentio/parquet-go which we have used for all prototyping and have had execellent success with.
 
-A few more implementation considerations:
+### Write path
 
-* The ingester will write and flush parquet-formatted blocks. The compactor will only compact like-encoded-blocks, i.e. parquet to parquet. This seems better than having the ingester continue to flush proto and the compactor to convert them. 
+* Creating blocks: The ingester will write and flush parquet-formatted blocks. The compactor will only compact like-encoded-blocks, i.e. parquet to parquet. This seems better than having the ingester continue to flush proto and the compactor to convert them.
 
-* We will shard searches based on RowGroups and they will work similarly to how we shard on index pages. The metadata for each block will know how many there are and the query-frontend can used them to divvy up tasks, and then the queriers can jump directly to them.
+*  One tunable is the row group size.  Our index pages target something like 256K, but row groups are typically much larger, 50-100MB.  Not sure about the best value here, will need to experiment.
 
-* One tunable is the row group size.  Our index pages target something like 256K, but row groups are typically much larger, 50-100MB.  Not sure about the best value here, will need to experiment.
+### Read path
+
+* Concurrent search: We will shard searches based on RowGroups and they will work similarly to how we shard on index pages. The metadata for each block will know how many there are and the query-frontend can used them to divvy up tasks, and then the queriers can jump directly to them.
+
+* Search over multiple attributes: We will implement a query engine to search over multiple attributes and join results in memory to output valid traces matching all query parameters.
+
+* FindTraceByID: Our current index pages will be replaced by scanning over the `TraceID` column in the Parquet block. This will provide us with the corresponding row number that matches the queried ID.
