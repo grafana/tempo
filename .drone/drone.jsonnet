@@ -59,6 +59,8 @@ local gcp_serverless_deployments = [
 
 local aws_dev_access_key_id = secret('AWS_ACCESS_KEY_ID-dev', 'infra/data/ci/tempo-dev/aws-credentials-drone', 'access_key_id');
 local aws_dev_secret_access_key = secret('AWS_SECRET_ACCESS_KEY-dev', 'infra/data/ci/tempo-dev/aws-credentials-drone', 'secret_access_key');
+local aws_prod_access_key_id = secret('AWS_ACCESS_KEY_ID-prod', 'infra/data/ci/tempo-prod/aws-credentials-drone', 'access_key_id');
+local aws_prod_secret_access_key = secret('AWS_SECRET_ACCESS_KEY-prod', 'infra/data/ci/tempo-prod/aws-credentials-drone', 'secret_access_key');
 
 
 local aws_serverless_deployments = [
@@ -67,6 +69,12 @@ local aws_serverless_deployments = [
     bucket: 'dev-tempo-fn-source',
     access_key_id: aws_dev_access_key_id.name,
     secret_access_key: aws_dev_secret_access_key.name,
+  },
+  {
+    env: 'prod',
+    bucket: 'prod-tempo-fn-source',
+    access_key_id: aws_prod_access_key_id.name,
+    secret_access_key: aws_prod_secret_access_key.name,
   },
 ];
 
