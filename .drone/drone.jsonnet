@@ -291,4 +291,6 @@ local deploy_to_dev() = {
   fn_upload_ops_tools_secret,
   aws_dev_access_key_id,
   aws_dev_secret_access_key,
+  aws_prod_access_key_id,
+  aws_prod_secret_access_key,
 ]
