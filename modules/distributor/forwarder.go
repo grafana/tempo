@@ -29,7 +29,7 @@ var (
 	}, []string{"tenant"})
 	metricForwarderPushesFailures = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
-		Name:      "tempo_distributor_forwarder_pushes_failures_total",
+		Name:      "distributor_forwarder_pushes_failures_total",
 		Help:      "Total number of failed pushes to the queue for a tenant to the forwarder",
 	}, []string{"tenant"})
 	metricForwarderQueueLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
