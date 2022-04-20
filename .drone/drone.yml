@@ -263,6 +263,18 @@ steps:
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY-dev
 
+- name: deploy-tempo-prod-serverless-lambda
+  image: amazon/aws-cli
+  commands:
+  - cd ./cmd/tempo-serverless/lambda
+  - aws s3 cp tempo-serverless*.zip s3://prod-tempo-fn-source
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID-prod
+    AWS_DEFAULT_REGION: us-east-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY-prod
+
 trigger:
   ref:
   - refs/heads/main
@@ -328,6 +340,6 @@ get:
 
 ---
 kind: signature
-hmac: 306d5b56e5f06e40d09d32286254b36ec57e4919bcd0cb6af7eb1ccea710c4f8
+hmac: 122bb399e20537be0ac90aed1057aefa515c3d873d3c4d70daacb01434b4deee
 
 ...
