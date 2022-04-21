@@ -8,6 +8,8 @@
 * [CHANGE] Add warning threshold for TempoIngesterFlushes and adjust critical threshold [#1354](https://github.com/grafana/tempo/pull/1354) (@zalegrala)
 * [CHANGE] Include lambda in serverless e2e tests [#1357](https://github.com/grafana/tempo/pull/1357) (@zalegrala)
 * [CHANGE] Replace mixin TempoIngesterFlushes metric to only look at retries [#1354](https://github.com/grafana/tempo/pull/1354) (@zalegrala)
+* [CHANGE] Update the jsonnet for single-binary to include clustering [#1391](https://github.com/grafana/tempo/pull/1391) (@zalegrala)
+  **BREAKING CHANGE** After this change, the port specification has moved under `$._config.tempo` to avoid global port spec.
 * [FEATURE]: v2 object encoding added. This encoding adds a start/end timestamp to every record to reduce proto marshalling and increase search speed.
   **BREAKING CHANGE** After this rollout the distributors will use a new API on the ingesters. As such you must rollout all ingesters before rolling the
   distributors. Also, during this period, the ingesters will use considerably more resources and as such should be scaled up (or incoming traffic should be
