@@ -184,10 +184,17 @@ Pros:
 
 Cons:
 
-* A lot of nulls - as each attribute only populates 1 column, the other 5 are guaranteed to be null. This has a non-trivial increase in storage size.
+* Many nulls - as each attribute only populates 1 column, the other 5 are guaranteed to be null. This has a non-trivial increase in storage size.
 
 ### Event Attributes
-Span event attributes are stored as JSON-encoded strings in a generic key/value map. This is by far the most space-efficient encoding and the trade-off of decreased searchability seems worthwhile.  Storing event attributes this way reduces the block size ~16% for our dataset, which is huge.  There are currently no use cases to search event attributes, and we can revisit this in the future if needed.
+Span event attributes are stored as JSON-encoded strings in a generic key/value map. This is by far the most space-efficient encoding and the trade-off of decreased searchability seems worthwhile.  Storing event attributes this way reduces the block size ~16% for our dataset, which is huge.  There are currently no use cases to search event attributes, but we can revisit this in the future if needed.
+
+```
+repeated group Attrs {
+    required binary Key (STRING);
+    required binary Value (STRING);
+}
+```
 
 ### Compression and Encoding
 Parquet has robust support for many compression algorithms and data encodings. We have found excellent combinations of storage size and performance with the following:
@@ -201,11 +208,13 @@ Parquet has robust support for many compression algorithms and data encodings. W
 Parquet has native support for bloom filters however we are not using them at this time.  Tempo already has sophisticated support for sharding and caching bloom filters, and we will continue to leverage that for now.
 
 ## Results from Local Testing
-Here are some interesting column sizes from a block of size ~600MB containing 294K traces:
+Here are some interesting column sizes from a block of size ~600MB containing ~150K traces:
 
 ```
-column.Trace.ResourceSpans.Resource.ServiceName <>MB
-column.Trace.ResourceSpans.InstrumentationLibrarySpans.Spans.ID <>MB  # this is never used!
+column.Trace.DurationNanos                                                    154414 values  0.64 MB
+column.Trace.ResourceSpans.Resource.ServiceName                              2672245 values  2.01 MB
+column.Trace.ResourceSpans.InstrumentationLibrarySpans.Spans.HttpStatusCode 10428415 values  6.35 MB 
+column.Trace.ResourceSpans.InstrumentationLibrarySpans.Spans.ID             10428415 values 82.37 MB  # this is never used!
 ```
 
 Some super early benchmarks on local SSDs:
@@ -215,17 +224,18 @@ Some super early benchmarks on local SSDs:
 ```
 === RUN   TestSearchProto
 Traces : 55
-Read   : 597 MB
---- PASS: TestSearchProto (21.99s)
+Traces inspected: 154414
+--- PASS: TestSearchProto (21.11s)
 ```
 
 * Same query on Parquet blocks
 
 ```
-=== RUN   TestNewFastSearch
+=== RUN   TestSearchPipelineStatic
 Traces : 55
-Reads  : 127 2.40 MB
---- PASS: TestSegmentIONewFastSearch (0.14s)
+Traces inspected: 154414
+Reads  : 290 6.65 MB
+--- PASS: TestSearchPipelineStatic (0.18s)
 ```
 
 ## Implementation
@@ -239,8 +249,8 @@ We have been refactoring Tempo recently in anticipation of this, therefore Parqu
 
 ### Read path
 
+* Trace Search: We will implement a query engine to search over the columns involved in the search and join results in memory to output valid traces matching all query parameters.
+
+* Trace Lookup: Our current index pages will be replaced by scanning over the `TraceID` column in the Parquet block. This will provide us with the corresponding row number that matches the queried ID.
+
 * Concurrent search: We will shard searches based on RowGroups and they will work similarly to how we shard on index pages. The metadata for each block will know how many there are and the query-frontend can used them to divvy up tasks, and then the queriers can jump directly to them.
-
-* Search over multiple attributes: We will implement a query engine to search over multiple attributes and join results in memory to output valid traces matching all query parameters.
-
-* FindTraceByID: Our current index pages will be replaced by scanning over the `TraceID` column in the Parquet block. This will provide us with the corresponding row number that matches the queried ID.
