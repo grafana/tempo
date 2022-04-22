@@ -978,6 +978,16 @@ overrides:
     # used set in the metrics_generator config block.
     [metrics_generator_collection_interval: <duration>]
 
+    # Per-user flag of the registry collection operation. If set, the registry will not be
+    # collected and no samples will be exported from the metrics-generator. The metrics-generator
+    # will still ingest spans and update its internal counters, including the amount of active
+    # series. To disable metrics generation entirely, clear metrics_generator_processors for this
+    # tenant.
+    #
+    # This setting is useful if you wish to test how many active series a tenant will generate, without
+    # actually writing these metrics.
+    [metrics_generator_disable_collection: <bool> | default = false]
+      
     # Tenant-specific overrides settings configuration file. The empty string (default
     # value) disables using an overrides file.
     [per_tenant_override_config: <string> | default = ""]

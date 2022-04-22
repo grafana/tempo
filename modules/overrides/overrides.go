@@ -286,7 +286,7 @@ func (o *Overrides) MetricsGeneratorCollectionInterval(userID string) time.Durat
 	return o.getOverridesForUser(userID).MetricsGeneratorCollectionInterval
 }
 
-// MetricsGeneratorDisableRemoteWrite controls whether metrics are remote written for this tenant.
+// MetricsGeneratorDisableCollection controls whether metrics are remote written for this tenant.
 func (o *Overrides) MetricsGeneratorDisableCollection(userID string) bool {
 	return o.getOverridesForUser(userID).MetricsGeneratorDisableCollection
 }
