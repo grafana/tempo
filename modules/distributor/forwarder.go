@@ -85,12 +85,13 @@ func (f *forwarder) SendTraces(ctx context.Context, tenantID string, keys []uint
 	}
 
 	qm := f.getOrCreateQueueManager(tenantID)
-	if err := qm.pushToQueue(ctx, &request{keys: keys, traces: traces}); err != nil {
+	err := qm.pushToQueue(ctx, &request{keys: keys, traces: traces})
+	if err != nil {
 		level.Error(log.Logger).Log("msg", "failed to push traces to queue", "tenant", tenantID, "err", err)
 		metricForwarderPushesFailures.WithLabelValues(tenantID).Inc()
-	} else {
-		metricForwarderPushes.WithLabelValues(tenantID).Inc()
 	}
+
+	metricForwarderPushes.WithLabelValues(tenantID).Inc()
 }
 
 // getQueueManagerConfig returns queueSize and workerCount for the given tenant

@@ -98,9 +98,6 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	f.StringVar(&l.PerTenantOverrideConfig, "limits.per-user-override-config", "", "File name of per-user overrides.")
 	_ = l.PerTenantOverridePeriod.Set("10s")
 	f.Var(&l.PerTenantOverridePeriod, "limits.per-user-override-period", "Period with this to reload the overrides.")
-
-	l.MetricsGeneratorForwarderQueueSize = 10
-	l.MetricsGeneratorForwarderWorkers = 1
 }
 
 func (l *Limits) Describe(ch chan<- *prometheus.Desc) {
