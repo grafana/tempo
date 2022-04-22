@@ -39,8 +39,8 @@ Parquet fits all of the requirements:
 
 ## Schema
 
-### Nested vs. flat
-There are two overall approaches to a columnar schema: flat or nested.  Flat means storing traces destructured where each row is a span, and span attributes such as name and duration are individual columns.  A nested schema means the current trace structures such as Resource/InstrumentationLibrary/Spans/Events are preserved (nested data is natively supported in Parquet), and the individual leaf values such as span name and duration are still individual columns.
+### Fully Nested vs. Span-oriented
+There are two overall approaches to a columnar schema: fully nested or span-oriented.  Span-oriented means a flattened schema where traces are destructured into rows of spans.  A fully nested schema means the current trace structures such as Resource/InstrumentationLibrary/Spans/Events are preserved (nested data is natively supported in Parquet).  In both cases individual leaf values such as span name and duration are individual columns.
 
 We chose the nested schema for several reasons. (a) The block size is much smaller for the nested schema. This is due to the high data duplication incurred when flattening resource-level attributes such as service.name to each individual span. (b) A flat schema is not truly "flat" because each span still contains nested data such as attributes and events.  (c) Nested schema is much faster to search for resource-level attributes because the resource-level columns are very small (1 row for each batch) (d) Translation to/from OTLP is very straightforward (e) Easily add computed columns (ex: Trace duration) at multiple levels such as per-trace, per-batch, etc.
 
@@ -49,7 +49,7 @@ Additionally there is another layer to the schema which is dynamic vs static col
 
 The dynamic schema is the ultimate "dream" for a columnar format but it is too complex for a first release. However the benefits of that approach are also too good to pass up, so we propose a hybrid approach.  It is primarily a static schema but with some dynamic columns extracted from trace data based on some heuristics of frequently queried attributes.  We plan to continue investing in this direction to implement a fully dynamic schema where trace attributes are blown out into independent parquet columns at runtime.
 
-### Nested Schema
+### Proposed Schema
 Here is the proposed parquet schema. It is mainly a directly transation of OTLP but with some key differences. We will discuss details and rationale of several areas below:
 
 ```
