@@ -1,7 +1,7 @@
 ---
 Authors: Martin Disibio (@mdisibio), Annanay Agarwal (@annanay25)
 Created: April 2022
-Last updated: 2022-04-18
+Last updated: 2022-04-22
 ---
 
 # Parquet
