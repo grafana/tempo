@@ -186,7 +186,7 @@ In microservices mode, it must be set for the distributors and the metrics-gener
 metrics_generator_enabled: true
 ```
 
-Metrics-generator processors are disabled by default, to enable it for a specific tenant set `metrics_generator_processors` in the [overrides](#overrides) section.
+Metrics-generator processors are disabled by default. To enable it for a specific tenant set `metrics_generator_processors` in the [overrides](#overrides) section.
 
 ```yaml
 # Metrics-generator configuration block
