@@ -25,6 +25,7 @@
 * [ENHANCEMENT] Partially persist traces that exceed `max_bytes_per_trace` during compaction [#1317](https://github.com/grafana/tempo/pull/1317) (@joe-elliott)
 * [ENHANCEMENT] Make search respect per tenant `max_bytes_per_trace` and added `skippedTraces` to returned search metrics. [#1318](https://github.com/grafana/tempo/pull/1318) (@joe-elliott)
 * [ENHANCEMENT] Improve serverless consistency by forcing a GC before returning. [#1324](https://github.com/grafana/tempo/pull/1324) (@joe-elliott)
+* [ENHANCEMENT] Add forwarding queue from distributor to metrics-generator. [#1331](https://github.com/grafana/tempo/pull/1331) (@mapno)
 * [ENHANCEMENT] Add hedging to queries to external endpoints. [#1350](https://github.com/grafana/tempo/pull/1350) (@joe-elliott)
   New config options and defaults:
   ```

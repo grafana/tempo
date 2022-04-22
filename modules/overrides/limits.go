@@ -61,6 +61,8 @@ type Limits struct {
 	MetricsGeneratorMaxActiveSeries    uint32        `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
 	MetricsGeneratorCollectionInterval time.Duration `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
 	MetricsGeneratorDisableCollection  bool          `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
+	MetricsGeneratorForwarderQueueSize int           `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
+	MetricsGeneratorForwarderWorkers   int           `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
 
 	// Compactor enforced limits.
 	BlockRetention model.Duration `yaml:"block_retention" json:"block_retention"`
