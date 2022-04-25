@@ -12,6 +12,7 @@ import (
 
 func TestStoreUpsertEdge(t *testing.T) {
 	const keyStr = "key"
+	const clientService = "client"
 
 	var onCompletedCount int
 	var onExpireCount int
@@ -23,7 +24,7 @@ func TestStoreUpsertEdge(t *testing.T) {
 
 	// Insert first half of an edge
 	err := s.UpsertEdge(keyStr, func(e *Edge) {
-		e.ClientService = "client"
+		e.ClientService = clientService
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 1, s.len())
@@ -35,7 +36,7 @@ func TestStoreUpsertEdge(t *testing.T) {
 
 	// Insert the second half of an edge
 	err = s.UpsertEdge(keyStr, func(e *Edge) {
-		assert.Equal(t, "client", e.ClientService)
+		assert.Equal(t, clientService, e.ClientService)
 		e.ServerService = "server"
 	})
 	require.NoError(t, err)
@@ -47,7 +48,7 @@ func TestStoreUpsertEdge(t *testing.T) {
 
 	// Insert an edge that will immediately expire
 	err = s.UpsertEdge(keyStr, func(e *Edge) {
-		e.ClientService = "client"
+		e.ClientService = clientService
 		e.expiration = 0
 	})
 	require.NoError(t, err)
