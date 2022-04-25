@@ -15,120 +15,103 @@ var _ Store = (*store)(nil)
 
 type store struct {
 	l   *list.List
-	mtx *sync.RWMutex
+	mtx sync.Mutex
 	m   map[string]*list.Element
 
-	evictCallback Callback
-	ttl           time.Duration
-	maxItems      int
+	onComplete Callback
+	onExpired  Callback
+
+	ttl      time.Duration
+	maxItems int
 }
 
-func NewStore(ttl time.Duration, maxItems int, evictCallback Callback) Store {
+// NewStore creates a Store to build service graphs. The store caches edges, each representing a
+// request between two services. Once an edge is complete its metrics can be collected. Edges that
+// have not found their pair are deleted after ttl time.
+func NewStore(ttl time.Duration, maxItems int, onComplete, onExpired Callback) Store {
 	s := &store{
-		l:   list.New(),
-		mtx: &sync.RWMutex{},
-		m:   make(map[string]*list.Element),
+		l: list.New(),
+		m: make(map[string]*list.Element),
 
-		evictCallback: evictCallback,
-		ttl:           ttl,
-		maxItems:      maxItems,
+		onComplete: onComplete,
+		onExpired:  onExpired,
+
+		ttl:      ttl,
+		maxItems: maxItems,
 	}
 
 	return s
 }
 
 func (s *store) len() int {
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
 
 	return s.l.Len()
 }
 
-// shouldEvictHead checks if the oldest item (head of list) has expired and should be evicted.
-// Returns true if the item has expired or is completed, false otherwise.
+// tryEvictHead checks if the oldest item (head of list) can be evicted and will delete it if so.
+// Returns true if the head was evicted.
 //
-// Must be called under lock.
-func (s *store) shouldEvictHead() bool {
-	h := s.l.Front()
-	if h == nil {
+// Must be called holding lock.
+func (s *store) tryEvictHead() bool {
+	head := s.l.Front()
+	if head == nil {
+		// list is empty
 		return false
 	}
-	edge := h.Value.(*Edge)
-	return edge.IsCompleted() || edge.IsExpired()
-}
 
-// evictHead removes the head from the store (and map).
-// It also collects metrics for the evicted Edge.
-//
-// Must be called under lock.
-func (s *store) evictHead() {
-	front := s.l.Front().Value.(*Edge)
-	s.evictEdge(front.key)
-}
-
-// EvictEdge evicts and Edge under lock
-func (s *store) EvictEdge(key string) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	s.evictEdge(key)
-}
-
-// evictEdge removes the Edge from the store (and map).
-// It also collects metrics for the evicted Edge.
-//
-// Must be called under lock.
-func (s *store) evictEdge(key string) {
-	ele := s.m[key]
-	if ele == nil { // it may already have been processed
-		return
+	headEdge := head.Value.(*Edge)
+	if !headEdge.isExpired() {
+		return false
 	}
 
-	edge := ele.Value.(*Edge)
-	s.evictCallback(edge)
+	s.onExpired(headEdge)
+	delete(s.m, headEdge.key)
+	s.l.Remove(head)
 
-	delete(s.m, key)
-	s.l.Remove(ele)
+	return true
 }
 
-// UpsertEdge fetches an Edge from the store.
-// If the Edge doesn't exist, it creates a new one with the default TTL.
-func (s *store) UpsertEdge(k string, cb Callback) (*Edge, error) {
+// UpsertEdge fetches an Edge from the store and updates it using the given callback. If the Edge
+// doesn't exist yet, it creates a new one with the default TTL.
+// If the Edge is complete after applying the callback, it's completed and removed.
+func (s *store) UpsertEdge(key string, update Callback) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	if storedEdge, ok := s.m[k]; ok {
+	if storedEdge, ok := s.m[key]; ok {
 		edge := storedEdge.Value.(*Edge)
-		cb(edge)
-		return edge, nil
+		update(edge)
+
+		if edge.isComplete() {
+			s.onComplete(edge)
+			delete(s.m, key)
+			s.l.Remove(storedEdge)
+		}
+
+		return nil
 	}
 
+	// Check we can add new edges
 	if s.l.Len() >= s.maxItems {
 		// todo: try to evict expired items
-		return nil, ErrTooManyItems
+		return ErrTooManyItems
 	}
 
-	newEdge := NewEdge(k, s.ttl)
-	ele := s.l.PushBack(newEdge)
-	s.m[k] = ele
-	cb(newEdge)
+	edge := newEdge(key, s.ttl)
+	ele := s.l.PushBack(edge)
+	s.m[key] = ele
+	update(edge)
 
-	return newEdge, nil
+	return nil
 }
 
 // Expire evicts all expired items in the store.
 func (s *store) Expire() {
-	s.mtx.RLock()
-	if !s.shouldEvictHead() {
-		s.mtx.RUnlock()
-		return
-	}
-	s.mtx.RUnlock()
-
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	for s.shouldEvictHead() {
-		s.evictHead()
+	for s.tryEvictHead() {
 	}
 }

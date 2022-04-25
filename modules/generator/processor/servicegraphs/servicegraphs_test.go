@@ -36,7 +36,7 @@ func TestServiceGraphs(t *testing.T) {
 
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: traces.Batches})
 
-	// Manually call expire to force collection of edges.
+	// Manually call expire to force removal of completed edges.
 	sgp := p.(*processor)
 	sgp.store.Expire()
 
