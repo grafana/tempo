@@ -10,9 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const clientService = "client"
+
 func TestStoreUpsertEdge(t *testing.T) {
 	const keyStr = "key"
-	const clientService = "client"
 
 	var onCompletedCount int
 	var onExpireCount int
@@ -71,19 +72,19 @@ func TestStoreUpsertEdge_errTooManyItems(t *testing.T) {
 	assert.Equal(t, 0, s.len())
 
 	err := s.UpsertEdge("key-1", func(e *Edge) {
-		e.ClientService = "client"
+		e.ClientService = clientService
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 1, s.len())
 
 	err = s.UpsertEdge("key-2", func(e *Edge) {
-		e.ClientService = "client"
+		e.ClientService = clientService
 	})
 	require.ErrorIs(t, err, ErrTooManyItems)
 	assert.Equal(t, 1, s.len())
 
 	err = s.UpsertEdge("key-1", func(e *Edge) {
-		e.ClientService = "client"
+		e.ClientService = clientService
 	})
 	require.NoError(t, err)
 	assert.Equal(t, 1, s.len())
