@@ -64,7 +64,7 @@ type instance struct {
 	logger log.Logger
 }
 
-func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, reg prometheus.Registerer, logger log.Logger) (*instance, error) {
+func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, logger log.Logger) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 
 	i := &instance{
@@ -79,7 +79,6 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 
 		shutdownCh: make(chan struct{}, 1),
 
-		reg:    reg,
 		logger: logger,
 	}
 
