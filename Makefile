@@ -128,7 +128,9 @@ ifndef COMPONENT
 	$(error COMPONENT variable was not defined)
 endif
 
-### Dependencies
+# #########
+# Gen Proto
+# #########
 DOCKER_PROTOBUF ?= otel/build-protobuf:0.2.1
 PROTOC = docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
 PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
@@ -181,10 +183,20 @@ gen-proto:
 
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
+# ##############
+# Gen Flatbuffer
+# ##############
 .PHONY: gen-flat
 gen-flat:
 	# -o /pkg generates into same folder as tempo.fbs for simpler imports.
 	docker run --rm -v${PWD}:/opt/src neomantra/flatbuffers flatc --go -o /opt/src/pkg /opt/src/pkg/tempofb/tempo.fbs
+
+# ##############
+# Gen Traceql
+# ##############
+.PHONY: gen-yacc
+gen-yacc:
+	goyacc -o pkg/traceql/expr.y.go pkg/traceql/expr.y && rm y.output
 
 ### Check vendored files and generated proto
 .PHONY: vendor-check
