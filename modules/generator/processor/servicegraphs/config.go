@@ -27,8 +27,6 @@ type Config struct {
 	// If client and server spans have the same attribute, behaviour is undetermined
 	// (either value could get used)
 	Dimensions []string `yaml:"dimensions"`
-
-	// SuccessCodes *successCodes `yaml:"success_codes"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
