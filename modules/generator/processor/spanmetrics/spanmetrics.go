@@ -17,14 +17,12 @@ import (
 )
 
 const (
-	metricCallsTotal      = "traces_spanmetrics_calls_total"
 	metricDurationSeconds = "traces_spanmetrics_duration_seconds"
 )
 
 type processor struct {
 	cfg Config
 
-	spanMetricsCallsTotal      registry.Counter
 	spanMetricsDurationSeconds registry.Histogram
 
 	// for testing
@@ -39,7 +37,6 @@ func New(cfg Config, registry registry.Registry) gen.Processor {
 
 	return &processor{
 		cfg:                        cfg,
-		spanMetricsCallsTotal:      registry.NewCounter(metricCallsTotal, labels),
 		spanMetricsDurationSeconds: registry.NewHistogram(metricDurationSeconds, labels, cfg.HistogramBuckets),
 		now:                        time.Now,
 	}
@@ -83,6 +80,5 @@ func (p *processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 
 	registryLabelValues := registry.NewLabelValues(labelValues)
 
-	p.spanMetricsCallsTotal.Inc(registryLabelValues, 1)
 	p.spanMetricsDurationSeconds.ObserveWithExemplar(registryLabelValues, latencySeconds, tempo_util.TraceIDToHexString(span.TraceId))
 }

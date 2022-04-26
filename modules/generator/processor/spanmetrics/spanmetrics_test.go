@@ -41,8 +41,6 @@ func TestSpanMetrics(t *testing.T) {
 		"span_status": "STATUS_CODE_OK",
 	})
 
-	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
-
 	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, 0.5)))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, 1)))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, math.Inf(1))))
@@ -91,8 +89,6 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 		"bar":            "bar-value",
 		"does_not_exist": "",
 	})
-
-	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
 
 	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, 0.5)))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, 1)))

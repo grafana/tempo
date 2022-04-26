@@ -145,7 +145,6 @@ func TestMetricsGenerator(t *testing.T) {
 	assert.Equal(t, 2.0, sumValues(metricFamilies, "traces_spanmetrics_duration_seconds_sum", lbls))
 
 	lbls = []string{"service", "app", "span_name", "app-handle", "span_kind", "SPAN_KIND_SERVER", "span_status", "STATUS_CODE_UNSET"}
-	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_duration_seconds_bucket", append(lbls, "le", "1")))
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_duration_seconds_bucket", append(lbls, "le", "2")))
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_duration_seconds_bucket", append(lbls, "le", "+Inf")))
