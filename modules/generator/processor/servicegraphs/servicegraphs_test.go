@@ -56,6 +56,7 @@ func TestServiceGraphs(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_total`, appDbLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, appDbLabels))
 
 	assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(appDbLabels, 2.0)))
 	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(appDbLabels, 3.0)))
@@ -70,6 +71,7 @@ func TestServiceGraphs(t *testing.T) {
 	assert.Equal(t, 5.0, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, appDbLabels))
 
 	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_total`, lbAppLabels))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_failed_total`, lbAppLabels))
 
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(lbAppLabels, 2.0)))
 	assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(lbAppLabels, 3.0)))

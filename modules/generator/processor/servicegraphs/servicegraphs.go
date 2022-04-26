@@ -235,8 +235,8 @@ func (p *processor) collectEdge(e *store.Edge) {
 	}
 }
 
-func (p *processor) spanFailed(_ *v1_trace.Span) bool {
-	return false
+func (p *processor) spanFailed(span *v1_trace.Span) bool {
+	return span.GetStatus().GetCode() == v1_trace.Status_STATUS_CODE_ERROR
 }
 
 func spanDurationSec(span *v1_trace.Span) float64 {
