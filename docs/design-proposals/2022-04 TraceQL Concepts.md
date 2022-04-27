@@ -64,14 +64,14 @@ If the trace does contain spans with an attribute `http.status` with the value `
 
 Every span has certain intrinsic fields that can be referenced when selecting spans
 
-| field name | description |
-| ---------- | ----------- |
-| `start`    | start time of the span |
-| `end`      | end time of the span |
-| `duration` | end - start time of the span |
-| `name`     | operation or span name |
+| field name | description                                 |
+| ---------- | ------------------------------------------- |
+| `start`    | start time of the span                      |
+| `end`      | end time of the span                        |
+| `duration` | end - start time of the span                |
+| `name`     | operation or span name                      |
 | `status`   | status values are "error", "ok", or "unset" |
-| `parent`   | the parent of this span | 
+| `parent`   | the parent of this span                     |
 
 **Examples**
 Find traces that contain spans whose duration is greater than 2 seconds:  
