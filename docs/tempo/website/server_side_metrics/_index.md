@@ -17,7 +17,9 @@ Server-side metrics leverages the data available in Tempo's ingest path to provi
 
 The metrics-generator internally runs a set of **processors**.
 Processors ingest span batches and keep track of metrics.
-Every processor derives different metrics, each providing a functionality.
+Every processor derives different metrics. Currently the following processors are available:
+- Service graphs
+- Span metrics
 
 ### Service graphs
 
