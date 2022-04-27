@@ -81,7 +81,7 @@ func TestStoreUpsertEdge_errTooManyItems(t *testing.T) {
 	require.Equal(t, true, isNew)
 	assert.Equal(t, 1, s.len())
 
-	isNew, err = s.UpsertEdge("key-2", func(e *Edge) {
+	_, err = s.UpsertEdge("key-2", func(e *Edge) {
 		e.ClientService = clientService
 	})
 	require.ErrorIs(t, err, ErrTooManyItems)
