@@ -21,7 +21,7 @@ Over the last few months, the Tempo Team has invested a lot of effort in impleme
 The main design goals in choosing a new block format are to increase the speed and efficiency of Tempo search, and power the upcoming TraceQL language for querying and extracting metrics from traces.
 
 We also had the following requirements of the new format:
-* Roundtrippable with OTLP - A new block format must support full trace read/write, so it must be able to return be converted from OTLP and back again.
+* Roundtrippable with OTLP - A new block format must support full trace read/write, so it must be able to be converted from OTLP and back again.
 * More efficient search - Reduce i/o
 * Faster search - There's no point in having a new format that is slower
 * Similar or better block size - No significant increase in storage requirements for the same data
@@ -159,7 +159,7 @@ Span-level
 
 
 ### "Any"-type Attributes
-OTLP attributes have variable data types, which is easy accomplish in formats like protocol-buffers, but does not translate directly to Parquet.  Each column must have a concrete type.
+OTLP attributes have variable data types, which is easy to accomplish in formats like protocol-buffers, but does not translate directly to Parquet.  Each column must have a concrete type.
 
 There are several possibilities here but we chose to have an optional values for each concrete type.  We aren't 100% sold on this approach and open to feedback.  Array and KeyValueList types are stored as JSON-encoded strings. The data is portable and still searchable at extremely basic levels.
 
@@ -184,7 +184,7 @@ Pros:
 
 Cons:
 
-* Many nulls - as each attribute only populates 1 column, the other 5 are guaranteed to be null. This has a non-trivial increase in storage size.
+* Many nulls - as each attribute only populates 1 column, the other 5 are guaranteed to be null. This has a non-trivial impact on storage size.
 
 ### Event Attributes
 Span event attributes are stored as JSON-encoded strings in a generic key/value map. This is by far the most space-efficient encoding and the trade-off of decreased searchability seems worthwhile.  Storing event attributes this way reduces the block size ~16% for our dataset, which is huge.  There are currently no use cases to search event attributes, but we can revisit this in the future if needed.
@@ -239,7 +239,7 @@ Reads  : 290 6.65 MB
 ```
 
 ## Implementation
-We have been refactoring Tempo recently in anticipation of this, therefore Parquet-formatted blocks should be as easy as creating a new folder `/tempodb/encoding/vparquet` and implementing the `VersionedEncoding` interface. Tempo's parquet support will be based on the new library https://github.com/segmentio/parquet-go which we have used for all prototyping and have had execellent success with.
+We have been refactoring Tempo recently in anticipation of this, therefore Parquet-formatted blocks should be as easy as creating a new folder `/tempodb/encoding/vparquet` and implementing the `VersionedEncoding` interface. Tempo's parquet support will be based on the new library https://github.com/segmentio/parquet-go which we have used for all prototyping and have had excellent success with.
 
 ### Write path
 
