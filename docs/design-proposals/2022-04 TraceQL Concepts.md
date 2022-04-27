@@ -58,7 +58,7 @@ This simple query will be evaluated on every span of every trace, one at a time.
 
 If the trace being evaluated contains no spans with an attribute `http.status` with the value `200` then no spans will be selected and this trace will not appear in our resultset.
 
-If the trace does contain spans with an attribute `http.status` with the value `200` then only those spans will be returned. The trace is reduced to only the set of spans that match the condition inside the `{}`. This set of spans (and therefore trace) will be included in our resultset.
+If the trace does contain spans with an attribute `http.status` with the value `200` then only those spans will be returned. The trace is reduced to only the set of spans that match the condition inside the `{}`. The resultset will contain only this subset of spans matching the condition.
 
 ### Intrinsic fields
 
