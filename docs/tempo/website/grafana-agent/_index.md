@@ -115,7 +115,7 @@ Service graph metrics represent the relationships between services within a dist
 
 This service graphs processor builds a map of services by analysing traces, with the objective to find _egdes_.
 Edges are spans with a parent-child relationship, that represent a jump (e.g. a request) between two services.
-The amount of request and their duration are recorded as metrics, which are used to represent the graph.
+The amount of requests and their duration are recorded as metrics, which are used to represent the graph.
 
 To read more about this processor, go to its [section](service_graphs.md)
 
