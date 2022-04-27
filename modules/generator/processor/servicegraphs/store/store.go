@@ -76,7 +76,7 @@ func (s *store) tryEvictHead() bool {
 // UpsertEdge fetches an Edge from the store and updates it using the given callback. If the Edge
 // doesn't exist yet, it creates a new one with the default TTL.
 // If the Edge is complete after applying the callback, it's completed and removed.
-func (s *store) UpsertEdge(key string, update Callback) error {
+func (s *store) UpsertEdge(key string, update Callback) (bool, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -90,13 +90,13 @@ func (s *store) UpsertEdge(key string, update Callback) error {
 			s.l.Remove(storedEdge)
 		}
 
-		return nil
+		return false, nil
 	}
 
 	// Check we can add new edges
 	if s.l.Len() >= s.maxItems {
 		// todo: try to evict expired items
-		return ErrTooManyItems
+		return false, ErrTooManyItems
 	}
 
 	edge := newEdge(key, s.ttl)
@@ -104,7 +104,7 @@ func (s *store) UpsertEdge(key string, update Callback) error {
 	s.m[key] = ele
 	update(edge)
 
-	return nil
+	return true, nil
 }
 
 // Expire evicts all expired items in the store.

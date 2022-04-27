@@ -28,12 +28,12 @@ var (
 	metricDroppedSpans = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_processor_service_graphs_dropped_spans",
-		Help:      "Number of dropped spans.",
+		Help:      "Number of spans dropped when trying to add edges",
 	}, []string{"tenant"})
 	metricTotalEdges = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_processor_service_graphs_edges",
-		Help:      "Total number of edges detected",
+		Help:      "Total number of unique edges",
 	}, []string{"tenant"})
 	metricExpiredEdges = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
@@ -134,7 +134,10 @@ func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 }
 
 func (p *processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error) {
-	var totalDroppedSpans int
+	var (
+		isNew             bool
+		totalDroppedSpans int
+	)
 
 	for _, rs := range resourceSpans {
 		svcName, ok := processor_util.FindServiceName(rs.Resource.Attributes)
@@ -147,7 +150,7 @@ func (p *processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 				switch span.Kind {
 				case v1_trace.Span_SPAN_KIND_CLIENT:
 					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
-					err = p.store.UpsertEdge(key, func(e *store.Edge) {
+					isNew, err = p.store.UpsertEdge(key, func(e *store.Edge) {
 						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
 						e.ClientService = svcName
 						e.ClientLatencySec = spanDurationSec(span)
@@ -156,7 +159,7 @@ func (p *processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 					})
 				case v1_trace.Span_SPAN_KIND_SERVER:
 					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
-					err = p.store.UpsertEdge(key, func(e *store.Edge) {
+					isNew, err = p.store.UpsertEdge(key, func(e *store.Edge) {
 						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
 						e.ServerService = svcName
 						e.ServerLatencySec = spanDurationSec(span)
@@ -179,7 +182,9 @@ func (p *processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 					return err
 				}
 
-				p.metricTotalEdges.Inc()
+				if isNew {
+					p.metricTotalEdges.Inc()
+				}
 			}
 		}
 	}

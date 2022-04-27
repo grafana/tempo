@@ -24,10 +24,11 @@ func TestStoreUpsertEdge(t *testing.T) {
 	assert.Equal(t, 0, s.len())
 
 	// Insert first half of an edge
-	err := s.UpsertEdge(keyStr, func(e *Edge) {
+	isNew, err := s.UpsertEdge(keyStr, func(e *Edge) {
 		e.ClientService = clientService
 	})
 	require.NoError(t, err)
+	require.Equal(t, true, isNew)
 	assert.Equal(t, 1, s.len())
 
 	// Nothing should be evicted as TTL is set to 1h
@@ -36,11 +37,12 @@ func TestStoreUpsertEdge(t *testing.T) {
 	assert.Equal(t, 0, onExpireCount)
 
 	// Insert the second half of an edge
-	err = s.UpsertEdge(keyStr, func(e *Edge) {
+	isNew, err = s.UpsertEdge(keyStr, func(e *Edge) {
 		assert.Equal(t, clientService, e.ClientService)
 		e.ServerService = "server"
 	})
 	require.NoError(t, err)
+	require.Equal(t, false, isNew)
 	// Edge is complete and should have been removed
 	assert.Equal(t, 0, s.len())
 
@@ -48,11 +50,12 @@ func TestStoreUpsertEdge(t *testing.T) {
 	assert.Equal(t, 0, onExpireCount)
 
 	// Insert an edge that will immediately expire
-	err = s.UpsertEdge(keyStr, func(e *Edge) {
+	isNew, err = s.UpsertEdge(keyStr, func(e *Edge) {
 		e.ClientService = clientService
 		e.expiration = 0
 	})
 	require.NoError(t, err)
+	require.Equal(t, true, isNew)
 	assert.Equal(t, 1, s.len())
 	assert.Equal(t, 1, onCompletedCount)
 	assert.Equal(t, 0, onExpireCount)
@@ -71,22 +74,24 @@ func TestStoreUpsertEdge_errTooManyItems(t *testing.T) {
 	s := storeInterface.(*store)
 	assert.Equal(t, 0, s.len())
 
-	err := s.UpsertEdge("key-1", func(e *Edge) {
+	isNew, err := s.UpsertEdge("key-1", func(e *Edge) {
 		e.ClientService = clientService
 	})
 	require.NoError(t, err)
+	require.Equal(t, true, isNew)
 	assert.Equal(t, 1, s.len())
 
-	err = s.UpsertEdge("key-2", func(e *Edge) {
+	isNew, err = s.UpsertEdge("key-2", func(e *Edge) {
 		e.ClientService = clientService
 	})
 	require.ErrorIs(t, err, ErrTooManyItems)
 	assert.Equal(t, 1, s.len())
 
-	err = s.UpsertEdge("key-1", func(e *Edge) {
+	isNew, err = s.UpsertEdge("key-1", func(e *Edge) {
 		e.ClientService = clientService
 	})
 	require.NoError(t, err)
+	require.Equal(t, false, isNew)
 	assert.Equal(t, 1, s.len())
 
 	assert.Equal(t, 0, onCallbackCounter)
@@ -112,8 +117,9 @@ func TestStoreExpire(t *testing.T) {
 	s := storeInterface.(*store)
 
 	for key := range keys {
-		err := s.UpsertEdge(key, noopCallback)
+		isNew, err := s.UpsertEdge(key, noopCallback)
 		require.NoError(t, err)
+		require.Equal(t, true, isNew)
 	}
 
 	s.Expire()
@@ -146,7 +152,7 @@ func TestStore_concurrency(t *testing.T) {
 			key[i] = letters[rand.Intn(len(letters))]
 		}
 
-		err := s.UpsertEdge(string(key), func(e *Edge) {
+		_, err := s.UpsertEdge(string(key), func(e *Edge) {
 			e.ClientService = string(key)
 		})
 		assert.NoError(t, err)
