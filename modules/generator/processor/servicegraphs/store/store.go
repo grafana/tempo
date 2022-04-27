@@ -19,7 +19,7 @@ type store struct {
 	m   map[string]*list.Element
 
 	onComplete Callback
-	onExpired  Callback
+	onExpire   Callback
 
 	ttl      time.Duration
 	maxItems int
@@ -28,13 +28,13 @@ type store struct {
 // NewStore creates a Store to build service graphs. The store caches edges, each representing a
 // request between two services. Once an edge is complete its metrics can be collected. Edges that
 // have not found their pair are deleted after ttl time.
-func NewStore(ttl time.Duration, maxItems int, onComplete, onExpired Callback) Store {
+func NewStore(ttl time.Duration, maxItems int, onComplete, onExpire Callback) Store {
 	s := &store{
 		l: list.New(),
 		m: make(map[string]*list.Element),
 
 		onComplete: onComplete,
-		onExpired:  onExpired,
+		onExpire:   onExpire,
 
 		ttl:      ttl,
 		maxItems: maxItems,
@@ -66,7 +66,7 @@ func (s *store) tryEvictHead() bool {
 		return false
 	}
 
-	s.onExpired(headEdge)
+	s.onExpire(headEdge)
 	delete(s.m, headEdge.key)
 	s.l.Remove(head)
 

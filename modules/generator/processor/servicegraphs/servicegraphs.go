@@ -97,7 +97,7 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 		logger:             log.With(logger, "component", "service-graphs"),
 	}
 
-	p.store = store.NewStore(cfg.Wait, cfg.MaxItems, p.onComplete, p.onExpired)
+	p.store = store.NewStore(cfg.Wait, cfg.MaxItems, p.onComplete, p.onExpire)
 
 	expirationTicker := time.NewTicker(2 * time.Second)
 	for i := 0; i < cfg.Workers; i++ {
@@ -224,7 +224,7 @@ func (p *processor) onComplete(e *store.Edge) {
 	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID)
 }
 
-func (p *processor) onExpired(e *store.Edge) {
+func (p *processor) onExpire(e *store.Edge) {
 	p.metricExpiredEdges.Inc()
 }
 
