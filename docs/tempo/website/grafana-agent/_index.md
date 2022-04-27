@@ -109,7 +109,7 @@ The Agent can take advantage of the span data flowing through the pipeline to ge
 
 Go to [Span metrics](../server_side_metrics/span_metrics) for a more detailed explanation of the feature.
 
-#### Service graphs
+#### Service graph metrics
 
 Service graphs are the representations of the relationships between services within a distributed system.
 
