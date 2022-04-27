@@ -16,7 +16,7 @@ The metrics-generator processes spans and writes metrics to a Prometheus datasou
 Server-side metrics leverages the data available in Tempo's ingest path to provide additional value by generating metrics from traces.
 
 The metrics-generator internally runs a set of **processors**.
-Processors ingest span batches and keep track of metrics.
+Each processor ingests spans and produces metrics.
 Every processor derives different metrics. Currently the following processors are available:
 - Service graphs
 - Span metrics
