@@ -79,6 +79,7 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 
 		shutdownCh: make(chan struct{}, 1),
 
+		reg:    reg,
 		logger: logger,
 	}
 
