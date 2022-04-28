@@ -117,7 +117,7 @@ This service graphs processor builds a map of services by analysing traces, with
 Edges are spans with a parent-child relationship, that represent a jump (e.g. a request) between two services.
 The amount of requests and their duration are recorded as metrics, which are used to represent the graph.
 
-To read more about this processor, go to its [section](service_graphs.md)
+To read more about this processor, go to its [section](service-graphs)
 
 ### Exporting spans
 
