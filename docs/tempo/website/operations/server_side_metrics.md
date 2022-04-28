@@ -7,7 +7,7 @@ weight: 12
 
 <span style="background-color:#f3f973;">Server-side metrics is an experimental feature.</span>
 
-Server-side metrics is a feature that allows to derive metrics from ingested traces.
+Server-side metrics is a feature that derive metrics from ingested traces.
 
 To generate metrics, it uses an additional component: the metrics-generator.
 If present, the distributor will write received spans to both the ingester and the metrics-generator.

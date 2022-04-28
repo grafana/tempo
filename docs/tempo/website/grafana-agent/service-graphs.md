@@ -14,7 +14,7 @@ For a deep look into service graphs, visit [this section](../../server_side_metr
 
 ## Quickstart
 
-Service graphs are generated in the Grafana Agent and pushed to a metrics storage.
+Service graphs are generated in the Grafana Agent and pushed to a prometheus compatible backend.
 Then, they can be represented in Grafana as a graph.
 You will need those components to fully use service graphs.
 

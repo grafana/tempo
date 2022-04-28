@@ -5,7 +5,7 @@ weight: 400
 
 # Server-side metrics
 
-Server-side metrics is a feature that allows to derive metrics from ingested traces.
+Server-side metrics is a feature that derives metrics from ingested traces.
 
 To generate metrics, it uses an additional component: the **metrics-generator**.
 If present, the distributor will write received spans to both the ingester and the metrics-generator.
@@ -27,7 +27,7 @@ Every processor derives different metrics. Currently the following processors ar
 
 Service graphs are the representations of the relationships between services within a distributed system.
 
-This service graphs processor builds a map of services by analysing traces, with the objective to find _egdes_.
+This service graphs processor builds a map of services by analysing traces, with the objective to find _edges_.
 Edges are spans with a parent-child relationship, that represent a jump (e.g. a request) between two services.
 The amount of request and their duration are recorded as metrics, which are used to represent the graph.
 

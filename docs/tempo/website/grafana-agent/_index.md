@@ -113,7 +113,7 @@ Go to [Span metrics](span-metrics) for a more detailed explanation of the featur
 
 Service graph metrics represent the relationships between services within a distributed system.
 
-This service graphs processor builds a map of services by analysing traces, with the objective to find _egdes_.
+This service graphs processor builds a map of services by analysing traces, with the objective to find _edges_.
 Edges are spans with a parent-child relationship, that represent a jump (e.g. a request) between two services.
 The amount of requests and their duration are recorded as metrics, which are used to represent the graph.
 
