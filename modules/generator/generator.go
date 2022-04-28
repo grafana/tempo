@@ -233,7 +233,7 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 		return nil, err
 	}
 
-	return newInstance(g.cfg, id, g.overrides, wal, g.logger)
+	return newInstance(g.cfg, id, g.overrides, wal, g.reg, g.logger)
 }
 
 func (g *Generator) CheckReady(_ context.Context) error {
