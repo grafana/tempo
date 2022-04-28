@@ -1,5 +1,5 @@
 ---
-title: Generating metrics from spans
+title: Span metrics
 ---
 
 # Generating metrics from spans
@@ -42,4 +42,4 @@ The following metrics are exported:
 
 ## Example
 
-<p align="center"><img src="span-metrics-example.png" alt="Span metrics overview"></p>
+<p align="center"><img src="../span-metrics-example.png" alt="Span metrics overview"></p>

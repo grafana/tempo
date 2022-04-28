@@ -1,4 +1,5 @@
-title: Generating metrics from spans
+---
+title: Span metrics
 ---
 
 # Generating metrics from spans
@@ -22,8 +23,8 @@ as far as tracing gets propagated through your applications.
 ## Server side metrics
 
 Span metrics can also be generated in Tempo with the metrics-generator.
-For a deep look into span metrics, visit [this section](../server_side_metrics/span_metrics).
+For a deep look into span metrics, visit [this section](../../server_side_metrics/span_metrics).
 
 ## Example
 
-<p align="center"><img src="../server_side_metrics/span-metrics-example.png" alt="Span metrics overview"></p>
+<p align="center"><img src="../../server_side_metrics/span-metrics-example.png" alt="Span metrics overview"></p>

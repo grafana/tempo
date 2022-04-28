@@ -21,7 +21,7 @@ Service graphs are great for:
   Distributed systems change very frequently,
   and service graphs offer a way of seeing how these systems have evolved over time.
 
-<p align="center"><img src="service-graphs.png" alt="Service graphs example"></p>
+<p align="center"><img src="../service-graphs.png" alt="Service graphs example"></p>
 
 ## How they work
 
