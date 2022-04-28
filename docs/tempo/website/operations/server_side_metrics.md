@@ -13,9 +13,12 @@ To generate metrics, it uses an additional component: the metrics-generator.
 If present, the distributor will write received spans to both the ingester and the metrics-generator.
 The metrics-generator processes spans and writes metrics to a Prometheus datasource using the Prometheus remote write protocol.
 
-<!-- TODO: Expand section -->
-
 ## Architecture
+
+Generating and writing metrics introduces a whole new domain to Tempo unlike any other functionality thus far.
+For this reason, a component, the metrics-generator, is dedicated to working with metrics.
+This results in a clean division of responsibility and limits the blast radius from a metrics processors or the Prometheus remote write exporter blowing up.
+
 
 ```
                                                                       │
@@ -48,3 +51,7 @@ The metrics-generator processes spans and writes metrics to a Prometheus datasou
                                                                        │                 │
                                                                        └─────────────────┘
 ```
+
+## Configuration
+
+For a detailed view of all the config options for the metrics generator, visit [its config page](../configuration/_index#metrics-generator)

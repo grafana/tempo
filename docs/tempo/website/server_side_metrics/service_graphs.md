@@ -27,9 +27,6 @@ Service graphs are great for:
 
 The metrics-generator will process traces and generate service graphs in the form of prometheus metrics.
 
-[//]: # (TODO: Add correct architecture image)
-[//]: # (<p align="center"><img src="../service-graphs-agent-architecture.png" alt="Service graphs architecture"></p>)
-
 Service graphs work by inspecting traces and looking for spans with parent-children relationship that represent a request.
 Additionally, spans need to contain the tag [`span.kind`](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind),
 with value `CLIENT` for the parent span (i.e. service that started the request) and `SERVER` for the children span (i.e. service that received the request).

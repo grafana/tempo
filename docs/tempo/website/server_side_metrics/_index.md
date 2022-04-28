@@ -21,6 +21,8 @@ Every processor derives different metrics. Currently the following processors ar
 - Service graphs
 - Span metrics
 
+<p align="center"><img src="server-side-metrics-arch-overview.png" alt="Service metrics architecture"></p>
+
 ### Service graphs
 
 Service graphs are the representations of the relationships between services within a distributed system.
