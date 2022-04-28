@@ -8,6 +8,7 @@ A service graph is a visual representation of the interrelationships between var
 Service graphs help to understand the structure of a distributed system,
 and the connections and dependencies between its components.
 
+Service graphs can also be generated in Tempo with the metrics-generator.
 For a deep look into service graphs, visit [this section](../server_side_metrics/service_graphs).
 
 ## Quickstart

@@ -107,7 +107,7 @@ For a detailed description, go to [Tail-based sampling](tail-based-sampling).
 
 The Agent can take advantage of the span data flowing through the pipeline to generate Prometheus metrics.
 
-Go to [Span metrics](../server_side_metrics/span_metrics) for a more detailed explanation of the feature.
+Go to [Span metrics](span-metrics) for a more detailed explanation of the feature.
 
 #### Service graph metrics
 
