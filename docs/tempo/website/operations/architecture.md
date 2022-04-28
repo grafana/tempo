@@ -16,6 +16,7 @@ or [deployment options]({{< relref "./deployment" >}}) for help deploying.
 <p align="center"><img src="../tempo_arch.png" alt="Tempo Architecture"></p>
 
 ## Tempo
+
 Tempo comprises of the following top-level components.
 
 ### Distributor
@@ -65,6 +66,10 @@ Queries should be sent to the Query Frontend.
 ### Compactor
 
 The Compactors stream blocks to and from the backend storage to reduce the total number of blocks.
+
+### Metrics generator
+
+This is an **optional** component that derives metrics from ingested traces and writes them to a metrics storage.
 
 ### Using older versions of Grafana
 

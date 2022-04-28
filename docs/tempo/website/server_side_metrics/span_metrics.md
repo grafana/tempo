@@ -1,0 +1,45 @@
+---
+title: Span metrics
+---
+
+# Generating metrics from spans
+
+The span metrics processor generates metrics from ingested tracing data automatically.
+Span metrics aggregates request, error and duration (RED) metrics from span data.
+
+Span metrics generate two metrics:
+* A counter that computes requests
+* A histogram that computes operation’s durations.
+
+Span metrics are of particular interest if your system is not monitored with metrics,
+but it has distributed tracing implemented.
+You get out-of-the-box metrics from your tracing pipeline.
+
+Even if you already have metrics, span metrics can provide in-depth monitoring of your system.
+The generated metrics will show application level insight into your monitoring,
+as far as tracing gets propagated through your applications.
+
+Last but not least, span metrics lower the entry barrier for using [exemplars](https://grafana.com/docs/grafana/latest/basics/exemplars/).
+An exemplar is a specific trace representative of measurement taken in a given time interval.
+Since traces and metrics co-exist in the metrics-generator,
+exemplars can be automatically added, providing additional value to these metrics.
+
+## How it works
+
+The span metrics processor works by inspecting every received span and computing the total count and the duration of spans for every unique combination of dimensions.
+Dimensions can be the service name, the operation, the span kind, the status code and any attribute present in the span.
+
+This processor is designed with the goal to mirror the implementation from the OpenTelemetry Collector of the [processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/spanmetricsprocessor) with the same name.
+
+### Metrics
+
+The following metrics are exported:
+
+| Metric                               | Type      | Labels     | Description             |
+|--------------------------------------|-----------|------------|-------------------------|
+| traces_spanmetrics_duration_seconds | Histogram | Dimensions | Duration of the span    |
+| traces_spanmetrics_calls_total      | Counter   | Dimensions | Total count of the span |
+
+## Example
+
+<p align="center"><img src="../span-metrics-example.png" alt="Span metrics overview"></p>
