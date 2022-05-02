@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [BUGFIX] metrics-generator: don't inject X-Scope-OrgID header for single-tenant setups [1417](https://github.com/grafana/tempo/pull/1417) (@kvrhdn)
+
 ## v1.4.0 / 2022-04-28
 
 * [CHANGE] Vulture now exercises search at any point during the block retention to test full backend search.
