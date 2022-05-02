@@ -166,7 +166,7 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 	return nil
 }
 
-func (s *StreamingSearchBlock) Iterator() (v2.Iterator, error) {
+func (s *StreamingSearchBlock) Iterator() (common.Iterator, error) {
 	iter := &streamingSearchBlockIterator{
 		records:     s.appender.Records(),
 		file:        s.file,
@@ -197,7 +197,7 @@ type streamingSearchBlockIterator struct {
 	pagesBuffer [][]byte
 }
 
-var _ v2.Iterator = (*streamingSearchBlockIterator)(nil)
+var _ common.Iterator = (*streamingSearchBlockIterator)(nil)
 
 func (s *streamingSearchBlockIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 	if s.currentIndex >= len(s.records) {

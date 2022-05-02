@@ -12,8 +12,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/decoder"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
@@ -139,7 +137,7 @@ func (a *AppendBlock) Meta() *backend.BlockMeta {
 	return a.meta
 }
 
-func (a *AppendBlock) Iterator(combiner model.ObjectCombiner) (v2.Iterator, error) {
+func (a *AppendBlock) Iterator(combiner model.ObjectCombiner) (common.Iterator, error) {
 	if a.appendFile != nil {
 		err := a.appendFile.Close()
 		if err != nil {
@@ -166,18 +164,6 @@ func (a *AppendBlock) Iterator(combiner model.ObjectCombiner) (v2.Iterator, erro
 	}
 
 	return iterator, nil
-}
-
-func (a *AppendBlock) TraceIterator(combiner model.ObjectCombiner) (common.TraceIterator, error) {
-	iter, err := a.Iterator(combiner)
-	if err != nil {
-		return nil, err
-	}
-
-	return &appendBlockTraceIterator{
-		iter: iter,
-		dec:  model.MustNewObjectDecoder(a.meta.DataEncoding),
-	}, nil
 }
 
 func (a *AppendBlock) Find(id common.ID, combiner model.ObjectCombiner) ([]byte, error) {
@@ -266,34 +252,4 @@ func (a *AppendBlock) adjustTimeRangeForSlack(start uint32, end uint32, addition
 	}
 
 	return start, end
-}
-
-type appendBlockTraceIterator struct {
-	iter v2.Iterator
-	dec  model.ObjectDecoder
-}
-
-var _ common.TraceIterator = (*appendBlockTraceIterator)(nil)
-
-func (a *appendBlockTraceIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, uint32, uint32, error) {
-	id, obj, err := a.iter.Next(ctx)
-	if err != nil {
-		return nil, nil, 0, 0, err
-	}
-
-	s, e, err := a.dec.FastRange(obj)
-	if err != nil && err != decoder.ErrUnsupported {
-		return nil, nil, 0, 0, err
-	}
-
-	tr, err := a.dec.PrepareForRead(obj)
-	if err != nil {
-		return nil, nil, 0, 0, err
-	}
-
-	return id, tr, s, e, nil
-}
-
-func (a *appendBlockTraceIterator) Close() {
-	a.iter.Close()
 }

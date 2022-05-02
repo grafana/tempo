@@ -209,7 +209,15 @@ func (rw *readerWriter) CompleteBlock(block *wal.AppendBlock, combiner model.Obj
 // new block will have the same ID as the input block.
 func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal.AppendBlock, combiner model.ObjectCombiner, r backend.Reader, w backend.Writer) (common.BackendBlock, error) {
 
-	iter, err := block.TraceIterator(combiner)
+	// Try to use same version and encoding as the WAL
+	vers, err := encoding.FromVersion(block.Meta().Version)
+	if err != nil {
+		return nil, err
+	}
+
+	dec := model.MustNewObjectDecoder(block.Meta().DataEncoding)
+
+	iter, err := block.Iterator(combiner)
 	if err != nil {
 		return nil, err
 	}
@@ -223,15 +231,13 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal
 		TotalObjects: walMeta.TotalObjects,
 		StartTime:    walMeta.StartTime,
 		EndTime:      walMeta.EndTime,
+		DataEncoding: walMeta.DataEncoding,
 
 		// Other
-		Encoding:     rw.cfg.Block.Encoding,
-		DataEncoding: model.CurrentEncoding,
+		Encoding: rw.cfg.Block.Encoding,
 	}
 
-	vers := encoding.LatestEncoding()
-
-	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, w)
+	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, dec, w)
 	if err != nil {
 		return nil, errors.Wrap(err, "error creating block")
 	}

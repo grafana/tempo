@@ -7,12 +7,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-// Iterator is capable of iterating through a set of objects
-type Iterator interface {
-	Next(context.Context) (common.ID, []byte, error)
-	Close()
-}
-
 type iterator struct {
 	reader io.Reader
 	o      common.ObjectReaderWriter
@@ -20,7 +14,7 @@ type iterator struct {
 
 // NewIterator returns the most basic iterator.  It iterates over
 // raw objects.
-func NewIterator(reader io.Reader, o common.ObjectReaderWriter) Iterator {
+func NewIterator(reader io.Reader, o common.ObjectReaderWriter) common.Iterator {
 	return &iterator{
 		reader: reader,
 		o:      o,

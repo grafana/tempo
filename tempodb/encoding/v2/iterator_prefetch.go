@@ -10,16 +10,16 @@ import (
 )
 
 type prefetchIterator struct {
-	iter      Iterator
+	iter      common.Iterator
 	resultsCh chan iteratorResult
 	quitCh    chan struct{}
 	err       atomic.Error
 }
 
-var _ Iterator = (*prefetchIterator)(nil)
+var _ common.Iterator = (*prefetchIterator)(nil)
 
 // NewPrefetchIterator Creates a new multiblock iterator. Iterates concurrently in a separate goroutine and results are buffered.
-func NewPrefetchIterator(ctx context.Context, iter Iterator, bufferSize int) Iterator {
+func NewPrefetchIterator(ctx context.Context, iter common.Iterator, bufferSize int) common.Iterator {
 	i := prefetchIterator{
 		iter:      iter,
 		resultsCh: make(chan iteratorResult, bufferSize),

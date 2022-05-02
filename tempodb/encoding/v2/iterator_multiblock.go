@@ -26,7 +26,7 @@ type multiblockIterator struct {
 	logger       log.Logger
 }
 
-var _ Iterator = (*multiblockIterator)(nil)
+var _ common.Iterator = (*multiblockIterator)(nil)
 
 type iteratorResult struct {
 	id     common.ID
@@ -35,7 +35,7 @@ type iteratorResult struct {
 
 // NewMultiblockIterator Creates a new multiblock iterator. Iterates concurrently in a separate goroutine and results are buffered.
 // Traces are deduped and combined using the object combiner.
-func NewMultiblockIterator(ctx context.Context, inputs []Iterator, bufferSize int, combiner model.ObjectCombiner, dataEncoding string, logger log.Logger) Iterator {
+func NewMultiblockIterator(ctx context.Context, inputs []common.Iterator, bufferSize int, combiner model.ObjectCombiner, dataEncoding string, logger log.Logger) common.Iterator {
 	i := multiblockIterator{
 		combiner:     combiner,
 		dataEncoding: dataEncoding,
@@ -174,14 +174,14 @@ func (i *multiblockIterator) iterate(ctx context.Context) {
 }
 
 type bookmark struct {
-	iter Iterator
+	iter common.Iterator
 
 	currentID     []byte
 	currentObject []byte
 	currentErr    error
 }
 
-func newBookmark(iter Iterator) *bookmark {
+func newBookmark(iter common.Iterator) *bookmark {
 	return &bookmark{
 		iter: iter,
 	}

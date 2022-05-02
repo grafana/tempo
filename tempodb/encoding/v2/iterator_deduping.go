@@ -11,7 +11,7 @@ import (
 )
 
 type dedupingIterator struct {
-	iter          Iterator
+	iter          common.Iterator
 	combiner      model.ObjectCombiner
 	currentID     []byte
 	currentObject []byte
@@ -20,7 +20,7 @@ type dedupingIterator struct {
 
 // NewDedupingIterator returns a dedupingIterator.  This iterator is used to wrap another
 //  iterator.  It will dedupe consecutive objects with the same id using the ObjectCombiner.
-func NewDedupingIterator(iter Iterator, combiner model.ObjectCombiner, dataEncoding string) (Iterator, error) {
+func NewDedupingIterator(iter common.Iterator, combiner model.ObjectCombiner, dataEncoding string) (common.Iterator, error) {
 	i := &dedupingIterator{
 		iter:         iter,
 		combiner:     combiner,
