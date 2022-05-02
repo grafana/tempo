@@ -9,6 +9,8 @@ import (
 	prometheus_common_config "github.com/prometheus/common/config"
 	prometheus_config "github.com/prometheus/prometheus/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/grafana/tempo/pkg/util"
 )
 
 func Test_generateTenantRemoteWriteConfigs(t *testing.T) {
@@ -37,6 +39,23 @@ func Test_generateTenantRemoteWriteConfigs(t *testing.T) {
 	assert.Equal(t, original[1].URL, result[1].URL)
 	assert.Equal(t, map[string]string{"foo": "bar", "x-scope-orgid": "fake-tenant"}, original[1].Headers, "Original headers have been modified")
 	assert.Equal(t, map[string]string{"foo": "bar", "X-Scope-OrgID": "my-tenant"}, result[1].Headers)
+}
+
+func Test_generateTenantRemoteWriteConfigs_singleTenant(t *testing.T) {
+	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
+
+	original := []prometheus_config.RemoteWriteConfig{
+		{
+			URL:     &prometheus_common_config.URL{URL: urlMustParse("http://prometheus-1/api/prom/push")},
+			Headers: map[string]string{},
+		},
+	}
+
+	result := generateTenantRemoteWriteConfigs(original, util.FakeTenantID, logger)
+
+	assert.Equal(t, original[0].URL, result[0].URL)
+	// X-Scope-OrgID has not been injected
+	assert.Empty(t, result[0].Headers)
 }
 
 func Test_copyMap(t *testing.T) {
