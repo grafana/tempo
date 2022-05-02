@@ -7,6 +7,8 @@ import (
 	"github.com/go-kit/log/level"
 	prometheus_config "github.com/prometheus/prometheus/config"
 	"github.com/weaveworks/common/user"
+
+	"github.com/grafana/tempo/pkg/util"
 )
 
 // generateTenantRemoteWriteConfigs creates a copy of the remote write configurations with the
@@ -31,7 +33,9 @@ func generateTenantRemoteWriteConfigs(originalCfgs []prometheus_config.RemoteWri
 		}
 
 		// inject the X-Scope-OrgId header for multi-tenant metrics backends
-		cloneCfg.Headers[user.OrgIDHeaderName] = tenant
+		if tenant != util.FakeTenantID {
+			cloneCfg.Headers[user.OrgIDHeaderName] = tenant
+		}
 
 		cloneCfgs = append(cloneCfgs, cloneCfg)
 	}
