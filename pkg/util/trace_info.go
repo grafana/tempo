@@ -23,7 +23,7 @@ var (
 	// trace size.
 	maxBatchesPerWrite int64 = 10
 
-	//maxBatchesPerWrite is the maximum number of time-delayed writes for a trace.
+	// maxBatchesPerWrite is the maximum number of time-delayed writes for a trace.
 	maxLongWritesPerTrace int64 = 3
 )
 
@@ -199,7 +199,10 @@ func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 	addBatches := func(t *TraceInfo, trace *tempopb.Trace) error {
 		for i := int64(0); i < t.generateRandomInt(1, maxBatchesPerWrite); i++ {
 			batch := t.makeThriftBatch(t.traceIDHigh, t.traceIDLow)
-			internalTrace := jaegerTrans.ThriftBatchToInternalTraces(batch)
+			internalTrace, err := jaegerTrans.ThriftToTraces(batch)
+			if err != nil {
+				return err
+			}
 			conv, err := otlp.NewProtobufTracesMarshaler().MarshalTraces(internalTrace)
 			if err != nil {
 				return err

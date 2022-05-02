@@ -29,7 +29,7 @@ func Test_counter(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples)
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples, nil)
 
 	c.Inc(NewLabelValues([]string{"value-2"}), 2.0)
 	c.Inc(NewLabelValues([]string{"value-3"}), 3.0)
@@ -42,7 +42,7 @@ func Test_counter(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 4),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-3"}, collectionTimeMs, 3),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, nil, 3, expectedSamples)
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 3, expectedSamples, nil)
 }
 
 func Test_counter_invalidLabelValues(t *testing.T) {
@@ -76,7 +76,7 @@ func Test_counter_cantAdd(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples)
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples, nil)
 
 	// block new series - existing series can still be updated
 	canAdd = false
@@ -89,7 +89,7 @@ func Test_counter_cantAdd(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 4),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples)
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples, nil)
 }
 
 func Test_counter_removeStaleSeries(t *testing.T) {
@@ -114,7 +114,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples)
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples, nil)
 
 	time.Sleep(10 * time.Millisecond)
 	timeMs = time.Now().UnixMilli()
@@ -130,7 +130,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 	expectedSamples = []sample{
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2"}, collectionTimeMs, 4),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, nil, 1, expectedSamples)
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 1, expectedSamples, nil)
 }
 
 func Test_counter_externalLabels(t *testing.T) {
@@ -144,7 +144,7 @@ func Test_counter_externalLabels(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "external_label": "external_value"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-2", "external_label": "external_value"}, collectionTimeMs, 2),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, map[string]string{"external_label": "external_value"}, 2, expectedSamples)
+	collectMetricAndAssert(t, c, collectionTimeMs, map[string]string{"external_label": "external_value"}, 2, expectedSamples, nil)
 }
 
 func Test_counter_concurrencyDataRace(t *testing.T) {
@@ -226,10 +226,10 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1"}, collectionTimeMs, float64(totalCount.Load())),
 	}
-	collectMetricAndAssert(t, c, collectionTimeMs, nil, 1, expectedSamples)
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 1, expectedSamples, nil)
 }
 
-func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, externalLabels map[string]string, expectedActiveSeries int, expectedSamples []sample) {
+func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, externalLabels map[string]string, expectedActiveSeries int, expectedSamples []sample, expectedExemplars []exemplarSample) {
 	appender := &capturingAppender{}
 
 	activeSeries, err := m.collectMetrics(appender, collectionTimeMs, externalLabels)
@@ -239,4 +239,5 @@ func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, exte
 	assert.False(t, appender.isCommitted)
 	assert.False(t, appender.isRolledback)
 	assert.ElementsMatch(t, expectedSamples, appender.samples)
+	assert.ElementsMatch(t, expectedExemplars, appender.exemplars)
 }

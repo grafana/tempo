@@ -1,5 +1,5 @@
 (import 'configmap.libsonnet') +
-(import 'config.libsonnet') + 
+(import 'config.libsonnet') +
 {
   local k = import 'ksonnet-util/kausal.libsonnet',
   local container = k.core.v1.container,
@@ -37,9 +37,12 @@
   tempo_container::
     container.new('tempo', $._images.tempo) +
     container.withPorts([
-      containerPort.new('prom-metrics', $._config.port),
+      containerPort.new('prom-metrics', $._config.tempo.port),
+      containerPort.new('memberlist', 9095),
+      containerPort.new('otlp', 4317),
     ]) +
     container.withArgs([
+      '-target=scalable-single-binary',
       '-config.file=/conf/tempo.yaml',
       '-mem-ballast-size-mbs=' + $._config.ballast_size_mbs,
     ]) +
@@ -66,29 +69,34 @@
 
   tempo_statefulset:
     statefulset.new('tempo',
-                   1,
-                   [
-                     $.tempo_container,
-                     $.tempo_query_container,
-                   ],
-                   self.tempo_pvc,
-                   { app: 'tempo' }) +
+                    $._config.tempo.replicas,
+                    [
+                      $.tempo_container,
+                      $.tempo_query_container,
+                    ],
+                    self.tempo_pvc,
+                    { app: 'tempo' }) +
     statefulset.mixin.spec.withServiceName('tempo') +
     statefulset.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.tempo_configmap.data['tempo.yaml'])),
     }) +
+    statefulset.mixin.metadata.withLabels({ app: $._config.tempo.headless_service_name, name: 'tempo' }) +
+    statefulset.mixin.spec.selector.withMatchLabels({ name: 'tempo' }) +
+    statefulset.mixin.spec.template.metadata.withLabels({ name: 'tempo', app: $._config.tempo.headless_service_name }) +
     statefulset.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_query_config_volume, $.tempo_query_configmap.metadata.name),
       volume.fromConfigMap(tempo_config_volume, $.tempo_configmap.metadata.name),
     ]),
 
   tempo_service:
-    k.util.serviceFor($.tempo_statefulset)
-    + service.mixin.spec.withPortsMixin([
-      servicePort.newNamed(
-         name='http',
-         port=80,
-         targetPort=16686,
-      ),
-    ]),
+    k.util.serviceFor($.tempo_statefulset),
+
+  tempo_headless_service:
+    service.new(
+      $._config.tempo.headless_service_name,
+      { app: $._config.tempo.headless_service_name },
+      []
+    ) +
+    service.mixin.spec.withClusterIP('None') +
+    service.mixin.spec.withPublishNotReadyAddresses(true),
 }

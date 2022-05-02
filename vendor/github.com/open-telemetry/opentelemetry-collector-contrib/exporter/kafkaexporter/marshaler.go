@@ -50,10 +50,12 @@ type LogsMarshaler interface {
 // tracesMarshalers returns map of supported encodings with TracesMarshaler.
 func tracesMarshalers() map[string]TracesMarshaler {
 	otlpPb := newPdataTracesMarshaler(otlp.NewProtobufTracesMarshaler(), defaultEncoding)
+	otlpJSON := newPdataTracesMarshaler(otlp.NewJSONTracesMarshaler(), "otlp_json")
 	jaegerProto := jaegerMarshaler{marshaler: jaegerProtoSpanMarshaler{}}
 	jaegerJSON := jaegerMarshaler{marshaler: newJaegerJSONMarshaler()}
 	return map[string]TracesMarshaler{
 		otlpPb.Encoding():      otlpPb,
+		otlpJSON.Encoding():    otlpJSON,
 		jaegerProto.Encoding(): jaegerProto,
 		jaegerJSON.Encoding():  jaegerJSON,
 	}
@@ -62,15 +64,19 @@ func tracesMarshalers() map[string]TracesMarshaler {
 // metricsMarshalers returns map of supported encodings and MetricsMarshaler
 func metricsMarshalers() map[string]MetricsMarshaler {
 	otlpPb := newPdataMetricsMarshaler(otlp.NewProtobufMetricsMarshaler(), defaultEncoding)
+	otlpJSON := newPdataMetricsMarshaler(otlp.NewJSONMetricsMarshaler(), "otlp_json")
 	return map[string]MetricsMarshaler{
-		otlpPb.Encoding(): otlpPb,
+		otlpPb.Encoding():   otlpPb,
+		otlpJSON.Encoding(): otlpJSON,
 	}
 }
 
 // logsMarshalers returns map of supported encodings and LogsMarshaler
 func logsMarshalers() map[string]LogsMarshaler {
 	otlpPb := newPdataLogsMarshaler(otlp.NewProtobufLogsMarshaler(), defaultEncoding)
+	otlpJSON := newPdataLogsMarshaler(otlp.NewJSONLogsMarshaler(), "otlp_json")
 	return map[string]LogsMarshaler{
-		otlpPb.Encoding(): otlpPb,
+		otlpPb.Encoding():   otlpPb,
+		otlpJSON.Encoding(): otlpJSON,
 	}
 }

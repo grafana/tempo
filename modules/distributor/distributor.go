@@ -129,6 +129,7 @@ type Distributor struct {
 	generatorClientCfg      generator_client.Config
 	generatorsRing          ring.ReadRing
 	generatorsPool          *ring_client.Pool
+	generatorForwarder      *forwarder
 
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
@@ -181,22 +182,6 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	subservices = append(subservices, pool)
 
-	var generatorsPool *ring_client.Pool
-	if metricsGeneratorEnabled {
-		generatorsPool = ring_client.NewPool(
-			"distributor_metrics_generator_pool",
-			generatorClientCfg.PoolConfig,
-			ring_client.NewRingServiceDiscovery(generatorsRing),
-			func(addr string) (ring_client.PoolClient, error) {
-				return generator_client.New(addr, generatorClientCfg)
-			},
-			metricGeneratorClients,
-			log.Logger,
-		)
-
-		subservices = append(subservices, generatorsPool)
-	}
-
 	// turn list into map for efficient checking
 	tagsToDrop := map[string]struct{}{}
 	for _, tag := range cfg.SearchTagsDenyList {
@@ -214,10 +199,27 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		metricsGeneratorEnabled: metricsGeneratorEnabled,
 		generatorClientCfg:      generatorClientCfg,
 		generatorsRing:          generatorsRing,
-		generatorsPool:          generatorsPool,
 		globalTagsToDrop:        tagsToDrop,
 		overrides:               o,
 		traceEncoder:            model.MustNewSegmentDecoder(model.CurrentEncoding),
+	}
+
+	if metricsGeneratorEnabled {
+		d.generatorsPool = ring_client.NewPool(
+			"distributor_metrics_generator_pool",
+			generatorClientCfg.PoolConfig,
+			ring_client.NewRingServiceDiscovery(generatorsRing),
+			func(addr string) (ring_client.PoolClient, error) {
+				return generator_client.New(addr, generatorClientCfg)
+			},
+			metricGeneratorClients,
+			log.Logger,
+		)
+
+		subservices = append(subservices, d.generatorsPool)
+
+		d.generatorForwarder = newForwarder(d.sendToGenerators, o)
+		subservices = append(subservices, d.generatorForwarder)
 	}
 
 	cfgReceivers := cfg.Receivers
@@ -333,20 +335,14 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 	err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, searchData, keys)
 	if err != nil {
 		recordDiscaredSpans(err, userID, spanCount)
+		return nil, err
 	}
 
-	if d.metricsGeneratorEnabled && len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 && err == nil {
-		// Handle requests sent to the metrics-generator in a separate goroutine, this way we don't
-		// influence the overall write
-		go func() {
-			genErr := d.sendToGenerators(context.Background(), userID, keys, rebatchedTraces)
-			if genErr != nil {
-				level.Error(log.Logger).Log("msg", "pushing to metrics-generators failed", "err", genErr)
-			}
-		}()
+	if d.metricsGeneratorEnabled && len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
+		d.generatorForwarder.SendTraces(ctx, userID, keys, rebatchedTraces)
 	}
 
-	return nil, err // PushRequest is ignored, so no reason to create one
+	return nil, nil // PushRequest is ignored, so no reason to create one
 }
 
 func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*rebatchedTrace, searchData [][]byte, keys []uint32) error {

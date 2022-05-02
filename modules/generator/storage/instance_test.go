@@ -216,13 +216,13 @@ func newMockPrometheusRemoteWriterServer(logger log.Logger) *mockPrometheusRemot
 	return m
 }
 
-func (m *mockPrometheusRemoteWriteServer) remoteWriteConfig() []*config.RemoteWriteConfig {
-	rwCfg := &config.DefaultRemoteWriteConfig
+func (m *mockPrometheusRemoteWriteServer) remoteWriteConfig() []config.RemoteWriteConfig {
+	rwCfg := config.DefaultRemoteWriteConfig
 	rwCfg.URL = &prometheus_common_config.URL{URL: urlMustParse(fmt.Sprintf("%s/receive", m.server.URL))}
 	rwCfg.SendExemplars = true
 	// Aggressive queue settings to speed up tests
 	rwCfg.QueueConfig.BatchSendDeadline = model.Duration(10 * time.Millisecond)
-	return []*config.RemoteWriteConfig{rwCfg}
+	return []config.RemoteWriteConfig{rwCfg}
 }
 
 func (m *mockPrometheusRemoteWriteServer) ServeHTTP(res http.ResponseWriter, req *http.Request) {

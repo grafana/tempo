@@ -125,6 +125,10 @@ func (m *mockOverrides) MetricsGeneratorProcessors(userID string) map[string]str
 	return m.processors
 }
 
+func (m *mockOverrides) MetricsGeneratorDisableCollection(userID string) bool {
+	return false
+}
+
 type noopStorage struct{}
 
 var _ storage.Storage = (*noopStorage)(nil)

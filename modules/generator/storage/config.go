@@ -19,7 +19,7 @@ type Config struct {
 
 	// Prometheus remote write config
 	// https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
-	RemoteWrite []*prometheus_config.RemoteWriteConfig `yaml:"remote_write,omitempty"`
+	RemoteWrite []prometheus_config.RemoteWriteConfig `yaml:"remote_write,omitempty"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {

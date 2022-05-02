@@ -25,7 +25,7 @@ and prevent it from OOMing, crashing or otherwise allow tenants to not DOS each 
 will see logs like this at the distributor:
 
 ```
-msg="pusher failed to consume trace data" err="rpc error: code = FailedPrecondition desc = TRACE_TOO_LARGE: max size of trace (52428800) exceeded while adding 15632 bytes"
+msg="pusher failed to consume trace data" err="rpc error: code = FailedPrecondition desc = TRACE_TOO_LARGE: max size of trace (52428800) exceeded while adding 15632 bytes to trace a0fbd6f9ac5e2077d90a19551dd67b6f for tenant single-tenant"
 msg="pusher failed to consume trace data" err="rpc error: code = FailedPrecondition desc = LIVE_TRACES_EXCEEDED: max live traces per tenant exceeded: per-user traces limit (local: 60000 global: 0 actual local: 60000) exceeded"
 msg="pusher failed to consume trace data" err="rpc error: code = ResourceExhausted desc = RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes"
 ```

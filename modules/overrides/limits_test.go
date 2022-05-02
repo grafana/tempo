@@ -50,6 +50,9 @@ block_retention: 24h
 
 per_tenant_override_config: /etc/overrides.yaml
 per_tenant_override_period: 1m
+
+metrics_generator_send_queue_size: 10
+metrics_generator_send_workers: 1
 `
 	inputJSON := `
 {
@@ -67,7 +70,10 @@ per_tenant_override_period: 1m
 	"block_retention": "24h",
 
 	"per_tenant_override_config": "/etc/overrides.yaml",
-	"per_tenant_override_period": "1m"
+	"per_tenant_override_period": "1m",
+
+	"metrics_generator_send_queue_size": 10,
+	"metrics_generator_send_workers": 1
 }`
 
 	limitsYAML := Limits{}

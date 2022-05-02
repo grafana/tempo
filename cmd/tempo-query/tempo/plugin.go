@@ -89,7 +89,7 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		return nil, fmt.Errorf("error unmarshalling body to otlp trace %v: %w", traceID, err)
 	}
 
-	jaegerBatches, err := ot_jaeger.InternalTracesToJaegerProto(otTrace)
+	jaegerBatches, err := ot_jaeger.ProtoFromTraces(otTrace)
 	if err != nil {
 		return nil, fmt.Errorf("error translating to jaegerBatches %v: %w", traceID, err)
 	}

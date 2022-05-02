@@ -42,9 +42,6 @@ const (
 type messageType uint8
 
 // The list of available message types.
-//
-// WARNING: ONLY APPEND TO THIS LIST! The numeric values are part of the
-// protocol itself.
 const (
 	pingMsg messageType = iota
 	indirectPingMsg
@@ -60,13 +57,6 @@ const (
 	nackRespMsg
 	hasCrcMsg
 	errMsg
-)
-
-const (
-	// hasLabelMsg has a deliberately high value so that you can disambiguate
-	// it from the encryptionVersion header which is either 0/1 right now and
-	// also any of the existing messageTypes
-	hasLabelMsg messageType = 244
 )
 
 // compressionType is used to specify the compression algorithm
@@ -236,32 +226,7 @@ func (m *Memberlist) handleConn(conn net.Conn) {
 	metrics.IncrCounter([]string{"memberlist", "tcp", "accept"}, 1)
 
 	conn.SetDeadline(time.Now().Add(m.config.TCPTimeout))
-
-	var (
-		streamLabel string
-		err         error
-	)
-	conn, streamLabel, err = RemoveLabelHeaderFromStream(conn)
-	if err != nil {
-		m.logger.Printf("[ERR] memberlist: failed to receive and remove the stream label header: %s %s", err, LogConn(conn))
-		return
-	}
-
-	if m.config.SkipInboundLabelCheck {
-		if streamLabel != "" {
-			m.logger.Printf("[ERR] memberlist: unexpected double stream label header: %s", LogConn(conn))
-			return
-		}
-		// Set this from config so that the auth data assertions work below.
-		streamLabel = m.config.Label
-	}
-
-	if m.config.Label != streamLabel {
-		m.logger.Printf("[ERR] memberlist: discarding stream with unacceptable label %q: %s", streamLabel, LogConn(conn))
-		return
-	}
-
-	msgType, bufConn, dec, err := m.readStream(conn, streamLabel)
+	msgType, bufConn, dec, err := m.readStream(conn)
 	if err != nil {
 		if err != io.EOF {
 			m.logger.Printf("[ERR] memberlist: failed to receive: %s %s", err, LogConn(conn))
@@ -273,7 +238,7 @@ func (m *Memberlist) handleConn(conn net.Conn) {
 				return
 			}
 
-			err = m.rawSendMsgStream(conn, out.Bytes(), streamLabel)
+			err = m.rawSendMsgStream(conn, out.Bytes())
 			if err != nil {
 				m.logger.Printf("[ERR] memberlist: Failed to send error: %s %s", err, LogConn(conn))
 				return
@@ -304,7 +269,7 @@ func (m *Memberlist) handleConn(conn net.Conn) {
 			return
 		}
 
-		if err := m.sendLocalState(conn, join, streamLabel); err != nil {
+		if err := m.sendLocalState(conn, join); err != nil {
 			m.logger.Printf("[ERR] memberlist: Failed to push local state: %s %s", err, LogConn(conn))
 			return
 		}
@@ -332,7 +297,7 @@ func (m *Memberlist) handleConn(conn net.Conn) {
 			return
 		}
 
-		err = m.rawSendMsgStream(conn, out.Bytes(), streamLabel)
+		err = m.rawSendMsgStream(conn, out.Bytes())
 		if err != nil {
 			m.logger.Printf("[ERR] memberlist: Failed to send ack: %s %s", err, LogConn(conn))
 			return
@@ -357,35 +322,10 @@ func (m *Memberlist) packetListen() {
 }
 
 func (m *Memberlist) ingestPacket(buf []byte, from net.Addr, timestamp time.Time) {
-	var (
-		packetLabel string
-		err         error
-	)
-	buf, packetLabel, err = RemoveLabelHeaderFromPacket(buf)
-	if err != nil {
-		m.logger.Printf("[ERR] memberlist: %v %s", err, LogAddress(from))
-		return
-	}
-
-	if m.config.SkipInboundLabelCheck {
-		if packetLabel != "" {
-			m.logger.Printf("[ERR] memberlist: unexpected double packet label header: %s", LogAddress(from))
-			return
-		}
-		// Set this from config so that the auth data assertions work below.
-		packetLabel = m.config.Label
-	}
-
-	if m.config.Label != packetLabel {
-		m.logger.Printf("[ERR] memberlist: discarding packet with unacceptable label %q: %s", packetLabel, LogAddress(from))
-		return
-	}
-
 	// Check if encryption is enabled
 	if m.config.EncryptionEnabled() {
 		// Decrypt the payload
-		authData := []byte(packetLabel)
-		plain, err := decryptPayload(m.config.Keyring.GetKeys(), buf, authData)
+		plain, err := decryptPayload(m.config.Keyring.GetKeys(), buf, nil)
 		if err != nil {
 			if !m.config.GossipVerifyIncoming {
 				// Treat the message as plaintext
@@ -783,7 +723,7 @@ func (m *Memberlist) encodeAndSendMsg(a Address, msgType messageType, msg interf
 // opportunistically create a compoundMsg and piggy back other broadcasts.
 func (m *Memberlist) sendMsg(a Address, msg []byte) error {
 	// Check if we can piggy back any messages
-	bytesAvail := m.config.UDPBufferSize - len(msg) - compoundHeaderOverhead - labelOverhead(m.config.Label)
+	bytesAvail := m.config.UDPBufferSize - len(msg) - compoundHeaderOverhead
 	if m.config.EncryptionEnabled() && m.config.GossipVerifyOutgoing {
 		bytesAvail -= encryptOverhead(m.encryptionVersion())
 	}
@@ -799,11 +739,17 @@ func (m *Memberlist) sendMsg(a Address, msg []byte) error {
 	msgs = append(msgs, msg)
 	msgs = append(msgs, extra...)
 
-	// Create a compound message
-	compound := makeCompoundMessage(msgs)
+	// Create one or more compound messages.
+	compounds := makeCompoundMessages(msgs)
 
-	// Send the message
-	return m.rawSendMsgPacket(a, nil, compound.Bytes())
+	// Send the messages.
+	for _, compound := range compounds {
+		if err := m.rawSendMsgPacket(a, nil, compound.Bytes()); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // rawSendMsgPacket is used to send message via packet to another host without
@@ -855,12 +801,9 @@ func (m *Memberlist) rawSendMsgPacket(a Address, node *Node, msg []byte) error {
 	// Check if we have encryption enabled
 	if m.config.EncryptionEnabled() && m.config.GossipVerifyOutgoing {
 		// Encrypt the payload
-		var (
-			primaryKey  = m.config.Keyring.GetPrimaryKey()
-			packetLabel = []byte(m.config.Label)
-			buf         bytes.Buffer
-		)
-		err := encryptPayload(m.encryptionVersion(), primaryKey, msg, packetLabel, &buf)
+		var buf bytes.Buffer
+		primaryKey := m.config.Keyring.GetPrimaryKey()
+		err := encryptPayload(m.encryptionVersion(), primaryKey, msg, nil, &buf)
 		if err != nil {
 			m.logger.Printf("[ERR] memberlist: Encryption of message failed: %v", err)
 			return err
@@ -875,7 +818,7 @@ func (m *Memberlist) rawSendMsgPacket(a Address, node *Node, msg []byte) error {
 
 // rawSendMsgStream is used to stream a message to another host without
 // modification, other than applying compression and encryption if enabled.
-func (m *Memberlist) rawSendMsgStream(conn net.Conn, sendBuf []byte, streamLabel string) error {
+func (m *Memberlist) rawSendMsgStream(conn net.Conn, sendBuf []byte) error {
 	// Check if compression is enabled
 	if m.config.EnableCompression {
 		compBuf, err := compressPayload(sendBuf)
@@ -888,7 +831,7 @@ func (m *Memberlist) rawSendMsgStream(conn net.Conn, sendBuf []byte, streamLabel
 
 	// Check if encryption is enabled
 	if m.config.EncryptionEnabled() && m.config.GossipVerifyOutgoing {
-		crypt, err := m.encryptLocalState(sendBuf, streamLabel)
+		crypt, err := m.encryptLocalState(sendBuf)
 		if err != nil {
 			m.logger.Printf("[ERROR] memberlist: Failed to encrypt local state: %v", err)
 			return err
@@ -934,8 +877,7 @@ func (m *Memberlist) sendUserMsg(a Address, sendBuf []byte) error {
 	if _, err := bufConn.Write(sendBuf); err != nil {
 		return err
 	}
-
-	return m.rawSendMsgStream(conn, bufConn.Bytes(), m.config.Label)
+	return m.rawSendMsgStream(conn, bufConn.Bytes())
 }
 
 // sendAndReceiveState is used to initiate a push/pull over a stream with a
@@ -955,12 +897,12 @@ func (m *Memberlist) sendAndReceiveState(a Address, join bool) ([]pushNodeState,
 	metrics.IncrCounter([]string{"memberlist", "tcp", "connect"}, 1)
 
 	// Send our state
-	if err := m.sendLocalState(conn, join, m.config.Label); err != nil {
+	if err := m.sendLocalState(conn, join); err != nil {
 		return nil, nil, err
 	}
 
 	conn.SetDeadline(time.Now().Add(m.config.TCPTimeout))
-	msgType, bufConn, dec, err := m.readStream(conn, m.config.Label)
+	msgType, bufConn, dec, err := m.readStream(conn)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -985,7 +927,7 @@ func (m *Memberlist) sendAndReceiveState(a Address, join bool) ([]pushNodeState,
 }
 
 // sendLocalState is invoked to send our local state over a stream connection.
-func (m *Memberlist) sendLocalState(conn net.Conn, join bool, streamLabel string) error {
+func (m *Memberlist) sendLocalState(conn net.Conn, join bool) error {
 	// Setup a deadline
 	conn.SetDeadline(time.Now().Add(m.config.TCPTimeout))
 
@@ -1042,11 +984,11 @@ func (m *Memberlist) sendLocalState(conn net.Conn, join bool, streamLabel string
 	}
 
 	// Get the send buffer
-	return m.rawSendMsgStream(conn, bufConn.Bytes(), streamLabel)
+	return m.rawSendMsgStream(conn, bufConn.Bytes())
 }
 
 // encryptLocalState is used to help encrypt local state before sending
-func (m *Memberlist) encryptLocalState(sendBuf []byte, streamLabel string) ([]byte, error) {
+func (m *Memberlist) encryptLocalState(sendBuf []byte) ([]byte, error) {
 	var buf bytes.Buffer
 
 	// Write the encryptMsg byte
@@ -1059,15 +1001,9 @@ func (m *Memberlist) encryptLocalState(sendBuf []byte, streamLabel string) ([]by
 	binary.BigEndian.PutUint32(sizeBuf, uint32(encLen))
 	buf.Write(sizeBuf)
 
-	// Authenticated Data is:
-	//
-	//   [messageType; byte] [messageLength; uint32] [stream_label; optional]
-	//
-	dataBytes := appendBytes(buf.Bytes()[:5], []byte(streamLabel))
-
 	// Write the encrypted cipher text to the buffer
 	key := m.config.Keyring.GetPrimaryKey()
-	err := encryptPayload(encVsn, key, sendBuf, dataBytes, &buf)
+	err := encryptPayload(encVsn, key, sendBuf, buf.Bytes()[:5], &buf)
 	if err != nil {
 		return nil, err
 	}
@@ -1075,7 +1011,7 @@ func (m *Memberlist) encryptLocalState(sendBuf []byte, streamLabel string) ([]by
 }
 
 // decryptRemoteState is used to help decrypt the remote state
-func (m *Memberlist) decryptRemoteState(bufConn io.Reader, streamLabel string) ([]byte, error) {
+func (m *Memberlist) decryptRemoteState(bufConn io.Reader) ([]byte, error) {
 	// Read in enough to determine message length
 	cipherText := bytes.NewBuffer(nil)
 	cipherText.WriteByte(byte(encryptMsg))
@@ -1097,13 +1033,8 @@ func (m *Memberlist) decryptRemoteState(bufConn io.Reader, streamLabel string) (
 		return nil, err
 	}
 
-	// Decrypt the cipherText with some authenticated data
-	//
-	// Authenticated Data is:
-	//
-	//   [messageType; byte] [messageLength; uint32] [label_data; optional]
-	//
-	dataBytes := appendBytes(cipherText.Bytes()[:5], []byte(streamLabel))
+	// Decrypt the cipherText
+	dataBytes := cipherText.Bytes()[:5]
 	cipherBytes := cipherText.Bytes()[5:]
 
 	// Decrypt the payload
@@ -1111,18 +1042,15 @@ func (m *Memberlist) decryptRemoteState(bufConn io.Reader, streamLabel string) (
 	return decryptPayload(keys, cipherBytes, dataBytes)
 }
 
-// readStream is used to read messages from a stream connection, decrypting and
+// readStream is used to read from a stream connection, decrypting and
 // decompressing the stream if necessary.
-//
-// The provided streamLabel if present will be authenticated during decryption
-// of each message.
-func (m *Memberlist) readStream(conn net.Conn, streamLabel string) (messageType, io.Reader, *codec.Decoder, error) {
+func (m *Memberlist) readStream(conn net.Conn) (messageType, io.Reader, *codec.Decoder, error) {
 	// Created a buffered reader
 	var bufConn io.Reader = bufio.NewReader(conn)
 
 	// Read the message type
 	buf := [1]byte{0}
-	if _, err := io.ReadFull(bufConn, buf[:]); err != nil {
+	if _, err := bufConn.Read(buf[:]); err != nil {
 		return 0, nil, nil, err
 	}
 	msgType := messageType(buf[0])
@@ -1134,7 +1062,7 @@ func (m *Memberlist) readStream(conn net.Conn, streamLabel string) (messageType,
 				fmt.Errorf("Remote state is encrypted and encryption is not configured")
 		}
 
-		plain, err := m.decryptRemoteState(bufConn, streamLabel)
+		plain, err := m.decryptRemoteState(bufConn)
 		if err != nil {
 			return 0, nil, nil, err
 		}
@@ -1314,11 +1242,11 @@ func (m *Memberlist) sendPingAndWaitForAck(a Address, ping ping, deadline time.T
 		return false, err
 	}
 
-	if err = m.rawSendMsgStream(conn, out.Bytes(), m.config.Label); err != nil {
+	if err = m.rawSendMsgStream(conn, out.Bytes()); err != nil {
 		return false, err
 	}
 
-	msgType, _, dec, err := m.readStream(conn, m.config.Label)
+	msgType, _, dec, err := m.readStream(conn)
 	if err != nil {
 		return false, err
 	}

@@ -21,7 +21,7 @@ import (
 	jaegerproto "github.com/jaegertracing/jaeger/model"
 	"go.opentelemetry.io/collector/model/pdata"
 
-	jaegertranslator "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 )
 
 type jaegerProtoSpanUnmarshaler struct {
@@ -35,7 +35,7 @@ func (j jaegerProtoSpanUnmarshaler) Unmarshal(bytes []byte) (pdata.Traces, error
 	if err != nil {
 		return pdata.NewTraces(), err
 	}
-	return jaegerSpanToTraces(span), nil
+	return jaegerSpanToTraces(span)
 }
 
 func (j jaegerProtoSpanUnmarshaler) Encoding() string {
@@ -53,17 +53,17 @@ func (j jaegerJSONSpanUnmarshaler) Unmarshal(data []byte) (pdata.Traces, error) 
 	if err != nil {
 		return pdata.NewTraces(), err
 	}
-	return jaegerSpanToTraces(span), nil
+	return jaegerSpanToTraces(span)
 }
 
 func (j jaegerJSONSpanUnmarshaler) Encoding() string {
 	return "jaeger_json"
 }
 
-func jaegerSpanToTraces(span *jaegerproto.Span) pdata.Traces {
+func jaegerSpanToTraces(span *jaegerproto.Span) (pdata.Traces, error) {
 	batch := jaegerproto.Batch{
 		Spans:   []*jaegerproto.Span{span},
 		Process: span.Process,
 	}
-	return jaegertranslator.ProtoBatchToInternalTraces(batch)
+	return jaeger.ProtoToTraces([]*jaegerproto.Batch{&batch})
 }

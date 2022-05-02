@@ -1,6 +1,6 @@
 ---
 title: API documentation
-weight: 350
+weight: 500
 ---
 
 # Tempo's API
@@ -29,6 +29,7 @@ For the sake of clarity, in this document we have grouped API endpoints by servi
 | [Shutdown](#shutdown) | Ingester |  HTTP | `GET,POST /shutdown` |
 | [Distributor ring status](#distributor-ring-status) (*) | Distributor |  HTTP | `GET /distributor/ring` |
 | [Ingesters ring status](#ingesters-ring-status) | Distributor, Querier |  HTTP | `GET /ingester/ring` |
+| [Metrics-generator ring status](#metrics-generator-ring-status) (*) | Distributor |  HTTP | `GET /metrics-generator/ring` |
 | [Compactor ring status](#compactor-ring-status) | Compactor |  HTTP | `GET /compactor/ring` |
 | [Status](#status) | Status |  HTTP | `GET /status` |
 
@@ -90,13 +91,18 @@ Tempo's Query API is simple. The following request is used to retrieve a trace f
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
 
 ```
-GET /api/traces/<traceid>
+GET /api/traces/<traceid>?start=<start>&end=<end>
 ```
+Parameters:
+- `start = (unix epoch seconds)`
+  Optional.  Along with `end` define a time range from which traces should be returned. 
+- `end = (unix epoch seconds)`
+  Optional.  Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` will include traces for the specified time range only. If the parameters are not provided then Tempo will check for the trace across all blocks in backend. If the parameters are provided, it will only check in the blocks within the specified time range, this can result in trace not being found or partial results if it does not fall in the specified time range.
 
 The following query API is also provided on the querier service for _debugging_ purposes.
 
 ```
-GET /querier/api/traces/<traceid>?mode=xxxx&blockStart=0000&blockEnd=FFFF
+GET /querier/api/traces/<traceid>?mode=xxxx&blockStart=0000&blockEnd=FFFF&start=<start>&end=<end>
 ```
 Parameters:
 - `mode = (blocks|ingesters|all)`
@@ -110,6 +116,10 @@ Parameters:
   Specifies the blockID finish boundary. If specified, the querier will only search blocks with IDs < blockEnd.
   Default = `FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF`
   Example: `blockStart=FFFFFFFF-FFFF-FFFF-FFFF-456787652341`
+- `start = (unix epoch seconds)`
+  Optional.  Along with `end` define a time range from which traces should be returned. 
+- `end = (unix epoch seconds)`
+  Optional.  Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` will include blocks for the specified time range only.
 
 Note that this API is not meant to be used directly unless for debugging the sharding functionality of the query 
 frontend.
@@ -299,7 +309,17 @@ Displays a web page with the ingesters hash ring status, including the state, he
 
 _For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring)._
 
+### Metrics-generator ring status
 
+```
+GET /metrics-generator/ring
+```
+
+Displays a web page with the metrics-generator hash ring status, including the state, health, and last heartbeat time of each metrics-generator.
+
+This endpoint is only available when the metrics-generator is enabled. See [metrics-generator](../configuration/_index.md#metrics-generator).
+
+_For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring)._
 
 ### Compactor ring status
 

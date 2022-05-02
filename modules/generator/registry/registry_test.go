@@ -77,7 +77,7 @@ func TestManagedRegistry_histogram(t *testing.T) {
 
 	histogram := registry.NewHistogram("histogram", []string{"label"}, []float64{1.0, 2.0})
 
-	histogram.Observe(NewLabelValues([]string{"value-1"}), 1.0)
+	histogram.ObserveWithExemplar(NewLabelValues([]string{"value-1"}), 1.0, "")
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "histogram_count", "label": "value-1", "instance": mustGetHostname()}, 0, 1.0),
@@ -170,6 +170,26 @@ func TestManagedRegistry_maxSeries(t *testing.T) {
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
 
+func TestManagedRegistry_disableCollection(t *testing.T) {
+	appender := &capturingAppender{}
+
+	overrides := &mockOverrides{
+		disableCollection: true,
+	}
+	registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
+	defer registry.Close()
+
+	counter := registry.NewCounter("metric_1", nil)
+	counter.Inc(nil, 1.0)
+
+	// active series are still tracked
+	assert.Equal(t, uint32(1), registry.activeSeries.Load())
+	// but no samples are collected and sent out
+	registry.collectMetrics(context.Background())
+	assert.Empty(t, appender.samples)
+	assert.Empty(t, appender.exemplars)
+}
+
 func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender *capturingAppender, expectedSamples []sample) {
 	assert.Equal(t, uint32(len(expectedSamples)), r.activeSeries.Load())
 
@@ -186,7 +206,8 @@ func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender 
 }
 
 type mockOverrides struct {
-	maxActiveSeries uint32
+	maxActiveSeries   uint32
+	disableCollection bool
 }
 
 var _ Overrides = (*mockOverrides)(nil)
@@ -197,6 +218,10 @@ func (m *mockOverrides) MetricsGeneratorMaxActiveSeries(userID string) uint32 {
 
 func (m *mockOverrides) MetricsGeneratorCollectionInterval(userID string) time.Duration {
 	return 15 * time.Second
+}
+
+func (m *mockOverrides) MetricsGeneratorDisableCollection(userID string) bool {
+	return m.disableCollection
 }
 
 func mustGetHostname() string {

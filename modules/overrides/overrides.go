@@ -286,6 +286,22 @@ func (o *Overrides) MetricsGeneratorCollectionInterval(userID string) time.Durat
 	return o.getOverridesForUser(userID).MetricsGeneratorCollectionInterval
 }
 
+// MetricsGeneratorDisableCollection controls whether metrics are remote written for this tenant.
+func (o *Overrides) MetricsGeneratorDisableCollection(userID string) bool {
+	return o.getOverridesForUser(userID).MetricsGeneratorDisableCollection
+}
+
+// MetricsGeneratorForwarderQueueSize is the size of the buffer of requests to send to the metrics-generator
+// from the distributor for this tenant.
+func (o *Overrides) MetricsGeneratorForwarderQueueSize(userID string) int {
+	return o.getOverridesForUser(userID).MetricsGeneratorForwarderQueueSize
+}
+
+// MetricsGeneratorForwarderWorkers is the number of workers to send metrics to the metrics-generator
+func (o *Overrides) MetricsGeneratorForwarderWorkers(userID string) int {
+	return o.getOverridesForUser(userID).MetricsGeneratorForwarderWorkers
+}
+
 // BlockRetention is the duration of the block retention for this tenant.
 func (o *Overrides) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).BlockRetention)
@@ -325,6 +341,5 @@ func (o *Overrides) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.IngestionRateLimitBytes), MetricIngestionRateLimitBytes, tenant)
 		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.IngestionBurstSizeBytes), MetricIngestionBurstSizeBytes, tenant)
 		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.BlockRetention), MetricBlockRetention, tenant)
-
 	}
 }

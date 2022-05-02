@@ -39,7 +39,6 @@ type Generator struct {
 	overrides metricsGeneratorOverrides
 
 	ringLifecycler *ring.BasicLifecycler
-	ring           *ring.Ring
 
 	instancesMtx sync.RWMutex
 	instances    map[string]*instance
@@ -98,12 +97,6 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		return nil, fmt.Errorf("create ring lifecycler: %w", err)
 	}
 
-	ringCfg := cfg.Ring.ToRingConfig()
-	g.ring, err = ring.NewWithStoreClientAndStrategy(ringCfg, ringNameForServer, RingKey, ringStore, ring.NewIgnoreUnhealthyInstancesReplicationStrategy(), prometheus.WrapRegistererWithPrefix("cortex_", reg), g.logger)
-	if err != nil {
-		return nil, fmt.Errorf("create ring client: %w", err)
-	}
-
 	g.Service = services.NewBasicService(g.starting, g.running, g.stopping)
 	return g, nil
 }
@@ -122,7 +115,7 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 		}
 	}()
 
-	g.subservices, err = services.NewManager(g.ringLifecycler, g.ring)
+	g.subservices, err = services.NewManager(g.ringLifecycler)
 	if err != nil {
 		return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
 	}

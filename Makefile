@@ -200,8 +200,10 @@ update-mod:
 
 
 ### Release (intended to be used in the .github/workflows/release.yml)
+# Note: goreleaser is pinned to 1.6.3 because newer versions require go1.18. Once we have migrated 
+#  the project and CI pipeline to 1.18 we can go back to using @latest.
 $(GORELEASER):
-	go install github.com/goreleaser/goreleaser@latest
+	go install github.com/goreleaser/goreleaser@v1.6.3
 
 release: $(GORELEASER)
 	$(GORELEASER) build --skip-validate --rm-dist

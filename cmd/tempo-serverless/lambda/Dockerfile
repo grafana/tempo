@@ -21,7 +21,7 @@ COPY lambda /
 # copy in https://github.com/treasure-data/lambda-local-proxy to include in the docker image.
 #   this project acts as an "alb" and translates normal http requests into Lambda invokes
 RUN    curl -L https://github.com/treasure-data/lambda-local-proxy/releases/download/v0.0.5/lambda-local-proxy_0.0.5_Linux_x86_64.tar.gz | tar xvz -C / \
-    && chmod +x /lambda-local-proxy
+  && chmod +x /lambda-local-proxy
 
 #
 # https://docs.aws.amazon.com/lambda/latest/dg/images-create.html
@@ -34,12 +34,11 @@ COPY --from=build /lambda-local-proxy /lambda-local-proxy
 RUN chmod +x /lambda-local-proxy
 
 RUN echo -e '\
-#!/bin/bash \n\
-AWS_REGION=dummy AWS_ACCESS_KEY_ID=dummy AWS_SECRET_ACCESS_KEY=dummy /lambda-local-proxy -e http://localhost:8080 -p 9000 -f function & \n\
-exec /lambda-entrypoint.sh lambda \n\
-' > /run.sh
+  #!/bin/bash \n\
+  AWS_REGION=dummy AWS_ACCESS_KEY_ID=dummy AWS_SECRET_ACCESS_KEY=dummy /lambda-local-proxy -e http://localhost:8080 -p 9000 -f function & \n\
+  exec /lambda-entrypoint.sh lambda \n\
+  ' > /run.sh
 RUN chmod +x /run.sh
 
 # run lambda-local-proxy and the actual lambda runtime itself.
 ENTRYPOINT /run.sh
-           

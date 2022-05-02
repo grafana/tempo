@@ -44,8 +44,11 @@ type QueueSettings struct {
 	QueueSize int `mapstructure:"queue_size"`
 }
 
-// DefaultQueueSettings returns the default settings for QueueSettings.
-func DefaultQueueSettings() QueueSettings {
+// Deprecated: [v0.46.0] use NewDefaultQueueSettings instead.
+var DefaultQueueSettings = NewDefaultQueueSettings
+
+// NewDefaultQueueSettings returns the default settings for QueueSettings.
+func NewDefaultQueueSettings() QueueSettings {
 	return QueueSettings{
 		Enabled:      true,
 		NumConsumers: 10,
@@ -55,6 +58,19 @@ func DefaultQueueSettings() QueueSettings {
 		// multiply that by the number of requests per seconds.
 		QueueSize: 5000,
 	}
+}
+
+// Validate checks if the QueueSettings configuration is valid
+func (qCfg *QueueSettings) Validate() error {
+	if !qCfg.Enabled {
+		return nil
+	}
+
+	if qCfg.QueueSize <= 0 {
+		return fmt.Errorf("queue size must be positive")
+	}
+
+	return nil
 }
 
 type queuedRetrySender struct {

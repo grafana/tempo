@@ -56,7 +56,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
-	cfg.Dimensions = []string{"foo", "bar"}
+	cfg.Dimensions = []string{"foo", "bar", "does-not-exist"}
 
 	p := New(cfg, testRegistry)
 	defer p.Shutdown(context.Background())
@@ -83,12 +83,13 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
-		"service":     "test-service",
-		"span_name":   "test",
-		"span_kind":   "SPAN_KIND_CLIENT",
-		"span_status": "STATUS_CODE_OK",
-		"foo":         "foo-value",
-		"bar":         "bar-value",
+		"service":        "test-service",
+		"span_name":      "test",
+		"span_kind":      "SPAN_KIND_CLIENT",
+		"span_status":    "STATUS_CODE_OK",
+		"foo":            "foo-value",
+		"bar":            "bar-value",
+		"does_not_exist": "",
 	})
 
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))

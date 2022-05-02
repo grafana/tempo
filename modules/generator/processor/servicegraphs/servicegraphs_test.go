@@ -26,6 +26,7 @@ func TestServiceGraphs(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 
 	cfg.HistogramBuckets = []float64{2.0, 3.0}
+	cfg.Dimensions = []string{"component", "does-not-exist"}
 
 	p := New(cfg, "test", testRegistry, log.NewNopLogger())
 	defer p.Shutdown(context.Background())
@@ -40,17 +41,22 @@ func TestServiceGraphs(t *testing.T) {
 	sgp.store.Expire()
 
 	lbAppLabels := labels.FromMap(map[string]string{
-		"client": "lb",
-		"server": "app",
+		"client":         "lb",
+		"server":         "app",
+		"component":      "net/http",
+		"does_not_exist": "",
 	})
 	appDbLabels := labels.FromMap(map[string]string{
-		"client": "app",
-		"server": "db",
+		"client":         "app",
+		"server":         "db",
+		"component":      "net/http",
+		"does_not_exist": "",
 	})
 
 	fmt.Println(testRegistry)
 
 	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_total`, appDbLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, appDbLabels))
 
 	assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(appDbLabels, 2.0)))
 	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(appDbLabels, 3.0)))
@@ -65,6 +71,7 @@ func TestServiceGraphs(t *testing.T) {
 	assert.Equal(t, 5.0, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, appDbLabels))
 
 	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_total`, lbAppLabels))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_failed_total`, lbAppLabels))
 
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(lbAppLabels, 2.0)))
 	assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(lbAppLabels, 3.0)))

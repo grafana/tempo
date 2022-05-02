@@ -9,7 +9,7 @@ Tempo uses the [Consistent Hash Ring](https://cortexmetrics.io/docs/architecture
 
 ### Lord of the Rings?
 
-In Tempo there are three consistent hash rings that are used for three distinct reasons: distributor, ingester and compactor. 
+There are four consistent hash rings : distributor, ingester, metrics-generator, and compactor. Each exists for a distinct reason.
 
 #### Distributor
 **Participants:** Distributors  
@@ -24,6 +24,12 @@ This ring is only used when "global" rate limits are used. The distributors use 
 **Used by:** Distributors,Queriers
 
 This ring is used by the distributors to load balance traffic into the ingesters. When spans are received the trace id is hashed and they are sent to the appropriate ingesters based on token ownership in the ring. Queriers also use this ring to find the ingesters for querying recent traces.
+
+#### Metrics-generator
+**Participants:** Metrics-generators  
+**Used by:** Distributors
+
+This ring is used by distributors to load balance traffic to the metrics-generators. When spans are received, the trace ID is hashed, and the traces are sent to the appropriate metrics-generators based on token ownership in the ring.
 
 #### Compactor
 **Participants:** Compactors  
@@ -47,6 +53,12 @@ Unhealthy distributors have little impact but should be forgotten to reduce cost
 **Path:** `/ingester/ring`
 
 Unhealthy ingesters will cause writes to fail. If the ingester is really gone forget immediately!
+
+#### Metrics-generators
+**Available on:** Distributors  
+**Path:** `/metrics-generator/ring`
+
+Unhealthy metrics-generators will cause writes to fail. If the metrics-generator is really gone, forget it immediately.
 
 #### Compactor
 **Available on:** Compactors  
