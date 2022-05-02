@@ -113,7 +113,7 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 
 	blockID := uuid.New()
 
-	head, err := wal.NewBlock(blockID, testTenantID, "")
+	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
 	assert.NoError(t, err)
 
 	complete, err := w.CompleteBlock(head, &mockCombiner{})
