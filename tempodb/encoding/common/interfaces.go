@@ -51,3 +51,17 @@ func DefaultCompactionOptions() CompactionOptions {
 		OutputBlocks:       1,
 	}
 }
+
+type Iterator interface {
+	// Next returns the next trace and optionally the start and stop times
+	// for the trace that may have been adjusted.
+	Next(ctx context.Context) (ID, []byte, error)
+	Close()
+}
+
+type BackendBlock interface {
+	Finder
+	Searcher
+
+	BlockMeta() *backend.BlockMeta
+}

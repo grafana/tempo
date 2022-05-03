@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 // backendSearchBlockWriter is a DataWriter for search data. Instead of receiving bytes slices, it
@@ -30,10 +30,10 @@ type backendSearchBlockWriter struct {
 
 var _ common.DataWriterGeneric = (*backendSearchBlockWriter)(nil)
 
-func newBackendSearchBlockWriter(blockID uuid.UUID, tenantID string, w backend.Writer, v encoding.VersionedEncoding, enc backend.Encoding) (*backendSearchBlockWriter, error) {
+func newBackendSearchBlockWriter(blockID uuid.UUID, tenantID string, w backend.Writer, enc backend.Encoding) (*backendSearchBlockWriter, error) {
 	finalBuf := &bytes.Buffer{}
 
-	dw, err := v.NewDataWriter(finalBuf, enc)
+	dw, err := v2.NewDataWriter(finalBuf, enc)
 	if err != nil {
 		return nil, err
 	}

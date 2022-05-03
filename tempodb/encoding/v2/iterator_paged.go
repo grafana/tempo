@@ -29,7 +29,7 @@ type pagedIterator struct {
 
 // newPagedIterator returns a backend.Iterator.  This iterator is used to iterate
 //  through objects stored in object storage.
-func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader, objectRW common.ObjectReaderWriter) Iterator {
+func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader, objectRW common.ObjectReaderWriter) common.Iterator {
 	return &pagedIterator{
 		dataReader:     dataReader,
 		indexReader:    indexReader,
@@ -42,7 +42,7 @@ func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dat
 
 // newPartialPagedIterator returns a backend.Iterator.  This iterator is used to iterate
 //  through a contiguous and limited set of pages in object storage.
-func newPartialPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader, objectRW common.ObjectReaderWriter, startIndexPage int, totalIndexPages int) Iterator {
+func newPartialPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader, objectRW common.ObjectReaderWriter, startIndexPage int, totalIndexPages int) common.Iterator {
 	return &pagedIterator{
 		dataReader:     dataReader,
 		indexReader:    indexReader,
