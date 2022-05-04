@@ -53,6 +53,8 @@ per_tenant_override_period: 1m
 
 metrics_generator_send_queue_size: 10
 metrics_generator_send_workers: 1
+
+max_search_duration: 5m
 `
 	inputJSON := `
 {
@@ -73,7 +75,9 @@ metrics_generator_send_workers: 1
 	"per_tenant_override_period": "1m",
 
 	"metrics_generator_send_queue_size": 10,
-	"metrics_generator_send_workers": 1
+	"metrics_generator_send_workers": 1,
+
+	"max_search_duration": "5m"
 }`
 
 	limitsYAML := Limits{}
