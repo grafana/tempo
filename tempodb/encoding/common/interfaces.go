@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -41,6 +42,7 @@ type CompactionOptions struct {
 	PrefetchTraceCount int // How many traces to prefetch async.
 	OutputBlocks       uint8
 	BlockConfig        BlockConfig
+	Combiner           model.ObjectCombiner
 }
 
 func DefaultCompactionOptions() CompactionOptions {

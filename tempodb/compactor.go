@@ -127,11 +127,14 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		return err
 	}
 
-	/*combiner := instrumentedObjectCombiner{
+	compactionLevel := compactionLevelForBlocks(blockMetas)
+	compactionLevelLabel := strconv.Itoa(int(compactionLevel))
+
+	combiner := instrumentedObjectCombiner{
 		tenant:               tenantID,
 		inner:                rw.compactorSharder,
 		compactionLevelLabel: compactionLevelLabel,
-	}*/
+	}
 
 	compactor := enc.NewCompactor()
 	opts := common.DefaultCompactionOptions()
@@ -139,6 +142,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	opts.ChunkSizeBytes = rw.compactorCfg.ChunkSizeBytes
 	opts.FlushSizeBytes = rw.compactorCfg.FlushSizeBytes
 	opts.OutputBlocks = outputBlocks
+	opts.Combiner = combiner
 	newCompactedBlocks, err := compactor.Compact(ctx, rw.logger, rw.r, rw.getWriterForBlock, blockMetas, opts)
 	if err != nil {
 		return err
@@ -147,8 +151,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	// mark old blocks compacted so they don't show up in polling
 	markCompacted(rw, tenantID, blockMetas, newCompactedBlocks)
 
-	compactionLabel := strconv.Itoa(int(newCompactedBlocks[0].CompactionLevel - 1))
-	metrics.MetricCompactionBlocks.WithLabelValues(compactionLabel).Add(float64(len(blockMetas)))
+	metrics.MetricCompactionBlocks.WithLabelValues(compactionLevelLabel).Add(float64(len(blockMetas)))
 
 	return nil
 }
@@ -192,7 +195,19 @@ func measureOutstandingBlocks(tenantID string, blockSelector CompactionBlockSele
 	metrics.MetricCompactionOutstandingBlocks.WithLabelValues(tenantID).Set(float64(totalOutstandingBlocks))
 }
 
-/*type instrumentedObjectCombiner struct {
+func compactionLevelForBlocks(blockMetas []*backend.BlockMeta) uint8 {
+	level := uint8(0)
+
+	for _, m := range blockMetas {
+		if m.CompactionLevel > level {
+			level = m.CompactionLevel
+		}
+	}
+
+	return level
+}
+
+type instrumentedObjectCombiner struct {
 	tenant               string
 	compactionLevelLabel string
 	inner                CompactorSharder
@@ -202,7 +217,7 @@ func measureOutstandingBlocks(tenantID string, blockSelector CompactionBlockSele
 func (i instrumentedObjectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
 	b, wasCombined, err := i.inner.Combine(dataEncoding, i.tenant, objs...)
 	if wasCombined {
-		metricCompactionObjectsCombined.WithLabelValues(i.compactionLevelLabel).Inc()
+		metrics.MetricCompactionObjectsCombined.WithLabelValues(i.compactionLevelLabel).Inc()
 	}
 	return b, wasCombined, err
-}*/
+}
