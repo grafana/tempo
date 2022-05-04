@@ -19,6 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
 
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -38,7 +39,7 @@ type QueryFrontend struct {
 }
 
 // New returns a new QueryFrontend
-func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
+func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store storage.Store, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
 	level.Info(logger).Log("msg", "creating middleware in query frontend")
 
 	if cfg.QueryShards < minQueryShards || cfg.QueryShards > maxQueryShards {
@@ -67,7 +68,7 @@ func New(cfg Config, next http.RoundTripper, store storage.Store, logger log.Log
 
 	// tracebyid middleware
 	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
-	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, store, logger), retryWare)
+	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, o, store, logger), retryWare)
 
 	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
 		"op": traceByIDOp,
@@ -174,10 +175,10 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 }
 
 // newSearchMiddleware creates a new frontend middleware to handle search and search tags requests.
-func newSearchMiddleware(cfg Config, reader tempodb.Reader, logger log.Logger) Middleware {
+func newSearchMiddleware(cfg Config, o *overrides.Overrides, reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		ingesterSearchRT := next
-		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, cfg.Search.Sharder, logger))
+		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, o, cfg.Search.Sharder, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// backend search queries require sharding so we pass through a special roundtripper

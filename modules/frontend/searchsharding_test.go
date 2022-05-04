@@ -16,11 +16,13 @@ import (
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
@@ -592,6 +594,9 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 				}, nil
 			})
 
+			o, err := overrides.NewOverrides(overrides.Limits{})
+			require.NoError(t, err)
+
 			sharder := newSearchSharder(&mockReader{
 				metas: []*backend.BlockMeta{ // one block with 2 records that are each the target bytes per request will force 2 sub queries
 					{
@@ -602,7 +607,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 						BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					},
 				},
-			}, SearchSharderConfig{
+			}, o, SearchSharderConfig{
 				ConcurrentRequests:    1, // 1 concurrent request to force order
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			}, log.NewNopLogger())
@@ -641,7 +646,10 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		return nil, nil
 	})
 
-	sharder := newSearchSharder(&mockReader{}, SearchSharderConfig{
+	o, err := overrides.NewOverrides(overrides.Limits{})
+	require.NoError(t, err)
+
+	sharder := newSearchSharder(&mockReader{}, o, SearchSharderConfig{
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
@@ -655,13 +663,12 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 
 	// start/end outside of max duration
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
-	req.Header.Set(user.OrgIDHeaderName, "blerg")
+	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
 	resp, err = testRT.RoundTrip(req)
 	testBadRequest(t, resp, err, "range specified by start and end exceeds 5m0s. received start=1000 end=1500")
 
 	// bad request
 	req = httptest.NewRequest("GET", "/?start=asdf&end=1500", nil)
-	req.Header.Set(user.OrgIDHeaderName, "blerg")
 	resp, err = testRT.RoundTrip(req)
 	testBadRequest(t, resp, err, "invalid start: strconv.ParseInt: parsing \"asdf\": invalid syntax")
 }
@@ -679,4 +686,31 @@ func TestAdjustLimit(t *testing.T) {
 	assert.Equal(t, uint32(3), adjustLimit(3, 10, 0))
 	assert.Equal(t, uint32(3), adjustLimit(3, 10, 20))
 	assert.Equal(t, uint32(20), adjustLimit(25, 10, 20))
+}
+
+func TestMaxDuration(t *testing.T) {
+	//
+	o, err := overrides.NewOverrides(overrides.Limits{})
+	require.NoError(t, err)
+	sharder := searchSharder{
+		cfg: SearchSharderConfig{
+			MaxDuration: 5 * time.Minute,
+		},
+		overrides: o,
+	}
+	actual := sharder.maxDuration("test")
+	assert.Equal(t, 5*time.Minute, actual)
+
+	o, err = overrides.NewOverrides(overrides.Limits{
+		MaxSearchDuration: model.Duration(10 * time.Minute),
+	})
+	require.NoError(t, err)
+	sharder = searchSharder{
+		cfg: SearchSharderConfig{
+			MaxDuration: 5 * time.Minute,
+		},
+		overrides: o,
+	}
+	actual = sharder.maxDuration("test")
+	assert.Equal(t, 10*time.Minute, actual)
 }

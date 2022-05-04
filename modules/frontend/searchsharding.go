@@ -13,6 +13,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -124,8 +125,9 @@ func (r *searchResponse) result() *tempopb.SearchResponse {
 }
 
 type searchSharder struct {
-	next   http.RoundTripper
-	reader tempodb.Reader
+	next      http.RoundTripper
+	reader    tempodb.Reader
+	overrides *overrides.Overrides
 
 	cfg    SearchSharderConfig
 	logger log.Logger
@@ -142,13 +144,14 @@ type SearchSharderConfig struct {
 }
 
 // newSearchSharder creates a sharding middleware for search
-func newSearchSharder(reader tempodb.Reader, cfg SearchSharderConfig, logger log.Logger) Middleware {
+func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchSharderConfig, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
-			next:   next,
-			reader: reader,
-			logger: logger,
-			cfg:    cfg,
+			next:      next,
+			reader:    reader,
+			overrides: o,
+			logger:    logger,
+			cfg:       cfg,
 		}
 	})
 }
@@ -169,14 +172,8 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		}, nil
 	}
 
+	// adjust limit based on config
 	searchReq.Limit = adjustLimit(searchReq.Limit, s.cfg.DefaultLimit, s.cfg.MaxLimit)
-
-	if s.cfg.MaxDuration != 0 && time.Duration(searchReq.End-searchReq.Start)*time.Second > s.cfg.MaxDuration {
-		return &http.Response{
-			StatusCode: http.StatusBadRequest,
-			Body:       io.NopCloser(strings.NewReader(fmt.Sprintf("range specified by start and end exceeds %s. received start=%d end=%d", s.cfg.MaxDuration, searchReq.Start, searchReq.End))),
-		}, nil
-	}
 
 	ctx := r.Context()
 	tenantID, err := user.ExtractOrgID(ctx)
@@ -188,6 +185,15 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardSearch")
 	defer span.Finish()
+
+	// calculate and enforce max search duration
+	maxDuration := s.maxDuration(tenantID)
+	if maxDuration != 0 && time.Duration(searchReq.End-searchReq.Start)*time.Second > maxDuration {
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Body:       io.NopCloser(strings.NewReader(fmt.Sprintf("range specified by start and end exceeds %s. received start=%d end=%d", s.cfg.MaxDuration, searchReq.Start, searchReq.End))),
+		}, nil
+	}
 
 	ingesterReq, err := s.ingesterRequest(ctx, tenantID, r, *searchReq)
 	if err != nil {
@@ -438,4 +444,14 @@ func adjustLimit(limit, defaultLimit, maxLimit uint32) uint32 {
 	}
 
 	return limit
+}
+
+func (s *searchSharder) maxDuration(tenantID string) time.Duration {
+	// check overrides first, if no overrides then grab from our config
+	maxDuration := s.overrides.MaxSearchDuration(tenantID)
+	if maxDuration != 0 {
+		return maxDuration
+	}
+
+	return s.cfg.MaxDuration
 }
