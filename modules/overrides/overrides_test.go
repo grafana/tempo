@@ -28,22 +28,22 @@ func TestOverrides(t *testing.T) {
 		expectedIngestionBurstSpans map[string]int
 		expectedMaxSearchDuration   map[string]int
 	}{
-		// {
-		// 	name: "limits only",
-		// 	limits: Limits{
-		// 		MaxGlobalTracesPerUser:  1,
-		// 		MaxLocalTracesPerUser:   2,
-		// 		MaxBytesPerTrace:        3,
-		// 		IngestionBurstSizeBytes: 4,
-		// 		IngestionRateLimitBytes: 5,
-		// 	},
-		// 	expectedMaxGlobalTraces:     map[string]int{"user1": 1, "user2": 1},
-		// 	expectedMaxLocalTraces:      map[string]int{"user1": 2, "user2": 2},
-		// 	expectedMaxBytesPerTrace:    map[string]int{"user1": 3, "user2": 3},
-		// 	expectedIngestionBurstSpans: map[string]int{"user1": 4, "user2": 4},
-		// 	expectedIngestionRateSpans:  map[string]int{"user1": 5, "user2": 5},
-		// 	expectedMaxSearchDuration:   map[string]int{"user1": 0, "user2": 0},
-		// },
+		{
+			name: "limits only",
+			limits: Limits{
+				MaxGlobalTracesPerUser:  1,
+				MaxLocalTracesPerUser:   2,
+				MaxBytesPerTrace:        3,
+				IngestionBurstSizeBytes: 4,
+				IngestionRateLimitBytes: 5,
+			},
+			expectedMaxGlobalTraces:     map[string]int{"user1": 1, "user2": 1},
+			expectedMaxLocalTraces:      map[string]int{"user1": 2, "user2": 2},
+			expectedMaxBytesPerTrace:    map[string]int{"user1": 3, "user2": 3},
+			expectedIngestionBurstSpans: map[string]int{"user1": 4, "user2": 4},
+			expectedIngestionRateSpans:  map[string]int{"user1": 5, "user2": 5},
+			expectedMaxSearchDuration:   map[string]int{"user1": 0, "user2": 0},
+		},
 		{
 			name: "basic overrides",
 			limits: Limits{
