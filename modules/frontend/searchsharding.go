@@ -191,7 +191,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	if maxDuration != 0 && time.Duration(searchReq.End-searchReq.Start)*time.Second > maxDuration {
 		return &http.Response{
 			StatusCode: http.StatusBadRequest,
-			Body:       io.NopCloser(strings.NewReader(fmt.Sprintf("range specified by start and end exceeds %s. received start=%d end=%d", s.cfg.MaxDuration, searchReq.Start, searchReq.End))),
+			Body:       io.NopCloser(strings.NewReader(fmt.Sprintf("range specified by start and end exceeds %s. received start=%d end=%d", maxDuration, searchReq.Start, searchReq.End))),
 		}, nil
 	}
 

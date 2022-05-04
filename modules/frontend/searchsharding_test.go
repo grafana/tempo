@@ -671,6 +671,24 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	req = httptest.NewRequest("GET", "/?start=asdf&end=1500", nil)
 	resp, err = testRT.RoundTrip(req)
 	testBadRequest(t, resp, err, "invalid start: strconv.ParseInt: parsing \"asdf\": invalid syntax")
+
+	// test max duration error with overrides
+	o, err = overrides.NewOverrides(overrides.Limits{
+		MaxSearchDuration: model.Duration(time.Minute),
+	})
+	require.NoError(t, err)
+
+	sharder = newSearchSharder(&mockReader{}, o, SearchSharderConfig{
+		ConcurrentRequests:    defaultConcurrentRequests,
+		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		MaxDuration:           5 * time.Minute,
+	}, log.NewNopLogger())
+	testRT = NewRoundTripper(next, sharder)
+
+	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
+	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
+	resp, err = testRT.RoundTrip(req)
+	testBadRequest(t, resp, err, "range specified by start and end exceeds 1m0s. received start=1000 end=1500")
 }
 
 func testBadRequest(t *testing.T, resp *http.Response, err error, expectedBody string) {
