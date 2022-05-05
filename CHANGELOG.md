@@ -1,9 +1,12 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Added the ability to have a per tenant max search duration. [#1421](https://github.com/grafana/tempo/pull/1421) (@joe-elliott)
+
+## v1.4.1 / 2022-05-05
+
 * [BUGFIX] metrics-generator: don't inject X-Scope-OrgID header for single-tenant setups [1417](https://github.com/grafana/tempo/pull/1417) (@kvrhdn)
 * [BUGFIX] compactor: populate `compaction_objects_combined_total` and `tempo_discarded_spans_total{reason="trace_too_large_to_compact"}` metrics again [1420](https://github.com/grafana/tempo/pull/1420) (@mdisibio)
 * [BUGFIX] distributor: prevent panics when concurrently calling `shutdown` to forwarder's queueManager [1422](https://github.com/grafana/tempo/pull/1422) (@mapno)
-* [ENHANCEMENT] Added the ability to have a per tenant max search duration. [#1421](https://github.com/grafana/tempo/pull/1421) (@joe-elliott)
 
 ## v1.4.0 / 2022-04-28
 
