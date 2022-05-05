@@ -307,6 +307,11 @@ func (o *Overrides) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).BlockRetention)
 }
 
+// MaxSearchDuration is the duration of the max search duration for this tenant.
+func (o *Overrides) MaxSearchDuration(userID string) time.Duration {
+	return time.Duration(o.getOverridesForUser(userID).MaxSearchDuration)
+}
+
 func (o *Overrides) getOverridesForUser(userID string) *Limits {
 	if tenantOverrides := o.tenantOverrides(); tenantOverrides != nil {
 		l := tenantOverrides.forUser(userID)

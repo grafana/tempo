@@ -112,7 +112,7 @@ ingester_client:
   remote_timeout: 5s
   grpc_client_config:
     max_recv_msg_size: 104857600
-    max_send_msg_size: 16777216
+    max_send_msg_size: 104857600
     grpc_compression: snappy
     rate_limit: 0
     rate_limit_burst: 0
@@ -135,7 +135,7 @@ metrics_generator_client:
   remote_timeout: 5s
   grpc_client_config:
     max_recv_msg_size: 104857600
-    max_send_msg_size: 16777216
+    max_send_msg_size: 104857600
     grpc_compression: snappy
     rate_limit: 0
     rate_limit_burst: 0
@@ -316,9 +316,13 @@ ingester:
     join_after: 0s
     min_ready_duration: 15s
     interface_names:
-      - eth0
-      - en0
-    final_sleep: 30s
+      - wlp2s0
+      - docker0
+      - br-f163873defd4
+      - br-f56e9de73d01
+      - br-16536cce4aa3
+      - br-3bc02eb7efdd
+    final_sleep: 0s
     tokens_file_path: ""
     availability_zone: ""
     unregister_on_shutdown: true
@@ -384,6 +388,7 @@ metrics_generator:
         - 3.2
         - 6.4
         - 12.8
+      dimensions: []
     span_metrics:
       histogram_buckets:
         - 0.002
@@ -448,9 +453,9 @@ storage:
       bucket_name: ""
       chunk_buffer_size: 10485760
       endpoint: ""
-      insecure: false
       hedge_requests_at: 0s
       hedge_requests_up_to: 2
+      insecure: false
       object_cache_control: ""
       object_metadata: {}
     s3:
@@ -494,8 +499,12 @@ overrides:
   metrics_generator_processors: null
   metrics_generator_max_active_series: 0
   metrics_generator_collection_interval: 0s
+  metrics_generator_disable_collection: false
+  metrics_generator_forwarder_queue_size: 0
+  metrics_generator_forwarder_workers: 0
   block_retention: 0s
   max_bytes_per_tag_values_query: 5000000
+  max_search_duration: 0s
   max_bytes_per_trace: 5000000
   per_tenant_override_config: ""
   per_tenant_override_period: 10s

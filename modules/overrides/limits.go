@@ -70,6 +70,9 @@ type Limits struct {
 	// Querier enforced limits.
 	MaxBytesPerTagValuesQuery int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
 
+	// QueryFrontend enforced limits
+	MaxSearchDuration model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
+
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search) and Serverless (Search). It
 	//  it not enforce currently when doing a trace by id lookup.
 	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`

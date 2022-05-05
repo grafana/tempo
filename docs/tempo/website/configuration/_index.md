@@ -987,7 +987,15 @@ overrides:
     # This setting is useful if you wish to test how many active series a tenant will generate, without
     # actually writing these metrics.
     [metrics_generator_disable_collection: <bool> | default = false]
-      
+
+    # Per-user block retention. If this value is set to 0 (default), then block_retention
+    #  in the compactor configuration is used.
+    [block_retention: <duration> | default = 0s]
+
+    # Per-user max search duration. If this value is set to 0 (default), then max_duration
+    #  in the front-end configuration is used.
+    [max_search_duration: <duration> | default = 0s]
+
     # Tenant-specific overrides settings configuration file. The empty string (default
     # value) disables using an overrides file.
     [per_tenant_override_config: <string> | default = ""]
