@@ -278,17 +278,15 @@ func (m *queueManager) forwardRequest(ctx context.Context, req *request) {
 }
 
 func (m *queueManager) shutdown() error {
-	// Already being shutdown
-	if m.readOnly.Load() {
-		return nil
+	// Call to stopWorkers only once
+	if m.readOnly.CAS(false, true) {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		return m.stopWorkers(ctx)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	m.readOnly.Store(true)
-
-	return m.stopWorkers(ctx)
+	return nil
 }
 
 func (m *queueManager) stopWorkers(ctx context.Context) error {
