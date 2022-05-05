@@ -165,7 +165,7 @@ func TestErrorConditions(t *testing.T) {
 	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
 }
 
-func TestAppendBlockStartEnd(t *testing.T) { // jpe extend
+func TestAppendBlockStartEnd(t *testing.T) {
 	wal, err := New(&Config{
 		Filepath:       t.TempDir(),
 		Encoding:       backend.EncNone,

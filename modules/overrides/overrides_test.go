@@ -26,6 +26,7 @@ func TestOverrides(t *testing.T) {
 		expectedMaxBytesPerTrace    map[string]int
 		expectedIngestionRateSpans  map[string]int
 		expectedIngestionBurstSpans map[string]int
+		expectedMaxSearchDuration   map[string]int
 	}{
 		{
 			name: "limits only",
@@ -41,6 +42,7 @@ func TestOverrides(t *testing.T) {
 			expectedMaxBytesPerTrace:    map[string]int{"user1": 3, "user2": 3},
 			expectedIngestionBurstSpans: map[string]int{"user1": 4, "user2": 4},
 			expectedIngestionRateSpans:  map[string]int{"user1": 5, "user2": 5},
+			expectedMaxSearchDuration:   map[string]int{"user1": 0, "user2": 0},
 		},
 		{
 			name: "basic overrides",
@@ -59,6 +61,7 @@ func TestOverrides(t *testing.T) {
 						MaxBytesPerTrace:        8,
 						IngestionBurstSizeBytes: 9,
 						IngestionRateLimitBytes: 10,
+						MaxSearchDuration:       model.Duration(11 * time.Second),
 					},
 				},
 			},
@@ -67,6 +70,7 @@ func TestOverrides(t *testing.T) {
 			expectedMaxBytesPerTrace:    map[string]int{"user1": 8, "user2": 3},
 			expectedIngestionBurstSpans: map[string]int{"user1": 9, "user2": 4},
 			expectedIngestionRateSpans:  map[string]int{"user1": 10, "user2": 5},
+			expectedMaxSearchDuration:   map[string]int{"user1": int(11 * time.Second), "user2": 0},
 		},
 		{
 			name: "wildcard override",
@@ -92,6 +96,7 @@ func TestOverrides(t *testing.T) {
 						MaxBytesPerTrace:        13,
 						IngestionBurstSizeBytes: 14,
 						IngestionRateLimitBytes: 15,
+						MaxSearchDuration:       model.Duration(16 * time.Second),
 					},
 				},
 			},
@@ -100,11 +105,12 @@ func TestOverrides(t *testing.T) {
 			expectedMaxBytesPerTrace:    map[string]int{"user1": 8, "user2": 13},
 			expectedIngestionBurstSpans: map[string]int{"user1": 9, "user2": 14},
 			expectedIngestionRateSpans:  map[string]int{"user1": 10, "user2": 15},
+			expectedMaxSearchDuration:   map[string]int{"user1": 0, "user2": int(16 * time.Second)},
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(t.Name(), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			if tt.overrides != nil {
 				overridesFile := filepath.Join(t.TempDir(), "overrides.yaml")
 
@@ -138,6 +144,10 @@ func TestOverrides(t *testing.T) {
 
 			for user, expectedVal := range tt.expectedIngestionRateSpans {
 				assert.Equal(t, float64(expectedVal), overrides.IngestionRateLimitBytes(user))
+			}
+
+			for user, expectedVal := range tt.expectedMaxSearchDuration {
+				assert.Equal(t, time.Duration(expectedVal), overrides.MaxSearchDuration(user))
 			}
 
 			//if srv != nil {
