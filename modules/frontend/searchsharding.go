@@ -358,6 +358,7 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 				TotalRecords:  m.TotalRecords,
 				DataEncoding:  m.DataEncoding,
 				Version:       m.Version,
+				Size_:         m.Size,
 			})
 
 			if err != nil {

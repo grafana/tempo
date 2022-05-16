@@ -8,6 +8,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 )
 
 // VersionedEncoding has a whole bunch of versioned functionality.  This is
@@ -43,6 +44,8 @@ func FromVersion(v string) (VersionedEncoding, error) {
 	switch v {
 	case "v2":
 		return v2.Encoding{}, nil
+	case vparquet.VersionString:
+		return vparquet.Encoding{}, nil
 	}
 
 	return nil, fmt.Errorf("%s is not a valid block version", v)
@@ -57,6 +60,7 @@ func LatestEncoding() VersionedEncoding {
 func allEncodings() []VersionedEncoding {
 	return []VersionedEncoding{
 		v2.Encoding{},
+		vparquet.Encoding{},
 	}
 }
 

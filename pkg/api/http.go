@@ -37,6 +37,7 @@ const (
 	urlParamTotalRecords  = "totalRecords"
 	urlParamDataEncoding  = "dataEncoding"
 	urlParamVersion       = "version"
+	urlParamSize          = "size"
 
 	// maxBytes (serverless only)
 	urlParamMaxBytes = "maxBytes"
@@ -240,9 +241,6 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 	if err != nil {
 		return nil, fmt.Errorf("invalid indexPageSize %s: %w", s, err)
 	}
-	if indexPageSize <= 0 {
-		return nil, fmt.Errorf("indexPageSize must be greater than 0. received %d", indexPageSize)
-	}
 	req.IndexPageSize = uint32(indexPageSize)
 
 	s = r.URL.Query().Get(urlParamTotalRecords)
@@ -256,9 +254,6 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 	req.TotalRecords = uint32(totalRecords)
 
 	dataEncoding := r.URL.Query().Get(urlParamDataEncoding)
-	if dataEncoding == "" {
-		return nil, errors.New("dataEncoding required")
-	}
 	req.DataEncoding = dataEncoding
 
 	version := r.URL.Query().Get(urlParamVersion)
@@ -266,6 +261,13 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 		return nil, errors.New("version required")
 	}
 	req.Version = version
+
+	s = r.URL.Query().Get(urlParamSize)
+	size, err := strconv.ParseInt(s, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid size %s: %w", s, err)
+	}
+	req.Size_ = uint64(size)
 
 	return req, nil
 }
@@ -284,7 +286,6 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 	}
 
 	q := req.URL.Query()
-
 	q.Set(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
 	q.Set(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
 	if searchReq.Limit != 0 {
@@ -331,6 +332,7 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 	}
 
 	q := req.URL.Query()
+	q.Set(urlParamSize, strconv.FormatUint(searchReq.Size_, 10))
 	q.Set(urlParamBlockID, searchReq.BlockID)
 	q.Set(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
 	q.Set(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))

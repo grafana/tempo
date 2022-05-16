@@ -37,10 +37,10 @@ require (
 	github.com/jaegertracing/jaeger v1.31.0
 	github.com/jedib0t/go-pretty/v6 v6.2.4
 	github.com/jsternberg/zap-logfmt v1.2.0
-	github.com/klauspost/compress v1.14.4
+	github.com/klauspost/compress v1.15.2
 	github.com/minio/minio-go/v7 v7.0.16-0.20211116163909-d00629356463
 	github.com/mitchellh/mapstructure v1.4.3
-	github.com/olekukonko/tablewriter v0.0.2
+	github.com/olekukonko/tablewriter v0.0.5
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter v0.46.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.46.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.46.0
@@ -58,6 +58,7 @@ require (
 	github.com/prometheus/prometheus v1.8.2-0.20220228151929-e25a59925555
 	github.com/prometheus/statsd_exporter v0.21.0 // indirect
 	github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
+	github.com/segmentio/parquet-go v0.0.0-20220430034746-0c1b15771dff
 	github.com/sirupsen/logrus v1.8.1
 	github.com/sony/gobreaker v0.4.1
 	github.com/spf13/viper v1.10.1
@@ -98,6 +99,7 @@ require (
 	github.com/VividCortex/gohistogram v1.0.0 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
+	github.com/andybalholm/brotli v1.0.3 // indirect
 	github.com/apache/thrift v0.16.0 // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -189,6 +191,7 @@ require (
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/rs/xid v1.2.1 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
+	github.com/segmentio/encoding v0.3.5 // indirect
 	github.com/sercand/kuberesolver v2.4.0+incompatible // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect

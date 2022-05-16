@@ -48,39 +48,40 @@ type Border struct {
 }
 
 type Table struct {
-	out            io.Writer
-	rows           [][]string
-	lines          [][][]string
-	cs             map[int]int
-	rs             map[int]int
-	headers        [][]string
-	footers        [][]string
-	caption        bool
-	captionText    string
-	autoFmt        bool
-	autoWrap       bool
-	reflowText     bool
-	mW             int
-	pCenter        string
-	pRow           string
-	pColumn        string
-	tColumn        int
-	tRow           int
-	hAlign         int
-	fAlign         int
-	align          int
-	newLine        string
-	rowLine        bool
-	autoMergeCells bool
-	noWhiteSpace   bool
-	tablePadding   string
-	hdrLine        bool
-	borders        Border
-	colSize        int
-	headerParams   []string
-	columnsParams  []string
-	footerParams   []string
-	columnsAlign   []int
+	out                     io.Writer
+	rows                    [][]string
+	lines                   [][][]string
+	cs                      map[int]int
+	rs                      map[int]int
+	headers                 [][]string
+	footers                 [][]string
+	caption                 bool
+	captionText             string
+	autoFmt                 bool
+	autoWrap                bool
+	reflowText              bool
+	mW                      int
+	pCenter                 string
+	pRow                    string
+	pColumn                 string
+	tColumn                 int
+	tRow                    int
+	hAlign                  int
+	fAlign                  int
+	align                   int
+	newLine                 string
+	rowLine                 bool
+	autoMergeCells          bool
+	columnsToAutoMergeCells map[int]bool
+	noWhiteSpace            bool
+	tablePadding            string
+	hdrLine                 bool
+	borders                 Border
+	colSize                 int
+	headerParams            []string
+	columnsParams           []string
+	footerParams            []string
+	columnsAlign            []int
 }
 
 // Start New Table
@@ -276,6 +277,21 @@ func (t *Table) SetAutoMergeCells(auto bool) {
 	t.autoMergeCells = auto
 }
 
+// Set Auto Merge Cells By Column Index
+// This would enable / disable the merge of cells with identical values for specific columns
+// If cols is empty, it is the same as `SetAutoMergeCells(true)`.
+func (t *Table) SetAutoMergeCellsByColumnIndex(cols []int) {
+	t.autoMergeCells = true
+
+	if len(cols) > 0 {
+		m := make(map[int]bool)
+		for _, col := range cols {
+			m[col] = true
+		}
+		t.columnsToAutoMergeCells = m
+	}
+}
+
 // Set Table Border
 // This would enable / disable line around the table
 func (t *Table) SetBorder(border bool) {
@@ -301,6 +317,33 @@ func (t *Table) Append(row []string) {
 		// Detect String height
 		// Break strings into words
 		out := t.parseDimension(v, i, n)
+
+		// Append broken words
+		line = append(line, out)
+	}
+	t.lines = append(t.lines, line)
+}
+
+// Append row to table with color attributes
+func (t *Table) Rich(row []string, colors []Colors) {
+	rowSize := len(t.headers)
+	if rowSize > t.colSize {
+		t.colSize = rowSize
+	}
+
+	n := len(t.lines)
+	line := [][]string{}
+	for i, v := range row {
+
+		// Detect string  width
+		// Detect String height
+		// Break strings into words
+		out := t.parseDimension(v, i, n)
+
+		if len(colors) > i {
+			color := colors[i]
+			out[0] = format(out[0], color)
+		}
 
 		// Append broken words
 		line = append(line, out)
@@ -803,9 +846,19 @@ func (t *Table) printRowMergeCells(writer io.Writer, columns [][]string, rowIdx 
 			}
 
 			if t.autoMergeCells {
+				var mergeCell bool
+				if t.columnsToAutoMergeCells != nil {
+					// Check to see if the column index is in columnsToAutoMergeCells.
+					if t.columnsToAutoMergeCells[y] {
+						mergeCell = true
+					}
+				} else {
+					// columnsToAutoMergeCells was not set.
+					mergeCell = true
+				}
 				//Store the full line to merge mutli-lines cells
 				fullLine := strings.TrimRight(strings.Join(columns[y], " "), " ")
-				if len(previousLine) > y && fullLine == previousLine[y] && fullLine != "" {
+				if len(previousLine) > y && fullLine == previousLine[y] && fullLine != "" && mergeCell {
 					// If this cell is identical to the one above but not empty, we don't display the border and keep the cell empty.
 					displayCellBorder = append(displayCellBorder, false)
 					str = ""

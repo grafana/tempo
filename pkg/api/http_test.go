@@ -254,20 +254,12 @@ func TestParseSearchBlockRequest(t *testing.T) {
 			expectedError: "invalid indexPageSize : strconv.ParseInt: parsing \"\": invalid syntax",
 		},
 		{
-			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=0",
-			expectedError: "indexPageSize must be greater than 0. received 0",
-		},
-		{
 			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10",
 			expectedError: "invalid totalRecords : strconv.ParseInt: parsing \"\": invalid syntax",
 		},
 		{
 			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=-1",
 			expectedError: "totalRecords must be greater than 0. received -1",
-		},
-		{
-			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=11",
-			expectedError: "dataEncoding required",
 		},
 		{
 			url:           "/?start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1",

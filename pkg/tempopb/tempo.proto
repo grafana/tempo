@@ -63,6 +63,7 @@ message SearchBlockRequest {
   uint32 totalRecords = 7;
   string dataEncoding = 8;
   string version = 9;
+  uint64 size = 10; // total size of data file
 }
 
 message SearchResponse {

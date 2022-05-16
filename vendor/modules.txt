@@ -44,6 +44,9 @@ github.com/alicebob/gopher-json
 github.com/alicebob/miniredis/v2
 github.com/alicebob/miniredis/v2/geohash
 github.com/alicebob/miniredis/v2/server
+# github.com/andybalholm/brotli v1.0.3
+## explicit; go 1.12
+github.com/andybalholm/brotli
 # github.com/apache/thrift v0.16.0
 ## explicit; go 1.16
 github.com/apache/thrift/lib/go/thrift
@@ -506,8 +509,8 @@ github.com/json-iterator/go
 # github.com/jsternberg/zap-logfmt v1.2.0
 ## explicit
 github.com/jsternberg/zap-logfmt
-# github.com/klauspost/compress v1.14.4
-## explicit; go 1.15
+# github.com/klauspost/compress v1.15.2
+## explicit; go 1.16
 github.com/klauspost/compress
 github.com/klauspost/compress/flate
 github.com/klauspost/compress/fse
@@ -516,8 +519,10 @@ github.com/klauspost/compress/gzhttp/writer
 github.com/klauspost/compress/gzhttp/writer/gzkp
 github.com/klauspost/compress/gzip
 github.com/klauspost/compress/huff0
+github.com/klauspost/compress/internal/cpuinfo
 github.com/klauspost/compress/internal/snapref
 github.com/klauspost/compress/s2
+github.com/klauspost/compress/snappy
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
 # github.com/klauspost/cpuid v1.3.1
@@ -602,7 +607,7 @@ github.com/oklog/run
 # github.com/oklog/ulid v1.3.1
 ## explicit
 github.com/oklog/ulid
-# github.com/olekukonko/tablewriter v0.0.2
+# github.com/olekukonko/tablewriter v0.0.5
 ## explicit; go 1.12
 github.com/olekukonko/tablewriter
 # github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter v0.46.0
@@ -764,9 +769,33 @@ github.com/rs/xid
 # github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529
 ## explicit
 github.com/sean-/seed
+# github.com/segmentio/encoding v0.3.5
+## explicit; go 1.14
+github.com/segmentio/encoding/thrift
 # github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
 ## explicit
 github.com/segmentio/fasthash/fnv1a
+# github.com/segmentio/parquet-go v0.0.0-20220430034746-0c1b15771dff
+## explicit; go 1.18
+github.com/segmentio/parquet-go
+github.com/segmentio/parquet-go/bloom
+github.com/segmentio/parquet-go/bloom/xxhash
+github.com/segmentio/parquet-go/compress
+github.com/segmentio/parquet-go/compress/brotli
+github.com/segmentio/parquet-go/compress/gzip
+github.com/segmentio/parquet-go/compress/lz4
+github.com/segmentio/parquet-go/compress/snappy
+github.com/segmentio/parquet-go/compress/uncompressed
+github.com/segmentio/parquet-go/compress/zstd
+github.com/segmentio/parquet-go/deprecated
+github.com/segmentio/parquet-go/encoding
+github.com/segmentio/parquet-go/encoding/bytestreamsplit
+github.com/segmentio/parquet-go/encoding/delta
+github.com/segmentio/parquet-go/encoding/plain
+github.com/segmentio/parquet-go/encoding/rle
+github.com/segmentio/parquet-go/format
+github.com/segmentio/parquet-go/internal/bits
+github.com/segmentio/parquet-go/internal/cast
 # github.com/sercand/kuberesolver v2.4.0+incompatible
 ## explicit
 github.com/sercand/kuberesolver
