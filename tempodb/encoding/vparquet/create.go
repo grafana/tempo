@@ -3,6 +3,7 @@ package vparquet
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/google/uuid"
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -34,6 +35,7 @@ func (b *backendWriter) Close() error {
 }
 
 func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, dec model.ObjectDecoder, to backend.Writer) (*backend.BlockMeta, error) {
+	flushSize := 30_000_000
 
 	s, err := NewStreamingBlock(ctx, cfg, meta, to)
 	if err != nil {
@@ -56,9 +58,16 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		if err != nil {
 			return nil, err
 		}
+
+		if s.CurrentBufferLength() > flushSize {
+			_, err = s.Flush()
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
-	err = s.Complete()
+	_, err = s.Complete()
 	if err != nil {
 		return nil, err
 	}
@@ -74,6 +83,8 @@ type streamingBlock struct {
 	pw    *parquet.Writer
 	w     *backendWriter
 	to    backend.Writer
+
+	currentBufferedTraces int
 }
 
 func NewStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, to backend.Writer) (*streamingBlock, error) {
@@ -81,6 +92,8 @@ func NewStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	newMeta.StartTime = meta.StartTime
 	newMeta.EndTime = meta.EndTime
 
+	// TotalObjects is used here an an estimated count for the bloom filter.
+	// The real number of objects is tracked below.
 	bloom := common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(meta.TotalObjects))
 
 	w := &backendWriter{ctx, to, "data.parquet", meta.BlockID, meta.TenantID, nil}
@@ -103,7 +116,6 @@ func NewStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 }
 
 func (b *streamingBlock) Add(tr *Trace) error {
-	flushSize := 30_000_000
 
 	err := b.pw.Write(tr)
 	if err != nil {
@@ -116,59 +128,68 @@ func (b *streamingBlock) Add(tr *Trace) error {
 	}
 
 	b.bloom.Add(id)
-	b.meta.TotalObjects++
-
-	if b.bw.Len() > flushSize {
-		// Flush row group
-		err = b.pw.Flush()
-		if err != nil {
-			return err
-		}
-
-		b.meta.Size += uint64(b.bw.Len())
-		b.meta.TotalRecords++
-
-		err = b.bw.Flush()
-		if err != nil {
-			return err
-		}
-	}
-
+	start := uint32(tr.StartTimeUnixNano / uint64(time.Second))
+	b.meta.ObjectAdded(id, start, start+uint32(tr.DurationNanos/uint64(time.Second)))
+	b.currentBufferedTraces++
 	return nil
 }
 
-func (b *streamingBlock) Complete() error {
+func (b *streamingBlock) CurrentBufferLength() int {
+	return b.bw.Len()
+}
+
+func (b *streamingBlock) CurrentBufferedObjects() int {
+	return b.currentBufferedTraces
+}
+
+func (b *streamingBlock) Flush() (int, error) {
+	// Flush row group
+	err := b.pw.Flush()
+	if err != nil {
+		return 0, err
+	}
+
+	n := b.bw.Len()
+	b.meta.Size += uint64(n)
+	b.meta.TotalRecords++
+
+	// Flush to underlying writer
+	return n, b.bw.Flush()
+}
+
+func (b *streamingBlock) Complete() (int, error) {
 	// Flush final row group
 	b.meta.TotalRecords++
 	err := b.pw.Flush()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// Close parquet file. This writes the footer and metadata.
 	err = b.pw.Close()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// Now Flush and close out in-memory buffer
-	b.meta.Size += uint64(b.bw.Len())
+	n := b.bw.Len()
+	b.meta.Size += uint64(n)
 	err = b.bw.Flush()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	err = b.bw.Close()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	err = b.w.Close()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	b.meta.BloomShardCount = uint16(b.bloom.GetShardCount())
 
-	return writeBlockMeta(b.ctx, b.to, b.meta, b.bloom)
+	return n, writeBlockMeta(b.ctx, b.to, b.meta, b.bloom)
 }
