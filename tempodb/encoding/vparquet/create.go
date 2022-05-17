@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/segmentio/parquet-go"
@@ -33,25 +34,14 @@ func (b *backendWriter) Close() error {
 }
 
 func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, dec model.ObjectDecoder, to backend.Writer) (*backend.BlockMeta, error) {
-	newMeta := backend.NewBlockMeta(meta.TenantID, meta.BlockID, VersionString, backend.EncNone, "")
-	newMeta.StartTime = meta.StartTime
-	newMeta.EndTime = meta.EndTime
 
-	flushSize := 30_000_000
-
-	bloom := common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(meta.TotalObjects))
-
-	ww := &backendWriter{ctx, to, "data.parquet", meta.BlockID, meta.TenantID, nil}
-
-	bw := tempo_io.NewBufferedWriter(ww)
-
-	sch := parquet.SchemaOf(new(Trace))
-
-	w := parquet.NewWriter(ww, sch, &parquet.WriterConfig{PageBufferSize: 10_000_000})
+	s, err := NewStreamingBlock(ctx, cfg, meta, to)
+	if err != nil {
+		return nil, err
+	}
 
 	for {
-
-		id, obj, err := i.Next(ctx)
+		_, obj, err := i.Next(ctx)
 		if err == io.EOF {
 			break
 		}
@@ -62,67 +52,123 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		}
 
 		trp := traceToParquet(tr)
-
-		err = w.Write(trp)
+		err = s.Add(&trp)
 		if err != nil {
 			return nil, err
 		}
+	}
 
-		bloom.Add(id)
-		meta.TotalObjects++
+	err = s.Complete()
+	if err != nil {
+		return nil, err
+	}
 
-		if bw.Len() > flushSize {
-			// Flush row group
-			err = w.Flush()
-			if err != nil {
-				return nil, err
-			}
+	return s.meta, nil
+}
 
-			newMeta.Size += uint64(bw.Len())
-			newMeta.TotalRecords++
+type streamingBlock struct {
+	ctx   context.Context
+	bloom *common.ShardedBloomFilter
+	meta  *backend.BlockMeta
+	bw    *tempo_io.BufferedWriter
+	pw    *parquet.Writer
+	w     *backendWriter
+	to    backend.Writer
+}
 
-			err = bw.Flush()
-			if err != nil {
-				return nil, err
-			}
+func NewStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, to backend.Writer) (*streamingBlock, error) {
+	newMeta := backend.NewBlockMeta(meta.TenantID, meta.BlockID, VersionString, backend.EncNone, "")
+	newMeta.StartTime = meta.StartTime
+	newMeta.EndTime = meta.EndTime
+
+	bloom := common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(meta.TotalObjects))
+
+	w := &backendWriter{ctx, to, "data.parquet", meta.BlockID, meta.TenantID, nil}
+
+	bw := tempo_io.NewBufferedWriter(w)
+
+	sch := parquet.SchemaOf(new(Trace))
+
+	pw := parquet.NewWriter(bw, sch, &parquet.WriterConfig{PageBufferSize: 10_000_000})
+
+	return &streamingBlock{
+		ctx:   ctx,
+		meta:  newMeta,
+		bloom: bloom,
+		bw:    bw,
+		pw:    pw,
+		w:     w,
+		to:    to,
+	}, nil
+}
+
+func (b *streamingBlock) Add(tr *Trace) error {
+	flushSize := 30_000_000
+
+	err := b.pw.Write(tr)
+	if err != nil {
+		return err
+	}
+
+	id, err := util.HexStringToTraceID(tr.TraceID)
+	if err != nil {
+		return err
+	}
+
+	b.bloom.Add(id)
+	b.meta.TotalObjects++
+
+	if b.bw.Len() > flushSize {
+		// Flush row group
+		err = b.pw.Flush()
+		if err != nil {
+			return err
+		}
+
+		b.meta.Size += uint64(b.bw.Len())
+		b.meta.TotalRecords++
+
+		err = b.bw.Flush()
+		if err != nil {
+			return err
 		}
 	}
 
-	// Flush final row group and end of file
-	newMeta.TotalRecords++
-	err := w.Flush()
+	return nil
+}
+
+func (b *streamingBlock) Complete() error {
+	// Flush final row group
+	b.meta.TotalRecords++
+	err := b.pw.Flush()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	err = w.Close()
+	// Close parquet file. This writes the footer and metadata.
+	err = b.pw.Close()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	// Flush and close out buffer too
-	newMeta.Size += uint64(bw.Len())
-	err = bw.Flush()
+	// Now Flush and close out in-memory buffer
+	b.meta.Size += uint64(b.bw.Len())
+	err = b.bw.Flush()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	err = bw.Close()
+	err = b.bw.Close()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	err = ww.Close()
+	err = b.w.Close()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	newMeta.BloomShardCount = uint16(bloom.GetShardCount())
+	b.meta.BloomShardCount = uint16(b.bloom.GetShardCount())
 
-	err = writeBlockMeta(ctx, to, newMeta, bloom)
-	if err != nil {
-		return nil, err
-	}
-
-	return newMeta, nil
+	return writeBlockMeta(b.ctx, b.to, b.meta, b.bloom)
 }
