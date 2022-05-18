@@ -968,7 +968,7 @@ overrides:
     [metrics_generator_processors: <list of strings>]
 
     # Per-user configuration of the metrics-generator processors. The following configuration
-    # will override settings in the global config.
+    # overrides settings in the global configuration.
     [metrics_generator_processor_service_graphs_histogram_buckets: <list of float>]
     [metrics_generator_processor_service_graphs_dimensions: <list of string>]
     [metrics_generator_processor_span_metrics_histogram_buckets: <<list of float>]
