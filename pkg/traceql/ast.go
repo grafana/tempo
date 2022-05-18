@@ -222,7 +222,6 @@ func newUnaryOperation(op int, e FieldExpression) UnaryOperation {
 // **********************
 // Statics
 // **********************
-//   jpe error type
 const (
 	typeInt = iota
 	typeFloat

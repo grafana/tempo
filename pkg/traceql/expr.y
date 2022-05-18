@@ -18,6 +18,7 @@ import (
     spansetPipeline Pipeline
     spansetFilter SpansetFilter
     scalarFilter ScalarFilter
+    scalarFilterOperation int
 
     scalarExpression ScalarExpression
     wrappedScalarPipeline Pipeline
@@ -44,6 +45,7 @@ import (
 %type <spansetPipeline> spansetPipeline
 %type <spansetFilter> spansetFilter
 %type <scalarFilter> scalarFilter
+%type <scalarFilterOperation> scalarFilterOperation
 
 %type <scalarExpression> scalarExpression
 %type <wrappedScalarPipeline> wrappedScalarPipeline
@@ -75,7 +77,7 @@ import (
 // **********************
 // Pipeline
 // **********************
-root: // jpe also allow scalar pipelines?
+root:
     spansetPipeline                             { yylex.(*lexer).expr = newRootExpr($1) }
   ;
 
@@ -120,12 +122,18 @@ spansetFilter:
   ;
 
 scalarFilter:
-    scalarExpression EQ scalarExpression        { $$ = newScalarFilter(opEqual, $1, $3) }
-  | scalarExpression NEQ scalarExpression       { $$ = newScalarFilter(opNotEqual, $1, $3) }
-  | scalarExpression LT scalarExpression        { $$ = newScalarFilter(opLess, $1, $3) }
-  | scalarExpression LTE scalarExpression       { $$ = newScalarFilter(opLessEqual, $1, $3) }
-  | scalarExpression GT scalarExpression        { $$ = newScalarFilter(opGreater, $1, $3) }
-  | scalarExpression GTE scalarExpression       { $$ = newScalarFilter(opGreaterEqual, $1, $3) }
+    scalarExpression scalarFilterOperation scalarExpression        { $$ = newScalarFilter($2, $1, $3) }
+  | static           scalarFilterOperation scalarExpression        { $$ = newScalarFilter($2, $1, $3) }
+  | scalarExpression scalarFilterOperation static                  { $$ = newScalarFilter($2, $1, $3) }
+  ;
+
+scalarFilterOperation:
+    EQ     { $$ = opEqual        }
+  | NEQ    { $$ = opNotEqual     }
+  | LT     { $$ = opLess         }
+  | LTE    { $$ = opLessEqual    }
+  | GT     { $$ = opGreater      }
+  | GTE    { $$ = opGreaterEqual }
   ;
 
 // **********************
@@ -141,7 +149,6 @@ scalarExpression:
   | scalarExpression POW scalarExpression      { $$ = newScalarOperation(opPower, $1, $3) }
   | wrappedScalarPipeline                      { $$ = $1 }
   | aggregate                                  { $$ = $1 }
-  | static                                     { $$ = $1 } 
   ;
 
 wrappedScalarPipeline:

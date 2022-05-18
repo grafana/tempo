@@ -7,25 +7,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// func TestTest(t *testing.T) {
+// func TestDump(t *testing.T) {
 // 	tests := []struct {
 // 		in  string
 // 		err error
 // 	}{
-// 		{in: "max(duration) > 3s && { status = error || http.status = 500 }", err: newParseError("", 1, 12)},
+// 		{in: "3 = 3", err: newParseError("", 1, 12)},
 // 	}
 
+// 	scs := spew.ConfigState{DisableMethods: true, Indent: " "}
 // 	for _, tc := range tests {
 // 		t.Run(tc.in, func(t *testing.T) {
 // 			actual, err := Parse(tc.in)
 
 // 			assert.Equal(t, tc.err, err)
-// 			spew.Dump(actual)
+// 			scs.Dump(actual)
 // 		})
 // 	}
 // }
-
-// jpe    - should `3 = 3` be valid but not `true`
 
 func TestPipelineErrors(t *testing.T) {
 	tests := []struct {
@@ -441,6 +440,7 @@ func TestScalarExpressionErrors(t *testing.T) {
 	}{
 		{in: "(avg(foo) > count()) + sum(bar)", err: newParseError("syntax error: unexpected +", 1, 22)},
 		{in: "count(", err: newParseError("syntax error: unexpected $end, expecting )", 1, 7)},
+		{in: "{} | 3 = 3", err: newParseError("syntax error: unexpected INTEGER", 1, 10)},
 		{in: "count(avg)", err: newParseError("syntax error: unexpected IDENTIFIER, expecting )", 1, 7)},
 	}
 
