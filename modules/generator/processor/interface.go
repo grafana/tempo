@@ -10,9 +10,6 @@ type Processor interface {
 	// Name returns the name of the processor.
 	Name() string
 
-	// Config returns the configuration used by the processor.
-	Config() interface{}
-
 	// PushSpans processes a batch of spans and updates the metrics registered in RegisterMetrics.
 	PushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 

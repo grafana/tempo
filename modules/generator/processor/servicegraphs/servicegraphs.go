@@ -52,8 +52,8 @@ func (t tooManySpansError) Error() string {
 	return fmt.Sprintf("dropped %d spans", t.droppedSpans)
 }
 
-type processor struct {
-	cfg Config
+type Processor struct {
+	Cfg Config
 
 	store store.Store
 
@@ -77,8 +77,8 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 		labels = append(labels, strutil.SanitizeLabelName(d))
 	}
 
-	p := &processor{
-		cfg: cfg,
+	p := &Processor{
+		Cfg: cfg,
 
 		collectCh: make(chan string, cfg.MaxItems),
 		closeCh:   make(chan struct{}, 1),
@@ -117,28 +117,24 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 	return p
 }
 
-func (p *processor) Name() string {
+func (p *Processor) Name() string {
 	return Name
 }
 
-func (p *processor) Config() interface{} {
-	return p.cfg
-}
-
-func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
+func (p *Processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
 	span, _ := opentracing.StartSpanFromContext(ctx, "servicegraphs.PushSpans")
 	defer span.Finish()
 
 	if err := p.consume(req.Batches); err != nil {
 		if errors.As(err, &tooManySpansError{}) {
-			level.Warn(p.logger).Log("msg", "skipped processing of spans", "maxItems", p.cfg.MaxItems, "err", err)
+			level.Warn(p.logger).Log("msg", "skipped processing of spans", "maxItems", p.Cfg.MaxItems, "err", err)
 		} else {
 			level.Error(p.logger).Log("msg", "failed consuming traces", "err", err)
 		}
 	}
 }
 
-func (p *processor) consume(resourceSpans []*v1_trace.ResourceSpans) error {
+func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) error {
 	var totalDroppedSpans int
 
 	for _, rs := range resourceSpans {
@@ -204,26 +200,26 @@ func (p *processor) consume(resourceSpans []*v1_trace.ResourceSpans) error {
 	return nil
 }
 
-func (p *processor) upsertDimensions(m map[string]string, resourceAttr []*v1_common.KeyValue, spanAttr []*v1_common.KeyValue) {
-	for _, dim := range p.cfg.Dimensions {
+func (p *Processor) upsertDimensions(m map[string]string, resourceAttr []*v1_common.KeyValue, spanAttr []*v1_common.KeyValue) {
+	for _, dim := range p.Cfg.Dimensions {
 		if v, ok := processor_util.FindAttributeValue(dim, resourceAttr, spanAttr); ok {
 			m[dim] = v
 		}
 	}
 }
 
-func (p *processor) Shutdown(_ context.Context) {
+func (p *Processor) Shutdown(_ context.Context) {
 	close(p.closeCh)
 }
 
 // collectEdge records the metrics for the given edge.
 // Returns true if the edge is completed or expired and should be deleted.
-func (p *processor) collectEdge(e *store.Edge) {
+func (p *Processor) collectEdge(e *store.Edge) {
 	if e.IsCompleted() {
-		labelValues := make([]string, 0, 2+len(p.cfg.Dimensions))
+		labelValues := make([]string, 0, 2+len(p.Cfg.Dimensions))
 		labelValues = append(labelValues, e.ClientService, e.ServerService)
 
-		for _, dimension := range p.cfg.Dimensions {
+		for _, dimension := range p.Cfg.Dimensions {
 			labelValues = append(labelValues, e.Dimensions[dimension])
 		}
 
@@ -241,7 +237,7 @@ func (p *processor) collectEdge(e *store.Edge) {
 	}
 }
 
-func (p *processor) spanFailed(span *v1_trace.Span) bool {
+func (p *Processor) spanFailed(span *v1_trace.Span) bool {
 	return span.GetStatus().GetCode() == v1_trace.Status_STATUS_CODE_ERROR
 }
 

@@ -170,13 +170,14 @@ func (i *instance) diffProcessors(desiredProcessors map[string]struct{}, desired
 			toRemove = append(toRemove, processorName)
 			continue
 		}
-		switch processorName {
-		case spanmetrics.Name:
-			if !reflect.DeepEqual(processor.Config(), desiredCfg.SpanMetrics) {
+
+		switch p := processor.(type) {
+		case *spanmetrics.Processor:
+			if !reflect.DeepEqual(p.Cfg, desiredCfg.SpanMetrics) {
 				toReplace = append(toReplace, processorName)
 			}
-		case servicegraphs.Name:
-			if !reflect.DeepEqual(processor.Config(), desiredCfg.ServiceGraphs) {
+		case *servicegraphs.Processor:
+			if !reflect.DeepEqual(p.Cfg, desiredCfg.ServiceGraphs) {
 				toReplace = append(toReplace, processorName)
 			}
 		default:
