@@ -58,14 +58,14 @@ import (
 %token <staticInt>      INTEGER
 %token <staticFloat>    FLOAT
 %token <staticDuration> DURATION
-%token <val>            COMMA DOT OPEN_BRACE CLOSE_BRACE OPEN_BRACKET CLOSE_BRACKET OPEN_PARENS CLOSE_PARENS
+%token <val>            DOT OPEN_BRACE CLOSE_BRACE OPEN_PARENS CLOSE_PARENS
                         NIL TRUE FALSE
                         COUNT AVG MAX MIN SUM
                         BY COALESCE
 
 // Operators are listed with increasing precedence.
 %left <binOp> PIPE
-%left <binOp> EQ NEQ LT LTE GT GTE NRE RE DESC
+%left <binOp> EQ NEQ LT LTE GT GTE NRE RE DESC TILDE
 %left <binOp> AND OR NOT
 %left <binOp> ADD SUB
 %left <binOp> MUL DIV MOD
@@ -76,7 +76,7 @@ import (
 // Pipeline
 // **********************
 root: // jpe also allow scalar pipelines?
-    spansetPipeline                             { yylex.(*lexer).expr = newRootExpr($1) } // jpe - redefine spansetExpresssions/Operands and scalars below then create spanset: spansetScalar:
+    spansetPipeline                             { yylex.(*lexer).expr = newRootExpr($1) }
   ;
 
 groupOperation:
@@ -92,10 +92,12 @@ coalesceOperation:
 // **********************
 spansetExpression:
     OPEN_PARENS spansetExpression CLOSE_PARENS   { $$ = $2 }
-  | spansetExpression AND  spansetExpression     { $$ = newSpansetOperation(opSpansetAnd, $1, $3) }    // jpe add sibling, union?
-  | spansetExpression GT   spansetExpression     { $$ = newSpansetOperation(opSpansetChild, $1, $3) }
-  | spansetExpression DESC spansetExpression     { $$ = newSpansetOperation(opSpansetDescendant, $1, $3) }
-  | wrappedSpansetPipeline                       { $$ = $1 }  // jpe sibling expression, union?
+  | spansetExpression AND   spansetExpression    { $$ = newSpansetOperation(opSpansetAnd, $1, $3) }
+  | spansetExpression GT    spansetExpression    { $$ = newSpansetOperation(opSpansetChild, $1, $3) }
+  | spansetExpression DESC  spansetExpression    { $$ = newSpansetOperation(opSpansetDescendant, $1, $3) }
+  | spansetExpression OR    spansetExpression    { $$ = newSpansetOperation(opSpansetUnion, $1, $3) }
+  | spansetExpression TILDE spansetExpression    { $$ = newSpansetOperation(opSpansetSibling, $1, $3) }
+  | wrappedSpansetPipeline                       { $$ = $1 }
   | spansetFilter                                { $$ = $1 } 
   ;
 
@@ -131,7 +133,7 @@ scalarFilter:
 // **********************
 scalarExpression:
     OPEN_PARENS scalarExpression CLOSE_PARENS  { $$ = $2 }                                   
-  | scalarExpression ADD scalarExpression      { $$ = newScalarOperation(opAdd, $1, $3) } // jpe add +, -, ... to scalar? yes
+  | scalarExpression ADD scalarExpression      { $$ = newScalarOperation(opAdd, $1, $3) }
   | scalarExpression SUB scalarExpression      { $$ = newScalarOperation(opSub, $1, $3) }
   | scalarExpression MUL scalarExpression      { $$ = newScalarOperation(opMult, $1, $3) }
   | scalarExpression DIV scalarExpression      { $$ = newScalarOperation(opDiv, $1, $3) }

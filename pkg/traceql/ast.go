@@ -26,6 +26,8 @@ const (
 	opSpansetChild
 	opSpansetDescendant
 	opSpansetAnd
+	opSpansetUnion
+	opSpansetSibling
 )
 
 type element interface {

@@ -9,12 +9,9 @@ import (
 )
 
 var tokens = map[string]int{
-	",":     COMMA,
 	".":     DOT,
 	"{":     OPEN_BRACE,
 	"}":     CLOSE_BRACE,
-	"[":     OPEN_BRACKET,
-	"]":     CLOSE_BRACKET,
 	"(":     OPEN_PARENS,
 	")":     CLOSE_PARENS,
 	"=":     EQ,
@@ -39,6 +36,7 @@ var tokens = map[string]int{
 	"!":     NOT,
 	"|":     PIPE,
 	">>":    DESC,
+	"~":     TILDE,
 }
 
 var functionTokens = map[string]int{

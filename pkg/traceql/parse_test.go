@@ -25,11 +25,7 @@ import (
 // 	}
 // }
 
-// jpe - this needs to be legal: max(duration) > 3s || { status = error || http.status = 500 } UNION!
-//     - should this be legal count() > 2 && { a = b } technically this works but same as count() > 2 | { a = b }. would prefer just one way
-//     - should this be legal { a = b } | count() > 2 | max(duration)
-//     - test that naked static or identifer is not valid
-//     - should `3 = 3` be valid but not `true`
+// jpe    - should `3 = 3` be valid but not `true`
 
 func TestPipelineErrors(t *testing.T) {
 	tests := []struct {
@@ -328,7 +324,6 @@ func TestSpansetExpressionErrors(t *testing.T) {
 		err error
 	}{
 		{in: "{ true } &&", err: newParseError("syntax error: unexpected $end, expecting { or (", 1, 12)},
-		{in: "{ true } || { false }", err: newParseError("syntax error: unexpected ||", 0, 10)},
 	}
 
 	for _, tc := range tests {
@@ -381,6 +376,30 @@ func TestSpansetExpressionPrecedence(t *testing.T) {
 				rhs: newSpansetFilter(newStaticString("a")),
 			},
 		},
+		{
+			in: "{ true } >> { false } ~ { `a` }",
+			expected: SpansetOperation{
+				op: opSpansetSibling,
+				lhs: SpansetOperation{
+					op:  opSpansetDescendant,
+					lhs: newSpansetFilter(newStaticBool(true)),
+					rhs: newSpansetFilter(newStaticBool(false)),
+				},
+				rhs: newSpansetFilter(newStaticString("a")),
+			},
+		},
+		{
+			in: "{ true } ~ { false } >> { `a` }",
+			expected: SpansetOperation{
+				op: opSpansetDescendant,
+				lhs: SpansetOperation{
+					op:  opSpansetSibling,
+					lhs: newSpansetFilter(newStaticBool(true)),
+					rhs: newSpansetFilter(newStaticBool(false)),
+				},
+				rhs: newSpansetFilter(newStaticString("a")),
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -401,6 +420,8 @@ func TestSpansetExpressionOperators(t *testing.T) {
 		{in: "{ true } && { false }", expected: newSpansetOperation(opSpansetAnd, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false)))},
 		{in: "{ true } > { false }", expected: newSpansetOperation(opSpansetChild, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false)))},
 		{in: "{ true } >> { false }", expected: newSpansetOperation(opSpansetDescendant, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false)))},
+		{in: "{ true } || { false }", expected: newSpansetOperation(opSpansetUnion, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false)))},
+		{in: "{ true } ~ { false }", expected: newSpansetOperation(opSpansetSibling, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false)))},
 	}
 
 	for _, tc := range tests {
