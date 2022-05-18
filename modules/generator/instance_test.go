@@ -118,7 +118,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 		expectedConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 		expectedConfig.Dimensions = []string{"namespace"}
 
-		assert.Equal(t, expectedConfig, instance.processors[servicegraphs.Name].Config())
+		assert.Equal(t, expectedConfig, instance.processors[servicegraphs.Name].(*servicegraphs.Processor).Cfg)
 	})
 
 	t.Run("remove processor", func(t *testing.T) {
