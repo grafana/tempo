@@ -11,8 +11,8 @@ import (
 )
 
 type counter struct {
-	name   string
-	labels []string
+	metricName string
+	labels     []string
 
 	// seriesMtx is used to sync modifications to the map, not to the data in series
 	seriesMtx sync.RWMutex
@@ -43,7 +43,7 @@ func newCounter(name string, labels []string, onAddSeries func(uint32) bool, onR
 	}
 
 	return &counter{
-		name:           name,
+		metricName:     name,
 		labels:         labels,
 		series:         make(map[uint64]*counterSeries),
 		onAddSeries:    onAddSeries,
@@ -100,11 +100,11 @@ func (c *counter) updateSeries(s *counterSeries, value float64) {
 	s.lastUpdated.Store(time.Now().UnixMilli())
 }
 
-func (c *counter) Name() string {
-	return c.name
+func (c *counter) name() string {
+	return c.metricName
 }
 
-func (c *counter) CollectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
+func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
 	c.seriesMtx.RLock()
 	defer c.seriesMtx.RUnlock()
 
@@ -114,7 +114,7 @@ func (c *counter) CollectMetrics(appender storage.Appender, timeMs int64, extern
 	lb := labels.NewBuilder(lbls)
 
 	// set metric name
-	lb.Set(labels.MetricName, c.name)
+	lb.Set(labels.MetricName, c.metricName)
 	// set external labels
 	for name, value := range externalLabels {
 		lb.Set(name, value)
@@ -137,7 +137,7 @@ func (c *counter) CollectMetrics(appender storage.Appender, timeMs int64, extern
 	return
 }
 
-func (c *counter) RemoveStaleSeries(staleTimeMs int64) {
+func (c *counter) removeStaleSeries(staleTimeMs int64) {
 	c.seriesMtx.Lock()
 	defer c.seriesMtx.Unlock()
 

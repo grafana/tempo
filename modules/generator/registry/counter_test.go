@@ -105,7 +105,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 	c.Inc(NewLabelValues([]string{"value-1"}), 1.0)
 	c.Inc(NewLabelValues([]string{"value-2"}), 2.0)
 
-	c.RemoveStaleSeries(timeMs)
+	c.removeStaleSeries(timeMs)
 
 	assert.Equal(t, 0, removedSeries)
 
@@ -122,7 +122,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 	// update value-2 series
 	c.Inc(NewLabelValues([]string{"value-2"}), 2.0)
 
-	c.RemoveStaleSeries(timeMs)
+	c.removeStaleSeries(timeMs)
 
 	assert.Equal(t, 1, removedSeries)
 
@@ -181,12 +181,12 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		_, err := c.CollectMetrics(&noopAppender{}, 0, nil)
+		_, err := c.collectMetrics(&noopAppender{}, 0, nil)
 		assert.NoError(t, err)
 	})
 
 	go accessor(func() {
-		c.RemoveStaleSeries(time.Now().UnixMilli())
+		c.removeStaleSeries(time.Now().UnixMilli())
 	})
 
 	time.Sleep(200 * time.Millisecond)
@@ -232,7 +232,7 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, externalLabels map[string]string, expectedActiveSeries int, expectedSamples []sample, expectedExemplars []exemplarSample) {
 	appender := &capturingAppender{}
 
-	activeSeries, err := m.CollectMetrics(appender, collectionTimeMs, externalLabels)
+	activeSeries, err := m.collectMetrics(appender, collectionTimeMs, externalLabels)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedActiveSeries, activeSeries)
 

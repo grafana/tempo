@@ -72,9 +72,9 @@ type ManagedRegistry struct {
 
 // metric is the interface for a metric that is managed by ManagedRegistry.
 type metric interface {
-	Name() string
-	CollectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error)
-	RemoveStaleSeries(staleTimeMs int64)
+	name() string
+	collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error)
+	removeStaleSeries(staleTimeMs int64)
 }
 
 var _ Registry = (*ManagedRegistry)(nil)
@@ -134,10 +134,10 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 	r.metricsMtx.Lock()
 	defer r.metricsMtx.Unlock()
 
-	if _, ok := r.metrics[m.Name()]; ok {
-		level.Debug(r.logger).Log("msg", "replacing metric, counters will be reset", "metric", m.Name())
+	if _, ok := r.metrics[m.name()]; ok {
+		level.Info(r.logger).Log("msg", "replacing metric, counters will be reset", "metric", m.name())
 	}
-	r.metrics[m.Name()] = m
+	r.metrics[m.name()] = m
 }
 
 func (r *ManagedRegistry) onAddMetricSeries(count uint32) bool {
@@ -185,7 +185,7 @@ func (r *ManagedRegistry) collectMetrics(ctx context.Context) {
 	collectionTimeMs := time.Now().UnixMilli()
 
 	for _, m := range r.metrics {
-		active, err := m.CollectMetrics(appender, collectionTimeMs, r.externalLabels)
+		active, err := m.collectMetrics(appender, collectionTimeMs, r.externalLabels)
 		if err != nil {
 			return
 		}
@@ -219,7 +219,7 @@ func (r *ManagedRegistry) removeStaleSeries(_ context.Context) {
 	timeMs := time.Now().Add(-1 * r.cfg.StaleDuration).UnixMilli()
 
 	for _, m := range r.metrics {
-		m.RemoveStaleSeries(timeMs)
+		m.removeStaleSeries(timeMs)
 	}
 
 	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", r.activeSeries.Load())
