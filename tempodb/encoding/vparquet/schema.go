@@ -4,11 +4,33 @@ import (
 	"encoding/json"
 	"math"
 
+	"github.com/pkg/errors"
+
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
+)
+
+// Label names for conversion b/n Proto <> Parquet
+
+const (
+	LabelServiceName = "service.name"
+	LabelCluster     = "cluster"
+	LabelNamespace   = "namespace"
+	LabelPod         = "pod"
+	LabelContainer   = "container"
+
+	LabelK8sClusterName   = "k8s.cluster.name"
+	LabelK8sNamespaceName = "k8s.namespace.name"
+	LabelK8sPodName       = "k8s.pod.name"
+	LabelK8sContainerName = "k8s.container.name"
+
+	LabelHTTPMethod     = "http.method"
+	LabelHTTPUrl        = "http.url"
+	LabelHTTPStatusCode = "http.status_code"
 )
 
 // These definition levels match the schema below
@@ -49,7 +71,7 @@ type Span struct {
 	ID                     []byte      `parquet:","`
 	Name                   string      `parquet:",snappy,dict"`
 	Kind                   int         `parquet:",delta"`
-	ParentSpanID           string      `parquet:",snappy"`
+	ParentSpanID           []byte      `parquet:","`
 	TraceState             string      `parquet:",snappy"`
 	StartUnixNanos         uint64      `parquet:",delta"`
 	EndUnixNanos           uint64      `parquet:",delta"`
@@ -161,31 +183,31 @@ func traceToParquet(tr *tempopb.Trace) Trace {
 		if b.Resource != nil {
 			for _, a := range b.Resource.Attributes {
 				switch a.Key {
-				case "service.name":
+				case LabelServiceName:
 					ob.Resource.ServiceName = a.Value.GetStringValue()
-				case "cluster":
+				case LabelCluster:
 					c := a.Value.GetStringValue()
 					ob.Resource.Cluster = &c
-				case "namespace":
+				case LabelNamespace:
 					n := a.Value.GetStringValue()
 					ob.Resource.Namespace = &n
-				case "pod":
+				case LabelPod:
 					p := a.Value.GetStringValue()
 					ob.Resource.Pod = &p
-				case "container":
+				case LabelContainer:
 					c := a.Value.GetStringValue()
 					ob.Resource.Container = &c
 
-				case "k8s.cluster.name":
+				case LabelK8sClusterName:
 					c := a.Value.GetStringValue()
 					ob.Resource.K8sClusterName = &c
-				case "k8s.namespace.name":
+				case LabelK8sNamespaceName:
 					n := a.Value.GetStringValue()
 					ob.Resource.K8sNamespaceName = &n
-				case "k8s.pod.name":
+				case LabelK8sPodName:
 					p := a.Value.GetStringValue()
 					ob.Resource.K8sPodName = &p
-				case "k8s.container.name":
+				case LabelK8sContainerName:
 					c := a.Value.GetStringValue()
 					ob.Resource.K8sContainerName = &c
 
@@ -225,6 +247,7 @@ func traceToParquet(tr *tempopb.Trace) Trace {
 
 				ss := Span{
 					ID:                     s.SpanId,
+					ParentSpanID:           s.ParentSpanId,
 					Name:                   s.Name,
 					Kind:                   int(s.Kind),
 					StatusCode:             int(s.Status.Code),
@@ -300,4 +323,230 @@ func eventToParquet(e *v1_trace.Span_Event) Event {
 	}
 
 	return ee
+}
+
+func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
+	var protoAttrs []*v1.KeyValue
+
+	for _, attr := range parquetAttrs {
+		protoVal := &v1.AnyValue{}
+
+		if attr.Value != nil {
+			protoVal.Value = &v1.AnyValue_StringValue{
+				StringValue: *attr.Value,
+			}
+		} else if attr.ValueInt != nil {
+			protoVal.Value = &v1.AnyValue_IntValue{
+				IntValue: *attr.ValueInt,
+			}
+		} else if attr.ValueDouble != nil {
+			protoVal.Value = &v1.AnyValue_DoubleValue{
+				DoubleValue: *attr.ValueDouble,
+			}
+		} else if attr.ValueBool != nil {
+			protoVal.Value = &v1.AnyValue_BoolValue{
+				BoolValue: *attr.ValueBool,
+			}
+		} else if attr.ValueArray != "" {
+			val := &v1.AnyValue_ArrayValue{}
+			_ = json.Unmarshal([]byte(attr.ValueArray), val.ArrayValue)
+			protoVal.Value = val
+		} else if attr.ValueKVList != "" {
+			val := &v1.AnyValue_KvlistValue{}
+			_ = json.Unmarshal([]byte(attr.ValueKVList), val.KvlistValue)
+			protoVal.Value = val
+		}
+
+		protoAttrs = append(protoAttrs, &v1.KeyValue{
+			Key:   attr.Key,
+			Value: protoVal,
+		})
+	}
+
+	return protoAttrs
+}
+
+func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
+	var protoEvents []*v1_trace.Span_Event
+
+	if len(parquetEvents) > 0 {
+		protoEvents = make([]*v1_trace.Span_Event, 0, len(parquetEvents))
+
+		for _, e := range parquetEvents {
+			protoAttrs := make([]*v1.KeyValue, 0, len(e.Attrs))
+
+			for _, a := range e.Attrs {
+				protoAttr := &v1.KeyValue{
+					Key:   a.Key,
+					Value: &v1.AnyValue{},
+				}
+
+				var v interface{}
+				_ = json.Unmarshal([]byte(a.Value), v)
+
+				switch v.(type) {
+				case *v1.AnyValue_StringValue:
+					protoAttr.Value.Value = &v1.AnyValue_StringValue{
+						StringValue: v.(string),
+					}
+				case *v1.AnyValue_IntValue:
+					protoAttr.Value.Value = &v1.AnyValue_IntValue{
+						IntValue: v.(int64),
+					}
+				case *v1.AnyValue_DoubleValue:
+					protoAttr.Value.Value = &v1.AnyValue_DoubleValue{
+						DoubleValue: v.(float64),
+					}
+				case *v1.AnyValue_BoolValue:
+					protoAttr.Value.Value = &v1.AnyValue_BoolValue{
+						BoolValue: v.(bool),
+					}
+				case *v1.AnyValue_ArrayValue:
+					protoAttr.Value.Value = &v1.AnyValue_ArrayValue{
+						ArrayValue: v.(*v1.ArrayValue),
+					}
+				case *v1.AnyValue_KvlistValue:
+					protoAttr.Value.Value = &v1.AnyValue_KvlistValue{
+						KvlistValue: v.(*v1.KeyValueList),
+					}
+				}
+			}
+
+			protoEvents = append(protoEvents, &v1_trace.Span_Event{
+				TimeUnixNano:           uint64(e.TimeUnixNano),
+				Name:                   e.Name,
+				Attributes:             protoAttrs,
+				DroppedAttributesCount: uint32(e.DroppedAttributesCount),
+			})
+		}
+	}
+
+	return protoEvents
+}
+
+func parquetTraceToTempopbTrace(parquetTrace *Trace) (*tempopb.Trace, error) {
+
+	protoTrace := &tempopb.Trace{}
+	protoTrace.Batches = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
+
+	protoTraceID, err := util.HexStringToTraceID(parquetTrace.TraceID)
+	if err != nil {
+		return nil, errors.Wrap(err, "error converting from hex string to traceID")
+	}
+
+	for _, rs := range parquetTrace.ResourceSpans {
+		proto_batch := &v1_trace.ResourceSpans{}
+		proto_batch.Resource = &v1_resource.Resource{
+			Attributes: parquetToProtoAttrs(rs.Resource.Attrs),
+		}
+
+		// known resource attributes
+		if rs.Resource.ServiceName != "" {
+			proto_batch.Resource.Attributes = append(proto_batch.Resource.Attributes, &v1.KeyValue{
+				Key: LabelServiceName,
+				Value: &v1.AnyValue{
+					Value: &v1.AnyValue_StringValue{
+						StringValue: rs.Resource.ServiceName,
+					},
+				},
+			})
+		}
+		for _, attr := range []struct {
+			Key   string
+			Value *string
+		}{
+			{Key: LabelCluster, Value: rs.Resource.Cluster},
+			{Key: LabelNamespace, Value: rs.Resource.Namespace},
+			{Key: LabelPod, Value: rs.Resource.Pod},
+			{Key: LabelContainer, Value: rs.Resource.Container},
+			{Key: LabelK8sClusterName, Value: rs.Resource.K8sClusterName},
+			{Key: LabelK8sNamespaceName, Value: rs.Resource.K8sNamespaceName},
+			{Key: LabelK8sPodName, Value: rs.Resource.K8sPodName},
+			{Key: LabelK8sContainerName, Value: rs.Resource.K8sContainerName},
+		} {
+			if attr.Value != nil {
+				proto_batch.Resource.Attributes = append(proto_batch.Resource.Attributes, &v1.KeyValue{
+					Key: attr.Key,
+					Value: &v1.AnyValue{
+						Value: &v1.AnyValue_StringValue{
+							StringValue: *attr.Value,
+						},
+					},
+				})
+			}
+		}
+
+		proto_batch.InstrumentationLibrarySpans = make([]*v1_trace.InstrumentationLibrarySpans, 0, len(rs.InstrumentationLibrarySpans))
+
+		for _, ils := range rs.InstrumentationLibrarySpans {
+			proto_ils := &v1_trace.InstrumentationLibrarySpans{
+				InstrumentationLibrary: &v1.InstrumentationLibrary{
+					Name:    ils.InstrumentationLibrary.Name,
+					Version: ils.InstrumentationLibrary.Version,
+				},
+			}
+
+			proto_ils.Spans = make([]*v1_trace.Span, 0, len(ils.Spans))
+			for _, span := range ils.Spans {
+
+				proto_span := &v1_trace.Span{
+					TraceId:           protoTraceID,
+					SpanId:            span.ID,
+					TraceState:        span.TraceState,
+					Name:              span.Name,
+					Kind:              v1_trace.Span_SpanKind(span.Kind),
+					ParentSpanId:      span.ParentSpanID,
+					StartTimeUnixNano: uint64(span.StartUnixNanos),
+					EndTimeUnixNano:   uint64(span.EndUnixNanos),
+					Status: &v1_trace.Status{
+						Message: span.StatusMessage,
+						Code:    v1_trace.Status_StatusCode(span.StatusCode),
+					},
+					DroppedAttributesCount: uint32(span.DroppedAttributesCount),
+					DroppedEventsCount:     uint32(span.DroppedEventsCount),
+					Attributes:             parquetToProtoAttrs(span.Attrs),
+					Events:                 parquetToProtoEvents(span.Events),
+				}
+
+				// known span attributes
+				if span.HttpMethod != nil {
+					proto_span.Attributes = append(proto_span.Attributes, &v1.KeyValue{
+						Key: LabelHTTPMethod,
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_StringValue{
+								StringValue: *span.HttpMethod,
+							},
+						},
+					})
+				}
+				if span.HttpUrl != nil {
+					proto_span.Attributes = append(proto_span.Attributes, &v1.KeyValue{
+						Key: LabelHTTPUrl,
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_StringValue{
+								StringValue: *span.HttpUrl,
+							},
+						},
+					})
+				}
+				if span.HttpStatusCode != nil {
+					proto_span.Attributes = append(proto_span.Attributes, &v1.KeyValue{
+						Key: LabelHTTPStatusCode,
+						Value: &v1.AnyValue{
+							Value: &v1.AnyValue_IntValue{
+								IntValue: *span.HttpStatusCode,
+							},
+						},
+					})
+				}
+
+				proto_ils.Spans = append(proto_ils.Spans, proto_span)
+			}
+
+			proto_batch.InstrumentationLibrarySpans = append(proto_batch.InstrumentationLibrarySpans, proto_ils)
+		}
+		protoTrace.Batches = append(protoTrace.Batches, proto_batch)
+	}
+
+	return protoTrace, nil
 }
