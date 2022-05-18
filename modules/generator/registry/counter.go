@@ -100,7 +100,11 @@ func (c *counter) updateSeries(s *counterSeries, value float64) {
 	s.lastUpdated.Store(time.Now().UnixMilli())
 }
 
-func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
+func (c *counter) Name() string {
+	return c.name
+}
+
+func (c *counter) CollectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
 	c.seriesMtx.RLock()
 	defer c.seriesMtx.RUnlock()
 
@@ -133,7 +137,7 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 	return
 }
 
-func (c *counter) removeStaleSeries(staleTimeMs int64) {
+func (c *counter) RemoveStaleSeries(staleTimeMs int64) {
 	c.seriesMtx.Lock()
 	defer c.seriesMtx.Unlock()
 

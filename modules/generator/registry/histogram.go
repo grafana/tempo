@@ -15,6 +15,7 @@ import (
 )
 
 type histogram struct {
+	name         string
 	nameCount    string
 	nameSum      string
 	nameBucket   string
@@ -65,6 +66,7 @@ func newHistogram(name string, labels []string, buckets []float64, onAddSeries f
 	}
 
 	return &histogram{
+		name:          name,
 		nameCount:     fmt.Sprintf("%s_count", name),
 		nameSum:       fmt.Sprintf("%s_sum", name),
 		nameBucket:    fmt.Sprintf("%s_bucket", name),
@@ -147,7 +149,11 @@ func (h *histogram) updateSeries(s *histogramSeries, value float64, traceID stri
 	s.lastUpdated.Store(time.Now().UnixMilli())
 }
 
-func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
+func (h *histogram) Name() string {
+	return h.name
+}
+
+func (h *histogram) CollectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
 	h.seriesMtx.RLock()
 	defer h.seriesMtx.RUnlock()
 
@@ -215,7 +221,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 	return
 }
 
-func (h *histogram) removeStaleSeries(staleTimeMs int64) {
+func (h *histogram) RemoveStaleSeries(staleTimeMs int64) {
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 

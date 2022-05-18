@@ -55,9 +55,8 @@ type ManagedRegistry struct {
 	tenant         string
 	externalLabels map[string]string
 
-	metricsMtx sync.RWMutex
-	// TODO we should not allow duplicate metrics, make this map[name]metric?
-	metrics      []metric
+	metricsMtx   sync.RWMutex
+	metrics      map[string]metric
 	activeSeries atomic.Uint32
 
 	appendable storage.Appendable
@@ -73,8 +72,9 @@ type ManagedRegistry struct {
 
 // metric is the interface for a metric that is managed by ManagedRegistry.
 type metric interface {
-	collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error)
-	removeStaleSeries(staleTimeMs int64)
+	Name() string
+	CollectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error)
+	RemoveStaleSeries(staleTimeMs int64)
 }
 
 var _ Registry = (*ManagedRegistry)(nil)
@@ -98,6 +98,8 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		overrides:      overrides,
 		tenant:         tenant,
 		externalLabels: externalLabels,
+
+		metrics: map[string]metric{},
 
 		appendable: appendable,
 
@@ -132,7 +134,10 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 	r.metricsMtx.Lock()
 	defer r.metricsMtx.Unlock()
 
-	r.metrics = append(r.metrics, m)
+	if _, ok := r.metrics[m.Name()]; ok {
+		level.Debug(r.logger).Log("msg", "replacing metric, counters will be reset", "metric", m.Name())
+	}
+	r.metrics[m.Name()] = m
 }
 
 func (r *ManagedRegistry) onAddMetricSeries(count uint32) bool {
@@ -180,7 +185,7 @@ func (r *ManagedRegistry) collectMetrics(ctx context.Context) {
 	collectionTimeMs := time.Now().UnixMilli()
 
 	for _, m := range r.metrics {
-		active, err := m.collectMetrics(appender, collectionTimeMs, r.externalLabels)
+		active, err := m.CollectMetrics(appender, collectionTimeMs, r.externalLabels)
 		if err != nil {
 			return
 		}
@@ -214,7 +219,7 @@ func (r *ManagedRegistry) removeStaleSeries(_ context.Context) {
 	timeMs := time.Now().Add(-1 * r.cfg.StaleDuration).UnixMilli()
 
 	for _, m := range r.metrics {
-		m.removeStaleSeries(timeMs)
+		m.RemoveStaleSeries(timeMs)
 	}
 
 	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", r.activeSeries.Load())
