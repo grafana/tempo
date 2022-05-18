@@ -2,12 +2,14 @@ package vparquet
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
 
+	tempo_io "github.com/grafana/tempo/pkg/io"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
@@ -127,7 +129,9 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, id common.ID) (*tempop
 
 	rr := &backendReaderAt{ctx, b.r, "data.parquet", b.meta.BlockID, b.meta.TenantID}
 
-	pf, err := parquet.OpenFile(rr, int64(b.meta.Size))
+	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 32)
+
+	pf, err := parquet.OpenFile(br, int64(b.meta.Size))
 	if err != nil {
 		return nil, errors.Wrap(err, "error opening file in FindTraceByID")
 	}
@@ -159,10 +163,29 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, id common.ID) (*tempop
 	}
 
 	// seek to row and read
-	r := parquet.NewReader(pf)
+	/*r := parquet.NewReader(pf)
 	r.SeekToRow(int64(rowMatch))
 	tr := new(Trace)
 	err = r.Read(tr)
+	if err != nil {
+		return nil, errors.Wrap(err, "error reading row from backend")
+	}*/
+
+	fmt.Printf("Found trace id: %s in parquet block %v at row %d\n", traceID, b.meta.BlockID, rowMatch)
+
+	// HACK: something isn't working with SeekToRow
+	// so instead read rows up to the one we need
+	tr := new(Trace)
+	sch := parquet.SchemaOf(tr)
+	r := parquet.NewReader(pf, sch)
+	var row parquet.Row
+	for i := 0; i <= rowMatch; i++ {
+		row, err = r.ReadRow(row[:0])
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprint("error reading row from backend: row number:", i))
+		}
+	}
+	err = sch.Reconstruct(tr, row)
 	if err != nil {
 		return nil, errors.Wrap(err, "error reading row from backend")
 	}
