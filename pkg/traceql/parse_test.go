@@ -54,7 +54,7 @@ func TestPipelineErrors(t *testing.T) {
 func TestPipelineOperatorPrecedence(t *testing.T) {
 	tests := []struct {
 		in       string
-		expected interface{}
+		expected SpansetOperation
 	}{
 		{
 			in: "({ a } | { b }) > ({ a } | { b }) && ({ a } | { b })",
@@ -109,7 +109,7 @@ func TestPipelineOperatorPrecedence(t *testing.T) {
 func TestPipelineSpansetOperators(t *testing.T) {
 	tests := []struct {
 		in       string
-		expected interface{} // jpe :(
+		expected SpansetOperation
 	}{
 		{
 			in: "({ a } | { b }) > ({ a } | { b })",
@@ -165,7 +165,7 @@ func TestPipelineSpansetOperators(t *testing.T) {
 func TestPipelineScalarOperators(t *testing.T) {
 	tests := []struct {
 		in       string
-		expected interface{} // jpe :(
+		expected ScalarFilter
 	}{
 		{
 			in: "({ a } | count()) = ({ a } | count())",
