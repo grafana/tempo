@@ -25,7 +25,6 @@ var _ common.Finder = (*BackendBlock)(nil)
 var _ common.Searcher = (*BackendBlock)(nil)
 
 // NewBackendBlock returns a BackendBlock for the given backend.BlockMeta
-//  It is version aware.
 func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (*BackendBlock, error) {
 
 	return &BackendBlock{
@@ -92,7 +91,7 @@ func (b *BackendBlock) find(ctx context.Context, id common.ID) ([]byte, error) {
 }
 
 // Iterator returns an Iterator that iterates over the objects in the block from the backend
-func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (Iterator, error) {
+func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (common.Iterator, error) {
 	// read index
 	ra := backend.NewContextReader(b.meta, common.NameObjects, b.reader, false)
 	dataReader, err := NewDataReader(ra, b.meta.Encoding)
@@ -109,7 +108,7 @@ func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (Iterator, error) {
 }
 
 // partialIterator returns an Iterator that iterates over the a subset of pages in the block from the backend
-func (b *BackendBlock) partialIterator(chunkSizeBytes uint32, startPage int, totalPages int) (Iterator, error) {
+func (b *BackendBlock) partialIterator(chunkSizeBytes uint32, startPage int, totalPages int) (common.Iterator, error) {
 	// read index
 	ra := backend.NewContextReader(b.meta, common.NameObjects, b.reader, false)
 	dataReader, err := NewDataReader(ra, b.meta.Encoding)
@@ -164,7 +163,7 @@ func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	}
 
 	// Iterator
-	var iter Iterator
+	var iter common.Iterator
 	if opt.TotalPages > 0 {
 		iter, err = b.partialIterator(opt.ChunkSizeBytes, opt.StartPage, opt.TotalPages)
 	} else {

@@ -967,6 +967,13 @@ overrides:
     #  - span-metrics
     [metrics_generator_processors: <list of strings>]
 
+    # Per-user configuration of the metrics-generator processors. The following configuration
+    # overrides settings in the global configuration.
+    [metrics_generator_processor_service_graphs_histogram_buckets: <list of float>]
+    [metrics_generator_processor_service_graphs_dimensions: <list of string>]
+    [metrics_generator_processor_span_metrics_histogram_buckets: <<list of float>]
+    [metrics_generator_processor_span_metrics_dimensions: <list of string>]
+      
     # Maximum number of active series in the registry, per instance of the metrics-generator. A
     # value of 0 disables this check.
     # If the limit is reached, no new series will be added but existing series will still be
@@ -987,7 +994,15 @@ overrides:
     # This setting is useful if you wish to test how many active series a tenant will generate, without
     # actually writing these metrics.
     [metrics_generator_disable_collection: <bool> | default = false]
-      
+
+    # Per-user block retention. If this value is set to 0 (default), then block_retention
+    #  in the compactor configuration is used.
+    [block_retention: <duration> | default = 0s]
+
+    # Per-user max search duration. If this value is set to 0 (default), then max_duration
+    #  in the front-end configuration is used.
+    [max_search_duration: <duration> | default = 0s]
+
     # Tenant-specific overrides settings configuration file. The empty string (default
     # value) disables using an overrides file.
     [per_tenant_override_config: <string> | default = ""]

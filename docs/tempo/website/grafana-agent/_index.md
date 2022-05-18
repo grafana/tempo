@@ -1,6 +1,6 @@
 ---
 title: Grafana Agent
-weight: 400
+weight: 600
 ---
 
 # Grafana Agent
@@ -108,6 +108,16 @@ For a detailed description, go to [Tail-based sampling](tail-based-sampling).
 The Agent can take advantage of the span data flowing through the pipeline to generate Prometheus metrics.
 
 Go to [Span metrics](span-metrics) for a more detailed explanation of the feature.
+
+#### Service graph metrics
+
+Service graph metrics represent the relationships between services within a distributed system.
+
+This service graphs processor builds a map of services by analysing traces, with the objective to find _edges_.
+Edges are spans with a parent-child relationship, that represent a jump (e.g. a request) between two services.
+The amount of requests and their duration are recorded as metrics, which are used to represent the graph.
+
+To read more about this processor, go to its [section](service-graphs)
 
 ### Exporting spans
 

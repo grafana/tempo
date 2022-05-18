@@ -1,5 +1,16 @@
 ## main / unreleased
 
+* [FEATURE] metrics-generator: support per-tenant processor configuration [#1434](https://github.com/grafana/tempo/pull/1434) (@kvrhdn)
+* [ENHANCEMENT] Added the ability to have a per tenant max search duration. [#1421](https://github.com/grafana/tempo/pull/1421) (@joe-elliott)
+
+## v1.4.1 / 2022-05-05
+
+* [BUGFIX] metrics-generator: don't inject X-Scope-OrgID header for single-tenant setups [1417](https://github.com/grafana/tempo/pull/1417) (@kvrhdn)
+* [BUGFIX] compactor: populate `compaction_objects_combined_total` and `tempo_discarded_spans_total{reason="trace_too_large_to_compact"}` metrics again [1420](https://github.com/grafana/tempo/pull/1420) (@mdisibio)
+* [BUGFIX] distributor: prevent panics when concurrently calling `shutdown` to forwarder's queueManager [1422](https://github.com/grafana/tempo/pull/1422) (@mapno)
+
+## v1.4.0 / 2022-04-28
+
 * [CHANGE] Vulture now exercises search at any point during the block retention to test full backend search.
   **BREAKING CHANGE** Dropped `tempo-search-retention-duration` parameter.  [#1297](https://github.com/grafana/tempo/pull/1297) (@joe-elliott)
 * [CHANGE] Updated storage.trace.pool.queue_depth default from 200->10000. [#1345](https://github.com/grafana/tempo/pull/1345) (@joe-elliott)
@@ -53,6 +64,7 @@
       external_endpoints: []
   ```
 * [ENHANCEMENT] Added tenant ID (instance ID) to `trace too large message`. [#1385](https://github.com/grafana/tempo/pull/1385) (@cristiangsp)
+* [ENHANCEMENT] Add a startTime and endTime parameter to the Trace by ID Tempo Query API to improve query performance [#1388](https://github.com/grafana/tempo/pull/1388) (@sagarwala, @bikashmishra100, @ashwinidulams)
 * [BUGFIX] Correct issue where Azure "Blob Not Found" errors were sometimes not handled correctly [#1390](https://github.com/grafana/tempo/pull/1390) (@joe-elliott)
 * [BUGFIX]: Enable compaction and retention in Tanka single-binary [#1352](https://github.com/grafana/tempo/issues/1352)
 * [BUGFIX]: Remove unnecessary PersistentVolumeClaim [#1245](https://github.com/grafana/tempo/issues/1245)
@@ -70,7 +82,6 @@
 * [BUGFIX] Prevent data race / ingester crash during searching by trace id by using xxhash instance as a local variable. [#1387](https://github.com/grafana/tempo/pull/1387) (@bikashmishra100, @sagarwala, @ashwinidulams)
 * [BUGFIX] Fix spurious "failed to mark block compacted during retention" errors [#1372](https://github.com/grafana/tempo/issues/1372) (@mdisibio)
 * [BUGFIX] Fix error message "Writer is closed" by resetting compression writer correctly on the error path. [#1379](https://github.com/grafana/tempo/issues/1379) (@annanay25)
-* [ENHANCEMENT] Add a startTime and endTime parameter to the Trace by ID Tempo Query API to improve query performance [#1388](https://github.com/grafana/tempo/pull/1388) (@sagarwala, @bikashmishra100, @ashwinidulams)
 
 ## v1.3.2 / 2022-02-23
 * [BUGFIX] Fixed an issue where the query-frontend would corrupt start/end time ranges on searches which included the ingesters [#1295] (@joe-elliott)

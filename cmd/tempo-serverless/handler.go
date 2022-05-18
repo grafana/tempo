@@ -19,8 +19,8 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
@@ -90,7 +90,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		DataEncoding:  searchReq.DataEncoding,
 	}
 
-	block, err := v2.NewBackendBlock(meta, reader)
+	block, err := encoding.OpenBlock(meta, reader)
 	if err != nil {
 		return nil, httpError("creating backend block", err, http.StatusInternalServerError)
 	}

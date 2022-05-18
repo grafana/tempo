@@ -68,9 +68,9 @@ func TestAppend(t *testing.T) {
 	file, err := block.file()
 	require.NoError(t, err)
 
-	dataReader, err := block.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), backend.EncNone)
+	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(file), backend.EncNone)
 	require.NoError(t, err)
-	iterator := v2.NewRecordIterator(records, dataReader, block.encoding.NewObjectReaderWriter())
+	iterator := v2.NewRecordIterator(records, dataReader, v2.NewObjectReaderWriter())
 	defer iterator.Close()
 	i := 0
 
@@ -165,7 +165,7 @@ func TestErrorConditions(t *testing.T) {
 	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
 }
 
-func TestAppendBlockStartEnd(t *testing.T) { // jpe extend
+func TestAppendBlockStartEnd(t *testing.T) {
 	wal, err := New(&Config{
 		Filepath:       t.TempDir(),
 		Encoding:       backend.EncNone,

@@ -9,8 +9,8 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/pkg/errors"
 )
 
@@ -19,7 +19,7 @@ const nameFlushed = "flushed"
 // LocalBlock is a block stored in a local storage.  It can be searched and flushed to a remote backend, and
 // permanently tracks the flushed time with a special file in the block
 type LocalBlock struct {
-	v2.BackendBlock
+	common.BackendBlock
 	reader backend.Reader
 	writer backend.Writer
 
@@ -28,10 +28,10 @@ type LocalBlock struct {
 
 var _ common.Finder = (*LocalBlock)(nil)
 
-func NewLocalBlock(ctx context.Context, existingBlock *v2.BackendBlock, l *local.Backend) (*LocalBlock, error) {
+func NewLocalBlock(ctx context.Context, existingBlock common.BackendBlock, l *local.Backend) (*LocalBlock, error) {
 
 	c := &LocalBlock{
-		BackendBlock: *existingBlock,
+		BackendBlock: existingBlock,
 		reader:       backend.NewReader(l),
 		writer:       backend.NewWriter(l),
 	}
@@ -79,7 +79,7 @@ func (c *LocalBlock) SetFlushed(ctx context.Context) error {
 }
 
 func (c *LocalBlock) Write(ctx context.Context, w backend.Writer) error {
-	err := v2.CopyBlock(ctx, c.BlockMeta(), c.reader, w)
+	err := encoding.CopyBlock(ctx, c.BlockMeta(), c.reader, w)
 	if err != nil {
 		return errors.Wrap(err, "error copying block from local to remote backend")
 	}

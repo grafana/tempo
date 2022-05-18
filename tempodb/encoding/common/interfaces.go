@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -41,6 +42,7 @@ type CompactionOptions struct {
 	PrefetchTraceCount int // How many traces to prefetch async.
 	OutputBlocks       uint8
 	BlockConfig        BlockConfig
+	Combiner           model.ObjectCombiner
 }
 
 func DefaultCompactionOptions() CompactionOptions {
@@ -50,4 +52,18 @@ func DefaultCompactionOptions() CompactionOptions {
 		PrefetchTraceCount: 1000,
 		OutputBlocks:       1,
 	}
+}
+
+type Iterator interface {
+	// Next returns the next trace and optionally the start and stop times
+	// for the trace that may have been adjusted.
+	Next(ctx context.Context) (ID, []byte, error)
+	Close()
+}
+
+type BackendBlock interface {
+	Finder
+	Searcher
+
+	BlockMeta() *backend.BlockMeta
 }

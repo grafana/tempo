@@ -23,13 +23,13 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/metrics"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
 type mockSharder struct {
+	combinerCallCount int
 }
 
 func (m *mockSharder) Owns(hash string) bool {
@@ -37,6 +37,7 @@ func (m *mockSharder) Owns(hash string) bool {
 }
 
 func (m *mockSharder) Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error) {
+	m.combinerCallCount++
 	return model.StaticCombiner.Combine(dataEncoding, objs...)
 }
 
@@ -231,6 +232,7 @@ func TestSameIDCompaction(t *testing.T) {
 	// make a bunch of sharded requests
 	allReqs := make([][][]byte, 0, recordCount)
 	allIds := make([][]byte, 0, recordCount)
+	sharded := 0
 	for i := 0; i < recordCount; i++ {
 		id := test.ValidTraceID(nil)
 
@@ -246,6 +248,9 @@ func TestSameIDCompaction(t *testing.T) {
 			reqs = append(reqs, buff2)
 		}
 
+		if requestShards > 1 {
+			sharded++
+		}
 		allReqs = append(allReqs, reqs)
 		allIds = append(allIds, id)
 	}
@@ -281,6 +286,9 @@ func TestSameIDCompaction(t *testing.T) {
 	blocks, _ = blockSelector.BlocksToCompact()
 	assert.Len(t, blocks, blockCount)
 
+	combinedStart, err := test.GetCounterVecValue(metrics.MetricCompactionObjectsCombined, "0")
+	require.NoError(t, err)
+
 	err = rw.compact(blocks, testTenantID)
 	require.NoError(t, err)
 
@@ -309,9 +317,12 @@ func TestSameIDCompaction(t *testing.T) {
 
 		expectedBytes, _, err := model.StaticCombiner.Combine(v1.Encoding, allReqs[i]...)
 		require.NoError(t, err)
-
 		require.Equal(t, expectedBytes, b2)
 	}
+
+	combinedEnd, err := test.GetCounterVecValue(metrics.MetricCompactionObjectsCombined, "0")
+	require.NoError(t, err)
+	require.Equal(t, float64(sharded), combinedEnd-combinedStart)
 }
 
 func TestCompactionUpdatesBlocklist(t *testing.T) {
@@ -419,7 +430,7 @@ func TestCompactionMetrics(t *testing.T) {
 
 	// Cut x blocks with y records each
 	blockCount := 5
-	recordCount := 1
+	recordCount := 10
 	cutTestBlocks(t, w, testTenantID, blockCount, recordCount)
 
 	rw := r.(*readerWriter)
@@ -451,6 +462,58 @@ func TestCompactionMetrics(t *testing.T) {
 	bytesEnd, err := test.GetCounterVecValue(metrics.MetricCompactionBytesWritten, "0")
 	assert.NoError(t, err)
 	assert.Greater(t, bytesEnd, bytesStart) // calculating the exact bytes requires knowledge of the bytes as written in the blocks.  just make sure it goes up
+}
+
+func TestCompactionUsesCombiner(t *testing.T) {
+	tempDir := t.TempDir()
+
+	r, w, c, err := New(&Config{
+		Backend: "local",
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			IndexDownsampleBytes: 11,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Encoding:             backend.EncNone,
+			IndexPageSizeBytes:   1000,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, log.NewNopLogger())
+	assert.NoError(t, err)
+
+	sharder := &mockSharder{}
+
+	c.EnableCompaction(&CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      24 * time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	}, sharder, &mockOverrides{})
+
+	r.EnablePolling(&mockJobSharder{})
+
+	// Cut x blocks with y records each
+	blockCount := 5
+	recordCount := 7
+	cutTestBlocks(t, w, testTenantID, blockCount, recordCount)
+
+	rw := r.(*readerWriter)
+	rw.pollBlocklist()
+
+	// compact everything
+	err = rw.compact(rw.blocklist.Metas(testTenantID), testTenantID)
+	assert.NoError(t, err)
+
+	require.Equal(t, blockCount*recordCount, sharder.combinerCallCount)
 }
 
 func TestCompactionIteratesThroughTenants(t *testing.T) {
@@ -512,8 +575,8 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID2)))
 }
 
-func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, recordCount int) []*v2.BackendBlock {
-	blocks := make([]*v2.BackendBlock, 0)
+func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, recordCount int) []common.BackendBlock {
+	blocks := make([]common.BackendBlock, 0)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	wal := w.WAL()

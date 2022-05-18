@@ -15,6 +15,7 @@ import (
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -49,6 +50,10 @@ func TestInstanceSearch(t *testing.T) {
 	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
+	// This matches the encoding for live traces, since
+	// we are pushing to the instance directly it must match.
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
 	numTraces := 500
 	searchAnnotatedFractionDenominator := 100
 	ids := [][]byte{}
@@ -63,7 +68,7 @@ func TestInstanceSearch(t *testing.T) {
 
 		testTrace := test.MakeTrace(10, id)
 		trace.SortTrace(testTrace)
-		traceBytes, err := testTrace.Marshal()
+		traceBytes, err := dec.PrepareForWrite(testTrace, 0, 0)
 		require.NoError(t, err)
 
 		// annotate just a fraction of traces with search data
@@ -167,6 +172,10 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	require.NoError(t, err)
 
+	// This matches the encoding for live traces, since
+	// we are pushing to the instance directly it must match.
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
 	// add dummy search data
 	var tagKey = "foo"
 	var tagValue = "bar"
@@ -193,7 +202,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		rand.Read(id)
 
 		trace := test.MakeTrace(10, id)
-		traceBytes, err := trace.Marshal()
+		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 		require.NoError(t, err)
 
 		searchData := &tempofb.SearchEntryMutable{}
@@ -269,6 +278,10 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	require.NoError(t, err)
 
+	// This matches the encoding for live traces, since
+	// we are pushing to the instance directly it must match.
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
 	end := make(chan struct{})
 
 	concurrent := func(f func()) {
@@ -287,7 +300,7 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 		rand.Read(id)
 
 		trace := test.MakeTrace(10, id)
-		traceBytes, err := trace.Marshal()
+		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 		require.NoError(t, err)
 
 		entry := &tempofb.SearchEntryMutable{}
@@ -332,14 +345,19 @@ func TestInstanceSearchMetrics(t *testing.T) {
 
 	i := defaultInstance(t, t.TempDir())
 
+	// This matches the encoding for live traces, since
+	// we are pushing to the instance directly it must match.
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
 	numTraces := uint32(500)
 	numBytes := uint64(0)
 	for j := uint32(0); j < numTraces; j++ {
-		id := make([]byte, 16)
-		rand.Read(id)
+		id := test.ValidTraceID(nil)
 
+		// Trace bytes have to be pushed in the expected data encoding
 		trace := test.MakeTrace(10, id)
-		traceBytes, err := trace.Marshal()
+
+		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 		require.NoError(t, err)
 
 		data := &tempofb.SearchEntryMutable{}
@@ -403,6 +421,10 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 
 	i := defaultInstance(b, b.TempDir())
 
+	// This matches the encoding for live traces, since
+	// we are pushing to the instance directly it must match.
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
 	end := make(chan struct{})
 
 	concurrent := func(f func()) {
@@ -420,11 +442,10 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	var tracesPushed atomic.Int32
 	for j := 0; j < 2; j++ {
 		go concurrent(func() {
-			id := make([]byte, 16)
-			rand.Read(id)
+			id := test.ValidTraceID(nil)
 
 			trace := test.MakeTrace(10, id)
-			traceBytes, err := trace.Marshal()
+			traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 			require.NoError(b, err)
 
 			searchData := &tempofb.SearchEntryMutable{}

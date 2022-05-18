@@ -14,3 +14,4 @@ Resources for deploying and running Tempo:
 - [Tempo CLI](tempo_cli)
 - [Polling/Tenant Index](polling)
 - [Backend search](backend_search)
+- [Server-side metrics](server_side_metrics)

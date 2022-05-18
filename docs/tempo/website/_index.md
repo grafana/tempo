@@ -1,10 +1,10 @@
 ---
-title: Tempo Documentation
+title: Tempo documentation
 aliases:
   - /docs/tempo/
 ---
 
-# Tempo Documentation
+# Tempo documentation
 
 <p align="center"><img src="logo_and_name.png" alt="Tempo Logo"></p>
 
@@ -15,6 +15,7 @@ Grafana Tempo is an open source, easy-to-use and high-volume distributed tracing
 - [Getting Started](getting-started/)
 - [Configuration](configuration/)
 - [Deployment and Operations](operations/)
+- [Server-side metrics](server_side_metrics/)
 - [API](api_docs/) 
 - [Grafana Agent](grafana-agent/)
 - [Troubleshooting](troubleshooting/)

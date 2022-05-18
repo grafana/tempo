@@ -407,7 +407,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 
 	b.ResetTimer()
 
-	fullFilename := path.Join(backendTmpDir, block.compactedMeta.TenantID, block.compactedMeta.BlockID.String(), "data")
+	fullFilename := path.Join(backendTmpDir, block.meta.TenantID, block.meta.BlockID.String(), "data")
 	file, err := os.Open(fullFilename)
 	require.NoError(b, err)
 	pr, err := NewDataReader(backend.NewContextReaderWithAllReader(file), encoding)

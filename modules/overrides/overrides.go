@@ -302,9 +302,38 @@ func (o *Overrides) MetricsGeneratorForwarderWorkers(userID string) int {
 	return o.getOverridesForUser(userID).MetricsGeneratorForwarderWorkers
 }
 
+// MetricsGeneratorProcessorServiceGraphsHistogramBuckets controls the histogram buckets to be used
+// by the service graphs processor.
+func (o *Overrides) MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64 {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorServiceGraphsHistogramBuckets
+}
+
+// MetricsGeneratorProcessorServiceGraphsDimensions controls the dimensions that are added to the
+// service graphs processor.
+func (o *Overrides) MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorServiceGraphsDimensions
+}
+
+// MetricsGeneratorProcessorSpanMetricsHistogramBuckets controls the histogram buckets to be used
+// by the span metrics processor.
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID string) []float64 {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsHistogramBuckets
+}
+
+// MetricsGeneratorProcessorSpanMetricsDimensions controls the dimensions that are added to the
+// span metrics processor.
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsDimensions(userID string) []string {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsDimensions
+}
+
 // BlockRetention is the duration of the block retention for this tenant.
 func (o *Overrides) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).BlockRetention)
+}
+
+// MaxSearchDuration is the duration of the max search duration for this tenant.
+func (o *Overrides) MaxSearchDuration(userID string) time.Duration {
+	return time.Duration(o.getOverridesForUser(userID).MaxSearchDuration)
 }
 
 func (o *Overrides) getOverridesForUser(userID string) *Limits {

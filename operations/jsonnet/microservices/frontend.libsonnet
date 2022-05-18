@@ -12,6 +12,7 @@
   local tempo_config_volume = 'tempo-conf',
   local tempo_query_config_volume = 'tempo-query-conf',
   local tempo_data_volume = 'tempo-data',
+  local tempo_overrides_config_volume = 'overrides',
 
   tempo_query_frontend_container::
     container.new(target_name, $._images.tempo) +
@@ -26,6 +27,7 @@
     (if $._config.variables_expansion then container.withEnvMixin($._config.variables_expansion_env_mixin) else {}) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
+      volumeMount.new(tempo_overrides_config_volume, '/overrides'),
     ]) +
     $.util.withResources($._config.query_frontend.resources) +
     $.util.readinessProbe +
@@ -63,6 +65,7 @@
     deployment.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_query_config_volume, $.tempo_query_configmap.metadata.name),
       volume.fromConfigMap(tempo_config_volume, $.tempo_query_frontend_configmap.metadata.name),
+      volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
     ]),
 
   tempo_query_frontend_service:

@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
@@ -24,7 +23,6 @@ const maxDataEncodingLength = 32
 // in the order it was received and an in memory sorted index.
 type AppendBlock struct {
 	meta           *backend.BlockMeta
-	encoding       encoding.VersionedEncoding
 	ingestionSlack time.Duration
 
 	appendFile *os.File
@@ -41,14 +39,8 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
 	}
 
-	v, err := encoding.FromVersion("v2") // let's pin wal files instead of tracking latest for safety
-	if err != nil {
-		return nil, err
-	}
-
 	h := &AppendBlock{
-		encoding:       v,
-		meta:           backend.NewBlockMeta(tenantID, id, v.Version(), e, dataEncoding),
+		meta:           backend.NewBlockMeta(tenantID, id, v2.VersionString, e, dataEncoding),
 		filepath:       filepath,
 		ingestionSlack: ingestionSlack,
 	}
@@ -61,7 +53,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 	}
 	h.appendFile = f
 
-	dataWriter, err := h.encoding.NewDataWriter(f, e)
+	dataWriter, err := v2.NewDataWriter(f, e)
 	if err != nil {
 		return nil, err
 	}
@@ -80,15 +72,9 @@ func newAppendBlockFromFile(filename string, path string, ingestionSlack time.Du
 		return nil, nil, fmt.Errorf("parsing wal filename: %w", err)
 	}
 
-	v, err := encoding.FromVersion(version)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parsing version: %w", err)
-	}
-
 	b := &AppendBlock{
 		meta:           backend.NewBlockMeta(tenantID, blockID, version, e, dataEncoding),
 		filepath:       path,
-		encoding:       v,
 		ingestionSlack: ingestionSlack,
 	}
 
@@ -101,7 +87,7 @@ func newAppendBlockFromFile(filename string, path string, ingestionSlack time.Du
 	blockStart := uint32(math.MaxUint32)
 	blockEnd := uint32(0)
 
-	records, warning, err := ReplayWALAndGetRecords(f, v, e, func(bytes []byte) error {
+	records, warning, err := ReplayWALAndGetRecords(f, e, func(bytes []byte) error {
 		start, end, err := fn(bytes, dataEncoding)
 		if err != nil {
 			return err
@@ -151,7 +137,7 @@ func (a *AppendBlock) Meta() *backend.BlockMeta {
 	return a.meta
 }
 
-func (a *AppendBlock) Iterator(combiner model.ObjectCombiner) (v2.Iterator, error) {
+func (a *AppendBlock) Iterator(combiner model.ObjectCombiner) (common.Iterator, error) {
 	if a.appendFile != nil {
 		err := a.appendFile.Close()
 		if err != nil {
@@ -166,12 +152,12 @@ func (a *AppendBlock) Iterator(combiner model.ObjectCombiner) (v2.Iterator, erro
 		return nil, err
 	}
 
-	dataReader, err := a.encoding.NewDataReader(backend.NewContextReaderWithAllReader(readFile), a.meta.Encoding)
+	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(readFile), a.meta.Encoding)
 	if err != nil {
 		return nil, err
 	}
 
-	iterator := v2.NewRecordIterator(records, dataReader, a.encoding.NewObjectReaderWriter())
+	iterator := v2.NewRecordIterator(records, dataReader, v2.NewObjectReaderWriter())
 	iterator, err = v2.NewDedupingIterator(iterator, combiner, a.meta.DataEncoding)
 	if err != nil {
 		return nil, err
@@ -190,12 +176,12 @@ func (a *AppendBlock) Find(id common.ID, combiner model.ObjectCombiner) ([]byte,
 		return nil, nil
 	}
 
-	dataReader, err := a.encoding.NewDataReader(backend.NewContextReaderWithAllReader(file), a.meta.Encoding)
+	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(file), a.meta.Encoding)
 	if err != nil {
 		return nil, err
 	}
 	defer dataReader.Close()
-	finder := v2.NewPagedFinder(common.Records(records), dataReader, combiner, a.encoding.NewObjectReaderWriter(), a.meta.DataEncoding)
+	finder := v2.NewPagedFinder(common.Records(records), dataReader, combiner, v2.NewObjectReaderWriter(), a.meta.DataEncoding)
 
 	return finder.Find(context.Background(), id)
 }

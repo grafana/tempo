@@ -55,9 +55,8 @@ type ManagedRegistry struct {
 	tenant         string
 	externalLabels map[string]string
 
-	metricsMtx sync.RWMutex
-	// TODO we should not allow duplicate metrics, make this map[name]metric?
-	metrics      []metric
+	metricsMtx   sync.RWMutex
+	metrics      map[string]metric
 	activeSeries atomic.Uint32
 
 	appendable storage.Appendable
@@ -73,6 +72,7 @@ type ManagedRegistry struct {
 
 // metric is the interface for a metric that is managed by ManagedRegistry.
 type metric interface {
+	name() string
 	collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error)
 	removeStaleSeries(staleTimeMs int64)
 }
@@ -98,6 +98,8 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		overrides:      overrides,
 		tenant:         tenant,
 		externalLabels: externalLabels,
+
+		metrics: map[string]metric{},
 
 		appendable: appendable,
 
@@ -132,7 +134,10 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 	r.metricsMtx.Lock()
 	defer r.metricsMtx.Unlock()
 
-	r.metrics = append(r.metrics, m)
+	if _, ok := r.metrics[m.name()]; ok {
+		level.Info(r.logger).Log("msg", "replacing metric, counters will be reset", "metric", m.name())
+	}
+	r.metrics[m.name()] = m
 }
 
 func (r *ManagedRegistry) onAddMetricSeries(count uint32) bool {

@@ -37,7 +37,7 @@ func TestServiceGraphs(t *testing.T) {
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: traces.Batches})
 
 	// Manually call expire to force removal of completed edges.
-	sgp := p.(*processor)
+	sgp := p.(*Processor)
 	sgp.store.Expire()
 
 	lbAppLabels := labels.FromMap(map[string]string{
@@ -56,6 +56,7 @@ func TestServiceGraphs(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_total`, appDbLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, appDbLabels))
 
 	assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(appDbLabels, 2.0)))
 	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(appDbLabels, 3.0)))
@@ -70,6 +71,7 @@ func TestServiceGraphs(t *testing.T) {
 	assert.Equal(t, 5.0, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, appDbLabels))
 
 	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_total`, lbAppLabels))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_failed_total`, lbAppLabels))
 
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(lbAppLabels, 2.0)))
 	assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(lbAppLabels, 3.0)))
@@ -96,7 +98,7 @@ func TestServiceGraphs_tooManySpansErr(t *testing.T) {
 	traces, err := loadTestData("testdata/test-sample.json")
 	require.NoError(t, err)
 
-	err = p.(*processor).consume(traces.Batches)
+	err = p.(*Processor).consume(traces.Batches)
 	assert.True(t, errors.As(err, &tooManySpansError{}))
 }
 
