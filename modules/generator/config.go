@@ -45,8 +45,7 @@ func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag
 
 // copyWithOverrides creates a copy of the config using values set in the overrides.
 func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userID string) ProcessorConfig {
-	var copyCfg ProcessorConfig
-	copyCfg = *cfg
+	copyCfg := *cfg
 
 	if buckets := o.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID); buckets != nil {
 		copyCfg.ServiceGraphs.HistogramBuckets = buckets
