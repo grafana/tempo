@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
 
@@ -123,11 +124,18 @@ func (rt *RowTracker) binarySearch(start int, end int, traceID string) int {
 	return midResult
 }
 
-func (b *backendBlock) FindTraceByID(ctx context.Context, id common.ID) (*tempopb.Trace, error) {
+func (b *backendBlock) FindTraceByID(ctx context.Context, id common.ID) (_ *tempopb.Trace, err error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.FindTraceByID",
+		opentracing.Tags{
+			"blockID":  b.meta.BlockID,
+			"tenantID": b.meta.TenantID,
+		})
+	defer span.Finish()
+
 	// todo: scan our sharded bloom filters?
 	traceID := util.TraceIDToHexString(id)
 
-	rr := &backendReaderAt{ctx, b.r, "data.parquet", b.meta.BlockID, b.meta.TenantID}
+	rr := NewBackendReaderAt(derivedCtx, b.r, "data.parquet", b.meta.BlockID, b.meta.TenantID)
 
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 32)
 

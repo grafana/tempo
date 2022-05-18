@@ -280,6 +280,10 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	wg.Wait()
 
 	// all goroutines have finished, we can safely access searchResults fields directly now
+	span.SetTag("inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks)
+	span.SetTag("inspectedBytes", overallResponse.resultsMetrics.InspectedBytes)
+	span.SetTag("inspectedTraces", overallResponse.resultsMetrics.InspectedTraces)
+
 	if overallResponse.err != nil {
 		return nil, overallResponse.err
 	}

@@ -99,8 +99,8 @@ func (r *bufferedReader) ReadAt(b []byte, offset int64) (int, error) {
 
 	// Need to read, overwrite least-recently-used
 	buf := &r.buffers[lruIdx]
-	if n, err := r.populate(buf, offset, int64(len(b))); err != nil {
-		return n, err
+	if _, err := r.populate(buf, offset, int64(len(b))); err != nil {
+		return 0, err
 	}
 
 	r.buffers[lruIdx].count = r.count

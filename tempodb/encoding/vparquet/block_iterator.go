@@ -9,7 +9,7 @@ import (
 )
 
 func (b *backendBlock) Iterator(ctx context.Context) (*iterator, error) {
-	rr := &backendReaderAt{ctx, b.r, "data.parquet", b.meta.BlockID, b.meta.TenantID}
+	rr := NewBackendReaderAt(ctx, b.r, "data.parquet", b.meta.BlockID, b.meta.TenantID)
 
 	// 16 MB memory buffering
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 32)

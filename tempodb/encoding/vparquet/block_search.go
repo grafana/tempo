@@ -11,8 +11,11 @@ import (
 	"github.com/grafana/tempo/pkg/parquetquery"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 	"github.com/segmentio/parquet-go"
 )
 
@@ -22,17 +25,31 @@ type backendReaderAt struct {
 	name     string
 	blockID  uuid.UUID
 	tenantID string
+
+	TotalBytesRead uint64
 }
 
 var _ io.ReaderAt = (*backendReaderAt)(nil)
 
+func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, blockID uuid.UUID, tenantID string) *backendReaderAt {
+	return &backendReaderAt{ctx, r, name, blockID, tenantID, 0}
+}
+
 func (b *backendReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	b.TotalBytesRead += uint64(len(p))
 	err := b.r.ReadRange(b.ctx, b.name, b.blockID, b.tenantID, uint64(off), p)
 	return len(p), err
 }
 
-func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
-	rr := &backendReaderAt{ctx, b.r, "data.parquet", b.meta.BlockID, b.meta.TenantID}
+func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (_ *tempopb.SearchResponse, err error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.Search",
+		opentracing.Tags{
+			"blockID":  b.meta.BlockID,
+			"tenantID": b.meta.TenantID,
+		})
+	defer span.Finish()
+
+	rr := NewBackendReaderAt(derivedCtx, b.r, "data.parquet", b.meta.BlockID, b.meta.TenantID)
 
 	// 16 MB memory buffering
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 32)
@@ -58,8 +75,16 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 
 	// TODO: error handling
 	results := searchParquetFile(pf, req, rgs)
+	results.Metrics.InspectedBlocks++
+	results.Metrics.InspectedBytes += rr.TotalBytesRead
 
-	fmt.Println("Searched parquet file:", b.meta.BlockID, opts.StartPage, opts.TotalPages, results)
+	span.LogFields(
+		log.Uint64("blockSize", b.meta.Size),
+		log.Uint64("inspectedBytes", rr.TotalBytesRead),
+	)
+
+	traceID, _ := util.ExtractTraceID(ctx)
+	fmt.Println("Searched parquet file:", traceID, b.meta.BlockID, opts.StartPage, opts.TotalPages, results)
 
 	return results, nil
 }
