@@ -967,6 +967,13 @@ overrides:
     #  - span-metrics
     [metrics_generator_processors: <list of strings>]
 
+    # Per-user configuration of the metrics-generator processors. The following configuration
+    # will override settings in the global config.
+    [metrics_generator_processor_service_graphs_histogram_buckets: <list of float>]
+    [metrics_generator_processor_service_graphs_dimensions: <list of string>]
+    [metrics_generator_processor_span_metrics_histogram_buckets: <<list of float>]
+    [metrics_generator_processor_span_metrics_dimensions: <list of string>]
+      
     # Maximum number of active series in the registry, per instance of the metrics-generator. A
     # value of 0 disables this check.
     # If the limit is reached, no new series will be added but existing series will still be
