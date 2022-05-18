@@ -724,6 +724,9 @@ func TestSpansetFilterStatics(t *testing.T) {
 		{in: "{ nil }", expected: newStaticNil()},
 		{in: "{ 3h }", expected: newStaticDuration(3 * time.Hour)},
 		{in: "{ }", expected: newStaticBool(true)},
+		{in: "{ error }", expected: newStaticStatus(statusError)},
+		{in: "{ ok }", expected: newStaticStatus(statusOk)},
+		{in: "{ unset }", expected: newStaticStatus(statusUnset)},
 	}
 
 	for _, tc := range tests {

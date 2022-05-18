@@ -61,7 +61,7 @@ import (
 %token <staticFloat>    FLOAT
 %token <staticDuration> DURATION
 %token <val>            DOT OPEN_BRACE CLOSE_BRACE OPEN_PARENS CLOSE_PARENS
-                        NIL TRUE FALSE
+                        NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
                         COUNT AVG MAX MIN SUM
                         BY COALESCE
 
@@ -198,13 +198,16 @@ fieldExpression:
 // Statics
 // **********************
 static:
-    STRING        { $$ = newStaticString($1)     }
-  | INTEGER       { $$ = newStaticInt($1)        }
-  | FLOAT         { $$ = newStaticFloat($1)      }
-  | TRUE          { $$ = newStaticBool(true)     }
-  | FALSE         { $$ = newStaticBool(false)    }
-  | NIL           { $$ = newStaticNil()          }
-  | DURATION      { $$ = newStaticDuration($1)   }
+    STRING        { $$ = newStaticString($1)          }
+  | INTEGER       { $$ = newStaticInt($1)             }
+  | FLOAT         { $$ = newStaticFloat($1)           }
+  | TRUE          { $$ = newStaticBool(true)          }
+  | FALSE         { $$ = newStaticBool(false)         }
+  | NIL           { $$ = newStaticNil()               }
+  | DURATION      { $$ = newStaticDuration($1)        }
+  | STATUS_OK     { $$ = newStaticStatus(statusOk)    }
+  | STATUS_ERROR  { $$ = newStaticStatus(statusError) }
+  | STATUS_UNSET  { $$ = newStaticStatus(statusUnset) }
   ;
 
 spanField:

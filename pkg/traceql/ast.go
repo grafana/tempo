@@ -230,6 +230,13 @@ const (
 	typeIdentifier
 	typeNil
 	typeDuration
+	typeStatus
+)
+
+const (
+	statusError = iota
+	statusOk
+	statusUnset
 )
 
 type Static struct {
@@ -282,6 +289,13 @@ func newStaticDuration(d time.Duration) Static {
 	return Static{
 		staticType: typeDuration,
 		d:          d,
+	}
+}
+
+func newStaticStatus(s int) Static {
+	return Static{
+		staticType: typeStatus,
+		n:          s,
 	}
 }
 

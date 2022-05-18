@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -104,7 +105,18 @@ func (n Static) String() string {
 		return "nil"
 	case typeDuration:
 		return n.d.String()
+	case typeStatus:
+		switch n.n {
+		case statusError:
+			return "error"
+		case statusOk:
+			return "ok"
+		case statusUnset:
+			return "unset"
+		default:
+			return fmt.Sprintf("status(%d)", n.n)
+		}
 	}
 
-	return "??"
+	return fmt.Sprintf("static(%d)", n.staticType)
 }
