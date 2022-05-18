@@ -45,7 +45,13 @@ func New(cfg Config, registry registry.Registry) gen.Processor {
 	}
 }
 
-func (p *processor) Name() string { return Name }
+func (p *processor) Name() string {
+	return Name
+}
+
+func (p *processor) Config() interface{} {
+	return p.cfg
+}
 
 func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
 	span, _ := opentracing.StartSpanFromContext(ctx, "spanmetrics.PushSpans")

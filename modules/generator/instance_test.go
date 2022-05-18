@@ -2,6 +2,8 @@ package generator
 
 import (
 	"context"
+	"flag"
+	"os"
 	"testing"
 	"time"
 
@@ -20,7 +22,8 @@ import (
 )
 
 func Test_instance_concurrency(t *testing.T) {
-	instance, err := newInstance(&Config{}, "test", &mockOverrides{}, &noopStorage{}, prometheus.DefaultRegisterer, log.NewNopLogger())
+	overrides := &mockOverrides{}
+	instance, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, prometheus.DefaultRegisterer, log.NewNopLogger())
 	assert.NoError(t, err)
 
 	end := make(chan struct{})
@@ -42,18 +45,16 @@ func Test_instance_concurrency(t *testing.T) {
 	})
 
 	go accessor(func() {
-		processors := map[string]struct{}{
+		overrides.processors = map[string]struct{}{
 			"span-metrics": {},
 		}
-		err := instance.updateProcessors(processors)
+		err := instance.updateProcessors()
 		assert.NoError(t, err)
-	})
 
-	go accessor(func() {
-		processors := map[string]struct{}{
+		overrides.processors = map[string]struct{}{
 			"service-graphs": {},
 		}
-		err := instance.updateProcessors(processors)
+		err = instance.updateProcessors()
 		assert.NoError(t, err)
 	})
 
@@ -67,7 +68,12 @@ func Test_instance_concurrency(t *testing.T) {
 }
 
 func Test_instance_updateProcessors(t *testing.T) {
-	instance, err := newInstance(&Config{}, "test", &mockOverrides{}, &noopStorage{}, prometheus.DefaultRegisterer, log.NewNopLogger())
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
+	overrides := mockOverrides{}
+
+	instance, err := newInstance(&cfg, "test", &overrides, &noopStorage{}, prometheus.DefaultRegisterer, logger)
 	assert.NoError(t, err)
 
 	// stop the update goroutine
@@ -77,10 +83,10 @@ func Test_instance_updateProcessors(t *testing.T) {
 	assert.Len(t, instance.processors, 0)
 
 	t.Run("add new processor", func(t *testing.T) {
-		processors := map[string]struct{}{
+		overrides.processors = map[string]struct{}{
 			servicegraphs.Name: {},
 		}
-		err := instance.updateProcessors(processors)
+		err := instance.updateProcessors()
 		assert.NoError(t, err)
 
 		assert.Len(t, instance.processors, 1)
@@ -88,10 +94,10 @@ func Test_instance_updateProcessors(t *testing.T) {
 	})
 
 	t.Run("add unknown processor", func(t *testing.T) {
-		processors := map[string]struct{}{
+		overrides.processors = map[string]struct{}{
 			"span-metricsss": {}, // typo in the overrides
 		}
-		err := instance.updateProcessors(processors)
+		err := instance.updateProcessors()
 		assert.Error(t, err)
 
 		// existing processors should not be removed when adding a new processor fails
@@ -99,34 +105,29 @@ func Test_instance_updateProcessors(t *testing.T) {
 		assert.Equal(t, instance.processors[servicegraphs.Name].Name(), servicegraphs.Name)
 	})
 
+	t.Run("replace processor", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			servicegraphs.Name: {},
+		}
+		overrides.serviceGraphsDimensions = []string{"namespace"}
+
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
+		var expectedConfig servicegraphs.Config
+		expectedConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+		expectedConfig.Dimensions = []string{"namespace"}
+
+		assert.Equal(t, expectedConfig, instance.processors[servicegraphs.Name].Config())
+	})
+
 	t.Run("remove processor", func(t *testing.T) {
-		err := instance.updateProcessors(nil)
+		overrides.processors = nil
+		err := instance.updateProcessors()
 		assert.NoError(t, err)
 
 		assert.Len(t, instance.processors, 0)
 	})
-}
-
-type mockOverrides struct {
-	processors map[string]struct{}
-}
-
-var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
-
-func (m *mockOverrides) MetricsGeneratorMaxActiveSeries(userID string) uint32 {
-	return 0
-}
-
-func (m *mockOverrides) MetricsGeneratorCollectionInterval(userID string) time.Duration {
-	return 15 * time.Second
-}
-
-func (m *mockOverrides) MetricsGeneratorProcessors(userID string) map[string]struct{} {
-	return m.processors
-}
-
-func (m *mockOverrides) MetricsGeneratorDisableCollection(userID string) bool {
-	return false
 }
 
 type noopStorage struct{}

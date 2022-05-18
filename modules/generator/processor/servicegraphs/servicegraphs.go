@@ -117,7 +117,13 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 	return p
 }
 
-func (p *processor) Name() string { return Name }
+func (p *processor) Name() string {
+	return Name
+}
+
+func (p *processor) Config() interface{} {
+	return p.cfg
+}
 
 func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
 	span, _ := opentracing.StartSpanFromContext(ctx, "servicegraphs.PushSpans")

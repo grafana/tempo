@@ -42,3 +42,24 @@ func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag
 	cfg.ServiceGraphs.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.SpanMetrics.RegisterFlagsAndApplyDefaults(prefix, f)
 }
+
+// copyWithOverrides creates a copy of the config using values set in the overrides.
+func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userID string) ProcessorConfig {
+	var copyCfg ProcessorConfig
+	copyCfg = *cfg
+
+	if buckets := o.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID); buckets != nil {
+		copyCfg.ServiceGraphs.HistogramBuckets = buckets
+	}
+	if dimensions := o.MetricsGeneratorProcessorServiceGraphsDimensions(userID); dimensions != nil {
+		copyCfg.ServiceGraphs.Dimensions = dimensions
+	}
+	if buckets := o.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID); buckets != nil {
+		copyCfg.SpanMetrics.HistogramBuckets = buckets
+	}
+	if dimensions := o.MetricsGeneratorProcessorSpanMetricsDimensions(userID); dimensions != nil {
+		copyCfg.SpanMetrics.Dimensions = dimensions
+	}
+
+	return copyCfg
+}

@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -56,7 +57,9 @@ type instance struct {
 
 	// processorsMtx protects the processors map, not the processors itself
 	processorsMtx sync.RWMutex
-	processors    map[string]processor.Processor
+	// processors is a map of processor name -> processor, only one instance of a processor can be
+	// active at any time
+	processors map[string]processor.Processor
 
 	shutdownCh chan struct{}
 
@@ -83,7 +86,7 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		logger: logger,
 	}
 
-	err := i.updateProcessors(i.overrides.MetricsGeneratorProcessors(i.instanceID))
+	err := i.updateProcessors()
 	if err != nil {
 		return nil, fmt.Errorf("could not initialize processors: %w", err)
 	}
@@ -101,7 +104,7 @@ func (i *instance) watchOverrides() {
 	for {
 		select {
 		case <-ticker.C:
-			err := i.updateProcessors(i.overrides.MetricsGeneratorProcessors(i.instanceID))
+			err := i.updateProcessors()
 			if err != nil {
 				metricActiveProcessorsUpdateFailed.WithLabelValues(i.instanceID).Inc()
 				level.Error(i.logger).Log("msg", "updating the processors failed", "err", err)
@@ -113,12 +116,18 @@ func (i *instance) watchOverrides() {
 	}
 }
 
-func (i *instance) updateProcessors(desiredProcessors map[string]struct{}) error {
+func (i *instance) updateProcessors() error {
+	desiredProcessors := i.overrides.MetricsGeneratorProcessors(i.instanceID)
+	desiredCfg := i.cfg.Processor.copyWithOverrides(i.overrides, i.instanceID)
+
 	i.processorsMtx.RLock()
-	toAdd, toRemove := i.diffProcessors(desiredProcessors)
+	toAdd, toRemove, toReplace, err := i.diffProcessors(desiredProcessors, desiredCfg)
 	i.processorsMtx.RUnlock()
 
-	if len(toAdd) == 0 && len(toRemove) == 0 {
+	if err != nil {
+		return err
+	}
+	if len(toAdd) == 0 && len(toRemove) == 0 && len(toReplace) == 0 {
 		return nil
 	}
 
@@ -126,7 +135,7 @@ func (i *instance) updateProcessors(desiredProcessors map[string]struct{}) error
 	defer i.processorsMtx.Unlock()
 
 	for _, processorName := range toAdd {
-		err := i.addProcessor(processorName)
+		err := i.addProcessor(processorName, desiredCfg)
 		if err != nil {
 			return err
 		}
@@ -134,39 +143,65 @@ func (i *instance) updateProcessors(desiredProcessors map[string]struct{}) error
 	for _, processorName := range toRemove {
 		i.removeProcessor(processorName)
 	}
+	for _, processorName := range toReplace {
+		i.removeProcessor(processorName)
+
+		err := i.addProcessor(processorName, desiredCfg)
+		if err != nil {
+			return err
+		}
+	}
 
 	i.updateProcessorMetrics()
 
 	return nil
 }
 
-// diffProcessors compares the existings processors with desiredProcessors. Must be called under a
-// read lock.
-func (i *instance) diffProcessors(desiredProcessors map[string]struct{}) (toAdd []string, toRemove []string) {
+// diffProcessors compares the existing processors with the desired processors and config.
+// Must be called under a read lock.
+func (i *instance) diffProcessors(desiredProcessors map[string]struct{}, desiredCfg ProcessorConfig) (toAdd, toRemove, toReplace []string, err error) {
 	for processorName := range desiredProcessors {
 		if _, ok := i.processors[processorName]; !ok {
 			toAdd = append(toAdd, processorName)
 		}
 	}
-	for processorName := range i.processors {
+	for processorName, processor := range i.processors {
 		if _, ok := desiredProcessors[processorName]; !ok {
 			toRemove = append(toRemove, processorName)
+			continue
+		}
+		switch processorName {
+		case spanmetrics.Name:
+			if !reflect.DeepEqual(processor.Config(), desiredCfg.SpanMetrics) {
+				toReplace = append(toReplace, processorName)
+			}
+		case servicegraphs.Name:
+			if !reflect.DeepEqual(processor.Config(), desiredCfg.ServiceGraphs) {
+				toReplace = append(toReplace, processorName)
+			}
+		default:
+			level.Error(i.logger).Log(
+				"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(allSupportedProcessors, ", ")),
+				"processorName", processorName,
+			)
+			err = fmt.Errorf("unknown processor %s", processorName)
+			return
 		}
 	}
-	return toAdd, toRemove
+	return
 }
 
 // addProcessor registers the processor and adds it to the processors map. Must be called under a
 // write lock.
-func (i *instance) addProcessor(processorName string) error {
+func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error {
 	level.Debug(i.logger).Log("msg", "adding processor", "processorName", processorName)
 
 	var newProcessor processor.Processor
 	switch processorName {
 	case spanmetrics.Name:
-		newProcessor = spanmetrics.New(i.cfg.Processor.SpanMetrics, i.registry)
+		newProcessor = spanmetrics.New(cfg.SpanMetrics, i.registry)
 	case servicegraphs.Name:
-		newProcessor = servicegraphs.New(i.cfg.Processor.ServiceGraphs, i.instanceID, i.registry, i.logger)
+		newProcessor = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger)
 	default:
 		level.Error(i.logger).Log(
 			"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(allSupportedProcessors, ", ")),
