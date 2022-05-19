@@ -1,11 +1,13 @@
 package vparquet
 
 import (
+	"bytes"
 	"encoding/json"
 	"math"
 
 	"github.com/pkg/errors"
 
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -39,6 +41,10 @@ const DefinitionLevelTrace = 0
 const DefinitionLevelResourceSpans = 1
 const DefinitionLevelResourceAttrs = 2
 const DefinitionLevelResourceSpansILSSpan = 3
+
+var (
+	jsonMarshaler = new(jsonpb.Marshaler)
+)
 
 type Attribute struct {
 	Key string `parquet:",snappy,dict"`
@@ -154,14 +160,6 @@ func attrToParquet(a *v1.KeyValue) Attribute {
 		p.ValueKVList = string(j)
 	}
 	return p
-}
-
-func attrsToParquet(attrs []*v1.KeyValue) []Attribute {
-	aa := []Attribute{}
-	for _, a := range attrs {
-		aa = append(aa, attrToParquet(a))
-	}
-	return aa
 }
 
 func traceToParquet(tr *tempopb.Trace) Trace {
@@ -314,11 +312,11 @@ func eventToParquet(e *v1_trace.Span_Event) Event {
 	}
 
 	for _, a := range e.Attributes {
-		j, _ := json.Marshal(a.Value)
-
+		jsonBytes := &bytes.Buffer{}
+		jsonMarshaler.Marshal(jsonBytes, a.Value)
 		ee.Attrs = append(ee.Attrs, EventAttribute{
 			Key:   a.Key,
-			Value: string(j),
+			Value: jsonBytes.String(),
 		})
 	}
 
@@ -373,51 +371,29 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 		protoEvents = make([]*v1_trace.Span_Event, 0, len(parquetEvents))
 
 		for _, e := range parquetEvents {
-			protoAttrs := make([]*v1.KeyValue, 0, len(e.Attrs))
 
-			for _, a := range e.Attrs {
-				protoAttr := &v1.KeyValue{
-					Key:   a.Key,
-					Value: &v1.AnyValue{},
-				}
+			protoEvent := &v1_trace.Span_Event{
+				TimeUnixNano:           uint64(e.TimeUnixNano),
+				Name:                   e.Name,
+				Attributes:             nil,
+				DroppedAttributesCount: uint32(e.DroppedAttributesCount),
+			}
 
-				var v interface{}
-				_ = json.Unmarshal([]byte(a.Value), v)
+			if len(e.Attrs) > 0 {
+				protoEvent.Attributes = make([]*v1.KeyValue, 0, len(e.Attrs))
 
-				switch v.(type) {
-				case *v1.AnyValue_StringValue:
-					protoAttr.Value.Value = &v1.AnyValue_StringValue{
-						StringValue: v.(string),
+				for _, a := range e.Attrs {
+					protoAttr := &v1.KeyValue{
+						Key:   a.Key,
+						Value: &v1.AnyValue{},
 					}
-				case *v1.AnyValue_IntValue:
-					protoAttr.Value.Value = &v1.AnyValue_IntValue{
-						IntValue: v.(int64),
-					}
-				case *v1.AnyValue_DoubleValue:
-					protoAttr.Value.Value = &v1.AnyValue_DoubleValue{
-						DoubleValue: v.(float64),
-					}
-				case *v1.AnyValue_BoolValue:
-					protoAttr.Value.Value = &v1.AnyValue_BoolValue{
-						BoolValue: v.(bool),
-					}
-				case *v1.AnyValue_ArrayValue:
-					protoAttr.Value.Value = &v1.AnyValue_ArrayValue{
-						ArrayValue: v.(*v1.ArrayValue),
-					}
-				case *v1.AnyValue_KvlistValue:
-					protoAttr.Value.Value = &v1.AnyValue_KvlistValue{
-						KvlistValue: v.(*v1.KeyValueList),
-					}
+
+					jsonpb.Unmarshal(bytes.NewBufferString(a.Value), protoAttr.Value)
+					protoEvent.Attributes = append(protoEvent.Attributes, protoAttr)
 				}
 			}
 
-			protoEvents = append(protoEvents, &v1_trace.Span_Event{
-				TimeUnixNano:           uint64(e.TimeUnixNano),
-				Name:                   e.Name,
-				Attributes:             protoAttrs,
-				DroppedAttributesCount: uint32(e.DroppedAttributesCount),
-			})
+			protoEvents = append(protoEvents, protoEvent)
 		}
 	}
 
