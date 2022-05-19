@@ -341,63 +341,38 @@ func TestSpansetExpressionPrecedence(t *testing.T) {
 	}{
 		{
 			in: "{ true } && { false } >> { `a` }",
-			expected: SpansetOperation{
-				op: opSpansetDescendant,
-				lhs: SpansetOperation{
-					op:  opSpansetAnd,
-					lhs: newSpansetFilter(newStaticBool(true)),
-					rhs: newSpansetFilter(newStaticBool(false)),
-				},
-				rhs: newSpansetFilter(newStaticString("a")),
-			},
+			expected: newSpansetOperation(opSpansetDescendant,
+				newSpansetOperation(opSpansetAnd, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false))),
+				newSpansetFilter(newStaticString("a")),
+			),
 		},
 		{
 			in: "{ true } >> { false } && { `a` }",
-			expected: SpansetOperation{
-				op:  opSpansetDescendant,
-				lhs: newSpansetFilter(newStaticBool(true)),
-				rhs: SpansetOperation{
-					op:  opSpansetAnd,
-					lhs: newSpansetFilter(newStaticBool(false)),
-					rhs: newSpansetFilter(newStaticString("a")),
-				},
-			},
+			expected: newSpansetOperation(opSpansetDescendant,
+				newSpansetFilter(newStaticBool(true)),
+				newSpansetOperation(opSpansetAnd, newSpansetFilter(newStaticBool(false)), newSpansetFilter(newStaticString("a"))),
+			),
 		},
 		{
 			in: "({ true } >> { false }) && { `a` }",
-			expected: SpansetOperation{
-				op: opSpansetAnd,
-				lhs: SpansetOperation{
-					op:  opSpansetDescendant,
-					lhs: newSpansetFilter(newStaticBool(true)),
-					rhs: newSpansetFilter(newStaticBool(false)),
-				},
-				rhs: newSpansetFilter(newStaticString("a")),
-			},
+			expected: newSpansetOperation(opSpansetAnd,
+				newSpansetOperation(opSpansetDescendant, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false))),
+				newSpansetFilter(newStaticString("a")),
+			),
 		},
 		{
 			in: "{ true } >> { false } ~ { `a` }",
-			expected: SpansetOperation{
-				op: opSpansetSibling,
-				lhs: SpansetOperation{
-					op:  opSpansetDescendant,
-					lhs: newSpansetFilter(newStaticBool(true)),
-					rhs: newSpansetFilter(newStaticBool(false)),
-				},
-				rhs: newSpansetFilter(newStaticString("a")),
-			},
+			expected: newSpansetOperation(opSpansetSibling,
+				newSpansetOperation(opSpansetDescendant, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false))),
+				newSpansetFilter(newStaticString("a")),
+			),
 		},
 		{
 			in: "{ true } ~ { false } >> { `a` }",
-			expected: SpansetOperation{
-				op: opSpansetDescendant,
-				lhs: SpansetOperation{
-					op:  opSpansetSibling,
-					lhs: newSpansetFilter(newStaticBool(true)),
-					rhs: newSpansetFilter(newStaticBool(false)),
-				},
-				rhs: newSpansetFilter(newStaticString("a")),
-			},
+			expected: newSpansetOperation(opSpansetDescendant,
+				newSpansetOperation(opSpansetSibling, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false))),
+				newSpansetFilter(newStaticString("a")),
+			),
 		},
 	}
 
@@ -542,159 +517,75 @@ func TestSpansetFilterOperatorPrecedence(t *testing.T) {
 	}{
 		{
 			in: "{ .a * .b + .c }",
-			expected: BinaryOperation{
-				op: opAdd,
-				lhs: BinaryOperation{
-					op:  opMult,
-					lhs: newAttribute("a"),
-					rhs: newAttribute("b"),
-				},
-				rhs: newAttribute("c"),
-			},
+			expected: newBinaryOperation(opAdd,
+				newBinaryOperation(opMult, newAttribute("a"), newAttribute("b")),
+				newAttribute("c")),
 		},
 		{
 			in: "{ .a + .b * .c }",
-			expected: BinaryOperation{
-				op:  opAdd,
-				lhs: newAttribute("a"),
-				rhs: BinaryOperation{
-					op:  opMult,
-					lhs: newAttribute("b"),
-					rhs: newAttribute("c"),
-				},
-			},
+			expected: newBinaryOperation(opAdd,
+				newAttribute("a"),
+				newBinaryOperation(opMult, newAttribute("b"), newAttribute("c"))),
 		},
 		{
 			in: "{ ( .a + .b ) * .c }",
-			expected: BinaryOperation{
-				op: opMult,
-				lhs: BinaryOperation{
-					op:  opAdd,
-					lhs: newAttribute("a"),
-					rhs: newAttribute("b"),
-				},
-				rhs: newAttribute("c"),
-			},
+			expected: newBinaryOperation(opMult,
+				newBinaryOperation(opAdd, newAttribute("a"), newAttribute("b")),
+				newAttribute("c")),
 		},
 		{
 			in: "{ .a + .b ^ .c }",
-			expected: BinaryOperation{
-				op:  opAdd,
-				lhs: newAttribute("a"),
-				rhs: BinaryOperation{
-					op:  opPower,
-					lhs: newAttribute("b"),
-					rhs: newAttribute("c"),
-				},
-			},
+			expected: newBinaryOperation(opAdd,
+				newAttribute("a"),
+				newBinaryOperation(opPower, newAttribute("b"), newAttribute("c"))),
 		},
 		{
 			in: "{ .a = .b + .c }",
-			expected: BinaryOperation{
-				op:  opEqual,
-				lhs: newAttribute("a"),
-				rhs: BinaryOperation{
-					op:  opAdd,
-					lhs: newAttribute("b"),
-					rhs: newAttribute("c"),
-				},
-			},
+			expected: newBinaryOperation(opEqual,
+				newAttribute("a"),
+				newBinaryOperation(opAdd, newAttribute("b"), newAttribute("c"))),
 		},
 		{
 			in: "{ .a + .b = .c }",
-			expected: BinaryOperation{
-				op: opEqual,
-				lhs: BinaryOperation{
-					op:  opAdd,
-					lhs: newAttribute("a"),
-					rhs: newAttribute("b"),
-				},
-				rhs: newAttribute("c"),
-			},
+			expected: newBinaryOperation(opEqual,
+				newBinaryOperation(opAdd, newAttribute("a"), newAttribute("b")),
+				newAttribute("c")),
 		},
 		{
 			in: "{ .c - -.a + .b }",
-			expected: BinaryOperation{
-				op: opAdd,
-				lhs: BinaryOperation{
-					op:  opSub,
-					lhs: newAttribute("c"),
-					rhs: UnaryOperation{
-						op: opSub,
-						e:  newAttribute("a"),
-					},
-				},
-				rhs: newAttribute("b"),
-			},
+			expected: newBinaryOperation(opAdd,
+				newBinaryOperation(opSub, newAttribute("c"), newUnaryOperation(opSub, newAttribute("a"))),
+				newAttribute("b")),
 		},
 		{
 			in: "{ .c - -( .a + .b ) }",
-			expected: BinaryOperation{
-				op:  opSub,
-				lhs: newAttribute("c"),
-				rhs: UnaryOperation{
-					op: opSub,
-					e: BinaryOperation{
-						op:  opAdd,
-						lhs: newAttribute("a"),
-						rhs: newAttribute("b"),
-					},
-				},
-			},
+			expected: newBinaryOperation(opSub,
+				newAttribute("c"),
+				newUnaryOperation(opSub, newBinaryOperation(opAdd, newAttribute("a"), newAttribute("b")))),
 		},
 		{
 			in: "{ .a && .b = .c }",
-			expected: BinaryOperation{
-				op: opEqual,
-				lhs: BinaryOperation{
-					op:  opAnd,
-					lhs: newAttribute("a"),
-					rhs: newAttribute("b"),
-				},
-				rhs: newAttribute("c"),
-			},
+			expected: newBinaryOperation(opEqual,
+				newBinaryOperation(opAnd, newAttribute("a"), newAttribute("b")),
+				newAttribute("c")),
 		},
 		{
 			in: "{ .a = .b && .c }",
-			expected: BinaryOperation{
-				op:  opEqual,
-				lhs: newAttribute("a"),
-				rhs: BinaryOperation{
-					op:  opAnd,
-					lhs: newAttribute("b"),
-					rhs: newAttribute("c"),
-				},
-			},
+			expected: newBinaryOperation(opEqual,
+				newAttribute("a"),
+				newBinaryOperation(opAnd, newAttribute("b"), newAttribute("c"))),
 		},
 		{
 			in: "{ .a = !.b && .c }",
-			expected: BinaryOperation{
-				op:  opEqual,
-				lhs: newAttribute("a"),
-				rhs: BinaryOperation{
-					op: opAnd,
-					lhs: UnaryOperation{
-						op: opNot,
-						e:  newAttribute("b"),
-					},
-					rhs: newAttribute("c"),
-				},
-			},
+			expected: newBinaryOperation(opEqual,
+				newAttribute("a"),
+				newBinaryOperation(opAnd, newUnaryOperation(opNot, newAttribute("b")), newAttribute("c"))),
 		},
 		{
 			in: "{ .a = !( .b && .c ) }",
-			expected: BinaryOperation{
-				op:  opEqual,
-				lhs: newAttribute("a"),
-				rhs: UnaryOperation{
-					op: opNot,
-					e: BinaryOperation{
-						op:  opAnd,
-						lhs: newAttribute("b"),
-						rhs: newAttribute("c"),
-					},
-				},
-			},
+			expected: newBinaryOperation(opEqual,
+				newAttribute("a"),
+				newUnaryOperation(opNot, newBinaryOperation(opAnd, newAttribute("b"), newAttribute("c")))),
 		},
 	}
 
