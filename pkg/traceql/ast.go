@@ -227,16 +227,26 @@ const (
 	typeFloat
 	typeString
 	typeBoolean
-	typeIdentifier
 	typeNil
 	typeDuration
 	typeStatus
+	typeIntrinsic
 )
 
 const (
 	statusError = iota
 	statusOk
 	statusUnset
+)
+
+const (
+	intrinsicStart = iota
+	intrinsicEnd
+	intrinsicDuration
+	intrinsicChildCount
+	intrinsicName
+	intrinsicStatus
+	intrinsicParent
 )
 
 type Static struct {
@@ -299,16 +309,48 @@ func newStaticStatus(s int) Static {
 	}
 }
 
-func newStaticIdentifier(s string) Static {
+func newIntrinsic(n int) Static {
 	return Static{
-		staticType: typeIdentifier,
-		s:          s,
+		staticType: typeIntrinsic,
+		n:          n,
 	}
 }
 
-func newNamespacedIdentifier(ns Static, s string) Static {
-	return Static{
-		staticType: typeIdentifier,
-		s:          ns.s + "." + s,
+// **********************
+// Attributes
+// **********************
+
+const (
+	attributeScopeNone = iota
+	attributeScopeParent
+	attributeScopeResource
+	attributeScopeSpan
+)
+
+type Attribute struct {
+	scope int
+	att   string
+}
+
+func (Attribute) __fieldExpression() {}
+
+func newAttribute(att string) Attribute {
+	return Attribute{
+		scope: attributeScopeNone,
+		att:   att,
+	}
+}
+
+func newScopedAttribute(scope int, att string) Attribute {
+	return Attribute{
+		scope: scope,
+		att:   att,
+	}
+}
+
+func appendAttribute(existing Attribute, att string) Attribute {
+	return Attribute{
+		scope: existing.scope,
+		att:   existing.att + "." + att,
 	}
 }

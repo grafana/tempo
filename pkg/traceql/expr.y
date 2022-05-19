@@ -27,7 +27,8 @@ import (
 
     fieldExpression FieldExpression
     static Static
-    spanField Static
+    intrinsicField Static
+    attributeField Attribute
 
     binOp       int
     staticInt   int
@@ -54,7 +55,8 @@ import (
 
 %type <fieldExpression> fieldExpression
 %type <static> static
-%type <spanField> spanField
+%type <intrinsicField> intrinsicField
+%type <attributeField> attributeField
 
 %token <staticStr>      IDENTIFIER STRING
 %token <staticInt>      INTEGER
@@ -62,6 +64,8 @@ import (
 %token <staticDuration> DURATION
 %token <val>            DOT OPEN_BRACE CLOSE_BRACE OPEN_PARENS CLOSE_PARENS
                         NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
+                        ISTART IEND IDURATION ICHILDCOUNT INAME ISTATUS  // jpe names are dumb
+                        APARENT ARESOURCE ASPAN
                         COUNT AVG MAX MIN SUM
                         BY COALESCE
 
@@ -191,7 +195,8 @@ fieldExpression:
   | SUB fieldExpression                      { $$ = newUnaryOperation(opSub, $2) }
   | NOT fieldExpression                      { $$ = newUnaryOperation(opNot, $2) }
   | static                                   { $$ = $1 }
-  | spanField                                { $$ = $1 }
+  | intrinsicField                           { $$ = $1 }
+  | attributeField                           { $$ = $1 }
   ;
 
 // **********************
@@ -210,7 +215,20 @@ static:
   | STATUS_UNSET  { $$ = newStaticStatus(statusUnset) }
   ;
 
-spanField:
-    IDENTIFIER                { $$ = newStaticIdentifier($1)     }
-  | spanField DOT IDENTIFIER  { $$ = newNamespacedIdentifier($1, $3) }
+intrinsicField:
+    ISTART          { $$ = newIntrinsic(intrinsicStart)      }
+  | IEND            { $$ = newIntrinsic(intrinsicEnd)        }
+  | IDURATION       { $$ = newIntrinsic(intrinsicDuration)   }
+  | ICHILDCOUNT     { $$ = newIntrinsic(intrinsicChildCount) }
+  | INAME           { $$ = newIntrinsic(intrinsicName)       }
+  | ISTATUS         { $$ = newIntrinsic(intrinsicStatus)     }
+  | APARENT         { $$ = newIntrinsic(intrinsicParent)     } // jpe naming
+  ;
+
+attributeField:
+    DOT IDENTIFIER                 { $$ = newAttribute($2)               }
+  | ARESOURCE DOT IDENTIFIER       { $$ = newScopedAttribute(attributeScopeResource, $3) }
+  | ASPAN DOT IDENTIFIER           { $$ = newScopedAttribute(attributeScopeSpan, $3) }
+  | APARENT DOT IDENTIFIER         { $$ = newScopedAttribute(attributeScopeParent, $3) }
+  | attributeField DOT IDENTIFIER  { $$ = appendAttribute($1, $3) }
   ;

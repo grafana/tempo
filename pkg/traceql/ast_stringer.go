@@ -99,8 +99,23 @@ func (n Static) String() string {
 		return "`" + n.s + "`"
 	case typeBoolean:
 		return strconv.FormatBool(n.b)
-	case typeIdentifier:
-		return n.s
+	case typeIntrinsic:
+		switch n.n {
+		case intrinsicStart:
+			return "start"
+		case intrinsicEnd:
+			return "end"
+		case intrinsicDuration:
+			return "duration"
+		case intrinsicChildCount:
+			return "childCount"
+		case intrinsicName:
+			return "name"
+		case intrinsicStatus:
+			return "status"
+		default:
+			return fmt.Sprintf("intrinsic(%d)", n.n)
+		}
 	case typeNil:
 		return "nil"
 	case typeDuration:
@@ -119,4 +134,23 @@ func (n Static) String() string {
 	}
 
 	return fmt.Sprintf("static(%d)", n.staticType)
+}
+
+func (a Attribute) String() string {
+	scope := ""
+
+	switch a.scope {
+	case attributeScopeNone:
+		scope = "."
+	case attributeScopeParent:
+		scope = "parent."
+	case attributeScopeSpan:
+		scope = "scope."
+	case attributeScopeResource:
+		scope = "resource."
+	default:
+		scope = fmt.Sprintf("att(%d).", a.scope)
+	}
+
+	return scope + a.att
 }

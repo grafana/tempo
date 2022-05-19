@@ -13,7 +13,7 @@ func TestStringer(t *testing.T) {
 	tests := []struct {
 		in string
 	}{
-		{in: "max(duration) > 3s | { status = error || http.status = 500 }"},
+		{in: "max(duration) > 3s | { status = error || .http.status = 500 }"},
 	}
 
 	for _, tc := range tests {

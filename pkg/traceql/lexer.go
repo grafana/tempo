@@ -9,47 +9,53 @@ import (
 )
 
 var tokens = map[string]int{
-	".":     DOT,
-	"{":     OPEN_BRACE,
-	"}":     CLOSE_BRACE,
-	"(":     OPEN_PARENS,
-	")":     CLOSE_PARENS,
-	"=":     EQ,
-	"!=":    NEQ,
-	"=~":    RE,
-	"!~":    NRE,
-	">":     GT,
-	">=":    GTE,
-	"<":     LT,
-	"<=":    LTE,
-	"+":     ADD,
-	"-":     SUB,
-	"/":     DIV,
-	"%":     MOD,
-	"*":     MUL,
-	"^":     POW,
-	"true":  TRUE,
-	"false": FALSE,
-	"nil":   NIL,
-	"ok":    STATUS_OK,
-	"error": STATUS_ERROR,
-	"unset": STATUS_UNSET,
-	"&&":    AND,
-	"||":    OR,
-	"!":     NOT,
-	"|":     PIPE,
-	">>":    DESC,
-	"~":     TILDE,
-}
-
-var functionTokens = map[string]int{
-	"count":    COUNT,
-	"avg":      AVG,
-	"max":      MAX,
-	"min":      MIN,
-	"sum":      SUM,
-	"by":       BY,
-	"coalesce": COALESCE,
+	".":          DOT,
+	"{":          OPEN_BRACE,
+	"}":          CLOSE_BRACE,
+	"(":          OPEN_PARENS,
+	")":          CLOSE_PARENS,
+	"=":          EQ,
+	"!=":         NEQ,
+	"=~":         RE,
+	"!~":         NRE,
+	">":          GT,
+	">=":         GTE,
+	"<":          LT,
+	"<=":         LTE,
+	"+":          ADD,
+	"-":          SUB,
+	"/":          DIV,
+	"%":          MOD,
+	"*":          MUL,
+	"^":          POW,
+	"true":       TRUE,
+	"false":      FALSE,
+	"nil":        NIL,
+	"ok":         STATUS_OK,
+	"error":      STATUS_ERROR,
+	"unset":      STATUS_UNSET,
+	"&&":         AND,
+	"||":         OR,
+	"!":          NOT,
+	"|":          PIPE,
+	">>":         DESC,
+	"~":          TILDE,
+	"start":      ISTART,
+	"end":        IEND,
+	"duration":   IDURATION,
+	"childCount": ICHILDCOUNT,
+	"name":       INAME,
+	"status":     ISTATUS,
+	"parent":     APARENT,
+	"resource":   ARESOURCE,
+	"span":       ASPAN,
+	"count":      COUNT,
+	"avg":        AVG,
+	"max":        MAX,
+	"min":        MIN,
+	"sum":        SUM,
+	"by":         BY,
+	"coalesce":   COALESCE,
 }
 
 type lexer struct {
@@ -57,6 +63,8 @@ type lexer struct {
 	expr   *RootExpr
 	parser *yyParserImpl
 	errs   []ParseError
+
+	prevToken int
 }
 
 func (l *lexer) Lex(lval *yySymType) int {
@@ -103,13 +111,12 @@ func (l *lexer) Lex(lval *yySymType) int {
 		return FLOAT
 	}
 
-	if tok, ok := functionTokens[l.TokenText()]; ok {
-		// this matches a "function token", but could also be identifier if it's used to attempt to
-		// identify a span attribute in a construction like { count > 2 }. if the next rune is a (
-		// assume it's a function.
-		if l.Peek() == '(' {
-			return tok
-		}
+	// if the previous token was a dot we will always consider the current token an IDENTIFIER.
+	//  this is b/c DOT is always used in attribute selection like { .status }
+	if l.prevToken == DOT {
+		l.prevToken = -1
+		lval.staticStr = l.TokenText()
+		return IDENTIFIER
 	}
 
 	if tok, ok := tokens[l.TokenText()+string(l.Peek())]; ok {
@@ -118,6 +125,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 	}
 
 	if tok, ok := tokens[l.TokenText()]; ok {
+		l.prevToken = tok // save the previous token for the above logic regarding identifiers
 		return tok
 	}
 
