@@ -64,8 +64,8 @@ import (
 %token <staticDuration> DURATION
 %token <val>            DOT OPEN_BRACE CLOSE_BRACE OPEN_PARENS CLOSE_PARENS
                         NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
-                        ISTART IEND IDURATION ICHILDCOUNT INAME ISTATUS  // jpe names are dumb
-                        APARENT ARESOURCE ASPAN
+                        START END IDURATION CHILDCOUNT NAME STATUS
+                        PARENT RESOURCE SPAN
                         COUNT AVG MAX MIN SUM
                         BY COALESCE
 
@@ -216,19 +216,19 @@ static:
   ;
 
 intrinsicField:
-    ISTART          { $$ = newIntrinsic(intrinsicStart)      }
-  | IEND            { $$ = newIntrinsic(intrinsicEnd)        }
-  | IDURATION       { $$ = newIntrinsic(intrinsicDuration)   }
-  | ICHILDCOUNT     { $$ = newIntrinsic(intrinsicChildCount) }
-  | INAME           { $$ = newIntrinsic(intrinsicName)       }
-  | ISTATUS         { $$ = newIntrinsic(intrinsicStatus)     }
-  | APARENT         { $$ = newIntrinsic(intrinsicParent)     } // jpe naming
+    START          { $$ = newIntrinsic(intrinsicStart)      }
+  | END            { $$ = newIntrinsic(intrinsicEnd)        }
+  | IDURATION      { $$ = newIntrinsic(intrinsicDuration)   }
+  | CHILDCOUNT     { $$ = newIntrinsic(intrinsicChildCount) }
+  | NAME           { $$ = newIntrinsic(intrinsicName)       }
+  | STATUS         { $$ = newIntrinsic(intrinsicStatus)     }
+  | PARENT         { $$ = newIntrinsic(intrinsicParent)     }
   ;
 
 attributeField:
     DOT IDENTIFIER                 { $$ = newAttribute($2)               }
-  | ARESOURCE DOT IDENTIFIER       { $$ = newScopedAttribute(attributeScopeResource, $3) }
-  | ASPAN DOT IDENTIFIER           { $$ = newScopedAttribute(attributeScopeSpan, $3) }
-  | APARENT DOT IDENTIFIER         { $$ = newScopedAttribute(attributeScopeParent, $3) }
+  | RESOURCE DOT IDENTIFIER        { $$ = newScopedAttribute(attributeScopeResource, $3) }
+  | SPAN DOT IDENTIFIER            { $$ = newScopedAttribute(attributeScopeSpan, $3) }
+  | PARENT DOT IDENTIFIER          { $$ = newScopedAttribute(attributeScopeParent, $3) }
   | attributeField DOT IDENTIFIER  { $$ = appendAttribute($1, $3) }
   ;

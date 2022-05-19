@@ -37,8 +37,11 @@ func Parse(s string) (expr *RootExpr, err error) {
 		l.Error(msg)
 	}
 	e := l.parser.Parse(&l)
-	if e != 0 || len(l.errs) > 0 { // jpe this check is weird. why check for e != 0
+	if len(l.errs) > 0 {
 		return nil, l.errs[0]
+	}
+	if e != 0 {
+		return nil, fmt.Errorf("unknown parse error: %d", e)
 	}
 	return l.expr, nil
 }

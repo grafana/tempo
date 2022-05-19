@@ -58,15 +58,15 @@ const FALSE = 57358
 const STATUS_ERROR = 57359
 const STATUS_OK = 57360
 const STATUS_UNSET = 57361
-const ISTART = 57362
-const IEND = 57363
+const START = 57362
+const END = 57363
 const IDURATION = 57364
-const ICHILDCOUNT = 57365
-const INAME = 57366
-const ISTATUS = 57367
-const APARENT = 57368
-const ARESOURCE = 57369
-const ASPAN = 57370
+const CHILDCOUNT = 57365
+const NAME = 57366
+const STATUS = 57367
+const PARENT = 57368
+const RESOURCE = 57369
+const SPAN = 57370
 const COUNT = 57371
 const AVG = 57372
 const MAX = 57373
@@ -115,15 +115,15 @@ var yyToknames = [...]string{
 	"STATUS_ERROR",
 	"STATUS_OK",
 	"STATUS_UNSET",
-	"ISTART",
-	"IEND",
+	"START",
+	"END",
 	"IDURATION",
-	"ICHILDCOUNT",
-	"INAME",
-	"ISTATUS",
-	"APARENT",
-	"ARESOURCE",
-	"ASPAN",
+	"CHILDCOUNT",
+	"NAME",
+	"STATUS",
+	"PARENT",
+	"RESOURCE",
+	"SPAN",
 	"COUNT",
 	"AVG",
 	"MAX",
