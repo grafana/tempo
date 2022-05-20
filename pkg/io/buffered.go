@@ -2,22 +2,19 @@ package io
 
 import (
 	"io"
-	"math"
 	"sync"
 )
 
-// bufferedReader implements io.ReaderAt but extends and buffers reads up the given buffer size.
-// Subsequent reads are returned from the previously buffered data when possiblve. Additionally
-// it supports concurrent readers by maintaining multiple buffers at different offsets, and
-// matching up reads with existing buffers where possible. When needed the least-recently-used
-// buffer is overwritten with new reads.
+// bufferedReader implements io.ReaderAt but extends and buffers reads up to the given buffer size.
+// Subsequent reads are returned from the buffers. Additionally it supports concurrent readers
+// by maintaining multiple buffers at different offsets, and matching up reads with existing
+// buffers where possible. When needed the least-recently-used buffer is overwritten with new reads.
 type bufferedReader struct {
-	ra    io.ReaderAt
-	rasz  int64
-	rdsz  int64
-	mtx   sync.Mutex
-	count int64
-
+	mtx     sync.Mutex
+	ra      io.ReaderAt
+	rasz    int64
+	rdsz    int
+	count   int64
 	buffers []readerBuffer
 }
 
@@ -29,7 +26,7 @@ type readerBuffer struct {
 
 var _ io.ReaderAt = (*bufferedReader)(nil)
 
-func NewBufferedReaderAt(ra io.ReaderAt, readerSize int64, bufSize int64, bufCount int) *bufferedReader {
+func NewBufferedReaderAt(ra io.ReaderAt, readerSize int64, bufSize, bufCount int) *bufferedReader {
 	r := &bufferedReader{
 		ra:      ra,
 		rasz:    readerSize,
@@ -51,16 +48,7 @@ func (r *bufferedReader) read(buf *readerBuffer, b []byte, offset int64) {
 
 func (r *bufferedReader) populate(buf *readerBuffer, offset, length int64) (int, error) {
 
-	// Increase to minimim read size
-	sz := r.rdsz
-	if sz < length {
-		sz = length
-	}
-
-	// Don't read past end of reader
-	if offset+sz >= r.rasz {
-		sz = r.rasz - offset
-	}
+	offset, sz := calculateBounds(offset, length, r.rdsz, r.rasz)
 
 	// Realloc?
 	if int64(cap(buf.buf)) < sz {
@@ -74,14 +62,38 @@ func (r *bufferedReader) populate(buf *readerBuffer, offset, length int64) (int,
 	return n, err
 }
 
+func calculateBounds(offset, length int64, bufferSize int, readerAtSize int64) (newOffset, newLength int64) {
+	// Increase to minimim read size
+	sz := length
+	if sz < int64(bufferSize) {
+		sz = int64(bufferSize)
+	}
+
+	// Don't read larger than entire contents
+	if sz > readerAtSize {
+		sz = readerAtSize
+	}
+
+	// If read extends past the end of reader,
+	// back offset up to fill the whole buffer
+	if offset+sz >= readerAtSize {
+		offset = readerAtSize - sz
+	}
+
+	return offset, sz
+}
+
 func (r *bufferedReader) ReadAt(b []byte, offset int64) (int, error) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
+	if len(r.buffers) == 0 {
+		return r.ra.ReadAt(b, offset)
+	}
+
 	// Least-recently-used tracking
 	r.count++
-	lruCnt := int64(math.MaxInt64)
-	var lruIdx int
+	var lru *readerBuffer
 
 	for i := range r.buffers {
 		buf := &r.buffers[i]
@@ -91,19 +103,18 @@ func (r *bufferedReader) ReadAt(b []byte, offset int64) (int, error) {
 			return len(b), nil
 		}
 
-		if r.buffers[i].count < lruCnt {
-			lruCnt = r.buffers[i].count
-			lruIdx = i
+		if lru == nil || r.buffers[i].count < lru.count {
+			lru = buf
 		}
 	}
 
 	// Need to read, overwrite least-recently-used
-	buf := &r.buffers[lruIdx]
+	buf := lru
 	if _, err := r.populate(buf, offset, int64(len(b))); err != nil {
 		return 0, err
 	}
 
-	r.buffers[lruIdx].count = r.count
+	buf.count = r.count
 	r.read(buf, b, offset)
 	return len(b), nil
 }

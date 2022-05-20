@@ -2,11 +2,13 @@ package parquetquery
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"math"
 	"sync"
 
+	"github.com/opentracing/opentracing-go"
 	pq "github.com/segmentio/parquet-go"
 )
 
@@ -217,9 +219,10 @@ func columnIteratorResultPoolPut(r *iteratorResult) {
 // the optional predicate to each chunk, page, and value.  Results are read by calling
 // Next() until it returns nil.
 type columnIterator struct {
-	rgs    []pq.RowGroup
-	col    int
-	filter Predicate
+	rgs     []pq.RowGroup
+	col     int
+	colName string
+	filter  Predicate
 
 	selectAs string
 
@@ -237,22 +240,30 @@ type columnIteratorBuffer struct {
 	values   []pq.Value
 }
 
-func NewColumnIterator(rgs []pq.RowGroup, column int, readSize int, filter Predicate, selectAs string) *columnIterator {
+func NewColumnIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string) *columnIterator {
 	c := &columnIterator{
 		rgs:      rgs,
 		col:      column,
+		colName:  columnName,
 		filter:   filter,
 		selectAs: selectAs,
 		quit:     make(chan struct{}),
 		ch:       make(chan *columnIteratorBuffer, 1),
 		currN:    -1,
 	}
-	go c.iterate(readSize)
+
+	go c.iterate(ctx, readSize)
 	return c
 }
 
-func (c *columnIterator) iterate(readSize int) {
+func (c *columnIterator) iterate(ctx context.Context, readSize int) {
 	defer close(c.ch)
+
+	span, _ := opentracing.StartSpanFromContext(ctx, "columnIterator.iterate", opentracing.Tags{
+		"columnIndex": c.col,
+		"column":      c.colName,
+	})
+	defer span.Finish()
 
 	tracker := NewTracker()
 	buffer := make([]pq.Value, readSize)

@@ -24,11 +24,17 @@ type SearchOptions struct {
 	TotalPages         int    // Controls searching only a subset of the block. How many pages to search.
 	MaxBytes           int    // Max allowable trace size in bytes. Traces exceeding this are not searched.
 	PrefetchTraceCount int    // How many traces to prefetch async.
+	ReadBufferCount    int
+	ReadBufferSize     int
 }
 
 func DefaultSearchOptions() SearchOptions {
 	return SearchOptions{
 		ChunkSizeBytes: 1_000_000,
+
+		// 16 MB buffering
+		ReadBufferCount: 32,
+		ReadBufferSize:  512 * 1024,
 	}
 }
 

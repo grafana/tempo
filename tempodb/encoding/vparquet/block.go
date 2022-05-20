@@ -5,6 +5,10 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+const (
+	DataFileName = "data.parquet"
+)
+
 type backendBlock struct {
 	meta *backend.BlockMeta
 	r    backend.Reader

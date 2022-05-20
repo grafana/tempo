@@ -35,7 +35,7 @@ func CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader
 	}
 
 	// Data
-	err := copyStream("data.parquet")
+	err := copyStream(DataFileName)
 	if err != nil {
 		return err
 	}

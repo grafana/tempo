@@ -96,7 +96,7 @@ func NewStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	// The real number of objects is tracked below.
 	bloom := common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(meta.TotalObjects))
 
-	w := &backendWriter{ctx, to, "data.parquet", meta.BlockID, meta.TenantID, nil}
+	w := &backendWriter{ctx, to, DataFileName, meta.BlockID, meta.TenantID, nil}
 
 	bw := tempo_io.NewBufferedWriter(w)
 

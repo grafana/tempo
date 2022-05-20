@@ -156,7 +156,10 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 
 // ReadRange implements backend.Reader
 func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte) error {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "ReadRange")
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.ReadRange", opentracing.Tags{
+		"len":    len(buffer),
+		"offset": offset,
+	})
 	defer span.Finish()
 
 	object := backend.ObjectFileName(keypath, name)

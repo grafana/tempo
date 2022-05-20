@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/opentracing/opentracing-go"
 )
 
 type Backend struct {
@@ -133,6 +134,12 @@ func (rw *Backend) Read(ctx context.Context, name string, keypath backend.KeyPat
 
 // ReadRange implements backend.Reader
 func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "local.ReadRange", opentracing.Tags{
+		"len":    len(buffer),
+		"offset": offset,
+	})
+	defer span.Finish()
+
 	filename := rw.objectFileName(keypath, name)
 
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)

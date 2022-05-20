@@ -15,7 +15,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/log"
 	"github.com/segmentio/parquet-go"
 )
 
@@ -44,15 +43,17 @@ func (b *backendReaderAt) ReadAt(p []byte, off int64) (int, error) {
 func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (_ *tempopb.SearchResponse, err error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.Search",
 		opentracing.Tags{
-			"blockID":  b.meta.BlockID,
-			"tenantID": b.meta.TenantID,
+			"blockID":   b.meta.BlockID,
+			"tenantID":  b.meta.TenantID,
+			"blockSize": b.meta.Size,
 		})
 	defer span.Finish()
 
-	rr := NewBackendReaderAt(derivedCtx, b.r, "data.parquet", b.meta.BlockID, b.meta.TenantID)
+	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
+	defer span.SetTag("inspectedBytes", rr.TotalBytesRead)
 
 	// 16 MB memory buffering
-	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 32)
+	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
 
 	pf, err := parquet.OpenFile(br, int64(b.meta.Size))
 	if err != nil {
@@ -74,14 +75,9 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	}
 
 	// TODO: error handling
-	results := searchParquetFile(pf, req, rgs)
+	results := searchParquetFile(ctx, pf, req, rgs)
 	results.Metrics.InspectedBlocks++
 	results.Metrics.InspectedBytes += rr.TotalBytesRead
-
-	span.LogFields(
-		log.Uint64("blockSize", b.meta.Size),
-		log.Uint64("inspectedBytes", rr.TotalBytesRead),
-	)
 
 	traceID, _ := util.ExtractTraceID(ctx)
 	fmt.Println("Searched parquet file:", traceID, b.meta.BlockID, opts.StartPage, opts.TotalPages, results)
@@ -89,7 +85,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	return results, nil
 }
 
-func makePipelineWithRowGroups(req *tempopb.SearchRequest, pf *parquet.File, rgs []parquet.RowGroup) (pq.Iterator, parquetSearchMetrics) {
+func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, pf *parquet.File, rgs []parquet.RowGroup) (pq.Iterator, parquetSearchMetrics) {
 
 	makeIter := func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
 		index, _ := pq.GetColumnIndexByPath(pf, name)
@@ -97,7 +93,7 @@ func makePipelineWithRowGroups(req *tempopb.SearchRequest, pf *parquet.File, rgs
 			// TODO - don't panic, error instead
 			panic("column not found in parquet file:" + name)
 		}
-		return pq.NewColumnIterator(rgs, index, 1000, predicate, selectAs)
+		return pq.NewColumnIterator(ctx, rgs, index, name, 1000, predicate, selectAs)
 	}
 
 	// Wire up iterators
@@ -191,10 +187,10 @@ func makePipelineWithRowGroups(req *tempopb.SearchRequest, pf *parquet.File, rgs
 	}
 }
 
-func searchParquetFile(pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup) *tempopb.SearchResponse {
+func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup) *tempopb.SearchResponse {
 	results := []*tempopb.TraceSearchMetadata{}
 
-	iter, metrics := makePipelineWithRowGroups(req, pf, rgs)
+	iter, metrics := makePipelineWithRowGroups(ctx, req, pf, rgs)
 	if iter == nil {
 		panic("make pipeline failed")
 	}
