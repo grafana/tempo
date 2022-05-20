@@ -1,6 +1,7 @@
 package vparquet
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
+	"github.com/willf/bloom"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
@@ -124,6 +126,32 @@ func (rt *RowTracker) binarySearch(start int, end int, traceID string) int {
 	return midResult
 }
 
+func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, err error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.checkBloom",
+		opentracing.Tags{
+			"blockID":  b.meta.BlockID,
+			"tenantID": b.meta.TenantID,
+		})
+	defer span.Finish()
+
+	shardKey := common.ShardKeyForTraceID(id, int(b.meta.BloomShardCount))
+	nameBloom := common.BloomName(shardKey)
+	span.SetTag("bloom", nameBloom)
+
+	bloomBytes, err := b.r.Read(derivedCtx, nameBloom, b.meta.BlockID, b.meta.TenantID, true)
+	if err != nil {
+		return false, fmt.Errorf("error retrieving bloom (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+	}
+
+	filter := &bloom.BloomFilter{}
+	_, err = filter.ReadFrom(bytes.NewReader(bloomBytes))
+	if err != nil {
+		return false, fmt.Errorf("error parsing bloom (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+	}
+
+	return filter.Test(id), nil
+}
+
 func (b *backendBlock) FindTraceByID(ctx context.Context, id common.ID) (_ *tempopb.Trace, err error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.FindTraceByID",
 		opentracing.Tags{
@@ -133,7 +161,14 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, id common.ID) (_ *temp
 		})
 	defer span.Finish()
 
-	// todo: scan our sharded bloom filters?
+	found, err := b.checkBloom(derivedCtx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, nil
+	}
+
 	traceID := util.TraceIDToHexString(id)
 
 	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
