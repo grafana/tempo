@@ -167,113 +167,103 @@ var yyExca = [...]int{
 
 const yyPrivate = 57344
 
-const yyLast = 515
+const yyLast = 437
 
 var yyAct = [...]int{
 
-	56, 3, 9, 2, 108, 109, 110, 119, 36, 38,
-	37, 4, 47, 48, 49, 50, 51, 52, 106, 107,
-	108, 109, 110, 119, 119, 41, 42, 43, 44, 45,
-	46, 5, 79, 83, 85, 86, 87, 88, 43, 44,
-	45, 46, 78, 94, 97, 98, 99, 100, 101, 102,
-	60, 10, 46, 31, 34, 104, 103, 10, 122, 123,
-	124, 90, 80, 120, 121, 91, 106, 107, 108, 109,
-	110, 119, 90, 30, 165, 131, 132, 133, 134, 130,
-	93, 10, 135, 12, 30, 84, 36, 77, 136, 76,
-	75, 95, 74, 79, 137, 91, 73, 54, 129, 38,
-	138, 128, 126, 78, 89, 125, 160, 140, 141, 142,
+	55, 3, 9, 2, 107, 108, 109, 118, 36, 38,
+	37, 4, 47, 48, 49, 50, 51, 52, 105, 106,
+	107, 108, 109, 118, 118, 41, 42, 43, 44, 45,
+	46, 5, 78, 82, 84, 85, 86, 87, 46, 31,
+	34, 91, 77, 93, 96, 97, 98, 99, 100, 101,
+	89, 90, 30, 59, 10, 103, 102, 121, 122, 123,
+	10, 164, 79, 89, 129, 47, 48, 49, 50, 51,
+	52, 92, 134, 30, 130, 131, 132, 133, 41, 42,
+	43, 44, 45, 46, 10, 36, 90, 135, 43, 44,
+	45, 46, 78, 136, 94, 12, 76, 83, 38, 137,
+	159, 163, 77, 75, 74, 73, 139, 140, 141, 142,
 	143, 144, 145, 146, 147, 148, 149, 150, 151, 152,
-	153, 154, 155, 80, 41, 42, 43, 44, 45, 46,
-	40, 159, 32, 158, 157, 10, 33, 35, 31, 34,
-	127, 53, 10, 62, 61, 14, 39, 10, 15, 16,
-	17, 21, 70, 13, 55, 57, 8, 20, 18, 19,
-	23, 22, 24, 63, 64, 65, 66, 67, 68, 69,
-	71, 72, 32, 7, 81, 1, 33, 35, 31, 34,
-	0, 0, 0, 0, 0, 0, 15, 16, 17, 21,
-	70, 0, 59, 57, 58, 20, 18, 19, 23, 22,
-	24, 63, 64, 65, 66, 67, 68, 69, 71, 72,
-	164, 47, 48, 49, 50, 51, 52, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 163,
-	59, 0, 58, 0, 111, 112, 113, 114, 115, 116,
-	118, 117, 0, 0, 120, 121, 0, 106, 107, 108,
-	109, 110, 119, 111, 112, 113, 114, 115, 116, 118,
-	117, 162, 0, 120, 121, 0, 106, 107, 108, 109,
-	110, 119, 0, 0, 0, 0, 0, 0, 0, 0,
-	161, 0, 0, 0, 0, 111, 112, 113, 114, 115,
-	116, 118, 117, 0, 0, 120, 121, 0, 106, 107,
-	108, 109, 110, 119, 111, 112, 113, 114, 115, 116,
-	118, 117, 156, 0, 120, 121, 0, 106, 107, 108,
-	109, 110, 119, 0, 0, 0, 0, 0, 0, 0,
-	0, 139, 0, 0, 0, 0, 111, 112, 113, 114,
-	115, 116, 118, 117, 0, 0, 120, 121, 105, 106,
-	107, 108, 109, 110, 119, 111, 112, 113, 114, 115,
-	116, 118, 117, 0, 0, 120, 121, 0, 106, 107,
-	108, 109, 110, 119, 111, 112, 113, 114, 115, 116,
-	118, 117, 92, 96, 120, 121, 0, 106, 107, 108,
-	109, 110, 119, 0, 0, 0, 0, 0, 0, 0,
-	25, 28, 26, 27, 29, 0, 47, 48, 49, 50,
-	51, 52, 0, 0, 0, 0, 0, 0, 0, 41,
-	42, 43, 44, 45, 46, 15, 16, 17, 21, 0,
-	12, 0, 6, 0, 20, 18, 19, 23, 22, 24,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 25,
-	28, 26, 27, 29, 11, 82, 15, 16, 17, 21,
-	0, 12, 0, 6, 0, 20, 18, 19, 23, 22,
-	24, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	25, 28, 26, 27, 29, 11, 15, 16, 17, 21,
-	0, 0, 0, 96, 0, 20, 18, 19, 23, 22,
-	24, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	25, 28, 26, 27, 29,
+	153, 154, 79, 72, 54, 110, 111, 112, 113, 114,
+	115, 117, 116, 128, 40, 119, 120, 10, 105, 106,
+	107, 108, 109, 118, 10, 53, 127, 125, 124, 10,
+	15, 16, 17, 21, 69, 158, 157, 56, 156, 20,
+	18, 19, 23, 22, 24, 62, 63, 64, 65, 66,
+	67, 68, 70, 71, 162, 119, 120, 126, 105, 106,
+	107, 108, 109, 118, 41, 42, 43, 44, 45, 46,
+	61, 60, 14, 161, 58, 39, 57, 13, 110, 111,
+	112, 113, 114, 115, 117, 116, 8, 7, 119, 120,
+	80, 105, 106, 107, 108, 109, 118, 110, 111, 112,
+	113, 114, 115, 117, 116, 160, 1, 119, 120, 0,
+	105, 106, 107, 108, 109, 118, 32, 0, 0, 0,
+	33, 35, 31, 34, 155, 0, 0, 0, 0, 110,
+	111, 112, 113, 114, 115, 117, 116, 0, 0, 119,
+	120, 0, 105, 106, 107, 108, 109, 118, 110, 111,
+	112, 113, 114, 115, 117, 116, 138, 95, 119, 120,
+	0, 105, 106, 107, 108, 109, 118, 47, 48, 49,
+	50, 51, 52, 104, 25, 28, 26, 27, 29, 0,
+	110, 111, 112, 113, 114, 115, 117, 116, 0, 0,
+	119, 120, 0, 105, 106, 107, 108, 109, 118, 110,
+	111, 112, 113, 114, 115, 117, 116, 0, 0, 119,
+	120, 0, 105, 106, 107, 108, 109, 118, 15, 16,
+	17, 21, 88, 12, 0, 6, 0, 20, 18, 19,
+	23, 22, 24, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 25, 28, 26, 27, 29, 11, 81, 0,
+	32, 0, 0, 0, 33, 35, 31, 34, 15, 16,
+	17, 21, 0, 12, 0, 6, 0, 20, 18, 19,
+	23, 22, 24, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 25, 28, 26, 27, 29, 11, 15, 16,
+	17, 21, 0, 0, 0, 95, 0, 20, 18, 19,
+	23, 22, 24, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 25, 28, 26, 27, 29,
 }
 var yyPact = [...]int{
 
-	451, -1000, 37, 131, -1000, -1000, 451, -1000, -1000, -25,
-	174, 85, 143, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
-	-1000, -1000, -1000, -1000, -1000, 84, 80, 78, 77, 75,
-	420, 73, 73, 73, 73, 73, 91, 59, 369, 67,
-	481, 371, 371, 371, 371, 371, 371, -1000, -1000, -1000,
-	-1000, -1000, -1000, 371, 181, -1000, 337, 181, 181, 181,
-	-1000, -1000, 96, -1000, -1000, -1000, -1000, -1000, -1000, 93,
-	136, 92, 89, 66, 181, 181, 181, 181, -1000, 131,
-	-1000, -1000, 70, -1000, 451, 6, 6, -1000, 6, -1000,
-	-1000, 420, -1000, -1000, 74, -1000, 451, -14, -14, -3,
-	-3, -3, -3, 74, 318, -1000, 181, 181, 181, 181,
-	181, 181, 181, 181, 181, 181, 181, 181, 181, 181,
-	181, 181, 299, -48, -32, 130, 129, -1000, 127, 102,
-	-1000, 267, 248, 216, 197, 61, 48, -25, 29, -1000,
-	-48, -48, -31, -31, -31, 16, 16, 16, 16, 16,
-	16, 16, 16, -31, -32, -32, -1000, -1000, -1000, -1000,
-	-1000, -1000, -1000, -1000, -1000, -1000,
+	373, -1000, 16, 195, -1000, -1000, 373, -1000, -1000, -25,
+	250, 112, 145, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
+	-1000, -1000, -1000, -1000, -1000, 111, 93, 92, 91, 84,
+	333, 85, 85, 85, 85, 85, 329, 50, 28, 58,
+	403, 265, 265, 265, 265, 265, 265, -1000, -1000, -1000,
+	-1000, -1000, -1000, 265, 145, 282, 145, 145, 145, -1000,
+	-1000, 139, -1000, -1000, -1000, -1000, -1000, -1000, 138, 173,
+	137, 124, 51, 145, 145, 145, 145, -1000, 195, -1000,
+	-1000, 60, -1000, 373, -8, -8, -1000, -8, -1000, -1000,
+	333, -1000, -1000, 134, -1000, 373, 36, 36, -17, -17,
+	-17, -17, 134, 263, -1000, 145, 145, 145, 145, 145,
+	145, 145, 145, 145, 145, 145, 145, 145, 145, 145,
+	145, 231, -48, -32, 154, 152, -1000, 151, 96, -1000,
+	212, 180, 161, 88, 48, 37, -25, 15, -1000, -48,
+	-48, -31, -31, -31, 128, 128, 128, 128, 128, 128,
+	128, 128, -31, -32, -32, -1000, -1000, -1000, -1000, -1000,
+	-1000, -1000, -1000, -1000, -1000,
 }
 var yyPgo = [...]int{
 
-	0, 175, 31, 174, 1, 173, 3, 156, 11, 130,
-	2, 153, 146, 145, 0, 50, 144, 143,
+	0, 226, 31, 210, 1, 207, 3, 206, 11, 134,
+	2, 197, 195, 192, 0, 53, 191, 190,
 }
 var yyR1 = [...]int{
 
 	0, 1, 2, 3, 4, 4, 4, 4, 4, 4,
 	4, 4, 5, 6, 6, 6, 6, 6, 6, 6,
-	7, 7, 8, 8, 8, 9, 9, 9, 9, 9,
-	9, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-	11, 12, 13, 13, 13, 13, 13, 14, 14, 14,
+	7, 8, 8, 8, 9, 9, 9, 9, 9, 9,
+	10, 10, 10, 10, 10, 10, 10, 10, 10, 11,
+	12, 13, 13, 13, 13, 13, 14, 14, 14, 14,
 	14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
-	14, 14, 14, 14, 14, 14, 14, 14, 14, 15,
-	15, 15, 15, 15, 15, 15, 15, 15, 15, 16,
-	16, 16, 16, 16, 16, 16, 17, 17, 17, 17,
-	17,
+	14, 14, 14, 14, 14, 14, 14, 14, 15, 15,
+	15, 15, 15, 15, 15, 15, 15, 15, 16, 16,
+	16, 16, 16, 16, 16, 17, 17, 17, 17, 17,
 }
 var yyR2 = [...]int{
 
 	0, 1, 4, 3, 3, 3, 3, 3, 3, 3,
 	1, 1, 3, 1, 1, 1, 3, 3, 3, 3,
-	2, 3, 3, 3, 3, 1, 1, 1, 1, 1,
-	1, 3, 3, 3, 3, 3, 3, 3, 1, 1,
-	3, 3, 3, 4, 4, 4, 4, 3, 3, 3,
+	3, 3, 3, 3, 1, 1, 1, 1, 1, 1,
+	3, 3, 3, 3, 3, 3, 3, 1, 1, 3,
+	3, 3, 4, 4, 4, 4, 3, 3, 3, 3,
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-	3, 3, 3, 3, 2, 2, 1, 1, 1, 1,
+	3, 3, 3, 2, 2, 1, 1, 1, 1, 1,
 	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-	1, 1, 1, 1, 1, 1, 2, 3, 3, 3,
-	3,
+	1, 1, 1, 1, 1, 2, 3, 3, 3, 3,
 }
 var yyChk = [...]int{
 
@@ -282,38 +272,38 @@ var yyChk = [...]int{
 	14, 8, 18, 17, 19, 29, 31, 32, 30, 33,
 	36, 47, 41, 45, 48, 46, -4, -6, -10, -12,
 	-9, 50, 51, 52, 53, 54, 55, 37, 38, 39,
-	40, 41, 42, -9, 12, 11, -14, 12, 51, 49,
-	-15, -16, -17, 20, 21, 22, 23, 24, 25, 26,
-	9, 27, 28, 12, 12, 12, 12, 12, -8, -4,
-	-2, -3, 35, -4, 12, -4, -4, -4, -4, 13,
-	13, 36, 13, 13, -10, -15, 12, -10, -10, -10,
-	-10, -10, -10, -10, -14, 11, 50, 51, 52, 53,
-	54, 37, 38, 39, 40, 41, 42, 44, 43, 55,
-	47, 48, -14, -14, -14, 9, 9, 4, 9, 9,
-	13, -14, -14, -14, -14, 12, -6, -10, -6, 13,
+	40, 41, 42, -9, 12, -14, 12, 51, 49, -15,
+	-16, -17, 20, 21, 22, 23, 24, 25, 26, 9,
+	27, 28, 12, 12, 12, 12, 12, -8, -4, -2,
+	-3, 35, -4, 12, -4, -4, -4, -4, 13, 13,
+	36, 13, 13, -10, -15, 12, -10, -10, -10, -10,
+	-10, -10, -10, -14, 11, 50, 51, 52, 53, 54,
+	37, 38, 39, 40, 41, 42, 44, 43, 55, 47,
+	48, -14, -14, -14, 9, 9, 4, 9, 9, 13,
+	-14, -14, -14, -14, 12, -6, -10, -6, 13, -14,
 	-14, -14, -14, -14, -14, -14, -14, -14, -14, -14,
-	-14, -14, -14, -14, -14, -14, 13, 4, 4, 4,
-	4, 13, 13, 13, 13, 13,
+	-14, -14, -14, -14, -14, 13, 4, 4, 4, 4,
+	13, 13, 13, 13, 13,
 }
 var yyDef = [...]int{
 
 	0, -2, 1, 13, 14, 15, 0, 10, 11, 0,
-	0, 0, 0, 38, 39, 69, 70, 71, 72, 73,
-	74, 75, 76, 77, 78, 0, 0, 0, 0, 0,
+	0, 0, 0, 37, 38, 68, 69, 70, 71, 72,
+	73, 74, 75, 76, 77, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 13, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 25, 26, 27,
-	28, 29, 30, 0, 0, 20, 0, 0, 0, 0,
-	66, 67, 68, 79, 80, 81, 82, 83, 84, 85,
-	0, 0, 0, 0, 0, 0, 0, 0, 16, 17,
-	18, 19, 0, 5, 0, 6, 7, 8, 9, 4,
-	12, 0, 31, 40, 22, 24, 0, 32, 33, 34,
-	35, 36, 37, 23, 0, 21, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 24, 25, 26,
+	27, 28, 29, 0, 0, 0, 0, 0, 0, 65,
+	66, 67, 78, 79, 80, 81, 82, 83, 84, 0,
+	0, 0, 0, 0, 0, 0, 0, 16, 17, 18,
+	19, 0, 5, 0, 6, 7, 8, 9, 4, 12,
+	0, 30, 39, 21, 23, 0, 31, 32, 33, 34,
+	35, 36, 22, 0, 20, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 64, 65, 0, 0, 86, 0, 0,
-	42, 0, 0, 0, 0, 0, 0, 41, 0, 2,
+	0, 0, 63, 64, 0, 0, 85, 0, 0, 41,
+	0, 0, 0, 0, 0, 0, 40, 0, 2, 47,
 	48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
-	58, 59, 60, 61, 62, 63, 47, 90, 89, 87,
-	88, 43, 44, 45, 46, 3,
+	58, 59, 60, 61, 62, 46, 89, 88, 86, 87,
+	42, 43, 44, 45, 3,
 }
 var yyTok1 = [...]int{
 
@@ -784,428 +774,422 @@ yydefault:
 			yyVAL.spansetPipeline = yyDollar[1].spansetPipeline.addItem(yyDollar[3].coalesceOperation)
 		}
 	case 20:
-		yyDollar = yyS[yypt-2 : yypt+1]
+		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:124
 		{
-			yyVAL.spansetFilter = newSpansetFilter(newStaticBool(true))
+			yyVAL.spansetFilter = newSpansetFilter(yyDollar[2].fieldExpression)
 		}
 	case 21:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line expr.y:125
+//line expr.y:128
 		{
-			yyVAL.spansetFilter = newSpansetFilter(yyDollar[2].fieldExpression)
+			yyVAL.scalarFilter = newScalarFilter(yyDollar[2].scalarFilterOperation, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
 		}
 	case 22:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:129
 		{
-			yyVAL.scalarFilter = newScalarFilter(yyDollar[2].scalarFilterOperation, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
+			yyVAL.scalarFilter = newScalarFilter(yyDollar[2].scalarFilterOperation, yyDollar[1].static, yyDollar[3].scalarExpression)
 		}
 	case 23:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:130
 		{
-			yyVAL.scalarFilter = newScalarFilter(yyDollar[2].scalarFilterOperation, yyDollar[1].static, yyDollar[3].scalarExpression)
+			yyVAL.scalarFilter = newScalarFilter(yyDollar[2].scalarFilterOperation, yyDollar[1].scalarExpression, yyDollar[3].static)
 		}
 	case 24:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line expr.y:131
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line expr.y:134
 		{
-			yyVAL.scalarFilter = newScalarFilter(yyDollar[2].scalarFilterOperation, yyDollar[1].scalarExpression, yyDollar[3].static)
+			yyVAL.scalarFilterOperation = opEqual
 		}
 	case 25:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:135
 		{
-			yyVAL.scalarFilterOperation = opEqual
+			yyVAL.scalarFilterOperation = opNotEqual
 		}
 	case 26:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:136
 		{
-			yyVAL.scalarFilterOperation = opNotEqual
+			yyVAL.scalarFilterOperation = opLess
 		}
 	case 27:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:137
 		{
-			yyVAL.scalarFilterOperation = opLess
+			yyVAL.scalarFilterOperation = opLessEqual
 		}
 	case 28:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:138
 		{
-			yyVAL.scalarFilterOperation = opLessEqual
+			yyVAL.scalarFilterOperation = opGreater
 		}
 	case 29:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:139
 		{
-			yyVAL.scalarFilterOperation = opGreater
+			yyVAL.scalarFilterOperation = opGreaterEqual
 		}
 	case 30:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line expr.y:140
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line expr.y:146
 		{
-			yyVAL.scalarFilterOperation = opGreaterEqual
+			yyVAL.scalarExpression = yyDollar[2].scalarExpression
 		}
 	case 31:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:147
 		{
-			yyVAL.scalarExpression = yyDollar[2].scalarExpression
+			yyVAL.scalarExpression = newScalarOperation(opAdd, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
 		}
 	case 32:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:148
 		{
-			yyVAL.scalarExpression = newScalarOperation(opAdd, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
+			yyVAL.scalarExpression = newScalarOperation(opSub, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
 		}
 	case 33:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:149
 		{
-			yyVAL.scalarExpression = newScalarOperation(opSub, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
+			yyVAL.scalarExpression = newScalarOperation(opMult, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
 		}
 	case 34:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:150
 		{
-			yyVAL.scalarExpression = newScalarOperation(opMult, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
+			yyVAL.scalarExpression = newScalarOperation(opDiv, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
 		}
 	case 35:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:151
 		{
-			yyVAL.scalarExpression = newScalarOperation(opDiv, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
+			yyVAL.scalarExpression = newScalarOperation(opMod, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
 		}
 	case 36:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:152
 		{
-			yyVAL.scalarExpression = newScalarOperation(opMod, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
+			yyVAL.scalarExpression = newScalarOperation(opPower, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
 		}
 	case 37:
-		yyDollar = yyS[yypt-3 : yypt+1]
+		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:153
 		{
-			yyVAL.scalarExpression = newScalarOperation(opPower, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
+			yyVAL.scalarExpression = yyDollar[1].wrappedScalarPipeline
 		}
 	case 38:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:154
 		{
-			yyVAL.scalarExpression = yyDollar[1].wrappedScalarPipeline
-		}
-	case 39:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line expr.y:155
-		{
 			yyVAL.scalarExpression = yyDollar[1].aggregate
 		}
-	case 40:
+	case 39:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line expr.y:159
+//line expr.y:158
 		{
 			yyVAL.wrappedScalarPipeline = yyDollar[2].scalarPipeline
 		}
-	case 41:
+	case 40:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line expr.y:163
+//line expr.y:162
 		{
 			yyVAL.scalarPipeline = yyDollar[1].spansetPipeline.addItem(yyDollar[3].scalarExpression)
 		}
-	case 42:
+	case 41:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line expr.y:167
+//line expr.y:166
 		{
 			yyVAL.aggregate = newAggregate(aggregateCount, nil)
+		}
+	case 42:
+		yyDollar = yyS[yypt-4 : yypt+1]
+//line expr.y:167
+		{
+			yyVAL.aggregate = newAggregate(aggregateMax, yyDollar[3].fieldExpression)
 		}
 	case 43:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line expr.y:168
 		{
-			yyVAL.aggregate = newAggregate(aggregateMax, yyDollar[3].fieldExpression)
+			yyVAL.aggregate = newAggregate(aggregateMin, yyDollar[3].fieldExpression)
 		}
 	case 44:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line expr.y:169
 		{
-			yyVAL.aggregate = newAggregate(aggregateMin, yyDollar[3].fieldExpression)
+			yyVAL.aggregate = newAggregate(aggregateAvg, yyDollar[3].fieldExpression)
 		}
 	case 45:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line expr.y:170
 		{
-			yyVAL.aggregate = newAggregate(aggregateAvg, yyDollar[3].fieldExpression)
+			yyVAL.aggregate = newAggregate(aggregateSum, yyDollar[3].fieldExpression)
 		}
 	case 46:
-		yyDollar = yyS[yypt-4 : yypt+1]
-//line expr.y:171
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line expr.y:177
 		{
-			yyVAL.aggregate = newAggregate(aggregateSum, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = yyDollar[2].fieldExpression
 		}
 	case 47:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:178
 		{
-			yyVAL.fieldExpression = yyDollar[2].fieldExpression
+			yyVAL.fieldExpression = newBinaryOperation(opAdd, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 48:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:179
 		{
-			yyVAL.fieldExpression = newBinaryOperation(opAdd, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(opSub, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 49:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:180
 		{
-			yyVAL.fieldExpression = newBinaryOperation(opSub, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(opMult, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 50:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:181
 		{
-			yyVAL.fieldExpression = newBinaryOperation(opMult, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(opDiv, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 51:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:182
 		{
-			yyVAL.fieldExpression = newBinaryOperation(opDiv, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(opMod, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 52:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:183
 		{
-			yyVAL.fieldExpression = newBinaryOperation(opMod, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(opEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 53:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:184
 		{
-			yyVAL.fieldExpression = newBinaryOperation(opEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(opNotEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 54:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:185
 		{
-			yyVAL.fieldExpression = newBinaryOperation(opNotEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(opLess, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 55:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:186
 		{
-			yyVAL.fieldExpression = newBinaryOperation(opLess, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(opLessEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 56:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:187
 		{
-			yyVAL.fieldExpression = newBinaryOperation(opLessEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(opGreater, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 57:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:188
 		{
-			yyVAL.fieldExpression = newBinaryOperation(opGreater, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(opGreaterEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 58:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:189
 		{
-			yyVAL.fieldExpression = newBinaryOperation(opGreaterEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(opRegex, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 59:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:190
 		{
-			yyVAL.fieldExpression = newBinaryOperation(opRegex, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(opNotRegex, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 60:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:191
 		{
-			yyVAL.fieldExpression = newBinaryOperation(opNotRegex, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(opPower, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 61:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:192
 		{
-			yyVAL.fieldExpression = newBinaryOperation(opPower, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(opAnd, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 62:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:193
 		{
-			yyVAL.fieldExpression = newBinaryOperation(opAnd, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(opOr, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 63:
-		yyDollar = yyS[yypt-3 : yypt+1]
+		yyDollar = yyS[yypt-2 : yypt+1]
 //line expr.y:194
 		{
-			yyVAL.fieldExpression = newBinaryOperation(opOr, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newUnaryOperation(opSub, yyDollar[2].fieldExpression)
 		}
 	case 64:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line expr.y:195
 		{
-			yyVAL.fieldExpression = newUnaryOperation(opSub, yyDollar[2].fieldExpression)
+			yyVAL.fieldExpression = newUnaryOperation(opNot, yyDollar[2].fieldExpression)
 		}
 	case 65:
-		yyDollar = yyS[yypt-2 : yypt+1]
+		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:196
 		{
-			yyVAL.fieldExpression = newUnaryOperation(opNot, yyDollar[2].fieldExpression)
+			yyVAL.fieldExpression = yyDollar[1].static
 		}
 	case 66:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:197
 		{
-			yyVAL.fieldExpression = yyDollar[1].static
+			yyVAL.fieldExpression = yyDollar[1].intrinsicField
 		}
 	case 67:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:198
 		{
-			yyVAL.fieldExpression = yyDollar[1].intrinsicField
+			yyVAL.fieldExpression = yyDollar[1].attributeField
 		}
 	case 68:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line expr.y:199
+//line expr.y:205
 		{
-			yyVAL.fieldExpression = yyDollar[1].attributeField
+			yyVAL.static = newStaticString(yyDollar[1].staticStr)
 		}
 	case 69:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:206
 		{
-			yyVAL.static = newStaticString(yyDollar[1].staticStr)
+			yyVAL.static = newStaticInt(yyDollar[1].staticInt)
 		}
 	case 70:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:207
 		{
-			yyVAL.static = newStaticInt(yyDollar[1].staticInt)
+			yyVAL.static = newStaticFloat(yyDollar[1].staticFloat)
 		}
 	case 71:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:208
 		{
-			yyVAL.static = newStaticFloat(yyDollar[1].staticFloat)
+			yyVAL.static = newStaticBool(true)
 		}
 	case 72:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:209
 		{
-			yyVAL.static = newStaticBool(true)
+			yyVAL.static = newStaticBool(false)
 		}
 	case 73:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:210
 		{
-			yyVAL.static = newStaticBool(false)
+			yyVAL.static = newStaticNil()
 		}
 	case 74:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:211
 		{
-			yyVAL.static = newStaticNil()
+			yyVAL.static = newStaticDuration(yyDollar[1].staticDuration)
 		}
 	case 75:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:212
 		{
-			yyVAL.static = newStaticDuration(yyDollar[1].staticDuration)
+			yyVAL.static = newStaticStatus(statusOk)
 		}
 	case 76:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:213
 		{
-			yyVAL.static = newStaticStatus(statusOk)
+			yyVAL.static = newStaticStatus(statusError)
 		}
 	case 77:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:214
 		{
-			yyVAL.static = newStaticStatus(statusError)
+			yyVAL.static = newStaticStatus(statusUnset)
 		}
 	case 78:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line expr.y:215
+//line expr.y:218
 		{
-			yyVAL.static = newStaticStatus(statusUnset)
+			yyVAL.intrinsicField = newIntrinsic(intrinsicStart)
 		}
 	case 79:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:219
 		{
-			yyVAL.intrinsicField = newIntrinsic(intrinsicStart)
+			yyVAL.intrinsicField = newIntrinsic(intrinsicEnd)
 		}
 	case 80:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:220
 		{
-			yyVAL.intrinsicField = newIntrinsic(intrinsicEnd)
+			yyVAL.intrinsicField = newIntrinsic(intrinsicDuration)
 		}
 	case 81:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:221
 		{
-			yyVAL.intrinsicField = newIntrinsic(intrinsicDuration)
+			yyVAL.intrinsicField = newIntrinsic(intrinsicChildCount)
 		}
 	case 82:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:222
 		{
-			yyVAL.intrinsicField = newIntrinsic(intrinsicChildCount)
+			yyVAL.intrinsicField = newIntrinsic(intrinsicName)
 		}
 	case 83:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:223
 		{
-			yyVAL.intrinsicField = newIntrinsic(intrinsicName)
+			yyVAL.intrinsicField = newIntrinsic(intrinsicStatus)
 		}
 	case 84:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line expr.y:224
 		{
-			yyVAL.intrinsicField = newIntrinsic(intrinsicStatus)
-		}
-	case 85:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line expr.y:225
-		{
 			yyVAL.intrinsicField = newIntrinsic(intrinsicParent)
 		}
-	case 86:
+	case 85:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line expr.y:229
+//line expr.y:228
 		{
 			yyVAL.attributeField = newAttribute(yyDollar[2].staticStr)
+		}
+	case 86:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line expr.y:229
+		{
+			yyVAL.attributeField = newScopedAttribute(attributeScopeResource, yyDollar[3].staticStr)
 		}
 	case 87:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:230
 		{
-			yyVAL.attributeField = newScopedAttribute(attributeScopeResource, yyDollar[3].staticStr)
+			yyVAL.attributeField = newScopedAttribute(attributeScopeSpan, yyDollar[3].staticStr)
 		}
 	case 88:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:231
 		{
-			yyVAL.attributeField = newScopedAttribute(attributeScopeSpan, yyDollar[3].staticStr)
+			yyVAL.attributeField = newScopedAttribute(attributeScopeParent, yyDollar[3].staticStr)
 		}
 	case 89:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line expr.y:232
-		{
-			yyVAL.attributeField = newScopedAttribute(attributeScopeParent, yyDollar[3].staticStr)
-		}
-	case 90:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line expr.y:233
 		{
 			yyVAL.attributeField = appendAttribute(yyDollar[1].attributeField, yyDollar[3].staticStr)
 		}

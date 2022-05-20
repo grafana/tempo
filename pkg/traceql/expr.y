@@ -121,8 +121,7 @@ spansetPipeline:
   ;
 
 spansetFilter:
-    OPEN_BRACE CLOSE_BRACE                      { $$ = newSpansetFilter(newStaticBool(true)) }
-  | OPEN_BRACE fieldExpression CLOSE_BRACE      { $$ = newSpansetFilter($2) } // jpe - fieldExpression must resolve to a boolean
+    OPEN_BRACE fieldExpression CLOSE_BRACE      { $$ = newSpansetFilter($2) } // jpe - fieldExpression must resolve to a boolean
   ;
 
 scalarFilter:

@@ -415,7 +415,7 @@ func TestScalarExpressionErrors(t *testing.T) {
 	}{
 		{in: "(avg(.foo) > count()) + sum(.bar)", err: newParseError("syntax error: unexpected +", 1, 23)},
 		{in: "count(", err: newParseError("syntax error: unexpected $end, expecting )", 1, 7)},
-		{in: "{} | 3 = 3", err: newParseError("syntax error: unexpected INTEGER", 1, 10)},
+		{in: "{ .a } | 3 = 3", err: newParseError("syntax error: unexpected INTEGER", 1, 14)},
 		{in: "count(avg)", err: newParseError("syntax error: unexpected avg, expecting )", 1, 7)},
 		{in: "count(.thing)", err: newParseError("syntax error: unexpected ., expecting )", 1, 7)},
 	}
@@ -628,7 +628,6 @@ func TestSpansetFilterStatics(t *testing.T) {
 		{in: "{ 1.234 }", expected: newStaticFloat(1.234)},
 		{in: "{ nil }", expected: newStaticNil()},
 		{in: "{ 3h }", expected: newStaticDuration(3 * time.Hour)},
-		{in: "{ }", expected: newStaticBool(true)},
 		{in: "{ error }", expected: newStaticStatus(statusError)},
 		{in: "{ ok }", expected: newStaticStatus(statusOk)},
 		{in: "{ unset }", expected: newStaticStatus(statusUnset)},
