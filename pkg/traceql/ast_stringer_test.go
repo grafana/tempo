@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// jpe build big ol' file that has unsupported/invalid/valid and use for TestStringer and other test
 func TestStringer(t *testing.T) {
 	tests := []struct {
 		in string
@@ -16,6 +17,7 @@ func TestStringer(t *testing.T) {
 		{in: "{ .http.status = 200 } | max(.field) - min(.field) > 3"},
 		{in: "({ .http.status = 200 } | count()) + ({ name = `foo` } | avg(duration)) = 2"},
 		{in: "{ (-(3 + 2) * .test - parent.blerg + duration)^3 }"},
+		{in: "({ .a } | count()) > ({ .b } | count())"},
 	}
 
 	for _, tc := range tests {

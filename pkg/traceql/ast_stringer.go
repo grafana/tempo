@@ -78,7 +78,7 @@ func (f SpansetFilter) String() string {
 }
 
 func (f ScalarFilter) String() string {
-	return f.lhs.String() + stringerOps[f.op] + f.rhs.String()
+	return binaryOp(stringerOps[f.op], f.lhs, f.rhs)
 }
 
 func (o BinaryOperation) String() string {

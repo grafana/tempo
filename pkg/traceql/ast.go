@@ -32,6 +32,7 @@ const (
 
 type element interface {
 	fmt.Stringer
+	validate() error
 }
 
 type RootExpr struct {
