@@ -137,7 +137,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, id common.ID) (_ *temp
 	traceID := util.TraceIDToHexString(id)
 
 	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
-	defer span.SetTag("inspectedBytes", rr.TotalBytesRead)
+	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()
 
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 32)
 
@@ -169,7 +169,6 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, id common.ID) (_ *temp
 
 	// traceID not found in this block
 	if rowMatch < 0 {
-
 		return nil, nil
 	}
 

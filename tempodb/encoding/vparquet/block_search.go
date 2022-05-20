@@ -50,9 +50,8 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	defer span.Finish()
 
 	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
-	defer span.SetTag("inspectedBytes", rr.TotalBytesRead)
+	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()
 
-	// 16 MB memory buffering
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
 
 	pf, err := parquet.OpenFile(br, int64(b.meta.Size))

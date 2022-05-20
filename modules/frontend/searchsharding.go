@@ -226,6 +226,12 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	overallResponse := newSearchResponse(ctx, int(searchReq.Limit))
 	overallResponse.resultsMetrics.InspectedBlocks = uint32(len(blocks))
 
+	totalBlockBytes := uint64(0)
+	for _, b := range blocks {
+		totalBlockBytes += b.Size
+	}
+	overallResponse.resultsMetrics.TotalBlockBytes = totalBlockBytes
+
 	for _, req := range reqs {
 		if overallResponse.shouldQuit() {
 			break
@@ -283,6 +289,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span.SetTag("inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks)
 	span.SetTag("inspectedBytes", overallResponse.resultsMetrics.InspectedBytes)
 	span.SetTag("inspectedTraces", overallResponse.resultsMetrics.InspectedTraces)
+	span.SetTag("totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
 
 	if overallResponse.err != nil {
 		return nil, overallResponse.err
