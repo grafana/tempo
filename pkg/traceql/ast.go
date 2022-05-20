@@ -39,7 +39,12 @@ type RootExpr struct {
 	p Pipeline
 }
 
-func newRootExpr(p Pipeline) *RootExpr {
+func newRootExpr(e element) *RootExpr {
+	p, ok := e.(Pipeline)
+	if !ok {
+		p = newPipeline(e)
+	}
+
 	return &RootExpr{
 		p: p,
 	}

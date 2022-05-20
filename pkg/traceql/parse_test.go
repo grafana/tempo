@@ -4,27 +4,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 )
 
-// func TestDump(t *testing.T) {
-// 	tests := []struct {
-// 		in  string
-// 		err error
-// 	}{
-// 		{in: "({ } | { })", err: newParseError("", 1, 12)},
-// 	}
+func TestDump(t *testing.T) {
+	tests := []struct {
+		in  string
+		err error
+	}{
+		{in: "({ true } | { false })", err: newParseError("", 1, 12)},
+	}
 
-// 	scs := spew.ConfigState{DisableMethods: true, Indent: " "}
-// 	for _, tc := range tests {
-// 		t.Run(tc.in, func(t *testing.T) {
-// 			actual, err := Parse(tc.in)
+	scs := spew.ConfigState{DisableMethods: true, Indent: " "}
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			actual, err := Parse(tc.in)
 
-// 			assert.Equal(t, tc.err, err)
-// 			scs.Dump(actual)
-// 		})
-// 	}
-// }
+			assert.Equal(t, tc.err, err)
+			scs.Dump(actual)
+		})
+	}
+}
 
 func TestPipelineErrors(t *testing.T) {
 	tests := []struct {

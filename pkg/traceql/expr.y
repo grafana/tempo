@@ -14,12 +14,14 @@ import (
     coalesceOperation CoalesceOperation
 
     spansetExpression SpansetExpression
+    spansetPipelineExpression SpansetExpression
     wrappedSpansetPipeline Pipeline
     spansetPipeline Pipeline
     spansetFilter SpansetFilter
     scalarFilter ScalarFilter
     scalarFilterOperation int
 
+    scalarPipelineExpresssion ScalarExpression
     scalarExpression ScalarExpression
     wrappedScalarPipeline Pipeline
     scalarPipeline Pipeline
@@ -42,12 +44,14 @@ import (
 %type <coalesceOperation> coalesceOperation
 
 %type <spansetExpression> spansetExpression
+%type <spansetPipelineExpression> spansetPipelineExpression
 %type <wrappedSpansetPipeline> wrappedSpansetPipeline
 %type <spansetPipeline> spansetPipeline
 %type <spansetFilter> spansetFilter
 %type <scalarFilter> scalarFilter
 %type <scalarFilterOperation> scalarFilterOperation
 
+%type <scalarPipelineExpresssion> scalarPipelineExpresssion
 %type <scalarExpression> scalarExpression
 %type <wrappedScalarPipeline> wrappedScalarPipeline
 %type <scalarPipeline> scalarPipeline
@@ -83,6 +87,8 @@ import (
 // **********************
 root:
     spansetPipeline                             { yylex.(*lexer).expr = newRootExpr($1) }
+  | spansetPipelineExpression                   { yylex.(*lexer).expr = newRootExpr($1) }
+  | scalarPipelineExpresssion                   { yylex.(*lexer).expr = newRootExpr($1) }
   ;
 
 groupOperation:
@@ -96,15 +102,14 @@ coalesceOperation:
 // **********************
 // Spanset Expressions
 // **********************
-spansetExpression:
-    OPEN_PARENS spansetExpression CLOSE_PARENS   { $$ = $2 }
-  | spansetExpression AND   spansetExpression    { $$ = newSpansetOperation(opSpansetAnd, $1, $3) }
-  | spansetExpression GT    spansetExpression    { $$ = newSpansetOperation(opSpansetChild, $1, $3) }
-  | spansetExpression DESC  spansetExpression    { $$ = newSpansetOperation(opSpansetDescendant, $1, $3) }
-  | spansetExpression OR    spansetExpression    { $$ = newSpansetOperation(opSpansetUnion, $1, $3) }
-  | spansetExpression TILDE spansetExpression    { $$ = newSpansetOperation(opSpansetSibling, $1, $3) }
-  | wrappedSpansetPipeline                       { $$ = $1 }
-  | spansetFilter                                { $$ = $1 } 
+spansetPipelineExpression: // shares the same operators as spansetExpression. split out for readability
+    OPEN_PARENS spansetPipelineExpression CLOSE_PARENS           { $$ = $2 }
+  | spansetPipelineExpression AND   spansetPipelineExpression    { $$ = newSpansetOperation(opSpansetAnd, $1, $3) }
+  | spansetPipelineExpression GT    spansetPipelineExpression    { $$ = newSpansetOperation(opSpansetChild, $1, $3) }
+  | spansetPipelineExpression DESC  spansetPipelineExpression    { $$ = newSpansetOperation(opSpansetDescendant, $1, $3) }
+  | spansetPipelineExpression OR    spansetPipelineExpression    { $$ = newSpansetOperation(opSpansetUnion, $1, $3) }
+  | spansetPipelineExpression TILDE spansetPipelineExpression    { $$ = newSpansetOperation(opSpansetSibling, $1, $3) }
+  | wrappedSpansetPipeline                                       { $$ = $1 }
   ;
 
 wrappedSpansetPipeline:
@@ -120,14 +125,27 @@ spansetPipeline:
   | spansetPipeline PIPE coalesceOperation     { $$ = $1.addItem($3)  }  // can't start with coalesce
   ;
 
+spansetExpression: // shares the same operators as scalarPipelineExpression. split out for readability
+    OPEN_PARENS spansetExpression CLOSE_PARENS   { $$ = $2 }
+  | spansetExpression AND   spansetExpression    { $$ = newSpansetOperation(opSpansetAnd, $1, $3) }
+  | spansetExpression GT    spansetExpression    { $$ = newSpansetOperation(opSpansetChild, $1, $3) }
+  | spansetExpression DESC  spansetExpression    { $$ = newSpansetOperation(opSpansetDescendant, $1, $3) }
+  | spansetExpression OR    spansetExpression    { $$ = newSpansetOperation(opSpansetUnion, $1, $3) }
+  | spansetExpression TILDE spansetExpression    { $$ = newSpansetOperation(opSpansetSibling, $1, $3) }
+  | spansetFilter                                { $$ = $1 } 
+  ;
+
 spansetFilter:
     OPEN_BRACE fieldExpression CLOSE_BRACE      { $$ = newSpansetFilter($2) } // jpe - fieldExpression must resolve to a boolean
   ;
 
 scalarFilter:
-    scalarExpression scalarFilterOperation scalarExpression        { $$ = newScalarFilter($2, $1, $3) }
-  | static           scalarFilterOperation scalarExpression        { $$ = newScalarFilter($2, $1, $3) }
-  | scalarExpression scalarFilterOperation static                  { $$ = newScalarFilter($2, $1, $3) }
+    scalarExpression          scalarFilterOperation scalarExpression          { $$ = newScalarFilter($2, $1, $3) }
+  | static                    scalarFilterOperation scalarExpression          { $$ = newScalarFilter($2, $1, $3) }
+  | scalarExpression          scalarFilterOperation static                    { $$ = newScalarFilter($2, $1, $3) }
+  | scalarPipelineExpresssion scalarFilterOperation scalarPipelineExpresssion { $$ = newScalarFilter($2, $1, $3) }
+  | static                    scalarFilterOperation scalarPipelineExpresssion { $$ = newScalarFilter($2, $1, $3) }
+  | scalarPipelineExpresssion scalarFilterOperation static                    { $$ = newScalarFilter($2, $1, $3) }
   ;
 
 scalarFilterOperation:
@@ -142,17 +160,15 @@ scalarFilterOperation:
 // **********************
 // Scalar Expressions
 // **********************
-scalarExpression:
-    OPEN_PARENS scalarExpression CLOSE_PARENS  { $$ = $2 }                                   
-  | scalarExpression ADD scalarExpression      { $$ = newScalarOperation(opAdd, $1, $3) }
-  | scalarExpression SUB scalarExpression      { $$ = newScalarOperation(opSub, $1, $3) }
-  | scalarExpression MUL scalarExpression      { $$ = newScalarOperation(opMult, $1, $3) }
-  | scalarExpression DIV scalarExpression      { $$ = newScalarOperation(opDiv, $1, $3) }
-  | scalarExpression MOD scalarExpression      { $$ = newScalarOperation(opMod, $1, $3) }
-  | scalarExpression POW scalarExpression      { $$ = newScalarOperation(opPower, $1, $3) }
-  | wrappedScalarPipeline                      { $$ = $1 }
-  | aggregate                                  { $$ = $1 }
-  ;
+scalarPipelineExpresssion: // shares the same operators as scalarExpression. split out for readability
+    OPEN_PARENS scalarPipelineExpresssion CLOSE_PARENS        { $$ = $2 }                                   
+  | scalarPipelineExpresssion ADD scalarPipelineExpresssion   { $$ = newScalarOperation(opAdd, $1, $3) }
+  | scalarPipelineExpresssion SUB scalarPipelineExpresssion   { $$ = newScalarOperation(opSub, $1, $3) }
+  | scalarPipelineExpresssion MUL scalarPipelineExpresssion   { $$ = newScalarOperation(opMult, $1, $3) }
+  | scalarPipelineExpresssion DIV scalarPipelineExpresssion   { $$ = newScalarOperation(opDiv, $1, $3) }
+  | scalarPipelineExpresssion MOD scalarPipelineExpresssion   { $$ = newScalarOperation(opMod, $1, $3) }
+  | scalarPipelineExpresssion POW scalarPipelineExpresssion   { $$ = newScalarOperation(opPower, $1, $3) }
+  | wrappedScalarPipeline                                     { $$ = $1 }
 
 wrappedScalarPipeline:
     OPEN_PARENS scalarPipeline CLOSE_PARENS    { $$ = $2 }
@@ -160,6 +176,17 @@ wrappedScalarPipeline:
 
 scalarPipeline:
     spansetPipeline PIPE scalarExpression      { $$ = $1.addItem($3)  }
+  ;
+
+scalarExpression: // shares the same operators as scalarPipelineExpression. split out for readability
+    OPEN_PARENS scalarExpression CLOSE_PARENS  { $$ = $2 }                                   
+  | scalarExpression ADD scalarExpression      { $$ = newScalarOperation(opAdd, $1, $3) }
+  | scalarExpression SUB scalarExpression      { $$ = newScalarOperation(opSub, $1, $3) }
+  | scalarExpression MUL scalarExpression      { $$ = newScalarOperation(opMult, $1, $3) }
+  | scalarExpression DIV scalarExpression      { $$ = newScalarOperation(opDiv, $1, $3) }
+  | scalarExpression MOD scalarExpression      { $$ = newScalarOperation(opMod, $1, $3) }
+  | scalarExpression POW scalarExpression      { $$ = newScalarOperation(opPower, $1, $3) }
+  | aggregate                                  { $$ = $1 }
   ;
 
 aggregate:  // jpe isValid - fieldExpression must be numeric. all statics must be numeric
