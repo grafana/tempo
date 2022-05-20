@@ -2,6 +2,7 @@ package parquetquery
 
 import (
 	"bytes"
+	"strings"
 
 	pq "github.com/segmentio/parquet-go"
 )
@@ -137,14 +138,14 @@ func (d *stringInPredicate) KeepPage(page pq.Page) bool {
 }
 
 type substringPredicate struct {
-	substring []byte
+	substring string
 }
 
 var _ Predicate = (*substringPredicate)(nil)
 
 func NewSubstringPredicate(substring string) Predicate {
 	return &substringPredicate{
-		substring: []byte(substring),
+		substring: strings.ToLower(substring),
 	}
 }
 
@@ -155,11 +156,15 @@ func (s *substringPredicate) KeepColumnChunk(_ pq.ColumnChunk) bool {
 	return true
 }
 
-func (s *substringPredicate) KeepValue(v pq.Value) bool {
-	return bytes.Contains(v.ByteArray(), s.substring)
+func (s *substringPredicate) check(ss string) bool {
+	return strings.Contains(strings.ToLower(ss), s.substring)
 }
 
-func (d *substringPredicate) KeepPage(page pq.Page) bool {
+func (s *substringPredicate) KeepValue(v pq.Value) bool {
+	return s.check(v.String())
+}
+
+func (s *substringPredicate) KeepPage(page pq.Page) bool {
 	// If a dictionary column then ensure at least one matching
 	// value exists in the dictionary
 	dict := page.Dictionary()
@@ -168,7 +173,7 @@ func (d *substringPredicate) KeepPage(page pq.Page) bool {
 		found := false
 
 		for i := 0; i < len; i++ {
-			if bytes.Contains(dict.Index(int32(i)).ByteArray(), d.substring) {
+			if s.check(dict.Index(int32(i)).String()) {
 				found = true
 				break
 			}
@@ -238,23 +243,24 @@ func (d *prefixPredicate) KeepPage(page pq.Page) bool {
 	return true
 }
 
-type intGreaterThanOrEqualToPredicate struct {
-	greaterThanOrEqualTo int64
+// intBetweenPredicate checks for int between the bounds [min,max] inclusive
+type intBetweenPredicate struct {
+	min, max int64
 }
 
-var _ Predicate = (*intGreaterThanOrEqualToPredicate)(nil)
+var _ Predicate = (*intBetweenPredicate)(nil)
 
-func NewIntGreaterThanOrEqualToPredicate(i int64) *intGreaterThanOrEqualToPredicate {
-	return &intGreaterThanOrEqualToPredicate{greaterThanOrEqualTo: i}
+func NewIntBetweenPredicate(min, max int64) *intBetweenPredicate {
+	return &intBetweenPredicate{min, max}
 }
 
-func (s *intGreaterThanOrEqualToPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+func (s *intBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
 	ci := c.ColumnIndex()
 
 	for i := 0; i < ci.NumPages(); i++ {
 		min := ci.MinValue(i).Int64()
 		max := ci.MaxValue(i).Int64()
-		if s.greaterThanOrEqualTo >= min && s.greaterThanOrEqualTo <= max {
+		if s.max >= min && s.min <= max {
 			return true
 		}
 	}
@@ -262,13 +268,14 @@ func (s *intGreaterThanOrEqualToPredicate) KeepColumnChunk(c pq.ColumnChunk) boo
 	return false
 }
 
-func (s *intGreaterThanOrEqualToPredicate) KeepValue(v pq.Value) bool {
-	return v.Int64() >= s.greaterThanOrEqualTo
+func (s *intBetweenPredicate) KeepValue(v pq.Value) bool {
+	vv := v.Int64()
+	return s.min <= vv && vv <= s.max
 }
 
-func (s *intGreaterThanOrEqualToPredicate) KeepPage(page pq.Page) bool {
+func (s *intBetweenPredicate) KeepPage(page pq.Page) bool {
 	if min, max, ok := page.Bounds(); ok {
-		return s.greaterThanOrEqualTo >= min.Int64() && s.greaterThanOrEqualTo <= max.Int64()
+		return s.max >= min.Int64() && s.min <= max.Int64()
 	}
 	return true
 }

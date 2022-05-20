@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -70,7 +71,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 		if opts.StartPage+opts.TotalPages > len(rgs) {
 			opts.TotalPages = len(rgs) - opts.StartPage
 		}
-		rgs = rgs[opts.StartPage:opts.TotalPages]
+		rgs = rgs[opts.StartPage : opts.StartPage+opts.TotalPages]
 	}
 
 	// TODO: error handling
@@ -168,9 +169,18 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 	// We always pull back duration for the search results, but it also
 	// has a predicate when bounded by the request
 	var durFilter pq.Predicate
-	if req.MinDurationMs > 0 {
-		durFilter = pq.NewIntGreaterThanOrEqualToPredicate((time.Millisecond * time.Duration(req.MinDurationMs)).Nanoseconds())
+	if req.MinDurationMs > 0 || req.MaxDurationMs > 0 {
+		min := int64(0)
+		if req.MinDurationMs > 0 {
+			min = (time.Millisecond * time.Duration(req.MinDurationMs)).Nanoseconds()
+		}
+		max := int64(math.MaxInt64)
+		if req.MaxDurationMs > 0 {
+			max = (time.Millisecond * time.Duration(req.MaxDurationMs)).Nanoseconds()
+		}
+		durFilter = pq.NewIntBetweenPredicate(min, max)
 	}
+
 	traceIters = append(traceIters, makeIter("DurationNanos", durFilter, "Duration"))
 
 	// Join in values for search results. These have
