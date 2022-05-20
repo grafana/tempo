@@ -12,7 +12,7 @@ import (
 // 		in  string
 // 		err error
 // 	}{
-// 		{in: "{ .status }", err: newParseError("", 1, 12)},
+// 		{in: "({ } | { })", err: newParseError("", 1, 12)},
 // 	}
 
 // 	scs := spew.ConfigState{DisableMethods: true, Indent: " "}

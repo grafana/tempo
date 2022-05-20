@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-var ops = map[int]string{ // jpe - if we use the lexer constants we can not do this
+var stringerOps = map[int]string{ // jpe - if we use the lexer constants we can not do this
 	opAdd:               "+",
 	opSub:               "-",
 	opDiv:               "/",
@@ -29,7 +29,7 @@ var ops = map[int]string{ // jpe - if we use the lexer constants we can not do t
 	opSpansetAnd:        "&&",
 }
 
-var aggs = map[int]string{
+var stringerAggs = map[int]string{
 	aggregateCount: "count",
 	aggregateMax:   "max",
 	aggregateMin:   "min",
@@ -58,19 +58,19 @@ func (o CoalesceOperation) String() string {
 }
 
 func (o ScalarOperation) String() string {
-	return o.lhs.String() + ops[o.op] + o.rhs.String()
+	return binaryOp(stringerOps[o.op], o.lhs, o.rhs)
 }
 
 func (a Aggregate) String() string {
 	if a.e == nil {
-		return aggs[a.agg] + "()"
+		return stringerAggs[a.agg] + "()"
 	}
 
-	return aggs[a.agg] + "(" + a.e.String() + ")"
+	return stringerAggs[a.agg] + "(" + a.e.String() + ")"
 }
 
 func (o SpansetOperation) String() string {
-	return o.lhs.String() + ops[o.op] + o.rhs.String()
+	return binaryOp(stringerOps[o.op], o.lhs, o.rhs)
 }
 
 func (f SpansetFilter) String() string {
@@ -78,15 +78,15 @@ func (f SpansetFilter) String() string {
 }
 
 func (f ScalarFilter) String() string {
-	return f.lhs.String() + ops[f.op] + f.rhs.String()
+	return f.lhs.String() + stringerOps[f.op] + f.rhs.String()
 }
 
 func (o BinaryOperation) String() string {
-	return o.lhs.String() + ops[o.op] + o.rhs.String()
+	return binaryOp(stringerOps[o.op], o.lhs, o.rhs)
 }
 
 func (o UnaryOperation) String() string {
-	return ops[o.op] + o.e.String()
+	return unaryOp(stringerOps[o.op], o.e)
 }
 
 func (n Static) String() string {
@@ -153,4 +153,24 @@ func (a Attribute) String() string {
 	}
 
 	return scope + a.att
+}
+
+func binaryOp(op string, lhs element, rhs element) string {
+	return wrapElement(lhs) + op + wrapElement(rhs)
+}
+
+func unaryOp(op string, e element) string {
+	return op + wrapElement(e)
+}
+
+func wrapElement(e element) string {
+	static, ok := e.(Static)
+	if ok {
+		return static.String()
+	}
+	att, ok := e.(Attribute)
+	if ok {
+		return att.String()
+	}
+	return "(" + e.String() + ")"
 }
