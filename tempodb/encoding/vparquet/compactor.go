@@ -122,7 +122,8 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		// write partial block
-		if currentBlock.CurrentBufferLength() >= int(opts.FlushSizeBytes) {
+		//if currentBlock.CurrentBufferLength() >= int(opts.FlushSizeBytes) {
+		if currentBlock.CurrentBufferedObjects() > 10000 {
 			runtime.GC()
 			err = appendBlock(currentBlock)
 			if err != nil {

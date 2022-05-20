@@ -152,6 +152,7 @@ func (b *streamingBlock) Flush() (int, error) {
 	n := b.bw.Len()
 	b.meta.Size += uint64(n)
 	b.meta.TotalRecords++
+	b.currentBufferedTraces = 0
 
 	// Flush to underlying writer
 	return n, b.bw.Flush()
