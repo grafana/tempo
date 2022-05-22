@@ -15,8 +15,8 @@ import (
 	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
-type processor struct {
-	cfg Config
+type Processor struct {
+	Cfg Config
 
 	logger log.Logger
 
@@ -25,26 +25,26 @@ type processor struct {
 }
 
 func New(cfg Config, logger log.Logger) gen.Processor {
-	return &processor{
-		cfg:    cfg,
+	return &Processor{
+		Cfg:    cfg,
 		logger: logger,
 		now:    time.Now,
 	}
 }
 
-func (p *processor) Name() string { return Name }
+func (p *Processor) Name() string { return Name }
 
-func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
+func (p *Processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
 	span, _ := opentracing.StartSpanFromContext(ctx, "errorspanlogging.PushSpans")
 	defer span.Finish()
 
 	p.logIfSpanHasError(req.Batches)
 }
 
-func (p *processor) Shutdown(_ context.Context) {
+func (p *Processor) Shutdown(_ context.Context) {
 }
 
-func (p *processor) logIfSpanHasError(resourceSpans []*v1_trace.ResourceSpans) {
+func (p *Processor) logIfSpanHasError(resourceSpans []*v1_trace.ResourceSpans) {
 	for _, rs := range resourceSpans {
 		// already extract service name, and resources attributes, so we only have to do it once per batch of spans
 		svcName, _ := processor_util.FindServiceName(rs.Resource.Attributes)
@@ -67,7 +67,7 @@ func (p *processor) logIfSpanHasError(resourceSpans []*v1_trace.ResourceSpans) {
 	}
 }
 
-func (p *processor) logSpan(svcName string, span *v1_trace.Span, logger log.Logger) {
+func (p *Processor) logSpan(svcName string, span *v1_trace.Span, logger log.Logger) {
 	latencySeconds := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 
 	logger = log.With(
