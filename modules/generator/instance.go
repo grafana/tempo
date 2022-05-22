@@ -181,6 +181,10 @@ func (i *instance) diffProcessors(desiredProcessors map[string]struct{}, desired
 			if !reflect.DeepEqual(p.Cfg, desiredCfg.ServiceGraphs) {
 				toReplace = append(toReplace, processorName)
 			}
+		case *errorspanlogging.Processor:
+			if !reflect.DeepEqual(p.Cfg, desiredCfg.ErrorSpanLogging) {
+				toReplace = append(toReplace, processorName)
+			}
 		default:
 			level.Error(i.logger).Log(
 				"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(allSupportedProcessors, ", ")),
