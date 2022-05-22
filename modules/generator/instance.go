@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/tempo/modules/generator/processor"
+	"github.com/grafana/tempo/modules/generator/processor/errorspanlogging"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
@@ -22,7 +23,7 @@ import (
 )
 
 var (
-	allSupportedProcessors = []string{servicegraphs.Name, spanmetrics.Name}
+	allSupportedProcessors = []string{servicegraphs.Name, spanmetrics.Name, errorspanlogging.Name}
 
 	metricActiveProcessors = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
@@ -203,6 +204,8 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 		newProcessor = spanmetrics.New(cfg.SpanMetrics, i.registry)
 	case servicegraphs.Name:
 		newProcessor = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger)
+	case errorspanlogging.Name:
+		newProcessor = errorspanlogging.New(cfg.ErrorSpanLogging, i.logger)
 	default:
 		level.Error(i.logger).Log(
 			"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(allSupportedProcessors, ", ")),

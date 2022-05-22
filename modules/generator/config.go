@@ -3,6 +3,7 @@ package generator
 import (
 	"flag"
 
+	"github.com/grafana/tempo/modules/generator/processor/errorspanlogging"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
@@ -34,8 +35,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 type ProcessorConfig struct {
-	ServiceGraphs servicegraphs.Config `yaml:"service_graphs"`
-	SpanMetrics   spanmetrics.Config   `yaml:"span_metrics"`
+	ServiceGraphs    servicegraphs.Config    `yaml:"service_graphs"`
+	SpanMetrics      spanmetrics.Config      `yaml:"span_metrics"`
+	ErrorSpanLogging errorspanlogging.Config `yaml:"error_span_logs"`
 }
 
 func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
