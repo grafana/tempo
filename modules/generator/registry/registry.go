@@ -89,7 +89,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		externalLabels[k] = v
 	}
 	hostname, _ := os.Hostname()
-	externalLabels["instance"] = hostname
+	externalLabels["__metrics_gen_instance"] = hostname
 
 	r := &ManagedRegistry{
 		onShutdown: cancel,
