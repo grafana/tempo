@@ -208,27 +208,34 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, id common.ID) (_ *temp
 	}
 
 	// seek to row and read
-	/*r := parquet.NewReader(pf)
-	r.SeekToRow(int64(rowMatch))
 	tr := new(Trace)
-	err = r.Read(tr)
+	sch := parquet.SchemaOf(tr)
+	r := parquet.NewReader(pf, sch)
+	var row parquet.Row
+
+	r.SeekToRow(int64(rowMatch))
+	row, err = r.ReadRow(row)
 	if err != nil {
 		return nil, errors.Wrap(err, "error reading row from backend")
-	}*/
+	}
 
 	fmt.Printf("Found trace id: %s in parquet block %v at row %d\n", traceID, b.meta.BlockID, rowMatch)
 
 	// HACK: something isn't working with SeekToRow
 	// so instead read rows up to the one we need
-	tr := new(Trace)
-	sch := parquet.SchemaOf(tr)
-	r := parquet.NewReader(pf, sch)
-	var row parquet.Row
-	for i := 0; i <= rowMatch; i++ {
-		row, err = r.ReadRow(row[:0])
-		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprint("error reading row from backend: row number:", i))
+	/*
+		r := parquet.NewReader(pf, sch)
+
+		for i := 0; i <= rowMatch; i++ {
+			row, err = r.ReadRow(row[:0])
+			if err != nil {
+				return nil, errors.Wrap(err, fmt.Sprint("error reading row from backend: row number:", i))
+			}
 		}
+	*/
+
+	for i, v := range row {
+		fmt.Printf("row[%d] = c:%d v:%v r:%d d:%d\n", i, v.Column(), v.String(), v.RepetitionLevel(), v.DefinitionLevel())
 	}
 	err = sch.Reconstruct(tr, row)
 	if err != nil {
