@@ -2,7 +2,6 @@ package vparquet
 
 import (
 	"bytes"
-	"encoding/json"
 	"math"
 
 	"github.com/pkg/errors"
@@ -153,11 +152,13 @@ func attrToParquet(a *v1.KeyValue) Attribute {
 	case *v1.AnyValue_BoolValue:
 		p.ValueBool = &v.BoolValue
 	case *v1.AnyValue_ArrayValue:
-		j, _ := json.Marshal(v.ArrayValue)
-		p.ValueArray = string(j)
+		jsonBytes := &bytes.Buffer{}
+		jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
+		p.ValueArray = jsonBytes.String()
 	case *v1.AnyValue_KvlistValue:
-		j, _ := json.Marshal(v.KvlistValue)
-		p.ValueKVList = string(j)
+		jsonBytes := &bytes.Buffer{}
+		jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
+		p.ValueKVList = jsonBytes.String()
 	}
 	return p
 }
@@ -346,13 +347,9 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 				BoolValue: *attr.ValueBool,
 			}
 		} else if attr.ValueArray != "" {
-			val := &v1.AnyValue_ArrayValue{}
-			_ = json.Unmarshal([]byte(attr.ValueArray), val.ArrayValue)
-			protoVal.Value = val
+			jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueArray), protoVal)
 		} else if attr.ValueKVList != "" {
-			val := &v1.AnyValue_KvlistValue{}
-			_ = json.Unmarshal([]byte(attr.ValueKVList), val.KvlistValue)
-			protoVal.Value = val
+			jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueKVList), protoVal)
 		}
 
 		protoAttrs = append(protoAttrs, &v1.KeyValue{
