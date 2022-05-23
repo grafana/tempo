@@ -33,8 +33,8 @@ func DefaultSearchOptions() SearchOptions {
 		ChunkSizeBytes: 1_000_000,
 
 		// 16 MB buffering
-		ReadBufferCount: 32,
-		ReadBufferSize:  512 * 1024,
+		ReadBufferCount: 16,
+		ReadBufferSize:  1024 * 1024,
 	}
 }
 
