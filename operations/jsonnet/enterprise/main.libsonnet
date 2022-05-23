@@ -29,7 +29,7 @@ tempo {
   },
 
   _images+:: {
-    tempo: 'grafana/enterprise-traces:v1.0.0',
+    tempo: 'grafana/enterprise-traces:v1.3.0',
     kubectl: 'bitnami/kubectl',
   },
 
