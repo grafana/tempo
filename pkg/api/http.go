@@ -263,11 +263,11 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 	req.Version = version
 
 	s = r.URL.Query().Get(urlParamSize)
-	size, err := strconv.ParseInt(s, 10, 32)
+	size, err := strconv.ParseUint(s, 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid size %s: %w", s, err)
 	}
-	req.Size_ = uint64(size)
+	req.Size_ = size
 
 	return req, nil
 }
