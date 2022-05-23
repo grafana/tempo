@@ -1,12 +1,10 @@
 package vparquet
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
@@ -66,6 +64,7 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 						Spans: []*v1_trace.Span{
 							{
 								TraceId: traceIDA,
+								SpanId:  []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 								Name:    "firstSpan",
 								Kind:    v1_trace.Span_SPAN_KIND_CLIENT,
 								Status: &v1_trace.Status{
@@ -76,6 +75,12 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 										Key: "span.int.key",
 										Value: &v1.AnyValue{
 											Value: &v1.AnyValue_IntValue{IntValue: 100},
+										},
+									},
+									{
+										Key: "span.bool.key",
+										Value: &v1.AnyValue{
+											Value: &v1.AnyValue_BoolValue{BoolValue: true},
 										},
 									},
 									{ // special column
@@ -121,6 +126,14 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 									},
 								},
 							},
+							{
+								TraceId: traceIDA,
+								Name:    "secondSpan",
+								Status: &v1_trace.Status{
+									Code: v1_trace.Status_STATUS_CODE_OK,
+								},
+								ParentSpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+							},
 						},
 					},
 				},
@@ -131,10 +144,5 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 	parquetTrace := traceToParquet(expectedTrace)
 	actualTrace, err := parquetTraceToTempopbTrace(&parquetTrace)
 	assert.NoError(t, err)
-
-	// cannot compare directly because they are different objects
-	trace.SortTrace(actualTrace)
-	trace.SortTrace(expectedTrace)
-
-	assert.True(t, reflect.DeepEqual(actualTrace, expectedTrace))
+	assert.Equal(t, expectedTrace, actualTrace)
 }
