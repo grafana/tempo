@@ -37,3 +37,7 @@ datasources:
           matcherRegex: (?:traceID|trace_id)=(\w+)
           name: TraceID
           url: $${__value.raw}
+        - datasourceUid: tempo
+          matcherRegex: (?:span_trace_id)=(\w+)
+          name: span_trace_id
+          url: $${__value.raw}
