@@ -102,7 +102,7 @@ func NewStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 
 	sch := parquet.SchemaOf(new(Trace))
 
-	pw := parquet.NewWriter(bw, sch, &parquet.WriterConfig{PageBufferSize: 10_000_000})
+	pw := parquet.NewWriter(bw, sch)
 
 	return &streamingBlock{
 		ctx:   ctx,
