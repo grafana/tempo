@@ -23,12 +23,15 @@ func TestErrorSpanLogging(t *testing.T) {
 
 	batch := test.MakeBatch(1, nil)
 	batch.InstrumentationLibrarySpans[0].Spans[0].Status.Code = trace_v1.Status_STATUS_CODE_ERROR
-
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
 
 	logResult := buf.String()
 	if logResult == "" {
 		t.Error("Expected log result to be non-empty")
+	}
+
+	if !strings.Contains(logResult, "msg=error_spans_received") {
+		t.Errorf("Expected log result to contain 'msg=error_spans_received' but got '%s'", logResult)
 	}
 
 	if !strings.Contains(logResult, "span_service_name=test-service") {
