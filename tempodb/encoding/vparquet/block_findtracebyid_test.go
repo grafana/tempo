@@ -33,7 +33,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 
 	id := test.ValidTraceID(nil)
 
-	s, err := NewStreamingBlock(ctx, cfg, meta, w)
+	s, err := NewStreamingBlock(ctx, cfg, meta, r, w)
 	require.NoError(t, err)
 
 	bar := "bar"

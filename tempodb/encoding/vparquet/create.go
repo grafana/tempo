@@ -2,6 +2,8 @@ package vparquet
 
 import (
 	"context"
+	"encoding/binary"
+	"errors"
 	"io"
 	"time"
 
@@ -34,8 +36,8 @@ func (b *backendWriter) Close() error {
 	return b.w.CloseAppend(b.ctx, b.tracker)
 }
 
-func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, dec model.ObjectDecoder, to backend.Writer) (*backend.BlockMeta, error) {
-	s, err := NewStreamingBlock(ctx, cfg, meta, to)
+func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, dec model.ObjectDecoder, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
+	s, err := NewStreamingBlock(ctx, cfg, meta, r, to)
 	if err != nil {
 		return nil, err
 	}
@@ -80,12 +82,13 @@ type streamingBlock struct {
 	bw    *tempo_io.BufferedWriter
 	pw    *parquet.Writer
 	w     *backendWriter
+	r     backend.Reader
 	to    backend.Writer
 
 	currentBufferedTraces int
 }
 
-func NewStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, to backend.Writer) (*streamingBlock, error) {
+func NewStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer) (*streamingBlock, error) {
 	newMeta := backend.NewBlockMeta(meta.TenantID, meta.BlockID, VersionString, backend.EncNone, "")
 	newMeta.StartTime = meta.StartTime
 	newMeta.EndTime = meta.EndTime
@@ -109,6 +112,7 @@ func NewStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		bw:    bw,
 		pw:    pw,
 		w:     w,
+		r:     r,
 		to:    to,
 	}, nil
 }
@@ -187,6 +191,17 @@ func (b *streamingBlock) Complete() (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	// Read the footer size out of the parquet footer
+	buf := make([]byte, 8)
+	err = b.r.ReadRange(b.ctx, DataFileName, b.meta.BlockID, b.meta.TenantID, b.meta.Size-8, buf)
+	if err != nil {
+		return 0, err
+	}
+	if string(buf[4:8]) != "PAR1" {
+		return 0, errors.New("Failed to confirm magic footer while writing a new parquet block")
+	}
+	b.meta.FooterSize = binary.LittleEndian.Uint32(buf[0:4])
 
 	b.meta.BloomShardCount = uint16(b.bloom.GetShardCount())
 

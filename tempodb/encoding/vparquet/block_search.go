@@ -2,6 +2,7 @@ package vparquet
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"math"
@@ -41,6 +42,30 @@ func (b *backendReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	return len(p), err
 }
 
+type parquetOptimizedReaderAt struct {
+	r          io.ReaderAt
+	readerSize int64
+	footerSize uint32
+}
+
+var _ io.ReaderAt = (*parquetOptimizedReaderAt)(nil)
+
+func (r *parquetOptimizedReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	if len(p) == 4 && off == 0 {
+		// Magic header
+		return copy(p, []byte("PAR1")), nil
+	}
+
+	if len(p) == 8 && off == r.readerSize-8 && r.footerSize > 0 /* not present in previous block metas */ {
+		// Magic footer
+		binary.LittleEndian.PutUint32(p, r.footerSize)
+		copy(p[4:8], []byte("PAR1"))
+		return 8, nil
+	}
+
+	return r.r.ReadAt(p, off)
+}
+
 func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (_ *tempopb.SearchResponse, err error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.Search",
 		opentracing.Tags{
@@ -55,7 +80,9 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
 
-	pf, err := parquet.OpenFile(br, int64(b.meta.Size))
+	or := &parquetOptimizedReaderAt{br, int64(b.meta.Size), b.meta.FooterSize}
+
+	pf, err := parquet.OpenFile(or, int64(b.meta.Size))
 	if err != nil {
 		return nil, err
 	}

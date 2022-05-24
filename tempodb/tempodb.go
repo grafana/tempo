@@ -237,7 +237,7 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal
 		Encoding: rw.cfg.Block.Encoding,
 	}
 
-	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, dec, w)
+	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, dec, r, w)
 	if err != nil {
 		return nil, errors.Wrap(err, "error creating block")
 	}

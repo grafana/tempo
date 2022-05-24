@@ -108,7 +108,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			}
 			w := writerCallback(newMeta, time.Now())
 
-			currentBlock, err = NewStreamingBlock(ctx, &opts.BlockConfig, newMeta, w)
+			currentBlock, err = NewStreamingBlock(ctx, &opts.BlockConfig, newMeta, r, w)
 			if err != nil {
 				return nil, errors.Wrap(err, "error making new compacted block")
 			}
