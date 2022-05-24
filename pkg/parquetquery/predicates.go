@@ -325,30 +325,51 @@ type InstrumentedPredicate struct {
 	InspectedColumnChunks int
 	InspectedPages        int
 	InspectedValues       int
+	KeptColumnChunks      int
+	KeptPages             int
+	KeptValues            int
 }
 
 var _ Predicate = (*InstrumentedPredicate)(nil)
 
 func (s *InstrumentedPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
 	s.InspectedColumnChunks++
-	if s.pred != nil {
-		return s.pred.KeepColumnChunk(c)
+	if s.pred == nil {
+		return true
 	}
-	return true
-}
 
-func (s *InstrumentedPredicate) KeepValue(v pq.Value) bool {
-	s.InspectedValues++
-	if s.pred != nil {
-		return s.pred.KeepValue(v)
+	if s.pred.KeepColumnChunk(c) {
+		s.KeptColumnChunks++
+		return true
 	}
-	return true
+
+	return false
 }
 
 func (s *InstrumentedPredicate) KeepPage(page pq.Page) bool {
 	s.InspectedPages++
-	if s.pred != nil {
-		return s.pred.KeepPage(page)
+	if s.pred == nil {
+		return true
 	}
-	return true
+
+	if s.pred.KeepPage(page) {
+		s.KeptPages++
+		return true
+	}
+
+	return false
+}
+
+func (s *InstrumentedPredicate) KeepValue(v pq.Value) bool {
+	s.InspectedValues++
+	if s.pred == nil {
+		return true
+	}
+
+	if s.pred.KeepValue(v) {
+		s.KeptValues++
+		return true
+	}
+
+	return false
 }
