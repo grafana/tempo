@@ -18,6 +18,7 @@ type Config struct {
 	HedgeRequestsAt    time.Duration  `yaml:"hedge_requests_at"`
 	HedgeRequestsUpTo  int            `yaml:"hedge_requests_up_to"`
 	// SignatureV2 configures the object storage to use V2 signing instead of V4
-	SignatureV2    bool `yaml:"signature_v2"`
-	ForcePathStyle bool `yaml:"forcepathstyle"`
+	SignatureV2    bool              `yaml:"signature_v2"`
+	ForcePathStyle bool              `yaml:"forcepathstyle"`
+	BlockTags      map[string]string `yaml:"block_tags"`
 }
