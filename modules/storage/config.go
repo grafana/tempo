@@ -51,6 +51,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Trace.Block.Encoding = backend.EncZstd
 	cfg.Trace.Block.SearchEncoding = backend.EncSnappy
 	cfg.Trace.Block.SearchPageSizeBytes = 1024 * 1024 // 1 MB
+	cfg.Trace.Block.RowGroupSizeBytes = 30_000_000    // 30 MB
 
 	cfg.Trace.Azure = &azure.Config{}
 	f.StringVar(&cfg.Trace.Azure.StorageAccountName, util.PrefixConfig(prefix, "trace.azure.storage-account-name"), "", "Azure storage account name.")

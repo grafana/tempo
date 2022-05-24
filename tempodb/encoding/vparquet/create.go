@@ -35,8 +35,6 @@ func (b *backendWriter) Close() error {
 }
 
 func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, dec model.ObjectDecoder, to backend.Writer) (*backend.BlockMeta, error) {
-	flushSize := 30_000_000
-
 	s, err := NewStreamingBlock(ctx, cfg, meta, to)
 	if err != nil {
 		return nil, err
@@ -59,7 +57,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			return nil, err
 		}
 
-		if s.CurrentBufferLength() > flushSize {
+		if s.CurrentBufferLength() > cfg.RowGroupSizeBytes {
 			_, err = s.Flush()
 			if err != nil {
 				return nil, err
