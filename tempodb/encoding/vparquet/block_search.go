@@ -6,19 +6,37 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
 	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/parquetquery"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
 	"github.com/segmentio/parquet-go"
 )
+
+// These are reserved search parameters
+const (
+	LabelName   = "name"
+	LabelStatus = "status"
+
+	StatusCodeTag   = "status.code"
+	StatusCodeUnset = "unset"
+	StatusCodeOK    = "ok"
+	StatusCodeError = "error"
+)
+
+var StatusCodeMapping = map[string]int{
+	StatusCodeUnset: int(v1.Status_STATUS_CODE_UNSET),
+	StatusCodeOK:    int(v1.Status_STATUS_CODE_OK),
+	StatusCodeError: int(v1.Status_STATUS_CODE_ERROR),
+}
 
 type backendReaderAt struct {
 	ctx      context.Context
@@ -131,18 +149,40 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 
 	for k, v := range req.Tags {
 		switch k {
-		case "cluster":
-			resourceIters = append(resourceIters, makeIter("rs.Resource.Cluster", pq.NewSubstringPredicate(v), ""))
-		case "service.name":
+		case LabelServiceName:
 			resourceIters = append(resourceIters, makeIter("rs.Resource.ServiceName", pq.NewSubstringPredicate(v), ""))
-		case "namespace":
+		case LabelCluster:
+			resourceIters = append(resourceIters, makeIter("rs.Resource.Cluster", pq.NewSubstringPredicate(v), ""))
+		case LabelNamespace:
 			resourceIters = append(resourceIters, makeIter("rs.Resource.Namespace", pq.NewSubstringPredicate(v), ""))
-		case "pod":
+		case LabelPod:
 			resourceIters = append(resourceIters, makeIter("rs.Resource.Pod", pq.NewSubstringPredicate(v), ""))
-		case "container":
+		case LabelContainer:
 			resourceIters = append(resourceIters, makeIter("rs.Resource.Container", pq.NewSubstringPredicate(v), ""))
-		case "name":
+		case LabelK8sClusterName:
+			resourceIters = append(resourceIters, makeIter("rs.Resource.K8sClusterName", pq.NewSubstringPredicate(v), ""))
+		case LabelK8sNamespaceName:
+			resourceIters = append(resourceIters, makeIter("rs.Resource.K8sNamespaceName", pq.NewSubstringPredicate(v), ""))
+		case LabelK8sPodName:
+			resourceIters = append(resourceIters, makeIter("rs.Resource.K8sPodName", pq.NewSubstringPredicate(v), ""))
+		case LabelK8sContainerName:
+			resourceIters = append(resourceIters, makeIter("rs.Resource.K8sContainerName", pq.NewSubstringPredicate(v), ""))
+		case LabelName:
 			resourceIters = append(resourceIters, makeIter("rs.ils.Spans.Name", pq.NewSubstringPredicate(v), ""))
+		case LabelHTTPMethod:
+			resourceIters = append(resourceIters, makeIter("rs.ils.Spans.HttpMethod", pq.NewSubstringPredicate(v), ""))
+		case LabelHTTPUrl:
+			resourceIters = append(resourceIters, makeIter("rs.ils.Spans.HttpUrl", pq.NewSubstringPredicate(v), ""))
+		case LabelHTTPStatusCode:
+			if i, err := strconv.Atoi(v); err == nil {
+				resourceIters = append(resourceIters, makeIter("rs.ils.Spans.HttpStatusCode", pq.NewIntBetweenPredicate(int64(i), int64(i)), ""))
+				break
+			}
+			// Non-numeric string field
+			otherAttrConditions[k] = v
+		case LabelStatus:
+			code := StatusCodeMapping[v]
+			resourceIters = append(resourceIters, makeIter("rs.ils.Spans.StatusCode", pq.NewIntBetweenPredicate(int64(code), int64(code)), ""))
 		default:
 			otherAttrConditions[k] = v
 		}
@@ -212,7 +252,7 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 
 	// Join in values for search results. These have
 	// no filters so they will always be in the results.
-	traceIDMetrics := &parquetquery.InstrumentedPredicate{}
+	traceIDMetrics := &pq.InstrumentedPredicate{}
 	traceIters = append(traceIters, makeIter("TraceID", traceIDMetrics, "TraceID"))
 	traceIters = append(traceIters, makeIter("RootServiceName", nil, "RootServiceName"))
 	traceIters = append(traceIters, makeIter("RootSpanName", nil, "RootSpanName"))
@@ -261,7 +301,7 @@ func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.Searc
 }
 
 type parquetSearchMetrics struct {
-	pTraceID *parquetquery.InstrumentedPredicate
+	pTraceID *pq.InstrumentedPredicate
 }
 
 func (p *parquetSearchMetrics) ToProto() *tempopb.SearchMetrics {
