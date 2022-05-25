@@ -45,19 +45,49 @@ valid:
   - '{ resource.a != 3 }'
   - '{ span.a != 3 }'
   - '{ !("test" != .c || ((true && .b) || 3 < .a)) }'
+  - '{ parent = nil }'
+  - '{ status = ok }'
+  - '{ status = unset }'
+  - '{ status = error }'
+  - '{ status != error }'
+  - '{ duration > 1s }'
+  - '{ duration > 1s * 2s }' 
+  - '{ .foo = nil }'
+  - '{ 1 = childCount }'
+  - '{ 1 * 1h = 1 }'     # combining float, int and duration can make sense, but can also be weird. we just accept it all
+  - '{ 1 / 1.1 = 1 }'
+  - '{ 1 < 1h }'
+  - '{ 1 <= 1.1 }'
   # spanset expressions
   - '{ true } && { true }'
   - '{ true } || { true }'
   - '{ true } >> { true }'
   - '{ true } > { true }'
   - '{ true } ~ { true }'
+  # scalar filters
+  - 'avg(.field) > 1'
+  - 'sum(3) = 2'
+  - 'min(childCount) < 2'
+  - 'max(duration) >= 1s'
+  - 'avg(.field) > avg(1)'
+  - 'sum(3) = min(14)'
+  - 'min(childCount) < max(3)'
+  - 'min(2h) < max(duration)'
+  - 'min(.field) < max(duration)'
+  - 'sum(.field) = min(.field)'
+  - 'max(1h) > 1'                 # same note as above for int, float and duration
+  - 'min(1.1) > 1'
+  - 'max(duration) > 1'
+  - 'min(3) = max(duration)'
+  - 'min(.field) + max(.field) > 1'
+  - 'min(.field) + max(childCount) > max(duration) - min(.field)'
   # pipelines
   - '{ true } | { .a }'
   - '{ true } | count() = 1'
-  - '{ true } | max(duration) = 1'
-  - '{ true } | min(duration) = 1'
-  - '{ true } | avg(duration) = 1'
-  - '{ true } | sum(duration) = 1'
+  - '{ true } | max(duration) = 1h'
+  - '{ true } | min(duration) = 1h'
+  - '{ true } | avg(duration) = 1h'
+  - '{ true } | sum(duration) = 1h'
   - '{ true } | count() + count() = 1' 
   - 'count() = 1 | { true }'
   - '{ true } | max(.a) = 1'
@@ -83,6 +113,12 @@ valid:
   - '({ true }) >> ({ true })'
   - '({ true }) > ({ true })'
   - '({ true }) ~ ({ true })'
+  # random
+  - 'max(duration) > 3s | { status = error || .http.status = 500 }'
+  - '{ .http.status = 200 } | max(.field) - min(.field) > 3'
+  - '({ .http.status = 200 } | count()) + ({ name = `foo` } | avg(duration)) = 2'
+  - '{ (-(3 / 2) * .test - parent.blerg + .other)^3 = 2 }'
+  - '({ .a } | count()) > ({ .b } | count())'
   
 # parse_fails throw an error when parsing
 parse_fails:
@@ -98,7 +134,6 @@ parse_fails:
   - '{ (.a < 3 }'
   - '{ attribute = 4 }'           # custom attribute not prefixed with ., span., resource. or parent.
   - '{ .attribute == 4 }'         # invalid operator
-  - '{ true } = { true }'
   - '{ span. }'
   # spanset expressions
   - '{ true } + { true }'
@@ -106,6 +141,18 @@ parse_fails:
   - '{ true } * { true }'
   - '{ true } / { true }'
   - '{ true } ^ { true }'
+  - '{ true } = { true }'         # an interesting operator. possible future addition
+  - '{ true } <= { true }'
+  - '{ true } >= { true }'
+  - '{ true } < { true }'
+  # scalar filters
+  - 'avg(.field) + 1'             # scalar filters must resolve to boolean
+  - 'sum(3) - 2'
+  - 'min(childCount) && 2'
+  - 'avg(.field) > 1 - 3'         # scalar expressions in scalar filters are currently not allowed. possible future addition
+  - 'sum(3) = 2 * 4'
+  - 'min(childCount) < 2 / 6'
+  - 'min(1) = max(2) + 3'
   # pipelines
   - 'coalesce() | { true }'       # pipelines can't start with coalesce
   - 'count() > 3 && { true }'     # scalar filters have to be in pipeline
@@ -123,8 +170,64 @@ parse_fails:
 
 # validate_fails parse correctly and return an error when calling .validate()
 validate_fails:
-#- '{ true } | by(1)'
+  # span expressions must evaluate to a boolean
+  - '{ 1 + 1 }'
+  - '{ parent }'
+  - '{ status }'
+  - '{ ok }'
+  - '{ 1.1 }'
+  - '{ 1h }'
+  - '{ "foo" }'
+  # binary operators - incorrect types
+  - '{ 1 + "foo" = 1 }'
+  - '{ 1 - true = 1 }'
+  - '{ 1 / ok = 1 }'
+  - '{ 1 % parent = 1 }'
+  - '{ 1 ^ name = 1 }'
+  - '{ 1 = "foo" }'
+  - '{ 1 != true }'
+  - '{ 1 > ok }'
+  - '{ 1 >= parent }'
+  - '{ 1 = name }'
+  - '{ 1 =~ 2}'
+  - '{ 1 && "foo" }'
+  - '{ 1 || ok }'
+  - '{ true || 1.1 }'
+  - '{ "foo" = childCount }'
+  - '{ status > ok }'
+  # unary operators - incorrect types
+  - '{ -true }'
+  - '{ -"foo" = "bar" }'
+  - '{ -ok = status }'
+  - '{ -parent = nil }'
+  - '{ -name = "foo" }'
+  - '{ !"foo" = "bar" }'
+  - '{ !ok = status }'
+  - '{ !parent = nil }'
+  - '{ !name = "foo" }'
+  - '{ !1 = 1 }'
+  - '{ !1h = 1 }'
+  - '{ !1.1 = 1.1 }'
+  # scalar expressions must evaluate to a number
+  - 'max(name) = "foo"'
+  - 'min(parent) = nil'
+  - 'avg("foo") = "bar"'
+  - 'max(status) = ok'
+  - 'min(1 = 3) = 1'
+  # scalar filters have to match types
+  - 'min(1) = "foo"'
+  - 'avg(childCount) > "foo"'
+  - 'max(duration) < ok'
 
-# dump queries are parsed and the ast is dumped to stdout
+# parsed and the ast is dumped to stdout. this is a debugging tool
 dump:
-- '{ .a .a }' # jpe this parses
+  - '{ .a .a }' # jpe this parses  
+
+# jpe - add durations and status's and attribute = nil
+#     - what operators are allowed on which data types
+#         +, -, /, *, %, ^ - num    (duration/float/int)
+#         =, !=, <=, <, >, >= - num
+#         =, =~, !~ - string
+#         = - status
+#         = - attribute/nil
+#         &&, ||, !, =, != - bool

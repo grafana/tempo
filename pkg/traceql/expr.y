@@ -70,16 +70,17 @@ import (
 %token <staticDuration> DURATION
 %token <val>            DOT OPEN_BRACE CLOSE_BRACE OPEN_PARENS CLOSE_PARENS
                         NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
-                        START END IDURATION CHILDCOUNT NAME STATUS
+                        IDURATION CHILDCOUNT NAME STATUS
                         PARENT RESOURCE SPAN
                         COUNT AVG MAX MIN SUM
                         BY COALESCE
 
 // Operators are listed with increasing precedence.
 %left <binOp> PIPE
+%left <binOp> AND OR
 %left <binOp> EQ NEQ LT LTE GT GTE NRE RE DESC TILDE
-%left <binOp> AND OR NOT
 %left <binOp> ADD SUB
+%left <binOp> NOT
 %left <binOp> MUL DIV MOD
 %right <binOp> POW
 %%
@@ -138,7 +139,7 @@ spansetExpression: // shares the same operators as scalarPipelineExpression. spl
   ;
 
 spansetFilter:
-    OPEN_BRACE fieldExpression CLOSE_BRACE      { $$ = newSpansetFilter($2) } // jpe - fieldExpression must resolve to a boolean
+    OPEN_BRACE fieldExpression CLOSE_BRACE      { $$ = newSpansetFilter($2) }
   ;
 
 scalarFilter:
@@ -167,13 +168,13 @@ scalarPipelineExpressionFilter:
 
 scalarPipelineExpression: // shares the same operators as scalarExpression. split out for readability
     OPEN_PARENS scalarPipelineExpression CLOSE_PARENS        { $$ = $2 }                                   
-  | scalarPipelineExpression ADD scalarPipelineExpression   { $$ = newScalarOperation(opAdd, $1, $3) }
-  | scalarPipelineExpression SUB scalarPipelineExpression   { $$ = newScalarOperation(opSub, $1, $3) }
-  | scalarPipelineExpression MUL scalarPipelineExpression   { $$ = newScalarOperation(opMult, $1, $3) }
-  | scalarPipelineExpression DIV scalarPipelineExpression   { $$ = newScalarOperation(opDiv, $1, $3) }
-  | scalarPipelineExpression MOD scalarPipelineExpression   { $$ = newScalarOperation(opMod, $1, $3) }
-  | scalarPipelineExpression POW scalarPipelineExpression   { $$ = newScalarOperation(opPower, $1, $3) }
-  | wrappedScalarPipeline                                     { $$ = $1 }
+  | scalarPipelineExpression ADD scalarPipelineExpression    { $$ = newScalarOperation(opAdd, $1, $3) }
+  | scalarPipelineExpression SUB scalarPipelineExpression    { $$ = newScalarOperation(opSub, $1, $3) }
+  | scalarPipelineExpression MUL scalarPipelineExpression    { $$ = newScalarOperation(opMult, $1, $3) }
+  | scalarPipelineExpression DIV scalarPipelineExpression    { $$ = newScalarOperation(opDiv, $1, $3) }
+  | scalarPipelineExpression MOD scalarPipelineExpression    { $$ = newScalarOperation(opMod, $1, $3) }
+  | scalarPipelineExpression POW scalarPipelineExpression    { $$ = newScalarOperation(opPower, $1, $3) }
+  | wrappedScalarPipeline                                    { $$ = $1 }
 
 wrappedScalarPipeline:
     OPEN_PARENS scalarPipeline CLOSE_PARENS    { $$ = $2 }
@@ -194,7 +195,7 @@ scalarExpression: // shares the same operators as scalarPipelineExpression. spli
   | aggregate                                  { $$ = $1 }
   ;
 
-aggregate:  // jpe isValid - fieldExpression must be numeric. all statics must be numeric
+aggregate:
     COUNT OPEN_PARENS CLOSE_PARENS                { $$ = newAggregate(aggregateCount, nil) }
   | MAX OPEN_PARENS fieldExpression CLOSE_PARENS  { $$ = newAggregate(aggregateMax, $3) }
   | MIN OPEN_PARENS fieldExpression CLOSE_PARENS  { $$ = newAggregate(aggregateMin, $3) }
@@ -247,9 +248,7 @@ static:
   ;
 
 intrinsicField:
-    START          { $$ = newIntrinsic(intrinsicStart)      }
-  | END            { $$ = newIntrinsic(intrinsicEnd)        }
-  | IDURATION      { $$ = newIntrinsic(intrinsicDuration)   }
+    IDURATION      { $$ = newIntrinsic(intrinsicDuration)   }
   | CHILDCOUNT     { $$ = newIntrinsic(intrinsicChildCount) }
   | NAME           { $$ = newIntrinsic(intrinsicName)       }
   | STATUS         { $$ = newIntrinsic(intrinsicStatus)     }
@@ -257,6 +256,7 @@ intrinsicField:
   ;
 
 // jpe - nested scopes? parent.resource, parent.parent?
+// how to select an attribute on the parent called span?
 attributeField:
     DOT IDENTIFIER                 { $$ = newAttribute($2)               }
   | RESOURCE DOT IDENTIFIER        { $$ = newScopedAttribute(attributeScopeResource, $3) }

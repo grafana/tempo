@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-var stringerOps = map[int]string{ // jpe - if we use the lexer constants we can not do this
+var stringerOps = map[int]string{
 	opAdd:               "+",
 	opSub:               "-",
 	opDiv:               "/",
@@ -27,6 +27,8 @@ var stringerOps = map[int]string{ // jpe - if we use the lexer constants we can 
 	opSpansetChild:      ">",
 	opSpansetDescendant: ">>",
 	opSpansetAnd:        "&&",
+	opSpansetSibling:    "~",
+	opSpansetUnion:      "||",
 }
 
 var stringerAggs = map[int]string{
@@ -74,7 +76,7 @@ func (o SpansetOperation) String() string {
 }
 
 func (f SpansetFilter) String() string {
-	return "{" + f.e.String() + "}"
+	return "{ " + f.e.String() + " }"
 }
 
 func (f ScalarFilter) String() string {
@@ -101,10 +103,6 @@ func (n Static) String() string {
 		return strconv.FormatBool(n.b)
 	case typeIntrinsic:
 		switch n.n {
-		case intrinsicStart:
-			return "start"
-		case intrinsicEnd:
-			return "end"
 		case intrinsicDuration:
 			return "duration"
 		case intrinsicChildCount:
@@ -113,6 +111,8 @@ func (n Static) String() string {
 			return "name"
 		case intrinsicStatus:
 			return "status"
+		case intrinsicParent:
+			return "parent"
 		default:
 			return fmt.Sprintf("intrinsic(%d)", n.n)
 		}
@@ -145,7 +145,7 @@ func (a Attribute) String() string {
 	case attributeScopeParent:
 		scope = "parent."
 	case attributeScopeSpan:
-		scope = "scope."
+		scope = "span."
 	case attributeScopeResource:
 		scope = "resource."
 	default:
@@ -156,7 +156,7 @@ func (a Attribute) String() string {
 }
 
 func binaryOp(op string, lhs element, rhs element) string {
-	return wrapElement(lhs) + op + wrapElement(rhs)
+	return wrapElement(lhs) + " " + op + " " + wrapElement(rhs)
 }
 
 func unaryOp(op string, e element) string {

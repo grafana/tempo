@@ -34,25 +34,6 @@ func TestPipelineOperatorPrecedence(t *testing.T) {
 	}{
 		{
 			in: "({ .a } | { .b }) > ({ .a } | { .b }) && ({ .a } | { .b })",
-			expected: newSpansetOperation(opSpansetChild,
-				newPipeline(
-					newSpansetFilter(newAttribute("a")),
-					newSpansetFilter(newAttribute("b")),
-				),
-				newSpansetOperation(opSpansetAnd,
-					newPipeline(
-						newSpansetFilter(newAttribute("a")),
-						newSpansetFilter(newAttribute("b")),
-					),
-					newPipeline(
-						newSpansetFilter(newAttribute("a")),
-						newSpansetFilter(newAttribute("b")),
-					),
-				),
-			),
-		},
-		{
-			in: "(({ .a } | { .b }) > ({ .a } | { .b })) && ({ .a } | { .b })",
 			expected: newSpansetOperation(opSpansetAnd,
 				newSpansetOperation(opSpansetChild,
 					newPipeline(
@@ -67,6 +48,25 @@ func TestPipelineOperatorPrecedence(t *testing.T) {
 				newPipeline(
 					newSpansetFilter(newAttribute("a")),
 					newSpansetFilter(newAttribute("b")),
+				),
+			),
+		},
+		{
+			in: "({ .a } | { .b }) > (({ .a } | { .b }) && ({ .a } | { .b }))",
+			expected: newSpansetOperation(opSpansetChild,
+				newPipeline(
+					newSpansetFilter(newAttribute("a")),
+					newSpansetFilter(newAttribute("b")),
+				),
+				newSpansetOperation(opSpansetAnd,
+					newPipeline(
+						newSpansetFilter(newAttribute("a")),
+						newSpansetFilter(newAttribute("b")),
+					),
+					newPipeline(
+						newSpansetFilter(newAttribute("a")),
+						newSpansetFilter(newAttribute("b")),
+					),
 				),
 			),
 		},
@@ -322,16 +322,16 @@ func TestSpansetExpressionPrecedence(t *testing.T) {
 	}{
 		{
 			in: "{ true } && { false } >> { `a` }",
-			expected: newSpansetOperation(opSpansetDescendant,
-				newSpansetOperation(opSpansetAnd, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false))),
-				newSpansetFilter(newStaticString("a")),
+			expected: newSpansetOperation(opSpansetAnd,
+				newSpansetFilter(newStaticBool(true)),
+				newSpansetOperation(opSpansetDescendant, newSpansetFilter(newStaticBool(false)), newSpansetFilter(newStaticString("a"))),
 			),
 		},
 		{
 			in: "{ true } >> { false } && { `a` }",
-			expected: newSpansetOperation(opSpansetDescendant,
-				newSpansetFilter(newStaticBool(true)),
-				newSpansetOperation(opSpansetAnd, newSpansetFilter(newStaticBool(false)), newSpansetFilter(newStaticString("a"))),
+			expected: newSpansetOperation(opSpansetAnd,
+				newSpansetOperation(opSpansetDescendant, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false))),
+				newSpansetFilter(newStaticString("a")),
 			),
 		},
 		{
@@ -546,27 +546,57 @@ func TestSpansetFilterOperatorPrecedence(t *testing.T) {
 		},
 		{
 			in: "{ .a && .b = .c }",
-			expected: newBinaryOperation(opEqual,
-				newBinaryOperation(opAnd, newAttribute("a"), newAttribute("b")),
-				newAttribute("c")),
+			expected: newBinaryOperation(opAnd,
+				newAttribute("a"),
+				newBinaryOperation(opEqual, newAttribute("b"), newAttribute("c"))),
 		},
 		{
 			in: "{ .a = .b && .c }",
-			expected: newBinaryOperation(opEqual,
-				newAttribute("a"),
-				newBinaryOperation(opAnd, newAttribute("b"), newAttribute("c"))),
+			expected: newBinaryOperation(opAnd,
+				newBinaryOperation(opEqual, newAttribute("a"), newAttribute("b")),
+				newAttribute("c")),
 		},
 		{
 			in: "{ .a = !.b && .c }",
-			expected: newBinaryOperation(opEqual,
-				newAttribute("a"),
-				newBinaryOperation(opAnd, newUnaryOperation(opNot, newAttribute("b")), newAttribute("c"))),
+			expected: newBinaryOperation(opAnd,
+				newBinaryOperation(opEqual, newAttribute("a"), newUnaryOperation(opNot, newAttribute("b"))),
+				newAttribute("c")),
 		},
 		{
 			in: "{ .a = !( .b && .c ) }",
 			expected: newBinaryOperation(opEqual,
 				newAttribute("a"),
 				newUnaryOperation(opNot, newBinaryOperation(opAnd, newAttribute("b"), newAttribute("c")))),
+		},
+		{
+			in: "{ .a = .b || .c = .d}",
+			expected: newBinaryOperation(opOr,
+				newBinaryOperation(opEqual, newAttribute("a"), newAttribute("b")),
+				newBinaryOperation(opEqual, newAttribute("c"), newAttribute("d"))),
+		},
+		{
+			in: "{ !.a = .b }",
+			expected: newBinaryOperation(opEqual,
+				newUnaryOperation(opNot, newAttribute("a")),
+				newAttribute("b")),
+		},
+		{
+			in: "{ !(.a = .b) }",
+			expected: newUnaryOperation(opNot, newBinaryOperation(opEqual,
+				newAttribute("a"),
+				newAttribute("b"))),
+		},
+		{
+			in: "{ -.a = .b }",
+			expected: newBinaryOperation(opEqual,
+				newUnaryOperation(opSub, newAttribute("a")),
+				newAttribute("b")),
+		},
+		{
+			in: "{ -(.a = .b) }",
+			expected: newUnaryOperation(opSub, newBinaryOperation(opEqual,
+				newAttribute("a"),
+				newAttribute("b"))),
 		},
 	}
 
@@ -598,13 +628,11 @@ func TestSpansetFilterStatics(t *testing.T) {
 		{in: "{ parent.foo.bar.baz }", expected: newScopedAttribute(attributeScopeParent, "foo.bar.baz")},
 		{in: "{ resource.foo.bar.baz }", expected: newScopedAttribute(attributeScopeResource, "foo.bar.baz")},
 		{in: "{ span.foo.bar.baz }", expected: newScopedAttribute(attributeScopeSpan, "foo.bar.baz")},
-		{in: "{ start }", expected: newIntrinsic(intrinsicStart)},
-		{in: "{ end }", expected: newIntrinsic(intrinsicEnd)},
 		{in: "{ duration }", expected: newIntrinsic(intrinsicDuration)},
 		{in: "{ childCount }", expected: newIntrinsic(intrinsicChildCount)},
 		{in: "{ name }", expected: newIntrinsic(intrinsicName)},
 		{in: "{ parent }", expected: newIntrinsic(intrinsicParent)},
-		{in: "{ status }", expected: newIntrinsic(intrinsicStatus)}, // jpe new tests for attributes
+		{in: "{ status }", expected: newIntrinsic(intrinsicStatus)},
 		{in: "{ 4321 }", expected: newStaticInt(4321)},
 		{in: "{ 1.234 }", expected: newStaticFloat(1.234)},
 		{in: "{ nil }", expected: newStaticNil()},

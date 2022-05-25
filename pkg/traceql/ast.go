@@ -30,9 +30,26 @@ const (
 	opSpansetSibling
 )
 
+func booleanOperator(op int) bool {
+	return op == opOr ||
+		op == opAnd ||
+		op == opEqual ||
+		op == opNotEqual ||
+		op == opRegex ||
+		op == opNotRegex ||
+		op == opGreater ||
+		op == opGreaterEqual ||
+		op == opLess ||
+		op == opLessEqual
+}
+
 type element interface {
 	fmt.Stringer
 	validate() error
+}
+
+type typedExpression interface {
+	impliedType() int
 }
 
 type RootExpr struct {
@@ -72,6 +89,20 @@ func (p Pipeline) addItem(i element) Pipeline {
 	return p
 }
 
+func (p Pipeline) impliedType() int {
+	if len(p.p) == 0 {
+		return typeSpanset
+	}
+
+	finalItem := p.p[len(p.p)-1]
+	aggregate, ok := finalItem.(Aggregate)
+	if ok {
+		return aggregate.impliedType()
+	}
+
+	return typeSpanset
+}
+
 type GroupOperation struct {
 	e FieldExpression
 }
@@ -94,6 +125,7 @@ func newCoalesceOperation() CoalesceOperation {
 // **********************
 type ScalarExpression interface {
 	element
+	typedExpression
 	__scalarExpression()
 }
 
@@ -112,6 +144,20 @@ func newScalarOperation(op int, lhs ScalarExpression, rhs ScalarExpression) Scal
 }
 
 func (ScalarOperation) __scalarExpression() {}
+func (o ScalarOperation) impliedType() int {
+	if booleanOperator(o.op) {
+		return typeBoolean
+	}
+
+	// remaining operators will be based on the operands
+	// opAdd, opSub, opDiv, opMod, opMult
+	t := o.lhs.impliedType()
+	if t != typeAttribute {
+		return t
+	}
+
+	return o.rhs.impliedType()
+}
 
 const (
 	aggregateCount = iota
@@ -134,6 +180,13 @@ func newAggregate(agg int, e FieldExpression) Aggregate {
 }
 
 func (Aggregate) __scalarExpression() {}
+func (a Aggregate) impliedType() int {
+	if a.agg == aggregateCount || a.e == nil {
+		return typeInt
+	}
+
+	return a.e.impliedType()
+}
 
 // **********************
 // Spansets
@@ -192,6 +245,7 @@ func (ScalarFilter) __spansetExpression() {}
 // **********************
 type FieldExpression interface {
 	element
+	typedExpression
 	__fieldExpression()
 }
 
@@ -202,6 +256,21 @@ type BinaryOperation struct {
 }
 
 func (BinaryOperation) __fieldExpression() {}
+
+func (o BinaryOperation) impliedType() int {
+	if booleanOperator(o.op) {
+		return typeBoolean
+	}
+
+	// remaining operators will be based on the operands
+	// opAdd, opSub, opDiv, opMod, opMult
+	t := o.lhs.impliedType()
+	if t != typeAttribute {
+		return t
+	}
+
+	return o.rhs.impliedType()
+}
 
 func newBinaryOperation(op int, lhs FieldExpression, rhs FieldExpression) BinaryOperation {
 	return BinaryOperation{
@@ -218,6 +287,11 @@ type UnaryOperation struct {
 
 func (UnaryOperation) __fieldExpression() {}
 
+func (o UnaryOperation) impliedType() int {
+	// both operators (opPower and opNot) will just be based on the operand type
+	return o.e.impliedType()
+}
+
 func newUnaryOperation(op int, e FieldExpression) UnaryOperation {
 	return UnaryOperation{
 		op: op,
@@ -229,7 +303,9 @@ func newUnaryOperation(op int, e FieldExpression) UnaryOperation {
 // Statics
 // **********************
 const (
-	typeInt = iota
+	typeSpanset   = iota // type used by spanset pipelines
+	typeAttribute        // a special constant that indicates the type is determined at query time by the attribute
+	typeInt
 	typeFloat
 	typeString
 	typeBoolean
@@ -246,9 +322,7 @@ const (
 )
 
 const (
-	intrinsicStart = iota
-	intrinsicEnd
-	intrinsicDuration
+	intrinsicDuration = iota
 	intrinsicChildCount
 	intrinsicName
 	intrinsicStatus
@@ -266,6 +340,25 @@ type Static struct {
 
 func (Static) __fieldExpression()  {}
 func (Static) __scalarExpression() {}
+
+func (s Static) impliedType() int {
+	if s.staticType == typeIntrinsic {
+		switch s.n {
+		case intrinsicDuration:
+			return typeDuration
+		case intrinsicChildCount:
+			return typeInt
+		case intrinsicName:
+			return typeString
+		case intrinsicStatus:
+			return typeStatus
+		case intrinsicParent:
+			return typeNil
+		}
+	}
+
+	return s.staticType
+}
 
 func newStaticInt(n int) Static {
 	return Static{
@@ -329,6 +422,8 @@ func newIntrinsic(n int) Static {
 const (
 	attributeScopeNone = iota
 	attributeScopeParent
+	attributeScopeParentResource
+	attributeScopeParentSpan
 	attributeScopeResource
 	attributeScopeSpan
 )
@@ -339,6 +434,10 @@ type Attribute struct {
 }
 
 func (Attribute) __fieldExpression() {}
+
+func (a Attribute) impliedType() int {
+	return typeAttribute
+}
 
 func newAttribute(att string) Attribute {
 	return Attribute{

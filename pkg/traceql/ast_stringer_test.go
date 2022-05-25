@@ -1,28 +1,24 @@
 package traceql
 
 import (
-	"strings"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 )
 
-// jpe build big ol' file that has unsupported/invalid/valid and use for TestStringer and other test
 func TestStringer(t *testing.T) {
-	tests := []struct {
-		in string
-	}{
-		{in: "max(duration) > 3s | { status = error || .http.status = 500 }"},
-		{in: "{ .http.status = 200 } | max(.field) - min(.field) > 3"},
-		{in: "({ .http.status = 200 } | count()) + ({ name = `foo` } | avg(duration)) = 2"},
-		{in: "{ (-(3 + 2) * .test - parent.blerg + duration)^3 }"},
-		{in: "({ .a } | count()) > ({ .b } | count())"},
-	}
+	b, err := os.ReadFile("./all_test.yaml")
+	require.NoError(t, err)
 
-	for _, tc := range tests {
-		t.Run(tc.in, func(t *testing.T) {
-			pass1, err := Parse(tc.in)
+	queries := &TestQueries{}
+	yaml.Unmarshal(b, queries)
+
+	for _, q := range queries.Valid {
+		t.Run(q, func(t *testing.T) {
+			pass1, err := Parse(q)
 			require.NoError(t, err)
 
 			// now parse it a second time and confirm that it parses the same way twice
@@ -37,8 +33,4 @@ func TestStringer(t *testing.T) {
 			t.Logf("\n\t1: %s\n\t2: %s", pass1.String(), pass2.String())
 		})
 	}
-}
-
-func stripWhitespace(s string) string {
-	return strings.Join(strings.Fields(s), "")
 }

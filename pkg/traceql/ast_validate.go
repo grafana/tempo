@@ -1,5 +1,7 @@
 package traceql
 
+import "fmt"
+
 func (r RootExpr) validate() error {
 	return r.p.validate()
 }
@@ -23,11 +25,24 @@ func (o CoalesceOperation) validate() error {
 }
 
 func (o ScalarOperation) validate() error {
-	err := o.lhs.validate()
-	if err != nil {
+	if err := o.lhs.validate(); err != nil {
 		return err
 	}
-	return o.rhs.validate()
+	if err := o.rhs.validate(); err != nil {
+		return err
+	}
+
+	lhsT := o.lhs.impliedType()
+	rhsT := o.rhs.impliedType()
+	if !typesMatch(lhsT, rhsT) {
+		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
+	}
+
+	if !binaryOpValid(o.op, lhsT, rhsT) {
+		return fmt.Errorf("illegal operation for the given types: %s", o.String())
+	}
+
+	return nil
 }
 
 func (a Aggregate) validate() error {
@@ -35,39 +50,108 @@ func (a Aggregate) validate() error {
 		return nil
 	}
 
-	return a.e.validate()
+	if err := a.e.validate(); err != nil {
+		return err
+	}
+
+	// aggregate field expressions require a type of a number or attribute
+	t := a.e.impliedType()
+	if t != typeAttribute && !typeIsNumeric(t) {
+		return fmt.Errorf("aggregate field expressions must resolve to a number type: %s", a.String())
+	}
+
+	return nil
 }
 
 func (o SpansetOperation) validate() error {
-	err := o.lhs.validate()
-	if err != nil {
+	if err := o.lhs.validate(); err != nil {
 		return err
 	}
 	return o.rhs.validate()
 }
 
 func (f SpansetFilter) validate() error {
-	return f.e.validate()
+	if err := f.e.validate(); err != nil {
+		return err
+	}
+
+	t := f.e.impliedType()
+	if t != typeAttribute && t != typeBoolean {
+		return fmt.Errorf("span filter field expressions must resolve to a boolean: %s", f.String())
+	}
+
+	return nil
 }
 
 func (f ScalarFilter) validate() error {
-	err := f.lhs.validate()
-	if err != nil {
+	if err := f.lhs.validate(); err != nil {
 		return err
 	}
-	return f.rhs.validate()
+	if err := f.rhs.validate(); err != nil {
+		return err
+	}
+
+	lhsT := f.lhs.impliedType()
+	rhsT := f.rhs.impliedType()
+	if !typesMatch(lhsT, rhsT) {
+		return fmt.Errorf("binary operations must operate on the same type: %s", f.String())
+	}
+
+	if !binaryOpValid(f.op, lhsT, rhsT) {
+		return fmt.Errorf("illegal operation for the given types: %s", f.String())
+	}
+
+	return nil
 }
 
 func (o BinaryOperation) validate() error {
-	err := o.lhs.validate()
-	if err != nil {
+	if err := o.lhs.validate(); err != nil {
 		return err
 	}
-	return o.rhs.validate()
+	if err := o.rhs.validate(); err != nil {
+		return err
+	}
+
+	lhsT := o.lhs.impliedType()
+	rhsT := o.rhs.impliedType()
+	if !typesMatch(lhsT, rhsT) {
+		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
+	}
+
+	if !binaryOpValid(o.op, lhsT, rhsT) {
+		return fmt.Errorf("illegal operation for the given types: %s", o.String())
+	}
+
+	return nil
 }
 
 func (o UnaryOperation) validate() error {
-	return o.e.validate()
+	if err := o.e.validate(); err != nil {
+		return err
+	}
+
+	t := o.e.impliedType()
+	if t == typeAttribute {
+		return nil
+	}
+
+	allowed := false
+	switch o.e.impliedType() {
+	case typeBoolean:
+		allowed = o.op == opNot
+	case typeFloat:
+		fallthrough
+	case typeInt:
+		fallthrough
+	case typeDuration:
+		allowed = o.op == opSub
+	}
+
+	if !allowed {
+		return fmt.Errorf("illegal operation for the given type: %s", o.String())
+	}
+
+	return nil
 }
 
 func (n Static) validate() error {
@@ -76,4 +160,76 @@ func (n Static) validate() error {
 
 func (a Attribute) validate() error {
 	return nil
+}
+
+// typesMatch returns whether two types can be combined with a binary operator. the kind of operator is
+// immaterial
+func typesMatch(t1 int, t2 int) bool {
+	if t1 == typeAttribute || t2 == typeAttribute {
+		return true
+	}
+
+	if t1 == t2 {
+		return true
+	}
+
+	if typeIsNumeric(t1) && typeIsNumeric(t2) {
+		return true
+	}
+
+	return false
+}
+
+func typeIsNumeric(t int) bool {
+	return t == typeInt || t == typeFloat || t == typeDuration
+}
+
+func binaryOpValid(op int, lhsT int, rhsT int) bool {
+	// attribute types are validated at runtime
+	if lhsT == typeAttribute && rhsT == typeAttribute {
+		return true
+	}
+
+	t := lhsT
+	if t == typeAttribute {
+		t = rhsT
+	}
+
+	allowedOps := map[int]struct{}{}
+	switch t {
+	case typeBoolean:
+		return op == opAnd ||
+			op == opOr ||
+			op == opEqual ||
+			op == opNotEqual
+	case typeFloat:
+		fallthrough
+	case typeInt:
+		fallthrough
+	case typeDuration:
+		return op == opAdd ||
+			op == opSub ||
+			op == opMult ||
+			op == opDiv ||
+			op == opMod ||
+			op == opPower ||
+			op == opEqual ||
+			op == opNotEqual ||
+			op == opGreater ||
+			op == opGreaterEqual ||
+			op == opLess ||
+			op == opLessEqual
+	case typeString:
+		return op == opEqual ||
+			op == opNotEqual ||
+			op == opRegex ||
+			op == opNotRegex
+	case typeNil:
+		fallthrough
+	case typeStatus:
+		return op == opEqual || op == opNotEqual
+	}
+
+	_, ok := allowedOps[op]
+	return ok
 }

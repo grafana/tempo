@@ -6,10 +6,10 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
-type testQueries struct {
+type TestQueries struct {
 	Valid         []string `yaml:"valid"`
 	ParseFails    []string `yaml:"parse_fails"`
 	ValidateFails []string `yaml:"validate_fails"`
@@ -20,8 +20,9 @@ func TestAll(t *testing.T) {
 	b, err := os.ReadFile("./all_test.yaml")
 	require.NoError(t, err)
 
-	queries := &testQueries{}
-	yaml.Unmarshal(b, queries)
+	queries := &TestQueries{}
+	err = yaml.Unmarshal(b, queries)
+	require.NoError(t, err)
 
 	for _, q := range queries.Valid {
 		t.Run("valid - "+q, func(t *testing.T) {

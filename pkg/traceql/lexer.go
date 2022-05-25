@@ -40,8 +40,6 @@ var tokens = map[string]int{
 	"|":          PIPE,
 	">>":         DESC,
 	"~":          TILDE,
-	"start":      START,
-	"end":        END,
 	"duration":   IDURATION,
 	"childCount": CHILDCOUNT,
 	"name":       NAME,
@@ -137,9 +135,6 @@ func (l *lexer) Error(msg string) {
 	l.errs = append(l.errs, newParseError(msg, l.Line, l.Column))
 }
 
-// ***************************
-// Donated with Love from Loki jpe - apache
-// ***************************
 func tryScanDuration(number string, l *scanner.Scanner) (time.Duration, bool) {
 	var sb strings.Builder
 	sb.WriteString(number)
