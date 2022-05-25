@@ -63,6 +63,7 @@ func (rt *RowTracker) findTraceByID(idx int, traceID string) int {
 	}
 
 	pages := traceIDColumnChunk.Pages()
+	buffer := make([]parquet.Value, 1000)
 	for {
 		pg, err := pages.ReadPage()
 		if pg == nil || err == io.EOF {
@@ -81,10 +82,9 @@ func (rt *RowTracker) findTraceByID(idx int, traceID string) int {
 
 		vr := pg.Values()
 		for {
-			vs := make([]parquet.Value, 1000)
-			x, err := vr.ReadValues(vs)
+			x, err := vr.ReadValues(buffer)
 			for y := 0; y < x; y++ {
-				if strings.Compare(vs[y].String(), traceID) == 0 {
+				if strings.Compare(buffer[y].String(), traceID) == 0 {
 					rowMatch += int64(y)
 					return int(rowMatch)
 				}

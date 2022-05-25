@@ -626,6 +626,76 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			},
 			expected: nil,
 		},
+		{
+			name: "ensures blocks of different versions are not compacted",
+			blocklist: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime: now,
+					Version: "v2",
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
+					Version: "vParquet",
+				},
+			},
+			expected:       nil,
+			expectedHash:   "",
+			expectedSecond: nil,
+			expectedHash2:  "",
+		},
+		{
+			name: "ensures blocks of the same version are compacted",
+			blocklist: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime: now,
+					Version: "v2",
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
+					Version: "vParquet",
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					EndTime: now,
+					Version: "v2",
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime: now,
+					Version: "vParquet",
+				},
+			},
+			expected: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime: now,
+					Version: "v2",
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					EndTime: now,
+					Version: "v2",
+				},
+			},
+			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedSecond: []*backend.BlockMeta{
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime: now,
+					Version: "vParquet",
+				},
+				{
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime: now,
+					Version: "vParquet",
+				},
+			},
+			expectedHash2: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+		},
 	}
 
 	for _, tt := range tests {
