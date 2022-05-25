@@ -71,7 +71,7 @@ type Limits struct {
 	// Compactor enforced limits.
 	BlockRetention model.Duration `yaml:"block_retention" json:"block_retention"`
 
-	// Querier enforced limits.
+	// Querier and Ingester enforced limits.
 	MaxBytesPerTagValuesQuery int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
 
 	// QueryFrontend enforced limits

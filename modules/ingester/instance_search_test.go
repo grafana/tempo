@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -143,6 +145,93 @@ func TestInstanceSearch(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, sr.Traces, numTraces/searchAnnotatedFractionDenominator)
 	checkEqual(t, ids, sr)
+}
+
+func TestInstanceSearchTags(t *testing.T) {
+	limits, err := overrides.NewOverrides(overrides.Limits{})
+	assert.NoError(t, err, "unexpected error creating limits")
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	tempDir := t.TempDir()
+
+	ingester, _, _ := defaultIngester(t, tempDir)
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+	assert.NoError(t, err, "unexpected error creating new instance")
+
+	// This matches the encoding for live traces, since
+	// we are pushing to the instance directly it must match.
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	numTraces := 100
+	searchAnnotatedFractionDenominator := 10
+
+	// add dummy search data
+	var tagKey = "foo"
+	var tagValue = "bar"
+
+	expectedTagValues := []string{}
+
+	for j := 0; j < numTraces; j++ {
+		id := make([]byte, 16)
+		rand.Read(id)
+
+		testTrace := test.MakeTrace(10, id)
+		trace.SortTrace(testTrace)
+		traceBytes, err := dec.PrepareForWrite(testTrace, 0, 0)
+		require.NoError(t, err)
+
+		// annotate just a fraction of traces with search data
+		var searchData []byte
+		if j%searchAnnotatedFractionDenominator == 0 {
+			data := &tempofb.SearchEntryMutable{}
+			data.TraceID = id
+			data.AddTag(tagKey, tagValue+strconv.Itoa(j))
+			searchData = data.ToBytes()
+
+			expectedTagValues = append(expectedTagValues, tagValue+strconv.Itoa(j))
+		}
+
+		// searchData will be nil if not
+		err = i.PushBytes(context.Background(), id, traceBytes, searchData)
+		require.NoError(t, err)
+
+		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+	}
+
+	userCtx := user.InjectOrgID(context.Background(), "fake")
+	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
+
+	// Test after appending to WAL
+	err = i.CutCompleteTraces(0, true)
+	require.NoError(t, err)
+	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+
+	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
+
+	// Test after cutting new headblock
+	blockID, err := i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+	assert.NotEqual(t, blockID, uuid.Nil)
+
+	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
+
+	// Test after completing a block
+	err = i.CompleteBlock(blockID)
+	require.NoError(t, err)
+
+	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
+}
+
+func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tagName string, expectedTagValues []string) {
+	sr, err := i.SearchTags(ctx)
+	require.NoError(t, err)
+	srv, err := i.SearchTagValues(ctx, tagName)
+	require.NoError(t, err)
+
+	sort.Strings(srv.TagValues)
+	assert.Len(t, sr.TagNames, 1)
+	assert.Equal(t, tagName, sr.TagNames[0])
+	assert.Equal(t, expectedTagValues, srv.TagValues)
 }
 
 func TestInstanceSearchNoData(t *testing.T) {
