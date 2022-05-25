@@ -1,0 +1,130 @@
+# valid queries parse successfully and return nil when calling .validate()
+valid:
+  # spanset filters
+  - '{ true }'
+  - '{ !true }'
+  - '{ true && false }'
+  - '{ true || false }'
+  - '{ 1 = 2 }'
+  - '{ 1 != 2 }'
+  - '{ 1 > 2 }'
+  - '{ 1 >= 2 }'
+  - '{ 1 < 2 }'
+  - '{ 1 <= 2 }'
+  - '{ 1 + 1 = 2 }'
+  - '{ 1 - 1 = 2 }'
+  - '{ 1 * 1 = 2 }'
+  - '{ 1 / 1 = 2 }'
+  - '{ 1 ^ 1 = 2 }'
+  - '{ -1 = 2 }'
+  - '{ "test" =~ "test" }'
+  - '{ "test" !~ "test" }'
+  - '{ "test" = "test" }'
+  - '{ "test" != "test" }'
+  - '{ .a }'
+  - '{ !.a }'
+  - '{ .a && false }'
+  - '{ .a || true }'
+  - '{ .a = 2 }'
+  - '{ .a != 2 }'
+  - '{ .a > 2 }'
+  - '{ .a >= 2 }'
+  - '{ .a < 2 }'
+  - '{ .a <= 2 }'
+  - '{ .a + 1 = 2 }'
+  - '{ .a - 1 = 2 }'
+  - '{ .a * 1 = 2 }'
+  - '{ .a / 1 = 2 }'
+  - '{ .a ^ 1 = 2 }'
+  - '{ -.a = 2 }'
+  - '{ .a =~ "test" }'
+  - '{ .a !~ "test" }'
+  - '{ .a = "test" }'
+  - '{ .a != "test" }'
+  - '{ parent.a != 3 }'
+  - '{ resource.a != 3 }'
+  - '{ span.a != 3 }'
+  - '{ !("test" != .c || ((true && .b) || 3 < .a)) }'
+  # spanset expressions
+  - '{ true } && { true }'
+  - '{ true } || { true }'
+  - '{ true } >> { true }'
+  - '{ true } > { true }'
+  - '{ true } ~ { true }'
+  # pipelines
+  - '{ true } | { .a }'
+  - '{ true } | count() = 1'
+  - '{ true } | max(duration) = 1'
+  - '{ true } | min(duration) = 1'
+  - '{ true } | avg(duration) = 1'
+  - '{ true } | sum(duration) = 1'
+  - '{ true } | count() + count() = 1' 
+  - 'count() = 1 | { true }'
+  - '{ true } | max(.a) = 1'
+  - '{ true } | max(parent.a) = 1'
+  - '{ true } | max(span.a) = 1'
+  - '{ true } | max(resource.a) = 1'
+  - '{ true } | max(1 + 1) = 1'
+  - '{ true } | max(1 + .a) = 1'
+  - '{ true } | max((1 + .a) * 2) = 1'
+  - '{ true } | coalesce()'
+  - '{ true } | by(.a)'
+  - '{ true } | by(1 + .a)'
+  - 'by(.a) | { true }'
+  - '{ true } | by(1 + .a) | coalesce()'
+  - '{ true } | count() = 1 | { true }'
+  # pipeline expressions
+  - '({ true } | count()) + ({ true } | count()) = 1'
+  - '({ true } | count()) - ({ true } | count()) = 1'
+  - '({ true } | count()) / ({ true } | count()) = 1'
+  - '({ true } | count()) * ({ true } | count()) = 1'
+  - '({ true }) && ({ true })'
+  - '({ true }) || ({ true })'
+  - '({ true }) >> ({ true })'
+  - '({ true }) > ({ true })'
+  - '({ true }) ~ ({ true })'
+  
+# parse_fails throw an error when parsing
+parse_fails:
+  - 'true'
+  - '[ true ]'
+  - '( true )'
+  # spanset filters
+  - '{ }'                          # possibly allow this? same as { true }?
+  - '{ . }'
+  - '{ < }'
+  - '{ .a < }'
+  - '{ .a < 3'
+  - '{ (.a < 3 }'
+  - '{ attribute = 4 }'           # custom attribute not prefixed with ., span., resource. or parent.
+  - '{ .attribute == 4 }'         # invalid operator
+  - '{ true } = { true }'
+  - '{ span. }'
+  # spanset expressions
+  - '{ true } + { true }'
+  - '{ true } - { true }'
+  - '{ true } * { true }'
+  - '{ true } / { true }'
+  - '{ true } ^ { true }'
+  # pipelines
+  - 'coalesce() | { true }'       # pipelines can't start with coalesce
+  - 'count() > 3 && { true }'     # scalar filters have to be in pipeline
+  - '{ true } | count()'          # naked scalar pipelines not allowed
+  - '{ true } | notAnAggregate() = 1'
+  - '{ true } | count = 1'
+  - '{ true } | max() = 1'
+  - '{ true } | by()'
+  # pipeline expressions
+  - '({ true }) + (count()) = 1'
+  - '({ true }) && (count())'
+  - '({ true } | count()) && ({ true } | count()) = 1'
+  - '({ true }) + ({ true }) = 1'
+  - '({ true } | count()) + ({ true } | count())'
+
+# validate_fails parse correctly and return an error when calling .validate()
+validate_fails:
+#- '{ true } | by(1)'
+
+# dump queries are parsed and the ast is dumped to stdout
+dump:
+- '{ .a .a }' # jpe this parses

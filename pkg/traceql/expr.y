@@ -21,7 +21,8 @@ import (
     scalarFilter ScalarFilter
     scalarFilterOperation int
 
-    scalarPipelineExpresssion ScalarExpression
+    scalarPipelineExpressionFilter ScalarFilter
+    scalarPipelineExpression ScalarExpression
     scalarExpression ScalarExpression
     wrappedScalarPipeline Pipeline
     scalarPipeline Pipeline
@@ -51,7 +52,8 @@ import (
 %type <scalarFilter> scalarFilter
 %type <scalarFilterOperation> scalarFilterOperation
 
-%type <scalarPipelineExpresssion> scalarPipelineExpresssion
+%type <scalarPipelineExpressionFilter> scalarPipelineExpressionFilter
+%type <scalarPipelineExpression> scalarPipelineExpression
 %type <scalarExpression> scalarExpression
 %type <wrappedScalarPipeline> wrappedScalarPipeline
 %type <scalarPipeline> scalarPipeline
@@ -88,15 +90,7 @@ import (
 root:
     spansetPipeline                             { yylex.(*lexer).expr = newRootExpr($1) }
   | spansetPipelineExpression                   { yylex.(*lexer).expr = newRootExpr($1) }
-  | scalarPipelineExpresssion                   { yylex.(*lexer).expr = newRootExpr($1) }
-  ;
-
-groupOperation:
-    BY OPEN_PARENS fieldExpression CLOSE_PARENS { $$ = newGroupOperation($3) }
-  ;
-
-coalesceOperation:
-    COALESCE OPEN_PARENS CLOSE_PARENS           { $$ = newCoalesceOperation() }
+  | scalarPipelineExpressionFilter              { yylex.(*lexer).expr = newRootExpr($1) }
   ;
 
 // **********************
@@ -122,7 +116,15 @@ spansetPipeline:
   | spansetPipeline PIPE scalarFilter          { $$ = $1.addItem($3)  }
   | spansetPipeline PIPE spansetExpression     { $$ = $1.addItem($3)  }
   | spansetPipeline PIPE groupOperation        { $$ = $1.addItem($3)  }
-  | spansetPipeline PIPE coalesceOperation     { $$ = $1.addItem($3)  }  // can't start with coalesce
+  | spansetPipeline PIPE coalesceOperation     { $$ = $1.addItem($3)  }
+  ;
+
+groupOperation:
+    BY OPEN_PARENS fieldExpression CLOSE_PARENS { $$ = newGroupOperation($3) }
+  ;
+
+coalesceOperation:
+    COALESCE OPEN_PARENS CLOSE_PARENS           { $$ = newCoalesceOperation() }
   ;
 
 spansetExpression: // shares the same operators as scalarPipelineExpression. split out for readability
@@ -143,9 +145,6 @@ scalarFilter:
     scalarExpression          scalarFilterOperation scalarExpression          { $$ = newScalarFilter($2, $1, $3) }
   | static                    scalarFilterOperation scalarExpression          { $$ = newScalarFilter($2, $1, $3) }
   | scalarExpression          scalarFilterOperation static                    { $$ = newScalarFilter($2, $1, $3) }
-  | scalarPipelineExpresssion scalarFilterOperation scalarPipelineExpresssion { $$ = newScalarFilter($2, $1, $3) }
-  | static                    scalarFilterOperation scalarPipelineExpresssion { $$ = newScalarFilter($2, $1, $3) }
-  | scalarPipelineExpresssion scalarFilterOperation static                    { $$ = newScalarFilter($2, $1, $3) }
   ;
 
 scalarFilterOperation:
@@ -160,14 +159,20 @@ scalarFilterOperation:
 // **********************
 // Scalar Expressions
 // **********************
-scalarPipelineExpresssion: // shares the same operators as scalarExpression. split out for readability
-    OPEN_PARENS scalarPipelineExpresssion CLOSE_PARENS        { $$ = $2 }                                   
-  | scalarPipelineExpresssion ADD scalarPipelineExpresssion   { $$ = newScalarOperation(opAdd, $1, $3) }
-  | scalarPipelineExpresssion SUB scalarPipelineExpresssion   { $$ = newScalarOperation(opSub, $1, $3) }
-  | scalarPipelineExpresssion MUL scalarPipelineExpresssion   { $$ = newScalarOperation(opMult, $1, $3) }
-  | scalarPipelineExpresssion DIV scalarPipelineExpresssion   { $$ = newScalarOperation(opDiv, $1, $3) }
-  | scalarPipelineExpresssion MOD scalarPipelineExpresssion   { $$ = newScalarOperation(opMod, $1, $3) }
-  | scalarPipelineExpresssion POW scalarPipelineExpresssion   { $$ = newScalarOperation(opPower, $1, $3) }
+scalarPipelineExpressionFilter:
+    scalarPipelineExpression scalarFilterOperation scalarPipelineExpression { $$ = newScalarFilter($2, $1, $3) }
+  | static                   scalarFilterOperation scalarPipelineExpression { $$ = newScalarFilter($2, $1, $3) }
+  | scalarPipelineExpression scalarFilterOperation static                   { $$ = newScalarFilter($2, $1, $3) }
+  ;
+
+scalarPipelineExpression: // shares the same operators as scalarExpression. split out for readability
+    OPEN_PARENS scalarPipelineExpression CLOSE_PARENS        { $$ = $2 }                                   
+  | scalarPipelineExpression ADD scalarPipelineExpression   { $$ = newScalarOperation(opAdd, $1, $3) }
+  | scalarPipelineExpression SUB scalarPipelineExpression   { $$ = newScalarOperation(opSub, $1, $3) }
+  | scalarPipelineExpression MUL scalarPipelineExpression   { $$ = newScalarOperation(opMult, $1, $3) }
+  | scalarPipelineExpression DIV scalarPipelineExpression   { $$ = newScalarOperation(opDiv, $1, $3) }
+  | scalarPipelineExpression MOD scalarPipelineExpression   { $$ = newScalarOperation(opMod, $1, $3) }
+  | scalarPipelineExpression POW scalarPipelineExpression   { $$ = newScalarOperation(opPower, $1, $3) }
   | wrappedScalarPipeline                                     { $$ = $1 }
 
 wrappedScalarPipeline:
@@ -251,6 +256,7 @@ intrinsicField:
   | PARENT         { $$ = newIntrinsic(intrinsicParent)     }
   ;
 
+// jpe - nested scopes? parent.resource, parent.parent?
 attributeField:
     DOT IDENTIFIER                 { $$ = newAttribute($2)               }
   | RESOURCE DOT IDENTIFIER        { $$ = newScopedAttribute(attributeScopeResource, $3) }
