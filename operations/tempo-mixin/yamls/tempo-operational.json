@@ -40,8 +40,8 @@
  "editable": true,
  "fiscalYearStartMonth": 0,
  "graphTooltip": 1,
- "id": 279,
- "iteration": 1653408744788,
+ "id": 4,
+ "iteration": 1653590429003,
  "links": [
   {
    "asDropdown": true,
@@ -59,7 +59,7 @@
  "liveNow": false,
  "panels": [
   {
-   "collapsed": false,
+   "collapsed": true,
    "datasource": {
     "type": "prometheus",
     "uid": "P1809F7CD0C75ACF3"
@@ -72,741 +72,745 @@
    },
    "id": 38,
    "panels": [
+    {
+     "datasource": {
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 0,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": true,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
 
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 0,
+      "y": 1
+     },
+     "id": 24,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "hidden",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "pluginVersion": "9.0.0-d373beebpre",
+     "targets": [
+      {
+       "expr": "rate(go_gc_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])",
+       "interval": "",
+       "legendFormat": "{{pod}}",
+       "refId": "A"
+      }
+     ],
+     "title": "gcs",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 0,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": true,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "decbytes"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 3,
+      "y": 1
+     },
+     "id": 25,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "hidden",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "pluginVersion": "9.0.0-d373beebpre",
+     "targets": [
+      {
+       "expr": "go_memstats_heap_inuse_bytes{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}",
+       "interval": "",
+       "legendFormat": "{{pod}}",
+       "refId": "A"
+      }
+     ],
+     "title": "go heap",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 0,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": true,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 6,
+      "y": 1
+     },
+     "id": 23,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "hidden",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d373beebpre",
+     "targets": [
+      {
+       "expr": "go_goroutines{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}",
+       "legendFormat": "{{pod}}",
+       "refId": "A"
+      }
+     ],
+     "title": "goroutines",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "continuous-BlYlRd"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 0,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": true,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         }
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 9,
+      "y": 1
+     },
+     "id": 42,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "hidden",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "pluginVersion": "9.0.0-d373beebpre",
+     "targets": [
+      {
+       "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+       },
+       "expr": "rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\"}[$__rate_interval])",
+       "interval": "",
+       "intervalFactor": 5,
+       "legendFormat": "{{pod}}",
+       "refId": "A"
+      }
+     ],
+     "title": "cpu",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 0,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": true,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "decbytes"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 12,
+      "y": 1
+     },
+     "id": 43,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "hidden",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "pluginVersion": "9.0.0-d373beebpre",
+     "targets": [
+      {
+       "expr": "container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\"}",
+       "interval": "",
+       "legendFormat": "{{pod}}",
+       "refId": "A"
+      }
+     ],
+     "title": "working set",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 0,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": true,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "decbytes"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 15,
+      "y": 1
+     },
+     "id": 44,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "hidden",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "pluginVersion": "9.0.0-d373beebpre",
+     "targets": [
+      {
+       "expr": "rate(container_network_receive_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\"}[$__rate_interval])",
+       "hide": false,
+       "interval": "",
+       "legendFormat": "rx-{{pod}}",
+       "refId": "A"
+      },
+      {
+       "expr": "rate(container_network_transmit_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\"}[$__rate_interval])",
+       "hide": false,
+       "interval": "",
+       "legendFormat": "tx-{{pod}}",
+       "refId": "B"
+      }
+     ],
+     "title": "tx/rx",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 0,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": true,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "decbytes"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 18,
+      "y": 1
+     },
+     "id": 45,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "hidden",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "asc"
+      }
+     },
+     "pluginVersion": "9.0.0-d373beebpre",
+     "targets": [
+      {
+       "expr": "kubelet_volume_stats_available_bytes{cluster=\"$cluster\", namespace=\"$namespace\", persistentvolumeclaim=~\"$component.*\"}",
+       "legendFormat": "{{persistentvolumeclaim}}",
+       "refId": "A"
+      }
+     ],
+     "title": "data volume free",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": true,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 3,
+      "x": 21,
+      "y": 1
+     },
+     "id": 46,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "hidden",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "desc"
+      }
+     },
+     "pluginVersion": "9.0.0-d373beebpre",
+     "targets": [
+      {
+       "expr": "rate(promtail_custom_bad_words_total{cluster=\"$cluster\", exported_namespace=\"$namespace\", app=~\"$component.*\"}[$__rate_interval])",
+       "interval": "",
+       "legendFormat": "{{exported_pod}}",
+       "refId": "A"
+      }
+     ],
+     "title": "bad words",
+     "type": "timeseries"
+    }
    ],
    "title": "General",
    "type": "row"
-  },
-  {
-   "datasource": {
-    "uid": "$ds"
-   },
-   "fieldConfig": {
-    "defaults": {
-     "color": {
-      "mode": "palette-classic"
-     },
-     "custom": {
-      "axisLabel": "",
-      "axisPlacement": "auto",
-      "barAlignment": 0,
-      "drawStyle": "line",
-      "fillOpacity": 0,
-      "gradientMode": "none",
-      "hideFrom": {
-       "legend": false,
-       "tooltip": false,
-       "viz": false
-      },
-      "lineInterpolation": "linear",
-      "lineWidth": 1,
-      "pointSize": 5,
-      "scaleDistribution": {
-       "type": "linear"
-      },
-      "showPoints": "never",
-      "spanNulls": true,
-      "stacking": {
-       "group": "A",
-       "mode": "none"
-      },
-      "thresholdsStyle": {
-       "mode": "off"
-      }
-     },
-     "mappings": [
-
-     ],
-     "thresholds": {
-      "mode": "absolute",
-      "steps": [
-       {
-        "color": "green",
-        "value": null
-       },
-       {
-        "color": "red",
-        "value": 80
-       }
-      ]
-     },
-     "unit": "short"
-    },
-    "overrides": [
-
-    ]
-   },
-   "gridPos": {
-    "h": 5,
-    "w": 3,
-    "x": 0,
-    "y": 1
-   },
-   "id": 24,
-   "options": {
-    "legend": {
-     "calcs": [
-
-     ],
-     "displayMode": "hidden",
-     "placement": "bottom"
-    },
-    "tooltip": {
-     "mode": "multi",
-     "sort": "desc"
-    }
-   },
-   "pluginVersion": "9.0.0-d373beebpre",
-   "targets": [
-    {
-     "expr": "rate(go_gc_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])",
-     "interval": "",
-     "legendFormat": "{{pod}}",
-     "refId": "A"
-    }
-   ],
-   "title": "gcs",
-   "type": "timeseries"
-  },
-  {
-   "datasource": {
-    "uid": "$ds"
-   },
-   "fieldConfig": {
-    "defaults": {
-     "color": {
-      "mode": "palette-classic"
-     },
-     "custom": {
-      "axisLabel": "",
-      "axisPlacement": "auto",
-      "barAlignment": 0,
-      "drawStyle": "line",
-      "fillOpacity": 0,
-      "gradientMode": "none",
-      "hideFrom": {
-       "legend": false,
-       "tooltip": false,
-       "viz": false
-      },
-      "lineInterpolation": "linear",
-      "lineWidth": 1,
-      "pointSize": 5,
-      "scaleDistribution": {
-       "type": "linear"
-      },
-      "showPoints": "never",
-      "spanNulls": true,
-      "stacking": {
-       "group": "A",
-       "mode": "none"
-      },
-      "thresholdsStyle": {
-       "mode": "off"
-      }
-     },
-     "mappings": [
-
-     ],
-     "thresholds": {
-      "mode": "absolute",
-      "steps": [
-       {
-        "color": "green",
-        "value": null
-       },
-       {
-        "color": "red",
-        "value": 80
-       }
-      ]
-     },
-     "unit": "decbytes"
-    },
-    "overrides": [
-
-    ]
-   },
-   "gridPos": {
-    "h": 5,
-    "w": 3,
-    "x": 3,
-    "y": 1
-   },
-   "id": 25,
-   "options": {
-    "legend": {
-     "calcs": [
-
-     ],
-     "displayMode": "hidden",
-     "placement": "bottom"
-    },
-    "tooltip": {
-     "mode": "multi",
-     "sort": "desc"
-    }
-   },
-   "pluginVersion": "9.0.0-d373beebpre",
-   "targets": [
-    {
-     "expr": "go_memstats_heap_inuse_bytes{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}",
-     "interval": "",
-     "legendFormat": "{{pod}}",
-     "refId": "A"
-    }
-   ],
-   "title": "go heap",
-   "type": "timeseries"
-  },
-  {
-   "datasource": {
-    "uid": "$ds"
-   },
-   "fieldConfig": {
-    "defaults": {
-     "color": {
-      "mode": "palette-classic"
-     },
-     "custom": {
-      "axisLabel": "",
-      "axisPlacement": "auto",
-      "barAlignment": 0,
-      "drawStyle": "line",
-      "fillOpacity": 0,
-      "gradientMode": "none",
-      "hideFrom": {
-       "legend": false,
-       "tooltip": false,
-       "viz": false
-      },
-      "lineInterpolation": "linear",
-      "lineWidth": 1,
-      "pointSize": 5,
-      "scaleDistribution": {
-       "type": "linear"
-      },
-      "showPoints": "never",
-      "spanNulls": true,
-      "stacking": {
-       "group": "A",
-       "mode": "none"
-      },
-      "thresholdsStyle": {
-       "mode": "off"
-      }
-     },
-     "mappings": [
-
-     ],
-     "thresholds": {
-      "mode": "absolute",
-      "steps": [
-       {
-        "color": "green",
-        "value": null
-       },
-       {
-        "color": "red",
-        "value": 80
-       }
-      ]
-     },
-     "unit": "short"
-    },
-    "overrides": [
-
-    ]
-   },
-   "gridPos": {
-    "h": 5,
-    "w": 3,
-    "x": 6,
-    "y": 1
-   },
-   "id": 23,
-   "options": {
-    "legend": {
-     "calcs": [
-
-     ],
-     "displayMode": "hidden",
-     "placement": "bottom"
-    },
-    "tooltip": {
-     "mode": "multi",
-     "sort": "none"
-    }
-   },
-   "pluginVersion": "9.0.0-d373beebpre",
-   "targets": [
-    {
-     "expr": "go_goroutines{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}",
-     "legendFormat": "{{pod}}",
-     "refId": "A"
-    }
-   ],
-   "title": "goroutines",
-   "type": "timeseries"
-  },
-  {
-   "datasource": {
-    "uid": "$ds"
-   },
-   "fieldConfig": {
-    "defaults": {
-     "color": {
-      "mode": "continuous-BlYlRd"
-     },
-     "custom": {
-      "axisLabel": "",
-      "axisPlacement": "auto",
-      "barAlignment": 0,
-      "drawStyle": "line",
-      "fillOpacity": 0,
-      "gradientMode": "none",
-      "hideFrom": {
-       "legend": false,
-       "tooltip": false,
-       "viz": false
-      },
-      "lineInterpolation": "linear",
-      "lineWidth": 1,
-      "pointSize": 5,
-      "scaleDistribution": {
-       "type": "linear"
-      },
-      "showPoints": "never",
-      "spanNulls": true,
-      "stacking": {
-       "group": "A",
-       "mode": "none"
-      },
-      "thresholdsStyle": {
-       "mode": "off"
-      }
-     },
-     "mappings": [
-
-     ],
-     "thresholds": {
-      "mode": "absolute",
-      "steps": [
-       {
-        "color": "green",
-        "value": null
-       }
-      ]
-     },
-     "unit": "short"
-    },
-    "overrides": [
-
-    ]
-   },
-   "gridPos": {
-    "h": 5,
-    "w": 3,
-    "x": 9,
-    "y": 1
-   },
-   "id": 42,
-   "options": {
-    "legend": {
-     "calcs": [
-
-     ],
-     "displayMode": "hidden",
-     "placement": "bottom"
-    },
-    "tooltip": {
-     "mode": "multi",
-     "sort": "desc"
-    }
-   },
-   "pluginVersion": "9.0.0-d373beebpre",
-   "targets": [
-    {
-     "expr": "rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\"}[$__rate_interval])",
-     "interval": "",
-     "intervalFactor": 5,
-     "legendFormat": "{{pod}}",
-     "refId": "A"
-    }
-   ],
-   "title": "cpu",
-   "type": "timeseries"
-  },
-  {
-   "datasource": {
-    "uid": "$ds"
-   },
-   "fieldConfig": {
-    "defaults": {
-     "color": {
-      "mode": "palette-classic"
-     },
-     "custom": {
-      "axisLabel": "",
-      "axisPlacement": "auto",
-      "barAlignment": 0,
-      "drawStyle": "line",
-      "fillOpacity": 0,
-      "gradientMode": "none",
-      "hideFrom": {
-       "legend": false,
-       "tooltip": false,
-       "viz": false
-      },
-      "lineInterpolation": "linear",
-      "lineWidth": 1,
-      "pointSize": 5,
-      "scaleDistribution": {
-       "type": "linear"
-      },
-      "showPoints": "never",
-      "spanNulls": true,
-      "stacking": {
-       "group": "A",
-       "mode": "none"
-      },
-      "thresholdsStyle": {
-       "mode": "off"
-      }
-     },
-     "mappings": [
-
-     ],
-     "thresholds": {
-      "mode": "absolute",
-      "steps": [
-       {
-        "color": "green",
-        "value": null
-       },
-       {
-        "color": "red",
-        "value": 80
-       }
-      ]
-     },
-     "unit": "decbytes"
-    },
-    "overrides": [
-
-    ]
-   },
-   "gridPos": {
-    "h": 5,
-    "w": 3,
-    "x": 12,
-    "y": 1
-   },
-   "id": 43,
-   "options": {
-    "legend": {
-     "calcs": [
-
-     ],
-     "displayMode": "hidden",
-     "placement": "bottom"
-    },
-    "tooltip": {
-     "mode": "multi",
-     "sort": "desc"
-    }
-   },
-   "pluginVersion": "9.0.0-d373beebpre",
-   "targets": [
-    {
-     "expr": "container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\", container!=\"POD\"}",
-     "interval": "",
-     "legendFormat": "{{pod}}",
-     "refId": "A"
-    }
-   ],
-   "title": "working set",
-   "type": "timeseries"
-  },
-  {
-   "datasource": {
-    "uid": "$ds"
-   },
-   "fieldConfig": {
-    "defaults": {
-     "color": {
-      "mode": "palette-classic"
-     },
-     "custom": {
-      "axisLabel": "",
-      "axisPlacement": "auto",
-      "barAlignment": 0,
-      "drawStyle": "line",
-      "fillOpacity": 0,
-      "gradientMode": "none",
-      "hideFrom": {
-       "legend": false,
-       "tooltip": false,
-       "viz": false
-      },
-      "lineInterpolation": "linear",
-      "lineWidth": 1,
-      "pointSize": 5,
-      "scaleDistribution": {
-       "type": "linear"
-      },
-      "showPoints": "never",
-      "spanNulls": true,
-      "stacking": {
-       "group": "A",
-       "mode": "none"
-      },
-      "thresholdsStyle": {
-       "mode": "off"
-      }
-     },
-     "mappings": [
-
-     ],
-     "thresholds": {
-      "mode": "absolute",
-      "steps": [
-       {
-        "color": "green",
-        "value": null
-       },
-       {
-        "color": "red",
-        "value": 80
-       }
-      ]
-     },
-     "unit": "decbytes"
-    },
-    "overrides": [
-
-    ]
-   },
-   "gridPos": {
-    "h": 5,
-    "w": 3,
-    "x": 15,
-    "y": 1
-   },
-   "id": 44,
-   "options": {
-    "legend": {
-     "calcs": [
-
-     ],
-     "displayMode": "hidden",
-     "placement": "bottom"
-    },
-    "tooltip": {
-     "mode": "multi",
-     "sort": "desc"
-    }
-   },
-   "pluginVersion": "9.0.0-d373beebpre",
-   "targets": [
-    {
-     "expr": "rate(container_network_receive_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\"}[$__rate_interval])",
-     "hide": false,
-     "interval": "",
-     "legendFormat": "rx-{{pod}}",
-     "refId": "A"
-    },
-    {
-     "expr": "rate(container_network_transmit_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$component.*\"}[$__rate_interval])",
-     "hide": false,
-     "interval": "",
-     "legendFormat": "tx-{{pod}}",
-     "refId": "B"
-    }
-   ],
-   "title": "tx/rx",
-   "type": "timeseries"
-  },
-  {
-   "datasource": {
-    "uid": "$ds"
-   },
-   "fieldConfig": {
-    "defaults": {
-     "color": {
-      "mode": "palette-classic"
-     },
-     "custom": {
-      "axisLabel": "",
-      "axisPlacement": "auto",
-      "barAlignment": 0,
-      "drawStyle": "line",
-      "fillOpacity": 0,
-      "gradientMode": "none",
-      "hideFrom": {
-       "legend": false,
-       "tooltip": false,
-       "viz": false
-      },
-      "lineInterpolation": "linear",
-      "lineWidth": 1,
-      "pointSize": 5,
-      "scaleDistribution": {
-       "type": "linear"
-      },
-      "showPoints": "never",
-      "spanNulls": true,
-      "stacking": {
-       "group": "A",
-       "mode": "none"
-      },
-      "thresholdsStyle": {
-       "mode": "off"
-      }
-     },
-     "mappings": [
-
-     ],
-     "thresholds": {
-      "mode": "absolute",
-      "steps": [
-       {
-        "color": "green",
-        "value": null
-       },
-       {
-        "color": "red",
-        "value": 80
-       }
-      ]
-     },
-     "unit": "decbytes"
-    },
-    "overrides": [
-
-    ]
-   },
-   "gridPos": {
-    "h": 5,
-    "w": 3,
-    "x": 18,
-    "y": 1
-   },
-   "id": 45,
-   "options": {
-    "legend": {
-     "calcs": [
-
-     ],
-     "displayMode": "hidden",
-     "placement": "bottom"
-    },
-    "tooltip": {
-     "mode": "multi",
-     "sort": "asc"
-    }
-   },
-   "pluginVersion": "9.0.0-d373beebpre",
-   "targets": [
-    {
-     "expr": "kubelet_volume_stats_available_bytes{cluster=\"$cluster\", namespace=\"$namespace\", persistentvolumeclaim=~\"$component.*\"}",
-     "legendFormat": "{{persistentvolumeclaim}}",
-     "refId": "A"
-    }
-   ],
-   "title": "data volume free",
-   "type": "timeseries"
-  },
-  {
-   "datasource": {
-    "uid": "$ds"
-   },
-   "fieldConfig": {
-    "defaults": {
-     "color": {
-      "mode": "palette-classic"
-     },
-     "custom": {
-      "axisLabel": "",
-      "axisPlacement": "auto",
-      "barAlignment": 0,
-      "drawStyle": "line",
-      "fillOpacity": 10,
-      "gradientMode": "none",
-      "hideFrom": {
-       "legend": false,
-       "tooltip": false,
-       "viz": false
-      },
-      "lineInterpolation": "linear",
-      "lineWidth": 1,
-      "pointSize": 5,
-      "scaleDistribution": {
-       "type": "linear"
-      },
-      "showPoints": "never",
-      "spanNulls": true,
-      "stacking": {
-       "group": "A",
-       "mode": "none"
-      },
-      "thresholdsStyle": {
-       "mode": "off"
-      }
-     },
-     "mappings": [
-
-     ],
-     "thresholds": {
-      "mode": "absolute",
-      "steps": [
-       {
-        "color": "green",
-        "value": null
-       },
-       {
-        "color": "red",
-        "value": 80
-       }
-      ]
-     },
-     "unit": "short"
-    },
-    "overrides": [
-
-    ]
-   },
-   "gridPos": {
-    "h": 5,
-    "w": 3,
-    "x": 21,
-    "y": 1
-   },
-   "id": 46,
-   "options": {
-    "legend": {
-     "calcs": [
-
-     ],
-     "displayMode": "hidden",
-     "placement": "bottom"
-    },
-    "tooltip": {
-     "mode": "multi",
-     "sort": "desc"
-    }
-   },
-   "pluginVersion": "9.0.0-d373beebpre",
-   "targets": [
-    {
-     "expr": "rate(promtail_custom_bad_words_total{cluster=\"$cluster\", exported_namespace=\"$namespace\", app=~\"$component.*\"}[$__rate_interval])",
-     "interval": "",
-     "legendFormat": "{{exported_pod}}",
-     "refId": "A"
-    }
-   ],
-   "title": "bad words",
-   "type": "timeseries"
   },
   {
    "collapsed": true,
@@ -818,7 +822,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 6
+    "y": 1
    },
    "id": 49,
    "panels": [
@@ -866,8 +870,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -956,8 +959,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -1056,8 +1058,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -1158,8 +1159,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -1251,8 +1251,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -1354,8 +1353,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -1451,8 +1449,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -1513,7 +1510,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 7
+    "y": 2
    },
    "id": 21,
    "panels": [
@@ -1580,7 +1577,7 @@
       "h": 5,
       "w": 4,
       "x": 0,
-      "y": 13
+      "y": 3
      },
      "id": 34,
      "options": {
@@ -1672,7 +1669,7 @@
       "h": 5,
       "w": 6,
       "x": 4,
-      "y": 13
+      "y": 3
      },
      "id": 78,
      "options": {
@@ -1775,7 +1772,7 @@
       "h": 5,
       "w": 4,
       "x": 12,
-      "y": 13
+      "y": 3
      },
      "id": 97,
      "options": {
@@ -1869,7 +1866,7 @@
       "h": 5,
       "w": 6,
       "x": 16,
-      "y": 13
+      "y": 3
      },
      "id": 93,
      "options": {
@@ -1980,7 +1977,7 @@
       "h": 5,
       "w": 4,
       "x": 0,
-      "y": 18
+      "y": 8
      },
      "id": 90,
      "options": {
@@ -2072,7 +2069,7 @@
       "h": 5,
       "w": 6,
       "x": 4,
-      "y": 18
+      "y": 8
      },
      "id": 17,
      "options": {
@@ -2175,7 +2172,7 @@
       "h": 5,
       "w": 4,
       "x": 12,
-      "y": 18
+      "y": 8
      },
      "id": 98,
      "options": {
@@ -2269,7 +2266,7 @@
       "h": 5,
       "w": 6,
       "x": 16,
-      "y": 18
+      "y": 8
      },
      "id": 94,
      "options": {
@@ -2378,7 +2375,7 @@
       "h": 5,
       "w": 4,
       "x": 0,
-      "y": 23
+      "y": 13
      },
      "id": 91,
      "options": {
@@ -2470,7 +2467,7 @@
       "h": 5,
       "w": 6,
       "x": 4,
-      "y": 23
+      "y": 13
      },
      "id": 89,
      "options": {
@@ -2573,7 +2570,7 @@
       "h": 5,
       "w": 4,
       "x": 12,
-      "y": 23
+      "y": 13
      },
      "id": 99,
      "options": {
@@ -2667,7 +2664,7 @@
       "h": 5,
       "w": 6,
       "x": 16,
-      "y": 23
+      "y": 13
      },
      "id": 95,
      "options": {
@@ -2757,8 +2754,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -2776,7 +2772,7 @@
       "h": 5,
       "w": 4,
       "x": 0,
-      "y": 28
+      "y": 18
      },
      "id": 92,
      "options": {
@@ -2849,8 +2845,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -2868,7 +2863,7 @@
       "h": 5,
       "w": 6,
       "x": 4,
-      "y": 28
+      "y": 18
      },
      "id": 3,
      "options": {
@@ -2952,8 +2947,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -2971,7 +2965,7 @@
       "h": 5,
       "w": 4,
       "x": 12,
-      "y": 28
+      "y": 18
      },
      "id": 100,
      "options": {
@@ -3046,8 +3040,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -3065,7 +3058,7 @@
       "h": 5,
       "w": 6,
       "x": 16,
-      "y": 28
+      "y": 18
      },
      "id": 96,
      "options": {
@@ -3116,7 +3109,7 @@
    "type": "row"
   },
   {
-   "collapsed": true,
+   "collapsed": false,
    "datasource": {
     "type": "prometheus",
     "uid": "P1809F7CD0C75ACF3"
@@ -3125,957 +3118,968 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 8
+    "y": 3
    },
    "id": 19,
    "panels": [
-    {
-     "aliasColors": {
 
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": {
-      "uid": "$ds"
-     },
-     "fill": 0,
-     "fillGradient": 0,
-     "gridPos": {
-      "h": 5,
-      "w": 3,
-      "x": 0,
-      "y": 24
-     },
-     "hiddenSeries": false,
-     "id": 10,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": false,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
-     "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
-     "stack": true,
-     "steppedLine": false,
-     "targets": [
-      {
-       "expr": "rate(tempo_distributor_spans_received_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])",
-       "interval": "",
-       "legendFormat": "{{pod}}",
-       "refId": "A"
-      }
-     ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
-     "title": "Spans Received",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": {
-      "uid": "$ds"
-     },
-     "fill": 1,
-     "fillGradient": 0,
-     "gridPos": {
-      "h": 5,
-      "w": 3,
-      "x": 3,
-      "y": 24
-     },
-     "hiddenSeries": false,
-     "id": 9,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": false,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
-     "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
-     "stack": true,
-     "steppedLine": false,
-     "targets": [
-      {
-       "expr": "rate(tempo_ingester_traces_created_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])",
-       "interval": "",
-       "legendFormat": "",
-       "refId": "A"
-      }
-     ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
-     "title": "Traces Created",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": {
-      "uid": "$ds"
-     },
-     "fill": 1,
-     "fillGradient": 0,
-     "gridPos": {
-      "h": 5,
-      "w": 3,
-      "x": 6,
-      "y": 24
-     },
-     "hiddenSeries": false,
-     "id": 8,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": false,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
-     "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
-     "stack": false,
-     "steppedLine": false,
-     "targets": [
-      {
-       "expr": "sum(increase(tempo_ingester_blocks_flushed_total{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\"}[1h]))",
-       "interval": "",
-       "legendFormat": "{{pod}}",
-       "refId": "A"
-      }
-     ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
-     "title": "Blocks Flushed (1h)",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": {
-      "uid": "$ds"
-     },
-     "fill": 1,
-     "fillGradient": 0,
-     "gridPos": {
-      "h": 5,
-      "w": 3,
-      "x": 9,
-      "y": 24
-     },
-     "hiddenSeries": false,
-     "id": 12,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": false,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
-     "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
-     "stack": false,
-     "steppedLine": false,
-     "targets": [
-      {
-       "expr": "increase(tempo_ingester_failed_flushes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]) > 0",
-       "interval": "",
-       "legendFormat": "{{pod}}",
-       "refId": "A"
-      }
-     ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
-     "title": "Failed Flushes",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": {
-      "uid": "$ds"
-     },
-     "fill": 1,
-     "fillGradient": 0,
-     "gridPos": {
-      "h": 5,
-      "w": 3,
-      "x": 12,
-      "y": 24
-     },
-     "hiddenSeries": false,
-     "id": 26,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": false,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
-     "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
-     "stack": false,
-     "steppedLine": false,
-     "targets": [
-      {
-       "expr": "sum(increase(tempo_ingester_blocks_cleared_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h]))",
-       "interval": "",
-       "legendFormat": "",
-       "refId": "A"
-      }
-     ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
-     "title": "Blocks Cleared (1h)",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": {
-      "uid": "$ds"
-     },
-     "fill": 1,
-     "fillGradient": 0,
-     "gridPos": {
-      "h": 5,
-      "w": 3,
-      "x": 15,
-      "y": 24
-     },
-     "hiddenSeries": false,
-     "id": 36,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": false,
-     "linewidth": 1,
-     "nullPointMode": "null",
-     "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": true,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
-     "stack": false,
-     "steppedLine": false,
-     "targets": [
-      {
-       "expr": "histogram_quantile(.99, sum(rate(tempo_ingester_flush_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
-       "interval": "",
-       "legendFormat": ".99",
-       "refId": "A"
-      },
-      {
-       "expr": "histogram_quantile(.9, sum(rate(tempo_ingester_flush_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
-       "interval": "",
-       "legendFormat": ".9",
-       "refId": "B"
-      },
-      {
-       "expr": "histogram_quantile(.5, sum(rate(tempo_ingester_flush_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
-       "interval": "",
-       "legendFormat": ".5",
-       "refId": "C"
-      }
-     ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
-     "title": "Flush Duration",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "s",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": {
-      "uid": "$ds"
-     },
-     "fill": 1,
-     "fillGradient": 0,
-     "gridPos": {
-      "h": 10,
-      "w": 7,
-      "x": 0,
-      "y": 29
-     },
-     "hiddenSeries": false,
-     "id": 71,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
-     "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
-     "stack": false,
-     "steppedLine": false,
-     "targets": [
-      {
-       "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (status_code)",
-       "interval": "",
-       "legendFormat": "{{status_code}}",
-       "refId": "A"
-      }
-     ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
-     "title": "Pushes/sec (gateway)",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": "",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": {
-      "uid": "$ds"
-     },
-     "fill": 1,
-     "fillGradient": 0,
-     "gridPos": {
-      "h": 10,
-      "w": 6,
-      "x": 7,
-      "y": 29
-     },
-     "hiddenSeries": false,
-     "id": 72,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
-     "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
-     "stack": false,
-     "steppedLine": false,
-     "targets": [
-      {
-       "expr": "sum(rate(tempo_receiver_accepted_spans{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
-       "interval": "",
-       "legendFormat": "accepted",
-       "refId": "A"
-      },
-      {
-       "expr": "sum(rate(tempo_receiver_refused_spans{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
-       "interval": "",
-       "legendFormat": "refused",
-       "refId": "B"
-      }
-     ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
-     "title": "OTEL Distributor Spans/second",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "none",
-       "label": "",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": {
-      "uid": "$ds"
-     },
-     "fill": 1,
-     "fillGradient": 0,
-     "gridPos": {
-      "h": 5,
-      "w": 6,
-      "x": 13,
-      "y": 29
-     },
-     "hiddenSeries": false,
-     "id": 79,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
-     "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
-     "stack": false,
-     "steppedLine": false,
-     "targets": [
-      {
-       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
-       "interval": "",
-       "legendFormat": ".99",
-       "refId": "A"
-      },
-      {
-       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
-       "interval": "",
-       "legendFormat": ".9",
-       "refId": "B"
-      },
-      {
-       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
-       "interval": "",
-       "legendFormat": ".5",
-       "refId": "C"
-      }
-     ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
-     "title": "Push Latency (Gateway)",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "s",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": {
-      "uid": "$ds"
-     },
-     "fill": 1,
-     "fillGradient": 0,
-     "gridPos": {
-      "h": 5,
-      "w": 6,
-      "x": 13,
-      "y": 34
-     },
-     "hiddenSeries": false,
-     "id": 2,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
-     "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
-
-     ],
-     "spaceLength": 10,
-     "stack": false,
-     "steppedLine": false,
-     "targets": [
-      {
-       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
-       "interval": "",
-       "legendFormat": ".99",
-       "refId": "A"
-      },
-      {
-       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
-       "interval": "",
-       "legendFormat": ".9",
-       "refId": "B"
-      },
-      {
-       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
-       "interval": "",
-       "legendFormat": ".5",
-       "refId": "C"
-      }
-     ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
-     "title": "Push Latency (Ingester)",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "s",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
-    }
    ],
    "title": "Write",
    "type": "row"
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "$ds"
+   },
+   "fill": 0,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 3,
+    "x": 0,
+    "y": 4
+   },
+   "hiddenSeries": false,
+   "id": 10,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": false,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.5.3",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": true,
+   "steppedLine": false,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(rate(tempo_distributor_spans_received_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
+     "interval": "",
+     "legendFormat": "{{pod}}",
+     "refId": "A"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeRegions": [
+
+   ],
+   "title": "Spans Received",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "mode": "time",
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "logBase": 1,
+     "show": true
+    },
+    {
+     "format": "short",
+     "logBase": 1,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": {
+    "type": "prometheus",
+    "uid": "$ds"
+   },
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 3,
+    "x": 3,
+    "y": 4
+   },
+   "hiddenSeries": false,
+   "id": 9,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": false,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.5.3",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": true,
+   "steppedLine": false,
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(rate(tempo_ingester_traces_created_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
+     "interval": "",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeRegions": [
+
+   ],
+   "title": "Traces Created",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "mode": "time",
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "logBase": 1,
+     "show": true
+    },
+    {
+     "format": "short",
+     "logBase": 1,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": {
+    "uid": "$ds"
+   },
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 3,
+    "x": 6,
+    "y": 4
+   },
+   "hiddenSeries": false,
+   "id": 8,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": false,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.5.3",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "sum(increase(tempo_ingester_blocks_flushed_total{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\"}[1h]))",
+     "interval": "",
+     "legendFormat": "{{pod}}",
+     "refId": "A"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeRegions": [
+
+   ],
+   "title": "Blocks Flushed (1h)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "mode": "time",
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "logBase": 1,
+     "show": true
+    },
+    {
+     "format": "short",
+     "logBase": 1,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": {
+    "uid": "$ds"
+   },
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 3,
+    "x": 9,
+    "y": 4
+   },
+   "hiddenSeries": false,
+   "id": 12,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": false,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.5.3",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "increase(tempo_ingester_failed_flushes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]) > 0",
+     "interval": "",
+     "legendFormat": "{{pod}}",
+     "refId": "A"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeRegions": [
+
+   ],
+   "title": "Failed Flushes",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "mode": "time",
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "logBase": 1,
+     "show": true
+    },
+    {
+     "format": "short",
+     "logBase": 1,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": {
+    "uid": "$ds"
+   },
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 3,
+    "x": 12,
+    "y": 4
+   },
+   "hiddenSeries": false,
+   "id": 26,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": false,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.5.3",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "sum(increase(tempo_ingester_blocks_cleared_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h]))",
+     "interval": "",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeRegions": [
+
+   ],
+   "title": "Blocks Cleared (1h)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "mode": "time",
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "logBase": 1,
+     "show": true
+    },
+    {
+     "format": "short",
+     "logBase": 1,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": {
+    "uid": "$ds"
+   },
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 3,
+    "x": 15,
+    "y": 4
+   },
+   "hiddenSeries": false,
+   "id": 36,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": false,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.5.3",
+   "pointradius": 2,
+   "points": true,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "histogram_quantile(.99, sum(rate(tempo_ingester_flush_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".99",
+     "refId": "A"
+    },
+    {
+     "expr": "histogram_quantile(.9, sum(rate(tempo_ingester_flush_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".9",
+     "refId": "B"
+    },
+    {
+     "expr": "histogram_quantile(.5, sum(rate(tempo_ingester_flush_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".5",
+     "refId": "C"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeRegions": [
+
+   ],
+   "title": "Flush Duration",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "mode": "time",
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "s",
+     "logBase": 1,
+     "show": true
+    },
+    {
+     "format": "short",
+     "logBase": 1,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": {
+    "uid": "$ds"
+   },
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 10,
+    "w": 7,
+    "x": 0,
+    "y": 9
+   },
+   "hiddenSeries": false,
+   "id": 71,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.5.3",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (status_code)",
+     "interval": "",
+     "legendFormat": "{{status_code}}",
+     "refId": "A"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeRegions": [
+
+   ],
+   "title": "Pushes/sec (gateway)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "mode": "time",
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "short",
+     "label": "",
+     "logBase": 1,
+     "show": true
+    },
+    {
+     "format": "short",
+     "logBase": 1,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": {
+    "uid": "$ds"
+   },
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 10,
+    "w": 6,
+    "x": 7,
+    "y": 9
+   },
+   "hiddenSeries": false,
+   "id": 72,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.5.3",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "sum(rate(tempo_receiver_accepted_spans{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
+     "interval": "",
+     "legendFormat": "accepted",
+     "refId": "A"
+    },
+    {
+     "expr": "sum(rate(tempo_receiver_refused_spans{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
+     "interval": "",
+     "legendFormat": "refused",
+     "refId": "B"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeRegions": [
+
+   ],
+   "title": "OTEL Distributor Spans/second",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "mode": "time",
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "none",
+     "label": "",
+     "logBase": 1,
+     "show": true
+    },
+    {
+     "format": "short",
+     "logBase": 1,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": {
+    "uid": "$ds"
+   },
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 6,
+    "x": 13,
+    "y": 9
+   },
+   "hiddenSeries": false,
+   "id": 79,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.5.3",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".99",
+     "refId": "A"
+    },
+    {
+     "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".9",
+     "refId": "B"
+    },
+    {
+     "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".5",
+     "refId": "C"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeRegions": [
+
+   ],
+   "title": "Push Latency (Gateway)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "mode": "time",
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "s",
+     "logBase": 1,
+     "show": true
+    },
+    {
+     "format": "short",
+     "logBase": 1,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false
+   }
+  },
+  {
+   "aliasColors": {
+
+   },
+   "bars": false,
+   "dashLength": 10,
+   "dashes": false,
+   "datasource": {
+    "uid": "$ds"
+   },
+   "fill": 1,
+   "fillGradient": 0,
+   "gridPos": {
+    "h": 5,
+    "w": 6,
+    "x": 13,
+    "y": 14
+   },
+   "hiddenSeries": false,
+   "id": 2,
+   "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+   },
+   "lines": true,
+   "linewidth": 1,
+   "nullPointMode": "null",
+   "options": {
+    "alertThreshold": true
+   },
+   "percentage": false,
+   "pluginVersion": "8.5.3",
+   "pointradius": 2,
+   "points": false,
+   "renderer": "flot",
+   "seriesOverrides": [
+
+   ],
+   "spaceLength": 10,
+   "stack": false,
+   "steppedLine": false,
+   "targets": [
+    {
+     "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".99",
+     "refId": "A"
+    },
+    {
+     "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".9",
+     "refId": "B"
+    },
+    {
+     "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
+     "interval": "",
+     "legendFormat": ".5",
+     "refId": "C"
+    }
+   ],
+   "thresholds": [
+
+   ],
+   "timeRegions": [
+
+   ],
+   "title": "Push Latency (Ingester)",
+   "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+   },
+   "type": "graph",
+   "xaxis": {
+    "mode": "time",
+    "show": true,
+    "values": [
+
+    ]
+   },
+   "yaxes": [
+    {
+     "format": "s",
+     "logBase": 1,
+     "show": true
+    },
+    {
+     "format": "short",
+     "logBase": 1,
+     "show": true
+    }
+   ],
+   "yaxis": {
+    "align": false
+   }
   },
   {
    "collapsed": true,
@@ -4087,7 +4091,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 9
+    "y": 19
    },
    "id": 74,
    "panels": [
@@ -4157,7 +4161,7 @@
       "h": 8,
       "w": 12,
       "x": 0,
-      "y": 15
+      "y": 5
      },
      "id": 75,
      "options": {
@@ -4251,7 +4255,7 @@
       "h": 8,
       "w": 12,
       "x": 12,
-      "y": 15
+      "y": 5
      },
      "id": 76,
      "options": {
@@ -4305,7 +4309,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 10
+    "y": 20
    },
    "id": 28,
    "panels": [
@@ -4375,7 +4379,7 @@
       "h": 8,
       "w": 12,
       "x": 0,
-      "y": 16
+      "y": 6
      },
      "id": 31,
      "options": {
@@ -4469,7 +4473,7 @@
       "h": 8,
       "w": 12,
       "x": 12,
-      "y": 16
+      "y": 6
      },
      "id": 30,
      "options": {
@@ -4520,7 +4524,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 11
+    "y": 21
    },
    "id": 56,
    "panels": [
@@ -4572,8 +4576,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -4670,8 +4673,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -4764,8 +4766,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -4865,8 +4866,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -4940,7 +4940,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 12
+    "y": 22
    },
    "id": 69,
    "panels": [
@@ -5000,7 +5000,7 @@
       "h": 9,
       "w": 12,
       "x": 0,
-      "y": 18
+      "y": 13
      },
      "id": 77,
      "options": {
@@ -5064,7 +5064,7 @@
       "h": 9,
       "w": 12,
       "x": 12,
-      "y": 18
+      "y": 13
      },
      "id": 67,
      "options": {
@@ -5084,7 +5084,7 @@
 
       }
      },
-     "pluginVersion": "9.0.0-d373beebpre",
+     "pluginVersion": "8.5.3",
      "targets": [
       {
        "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (error) / ignoring (error) group_left sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
@@ -5110,7 +5110,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 13
+    "y": 23
    },
    "id": 81,
    "panels": [
@@ -5177,7 +5177,7 @@
       "h": 6,
       "w": 4,
       "x": 0,
-      "y": 19
+      "y": 14
      },
      "id": 83,
      "options": {
@@ -5269,7 +5269,7 @@
       "h": 6,
       "w": 4,
       "x": 4,
-      "y": 19
+      "y": 14
      },
      "id": 85,
      "options": {
@@ -5357,7 +5357,7 @@
       "h": 6,
       "w": 4,
       "x": 8,
-      "y": 19
+      "y": 14
      },
      "id": 88,
      "options": {
@@ -5451,7 +5451,7 @@
       "h": 6,
       "w": 4,
       "x": 12,
-      "y": 19
+      "y": 14
      },
      "id": 86,
      "options": {
@@ -5501,8 +5501,8 @@
    {
     "current": {
      "selected": false,
-     "text": "ops-cortex",
-     "value": "ops-cortex"
+     "text": "Prometheus",
+     "value": "Prometheus"
     },
     "hide": 0,
     "includeAll": false,
@@ -5519,9 +5519,9 @@
    },
    {
     "current": {
-     "selected": false,
-     "text": "loki-ops",
-     "value": "loki-ops"
+     "selected": true,
+     "text": "Loki",
+     "value": "Loki"
     },
     "hide": 0,
     "includeAll": false,
@@ -5539,9 +5539,10 @@
    },
    {
     "current": {
+     "isNone": true,
      "selected": true,
-     "text": "ops-us-east-0",
-     "value": "ops-us-east-0"
+     "text": "None",
+     "value": ""
     },
     "datasource": {
      "type": "prometheus",
@@ -5571,8 +5572,8 @@
    {
     "current": {
      "selected": true,
-     "text": "tempo-ops",
-     "value": "tempo-ops"
+     "text": "default",
+     "value": "default"
     },
     "datasource": {
      "type": "prometheus",
@@ -5660,7 +5661,7 @@
   ]
  },
  "time": {
-  "from": "now-1h",
+  "from": "now-15m",
   "to": "now"
  },
  "timepicker": {
