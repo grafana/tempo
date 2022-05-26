@@ -156,12 +156,8 @@ func (s *substringPredicate) KeepColumnChunk(_ pq.ColumnChunk) bool {
 	return true
 }
 
-func (s *substringPredicate) check(ss string) bool {
-	return strings.Contains(strings.ToLower(ss), s.substring)
-}
-
 func (s *substringPredicate) KeepValue(v pq.Value) bool {
-	return s.check(v.String())
+	return strings.Contains(strings.ToLower(v.String()), s.substring)
 }
 
 func (s *substringPredicate) KeepPage(page pq.Page) bool {
@@ -170,16 +166,13 @@ func (s *substringPredicate) KeepPage(page pq.Page) bool {
 	dict := page.Dictionary()
 	if dict != nil && dict.Len() > 0 {
 		len := dict.Len()
-		found := false
-
 		for i := 0; i < len; i++ {
-			if s.check(dict.Index(int32(i)).String()) {
-				found = true
-				break
+			if s.KeepValue(dict.Index(int32(i))) {
+				return true
 			}
 		}
 
-		return found
+		return false
 	}
 
 	return true

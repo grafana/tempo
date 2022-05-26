@@ -75,3 +75,12 @@ func testPredicate(t *testing.T, tc predicateTestCase) {
 	require.Equal(t, tc.keptPages, p.KeptPages, "keptPages")
 	require.Equal(t, tc.keptValues, p.KeptValues, "keptValues")
 }
+
+func BenchmarkSubstringPredicate(b *testing.B) {
+	v := parquet.ValueOf("abcdefghijklmnopqsrtuvwxyz")
+	p := NewSubstringPredicate("JKL")
+
+	for i := 0; i < b.N; i++ {
+		p.KeepValue(v)
+	}
+}
