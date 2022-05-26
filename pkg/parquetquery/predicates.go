@@ -137,30 +137,43 @@ func (d *stringInPredicate) KeepPage(page pq.Page) bool {
 	return true
 }
 
-type substringPredicate struct {
+type SubstringPredicate struct {
 	substring string
+	matches   map[string]bool
 }
 
-var _ Predicate = (*substringPredicate)(nil)
+var _ Predicate = (*SubstringPredicate)(nil)
 
-func NewSubstringPredicate(substring string) Predicate {
-	return &substringPredicate{
+func NewSubstringPredicate(substring string) *SubstringPredicate {
+	return &SubstringPredicate{
 		substring: strings.ToLower(substring),
+		matches:   map[string]bool{},
 	}
 }
 
-func (s *substringPredicate) KeepColumnChunk(_ pq.ColumnChunk) bool {
+func (s *SubstringPredicate) KeepColumnChunk(_ pq.ColumnChunk) bool {
 	// Is there any filtering possible here?
 	// Column chunk contains a bloom filter and min/max bounds,
 	// but those can't be inspected for a substring match.
 	return true
 }
 
-func (s *substringPredicate) KeepValue(v pq.Value) bool {
-	return strings.Contains(strings.ToLower(v.String()), s.substring)
+func (s *SubstringPredicate) KeepValue(v pq.Value) bool {
+	vs := v.String()
+	if m, ok := s.matches[vs]; ok {
+		return m
+	}
+
+	m := strings.Contains(strings.ToLower(vs), s.substring)
+	s.matches[vs] = m
+	return m
+	//return strings.Contains(strings.ToLower(v.String()), s.substring)
 }
 
-func (s *substringPredicate) KeepPage(page pq.Page) bool {
+func (s *SubstringPredicate) KeepPage(page pq.Page) bool {
+	// Reset match cache on each page change
+	s.matches = make(map[string]bool, len(s.matches))
+
 	// If a dictionary column then ensure at least one matching
 	// value exists in the dictionary
 	dict := page.Dictionary()

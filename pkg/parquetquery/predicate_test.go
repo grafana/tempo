@@ -5,6 +5,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/segmentio/parquet-go"
 	"github.com/stretchr/testify/require"
 )
@@ -77,10 +78,18 @@ func testPredicate(t *testing.T, tc predicateTestCase) {
 }
 
 func BenchmarkSubstringPredicate(b *testing.B) {
-	v := parquet.ValueOf("abcdefghijklmnopqsrtuvwxyz")
-	p := NewSubstringPredicate("JKL")
+	p := NewSubstringPredicate("abc")
+
+	s := make([]parquet.Value, 1000)
+	for i := 0; i < 1000; i++ {
+		s[i] = parquet.ValueOf(uuid.New().String())
+	}
+
+	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		p.KeepValue(v)
+		for _, ss := range s {
+			p.KeepValue(ss)
+		}
 	}
 }
