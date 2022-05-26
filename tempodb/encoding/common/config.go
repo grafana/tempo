@@ -12,6 +12,7 @@ type BlockConfig struct {
 	IndexPageSizeBytes   int              `yaml:"index_page_size_bytes"`
 	BloomFP              float64          `yaml:"bloom_filter_false_positive"`
 	BloomShardSizeBytes  int              `yaml:"bloom_filter_shard_size_bytes"`
+	Version              string           `yaml:"version"`
 	Encoding             backend.Encoding `yaml:"encoding"`
 	SearchEncoding       backend.Encoding `yaml:"search_encoding"`
 	SearchPageSizeBytes  int              `yaml:"search_page_size_bytes"`

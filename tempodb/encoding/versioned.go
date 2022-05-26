@@ -11,9 +11,8 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 )
 
-// VersionedEncoding has a whole bunch of versioned functionality.  This is
-//  currently quite sloppy and could easily be tightened up to just a few methods
-//  but it is what it is for now!
+// VersionedEncoding represents a backend block version, and the methods to
+// read/write them.
 type VersionedEncoding interface {
 	Version() string
 
@@ -42,7 +41,7 @@ type VersionedEncoding interface {
 // FromVersion returns a versioned encoding for the provided string
 func FromVersion(v string) (VersionedEncoding, error) {
 	switch v {
-	case "v2":
+	case v2.VersionString:
 		return v2.Encoding{}, nil
 	case vparquet.VersionString:
 		return vparquet.Encoding{}, nil

@@ -209,8 +209,8 @@ func (rw *readerWriter) CompleteBlock(block *wal.AppendBlock, combiner model.Obj
 // new block will have the same ID as the input block.
 func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal.AppendBlock, combiner model.ObjectCombiner, r backend.Reader, w backend.Writer) (common.BackendBlock, error) {
 
-	// Convert to parquet (woohoo)
-	vers, err := encoding.FromVersion("vParquet")
+	// The destination block format:
+	vers, err := encoding.FromVersion(rw.cfg.Block.Version)
 	if err != nil {
 		return nil, err
 	}
