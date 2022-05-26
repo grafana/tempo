@@ -69,7 +69,7 @@ _For more information, please check out the official documentation of [pprof](ht
 
 ### Ingest
 
-Tempo distributor uses the OpenTelemetry receiver as a foundation to ingest trace data.
+The Tempo distributor uses the OpenTelemetry Collector receivers as a foundation to ingest trace data.
 These APIs are meant to be consumed by the corresponding client SDK or pipeline component, such as Grafana 
 Agent, OpenTelemetry Collector, or Jaeger Agent.
 
@@ -88,7 +88,7 @@ For information on how to use the Zipkin endpoint with curl (for debugging purpo
 ### Query
 
 The following request is used to retrieve a trace from the query frontend service in 
-a microservices deployment or the Tempo endpoint in a single binary deployment.
+a microservices deployment or the Tempo endpoint in a monolithic mode deployment.
 
 ```
 GET /api/traces/<traceid>?start=<start>&end=<end>
