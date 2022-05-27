@@ -102,7 +102,7 @@ func (c *multiRowGroup) SortingColumns() []SortingColumn { return nil }
 
 func (c *multiRowGroup) Schema() *Schema { return c.schema }
 
-func (c *multiRowGroup) Rows() Rows { return &rowGroupRowReader{rowGroup: c} }
+func (c *multiRowGroup) Rows() Rows { return &rowGroupRows{rowGroup: c} }
 
 type multiColumnChunk struct {
 	rowGroup *multiRowGroup
@@ -217,42 +217,67 @@ type multiPages struct {
 	column *multiColumnChunk
 }
 
-func (r *multiPages) ReadPage() (Page, error) {
+func (m *multiPages) ReadPage() (Page, error) {
 	for {
-		if r.pages != nil {
-			p, err := r.pages.ReadPage()
+		if m.pages != nil {
+			p, err := m.pages.ReadPage()
 			if err == nil || err != io.EOF {
 				return p, err
 			}
-			r.pages = nil
+			if err := m.pages.Close(); err != nil {
+				return nil, err
+			}
+			m.pages = nil
 		}
-		if r.index == len(r.column.chunks) {
+
+		if m.column == nil || m.index == len(m.column.chunks) {
 			return nil, io.EOF
 		}
-		r.pages = r.column.chunks[r.index].Pages()
-		r.index++
+
+		m.pages = m.column.chunks[m.index].Pages()
+		m.index++
 	}
 }
 
-func (r *multiPages) SeekToRow(rowIndex int64) error {
-	rowGroups := r.column.rowGroup.rowGroups
-	numRows := int64(0)
-	r.pages = nil
-	r.index = 0
+func (m *multiPages) SeekToRow(rowIndex int64) error {
+	if m.column == nil {
+		return io.ErrClosedPipe
+	}
 
-	for r.index < len(rowGroups) {
-		numRows = rowGroups[r.index].NumRows()
+	if m.pages != nil {
+		if err := m.pages.Close(); err != nil {
+			return err
+		}
+	}
+
+	rowGroups := m.column.rowGroup.rowGroups
+	numRows := int64(0)
+	m.pages = nil
+	m.index = 0
+
+	for m.index < len(rowGroups) {
+		numRows = rowGroups[m.index].NumRows()
 		if rowIndex < numRows {
 			break
 		}
 		rowIndex -= numRows
-		r.index++
+		m.index++
 	}
 
-	if r.index < len(rowGroups) {
-		r.pages = r.column.chunks[r.index].Pages()
-		r.index++
-		return r.pages.SeekToRow(rowIndex)
+	if m.index < len(rowGroups) {
+		m.pages = m.column.chunks[m.index].Pages()
+		m.index++
+		return m.pages.SeekToRow(rowIndex)
 	}
 	return nil
+}
+
+func (m *multiPages) Close() (err error) {
+	if m.pages != nil {
+		err = m.pages.Close()
+	}
+	m.pages = nil
+	m.index = 0
+	m.column = nil
+	return err
 }

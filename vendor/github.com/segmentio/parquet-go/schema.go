@@ -22,7 +22,7 @@ type Schema struct {
 	root        Node
 	deconstruct deconstructFunc
 	reconstruct reconstructFunc
-	readRow     columnReadRowFunc
+	readRows    readRowsFunc
 	mapping     columnMapping
 	columns     [][]string
 }
@@ -103,14 +103,14 @@ func NewSchema(name string, root Node) *Schema {
 		root:        root,
 		deconstruct: makeDeconstructFunc(root),
 		reconstruct: makeReconstructFunc(root),
-		readRow:     makeColumnReadRowFunc(root),
+		readRows:    makeReadRowsFunc(root),
 		mapping:     mapping,
 		columns:     columns,
 	}
 }
 
 func dereference(t reflect.Type) reflect.Type {
-	if t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 	return t
@@ -136,9 +136,9 @@ func makeReconstructFunc(node Node) (reconstruct reconstructFunc) {
 	return reconstruct
 }
 
-func makeColumnReadRowFunc(node Node) columnReadRowFunc {
-	_, readRow := columnReadRowFuncOf(node, 0, 0)
-	return readRow
+func makeReadRowsFunc(node Node) readRowsFunc {
+	_, readRows := readRowsFuncOf(node, 0, 0)
+	return readRows
 }
 
 // ConfigureRowGroup satisfies the RowGroupOption interface, allowing Schema
@@ -196,12 +196,12 @@ func (s *Schema) GoType() reflect.Type { return s.root.GoType() }
 // parquet schema.
 func (s *Schema) Deconstruct(row Row, value interface{}) Row {
 	v := reflect.ValueOf(value)
-	if v.Kind() == reflect.Ptr {
+	for v.Kind() == reflect.Ptr {
 		if v.IsNil() {
 			v = reflect.Value{}
-		} else {
-			v = v.Elem()
+			break
 		}
+		v = v.Elem()
 	}
 	if s.deconstruct != nil {
 		row = s.deconstruct(row, levels{}, v)
@@ -227,9 +227,15 @@ func (s *Schema) Reconstruct(value interface{}, row Row) error {
 	if v.IsNil() {
 		panic("cannot reconstruct row into nil pointer of type " + v.Type().String())
 	}
+	for v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			v.Set(reflect.New(v.Type().Elem()))
+		}
+		v = v.Elem()
+	}
 	var err error
 	if s.reconstruct != nil {
-		row, err = s.reconstruct(v.Elem(), levels{}, row)
+		row, err = s.reconstruct(v, levels{}, row)
 		if len(row) > 0 && err == nil {
 			err = fmt.Errorf("%d values remain unused after reconstructing go value of type %s from parquet row", len(row), v.Type())
 		}
@@ -290,7 +296,7 @@ func structNodeOf(t reflect.Type) *structNode {
 }
 
 func structFieldsOf(t reflect.Type) []reflect.StructField {
-	fields := appendStructFields(t, nil, nil)
+	fields := appendStructFields(t, nil, nil, 0)
 
 	for i := range fields {
 		f := &fields[i]
@@ -306,13 +312,16 @@ func structFieldsOf(t reflect.Type) []reflect.StructField {
 	return fields
 }
 
-func appendStructFields(t reflect.Type, fields []reflect.StructField, index []int) []reflect.StructField {
+func appendStructFields(t reflect.Type, fields []reflect.StructField, index []int, offset uintptr) []reflect.StructField {
 	for i, n := 0, t.NumField(); i < n; i++ {
 		fieldIndex := index[:len(index):len(index)]
 		fieldIndex = append(fieldIndex, i)
 
-		if f := t.Field(i); f.Anonymous {
-			fields = appendStructFields(f.Type, fields, fieldIndex)
+		f := t.Field(i)
+		f.Offset += offset
+
+		if f.Anonymous {
+			fields = appendStructFields(f.Type, fields, fieldIndex, f.Offset)
 		} else if f.IsExported() {
 			f.Index = fieldIndex
 			fields = append(fields, f)
@@ -445,130 +454,121 @@ func makeStructField(f reflect.StructField) structField {
 		compressed = c
 	}
 
-	if tag := f.Tag.Get("parquet"); tag != "" {
-		var element Node
-		_, tag = split(tag) // skip the field name
+	forEachStructTagOption(f.Tag, func(option, args string) {
+		switch option {
+		case "optional":
+			setOptional()
 
-		for tag != "" {
-			option := ""
-			option, tag = split(tag)
-			option, args := splitOptionArgs(option)
+		case "snappy":
+			setCompression(&Snappy)
 
-			switch option {
-			case "optional":
-				setOptional()
+		case "gzip":
+			setCompression(&Gzip)
 
-			case "snappy":
-				setCompression(&Snappy)
+		case "brotli":
+			setCompression(&Brotli)
 
-			case "gzip":
-				setCompression(&Gzip)
+		case "lz4":
+			setCompression(&Lz4Raw)
 
-			case "brotli":
-				setCompression(&Brotli)
+		case "zstd":
+			setCompression(&Zstd)
 
-			case "lz4":
-				setCompression(&Lz4Raw)
+		case "uncompressed":
+			setCompression(&Uncompressed)
 
-			case "zstd":
-				setCompression(&Zstd)
+		case "plain":
+			setEncoding(&Plain)
 
-			case "uncompressed":
-				setCompression(&Uncompressed)
+		case "dict":
+			setEncoding(&RLEDictionary)
 
-			case "plain":
-				setEncoding(&Plain)
-
-			case "dict":
-				setEncoding(&RLEDictionary)
-
-			case "delta":
-				switch f.Type.Kind() {
-				case reflect.Int, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint32, reflect.Uint64:
-					setEncoding(&DeltaBinaryPacked)
-				case reflect.String:
+		case "delta":
+			switch f.Type.Kind() {
+			case reflect.Int, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint32, reflect.Uint64:
+				setEncoding(&DeltaBinaryPacked)
+			case reflect.String:
+				setEncoding(&DeltaByteArray)
+			case reflect.Slice:
+				if f.Type.Elem().Kind() == reflect.Uint8 { // []byte?
 					setEncoding(&DeltaByteArray)
-				case reflect.Slice:
-					if f.Type.Elem().Kind() == reflect.Uint8 { // []byte?
-						setEncoding(&DeltaByteArray)
-					} else {
-						throwInvalidFieldTag(f, option)
-					}
-				case reflect.Array:
-					if f.Type.Elem().Kind() == reflect.Uint8 { // [N]byte?
-						setEncoding(&DeltaByteArray)
-					} else {
-						throwInvalidFieldTag(f, option)
-					}
-				default:
+				} else {
 					throwInvalidFieldTag(f, option)
 				}
-
-			case "list":
-				switch f.Type.Kind() {
-				case reflect.Slice:
-					element = nodeOf(f.Type.Elem())
-					setNode(element)
-					setList()
-				default:
-					throwInvalidFieldTag(f, option)
-				}
-
-			case "enum":
-				switch f.Type.Kind() {
-				case reflect.String:
-					setNode(Enum())
-				default:
-					throwInvalidFieldTag(f, option)
-				}
-
-			case "uuid":
-				switch f.Type.Kind() {
-				case reflect.Array:
-					if f.Type.Elem().Kind() != reflect.Uint8 || f.Type.Len() != 16 {
-						throwInvalidFieldTag(f, option)
-					}
-				default:
-					throwInvalidFieldTag(f, option)
-				}
-
-			case "decimal":
-				scale, precision, err := parseDecimalArgs(args)
-				if err != nil {
-					throwInvalidFieldTag(f, option+args)
-				}
-				var baseType Type
-				switch f.Type.Kind() {
-				case reflect.Int32:
-					baseType = Int32Type
-				case reflect.Int64:
-					baseType = Int64Type
-				case reflect.Array:
-					baseType = FixedLenByteArrayType(calcDecimalFixedLenByteArraySize(precision))
-				default:
-					throwInvalidFieldTag(f, option)
-				}
-
-				setNode(Decimal(scale, precision, baseType))
-			case "date":
-				switch f.Type.Kind() {
-				case reflect.Int32:
-					setNode(Date())
-				default:
-					throwInvalidFieldTag(f, option)
-				}
-			case "timestamp":
-				switch f.Type.Kind() {
-				case reflect.Int64:
-					setNode(Timestamp(Millisecond))
-				default:
+			case reflect.Array:
+				if f.Type.Elem().Kind() == reflect.Uint8 { // [N]byte?
+					setEncoding(&DeltaByteArray)
+				} else {
 					throwInvalidFieldTag(f, option)
 				}
 			default:
-				throwUnknownFieldTag(f, option)
+				throwInvalidFieldTag(f, option)
 			}
+
+		case "list":
+			switch f.Type.Kind() {
+			case reflect.Slice:
+				element := nodeOf(f.Type.Elem())
+				setNode(element)
+				setList()
+			default:
+				throwInvalidFieldTag(f, option)
+			}
+
+		case "enum":
+			switch f.Type.Kind() {
+			case reflect.String:
+				setNode(Enum())
+			default:
+				throwInvalidFieldTag(f, option)
+			}
+
+		case "uuid":
+			switch f.Type.Kind() {
+			case reflect.Array:
+				if f.Type.Elem().Kind() != reflect.Uint8 || f.Type.Len() != 16 {
+					throwInvalidFieldTag(f, option)
+				}
+			default:
+				throwInvalidFieldTag(f, option)
+			}
+
+		case "decimal":
+			scale, precision, err := parseDecimalArgs(args)
+			if err != nil {
+				throwInvalidFieldTag(f, option+args)
+			}
+			var baseType Type
+			switch f.Type.Kind() {
+			case reflect.Int32:
+				baseType = Int32Type
+			case reflect.Int64:
+				baseType = Int64Type
+			case reflect.Array:
+				baseType = FixedLenByteArrayType(calcDecimalFixedLenByteArraySize(precision))
+			default:
+				throwInvalidFieldTag(f, option)
+			}
+
+			setNode(Decimal(scale, precision, baseType))
+		case "date":
+			switch f.Type.Kind() {
+			case reflect.Int32:
+				setNode(Date())
+			default:
+				throwInvalidFieldTag(f, option)
+			}
+		case "timestamp":
+			switch f.Type.Kind() {
+			case reflect.Int64:
+				setNode(Timestamp(Millisecond))
+			default:
+				throwInvalidFieldTag(f, option)
+			}
+		default:
+			throwUnknownFieldTag(f, option)
 		}
-	}
+	})
 
 	if field.Node == nil {
 		field.Node = nodeOf(f.Type)
@@ -591,6 +591,18 @@ func makeStructField(f reflect.StructField) structField {
 	}
 
 	return field
+}
+
+func forEachStructTagOption(st reflect.StructTag, do func(option, args string)) {
+	if tag := st.Get("parquet"); tag != "" {
+		_, tag = split(tag) // skip the field name
+		for tag != "" {
+			option := ""
+			option, tag = split(tag)
+			option, args := splitOptionArgs(option)
+			do(option, args)
+		}
+	}
 }
 
 func nodeOf(t reflect.Type) Node {

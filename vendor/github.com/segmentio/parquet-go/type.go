@@ -118,11 +118,6 @@ type Type interface {
 	// The method panics if it is called on a group type.
 	NewColumnIndexer(sizeLimit int) ColumnIndexer
 
-	// Creates a dictionary holding values of this type.
-	//
-	// The method panics if it is called on a group type.
-	NewDictionary(columnIndex, bufferSize int) Dictionary
-
 	// Creates a row group buffer column for values of this type.
 	//
 	// Column buffers are created using the index of the column they are
@@ -142,30 +137,56 @@ type Type interface {
 	// The method panics if it is called on a group type.
 	NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer
 
-	// Creates a reader for columns of this type.
+	// Creates a dictionary holding values of this type.
 	//
-	// Column readers are created using the index of the column they are reading
-	// values from (relative to the parent schema). The column index will be set
-	// on values read from the reader.
+	// If the length of data is not zero, it must contain PLAIN encoded values
+	// of the dictionary.
 	//
-	// The buffer size is given in bytes, because we want to control memory
-	// consumption of the application, which is simpler to achieve with buffer
-	// size expressed in bytes rather than number of elements.
+	// The dictionary retains the data buffer, it does not make a copy of it.
+	// If the application needs to share ownership of the memory buffer, it must
+	// ensure that it will not be modified while the page is in use, or it must
+	// make a copy of it prior to creating the dictionary.
 	//
-	// The returned reader may implement extensions that can be tested via type
-	// assertions. For example, on a INT32 type, the reader could implement the
-	// parquet.Int32Reader interface to allow programs to more efficiently read
-	// columns of INT32 values.
-	NewColumnReader(columnIndex, bufferSize int) ColumnReader
+	// The method panics if it is called on a group type.
+	NewDictionary(columnIndex, numValues int, data []byte) Dictionary
 
-	// Reads a dictionary with values of this type from the decoder passed as
-	// argument.
+	// Creates a page belonging to a column at the given index, backed by the
+	// data buffer.
 	//
-	// The number of values is a hint to optimize the allocation of memory
-	// buffers for the dictionary. Callers that don't know how many values will
-	// be decoded should pass zero for numValues.
-	ReadDictionary(columnIndex, numValues int, decoder encoding.Decoder) (Dictionary, error)
+	// If the length of data is not zero, it must contain PLAIN encoded values
+	// of the page.
+	//
+	// The page retains the data buffer, it does not make a copy of it. If the
+	// application needs to share ownership of the memory buffer, it must ensure
+	// that it will not be modified while the page is in use, or it must make a
+	// copy of it prior to creating the page.
+	//
+	// The method panics if the data is not a valid PLAIN encoded representation
+	// of the page values.
+	NewPage(columnIndex, numValues int, data []byte) Page
+
+	// Assuming the src buffer contains PLAIN encoded values of the type it is
+	// called on, applies the given encoding and produces the output to the dst
+	// buffer passed as first argument by dispatching the call to one of the
+	// encoding methods.
+	Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error)
+
+	// Assuming the src buffer contains values encoding in the given encoding,
+	// decodes the input and produces the PLAIN encoded values into the dst
+	// output buffer passed as first argument by dispatching the call to one
+	// of the encoding methods.
+	Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error)
 }
+
+var (
+	BooleanType   Type = booleanType{}
+	Int32Type     Type = int32Type{}
+	Int64Type     Type = int64Type{}
+	Int96Type     Type = int96Type{}
+	FloatType     Type = floatType{}
+	DoubleType    Type = doubleType{}
+	ByteArrayType Type = byteArrayType{}
+)
 
 // In the current parquet version supported by this library, only type-defined
 // orders are supported.
@@ -207,6 +228,304 @@ var convertedTypes = [...]deprecated.ConvertedType{
 	19: deprecated.Json,
 	20: deprecated.Bson,
 	21: deprecated.Interval,
+}
+
+type booleanType struct{}
+
+func (t booleanType) String() string                           { return "BOOLEAN" }
+func (t booleanType) Kind() Kind                               { return Boolean }
+func (t booleanType) Length() int                              { return 1 }
+func (t booleanType) Compare(a, b Value) int                   { return compareBool(a.Boolean(), b.Boolean()) }
+func (t booleanType) ColumnOrder() *format.ColumnOrder         { return &typeDefinedColumnOrder }
+func (t booleanType) LogicalType() *format.LogicalType         { return nil }
+func (t booleanType) ConvertedType() *deprecated.ConvertedType { return nil }
+func (t booleanType) PhysicalType() *format.Type               { return &physicalTypes[Boolean] }
+
+func (t booleanType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
+	return newBooleanColumnIndexer()
+}
+
+func (t booleanType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
+	return newBooleanColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+}
+
+func (t booleanType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	return newBooleanDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t booleanType) NewPage(columnIndex, numValues int, data []byte) Page {
+	return newBooleanPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t booleanType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.EncodeBoolean(dst, src)
+}
+
+func (t booleanType) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.DecodeBoolean(dst, src)
+}
+
+type int32Type struct{}
+
+func (t int32Type) String() string                           { return "INT32" }
+func (t int32Type) Kind() Kind                               { return Int32 }
+func (t int32Type) Length() int                              { return 32 }
+func (t int32Type) Compare(a, b Value) int                   { return compareInt32(a.Int32(), b.Int32()) }
+func (t int32Type) ColumnOrder() *format.ColumnOrder         { return &typeDefinedColumnOrder }
+func (t int32Type) LogicalType() *format.LogicalType         { return nil }
+func (t int32Type) ConvertedType() *deprecated.ConvertedType { return nil }
+func (t int32Type) PhysicalType() *format.Type               { return &physicalTypes[Int32] }
+
+func (t int32Type) NewColumnIndexer(sizeLimit int) ColumnIndexer {
+	return newInt32ColumnIndexer()
+}
+
+func (t int32Type) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
+	return newInt32ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+}
+
+func (t int32Type) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	return newInt32Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t int32Type) NewPage(columnIndex, numValues int, data []byte) Page {
+	return newInt32Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t int32Type) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.EncodeInt32(dst, src)
+}
+
+func (t int32Type) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.DecodeInt32(dst, src)
+}
+
+type int64Type struct{}
+
+func (t int64Type) String() string                           { return "INT64" }
+func (t int64Type) Kind() Kind                               { return Int64 }
+func (t int64Type) Length() int                              { return 64 }
+func (t int64Type) Compare(a, b Value) int                   { return compareInt64(a.Int64(), b.Int64()) }
+func (t int64Type) ColumnOrder() *format.ColumnOrder         { return &typeDefinedColumnOrder }
+func (t int64Type) LogicalType() *format.LogicalType         { return nil }
+func (t int64Type) ConvertedType() *deprecated.ConvertedType { return nil }
+func (t int64Type) PhysicalType() *format.Type               { return &physicalTypes[Int64] }
+
+func (t int64Type) NewColumnIndexer(sizeLimit int) ColumnIndexer {
+	return newInt64ColumnIndexer()
+}
+
+func (t int64Type) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
+	return newInt64ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+}
+
+func (t int64Type) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	return newInt64Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t int64Type) NewPage(columnIndex, numValues int, data []byte) Page {
+	return newInt64Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t int64Type) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.EncodeInt64(dst, src)
+}
+
+func (t int64Type) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.DecodeInt64(dst, src)
+}
+
+type int96Type struct{}
+
+func (t int96Type) String() string { return "INT96" }
+
+func (t int96Type) Kind() Kind                               { return Int96 }
+func (t int96Type) Length() int                              { return 96 }
+func (t int96Type) Compare(a, b Value) int                   { return compareInt96(a.Int96(), b.Int96()) }
+func (t int96Type) ColumnOrder() *format.ColumnOrder         { return &typeDefinedColumnOrder }
+func (t int96Type) LogicalType() *format.LogicalType         { return nil }
+func (t int96Type) ConvertedType() *deprecated.ConvertedType { return nil }
+func (t int96Type) PhysicalType() *format.Type               { return &physicalTypes[Int96] }
+
+func (t int96Type) NewColumnIndexer(sizeLimit int) ColumnIndexer {
+	return newInt96ColumnIndexer()
+}
+
+func (t int96Type) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
+	return newInt96ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+}
+
+func (t int96Type) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	return newInt96Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t int96Type) NewPage(columnIndex, numValues int, data []byte) Page {
+	return newInt96Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t int96Type) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.EncodeInt96(dst, src)
+}
+
+func (t int96Type) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.DecodeInt96(dst, src)
+}
+
+type floatType struct{}
+
+func (t floatType) String() string                           { return "FLOAT" }
+func (t floatType) Kind() Kind                               { return Float }
+func (t floatType) Length() int                              { return 32 }
+func (t floatType) Compare(a, b Value) int                   { return compareFloat32(a.Float(), b.Float()) }
+func (t floatType) ColumnOrder() *format.ColumnOrder         { return &typeDefinedColumnOrder }
+func (t floatType) LogicalType() *format.LogicalType         { return nil }
+func (t floatType) ConvertedType() *deprecated.ConvertedType { return nil }
+func (t floatType) PhysicalType() *format.Type               { return &physicalTypes[Float] }
+
+func (t floatType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
+	return newFloatColumnIndexer()
+}
+
+func (t floatType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
+	return newFloatColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+}
+
+func (t floatType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	return newFloatDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t floatType) NewPage(columnIndex, numValues int, data []byte) Page {
+	return newFloatPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t floatType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.EncodeFloat(dst, src)
+}
+
+func (t floatType) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.DecodeFloat(dst, src)
+}
+
+type doubleType struct{}
+
+func (t doubleType) String() string                           { return "DOUBLE" }
+func (t doubleType) Kind() Kind                               { return Double }
+func (t doubleType) Length() int                              { return 64 }
+func (t doubleType) Compare(a, b Value) int                   { return compareFloat64(a.Double(), b.Double()) }
+func (t doubleType) ColumnOrder() *format.ColumnOrder         { return &typeDefinedColumnOrder }
+func (t doubleType) LogicalType() *format.LogicalType         { return nil }
+func (t doubleType) ConvertedType() *deprecated.ConvertedType { return nil }
+func (t doubleType) PhysicalType() *format.Type               { return &physicalTypes[Double] }
+
+func (t doubleType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
+	return newDoubleColumnIndexer()
+}
+
+func (t doubleType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
+	return newDoubleColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+}
+
+func (t doubleType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	return newDoubleDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t doubleType) NewPage(columnIndex, numValues int, data []byte) Page {
+	return newDoublePage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t doubleType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.EncodeDouble(dst, src)
+}
+
+func (t doubleType) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.DecodeDouble(dst, src)
+}
+
+type byteArrayType struct{}
+
+func (t byteArrayType) String() string                           { return "BYTE_ARRAY" }
+func (t byteArrayType) Kind() Kind                               { return ByteArray }
+func (t byteArrayType) Length() int                              { return 0 }
+func (t byteArrayType) Compare(a, b Value) int                   { return bytes.Compare(a.ByteArray(), b.ByteArray()) }
+func (t byteArrayType) ColumnOrder() *format.ColumnOrder         { return &typeDefinedColumnOrder }
+func (t byteArrayType) LogicalType() *format.LogicalType         { return nil }
+func (t byteArrayType) ConvertedType() *deprecated.ConvertedType { return nil }
+func (t byteArrayType) PhysicalType() *format.Type               { return &physicalTypes[ByteArray] }
+
+func (t byteArrayType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
+	return newByteArrayColumnIndexer(sizeLimit)
+}
+
+func (t byteArrayType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
+	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+}
+
+func (t byteArrayType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	return newByteArrayDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t byteArrayType) NewPage(columnIndex, numValues int, data []byte) Page {
+	return newByteArrayPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t byteArrayType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.EncodeByteArray(dst, src)
+}
+
+func (t byteArrayType) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.DecodeByteArray(dst, src)
+}
+
+type fixedLenByteArrayType struct{ length int }
+
+func (t fixedLenByteArrayType) String() string {
+	return fmt.Sprintf("FIXED_LEN_BYTE_ARRAY(%d)", t.length)
+}
+
+func (t fixedLenByteArrayType) Kind() Kind { return FixedLenByteArray }
+
+func (t fixedLenByteArrayType) Length() int { return t.length }
+
+func (t fixedLenByteArrayType) Compare(a, b Value) int {
+	return bytes.Compare(a.ByteArray(), b.ByteArray())
+}
+
+func (t fixedLenByteArrayType) ColumnOrder() *format.ColumnOrder { return &typeDefinedColumnOrder }
+
+func (t fixedLenByteArrayType) LogicalType() *format.LogicalType { return nil }
+
+func (t fixedLenByteArrayType) ConvertedType() *deprecated.ConvertedType { return nil }
+
+func (t fixedLenByteArrayType) PhysicalType() *format.Type { return &physicalTypes[FixedLenByteArray] }
+
+func (t fixedLenByteArrayType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
+	return newFixedLenByteArrayColumnIndexer(t.length, sizeLimit)
+}
+
+func (t fixedLenByteArrayType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
+	return newFixedLenByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+}
+
+func (t fixedLenByteArrayType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	return newFixedLenByteArrayDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t fixedLenByteArrayType) NewPage(columnIndex, numValues int, data []byte) Page {
+	return newFixedLenByteArrayPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t fixedLenByteArrayType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.EncodeFixedLenByteArray(dst, src, t.length)
+}
+
+func (t fixedLenByteArrayType) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.DecodeFixedLenByteArray(dst, src, t.length)
+}
+
+// FixedLenByteArrayType constructs a type for fixed-length values of the given
+// size (in bytes).
+func FixedLenByteArrayType(length int) Type {
+	return fixedLenByteArrayType{length: length}
 }
 
 // Int constructs a leaf node of signed integer logical type of the given bit
@@ -314,6 +633,86 @@ func (t *intType) ConvertedType() *deprecated.ConvertedType {
 	return &convertedTypes[convertedType]
 }
 
+func (t *intType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
+	if t.IsSigned {
+		if t.BitWidth == 64 {
+			return newInt64ColumnIndexer()
+		} else {
+			return newInt32ColumnIndexer()
+		}
+	} else {
+		if t.BitWidth == 64 {
+			return newUint64ColumnIndexer()
+		} else {
+			return newUint32ColumnIndexer()
+		}
+	}
+}
+
+func (t *intType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
+	if t.IsSigned {
+		if t.BitWidth == 64 {
+			return newInt64ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+		} else {
+			return newInt32ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+		}
+	} else {
+		if t.BitWidth == 64 {
+			return newUint64ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+		} else {
+			return newUint32ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+		}
+	}
+}
+
+func (t *intType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	if t.IsSigned {
+		if t.BitWidth == 64 {
+			return newInt64Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+		} else {
+			return newInt32Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+		}
+	} else {
+		if t.BitWidth == 64 {
+			return newUint64Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+		} else {
+			return newUint32Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+		}
+	}
+}
+
+func (t *intType) NewPage(columnIndex, numValues int, data []byte) Page {
+	if t.IsSigned {
+		if t.BitWidth == 64 {
+			return newInt64Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+		} else {
+			return newInt32Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+		}
+	} else {
+		if t.BitWidth == 64 {
+			return newUint64Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+		} else {
+			return newUint32Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+		}
+	}
+}
+
+func (t *intType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	if t.BitWidth == 64 {
+		return enc.EncodeInt64(dst, src)
+	} else {
+		return enc.EncodeInt32(dst, src)
+	}
+}
+
+func (t *intType) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	if t.BitWidth == 64 {
+		return enc.DecodeInt64(dst, src)
+	} else {
+		return enc.DecodeInt32(dst, src)
+	}
+}
+
 // FixedLenByteArray decimals are sized based on precision
 // this function calculates the necessary byte array size
 func calcDecimalFixedLenByteArraySize(precision int) int {
@@ -391,24 +790,28 @@ func (t *stringType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	return newByteArrayColumnIndexer(sizeLimit)
 }
 
-func (t *stringType) NewDictionary(columnIndex, bufferSize int) Dictionary {
-	return newByteArrayDictionary(t, makeColumnIndex(columnIndex), bufferSize)
+func (t *stringType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	return newByteArrayDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
 func (t *stringType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
 	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
 }
 
-func (t *stringType) NewColumnReader(columnIndex, bufferSize int) ColumnReader {
-	return newByteArrayColumnReader(t, makeColumnIndex(columnIndex), bufferSize)
-}
-
-func (t *stringType) ReadDictionary(columnIndex, numValues int, decoder encoding.Decoder) (Dictionary, error) {
-	return readByteArrayDictionary(t, makeColumnIndex(columnIndex), numValues, decoder)
+func (t *stringType) NewPage(columnIndex, numValues int, data []byte) Page {
+	return newByteArrayPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
 func (t *stringType) GoType() reflect.Type {
 	return reflect.TypeOf("")
+}
+
+func (t *stringType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.EncodeByteArray(dst, src)
+}
+
+func (t *stringType) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.DecodeByteArray(dst, src)
 }
 
 // UUID constructs a leaf node of UUID logical type.
@@ -446,24 +849,28 @@ func (t *uuidType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	return newFixedLenByteArrayColumnIndexer(16, sizeLimit)
 }
 
-func (t *uuidType) NewDictionary(columnIndex, bufferSize int) Dictionary {
-	return newFixedLenByteArrayDictionary(t, makeColumnIndex(columnIndex), bufferSize)
+func (t *uuidType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	return newFixedLenByteArrayDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
 func (t *uuidType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
 	return newFixedLenByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
 }
 
-func (t *uuidType) NewColumnReader(columnIndex, bufferSize int) ColumnReader {
-	return newFixedLenByteArrayColumnReader(t, makeColumnIndex(columnIndex), bufferSize)
-}
-
-func (t *uuidType) ReadDictionary(columnIndex, numValues int, decoder encoding.Decoder) (Dictionary, error) {
-	return readFixedLenByteArrayDictionary(t, makeColumnIndex(columnIndex), numValues, decoder)
+func (t *uuidType) NewPage(columnIndex, numValues int, data []byte) Page {
+	return newFixedLenByteArrayPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
 func (t *uuidType) GoType() reflect.Type {
 	return reflect.TypeOf(uuid.UUID{})
+}
+
+func (t *uuidType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.EncodeFixedLenByteArray(dst, src, 16)
+}
+
+func (t *uuidType) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.DecodeFixedLenByteArray(dst, src, 16)
 }
 
 // Enum constructs a leaf node with a logical type representing enumerations.
@@ -503,24 +910,28 @@ func (t *enumType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	return newByteArrayColumnIndexer(sizeLimit)
 }
 
-func (t *enumType) NewDictionary(columnIndex, bufferSize int) Dictionary {
-	return newByteArrayDictionary(t, makeColumnIndex(columnIndex), bufferSize)
+func (t *enumType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	return newByteArrayDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
 func (t *enumType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
 	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
 }
 
-func (t *enumType) NewColumnReader(columnIndex, bufferSize int) ColumnReader {
-	return newByteArrayColumnReader(t, makeColumnIndex(columnIndex), bufferSize)
-}
-
-func (t *enumType) ReadDictionary(columnIndex, numValues int, decoder encoding.Decoder) (Dictionary, error) {
-	return readByteArrayDictionary(t, makeColumnIndex(columnIndex), numValues, decoder)
+func (t *enumType) NewPage(columnIndex, numValues int, data []byte) Page {
+	return newByteArrayPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
 func (t *enumType) GoType() reflect.Type {
 	return reflect.TypeOf("")
+}
+
+func (t *enumType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.EncodeByteArray(dst, src)
+}
+
+func (t *enumType) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.DecodeByteArray(dst, src)
 }
 
 // JSON constructs a leaf node of JSON logical type.
@@ -560,20 +971,24 @@ func (t *jsonType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	return newByteArrayColumnIndexer(sizeLimit)
 }
 
-func (t *jsonType) NewDictionary(columnIndex, bufferSize int) Dictionary {
-	return newByteArrayDictionary(t, makeColumnIndex(columnIndex), bufferSize)
+func (t *jsonType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	return newByteArrayDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
 func (t *jsonType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
 	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
 }
 
-func (t *jsonType) NewColumnReader(columnIndex, bufferSize int) ColumnReader {
-	return newByteArrayColumnReader(t, makeColumnIndex(columnIndex), bufferSize)
+func (t *jsonType) NewPage(columnIndex, numValues int, data []byte) Page {
+	return newByteArrayPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
-func (t *jsonType) ReadDictionary(columnIndex, numValues int, decoder encoding.Decoder) (Dictionary, error) {
-	return readByteArrayDictionary(t, makeColumnIndex(columnIndex), numValues, decoder)
+func (t *jsonType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.EncodeByteArray(dst, src)
+}
+
+func (t *jsonType) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.DecodeByteArray(dst, src)
 }
 
 // BSON constructs a leaf node of BSON logical type.
@@ -613,20 +1028,24 @@ func (t *bsonType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	return newByteArrayColumnIndexer(sizeLimit)
 }
 
-func (t *bsonType) NewDictionary(columnIndex, bufferSize int) Dictionary {
-	return newByteArrayDictionary(t, makeColumnIndex(columnIndex), bufferSize)
+func (t *bsonType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	return newByteArrayDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
 func (t *bsonType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
 	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
 }
 
-func (t *bsonType) NewColumnReader(columnIndex, bufferSize int) ColumnReader {
-	return newByteArrayColumnReader(t, makeColumnIndex(columnIndex), bufferSize)
+func (t *bsonType) NewPage(columnIndex, numValues int, data []byte) Page {
+	return newByteArrayPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
-func (t *bsonType) ReadDictionary(columnIndex, numValues int, decoder encoding.Decoder) (Dictionary, error) {
-	return readByteArrayDictionary(t, makeColumnIndex(columnIndex), numValues, decoder)
+func (t *bsonType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.EncodeByteArray(dst, src)
+}
+
+func (t *bsonType) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.DecodeByteArray(dst, src)
 }
 
 // Date constructs a leaf node of DATE logical type.
@@ -656,6 +1075,30 @@ func (t *dateType) LogicalType() *format.LogicalType {
 
 func (t *dateType) ConvertedType() *deprecated.ConvertedType {
 	return &convertedTypes[deprecated.Date]
+}
+
+func (t *dateType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
+	return newInt32ColumnIndexer()
+}
+
+func (t *dateType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
+	return newInt32ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+}
+
+func (t *dateType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	return newInt32Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t *dateType) NewPage(columnIndex, numValues int, data []byte) Page {
+	return newInt32Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t *dateType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.EncodeInt32(dst, src)
+}
+
+func (t *dateType) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.DecodeInt32(dst, src)
 }
 
 // TimeUnit represents units of time in the parquet type system.
@@ -766,6 +1209,54 @@ func (t *timeType) ConvertedType() *deprecated.ConvertedType {
 	}
 }
 
+func (t *timeType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
+	if t.useInt32() {
+		return newInt32ColumnIndexer()
+	} else {
+		return newInt64ColumnIndexer()
+	}
+}
+
+func (t *timeType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
+	if t.useInt32() {
+		return newInt32ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+	} else {
+		return newInt64ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+	}
+}
+
+func (t *timeType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	if t.useInt32() {
+		return newInt32Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	} else {
+		return newInt64Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	}
+}
+
+func (t *timeType) NewPage(columnIndex, numValues int, data []byte) Page {
+	if t.useInt32() {
+		return newInt32Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	} else {
+		return newInt64Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	}
+}
+
+func (t *timeType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	if t.useInt32() {
+		return enc.EncodeInt32(dst, src)
+	} else {
+		return enc.EncodeInt64(dst, src)
+	}
+}
+
+func (t *timeType) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	if t.useInt32() {
+		return enc.DecodeInt32(dst, src)
+	} else {
+		return enc.DecodeInt64(dst, src)
+	}
+}
+
 // Timestamp constructs of leaf node of TIMESTAMP logical type.
 //
 // https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#timestamp
@@ -800,6 +1291,30 @@ func (t *timestampType) ConvertedType() *deprecated.ConvertedType {
 	default:
 		return nil
 	}
+}
+
+func (t *timestampType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
+	return newInt64ColumnIndexer()
+}
+
+func (t *timestampType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
+	return newInt64ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+}
+
+func (t *timestampType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	return newInt64Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t *timestampType) NewPage(columnIndex, numValues int, data []byte) Page {
+	return newInt64Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t *timestampType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.EncodeInt64(dst, src)
+}
+
+func (t *timestampType) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.DecodeInt64(dst, src)
 }
 
 // List constructs a node of LIST logical type.
@@ -839,7 +1354,7 @@ func (t *listType) NewColumnIndexer(int) ColumnIndexer {
 	panic("create create column indexer from parquet LIST type")
 }
 
-func (t *listType) NewDictionary(int, int) Dictionary {
+func (t *listType) NewDictionary(int, int, []byte) Dictionary {
 	panic("cannot create dictionary from parquet LIST type")
 }
 
@@ -847,12 +1362,16 @@ func (t *listType) NewColumnBuffer(int, int) ColumnBuffer {
 	panic("cannot create column buffer from parquet LIST type")
 }
 
-func (t *listType) NewColumnReader(int, int) ColumnReader {
-	panic("cannot create column reader from parquet LIST type")
+func (t *listType) NewPage(int, int, []byte) Page {
+	panic("cannot create page from parquet LIST type")
 }
 
-func (t *listType) ReadDictionary(int, int, encoding.Decoder) (Dictionary, error) {
-	panic("cannot read dictionary from parquet LIST type")
+func (t *listType) Encode(dst, _ []byte, _ encoding.Encoding) ([]byte, error) {
+	panic("cannot encode parquet LIST type")
+}
+
+func (t *listType) Decode(dst, _ []byte, _ encoding.Encoding) ([]byte, error) {
+	panic("cannot decode parquet LIST type")
 }
 
 // Map constructs a node of MAP logical type.
@@ -897,7 +1416,7 @@ func (t *mapType) NewColumnIndexer(int) ColumnIndexer {
 	panic("create create column indexer from parquet MAP type")
 }
 
-func (t *mapType) NewDictionary(int, int) Dictionary {
+func (t *mapType) NewDictionary(int, int, []byte) Dictionary {
 	panic("cannot create dictionary from parquet MAP type")
 }
 
@@ -905,12 +1424,16 @@ func (t *mapType) NewColumnBuffer(int, int) ColumnBuffer {
 	panic("cannot create column buffer from parquet MAP type")
 }
 
-func (t *mapType) NewColumnReader(int, int) ColumnReader {
-	panic("cannot create column reader from parquet MAP type")
+func (t *mapType) NewPage(int, int, []byte) Page {
+	panic("cannot create page from parquet MAP type")
 }
 
-func (t *mapType) ReadDictionary(int, int, encoding.Decoder) (Dictionary, error) {
-	panic("cannot read dictionary from parquet MAP type")
+func (t *mapType) Encode(dst, _ []byte, _ encoding.Encoding) ([]byte, error) {
+	panic("cannot encode parquet MAP type")
+}
+
+func (t *mapType) Decode(dst, _ []byte, _ encoding.Encoding) ([]byte, error) {
+	panic("cannot decode parquet MAP type")
 }
 
 type nullType format.NullType
@@ -937,7 +1460,7 @@ func (t *nullType) NewColumnIndexer(int) ColumnIndexer {
 	panic("create create column indexer from parquet NULL type")
 }
 
-func (t *nullType) NewDictionary(int, int) Dictionary {
+func (t *nullType) NewDictionary(int, int, []byte) Dictionary {
 	panic("cannot create dictionary from parquet NULL type")
 }
 
@@ -945,12 +1468,16 @@ func (t *nullType) NewColumnBuffer(int, int) ColumnBuffer {
 	panic("cannot create column buffer from parquet NULL type")
 }
 
-func (t *nullType) NewColumnReader(columnIndex, bufferSize int) ColumnReader {
-	return newNullColumnReader(t, makeColumnIndex(columnIndex))
+func (t *nullType) NewPage(columnIndex, numValues int, _ []byte) Page {
+	return newNullPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
-func (t *nullType) ReadDictionary(int, int, encoding.Decoder) (Dictionary, error) {
-	panic("cannot read dictionary from parquet NULL type")
+func (t *nullType) Encode(dst, _ []byte, _ encoding.Encoding) ([]byte, error) {
+	return dst[:0], nil
+}
+
+func (t *nullType) Decode(dst, _ []byte, _ encoding.Encoding) ([]byte, error) {
+	return dst[:0], nil
 }
 
 type groupType struct{}
@@ -969,7 +1496,7 @@ func (groupType) NewColumnIndexer(int) ColumnIndexer {
 	panic("cannot create column indexer from parquet group")
 }
 
-func (groupType) NewDictionary(int, int) Dictionary {
+func (groupType) NewDictionary(int, int, []byte) Dictionary {
 	panic("cannot create dictionary from parquet group")
 }
 
@@ -977,12 +1504,16 @@ func (t groupType) NewColumnBuffer(int, int) ColumnBuffer {
 	panic("cannot create column buffer from parquet group")
 }
 
-func (t groupType) NewColumnReader(int, int) ColumnReader {
-	panic("cannot create column reader from parquet group")
+func (t groupType) NewPage(int, int, []byte) Page {
+	panic("cannot create page from parquet group")
 }
 
-func (t groupType) ReadDictionary(int, int, encoding.Decoder) (Dictionary, error) {
-	panic("cannot read dictionary from parquet group")
+func (groupType) Encode(_, _ []byte, _ encoding.Encoding) ([]byte, error) {
+	panic("cannot encode parquet group")
+}
+
+func (groupType) Decode(_, _ []byte, _ encoding.Encoding) ([]byte, error) {
+	panic("cannot decode parquet group")
 }
 
 func (groupType) Length() int { return 0 }
@@ -994,91 +1525,3 @@ func (groupType) PhysicalType() *format.Type { return nil }
 func (groupType) LogicalType() *format.LogicalType { return nil }
 
 func (groupType) ConvertedType() *deprecated.ConvertedType { return nil }
-
-func compareBool(v1, v2 bool) int {
-	switch {
-	case !v1 && v2:
-		return -1
-	case v1 && !v2:
-		return +1
-	default:
-		return 0
-	}
-}
-
-func compareInt32(v1, v2 int32) int {
-	switch {
-	case v1 < v2:
-		return -1
-	case v1 > v2:
-		return +1
-	default:
-		return 0
-	}
-}
-
-func compareInt64(v1, v2 int64) int {
-	switch {
-	case v1 < v2:
-		return -1
-	case v1 > v2:
-		return +1
-	default:
-		return 0
-	}
-}
-
-func compareInt96(v1, v2 deprecated.Int96) int {
-	switch {
-	case v1.Less(v2):
-		return -1
-	case v2.Less(v1):
-		return +1
-	default:
-		return 0
-	}
-}
-
-func compareFloat32(v1, v2 float32) int {
-	switch {
-	case v1 < v2:
-		return -1
-	case v1 > v2:
-		return +1
-	default:
-		return 0
-	}
-}
-
-func compareFloat64(v1, v2 float64) int {
-	switch {
-	case v1 < v2:
-		return -1
-	case v1 > v2:
-		return +1
-	default:
-		return 0
-	}
-}
-
-func compareUint32(v1, v2 uint32) int {
-	switch {
-	case v1 < v2:
-		return -1
-	case v1 > v2:
-		return +1
-	default:
-		return 0
-	}
-}
-
-func compareUint64(v1, v2 uint64) int {
-	switch {
-	case v1 < v2:
-		return -1
-	case v1 > v2:
-		return +1
-	default:
-		return 0
-	}
-}

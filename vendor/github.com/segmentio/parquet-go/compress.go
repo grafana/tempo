@@ -90,3 +90,7 @@ func (u *unsupported) Decode(dst, src []byte) ([]byte, error) {
 func (u *unsupported) error() error {
 	return fmt.Errorf("unsupported compression codec: %s", u.codec)
 }
+
+func isCompressed(c compress.Codec) bool {
+	return c != nil && c.CompressionCodec() != format.Uncompressed
+}

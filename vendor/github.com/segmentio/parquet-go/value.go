@@ -34,8 +34,8 @@ type Value struct {
 	// type
 	kind int8 // XOR(Kind) so the zero-value is <null>
 	// levels
-	definitionLevel int8
-	repetitionLevel int8
+	definitionLevel byte
+	repetitionLevel byte
 	columnIndex     int16 // XOR so the zero-value is -1
 }
 
@@ -47,6 +47,8 @@ type ValueReader interface {
 	ReadValues([]Value) (int, error)
 }
 
+// ValueReaderAt is an interface implemented by types that support reading
+// values at offsets specified by the application.
 type ValueReaderAt interface {
 	ReadValuesAt([]Value, int64) (int, error)
 }
@@ -215,7 +217,7 @@ func makeValue(k Kind, v reflect.Value) Value {
 		case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int:
 			return makeValueInt64(v.Int())
 		case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uint, reflect.Uintptr:
-			return makeValueInt64(int64(v.Uint()))
+			return makeValueUint64(v.Uint())
 		}
 
 	case Int96:
@@ -298,6 +300,20 @@ func makeValueInt96(value deprecated.Int96) Value {
 	}
 }
 
+func makeValueUint32(value uint32) Value {
+	return Value{
+		kind: ^int8(Int32),
+		u64:  uint64(value),
+	}
+}
+
+func makeValueUint64(value uint64) Value {
+	return Value{
+		kind: ^int8(Int64),
+		u64:  value,
+	}
+}
+
 func makeValueFloat(value float32) Value {
 	return Value{
 		kind: ^int8(Float),
@@ -351,6 +367,9 @@ func (v Value) Kind() Kind { return ^Kind(v.kind) }
 // IsNull returns true if v is the null value.
 func (v Value) IsNull() bool { return v.kind == 0 }
 
+// Byte returns v as a byte, which may truncate the underlying byte.
+func (v Value) Byte() byte { return byte(v.u64) }
+
 // Boolean returns v as a bool, assuming the underlying type is BOOLEAN.
 func (v Value) Boolean() bool { return v.u64 != 0 }
 
@@ -368,6 +387,12 @@ func (v Value) Float() float32 { return math.Float32frombits(uint32(v.u64)) }
 
 // Double returns v as a float64, assuming the underlying type is DOUBLE.
 func (v Value) Double() float64 { return math.Float64frombits(v.u64) }
+
+// Uint32 returns v as a uint32, assuming the underlying type is INT32.
+func (v Value) Uint32() uint32 { return uint32(v.u64) }
+
+// Uint64 returns v as a uint64, assuming the underlying type is INT64.
+func (v Value) Uint64() uint64 { return v.u64 }
 
 // ByteArray returns v as a []byte, assuming the underlying type is either
 // BYTE_ARRAY or FIXED_LEN_BYTE_ARRAY.
@@ -776,6 +801,172 @@ func clearValues(values []Value) {
 	}
 }
 
-type errorValueReader struct{ err error }
+// BooleanReader is an interface implemented by ValueReader instances which
+// expose the content of a column of boolean values.
+type BooleanReader interface {
+	// Read boolean values into the buffer passed as argument.
+	//
+	// The method returns io.EOF when all values have been read.
+	ReadBooleans(values []bool) (int, error)
+}
 
-func (r *errorValueReader) ReadValues([]Value) (int, error) { return 0, r.err }
+// BooleanWriter is an interface implemented by ValueWriter instances which
+// support writing columns of boolean values.
+type BooleanWriter interface {
+	// Write boolean values.
+	//
+	// The method returns the number of values written, and any error that
+	// occurred while writing the values.
+	WriteBooleans(values []bool) (int, error)
+}
+
+// Int32Reader is an interface implemented by ValueReader instances which expose
+// the content of a column of int32 values.
+type Int32Reader interface {
+	// Read 32 bits integer values into the buffer passed as argument.
+	//
+	// The method returns io.EOF when all values have been read.
+	ReadInt32s(values []int32) (int, error)
+}
+
+// Int32Writer is an interface implemented by ValueWriter instances which
+// support writing columns of 32 bits signed integer values.
+type Int32Writer interface {
+	// Write 32 bits signed integer values.
+	//
+	// The method returns the number of values written, and any error that
+	// occurred while writing the values.
+	WriteInt32s(values []int32) (int, error)
+}
+
+// Int64Reader is an interface implemented by ValueReader instances which expose
+// the content of a column of int64 values.
+type Int64Reader interface {
+	// Read 64 bits integer values into the buffer passed as argument.
+	//
+	// The method returns io.EOF when all values have been read.
+	ReadInt64s(values []int64) (int, error)
+}
+
+// Int64Writer is an interface implemented by ValueWriter instances which
+// support writing columns of 64 bits signed integer values.
+type Int64Writer interface {
+	// Write 64 bits signed integer values.
+	//
+	// The method returns the number of values written, and any error that
+	// occurred while writing the values.
+	WriteInt64s(values []int64) (int, error)
+}
+
+// Int96Reader is an interface implemented by ValueReader instances which expose
+// the content of a column of int96 values.
+type Int96Reader interface {
+	// Read 96 bits integer values into the buffer passed as argument.
+	//
+	// The method returns io.EOF when all values have been read.
+	ReadInt96s(values []deprecated.Int96) (int, error)
+}
+
+// Int96Writer is an interface implemented by ValueWriter instances which
+// support writing columns of 96 bits signed integer values.
+type Int96Writer interface {
+	// Write 96 bits signed integer values.
+	//
+	// The method returns the number of values written, and any error that
+	// occurred while writing the values.
+	WriteInt96s(values []deprecated.Int96) (int, error)
+}
+
+// FloatReader is an interface implemented by ValueReader instances which expose
+// the content of a column of single-precision floating point values.
+type FloatReader interface {
+	// Read single-precision floating point values into the buffer passed as
+	// argument.
+	//
+	// The method returns io.EOF when all values have been read.
+	ReadFloats(values []float32) (int, error)
+}
+
+// FloatWriter is an interface implemented by ValueWriter instances which
+// support writing columns of single-precision floating point values.
+type FloatWriter interface {
+	// Write single-precision floating point values.
+	//
+	// The method returns the number of values written, and any error that
+	// occurred while writing the values.
+	WriteFloats(values []float32) (int, error)
+}
+
+// DoubleReader is an interface implemented by ValueReader instances which
+// expose the content of a column of double-precision float point values.
+type DoubleReader interface {
+	// Read double-precision floating point values into the buffer passed as
+	// argument.
+	//
+	// The method returns io.EOF when all values have been read.
+	ReadDoubles(values []float64) (int, error)
+}
+
+// DoubleWriter is an interface implemented by ValueWriter instances which
+// support writing columns of double-precision floating point values.
+type DoubleWriter interface {
+	// Write double-precision floating point values.
+	//
+	// The method returns the number of values written, and any error that
+	// occurred while writing the values.
+	WriteDoubles(values []float64) (int, error)
+}
+
+// ByteArrayReader is an interface implemented by ValueReader instances which
+// expose the content of a column of variable length byte array values.
+type ByteArrayReader interface {
+	// Read values into the byte buffer passed as argument, returning the number
+	// of values written to the buffer (not the number of bytes). Values are
+	// written using the PLAIN encoding, each byte array prefixed with its
+	// length encoded as a 4 bytes little endian unsigned integer.
+	//
+	// The method returns io.EOF when all values have been read.
+	//
+	// If the buffer was not empty, but too small to hold at least one value,
+	// io.ErrShortBuffer is returned.
+	ReadByteArrays(values []byte) (int, error)
+}
+
+// ByteArrayWriter is an interface implemented by ValueWriter instances which
+// support writing columns of variable length byte array values.
+type ByteArrayWriter interface {
+	// Write variable length byte array values.
+	//
+	// The values passed as input must be laid out using the PLAIN encoding,
+	// with each byte array prefixed with the four bytes little endian unsigned
+	// integer length.
+	//
+	// The method returns the number of values written to the underlying column
+	// (not the number of bytes), or any error that occurred while attempting to
+	// write the values.
+	WriteByteArrays(values []byte) (int, error)
+}
+
+// FixedLenByteArrayReader is an interface implemented by ValueReader instances
+// which expose the content of a column of fixed length byte array values.
+type FixedLenByteArrayReader interface {
+	// Read values into the byte buffer passed as argument, returning the number
+	// of values written to the buffer (not the number of bytes).
+	//
+	// The method returns io.EOF when all values have been read.
+	//
+	// If the buffer was not empty, but too small to hold at least one value,
+	// io.ErrShortBuffer is returned.
+	ReadFixedLenByteArrays(values []byte) (int, error)
+}
+
+// FixedLenByteArrayWriter is an interface implemented by ValueWriter instances
+// which support writing columns of fixed length byte array values.
+type FixedLenByteArrayWriter interface {
+	// Writes the fixed length byte array values.
+	//
+	// The size of the values is assumed to be the same as the expected size of
+	// items in the column. The method errors if the length of the input values
+	// is not a multiple of the expected item size.
+	WriteFixedLenByteArrays(values []byte) (int, error)
+}

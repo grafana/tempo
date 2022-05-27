@@ -24,41 +24,26 @@ package bloom
 // The benchmarks measure throughput based on the byte size of a bloom filter
 // block.
 
-func mask(x uint32) Block {
-	return Block{
-		0: 1 << ((x * salt0) >> 27),
-		1: 1 << ((x * salt1) >> 27),
-		2: 1 << ((x * salt2) >> 27),
-		3: 1 << ((x * salt3) >> 27),
-		4: 1 << ((x * salt4) >> 27),
-		5: 1 << ((x * salt5) >> 27),
-		6: 1 << ((x * salt6) >> 27),
-		7: 1 << ((x * salt7) >> 27),
-	}
-}
-
 func (b *Block) Insert(x uint32) {
-	masked := mask(x)
-	b[0] |= masked[0]
-	b[1] |= masked[1]
-	b[2] |= masked[2]
-	b[3] |= masked[3]
-	b[4] |= masked[4]
-	b[5] |= masked[5]
-	b[6] |= masked[6]
-	b[7] |= masked[7]
+	b[0] |= 1 << ((x * salt0) >> 27)
+	b[1] |= 1 << ((x * salt1) >> 27)
+	b[2] |= 1 << ((x * salt2) >> 27)
+	b[3] |= 1 << ((x * salt3) >> 27)
+	b[4] |= 1 << ((x * salt4) >> 27)
+	b[5] |= 1 << ((x * salt5) >> 27)
+	b[6] |= 1 << ((x * salt6) >> 27)
+	b[7] |= 1 << ((x * salt7) >> 27)
 }
 
 func (b *Block) Check(x uint32) bool {
-	masked := mask(x)
-	return ((b[0] & masked[0]) != 0) &&
-		((b[1] & masked[1]) != 0) &&
-		((b[2] & masked[2]) != 0) &&
-		((b[3] & masked[3]) != 0) &&
-		((b[4] & masked[4]) != 0) &&
-		((b[5] & masked[5]) != 0) &&
-		((b[6] & masked[6]) != 0) &&
-		((b[7] & masked[7]) != 0)
+	return ((b[0] & (1 << ((x * salt0) >> 27))) != 0) &&
+		((b[1] & (1 << ((x * salt1) >> 27))) != 0) &&
+		((b[2] & (1 << ((x * salt2) >> 27))) != 0) &&
+		((b[3] & (1 << ((x * salt3) >> 27))) != 0) &&
+		((b[4] & (1 << ((x * salt4) >> 27))) != 0) &&
+		((b[5] & (1 << ((x * salt5) >> 27))) != 0) &&
+		((b[6] & (1 << ((x * salt6) >> 27))) != 0) &&
+		((b[7] & (1 << ((x * salt7) >> 27))) != 0)
 }
 
 func (f SplitBlockFilter) insertBulk(x []uint64) {

@@ -4,8 +4,8 @@ import "strings"
 
 type columnPath []string
 
-func (path columnPath) append(name string) columnPath {
-	return append(path[:len(path):len(path)], name)
+func (path columnPath) append(names ...string) columnPath {
+	return append(path[:len(path):len(path)], names...)
 }
 
 func (path columnPath) equal(other columnPath) bool {
@@ -53,8 +53,8 @@ func stringsAreOrdered(strings1, strings2 []string) bool {
 type leafColumn struct {
 	node               Node
 	path               columnPath
-	maxRepetitionLevel int8
-	maxDefinitionLevel int8
+	maxRepetitionLevel byte
+	maxDefinitionLevel byte
 	columnIndex        int16
 }
 

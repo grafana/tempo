@@ -2,6 +2,8 @@
 
 package bloom
 
+import "golang.org/x/sys/cpu"
+
 // The functions in this file are SIMD-optimized versions of the functions
 // declared in block_optimized.go for x86 targets.
 //
@@ -24,6 +26,7 @@ package bloom
 // block_optimized.go; the delta comparing to functions in block_default.go is
 // significantly larger but not very interesting since those functions have no
 // practical use cases.
+var hasAVX2 = cpu.X86.HasAVX2
 
 //go:noescape
 func blockInsert(b *Block, x uint32)

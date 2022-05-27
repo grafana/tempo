@@ -2,11 +2,14 @@ package parquet
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
+)
 
-	"github.com/segmentio/parquet-go/internal/bits"
+const (
+	defaultRowBufferSize = 20
 )
 
 // Row represents a parquet row as a slice of values.
@@ -47,12 +50,28 @@ func (row Row) startsWith(columnIndex int16) bool {
 // RowSeeker is an interface implemented by readers of parquet rows which can be
 // positioned at a specific row index.
 type RowSeeker interface {
+	// Positions the stream on the given row index.
+	//
+	// Some implementations of the interface may only allow seeking forward.
+	//
+	// The method returns io.ErrClosedPipe if the stream had already been closed.
 	SeekToRow(int64) error
 }
 
 // RowReader reads a sequence of parquet rows.
 type RowReader interface {
-	ReadRow(Row) (Row, error)
+	// Read rows from the reader, returning the number of rows read into the
+	// buffer, and any error that occurred.
+	//
+	// When all rows have been read, the reader returns io.EOF to indicate the
+	// end of the sequence. It is valid for the reader to return both a non-zero
+	// number of rows and a non-nil error (including io.EOF).
+	//
+	// The buffer of rows passed as argument will be used to store values of
+	// each row read from the reader. If the rows are not nil, the backing array
+	// of the slices will be used as an optimization to avoid re-allocating new
+	// arrays.
+	ReadRows([]Row) (int, error)
 }
 
 // RowReaderFrom reads parquet rows from reader.
@@ -76,7 +95,18 @@ type RowReadSeeker interface {
 
 // RowWriter writes parquet rows to an underlying medium.
 type RowWriter interface {
-	WriteRow(Row) error
+	// Writes rows to the writer, returning the number of rows written and any
+	// error that occurred.
+	//
+	// Because columnar operations operate on independent columns of values,
+	// writes of rows may not be atomic operations, and could result in some
+	// rows being partially written. The method returns the number of rows that
+	// were successfully written, but if an error occurs, values of the row(s)
+	// that failed to be written may have been partially committed to their
+	// columns. For that reason, applications should consider a write error as
+	// fatal and assume that they need to discard the state, they cannot retry
+	// the write nor recover the underlying file.
+	WriteRows([]Row) (int, error)
 }
 
 // RowWriterTo writes parquet rows to a writer.
@@ -97,18 +127,25 @@ type forwardRowSeeker struct {
 	index int64
 }
 
-func (r *forwardRowSeeker) ReadRow(row Row) (Row, error) {
-	n := len(row)
+func (r *forwardRowSeeker) ReadRows(rows []Row) (int, error) {
 	for {
-		row, err := r.rows.ReadRow(row[:n])
-		if err != nil {
-			return row, err
+		n, err := r.rows.ReadRows(rows)
+
+		if n > 0 && r.index < r.seek {
+			skip := r.seek - r.index
+			r.index += int64(n)
+			if skip >= int64(n) {
+				continue
+			}
+
+			for i, j := 0, int(skip); j < n; i++ {
+				rows[i] = append(rows[i][:0], rows[j]...)
+			}
+
+			n -= int(skip)
 		}
-		ret := r.index >= r.seek
-		r.index++
-		if ret {
-			return row, err
-		}
+
+		return n, err
 	}
 }
 
@@ -135,11 +172,10 @@ func (r *forwardRowSeeker) SeekToRow(rowIndex int64) error {
 // The function returns the number of rows written, or any error encountered
 // other than io.EOF.
 func CopyRows(dst RowWriter, src RowReader) (int64, error) {
-	n, _, err := copyRows(dst, src, nil)
-	return n, err
+	return copyRows(dst, src, nil)
 }
 
-func copyRows(dst RowWriter, src RowReader, buf []Value) (written int64, ret []Value, err error) {
+func copyRows(dst RowWriter, src RowReader, buf []Row) (written int64, err error) {
 	targetSchema := targetSchemaOf(dst)
 	sourceSchema := sourceSchemaOf(src)
 
@@ -147,7 +183,7 @@ func copyRows(dst RowWriter, src RowReader, buf []Value) (written int64, ret []V
 		if !nodesAreEqual(targetSchema, sourceSchema) {
 			conv, err := Convert(targetSchema, sourceSchema)
 			if err != nil {
-				return 0, buf, err
+				return 0, err
 			}
 			// The conversion effectively disables a potential optimization
 			// if the source reader implemented RowWriterTo. It is a trade off
@@ -162,34 +198,48 @@ func copyRows(dst RowWriter, src RowReader, buf []Value) (written int64, ret []V
 	}
 
 	if wt, ok := src.(RowWriterTo); ok {
-		written, err = wt.WriteRowsTo(dst)
-		return written, buf, err
+		return wt.WriteRowsTo(dst)
 	}
 
 	if rf, ok := dst.(RowReaderFrom); ok {
-		written, err = rf.ReadRowsFrom(src)
-		return written, buf, err
+		return rf.ReadRowsFrom(src)
 	}
 
 	if len(buf) == 0 {
-		buf = make([]Value, 42)
+		buf = make([]Row, defaultRowBufferSize)
 	}
 
-	defer func() {
-		clearValues(buf)
-	}()
+	defer clearRows(buf)
 
 	for {
-		if buf, err = src.ReadRow(buf[:0]); err != nil {
-			if err == io.EOF {
+		rn, err := src.ReadRows(buf)
+
+		if rn > 0 {
+			wn, err := dst.WriteRows(buf[:rn])
+			if err != nil {
+				return written, err
+			}
+
+			written += int64(wn)
+		}
+
+		if err != nil {
+			if errors.Is(err, io.EOF) {
 				err = nil
 			}
-			return written, buf, err
+			return written, err
 		}
-		if err = dst.WriteRow(buf); err != nil {
-			return written, buf, err
+
+		if rn == 0 {
+			return written, io.ErrNoProgress
 		}
-		written++
+	}
+}
+
+func clearRows(rows []Row) {
+	for i, values := range rows {
+		clearValues(values)
+		rows[i] = values[:0]
 	}
 }
 
@@ -222,13 +272,13 @@ func hasRepeatedRowValues(values []Value) bool {
 
 // repeatedRowLength gives the length of the repeated row starting at the
 // beginning of the repetitionLevels slice.
-func repeatedRowLength(repetitionLevels []int8) int {
+func repeatedRowLength(repetitionLevels []byte) int {
 	// If a repetition level exists, at least one value is required to represent
 	// the column.
 	if len(repetitionLevels) > 0 {
 		// The subsequent levels will represent the start of a new record when
 		// they go back to zero.
-		if i := bytes.IndexByte(bits.Int8ToBytes(repetitionLevels[1:]), 0); i >= 0 {
+		if i := bytes.IndexByte(repetitionLevels[1:], 0); i >= 0 {
 			return i + 1
 		}
 	}
@@ -293,9 +343,9 @@ func splitRowValues(values []Value) (head, tail []Value) {
 // =============================================================================
 
 type levels struct {
-	repetitionDepth int8
-	repetitionLevel int8
-	definitionLevel int8
+	repetitionDepth byte
+	repetitionLevel byte
+	definitionLevel byte
 }
 
 type deconstructFunc func(Row, levels, reflect.Value) Row
@@ -521,7 +571,7 @@ func reconstructFuncOfRepeated(columnIndex int16, node Node) (int16, reconstruct
 
 func reconstructRepeated(columnIndex, rowLength int16, levels levels, row Row, do func(levels, Row) (Row, error)) (Row, error) {
 	if !row.startsWith(columnIndex) {
-		return row, fmt.Errorf("row is missing repeated column %d", columnIndex)
+		return row, fmt.Errorf("row is missing repeated column %d: %+v", columnIndex, row)
 	}
 	if len(row) < int(rowLength) {
 		return row, fmt.Errorf("expected repeated column %d to have at least %d values but got %d", columnIndex, rowLength, len(row))

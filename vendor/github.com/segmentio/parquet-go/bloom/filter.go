@@ -30,6 +30,14 @@ type MutableFilter interface {
 // to a storage medium.
 type SplitBlockFilter []Block
 
+// MakeSplitBlockFilter constructs a SplitBlockFilter value from the data byte
+// slice.
+func MakeSplitBlockFilter(data []byte) SplitBlockFilter {
+	p := *(*unsafe.Pointer)(unsafe.Pointer(&data))
+	n := len(data) / BlockSize
+	return unsafe.Slice((*Block)(p), n)
+}
+
 // NumSplitBlocksOf returns the number of blocks in a filter intended to hold
 // the given number of values and bits of filter per value.
 //

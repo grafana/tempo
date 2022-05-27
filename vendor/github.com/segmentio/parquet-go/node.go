@@ -102,7 +102,7 @@ func Encoded(node Node, encoding encoding.Encoding) Node {
 	}
 	if encoding != nil {
 		kind := node.Type().Kind()
-		if !encoding.CanEncode(format.Type(kind)) {
+		if !canEncode(encoding, kind) {
 			panic("cannot apply " + encoding.Encoding().String() + " to node of type " + kind.String())
 		}
 	}

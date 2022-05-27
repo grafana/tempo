@@ -180,12 +180,17 @@ func (v2 DataPageHeaderV2) MaxValue() []byte {
 	return v2.header.Statistics.MaxValue
 }
 
+func (v2 DataPageHeaderV2) IsCompressed() bool {
+	return v2.header.IsCompressed == nil || *v2.header.IsCompressed
+}
+
 func (v2 DataPageHeaderV2) String() string {
-	return fmt.Sprintf("DATA_PAGE_HEADER_V2{NumValues=%d,NumNulls=%d,NumRows=%d,Encoding=%s}",
+	return fmt.Sprintf("DATA_PAGE_HEADER_V2{NumValues=%d,NumNulls=%d,NumRows=%d,Encoding=%s,IsCompressed=%t}",
 		v2.header.NumValues,
 		v2.header.NumNulls,
 		v2.header.NumRows,
-		v2.header.Encoding)
+		v2.header.Encoding,
+		v2.IsCompressed())
 }
 
 type unknownPageHeader struct {

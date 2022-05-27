@@ -13,25 +13,30 @@ const (
 	MaxColumnIndex = math.MaxInt16
 
 	// MaxRepetitionLevel is the maximum repetition level supported by this package.
-	MaxRepetitionLevel = math.MaxInt8
+	MaxRepetitionLevel = math.MaxUint8
 
 	// MaxDefinitionLevel is the maximum definition level supported by this package.
-	MaxDefinitionLevel = math.MaxInt8
+	MaxDefinitionLevel = math.MaxUint8
 )
 
-func makeRepetitionLevel(i int) int8 {
+func makeRepetitionLevel(i int) byte {
 	checkIndexRange("repetition level", i, 0, MaxRepetitionLevel)
-	return int8(i)
+	return byte(i)
 }
 
-func makeDefinitionLevel(i int) int8 {
+func makeDefinitionLevel(i int) byte {
 	checkIndexRange("definition level", i, 0, MaxDefinitionLevel)
-	return int8(i)
+	return byte(i)
 }
 
 func makeColumnIndex(i int) int16 {
 	checkIndexRange("column index", i, 0, MaxColumnIndex)
 	return int16(i)
+}
+
+func makeNumValues(i int) int32 {
+	checkIndexRange("number of values", i, 0, math.MaxInt32)
+	return int32(i)
 }
 
 func checkIndexRange(typ string, i, min, max int) {

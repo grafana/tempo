@@ -1,34 +1,38 @@
 package delta
 
 import (
-	"io"
-
-	"github.com/segmentio/parquet-go/encoding"
+	"sync"
 )
 
 const (
 	defaultBufferSize = 4096
 )
 
-func appendDecodeInt32(d encoding.Decoder, data []int32) ([]int32, error) {
-	for {
-		if len(data) == cap(data) {
-			if cap(data) == 0 {
-				data = make([]int32, 0, blockSize32)
-			} else {
-				newData := make([]int32, len(data), 2*cap(data))
-				copy(newData, data)
-				data = newData
-			}
-		}
+type int32Buffer struct {
+	values []int32
+}
 
-		n, err := d.DecodeInt32(data[len(data):cap(data)])
-		data = data[:len(data)+n]
-		if err != nil {
-			if err == io.EOF {
-				err = nil
-			}
-			return data, err
+func (buf *int32Buffer) decode(src []byte) ([]byte, error) {
+	var binpack BinaryPackedEncoding
+	return binpack.decode(src, func(value int64) { buf.values = append(buf.values, int32(value)) })
+}
+
+var (
+	int32BufferPool sync.Pool // *int32Buffer
+)
+
+func getInt32Buffer() *int32Buffer {
+	b, _ := int32BufferPool.Get().(*int32Buffer)
+	if b != nil {
+		b.values = b.values[:0]
+	} else {
+		b = &int32Buffer{
+			values: make([]int32, 0, 1024),
 		}
 	}
+	return b
+}
+
+func putInt32Buffer(b *int32Buffer) {
+	int32BufferPool.Put(b)
 }

@@ -332,17 +332,17 @@ func (p missingPage) NumValues() int64                  { return p.numValues }
 func (p missingPage) NumNulls() int64                   { return p.numNulls }
 func (p missingPage) Bounds() (min, max Value, ok bool) { return }
 func (p missingPage) Size() int64                       { return 0 }
-func (p missingPage) Values() ValueReader               { return &missingValues{page: p} }
+func (p missingPage) Values() ValueReader               { return &missingPageValues{page: p} }
 func (p missingPage) Buffer() BufferedPage {
-	return newErrorPage(p.Column(), "cannot buffer missing page")
+	return newErrorPage(p.Type(), p.Column(), "cannot buffer missing page")
 }
 
-type missingValues struct {
+type missingPageValues struct {
 	page missingPage
 	read int64
 }
 
-func (r *missingValues) ReadValues(values []Value) (int, error) {
+func (r *missingPageValues) ReadValues(values []Value) (int, error) {
 	remain := r.page.numValues - r.read
 	if int64(len(values)) > remain {
 		values = values[:remain]
@@ -357,6 +357,11 @@ func (r *missingValues) ReadValues(values []Value) (int, error) {
 	return len(values), nil
 }
 
+func (r *missingPageValues) Close() error {
+	r.read = r.page.numValues
+	return nil
+}
+
 type convertedRowGroup struct {
 	rowGroup RowGroup
 	columns  []ColumnChunk
@@ -368,7 +373,14 @@ func (c *convertedRowGroup) NumRows() int64                  { return c.rowGroup
 func (c *convertedRowGroup) ColumnChunks() []ColumnChunk     { return c.columns }
 func (c *convertedRowGroup) Schema() *Schema                 { return c.conv.Schema() }
 func (c *convertedRowGroup) SortingColumns() []SortingColumn { return c.sorting }
-func (c *convertedRowGroup) Rows() Rows                      { return &convertedRows{rows: c.rowGroup.Rows(), conv: c.conv} }
+func (c *convertedRowGroup) Rows() Rows {
+	rows := c.rowGroup.Rows()
+	return &convertedRows{
+		Closer: rows,
+		rows:   rows,
+		conv:   c.conv,
+	}
+}
 
 // ConvertRowReader constructs a wrapper of the given row reader which applies
 // the given schema conversion to the rows.
@@ -377,21 +389,33 @@ func ConvertRowReader(rows RowReader, conv Conversion) RowReaderWithSchema {
 }
 
 type convertedRows struct {
+	io.Closer
 	rows RowReadSeeker
 	buf  Row
 	conv Conversion
 }
 
-func (c *convertedRows) ReadRow(row Row) (Row, error) {
+func (c *convertedRows) ReadRows(rows []Row) (int, error) {
+	maxRowLen := 0
 	defer func() {
-		clearValues(c.buf)
+		clearValues(c.buf[:maxRowLen])
 	}()
-	var err error
-	c.buf, err = c.rows.ReadRow(c.buf[:0])
-	if err != nil {
-		return row, err
+
+	n, err := c.rows.ReadRows(rows)
+
+	for i, row := range rows[:n] {
+		var err error
+		c.buf, err = c.conv.Convert(c.buf[:0], row)
+		if len(c.buf) > maxRowLen {
+			maxRowLen = len(c.buf)
+		}
+		if err != nil {
+			return i, err
+		}
+		rows[i] = append(row[:0], c.buf...)
 	}
-	return c.conv.Convert(row, c.buf)
+
+	return n, err
 }
 
 func (c *convertedRows) Schema() *Schema {

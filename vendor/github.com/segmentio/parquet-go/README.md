@@ -122,6 +122,10 @@ for {
     }
     ...
 }
+
+if err := reader.Close(); err != nil {
+    ...
+}
 ```
 
 The expected schema of rows can be explicitly declared when the reader is

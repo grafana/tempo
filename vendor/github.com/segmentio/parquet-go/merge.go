@@ -19,10 +19,10 @@ func (m *mergedRowGroup) SortingColumns() []SortingColumn {
 func (m *mergedRowGroup) Rows() Rows {
 	// The row group needs to respect a sorting order; the merged row reader
 	// uses a heap to merge rows from the row groups.
-	return &mergedRowGroupRowReader{rowGroup: m, schema: m.schema}
+	return &mergedRowGroupRows{rowGroup: m, schema: m.schema}
 }
 
-type mergedRowGroupRowReader struct {
+type mergedRowGroupRows struct {
 	rowGroup *mergedRowGroup
 	schema   *Schema
 	sorting  []columnSortFunc
@@ -34,7 +34,7 @@ type mergedRowGroupRowReader struct {
 	err      error
 }
 
-func (r *mergedRowGroupRowReader) init(m *mergedRowGroup) {
+func (r *mergedRowGroupRows) init(m *mergedRowGroup) {
 	if r.schema != nil {
 		numColumns := numLeafColumnsOf(r.schema)
 		cursors := make([]bufferedRowGroupCursor, len(m.rowGroups))
@@ -53,14 +53,13 @@ func (r *mergedRowGroupRowReader) init(m *mergedRowGroup) {
 			// TODO: this is a bit of a weak model, it only works with types
 			// declared in this package; we may want to define an API to allow
 			// applications to participate in it.
-			if rd, ok := cursors[i].reader.(*rowGroupRowReader); ok {
-				rd.init(rd.rowGroup)
-				rd.rowGroup = nil
+			if rd, ok := cursors[i].reader.(*rowGroupRows); ok {
+				rd.init()
 				// TODO: this optimization is disabled for now, there are
 				// remaining blockers:
 				//
 				// * The optimized merge of pages for non-overlapping ranges is
-				//   not yet implemented in the mergedRowGroupRowReader type.
+				//   not yet implemented in the mergedRowGroupRows type.
 				//
 				// * Using pages min/max to determine overlapping ranges does
 				//   not work for repeated columns; sorting by repeated columns
@@ -86,7 +85,7 @@ func (r *mergedRowGroupRowReader) init(m *mergedRowGroup) {
 	}
 }
 
-func (r *mergedRowGroupRowReader) SeekToRow(rowIndex int64) error {
+func (r *mergedRowGroupRows) SeekToRow(rowIndex int64) error {
 	if rowIndex >= r.index {
 		r.seek = rowIndex
 		return nil
@@ -94,44 +93,57 @@ func (r *mergedRowGroupRowReader) SeekToRow(rowIndex int64) error {
 	return fmt.Errorf("SeekToRow: merged row reader cannot seek backward from row %d to %d", r.index, rowIndex)
 }
 
-func (r *mergedRowGroupRowReader) ReadRow(row Row) (Row, error) {
+func (r *mergedRowGroupRows) ReadRows(rows []Row) (n int, err error) {
 	if r.rowGroup != nil {
 		r.init(r.rowGroup)
 		r.rowGroup = nil
 	}
 	if r.err != nil {
-		return row, r.err
+		return 0, r.err
 	}
 
-	for {
-		if len(r.cursors) == 0 {
-			return row, io.EOF
-		}
+	for n < len(rows) && len(r.cursors) > 0 {
 		min := r.cursors[0]
-		row, err := min.readRow(row)
+		r.values1, err = min.readRow(r.values1[:0])
 		if err != nil {
-			return row, err
+			return n, err
 		}
+
+		if r.index >= r.seek {
+			rows[n] = append(rows[n][:0], r.values1...)
+			n++
+		}
+		r.index++
 
 		if err := min.readNext(); err != nil {
 			if err != io.EOF {
 				r.err = err
-				return row, err
+				return n, err
 			}
 			heap.Pop(r)
 		} else {
 			heap.Fix(r, 0)
 		}
-
-		ret := r.index >= r.seek
-		r.index++
-		if ret {
-			return row, nil
-		}
 	}
+
+	if n < len(rows) {
+		err = io.EOF
+	}
+
+	return n, err
 }
 
-// func (r *mergedRowGroupRowReader) WriteRowsTo(w RowWriter) (int64, error) {
+func (r *mergedRowGroupRows) Close() error {
+	var lastErr error
+	for i := range r.cursors {
+		if err := r.cursors[i].close(); err != nil {
+			lastErr = err
+		}
+	}
+	return lastErr
+}
+
+// func (r *mergedRowGroupRows) WriteRowsTo(w RowWriter) (int64, error) {
 // 	if r.rowGroup != nil {
 // 		defer func() { r.rowGroup = nil }()
 // 		switch dst := w.(type) {
@@ -145,22 +157,22 @@ func (r *mergedRowGroupRowReader) ReadRow(row Row) (Row, error) {
 // 	return CopyRows(w, struct{ RowReaderWithSchema }{r})
 // }
 
-func (r *mergedRowGroupRowReader) writeRowsTo(w pageAndValueWriter) (numRows int64, err error) {
+func (r *mergedRowGroupRows) writeRowsTo(w pageAndValueWriter) (numRows int64, err error) {
 	// TODO: the intent of this method is to optimize the merge of rows by
 	// copying entire pages instead of individual rows when we detect ranges
 	// that don't overlap.
 	return
 }
 
-func (r *mergedRowGroupRowReader) Schema() *Schema {
+func (r *mergedRowGroupRows) Schema() *Schema {
 	return r.schema
 }
 
-func (r *mergedRowGroupRowReader) Len() int {
+func (r *mergedRowGroupRows) Len() int {
 	return len(r.cursors)
 }
 
-func (r *mergedRowGroupRowReader) Less(i, j int) bool {
+func (r *mergedRowGroupRows) Less(i, j int) bool {
 	cursor1 := r.cursors[i]
 	cursor2 := r.cursors[j]
 
@@ -179,15 +191,15 @@ func (r *mergedRowGroupRowReader) Less(i, j int) bool {
 	return false
 }
 
-func (r *mergedRowGroupRowReader) Swap(i, j int) {
+func (r *mergedRowGroupRows) Swap(i, j int) {
 	r.cursors[i], r.cursors[j] = r.cursors[j], r.cursors[i]
 }
 
-func (r *mergedRowGroupRowReader) Push(interface{}) {
+func (r *mergedRowGroupRows) Push(interface{}) {
 	panic("BUG: unreachable")
 }
 
-func (r *mergedRowGroupRowReader) Pop() interface{} {
+func (r *mergedRowGroupRows) Pop() interface{} {
 	n := len(r.cursors) - 1
 	c := r.cursors[n]
 	r.cursors = r.cursors[:n]
@@ -195,6 +207,7 @@ func (r *mergedRowGroupRowReader) Pop() interface{} {
 }
 
 type rowGroupCursor interface {
+	close() error
 	readRow(Row) (Row, error)
 	readNext() error
 	nextRowValuesOf([]Value, int16) []Value
@@ -207,23 +220,27 @@ type columnSortFunc struct {
 
 type bufferedRowGroupCursor struct {
 	reader  Rows
-	rowbuf  Row
+	rowbuf  [1]Row
 	columns [][]Value
 }
 
-func (cur *bufferedRowGroupCursor) readRow(row Row) (Row, error) {
-	return append(row, cur.rowbuf...), nil
+func (cur *bufferedRowGroupCursor) close() error {
+	return cur.reader.Close()
 }
 
-func (cur *bufferedRowGroupCursor) readNext() (err error) {
-	cur.rowbuf, err = cur.reader.ReadRow(cur.rowbuf[:0])
+func (cur *bufferedRowGroupCursor) readRow(row Row) (Row, error) {
+	return append(row, cur.rowbuf[0]...), nil
+}
+
+func (cur *bufferedRowGroupCursor) readNext() error {
+	_, err := cur.reader.ReadRows(cur.rowbuf[:])
 	if err != nil {
 		return err
 	}
 	for i, c := range cur.columns {
 		cur.columns[i] = c[:0]
 	}
-	for _, v := range cur.rowbuf {
+	for _, v := range cur.rowbuf[0] {
 		columnIndex := v.Column()
 		cur.columns[columnIndex] = append(cur.columns[columnIndex], v)
 	}
@@ -235,7 +252,7 @@ func (cur *bufferedRowGroupCursor) nextRowValuesOf(values []Value, columnIndex i
 }
 
 /*
-type optimizedRowGroupCursor struct{ *rowGroupRowReader }
+type optimizedRowGroupCursor struct{ *rowGroupRows }
 
 func (cur optimizedRowGroupCursor) readRow(row Row) (Row, error) { return cur.ReadRow(row) }
 
@@ -264,6 +281,6 @@ func (cur optimizedRowGroupCursor) nextRowValuesOf(values []Value, columnIndex i
 */
 
 var (
-	_ RowReaderWithSchema = (*mergedRowGroupRowReader)(nil)
-	//_ RowWriterTo         = (*mergedRowGroupRowReader)(nil)
+	_ RowReaderWithSchema = (*mergedRowGroupRows)(nil)
+	//_ RowWriterTo         = (*mergedRowGroupRows)(nil)
 )
