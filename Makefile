@@ -228,10 +228,10 @@ docs-test:
 ### jsonnet
 .PHONY: jsonnet jsonnet-check
 jsonnet:
-	$(MAKE) -C operations/jsonnet/util gen
+	$(MAKE) -C operations/jsonnet-compiled/util gen
 
 jsonnet-check:
-	$(MAKE) -C operations/jsonnet/util check
+	$(MAKE) -C operations/jsonnet-compiled/util check
 
 
 ### serverless
