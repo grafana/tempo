@@ -3,9 +3,9 @@ package vparquet
 import (
 	"context"
 	"fmt"
+	"io"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-kit/log"
@@ -50,51 +50,22 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		bookmarks = append(bookmarks, newBookmark(iter))
 	}
 
-	allDone := func() bool {
-		for _, b := range bookmarks {
-			if !b.done() {
-				return false
-			}
-		}
-		return true
-	}
-
 	nextCompactionLevel := compactionLevel + 1
 
 	recordsPerBlock := (totalRecords / int(opts.OutputBlocks))
 
 	var currentBlock *streamingBlock
+	m := NewMultiblockPrefetchIterator(ctx, bookmarks, opts.PrefetchTraceCount)
+	defer m.Close()
 
-	for !allDone() {
-		var lowestID string
-		var lowestObjects []*Trace
-		var lowestBookmarks []*bookmark
-
-		// find lowest ID of the new object
-		for _, b := range bookmarks {
-			currentObject, err := b.current()
-			if err != nil {
-				return nil, err
-			}
-			if currentObject == nil {
-				continue
-			}
-
-			comparison := strings.Compare(currentObject.TraceID, lowestID)
-
-			if comparison == 0 {
-				lowestObjects = append(lowestObjects, currentObject)
-				lowestBookmarks = append(lowestBookmarks, b)
-			} else if len(lowestID) == 0 || comparison == -1 {
-				lowestID = currentObject.TraceID
-				lowestObjects = []*Trace{currentObject}
-				lowestBookmarks = []*bookmark{b}
-			}
+	for {
+		lowestObject, err := m.Next(ctx)
+		if err == io.EOF {
+			break
 		}
 
-		lowestObject := CombineTraces(lowestObjects...)
-		for _, b := range lowestBookmarks {
-			b.clear()
+		if err != nil {
+			return nil, errors.Wrap(err, "error iterating input blocks")
 		}
 
 		// make a new block if necessary
