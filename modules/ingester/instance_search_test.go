@@ -26,21 +26,6 @@ import (
 	"github.com/grafana/tempo/tempodb/search"
 )
 
-func checkEqual(t *testing.T, ids [][]byte, sr *tempopb.SearchResponse) {
-	for _, meta := range sr.Traces {
-		parsedTraceID, err := util.HexStringToTraceID(meta.TraceID)
-		assert.NoError(t, err)
-
-		present := false
-		for _, id := range ids {
-			if bytes.Equal(parsedTraceID, id) {
-				present = true
-			}
-		}
-		assert.True(t, present)
-	}
-}
-
 func TestInstanceSearch(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
 	assert.NoError(t, err, "unexpected error creating limits")
@@ -147,6 +132,21 @@ func TestInstanceSearch(t *testing.T) {
 	checkEqual(t, ids, sr)
 }
 
+func checkEqual(t *testing.T, ids [][]byte, sr *tempopb.SearchResponse) {
+	for _, meta := range sr.Traces {
+		parsedTraceID, err := util.HexStringToTraceID(meta.TraceID)
+		assert.NoError(t, err)
+
+		present := false
+		for _, id := range ids {
+			if bytes.Equal(parsedTraceID, id) {
+				present = true
+			}
+		}
+		assert.True(t, present)
+	}
+}
+
 func TestInstanceSearchTags(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
 	assert.NoError(t, err, "unexpected error creating limits")
@@ -233,6 +233,65 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 	assert.Len(t, sr.TagNames, 1)
 	assert.Equal(t, tagName, sr.TagNames[0])
 	assert.Equal(t, expectedTagValues, srv.TagValues)
+}
+
+func TestInstanceSearchMaxBytesPerTagValuesQuery(t *testing.T) {
+	limits, err := overrides.NewOverrides(overrides.Limits{
+		MaxBytesPerTagValuesQuery: 10,
+	})
+	assert.NoError(t, err, "unexpected error creating limits")
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	tempDir := t.TempDir()
+
+	ingester, _, _ := defaultIngester(t, tempDir)
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+	assert.NoError(t, err, "unexpected error creating new instance")
+
+	// This matches the encoding for live traces, since
+	// we are pushing to the instance directly it must match.
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	numTraces := 100
+	searchAnnotatedFractionDenominator := 10
+
+	// add dummy search data
+	var tagKey = "foo"
+	var tagValue = "bar"
+
+	expectedTagValues := []string{}
+
+	for j := 0; j < numTraces; j++ {
+		id := make([]byte, 16)
+		rand.Read(id)
+
+		testTrace := test.MakeTrace(10, id)
+		trace.SortTrace(testTrace)
+		traceBytes, err := dec.PrepareForWrite(testTrace, 0, 0)
+		require.NoError(t, err)
+
+		// annotate just a fraction of traces with search data
+		var searchData []byte
+		if j%searchAnnotatedFractionDenominator == 0 {
+			data := &tempofb.SearchEntryMutable{}
+			data.TraceID = id
+			data.AddTag(tagKey, tagValue+strconv.Itoa(j))
+			searchData = data.ToBytes()
+
+			expectedTagValues = append(expectedTagValues, tagValue+strconv.Itoa(j))
+		}
+
+		// searchData will be nil if not
+		err = i.PushBytes(context.Background(), id, traceBytes, searchData)
+		require.NoError(t, err)
+
+		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+	}
+
+	userCtx := user.InjectOrgID(context.Background(), "fake")
+	srv, err := i.SearchTagValues(userCtx, tagKey)
+	assert.Error(t, err)
+	assert.Nil(t, srv)
 }
 
 func TestInstanceSearchNoData(t *testing.T) {
