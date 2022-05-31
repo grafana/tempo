@@ -37,45 +37,9 @@ func TestInstanceSearch(t *testing.T) {
 	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
-	// This matches the encoding for live traces, since
-	// we are pushing to the instance directly it must match.
-	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
-
-	numTraces := 500
-	searchAnnotatedFractionDenominator := 100
-	ids := [][]byte{}
-
-	// add dummy search data
 	var tagKey = "foo"
 	var tagValue = "bar"
-
-	for j := 0; j < numTraces; j++ {
-		id := make([]byte, 16)
-		rand.Read(id)
-
-		testTrace := test.MakeTrace(10, id)
-		trace.SortTrace(testTrace)
-		traceBytes, err := dec.PrepareForWrite(testTrace, 0, 0)
-		require.NoError(t, err)
-
-		// annotate just a fraction of traces with search data
-		var searchData []byte
-		if j%searchAnnotatedFractionDenominator == 0 {
-			data := &tempofb.SearchEntryMutable{}
-			data.TraceID = id
-			data.AddTag(tagKey, tagValue)
-			searchData = data.ToBytes()
-
-			// these are the only ids we want to test against
-			ids = append(ids, id)
-		}
-
-		// searchData will be nil if not
-		err = i.PushBytes(context.Background(), id, traceBytes, searchData)
-		require.NoError(t, err)
-
-		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
-	}
+	ids, _ := writeTracesWithSearchData(t, i, tagKey, tagValue, false)
 
 	var req = &tempopb.SearchRequest{
 		Tags: map[string]string{},
@@ -84,7 +48,7 @@ func TestInstanceSearch(t *testing.T) {
 
 	sr, err := i.Search(context.Background(), req)
 	assert.NoError(t, err)
-	assert.Len(t, sr.Traces, numTraces/searchAnnotatedFractionDenominator)
+	assert.Len(t, sr.Traces, len(ids))
 	// todo: test that returned results are in sorted time order, create order of id's beforehand
 	checkEqual(t, ids, sr)
 
@@ -95,7 +59,7 @@ func TestInstanceSearch(t *testing.T) {
 
 	sr, err = i.Search(context.Background(), req)
 	assert.NoError(t, err)
-	assert.Len(t, sr.Traces, numTraces/searchAnnotatedFractionDenominator)
+	assert.Len(t, sr.Traces, len(ids))
 	checkEqual(t, ids, sr)
 
 	// Test after cutting new headblock
@@ -105,7 +69,7 @@ func TestInstanceSearch(t *testing.T) {
 
 	sr, err = i.Search(context.Background(), req)
 	assert.NoError(t, err)
-	assert.Len(t, sr.Traces, numTraces/searchAnnotatedFractionDenominator)
+	assert.Len(t, sr.Traces, len(ids))
 	checkEqual(t, ids, sr)
 
 	// Test after completing a block
@@ -114,7 +78,7 @@ func TestInstanceSearch(t *testing.T) {
 
 	sr, err = i.Search(context.Background(), req)
 	assert.NoError(t, err)
-	assert.Len(t, sr.Traces, numTraces/searchAnnotatedFractionDenominator)
+	assert.Len(t, sr.Traces, len(ids))
 	checkEqual(t, ids, sr)
 
 	err = ingester.stopping(nil)
@@ -128,7 +92,7 @@ func TestInstanceSearch(t *testing.T) {
 
 	sr, err = i.Search(context.Background(), req)
 	assert.NoError(t, err)
-	assert.Len(t, sr.Traces, numTraces/searchAnnotatedFractionDenominator)
+	assert.Len(t, sr.Traces, len(ids))
 	checkEqual(t, ids, sr)
 }
 
@@ -158,45 +122,11 @@ func TestInstanceSearchTags(t *testing.T) {
 	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
-	// This matches the encoding for live traces, since
-	// we are pushing to the instance directly it must match.
-	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
-
-	numTraces := 100
-	searchAnnotatedFractionDenominator := 10
-
 	// add dummy search data
 	var tagKey = "foo"
 	var tagValue = "bar"
 
-	expectedTagValues := []string{}
-
-	for j := 0; j < numTraces; j++ {
-		id := make([]byte, 16)
-		rand.Read(id)
-
-		testTrace := test.MakeTrace(10, id)
-		trace.SortTrace(testTrace)
-		traceBytes, err := dec.PrepareForWrite(testTrace, 0, 0)
-		require.NoError(t, err)
-
-		// annotate just a fraction of traces with search data
-		var searchData []byte
-		if j%searchAnnotatedFractionDenominator == 0 {
-			data := &tempofb.SearchEntryMutable{}
-			data.TraceID = id
-			data.AddTag(tagKey, tagValue+strconv.Itoa(j))
-			searchData = data.ToBytes()
-
-			expectedTagValues = append(expectedTagValues, tagValue+strconv.Itoa(j))
-		}
-
-		// searchData will be nil if not
-		err = i.PushBytes(context.Background(), id, traceBytes, searchData)
-		require.NoError(t, err)
-
-		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
-	}
+	_, expectedTagValues := writeTracesWithSearchData(t, i, tagKey, tagValue, true)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
@@ -235,7 +165,9 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 	assert.Equal(t, expectedTagValues, srv.TagValues)
 }
 
-func TestInstanceSearchMaxBytesPerTagValuesQuery(t *testing.T) {
+// TestInstanceSearchMaxBytesPerTagValuesQueryFails confirms that SearchTagValues returns
+//  an error if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
+func TestInstanceSearchMaxBytesPerTagValuesQueryFails(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Limits{
 		MaxBytesPerTagValuesQuery: 10,
 	})
@@ -248,17 +180,28 @@ func TestInstanceSearchMaxBytesPerTagValuesQuery(t *testing.T) {
 	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
+	var tagKey = "foo"
+	var tagValue = "bar"
+
+	_, _ = writeTracesWithSearchData(t, i, tagKey, tagValue, true)
+
+	userCtx := user.InjectOrgID(context.Background(), "fake")
+	srv, err := i.SearchTagValues(userCtx, tagKey)
+	assert.Error(t, err)
+	assert.Nil(t, srv)
+}
+
+// writes traces to the given instance along with search data. returns
+//  ids expected to be returned from a tag search and strings expected to
+//  be returned from a tag value search
+func writeTracesWithSearchData(t *testing.T, i *instance, tagKey string, tagValue string, postFixValue bool) ([][]byte, []string) {
 	// This matches the encoding for live traces, since
 	// we are pushing to the instance directly it must match.
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	numTraces := 100
 	searchAnnotatedFractionDenominator := 10
-
-	// add dummy search data
-	var tagKey = "foo"
-	var tagValue = "bar"
-
+	ids := [][]byte{}
 	expectedTagValues := []string{}
 
 	for j := 0; j < numTraces; j++ {
@@ -273,12 +216,18 @@ func TestInstanceSearchMaxBytesPerTagValuesQuery(t *testing.T) {
 		// annotate just a fraction of traces with search data
 		var searchData []byte
 		if j%searchAnnotatedFractionDenominator == 0 {
+			tv := tagValue
+			if postFixValue {
+				tv = tv + strconv.Itoa(j)
+			}
+
 			data := &tempofb.SearchEntryMutable{}
 			data.TraceID = id
-			data.AddTag(tagKey, tagValue+strconv.Itoa(j))
+			data.AddTag(tagKey, tv)
 			searchData = data.ToBytes()
 
-			expectedTagValues = append(expectedTagValues, tagValue+strconv.Itoa(j))
+			expectedTagValues = append(expectedTagValues, tv)
+			ids = append(ids, data.TraceID)
 		}
 
 		// searchData will be nil if not
@@ -288,10 +237,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQuery(t *testing.T) {
 		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 	}
 
-	userCtx := user.InjectOrgID(context.Background(), "fake")
-	srv, err := i.SearchTagValues(userCtx, tagKey)
-	assert.Error(t, err)
-	assert.Nil(t, srv)
+	return ids, expectedTagValues
 }
 
 func TestInstanceSearchNoData(t *testing.T) {
