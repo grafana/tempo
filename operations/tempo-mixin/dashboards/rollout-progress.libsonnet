@@ -8,7 +8,7 @@ local filename = 'tempo-rollout-progress.json';
     gateway_job_matcher: $.jobMatcher($._config.jobs.gateway),
     gateway_write_routes_regex: 'api_(v1|prom)_push',
     gateway_read_routes_regex: '(prometheus|api_prom)_api_v1_.+',
-    all_services_regex: '.*(%s).*' % std.join('|', ['cortex-gw', 'distributor', 'ingester', 'query-frontend', 'querier', 'compactor']),
+    all_services_regex: '.*(%s).*' % std.join('|', ['cortex-gw', 'distributor', 'ingester', 'query-frontend', 'querier', 'compactor', 'metrics-generator']),
   },
 
   [filename]:

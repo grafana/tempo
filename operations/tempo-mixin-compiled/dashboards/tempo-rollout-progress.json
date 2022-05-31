@@ -108,7 +108,7 @@
    "steppedLine": false,
    "targets": [
     {
-     "expr": "(\n  sum by(cortex_service) (\n    label_replace(\n      kube_statefulset_status_replicas_updated{cluster=~\"$cluster\", namespace=~\"$namespace\",statefulset=~\".*(cortex-gw|distributor|ingester|query-frontend|querier|compactor).*\"},\n      \"cortex_service\", \"$1\", \"statefulset\", \"(.*?)(?:-zone-[a-z])?\"\n    )\n  )\n  /\n  sum by(cortex_service) (\n    label_replace(\n      kube_statefulset_replicas{cluster=~\"$cluster\", namespace=~\"$namespace\"},\n      \"cortex_service\", \"$1\", \"statefulset\", \"(.*?)(?:-zone-[a-z])?\"\n    )\n  )\n) and (\n  sum by(cortex_service) (\n    label_replace(\n      kube_statefulset_replicas{cluster=~\"$cluster\", namespace=~\"$namespace\"},\n      \"cortex_service\", \"$1\", \"statefulset\", \"(.*?)(?:-zone-[a-z])?\"\n    )\n  )\n  > 0\n)\n",
+     "expr": "(\n  sum by(cortex_service) (\n    label_replace(\n      kube_statefulset_status_replicas_updated{cluster=~\"$cluster\", namespace=~\"$namespace\",statefulset=~\".*(cortex-gw|distributor|ingester|query-frontend|querier|compactor|metrics-generator).*\"},\n      \"cortex_service\", \"$1\", \"statefulset\", \"(.*?)(?:-zone-[a-z])?\"\n    )\n  )\n  /\n  sum by(cortex_service) (\n    label_replace(\n      kube_statefulset_replicas{cluster=~\"$cluster\", namespace=~\"$namespace\"},\n      \"cortex_service\", \"$1\", \"statefulset\", \"(.*?)(?:-zone-[a-z])?\"\n    )\n  )\n) and (\n  sum by(cortex_service) (\n    label_replace(\n      kube_statefulset_replicas{cluster=~\"$cluster\", namespace=~\"$namespace\"},\n      \"cortex_service\", \"$1\", \"statefulset\", \"(.*?)(?:-zone-[a-z])?\"\n    )\n  )\n  > 0\n)\n",
      "format": null,
      "intervalFactor": null,
      "legendFormat": "{{cortex_service}}",
@@ -116,7 +116,7 @@
      "step": null
     },
     {
-     "expr": "(\n  sum by(cortex_service) (\n    label_replace(\n      kube_deployment_status_replicas_updated{cluster=~\"$cluster\", namespace=~\"$namespace\",deployment=~\".*(cortex-gw|distributor|ingester|query-frontend|querier|compactor).*\"},\n      \"cortex_service\", \"$1\", \"deployment\", \"(.*?)(?:-zone-[a-z])?\"\n    )\n  )\n  /\n  sum by(cortex_service) (\n    label_replace(\n      kube_deployment_spec_replicas{cluster=~\"$cluster\", namespace=~\"$namespace\"},\n      \"cortex_service\", \"$1\", \"deployment\", \"(.*?)(?:-zone-[a-z])?\"\n    )\n  )\n) and (\n  sum by(cortex_service) (\n    label_replace(\n      kube_deployment_spec_replicas{cluster=~\"$cluster\", namespace=~\"$namespace\"},\n      \"cortex_service\", \"$1\", \"deployment\", \"(.*?)(?:-zone-[a-z])?\"\n    )\n  )\n  > 0\n)\n",
+     "expr": "(\n  sum by(cortex_service) (\n    label_replace(\n      kube_deployment_status_replicas_updated{cluster=~\"$cluster\", namespace=~\"$namespace\",deployment=~\".*(cortex-gw|distributor|ingester|query-frontend|querier|compactor|metrics-generator).*\"},\n      \"cortex_service\", \"$1\", \"deployment\", \"(.*?)(?:-zone-[a-z])?\"\n    )\n  )\n  /\n  sum by(cortex_service) (\n    label_replace(\n      kube_deployment_spec_replicas{cluster=~\"$cluster\", namespace=~\"$namespace\"},\n      \"cortex_service\", \"$1\", \"deployment\", \"(.*?)(?:-zone-[a-z])?\"\n    )\n  )\n) and (\n  sum by(cortex_service) (\n    label_replace(\n      kube_deployment_spec_replicas{cluster=~\"$cluster\", namespace=~\"$namespace\"},\n      \"cortex_service\", \"$1\", \"deployment\", \"(.*?)(?:-zone-[a-z])?\"\n    )\n  )\n  > 0\n)\n",
      "format": null,
      "intervalFactor": null,
      "legendFormat": "{{cortex_service}}",
@@ -1212,7 +1212,7 @@
    "steppedLine": false,
    "targets": [
     {
-     "expr": "kube_deployment_status_replicas_unavailable{cluster=~\"$cluster\", namespace=~\"$namespace\", deployment=~\".*(cortex-gw|distributor|ingester|query-frontend|querier|compactor).*\"}\n> 0\n",
+     "expr": "kube_deployment_status_replicas_unavailable{cluster=~\"$cluster\", namespace=~\"$namespace\", deployment=~\".*(cortex-gw|distributor|ingester|query-frontend|querier|compactor|metrics-generator).*\"}\n> 0\n",
      "format": null,
      "instant": true,
      "interval": "",
@@ -1222,7 +1222,7 @@
      "step": null
     },
     {
-     "expr": "kube_statefulset_status_replicas_current{cluster=~\"$cluster\", namespace=~\"$namespace\", statefulset=~\".*(cortex-gw|distributor|ingester|query-frontend|querier|compactor).*\"} -\nkube_statefulset_status_replicas_ready {cluster=~\"$cluster\", namespace=~\"$namespace\", statefulset=~\".*(cortex-gw|distributor|ingester|query-frontend|querier|compactor).*\"}\n> 0\n",
+     "expr": "kube_statefulset_status_replicas_current{cluster=~\"$cluster\", namespace=~\"$namespace\", statefulset=~\".*(cortex-gw|distributor|ingester|query-frontend|querier|compactor|metrics-generator).*\"} -\nkube_statefulset_status_replicas_ready {cluster=~\"$cluster\", namespace=~\"$namespace\", statefulset=~\".*(cortex-gw|distributor|ingester|query-frontend|querier|compactor|metrics-generator).*\"}\n> 0\n",
      "format": null,
      "instant": true,
      "interval": "",
@@ -1299,7 +1299,7 @@
    "id": 11,
    "targets": [
     {
-     "expr": "count by(container, version) (\n  label_replace(\n    kube_pod_container_info{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\".*(cortex-gw|distributor|ingester|query-frontend|querier|compactor).*\"},\n    \"version\", \"$1\", \"image\", \".*:(.+)-.*\"\n  )\n)\n",
+     "expr": "count by(container, version) (\n  label_replace(\n    kube_pod_container_info{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\".*(cortex-gw|distributor|ingester|query-frontend|querier|compactor|metrics-generator).*\"},\n    \"version\", \"$1\", \"image\", \".*:(.+)-.*\"\n  )\n)\n",
      "instant": true,
      "legendFormat": "",
      "refId": "A"
