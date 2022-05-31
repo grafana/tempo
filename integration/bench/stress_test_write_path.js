@@ -59,13 +59,13 @@ export function writePath() {
 
 export function steadyStateCheck() {
   // Check Distributors health
-  res = http.get(`${DISTRIBUTOR_ENDPOINT}/ready`);
+  let res = http.get(`${DISTRIBUTOR_ENDPOINT}/ready`);
   check(res, {
     'distributor is status 200': (r) => r.status === 200
   }, { type: 'steady', service: 'ingester' });
 
   // Check Ingesters health
-  let res = http.get(`${INGESTER_ENDPOINT}/ready`);
+  res = http.get(`${INGESTER_ENDPOINT}/ready`);
   check(res, {
     'ingester is status 200': (r) => r.status === 200
   }, { type: 'steady', service: 'ingester' });
