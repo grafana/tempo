@@ -5,15 +5,16 @@ weight: 3
 
 # Azure Blob Storage Permissions and Management
 
-In order for Tempo to authenticate to Azure blob storage, the following is
-required to access the container.
+In order for Tempo to authenticate to and access Azure blob storage, the following configuration is required:
 
-* Storage account
-* Storage account access key
-* Storage account management policy
+- Storage Account name specified in the configuration file as `storage-account-name` or in the environment variable `AZURE_STORAGE_ACCOUNT`
+- Credentials for accessing the Storage Account; can be one of the following
+  - Storage Account access key specified in the configuration file as `storage-account-key` or in the environment variable `AZURE_STORAGE_KEY`
+  - An Azure Managed Identity; either system or user assigned. To use Azure Managed Identities, you'll need to set `use-managed-identity` to `true` in the configuration file 
+      - For a system-assigned managed identity, no additional configuration is required.
+      - For a user-assigned managed identity, you'll need to set `user-assigned-id` to the client ID for the managed identity in the configuration file.
 
-The `AZURE_STORAGE_ACCOUNT` and `AZURE_STORAGE_KEY` environment variables can
-be used instead of setting the credentials in the Tempo configuration file.
+## (Optional) Storage Account Management Policy for Cleaning Up the Storage Container
 
 The following storage account management policy shows an example of cleaning up
 files from the container after they have been deleted for a period of time.
