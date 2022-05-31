@@ -947,6 +947,7 @@ overrides:
     # to populate the autocomplete dropdown. This limit protects the system from
     # tags with high cardinality or large values such as HTTP URLs or SQL queries.
     # This override limit is used by the ingester and the querier.
+    # A value of 0 disables the limit.
     [max_bytes_per_tag_values_query: <int> | default = 5000000 (5MB) ]
 
     # Metrics-generator configurations
