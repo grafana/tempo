@@ -5,6 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   snyk_scans:
@@ -33,6 +34,7 @@ jobs:
           args: --json --all-projects --json-file-output=${{ github.event.repository.name }}.json  --strict-out-of-sync=false
 
       - name: install snyk-to-html
+        continue-on-error: true
         run: |
           npm install snyk-to-html snyk2spdx snyk -g
           snyk auth ${{ secrets.SNYK_TOKEN }}
@@ -43,6 +45,7 @@ jobs:
         run: mkdir -p snyk_scans && cp -v ${{ github.event.repository.name }}.{html,json,sarif,spdx} snyk_scans/
 
       - name: Use the Upload Artifact GitHub Action
+        continue-on-error: true
         uses: actions/upload-artifact@v2
         with:
           name: snyk_scans
