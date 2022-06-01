@@ -7,7 +7,7 @@ local filename = 'tempo-rollout-progress.json';
     per_cluster_label: $._config.per_cluster_label,
     gateway_job_matcher: $.jobMatcher($._config.jobs.gateway),
     gateway_write_routes_regex: 'opentelemetry_proto_collector_trace_v1_traceservice_export',
-    gateway_read_routes_regex: 'api_.*',
+    gateway_read_routes_regex: 'tempo_api_.*',
     all_services_regex: '.*(%s).*' % std.join('|', ['cortex-gw', 'distributor', 'ingester', 'query-frontend', 'querier', 'compactor', 'metrics-generator']),
   },
 
@@ -129,7 +129,7 @@ local filename = 'tempo-rollout-progress.json';
 
         $.panel('Writes 99th latency') +
         $.newStatPanel(|||
-          histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:tempo_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"}))
+          histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"}))
         ||| % config, unit='s', thresholds=[
           { color: 'green', value: null },
           { color: 'orange', value: 0.2 },
@@ -180,7 +180,7 @@ local filename = 'tempo-rollout-progress.json';
 
         $.panel('Reads 99th latency') +
         $.newStatPanel(|||
-          histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:tempo_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"}))
+          histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"}))
         ||| % config, unit='s', thresholds=[
           { color: 'green', value: null },
           { color: 'orange', value: 1 },
@@ -285,15 +285,15 @@ local filename = 'tempo-rollout-progress.json';
         $.panel('Latency vs 24h ago') +
         $.queryPanel([|||
           1 - (
-            avg_over_time(histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:tempo_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"} offset 24h))[1h:])
+            avg_over_time(histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"} offset 24h))[1h:])
             /
-            avg_over_time(histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:tempo_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"}))[1h:])
+            avg_over_time(histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"}))[1h:])
           )
         ||| % config, |||
           1 - (
-            avg_over_time(histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:tempo_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"} offset 24h))[1h:])
+            avg_over_time(histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"} offset 24h))[1h:])
             /
-            avg_over_time(histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:tempo_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"}))[1h:])
+            avg_over_time(histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"}))[1h:])
           )
         ||| % config], ['writes', 'reads']) + {
           yaxes: $.yaxes({
