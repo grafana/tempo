@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/limiter"
@@ -15,6 +16,7 @@ import (
 	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
 	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/prometheus/util/strutil"
 	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/pkg/errors"
@@ -34,7 +36,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
+	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
 )
 
@@ -137,10 +139,12 @@ type Distributor struct {
 	// Manager for subservices
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
+
+	logger log.Logger
 }
 
 // New a distributor creates.
-func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, generatorClientCfg generator_client.Config, generatorsRing ring.ReadRing, o *overrides.Overrides, middleware receiver.Middleware, loggingLevel logging.Level, searchEnabled bool, metricsGeneratorEnabled bool, reg prometheus.Registerer) (*Distributor, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, generatorClientCfg generator_client.Config, generatorsRing ring.ReadRing, o *overrides.Overrides, middleware receiver.Middleware, logger log.Logger, loggingLevel logging.Level, searchEnabled bool, metricsGeneratorEnabled bool, reg prometheus.Registerer) (*Distributor, error) {
 	factory := cfg.factory
 	if factory == nil {
 		factory = func(addr string) (ring_client.PoolClient, error) {
@@ -156,14 +160,14 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	if o.IngestionRateStrategy() == overrides.GlobalIngestionRateStrategy {
 		lifecyclerCfg := cfg.DistributorRing.ToLifecyclerConfig()
-		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, nil, "distributor", cfg.OverrideRingKey, false, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
+		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, nil, "distributor", cfg.OverrideRingKey, false, logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
 		if err != nil {
 			return nil, err
 		}
 		subservices = append(subservices, lifecycler)
 		ingestionRateStrategy = newGlobalIngestionRateStrategy(o, lifecycler)
 
-		ring, err := ring.New(lifecyclerCfg.RingConfig, "distributor", cfg.OverrideRingKey, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
+		ring, err := ring.New(lifecyclerCfg.RingConfig, "distributor", cfg.OverrideRingKey, logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize distributor ring")
 		}
@@ -178,7 +182,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		ring_client.NewRingServiceDiscovery(ingestersRing),
 		factory,
 		metricIngesterClients,
-		log.Logger)
+		logger)
 
 	subservices = append(subservices, pool)
 
@@ -202,6 +206,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		globalTagsToDrop:        tagsToDrop,
 		overrides:               o,
 		traceEncoder:            model.MustNewSegmentDecoder(model.CurrentEncoding),
+		logger:                  logger,
 	}
 
 	if metricsGeneratorEnabled {
@@ -213,7 +218,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 				return generator_client.New(addr, generatorClientCfg)
 			},
 			metricGeneratorClients,
-			log.Logger,
+			logger,
 		)
 
 		subservices = append(subservices, d.generatorsPool)
@@ -279,8 +284,12 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 		return nil, err
 	}
 
-	if d.cfg.LogReceivedTraces {
-		logTraces(batches)
+	if d.cfg.LogReceivedTraces.Enabled {
+		if d.cfg.LogReceivedTraces.IncludeAttributes {
+			logSpansWithAttributes(batches, d.cfg.LogReceivedTraces.FilterByStatusError, d.logger)
+		} else {
+			logSpans(batches, d.cfg.LogReceivedTraces.FilterByStatusError, d.logger)
+		}
 	}
 
 	// metric size
@@ -531,11 +540,53 @@ func recordDiscaredSpans(err error, userID string, spanCount int) {
 	}
 }
 
-func logTraces(batches []*v1.ResourceSpans) {
+func logSpans(batches []*v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {
 	for _, b := range batches {
 		for _, ils := range b.InstrumentationLibrarySpans {
 			for _, s := range ils.Spans {
-				level.Info(log.Logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
+				if filterByStatusError && s.Status.Code != v1.Status_STATUS_CODE_ERROR {
+					continue
+				}
+				level.Info(logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
+			}
+		}
+	}
+}
+
+func logSpansWithAttributes(batch []*v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {
+	for _, b := range batch {
+		// extract resources attributes, so we only have to do it once per batch of spans
+		batchLogger := logger
+		for _, a := range b.Resource.GetAttributes() {
+			batchLogger = log.With(
+				batchLogger,
+				"span_"+strutil.SanitizeLabelName(a.GetKey()),
+				tempo_util.StringifyAnyValue(a.GetValue()))
+		}
+
+		for _, ils := range b.InstrumentationLibrarySpans {
+			for _, s := range ils.Spans {
+				if filterByStatusError && s.Status.Code != v1.Status_STATUS_CODE_ERROR {
+					continue
+				}
+
+				spanLogger := batchLogger
+
+				for _, a := range s.GetAttributes() {
+					spanLogger = log.With(
+						spanLogger,
+						"span_"+strutil.SanitizeLabelName(a.GetKey()),
+						tempo_util.StringifyAnyValue(a.GetValue()))
+				}
+
+				latencySeconds := float64(s.GetEndTimeUnixNano()-s.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
+				spanLogger = log.With(
+					spanLogger,
+					"span_duration_seconds", latencySeconds,
+					"span_kind", s.GetKind().String(),
+					"span_status", s.GetStatus().GetCode().String())
+
+				level.Info(spanLogger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
 			}
 		}
 	}
