@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/go-kit/log"
 	"math/rand"
 	"reflect"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	kitlog "github.com/go-kit/log"
 	"github.com/gogo/status"
 	"github.com/golang/protobuf/proto"
