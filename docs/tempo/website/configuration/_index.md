@@ -120,9 +120,13 @@ distributor:
         zipkin:
         opencensus:
         kafka:
+          
+    # Optional.
+    # [Deprecated] Enable to log every received trace id to help debug ingestion
+    [log_received_traces: <boolean> | default = false]
 
     # Optional.
-    # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs.
+    # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs
     log_received_traces:
         [enabled: <boolean> | default = false]
         [include_attributes: <boolean> | default = false]
