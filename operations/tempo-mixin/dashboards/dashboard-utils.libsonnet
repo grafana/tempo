@@ -9,7 +9,7 @@ grafana {
     super.dashboard(title) + {
       addClusterSelectorTemplates()::
         local d = self {
-          tags: ['tempo-mixin'],
+          tags: ['tempo'],
           links: [
             {
               asDropdown: true,

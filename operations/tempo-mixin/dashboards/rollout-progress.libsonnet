@@ -6,8 +6,8 @@ local filename = 'tempo-rollout-progress.json';
     namespace_matcher: $.namespaceMatcher(),
     per_cluster_label: $._config.per_cluster_label,
     gateway_job_matcher: $.jobMatcher($._config.jobs.gateway),
-    gateway_write_routes_regex: 'api_(v1|prom)_push',
-    gateway_read_routes_regex: '(prometheus|api_prom)_api_v1_.+',
+    gateway_write_routes_regex: 'opentelemetry_proto_collector_trace_v1_traceservice_export',
+    gateway_read_routes_regex: 'api_.*',
     all_services_regex: '.*(%s).*' % std.join('|', ['cortex-gw', 'distributor', 'ingester', 'query-frontend', 'querier', 'compactor', 'metrics-generator']),
   },
 
@@ -93,8 +93,8 @@ local filename = 'tempo-rollout-progress.json';
         //
         $.panel('Writes - 2xx') +
         $.newStatPanel(|||
-          sum(rate(cortex_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s",status_code=~"2.+"}[$__rate_interval])) /
-          sum(rate(cortex_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"}[$__rate_interval]))
+          sum(rate(tempo_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s",status_code=~"2.+"}[$__rate_interval])) /
+          sum(rate(tempo_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"}[$__rate_interval]))
         ||| % config, thresholds=[
           { color: 'green', value: null },
         ]) + {
@@ -104,8 +104,8 @@ local filename = 'tempo-rollout-progress.json';
 
         $.panel('Writes - 4xx') +
         $.newStatPanel(|||
-          sum(rate(cortex_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s",status_code=~"4.+"}[$__rate_interval])) /
-          sum(rate(cortex_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"}[$__rate_interval]))
+          sum(rate(tempo_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s",status_code=~"4.+"}[$__rate_interval])) /
+          sum(rate(tempo_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"}[$__rate_interval]))
         ||| % config, thresholds=[
           { color: 'green', value: null },
           { color: 'orange', value: 0.2 },
@@ -117,8 +117,8 @@ local filename = 'tempo-rollout-progress.json';
 
         $.panel('Writes - 5xx') +
         $.newStatPanel(|||
-          sum(rate(cortex_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s",status_code=~"5.+"}[$__rate_interval])) /
-          sum(rate(cortex_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"}[$__rate_interval]))
+          sum(rate(tempo_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s",status_code=~"5.+"}[$__rate_interval])) /
+          sum(rate(tempo_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"}[$__rate_interval]))
         ||| % config, thresholds=[
           { color: 'green', value: null },
           { color: 'red', value: 0.01 },
@@ -129,7 +129,7 @@ local filename = 'tempo-rollout-progress.json';
 
         $.panel('Writes 99th latency') +
         $.newStatPanel(|||
-          histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:cortex_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"}))
+          histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:tempo_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"}))
         ||| % config, unit='s', thresholds=[
           { color: 'green', value: null },
           { color: 'orange', value: 0.2 },
@@ -144,8 +144,8 @@ local filename = 'tempo-rollout-progress.json';
         //
         $.panel('Reads - 2xx') +
         $.newStatPanel(|||
-          sum(rate(cortex_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s",status_code=~"2.+"}[$__rate_interval])) /
-          sum(rate(cortex_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"}[$__rate_interval]))
+          sum(rate(tempo_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s",status_code=~"2.+"}[$__rate_interval])) /
+          sum(rate(tempo_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"}[$__rate_interval]))
         ||| % config, thresholds=[
           { color: 'green', value: null },
         ]) + {
@@ -155,8 +155,8 @@ local filename = 'tempo-rollout-progress.json';
 
         $.panel('Reads - 4xx') +
         $.newStatPanel(|||
-          sum(rate(cortex_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s",status_code=~"4.+"}[$__rate_interval])) /
-          sum(rate(cortex_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"}[$__rate_interval]))
+          sum(rate(tempo_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s",status_code=~"4.+"}[$__rate_interval])) /
+          sum(rate(tempo_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"}[$__rate_interval]))
         ||| % config, thresholds=[
           { color: 'green', value: null },
           { color: 'orange', value: 0.01 },
@@ -168,8 +168,8 @@ local filename = 'tempo-rollout-progress.json';
 
         $.panel('Reads - 5xx') +
         $.newStatPanel(|||
-          sum(rate(cortex_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s",status_code=~"5.+"}[$__rate_interval])) /
-          sum(rate(cortex_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"}[$__rate_interval]))
+          sum(rate(tempo_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s",status_code=~"5.+"}[$__rate_interval])) /
+          sum(rate(tempo_request_duration_seconds_count{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"}[$__rate_interval]))
         ||| % config, thresholds=[
           { color: 'green', value: null },
           { color: 'red', value: 0.01 },
@@ -180,7 +180,7 @@ local filename = 'tempo-rollout-progress.json';
 
         $.panel('Reads 99th latency') +
         $.newStatPanel(|||
-          histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:cortex_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"}))
+          histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:tempo_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"}))
         ||| % config, unit='s', thresholds=[
           { color: 'green', value: null },
           { color: 'orange', value: 1 },
@@ -285,15 +285,15 @@ local filename = 'tempo-rollout-progress.json';
         $.panel('Latency vs 24h ago') +
         $.queryPanel([|||
           1 - (
-            avg_over_time(histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:cortex_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"} offset 24h))[1h:])
+            avg_over_time(histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:tempo_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"} offset 24h))[1h:])
             /
-            avg_over_time(histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:cortex_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"}))[1h:])
+            avg_over_time(histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:tempo_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_write_routes_regex)s"}))[1h:])
           )
         ||| % config, |||
           1 - (
-            avg_over_time(histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:cortex_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"} offset 24h))[1h:])
+            avg_over_time(histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:tempo_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"} offset 24h))[1h:])
             /
-            avg_over_time(histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:cortex_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"}))[1h:])
+            avg_over_time(histogram_quantile(0.99, sum by (le) (%(per_cluster_label)s_job_route:tempo_request_duration_seconds_bucket:sum_rate{%(gateway_job_matcher)s, route=~"%(gateway_read_routes_regex)s"}))[1h:])
           )
         ||| % config], ['writes', 'reads']) + {
           yaxes: $.yaxes({
