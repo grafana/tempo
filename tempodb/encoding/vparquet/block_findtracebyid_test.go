@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -34,7 +35,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 
 	id := test.ValidTraceID(nil)
 
-	s, err := NewStreamingBlock(ctx, cfg, meta, r, w)
+	s, err := NewStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 	require.NoError(t, err)
 
 	bar := "bar"

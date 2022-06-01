@@ -3,7 +3,6 @@ package vparquet
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"io"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
 )
 
@@ -37,7 +37,7 @@ func (b *backendWriter) Close() error {
 }
 
 func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, dec model.ObjectDecoder, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
-	s, err := NewStreamingBlock(ctx, cfg, meta, r, to)
+	s, err := NewStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ type streamingBlock struct {
 	ctx   context.Context
 	bloom *common.ShardedBloomFilter
 	meta  *backend.BlockMeta
-	bw    *tempo_io.BufferedWriter
+	bw    tempo_io.BufferedWriteFlusher
 	pw    *parquet.Writer
 	w     *backendWriter
 	r     backend.Reader
@@ -88,7 +88,7 @@ type streamingBlock struct {
 	currentBufferedTraces int
 }
 
-func NewStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer) (*streamingBlock, error) {
+func NewStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) (*streamingBlock, error) {
 	newMeta := backend.NewBlockMeta(meta.TenantID, meta.BlockID, VersionString, backend.EncNone, "")
 	newMeta.StartTime = meta.StartTime
 	newMeta.EndTime = meta.EndTime
@@ -99,7 +99,7 @@ func NewStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 
 	w := &backendWriter{ctx, to, DataFileName, meta.BlockID, meta.TenantID, nil}
 
-	bw := tempo_io.NewBufferedWriter(w)
+	bw := createBufferedWriter(w)
 
 	sch := parquet.SchemaOf(new(Trace))
 
@@ -196,7 +196,7 @@ func (b *streamingBlock) Complete() (int, error) {
 	buf := make([]byte, 8)
 	err = b.r.ReadRange(b.ctx, DataFileName, b.meta.BlockID, b.meta.TenantID, b.meta.Size-8, buf)
 	if err != nil {
-		return 0, err
+		return 0, errors.Wrap(err, "error reading parquet file footer")
 	}
 	if string(buf[4:8]) != "PAR1" {
 		return 0, errors.New("Failed to confirm magic footer while writing a new parquet block")

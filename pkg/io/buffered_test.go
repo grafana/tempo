@@ -3,6 +3,7 @@ package io
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -95,4 +96,21 @@ func TestBufferedReaderAt(t *testing.T) {
 			assert.Equal(t, input[tr.offset:tr.offset+tr.length], b)
 		}
 	}
+}
+
+func TestBufferedWriterWithQueueWritesToBackend(t *testing.T) {
+	buf := bytes.NewBuffer(make([]byte, 0, 10))
+
+	b := NewBufferedWriterWithQueue(buf)
+
+	n, err := b.Write([]byte{0x01})
+	assert.NoError(t, err)
+	assert.Equal(t, 1, n)
+
+	assert.NoError(t, b.Flush())
+	assert.NoError(t, b.Close())
+
+	// eventual consistency :)
+	time.Sleep(100 * time.Millisecond)
+	assert.Equal(t, []byte{0x01}, buf.Bytes())
 }

@@ -11,10 +11,12 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
+
+	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/metrics"
-	"github.com/pkg/errors"
 )
 
 func NewCompactor() common.Compactor {
@@ -79,7 +81,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			}
 			w := writerCallback(newMeta, time.Now())
 
-			currentBlock, err = NewStreamingBlock(ctx, &opts.BlockConfig, newMeta, r, w)
+			currentBlock, err = NewStreamingBlock(ctx, &opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriterWithQueue)
 			if err != nil {
 				return nil, errors.Wrap(err, "error making new compacted block")
 			}
@@ -104,20 +106,15 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		// ship block to backend if done
 		if currentBlock.meta.TotalObjects >= recordsPerBlock {
-			err = finishBlock(currentBlock, l)
-			if err != nil {
-				return nil, errors.Wrap(err, "error shipping block to backend")
-			}
+			currenBlockPtrCopy := currentBlock
+			go finishBlock(currenBlockPtrCopy, l)
 			currentBlock = nil
 		}
 	}
 
 	// ship final block to backend
 	if currentBlock != nil {
-		err = finishBlock(currentBlock, l)
-		if err != nil {
-			return nil, errors.Wrap(err, "error shipping block to backend")
-		}
+		go finishBlock(currentBlock, l)
 	}
 
 	return newCompactedBlocks, nil
@@ -136,18 +133,16 @@ func appendBlock(block *streamingBlock) error {
 	return nil
 }
 
-func finishBlock(block *streamingBlock, l log.Logger) error {
-
+func finishBlock(block *streamingBlock, l log.Logger) {
 	bytesFlushed, err := block.Complete()
 	if err != nil {
-		return err
+		level.Error(l).Log("msg", "error shipping block to backend", "blockID", block.meta.BlockID.String(), "err", err)
+		metrics.MetricCompactionErrors.Inc()
 	}
 
 	level.Info(l).Log("msg", "wrote compacted block", "meta", fmt.Sprintf("%+v", block.meta))
 	compactionLevelLabel := strconv.Itoa(int(block.meta.CompactionLevel) - 1)
 	metrics.MetricCompactionBytesWritten.WithLabelValues(compactionLevelLabel).Add(float64(bytesFlushed))
-
-	return nil
 }
 
 type bookmark struct {

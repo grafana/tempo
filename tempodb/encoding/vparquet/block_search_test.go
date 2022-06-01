@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
@@ -186,7 +187,7 @@ func makeBackendBlockWithTrace(t *testing.T, tr *Trace) *backendBlock {
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
 	meta.TotalObjects = 1
 
-	s, err := NewStreamingBlock(ctx, cfg, meta, r, w)
+	s, err := NewStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 	require.NoError(t, err)
 
 	s.Add(tr)

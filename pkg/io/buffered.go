@@ -3,6 +3,11 @@ package io
 import (
 	"io"
 	"sync"
+
+	"github.com/pkg/errors"
+	"go.uber.org/atomic"
+
+	"github.com/grafana/tempo/pkg/tempopb/pool"
 )
 
 // bufferedReader implements io.ReaderAt but extends and buffers reads up to the given buffer size.
@@ -124,11 +129,11 @@ type BufferedWriter struct {
 	buf []byte
 }
 
-func NewBufferedWriter(w io.Writer) *BufferedWriter {
+func NewBufferedWriter(w io.Writer) BufferedWriteFlusher {
 	return &BufferedWriter{w, nil}
 }
 
-var _ io.WriteCloser = (*BufferedWriter)(nil)
+var _ BufferedWriteFlusher = (*BufferedWriter)(nil)
 
 func (b *BufferedWriter) Write(p []byte) (n int, err error) {
 	b.buf = append(b.buf, p...)
@@ -152,4 +157,102 @@ func (b *BufferedWriter) Close() error {
 		return err
 	}
 	return nil
+}
+
+type BufferedWriteFlusher interface {
+	io.WriteCloser
+	Len() int
+	Flush() error
+}
+
+// BufferedWriterWithQueue is an attempt at writing an async queue of outgoing data to the underlying writer.
+// As a tradeoff for removing flushes from the hot path, this writer does not provide guarantees about
+// bubbling up errors and takes a best effort approach to signal a failure.
+type BufferedWriterWithQueue struct {
+	w   io.Writer
+	buf []byte
+
+	flushCh chan []byte
+	doneCh  chan struct{}
+	pool    *pool.Pool
+	err     atomic.Error
+}
+
+var _ BufferedWriteFlusher = (*BufferedWriterWithQueue)(nil)
+
+func NewBufferedWriterWithQueue(w io.Writer) BufferedWriteFlusher {
+	b := &BufferedWriterWithQueue{
+		w:       w,
+		buf:     nil,
+		flushCh: make(chan []byte, 10), // todo: guess better?
+		doneCh:  make(chan struct{}),
+		pool:    pool.New(30_000_000, 30_000_000, 1.1, func(size int) []byte { return make([]byte, 0, size) }),
+	}
+
+	go b.flushLoop()
+
+	return b
+}
+
+func (b *BufferedWriterWithQueue) Write(p []byte) (n int, err error) {
+	b.buf = append(b.buf, p...)
+	return len(p), nil
+}
+
+func (b *BufferedWriterWithQueue) Len() int {
+	return len(b.buf)
+}
+
+func (b *BufferedWriterWithQueue) Flush() error {
+	if err := b.err.Load(); err != nil {
+		return errors.Wrap(err, "error in async write using buffered writer")
+	}
+
+	bufCopy := b.pool.Get(len(b.buf))
+	bufCopy = append(bufCopy, b.buf...)
+
+	// reset/resize buffer
+	b.buf = b.buf[:0]
+
+	// will only block if the entire buffered channel is full
+	b.flushCh <- bufCopy
+	return nil
+}
+
+func (b *BufferedWriterWithQueue) flushLoop() {
+	defer close(b.doneCh)
+
+	// for-range will exit once channel is closed
+	// https://dave.cheney.net/tag/golang-3
+	for buf := range b.flushCh {
+		n, err := b.w.Write(buf)
+		if err != nil {
+			b.err.Store(err)
+			return
+		}
+
+		// put buffer back into the pool for use by the next backend write
+		buf = buf[:len(buf)-n]
+		b.pool.Put(buf)
+	}
+}
+
+func (b *BufferedWriterWithQueue) Close() error {
+	if err := b.err.Load(); err != nil {
+		return err
+	}
+
+	var flushErr error
+	if len(b.buf) > 0 {
+		flushErr = b.Flush()
+		b.buf = nil
+	}
+
+	// close out flushLoop
+	close(b.flushCh)
+
+	// blocking wait on doneCh
+	<-b.doneCh
+
+	return flushErr
 }
