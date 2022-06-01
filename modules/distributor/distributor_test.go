@@ -708,26 +708,26 @@ func TestLogSpans(t *testing.T) {
 				{
 					Msg:     "received",
 					Level:   "info",
-					TraceId: "0a0102030405060708090a0b0c0d0e0f",
-					SpanId:  "dad44adc9a83b370",
+					TraceID: "0a0102030405060708090a0b0c0d0e0f",
+					SpanID:  "dad44adc9a83b370",
 				},
 				{
 					Msg:     "received",
 					Level:   "info",
-					TraceId: "e3210a2b38097332d1fe43083ea93d29",
-					SpanId:  "6c21c48da4dbd1a7",
+					TraceID: "e3210a2b38097332d1fe43083ea93d29",
+					SpanID:  "6c21c48da4dbd1a7",
 				},
 				{
 					Msg:     "received",
 					Level:   "info",
-					TraceId: "bb42ec04df789ff04b10ea5274491685",
-					SpanId:  "1b3a296034f4031e",
+					TraceID: "bb42ec04df789ff04b10ea5274491685",
+					SpanID:  "1b3a296034f4031e",
 				},
 				{
 					Msg:     "received",
 					Level:   "info",
-					TraceId: "b1c792dea27d511c145df8402bdd793a",
-					SpanId:  "56afb9fe18b6c2d6",
+					TraceID: "b1c792dea27d511c145df8402bdd793a",
+					SpanID:  "56afb9fe18b6c2d6",
 				},
 			},
 		},
@@ -754,14 +754,14 @@ func TestLogSpans(t *testing.T) {
 				{
 					Msg:     "received",
 					Level:   "info",
-					TraceId: "e3210a2b38097332d1fe43083ea93d29",
-					SpanId:  "6c21c48da4dbd1a7",
+					TraceID: "e3210a2b38097332d1fe43083ea93d29",
+					SpanID:  "6c21c48da4dbd1a7",
 				},
 				{
 					Msg:     "received",
 					Level:   "info",
-					TraceId: "b1c792dea27d511c145df8402bdd793a",
-					SpanId:  "56afb9fe18b6c2d6",
+					TraceID: "b1c792dea27d511c145df8402bdd793a",
+					SpanID:  "56afb9fe18b6c2d6",
 				},
 			},
 		},
@@ -794,8 +794,8 @@ func TestLogSpans(t *testing.T) {
 				{
 					Msg:             "received",
 					Level:           "info",
-					TraceId:         "e3210a2b38097332d1fe43083ea93d29",
-					SpanId:          "6c21c48da4dbd1a7",
+					TraceID:         "e3210a2b38097332d1fe43083ea93d29",
+					SpanID:          "6c21c48da4dbd1a7",
 					SpanServiceName: "test-service",
 					SpanStatus:      "STATUS_CODE_ERROR",
 					SpanKind:        "SPAN_KIND_SERVER",
@@ -805,8 +805,8 @@ func TestLogSpans(t *testing.T) {
 				{
 					Msg:             "received",
 					Level:           "info",
-					TraceId:         "b1c792dea27d511c145df8402bdd793a",
-					SpanId:          "56afb9fe18b6c2d6",
+					TraceID:         "b1c792dea27d511c145df8402bdd793a",
+					SpanID:          "56afb9fe18b6c2d6",
 					SpanServiceName: "test-service2",
 					SpanStatus:      "STATUS_CODE_ERROR",
 					SpanKind:        "SPAN_KIND_SERVER",
@@ -830,8 +830,8 @@ func TestLogSpans(t *testing.T) {
 				{
 					Msg:             "received",
 					Level:           "info",
-					TraceId:         "0a0102030405060708090a0b0c0d0e0f",
-					SpanId:          "dad44adc9a83b370",
+					TraceID:         "0a0102030405060708090a0b0c0d0e0f",
+					SpanID:          "dad44adc9a83b370",
 					SpanServiceName: "test-service",
 					SpanStatus:      "STATUS_CODE_OK",
 					SpanKind:        "SPAN_KIND_SERVER",
@@ -859,9 +859,9 @@ func TestLogSpans(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			bufJson := "[" + strings.TrimRight(strings.ReplaceAll(buf.String(), "\n", ","), ",") + "]"
+			bufJSON := "[" + strings.TrimRight(strings.ReplaceAll(buf.String(), "\n", ","), ",") + "]"
 			var actualLogsSpan []logSpan
-			err = json.Unmarshal([]byte(bufJson), &actualLogsSpan)
+			err = json.Unmarshal([]byte(bufJSON), &actualLogsSpan)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -879,12 +879,11 @@ func TestLogSpans(t *testing.T) {
 type logSpan struct {
 	Msg             string `json:"msg"`
 	Level           string `json:"level"`
-	TraceId         string `json:"traceid"`
-	SpanId          string `json:"spanid"`
+	TraceID         string `json:"traceid"`
+	SpanID          string `json:"spanid"`
 	SpanStatus      string `json:"span_status,omitempty"`
 	SpanKind        string `json:"span_kind,omitempty"`
 	SpanServiceName string `json:"span_service_name,omitempty"`
-	spanLibrary     string `json:"span_library,omitempty"`
 	SpanTag1        string `json:"span_tag1,omitempty"`
 	SpanTag2        string `json:"span_tag2,omitempty"`
 }
@@ -896,23 +895,23 @@ func makeAttribute(key string, value string) *v1_common.KeyValue {
 	}
 }
 
-func makeSpan(traceId string, spanID string, status *v1.Status, attributes []*v1_common.KeyValue) *v1.Span {
+func makeSpan(traceID string, spanID string, status *v1.Status, attributes []*v1_common.KeyValue) *v1.Span {
 	if status == nil {
 		status = &v1.Status{Code: v1.Status_STATUS_CODE_OK}
 	}
 
-	traceIdBytes, err := hex.DecodeString(traceId)
+	traceIDBytes, err := hex.DecodeString(traceID)
 	if err != nil {
 		panic(err)
 	}
-	spanIdBytes, err := hex.DecodeString(spanID)
+	spanIDBytes, err := hex.DecodeString(spanID)
 	if err != nil {
 		panic(err)
 	}
 
 	return &v1.Span{
-		TraceId:    traceIdBytes,
-		SpanId:     spanIdBytes,
+		TraceId:    traceIDBytes,
+		SpanId:     spanIDBytes,
 		Status:     status,
 		Kind:       v1.Span_SPAN_KIND_SERVER,
 		Attributes: attributes,
