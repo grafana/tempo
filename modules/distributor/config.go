@@ -65,7 +65,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		FilterByStatusError: false,
 	}
 
-	f.BoolVar(&cfg.LogReceivedTraces.Enabled, util.PrefixConfig(prefix, "log-received-traces.enabled"), false, "Enable to log every received span to help debug ingestion or calculate error distributions.")
+	f.BoolVar(&cfg.LogReceivedTraces.Enabled, util.PrefixConfig(prefix, "log-received-traces.enabled"), false, "Enable to log every received span to help debug ingestion or calculate span error distributions using the logs.")
 	f.BoolVar(&cfg.LogReceivedTraces.IncludeAttributes, util.PrefixConfig(prefix, " log-received-traces.include-attributes"), false, "Enable to include span attributes in the logs.")
 	f.BoolVar(&cfg.LogReceivedTraces.FilterByStatusError, util.PrefixConfig(prefix, "log-received-traces.filter-by-status-error"), false, "Enable to filter out spans without status error.")
 }

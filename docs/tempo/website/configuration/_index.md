@@ -122,8 +122,11 @@ distributor:
         kafka:
 
     # Optional.
-    # Enable to log every received trace id to help debug ingestion
-    [log_received_traces: <bool>]
+    # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs.
+    log_received_traces:
+        [enabled: <boolean> | default = false]
+        [include_attributes: <boolean> | default = false]
+        [filter_by_status_error: <boolean> | default = false]
 
     # Optional.
     # disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true

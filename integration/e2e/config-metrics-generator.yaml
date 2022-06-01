@@ -8,7 +8,8 @@ distributor:
     jaeger:
       protocols:
         grpc:
-  log_received_traces: true
+  log_received_traces:
+    enabled: true
 
 ingester:
   lifecycler:
