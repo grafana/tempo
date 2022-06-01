@@ -23,6 +23,7 @@ type RedisConfig struct {
 	DB                 int            `yaml:"db"`
 	PoolSize           int            `yaml:"pool_size"`
 	Password           flagext.Secret `yaml:"password"`
+	SentinelPassword   flagext.Secret `yaml:"sentinel_password"`
 	EnableTLS          bool           `yaml:"tls_enabled"`
 	InsecureSkipVerify bool           `yaml:"tls_insecure_skip_verify"`
 	IdleTimeout        time.Duration  `yaml:"idle_timeout"`
@@ -38,6 +39,7 @@ func (cfg *RedisConfig) RegisterFlagsWithPrefix(prefix, description string, f *f
 	f.IntVar(&cfg.DB, prefix+"redis.db", 0, description+"Database index.")
 	f.IntVar(&cfg.PoolSize, prefix+"redis.pool-size", 0, description+"Maximum number of connections in the pool.")
 	f.Var(&cfg.Password, prefix+"redis.password", description+"Password to use when connecting to redis.")
+	f.Var(&cfg.SentinelPassword, prefix+"redis.sentinel-password", description+"Password to use when connecting to redis sentinel.")
 	f.BoolVar(&cfg.EnableTLS, prefix+"redis.tls-enabled", false, description+"Enable connecting to redis with TLS.")
 	f.BoolVar(&cfg.InsecureSkipVerify, prefix+"redis.tls-insecure-skip-verify", false, description+"Skip validating server certificate.")
 	f.DurationVar(&cfg.IdleTimeout, prefix+"redis.idle-timeout", 0, description+"Close connections after remaining idle for this duration. If the value is zero, then idle connections are not closed.")
@@ -53,13 +55,14 @@ type RedisClient struct {
 // NewRedisClient creates Redis client
 func NewRedisClient(cfg *RedisConfig) *RedisClient {
 	opt := &redis.UniversalOptions{
-		Addrs:       strings.Split(cfg.Endpoint, ","),
-		MasterName:  cfg.MasterName,
-		Password:    cfg.Password.String(),
-		DB:          cfg.DB,
-		PoolSize:    cfg.PoolSize,
-		IdleTimeout: cfg.IdleTimeout,
-		MaxConnAge:  cfg.MaxConnAge,
+		Addrs:            strings.Split(cfg.Endpoint, ","),
+		MasterName:       cfg.MasterName,
+		Password:         cfg.Password.String(),
+		SentinelPassword: cfg.SentinelPassword.String(),
+		DB:               cfg.DB,
+		PoolSize:         cfg.PoolSize,
+		IdleTimeout:      cfg.IdleTimeout,
+		MaxConnAge:       cfg.MaxConnAge,
 	}
 	if cfg.EnableTLS {
 		opt.TLSConfig = &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify}

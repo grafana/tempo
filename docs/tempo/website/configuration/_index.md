@@ -751,6 +751,10 @@ storage:
             # close connections older than this duration. (default 0s)
             [max-connection-age: <duration>]
 
+            # optional.
+            # password to use when connecting to redis sentinel. (default "")
+            [sentinel_password: <string>]
+
         # the worker pool is used primarily when finding traces by id, but is also used by other
         pool:
 
