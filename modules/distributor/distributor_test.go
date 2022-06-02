@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -874,9 +873,7 @@ func TestLogSpans(t *testing.T) {
 
 			assert.Equal(t, len(tc.expectedLogSpans), len(actualLogsSpan))
 			for i, expectedLogSpan := range tc.expectedLogSpans {
-				if !reflect.DeepEqual(expectedLogSpan, actualLogsSpan[i]) {
-					t.Fatalf("expected: %+v, got: %+v", expectedLogSpan, actualLogsSpan[i])
-				}
+				assert.EqualValues(t, expectedLogSpan, actualLogsSpan[i])
 			}
 		})
 	}
