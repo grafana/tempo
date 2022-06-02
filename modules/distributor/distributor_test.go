@@ -783,33 +783,35 @@ func TestLogSpans(t *testing.T) {
 					makeInstrumentationLibrary([]*v1.Span{
 						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", nil, nil),
 					}),
-				}),
+				}, makeAttribute("resource_attribute1", "value1")),
 				makeResourceSpans("test-service2", []*v1.InstrumentationLibrarySpans{
 					makeInstrumentationLibrary([]*v1.Span{
 						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR}, nil),
 					}),
-				}),
+				}, makeAttribute("resource_attribute2", "value2")),
 			},
 			expectedLogSpans: []logSpan{
 				{
-					Msg:             "received",
-					Level:           "info",
-					TraceID:         "e3210a2b38097332d1fe43083ea93d29",
-					SpanID:          "6c21c48da4dbd1a7",
-					SpanServiceName: "test-service",
-					SpanStatus:      "STATUS_CODE_ERROR",
-					SpanKind:        "SPAN_KIND_SERVER",
-					SpanTag1:        "value1",
-					SpanTag2:        "value2",
+					Msg:                "received",
+					Level:              "info",
+					TraceID:            "e3210a2b38097332d1fe43083ea93d29",
+					SpanID:             "6c21c48da4dbd1a7",
+					SpanServiceName:    "test-service",
+					SpanStatus:         "STATUS_CODE_ERROR",
+					SpanKind:           "SPAN_KIND_SERVER",
+					SpanTag1:           "value1",
+					SpanTag2:           "value2",
+					ResourceAttribute1: "value1",
 				},
 				{
-					Msg:             "received",
-					Level:           "info",
-					TraceID:         "b1c792dea27d511c145df8402bdd793a",
-					SpanID:          "56afb9fe18b6c2d6",
-					SpanServiceName: "test-service2",
-					SpanStatus:      "STATUS_CODE_ERROR",
-					SpanKind:        "SPAN_KIND_SERVER",
+					Msg:                "received",
+					Level:              "info",
+					TraceID:            "b1c792dea27d511c145df8402bdd793a",
+					SpanID:             "56afb9fe18b6c2d6",
+					SpanServiceName:    "test-service2",
+					SpanStatus:         "STATUS_CODE_ERROR",
+					SpanKind:           "SPAN_KIND_SERVER",
+					ResourceAttribute2: "value2",
 				},
 			},
 		},
@@ -848,7 +850,7 @@ func TestLogSpans(t *testing.T) {
 			logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
 
 			d := prepare(t, limits, nil, logger)
-			d.cfg.LogReceivedTraces = LogReceivedTracesConfig{
+			d.cfg.LogReceivedSpans = LogReceivedSpansConfig{
 				Enabled:             tc.spanLoggingEnabled,
 				FilterByStatusError: tc.filterByStatusError,
 				IncludeAttributes:   tc.includeAttributes,
@@ -877,15 +879,17 @@ func TestLogSpans(t *testing.T) {
 }
 
 type logSpan struct {
-	Msg             string `json:"msg"`
-	Level           string `json:"level"`
-	TraceID         string `json:"traceid"`
-	SpanID          string `json:"spanid"`
-	SpanStatus      string `json:"span_status,omitempty"`
-	SpanKind        string `json:"span_kind,omitempty"`
-	SpanServiceName string `json:"span_service_name,omitempty"`
-	SpanTag1        string `json:"span_tag1,omitempty"`
-	SpanTag2        string `json:"span_tag2,omitempty"`
+	Msg                string `json:"msg"`
+	Level              string `json:"level"`
+	TraceID            string `json:"traceid"`
+	SpanID             string `json:"spanid"`
+	SpanStatus         string `json:"span_status,omitempty"`
+	SpanKind           string `json:"span_kind,omitempty"`
+	SpanServiceName    string `json:"span_service_name,omitempty"`
+	SpanTag1           string `json:"span_tag1,omitempty"`
+	SpanTag2           string `json:"span_tag2,omitempty"`
+	ResourceAttribute1 string `json:"span_resource_attribute1,omitempty"`
+	ResourceAttribute2 string `json:"span_resource_attribute2,omitempty"`
 }
 
 func makeAttribute(key string, value string) *v1_common.KeyValue {
@@ -928,8 +932,8 @@ func makeInstrumentationLibrary(spans []*v1.Span) *v1.InstrumentationLibrarySpan
 	}
 }
 
-func makeResourceSpans(serviceName string, ils []*v1.InstrumentationLibrarySpans) *v1.ResourceSpans {
-	return &v1.ResourceSpans{
+func makeResourceSpans(serviceName string, ils []*v1.InstrumentationLibrarySpans, attributes ...*v1_common.KeyValue) *v1.ResourceSpans {
+	rs := &v1.ResourceSpans{
 		Resource: &v1_resource.Resource{
 			Attributes: []*v1_common.KeyValue{
 				{
@@ -944,6 +948,10 @@ func makeResourceSpans(serviceName string, ils []*v1.InstrumentationLibrarySpans
 		},
 		InstrumentationLibrarySpans: ils,
 	}
+
+	rs.Resource.Attributes = append(rs.Resource.Attributes, attributes...)
+
+	return rs
 }
 
 func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client, logger log.Logger) *Distributor {

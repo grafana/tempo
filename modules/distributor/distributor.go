@@ -284,11 +284,11 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 		return nil, err
 	}
 
-	if d.cfg.LogReceivedTraces.Enabled {
-		if d.cfg.LogReceivedTraces.IncludeAttributes {
-			logSpansWithAttributes(batches, d.cfg.LogReceivedTraces.FilterByStatusError, d.logger)
+	if d.cfg.LogReceivedSpans.Enabled || d.cfg.LogReceivedTraces {
+		if d.cfg.LogReceivedSpans.IncludeAttributes {
+			logSpansWithAttributes(batches, d.cfg.LogReceivedSpans.FilterByStatusError, d.logger)
 		} else {
-			logSpans(batches, d.cfg.LogReceivedTraces.FilterByStatusError, d.logger)
+			logSpans(batches, d.cfg.LogReceivedSpans.FilterByStatusError, d.logger)
 		}
 	}
 
@@ -555,11 +555,12 @@ func logSpans(batches []*v1.ResourceSpans, filterByStatusError bool, logger log.
 
 func logSpansWithAttributes(batch []*v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {
 	for _, b := range batch {
+		logger := logger // copy logger so we can modify it per resource
+
 		// extract resources attributes, so we only have to do it once per batch of spans
-		batchLogger := logger
 		for _, a := range b.Resource.GetAttributes() {
-			batchLogger = log.With(
-				batchLogger,
+			logger = log.With(
+				logger,
 				"span_"+strutil.SanitizeLabelName(a.GetKey()),
 				tempo_util.StringifyAnyValue(a.GetValue()))
 		}
@@ -570,23 +571,23 @@ func logSpansWithAttributes(batch []*v1.ResourceSpans, filterByStatusError bool,
 					continue
 				}
 
-				spanLogger := batchLogger
+				logger := logger // copy logger so we can modify it per span
 
 				for _, a := range s.GetAttributes() {
-					spanLogger = log.With(
-						spanLogger,
+					logger = log.With(
+						logger,
 						"span_"+strutil.SanitizeLabelName(a.GetKey()),
 						tempo_util.StringifyAnyValue(a.GetValue()))
 				}
 
 				latencySeconds := float64(s.GetEndTimeUnixNano()-s.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
-				spanLogger = log.With(
-					spanLogger,
+				logger = log.With(
+					logger,
 					"span_duration_seconds", latencySeconds,
 					"span_kind", s.GetKind().String(),
 					"span_status", s.GetStatus().GetCode().String())
 
-				level.Info(spanLogger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
+				level.Info(logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
 			}
 		}
 	}
