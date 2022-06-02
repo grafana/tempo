@@ -1,6 +1,7 @@
 traces:
   jaeger:
-    thriftHttp: true
+    thriftHttp:
+      enabled: true
 config: |
   query_frontend:
     search:
