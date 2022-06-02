@@ -59,7 +59,7 @@ includes a solid guide on the various parameters with suggestions. The linked do
   baseline latency and your total throughput.
 - Decreasing `querier.search.hedge_requests_at` and increasing `querier.search.hedge_requests_up_to` will put more pressure on the serverless endpoints but will
   result in lower latency.
-- Increasing `querier.search.prefer_self` and scaling up the queriers will cause more work to be down in the queriers which will lower latencies.
+- Increasing `querier.search.prefer_self` and scaling up the queriers will cause more work to be performed by the queriers which will lower latencies.
 - Increasing `query_frontend.max_oustanding_per_tenant` and `query_frontend.search.concurrent_jobs` will increase the rate at which the
   query_frontend tries to feed jobs to the queriers and can decrease latency.
 
