@@ -679,9 +679,8 @@ func TestLogSpans(t *testing.T) {
 			LogReceivedSpansEnabled: false,
 			batches: []*v1.ResourceSpans{
 				makeResourceSpans("test", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary([]*v1.Span{
-						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil),
-					}),
+					makeInstrumentationLibrary(
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil)),
 				}),
 			},
 			expectedLogSpans: []logSpan{},
@@ -690,9 +689,8 @@ func TestLogSpans(t *testing.T) {
 			LogReceivedTraces: true,
 			batches: []*v1.ResourceSpans{
 				makeResourceSpans("test", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary([]*v1.Span{
-						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil),
-					}),
+					makeInstrumentationLibrary(
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil)),
 				}),
 			},
 			expectedLogSpans: []logSpan{
@@ -709,18 +707,15 @@ func TestLogSpans(t *testing.T) {
 			filterByStatusError:     false,
 			batches: []*v1.ResourceSpans{
 				makeResourceSpans("test-service", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary([]*v1.Span{
+					makeInstrumentationLibrary(
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil),
-						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", nil),
-					}),
-					makeInstrumentationLibrary([]*v1.Span{
-						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", nil),
-					}),
+						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", nil)),
+					makeInstrumentationLibrary(
+						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", nil)),
 				}),
 				makeResourceSpans("test-service2", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary([]*v1.Span{
-						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", nil),
-					}),
+					makeInstrumentationLibrary(
+						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", nil)),
 				}),
 			},
 			expectedLogSpans: []logSpan{
@@ -755,18 +750,15 @@ func TestLogSpans(t *testing.T) {
 			filterByStatusError:     true,
 			batches: []*v1.ResourceSpans{
 				makeResourceSpans("test-service", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary([]*v1.Span{
+					makeInstrumentationLibrary(
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil),
-						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR}),
-					}),
-					makeInstrumentationLibrary([]*v1.Span{
-						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", nil),
-					}),
+						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
+					makeInstrumentationLibrary(
+						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", nil)),
 				}),
 				makeResourceSpans("test-service2", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary([]*v1.Span{
-						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR}),
-					}),
+					makeInstrumentationLibrary(
+						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
 				}),
 			},
 			expectedLogSpans: []logSpan{
@@ -790,21 +782,18 @@ func TestLogSpans(t *testing.T) {
 			includeAttributes:       true,
 			batches: []*v1.ResourceSpans{
 				makeResourceSpans("test-service", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary([]*v1.Span{
+					makeInstrumentationLibrary(
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil,
 							makeAttribute("tag1", "value1")),
 						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR},
 							makeAttribute("tag1", "value1"),
-							makeAttribute("tag2", "value2")),
-					}),
-					makeInstrumentationLibrary([]*v1.Span{
-						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", nil),
-					}),
+							makeAttribute("tag2", "value2"))),
+					makeInstrumentationLibrary(
+						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", nil)),
 				}, makeAttribute("resource_attribute1", "value1")),
 				makeResourceSpans("test-service2", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary([]*v1.Span{
-						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR}),
-					}),
+					makeInstrumentationLibrary(
+						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
 				}, makeAttribute("resource_attribute2", "value2")),
 			},
 			expectedLogSpans: []logSpan{
@@ -838,10 +827,8 @@ func TestLogSpans(t *testing.T) {
 			includeAttributes:       true,
 			batches: []*v1.ResourceSpans{
 				makeResourceSpans("test-service", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary([]*v1.Span{
-						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil,
-							makeAttribute("tag1", "value1")),
-					}),
+					makeInstrumentationLibrary(
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil, makeAttribute("tag1", "value1"))),
 				}),
 			},
 			expectedLogSpans: []logSpan{
@@ -939,7 +926,7 @@ func makeSpan(traceID string, spanID string, status *v1.Status, attributes ...*v
 	}
 }
 
-func makeInstrumentationLibrary(spans []*v1.Span) *v1.InstrumentationLibrarySpans {
+func makeInstrumentationLibrary(spans ...*v1.Span) *v1.InstrumentationLibrarySpans {
 	return &v1.InstrumentationLibrarySpans{
 		InstrumentationLibrary: &v1_common.InstrumentationLibrary{
 			Name:    "super library",
