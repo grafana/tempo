@@ -572,6 +572,14 @@ storage:
             # access key when using access key credentials.
             [storage-account-key: <string>]
 
+            # optional.
+            # use Azure Managed Identity to access Azure storage.
+            [use-managed-identity: <bool>]
+
+            # optional.
+            # The Client ID for the user-assigned Azure Managed Identity used to access Azure storage.
+            [user-assigned-id: <bool>]
+
             # Optional. Default is 0 (disabled)
             # Example: "hedge-requests-at: 500ms"
             # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
