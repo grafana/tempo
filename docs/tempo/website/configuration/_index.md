@@ -532,7 +532,11 @@ storage:
 
             # optional.
             # enable if endpoint is http
-            [insecure: <bool>]          
+            [insecure: <bool>]
+
+            # optional.
+            # enable to skip verification of an HTTPs endpoint
+            [insecure_skip_verify: <bool>]
 
             # optional.
             # enable to use path-style requests.
