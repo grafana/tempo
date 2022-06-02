@@ -156,6 +156,7 @@ func TestMetricsGenerator(t *testing.T) {
 	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(2), "tempo_metrics_generator_spans_received_total"))
 
 	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(23), "tempo_metrics_generator_registry_active_series"))
+	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(1000), "tempo_metrics_generator_registry_max_active_series"))
 	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(23), "tempo_metrics_generator_registry_series_added_total"))
 }
 

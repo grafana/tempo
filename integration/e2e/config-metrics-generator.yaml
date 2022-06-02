@@ -44,3 +44,4 @@ memberlist:
 
 overrides:
   metrics_generator_processors: [service-graphs, span-metrics]
+  metrics_generator_max_active_series: 1000
