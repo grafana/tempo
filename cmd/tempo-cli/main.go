@@ -47,7 +47,8 @@ var cli struct {
 	} `cmd:""`
 
 	View struct {
-		Index viewIndexCmd `cmd:"" help:"View contents of block index"`
+		Index  viewIndexCmd  `cmd:"" help:"View contents of block index"`
+		Schema viewSchemaCmd `cmd:"" help:"View parquet schema"`
 	} `cmd:""`
 
 	Gen struct {
