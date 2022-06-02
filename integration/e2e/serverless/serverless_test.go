@@ -87,6 +87,15 @@ func TestServerless(t *testing.T) {
 			require.NoError(t, tempoIngester2.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 			require.NoError(t, tempoIngester3.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 
+			features := []*labels.Matcher{
+				{
+					Type:  labels.MatchEqual,
+					Name:  "feature",
+					Value: "external_endpoints",
+				},
+			}
+			require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_feature_enabled`}, e2e.WithLabelMatchers(features...), e2e.WaitMissingMetrics))
+
 			apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
 
 			// flush trace to backend
