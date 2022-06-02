@@ -151,6 +151,8 @@ func (f *forwarder) watchOverrides() {
 				queueSize, workerCount := f.getQueueManagerConfig(tenantID)
 				// if the queue size or worker count has changed, shutdown the queue manager and create a new one
 				if tm.shouldUpdate(queueSize, workerCount) {
+					level.Info(log.Logger).Log("msg", "Marking queue manager for update", "tenant", tenantID,
+						"old_queue_size", tm.queueSize, "new_queue_size", queueSize, "old_worker_count", tm.workerCount, "new_worker_count", workerCount)
 					queueManagersToDelete = append(queueManagersToDelete, tm)
 					queueManagersToAdd = append(queueManagersToAdd, struct {
 						tenantID               string
@@ -164,6 +166,7 @@ func (f *forwarder) watchOverrides() {
 				for _, qm := range queueManagersToDelete {
 					// shutdown the queue manager
 					// this will block until all workers have finished and the queue is drained
+					level.Info(log.Logger).Log("msg", "Shutting down queue manager", "tenant", qm.tenantID)
 					if err := qm.shutdown(); err != nil {
 						level.Error(log.Logger).Log("msg", "error shutting down queue manager", "tenant", qm.tenantID, "err", err)
 					}
@@ -172,6 +175,7 @@ func (f *forwarder) watchOverrides() {
 
 			// Synchronously update queue managers
 			for _, qm := range queueManagersToAdd {
+				level.Info(log.Logger).Log("msg", "Updating queue manager", "tenant", qm.tenantID)
 				f.queueManagers[qm.tenantID] = newQueueManager(qm.tenantID, qm.queueSize, qm.workerCount, f.forwardFunc)
 			}
 
