@@ -672,7 +672,7 @@ func TestLogSpans(t *testing.T) {
 		filterByStatusError     bool
 		includeAttributes       bool
 		batches                 []*v1.ResourceSpans
-		expectedLogSpans        []logSpan
+		expectedLogsSpan        []logSpan
 	}{
 		{
 			LogReceivedSpansEnabled: false,
@@ -682,7 +682,7 @@ func TestLogSpans(t *testing.T) {
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil)),
 				}),
 			},
-			expectedLogSpans: []logSpan{},
+			expectedLogsSpan: []logSpan{},
 		},
 		{
 			LogReceivedTraces: true,
@@ -692,7 +692,7 @@ func TestLogSpans(t *testing.T) {
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil)),
 				}),
 			},
-			expectedLogSpans: []logSpan{
+			expectedLogsSpan: []logSpan{
 				{
 					Msg:     "received",
 					Level:   "info",
@@ -717,7 +717,7 @@ func TestLogSpans(t *testing.T) {
 						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", nil)),
 				}),
 			},
-			expectedLogSpans: []logSpan{
+			expectedLogsSpan: []logSpan{
 				{
 					Msg:     "received",
 					Level:   "info",
@@ -760,7 +760,7 @@ func TestLogSpans(t *testing.T) {
 						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
 				}),
 			},
-			expectedLogSpans: []logSpan{
+			expectedLogsSpan: []logSpan{
 				{
 					Msg:     "received",
 					Level:   "info",
@@ -795,7 +795,7 @@ func TestLogSpans(t *testing.T) {
 						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
 				}, makeAttribute("resource_attribute2", "value2")),
 			},
-			expectedLogSpans: []logSpan{
+			expectedLogsSpan: []logSpan{
 				{
 					Msg:                "received",
 					Level:              "info",
@@ -830,7 +830,7 @@ func TestLogSpans(t *testing.T) {
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil, makeAttribute("tag1", "value1"))),
 				}),
 			},
-			expectedLogSpans: []logSpan{
+			expectedLogsSpan: []logSpan{
 				{
 					Msg:             "received",
 					Level:           "info",
@@ -871,8 +871,8 @@ func TestLogSpans(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			assert.Equal(t, len(tc.expectedLogSpans), len(actualLogsSpan))
-			for i, expectedLogSpan := range tc.expectedLogSpans {
+			assert.Equal(t, len(tc.expectedLogsSpan), len(actualLogsSpan))
+			for i, expectedLogSpan := range tc.expectedLogsSpan {
 				assert.EqualValues(t, expectedLogSpan, actualLogsSpan[i])
 			}
 		})
