@@ -10,6 +10,7 @@
 * [ENHANCEMENT] metrics-generator: expose max_active_series as a metric [#1471](https://github.com/grafana/tempo/pull/1471) (@kvrhdn)
 * [ENHANCEMENT] Azure Backend: Add support for authentication with Managed Identities. [#1457](https://github.com/grafana/tempo/pull/1457) (@joe-elliott)
 * [ENHANCEMENT] Add metric to track feature enablement [#1459](https://github.com/grafana/tempo/pull/1459) (@zalegrala)
+* [ENHANCEMENT] Add s3 config option `insecure_skip_verify` [#1470](https://github.com/grafana/tempo/pull/1470) (@zalegrala)
 * [BUGFIX] Fix nil pointer panic when the trace by id path errors. [#1441](https://github.com/grafana/tempo/pull/1441) (@joe-elliott)
 * [BUGFIX] Update tempo microservices Helm values example which missed the 'enabled' key for thriftHttp. [#1472](https://github.com/grafana/tempo/pull/1472) (@hajowieland)
 * [BUGFIX] Fix race condition in forwarder overrides loop. [1468](https://github.com/grafana/tempo/pull/1468) (@mapno)
