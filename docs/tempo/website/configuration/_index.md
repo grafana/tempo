@@ -120,7 +120,7 @@ distributor:
         zipkin:
         opencensus:
         kafka:
- 
+
     # Optional.
     # Enable to log every received trace id to help debug ingestion
     # WARNING: Deprecated. Use log_received_spans instead.
