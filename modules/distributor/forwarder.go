@@ -134,9 +134,11 @@ func (f *forwarder) getQueueManager(tenantID string) (*queueManager, bool) {
 // watchOverrides watches the overrides for changes
 // and updates the queueManagers accordingly
 func (f *forwarder) watchOverrides() {
+	ticker := time.NewTicker(f.overridesInterval)
+
 	for {
 		select {
-		case <-time.After(f.overridesInterval):
+		case <-ticker.C:
 			f.mutex.Lock()
 
 			var (
@@ -181,6 +183,7 @@ func (f *forwarder) watchOverrides() {
 
 			f.mutex.Unlock()
 		case <-f.shutdown:
+			ticker.Stop()
 			return
 		}
 	}
