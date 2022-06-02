@@ -336,7 +336,7 @@ func (m *queueManager) stopWorkers(ctx context.Context) error {
 }
 
 // shouldUpdate returns true if the queue size or worker count (alive or total) has changed
-func (m *queueManager) shouldUpdate(numWorkers int, queueSize int) bool {
+func (m *queueManager) shouldUpdate(queueSize, numWorkers int) bool {
 	// TODO: worker alive count could be 0 and shutting down the queue manager would be impossible
 	//  it'd be better if we were able to spawn new workers instead of just closing the queueManager
 	//  and creating a new one
