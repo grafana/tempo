@@ -101,7 +101,7 @@ distributor:
     instance_addr: ""
   receivers: {}
   override_ring_key: distributor
-  log_received_traces:
+  log_received_spans:
     enabled: false
   extend_writes: true
   search_tags_deny_list: []
