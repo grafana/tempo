@@ -180,13 +180,13 @@ func (c *Config) Describe(ch chan<- *prometheus.Desc) {
 func (c *Config) Collect(ch chan<- prometheus.Metric) {
 
 	features := map[string]int{
-		"external_endpoints": 0,
-		"search":             0,
-		"metrics_generator":  0,
+		"search_external_endpoints": 0,
+		"search":                    0,
+		"metrics_generator":         0,
 	}
 
 	if len(c.Querier.Search.ExternalEndpoints) > 0 {
-		features["external_endpoints"] = 1
+		features["search_external_endpoints"] = 1
 	}
 
 	if c.SearchEnabled {

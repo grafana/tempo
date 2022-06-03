@@ -91,7 +91,7 @@ func TestServerless(t *testing.T) {
 				{
 					Type:  labels.MatchEqual,
 					Name:  "feature",
-					Value: "external_endpoints",
+					Value: "search_external_endpoints",
 				},
 			}
 			require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_feature_enabled`}, e2e.WithLabelMatchers(features...), e2e.WaitMissingMetrics))
