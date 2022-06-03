@@ -207,10 +207,10 @@ gen-traceql:
 gen-traceql-local:
 	goyacc -o pkg/traceql/expr.y.go pkg/traceql/expr.y && rm y.output
 
-### Check vendored files and generated proto
+### Check vendored and generated files are up to date
 .PHONY: vendor-check
-vendor-check: gen-proto gen-flat update-mod
-	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/tempofb/
+vendor-check: gen-proto gen-flat update-mod gen-traceql
+	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/tempofb/ pkg/traceql/
 
 ### Tidy dependencies for tempo and tempo-serverless modules
 .PHONY: update-mod
