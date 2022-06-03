@@ -10,6 +10,12 @@ GOARCH ?= $(shell go env GOARCH)
 GOPATH := $(shell go env GOPATH)
 GORELEASER := $(GOPATH)/bin/goreleaser
 
+# Build Images
+DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.2.1
+FLATBUFFERS_IMAGE ?= neomantra/flatbuffers
+LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.15.0
+DOCS_IMAGE ?= grafana/docs-base:latest
+
 # More exclusions can be added similar with: -not -path './testbed/*'
 ALL_SRC := $(shell find . -name '*.go' \
 								-not -path './vendor*/*' \
@@ -131,8 +137,7 @@ endif
 # #########
 # Gen Proto
 # #########
-DOCKER_PROTOBUF ?= otel/build-protobuf:0.2.1
-PROTOC = docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
+PROTOC = docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF_IMAGE} --proto_path=${PWD}
 PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
 PROTO_INCLUDES = -I$(PROTO_INTERMEDIATE_DIR)
 PROTO_GEN = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
@@ -189,13 +194,17 @@ gen-proto:
 .PHONY: gen-flat
 gen-flat:
 	# -o /pkg generates into same folder as tempo.fbs for simpler imports.
-	docker run --rm -v${PWD}:/opt/src neomantra/flatbuffers flatc --go -o /opt/src/pkg /opt/src/pkg/tempofb/tempo.fbs
+	docker run --rm -v${PWD}:/opt/src ${FLATBUFFERS_IMAGE} flatc --go -o /opt/src/pkg /opt/src/pkg/tempofb/tempo.fbs
 
 # ##############
 # Gen Traceql
 # ##############
-.PHONY: gen-yacc
-gen-yacc:
+.PHONY: gen-traceql
+gen-traceql:
+	docker run --rm -v${PWD}:/src/loki ${LOKI_BUILD_IMAGE} gen-traceql-local
+
+.PHONY: gen-traceql-local
+gen-traceql-local:
 	goyacc -o pkg/traceql/expr.y.go pkg/traceql/expr.y && rm y.output
 
 ### Check vendored files and generated proto
@@ -225,8 +234,6 @@ release-snapshot: $(GORELEASER)
 	$(GORELEASER) build --skip-validate --rm-dist --snapshot
 
 ### Docs
-DOCS_IMAGE = grafana/docs-base:latest
-
 .PHONY: docs
 docs:
 	docker pull ${DOCS_IMAGE}
@@ -269,7 +276,7 @@ drone:
 	# piggyback on Loki's build image, this image contains a newer version of drone-cli than is
 	# released currently (1.4.0). The newer version of drone-clie keeps drone.yml human-readable.
 	# This will run 'make drone-jsonnet' from within the container
-	docker run --rm -v $(shell pwd):/src/loki grafana/loki-build-image:0.15.0 drone-jsonnet
+	docker run --rm -v $(shell pwd):/src/loki ${LOKI_BUILD_IMAGE} drone-jsonnet
 
 	drone lint .drone/drone.yml
 	@make drone-signature
