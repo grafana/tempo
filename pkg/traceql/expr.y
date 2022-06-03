@@ -30,7 +30,7 @@ import (
 
     fieldExpression FieldExpression
     static Static
-    intrinsicField Static
+    intrinsicField Attribute
     attributeField Attribute
 
     binOp       int
@@ -70,10 +70,11 @@ import (
 %token <staticDuration> DURATION
 %token <val>            DOT OPEN_BRACE CLOSE_BRACE OPEN_PARENS CLOSE_PARENS
                         NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
-                        IDURATION CHILDCOUNT NAME STATUS
-                        PARENT RESOURCE SPAN
+                        IDURATION CHILDCOUNT NAME STATUS PARENT
+                        PARENT_DOT RESOURCE_DOT SPAN_DOT
                         COUNT AVG MAX MIN SUM
                         BY COALESCE
+                        END_ATTRIBUTE
 
 // Operators are listed with increasing precedence.
 %left <binOp> PIPE
@@ -255,12 +256,11 @@ intrinsicField:
   | PARENT         { $$ = newIntrinsic(intrinsicParent)     }
   ;
 
-// jpe - nested scopes? parent.resource, parent.parent?
-// how to select an attribute on the parent called span?
 attributeField:
-    DOT IDENTIFIER                 { $$ = newAttribute($2)               }
-  | RESOURCE DOT IDENTIFIER        { $$ = newScopedAttribute(attributeScopeResource, $3) }
-  | SPAN DOT IDENTIFIER            { $$ = newScopedAttribute(attributeScopeSpan, $3) }
-  | PARENT DOT IDENTIFIER          { $$ = newScopedAttribute(attributeScopeParent, $3) }
-  | attributeField DOT IDENTIFIER  { $$ = appendAttribute($1, $3) }
+    DOT IDENTIFIER END_ATTRIBUTE                      { $$ = newAttribute($2)                                      }
+  | RESOURCE_DOT IDENTIFIER END_ATTRIBUTE             { $$ = newScopedAttribute(attributeScopeResource, false, $2) }
+  | SPAN_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = newScopedAttribute(attributeScopeSpan, false, $2)     }
+  | PARENT_DOT IDENTIFIER END_ATTRIBUTE               { $$ = newScopedAttribute(attributeScopeNone, true, $2)      }
+  | PARENT_DOT RESOURCE_DOT IDENTIFIER END_ATTRIBUTE  { $$ = newScopedAttribute(attributeScopeResource, true, $3)  }
+  | PARENT_DOT SPAN_DOT IDENTIFIER END_ATTRIBUTE      { $$ = newScopedAttribute(attributeScopeSpan, true, $3)      }
   ;

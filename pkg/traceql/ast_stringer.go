@@ -101,21 +101,6 @@ func (n Static) String() string {
 		return "`" + n.s + "`"
 	case typeBoolean:
 		return strconv.FormatBool(n.b)
-	case typeIntrinsic:
-		switch n.n {
-		case intrinsicDuration:
-			return "duration"
-		case intrinsicChildCount:
-			return "childCount"
-		case intrinsicName:
-			return "name"
-		case intrinsicStatus:
-			return "status"
-		case intrinsicParent:
-			return "parent"
-		default:
-			return fmt.Sprintf("intrinsic(%d)", n.n)
-		}
 	case typeNil:
 		return "nil"
 	case typeDuration:
@@ -137,22 +122,42 @@ func (n Static) String() string {
 }
 
 func (a Attribute) String() string {
-	scope := ""
+	scopes := []string{}
+	if a.parent {
+		scopes = append(scopes, "parent")
+	}
 
 	switch a.scope {
 	case attributeScopeNone:
-		scope = "."
-	case attributeScopeParent:
-		scope = "parent."
 	case attributeScopeSpan:
-		scope = "span."
+		scopes = append(scopes, "span")
 	case attributeScopeResource:
-		scope = "resource."
+		scopes = append(scopes, "resource")
 	default:
-		scope = fmt.Sprintf("att(%d).", a.scope)
+		scopes = append(scopes, fmt.Sprintf("att(%d).", a.scope))
 	}
 
-	return scope + a.att
+	att := a.name
+	switch a.intrinsic {
+	case intrinsicDuration:
+		att = "duration"
+	case intrinsicChildCount:
+		att = "childCount"
+	case intrinsicName:
+		att = "name"
+	case intrinsicStatus:
+		att = "status"
+	case intrinsicParent:
+		att = "parent"
+	}
+
+	scope := ""
+	if len(scopes) > 0 {
+		scope = strings.Join(scopes, ".")
+	}
+	scope += "."
+
+	return scope + att
 }
 
 func binaryOp(op string, lhs element, rhs element) string {

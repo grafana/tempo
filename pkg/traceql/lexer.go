@@ -45,8 +45,9 @@ var tokens = map[string]int{
 	"name":       NAME,
 	"status":     STATUS,
 	"parent":     PARENT,
-	"resource":   RESOURCE,
-	"span":       SPAN,
+	"parent.":    PARENT_DOT,
+	"resource.":  RESOURCE_DOT,
+	"span.":      SPAN_DOT,
 	"count":      COUNT,
 	"avg":        AVG,
 	"max":        MAX,
@@ -62,11 +63,43 @@ type lexer struct {
 	parser *yyParserImpl
 	errs   []ParseError
 
-	prevToken int
+	parsingAttribute bool
 }
 
 func (l *lexer) Lex(lval *yySymType) int {
+	// if we are currently parsing an attribute and the next rune suggests that
+	//  this attribute will end, then return a special token indicating that the attribute is
+	//  done parsing
+	if l.parsingAttribute && !isAttributeRune(l.Peek()) {
+		l.parsingAttribute = false
+		return END_ATTRIBUTE
+	}
+
 	r := l.Scan()
+
+	// if we are currently parsing an attribute then just grab everything until we find a character that ends the attribute.
+	// we will handle parsing this out in ast.go
+	if l.parsingAttribute {
+		str := l.TokenText()
+		// parse out any scopes here
+		tok := tokens[str+string(l.Peek())]
+		if tok == RESOURCE_DOT || tok == SPAN_DOT {
+			l.Next()
+			return tok
+		}
+
+		// go forward until we find the end of the attribute
+		r := l.Peek()
+		for isAttributeRune(r) {
+			str += string(l.Next())
+			r = l.Peek()
+		}
+
+		lval.staticStr = str
+		return IDENTIFIER
+	}
+
+	// now that we know we're not parsing an attribute, let's look for everything else
 	switch r {
 	case scanner.EOF:
 		return 0
@@ -109,21 +142,15 @@ func (l *lexer) Lex(lval *yySymType) int {
 		return FLOAT
 	}
 
-	// if the previous token was a dot we will always consider the current token an IDENTIFIER.
-	//  this is b/c DOT is always used in attribute selection like { .status }
-	if l.prevToken == DOT {
-		l.prevToken = -1
-		lval.staticStr = l.TokenText()
-		return IDENTIFIER
-	}
-
-	if tok, ok := tokens[l.TokenText()+string(l.Peek())]; ok {
+	tokStrNext := l.TokenText() + string(l.Peek())
+	if tok, ok := tokens[tokStrNext]; ok {
 		l.Next()
+		l.parsingAttribute = startsAttribute(tok)
 		return tok
 	}
 
 	if tok, ok := tokens[l.TokenText()]; ok {
-		l.prevToken = tok // save the previous token for the above logic regarding identifiers
+		l.parsingAttribute = startsAttribute(tok)
 		return tok
 	}
 
@@ -173,4 +200,20 @@ func isDurationRune(r rune) bool {
 	default:
 		return false
 	}
+}
+
+func isAttributeRune(r rune) bool {
+	return !unicode.IsSpace(r) &&
+		r != scanner.EOF &&
+		r != '(' &&
+		r != ')' &&
+		r != '}' &&
+		r != '{'
+}
+
+func startsAttribute(tok int) bool {
+	return tok == DOT ||
+		tok == RESOURCE_DOT ||
+		tok == SPAN_DOT ||
+		tok == PARENT_DOT
 }

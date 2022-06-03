@@ -42,6 +42,9 @@ valid:
   - '{ .a = "test" }'
   - '{ .a != "test" }'
   - '{ parent.a != 3 }'
+  - '{ parent.resource.a && true }'
+  - '{ parent.span.a > 3 }'
+  - '{ parent.duration = 1h }'
   - '{ resource.a != 3 }'
   - '{ span.a != 3 }'
   - '{ !("test" != .c || ((true && .b) || 3 < .a)) }'
@@ -221,13 +224,3 @@ validate_fails:
 
 # parsed and the ast is dumped to stdout. this is a debugging tool
 dump:
-  - '{ .a .a }' # jpe this parses  
-
-# jpe - add durations and status's and attribute = nil
-#     - what operators are allowed on which data types
-#         +, -, /, *, %, ^ - num    (duration/float/int)
-#         =, !=, <=, <, >, >= - num
-#         =, =~, !~ - string
-#         = - status
-#         = - attribute/nil
-#         &&, ||, !, =, != - bool

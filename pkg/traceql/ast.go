@@ -312,7 +312,6 @@ const (
 	typeNil
 	typeDuration
 	typeStatus
-	typeIntrinsic
 )
 
 const (
@@ -342,21 +341,6 @@ func (Static) __fieldExpression()  {}
 func (Static) __scalarExpression() {}
 
 func (s Static) impliedType() int {
-	if s.staticType == typeIntrinsic {
-		switch s.n {
-		case intrinsicDuration:
-			return typeDuration
-		case intrinsicChildCount:
-			return typeInt
-		case intrinsicName:
-			return typeString
-		case intrinsicStatus:
-			return typeStatus
-		case intrinsicParent:
-			return typeNil
-		}
-	}
-
 	return s.staticType
 }
 
@@ -408,54 +392,108 @@ func newStaticStatus(s int) Static {
 	}
 }
 
-func newIntrinsic(n int) Static {
-	return Static{
-		staticType: typeIntrinsic,
-		n:          n,
-	}
-}
-
 // **********************
 // Attributes
 // **********************
 
 const (
 	attributeScopeNone = iota
-	attributeScopeParent
-	attributeScopeParentResource
-	attributeScopeParentSpan
 	attributeScopeResource
 	attributeScopeSpan
 )
 
 type Attribute struct {
-	scope int
-	att   string
+	scope     int
+	parent    bool
+	name      string
+	intrinsic int
 }
 
+// parse out intrinsics
 func (Attribute) __fieldExpression() {}
 
 func (a Attribute) impliedType() int {
+	switch a.intrinsic {
+	case intrinsicDuration:
+		return typeDuration
+	case intrinsicChildCount:
+		return typeInt
+	case intrinsicName:
+		return typeString
+	case intrinsicStatus:
+		return typeStatus
+	case intrinsicParent:
+		return typeNil
+	}
+
 	return typeAttribute
 }
 
 func newAttribute(att string) Attribute {
+	intrinsic := intrinsicFromString(att)
+
 	return Attribute{
-		scope: attributeScopeNone,
-		att:   att,
+		scope:     attributeScopeNone,
+		parent:    false,
+		name:      att,
+		intrinsic: intrinsic,
 	}
 }
 
-func newScopedAttribute(scope int, att string) Attribute {
+func newScopedAttribute(scope int, parent bool, att string) Attribute {
+	intrinsic := -1
+	if scope != attributeScopeResource && scope != attributeScopeSpan {
+		intrinsic = intrinsicFromString(att)
+	}
+
 	return Attribute{
-		scope: scope,
-		att:   att,
+		scope:     scope,
+		parent:    parent,
+		name:      att,
+		intrinsic: intrinsic,
 	}
 }
 
-func appendAttribute(existing Attribute, att string) Attribute {
+func newIntrinsic(n int) Attribute {
 	return Attribute{
-		scope: existing.scope,
-		att:   existing.att + "." + att,
+		scope:     attributeScopeNone,
+		parent:    false,
+		name:      stringFromIntrinsic(n),
+		intrinsic: n,
 	}
+}
+
+// intrinsicFromString returns the matching intrinsic for the given string or -1 if there is none
+func intrinsicFromString(s string) int {
+	switch s {
+	case "duration":
+		return intrinsicDuration
+	case "name":
+		return intrinsicName
+	case "status":
+		return intrinsicStatus
+	case "childCount":
+		return intrinsicChildCount
+	case "parent":
+		return intrinsicParent
+	}
+
+	return -1
+}
+
+func stringFromIntrinsic(n int) string {
+	switch n {
+	case intrinsicDuration:
+		return "duration"
+	case intrinsicName:
+		return "name"
+	case intrinsicStatus:
+		return "status"
+	case intrinsicChildCount:
+		return "childCount"
+	case intrinsicParent:
+		return "parent"
+	}
+
+	return fmt.Sprintf("intrinsic(%d)", n)
 }

@@ -478,8 +478,6 @@ func TestSpansetFilterErrors(t *testing.T) {
 		{in: "{ 2 <> 3}", err: newParseError("syntax error: unexpected >", 1, 6)},
 		{in: "{ 2 = .b ", err: newParseError("syntax error: unexpected $end", 1, 10)},
 		{in: "{ + }", err: newParseError("syntax error: unexpected +", 1, 3)},
-		{in: "{ .foo.3 }", err: newParseError("syntax error: unexpected FLOAT", 1, 7)},
-		{in: "{ parent. }", err: newParseError("syntax error: unexpected $end", 1, 12)},
 	}
 
 	for _, tc := range tests {
@@ -620,14 +618,7 @@ func TestSpansetFilterStatics(t *testing.T) {
 		{in: `{ "true" }`, expected: newStaticString("true")},
 		{in: `{ "true\"" }`, expected: newStaticString("true\"")},
 		{in: "{ `foo` }", expected: newStaticString("foo")},
-		{in: "{ .max }", expected: newAttribute("max")},
-		{in: "{ .status }", expected: newAttribute("status")},
 		{in: "{ .foo }", expected: newAttribute("foo")},
-		{in: "{ .foo.bar }", expected: newAttribute("foo.bar")},
-		{in: "{ .foo.bar.baz }", expected: newAttribute("foo.bar.baz")},
-		{in: "{ parent.foo.bar.baz }", expected: newScopedAttribute(attributeScopeParent, "foo.bar.baz")},
-		{in: "{ resource.foo.bar.baz }", expected: newScopedAttribute(attributeScopeResource, "foo.bar.baz")},
-		{in: "{ span.foo.bar.baz }", expected: newScopedAttribute(attributeScopeSpan, "foo.bar.baz")},
 		{in: "{ duration }", expected: newIntrinsic(intrinsicDuration)},
 		{in: "{ childCount }", expected: newIntrinsic(intrinsicChildCount)},
 		{in: "{ name }", expected: newIntrinsic(intrinsicName)},
@@ -684,6 +675,204 @@ func TestSpansetFilterOperators(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, &RootExpr{newPipeline(newSpansetFilter(tc.expected))}, actual)
+		})
+	}
+}
+
+func TestAttributeNameErrors(t *testing.T) {
+	tests := []struct {
+		in  string
+		err error
+	}{
+		{in: "{ . foo }", err: newParseError("syntax error: unexpected END_ATTRIBUTE, expecting IDENTIFIER", 1, 3)},
+		{in: "{ .foo .bar }", err: newParseError("syntax error: unexpected .", 1, 8)},
+		{in: "{ parent. }", err: newParseError("syntax error: unexpected END_ATTRIBUTE, expecting IDENTIFIER or resource. or span.", 0, 3)},
+		{in: ".3foo", err: newParseError("syntax error: unexpected IDENTIFIER", 1, 3)},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			_, err := Parse(tc.in)
+
+			assert.Equal(t, tc.err, err)
+		})
+	}
+}
+
+func TestAttributes(t *testing.T) {
+	tests := []struct {
+		in       string
+		expected FieldExpression
+	}{
+		{in: "duration", expected: newIntrinsic(intrinsicDuration)},
+		{in: ".foo", expected: newAttribute("foo")},
+		{in: ".max", expected: newAttribute("max")},
+		{in: ".status", expected: newAttribute("status")},
+		{in: ".foo.bar", expected: newAttribute("foo.bar")},
+		{in: ".foo.bar.baz", expected: newAttribute("foo.bar.baz")},
+		{in: ".foo.3", expected: newAttribute("foo.3")},
+		{in: ".foo3", expected: newAttribute("foo3")},
+		{in: ".http_status", expected: newAttribute("http_status")},
+		{in: ".http-status", expected: newAttribute("http-status")},
+		{in: ".http+", expected: newAttribute("http+")},
+		{in: ".😝", expected: newAttribute("😝")},
+		{in: ".http-other", expected: newAttribute("http-other")},
+		{in: "parent.duration", expected: newScopedAttribute(attributeScopeNone, true, "duration")},
+		{in: "parent.foo.bar.baz", expected: newScopedAttribute(attributeScopeNone, true, "foo.bar.baz")},
+		{in: "resource.foo.bar.baz", expected: newScopedAttribute(attributeScopeResource, false, "foo.bar.baz")},
+		{in: "span.foo.bar", expected: newScopedAttribute(attributeScopeSpan, false, "foo.bar")},
+		{in: "parent.resource.foo", expected: newScopedAttribute(attributeScopeResource, true, "foo")},
+		{in: "parent.span.foo", expected: newScopedAttribute(attributeScopeSpan, true, "foo")},
+		{in: "parent.resource.foo.bar.baz", expected: newScopedAttribute(attributeScopeResource, true, "foo.bar.baz")},
+		{in: "parent.span.foo.bar", expected: newScopedAttribute(attributeScopeSpan, true, "foo.bar")},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			s := "{ " + tc.in + " }"
+			actual, err := Parse(s)
+
+			assert.NoError(t, err)
+			assert.Equal(t, &RootExpr{newPipeline(newSpansetFilter(tc.expected))}, actual)
+
+			s = "{" + tc.in + "}"
+			actual, err = Parse(s)
+
+			assert.NoError(t, err)
+			assert.Equal(t, &RootExpr{newPipeline(newSpansetFilter(tc.expected))}, actual)
+
+			s = "{ (" + tc.in + ") }"
+			actual, err = Parse(s)
+
+			assert.NoError(t, err)
+			assert.Equal(t, &RootExpr{newPipeline(newSpansetFilter(tc.expected))}, actual)
+
+			s = "{ " + tc.in + " + " + tc.in + " }"
+			actual, err = Parse(s)
+
+			assert.NoError(t, err)
+			assert.Equal(t, &RootExpr{newPipeline(newSpansetFilter(newBinaryOperation(opAdd, tc.expected, tc.expected)))}, actual)
+		})
+	}
+}
+
+func TestIntrinsics(t *testing.T) {
+	tests := []struct {
+		in       string
+		expected int
+	}{
+		{in: "duration", expected: intrinsicDuration},
+		{in: "childCount", expected: intrinsicChildCount},
+		{in: "name", expected: intrinsicName},
+		{in: "status", expected: intrinsicStatus},
+		{in: "parent", expected: intrinsicParent},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			// as intrinsic e.g. duration
+			s := "{ " + tc.in + " }"
+			actual, err := Parse(s)
+
+			assert.NoError(t, err)
+			assert.Equal(t, &RootExpr{newPipeline(
+				newSpansetFilter(Attribute{
+					scope:     attributeScopeNone,
+					parent:    false,
+					name:      tc.in,
+					intrinsic: tc.expected,
+				}))}, actual)
+
+			// as attribute e.g .duration
+			s = "{ ." + tc.in + "}"
+			actual, err = Parse(s)
+
+			assert.NoError(t, err)
+			assert.Equal(t, &RootExpr{newPipeline(
+				newSpansetFilter(Attribute{
+					scope:     attributeScopeNone,
+					parent:    false,
+					name:      tc.in,
+					intrinsic: tc.expected,
+				}))}, actual)
+
+			// as span scoped attribute e.g span.duration
+			s = "{ span." + tc.in + "}"
+			actual, err = Parse(s)
+
+			assert.NoError(t, err)
+			assert.Equal(t, &RootExpr{newPipeline(
+				newSpansetFilter(Attribute{
+					scope:     attributeScopeSpan,
+					parent:    false,
+					name:      tc.in,
+					intrinsic: -1,
+				}))}, actual)
+
+			// as resource scoped attribute e.g resource.duration
+			s = "{ resource." + tc.in + "}"
+			actual, err = Parse(s)
+
+			assert.NoError(t, err)
+			assert.Equal(t, &RootExpr{newPipeline(
+				newSpansetFilter(Attribute{
+					scope:     attributeScopeResource,
+					parent:    false,
+					name:      tc.in,
+					intrinsic: -1,
+				}))}, actual)
+
+			// as parent scoped intrinsic e.g parent.duration
+			s = "{ parent." + tc.in + "}"
+			actual, err = Parse(s)
+
+			assert.NoError(t, err)
+			assert.Equal(t, &RootExpr{newPipeline(
+				newSpansetFilter(Attribute{
+					scope:     attributeScopeNone,
+					parent:    true,
+					name:      tc.in,
+					intrinsic: tc.expected,
+				}))}, actual)
+
+			// as nested parent scoped intrinsic e.g. parent.duration.foo
+			s = "{ parent." + tc.in + ".foo }"
+			actual, err = Parse(s)
+
+			assert.NoError(t, err)
+			assert.Equal(t, &RootExpr{newPipeline(
+				newSpansetFilter(Attribute{
+					scope:     attributeScopeNone,
+					parent:    true,
+					name:      tc.in + ".foo",
+					intrinsic: -1,
+				}))}, actual)
+
+			// as parent resource scoped attribute e.g. parent.resource.duration
+			s = "{ parent.resource." + tc.in + "}"
+			actual, err = Parse(s)
+
+			assert.NoError(t, err)
+			assert.Equal(t, &RootExpr{newPipeline(
+				newSpansetFilter(Attribute{
+					scope:     attributeScopeResource,
+					parent:    true,
+					name:      tc.in,
+					intrinsic: -1,
+				}))}, actual)
+
+			// as parent span scoped attribute e.g. praent.span.duration
+			s = "{ parent.span." + tc.in + "}"
+			actual, err = Parse(s)
+
+			assert.NoError(t, err)
+			assert.Equal(t, &RootExpr{newPipeline(
+				newSpansetFilter(Attribute{
+					scope:     attributeScopeSpan,
+					parent:    true,
+					name:      tc.in,
+					intrinsic: -1,
+				}))}, actual)
 		})
 	}
 }
