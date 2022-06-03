@@ -49,6 +49,15 @@ func TestMetricsGenerator(t *testing.T) {
 	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(isServiceActiveMatcher("ingester")...), e2e.WaitMissingMetrics))
 	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(isServiceActiveMatcher("metrics-generator")...), e2e.WaitMissingMetrics))
 
+	features := []*labels.Matcher{
+		{
+			Type:  labels.MatchEqual,
+			Name:  "feature",
+			Value: "metrics_generator",
+		},
+	}
+	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_feature_enabled`}, e2e.WithLabelMatchers(features...), e2e.WaitMissingMetrics))
+
 	// Get port for the Jaeger gRPC receiver endpoint
 	c, err := util.NewJaegerGRPCClient(tempoDistributor.Endpoint(14250))
 	require.NoError(t, err)

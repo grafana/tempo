@@ -53,6 +53,8 @@ func (t *App) initServer() (services.Service, error) {
 	t.cfg.Server.MetricsNamespace = metricsNamespace
 	t.cfg.Server.ExcludeRequestInLog = true
 
+	prometheus.MustRegister(&t.cfg)
+
 	DisableSignalHandling(&t.cfg.Server)
 
 	server, err := server.New(t.cfg.Server)
