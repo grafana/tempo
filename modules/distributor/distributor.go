@@ -555,42 +555,45 @@ func logSpans(batches []*v1.ResourceSpans, filterByStatusError bool, logger log.
 
 func logSpansWithAttributes(batch []*v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {
 	for _, b := range batch {
-		logger := logger // copy logger so we can modify it per resource
+		logSpansInResourceWithAttributes(b, filterByStatusError, logger)
+	}
+}
 
-		// extract resources attributes, so we only have to do it once per batch of spans
-		for _, a := range b.Resource.GetAttributes() {
-			logger = log.With(
-				logger,
-				"span_"+strutil.SanitizeLabelName(a.GetKey()),
-				tempo_util.StringifyAnyValue(a.GetValue()))
-		}
+func logSpansInResourceWithAttributes(rs *v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {
+	for _, a := range rs.Resource.GetAttributes() {
+		logger = log.With(
+			logger,
+			"span_"+strutil.SanitizeLabelName(a.GetKey()),
+			tempo_util.StringifyAnyValue(a.GetValue()))
+	}
 
-		for _, ils := range b.InstrumentationLibrarySpans {
-			for _, s := range ils.Spans {
-				if filterByStatusError && s.Status.Code != v1.Status_STATUS_CODE_ERROR {
-					continue
-				}
-
-				logger := logger // copy logger so we can modify it per span
-
-				for _, a := range s.GetAttributes() {
-					logger = log.With(
-						logger,
-						"span_"+strutil.SanitizeLabelName(a.GetKey()),
-						tempo_util.StringifyAnyValue(a.GetValue()))
-				}
-
-				latencySeconds := float64(s.GetEndTimeUnixNano()-s.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
-				logger = log.With(
-					logger,
-					"span_duration_seconds", latencySeconds,
-					"span_kind", s.GetKind().String(),
-					"span_status", s.GetStatus().GetCode().String())
-
-				level.Info(logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
+	for _, ils := range rs.InstrumentationLibrarySpans {
+		for _, s := range ils.Spans {
+			if filterByStatusError && s.Status.Code != v1.Status_STATUS_CODE_ERROR {
+				continue
 			}
+
+			logSpanWithAttributes(s, logger)
 		}
 	}
+}
+
+func logSpanWithAttributes(s *v1.Span, logger log.Logger) {
+	for _, a := range s.GetAttributes() {
+		logger = log.With(
+			logger,
+			"span_"+strutil.SanitizeLabelName(a.GetKey()),
+			tempo_util.StringifyAnyValue(a.GetValue()))
+	}
+
+	latencySeconds := float64(s.GetEndTimeUnixNano()-s.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
+	logger = log.With(
+		logger,
+		"span_duration_seconds", latencySeconds,
+		"span_kind", s.GetKind().String(),
+		"span_status", s.GetStatus().GetCode().String())
+
+	level.Info(logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
 }
 
 // startEndFromSpan returns a unix epoch timestamp in seconds for the start and end of a span
