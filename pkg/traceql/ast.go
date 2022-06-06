@@ -37,7 +37,10 @@ type Pipeline struct {
 	p []element
 }
 
-func (Pipeline) __scalarExpression()  {}
+// nolint: revive
+func (Pipeline) __scalarExpression() {}
+
+// nolint: revive
 func (Pipeline) __spansetExpression() {}
 
 func newPipeline(i ...element) Pipeline {
@@ -105,7 +108,9 @@ func newScalarOperation(op Operator, lhs ScalarExpression, rhs ScalarExpression)
 	}
 }
 
+// nolint: revive
 func (ScalarOperation) __scalarExpression() {}
+
 func (o ScalarOperation) impliedType() StaticType {
 	if o.op.isBoolean() {
 		return typeBoolean
@@ -133,7 +138,9 @@ func newAggregate(agg AggregateOp, e FieldExpression) Aggregate {
 	}
 }
 
+// nolint: revive
 func (Aggregate) __scalarExpression() {}
+
 func (a Aggregate) impliedType() StaticType {
 	if a.agg == aggregateCount || a.e == nil {
 		return typeInt
@@ -164,6 +171,7 @@ func newSpansetOperation(op Operator, lhs SpansetExpression, rhs SpansetExpressi
 	}
 }
 
+// nolint: revive
 func (SpansetOperation) __spansetExpression() {}
 
 type SpansetFilter struct {
@@ -176,6 +184,7 @@ func newSpansetFilter(e FieldExpression) SpansetFilter {
 	}
 }
 
+// nolint: revive
 func (SpansetFilter) __spansetExpression() {}
 
 type ScalarFilter struct {
@@ -192,6 +201,7 @@ func newScalarFilter(op Operator, lhs ScalarExpression, rhs ScalarExpression) Sc
 	}
 }
 
+// nolint: revive
 func (ScalarFilter) __spansetExpression() {}
 
 // **********************
@@ -209,6 +219,7 @@ type BinaryOperation struct {
 	rhs FieldExpression
 }
 
+// nolint: revive
 func (BinaryOperation) __fieldExpression() {}
 
 func (o BinaryOperation) impliedType() StaticType {
@@ -239,6 +250,7 @@ type UnaryOperation struct {
 	e  FieldExpression
 }
 
+// nolint: revive
 func (UnaryOperation) __fieldExpression() {}
 
 func (o UnaryOperation) impliedType() StaticType {
@@ -266,7 +278,10 @@ type Static struct {
 	status     Status
 }
 
-func (Static) __fieldExpression()  {}
+// nolint: revive
+func (Static) __fieldExpression() {}
+
+// nolint: revive
 func (Static) __scalarExpression() {}
 
 func (s Static) impliedType() StaticType {
@@ -332,7 +347,7 @@ type Attribute struct {
 	intrinsic Intrinsic
 }
 
-// parse out intrinsics
+// nolint: revive
 func (Attribute) __fieldExpression() {}
 
 func (a Attribute) impliedType() StaticType {
