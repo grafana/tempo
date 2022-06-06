@@ -12,18 +12,20 @@ const (
 	aggregateAvg
 )
 
-var stringerAggs = map[AggregateOp]string{
-	aggregateCount: "count",
-	aggregateMax:   "max",
-	aggregateMin:   "min",
-	aggregateSum:   "sum",
-	aggregateAvg:   "avg",
-}
-
 func (a AggregateOp) String() string {
-	s, ok := stringerAggs[a]
-	if ok {
-		return s
+
+	switch a {
+	case aggregateCount:
+		return "count"
+	case aggregateMax:
+		return "max"
+	case aggregateMin:
+		return "min"
+	case aggregateSum:
+		return "sum"
+	case aggregateAvg:
+		return "avg"
 	}
+
 	return fmt.Sprintf("aggregate(%d)", a)
 }

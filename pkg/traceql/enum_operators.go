@@ -29,31 +29,6 @@ const (
 	opSpansetSibling
 )
 
-var stringerOps = map[Operator]string{ // jpe remove
-	opAdd:               "+",
-	opSub:               "-",
-	opDiv:               "/",
-	opMod:               "%",
-	opMult:              "*",
-	opEqual:             "=",
-	opNotEqual:          "!=",
-	opRegex:             "=~",
-	opNotRegex:          "!~",
-	opGreater:           ">",
-	opGreaterEqual:      ">=",
-	opLess:              "<",
-	opLessEqual:         "<=",
-	opPower:             "^",
-	opAnd:               "&&",
-	opOr:                "||",
-	opNot:               "!",
-	opSpansetChild:      ">",
-	opSpansetDescendant: ">>",
-	opSpansetAnd:        "&&",
-	opSpansetSibling:    "~",
-	opSpansetUnion:      "||",
-}
-
 func (op Operator) isBoolean() bool {
 	return op == opOr ||
 		op == opAnd ||
@@ -116,9 +91,53 @@ func (op Operator) typesValid(lhsT StaticType, rhsT StaticType) bool {
 }
 
 func (op Operator) String() string {
-	s, ok := stringerOps[op]
-	if ok {
-		return s
+
+	switch op {
+	case opAdd:
+		return "+"
+	case opSub:
+		return "-"
+	case opDiv:
+		return "/"
+	case opMod:
+		return "%"
+	case opMult:
+		return "*"
+	case opEqual:
+		return "="
+	case opNotEqual:
+		return "!="
+	case opRegex:
+		return "=~"
+	case opNotRegex:
+		return "!~"
+	case opGreater:
+		return ">"
+	case opGreaterEqual:
+		return ">="
+	case opLess:
+		return "<"
+	case opLessEqual:
+		return "<="
+	case opPower:
+		return "^"
+	case opAnd:
+		return "&&"
+	case opOr:
+		return "||"
+	case opNot:
+		return "!"
+	case opSpansetChild:
+		return ">"
+	case opSpansetDescendant:
+		return ">>"
+	case opSpansetAnd:
+		return "&&"
+	case opSpansetSibling:
+		return "~"
+	case opSpansetUnion:
+		return "||"
 	}
+
 	return fmt.Sprintf("operator(%d)", op)
 }
