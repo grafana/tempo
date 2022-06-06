@@ -27,7 +27,8 @@ func TestBackendBlockSearch(t *testing.T) {
 	// This is a fully-populated trace that we search for every condition
 	wantTr := &Trace{
 		TraceID:           util.TraceIDToHexString(test.ValidTraceID(nil)),
-		StartTimeUnixNano: uint64(time.Now().UnixNano()),
+		StartTimeUnixNano: uint64(1000 * time.Second),
+		EndTimeUnixNano:   uint64(2000 * time.Second),
 		DurationNanos:     uint64((100 * time.Millisecond).Nanoseconds()),
 		RootServiceName:   "RootService",
 		RootSpanName:      "RootSpan",
@@ -90,6 +91,20 @@ func TestBackendBlockSearch(t *testing.T) {
 			MinDurationMs: 99,
 			MaxDurationMs: 101,
 		},
+		{
+			Start: 1000,
+			End:   2000,
+		},
+		{
+			// Overlaps start
+			Start: 999,
+			End:   1001,
+		},
+		{
+			// Overlaps end
+			Start: 1999,
+			End:   2001,
+		},
 
 		// Well-known resource attributes
 		makeReq(LabelServiceName, "service"),
@@ -143,6 +158,10 @@ func TestBackendBlockSearch(t *testing.T) {
 		},
 		{
 			MaxDurationMs: 99,
+		},
+		{
+			Start: 100,
+			End:   200,
 		},
 
 		// Well-known resource attributes

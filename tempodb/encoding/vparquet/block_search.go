@@ -247,8 +247,24 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 		}
 		durFilter = pq.NewIntBetweenPredicate(min, max)
 	}
-
 	traceIters = append(traceIters, makeIter("DurationNanos", durFilter, "Duration"))
+
+	// We always pull back start time for search results, but it also
+	// has a predicate when bounded by the request
+	var startFilter pq.Predicate
+	if req.Start > 0 && req.End > 0 {
+		// Here's how we detect the trace overlaps the time window:
+
+		// Trace start <= req.End
+		startFilter = pq.NewIntBetweenPredicate(0, time.Unix(int64(req.End), 0).UnixNano())
+
+		// Trace end >= req.Start, only if column exists
+		if pq.HasColumn(pf, "EndTimeUnixNano") {
+			endFilter := pq.NewIntBetweenPredicate(time.Unix(int64(req.Start), 0).UnixNano(), math.MaxInt64)
+			traceIters = append(traceIters, makeIter("EndTimeUnixNano", endFilter, ""))
+		}
+	}
+	traceIters = append(traceIters, makeIter("StartTimeUnixNano", startFilter, "StartTime"))
 
 	// Join in values for search results. These have
 	// no filters so they will always be in the results.
@@ -256,7 +272,6 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 	traceIters = append(traceIters, makeIter("TraceID", traceIDMetrics, "TraceID"))
 	traceIters = append(traceIters, makeIter("RootServiceName", nil, "RootServiceName"))
 	traceIters = append(traceIters, makeIter("RootSpanName", nil, "RootSpanName"))
-	traceIters = append(traceIters, makeIter("StartTimeUnixNano", nil, "StartTime"))
 
 	return pq.NewJoinIterator(DefinitionLevelTrace, traceIters, nil), parquetSearchMetrics{
 		pTraceID: traceIDMetrics,

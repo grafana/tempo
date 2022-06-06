@@ -133,6 +133,7 @@ type Trace struct {
 
 	// Trace-level attributes for searching
 	StartTimeUnixNano uint64 `parquet:",delta"`
+	EndTimeUnixNano   uint64 `parquet:",delta"`
 	DurationNanos     uint64 `parquet:",delta"`
 	RootServiceName   string `parquet:",dict"`
 	RootSpanName      string `parquet:",dict"`
@@ -287,6 +288,7 @@ func traceToParquet(tr *tempopb.Trace) Trace {
 	}
 
 	ot.StartTimeUnixNano = traceStart
+	ot.EndTimeUnixNano = traceEnd
 	ot.DurationNanos = traceEnd - traceStart
 	ot.RootServiceName = trace.RootSpanNotYetReceivedText
 	ot.RootSpanName = trace.RootSpanNotYetReceivedText
