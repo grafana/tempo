@@ -43,7 +43,7 @@ The TraceQL language is designed to use the same syntax and semantics as PromQL 
 A query is an expression that is evaluated on one trace at a time. The query is structured as a set of chained
 expressions (a pipeline). Each expression in the pipeline selects or discards spansets from being included in the results set. E.g.
 
-`{ http.status = 200 } | by(namespace) | count() > 3`
+`{ .http.status = 200 } | by(.namespace) | count() > 3`
 
 Queries select sets of spans and filter them through a pipeline of aggregators and conditions. If a spanset is produced after evaluation
 on a trace then this spanset (and by extension the trace) is included in the resultset of the query.
@@ -52,7 +52,7 @@ on a trace then this spanset (and by extension the trace) is included in the res
 
 In TraceQL the curly brackets `{}` always select a set of spans from the current trace. They will commonly be paired with a condition to reduce the spans being passed in.
 
-`{ http.status = 200 }`
+`{ .http.status = 200 }`
 
 This simple query will be evaluated on every span of every trace, one at a time. 
 
@@ -66,11 +66,9 @@ Every span has certain intrinsic fields that can be referenced when selecting sp
 
 | field name | description                                 |
 | ---------- | ------------------------------------------- |
-| `start`    | start time of the span                      |
-| `end`      | end time of the span                        |
 | `duration` | end - start time of the span                |
 | `name`     | operation or span name                      |
-| `status`   | status values are "error", "ok", or "unset" |
+| `status`   | status values are error, ok, or unset       |
 | `parent`   | the parent of this span                     |
 
 **Examples**
@@ -87,13 +85,21 @@ We can refer to dynamic attributes (also known as tags) on the span or the span'
 **Examples**
 
 Find traces with the GET http method:  
-`{ http.method = "GET" }`
+`{ .http.method = "GET" }`
 
 Find traces that passed through the prod namespace:  
-`{ namespace = "prod" }`
+`{ .namespace = "prod" }`
 
 Find traces that cross service boundaries:  
-`{ parent.service.name != service.name }`
+`{ parent.service.name != .service.name }`
+
+### Scoped attribute fields
+
+Attributes can be specifically scoped to either "span" or "resource". Specifying "span" or "resource"
+can result in significant performance benefits.
+
+`{ span.http.status = 200 }`
+`{ resource.namespace = "prod" }`
 
 ### Field expressions
 
@@ -105,17 +111,17 @@ Find traces where the difference of the duration of a set of parent/child spans 
 `{ parent.duration - duration > 500ms }`
 
 Find traces with "success" http status codes:  
-`{ http.status >= 200 && http.status < 300 }`
+`{ .http.status >= 200 && .http.status < 300 }`
 
 Note that the second expression requires both conditions to be true on the same span. The entire expression inside of `{}` must be evaluated as true on a single span for it to be included in the resultset.
 
 ## Combining Spansets
 
 Logical operators combine sets of spans. For example, if we wanted to find a trace that went through two specific regions:  
-`{ region = "eu-west-0" } && { region = "eu-west-1" } `
+`{ .region = "eu-west-0" } && { .region = "eu-west-1" } `
 
 Note the difference between the above and the following:  
-`{ region = "eu-west-0"  && region = "eu-west-1" } `
+`{ .region = "eu-west-0"  && .region = "eu-west-1" } `
 
 The second expression will return no traces because it's impossible for both conditions to be simultaneously true on the same span.
 
@@ -151,7 +157,7 @@ Pipelining allows us to "pipe" a set of spans from one expression to the next. T
 **Examples**
 
 Find traces that have more than 3 spans with an attribute `http.status` with a value of `200`:  
-`{ http.status = 200 } | count() > 3`
+`{ .http.status = 200 } | count() > 3`
 
 ## Grouping
 
@@ -160,18 +166,18 @@ Grouping allows us to take a trace and break it down into sets of spans that are
 **Examples**
 
 Find traces that have more than 5 spans in any region:  
-`by(region) | count() > 5 `
+`by(.region) | count() > 5 `
 
 ## Examples
 
 Any span matches an attribute:  
-`{ namespace = "prod" }`
+`{ .namespace = "prod" }`
 
 Two attributes appear on the same span:  
-`{ namespace = "prod" && http.status = 200 }`
+`{ .namespace = "prod" && .http.status = 200 }`
 
 Two attributes appear anywhere within a trace:  
-`{ namespace = "prod" } && { http.status = 200 }`
+`{ .namespace = "prod" } && { .http.status = 200 }`
 
 Any span has a duration over one second:  
 `{ duration > 1s }`
@@ -180,24 +186,13 @@ The trace as a whole has a duration of over one second:
 `max(end) - min(start) > 1s`
 
 The average duration of spans exceeds 1s and any span has a specific attribute:
-`avg(duration) > 1s && { namespace = "prod" }`
+`avg(duration) > 1s && { .namespace = "prod" }`
 
 A trace has over 5 spans with http.status = 200 in any given namespace:  
-`{ http.status = 200 } | by(namespace) | count() > 5`
+`{ .http.status = 200 } | by(.namespace) | count() > 5`
 
 A trace passed through two regions in a specific order:  
-`{ region = "eu-west-0" } >> { region = "eu-west-1" }`
+`{ .region = "eu-west-0" } >> { .region = "eu-west-1" }`
 
 A trace sees network latency > 1s when passing between any two services:  
-`{ parent.service.name != service.name } | max(parent.duration - duration) > 1s`
-
-### Shorthand
-
-The following rules are proposed to make using TraceQL easy to use for simple cases.
-
-1. A bare condition is wrapped in `{}`  
-  `http.status = 200` -> `{ http.status = 200 }`
-
-2. Multiple bare conditions are individually wrapped in `{}`    
-  `http.status = 200 && namespace = "prod"` ->
-   `{ http.status = 200 } && { namespace = "prod" }`
+`{ parent.service.name != .service.name } | max(parent.duration - duration) > 1s`
