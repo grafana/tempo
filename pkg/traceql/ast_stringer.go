@@ -6,39 +6,6 @@ import (
 	"strings"
 )
 
-var stringerOps = map[int]string{
-	opAdd:               "+",
-	opSub:               "-",
-	opDiv:               "/",
-	opMod:               "%",
-	opMult:              "*",
-	opEqual:             "=",
-	opNotEqual:          "!=",
-	opRegex:             "=~",
-	opNotRegex:          "!~",
-	opGreater:           ">",
-	opGreaterEqual:      ">=",
-	opLess:              "<",
-	opLessEqual:         "<=",
-	opPower:             "^",
-	opAnd:               "&&",
-	opOr:                "||",
-	opNot:               "!",
-	opSpansetChild:      ">",
-	opSpansetDescendant: ">>",
-	opSpansetAnd:        "&&",
-	opSpansetSibling:    "~",
-	opSpansetUnion:      "||",
-}
-
-var stringerAggs = map[int]string{
-	aggregateCount: "count",
-	aggregateMax:   "max",
-	aggregateMin:   "min",
-	aggregateSum:   "sum",
-	aggregateAvg:   "avg",
-}
-
 func (r RootExpr) String() string {
 	return r.p.String()
 }
@@ -60,19 +27,19 @@ func (o CoalesceOperation) String() string {
 }
 
 func (o ScalarOperation) String() string {
-	return binaryOp(stringerOps[o.op], o.lhs, o.rhs)
+	return binaryOp(o.op, o.lhs, o.rhs)
 }
 
 func (a Aggregate) String() string {
 	if a.e == nil {
-		return stringerAggs[a.agg] + "()"
+		return a.agg.String() + "()"
 	}
 
-	return stringerAggs[a.agg] + "(" + a.e.String() + ")"
+	return a.agg.String() + "(" + a.e.String() + ")"
 }
 
 func (o SpansetOperation) String() string {
-	return binaryOp(stringerOps[o.op], o.lhs, o.rhs)
+	return binaryOp(o.op, o.lhs, o.rhs)
 }
 
 func (f SpansetFilter) String() string {
@@ -80,15 +47,15 @@ func (f SpansetFilter) String() string {
 }
 
 func (f ScalarFilter) String() string {
-	return binaryOp(stringerOps[f.op], f.lhs, f.rhs)
+	return binaryOp(f.op, f.lhs, f.rhs)
 }
 
 func (o BinaryOperation) String() string {
-	return binaryOp(stringerOps[o.op], o.lhs, o.rhs)
+	return binaryOp(o.op, o.lhs, o.rhs)
 }
 
 func (o UnaryOperation) String() string {
-	return unaryOp(stringerOps[o.op], o.e)
+	return unaryOp(o.op, o.e)
 }
 
 func (n Static) String() string {
@@ -106,16 +73,7 @@ func (n Static) String() string {
 	case typeDuration:
 		return n.d.String()
 	case typeStatus:
-		switch n.n {
-		case statusError:
-			return "error"
-		case statusOk:
-			return "ok"
-		case statusUnset:
-			return "unset"
-		default:
-			return fmt.Sprintf("status(%d)", n.n)
-		}
+		return n.status.String()
 	}
 
 	return fmt.Sprintf("static(%d)", n.staticType)
@@ -127,28 +85,14 @@ func (a Attribute) String() string {
 		scopes = append(scopes, "parent")
 	}
 
-	switch a.scope {
-	case attributeScopeNone:
-	case attributeScopeSpan:
-		scopes = append(scopes, "span")
-	case attributeScopeResource:
-		scopes = append(scopes, "resource")
-	default:
-		scopes = append(scopes, fmt.Sprintf("att(%d).", a.scope))
+	if a.scope != attributeScopeNone {
+		attributeScope := a.scope.String()
+		scopes = append(scopes, attributeScope)
 	}
 
 	att := a.name
-	switch a.intrinsic {
-	case intrinsicDuration:
-		att = "duration"
-	case intrinsicChildCount:
-		att = "childCount"
-	case intrinsicName:
-		att = "name"
-	case intrinsicStatus:
-		att = "status"
-	case intrinsicParent:
-		att = "parent"
+	if a.intrinsic != intrinsicNone {
+		att = a.intrinsic.String()
 	}
 
 	scope := ""
@@ -160,12 +104,12 @@ func (a Attribute) String() string {
 	return scope + att
 }
 
-func binaryOp(op string, lhs element, rhs element) string {
-	return wrapElement(lhs) + " " + op + " " + wrapElement(rhs)
+func binaryOp(op Operator, lhs element, rhs element) string {
+	return wrapElement(lhs) + " " + op.String() + " " + wrapElement(rhs)
 }
 
-func unaryOp(op string, e element) string {
-	return op + wrapElement(e)
+func unaryOp(op Operator, e element) string {
+	return op.String() + wrapElement(e)
 }
 
 func wrapElement(e element) string {

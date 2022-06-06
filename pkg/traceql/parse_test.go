@@ -759,7 +759,7 @@ func TestAttributes(t *testing.T) {
 func TestIntrinsics(t *testing.T) {
 	tests := []struct {
 		in       string
-		expected int
+		expected Intrinsic
 	}{
 		{in: "duration", expected: intrinsicDuration},
 		{in: "childCount", expected: intrinsicChildCount},
@@ -806,7 +806,7 @@ func TestIntrinsics(t *testing.T) {
 					scope:     attributeScopeSpan,
 					parent:    false,
 					name:      tc.in,
-					intrinsic: -1,
+					intrinsic: intrinsicNone,
 				}))}, actual)
 
 			// as resource scoped attribute e.g resource.duration
@@ -819,7 +819,7 @@ func TestIntrinsics(t *testing.T) {
 					scope:     attributeScopeResource,
 					parent:    false,
 					name:      tc.in,
-					intrinsic: -1,
+					intrinsic: intrinsicNone,
 				}))}, actual)
 
 			// as parent scoped intrinsic e.g parent.duration
@@ -845,7 +845,7 @@ func TestIntrinsics(t *testing.T) {
 					scope:     attributeScopeNone,
 					parent:    true,
 					name:      tc.in + ".foo",
-					intrinsic: -1,
+					intrinsic: intrinsicNone,
 				}))}, actual)
 
 			// as parent resource scoped attribute e.g. parent.resource.duration
@@ -858,7 +858,7 @@ func TestIntrinsics(t *testing.T) {
 					scope:     attributeScopeResource,
 					parent:    true,
 					name:      tc.in,
-					intrinsic: -1,
+					intrinsic: intrinsicNone,
 				}))}, actual)
 
 			// as parent span scoped attribute e.g. praent.span.duration
@@ -871,7 +871,7 @@ func TestIntrinsics(t *testing.T) {
 					scope:     attributeScopeSpan,
 					parent:    true,
 					name:      tc.in,
-					intrinsic: -1,
+					intrinsic: intrinsicNone,
 				}))}, actual)
 		})
 	}

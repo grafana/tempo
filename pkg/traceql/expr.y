@@ -19,7 +19,7 @@ import (
     spansetPipeline Pipeline
     spansetFilter SpansetFilter
     scalarFilter ScalarFilter
-    scalarFilterOperation int
+    scalarFilterOperation Operator
 
     scalarPipelineExpressionFilter ScalarFilter
     scalarPipelineExpression ScalarExpression
@@ -33,7 +33,7 @@ import (
     intrinsicField Attribute
     attributeField Attribute
 
-    binOp       int
+    binOp       Operator
     staticInt   int
     staticStr   string
     staticFloat float64

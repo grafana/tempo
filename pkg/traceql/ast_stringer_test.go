@@ -14,7 +14,8 @@ func TestStringer(t *testing.T) {
 	require.NoError(t, err)
 
 	queries := &TestQueries{}
-	yaml.Unmarshal(b, queries)
+	err = yaml.Unmarshal(b, queries)
+	require.NoError(t, err)
 
 	for _, q := range queries.Valid {
 		t.Run(q, func(t *testing.T) {
@@ -29,7 +30,7 @@ func TestStringer(t *testing.T) {
 				return
 			}
 
-			ok = assert.Equal(t, pass1, pass2)
+			assert.Equal(t, pass1, pass2)
 			t.Logf("\n\t1: %s\n\t2: %s", pass1.String(), pass2.String())
 		})
 	}

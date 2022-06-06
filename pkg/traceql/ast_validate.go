@@ -34,11 +34,11 @@ func (o ScalarOperation) validate() error {
 
 	lhsT := o.lhs.impliedType()
 	rhsT := o.rhs.impliedType()
-	if !typesMatch(lhsT, rhsT) {
+	if !lhsT.isMatchingOperand(rhsT) {
 		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
 	}
 
-	if !binaryOpValid(o.op, lhsT, rhsT) {
+	if !o.op.typesValid(lhsT, rhsT) {
 		return fmt.Errorf("illegal operation for the given types: %s", o.String())
 	}
 
@@ -56,7 +56,7 @@ func (a Aggregate) validate() error {
 
 	// aggregate field expressions require a type of a number or attribute
 	t := a.e.impliedType()
-	if t != typeAttribute && !typeIsNumeric(t) {
+	if t != typeAttribute && !t.isNumeric() {
 		return fmt.Errorf("aggregate field expressions must resolve to a number type: %s", a.String())
 	}
 
@@ -93,11 +93,11 @@ func (f ScalarFilter) validate() error {
 
 	lhsT := f.lhs.impliedType()
 	rhsT := f.rhs.impliedType()
-	if !typesMatch(lhsT, rhsT) {
+	if !lhsT.isMatchingOperand(rhsT) {
 		return fmt.Errorf("binary operations must operate on the same type: %s", f.String())
 	}
 
-	if !binaryOpValid(f.op, lhsT, rhsT) {
+	if !f.op.typesValid(lhsT, rhsT) {
 		return fmt.Errorf("illegal operation for the given types: %s", f.String())
 	}
 
@@ -114,11 +114,11 @@ func (o BinaryOperation) validate() error {
 
 	lhsT := o.lhs.impliedType()
 	rhsT := o.rhs.impliedType()
-	if !typesMatch(lhsT, rhsT) {
+	if !lhsT.isMatchingOperand(rhsT) {
 		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
 	}
 
-	if !binaryOpValid(o.op, lhsT, rhsT) {
+	if !o.op.typesValid(lhsT, rhsT) {
 		return fmt.Errorf("illegal operation for the given types: %s", o.String())
 	}
 
@@ -160,76 +160,4 @@ func (n Static) validate() error {
 
 func (a Attribute) validate() error {
 	return nil
-}
-
-// typesMatch returns whether two types can be combined with a binary operator. the kind of operator is
-// immaterial
-func typesMatch(t1 int, t2 int) bool {
-	if t1 == typeAttribute || t2 == typeAttribute {
-		return true
-	}
-
-	if t1 == t2 {
-		return true
-	}
-
-	if typeIsNumeric(t1) && typeIsNumeric(t2) {
-		return true
-	}
-
-	return false
-}
-
-func typeIsNumeric(t int) bool {
-	return t == typeInt || t == typeFloat || t == typeDuration
-}
-
-func binaryOpValid(op int, lhsT int, rhsT int) bool {
-	// attribute types are validated at runtime
-	if lhsT == typeAttribute && rhsT == typeAttribute {
-		return true
-	}
-
-	t := lhsT
-	if t == typeAttribute {
-		t = rhsT
-	}
-
-	allowedOps := map[int]struct{}{}
-	switch t {
-	case typeBoolean:
-		return op == opAnd ||
-			op == opOr ||
-			op == opEqual ||
-			op == opNotEqual
-	case typeFloat:
-		fallthrough
-	case typeInt:
-		fallthrough
-	case typeDuration:
-		return op == opAdd ||
-			op == opSub ||
-			op == opMult ||
-			op == opDiv ||
-			op == opMod ||
-			op == opPower ||
-			op == opEqual ||
-			op == opNotEqual ||
-			op == opGreater ||
-			op == opGreaterEqual ||
-			op == opLess ||
-			op == opLessEqual
-	case typeString:
-		return op == opEqual ||
-			op == opNotEqual ||
-			op == opRegex ||
-			op == opNotRegex
-	case typeNil:
-		fallthrough
-	case typeStatus:
-		return op == opEqual || op == opNotEqual
-	}
-
-	_, ok := allowedOps[op]
-	return ok
 }
