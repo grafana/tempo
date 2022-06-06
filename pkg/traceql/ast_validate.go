@@ -38,7 +38,7 @@ func (o ScalarOperation) validate() error {
 		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
 	}
 
-	if !o.op.typesValid(lhsT, rhsT) {
+	if !o.op.binaryTypesValid(lhsT, rhsT) {
 		return fmt.Errorf("illegal operation for the given types: %s", o.String())
 	}
 
@@ -97,7 +97,7 @@ func (f ScalarFilter) validate() error {
 		return fmt.Errorf("binary operations must operate on the same type: %s", f.String())
 	}
 
-	if !f.op.typesValid(lhsT, rhsT) {
+	if !f.op.binaryTypesValid(lhsT, rhsT) {
 		return fmt.Errorf("illegal operation for the given types: %s", f.String())
 	}
 
@@ -118,7 +118,7 @@ func (o BinaryOperation) validate() error {
 		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
 	}
 
-	if !o.op.typesValid(lhsT, rhsT) {
+	if !o.op.binaryTypesValid(lhsT, rhsT) {
 		return fmt.Errorf("illegal operation for the given types: %s", o.String())
 	}
 
@@ -135,19 +135,7 @@ func (o UnaryOperation) validate() error {
 		return nil
 	}
 
-	allowed := false
-	switch o.e.impliedType() {
-	case typeBoolean:
-		allowed = o.op == opNot
-	case typeFloat:
-		fallthrough
-	case typeInt:
-		fallthrough
-	case typeDuration:
-		allowed = o.op == opSub
-	}
-
-	if !allowed {
+	if !o.op.unaryTypesValid(t) {
 		return fmt.Errorf("illegal operation for the given type: %s", o.String())
 	}
 

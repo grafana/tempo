@@ -9,8 +9,10 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const testExamplesFile = "./test_examples.yaml"
+
 func TestStringer(t *testing.T) {
-	b, err := os.ReadFile("./all_test.yaml")
+	b, err := os.ReadFile(testExamplesFile)
 	require.NoError(t, err)
 
 	queries := &TestQueries{}

@@ -39,18 +39,17 @@ func (op Operator) isBoolean() bool {
 		op == opGreater ||
 		op == opGreaterEqual ||
 		op == opLess ||
-		op == opLessEqual
+		op == opLessEqual ||
+		op == opNot
 }
 
-func (op Operator) typesValid(lhsT StaticType, rhsT StaticType) bool {
-	// attribute types are validated at runtime
-	if lhsT == typeAttribute && rhsT == typeAttribute {
-		return true
-	}
+func (op Operator) binaryTypesValid(lhsT StaticType, rhsT StaticType) bool {
+	return binaryTypeValid(op, lhsT) && binaryTypeValid(op, rhsT)
+}
 
-	t := lhsT
+func binaryTypeValid(op Operator, t StaticType) bool {
 	if t == typeAttribute {
-		t = rhsT
+		return true
 	}
 
 	switch t {
@@ -85,6 +84,21 @@ func (op Operator) typesValid(lhsT StaticType, rhsT StaticType) bool {
 		fallthrough
 	case typeStatus:
 		return op == opEqual || op == opNotEqual
+	}
+
+	return false
+}
+
+func (op Operator) unaryTypesValid(t StaticType) bool {
+	if t == typeAttribute {
+		return true
+	}
+
+	switch op {
+	case opSub:
+		return t.isNumeric()
+	case opNot:
+		return t == typeBoolean
 	}
 
 	return false

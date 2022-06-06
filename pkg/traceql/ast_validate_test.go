@@ -17,7 +17,7 @@ type TestQueries struct {
 }
 
 func TestAll(t *testing.T) {
-	b, err := os.ReadFile("./all_test.yaml")
+	b, err := os.ReadFile(testExamplesFile)
 	require.NoError(t, err)
 
 	queries := &TestQueries{}

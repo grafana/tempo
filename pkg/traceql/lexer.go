@@ -6,6 +6,8 @@ import (
 	"text/scanner"
 	"time"
 	"unicode"
+
+	"github.com/prometheus/common/model"
 )
 
 var tokens = map[string]int{
@@ -181,7 +183,7 @@ func tryScanDuration(number string, l *scanner.Scanner) (time.Duration, bool) {
 		return 0, false
 	}
 	// we've found more characters before a whitespace or the end
-	d, err := time.ParseDuration(sb.String())
+	d, err := parseDuration(sb.String())
 	if err != nil {
 		return 0, false
 	}
@@ -192,10 +194,29 @@ func tryScanDuration(number string, l *scanner.Scanner) (time.Duration, bool) {
 	return d, true
 }
 
+func parseDuration(d string) (time.Duration, error) {
+	var duration time.Duration
+	// Try to parse promql style durations first, to ensure that we support the same duration
+	// units as promql
+	prometheusDuration, err := model.ParseDuration(d)
+	if err != nil {
+		// Fall back to standard library's time.ParseDuration if a promql style
+		// duration couldn't be parsed.
+		duration, err = time.ParseDuration(d)
+		if err != nil {
+			return 0, err
+		}
+	} else {
+		duration = time.Duration(prometheusDuration)
+	}
+
+	return duration, nil
+}
+
 func isDurationRune(r rune) bool {
 	// "ns", "us" (or "µs"), "ms", "s", "m", "h".
 	switch r {
-	case 'n', 's', 'u', 'm', 'h', 'µ':
+	case 'n', 's', 'u', 'm', 'h', 'µ', 'd', 'w', 'y':
 		return true
 	default:
 		return false

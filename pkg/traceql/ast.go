@@ -367,6 +367,8 @@ func (a Attribute) impliedType() StaticType {
 	return typeAttribute
 }
 
+// newAttribute creates a new attribute with the given identifier string. If the identifier
+//  string matches an intrinsic use that.
 func newAttribute(att string) Attribute {
 	intrinsic := intrinsicFromString(att)
 
@@ -378,8 +380,11 @@ func newAttribute(att string) Attribute {
 	}
 }
 
+// newScopedAttribute creates a new scopedattribute with the given identifier string.
+//  this handles parent, span, and resource scopes.
 func newScopedAttribute(scope AttributeScope, parent bool, att string) Attribute {
 	intrinsic := intrinsicNone
+	// if we are explicitly passed a resource or span scopes then we shouldn't parse for intrinsic
 	if scope != attributeScopeResource && scope != attributeScopeSpan {
 		intrinsic = intrinsicFromString(att)
 	}
