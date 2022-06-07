@@ -35,6 +35,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 )
@@ -66,6 +67,7 @@ type App struct {
 	ingester      *ingester.Ingester
 	generator     *generator.Generator
 	store         storage.Store
+	usageReport   *usagestats.Reporter
 	MemberlistKV  *memberlist.KVInitService
 
 	HTTPAuthMiddleware       middleware.Interface
@@ -73,6 +75,7 @@ type App struct {
 
 	ModuleManager *modules.Manager
 	serviceMap    map[string]services.Service
+	deps          map[string][]string
 }
 
 // New makes a new app.
