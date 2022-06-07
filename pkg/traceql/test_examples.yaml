@@ -170,8 +170,9 @@ parse_fails:
   - '({ true } | count()) && ({ true } | count()) = 1'
   - '({ true }) + ({ true }) = 1'
   - '({ true } | count()) + ({ true } | count())'
-  - '2 < ({true} | count())'      # static value needs to be on the RHS to remove conflicts with scalar expressions
-  - '({true} | count()) > 2 * 2'  # scalar expressions are currently not allowed in scalar pipelines
+  - '(by(namespace) | count()) > 2 * 2' # scalar expressions are currently not allowed in scalar pipelines
+  - '(by(namespace) | count()) * 2 > 2'
+  - '2 < (by(namespace) | count())'     # static value needs to be on the RHS to remove conflicts with scalar expressions
 
 # validate_fails parse correctly and return an error when calling .validate()
 validate_fails:

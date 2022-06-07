@@ -16,7 +16,7 @@ type TestQueries struct {
 	Dump          []string `yaml:"dump"`
 }
 
-func TestAll(t *testing.T) {
+func TestExamples(t *testing.T) {
 	b, err := os.ReadFile(testExamplesFile)
 	require.NoError(t, err)
 
