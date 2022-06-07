@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	pq "github.com/segmentio/parquet-go"
+	"github.com/uber-go/atomic"
 )
 
 // parquetPredicate is a pushdown predicate that can be applied at
@@ -328,24 +329,24 @@ func (s *orPredicate) KeepPage(page pq.Page) bool {
 
 type InstrumentedPredicate struct {
 	pred                  Predicate // Optional, if missing then just keeps metrics with no filtering
-	InspectedColumnChunks int
-	InspectedPages        int
-	InspectedValues       int
-	KeptColumnChunks      int
-	KeptPages             int
-	KeptValues            int
+	InspectedColumnChunks atomic.Int64
+	InspectedPages        atomic.Int64
+	InspectedValues       atomic.Int64
+	KeptColumnChunks      atomic.Int64
+	KeptPages             atomic.Int64
+	KeptValues            atomic.Int64
 }
 
 var _ Predicate = (*InstrumentedPredicate)(nil)
 
 func (s *InstrumentedPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
-	s.InspectedColumnChunks++
+	s.InspectedColumnChunks.Inc()
 	if s.pred == nil {
 		return true
 	}
 
 	if s.pred.KeepColumnChunk(c) {
-		s.KeptColumnChunks++
+		s.KeptColumnChunks.Inc()
 		return true
 	}
 
@@ -353,13 +354,13 @@ func (s *InstrumentedPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
 }
 
 func (s *InstrumentedPredicate) KeepPage(page pq.Page) bool {
-	s.InspectedPages++
+	s.InspectedPages.Inc()
 	if s.pred == nil {
 		return true
 	}
 
 	if s.pred.KeepPage(page) {
-		s.KeptPages++
+		s.KeptPages.Inc()
 		return true
 	}
 
@@ -367,13 +368,13 @@ func (s *InstrumentedPredicate) KeepPage(page pq.Page) bool {
 }
 
 func (s *InstrumentedPredicate) KeepValue(v pq.Value) bool {
-	s.InspectedValues++
+	s.InspectedValues.Inc()
 	if s.pred == nil {
 		return true
 	}
 
 	if s.pred.KeepValue(v) {
-		s.KeptValues++
+		s.KeptValues.Inc()
 		return true
 	}
 

@@ -321,6 +321,6 @@ type parquetSearchMetrics struct {
 
 func (p *parquetSearchMetrics) ToProto() *tempopb.SearchMetrics {
 	return &tempopb.SearchMetrics{
-		InspectedTraces: uint32(p.pTraceID.InspectedValues),
+		InspectedTraces: uint32(p.pTraceID.InspectedValues.Load()),
 	}
 }
