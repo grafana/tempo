@@ -12,7 +12,6 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/model"
 	"github.com/thanos-io/thanos/pkg/discovery/dns"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
@@ -32,6 +31,11 @@ import (
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util/log"
 	util_log "github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/azure"
+	"github.com/grafana/tempo/tempodb/backend/gcs"
+	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/backend/s3"
 )
 
 // The various modules that make up tempo.
@@ -322,17 +326,29 @@ func (t *App) initUsageReport() (services.Service, error) {
 	}
 
 	usagestats.Target(t.cfg.Target)
-	period, err := t.Cfg.SchemaConfig.SchemaForTime(model.Now())
-	if err != nil {
-		return nil, err
+
+	var err error
+	var reader backend.RawReader
+	var writer backend.RawWriter
+
+	switch t.cfg.StorageConfig.Trace.Backend {
+	case "local":
+		reader, writer, _, err = local.New(t.cfg.StorageConfig.Trace.Local)
+	case "gcs":
+		reader, writer, _, err = gcs.New(t.cfg.StorageConfig.Trace.GCS)
+	case "s3":
+		reader, writer, _, err = s3.New(t.cfg.StorageConfig.Trace.S3)
+	case "azure":
+		reader, writer, _, err = azure.New(t.cfg.StorageConfig.Trace.Azure)
+	default:
+		err = fmt.Errorf("unknown backend %s", t.cfg.StorageConfig.Trace.Backend)
 	}
 
-	objectClient, err := storage.NewObjectClient(period.ObjectType, t.Cfg.StorageConfig, t.clientMetrics)
 	if err != nil {
-		level.Info(util_log.Logger).Log("msg", "failed to initialize usage report", "err", err)
-		return nil, nil
+		return nil, fmt.Errorf("failed to initialize usage report: %w", err)
 	}
-	ur, err := usagestats.NewReporter(t.cfg.UsageReport, t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore, objectClient, util_log.Logger, prometheus.DefaultRegisterer)
+
+	ur, err := usagestats.NewReporter(t.cfg.UsageReport, t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore, reader, writer, util_log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		level.Info(util_log.Logger).Log("msg", "failed to initialize usage report", "err", err)
 		return nil, nil
