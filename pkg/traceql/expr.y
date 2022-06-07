@@ -145,8 +145,6 @@ spansetFilter:
 
 scalarFilter:
     scalarExpression          scalarFilterOperation scalarExpression          { $$ = newScalarFilter($2, $1, $3) }
-  | static                    scalarFilterOperation scalarExpression          { $$ = newScalarFilter($2, $1, $3) }
-  | scalarExpression          scalarFilterOperation static                    { $$ = newScalarFilter($2, $1, $3) }
   ;
 
 scalarFilterOperation:
@@ -163,7 +161,6 @@ scalarFilterOperation:
 // **********************
 scalarPipelineExpressionFilter:
     scalarPipelineExpression scalarFilterOperation scalarPipelineExpression { $$ = newScalarFilter($2, $1, $3) }
-  | static                   scalarFilterOperation scalarPipelineExpression { $$ = newScalarFilter($2, $1, $3) }
   | scalarPipelineExpression scalarFilterOperation static                   { $$ = newScalarFilter($2, $1, $3) }
   ;
 
@@ -176,6 +173,7 @@ scalarPipelineExpression: // shares the same operators as scalarExpression. spli
   | scalarPipelineExpression MOD scalarPipelineExpression    { $$ = newScalarOperation(opMod, $1, $3) }
   | scalarPipelineExpression POW scalarPipelineExpression    { $$ = newScalarOperation(opPower, $1, $3) }
   | wrappedScalarPipeline                                    { $$ = $1 }
+  ;
 
 wrappedScalarPipeline:
     OPEN_PARENS scalarPipeline CLOSE_PARENS    { $$ = $2 }
@@ -194,6 +192,7 @@ scalarExpression: // shares the same operators as scalarPipelineExpression. spli
   | scalarExpression MOD scalarExpression      { $$ = newScalarOperation(opMod, $1, $3) }
   | scalarExpression POW scalarExpression      { $$ = newScalarOperation(opPower, $1, $3) }
   | aggregate                                  { $$ = $1 }
+  | static                                     { $$ = $1 }
   ;
 
 aggregate:

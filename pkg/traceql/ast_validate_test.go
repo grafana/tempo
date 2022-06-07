@@ -52,7 +52,9 @@ func TestAll(t *testing.T) {
 	scs := spew.ConfigState{DisableMethods: true, Indent: " "}
 	for _, q := range queries.Dump {
 		t.Run("dump - "+q, func(t *testing.T) {
+			yyDebug = 3
 			p, err := Parse(q)
+			yyDebug = 0
 			require.NoError(t, err)
 			scs.Dump(p)
 		})

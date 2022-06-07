@@ -377,6 +377,8 @@ func TestSpansetExpressionOperators(t *testing.T) {
 		{in: "{ true } >> { false }", expected: newSpansetOperation(opSpansetDescendant, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false)))},
 		{in: "{ true } || { false }", expected: newSpansetOperation(opSpansetUnion, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false)))},
 		{in: "{ true } ~ { false }", expected: newSpansetOperation(opSpansetSibling, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false)))},
+		// this test was added to highlight the one shift/reduce conflict in the grammar. this could also be parsed as two spanset pipelines &&ed together.
+		{in: "({ true }) && ({ false })", expected: newSpansetOperation(opSpansetAnd, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false)))},
 	}
 
 	for _, tc := range tests {
@@ -396,7 +398,6 @@ func TestScalarExpressionErrors(t *testing.T) {
 	}{
 		{in: "(avg(.foo) > count()) + sum(.bar)", err: newParseError("syntax error: unexpected +", 1, 23)},
 		{in: "count(", err: newParseError("syntax error: unexpected $end, expecting )", 1, 7)},
-		{in: "{ .a } | 3 = 3", err: newParseError("syntax error: unexpected INTEGER", 1, 14)},
 		{in: "count(avg)", err: newParseError("syntax error: unexpected avg, expecting )", 1, 7)},
 		{in: "count(.thing)", err: newParseError("syntax error: unexpected ., expecting )", 1, 7)},
 	}
