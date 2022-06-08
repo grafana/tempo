@@ -11,6 +11,7 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/cristalhq/hedgedhttp"
 	gkLog "github.com/go-kit/log"
@@ -205,6 +206,10 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 	return nil
 }
 
+func (rw *readerWriter) DeleteObject(ctx context.Context, keypath backend.KeyPath) error {
+	return rw.core.RemoveObject(ctx, rw.cfg.Bucket, path.Join(keypath...), minio.RemoveObjectOptions{})
+}
+
 // List implements backend.Reader
 func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
 	prefix := path.Join(keypath...)
@@ -262,6 +267,15 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 
 // Shutdown implements backend.Reader
 func (rw *readerWriter) Shutdown() {
+}
+
+// IsObjectNotFoundErr returns true if error means that object is not found.
+func (rw *readerWriter) IsObjectNotFoundErr(err error) bool {
+	if aerr, ok := errors.Cause(err).(awserr.Error); ok && aerr.Code() == s3.ErrCodeNoSuchKey {
+		return true
+	}
+
+	return false
 }
 
 func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {

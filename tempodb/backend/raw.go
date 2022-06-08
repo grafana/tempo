@@ -30,6 +30,7 @@ type RawWriter interface {
 	Append(ctx context.Context, name string, keypath KeyPath, tracker AppendTracker, buffer []byte) (AppendTracker, error)
 	// Closes any resources associated with the AppendTracker
 	CloseAppend(ctx context.Context, tracker AppendTracker) error
+	DeleteObject(ctx context.Context, keypath KeyPath) error
 }
 
 // RawReader is a collection of methods to read data from tempodb backends
@@ -43,6 +44,8 @@ type RawReader interface {
 	ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte, shouldCache bool) error
 	// Shutdown must be called when the Reader is finished and cleans up any associated resources.
 	Shutdown()
+	// IsObjectNotFound retruns true if the received error is a 404 equivelient for the backend.
+	IsObjectNotFoundErr(err error) bool
 }
 
 type writer struct {
@@ -199,6 +202,10 @@ func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex
 
 func (r *reader) Shutdown() {
 	r.r.Shutdown()
+}
+
+func (r *reader) IsObjectNotFoundErr(err error) bool {
+	return false
 }
 
 // KeyPathForBlock returns a correctly ordered keypath given a block id and tenantid

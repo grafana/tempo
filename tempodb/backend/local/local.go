@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/opentracing/opentracing-go"
+	"github.com/pkg/errors"
 )
 
 type Backend struct {
@@ -96,6 +97,10 @@ func (rw *Backend) CloseAppend(ctx context.Context, tracker backend.AppendTracke
 	return dst.Close()
 }
 
+func (rw *Backend) DeleteObject(ctx context.Context, keypath backend.KeyPath) error {
+	return os.Remove(rw.rootPath(keypath))
+}
+
 // List implements backend.Reader
 func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
 	path := rw.rootPath(keypath)
@@ -159,6 +164,11 @@ func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.K
 // Shutdown implements backend.Reader
 func (rw *Backend) Shutdown() {
 
+}
+
+// IsObjectNotFoundErr returns true if error means that object is not found.
+func (f *Backend) IsObjectNotFoundErr(err error) bool {
+	return os.IsNotExist(errors.Cause(err))
 }
 
 func (rw *Backend) objectFileName(keypath backend.KeyPath, name string) string {

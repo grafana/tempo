@@ -69,7 +69,7 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 	return rw, rw, rw, nil
 }
 
-// StreamWriter implements backend.Writer
+// Write implements backend.Writer
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
 	w := rw.writer(ctx, backend.ObjectFileName(keypath, name))
 
@@ -138,6 +138,10 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 	return objects, nil
 }
 
+func (rw *readerWriter) DeleteObject(ctx context.Context, keypath backend.KeyPath) error {
+	return rw.bucket.Object(path.Join(keypath...)).Delete(ctx)
+}
+
 // Read implements backend.Reader
 func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Read")
@@ -169,6 +173,11 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 
 // Shutdown implements backend.Reader
 func (rw *readerWriter) Shutdown() {
+}
+
+// IsObjectNotFoundErr returns true if error means that object is not found.
+func (rw *readerWriter) IsObjectNotFoundErr(err error) bool {
+	return errors.Is(err, storage.ErrObjectNotExist)
 }
 
 func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer {

@@ -86,6 +86,10 @@ func (r *readerWriter) Shutdown() {
 	r.cache.Stop()
 }
 
+func (r *readerWriter) IsObjectNotFoundErr(err error) bool {
+	return r.nextReader.IsObjectNotFoundErr(err)
+}
+
 // Write implements backend.Writer
 func (r *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, shouldCache bool) error {
 	b, err := tempo_io.ReadAllWithEstimate(data, size)
@@ -107,6 +111,11 @@ func (r *readerWriter) Append(ctx context.Context, name string, keypath backend.
 // CloseAppend implements backend.Writer
 func (r *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
 	return r.nextWriter.CloseAppend(ctx, tracker)
+}
+
+// DeleteObject implements backend.RawWriter
+func (r *readerWriter) DeleteObject(ctx context.Context, keypath backend.KeyPath) error {
+	return r.nextWriter.DeleteObject(ctx, keypath)
 }
 
 func key(keypath backend.KeyPath, name string) string {
