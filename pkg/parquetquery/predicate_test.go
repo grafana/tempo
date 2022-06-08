@@ -72,9 +72,9 @@ func testPredicate(t *testing.T, tc predicateTestCase) {
 	for i.Next() != nil {
 	}
 
-	require.Equal(t, tc.keptChunks, p.KeptColumnChunks, "keptChunks")
-	require.Equal(t, tc.keptPages, p.KeptPages, "keptPages")
-	require.Equal(t, tc.keptValues, p.KeptValues, "keptValues")
+	require.Equal(t, tc.keptChunks, int(p.KeptColumnChunks.Load()), "keptChunks")
+	require.Equal(t, tc.keptPages, int(p.KeptPages.Load()), "keptPages")
+	require.Equal(t, tc.keptValues, int(p.KeptValues.Load()), "keptValues")
 }
 
 func BenchmarkSubstringPredicate(b *testing.B) {
