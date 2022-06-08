@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -39,30 +40,35 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	require.NoError(t, err)
 
 	bar := "bar"
-	s.Add(&Trace{
-		TraceID: util.TraceIDToHexString(test.ValidTraceID(nil)),
-		ResourceSpans: []ResourceSpans{
-			{
-				Resource: Resource{
-					ServiceName: "s",
-				},
-				InstrumentationLibrarySpans: []ILS{
-					{
-						Spans: []Span{
-							{
-								Name: "hello",
-								Attrs: []Attribute{
-									{Key: "foo", Value: &bar},
-								},
-								ID:           []byte{},
-								ParentSpanID: []byte{},
-							},
-						},
+
+	for i := 0; i < 10; i++ {
+		s.Add(&Trace{
+			TraceID: util.TraceIDToHexString(test.ValidTraceID(nil)),
+			ResourceSpans: []ResourceSpans{
+				{
+					Resource: Resource{
+						ServiceName: "s",
 					},
-				},
-			},
-		},
-	})
+					InstrumentationLibrarySpans: []ILS{
+						{
+							Spans: []Span{
+								{
+									Name: "hello",
+									Attrs: []Attribute{
+										{Key: "foo", Value: &bar},
+									},
+									ID:           []byte{},
+									ParentSpanID: []byte{},
+									Events: []Event{
+										{
+											Attrs: []EventAttribute{
+												{
+													Key:   "foo",
+													Value: "baz",
+												},
+											},
+										}}}}}}}}})
+	}
 
 	wantTr := &Trace{
 		TraceID: util.TraceIDToHexString(id),
@@ -81,12 +87,15 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 								},
 								ID:           []byte{},
 								ParentSpanID: []byte{},
-							},
-						},
-					},
-				},
-			},
-		},
+								Events: []Event{
+									{
+										Attrs: []EventAttribute{
+											{
+												Key:   "foo",
+												Value: "baz",
+											},
+										},
+									}}}}}}}},
 	}
 
 	s.Add(wantTr)
@@ -104,4 +113,30 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, wantProto, gotTr)
+}
+
+func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
+	rawR, _, _, err := local.New(&local.Config{
+		Path: "./test-data",
+	})
+	require.NoError(t, err)
+
+	r := backend.NewReader(rawR)
+	ctx := context.Background()
+
+	blocks, err := r.Blocks(ctx, "vulture-tenant")
+	require.NoError(t, err)
+	assert.Len(t, blocks, 1)
+
+	meta, err := r.BlockMeta(ctx, blocks[0], "vulture-tenant")
+	require.NoError(t, err)
+
+	b, err := NewBackendBlock(meta, r)
+	require.NoError(t, err)
+
+	bytes, _ := util.HexStringToTraceID("7d80fcd3e4978d6143030ef00d8bccc1")
+	tr, err := b.FindTraceByID(ctx, bytes)
+	require.NoError(t, err)
+
+	require.NotNil(t, tr)
 }
