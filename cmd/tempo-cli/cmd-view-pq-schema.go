@@ -34,7 +34,7 @@ func (cmd *viewSchemaCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	fmt.Println("\n***************     block meta    *********************\n\n")
+	fmt.Printf("\n***************     block meta    *********************\n\n\n")
 	fmt.Printf("%+v\n", meta)
 
 	rr := vparquet.NewBackendReaderAt(context.Background(), r, vparquet.DataFileName, meta.BlockID, meta.TenantID)
@@ -43,7 +43,7 @@ func (cmd *viewSchemaCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	fmt.Println("\n***************       schema      ********************\n\n")
+	fmt.Printf("\n***************       schema      ********************\n\n\n")
 	fmt.Println(pf.Schema().String())
 
 	columnSizes := map[string]int64{}
@@ -65,7 +65,7 @@ func (cmd *viewSchemaCmd) Run(ctx *globalOptions) error {
 	}
 	sort.Strings(sizes)
 
-	fmt.Println("\n***************   column sizes    *********************\n\n")
+	fmt.Printf("\n***************   column sizes    *********************\n\n\n")
 	for _, s := range sizes {
 		fmt.Println(s)
 	}
