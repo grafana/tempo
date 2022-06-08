@@ -1,4 +1,4 @@
-// The jsonnet file used to generate these kube-manifests
+// The jsonnet file used to generate the Kubernetes manifests.
 
 local tempo = import 'microservices/tempo.libsonnet';
 

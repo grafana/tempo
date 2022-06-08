@@ -2,6 +2,7 @@ package ingester
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	"github.com/go-kit/log/level"
@@ -221,8 +222,6 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	if err != nil {
 		return nil, err
 	}
-	// get limit from override
-	maxBytesPerTagValuesQuery := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 
 	kv := &tempofb.KeyValues{}
 	tagNameBytes := []byte(tagName)
@@ -243,12 +242,10 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	}
 
 	// check if size of values map is within limit after scanning live traces
-	if !util.MapSizeWithinLimit(values, maxBytesPerTagValuesQuery) {
-		level.Warn(log.Logger).Log("msg", "size of tag values from live traces exceeded limit, reduce cardinality or size of tags", "tag", tagName)
-		// return empty response to avoid querier OOMs
-		return &tempopb.SearchTagValuesResponse{
-			TagValues: []string{},
-		}, nil
+	maxBytesPerTagValuesQuery := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
+	if maxBytesPerTagValuesQuery > 0 && !util.MapSizeWithinLimit(values, maxBytesPerTagValuesQuery) {
+		level.Warn(log.Logger).Log("msg", "size of tag values from live traces exceeded limit, reduce cardinality or size of tags", "tag", tagName, "userID", userID)
+		return nil, fmt.Errorf("tag values exceeded allowed max bytes (%d)", maxBytesPerTagValuesQuery)
 	}
 
 	err = i.visitSearchableBlocks(ctx, func(block search.SearchableBlock) error {
@@ -259,12 +256,9 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	}
 
 	// check if size of values map is within limit after scanning all blocks
-	if !util.MapSizeWithinLimit(values, maxBytesPerTagValuesQuery) {
-		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", tagName)
-		// return empty response to avoid querier OOMs
-		return &tempopb.SearchTagValuesResponse{
-			TagValues: []string{},
-		}, nil
+	if maxBytesPerTagValuesQuery > 0 && !util.MapSizeWithinLimit(values, maxBytesPerTagValuesQuery) {
+		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", tagName, "userID", userID)
+		return nil, fmt.Errorf("tag values exceeded allowed max bytes (%d)", maxBytesPerTagValuesQuery)
 	}
 
 	return &tempopb.SearchTagValuesResponse{

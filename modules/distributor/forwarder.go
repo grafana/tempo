@@ -134,28 +134,56 @@ func (f *forwarder) getQueueManager(tenantID string) (*queueManager, bool) {
 // watchOverrides watches the overrides for changes
 // and updates the queueManagers accordingly
 func (f *forwarder) watchOverrides() {
+	ticker := time.NewTicker(f.overridesInterval)
+
 	for {
 		select {
-		case <-time.After(f.overridesInterval):
+		case <-ticker.C:
 			f.mutex.Lock()
+
+			var (
+				queueManagersToDelete []*queueManager
+				queueManagersToAdd    []struct {
+					tenantID               string
+					queueSize, workerCount int
+				}
+			)
+
 			for tenantID, tm := range f.queueManagers {
 				queueSize, workerCount := f.getQueueManagerConfig(tenantID)
-
 				// if the queue size or worker count has changed, shutdown the queue manager and create a new one
 				if tm.shouldUpdate(queueSize, workerCount) {
-					go func() {
-						// shutdown the queue manager
-						// this will block until all workers have finished and the queue is drained
-						if err := tm.shutdown(); err != nil {
-							level.Error(log.Logger).Log("msg", "error shutting down queue manager", "tenant", tenantID, "err", err)
-						}
-					}()
-					delete(f.queueManagers, tenantID)
-					f.queueManagers[tenantID] = newQueueManager(tenantID, queueSize, workerCount, f.forwardFunc)
+					level.Info(log.Logger).Log("msg", "Marking queue manager for update", "tenant", tenantID,
+						"old_queue_size", tm.queueSize, "new_queue_size", queueSize, "old_worker_count", tm.workerCount, "new_worker_count", workerCount)
+					queueManagersToDelete = append(queueManagersToDelete, tm)
+					queueManagersToAdd = append(queueManagersToAdd, struct {
+						tenantID               string
+						queueSize, workerCount int
+					}{tenantID: tenantID, queueSize: queueSize, workerCount: workerCount})
 				}
 			}
+
+			// Spawn a goroutine to asynchronously shut down queue managers
+			go func() {
+				for _, qm := range queueManagersToDelete {
+					// shutdown the queue manager
+					// this will block until all workers have finished and the queue is drained
+					level.Info(log.Logger).Log("msg", "Shutting down queue manager", "tenant", qm.tenantID)
+					if err := qm.shutdown(); err != nil {
+						level.Error(log.Logger).Log("msg", "error shutting down queue manager", "tenant", qm.tenantID, "err", err)
+					}
+				}
+			}()
+
+			// Synchronously update queue managers
+			for _, qm := range queueManagersToAdd {
+				level.Info(log.Logger).Log("msg", "Updating queue manager", "tenant", qm.tenantID)
+				f.queueManagers[qm.tenantID] = newQueueManager(qm.tenantID, qm.queueSize, qm.workerCount, f.forwardFunc)
+			}
+
 			f.mutex.Unlock()
 		case <-f.shutdown:
+			ticker.Stop()
 			return
 		}
 	}
@@ -308,7 +336,7 @@ func (m *queueManager) stopWorkers(ctx context.Context) error {
 }
 
 // shouldUpdate returns true if the queue size or worker count (alive or total) has changed
-func (m *queueManager) shouldUpdate(numWorkers int, queueSize int) bool {
+func (m *queueManager) shouldUpdate(queueSize, numWorkers int) bool {
 	// TODO: worker alive count could be 0 and shutting down the queue manager would be impossible
 	//  it'd be better if we were able to spawn new workers instead of just closing the queueManager
 	//  and creating a new one

@@ -25,7 +25,6 @@ export const options = {
     readPath: {
       exec: 'readPath',
       executor: 'constant-vus',
-      startTime: '2s',
       vus: 1,
       duration: '30s',
     },
@@ -63,6 +62,8 @@ export function writePath() {
 }
 
 export function readPath() {
+  sleep(READ_WAIT);
+
   randomSeed(START_TIME + __ITER);
 
   var traceId = generateId(14);
@@ -76,8 +77,6 @@ export function readPath() {
   check(res, {
     'read status is 200': (r) => r.status === 200,
   }, { type: 'read' });
-
-  sleep(READ_WAIT);
 }
 
 export function steadyStateCheck() {

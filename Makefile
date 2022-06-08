@@ -225,13 +225,13 @@ docs-test:
 	docker pull ${DOCS_IMAGE}
 	docker run -v ${PWD}/docs/tempo/website:/hugo/content/docs/tempo/latest:z -p 3002:3002 --rm $(DOCS_IMAGE) /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make prod'
 
-### kube-manifests
-.PHONY: kube-manifests kube-manifests-check
-kube-manifests:
-	$(MAKE) -C operations/kube-manifests/util gen
+### jsonnet
+.PHONY: jsonnet jsonnet-check
+jsonnet:
+	$(MAKE) -C operations/jsonnet-compiled/util gen
 
-kube-manifests-check:
-	$(MAKE) -C operations/kube-manifests/util check
+jsonnet-check:
+	$(MAKE) -C operations/jsonnet-compiled/util check
 
 
 ### serverless

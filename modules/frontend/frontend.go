@@ -161,14 +161,14 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 					}
 					resp.Body = io.NopCloser(bytes.NewReader(traceBuffer))
 				}
+
+				if resp.Header != nil {
+					resp.Header.Set(api.HeaderContentType, marshallingFormat)
+				}
 			}
 			span := opentracing.SpanFromContext(r.Context())
 			if span != nil {
 				span.SetTag("contentType", marshallingFormat)
-			}
-
-			if resp != nil {
-				resp.Header.Set(api.HeaderContentType, marshallingFormat)
 			}
 
 			return resp, err

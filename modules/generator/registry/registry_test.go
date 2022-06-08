@@ -64,7 +64,7 @@ func TestManagedRegistry_counter(t *testing.T) {
 	counter.Inc(NewLabelValues([]string{"value-1"}), 1.0)
 
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "instance": mustGetHostname()}, 0, 1.0),
+		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
 	}
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
@@ -80,11 +80,11 @@ func TestManagedRegistry_histogram(t *testing.T) {
 	histogram.ObserveWithExemplar(NewLabelValues([]string{"value-1"}), 1.0, "")
 
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "histogram_count", "label": "value-1", "instance": mustGetHostname()}, 0, 1.0),
-		newSample(map[string]string{"__name__": "histogram_sum", "label": "value-1", "instance": mustGetHostname()}, 0, 1.0),
-		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "instance": mustGetHostname(), "le": "1"}, 0, 1.0),
-		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "instance": mustGetHostname(), "le": "2"}, 0, 1.0),
-		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "instance": mustGetHostname(), "le": "+Inf"}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_sum", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "2"}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 0, 1.0),
 	}
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
@@ -107,8 +107,8 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 	registry.removeStaleSeries(context.Background())
 
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "metric_1", "instance": mustGetHostname()}, 0, 1),
-		newSample(map[string]string{"__name__": "metric_2", "instance": mustGetHostname()}, 0, 2),
+		newSample(map[string]string{"__name__": "metric_1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
+		newSample(map[string]string{"__name__": "metric_2", "__metrics_gen_instance": mustGetHostname()}, 0, 2),
 	}
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 
@@ -121,7 +121,7 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 	registry.removeStaleSeries(context.Background())
 
 	expectedSamples = []sample{
-		newSample(map[string]string{"__name__": "metric_2", "instance": mustGetHostname()}, 0, 4),
+		newSample(map[string]string{"__name__": "metric_2", "__metrics_gen_instance": mustGetHostname()}, 0, 4),
 	}
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
@@ -141,7 +141,7 @@ func TestManagedRegistry_externalLabels(t *testing.T) {
 	counter.Inc(nil, 1.0)
 
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_counter", "instance": mustGetHostname(), "foo": "bar"}, 0, 1),
+		newSample(map[string]string{"__name__": "my_counter", "__metrics_gen_instance": mustGetHostname(), "foo": "bar"}, 0, 1),
 	}
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
@@ -165,7 +165,7 @@ func TestManagedRegistry_maxSeries(t *testing.T) {
 
 	assert.Equal(t, uint32(1), registry.activeSeries.Load())
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "metric_1", "label": "value-1", "instance": mustGetHostname()}, 0, 1),
+		newSample(map[string]string{"__name__": "metric_1", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1),
 	}
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }

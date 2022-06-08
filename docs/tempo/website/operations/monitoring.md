@@ -93,7 +93,7 @@ This dashboard is included in this repo for two reasons:
 
 ## Rules and Alerts
 
-The Rules and Alerts are available as [yaml files in the mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/yamls) on the repository.
+The Rules and Alerts are available as [yaml files in the compiled mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin-compiled) on the repository.
 
 To set up alerting, download the provided json files and configure them for use on your Prometheus monitoring server.
 

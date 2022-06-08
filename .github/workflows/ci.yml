@@ -136,7 +136,7 @@ jobs:
         run: make vendor-check
 
   tempo-mixin:
-    name: Check kube-manifests & tempo-mixin
+    name: Check jsonnet & tempo-mixin
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.17
@@ -158,8 +158,8 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v2
 
-      - name: Check kube-manifests
-        run: make kube-manifests-check
+      - name: Check jsonnet
+        run: make jsonnet-check
 
       - name: Check tempo-mixin
         run: make tempo-mixin-check

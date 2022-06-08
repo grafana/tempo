@@ -20,6 +20,11 @@ var (
 		Name:      "metrics_generator_registry_active_series",
 		Help:      "The active series per tenant",
 	}, []string{"tenant"})
+	metricMaxActiveSeries = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_registry_max_active_series",
+		Help:      "The maximum active series per tenant",
+	}, []string{"tenant"})
 	metricTotalSeriesAdded = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_registry_series_added_total",
@@ -55,15 +60,15 @@ type ManagedRegistry struct {
 	tenant         string
 	externalLabels map[string]string
 
-	metricsMtx sync.RWMutex
-	// TODO we should not allow duplicate metrics, make this map[name]metric?
-	metrics      []metric
+	metricsMtx   sync.RWMutex
+	metrics      map[string]metric
 	activeSeries atomic.Uint32
 
 	appendable storage.Appendable
 
 	logger                   log.Logger
 	metricActiveSeries       prometheus.Gauge
+	metricMaxActiveSeries    prometheus.Gauge
 	metricTotalSeriesAdded   prometheus.Counter
 	metricTotalSeriesRemoved prometheus.Counter
 	metricTotalSeriesLimited prometheus.Counter
@@ -73,6 +78,7 @@ type ManagedRegistry struct {
 
 // metric is the interface for a metric that is managed by ManagedRegistry.
 type metric interface {
+	name() string
 	collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error)
 	removeStaleSeries(staleTimeMs int64)
 }
@@ -89,7 +95,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		externalLabels[k] = v
 	}
 	hostname, _ := os.Hostname()
-	externalLabels["instance"] = hostname
+	externalLabels["__metrics_gen_instance"] = hostname
 
 	r := &ManagedRegistry{
 		onShutdown: cancel,
@@ -99,10 +105,13 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		tenant:         tenant,
 		externalLabels: externalLabels,
 
+		metrics: map[string]metric{},
+
 		appendable: appendable,
 
 		logger:                   logger,
 		metricActiveSeries:       metricActiveSeries.WithLabelValues(tenant),
+		metricMaxActiveSeries:    metricMaxActiveSeries.WithLabelValues(tenant),
 		metricTotalSeriesAdded:   metricTotalSeriesAdded.WithLabelValues(tenant),
 		metricTotalSeriesRemoved: metricTotalSeriesRemoved.WithLabelValues(tenant),
 		metricTotalSeriesLimited: metricTotalSeriesLimited.WithLabelValues(tenant),
@@ -132,7 +141,10 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 	r.metricsMtx.Lock()
 	defer r.metricsMtx.Unlock()
 
-	r.metrics = append(r.metrics, m)
+	if _, ok := r.metrics[m.name()]; ok {
+		level.Info(r.logger).Log("msg", "replacing metric, counters will be reset", "metric", m.name())
+	}
+	r.metrics[m.name()] = m
 }
 
 func (r *ManagedRegistry) onAddMetricSeries(count uint32) bool {
@@ -190,6 +202,9 @@ func (r *ManagedRegistry) collectMetrics(ctx context.Context) {
 	// set active series in case there is drift
 	r.activeSeries.Store(activeSeries)
 	r.metricActiveSeries.Set(float64(activeSeries))
+
+	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
+	r.metricMaxActiveSeries.Set(float64(maxActiveSeries))
 
 	err = appender.Commit()
 	if err != nil {
