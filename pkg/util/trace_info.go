@@ -141,7 +141,7 @@ func (t *TraceInfo) makeThriftBatch(TraceIDHigh int64, TraceIDLow int64) *thrift
 			OperationName: fmt.Sprintf("vulture-%d", t.generateRandomInt(0, 100)),
 			References:    nil,
 			Flags:         0,
-			StartTime:     unixMicro(t.timestamp),
+			StartTime:     time.Now().UnixMicro(),
 			Duration:      t.generateRandomInt(0, 100),
 			Tags:          t.generateRandomTags(),
 			Logs:          t.generateRandomLogs(),
@@ -183,10 +183,11 @@ func (t *TraceInfo) generateRandomLogs() []*thrift.Log {
 	count := t.generateRandomInt(1, 5)
 	for i := int64(0); i < count; i++ {
 		logs = append(logs, &thrift.Log{
-			Timestamp: unixMicro(t.timestamp),
+			Timestamp: time.Now().UnixMicro(),
 			Fields:    t.generateRandomTags(),
 		})
 	}
+
 	return logs
 }
 
@@ -278,9 +279,4 @@ func RandomAttrFromTrace(t *tempopb.Trace) *v1common.KeyValue {
 
 func newRand(t time.Time) *rand.Rand {
 	return rand.New(rand.NewSource(t.Unix()))
-}
-
-// todo: Switch to time.UnixMicro() once Google Cloud Functions supports a go runtime > 1.16
-func unixMicro(t time.Time) int64 {
-	return t.UnixNano() / int64(time.Microsecond)
 }

@@ -28,7 +28,7 @@ func TestServerless(t *testing.T) {
 	}{
 		{
 			name:       "gcf",
-			serverless: newTempoServerlessGCF(),
+			serverless: newTempoServerlessGCR(),
 			config:     configServerlessGCF,
 		},
 		{
@@ -123,10 +123,10 @@ func TestServerless(t *testing.T) {
 
 }
 
-func newTempoServerlessGCF() *e2e.HTTPService {
+func newTempoServerlessGCR() *e2e.HTTPService {
 	s := e2e.NewHTTPService(
 		"serverless",
-		"tempo-serverless", // created by buildpacks in ./cmd/tempo-serverless
+		"tempo-serverless", // created by Makefile in /cmd/tempo-serverless
 		nil,
 		nil,
 		8080,
