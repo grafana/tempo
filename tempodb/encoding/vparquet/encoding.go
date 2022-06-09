@@ -21,7 +21,7 @@ func (v Encoding) NewCompactor() common.Compactor {
 }
 
 func (v Encoding) OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error) {
-	return NewBackendBlock(meta, r)
+	return newBackendBlock(meta, r), nil
 }
 
 func (v Encoding) CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error {

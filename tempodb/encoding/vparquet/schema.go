@@ -70,6 +70,7 @@ type Event struct {
 	Test                   string           `parquet:",snappy,dict,optional"` // Always empty for testing
 }
 
+// nolint:revive (ignore field naming)
 type Span struct {
 	// ID is []byte to save space. It doesn't need to be user
 	// friendly like trace ID, and []byte is half the size of string.
@@ -154,11 +155,11 @@ func attrToParquet(a *v1.KeyValue) Attribute {
 		p.ValueBool = &v.BoolValue
 	case *v1.AnyValue_ArrayValue:
 		jsonBytes := &bytes.Buffer{}
-		jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
+		_ = jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
 		p.ValueArray = jsonBytes.String()
 	case *v1.AnyValue_KvlistValue:
 		jsonBytes := &bytes.Buffer{}
-		jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
+		_ = jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
 		p.ValueKVList = jsonBytes.String()
 	}
 	return p
@@ -316,7 +317,7 @@ func eventToParquet(e *v1_trace.Span_Event) Event {
 
 	for _, a := range e.Attributes {
 		jsonBytes := &bytes.Buffer{}
-		jsonMarshaler.Marshal(jsonBytes, a.Value)
+		_ = jsonMarshaler.Marshal(jsonBytes, a.Value)
 		ee.Attrs = append(ee.Attrs, EventAttribute{
 			Key:   a.Key,
 			Value: jsonBytes.String(),
@@ -349,9 +350,9 @@ func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
 				BoolValue: *attr.ValueBool,
 			}
 		} else if attr.ValueArray != "" {
-			jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueArray), protoVal)
+			_ = jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueArray), protoVal)
 		} else if attr.ValueKVList != "" {
-			jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueKVList), protoVal)
+			_ = jsonpb.Unmarshal(bytes.NewBufferString(attr.ValueKVList), protoVal)
 		}
 
 		protoAttrs = append(protoAttrs, &v1.KeyValue{
@@ -387,7 +388,7 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 						Value: &v1.AnyValue{},
 					}
 
-					jsonpb.Unmarshal(bytes.NewBufferString(a.Value), protoAttr.Value)
+					_ = jsonpb.Unmarshal(bytes.NewBufferString(a.Value), protoAttr.Value)
 					protoEvent.Attributes = append(protoEvent.Attributes, protoAttr)
 				}
 			}

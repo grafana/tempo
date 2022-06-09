@@ -38,7 +38,7 @@ var StatusCodeMapping = map[string]int{
 	StatusCodeError: int(v1.Status_STATUS_CODE_ERROR),
 }
 
-type backendReaderAt struct {
+type BackendReaderAt struct {
 	ctx      context.Context
 	r        backend.Reader
 	name     string
@@ -48,13 +48,13 @@ type backendReaderAt struct {
 	TotalBytesRead uint64
 }
 
-var _ io.ReaderAt = (*backendReaderAt)(nil)
+var _ io.ReaderAt = (*BackendReaderAt)(nil)
 
-func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, blockID uuid.UUID, tenantID string) *backendReaderAt {
-	return &backendReaderAt{ctx, r, name, blockID, tenantID, 0}
+func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, blockID uuid.UUID, tenantID string) *BackendReaderAt {
+	return &BackendReaderAt{ctx, r, name, blockID, tenantID, 0}
 }
 
-func (b *backendReaderAt) ReadAt(p []byte, off int64) (int, error) {
+func (b *BackendReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	b.TotalBytesRead += uint64(len(p))
 	err := b.r.ReadRange(b.ctx, b.name, b.blockID, b.tenantID, uint64(off), p)
 	return len(p), err

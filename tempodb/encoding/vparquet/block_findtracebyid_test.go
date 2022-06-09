@@ -35,8 +35,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 
 	id := test.ValidTraceID(nil)
 
-	s, err := NewStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
-	require.NoError(t, err)
+	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
 	bar := "bar"
 	require.NoError(t, s.Add(&Trace{
@@ -93,8 +92,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	_, err = s.Complete()
 	require.NoError(t, err)
 
-	b, err := NewBackendBlock(s.meta, r)
-	require.NoError(t, err)
+	b := newBackendBlock(s.meta, r)
 
 	gotTr, err := b.FindTraceByID(ctx, id)
 	require.NoError(t, err)

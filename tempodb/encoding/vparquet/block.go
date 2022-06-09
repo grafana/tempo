@@ -16,8 +16,8 @@ type backendBlock struct {
 
 var _ common.BackendBlock = (*backendBlock)(nil)
 
-func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (*backendBlock, error) {
-	return &backendBlock{meta, r}, nil
+func newBackendBlock(meta *backend.BlockMeta, r backend.Reader) *backendBlock {
+	return &backendBlock{meta, r}
 }
 
 func (b *backendBlock) BlockMeta() *backend.BlockMeta {
