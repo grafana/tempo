@@ -20,7 +20,7 @@ type bookmark struct {
 func newBookmark(iter *iterator) *bookmark {
 	b := &bookmark{
 		iter:      iter,
-		resultsCh: make(chan *Trace, 100),
+		resultsCh: make(chan *Trace, 75),
 	}
 
 	go b.prefetchLoop()
@@ -66,7 +66,8 @@ func (b *bookmark) current() (*Trace, error) {
 		return nil, io.EOF
 	}
 
-	return t, nil
+	b.currentObject = t
+	return b.currentObject, nil
 }
 
 func (b *bookmark) done() bool {
