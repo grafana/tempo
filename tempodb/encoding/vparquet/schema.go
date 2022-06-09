@@ -70,7 +70,8 @@ type Event struct {
 	Test                   string           `parquet:",snappy,dict,optional"` // Always empty for testing
 }
 
-// nolint:revive (ignore field naming)
+// nolint:revive
+// Ignore field naming warnings
 type Span struct {
 	// ID is []byte to save space. It doesn't need to be user
 	// friendly like trace ID, and []byte is half the size of string.
