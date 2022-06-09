@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grafana/loki/pkg/util/build"
+	"github.com/grafana/tempo/cmd/tempo/build"
 
 	"github.com/cespare/xxhash/v2"
 	jsoniter "github.com/json-iterator/go"
@@ -24,8 +24,8 @@ import (
 
 var (
 	httpClient    = http.Client{Timeout: 5 * time.Second}
-	usageStatsURL = "https://stats.grafana.org/loki-usage-report"
-	statsPrefix   = "github.com/grafana/loki/"
+	usageStatsURL = "https://stats.grafana.org/tempo-usage-report"
+	statsPrefix   = "github.com/grafana/tempo/"
 	targetKey     = "target"
 	editionKey    = "edition"
 )

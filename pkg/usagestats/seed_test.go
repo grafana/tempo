@@ -15,7 +15,7 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/loki/pkg/storage/chunk/client/local"
+	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
 type dnsProviderMock struct {
@@ -60,9 +60,10 @@ func createMemberlist(t *testing.T, port, memberID int) *memberlist.KV {
 func Test_Memberlist(t *testing.T) {
 	stabilityCheckInterval = time.Second
 
-	objectClient, err := local.NewFSObjectClient(local.FSConfig{
-		Directory: t.TempDir(),
+	objectClient, err := local.NewBackend(&local.Config{
+		Path: t.TempDir(),
 	})
+
 	require.NoError(t, err)
 	result := make(chan *ClusterSeed, 10)
 

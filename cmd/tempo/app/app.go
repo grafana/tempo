@@ -84,6 +84,8 @@ func New(cfg Config) (*App, error) {
 		cfg: cfg,
 	}
 
+	usagestats.Edition("oss")
+
 	app.setupAuthMiddleware()
 
 	if err := app.setupModuleManager(); err != nil {

@@ -3,7 +3,6 @@ package usagestats
 import (
 	"bytes"
 	"context"
-	"flag"
 	"io"
 	"math"
 	"time"
@@ -17,13 +16,13 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/grafana/loki/pkg/storage/chunk/client"
-	"github.com/grafana/loki/pkg/util/build"
+	"github.com/grafana/tempo/cmd/tempo/build"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (
 	// File name for the cluster seed file.
-	ClusterSeedFileName = "loki_cluster_seed.json"
+	ClusterSeedFileName = "tempo_cluster_seed.json"
 	// attemptNumber how many times we will try to read a corrupted cluster seed before deleting it.
 	attemptNumber = 4
 	// seedKey is the key for the cluster seed to use with the kv store.
@@ -38,20 +37,11 @@ var (
 	stabilityMinimunRequired = 6
 )
 
-type Config struct {
-	Enabled bool `yaml:"reporting_enabled"`
-	Leader  bool `yaml:"-"`
-}
-
-// RegisterFlags adds the flags required to config this to the given FlagSet
-func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
-	f.BoolVar(&cfg.Enabled, "reporting.enabled", true, "Enable anonymous usage reporting.")
-}
-
 type Reporter struct {
-	logger       log.Logger
-	objectClient client.ObjectClient
-	reg          prometheus.Registerer
+	logger log.Logger
+	reader backend.RawReader
+	writer backend.RawWriter
+	reg    prometheus.Registerer
 
 	services.Service
 
@@ -61,16 +51,17 @@ type Reporter struct {
 	lastReport time.Time
 }
 
-func NewReporter(config Config, kvConfig kv.Config, objectClient client.ObjectClient, logger log.Logger, reg prometheus.Registerer) (*Reporter, error) {
+func NewReporter(config Config, kvConfig kv.Config, reader backend.RawReader, writer backend.RawWriter, logger log.Logger, reg prometheus.Registerer) (*Reporter, error) {
 	if !config.Enabled {
 		return nil, nil
 	}
 	r := &Reporter{
-		logger:       logger,
-		objectClient: objectClient,
-		conf:         config,
-		kvConfig:     kvConfig,
-		reg:          reg,
+		logger:   logger,
+		reader:   reader,
+		writer:   writer,
+		conf:     config,
+		kvConfig: kvConfig,
+		reg:      reg,
 	}
 	r.Service = services.NewBasicService(nil, r.running, nil)
 	return r, nil
@@ -115,10 +106,10 @@ func (rep *Reporter) initLeader(ctx context.Context) *ClusterSeed {
 		remoteSeed, err := rep.fetchSeed(ctx,
 			func(err error) bool {
 				// we only want to retry if the error is not an object not found error
-				return !rep.objectClient.IsObjectNotFoundErr(err)
+				return err != backend.ErrDoesNotExist
 			})
 		if err != nil {
-			if rep.objectClient.IsObjectNotFoundErr(err) {
+			if err == backend.ErrDoesNotExist {
 				// we are the leader and we need to save the file.
 				if err := rep.writeSeedFile(ctx, seed); err != nil {
 					level.Info(rep.logger).Log("msg", "failed to CAS cluster seed key", "err", err)
@@ -193,13 +184,13 @@ func (rep *Reporter) fetchSeed(ctx context.Context, continueFn func(err error) b
 	for backoff.Ongoing() {
 		seed, err := rep.readSeedFile(ctx)
 		if err != nil {
-			if !rep.objectClient.IsObjectNotFoundErr(err) {
+			if err != backend.ErrDoesNotExist {
 				readingErr++
 			}
 			level.Debug(rep.logger).Log("msg", "failed to read cluster seed file", "err", err)
 			if readingErr > attemptNumber {
-				if err := rep.objectClient.DeleteObject(ctx, ClusterSeedFileName); err != nil {
-					level.Error(rep.logger).Log("msg", "failed to delete corrupted cluster seed file, deleting it", "err", err)
+				if delErr := rep.writer.DeleteObject(ctx, backend.KeyPath{ClusterSeedFileName}); delErr != nil {
+					level.Error(rep.logger).Log("msg", "failed to delete corrupted cluster seed file, deleting it", "err", delErr)
 				}
 				readingErr = 0
 			}
@@ -216,16 +207,13 @@ func (rep *Reporter) fetchSeed(ctx context.Context, continueFn func(err error) b
 
 // readSeedFile reads the cluster seed file from the object store.
 func (rep *Reporter) readSeedFile(ctx context.Context) (*ClusterSeed, error) {
-	reader, _, err := rep.objectClient.GetObject(ctx, ClusterSeedFileName)
-	if err != nil {
-		return nil, err
-	}
+	reader, _, err := rep.reader.Read(ctx, ClusterSeedFileName, backend.KeyPath{}, false)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
-		if err := reader.Close(); err != nil {
-			level.Error(rep.logger).Log("msg", "failed to close reader", "err", err)
+		if closeErr := reader.Close(); err != nil {
+			level.Error(rep.logger).Log("msg", "failed to close reader", "err", closeErr)
 		}
 	}()
 	data, err := io.ReadAll(reader)
@@ -245,7 +233,7 @@ func (rep *Reporter) writeSeedFile(ctx context.Context, seed ClusterSeed) error 
 	if err != nil {
 		return err
 	}
-	return rep.objectClient.PutObject(ctx, ClusterSeedFileName, bytes.NewReader(data))
+	return rep.writer.Write(ctx, ClusterSeedFileName, []string{}, bytes.NewReader(data), -1, false)
 }
 
 // running inits the reporter seed and start sending report for every interval
