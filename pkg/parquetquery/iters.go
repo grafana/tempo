@@ -11,10 +11,10 @@ import (
 	pq "github.com/segmentio/parquet-go"
 )
 
-// tracker is the sequence of row numbers uniquely identifying a value
+// RowNumber is the sequence of row numbers uniquely identifying a value
 // in a tree of nested columns, starting at the top-level and including
 // another row number for each level of nesting. -1 is a placeholder
-// for undefined at lower levels.  Trackers can be compared for full
+// for undefined at lower levels.  RowNumbers can be compared for full
 // equality using the == operator, or can be compared partially, looking
 // for equal lineages down to a certain level.
 // For example given the following tree, the row numbers would be:
@@ -26,25 +26,25 @@ import (
 //     E        0,  2, -1
 //
 // Currently supports 6 levels of nesting which should be enough for anybody. :)
-type tracker [6]int64
+type RowNumber [6]int64
 
-// NewTracker creates and empty invalid tracker.
-func NewTracker() tracker {
-	return tracker{-1, -1, -1, -1, -1, -1}
+// EmptyRowNumber creates an empty invalid row number.
+func EmptyRowNumber() RowNumber {
+	return RowNumber{-1, -1, -1, -1, -1, -1}
 }
 
-// MaxTracker is a helper that represents the maximum(-ish) representable value.
-func MaxTracker() tracker {
-	return tracker{math.MaxInt64}
+// MaxRowNumber is a helper that represents the maximum(-ish) representable value.
+func MaxRowNumber() RowNumber {
+	return RowNumber{math.MaxInt64}
 }
 
-// CompareTrackers compares the sequences of row numbers in
-// trackers a and b for partial equality, descending from top-level
+// CompareRowNumbers compares the sequences of row numbers in
+// a and b for partial equality, descending from top-level
 // through the given definition level.
-// For example, definition level 1 means that trackers are compared
+// For example, definition level 1 means that row numbers are compared
 // at two levels of nesting, the top-level and 1 level of nesting
 // below.
-func CompareTrackers(upToDefinitionLevel int, a, b tracker) int {
+func CompareRowNumbers(upToDefinitionLevel int, a, b RowNumber) int {
 	for i := 0; i <= upToDefinitionLevel; i++ {
 		if a[i] < b[i] {
 			return -1
@@ -56,15 +56,15 @@ func CompareTrackers(upToDefinitionLevel int, a, b tracker) int {
 	return 0
 }
 
-func TruncateTracker(definitionLevelToKeep int, t tracker) tracker {
-	n := NewTracker()
+func TruncateRowNumber(definitionLevelToKeep int, t RowNumber) RowNumber {
+	n := EmptyRowNumber()
 	for i := 0; i <= definitionLevelToKeep; i++ {
 		n[i] = t[i]
 	}
 	return n
 }
 
-func (t tracker) Valid() bool {
+func (t RowNumber) Valid() bool {
 	return t[0] >= 0
 }
 
@@ -73,7 +73,7 @@ func (t tracker) Valid() bool {
 // from the Dremel whitepaper:
 // https://storage.googleapis.com/pub-tools-public-publication-data/pdf/36632.pdf
 // Name.Language.Country
-// value  | r | d | expected Tracker
+// value  | r | d | expected RowNumber
 // -------|---|---|-------------------
 //        |   |   | { -1, -1, -1, -1 }  <-- starting position
 // us     | 0 | 3 | {  0,  0,  0,  0 }
@@ -81,7 +81,7 @@ func (t tracker) Valid() bool {
 // null   | 1 | 1 | {  0,  1, -1, -1 }
 // gb     | 1 | 3 | {  0,  2,  0,  0 }
 // null   | 0 | 1 | {  1,  0, -1, -1 }
-func (t *tracker) Next(repetitionLevel, definitionLevel int) {
+func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 	// Next row at this level
 	t[repetitionLevel]++
 
@@ -97,18 +97,19 @@ func (t *tracker) Next(repetitionLevel, definitionLevel int) {
 }
 
 // Skip rows at the root-level.
-func (t *tracker) Skip(numRows int64) {
+func (t *RowNumber) Skip(numRows int64) {
 	t[0] += numRows
 	for i := 1; i < len(t); i++ {
 		t[i] = -1
 	}
 }
 
-// IteratorResult is a row of data with a tracker (row number) and named columns of data.
-// Internally it has an unstructured list for efficient collection.
+// IteratorResult is a row of data with a row number and named columns of data.
+// Internally it has an unstructured list for efficient collection. The ToMap()
+// function can be used to make inspection easier.
 type IteratorResult struct {
-	tracker tracker
-	entries []struct {
+	rowNumber RowNumber
+	entries   []struct {
 		k string
 		v pq.Value
 	}
@@ -169,7 +170,7 @@ type Iterator interface {
 	Next() *IteratorResult
 
 	// Like Next but skips over results until reading >= the given location
-	SeekTo(t tracker, definitionLevel int) *IteratorResult
+	SeekTo(t RowNumber, definitionLevel int) *IteratorResult
 
 	Close()
 }
@@ -182,13 +183,13 @@ var columnIteratorPool = sync.Pool{
 
 func columnIteratorPoolGet(capacity, len int) *columnIteratorBuffer {
 	res := columnIteratorPool.Get().(*columnIteratorBuffer)
-	if cap(res.trackers) < capacity {
-		res.trackers = make([]tracker, capacity)
+	if cap(res.rowNumbers) < capacity {
+		res.rowNumbers = make([]RowNumber, capacity)
 	}
 	if cap(res.values) < capacity {
 		res.values = make([]pq.Value, capacity)
 	}
-	res.trackers = res.trackers[:len]
+	res.rowNumbers = res.rowNumbers[:len]
 	res.values = res.values[:len]
 	return res
 }
@@ -235,8 +236,8 @@ type ColumnIterator struct {
 var _ Iterator = (*ColumnIterator)(nil)
 
 type columnIteratorBuffer struct {
-	trackers []tracker
-	values   []pq.Value
+	rowNumbers []RowNumber
+	values     []pq.Value
 }
 
 func NewColumnIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string) *ColumnIterator {
@@ -264,7 +265,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 	})
 	defer span.Finish()
 
-	tracker := NewTracker()
+	rn := EmptyRowNumber()
 	buffer := make([]pq.Value, readSize)
 
 	for _, rg := range c.rgs {
@@ -273,7 +274,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 		if c.filter != nil {
 			if !c.filter.KeepColumnChunk(col) {
 				// Skip column chunk
-				tracker.Skip(rg.NumRows())
+				rn.Skip(rg.NumRows())
 				continue
 			}
 		}
@@ -291,7 +292,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 			if c.filter != nil {
 				if !c.filter.KeepPage(pg) {
 					// Skip page
-					tracker.Skip(pg.NumRows())
+					rn.Skip(pg.NumRows())
 					continue
 				}
 			}
@@ -310,7 +311,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 
 						// We have to do this for all values (even if the
 						// value is excluded by the predicate)
-						tracker.Next(v.RepetitionLevel(), v.DefinitionLevel())
+						rn.Next(v.RepetitionLevel(), v.DefinitionLevel())
 
 						if c.filter != nil {
 							if !c.filter.KeepValue(v) {
@@ -318,11 +319,11 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 							}
 						}
 
-						newBuffer.trackers = append(newBuffer.trackers, tracker)
+						newBuffer.rowNumbers = append(newBuffer.rowNumbers, rn)
 						newBuffer.values = append(newBuffer.values, v)
 					}
 
-					if len(newBuffer.trackers) > 0 {
+					if len(newBuffer.rowNumbers) > 0 {
 						select {
 						case c.ch <- newBuffer:
 						case <-c.quit:
@@ -349,8 +350,8 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 	}
 }
 
-// Next returns the next matching value (tracker) from the iterator.
-// Returns the empty (invalid) tracker when finished.
+// Next returns the next matching value from the iterator.
+// Returns nil when finished.
 func (c *ColumnIterator) Next() *IteratorResult {
 
 	t, v := c.next()
@@ -361,12 +362,12 @@ func (c *ColumnIterator) Next() *IteratorResult {
 	return nil
 }
 
-func (c *ColumnIterator) next() (tracker, pq.Value) {
+func (c *ColumnIterator) next() (RowNumber, pq.Value) {
 	// Consume current buffer until exhausted
 	// then read another one from the channel.
 	if c.curr != nil {
-		for c.currN++; c.currN < len(c.curr.trackers); {
-			t := c.curr.trackers[c.currN]
+		for c.currN++; c.currN < len(c.curr.rowNumbers); {
+			t := c.curr.rowNumbers[c.currN]
 			if t.Valid() {
 				return t, c.curr.values[c.currN]
 			}
@@ -381,17 +382,17 @@ func (c *ColumnIterator) next() (tracker, pq.Value) {
 		// Got next buffer, guaranteed to have at least 1 element
 		c.curr = v
 		c.currN = 0
-		return c.curr.trackers[0], c.curr.values[0]
+		return c.curr.rowNumbers[0], c.curr.values[0]
 	}
 
 	// Failed to read from the channel, means iterator is exhausted.
-	return NewTracker(), pq.Value{}
+	return EmptyRowNumber(), pq.Value{}
 }
 
 // SeekTo moves this iterator to the next result that is greater than
 // or equal to the given row number (and based on the given definition level)
-func (c *ColumnIterator) SeekTo(to tracker, d int) *IteratorResult {
-	var at tracker
+func (c *ColumnIterator) SeekTo(to RowNumber, d int) *IteratorResult {
+	var at RowNumber
 	var v pq.Value
 
 	// Because iteration happens in the background, we just read
@@ -399,7 +400,7 @@ func (c *ColumnIterator) SeekTo(to tracker, d int) *IteratorResult {
 	// than calling the real Next() because it's not wrapping the results
 	// in an iteratorResult. It would be nice to tell the background
 	// routine to skip ahead.
-	for at, v = c.next(); at.Valid() && CompareTrackers(d, at, to) < 0; {
+	for at, v = c.next(); at.Valid() && CompareRowNumbers(d, at, to) < 0; {
 		at, v = c.next()
 	}
 
@@ -410,9 +411,9 @@ func (c *ColumnIterator) SeekTo(to tracker, d int) *IteratorResult {
 	return nil
 }
 
-func (c *ColumnIterator) makeResult(t tracker, v pq.Value) *IteratorResult {
+func (c *ColumnIterator) makeResult(t RowNumber, v pq.Value) *IteratorResult {
 	r := columnIteratorResultPoolGet()
-	r.tracker = t
+	r.rowNumber = t
 	if c.selectAs != "" {
 		r.AppendValue(c.selectAs, v)
 	}
@@ -455,8 +456,8 @@ func (j *JoinIterator) Next() *IteratorResult {
 	// There is an optimization here in that we can seek to the highest
 	// row seen. It's impossible to have joins before that row.
 	for {
-		lowestRowNumber := MaxTracker()
-		highestRowNumber := NewTracker()
+		lowestRowNumber := MaxRowNumber()
+		highestRowNumber := EmptyRowNumber()
 		lowestIters := make([]int, 0, len(j.iters))
 
 		for iterNum := range j.iters {
@@ -467,12 +468,12 @@ func (j *JoinIterator) Next() *IteratorResult {
 				return nil
 			}
 
-			c := CompareTrackers(j.definitionLevel, res.tracker, lowestRowNumber)
+			c := CompareRowNumbers(j.definitionLevel, res.rowNumber, lowestRowNumber)
 			switch c {
 			case -1:
 				// New lowest, reset
 				lowestIters = lowestIters[:0]
-				lowestRowNumber = res.tracker
+				lowestRowNumber = res.rowNumber
 				fallthrough
 
 			case 0:
@@ -480,9 +481,9 @@ func (j *JoinIterator) Next() *IteratorResult {
 				lowestIters = append(lowestIters, iterNum)
 			}
 
-			if CompareTrackers(j.definitionLevel, res.tracker, highestRowNumber) == 1 {
+			if CompareRowNumbers(j.definitionLevel, res.rowNumber, highestRowNumber) == 1 {
 				// New high water mark
-				highestRowNumber = res.tracker
+				highestRowNumber = res.rowNumber
 			}
 		}
 
@@ -504,15 +505,15 @@ func (j *JoinIterator) Next() *IteratorResult {
 	}
 }
 
-func (j *JoinIterator) SeekTo(t tracker, d int) *IteratorResult {
+func (j *JoinIterator) SeekTo(t RowNumber, d int) *IteratorResult {
 	j.seekAll(t, d)
 	return j.Next()
 }
 
-func (j *JoinIterator) seekAll(t tracker, d int) {
-	t = TruncateTracker(d, t)
+func (j *JoinIterator) seekAll(t RowNumber, d int) {
+	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range j.iters {
-		if j.peeks[iterNum] == nil || CompareTrackers(d, j.peeks[iterNum].tracker, t) == -1 {
+		if j.peeks[iterNum] == nil || CompareRowNumbers(d, j.peeks[iterNum].rowNumber, t) == -1 {
 			columnIteratorResultPoolPut(j.peeks[iterNum])
 			j.peeks[iterNum] = iter.SeekTo(t, d)
 		}
@@ -529,12 +530,12 @@ func (j *JoinIterator) peek(iterNum int) *IteratorResult {
 // Collect data from the given iterators until they point at
 // the next row (according to the configured definition level)
 // or are exhausted.
-func (j *JoinIterator) collect(rowNumber tracker) *IteratorResult {
+func (j *JoinIterator) collect(rowNumber RowNumber) *IteratorResult {
 	result := columnIteratorResultPoolGet()
-	result.tracker = rowNumber
+	result.rowNumber = rowNumber
 
 	for i := range j.iters {
-		for j.peeks[i] != nil && CompareTrackers(j.definitionLevel, j.peeks[i].tracker, rowNumber) == 0 {
+		for j.peeks[i] != nil && CompareRowNumbers(j.definitionLevel, j.peeks[i].rowNumber, rowNumber) == 0 {
 
 			result.Append(j.peeks[i])
 
@@ -581,7 +582,7 @@ func (u *UnionIterator) Next() *IteratorResult {
 	// lowest iterators are then collected and a result is produced. Keep
 	// going until all iterators are exhausted.
 	for {
-		lowestRowNumber := MaxTracker()
+		lowestRowNumber := MaxRowNumber()
 		lowestIters := make([]int, 0, len(u.iters))
 
 		for iterNum := range u.iters {
@@ -592,12 +593,12 @@ func (u *UnionIterator) Next() *IteratorResult {
 				continue
 			}
 
-			c := CompareTrackers(u.definitionLevel, rn.tracker, lowestRowNumber)
+			c := CompareRowNumbers(u.definitionLevel, rn.rowNumber, lowestRowNumber)
 			switch c {
 			case -1:
 				// New lowest
 				lowestIters = lowestIters[:0]
-				lowestRowNumber = rn.tracker
+				lowestRowNumber = rn.rowNumber
 				fallthrough
 
 			case 0:
@@ -624,10 +625,10 @@ func (u *UnionIterator) Next() *IteratorResult {
 	}
 }
 
-func (u *UnionIterator) SeekTo(t tracker, d int) *IteratorResult {
-	t = TruncateTracker(d, t)
+func (u *UnionIterator) SeekTo(t RowNumber, d int) *IteratorResult {
+	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range u.iters {
-		if p := u.peeks[iterNum]; p == nil || CompareTrackers(d, p.tracker, t) == -1 {
+		if p := u.peeks[iterNum]; p == nil || CompareRowNumbers(d, p.rowNumber, t) == -1 {
 			u.peeks[iterNum] = iter.SeekTo(t, d)
 		}
 	}
@@ -644,12 +645,12 @@ func (u *UnionIterator) peek(iterNum int) *IteratorResult {
 // Collect data from the given iterators until they point at
 // the next row (according to the configured definition level)
 // or are exhausted.
-func (u *UnionIterator) collect(iterNums []int, rowNumber tracker) *IteratorResult {
+func (u *UnionIterator) collect(iterNums []int, rowNumber RowNumber) *IteratorResult {
 	result := columnIteratorResultPoolGet()
-	result.tracker = rowNumber
+	result.rowNumber = rowNumber
 
 	for _, iterNum := range iterNums {
-		for u.peeks[iterNum] != nil && CompareTrackers(u.definitionLevel, u.peeks[iterNum].tracker, rowNumber) == 0 {
+		for u.peeks[iterNum] != nil && CompareRowNumbers(u.definitionLevel, u.peeks[iterNum].rowNumber, rowNumber) == 0 {
 
 			result.Append(u.peeks[iterNum])
 
