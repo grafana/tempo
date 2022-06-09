@@ -144,39 +144,3 @@ func finishBlock(block *streamingBlock, l log.Logger) {
 	compactionLevelLabel := strconv.Itoa(int(block.meta.CompactionLevel) - 1)
 	metrics.MetricCompactionBytesWritten.WithLabelValues(compactionLevelLabel).Add(float64(bytesFlushed))
 }
-
-type bookmark struct {
-	iter *iterator
-
-	currentObject *Trace
-	currentErr    error
-}
-
-func newBookmark(iter *iterator) *bookmark {
-	return &bookmark{
-		iter: iter,
-	}
-}
-
-func (b *bookmark) current() (*Trace, error) {
-	if b.currentErr != nil {
-		return nil, b.currentErr
-	}
-
-	if b.currentObject != nil {
-		return b.currentObject, nil
-	}
-
-	b.currentObject, b.currentErr = b.iter.Next()
-	return b.currentObject, b.currentErr
-}
-
-func (b *bookmark) done() bool {
-	obj, err := b.current()
-
-	return obj == nil || err != nil
-}
-
-func (b *bookmark) clear() {
-	b.currentObject = nil
-}

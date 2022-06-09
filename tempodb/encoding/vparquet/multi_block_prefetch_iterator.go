@@ -8,89 +8,91 @@ import (
 	"github.com/uber-go/atomic"
 )
 
-type MultiBlockPrefetchIterator struct {
-	bookmarks []*bookmark
+type bookmark struct {
+	iter *iterator
+
+	currentObject *Trace
+	currentErr    atomic.Error
 
 	resultsCh chan *Trace
-	quitCh    chan struct{}
-	err       atomic.Error
 }
 
-func NewMultiblockPrefetchIterator(ctx context.Context, bookmarks []*bookmark, bufferSize int) *MultiBlockPrefetchIterator {
-	m := &MultiBlockPrefetchIterator{
-		bookmarks: bookmarks,
-		resultsCh: make(chan *Trace, bufferSize),
-		quitCh:    make(chan struct{}),
+func newBookmark(iter *iterator) *bookmark {
+	b := &bookmark{
+		iter:      iter,
+		resultsCh: make(chan *Trace, 100),
 	}
 
-	go m.prefetchLoop(ctx)
+	go b.prefetchLoop()
 
-	return m
+	return b
 }
 
-func (m *MultiBlockPrefetchIterator) Close() {
-	select {
-	// Signal goroutine to quit. Non-blocking, handles if already
-	// signalled or goroutine not listening to channel.
-	case m.quitCh <- struct{}{}:
-	default:
-		return
-	}
-}
-
-func (m *MultiBlockPrefetchIterator) Next(ctx context.Context) (*Trace, error) {
-	if err := m.err.Load(); err != nil {
-		return nil, err
-	}
+func (b *bookmark) prefetchLoop() {
+	defer close(b.resultsCh)
 
 	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-
-		case t, ok := <-m.resultsCh:
-			if !ok {
-				// check err
-				if err := m.err.Load(); err != nil {
-					return nil, err
-				}
-				return nil, io.EOF
-			}
-			return t, nil
-		}
-	}
-}
-
-func (m *MultiBlockPrefetchIterator) prefetchLoop(ctx context.Context) {
-	defer close(m.resultsCh)
-
-	for {
-		t, err := m.fetch()
+		t, err := b.iter.Next()
 		if err == io.EOF {
 			return
 		}
 		if err != nil {
-			m.err.Store(err)
+			b.currentErr.Store(err)
 			return
 		}
 
-		select {
-		case <-ctx.Done():
-			m.err.Store(ctx.Err())
-			return
-
-		case <-m.quitCh:
-			// Signalled to quit early
-			return
-
-		case m.resultsCh <- t:
-			// Send results. Blocks until available buffer in channel
-			// created by receiving in Next()
-		}
+		// Send results. Blocks until available buffer in channel
+		// created by receiving in Next()
+		b.resultsCh <- t
 	}
 }
 
-func (m *MultiBlockPrefetchIterator) fetch() (*Trace, error) {
+func (b *bookmark) current() (*Trace, error) {
+	if err := b.currentErr.Load(); err != nil {
+		return nil, err
+	}
+
+	if b.currentObject != nil {
+		return b.currentObject, nil
+	}
+
+	// blocking wait on resultsCh
+	t, ok := <-b.resultsCh
+	if !ok {
+		// check err
+		if err := b.currentErr.Load(); err != nil {
+			return nil, err
+		}
+		return nil, io.EOF
+	}
+
+	return t, nil
+}
+
+func (b *bookmark) done() bool {
+	obj, err := b.current()
+
+	return obj == nil || err != nil
+}
+
+func (b *bookmark) clear() {
+	b.currentObject = nil
+}
+
+type MultiBlockPrefetchIterator struct {
+	bookmarks []*bookmark
+}
+
+func NewMultiblockPrefetchIterator(ctx context.Context, bookmarks []*bookmark, bufferSize int) *MultiBlockPrefetchIterator {
+	return &MultiBlockPrefetchIterator{
+		bookmarks: bookmarks,
+	}
+}
+
+func (m *MultiBlockPrefetchIterator) Close() {
+}
+
+func (m *MultiBlockPrefetchIterator) Next(ctx context.Context) (*Trace, error) {
 	allDone := func() bool {
 		for _, b := range m.bookmarks {
 			if !b.done() {
