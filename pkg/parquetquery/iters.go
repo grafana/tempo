@@ -108,23 +108,23 @@ func (t *RowNumber) Skip(numRows int64) {
 // Internally it has an unstructured list for efficient collection. The ToMap()
 // function can be used to make inspection easier.
 type IteratorResult struct {
-	rowNumber RowNumber
-	entries   []struct {
+	RowNumber RowNumber
+	Entries   []struct {
 		k string
 		v pq.Value
 	}
 }
 
 func (r *IteratorResult) Reset() {
-	r.entries = r.entries[:0]
+	r.Entries = r.Entries[:0]
 }
 
 func (r *IteratorResult) Append(rr *IteratorResult) {
-	r.entries = append(r.entries, rr.entries...)
+	r.Entries = append(r.Entries, rr.Entries...)
 }
 
 func (r *IteratorResult) AppendValue(k string, v pq.Value) {
-	r.entries = append(r.entries, struct {
+	r.Entries = append(r.Entries, struct {
 		k string
 		v pq.Value
 	}{k, v})
@@ -135,7 +135,7 @@ func (r *IteratorResult) AppendValue(k string, v pq.Value) {
 // not preseved, but the order of values within each column is.
 func (r *IteratorResult) ToMap() map[string][]pq.Value {
 	m := map[string][]pq.Value{}
-	for _, e := range r.entries {
+	for _, e := range r.Entries {
 		m[e.k] = append(m[e.k], e.v)
 	}
 	return m
@@ -152,7 +152,7 @@ func (r *IteratorResult) Columns(buffer [][]pq.Value, names ...string) [][]pq.Va
 		buffer[i] = buffer[i][:0]
 	}
 
-	for _, e := range r.entries {
+	for _, e := range r.Entries {
 		for i := range names {
 			if e.k == names[i] {
 				buffer[i] = append(buffer[i], e.v)
@@ -196,7 +196,7 @@ func columnIteratorPoolGet(capacity, len int) *columnIteratorBuffer {
 
 var columnIteratorResultPool = sync.Pool{
 	New: func() interface{} {
-		return &IteratorResult{entries: make([]struct {
+		return &IteratorResult{Entries: make([]struct {
 			k string
 			v pq.Value
 		}, 0, 10)} // For luck
@@ -222,7 +222,7 @@ type ColumnIterator struct {
 	rgs     []pq.RowGroup
 	col     int
 	colName string
-	filter  Predicate
+	filter  *InstrumentedPredicate
 
 	selectAs string
 
@@ -245,7 +245,7 @@ func NewColumnIterator(ctx context.Context, rgs []pq.RowGroup, column int, colum
 		rgs:      rgs,
 		col:      column,
 		colName:  columnName,
-		filter:   filter,
+		filter:   &InstrumentedPredicate{pred: filter},
 		selectAs: selectAs,
 		quit:     make(chan struct{}),
 		ch:       make(chan *columnIteratorBuffer, 1),
@@ -259,11 +259,19 @@ func NewColumnIterator(ctx context.Context, rgs []pq.RowGroup, column int, colum
 func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 	defer close(c.ch)
 
-	span, _ := opentracing.StartSpanFromContext(ctx, "columnIterator.iterate", opentracing.Tags{
+	span, ctx2 := opentracing.StartSpanFromContext(ctx, "columnIterator.iterate", opentracing.Tags{
 		"columnIndex": c.col,
 		"column":      c.colName,
 	})
-	defer span.Finish()
+	defer func() {
+		span.SetTag("inspectedColumnChunks", c.filter.InspectedColumnChunks.Load())
+		span.SetTag("inspectedPages", c.filter.InspectedPages.Load())
+		span.SetTag("inspectedValues", c.filter.InspectedValues.Load())
+		span.SetTag("keptColumnChunks", c.filter.KeptColumnChunks.Load())
+		span.SetTag("keptPages", c.filter.KeptPages.Load())
+		span.SetTag("keptValues", c.filter.KeptValues.Load())
+		span.Finish()
+	}()
 
 	rn := EmptyRowNumber()
 	buffer := make([]pq.Value, readSize)
@@ -281,7 +289,10 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 
 		pgs := col.Pages()
 		for {
+			span2, _ := opentracing.StartSpanFromContext(ctx2, "columnIterator.iterate.ReadPage")
 			pg, err := pgs.ReadPage()
+			span2.Finish()
+
 			if pg == nil || err == io.EOF {
 				break
 			}
@@ -413,7 +424,7 @@ func (c *ColumnIterator) SeekTo(to RowNumber, d int) *IteratorResult {
 
 func (c *ColumnIterator) makeResult(t RowNumber, v pq.Value) *IteratorResult {
 	r := columnIteratorResultPoolGet()
-	r.rowNumber = t
+	r.RowNumber = t
 	if c.selectAs != "" {
 		r.AppendValue(c.selectAs, v)
 	}
@@ -468,12 +479,12 @@ func (j *JoinIterator) Next() *IteratorResult {
 				return nil
 			}
 
-			c := CompareRowNumbers(j.definitionLevel, res.rowNumber, lowestRowNumber)
+			c := CompareRowNumbers(j.definitionLevel, res.RowNumber, lowestRowNumber)
 			switch c {
 			case -1:
 				// New lowest, reset
 				lowestIters = lowestIters[:0]
-				lowestRowNumber = res.rowNumber
+				lowestRowNumber = res.RowNumber
 				fallthrough
 
 			case 0:
@@ -481,9 +492,9 @@ func (j *JoinIterator) Next() *IteratorResult {
 				lowestIters = append(lowestIters, iterNum)
 			}
 
-			if CompareRowNumbers(j.definitionLevel, res.rowNumber, highestRowNumber) == 1 {
+			if CompareRowNumbers(j.definitionLevel, res.RowNumber, highestRowNumber) == 1 {
 				// New high water mark
-				highestRowNumber = res.rowNumber
+				highestRowNumber = res.RowNumber
 			}
 		}
 
@@ -513,7 +524,7 @@ func (j *JoinIterator) SeekTo(t RowNumber, d int) *IteratorResult {
 func (j *JoinIterator) seekAll(t RowNumber, d int) {
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range j.iters {
-		if j.peeks[iterNum] == nil || CompareRowNumbers(d, j.peeks[iterNum].rowNumber, t) == -1 {
+		if j.peeks[iterNum] == nil || CompareRowNumbers(d, j.peeks[iterNum].RowNumber, t) == -1 {
 			columnIteratorResultPoolPut(j.peeks[iterNum])
 			j.peeks[iterNum] = iter.SeekTo(t, d)
 		}
@@ -532,10 +543,10 @@ func (j *JoinIterator) peek(iterNum int) *IteratorResult {
 // or are exhausted.
 func (j *JoinIterator) collect(rowNumber RowNumber) *IteratorResult {
 	result := columnIteratorResultPoolGet()
-	result.rowNumber = rowNumber
+	result.RowNumber = rowNumber
 
 	for i := range j.iters {
-		for j.peeks[i] != nil && CompareRowNumbers(j.definitionLevel, j.peeks[i].rowNumber, rowNumber) == 0 {
+		for j.peeks[i] != nil && CompareRowNumbers(j.definitionLevel, j.peeks[i].RowNumber, rowNumber) == 0 {
 
 			result.Append(j.peeks[i])
 
@@ -593,12 +604,12 @@ func (u *UnionIterator) Next() *IteratorResult {
 				continue
 			}
 
-			c := CompareRowNumbers(u.definitionLevel, rn.rowNumber, lowestRowNumber)
+			c := CompareRowNumbers(u.definitionLevel, rn.RowNumber, lowestRowNumber)
 			switch c {
 			case -1:
 				// New lowest
 				lowestIters = lowestIters[:0]
-				lowestRowNumber = rn.rowNumber
+				lowestRowNumber = rn.RowNumber
 				fallthrough
 
 			case 0:
@@ -628,7 +639,7 @@ func (u *UnionIterator) Next() *IteratorResult {
 func (u *UnionIterator) SeekTo(t RowNumber, d int) *IteratorResult {
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range u.iters {
-		if p := u.peeks[iterNum]; p == nil || CompareRowNumbers(d, p.rowNumber, t) == -1 {
+		if p := u.peeks[iterNum]; p == nil || CompareRowNumbers(d, p.RowNumber, t) == -1 {
 			u.peeks[iterNum] = iter.SeekTo(t, d)
 		}
 	}
@@ -647,10 +658,10 @@ func (u *UnionIterator) peek(iterNum int) *IteratorResult {
 // or are exhausted.
 func (u *UnionIterator) collect(iterNums []int, rowNumber RowNumber) *IteratorResult {
 	result := columnIteratorResultPoolGet()
-	result.rowNumber = rowNumber
+	result.RowNumber = rowNumber
 
 	for _, iterNum := range iterNums {
-		for u.peeks[iterNum] != nil && CompareRowNumbers(u.definitionLevel, u.peeks[iterNum].rowNumber, rowNumber) == 0 {
+		for u.peeks[iterNum] != nil && CompareRowNumbers(u.definitionLevel, u.peeks[iterNum].RowNumber, rowNumber) == 0 {
 
 			result.Append(u.peeks[iterNum])
 

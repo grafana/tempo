@@ -189,11 +189,8 @@ var _ Predicate = (*InstrumentedPredicate)(nil)
 
 func (p *InstrumentedPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
 	p.InspectedColumnChunks.Inc()
-	if p.pred == nil {
-		return true
-	}
 
-	if p.pred.KeepColumnChunk(c) {
+	if p.pred == nil || p.pred.KeepColumnChunk(c) {
 		p.KeptColumnChunks.Inc()
 		return true
 	}
@@ -203,11 +200,8 @@ func (p *InstrumentedPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
 
 func (p *InstrumentedPredicate) KeepPage(page pq.Page) bool {
 	p.InspectedPages.Inc()
-	if p.pred == nil {
-		return true
-	}
 
-	if p.pred.KeepPage(page) {
+	if p.pred == nil || p.pred.KeepPage(page) {
 		p.KeptPages.Inc()
 		return true
 	}
@@ -217,11 +211,8 @@ func (p *InstrumentedPredicate) KeepPage(page pq.Page) bool {
 
 func (p *InstrumentedPredicate) KeepValue(v pq.Value) bool {
 	p.InspectedValues.Inc()
-	if p.pred == nil {
-		return true
-	}
 
-	if p.pred.KeepValue(v) {
+	if p.pred == nil || p.pred.KeepValue(v) {
 		p.KeptValues.Inc()
 		return true
 	}

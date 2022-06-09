@@ -120,7 +120,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	}
 
 	// TODO: error handling
-	results := searchParquetFile(ctx, pf, req, rgs)
+	results := searchParquetFile(derivedCtx, pf, req, rgs)
 	results.Metrics.InspectedBlocks++
 	results.Metrics.InspectedBytes += rr.TotalBytesRead
 
@@ -233,9 +233,7 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 		traceIters = append(traceIters, pq.NewJoinIterator(DefinitionLevelTrace, resourceIters, nil))
 	}
 
-	// We always pull back duration for the search results, but it also
-	// has a predicate when bounded by the request
-	var durFilter pq.Predicate
+	// Duration filtering?
 	if req.MinDurationMs > 0 || req.MaxDurationMs > 0 {
 		min := int64(0)
 		if req.MinDurationMs > 0 {
@@ -245,18 +243,17 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 		if req.MaxDurationMs > 0 {
 			max = (time.Millisecond * time.Duration(req.MaxDurationMs)).Nanoseconds()
 		}
-		durFilter = pq.NewIntBetweenPredicate(min, max)
+		durFilter := pq.NewIntBetweenPredicate(min, max)
+		traceIters = append(traceIters, makeIter("DurationNanos", durFilter, "Duration"))
 	}
-	traceIters = append(traceIters, makeIter("DurationNanos", durFilter, "Duration"))
 
-	// We always pull back start time for search results, but it also
-	// has a predicate when bounded by the request
-	var startFilter pq.Predicate
+	// Time range filtering?
 	if req.Start > 0 && req.End > 0 {
 		// Here's how we detect the trace overlaps the time window:
 
 		// Trace start <= req.End
-		startFilter = pq.NewIntBetweenPredicate(0, time.Unix(int64(req.End), 0).UnixNano())
+		startFilter := pq.NewIntBetweenPredicate(0, time.Unix(int64(req.End), 0).UnixNano())
+		traceIters = append(traceIters, makeIter("StartTimeUnixNano", startFilter, "StartTime"))
 
 		// Trace end >= req.Start, only if column exists
 		if pq.HasColumn(pf, "EndTimeUnixNano") {
@@ -264,55 +261,107 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 			traceIters = append(traceIters, makeIter("EndTimeUnixNano", endFilter, ""))
 		}
 	}
-	traceIters = append(traceIters, makeIter("StartTimeUnixNano", startFilter, "StartTime"))
 
-	// Join in values for search results. These have
-	// no filters so they will always be in the results.
-	traceIDMetrics := &pq.InstrumentedPredicate{}
-	traceIters = append(traceIters, makeIter("TraceID", traceIDMetrics, "TraceID"))
-	traceIters = append(traceIters, makeIter("RootServiceName", nil, "RootServiceName"))
-	traceIters = append(traceIters, makeIter("RootSpanName", nil, "RootSpanName"))
+	switch len(traceIters) {
 
-	return pq.NewJoinIterator(DefinitionLevelTrace, traceIters, nil), parquetSearchMetrics{
-		pTraceID: traceIDMetrics,
+	case 0:
+		// Empty request, in this case every trace matches so we can
+		// simply iterate any column.
+		return makeIter("TraceID", nil, ""), parquetSearchMetrics{}
+
+	case 1:
+		// There is only 1 iterator already, no need to wrap it up
+		return traceIters[0], parquetSearchMetrics{}
+
+	default:
+		// Join all conditions
+		return pq.NewJoinIterator(DefinitionLevelTrace, traceIters, nil), parquetSearchMetrics{}
 	}
 }
 
 func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup) *tempopb.SearchResponse {
-	results := []*tempopb.TraceSearchMetadata{}
 
-	iter, metrics := makePipelineWithRowGroups(ctx, req, pf, rgs)
+	// Search happens in 2 phases for an optimization.
+	// Phase 1 is iterate all columns involved in the request.
+	// Only if there are any matches do we enter phase 2, which
+	// is to load the display-related columns.
+
+	// Find matches
+	matchingRows := searchRaw(ctx, pf, req, rgs)
+	if len(matchingRows) == 0 {
+		return &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}
+	}
+
+	// We have some results, now load the display columns
+	results := rawToResults(ctx, pf, rgs, matchingRows)
+
+	return &tempopb.SearchResponse{
+		Traces:  results,
+		Metrics: &tempopb.SearchMetrics{},
+	}
+}
+
+func searchRaw(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup) []pq.RowNumber {
+	iter, _ := makePipelineWithRowGroups(ctx, req, pf, rgs)
 	if iter == nil {
 		panic("make pipeline failed")
 	}
 	defer iter.Close()
 
+	// Collect matches, row numbers only.
+	var matchingRows []pq.RowNumber
 	for {
 		match := iter.Next()
 		if match == nil {
 			break
 		}
-
-		matchMap := match.ToMap()
-
-		result := &tempopb.TraceSearchMetadata{
-			TraceID:           matchMap["TraceID"][0].String(),
-			RootServiceName:   matchMap["RootServiceName"][0].String(),
-			RootTraceName:     matchMap["RootSpanName"][0].String(),
-			StartTimeUnixNano: uint64(matchMap["StartTime"][0].Int64()),
-			DurationMs:        uint32(matchMap["Duration"][0].Int64() / int64(time.Millisecond)),
-		}
-		results = append(results, result)
-
-		if req.Limit > 0 && len(results) >= int(req.Limit) {
+		matchingRows = append(matchingRows, match.RowNumber)
+		if req.Limit > 0 && len(matchingRows) >= int(req.Limit) {
 			break
 		}
 	}
 
-	return &tempopb.SearchResponse{
-		Traces:  results,
-		Metrics: metrics.ToProto(),
+	return matchingRows
+}
+
+func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup, rowNumbers []pq.RowNumber) []*tempopb.TraceSearchMetadata {
+	makeIter := func(name string) pq.Iterator {
+		index, _ := pq.GetColumnIndexByPath(pf, name)
+		if index == -1 {
+			// TODO - don't panic, error instead
+			panic("column not found in parquet file:" + name)
+		}
+		return pq.NewColumnIterator(ctx, rgs, index, name, 1000, nil, name)
 	}
+
+	results := []*tempopb.TraceSearchMetadata{}
+	iter2 := pq.NewJoinIterator(DefinitionLevelTrace, []pq.Iterator{
+		&rowNumberIterator{rowNumbers: rowNumbers},
+		makeIter("TraceID"),
+		makeIter("RootServiceName"),
+		makeIter("RootSpanName"),
+		makeIter("StartTimeUnixNano"),
+		makeIter("DurationNanos"),
+	}, nil)
+
+	for {
+		match := iter2.Next()
+		if match == nil {
+			break
+		}
+
+		matchMap := match.ToMap()
+		result := &tempopb.TraceSearchMetadata{
+			TraceID:           matchMap["TraceID"][0].String(),
+			RootServiceName:   matchMap["RootServiceName"][0].String(),
+			RootTraceName:     matchMap["RootSpanName"][0].String(),
+			StartTimeUnixNano: matchMap["StartTimeUnixNano"][0].Uint64(),
+			DurationMs:        uint32(matchMap["DurationNanos"][0].Int64() / int64(time.Millisecond)),
+		}
+		results = append(results, result)
+	}
+
+	return results
 }
 
 type parquetSearchMetrics struct {
@@ -321,6 +370,34 @@ type parquetSearchMetrics struct {
 
 func (p *parquetSearchMetrics) ToProto() *tempopb.SearchMetrics {
 	return &tempopb.SearchMetrics{
-		InspectedTraces: uint32(p.pTraceID.InspectedValues.Load()),
+		//InspectedTraces: uint32(p.pTraceID.InspectedValues.Load()),
 	}
 }
+
+type rowNumberIterator struct {
+	rowNumbers []pq.RowNumber
+}
+
+var _ pq.Iterator = (*rowNumberIterator)(nil)
+
+func (r *rowNumberIterator) Next() *pq.IteratorResult {
+	if len(r.rowNumbers) == 0 {
+		return nil
+	}
+
+	res := &pq.IteratorResult{RowNumber: r.rowNumbers[0]}
+	r.rowNumbers = r.rowNumbers[1:]
+	return res
+}
+
+func (r *rowNumberIterator) SeekTo(to pq.RowNumber, definitionLevel int) *pq.IteratorResult {
+	var at *pq.IteratorResult
+
+	for at = r.Next(); r != nil && pq.CompareRowNumbers(definitionLevel, at.RowNumber, to) < 0; {
+		at = r.Next()
+	}
+
+	return at
+}
+
+func (r *rowNumberIterator) Close() {}
