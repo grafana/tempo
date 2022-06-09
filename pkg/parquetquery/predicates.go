@@ -16,20 +16,20 @@ type Predicate interface {
 	KeepValue(pq.Value) bool
 }
 
-// stringPredicate checks for exact string match.
-type stringPredicate struct {
+// StringPredicate checks for exact string match.
+type StringPredicate struct {
 	s []byte
 }
 
-var _ Predicate = (*stringPredicate)(nil)
+var _ Predicate = (*StringPredicate)(nil)
 
 func NewStringPredicate(s string) Predicate {
-	return &stringPredicate{
+	return &StringPredicate{
 		s: []byte(s),
 	}
 }
 
-func (s *stringPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
+func (s *StringPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 	ci := cc.ColumnIndex()
 
 	for i := 0; i < ci.NumPages(); i++ {
@@ -43,11 +43,11 @@ func (s *stringPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 	return false
 }
 
-func (s *stringPredicate) KeepValue(v pq.Value) bool {
+func (s *StringPredicate) KeepValue(v pq.Value) bool {
 	return bytes.Equal(v.ByteArray(), s.s)
 }
 
-func (d *stringPredicate) KeepPage(page pq.Page) bool {
+func (s *StringPredicate) KeepPage(page pq.Page) bool {
 	// todo: check bounds
 
 	// If a dictionary column then ensure at least one matching
@@ -58,7 +58,7 @@ func (d *stringPredicate) KeepPage(page pq.Page) bool {
 		found := false
 
 		for i := 0; i < len; i++ {
-			if bytes.Equal(dict.Index(int32(i)).ByteArray(), d.s) {
+			if bytes.Equal(dict.Index(int32(i)).ByteArray(), s.s) {
 				found = true
 				break
 			}
@@ -71,14 +71,14 @@ func (d *stringPredicate) KeepPage(page pq.Page) bool {
 }
 
 // stringPredicate checks for exact string match.
-type stringInPredicate struct {
+type StringInPredicate struct {
 	ss [][]byte
 }
 
-var _ Predicate = (*stringInPredicate)(nil)
+var _ Predicate = (*StringInPredicate)(nil)
 
 func NewStringInPredicate(ss []string) Predicate {
-	p := &stringInPredicate{
+	p := &StringInPredicate{
 		ss: make([][]byte, len(ss)),
 	}
 	for i := range ss {
@@ -87,7 +87,7 @@ func NewStringInPredicate(ss []string) Predicate {
 	return p
 }
 
-func (s *stringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
+func (s *StringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 	ci := cc.ColumnIndex()
 
 	for _, subs := range s.ss {
@@ -103,7 +103,7 @@ func (s *stringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 	return false
 }
 
-func (s *stringInPredicate) KeepValue(v pq.Value) bool {
+func (s *StringInPredicate) KeepValue(v pq.Value) bool {
 	ba := v.ByteArray()
 	for _, ss := range s.ss {
 		if bytes.Equal(ba, ss) {
@@ -113,7 +113,7 @@ func (s *stringInPredicate) KeepValue(v pq.Value) bool {
 	return false
 }
 
-func (d *stringInPredicate) KeepPage(page pq.Page) bool {
+func (s *StringInPredicate) KeepPage(page pq.Page) bool {
 	// todo: check bounds
 
 	// If a dictionary column then ensure at least one matching
@@ -124,7 +124,7 @@ func (d *stringInPredicate) KeepPage(page pq.Page) bool {
 
 		for i := 0; i < len; i++ {
 			dictionaryEntry := dict.Index(int32(i)).ByteArray()
-			for _, subs := range d.ss {
+			for _, subs := range s.ss {
 				if bytes.Equal(dictionaryEntry, subs) {
 					// At least 1 string present in this page
 					return true
@@ -192,19 +192,19 @@ func (s *SubstringPredicate) KeepPage(page pq.Page) bool {
 	return true
 }
 
-type prefixPredicate struct {
+type PrefixPredicate struct {
 	prefix []byte
 }
 
-var _ Predicate = (*prefixPredicate)(nil)
+var _ Predicate = (*PrefixPredicate)(nil)
 
 func NewPrefixPredicate(prefix string) Predicate {
-	return &prefixPredicate{
+	return &PrefixPredicate{
 		prefix: []byte(prefix),
 	}
 }
 
-func (s *prefixPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
+func (s *PrefixPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 	ci := cc.ColumnIndex()
 
 	for i := 0; i < ci.NumPages(); i++ {
@@ -218,11 +218,11 @@ func (s *prefixPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 	return false
 }
 
-func (s *prefixPredicate) KeepValue(v pq.Value) bool {
+func (s *PrefixPredicate) KeepValue(v pq.Value) bool {
 	return bytes.HasPrefix(v.ByteArray(), s.prefix)
 }
 
-func (d *prefixPredicate) KeepPage(page pq.Page) bool {
+func (d *PrefixPredicate) KeepPage(page pq.Page) bool {
 	// Check bounds
 	if min, max, ok := page.Bounds(); ok {
 		if bytes.Compare(min.ByteArray(), d.prefix) == 1 || bytes.Compare(d.prefix, max.ByteArray()) == -1 {
@@ -250,18 +250,18 @@ func (d *prefixPredicate) KeepPage(page pq.Page) bool {
 	return true
 }
 
-// intBetweenPredicate checks for int between the bounds [min,max] inclusive
-type intBetweenPredicate struct {
+// IntBetweenPredicate checks for int between the bounds [min,max] inclusive
+type IntBetweenPredicate struct {
 	min, max int64
 }
 
-var _ Predicate = (*intBetweenPredicate)(nil)
+var _ Predicate = (*IntBetweenPredicate)(nil)
 
-func NewIntBetweenPredicate(min, max int64) *intBetweenPredicate {
-	return &intBetweenPredicate{min, max}
+func NewIntBetweenPredicate(min, max int64) *IntBetweenPredicate {
+	return &IntBetweenPredicate{min, max}
 }
 
-func (s *intBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+func (s *IntBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
 	ci := c.ColumnIndex()
 
 	for i := 0; i < ci.NumPages(); i++ {
@@ -275,31 +275,31 @@ func (s *intBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
 	return false
 }
 
-func (s *intBetweenPredicate) KeepValue(v pq.Value) bool {
+func (s *IntBetweenPredicate) KeepValue(v pq.Value) bool {
 	vv := v.Int64()
 	return s.min <= vv && vv <= s.max
 }
 
-func (s *intBetweenPredicate) KeepPage(page pq.Page) bool {
+func (s *IntBetweenPredicate) KeepPage(page pq.Page) bool {
 	if min, max, ok := page.Bounds(); ok {
 		return s.max >= min.Int64() && s.min <= max.Int64()
 	}
 	return true
 }
 
-type orPredicate struct {
+type OrPredicate struct {
 	predicates []Predicate
 }
 
-var _ Predicate = (*orPredicate)(nil)
+var _ Predicate = (*OrPredicate)(nil)
 
-func NewOrPredicate(preds ...Predicate) *orPredicate {
-	return &orPredicate{
+func NewOrPredicate(preds ...Predicate) *OrPredicate {
+	return &OrPredicate{
 		predicates: preds,
 	}
 }
 
-func (s *orPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+func (s *OrPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
 	for _, p := range s.predicates {
 		if p.KeepColumnChunk(c) {
 			return true
@@ -309,7 +309,7 @@ func (s *orPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
 	return false
 }
 
-func (s *orPredicate) KeepValue(v pq.Value) bool {
+func (s *OrPredicate) KeepValue(v pq.Value) bool {
 	for _, p := range s.predicates {
 		if p.KeepValue(v) {
 			return true
@@ -318,7 +318,7 @@ func (s *orPredicate) KeepValue(v pq.Value) bool {
 	return false
 }
 
-func (s *orPredicate) KeepPage(page pq.Page) bool {
+func (s *OrPredicate) KeepPage(page pq.Page) bool {
 	for _, p := range s.predicates {
 		if p.KeepPage(page) {
 			return true

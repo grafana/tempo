@@ -372,7 +372,7 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 		for _, e := range parquetEvents {
 
 			protoEvent := &v1_trace.Span_Event{
-				TimeUnixNano:           uint64(e.TimeUnixNano),
+				TimeUnixNano:           e.TimeUnixNano,
 				Name:                   e.Name,
 				Attributes:             nil,
 				DroppedAttributesCount: uint32(e.DroppedAttributesCount),
@@ -410,14 +410,14 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) (*tempopb.Trace, error) {
 	}
 
 	for _, rs := range parquetTrace.ResourceSpans {
-		proto_batch := &v1_trace.ResourceSpans{}
-		proto_batch.Resource = &v1_resource.Resource{
+		protoBatch := &v1_trace.ResourceSpans{}
+		protoBatch.Resource = &v1_resource.Resource{
 			Attributes: parquetToProtoAttrs(rs.Resource.Attrs),
 		}
 
 		// known resource attributes
 		if rs.Resource.ServiceName != "" {
-			proto_batch.Resource.Attributes = append(proto_batch.Resource.Attributes, &v1.KeyValue{
+			protoBatch.Resource.Attributes = append(protoBatch.Resource.Attributes, &v1.KeyValue{
 				Key: LabelServiceName,
 				Value: &v1.AnyValue{
 					Value: &v1.AnyValue_StringValue{
@@ -440,7 +440,7 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) (*tempopb.Trace, error) {
 			{Key: LabelK8sContainerName, Value: rs.Resource.K8sContainerName},
 		} {
 			if attr.Value != nil {
-				proto_batch.Resource.Attributes = append(proto_batch.Resource.Attributes, &v1.KeyValue{
+				protoBatch.Resource.Attributes = append(protoBatch.Resource.Attributes, &v1.KeyValue{
 					Key: attr.Key,
 					Value: &v1.AnyValue{
 						Value: &v1.AnyValue_StringValue{
@@ -451,28 +451,28 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) (*tempopb.Trace, error) {
 			}
 		}
 
-		proto_batch.InstrumentationLibrarySpans = make([]*v1_trace.InstrumentationLibrarySpans, 0, len(rs.InstrumentationLibrarySpans))
+		protoBatch.InstrumentationLibrarySpans = make([]*v1_trace.InstrumentationLibrarySpans, 0, len(rs.InstrumentationLibrarySpans))
 
 		for _, ils := range rs.InstrumentationLibrarySpans {
-			proto_ils := &v1_trace.InstrumentationLibrarySpans{
+			protoILS := &v1_trace.InstrumentationLibrarySpans{
 				InstrumentationLibrary: &v1.InstrumentationLibrary{
 					Name:    ils.InstrumentationLibrary.Name,
 					Version: ils.InstrumentationLibrary.Version,
 				},
 			}
 
-			proto_ils.Spans = make([]*v1_trace.Span, 0, len(ils.Spans))
+			protoILS.Spans = make([]*v1_trace.Span, 0, len(ils.Spans))
 			for _, span := range ils.Spans {
 
-				proto_span := &v1_trace.Span{
+				protoSpan := &v1_trace.Span{
 					TraceId:           protoTraceID,
 					SpanId:            span.ID,
 					TraceState:        span.TraceState,
 					Name:              span.Name,
 					Kind:              v1_trace.Span_SpanKind(span.Kind),
 					ParentSpanId:      span.ParentSpanID,
-					StartTimeUnixNano: uint64(span.StartUnixNanos),
-					EndTimeUnixNano:   uint64(span.EndUnixNanos),
+					StartTimeUnixNano: span.StartUnixNanos,
+					EndTimeUnixNano:   span.EndUnixNanos,
 					Status: &v1_trace.Status{
 						Message: span.StatusMessage,
 						Code:    v1_trace.Status_StatusCode(span.StatusCode),
@@ -485,7 +485,7 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) (*tempopb.Trace, error) {
 
 				// known span attributes
 				if span.HttpMethod != nil {
-					proto_span.Attributes = append(proto_span.Attributes, &v1.KeyValue{
+					protoSpan.Attributes = append(protoSpan.Attributes, &v1.KeyValue{
 						Key: LabelHTTPMethod,
 						Value: &v1.AnyValue{
 							Value: &v1.AnyValue_StringValue{
@@ -495,7 +495,7 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) (*tempopb.Trace, error) {
 					})
 				}
 				if span.HttpUrl != nil {
-					proto_span.Attributes = append(proto_span.Attributes, &v1.KeyValue{
+					protoSpan.Attributes = append(protoSpan.Attributes, &v1.KeyValue{
 						Key: LabelHTTPUrl,
 						Value: &v1.AnyValue{
 							Value: &v1.AnyValue_StringValue{
@@ -505,7 +505,7 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) (*tempopb.Trace, error) {
 					})
 				}
 				if span.HttpStatusCode != nil {
-					proto_span.Attributes = append(proto_span.Attributes, &v1.KeyValue{
+					protoSpan.Attributes = append(protoSpan.Attributes, &v1.KeyValue{
 						Key: LabelHTTPStatusCode,
 						Value: &v1.AnyValue{
 							Value: &v1.AnyValue_IntValue{
@@ -515,12 +515,12 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) (*tempopb.Trace, error) {
 					})
 				}
 
-				proto_ils.Spans = append(proto_ils.Spans, proto_span)
+				protoILS.Spans = append(protoILS.Spans, protoSpan)
 			}
 
-			proto_batch.InstrumentationLibrarySpans = append(proto_batch.InstrumentationLibrarySpans, proto_ils)
+			protoBatch.InstrumentationLibrarySpans = append(protoBatch.InstrumentationLibrarySpans, protoILS)
 		}
-		protoTrace.Batches = append(protoTrace.Batches, proto_batch)
+		protoTrace.Batches = append(protoTrace.Batches, protoBatch)
 	}
 
 	return protoTrace, nil

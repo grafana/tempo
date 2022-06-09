@@ -39,7 +39,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	require.NoError(t, err)
 
 	bar := "bar"
-	s.Add(&Trace{
+	require.NoError(t, s.Add(&Trace{
 		TraceID: util.TraceIDToHexString(test.ValidTraceID(nil)),
 		ResourceSpans: []ResourceSpans{
 			{
@@ -62,7 +62,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 				},
 			},
 		},
-	})
+	}))
 
 	wantTr := &Trace{
 		TraceID: util.TraceIDToHexString(id),
@@ -88,8 +88,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 			},
 		},
 	}
-
-	s.Add(wantTr)
+	require.NoError(t, s.Add(wantTr))
 
 	_, err = s.Complete()
 	require.NoError(t, err)

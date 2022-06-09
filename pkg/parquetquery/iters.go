@@ -3,7 +3,6 @@ package parquetquery
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"math"
 	"sync"
@@ -99,15 +98,15 @@ func (t *tracker) Next(repetitionLevel, definitionLevel int) {
 
 // Skip rows at the root-level.
 func (t *tracker) Skip(numRows int64) {
-	t[0] += int64(numRows)
+	t[0] += numRows
 	for i := 1; i < len(t); i++ {
 		t[i] = -1
 	}
 }
 
-// iteratorResult is a row of data with a tracker (row number) and named columns of data.
+// IteratorResult is a row of data with a tracker (row number) and named columns of data.
 // Internally it has an unstructured list for efficient collection.
-type iteratorResult struct {
+type IteratorResult struct {
 	tracker tracker
 	entries []struct {
 		k string
@@ -115,15 +114,15 @@ type iteratorResult struct {
 	}
 }
 
-func (r *iteratorResult) Reset() {
+func (r *IteratorResult) Reset() {
 	r.entries = r.entries[:0]
 }
 
-func (r *iteratorResult) Append(rr *iteratorResult) {
+func (r *IteratorResult) Append(rr *IteratorResult) {
 	r.entries = append(r.entries, rr.entries...)
 }
 
-func (r *iteratorResult) AppendValue(k string, v pq.Value) {
+func (r *IteratorResult) AppendValue(k string, v pq.Value) {
 	r.entries = append(r.entries, struct {
 		k string
 		v pq.Value
@@ -133,7 +132,7 @@ func (r *iteratorResult) AppendValue(k string, v pq.Value) {
 // ToMap converts the unstructured list of data into a map containing an entry
 // for each column, and the lists of values.  The order of columns is
 // not preseved, but the order of values within each column is.
-func (r *iteratorResult) ToMap() map[string][]pq.Value {
+func (r *IteratorResult) ToMap() map[string][]pq.Value {
 	m := map[string][]pq.Value{}
 	for _, e := range r.entries {
 		m[e.k] = append(m[e.k], e.v)
@@ -143,7 +142,7 @@ func (r *iteratorResult) ToMap() map[string][]pq.Value {
 
 // Columns gets the values for each named column. The order of returned values
 // matches the order of names given. This is more efficient than converting to a map.
-func (r *iteratorResult) Columns(buffer [][]pq.Value, names ...string) [][]pq.Value {
+func (r *IteratorResult) Columns(buffer [][]pq.Value, names ...string) [][]pq.Value {
 	if cap(buffer) < len(names) {
 		buffer = make([][]pq.Value, len(names))
 	}
@@ -167,15 +166,15 @@ func (r *iteratorResult) Columns(buffer [][]pq.Value, names ...string) [][]pq.Va
 // iterator - Every iterator follows this interface and can be composed.
 type Iterator interface {
 	// Next returns nil when done
-	Next() *iteratorResult
+	Next() *IteratorResult
 
 	// Like Next but skips over results until reading >= the given location
-	SeekTo(t tracker, definitionLevel int) *iteratorResult
+	SeekTo(t tracker, definitionLevel int) *IteratorResult
 
 	Close()
 }
 
-var columnIteratorPool sync.Pool = sync.Pool{
+var columnIteratorPool = sync.Pool{
 	New: func() interface{} {
 		return &columnIteratorBuffer{}
 	},
@@ -194,31 +193,31 @@ func columnIteratorPoolGet(capacity, len int) *columnIteratorBuffer {
 	return res
 }
 
-var columnIteratorResultPool sync.Pool = sync.Pool{
+var columnIteratorResultPool = sync.Pool{
 	New: func() interface{} {
-		return &iteratorResult{entries: make([]struct {
+		return &IteratorResult{entries: make([]struct {
 			k string
 			v pq.Value
 		}, 0, 10)} // For luck
 	},
 }
 
-func columnIteratorResultPoolGet() *iteratorResult {
-	res := columnIteratorResultPool.Get().(*iteratorResult)
+func columnIteratorResultPoolGet() *IteratorResult {
+	res := columnIteratorResultPool.Get().(*IteratorResult)
 	return res
 }
 
-func columnIteratorResultPoolPut(r *iteratorResult) {
+func columnIteratorResultPoolPut(r *IteratorResult) {
 	if r != nil {
 		r.Reset()
 		columnIteratorResultPool.Put(r)
 	}
 }
 
-// columnIterator asynchronously iterates through the given row groups and column. Applies
+// ColumnIterator asynchronously iterates through the given row groups and column. Applies
 // the optional predicate to each chunk, page, and value.  Results are read by calling
 // Next() until it returns nil.
-type columnIterator struct {
+type ColumnIterator struct {
 	rgs     []pq.RowGroup
 	col     int
 	colName string
@@ -233,15 +232,15 @@ type columnIterator struct {
 	currN int
 }
 
-var _ Iterator = (*columnIterator)(nil)
+var _ Iterator = (*ColumnIterator)(nil)
 
 type columnIteratorBuffer struct {
 	trackers []tracker
 	values   []pq.Value
 }
 
-func NewColumnIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string) *columnIterator {
-	c := &columnIterator{
+func NewColumnIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string) *ColumnIterator {
+	c := &ColumnIterator{
 		rgs:      rgs,
 		col:      column,
 		colName:  columnName,
@@ -256,7 +255,7 @@ func NewColumnIterator(ctx context.Context, rgs []pq.RowGroup, column int, colum
 	return c
 }
 
-func (c *columnIterator) iterate(ctx context.Context, readSize int) {
+func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 	defer close(c.ch)
 
 	span, _ := opentracing.StartSpanFromContext(ctx, "columnIterator.iterate", opentracing.Tags{
@@ -352,7 +351,7 @@ func (c *columnIterator) iterate(ctx context.Context, readSize int) {
 
 // Next returns the next matching value (tracker) from the iterator.
 // Returns the empty (invalid) tracker when finished.
-func (c *columnIterator) Next() *iteratorResult {
+func (c *ColumnIterator) Next() *IteratorResult {
 
 	t, v := c.next()
 	if t.Valid() {
@@ -362,7 +361,7 @@ func (c *columnIterator) Next() *iteratorResult {
 	return nil
 }
 
-func (c *columnIterator) next() (tracker, pq.Value) {
+func (c *ColumnIterator) next() (tracker, pq.Value) {
 	// Consume current buffer until exhausted
 	// then read another one from the channel.
 	if c.curr != nil {
@@ -391,7 +390,7 @@ func (c *columnIterator) next() (tracker, pq.Value) {
 
 // SeekTo moves this iterator to the next result that is greater than
 // or equal to the given row number (and based on the given definition level)
-func (c *columnIterator) SeekTo(to tracker, d int) *iteratorResult {
+func (c *ColumnIterator) SeekTo(to tracker, d int) *IteratorResult {
 	var at tracker
 	var v pq.Value
 
@@ -411,7 +410,7 @@ func (c *columnIterator) SeekTo(to tracker, d int) *iteratorResult {
 	return nil
 }
 
-func (c *columnIterator) makeResult(t tracker, v pq.Value) *iteratorResult {
+func (c *ColumnIterator) makeResult(t tracker, v pq.Value) *IteratorResult {
 	r := columnIteratorResultPoolGet()
 	r.tracker = t
 	if c.selectAs != "" {
@@ -420,33 +419,33 @@ func (c *columnIterator) makeResult(t tracker, v pq.Value) *iteratorResult {
 	return r
 }
 
-func (c *columnIterator) Close() {
+func (c *ColumnIterator) Close() {
 	close(c.quit)
 }
 
-// joinIterator joins two or more iterators for matches at the given definition level.
+// JoinIterator joins two or more iterators for matches at the given definition level.
 // I.e. joining at definitionLevel=0 means that each iterator must produce a result
 // within the same root node.
-type joinIterator struct {
+type JoinIterator struct {
 	definitionLevel int
 	iters           []Iterator
-	peeks           []*iteratorResult
-	pred            groupPredicate
+	peeks           []*IteratorResult
+	pred            GroupPredicate
 }
 
-var _ Iterator = (*joinIterator)(nil)
+var _ Iterator = (*JoinIterator)(nil)
 
-func NewJoinIterator(definitionLevel int, iters []Iterator, pred groupPredicate) *joinIterator {
-	j := joinIterator{
+func NewJoinIterator(definitionLevel int, iters []Iterator, pred GroupPredicate) *JoinIterator {
+	j := JoinIterator{
 		definitionLevel: definitionLevel,
 		iters:           iters,
-		peeks:           make([]*iteratorResult, len(iters)),
+		peeks:           make([]*IteratorResult, len(iters)),
 		pred:            pred,
 	}
 	return &j
 }
 
-func (j *joinIterator) Next() *iteratorResult {
+func (j *JoinIterator) Next() *IteratorResult {
 
 	// Here is the algorithm for joins:  On each pass of the iterators
 	// we remember which ones are pointing at the earliest rows. If all
@@ -505,12 +504,12 @@ func (j *joinIterator) Next() *iteratorResult {
 	}
 }
 
-func (j *joinIterator) SeekTo(t tracker, d int) *iteratorResult {
+func (j *JoinIterator) SeekTo(t tracker, d int) *IteratorResult {
 	j.seekAll(t, d)
 	return j.Next()
 }
 
-func (j *joinIterator) seekAll(t tracker, d int) {
+func (j *JoinIterator) seekAll(t tracker, d int) {
 	t = TruncateTracker(d, t)
 	for iterNum, iter := range j.iters {
 		if j.peeks[iterNum] == nil || CompareTrackers(d, j.peeks[iterNum].tracker, t) == -1 {
@@ -520,7 +519,7 @@ func (j *joinIterator) seekAll(t tracker, d int) {
 	}
 }
 
-func (j *joinIterator) peek(iterNum int) *iteratorResult {
+func (j *JoinIterator) peek(iterNum int) *IteratorResult {
 	if j.peeks[iterNum] == nil {
 		j.peeks[iterNum] = j.iters[iterNum].Next()
 	}
@@ -530,7 +529,7 @@ func (j *joinIterator) peek(iterNum int) *iteratorResult {
 // Collect data from the given iterators until they point at
 // the next row (according to the configured definition level)
 // or are exhausted.
-func (j *joinIterator) collect(rowNumber tracker) *iteratorResult {
+func (j *JoinIterator) collect(rowNumber tracker) *IteratorResult {
 	result := columnIteratorResultPoolGet()
 	result.tracker = rowNumber
 
@@ -547,35 +546,35 @@ func (j *joinIterator) collect(rowNumber tracker) *iteratorResult {
 	return result
 }
 
-func (j *joinIterator) Close() {
+func (j *JoinIterator) Close() {
 	for _, i := range j.iters {
 		i.Close()
 	}
 }
 
-// unionIterator produces all results for all given iterators.  When iterators
+// UnionIterator produces all results for all given iterators.  When iterators
 // align to the same row, based on the configured definition level, then the results
 // are returned together. Else the next matching iterator is returned.
-type unionIterator struct {
+type UnionIterator struct {
 	definitionLevel int
 	iters           []Iterator
-	peeks           []*iteratorResult
-	pred            groupPredicate
+	peeks           []*IteratorResult
+	pred            GroupPredicate
 }
 
-var _ Iterator = (*unionIterator)(nil)
+var _ Iterator = (*UnionIterator)(nil)
 
-func NewUnionIterator(definitionLevel int, iters []Iterator, pred groupPredicate) *unionIterator {
-	j := unionIterator{
+func NewUnionIterator(definitionLevel int, iters []Iterator, pred GroupPredicate) *UnionIterator {
+	j := UnionIterator{
 		definitionLevel: definitionLevel,
 		iters:           iters,
-		peeks:           make([]*iteratorResult, len(iters)),
+		peeks:           make([]*IteratorResult, len(iters)),
 		pred:            pred,
 	}
 	return &j
 }
 
-func (u *unionIterator) Next() *iteratorResult {
+func (u *UnionIterator) Next() *IteratorResult {
 
 	// Here is the algorithm for unions:  On each pass of the iterators
 	// we remember which ones are pointing at the earliest same row. The
@@ -625,7 +624,7 @@ func (u *unionIterator) Next() *iteratorResult {
 	}
 }
 
-func (u *unionIterator) SeekTo(t tracker, d int) *iteratorResult {
+func (u *UnionIterator) SeekTo(t tracker, d int) *IteratorResult {
 	t = TruncateTracker(d, t)
 	for iterNum, iter := range u.iters {
 		if p := u.peeks[iterNum]; p == nil || CompareTrackers(d, p.tracker, t) == -1 {
@@ -635,7 +634,7 @@ func (u *unionIterator) SeekTo(t tracker, d int) *iteratorResult {
 	return u.Next()
 }
 
-func (u *unionIterator) peek(iterNum int) *iteratorResult {
+func (u *UnionIterator) peek(iterNum int) *IteratorResult {
 	if u.peeks[iterNum] == nil {
 		u.peeks[iterNum] = u.iters[iterNum].Next()
 	}
@@ -645,7 +644,7 @@ func (u *unionIterator) peek(iterNum int) *iteratorResult {
 // Collect data from the given iterators until they point at
 // the next row (according to the configured definition level)
 // or are exhausted.
-func (u *unionIterator) collect(iterNums []int, rowNumber tracker) *iteratorResult {
+func (u *UnionIterator) collect(iterNums []int, rowNumber tracker) *IteratorResult {
 	result := columnIteratorResultPoolGet()
 	result.tracker = rowNumber
 
@@ -663,61 +662,32 @@ func (u *unionIterator) collect(iterNums []int, rowNumber tracker) *iteratorResu
 	return result
 }
 
-func (j *unionIterator) Close() {
-	for _, i := range j.iters {
+func (u *UnionIterator) Close() {
+	for _, i := range u.iters {
 		i.Close()
 	}
 }
 
-// rowGroupFilter is used to identify row groups that match all of the
-// predicates. I.e. there is no point reading a row group if it is known
-// that one of the predicates will never match it.
-type rowGroupFilter struct {
-	filters map[int]Predicate
+type GroupPredicate interface {
+	KeepGroup(*IteratorResult) bool
 }
 
-func NewRowGroupFilter(filters map[int]Predicate) *rowGroupFilter {
-	return &rowGroupFilter{
-		filters: filters,
-	}
-}
-
-func (r *rowGroupFilter) KeepRowGroup(rg pq.RowGroup) bool {
-
-	// Todo - this is checking per column, not flexible enough
-	// for all checks:  i.e. support key/value present in
-	// either resource OR span attrs
-
-	// All filters must keep their respective column chunks.
-	for k, v := range r.filters {
-		col := rg.ColumnChunks()[k]
-		if !v.KeepColumnChunk(col) {
-			return false
-		}
-	}
-	return true
-}
-
-type groupPredicate interface {
-	KeepGroup(*iteratorResult) bool
-}
-
-// keyValueGroupPredicate takes key/value pairs and checks if the
+// KeyValueGroupPredicate takes key/value pairs and checks if the
 // group contains all of them. This is the only predicate/iterator
 // that is knowledgable about our trace or search contents. I'd like
 // to change that and make it generic, but it's quite complex and not
 // figured it out yet.
-type keyValueGroupPredicate struct {
+type KeyValueGroupPredicate struct {
 	keys   [][]byte
 	vals   [][]byte
 	buffer [][]pq.Value
 }
 
-var _ groupPredicate = (*keyValueGroupPredicate)(nil)
+var _ GroupPredicate = (*KeyValueGroupPredicate)(nil)
 
-func NewKeyValueGroupPredicate(keys, values []string) *keyValueGroupPredicate {
+func NewKeyValueGroupPredicate(keys, values []string) *KeyValueGroupPredicate {
 	// Pre-convert all to bytes
-	p := &keyValueGroupPredicate{}
+	p := &KeyValueGroupPredicate{}
 	for _, k := range keys {
 		p.keys = append(p.keys, []byte(k))
 	}
@@ -729,7 +699,7 @@ func NewKeyValueGroupPredicate(keys, values []string) *keyValueGroupPredicate {
 
 // KeepGroup checks if the given group contains all of the requested
 // key/value pairs.
-func (a *keyValueGroupPredicate) KeepGroup(group *iteratorResult) bool {
+func (a *KeyValueGroupPredicate) KeepGroup(group *IteratorResult) bool {
 	//printGroup(group)
 	a.buffer = group.Columns(a.buffer, "keys", "values")
 
@@ -761,10 +731,10 @@ func (a *keyValueGroupPredicate) KeepGroup(group *iteratorResult) bool {
 	return true
 }
 
-func printGroup(g *iteratorResult) {
+/*func printGroup(g *iteratorResult) {
 	fmt.Println("---group---")
 	for _, e := range g.entries {
 		fmt.Println("key:", e.k)
 		fmt.Println(" : ", e.v.String())
 	}
-}
+}*/

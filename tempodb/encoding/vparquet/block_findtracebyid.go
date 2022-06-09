@@ -209,7 +209,11 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, id common.ID) (_ *temp
 
 	// seek to row and read
 	r := parquet.NewReader(pf)
-	r.SeekToRow(int64(rowMatch))
+	err = r.SeekToRow(int64(rowMatch))
+	if err != nil {
+		return nil, errors.Wrap(err, "seek to row")
+	}
+
 	tr := new(Trace)
 	err = r.Read(tr)
 	if err != nil {

@@ -22,9 +22,9 @@ func TestSubstringPredicate(t *testing.T) {
 			type String struct {
 				S string `parquet:",dict"`
 			}
-			w.Write(&String{"abc"}) // kept
-			w.Write(&String{"bcd"}) // kept
-			w.Write(&String{"cde"}) // skipped
+			require.NoError(t, w.Write(&String{"abc"})) // kept
+			require.NoError(t, w.Write(&String{"bcd"})) // kept
+			require.NoError(t, w.Write(&String{"cde"})) // skipped
 		},
 	})
 
@@ -38,9 +38,9 @@ func TestSubstringPredicate(t *testing.T) {
 			type dictString struct {
 				S string `parquet:",dict"`
 			}
-			w.Write(&dictString{"abc"})
-			w.Write(&dictString{"bcd"})
-			w.Write(&dictString{"cde"})
+			require.NoError(t, w.Write(&dictString{"abc"}))
+			require.NoError(t, w.Write(&dictString{"bcd"}))
+			require.NoError(t, w.Write(&dictString{"cde"}))
 		},
 	})
 }

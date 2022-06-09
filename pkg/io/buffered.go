@@ -10,11 +10,11 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb/pool"
 )
 
-// bufferedReader implements io.ReaderAt but extends and buffers reads up to the given buffer size.
+// BufferedReaderAt implements io.ReaderAt but extends and buffers reads up to the given buffer size.
 // Subsequent reads are returned from the buffers. Additionally it supports concurrent readers
 // by maintaining multiple buffers at different offsets, and matching up reads with existing
 // buffers where possible. When needed the least-recently-used buffer is overwritten with new reads.
-type bufferedReader struct {
+type BufferedReaderAt struct {
 	mtx     sync.Mutex
 	ra      io.ReaderAt
 	rasz    int64
@@ -30,10 +30,10 @@ type readerBuffer struct {
 	count int64
 }
 
-var _ io.ReaderAt = (*bufferedReader)(nil)
+var _ io.ReaderAt = (*BufferedReaderAt)(nil)
 
-func NewBufferedReaderAt(ra io.ReaderAt, readerSize int64, bufSize, bufCount int) *bufferedReader {
-	r := &bufferedReader{
+func NewBufferedReaderAt(ra io.ReaderAt, readerSize int64, bufSize, bufCount int) *BufferedReaderAt {
+	r := &BufferedReaderAt{
 		ra:      ra,
 		rasz:    readerSize,
 		rdsz:    bufSize,
@@ -43,16 +43,16 @@ func NewBufferedReaderAt(ra io.ReaderAt, readerSize int64, bufSize, bufCount int
 	return r
 }
 
-func (r *bufferedReader) canRead(buf *readerBuffer, offset, length int64) bool {
+func (r *BufferedReaderAt) canRead(buf *readerBuffer, offset, length int64) bool {
 	return offset >= buf.off && (offset+length <= buf.off+int64(len(buf.buf)))
 }
 
-func (r *bufferedReader) read(buf *readerBuffer, b []byte, offset int64) {
+func (r *BufferedReaderAt) read(buf *readerBuffer, b []byte, offset int64) {
 	start := offset - buf.off
 	copy(b, buf.buf[start:start+int64(len(b))])
 }
 
-func (r *bufferedReader) prep(buf *readerBuffer, offset, length int64) {
+func (r *BufferedReaderAt) prep(buf *readerBuffer, offset, length int64) {
 	offset, sz := calculateBounds(offset, length, r.rdsz, r.rasz)
 
 	// Realloc?
@@ -63,7 +63,7 @@ func (r *bufferedReader) prep(buf *readerBuffer, offset, length int64) {
 	buf.off = offset
 }
 
-func (r *bufferedReader) populate(buf *readerBuffer) (int, error) {
+func (r *BufferedReaderAt) populate(buf *readerBuffer) (int, error) {
 	// Read
 	n, err := r.ra.ReadAt(buf.buf, buf.off)
 	return n, err
@@ -90,7 +90,7 @@ func calculateBounds(offset, length int64, bufferSize int, readerAtSize int64) (
 	return offset, sz
 }
 
-func (r *bufferedReader) ReadAt(b []byte, offset int64) (int, error) {
+func (r *BufferedReaderAt) ReadAt(b []byte, offset int64) (int, error) {
 	// There are two-levels of locking: the top-level governs the
 	// the reader and the arrangement and position of the buffers.
 	// Then each individual buffer has its own lock for populating

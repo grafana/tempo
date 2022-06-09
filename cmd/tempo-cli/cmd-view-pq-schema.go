@@ -76,7 +76,7 @@ func (cmd *viewSchemaCmd) Run(ctx *globalOptions) error {
 func getNodePathByIndex(root *parquet.Column, s string, i int) (string, bool) {
 	s = s + "." + root.Name()
 
-	if int(root.Index()) == i {
+	if root.Index() == i {
 		return s, true
 	}
 	for _, col := range root.Columns() {
