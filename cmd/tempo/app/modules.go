@@ -386,7 +386,7 @@ func (t *App) setupModuleManager() error {
 		MetricsGeneratorRing: {Server, MemberlistKV},
 		Distributor:          {Ring, Server, Overrides, UsageReport},
 		Ingester:             {Store, Server, Overrides, MemberlistKV, UsageReport},
-		MetricsGenerator:     {Server, Overrides, MemberlistKV},
+		MetricsGenerator:     {Server, Overrides, MemberlistKV, UsageReport},
 		Querier:              {Store, Ring, Overrides, UsageReport},
 		Compactor:            {Store, Server, Overrides, MemberlistKV, UsageReport},
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor},
