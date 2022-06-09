@@ -11,7 +11,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/Azure/azure-storage-blob-go/azblob"
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -178,16 +177,6 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 
 // Shutdown implements backend.Reader
 func (rw *readerWriter) Shutdown() {
-}
-
-// IsObjectNotFoundErr returns true if error means that object is not found.
-func (rw *readerWriter) IsObjectNotFoundErr(err error) bool {
-	var e azblob.StorageError
-	if errors.As(err, &e) && e.ServiceCode() == azblob.ServiceCodeBlobNotFound {
-		return true
-	}
-
-	return false
 }
 
 func (rw *readerWriter) writeAll(ctx context.Context, name string, b []byte) error {

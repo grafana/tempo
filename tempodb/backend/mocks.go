@@ -46,10 +46,6 @@ func (m *MockRawReader) ReadRange(ctx context.Context, name string, keypath KeyP
 }
 func (m *MockRawReader) Shutdown() {}
 
-func (m *MockRawReader) IsObjectNotFoundErr(err error) bool {
-	panic("IsObjectNotFoundErr is not yet supported for mock reader")
-}
-
 // MockRawWriter
 type MockRawWriter struct {
 	writeBuffer       []byte

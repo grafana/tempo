@@ -175,11 +175,6 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 func (rw *readerWriter) Shutdown() {
 }
 
-// IsObjectNotFoundErr returns true if error means that object is not found.
-func (rw *readerWriter) IsObjectNotFoundErr(err error) bool {
-	return errors.Is(err, storage.ErrObjectNotExist)
-}
-
 func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer {
 	o := rw.bucket.Object(name)
 	w := o.NewWriter(ctx)

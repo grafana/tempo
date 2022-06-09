@@ -86,10 +86,6 @@ func (r *readerWriter) Shutdown() {
 	r.cache.Stop()
 }
 
-func (r *readerWriter) IsObjectNotFoundErr(err error) bool {
-	return r.nextReader.IsObjectNotFoundErr(err)
-}
-
 // Write implements backend.Writer
 func (r *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, shouldCache bool) error {
 	b, err := tempo_io.ReadAllWithEstimate(data, size)
