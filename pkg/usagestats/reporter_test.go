@@ -21,15 +21,17 @@ func Test_LeaderElection(t *testing.T) {
 	stabilityCheckInterval = 100 * time.Millisecond
 
 	result := make(chan *ClusterSeed, 10)
-	objectClient, err := local.NewFSObjectClient(local.FSConfig{
-		Directory: t.TempDir(),
+
+	objectClient, err := local.NewBackend(&local.Config{
+		Path: t.TempDir(),
 	})
 	require.NoError(t, err)
+
 	for i := 0; i < 3; i++ {
 		go func() {
 			r, err := NewReporter(Config{Leader: true, Enabled: true}, kv.Config{
 				Store: "inmemory",
-			}, objectClient, log.NewLogfmtLogger(os.Stdout), nil)
+			}, objectClient, objectClient, log.NewLogfmtLogger(os.Stdout), nil)
 			require.NoError(t, err)
 			r.init(context.Background())
 			result <- r.cluster
@@ -39,7 +41,7 @@ func Test_LeaderElection(t *testing.T) {
 		go func() {
 			r, err := NewReporter(Config{Leader: false, Enabled: true}, kv.Config{
 				Store: "inmemory",
-			}, objectClient, log.NewLogfmtLogger(os.Stdout), nil)
+			}, objectClient, objectClient, log.NewLogfmtLogger(os.Stdout), nil)
 			require.NoError(t, err)
 			r.init(context.Background())
 			result <- r.cluster
@@ -81,14 +83,15 @@ func Test_ReportLoop(t *testing.T) {
 	}))
 	usageStatsURL = server.URL
 
-	objectClient, err := local.NewFSObjectClient(local.FSConfig{
-		Directory: t.TempDir(),
+	objectClient, err := local.NewBackend(&local.Config{
+		Path: t.TempDir(),
 	})
+
 	require.NoError(t, err)
 
 	r, err := NewReporter(Config{Leader: true, Enabled: true}, kv.Config{
 		Store: "inmemory",
-	}, objectClient, log.NewLogfmtLogger(os.Stdout), prometheus.NewPedanticRegistry())
+	}, objectClient, objectClient, log.NewLogfmtLogger(os.Stdout), prometheus.NewPedanticRegistry())
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	r.initLeader(ctx)
@@ -142,14 +145,14 @@ func Test_NextReport(t *testing.T) {
 }
 
 func TestWrongKV(t *testing.T) {
-	objectClient, err := local.NewFSObjectClient(local.FSConfig{
-		Directory: t.TempDir(),
+	objectClient, err := local.NewBackend(&local.Config{
+		Path: t.TempDir(),
 	})
 	require.NoError(t, err)
 
 	r, err := NewReporter(Config{Leader: true, Enabled: true}, kv.Config{
 		Store: "",
-	}, objectClient, log.NewLogfmtLogger(os.Stdout), prometheus.NewPedanticRegistry())
+	}, objectClient, objectClient, log.NewLogfmtLogger(os.Stdout), prometheus.NewPedanticRegistry())
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {

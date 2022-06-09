@@ -82,7 +82,7 @@ func Test_Memberlist(t *testing.T) {
 						return createMemberlist(t, initMKV.GetListeningPort(), i), nil
 					},
 				},
-			}, objectClient, log.NewLogfmtLogger(os.Stdout), nil)
+			}, objectClient, objectClient, log.NewLogfmtLogger(os.Stdout), nil)
 			require.NoError(t, err)
 			leader.init(context.Background())
 			result <- leader.cluster
