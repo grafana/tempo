@@ -99,6 +99,9 @@ func NewSubstringPredicate(substring string) *SubstringPredicate {
 }
 
 func (p *SubstringPredicate) KeepColumnChunk(_ pq.ColumnChunk) bool {
+	// Reset match cache on each row group change
+	p.matches = make(map[string]bool, len(p.matches))
+
 	// Is there any filtering possible here?
 	// Column chunk contains a bloom filter and min/max bounds,
 	// but those can't be inspected for a substring match.
@@ -118,8 +121,6 @@ func (p *SubstringPredicate) KeepValue(v pq.Value) bool {
 }
 
 func (p *SubstringPredicate) KeepPage(page pq.Page) bool {
-	// Reset match cache on each page change
-	p.matches = make(map[string]bool, len(p.matches))
 
 	// If a dictionary column then ensure at least one matching
 	// value exists in the dictionary

@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"sync"
+	"sync/atomic"
 
 	"github.com/opentracing/opentracing-go"
 	pq "github.com/segmentio/parquet-go"
@@ -225,6 +226,7 @@ type ColumnIterator struct {
 	filter  *InstrumentedPredicate
 
 	selectAs string
+	seekTo   atomic.Value
 
 	quit chan struct{}
 	ch   chan *columnIteratorBuffer
@@ -276,8 +278,28 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 	rn := EmptyRowNumber()
 	buffer := make([]pq.Value, readSize)
 
+	checkSkip := func(numRows int64) bool {
+		seekTo := c.seekTo.Load()
+		if seekTo == nil {
+			return false
+		}
+
+		seekToRN := seekTo.(RowNumber)
+
+		rnNext := rn
+		rnNext.Skip(numRows)
+
+		return CompareRowNumbers(0, rnNext, seekToRN) == -1
+	}
+
 	for _, rg := range c.rgs {
 		col := rg.ColumnChunks()[c.col]
+
+		if checkSkip(rg.NumRows()) {
+			// Skip column chunk
+			rn.Skip(rg.NumRows())
+			continue
+		}
 
 		if c.filter != nil {
 			if !c.filter.KeepColumnChunk(col) {
@@ -298,6 +320,12 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 			}
 			if err != nil {
 				return
+			}
+
+			if checkSkip(pg.NumRows()) {
+				// Skip page
+				rn.Skip(pg.NumRows())
+				continue
 			}
 
 			if c.filter != nil {
@@ -406,11 +434,12 @@ func (c *ColumnIterator) SeekTo(to RowNumber, d int) *IteratorResult {
 	var at RowNumber
 	var v pq.Value
 
-	// Because iteration happens in the background, we just read
-	// until we are at the right spot. This is slightly more efficient
-	// than calling the real Next() because it's not wrapping the results
-	// in an iteratorResult. It would be nice to tell the background
-	// routine to skip ahead.
+	// Because iteration happens in the background, we signal the row
+	// to skip to, and then read until we are at the right spot. The
+	// seek is best-effort and may have no effect if the iteration
+	// already further ahead, and there may already be older data
+	// in the buffer.
+	c.seekTo.Store(to)
 	for at, v = c.next(); at.Valid() && CompareRowNumbers(d, at, to) < 0; {
 		at, v = c.next()
 	}

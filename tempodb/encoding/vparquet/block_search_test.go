@@ -118,6 +118,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		makeReq(LabelK8sContainerName, "k8scontainer"),
 
 		// Well-known span attributes
+		makeReq(LabelName, "ell"),
 		makeReq(LabelHTTPMethod, "get"),
 		makeReq(LabelHTTPUrl, "hello"),
 		makeReq(LabelHTTPStatusCode, "500"),
