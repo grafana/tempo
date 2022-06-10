@@ -8,7 +8,11 @@ import (
 	"github.com/segmentio/parquet-go"
 )
 
-func (b *backendBlock) Iterator(ctx context.Context) (*iterator, error) {
+type blockIterator struct {
+	r *parquet.Reader
+}
+
+func (b *backendBlock) Iterator(ctx context.Context) (Iterator, error) {
 	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
 
 	// 16 MB memory buffering
@@ -21,14 +25,10 @@ func (b *backendBlock) Iterator(ctx context.Context) (*iterator, error) {
 
 	r := parquet.NewReader(pf, parquet.SchemaOf(&Trace{}))
 
-	return &iterator{r}, nil
+	return &blockIterator{r}, nil
 }
 
-type iterator struct {
-	r *parquet.Reader
-}
-
-func (i *iterator) Next() (*Trace, error) {
+func (i *blockIterator) Next(context.Context) (*Trace, error) {
 	t := &Trace{}
 	switch err := i.r.Read(t); err {
 	case nil:
@@ -38,4 +38,8 @@ func (i *iterator) Next() (*Trace, error) {
 	default:
 		return nil, err
 	}
+}
+
+func (i *blockIterator) Close() {
+	// parquet reader is shared, lets not close it here
 }

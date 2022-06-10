@@ -46,7 +46,8 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			return nil, err
 		}
 
-		bookmarks = append(bookmarks, newBookmark(ctx, iter, opts.PrefetchTraceCount/len(inputs)))
+		// wrap bookmark with a prefetch iterator
+		bookmarks = append(bookmarks, newBookmark(newPrefetchIterator(ctx, iter, opts.PrefetchTraceCount/len(inputs))))
 	}
 
 	nextCompactionLevel := compactionLevel + 1
@@ -54,7 +55,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	recordsPerBlock := (totalRecords / int(opts.OutputBlocks))
 
 	var currentBlock *streamingBlock
-	m := NewMultiblockPrefetchIterator(ctx, bookmarks)
+	m := newMultiblockIterator(ctx, bookmarks)
 	defer m.Close()
 
 	for {
@@ -137,4 +138,44 @@ func finishBlock(block *streamingBlock, l log.Logger) {
 	level.Info(l).Log("msg", "wrote compacted block", "meta", fmt.Sprintf("%+v", block.meta))
 	compactionLevelLabel := strconv.Itoa(int(block.meta.CompactionLevel) - 1)
 	metrics.MetricCompactionBytesWritten.WithLabelValues(compactionLevelLabel).Add(float64(bytesFlushed))
+}
+
+type bookmark struct {
+	iter Iterator
+
+	currentObject *Trace
+	currentErr    error
+}
+
+func newBookmark(iter Iterator) *bookmark {
+	return &bookmark{
+		iter: iter,
+	}
+}
+
+func (b *bookmark) current(ctx context.Context) (*Trace, error) {
+	if b.currentErr != nil {
+		return nil, b.currentErr
+	}
+
+	if b.currentObject != nil {
+		return b.currentObject, nil
+	}
+
+	b.currentObject, b.currentErr = b.iter.Next(ctx)
+	return b.currentObject, b.currentErr
+}
+
+func (b *bookmark) done(ctx context.Context) bool {
+	obj, err := b.current(ctx)
+
+	return obj == nil || err != nil
+}
+
+func (b *bookmark) clear() {
+	b.currentObject = nil
+}
+
+func (b *bookmark) close() {
+	b.iter.Close()
 }
