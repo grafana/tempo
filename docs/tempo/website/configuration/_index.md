@@ -134,7 +134,7 @@ distributor:
         [filter_by_status_error: <boolean> | default = false]
 
     # Optional.
-    # disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
+    # Disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
     #  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
     [extend_writes: <bool>]
 
