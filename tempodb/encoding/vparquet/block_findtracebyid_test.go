@@ -123,9 +123,7 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 	meta, err := r.BlockMeta(ctx, blocks[0], "vulture-tenant")
 	require.NoError(t, err)
 
-	b, err := NewBackendBlock(meta, r)
-	require.NoError(t, err)
-
+	b := newBackendBlock(meta, r)
 	bytes, _ := util.HexStringToTraceID("7d80fcd3e4978d6143030ef00d8bccc1")
 	tr, err := b.FindTraceByID(ctx, bytes)
 	require.NoError(t, err)
