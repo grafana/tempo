@@ -34,7 +34,7 @@ func (cmd *viewSchemaCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	fmt.Println("\n***************     block meta    *********************")
+	fmt.Printf("\n***************     block meta    *********************\n\n\n")
 	fmt.Printf("%+v\n", meta)
 
 	rr := vparquet.NewBackendReaderAt(context.Background(), r, vparquet.DataFileName, meta.BlockID, meta.TenantID)
@@ -43,7 +43,7 @@ func (cmd *viewSchemaCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	fmt.Println("\n***************       schema      ********************")
+	fmt.Printf("\n***************       schema      ********************\n\n\n")
 	fmt.Println(pf.Schema().String())
 
 	columnSizes := map[string]int64{}
@@ -65,7 +65,7 @@ func (cmd *viewSchemaCmd) Run(ctx *globalOptions) error {
 	}
 	sort.Strings(sizes)
 
-	fmt.Println("\n***************   column sizes    *********************")
+	fmt.Printf("\n***************   column sizes    *********************\n\n\n")
 	for _, s := range sizes {
 		fmt.Println(s)
 	}
@@ -76,7 +76,7 @@ func (cmd *viewSchemaCmd) Run(ctx *globalOptions) error {
 func getNodePathByIndex(root *parquet.Column, s string, i int) (string, bool) {
 	s = s + "." + root.Name()
 
-	if int(root.Index()) == i {
+	if root.Index() == i {
 		return s, true
 	}
 	for _, col := range root.Columns() {

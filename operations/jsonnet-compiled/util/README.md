@@ -1,6 +1,6 @@
-# kube-manifests
+# jsonnet-compiled
 
-Example Kubernetes manifests to deploy Tempo distributed.
+Example Kubernetes manifests to deploy Tempo using Jsonnet.
 
 ### Build
 

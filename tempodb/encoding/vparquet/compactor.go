@@ -39,10 +39,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			compactionLevel = blockMeta.CompactionLevel
 		}
 
-		block, err := NewBackendBlock(blockMeta, r)
-		if err != nil {
-			return nil, err
-		}
+		block := newBackendBlock(blockMeta, r)
 
 		iter, err := block.Iterator(ctx)
 		if err != nil {
@@ -81,10 +78,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			}
 			w := writerCallback(newMeta, time.Now())
 
-			currentBlock, err = NewStreamingBlock(ctx, &opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriterWithQueue)
-			if err != nil {
-				return nil, errors.Wrap(err, "error making new compacted block")
-			}
+			currentBlock = newStreamingBlock(ctx, &opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriterWithQueue)
 			currentBlock.meta.CompactionLevel = nextCompactionLevel
 			newCompactedBlocks = append(newCompactedBlocks, currentBlock.meta)
 		}

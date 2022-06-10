@@ -6,21 +6,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTracker(t *testing.T) {
-	tr := NewTracker()
-	require.Equal(t, tracker{-1, -1, -1, -1, -1, -1}, tr)
+func TestRowNumber(t *testing.T) {
+	tr := EmptyRowNumber()
+	require.Equal(t, RowNumber{-1, -1, -1, -1, -1, -1}, tr)
 
 	steps := []struct {
 		repetitionLevel int
 		definitionLevel int
-		expected        tracker
+		expected        RowNumber
 	}{
 		// Name.Language.Country examples from the Dremel whitepaper
-		{0, 3, tracker{0, 0, 0, 0, -1, -1}},
-		{2, 2, tracker{0, 0, 1, -1, -1, -1}},
-		{1, 1, tracker{0, 1, -1, -1, -1, -1}},
-		{1, 3, tracker{0, 2, 0, 0, -1, -1}},
-		{0, 1, tracker{1, 0, -1, -1, -1, -1}},
+		{0, 3, RowNumber{0, 0, 0, 0, -1, -1}},
+		{2, 2, RowNumber{0, 0, 1, -1, -1, -1}},
+		{1, 1, RowNumber{0, 1, -1, -1, -1, -1}},
+		{1, 3, RowNumber{0, 2, 0, 0, -1, -1}},
+		{0, 1, RowNumber{1, 0, -1, -1, -1, -1}},
 	}
 
 	for _, step := range steps {
@@ -29,20 +29,20 @@ func TestTracker(t *testing.T) {
 	}
 }
 
-func TestCompareTracker(t *testing.T) {
+func TestCompareRowNumbers(t *testing.T) {
 	testCases := []struct {
-		a, b     tracker
+		a, b     RowNumber
 		expected int
 	}{
-		{tracker{-1}, tracker{0}, -1},
-		{tracker{0}, tracker{0}, 0},
-		{tracker{1}, tracker{0}, 1},
+		{RowNumber{-1}, RowNumber{0}, -1},
+		{RowNumber{0}, RowNumber{0}, 0},
+		{RowNumber{1}, RowNumber{0}, 1},
 
-		{tracker{0, 1}, tracker{0, 2}, -1},
-		{tracker{0, 2}, tracker{0, 1}, 1},
+		{RowNumber{0, 1}, RowNumber{0, 2}, -1},
+		{RowNumber{0, 2}, RowNumber{0, 1}, 1},
 	}
 
 	for _, tc := range testCases {
-		require.Equal(t, tc.expected, CompareTrackers(5, tc.a, tc.b))
+		require.Equal(t, tc.expected, CompareRowNumbers(5, tc.a, tc.b))
 	}
 }

@@ -37,10 +37,7 @@ func (b *backendWriter) Close() error {
 }
 
 func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, dec model.ObjectDecoder, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
-	s, err := NewStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
-	if err != nil {
-		return nil, err
-	}
+	s := newStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
 
 	for {
 		_, obj, err := i.Next(ctx)
@@ -67,7 +64,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		}
 	}
 
-	_, err = s.Complete()
+	_, err := s.Complete()
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +85,7 @@ type streamingBlock struct {
 	currentBufferedTraces int
 }
 
-func NewStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) (*streamingBlock, error) {
+func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) *streamingBlock {
 	newMeta := backend.NewBlockMeta(meta.TenantID, meta.BlockID, VersionString, backend.EncNone, "")
 	newMeta.StartTime = meta.StartTime
 	newMeta.EndTime = meta.EndTime
@@ -114,7 +111,7 @@ func NewStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		w:     w,
 		r:     r,
 		to:    to,
-	}, nil
+	}
 }
 
 func (b *streamingBlock) Add(tr *Trace) error {

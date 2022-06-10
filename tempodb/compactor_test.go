@@ -22,6 +22,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/blocklist"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/metrics"
 	"github.com/grafana/tempo/tempodb/pool"
@@ -76,6 +77,7 @@ func TestCompaction(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
+			Version:              encoding.LatestEncoding().Version(),
 			Encoding:             backend.EncLZ4_4M,
 			IndexPageSizeBytes:   1000,
 		},
@@ -202,6 +204,7 @@ func TestSameIDCompaction(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
+			Version:              encoding.LatestEncoding().Version(),
 			Encoding:             backend.EncSnappy,
 			IndexPageSizeBytes:   1000,
 		},
@@ -341,6 +344,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
+			Version:              encoding.LatestEncoding().Version(),
 			Encoding:             backend.EncNone,
 			IndexPageSizeBytes:   1000,
 		},
@@ -409,6 +413,7 @@ func TestCompactionMetrics(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
+			Version:              encoding.LatestEncoding().Version(),
 			Encoding:             backend.EncNone,
 			IndexPageSizeBytes:   1000,
 		},
@@ -480,6 +485,7 @@ func TestCompactionUsesCombiner(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
+			Version:              encoding.LatestEncoding().Version(),
 			Encoding:             backend.EncNone,
 			IndexPageSizeBytes:   1000,
 		},
@@ -532,6 +538,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
+			Version:              encoding.LatestEncoding().Version(),
 			Encoding:             backend.EncLZ4_64k,
 			IndexPageSizeBytes:   1000,
 		},
@@ -622,6 +629,7 @@ func BenchmarkCompaction(b *testing.B) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
+			Version:              encoding.LatestEncoding().Version(),
 			Encoding:             backend.EncZstd,
 			IndexPageSizeBytes:   1000,
 		},

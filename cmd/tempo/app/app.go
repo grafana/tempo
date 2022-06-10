@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
@@ -47,6 +48,15 @@ import (
 
 const metricsNamespace = "tempo"
 const apiDocs = "https://grafana.com/docs/tempo/latest/api_docs/"
+
+var (
+	metricConfigFeatDesc = prometheus.NewDesc(
+		"tempo_feature_enabled",
+		"Boolean for configuration variables",
+		[]string{"feature"},
+		nil,
+	)
+)
 
 // Config is the root config for App.
 type Config struct {
@@ -160,6 +170,35 @@ func (c *Config) CheckConfig() {
 
 	if c.StorageConfig.Trace.BlocklistPollConcurrency == 0 {
 		level.Warn(log.Logger).Log("msg", "c.StorageConfig.Trace.BlocklistPollConcurrency must be greater than zero. Using default.", "default", tempodb.DefaultBlocklistPollConcurrency)
+	}
+}
+
+func (c *Config) Describe(ch chan<- *prometheus.Desc) {
+	ch <- metricConfigFeatDesc
+}
+
+func (c *Config) Collect(ch chan<- prometheus.Metric) {
+
+	features := map[string]int{
+		"search_external_endpoints": 0,
+		"search":                    0,
+		"metrics_generator":         0,
+	}
+
+	if len(c.Querier.Search.ExternalEndpoints) > 0 {
+		features["search_external_endpoints"] = 1
+	}
+
+	if c.SearchEnabled {
+		features["search"] = 1
+	}
+
+	if c.MetricsGeneratorEnabled {
+		features["metrics_generator"] = 1
+	}
+
+	for label, value := range features {
+		ch <- prometheus.MustNewConstMetric(metricConfigFeatDesc, prometheus.GaugeValue, float64(value), label)
 	}
 }
 

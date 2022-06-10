@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	k6Image = "loadimpact/k6:0.37.0"
+	k6Image = "loadimpact/k6:latest"
 )
 
 func TestAllInOne(t *testing.T) {

@@ -21,7 +21,7 @@ type Edge struct {
 	expiration int64
 }
 
-func NewEdge(key string, ttl time.Duration) *Edge {
+func newEdge(key string, ttl time.Duration) *Edge {
 	return &Edge{
 		key:        key,
 		Dimensions: make(map[string]string),
@@ -29,12 +29,12 @@ func NewEdge(key string, ttl time.Duration) *Edge {
 	}
 }
 
-// IsCompleted returns true if the corresponding client and server
+// isComplete returns true if the corresponding client and server
 // pair spans have been processed for the given Edge
-func (e *Edge) IsCompleted() bool {
+func (e *Edge) isComplete() bool {
 	return len(e.ClientService) != 0 && len(e.ServerService) != 0
 }
 
-func (e *Edge) IsExpired() bool {
+func (e *Edge) isExpired() bool {
 	return time.Now().Unix() >= e.expiration
 }

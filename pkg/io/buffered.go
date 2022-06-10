@@ -8,11 +8,11 @@ import (
 	"go.uber.org/atomic"
 )
 
-// bufferedReader implements io.ReaderAt but extends and buffers reads up to the given buffer size.
+// BufferedReaderAt implements io.ReaderAt but extends and buffers reads up to the given buffer size.
 // Subsequent reads are returned from the buffers. Additionally it supports concurrent readers
 // by maintaining multiple buffers at different offsets, and matching up reads with existing
 // buffers where possible. When needed the least-recently-used buffer is overwritten with new reads.
-type bufferedReader struct {
+type BufferedReaderAt struct {
 	mtx     sync.Mutex
 	ra      io.ReaderAt
 	rasz    int64
@@ -22,15 +22,16 @@ type bufferedReader struct {
 }
 
 type readerBuffer struct {
+	mtx   sync.RWMutex
 	buf   []byte
 	off   int64
 	count int64
 }
 
-var _ io.ReaderAt = (*bufferedReader)(nil)
+var _ io.ReaderAt = (*BufferedReaderAt)(nil)
 
-func NewBufferedReaderAt(ra io.ReaderAt, readerSize int64, bufSize, bufCount int) *bufferedReader {
-	r := &bufferedReader{
+func NewBufferedReaderAt(ra io.ReaderAt, readerSize int64, bufSize, bufCount int) *BufferedReaderAt {
+	r := &BufferedReaderAt{
 		ra:      ra,
 		rasz:    readerSize,
 		rdsz:    bufSize,
@@ -40,17 +41,16 @@ func NewBufferedReaderAt(ra io.ReaderAt, readerSize int64, bufSize, bufCount int
 	return r
 }
 
-func (r *bufferedReader) canRead(buf *readerBuffer, offset, length int64) bool {
+func (r *BufferedReaderAt) canRead(buf *readerBuffer, offset, length int64) bool {
 	return offset >= buf.off && (offset+length <= buf.off+int64(len(buf.buf)))
 }
 
-func (r *bufferedReader) read(buf *readerBuffer, b []byte, offset int64) {
+func (r *BufferedReaderAt) read(buf *readerBuffer, b []byte, offset int64) {
 	start := offset - buf.off
 	copy(b, buf.buf[start:start+int64(len(b))])
 }
 
-func (r *bufferedReader) populate(buf *readerBuffer, offset, length int64) (int, error) {
-
+func (r *BufferedReaderAt) prep(buf *readerBuffer, offset, length int64) {
 	offset, sz := calculateBounds(offset, length, r.rdsz, r.rasz)
 
 	// Realloc?
@@ -58,10 +58,12 @@ func (r *bufferedReader) populate(buf *readerBuffer, offset, length int64) (int,
 		buf.buf = make([]byte, sz)
 	}
 	buf.buf = buf.buf[:sz]
-
-	// Read
 	buf.off = offset
-	n, err := r.ra.ReadAt(buf.buf, offset)
+}
+
+func (r *BufferedReaderAt) populate(buf *readerBuffer) (int, error) {
+	// Read
+	n, err := r.ra.ReadAt(buf.buf, buf.off)
 	return n, err
 }
 
@@ -86,38 +88,69 @@ func calculateBounds(offset, length int64, bufferSize int, readerAtSize int64) (
 	return offset, sz
 }
 
-func (r *bufferedReader) ReadAt(b []byte, offset int64) (int, error) {
+func (r *BufferedReaderAt) ReadAt(b []byte, offset int64) (int, error) {
+	// There are two-levels of locking: the top-level governs the
+	// the reader and the arrangement and position of the buffers.
+	// Then each individual buffer has its own lock for populating
+	// and reading it.
+
+	// The main reason for this is to support concurrent activity
+	// while solving the stampeding herd issue for fresh reads:
+	// The first read will prep the offset/length of the buffer
+	// and then switch to the buffer's write-lock while populating it.
+	// The second read will inspect the offset/length and know
+	// that it will satisfy, but by taking the read-lock will
+	// wait until the first call has finished populating the buffer .
+
 	r.mtx.Lock()
-	defer r.mtx.Unlock()
 
 	if len(r.buffers) == 0 {
+		r.mtx.Unlock()
 		return r.ra.ReadAt(b, offset)
 	}
 
 	// Least-recently-used tracking
 	r.count++
 	var lru *readerBuffer
-
+	var buf *readerBuffer
 	for i := range r.buffers {
-		buf := &r.buffers[i]
-		if r.canRead(buf, offset, int64(len(b))) {
-			r.read(buf, b, offset)
-			r.buffers[i].count = r.count
-			return len(b), nil
+		if r.canRead(&r.buffers[i], offset, int64(len(b))) {
+			buf = &r.buffers[i]
+			break
 		}
 
 		if lru == nil || r.buffers[i].count < lru.count {
-			lru = buf
+			lru = &r.buffers[i]
 		}
 	}
 
-	// Need to read, overwrite least-recently-used
-	buf := lru
-	if _, err := r.populate(buf, offset, int64(len(b))); err != nil {
-		return 0, err
+	if buf == nil {
+		// No buffer satisfied read, overwrite least-recently-used
+		buf = lru
+		r.prep(buf, offset, int64(len(b)))
+
+		// Here we exchange the top-level lock for
+		// the buffer's individual write lock
+		buf.mtx.Lock()
+		defer buf.mtx.Unlock()
+		buf.count = r.count
+		r.mtx.Unlock()
+
+		if _, err := r.populate(buf); err != nil {
+			return 0, err
+		}
+
+		r.read(buf, b, offset)
+		return len(b), nil
 	}
 
+	// Here we exchange the top-level lock for
+	// the buffer's individual read lock
+	buf.mtx.RLock()
+	defer buf.mtx.RUnlock()
 	buf.count = r.count
+	r.mtx.Unlock()
+
 	r.read(buf, b, offset)
 	return len(b), nil
 }

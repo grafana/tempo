@@ -266,7 +266,7 @@ func TestParseSearchBlockRequest(t *testing.T) {
 			expectedError: "version required",
 		},
 		{
-			url: "/?tags=foo%3Dbar&start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1&version=v2",
+			url: "/?tags=foo%3Dbar&start=10&end=20&startPage=0&pagesToSearch=10&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1&version=v2&size=1000",
 			expected: &tempopb.SearchBlockRequest{
 				SearchReq: &tempopb.SearchRequest{
 					Tags: map[string]string{
@@ -284,6 +284,7 @@ func TestParseSearchBlockRequest(t *testing.T) {
 				TotalRecords:  11,
 				DataEncoding:  "v1",
 				Version:       "v2",
+				Size_:         1000,
 			},
 		},
 	}
@@ -317,8 +318,9 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 				TotalRecords:  11,
 				DataEncoding:  "v1",
 				Version:       "v2",
+				Size_:         1000,
 			},
-			query: "?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&indexPageSize=10&pagesToSearch=10&startPage=0&totalRecords=11&version=v2",
+			query: "?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&indexPageSize=10&pagesToSearch=10&size=1000&startPage=0&totalRecords=11&version=v2",
 		},
 		{
 			req: &tempopb.SearchBlockRequest{
@@ -330,9 +332,10 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 				TotalRecords:  11,
 				DataEncoding:  "v1",
 				Version:       "v2",
+				Size_:         1000,
 			},
 			httpReq: httptest.NewRequest("GET", "/test/path", nil),
-			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&indexPageSize=10&pagesToSearch=10&startPage=0&totalRecords=11&version=v2",
+			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&indexPageSize=10&pagesToSearch=10&size=1000&startPage=0&totalRecords=11&version=v2",
 		},
 		{
 			req: &tempopb.SearchBlockRequest{
@@ -354,8 +357,9 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 				TotalRecords:  11,
 				DataEncoding:  "v1",
 				Version:       "v2",
+				Size_:         1000,
 			},
-			query: "?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&end=20&indexPageSize=10&limit=50&maxDuration=40ms&minDuration=30ms&pagesToSearch=10&start=10&startPage=0&tags=foo%3Dbar&totalRecords=11&version=v2",
+			query: "?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&end=20&indexPageSize=10&limit=50&maxDuration=40ms&minDuration=30ms&pagesToSearch=10&size=1000&start=10&startPage=0&tags=foo%3Dbar&totalRecords=11&version=v2",
 		},
 	}
 

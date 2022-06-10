@@ -48,4 +48,7 @@
       volume.fromConfigMap(tempo_config_volume, $.tempo_querier_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
     ]),
+
+  tempo_querier_service:
+    k.util.serviceFor($.tempo_querier_deployment),
 }

@@ -36,39 +36,33 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 
 	id := test.ValidTraceID(nil)
 
-	s, err := NewStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
-	require.NoError(t, err)
+	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
 	bar := "bar"
-
-	for i := 0; i < 10; i++ {
-		s.Add(&Trace{
-			TraceID: util.TraceIDToHexString(test.ValidTraceID(nil)),
-			ResourceSpans: []ResourceSpans{
-				{
-					Resource: Resource{
-						ServiceName: "s",
+	require.NoError(t, s.Add(&Trace{
+		TraceID: util.TraceIDToHexString(test.ValidTraceID(nil)),
+		ResourceSpans: []ResourceSpans{
+			{
+				Resource: Resource{
+					ServiceName: "s",
+				},
+				InstrumentationLibrarySpans: []ILS{
+					{
+						Spans: []Span{
+							{
+								Name: "hello",
+								Attrs: []Attribute{
+									{Key: "foo", Value: &bar},
+								},
+								ID:           []byte{},
+								ParentSpanID: []byte{},
+							},
+						},
 					},
-					InstrumentationLibrarySpans: []ILS{
-						{
-							Spans: []Span{
-								{
-									Name: "hello",
-									Attrs: []Attribute{
-										{Key: "foo", Value: &bar},
-									},
-									ID:           []byte{},
-									ParentSpanID: []byte{},
-									Events: []Event{
-										{
-											Attrs: []EventAttribute{
-												{
-													Key:   "foo",
-													Value: "baz",
-												},
-											},
-										}}}}}}}}})
-	}
+				},
+			},
+		},
+	}))
 
 	wantTr := &Trace{
 		TraceID: util.TraceIDToHexString(id),
@@ -97,14 +91,12 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 										},
 									}}}}}}}},
 	}
-
-	s.Add(wantTr)
+	require.NoError(t, s.Add(wantTr))
 
 	_, err = s.Complete()
 	require.NoError(t, err)
 
-	b, err := NewBackendBlock(s.meta, r)
-	require.NoError(t, err)
+	b := newBackendBlock(s.meta, r)
 
 	gotTr, err := b.FindTraceByID(ctx, id)
 	require.NoError(t, err)

@@ -19,7 +19,7 @@ func GetColumnIndexByPath(pf *pq.File, s string) (index, depth int) {
 		depth++
 	}
 
-	return int(n.Index()), depth
+	return n.Index(), depth
 }
 
 func HasColumn(pf *pq.File, s string) bool {

@@ -29,6 +29,7 @@ import (
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -324,6 +325,7 @@ func defaultIngesterModule(t *testing.T, tmpDir string) *Ingester {
 				IndexDownsampleBytes: 2,
 				BloomFP:              0.01,
 				BloomShardSizeBytes:  100_000,
+				Version:              encoding.LatestEncoding().Version(),
 				Encoding:             backend.EncLZ4_1M,
 				IndexPageSizeBytes:   1000,
 			},

@@ -128,7 +128,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		// Resource attributes
 		makeReq("bat", "baz"),
 
-		// Mutliple
+		// Multiple
 		{
 			Tags: map[string]string{
 				"service.name": "service",
@@ -206,16 +206,14 @@ func makeBackendBlockWithTrace(t *testing.T, tr *Trace) *backendBlock {
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
 	meta.TotalObjects = 1
 
-	s, err := NewStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
-	require.NoError(t, err)
+	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
-	s.Add(tr)
+	require.NoError(t, s.Add(tr))
 
 	_, err = s.Complete()
 	require.NoError(t, err)
 
-	b, err := NewBackendBlock(s.meta, r)
-	require.NoError(t, err)
+	b := newBackendBlock(s.meta, r)
 
 	return b
 }

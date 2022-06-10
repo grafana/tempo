@@ -572,6 +572,14 @@ storage:
             # access key when using access key credentials.
             [storage-account-key: <string>]
 
+            # optional.
+            # use Azure Managed Identity to access Azure storage.
+            [use-managed-identity: <bool>]
+
+            # optional.
+            # The Client ID for the user-assigned Azure Managed Identity used to access Azure storage.
+            [user-assigned-id: <bool>]
+
             # Optional. Default is 0 (disabled)
             # Example: "hedge-requests-at: 500ms"
             # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
@@ -742,6 +750,10 @@ storage:
             # optional.
             # close connections older than this duration. (default 0s)
             [max-connection-age: <duration>]
+
+            # optional.
+            # password to use when connecting to redis sentinel. (default "")
+            [sentinel_password: <string>]
 
         # the worker pool is used primarily when finding traces by id, but is also used by other
         pool:
@@ -947,6 +959,7 @@ overrides:
     # to populate the autocomplete dropdown. This limit protects the system from
     # tags with high cardinality or large values such as HTTP URLs or SQL queries.
     # This override limit is used by the ingester and the querier.
+    # A value of 0 disables the limit.
     [max_bytes_per_tag_values_query: <int> | default = 5000000 (5MB) ]
 
     # Metrics-generator configurations
@@ -967,6 +980,13 @@ overrides:
     #  - span-metrics
     [metrics_generator_processors: <list of strings>]
 
+    # Per-user configuration of the metrics-generator processors. The following configuration
+    # overrides settings in the global configuration.
+    [metrics_generator_processor_service_graphs_histogram_buckets: <list of float>]
+    [metrics_generator_processor_service_graphs_dimensions: <list of string>]
+    [metrics_generator_processor_span_metrics_histogram_buckets: <<list of float>]
+    [metrics_generator_processor_span_metrics_dimensions: <list of string>]
+      
     # Maximum number of active series in the registry, per instance of the metrics-generator. A
     # value of 0 disables this check.
     # If the limit is reached, no new series will be added but existing series will still be

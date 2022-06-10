@@ -13,6 +13,8 @@ import (
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/Azure/go-autorest/autorest/adal"
+	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/cristalhq/hedgedhttp"
 )
 
@@ -21,21 +23,8 @@ const (
 )
 
 func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.ContainerURL, error) {
-	accountName := cfg.StorageAccountName
-	accountKey := cfg.StorageAccountKey.String()
-
-	if accountName == "" {
-		accountName = os.Getenv("AZURE_STORAGE_ACCOUNT")
-	}
-
-	if accountKey == "" {
-		accountKey = os.Getenv("AZURE_STORAGE_KEY")
-	}
-
-	c, err := blob.NewSharedKeyCredential(accountName, accountKey)
-	if err != nil {
-		return blob.ContainerURL{}, err
-	}
+	var err error
+	var p pipeline.Pipeline
 
 	retryOptions := blob.RetryOptions{
 		MaxTries: int32(maxRetries),
@@ -72,12 +61,29 @@ func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.Contain
 		}
 	})
 
-	p := blob.NewPipeline(c, blob.PipelineOptions{
+	opts := blob.PipelineOptions{
 		Retry:      retryOptions,
 		Telemetry:  blob.TelemetryOptions{Value: "Tempo"},
 		HTTPSender: httpSender,
-	})
+	}
 
+	if !cfg.UseManagedIdentity && cfg.UserAssignedID == "" {
+		credential, err := blob.NewSharedKeyCredential(getStorageAccountName(cfg), getStorageAccountKey(cfg))
+		if err != nil {
+			return blob.ContainerURL{}, err
+		}
+
+		p = blob.NewPipeline(credential, opts)
+	} else {
+		credential, err := getOAuthToken(cfg)
+		if err != nil {
+			return blob.ContainerURL{}, err
+		}
+
+		p = blob.NewPipeline(*credential, opts)
+	}
+
+	accountName := getStorageAccountName(cfg)
 	u, err := url.Parse(fmt.Sprintf("https://%s.%s", accountName, cfg.Endpoint))
 
 	// If the endpoint doesn't start with blob.core we can assume Azurite is being used
@@ -121,4 +127,67 @@ func CreateContainer(ctx context.Context, conf *Config) (blob.ContainerURL, erro
 		blob.Metadata{},
 		blob.PublicAccessNone)
 	return c, err
+}
+
+func getStorageAccountName(cfg *Config) string {
+	accountName := cfg.StorageAccountName
+	if accountName == "" {
+		accountName = os.Getenv("AZURE_STORAGE_ACCOUNT")
+	}
+
+	return accountName
+}
+
+func getStorageAccountKey(cfg *Config) string {
+	accountKey := cfg.StorageAccountKey.String()
+	if accountKey == "" {
+		accountKey = os.Getenv("AZURE_STORAGE_KEY")
+	}
+
+	return accountKey
+}
+
+func getOAuthToken(cfg *Config) (*blob.TokenCredential, error) {
+	spt, err := getServicePrincipalToken(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	// Refresh obtains a fresh token
+	err = spt.Refresh()
+	if err != nil {
+		return nil, err
+	}
+
+	tc := blob.NewTokenCredential(spt.Token().AccessToken, func(tc blob.TokenCredential) time.Duration {
+		err := spt.Refresh()
+		if err != nil {
+			// something went wrong, prevent the refresher from being triggered again
+			return 0
+		}
+
+		// set the new token value
+		tc.SetToken(spt.Token().AccessToken)
+
+		// get the next token slightly before the current one expires
+		return time.Until(spt.Token().Expires()) - 10*time.Second
+	})
+
+	return &tc, nil
+}
+
+func getServicePrincipalToken(cfg *Config) (*adal.ServicePrincipalToken, error) {
+	endpoint := cfg.Endpoint
+
+	resource := fmt.Sprintf("https://%s.%s", cfg.StorageAccountName, endpoint)
+
+	msiConfig := auth.MSIConfig{
+		Resource: resource,
+	}
+
+	if cfg.UserAssignedID != "" {
+		msiConfig.ClientID = cfg.UserAssignedID
+	}
+
+	return msiConfig.ServicePrincipalToken()
 }

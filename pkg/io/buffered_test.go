@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -92,8 +91,9 @@ func TestBufferedReaderAt(t *testing.T) {
 
 		for _, tr := range testReads {
 			b := make([]byte, tr.length)
-			r.ReadAt(b, tr.offset)
-			assert.Equal(t, input[tr.offset:tr.offset+tr.length], b)
+			_, err := r.ReadAt(b, tr.offset)
+			require.NoError(t, err)
+			require.Equal(t, input[tr.offset:tr.offset+tr.length], b)
 		}
 	}
 }
@@ -104,13 +104,13 @@ func TestBufferedWriterWithQueueWritesToBackend(t *testing.T) {
 	b := NewBufferedWriterWithQueue(buf)
 
 	n, err := b.Write([]byte{0x01})
-	assert.NoError(t, err)
-	assert.Equal(t, 1, n)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
 
-	assert.NoError(t, b.Flush())
-	assert.NoError(t, b.Close())
+	require.NoError(t, b.Flush())
+	require.NoError(t, b.Close())
 
 	// eventual consistency :)
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(t, []byte{0x01}, buf.Bytes())
+	require.Equal(t, []byte{0x01}, buf.Bytes())
 }
