@@ -535,7 +535,7 @@ storage:
             [insecure: <bool>]
 
             # optional.
-            # enable to skip verification of an HTTPs endpoint
+            # Set to true to disable verification of an TLS endpoint.  The default value is false.
             [insecure_skip_verify: <bool>]
 
             # optional.
