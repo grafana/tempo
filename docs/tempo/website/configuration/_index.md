@@ -341,6 +341,12 @@ querier:
     # not distinguish between the types of queries.
     [max_concurrent_queries: <int> | default = 5]
 
+    # The query frontend sents sharded requests to ingesters and querier (/api/traces/<id>)
+    # By default, healthy ingesters are queried for the trace id.
+    # This value controls if single ingester is to be retrieved based on the trace id hash.
+    # If this parameter is set, the number of 404s could increase during rollout or scaling of ingesters.
+    [query_single_ingester: <bool> | default = false]
+
     search:
         # Timeout for search requests    
         [query_timeout: <duration> | default = 30s]
