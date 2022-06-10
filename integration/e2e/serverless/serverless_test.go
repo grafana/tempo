@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	configServerlessGCF    = "config-serverless-gcf.yaml"
+	configServerlessGCR    = "config-serverless-gcr.yaml"
 	configServerlessLambda = "config-serverless-lambda.yaml"
 )
 
@@ -27,9 +27,9 @@ func TestServerless(t *testing.T) {
 		config     string
 	}{
 		{
-			name:       "gcf",
+			name:       "gcr",
 			serverless: newTempoServerlessGCR(),
-			config:     configServerlessGCF,
+			config:     configServerlessGCR,
 		},
 		{
 			name:       "lambda",

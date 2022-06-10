@@ -9,7 +9,7 @@ IN_LAMBDA=cd lambda &&
 LOWER_VERSION = `echo $(VERSION) | tr A-Z a-z`
 
 #
-# build docker images for local testing and code zip files for google cloud functions
+# build docker images for local testing and code zip files for google cloud run
 #
 .PHONY: build-docker
 build-docker: build-docker-lambda-test build-docker-gcr
