@@ -9,6 +9,8 @@ import (
 type Config struct {
 	StorageAccountName string         `yaml:"storage-account-name"`
 	StorageAccountKey  flagext.Secret `yaml:"storage-account-key"`
+	UseManagedIdentity bool           `yaml:"use-managed-identity"`
+	UserAssignedID     string         `yaml:"user-assigned-id"`
 	ContainerName      string         `yaml:"container-name"`
 	Endpoint           string         `yaml:"endpoint-suffix"`
 	MaxBuffers         int            `yaml:"max-buffers"`

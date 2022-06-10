@@ -2,11 +2,11 @@ package cache
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
-	"github.com/go-redis/redis/v8"
+	miniredis "github.com/alicebob/miniredis/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,13 +69,16 @@ func mockRedisClientSingle() (*RedisClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &RedisClient{
-		expiration: time.Minute,
-		timeout:    100 * time.Millisecond,
-		rdb: redis.NewClient(&redis.Options{
-			Addr: redisServer.Addr(),
-		}),
-	}, nil
+
+	cfg := &RedisConfig{
+		Expiration: time.Minute,
+		Timeout:    100 * time.Millisecond,
+		Endpoint: strings.Join([]string{
+			redisServer.Addr(),
+		}, ","),
+	}
+
+	return NewRedisClient(cfg), nil
 }
 
 func mockRedisClientCluster() (*RedisClient, error) {
@@ -83,18 +86,20 @@ func mockRedisClientCluster() (*RedisClient, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	redisServer2, err := miniredis.Run()
 	if err != nil {
 		return nil, err
 	}
-	return &RedisClient{
-		expiration: time.Minute,
-		timeout:    100 * time.Millisecond,
-		rdb: redis.NewClusterClient(&redis.ClusterOptions{
-			Addrs: []string{
-				redisServer1.Addr(),
-				redisServer2.Addr(),
-			},
-		}),
-	}, nil
+
+	cfg := &RedisConfig{
+		Expiration: time.Minute,
+		Timeout:    100 * time.Millisecond,
+		Endpoint: strings.Join([]string{
+			redisServer1.Addr(),
+			redisServer2.Addr(),
+		}, ","),
+	}
+
+	return NewRedisClient(cfg), nil
 }

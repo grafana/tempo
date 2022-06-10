@@ -154,24 +154,24 @@ func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (*App
 	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.IngestionSlack)
 }
 
-func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File, string, backend.Encoding, error) {
+func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File, backend.Encoding, error) {
 	// search WAL pinned to v2 for now
 	walFileVersion := "v2"
 
 	p := filepath.Join(w.c.Filepath, dir)
 	err := os.MkdirAll(p, os.ModePerm)
 	if err != nil {
-		return nil, "", backend.EncNone, err
+		return nil, backend.EncNone, err
 	}
 
 	// blockID, tenantID, version, encoding (compression), dataEncoding
 	filename := fmt.Sprintf("%v:%v:%v:%v:%v", blockid, tenantid, walFileVersion, w.c.SearchEncoding, "")
 	file, err := os.OpenFile(filepath.Join(p, filename), os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
-		return nil, "", backend.EncNone, err
+		return nil, backend.EncNone, err
 	}
 
-	return file, walFileVersion, w.c.SearchEncoding, nil
+	return file, w.c.SearchEncoding, nil
 }
 
 // ParseFilename returns (blockID, tenant, version, encoding, dataEncoding, error).

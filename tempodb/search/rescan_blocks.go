@@ -10,7 +10,6 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb/encoding"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -77,18 +76,13 @@ func newStreamingSearchBlockFromWALReplay(searchFilepath, filename string) (*Str
 		return nil, nil, err
 	}
 
-	blockID, _, version, enc, _, err := wal.ParseFilename(filename)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	v, err := encoding.FromVersion(version)
+	blockID, _, _, enc, _, err := wal.ParseFilename(filename)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	blockHeader := tempofb.NewSearchBlockHeaderMutable()
-	records, warning, err := wal.ReplayWALAndGetRecords(f, v, enc, func(bytes []byte) error {
+	records, warning, err := wal.ReplayWALAndGetRecords(f, enc, func(bytes []byte) error {
 		entry := tempofb.NewSearchEntryFromBytes(bytes)
 		blockHeader.AddEntry(entry)
 		return nil
@@ -101,7 +95,6 @@ func newStreamingSearchBlockFromWALReplay(searchFilepath, filename string) (*Str
 		file:     f,
 		appender: v2.NewRecordAppender(records),
 		header:   blockHeader,
-		v:        v,
 		enc:      enc,
 	}, warning, nil
 }

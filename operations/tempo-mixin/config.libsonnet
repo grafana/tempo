@@ -25,10 +25,12 @@
       outstanding_blocks_critical: 250,
     },
 
+    per_cluster_label: 'cluster',
+
     // Groups labels to uniquely identify and group by {jobs, clusters, tenants}
-    cluster_selectors: ['cluster', 'namespace'],
-    job_selectors: ['cluster', 'namespace', 'job'],
-    tenant_selectors: ['cluster', 'namespace', 'tenant'],
+    cluster_selectors: [$._config.per_cluster_label, 'namespace'],
+    job_selectors: [$._config.per_cluster_label, 'namespace', 'job'],
+    tenant_selectors: [$._config.per_cluster_label, 'namespace', 'tenant'],
 
     // Each group prefix is composed of `_`-separated labels
     group_prefix_clusters: makePrefix($._config.cluster_selectors),

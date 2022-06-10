@@ -83,6 +83,10 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 	fmt.Println("Age           : ", fmt.Sprint(time.Since(unifiedMeta.EndTime).Round(time.Second)))
 
 	if scan {
+		if meta.Version != v2.VersionString {
+			return fmt.Errorf("cannot scan block contents. unsupported block version: %s", meta.Version)
+		}
+
 		fmt.Println("Scanning block contents.  Press CRTL+C to quit ...")
 
 		block, err := v2.NewBackendBlock(&unifiedMeta.BlockMeta, r)

@@ -18,11 +18,11 @@ import (
 
 const (
 	metricCallsTotal      = "traces_spanmetrics_calls_total"
-	metricDurationSeconds = "traces_spanmetrics_duration_seconds"
+	metricDurationSeconds = "traces_spanmetrics_latency"
 )
 
-type processor struct {
-	cfg Config
+type Processor struct {
+	Cfg Config
 
 	spanMetricsCallsTotal      registry.Counter
 	spanMetricsDurationSeconds registry.Histogram
@@ -32,32 +32,34 @@ type processor struct {
 }
 
 func New(cfg Config, registry registry.Registry) gen.Processor {
-	labels := []string{"service", "span_name", "span_kind", "span_status"}
+	labels := []string{"service", "span_name", "span_kind", "status_code"}
 	for _, d := range cfg.Dimensions {
 		labels = append(labels, strutil.SanitizeLabelName(d))
 	}
 
-	return &processor{
-		cfg:                        cfg,
+	return &Processor{
+		Cfg:                        cfg,
 		spanMetricsCallsTotal:      registry.NewCounter(metricCallsTotal, labels),
 		spanMetricsDurationSeconds: registry.NewHistogram(metricDurationSeconds, labels, cfg.HistogramBuckets),
 		now:                        time.Now,
 	}
 }
 
-func (p *processor) Name() string { return Name }
+func (p *Processor) Name() string {
+	return Name
+}
 
-func (p *processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
+func (p *Processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
 	span, _ := opentracing.StartSpanFromContext(ctx, "spanmetrics.PushSpans")
 	defer span.Finish()
 
 	p.aggregateMetrics(req.Batches)
 }
 
-func (p *processor) Shutdown(_ context.Context) {
+func (p *Processor) Shutdown(_ context.Context) {
 }
 
-func (p *processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
+func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	for _, rs := range resourceSpans {
 		// already extract service name, so we only have to do it once per batch of spans
 		svcName, _ := processor_util.FindServiceName(rs.Resource.Attributes)
@@ -70,13 +72,13 @@ func (p *processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	}
 }
 
-func (p *processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, span *v1_trace.Span) {
+func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, span *v1_trace.Span) {
 	latencySeconds := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 
-	labelValues := make([]string, 0, 4+len(p.cfg.Dimensions))
+	labelValues := make([]string, 0, 4+len(p.Cfg.Dimensions))
 	labelValues = append(labelValues, svcName, span.GetName(), span.GetKind().String(), span.GetStatus().GetCode().String())
 
-	for _, d := range p.cfg.Dimensions {
+	for _, d := range p.Cfg.Dimensions {
 		value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
 		labelValues = append(labelValues, value)
 	}

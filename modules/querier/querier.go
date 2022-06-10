@@ -358,9 +358,6 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		return nil, errors.Wrap(err, "error extracting org id in Querier.SearchTagValues")
 	}
 
-	// fetch response size limit for tag-values query
-	tagValuesLimitBytes := q.limits.MaxBytesPerTagValuesQuery(userID)
-
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTagValues")
@@ -387,10 +384,11 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		uniqueMap[v] = struct{}{}
 	}
 
-	if !util.MapSizeWithinLimit(uniqueMap, tagValuesLimitBytes) {
-		return &tempopb.SearchTagValuesResponse{
-			TagValues: []string{},
-		}, nil
+	// fetch response size limit for tag-values query
+	tagValuesLimitBytes := q.limits.MaxBytesPerTagValuesQuery(userID)
+	if tagValuesLimitBytes > 0 && !util.MapSizeWithinLimit(uniqueMap, tagValuesLimitBytes) {
+		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID)
+		return nil, fmt.Errorf("tag values exceeded allowed max bytes (%d)", tagValuesLimitBytes)
 	}
 
 	// Final response (sorted)

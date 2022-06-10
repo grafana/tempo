@@ -109,7 +109,7 @@ func TestIteratorPartialPaged(t *testing.T) {
 	assertIterator(t, iterator, ids[950:], objs[950:])
 }
 
-func assertIterator(t *testing.T, iter Iterator, ids []common.ID, objs [][]byte) {
+func assertIterator(t *testing.T, iter common.Iterator, ids []common.ID, objs [][]byte) {
 	for {
 		id, obj, err := iter.Next(context.Background())
 		if err == io.EOF {

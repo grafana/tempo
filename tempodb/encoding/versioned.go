@@ -1,9 +1,10 @@
 package encoding
 
 import (
+	"context"
 	"fmt"
-	"io"
 
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
@@ -15,15 +16,26 @@ import (
 type VersionedEncoding interface {
 	Version() string
 
-	NewDataWriter(writer io.Writer, encoding backend.Encoding) (common.DataWriter, error)
-	NewIndexWriter(pageSizeBytes int) common.IndexWriter
+	// OpenBlock for reading
+	OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error)
 
-	NewDataReader(ra backend.ContextReader, encoding backend.Encoding) (common.DataReader, error)
-	NewIndexReader(ra backend.ContextReader, pageSizeBytes int, totalPages int) (common.IndexReader, error)
-
-	NewObjectReaderWriter() common.ObjectReaderWriter
-
+	// NewCompactor creates a Compactor that can be used to combine blocks of this
+	// encoding. It is expected to use internal details for efficiency.
 	NewCompactor() common.Compactor
+
+	// CreateBlock with the given attributes and trace contents.
+	// BlockMeta is used as a container for many options. Required fields:
+	// * BlockID
+	// * TenantID
+	// * Encoding
+	// * DataEncoding
+	// * StartTime
+	// * EndTime
+	// * TotalObjects
+	CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, dec model.ObjectDecoder, to backend.Writer) (*backend.BlockMeta, error)
+
+	// CopyBlock from one backend to another.
+	CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error
 }
 
 // FromVersion returns a versioned encoding for the provided string
@@ -46,4 +58,22 @@ func allEncodings() []VersionedEncoding {
 	return []VersionedEncoding{
 		v2.Encoding{},
 	}
+}
+
+// OpenBlock for reading in the backend. It automatically chooes the encoding for the given block.
+func OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error) {
+	v, err := FromVersion(meta.Version)
+	if err != nil {
+		return nil, err
+	}
+	return v.OpenBlock(meta, r)
+}
+
+// CopyBlock from one backend to another. It automatically chooses the encoding for the given block.
+func CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error {
+	v, err := FromVersion(meta.Version)
+	if err != nil {
+		return err
+	}
+	return v.CopyBlock(ctx, meta, from, to)
 }

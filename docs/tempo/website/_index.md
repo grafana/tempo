@@ -1,10 +1,10 @@
 ---
-title: Tempo Documentation
+title: Tempo documentation
 aliases:
   - /docs/tempo/
 ---
 
-# Tempo Documentation
+# Tempo documentation
 
 <p align="center"><img src="logo_and_name.png" alt="Tempo Logo"></p>
 

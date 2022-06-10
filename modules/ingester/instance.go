@@ -29,8 +29,8 @@ import (
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/search"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -519,12 +519,12 @@ func (i *instance) resetHeadBlock() error {
 	i.lastBlockCut = time.Now()
 
 	// Create search data wal file
-	f, version, enc, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir)
+	f, enc, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir)
 	if err != nil {
 		return err
 	}
 
-	b, err := search.NewStreamingSearchBlockForFile(f, i.headBlock.BlockID(), version, enc)
+	b, err := search.NewStreamingSearchBlockForFile(f, i.headBlock.BlockID(), enc)
 	if err != nil {
 		return err
 	}
@@ -625,7 +625,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*wal.LocalBlock
 			return nil, err
 		}
 
-		b, err := v2.NewBackendBlock(meta, i.localReader)
+		b, err := encoding.OpenBlock(meta, i.localReader)
 		if err != nil {
 			return nil, err
 		}

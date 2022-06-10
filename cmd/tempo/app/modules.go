@@ -53,6 +53,8 @@ func (t *App) initServer() (services.Service, error) {
 	t.cfg.Server.MetricsNamespace = metricsNamespace
 	t.cfg.Server.ExcludeRequestInLog = true
 
+	prometheus.MustRegister(&t.cfg)
+
 	DisableSignalHandling(&t.cfg.Server)
 
 	server, err := server.New(t.cfg.Server)
@@ -168,7 +170,7 @@ func (t *App) initQuerier() (services.Service, error) {
 		// if we're in single binary mode with no worker address specified, register default endpoint
 		if t.cfg.Querier.Worker.FrontendAddress == "" {
 			t.cfg.Querier.Worker.FrontendAddress = fmt.Sprintf("127.0.0.1:%d", t.cfg.Server.GRPCListenPort)
-			level.Warn(log.Logger).Log("msg", "Worker address is empty in single binary mode.  Attempting automatic worker configuration.  If queries are unresponsive consider configuring the worker explicitly.", "address", t.cfg.Querier.Worker.FrontendAddress)
+			level.Warn(log.Logger).Log("msg", "Worker address is empty in single binary mode. Attempting automatic worker configuration. If queries are unresponsive consider configuring the worker explicitly.", "address", t.cfg.Querier.Worker.FrontendAddress)
 		}
 	}
 
@@ -215,7 +217,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	t.frontend = v1
 
 	// create query frontend
-	queryFrontend, err := frontend.New(t.cfg.Frontend, cortexTripper, t.store, log.Logger, prometheus.DefaultRegisterer)
+	queryFrontend, err := frontend.New(t.cfg.Frontend, cortexTripper, t.overrides, t.store, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
@@ -327,7 +329,7 @@ func (t *App) setupModuleManager() error {
 		// Store:        nil,
 		Overrides:            {Server},
 		MemberlistKV:         {Server},
-		QueryFrontend:        {Store, Server},
+		QueryFrontend:        {Store, Server, Overrides},
 		Ring:                 {Server, MemberlistKV},
 		MetricsGeneratorRing: {Server, MemberlistKV},
 		Distributor:          {Ring, Server, Overrides},

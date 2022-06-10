@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -22,6 +25,76 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/search"
 )
+
+func TestInstanceSearch(t *testing.T) {
+	limits, err := overrides.NewOverrides(overrides.Limits{})
+	assert.NoError(t, err, "unexpected error creating limits")
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	tempDir := t.TempDir()
+
+	ingester, _, _ := defaultIngester(t, tempDir)
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+	assert.NoError(t, err, "unexpected error creating new instance")
+
+	var tagKey = "foo"
+	var tagValue = "bar"
+	ids, _ := writeTracesWithSearchData(t, i, tagKey, tagValue, false)
+
+	var req = &tempopb.SearchRequest{
+		Tags: map[string]string{},
+	}
+	req.Tags[tagKey] = tagValue
+
+	sr, err := i.Search(context.Background(), req)
+	assert.NoError(t, err)
+	assert.Len(t, sr.Traces, len(ids))
+	// todo: test that returned results are in sorted time order, create order of id's beforehand
+	checkEqual(t, ids, sr)
+
+	// Test after appending to WAL
+	err = i.CutCompleteTraces(0, true)
+	require.NoError(t, err)
+	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+
+	sr, err = i.Search(context.Background(), req)
+	assert.NoError(t, err)
+	assert.Len(t, sr.Traces, len(ids))
+	checkEqual(t, ids, sr)
+
+	// Test after cutting new headblock
+	blockID, err := i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+	assert.NotEqual(t, blockID, uuid.Nil)
+
+	sr, err = i.Search(context.Background(), req)
+	assert.NoError(t, err)
+	assert.Len(t, sr.Traces, len(ids))
+	checkEqual(t, ids, sr)
+
+	// Test after completing a block
+	err = i.CompleteBlock(blockID)
+	require.NoError(t, err)
+
+	sr, err = i.Search(context.Background(), req)
+	assert.NoError(t, err)
+	assert.Len(t, sr.Traces, len(ids))
+	checkEqual(t, ids, sr)
+
+	err = ingester.stopping(nil)
+	require.NoError(t, err)
+
+	// create new ingester.  this should replay wal!
+	ingester, _, _ = defaultIngester(t, tempDir)
+
+	i, ok := ingester.getInstanceByID("fake")
+	assert.True(t, ok)
+
+	sr, err = i.Search(context.Background(), req)
+	assert.NoError(t, err)
+	assert.Len(t, sr.Traces, len(ids))
+	checkEqual(t, ids, sr)
+}
 
 func checkEqual(t *testing.T, ids [][]byte, sr *tempopb.SearchResponse) {
 	for _, meta := range sr.Traces {
@@ -38,7 +111,7 @@ func checkEqual(t *testing.T, ids [][]byte, sr *tempopb.SearchResponse) {
 	}
 }
 
-func TestInstanceSearch(t *testing.T) {
+func TestInstanceSearchTags(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
 	assert.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
@@ -49,13 +122,87 @@ func TestInstanceSearch(t *testing.T) {
 	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
-	numTraces := 500
-	searchAnnotatedFractionDenominator := 100
-	ids := [][]byte{}
-
 	// add dummy search data
 	var tagKey = "foo"
 	var tagValue = "bar"
+
+	_, expectedTagValues := writeTracesWithSearchData(t, i, tagKey, tagValue, true)
+
+	userCtx := user.InjectOrgID(context.Background(), "fake")
+	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
+
+	// Test after appending to WAL
+	err = i.CutCompleteTraces(0, true)
+	require.NoError(t, err)
+	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+
+	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
+
+	// Test after cutting new headblock
+	blockID, err := i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+	assert.NotEqual(t, blockID, uuid.Nil)
+
+	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
+
+	// Test after completing a block
+	err = i.CompleteBlock(blockID)
+	require.NoError(t, err)
+
+	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
+}
+
+// nolint:revive,unparam
+func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tagName string, expectedTagValues []string) {
+	sr, err := i.SearchTags(ctx)
+	require.NoError(t, err)
+	srv, err := i.SearchTagValues(ctx, tagName)
+	require.NoError(t, err)
+
+	sort.Strings(srv.TagValues)
+	assert.Len(t, sr.TagNames, 1)
+	assert.Equal(t, tagName, sr.TagNames[0])
+	assert.Equal(t, expectedTagValues, srv.TagValues)
+}
+
+// TestInstanceSearchMaxBytesPerTagValuesQueryFails confirms that SearchTagValues returns
+//  an error if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
+func TestInstanceSearchMaxBytesPerTagValuesQueryFails(t *testing.T) {
+	limits, err := overrides.NewOverrides(overrides.Limits{
+		MaxBytesPerTagValuesQuery: 10,
+	})
+	assert.NoError(t, err, "unexpected error creating limits")
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	tempDir := t.TempDir()
+
+	ingester, _, _ := defaultIngester(t, tempDir)
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+	assert.NoError(t, err, "unexpected error creating new instance")
+
+	var tagKey = "foo"
+	var tagValue = "bar"
+
+	_, _ = writeTracesWithSearchData(t, i, tagKey, tagValue, true)
+
+	userCtx := user.InjectOrgID(context.Background(), "fake")
+	srv, err := i.SearchTagValues(userCtx, tagKey)
+	assert.Error(t, err)
+	assert.Nil(t, srv)
+}
+
+// writes traces to the given instance along with search data. returns
+//  ids expected to be returned from a tag search and strings expected to
+//  be returned from a tag value search
+func writeTracesWithSearchData(t *testing.T, i *instance, tagKey string, tagValue string, postFixValue bool) ([][]byte, []string) {
+	// This matches the encoding for live traces, since
+	// we are pushing to the instance directly it must match.
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	numTraces := 100
+	searchAnnotatedFractionDenominator := 10
+	ids := [][]byte{}
+	expectedTagValues := []string{}
 
 	for j := 0; j < numTraces; j++ {
 		id := make([]byte, 16)
@@ -63,19 +210,24 @@ func TestInstanceSearch(t *testing.T) {
 
 		testTrace := test.MakeTrace(10, id)
 		trace.SortTrace(testTrace)
-		traceBytes, err := testTrace.Marshal()
+		traceBytes, err := dec.PrepareForWrite(testTrace, 0, 0)
 		require.NoError(t, err)
 
 		// annotate just a fraction of traces with search data
 		var searchData []byte
 		if j%searchAnnotatedFractionDenominator == 0 {
+			tv := tagValue
+			if postFixValue {
+				tv = tv + strconv.Itoa(j)
+			}
+
 			data := &tempofb.SearchEntryMutable{}
 			data.TraceID = id
-			data.AddTag(tagKey, tagValue)
+			data.AddTag(tagKey, tv)
 			searchData = data.ToBytes()
 
-			// these are the only ids we want to test against
-			ids = append(ids, id)
+			expectedTagValues = append(expectedTagValues, tv)
+			ids = append(ids, data.TraceID)
 		}
 
 		// searchData will be nil if not
@@ -85,59 +237,7 @@ func TestInstanceSearch(t *testing.T) {
 		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 	}
 
-	var req = &tempopb.SearchRequest{
-		Tags: map[string]string{},
-	}
-	req.Tags[tagKey] = tagValue
-
-	sr, err := i.Search(context.Background(), req)
-	assert.NoError(t, err)
-	assert.Len(t, sr.Traces, numTraces/searchAnnotatedFractionDenominator)
-	// todo: test that returned results are in sorted time order, create order of id's beforehand
-	checkEqual(t, ids, sr)
-
-	// Test after appending to WAL
-	err = i.CutCompleteTraces(0, true)
-	require.NoError(t, err)
-	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
-
-	sr, err = i.Search(context.Background(), req)
-	assert.NoError(t, err)
-	assert.Len(t, sr.Traces, numTraces/searchAnnotatedFractionDenominator)
-	checkEqual(t, ids, sr)
-
-	// Test after cutting new headblock
-	blockID, err := i.CutBlockIfReady(0, 0, true)
-	require.NoError(t, err)
-	assert.NotEqual(t, blockID, uuid.Nil)
-
-	sr, err = i.Search(context.Background(), req)
-	assert.NoError(t, err)
-	assert.Len(t, sr.Traces, numTraces/searchAnnotatedFractionDenominator)
-	checkEqual(t, ids, sr)
-
-	// Test after completing a block
-	err = i.CompleteBlock(blockID)
-	require.NoError(t, err)
-
-	sr, err = i.Search(context.Background(), req)
-	assert.NoError(t, err)
-	assert.Len(t, sr.Traces, numTraces/searchAnnotatedFractionDenominator)
-	checkEqual(t, ids, sr)
-
-	err = ingester.stopping(nil)
-	require.NoError(t, err)
-
-	// create new ingester.  this should replay wal!
-	ingester, _, _ = defaultIngester(t, tempDir)
-
-	i, ok := ingester.getInstanceByID("fake")
-	assert.True(t, ok)
-
-	sr, err = i.Search(context.Background(), req)
-	assert.NoError(t, err)
-	assert.Len(t, sr.Traces, numTraces/searchAnnotatedFractionDenominator)
-	checkEqual(t, ids, sr)
+	return ids, expectedTagValues
 }
 
 func TestInstanceSearchNoData(t *testing.T) {
@@ -167,6 +267,10 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	require.NoError(t, err)
 
+	// This matches the encoding for live traces, since
+	// we are pushing to the instance directly it must match.
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
 	// add dummy search data
 	var tagKey = "foo"
 	var tagValue = "bar"
@@ -193,7 +297,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		rand.Read(id)
 
 		trace := test.MakeTrace(10, id)
-		traceBytes, err := trace.Marshal()
+		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 		require.NoError(t, err)
 
 		searchData := &tempofb.SearchEntryMutable{}
@@ -269,6 +373,10 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
 	require.NoError(t, err)
 
+	// This matches the encoding for live traces, since
+	// we are pushing to the instance directly it must match.
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
 	end := make(chan struct{})
 
 	concurrent := func(f func()) {
@@ -287,7 +395,7 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 		rand.Read(id)
 
 		trace := test.MakeTrace(10, id)
-		traceBytes, err := trace.Marshal()
+		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 		require.NoError(t, err)
 
 		entry := &tempofb.SearchEntryMutable{}
@@ -332,14 +440,19 @@ func TestInstanceSearchMetrics(t *testing.T) {
 
 	i := defaultInstance(t, t.TempDir())
 
+	// This matches the encoding for live traces, since
+	// we are pushing to the instance directly it must match.
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
 	numTraces := uint32(500)
 	numBytes := uint64(0)
 	for j := uint32(0); j < numTraces; j++ {
-		id := make([]byte, 16)
-		rand.Read(id)
+		id := test.ValidTraceID(nil)
 
+		// Trace bytes have to be pushed in the expected data encoding
 		trace := test.MakeTrace(10, id)
-		traceBytes, err := trace.Marshal()
+
+		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 		require.NoError(t, err)
 
 		data := &tempofb.SearchEntryMutable{}
@@ -403,6 +516,10 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 
 	i := defaultInstance(b, b.TempDir())
 
+	// This matches the encoding for live traces, since
+	// we are pushing to the instance directly it must match.
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
 	end := make(chan struct{})
 
 	concurrent := func(f func()) {
@@ -420,11 +537,10 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	var tracesPushed atomic.Int32
 	for j := 0; j < 2; j++ {
 		go concurrent(func() {
-			id := make([]byte, 16)
-			rand.Read(id)
+			id := test.ValidTraceID(nil)
 
 			trace := test.MakeTrace(10, id)
-			traceBytes, err := trace.Marshal()
+			traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 			require.NoError(b, err)
 
 			searchData := &tempofb.SearchEntryMutable{}

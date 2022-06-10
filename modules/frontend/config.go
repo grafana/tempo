@@ -25,7 +25,7 @@ type Config struct {
 }
 
 type SearchConfig struct {
-	Sharder SearchSharderConfig `yaml:",inline"` // jpe - what did this look like before
+	Sharder SearchSharderConfig `yaml:",inline"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {

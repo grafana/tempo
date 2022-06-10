@@ -36,8 +36,8 @@ func TestServiceGraphs(t *testing.T) {
 
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: traces.Batches})
 
-	// Manually call expire to force collection of edges.
-	sgp := p.(*processor)
+	// Manually call expire to force removal of completed edges.
+	sgp := p.(*Processor)
 	sgp.store.Expire()
 
 	lbAppLabels := labels.FromMap(map[string]string{
@@ -98,7 +98,7 @@ func TestServiceGraphs_tooManySpansErr(t *testing.T) {
 	traces, err := loadTestData("testdata/test-sample.json")
 	require.NoError(t, err)
 
-	err = p.(*processor).consume(traces.Batches)
+	err = p.(*Processor).consume(traces.Batches)
 	assert.True(t, errors.As(err, &tooManySpansError{}))
 }
 

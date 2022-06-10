@@ -9,7 +9,6 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
@@ -32,19 +31,13 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, rw backend.Writer, block
 	kv := &tempofb.KeyValues{}  // buffer
 	s := &tempofb.SearchEntry{} // buffer
 
-	// Pinning specific version instead of latest for safety
-	version, err := encoding.FromVersion("v2")
-	if err != nil {
-		return err
-	}
-
 	if pageSizeBytes <= 0 {
 		pageSizeBytes = defaultBackendSearchBlockPageSize
 	}
 
 	header := tempofb.NewSearchBlockHeaderMutable()
 
-	w, err := newBackendSearchBlockWriter(blockID, tenantID, rw, version, enc)
+	w, err := newBackendSearchBlockWriter(blockID, tenantID, rw, enc)
 	if err != nil {
 		return err
 	}
@@ -101,7 +94,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, rw backend.Writer, block
 
 	// Write index
 	ir := a.Records()
-	i := version.NewIndexWriter(indexPageSize)
+	i := v2.NewIndexWriter(indexPageSize)
 	indexBytes, err := i.Write(ir)
 	if err != nil {
 		return err
@@ -122,7 +115,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, rw backend.Writer, block
 	sm := &BlockMeta{
 		IndexPageSize: uint32(indexPageSize),
 		IndexRecords:  uint32(len(ir)),
-		Version:       version.Version(),
+		Version:       v2.VersionString,
 		Encoding:      enc,
 	}
 	return WriteSearchBlockMeta(ctx, rw, blockID, tenantID, sm)
@@ -202,11 +195,6 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 		return err
 	}
 
-	vers, err := encoding.FromVersion(meta.Version)
-	if err != nil {
-		return err
-	}
-
 	// Read header
 	// Verify something in the block matches by checking the header
 	hb, err := s.r.Read(ctx, "search-header", s.id, s.tenantID, true)
@@ -229,18 +217,18 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 	bmeta := backend.NewBlockMeta(s.tenantID, s.id, meta.Version, meta.Encoding, "")
 	cr := backend.NewContextReader(bmeta, "search-index", s.r, false)
 
-	ir, err := vers.NewIndexReader(cr, int(meta.IndexPageSize), int(meta.IndexRecords))
+	ir, err := v2.NewIndexReader(cr, int(meta.IndexPageSize), int(meta.IndexRecords))
 	if err != nil {
 		return err
 	}
 
 	dcr := backend.NewContextReader(bmeta, "search", s.r, false)
-	dr, err := vers.NewDataReader(dcr, meta.Encoding)
+	dr, err := v2.NewDataReader(dcr, meta.Encoding)
 	if err != nil {
 		return err
 	}
 
-	or := vers.NewObjectReaderWriter()
+	or := v2.NewObjectReaderWriter()
 
 	i := -1
 
