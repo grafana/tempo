@@ -8,6 +8,7 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
@@ -15,6 +16,8 @@ import (
 // ring.New method so we can use our own replication strategy for repl factor = 2
 func New(cfg ring.Config, name, key string, reg prometheus.Registerer) (*ring.Ring, error) {
 	reg = prometheus.WrapRegistererWithPrefix("cortex_", reg)
+
+	usagestats.NewInt("replication_factor").Set(int64(cfg.ReplicationFactor))
 
 	if cfg.ReplicationFactor == 2 {
 		return newEventuallyConsistentRing(cfg, name, key, reg)
