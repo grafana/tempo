@@ -1,5 +1,3 @@
-# todo: get docker run working?
-# PACK=docker run -u ${shell id -u} -v /var/run/docker.sock:/var/run/docker.sock -v $(PWD):/workspace -w /workspace buildpacksio/pack
 PACK=pack
 VERSION=$(shell ../../tools/image-tag | cut -d, -f 1)
 

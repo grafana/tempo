@@ -8,7 +8,8 @@
 #
 # build the serverless container image
 #
-FROM alpine:3.15 as certs
+#  todo: FROM scratch saves ~5MB which could be meaningful in a serverless setting, but using scratch gave strange errors on query.
+FROM alpine:3.15 as certs 
 RUN apk --update add ca-certificates
 COPY ./main /main
 ENTRYPOINT ["/main"]
