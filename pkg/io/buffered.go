@@ -6,8 +6,6 @@ import (
 
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
-
-	"github.com/grafana/tempo/pkg/tempopb/pool"
 )
 
 // bufferedReader implements io.ReaderAt but extends and buffers reads up to the given buffer size.
@@ -174,7 +172,6 @@ type BufferedWriterWithQueue struct {
 
 	flushCh chan []byte
 	doneCh  chan struct{}
-	pool    *pool.Pool
 	err     atomic.Error
 }
 
@@ -186,7 +183,6 @@ func NewBufferedWriterWithQueue(w io.Writer) BufferedWriteFlusher {
 		buf:     nil,
 		flushCh: make(chan []byte, 10), // todo: guess better?
 		doneCh:  make(chan struct{}),
-		pool:    pool.New(30_000_000, 30_000_000, 1.1, func(size int) []byte { return make([]byte, 0, size) }),
 	}
 
 	go b.flushLoop()
@@ -208,7 +204,7 @@ func (b *BufferedWriterWithQueue) Flush() error {
 		return errors.Wrap(err, "error in async write using buffered writer")
 	}
 
-	bufCopy := b.pool.Get(len(b.buf))
+	bufCopy := make([]byte, 0, len(b.buf))
 	bufCopy = append(bufCopy, b.buf...)
 
 	// reset/resize buffer
@@ -225,15 +221,11 @@ func (b *BufferedWriterWithQueue) flushLoop() {
 	// for-range will exit once channel is closed
 	// https://dave.cheney.net/tag/golang-3
 	for buf := range b.flushCh {
-		n, err := b.w.Write(buf)
+		_, err := b.w.Write(buf)
 		if err != nil {
 			b.err.Store(err)
 			return
 		}
-
-		// put buffer back into the pool for use by the next backend write
-		buf = buf[:len(buf)-n]
-		b.pool.Put(buf)
 	}
 }
 
