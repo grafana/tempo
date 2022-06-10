@@ -4,6 +4,15 @@
 * [CHANGE] Don't enforce `max_bytes_per_tag_values_query` when set to 0. [#1447](https://github.com/grafana/tempo/pull/1447) (@joe-elliott)
 * [CHANGE] Add new querier service in deployment jsonnet to serve `/status` endpoint. [#1474](https://github.com/grafana/tempo/pull/1474) (@annanay25)
 * [CHANGE] **BREAKING CHANGE** Change spanmetrics metric names and labels to match OTel conventions. [#1478](https://github.com/grafana/tempo/pull/1478) (@mapno)
+Old metric names:
+```
+traces_spanmetrics_duration_seconds_{sum,count,bucket}
+```
+New metric names:
+```
+traces_spanmetrics_latency_{sum,count,bucket}
+```
+Additionally, default label `span_status` is renamed to `status_code`.
 * [FEATURE] metrics-generator: support per-tenant processor configuration [#1434](https://github.com/grafana/tempo/pull/1434) (@kvrhdn)
 * [FEATURE] Include rollout dashboard [#1456](https://github.com/grafana/tempo/pull/1456) (@zalegrala)
 * [FEATURE] Add SentinelPassword configuration for Redis [#1463](https://github.com/grafana/tempo/pull/1463) (@zalegrala)
