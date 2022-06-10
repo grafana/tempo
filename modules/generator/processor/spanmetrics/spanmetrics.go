@@ -18,7 +18,7 @@ import (
 
 const (
 	metricCallsTotal      = "traces_spanmetrics_calls_total"
-	metricDurationSeconds = "traces_spanmetrics_duration_seconds"
+	metricDurationSeconds = "traces_spanmetrics_latency"
 )
 
 type Processor struct {
@@ -32,7 +32,7 @@ type Processor struct {
 }
 
 func New(cfg Config, registry registry.Registry) gen.Processor {
-	labels := []string{"service", "span_name", "span_kind", "span_status"}
+	labels := []string{"service", "span_name", "span_kind", "status_code"}
 	for _, d := range cfg.Dimensions {
 		labels = append(labels, strutil.SanitizeLabelName(d))
 	}
