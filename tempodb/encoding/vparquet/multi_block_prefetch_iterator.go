@@ -15,20 +15,22 @@ type bookmark struct {
 	currentErr    atomic.Error
 
 	resultsCh chan *Trace
+	quitCh    chan struct{}
 }
 
-func newBookmark(iter *iterator) *bookmark {
+func newBookmark(ctx context.Context, iter *iterator, bufferSize int) *bookmark {
 	b := &bookmark{
 		iter:      iter,
-		resultsCh: make(chan *Trace, 75),
+		resultsCh: make(chan *Trace, bufferSize),
+		quitCh:    make(chan struct{}),
 	}
 
-	go b.prefetchLoop()
+	go b.prefetchLoop(ctx)
 
 	return b
 }
 
-func (b *bookmark) prefetchLoop() {
+func (b *bookmark) prefetchLoop(ctx context.Context) {
 	defer close(b.resultsCh)
 
 	for {
@@ -41,9 +43,19 @@ func (b *bookmark) prefetchLoop() {
 			return
 		}
 
-		// Send results. Blocks until available buffer in channel
-		// created by receiving in Next()
-		b.resultsCh <- t
+		select {
+		case <-ctx.Done():
+			b.currentErr.Store(err)
+			return
+
+		case <-b.quitCh:
+			// Signalled to quit early
+			return
+
+		case b.resultsCh <- t:
+			// Send results. Blocks until available buffer in channel
+			// created by receiving in current()
+		}
 	}
 }
 
@@ -80,17 +92,24 @@ func (b *bookmark) clear() {
 	b.currentObject = nil
 }
 
+func (b *bookmark) close() {
+	close(b.quitCh)
+}
+
 type MultiBlockPrefetchIterator struct {
 	bookmarks []*bookmark
 }
 
-func NewMultiblockPrefetchIterator(ctx context.Context, bookmarks []*bookmark, bufferSize int) *MultiBlockPrefetchIterator {
+func NewMultiblockPrefetchIterator(ctx context.Context, bookmarks []*bookmark) *MultiBlockPrefetchIterator {
 	return &MultiBlockPrefetchIterator{
 		bookmarks: bookmarks,
 	}
 }
 
 func (m *MultiBlockPrefetchIterator) Close() {
+	for _, b := range m.bookmarks {
+		b.close()
+	}
 }
 
 func (m *MultiBlockPrefetchIterator) Next(ctx context.Context) (*Trace, error) {

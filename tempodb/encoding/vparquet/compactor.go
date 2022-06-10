@@ -46,7 +46,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			return nil, err
 		}
 
-		bookmarks = append(bookmarks, newBookmark(iter))
+		bookmarks = append(bookmarks, newBookmark(ctx, iter, opts.PrefetchTraceCount/len(inputs)))
 	}
 
 	nextCompactionLevel := compactionLevel + 1
@@ -54,7 +54,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	recordsPerBlock := (totalRecords / int(opts.OutputBlocks))
 
 	var currentBlock *streamingBlock
-	m := NewMultiblockPrefetchIterator(ctx, bookmarks, opts.PrefetchTraceCount)
+	m := NewMultiblockPrefetchIterator(ctx, bookmarks)
 	defer m.Close()
 
 	for {
