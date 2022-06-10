@@ -141,7 +141,7 @@ func (t *TraceInfo) makeThriftBatch(TraceIDHigh int64, TraceIDLow int64) *thrift
 			OperationName: fmt.Sprintf("vulture-%d", t.generateRandomInt(0, 100)),
 			References:    nil,
 			Flags:         0,
-			StartTime:     time.Now().UnixMicro(),
+			StartTime:     t.timestamp.UnixMicro(),
 			Duration:      t.generateRandomInt(0, 100),
 			Tags:          t.generateRandomTags(),
 			Logs:          t.generateRandomLogs(),
@@ -183,7 +183,7 @@ func (t *TraceInfo) generateRandomLogs() []*thrift.Log {
 	count := t.generateRandomInt(1, 5)
 	for i := int64(0); i < count; i++ {
 		logs = append(logs, &thrift.Log{
-			Timestamp: time.Now().UnixMicro(),
+			Timestamp: t.timestamp.UnixMicro(),
 			Fields:    t.generateRandomTags(),
 		})
 	}
