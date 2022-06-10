@@ -130,7 +130,7 @@ distributor:
     # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs
     log_received_spans:
         [enabled: <boolean> | default = false]
-        [include_attributes: <boolean> | default = false]
+        [include_all_attributes: <boolean> | default = false]
         [filter_by_status_error: <boolean> | default = false]
 
     # Optional.

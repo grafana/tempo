@@ -285,8 +285,8 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 	}
 
 	if d.cfg.LogReceivedSpans.Enabled || d.cfg.LogReceivedTraces {
-		if d.cfg.LogReceivedSpans.IncludeAttributes {
-			logSpansWithAttributes(batches, d.cfg.LogReceivedSpans.FilterByStatusError, d.logger)
+		if d.cfg.LogReceivedSpans.IncludeAllAttributes {
+			logSpansWithAllAttributes(batches, d.cfg.LogReceivedSpans.FilterByStatusError, d.logger)
 		} else {
 			logSpans(batches, d.cfg.LogReceivedSpans.FilterByStatusError, d.logger)
 		}
@@ -553,13 +553,13 @@ func logSpans(batches []*v1.ResourceSpans, filterByStatusError bool, logger log.
 	}
 }
 
-func logSpansWithAttributes(batch []*v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {
+func logSpansWithAllAttributes(batch []*v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {
 	for _, b := range batch {
-		logSpansInResourceWithAttributes(b, filterByStatusError, logger)
+		logSpansInResourceWithAllAttributes(b, filterByStatusError, logger)
 	}
 }
 
-func logSpansInResourceWithAttributes(rs *v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {
+func logSpansInResourceWithAllAttributes(rs *v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {
 	for _, a := range rs.Resource.GetAttributes() {
 		logger = log.With(
 			logger,
@@ -573,12 +573,12 @@ func logSpansInResourceWithAttributes(rs *v1.ResourceSpans, filterByStatusError 
 				continue
 			}
 
-			logSpanWithAttributes(s, logger)
+			logSpanWithAllAttributes(s, logger)
 		}
 	}
 }
 
-func logSpanWithAttributes(s *v1.Span, logger log.Logger) {
+func logSpanWithAllAttributes(s *v1.Span, logger log.Logger) {
 	for _, a := range s.GetAttributes() {
 		logger = log.With(
 			logger,

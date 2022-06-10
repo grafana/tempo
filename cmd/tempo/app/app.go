@@ -161,6 +161,10 @@ func (c *Config) CheckConfig() {
 	if c.StorageConfig.Trace.BlocklistPollConcurrency == 0 {
 		level.Warn(log.Logger).Log("msg", "c.StorageConfig.Trace.BlocklistPollConcurrency must be greater than zero. Using default.", "default", tempodb.DefaultBlocklistPollConcurrency)
 	}
+
+	if c.Distributor.LogReceivedTraces {
+		level.Warn(log.Logger).Log("msg", "c.Distributor.LogReceivedTraces is deprecated. The new flag is c.Distributor.log_received_spans.enabled")
+	}
 }
 
 func newDefaultConfig() *Config {

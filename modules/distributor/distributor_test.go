@@ -670,7 +670,7 @@ func TestLogSpans(t *testing.T) {
 		LogReceivedTraces       bool // Backwards compatibility with old config
 		LogReceivedSpansEnabled bool
 		filterByStatusError     bool
-		includeAttributes       bool
+		includeAllAttributes    bool
 		batches                 []*v1.ResourceSpans
 		expectedLogsSpan        []logSpan
 	}{
@@ -778,7 +778,7 @@ func TestLogSpans(t *testing.T) {
 		{
 			LogReceivedSpansEnabled: true,
 			filterByStatusError:     true,
-			includeAttributes:       true,
+			includeAllAttributes:    true,
 			batches: []*v1.ResourceSpans{
 				makeResourceSpans("test-service", []*v1.InstrumentationLibrarySpans{
 					makeInstrumentationLibrary(
@@ -823,7 +823,7 @@ func TestLogSpans(t *testing.T) {
 		{
 			LogReceivedSpansEnabled: true,
 			filterByStatusError:     false,
-			includeAttributes:       true,
+			includeAllAttributes:    true,
 			batches: []*v1.ResourceSpans{
 				makeResourceSpans("test-service", []*v1.InstrumentationLibrarySpans{
 					makeInstrumentationLibrary(
@@ -844,7 +844,7 @@ func TestLogSpans(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(fmt.Sprintf("[%d] TestLogSpans LogReceivedTraces=%v LogReceivedSpansEnabled=%v filterByStatusError=%v includeAttributes=%v", i, tc.LogReceivedTraces, tc.LogReceivedSpansEnabled, tc.filterByStatusError, tc.includeAttributes), func(t *testing.T) {
+		t.Run(fmt.Sprintf("[%d] TestLogSpans LogReceivedTraces=%v LogReceivedSpansEnabled=%v filterByStatusError=%v includeAllAttributes=%v", i, tc.LogReceivedTraces, tc.LogReceivedSpansEnabled, tc.filterByStatusError, tc.includeAllAttributes), func(t *testing.T) {
 			limits := &overrides.Limits{}
 			flagext.DefaultValues(limits)
 
@@ -854,9 +854,9 @@ func TestLogSpans(t *testing.T) {
 			d := prepare(t, limits, nil, logger)
 			d.cfg.LogReceivedTraces = tc.LogReceivedTraces
 			d.cfg.LogReceivedSpans = LogReceivedSpansConfig{
-				Enabled:             tc.LogReceivedSpansEnabled,
-				FilterByStatusError: tc.filterByStatusError,
-				IncludeAttributes:   tc.includeAttributes,
+				Enabled:              tc.LogReceivedSpansEnabled,
+				FilterByStatusError:  tc.filterByStatusError,
+				IncludeAllAttributes: tc.includeAllAttributes,
 			}
 
 			_, err := d.PushBatches(ctx, tc.batches)

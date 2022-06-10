@@ -46,9 +46,9 @@ type Config struct {
 }
 
 type LogReceivedSpansConfig struct {
-	Enabled             bool `yaml:"enabled"`
-	IncludeAttributes   bool `yaml:"include_attributes"`
-	FilterByStatusError bool `yaml:"filter_by_status_error"`
+	Enabled              bool `yaml:"enabled"`
+	IncludeAllAttributes bool `yaml:"include_all_attributes"`
+	FilterByStatusError  bool `yaml:"filter_by_status_error"`
 }
 
 // RegisterFlagsAndApplyDefaults registers flags and applies defaults
@@ -62,6 +62,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	f.BoolVar(&cfg.LogReceivedTraces, util.PrefixConfig(prefix, "log-received-traces"), false, "Enable to log every received trace id to help debug ingestion.")
 	f.BoolVar(&cfg.LogReceivedSpans.Enabled, util.PrefixConfig(prefix, "log-received-spans.enabled"), false, "Enable to log every received span to help debug ingestion or calculate span error distributions using the logs.")
-	f.BoolVar(&cfg.LogReceivedSpans.IncludeAttributes, util.PrefixConfig(prefix, "log-received-spans.include-attributes"), false, "Enable to include span attributes in the logs.")
+	f.BoolVar(&cfg.LogReceivedSpans.IncludeAllAttributes, util.PrefixConfig(prefix, "log-received-spans.include-attributes"), false, "Enable to include span attributes in the logs.")
 	f.BoolVar(&cfg.LogReceivedSpans.FilterByStatusError, util.PrefixConfig(prefix, "log-received-spans.filter-by-status-error"), false, "Enable to filter out spans without status error.")
 }
