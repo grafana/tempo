@@ -183,8 +183,20 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	combiner := trace.NewCombiner()
 	var spanCount, spanCountTotal, traceCountTotal int
+	var (
+		bufDescs [ring.GetBufferSize]ring.InstanceDesc
+		bufHosts [ring.GetBufferSize]string
+		bufZones [ring.GetBufferSize]string
+	)
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
-		replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+		var replicationSet ring.ReplicationSet
+		var err error
+		if q.cfg.QuerySingleIngester {
+			traceKey := util.TokenFor(userID, req.TraceID)
+			replicationSet, err = q.ring.Get(traceKey, ring.Read, bufDescs[:0], bufHosts[:0], bufZones[:0])
+		} else {
+			replicationSet, err = q.ring.GetReplicationSetForOperation(ring.Read)
+		}
 		if err != nil {
 			return nil, errors.Wrap(err, "error finding ingesters in Querier.FindTraceByID")
 		}
