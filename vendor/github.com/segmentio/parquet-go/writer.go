@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"math"
 	"math/bits"
 	"sort"
 
@@ -927,7 +928,10 @@ func (c *writerColumn) resizeBloomFilter(numValues int64) {
 }
 
 func (c *writerColumn) newColumnBuffer() ColumnBuffer {
-	column := c.columnType.NewColumnBuffer(int(c.bufferIndex), int(c.bufferSize))
+	columnBufferCapacity := sort.Search(math.MaxInt32, func(i int) bool {
+		return c.columnType.EstimateSize(i) >= int64(c.bufferSize)
+	})
+	column := c.columnType.NewColumnBuffer(int(c.bufferIndex), columnBufferCapacity)
 	switch {
 	case c.maxRepetitionLevel > 0:
 		column = newRepeatedColumnBuffer(column, c.maxRepetitionLevel, c.maxDefinitionLevel, nullsGoLast)

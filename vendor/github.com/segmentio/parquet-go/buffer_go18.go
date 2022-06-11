@@ -12,9 +12,8 @@ import (
 //
 // See GenericWriter for details about the benefits over the classic Buffer API.
 type GenericBuffer[T any] struct {
-	base    Buffer
-	write   bufferFunc[T]
-	columns columnBufferWriter
+	base  Buffer
+	write bufferFunc[T]
 }
 
 // NewGenericBuffer is like NewBuffer but returns a GenericBuffer[T] suited to write
@@ -43,10 +42,6 @@ func NewGenericBuffer[T any](options ...RowGroupOption) *GenericBuffer[T] {
 	}
 	buf.base.configure(config.Schema)
 	buf.write = bufferFuncOf[T](t, config.Schema)
-	buf.columns = columnBufferWriter{
-		columns: buf.base.columns,
-		values:  make([]Value, 0, defaultValueBufferSize),
-	}
 	return buf
 }
 
@@ -77,8 +72,7 @@ func makeBufferFunc[T any](t reflect.Type, schema *Schema) bufferFunc[T] {
 	size := t.Size()
 	writeRows := writeRowsFuncOf(t, schema, nil)
 	return func(buf *GenericBuffer[T], rows []T) (n int, err error) {
-		defer buf.columns.clear()
-		err = writeRows(&buf.columns, makeArray(rows), size, 0, columnLevels{})
+		err = writeRows(buf.base.columns, makeArrayOf(rows), size, 0, columnLevels{})
 		if err == nil {
 			n = len(rows)
 		}

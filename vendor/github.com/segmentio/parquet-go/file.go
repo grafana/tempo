@@ -541,9 +541,6 @@ func (f *filePages) readDictionaryPage(header *format.PageHeader, page *dataPage
 	if header.DictionaryPageHeader == nil {
 		return ErrMissingPageHeader
 	}
-	if f.index > 0 {
-		return ErrUnexpectedDictionaryPage
-	}
 	f.dictPage, _ = dictPagePool.Get().(*dictPage)
 	if f.dictPage == nil {
 		f.dictPage = new(dictPage)

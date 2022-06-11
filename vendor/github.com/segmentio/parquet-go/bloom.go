@@ -8,7 +8,7 @@ import (
 	"github.com/segmentio/parquet-go/encoding"
 	"github.com/segmentio/parquet-go/encoding/plain"
 	"github.com/segmentio/parquet-go/format"
-	"github.com/segmentio/parquet-go/internal/bits"
+	"github.com/segmentio/parquet-go/internal/unsafecast"
 )
 
 // BloomFilter is an interface allowing applications to test whether a key
@@ -149,12 +149,12 @@ func (splitBlockEncoding) EncodeBoolean(dst, src []byte) ([]byte, error) {
 }
 
 func (splitBlockEncoding) EncodeInt32(dst, src []byte) ([]byte, error) {
-	splitBlockEncodeUint32(bloom.MakeSplitBlockFilter(dst), bits.BytesToUint32(src))
+	splitBlockEncodeUint32(bloom.MakeSplitBlockFilter(dst), unsafecast.BytesToUint32(src))
 	return dst, nil
 }
 
 func (splitBlockEncoding) EncodeInt64(dst, src []byte) ([]byte, error) {
-	splitBlockEncodeUint64(bloom.MakeSplitBlockFilter(dst), bits.BytesToUint64(src))
+	splitBlockEncodeUint64(bloom.MakeSplitBlockFilter(dst), unsafecast.BytesToUint64(src))
 	return dst, nil
 }
 
@@ -164,12 +164,12 @@ func (e splitBlockEncoding) EncodeInt96(dst, src []byte) ([]byte, error) {
 }
 
 func (splitBlockEncoding) EncodeFloat(dst, src []byte) ([]byte, error) {
-	splitBlockEncodeUint32(bloom.MakeSplitBlockFilter(dst), bits.BytesToUint32(src))
+	splitBlockEncodeUint32(bloom.MakeSplitBlockFilter(dst), unsafecast.BytesToUint32(src))
 	return dst, nil
 }
 
 func (splitBlockEncoding) EncodeDouble(dst, src []byte) ([]byte, error) {
-	splitBlockEncodeUint64(bloom.MakeSplitBlockFilter(dst), bits.BytesToUint64(src))
+	splitBlockEncodeUint64(bloom.MakeSplitBlockFilter(dst), unsafecast.BytesToUint64(src))
 	return dst, nil
 }
 
@@ -193,7 +193,7 @@ func (splitBlockEncoding) EncodeByteArray(dst, src []byte) ([]byte, error) {
 func (splitBlockEncoding) EncodeFixedLenByteArray(dst, src []byte, size int) ([]byte, error) {
 	filter := bloom.MakeSplitBlockFilter(dst)
 	if size == 16 {
-		splitBlockEncodeUint128(filter, bits.BytesToUint128(src))
+		splitBlockEncodeUint128(filter, unsafecast.BytesToUint128(src))
 	} else {
 		splitBlockEncodeFixedLenByteArray(filter, src, size)
 	}

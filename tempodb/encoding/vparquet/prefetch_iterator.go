@@ -78,6 +78,6 @@ func (p *prefetchIter) Next(ctx context.Context) (*Trace, error) {
 	}
 }
 
-func (b *prefetchIter) Close() {
-	close(b.quitCh)
+func (p *prefetchIter) Close() {
+	close(p.quitCh)
 }

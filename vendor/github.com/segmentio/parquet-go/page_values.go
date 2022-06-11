@@ -5,7 +5,7 @@ import (
 
 	"github.com/segmentio/parquet-go/deprecated"
 	"github.com/segmentio/parquet-go/encoding/plain"
-	"github.com/segmentio/parquet-go/internal/bits"
+	"github.com/segmentio/parquet-go/internal/unsafecast"
 )
 
 type optionalPageValues struct {
@@ -122,8 +122,7 @@ func (r *booleanPageValues) ReadBooleans(values []bool) (n int, err error) {
 
 func (r *booleanPageValues) ReadValues(values []Value) (n int, err error) {
 	for n < len(values) && r.offset < int(r.page.numValues) {
-		values[n] = makeValueBoolean(r.page.valueAt(r.offset))
-		values[n].columnIndex = r.page.columnIndex
+		values[n] = r.page.makeValue(r.page.valueAt(r.offset))
 		r.offset++
 		n++
 	}
@@ -139,7 +138,7 @@ type int32PageValues struct {
 }
 
 func (r *int32PageValues) Read(b []byte) (n int, err error) {
-	n, err = r.ReadInt32s(bits.BytesToInt32(b))
+	n, err = r.ReadInt32s(unsafecast.BytesToInt32(b))
 	return 4 * n, err
 }
 
@@ -154,8 +153,7 @@ func (r *int32PageValues) ReadInt32s(values []int32) (n int, err error) {
 
 func (r *int32PageValues) ReadValues(values []Value) (n int, err error) {
 	for n < len(values) && r.offset < len(r.page.values) {
-		values[n] = makeValueInt32(r.page.values[r.offset])
-		values[n].columnIndex = r.page.columnIndex
+		values[n] = r.page.makeValue(r.page.values[r.offset])
 		r.offset++
 		n++
 	}
@@ -171,7 +169,7 @@ type int64PageValues struct {
 }
 
 func (r *int64PageValues) Read(b []byte) (n int, err error) {
-	n, err = r.ReadInt64s(bits.BytesToInt64(b))
+	n, err = r.ReadInt64s(unsafecast.BytesToInt64(b))
 	return 8 * n, err
 }
 
@@ -186,8 +184,7 @@ func (r *int64PageValues) ReadInt64s(values []int64) (n int, err error) {
 
 func (r *int64PageValues) ReadValues(values []Value) (n int, err error) {
 	for n < len(values) && r.offset < len(r.page.values) {
-		values[n] = makeValueInt64(r.page.values[r.offset])
-		values[n].columnIndex = r.page.columnIndex
+		values[n] = r.page.makeValue(r.page.values[r.offset])
 		r.offset++
 		n++
 	}
@@ -218,8 +215,7 @@ func (r *int96PageValues) ReadInt96s(values []deprecated.Int96) (n int, err erro
 
 func (r *int96PageValues) ReadValues(values []Value) (n int, err error) {
 	for n < len(values) && r.offset < len(r.page.values) {
-		values[n] = makeValueInt96(r.page.values[r.offset])
-		values[n].columnIndex = r.page.columnIndex
+		values[n] = r.page.makeValue(r.page.values[r.offset])
 		r.offset++
 		n++
 	}
@@ -235,7 +231,7 @@ type floatPageValues struct {
 }
 
 func (r *floatPageValues) Read(b []byte) (n int, err error) {
-	n, err = r.ReadFloats(bits.BytesToFloat32(b))
+	n, err = r.ReadFloats(unsafecast.BytesToFloat32(b))
 	return 4 * n, err
 }
 
@@ -250,8 +246,7 @@ func (r *floatPageValues) ReadFloats(values []float32) (n int, err error) {
 
 func (r *floatPageValues) ReadValues(values []Value) (n int, err error) {
 	for n < len(values) && r.offset < len(r.page.values) {
-		values[n] = makeValueFloat(r.page.values[r.offset])
-		values[n].columnIndex = r.page.columnIndex
+		values[n] = r.page.makeValue(r.page.values[r.offset])
 		r.offset++
 		n++
 	}
@@ -267,7 +262,7 @@ type doublePageValues struct {
 }
 
 func (r *doublePageValues) Read(b []byte) (n int, err error) {
-	n, err = r.ReadDoubles(bits.BytesToFloat64(b))
+	n, err = r.ReadDoubles(unsafecast.BytesToFloat64(b))
 	return 8 * n, err
 }
 
@@ -282,8 +277,7 @@ func (r *doublePageValues) ReadDoubles(values []float64) (n int, err error) {
 
 func (r *doublePageValues) ReadValues(values []Value) (n int, err error) {
 	for n < len(values) && r.offset < len(r.page.values) {
-		values[n] = makeValueDouble(r.page.values[r.offset])
-		values[n].columnIndex = r.page.columnIndex
+		values[n] = r.page.makeValue(r.page.values[r.offset])
 		r.offset++
 		n++
 	}
@@ -337,8 +331,7 @@ func (r *byteArrayPageValues) readByteArrays(values []byte) (c, n int, err error
 func (r *byteArrayPageValues) ReadValues(values []Value) (n int, err error) {
 	for n < len(values) && r.offset < len(r.page.values) {
 		value := r.page.valueAt(uint32(r.offset))
-		values[n] = makeValueBytes(ByteArray, value)
-		values[n].columnIndex = r.page.columnIndex
+		values[n] = r.page.makeValueBytes(value)
 		r.offset += plain.ByteArrayLengthSize
 		r.offset += len(value)
 		n++
@@ -376,8 +369,7 @@ func (r *fixedLenByteArrayPageValues) ReadFixedLenByteArrays(values []byte) (n i
 
 func (r *fixedLenByteArrayPageValues) ReadValues(values []Value) (n int, err error) {
 	for n < len(values) && r.offset < len(r.page.data) {
-		values[n] = makeValueBytes(FixedLenByteArray, r.page.data[r.offset:r.offset+r.page.size])
-		values[n].columnIndex = r.page.columnIndex
+		values[n] = r.page.makeValueBytes(r.page.data[r.offset : r.offset+r.page.size])
 		r.offset += r.page.size
 		n++
 	}
@@ -393,7 +385,7 @@ type uint32PageValues struct {
 }
 
 func (r *uint32PageValues) Read(b []byte) (n int, err error) {
-	n, err = r.ReadUint32s(bits.BytesToUint32(b))
+	n, err = r.ReadUint32s(unsafecast.BytesToUint32(b))
 	return 4 * n, err
 }
 
@@ -408,8 +400,7 @@ func (r *uint32PageValues) ReadUint32s(values []uint32) (n int, err error) {
 
 func (r *uint32PageValues) ReadValues(values []Value) (n int, err error) {
 	for n < len(values) && r.offset < len(r.page.values) {
-		values[n] = makeValueUint32(r.page.values[r.offset])
-		values[n].columnIndex = r.page.columnIndex
+		values[n] = r.page.makeValue(r.page.values[r.offset])
 		r.offset++
 		n++
 	}
@@ -425,7 +416,7 @@ type uint64PageValues struct {
 }
 
 func (r *uint64PageValues) Read(b []byte) (n int, err error) {
-	n, err = r.ReadUint64s(bits.BytesToUint64(b))
+	n, err = r.ReadUint64s(unsafecast.BytesToUint64(b))
 	return 8 * n, err
 }
 
@@ -440,8 +431,24 @@ func (r *uint64PageValues) ReadUint64s(values []uint64) (n int, err error) {
 
 func (r *uint64PageValues) ReadValues(values []Value) (n int, err error) {
 	for n < len(values) && r.offset < len(r.page.values) {
-		values[n] = makeValueUint64(r.page.values[r.offset])
-		values[n].columnIndex = r.page.columnIndex
+		values[n] = r.page.makeValue(r.page.values[r.offset])
+		r.offset++
+		n++
+	}
+	if r.offset == len(r.page.values) {
+		err = io.EOF
+	}
+	return n, err
+}
+
+type be128PageValues struct {
+	page   *be128Page
+	offset int
+}
+
+func (r *be128PageValues) ReadValues(values []Value) (n int, err error) {
+	for n < len(values) && r.offset < len(r.page.values) {
+		values[n] = r.page.makeValue(&r.page.values[r.offset])
 		r.offset++
 		n++
 	}

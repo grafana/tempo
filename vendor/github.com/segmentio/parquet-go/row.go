@@ -21,6 +21,19 @@ const (
 // position in the row.
 type Row []Value
 
+// Clone creates a copy of the row which shares no pointers.
+//
+// This method is useful to capture rows after a call to RowReader.ReadRows when
+// values need to be retained before the next call to ReadRows or after the lifespan
+// of the reader.
+func (row Row) Clone() Row {
+	clone := make(Row, len(row))
+	for i := range row {
+		clone[i] = row[i].Clone()
+	}
+	return clone
+}
+
 // Equal returns true if row and other contain the same sequence of values.
 func (row Row) Equal(other Row) bool {
 	if len(row) != len(other) {

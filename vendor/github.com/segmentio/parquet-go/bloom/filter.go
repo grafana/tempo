@@ -4,8 +4,6 @@ import (
 	"io"
 	"sync"
 	"unsafe"
-
-	"github.com/segmentio/parquet-go/internal/bits"
 )
 
 // Filter is an interface representing read-only bloom filters where programs
@@ -47,9 +45,9 @@ func MakeSplitBlockFilter(data []byte) SplitBlockFilter {
 //	f := make(bloom.SplitBlockFilter, bloom.NumSplitBlocksOf(n, 10))
 //
 func NumSplitBlocksOf(numValues int64, bitsPerValue uint) int {
-	numBytes := bits.ByteCount(uint(numValues) * bitsPerValue)
+	numBytes := ((uint(numValues) * bitsPerValue) + 7) / 8
 	numBlocks := (numBytes + (BlockSize - 1)) / BlockSize
-	return numBlocks
+	return int(numBlocks)
 }
 
 // Reset clears the content of the filter f.

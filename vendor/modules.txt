@@ -540,7 +540,7 @@ github.com/json-iterator/go
 # github.com/jsternberg/zap-logfmt v1.2.0
 ## explicit
 github.com/jsternberg/zap-logfmt
-# github.com/klauspost/compress v1.15.5
+# github.com/klauspost/compress v1.15.6
 ## explicit; go 1.16
 github.com/klauspost/compress
 github.com/klauspost/compress/flate
@@ -809,7 +809,7 @@ github.com/segmentio/encoding/thrift
 # github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
 ## explicit
 github.com/segmentio/fasthash/fnv1a
-# github.com/segmentio/parquet-go v0.0.0-20220527005452-bf1e4db66515
+# github.com/segmentio/parquet-go v0.0.0-20220610235219-54c62c113bba
 ## explicit; go 1.18
 github.com/segmentio/parquet-go
 github.com/segmentio/parquet-go/bloom
@@ -829,7 +829,7 @@ github.com/segmentio/parquet-go/encoding/delta
 github.com/segmentio/parquet-go/encoding/plain
 github.com/segmentio/parquet-go/encoding/rle
 github.com/segmentio/parquet-go/format
-github.com/segmentio/parquet-go/internal/bits
+github.com/segmentio/parquet-go/internal/bytealg
 github.com/segmentio/parquet-go/internal/unsafecast
 # github.com/sercand/kuberesolver v2.4.0+incompatible
 ## explicit
@@ -1179,7 +1179,7 @@ golang.org/x/oauth2/jwt
 ## explicit
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a
+# golang.org/x/sys v0.0.0-20220610221304-9f5ed59c137d
 ## explicit; go 1.17
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs

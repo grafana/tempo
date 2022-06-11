@@ -50,3 +50,20 @@ var (
 	// decode definition levels into a page which is part of a required column.
 	ErrUnexpectedDefinitionLevels = errors.New("unexpected definition levels")
 )
+
+type errno int
+
+const (
+	ok errno = iota
+	indexOutOfBounds
+)
+
+func (e errno) check() {
+	switch e {
+	case ok:
+	case indexOutOfBounds:
+		panic("index out of bounds")
+	default:
+		panic("BUG: unknown error code")
+	}
+}

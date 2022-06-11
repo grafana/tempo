@@ -1,9 +1,6 @@
 package delta
 
 import (
-	"fmt"
-	"math"
-
 	"github.com/segmentio/parquet-go/encoding"
 	"github.com/segmentio/parquet-go/encoding/plain"
 	"github.com/segmentio/parquet-go/format"
@@ -22,33 +19,51 @@ func (e *LengthByteArrayEncoding) Encoding() format.Encoding {
 }
 
 func (e *LengthByteArrayEncoding) EncodeByteArray(dst, src []byte) ([]byte, error) {
-	return e.encodeByteArray(dst[:0], src)
+	dst, err := e.encodeByteArray(dst[:0], src)
+	if err != nil {
+		err = encoding.Error(e, err)
+	}
+	return dst, err
 }
 
 func (e *LengthByteArrayEncoding) encodeByteArray(dst, src []byte) ([]byte, error) {
-	b := getInt32Buffer()
-	defer putInt32Buffer(b)
+	length := getInt32Buffer()
+	defer putInt32Buffer(length)
 
-	err := plain.RangeByteArrays(src, func(value []byte) error {
-		if len(value) > math.MaxInt32 {
-			return fmt.Errorf("byte array of length %d is too large to be encoded", len(value))
+	totalSize := 0
+
+	for i := 0; i < len(src); {
+		r := len(src) - i
+		if r < plain.ByteArrayLengthSize {
+			return dst, plain.ErrTooShort(r)
 		}
-		b.values = append(b.values, int32(len(value)))
-		return nil
-	})
-	if err != nil {
-		return dst, encoding.Error(e, err)
+		n := plain.ByteArrayLength(src[i:])
+		i += plain.ByteArrayLengthSize
+		r -= plain.ByteArrayLengthSize
+		if n > r {
+			return dst, plain.ErrTooShort(n)
+		}
+		if n > plain.MaxByteArrayLength {
+			return dst, plain.ErrTooLarge(n)
+		}
+		length.values = append(length.values, int32(n))
+		totalSize += n
+		i += n
 	}
 
-	binpack := BinaryPackedEncoding{}
-	dst, err = binpack.encodeInt32(dst, b.values)
-	if err != nil {
-		return dst, encoding.Error(e, err)
+	dst = encodeInt32(dst, length.values)
+	dst = resize(dst, len(dst)+totalSize)
+
+	b := dst[len(dst)-totalSize:]
+	i := plain.ByteArrayLengthSize
+	j := 0
+
+	for _, n := range length.values {
+		j += copy(b[j:], src[i:i+int(n)])
+		i += plain.ByteArrayLengthSize
+		i += int(n)
 	}
-	plain.RangeByteArrays(src, func(value []byte) error {
-		dst = append(dst, value...)
-		return nil
-	})
+
 	return dst, nil
 }
 

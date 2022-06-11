@@ -3,7 +3,6 @@ package bitpacked
 import (
 	"github.com/segmentio/parquet-go/encoding"
 	"github.com/segmentio/parquet-go/format"
-	"github.com/segmentio/parquet-go/internal/bits"
 )
 
 type Encoding struct {
@@ -41,7 +40,7 @@ func encodeLevels(dst, src []byte, bitWidth uint) ([]byte, error) {
 		return append(dst[:0], 0), nil
 	}
 
-	n := bits.ByteCount(bitWidth) * len(src)
+	n := ((int(bitWidth) * len(src)) + 7) / 8
 	c := n + 1
 
 	if cap(dst) < c {
@@ -74,7 +73,7 @@ func decodeLevels(dst, src []byte, bitWidth uint) ([]byte, error) {
 		return append(dst[:0], 0), nil
 	}
 
-	numBits := bits.BitCount(len(src))
+	numBits := 8 * uint(len(src))
 	numValues := int(numBits / bitWidth)
 	if (numBits % bitWidth) != 0 {
 		numValues++

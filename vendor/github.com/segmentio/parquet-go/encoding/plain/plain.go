@@ -16,6 +16,7 @@ import (
 
 const (
 	ByteArrayLengthSize = 4
+	MaxByteArrayLength  = math.MaxInt32
 )
 
 type Encoding struct {
@@ -70,7 +71,7 @@ func (e *Encoding) EncodeDouble(dst, src []byte) ([]byte, error) {
 }
 
 func (e *Encoding) EncodeByteArray(dst []byte, src []byte) ([]byte, error) {
-	if err := RangeByteArrays(src, func([]byte) error { return nil }); err != nil {
+	if err := ValidateByteArrays(src); err != nil {
 		return dst[:0], encoding.Error(e, err)
 	}
 	return append(dst[:0], src...), nil
@@ -123,7 +124,7 @@ func (e *Encoding) DecodeDouble(dst, src []byte) ([]byte, error) {
 }
 
 func (e *Encoding) DecodeByteArray(dst, src []byte) ([]byte, error) {
-	if err := RangeByteArrays(src, func([]byte) error { return nil }); err != nil {
+	if err := ValidateByteArrays(src); err != nil {
 		return dst[:0], encoding.Error(e, err)
 	}
 	return append(dst[:0], src...), nil
@@ -231,6 +232,25 @@ func PutByteArrayLength(b []byte, n int) {
 	binary.LittleEndian.PutUint32(b, uint32(n))
 }
 
+type status int
+
+const (
+	ok status = iota
+	errTooShort
+	errTooLarge
+)
+
+func ValidateByteArrays(b []byte) error {
+	switch validateByteArrays(b) {
+	case errTooShort:
+		return ErrTooShort(len(b))
+	case errTooLarge:
+		return ErrTooLarge(len(b))
+	default: // ok
+		return nil
+	}
+}
+
 func RangeByteArrays(b []byte, do func([]byte) error) (err error) {
 	for len(b) > 0 {
 		var v []byte
@@ -245,12 +265,24 @@ func RangeByteArrays(b []byte, do func([]byte) error) (err error) {
 }
 
 func NextByteArray(b []byte) (v, r []byte, err error) {
-	if len(b) < 4 {
-		return nil, b, fmt.Errorf("input of length %d is too short to contain a PLAIN encoded byte array: %w", len(b), io.ErrUnexpectedEOF)
+	if len(b) < ByteArrayLengthSize {
+		return nil, b, ErrTooShort(len(b))
 	}
-	n := 4 + int(binary.LittleEndian.Uint32(b))
-	if n > len(b) {
-		return nil, b, fmt.Errorf("input of length %d is too short to contain a PLAIN encoded byte array of length %d: %w", len(b)-4, n-4, io.ErrUnexpectedEOF)
+	n := ByteArrayLength(b)
+	if n > (len(b) - ByteArrayLengthSize) {
+		return nil, b, ErrTooShort(len(b))
 	}
-	return b[4:n:n], b[n:len(b):len(b)], nil
+	if n > MaxByteArrayLength {
+		return nil, b, ErrTooLarge(n)
+	}
+	n += ByteArrayLengthSize
+	return b[ByteArrayLengthSize:n:n], b[n:len(b):len(b)], nil
+}
+
+func ErrTooShort(length int) error {
+	return fmt.Errorf("input of length %d is too short to contain a PLAIN encoded byte array value: %w", length, io.ErrUnexpectedEOF)
+}
+
+func ErrTooLarge(length int) error {
+	return fmt.Errorf("byte array of length %d is too large to be encoded", length)
 }

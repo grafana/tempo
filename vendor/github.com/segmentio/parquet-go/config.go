@@ -10,8 +10,8 @@ import (
 const (
 	DefaultCreatedBy            = "github.com/segmentio/parquet-go"
 	DefaultColumnIndexSizeLimit = 16
-	DefaultColumnBufferSize     = 1 * 1024 * 1024
-	DefaultPageBufferSize       = 1 * 1024 * 1024
+	DefaultColumnBufferCapacity = 16 * 1024
+	DefaultPageBufferSize       = 256 * 1024
 	DefaultWriteBufferSize      = 32 * 1024
 	DefaultDataPageVersion      = 2
 	DefaultDataPageStatistics   = false
@@ -136,7 +136,6 @@ type WriterConfig struct {
 	CreatedBy            string
 	ColumnPageBuffers    PageBufferPool
 	ColumnIndexSizeLimit int
-	PageBufferPool       PageBufferPool
 	PageBufferSize       int
 	WriteBufferSize      int
 	DataPageVersion      int
@@ -224,20 +223,20 @@ func (c *WriterConfig) Validate() error {
 // directly as argument to the NewBuffer function when needed, for example:
 //
 //	buffer := parquet.NewBuffer(&parquet.RowGroupConfig{
-//		ColumnBufferSize: 8 * 1024 * 1024,
+//		ColumnBufferCapacity: 10_000,
 //	})
 //
 type RowGroupConfig struct {
-	ColumnBufferSize int
-	SortingColumns   []SortingColumn
-	Schema           *Schema
+	ColumnBufferCapacity int
+	SortingColumns       []SortingColumn
+	Schema               *Schema
 }
 
 // DefaultRowGroupConfig returns a new RowGroupConfig value initialized with the
 // default row group configuration.
 func DefaultRowGroupConfig() *RowGroupConfig {
 	return &RowGroupConfig{
-		ColumnBufferSize: DefaultColumnBufferSize,
+		ColumnBufferCapacity: DefaultColumnBufferCapacity,
 	}
 }
 
@@ -256,7 +255,7 @@ func NewRowGroupConfig(options ...RowGroupOption) (*RowGroupConfig, error) {
 func (c *RowGroupConfig) Validate() error {
 	const baseName = "parquet.(*RowGroupConfig)."
 	return errorInvalidConfiguration(
-		validatePositiveInt(baseName+"ColumnBufferSize", c.ColumnBufferSize),
+		validatePositiveInt(baseName+"ColumnBufferCapacity", c.ColumnBufferCapacity),
 	)
 }
 
@@ -268,9 +267,9 @@ func (c *RowGroupConfig) Apply(options ...RowGroupOption) {
 
 func (c *RowGroupConfig) ConfigureRowGroup(config *RowGroupConfig) {
 	*config = RowGroupConfig{
-		ColumnBufferSize: coalesceInt(c.ColumnBufferSize, config.ColumnBufferSize),
-		SortingColumns:   coalesceSortingColumns(c.SortingColumns, config.SortingColumns),
-		Schema:           coalesceSchema(c.Schema, config.Schema),
+		ColumnBufferCapacity: coalesceInt(c.ColumnBufferCapacity, config.ColumnBufferCapacity),
+		SortingColumns:       coalesceSortingColumns(c.SortingColumns, config.SortingColumns),
+		Schema:               coalesceSchema(c.Schema, config.Schema),
 	}
 }
 
@@ -326,7 +325,7 @@ func SkipBloomFilters(skip bool) FileOption {
 // read and write pages rather than controlling the space used by the encoded
 // representation on disk.
 //
-// Defaults to 1 MiB.
+// Defaults to 256KiB.
 func PageBufferSize(size int) WriterOption {
 	return writerOption(func(config *WriterConfig) { config.PageBufferSize = size })
 }
@@ -336,7 +335,7 @@ func PageBufferSize(size int) WriterOption {
 // Setting the writer buffer size to zero deactivates buffering, all writes are
 // immediately sent to the output io.Writer.
 //
-// Defaults to 32 KiB.
+// Defaults to 32KiB.
 func WriteBufferSize(size int) WriterOption {
 	return writerOption(func(config *WriterConfig) { config.WriteBufferSize = size })
 }
@@ -426,12 +425,12 @@ func Compression(codec compress.Codec) WriterOption {
 	return writerOption(func(config *WriterConfig) { config.Compression = codec })
 }
 
-// ColumnBufferSize creates a configuration option which defines the size of
+// ColumnBufferCapacity creates a configuration option which defines the size of
 // row group column buffers.
 //
-// Defaults to 1 MiB.
-func ColumnBufferSize(size int) RowGroupOption {
-	return rowGroupOption(func(config *RowGroupConfig) { config.ColumnBufferSize = size })
+// Defaults to 16384.
+func ColumnBufferCapacity(size int) RowGroupOption {
+	return rowGroupOption(func(config *RowGroupConfig) { config.ColumnBufferCapacity = size })
 }
 
 // SortingColumns creates a configuration option which defines the sorting order

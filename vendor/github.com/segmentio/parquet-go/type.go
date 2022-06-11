@@ -3,15 +3,12 @@ package parquet
 import (
 	"bytes"
 	"fmt"
-	"math"
-	"reflect"
+	"math/bits"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/segmentio/parquet-go/deprecated"
 	"github.com/segmentio/parquet-go/encoding"
 	"github.com/segmentio/parquet-go/format"
-	"github.com/segmentio/parquet-go/internal/bits"
 )
 
 // Kind is an enumeration type representing the physical types supported by the
@@ -64,6 +61,12 @@ type Type interface {
 	//
 	// For other types, the value is zero.
 	Length() int
+
+	// Returns an estimation of the number of bytes required to hold the given
+	// number of values of this type in memory.
+	//
+	// The method returns zero for group types.
+	EstimateSize(numValues int) int64
 
 	// Compares two values and returns a negative integer if a < b, positive if
 	// a > b, or zero if a == b.
@@ -124,18 +127,16 @@ type Type interface {
 	// accumulating values in memory for (relative to the parent schema),
 	// and the size of their memory buffer.
 	//
-	// The buffer size is given in bytes, because we want to control memory
-	// consumption of the application, which is simpler to achieve with buffer
-	// size expressed in bytes rather than number of elements.
-	//
-	// Note that the buffer size is not a hard limit, it defines the initial
-	// capacity of the column buffer, but may grow as needed. Programs can use
-	// the Size method of the column buffer (or the parent row group, when
-	// relevant) to determine how many bytes are being used, and perform a flush
-	// of the buffers to a storage layer.
+	// The application may give an estimate of the number of values it expects
+	// to write to the buffer as second argument. This estimate helps set the
+	// initialize buffer capacity but is not a hard limit, the underlying memory
+	// buffer will grown as needed to allow more values to be written. Programs
+	// may use the Size method of the column buffer (or the parent row group,
+	// when relevant) to determine how many bytes are being used, and perform a
+	// flush of the buffers to a storage layer.
 	//
 	// The method panics if it is called on a group type.
-	NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer
+	NewColumnBuffer(columnIndex, numValues int) ColumnBuffer
 
 	// Creates a dictionary holding values of this type.
 	//
@@ -235,6 +236,7 @@ type booleanType struct{}
 func (t booleanType) String() string                           { return "BOOLEAN" }
 func (t booleanType) Kind() Kind                               { return Boolean }
 func (t booleanType) Length() int                              { return 1 }
+func (t booleanType) EstimateSize(n int) int64                 { return (int64(n) + 7) / 8 }
 func (t booleanType) Compare(a, b Value) int                   { return compareBool(a.Boolean(), b.Boolean()) }
 func (t booleanType) ColumnOrder() *format.ColumnOrder         { return &typeDefinedColumnOrder }
 func (t booleanType) LogicalType() *format.LogicalType         { return nil }
@@ -245,8 +247,8 @@ func (t booleanType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	return newBooleanColumnIndexer()
 }
 
-func (t booleanType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
-	return newBooleanColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+func (t booleanType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newBooleanColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
 func (t booleanType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
@@ -270,6 +272,7 @@ type int32Type struct{}
 func (t int32Type) String() string                           { return "INT32" }
 func (t int32Type) Kind() Kind                               { return Int32 }
 func (t int32Type) Length() int                              { return 32 }
+func (t int32Type) EstimateSize(n int) int64                 { return 4 * int64(n) }
 func (t int32Type) Compare(a, b Value) int                   { return compareInt32(a.Int32(), b.Int32()) }
 func (t int32Type) ColumnOrder() *format.ColumnOrder         { return &typeDefinedColumnOrder }
 func (t int32Type) LogicalType() *format.LogicalType         { return nil }
@@ -280,8 +283,8 @@ func (t int32Type) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	return newInt32ColumnIndexer()
 }
 
-func (t int32Type) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
-	return newInt32ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+func (t int32Type) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newInt32ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
 func (t int32Type) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
@@ -305,6 +308,7 @@ type int64Type struct{}
 func (t int64Type) String() string                           { return "INT64" }
 func (t int64Type) Kind() Kind                               { return Int64 }
 func (t int64Type) Length() int                              { return 64 }
+func (t int64Type) EstimateSize(n int) int64                 { return 8 * int64(n) }
 func (t int64Type) Compare(a, b Value) int                   { return compareInt64(a.Int64(), b.Int64()) }
 func (t int64Type) ColumnOrder() *format.ColumnOrder         { return &typeDefinedColumnOrder }
 func (t int64Type) LogicalType() *format.LogicalType         { return nil }
@@ -315,8 +319,8 @@ func (t int64Type) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	return newInt64ColumnIndexer()
 }
 
-func (t int64Type) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
-	return newInt64ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+func (t int64Type) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newInt64ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
 func (t int64Type) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
@@ -341,6 +345,7 @@ func (t int96Type) String() string { return "INT96" }
 
 func (t int96Type) Kind() Kind                               { return Int96 }
 func (t int96Type) Length() int                              { return 96 }
+func (t int96Type) EstimateSize(n int) int64                 { return 12 * int64(n) }
 func (t int96Type) Compare(a, b Value) int                   { return compareInt96(a.Int96(), b.Int96()) }
 func (t int96Type) ColumnOrder() *format.ColumnOrder         { return &typeDefinedColumnOrder }
 func (t int96Type) LogicalType() *format.LogicalType         { return nil }
@@ -351,8 +356,8 @@ func (t int96Type) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	return newInt96ColumnIndexer()
 }
 
-func (t int96Type) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
-	return newInt96ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+func (t int96Type) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newInt96ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
 func (t int96Type) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
@@ -376,6 +381,7 @@ type floatType struct{}
 func (t floatType) String() string                           { return "FLOAT" }
 func (t floatType) Kind() Kind                               { return Float }
 func (t floatType) Length() int                              { return 32 }
+func (t floatType) EstimateSize(n int) int64                 { return 4 * int64(n) }
 func (t floatType) Compare(a, b Value) int                   { return compareFloat32(a.Float(), b.Float()) }
 func (t floatType) ColumnOrder() *format.ColumnOrder         { return &typeDefinedColumnOrder }
 func (t floatType) LogicalType() *format.LogicalType         { return nil }
@@ -386,8 +392,8 @@ func (t floatType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	return newFloatColumnIndexer()
 }
 
-func (t floatType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
-	return newFloatColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+func (t floatType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newFloatColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
 func (t floatType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
@@ -411,6 +417,7 @@ type doubleType struct{}
 func (t doubleType) String() string                           { return "DOUBLE" }
 func (t doubleType) Kind() Kind                               { return Double }
 func (t doubleType) Length() int                              { return 64 }
+func (t doubleType) EstimateSize(n int) int64                 { return 8 * int64(n) }
 func (t doubleType) Compare(a, b Value) int                   { return compareFloat64(a.Double(), b.Double()) }
 func (t doubleType) ColumnOrder() *format.ColumnOrder         { return &typeDefinedColumnOrder }
 func (t doubleType) LogicalType() *format.LogicalType         { return nil }
@@ -421,8 +428,8 @@ func (t doubleType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	return newDoubleColumnIndexer()
 }
 
-func (t doubleType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
-	return newDoubleColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+func (t doubleType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newDoubleColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
 func (t doubleType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
@@ -446,6 +453,7 @@ type byteArrayType struct{}
 func (t byteArrayType) String() string                           { return "BYTE_ARRAY" }
 func (t byteArrayType) Kind() Kind                               { return ByteArray }
 func (t byteArrayType) Length() int                              { return 0 }
+func (t byteArrayType) EstimateSize(n int) int64                 { return 10 * int64(n) }
 func (t byteArrayType) Compare(a, b Value) int                   { return bytes.Compare(a.ByteArray(), b.ByteArray()) }
 func (t byteArrayType) ColumnOrder() *format.ColumnOrder         { return &typeDefinedColumnOrder }
 func (t byteArrayType) LogicalType() *format.LogicalType         { return nil }
@@ -456,8 +464,8 @@ func (t byteArrayType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	return newByteArrayColumnIndexer(sizeLimit)
 }
 
-func (t byteArrayType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
-	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+func (t byteArrayType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
 func (t byteArrayType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
@@ -486,6 +494,8 @@ func (t fixedLenByteArrayType) Kind() Kind { return FixedLenByteArray }
 
 func (t fixedLenByteArrayType) Length() int { return t.length }
 
+func (t fixedLenByteArrayType) EstimateSize(n int) int64 { return int64(t.length) * int64(n) }
+
 func (t fixedLenByteArrayType) Compare(a, b Value) int {
 	return bytes.Compare(a.ByteArray(), b.ByteArray())
 }
@@ -502,8 +512,8 @@ func (t fixedLenByteArrayType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	return newFixedLenByteArrayColumnIndexer(t.length, sizeLimit)
 }
 
-func (t fixedLenByteArrayType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
-	return newFixedLenByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+func (t fixedLenByteArrayType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newFixedLenByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
 func (t fixedLenByteArrayType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
@@ -522,10 +532,72 @@ func (t fixedLenByteArrayType) Decode(dst, src []byte, enc encoding.Encoding) ([
 	return enc.DecodeFixedLenByteArray(dst, src, t.length)
 }
 
+// BE128 stands for "big-endian 128 bits". This type is used as a special case
+// for fixed-length byte arrays of 16 bytes, which are commonly used to
+// represent columns of random unique identifiers such as UUIDs.
+//
+// Comparisons of BE128 values use the natural byte order, the zeroth byte is
+// the most significant byte.
+//
+// The special case is intended to provide optimizations based on the knowledge
+// that the values are 16 bytes long. Stronger type checking can also be applied
+// by the compiler when using [16]byte values rather than []byte, reducing the
+// risk of errors on these common code paths.
+type be128Type struct{}
+
+func (t be128Type) String() string { return "FIXED_LEN_BYTE_ARRAY(16)" }
+
+func (t be128Type) Kind() Kind { return FixedLenByteArray }
+
+func (t be128Type) Length() int { return 16 }
+
+func (t be128Type) EstimateSize(n int) int64 { return 16 * int64(n) }
+
+func (t be128Type) Compare(a, b Value) int {
+	return compareBE128((*[16]byte)(a.ByteArray()), (*[16]byte)(b.ByteArray()))
+}
+
+func (t be128Type) ColumnOrder() *format.ColumnOrder { return &typeDefinedColumnOrder }
+
+func (t be128Type) LogicalType() *format.LogicalType { return nil }
+
+func (t be128Type) ConvertedType() *deprecated.ConvertedType { return nil }
+
+func (t be128Type) PhysicalType() *format.Type { return &physicalTypes[FixedLenByteArray] }
+
+func (t be128Type) NewColumnIndexer(sizeLimit int) ColumnIndexer {
+	return newBE128ColumnIndexer()
+}
+
+func (t be128Type) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newBE128ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
+}
+
+func (t be128Type) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
+	return newBE128Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t be128Type) NewPage(columnIndex, numValues int, data []byte) Page {
+	return newBE128Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t be128Type) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.EncodeFixedLenByteArray(dst, src, 16)
+}
+
+func (t be128Type) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
+	return enc.DecodeFixedLenByteArray(dst, src, 16)
+}
+
 // FixedLenByteArrayType constructs a type for fixed-length values of the given
 // size (in bytes).
 func FixedLenByteArrayType(length int) Type {
-	return fixedLenByteArrayType{length: length}
+	switch length {
+	case 16:
+		return be128Type{}
+	default:
+		return fixedLenByteArrayType{length: length}
+	}
 }
 
 // Int constructs a leaf node of signed integer logical type of the given bit
@@ -587,6 +659,8 @@ func (t *intType) Kind() Kind {
 
 func (t *intType) Length() int { return int(t.BitWidth) }
 
+func (t *intType) EstimateSize(n int) int64 { return int64(t.BitWidth/8) * int64(n) }
+
 func (t *intType) Compare(a, b Value) int {
 	if t.BitWidth == 64 {
 		i1 := a.Int64()
@@ -624,7 +698,7 @@ func (t *intType) LogicalType() *format.LogicalType {
 }
 
 func (t *intType) ConvertedType() *deprecated.ConvertedType {
-	convertedType := bits.Len8(int8(t.BitWidth)/8) - 1 // 8=>0, 16=>1, 32=>2, 64=>4
+	convertedType := bits.Len8(uint8(t.BitWidth)/8) - 1 // 8=>0, 16=>1, 32=>2, 64=>4
 	if t.IsSigned {
 		convertedType += int(deprecated.Int8)
 	} else {
@@ -649,18 +723,18 @@ func (t *intType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	}
 }
 
-func (t *intType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
+func (t *intType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
 	if t.IsSigned {
 		if t.BitWidth == 64 {
-			return newInt64ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+			return newInt64ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 		} else {
-			return newInt32ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+			return newInt32ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 		}
 	} else {
 		if t.BitWidth == 64 {
-			return newUint64ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+			return newUint64ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 		} else {
-			return newUint32ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+			return newUint32ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 		}
 	}
 }
@@ -713,12 +787,6 @@ func (t *intType) Decode(dst, src []byte, enc encoding.Encoding) ([]byte, error)
 	}
 }
 
-// FixedLenByteArray decimals are sized based on precision
-// this function calculates the necessary byte array size
-func calcDecimalFixedLenByteArraySize(precision int) int {
-	return int(math.Ceil((math.Log10(2) + float64(precision)) / math.Log10(256)))
-}
-
 // Decimal constructs a leaf node of decimal logical type with the given
 // scale, precision, and underlying type.
 //
@@ -766,6 +834,8 @@ func (t *stringType) Kind() Kind { return ByteArray }
 
 func (t *stringType) Length() int { return 0 }
 
+func (t *stringType) EstimateSize(n int) int64 { return 10 * int64(n) }
+
 func (t *stringType) Compare(a, b Value) int {
 	return bytes.Compare(a.ByteArray(), b.ByteArray())
 }
@@ -794,16 +864,12 @@ func (t *stringType) NewDictionary(columnIndex, numValues int, data []byte) Dict
 	return newByteArrayDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
-func (t *stringType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
-	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+func (t *stringType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
 func (t *stringType) NewPage(columnIndex, numValues int, data []byte) Page {
 	return newByteArrayPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
-}
-
-func (t *stringType) GoType() reflect.Type {
-	return reflect.TypeOf("")
 }
 
 func (t *stringType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
@@ -827,17 +893,15 @@ func (t *uuidType) Kind() Kind { return FixedLenByteArray }
 
 func (t *uuidType) Length() int { return 16 }
 
+func (t *uuidType) EstimateSize(n int) int64 { return 16 * int64(n) }
+
 func (t *uuidType) Compare(a, b Value) int {
-	return bytes.Compare(a.ByteArray(), b.ByteArray())
+	return compareBE128((*[16]byte)(a.ByteArray()), (*[16]byte)(b.ByteArray()))
 }
 
-func (t *uuidType) ColumnOrder() *format.ColumnOrder {
-	return &typeDefinedColumnOrder
-}
+func (t *uuidType) ColumnOrder() *format.ColumnOrder { return &typeDefinedColumnOrder }
 
-func (t *uuidType) PhysicalType() *format.Type {
-	return &physicalTypes[FixedLenByteArray]
-}
+func (t *uuidType) PhysicalType() *format.Type { return &physicalTypes[FixedLenByteArray] }
 
 func (t *uuidType) LogicalType() *format.LogicalType {
 	return &format.LogicalType{UUID: (*format.UUIDType)(t)}
@@ -846,23 +910,19 @@ func (t *uuidType) LogicalType() *format.LogicalType {
 func (t *uuidType) ConvertedType() *deprecated.ConvertedType { return nil }
 
 func (t *uuidType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
-	return newFixedLenByteArrayColumnIndexer(16, sizeLimit)
+	return newBE128ColumnIndexer()
 }
 
 func (t *uuidType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
-	return newFixedLenByteArrayDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	return newBE128Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
-func (t *uuidType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
-	return newFixedLenByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+func (t *uuidType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newBE128ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
 func (t *uuidType) NewPage(columnIndex, numValues int, data []byte) Page {
-	return newFixedLenByteArrayPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
-}
-
-func (t *uuidType) GoType() reflect.Type {
-	return reflect.TypeOf(uuid.UUID{})
+	return newBE128Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
 func (t *uuidType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
@@ -885,6 +945,8 @@ func (t *enumType) String() string { return (*format.EnumType)(t).String() }
 func (t *enumType) Kind() Kind { return ByteArray }
 
 func (t *enumType) Length() int { return 0 }
+
+func (t *enumType) EstimateSize(n int) int64 { return 10 * int64(n) }
 
 func (t *enumType) Compare(a, b Value) int {
 	return bytes.Compare(a.ByteArray(), b.ByteArray())
@@ -914,16 +976,12 @@ func (t *enumType) NewDictionary(columnIndex, numValues int, data []byte) Dictio
 	return newByteArrayDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
-func (t *enumType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
-	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+func (t *enumType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
 func (t *enumType) NewPage(columnIndex, numValues int, data []byte) Page {
 	return newByteArrayPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
-}
-
-func (t *enumType) GoType() reflect.Type {
-	return reflect.TypeOf("")
 }
 
 func (t *enumType) Encode(dst, src []byte, enc encoding.Encoding) ([]byte, error) {
@@ -946,6 +1004,8 @@ func (t *jsonType) String() string { return (*jsonType)(t).String() }
 func (t *jsonType) Kind() Kind { return ByteArray }
 
 func (t *jsonType) Length() int { return 0 }
+
+func (t *jsonType) EstimateSize(n int) int64 { return 10 * int64(n) }
 
 func (t *jsonType) Compare(a, b Value) int {
 	return bytes.Compare(a.ByteArray(), b.ByteArray())
@@ -975,8 +1035,8 @@ func (t *jsonType) NewDictionary(columnIndex, numValues int, data []byte) Dictio
 	return newByteArrayDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
-func (t *jsonType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
-	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+func (t *jsonType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
 func (t *jsonType) NewPage(columnIndex, numValues int, data []byte) Page {
@@ -1003,6 +1063,8 @@ func (t *bsonType) String() string { return (*format.BsonType)(t).String() }
 func (t *bsonType) Kind() Kind { return ByteArray }
 
 func (t *bsonType) Length() int { return 0 }
+
+func (t *bsonType) EstimateSize(n int) int64 { return 10 * int64(n) }
 
 func (t *bsonType) Compare(a, b Value) int {
 	return bytes.Compare(a.ByteArray(), b.ByteArray())
@@ -1032,8 +1094,8 @@ func (t *bsonType) NewDictionary(columnIndex, numValues int, data []byte) Dictio
 	return newByteArrayDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
-func (t *bsonType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
-	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+func (t *bsonType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
 func (t *bsonType) NewPage(columnIndex, numValues int, data []byte) Page {
@@ -1061,6 +1123,8 @@ func (t *dateType) Kind() Kind { return Int32 }
 
 func (t *dateType) Length() int { return 32 }
 
+func (t *dateType) EstimateSize(n int) int64 { return 4 * int64(n) }
+
 func (t *dateType) Compare(a, b Value) int { return compareInt32(a.Int32(), b.Int32()) }
 
 func (t *dateType) ColumnOrder() *format.ColumnOrder {
@@ -1081,8 +1145,8 @@ func (t *dateType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	return newInt32ColumnIndexer()
 }
 
-func (t *dateType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
-	return newInt32ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+func (t *dateType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newInt32ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
 func (t *dateType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
@@ -1174,6 +1238,14 @@ func (t *timeType) Length() int {
 	}
 }
 
+func (t *timeType) EstimateSize(n int) int64 {
+	if t.useInt32() {
+		return 4 * int64(n)
+	} else {
+		return 8 * int64(n)
+	}
+}
+
 func (t *timeType) Compare(a, b Value) int {
 	if t.useInt32() {
 		return compareInt32(a.Int32(), b.Int32())
@@ -1217,11 +1289,11 @@ func (t *timeType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	}
 }
 
-func (t *timeType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
+func (t *timeType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
 	if t.useInt32() {
-		return newInt32ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+		return newInt32ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 	} else {
-		return newInt64ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+		return newInt64ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 	}
 }
 
@@ -1272,6 +1344,8 @@ func (t *timestampType) Kind() Kind { return Int64 }
 
 func (t *timestampType) Length() int { return 64 }
 
+func (t *timestampType) EstimateSize(n int) int64 { return 8 * int64(n) }
+
 func (t *timestampType) Compare(a, b Value) int { return compareInt64(a.Int64(), b.Int64()) }
 
 func (t *timestampType) ColumnOrder() *format.ColumnOrder { return &typeDefinedColumnOrder }
@@ -1297,8 +1371,8 @@ func (t *timestampType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
 	return newInt64ColumnIndexer()
 }
 
-func (t *timestampType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
-	return newInt64ColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+func (t *timestampType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newInt64ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
 func (t *timestampType) NewDictionary(columnIndex, numValues int, data []byte) Dictionary {
@@ -1335,6 +1409,8 @@ func (t *listType) String() string { return (*format.ListType)(t).String() }
 func (t *listType) Kind() Kind { panic("cannot call Kind on parquet LIST type") }
 
 func (t *listType) Length() int { return 0 }
+
+func (t *listType) EstimateSize(int) int64 { return 0 }
 
 func (t *listType) Compare(Value, Value) int { panic("cannot compare values on parquet LIST type") }
 
@@ -1398,6 +1474,8 @@ func (t *mapType) Kind() Kind { panic("cannot call Kind on parquet MAP type") }
 
 func (t *mapType) Length() int { return 0 }
 
+func (t *mapType) EstimateSize(int) int64 { return 0 }
+
 func (t *mapType) Compare(Value, Value) int { panic("cannot compare values on parquet MAP type") }
 
 func (t *mapType) ColumnOrder() *format.ColumnOrder { return nil }
@@ -1443,6 +1521,8 @@ func (t *nullType) String() string { return (*format.NullType)(t).String() }
 func (t *nullType) Kind() Kind { return -1 }
 
 func (t *nullType) Length() int { return 0 }
+
+func (t *nullType) EstimateSize(int) int64 { return 0 }
 
 func (t *nullType) Compare(Value, Value) int { panic("cannot compare values on parquet NULL type") }
 
@@ -1517,6 +1597,8 @@ func (groupType) Decode(_, _ []byte, _ encoding.Encoding) ([]byte, error) {
 }
 
 func (groupType) Length() int { return 0 }
+
+func (groupType) EstimateSize(int) int64 { return 0 }
 
 func (groupType) ColumnOrder() *format.ColumnOrder { return nil }
 

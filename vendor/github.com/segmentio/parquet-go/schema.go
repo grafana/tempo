@@ -2,6 +2,7 @@ package parquet
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -55,9 +56,17 @@ type Schema struct {
 //	uuid      | for string and [16]byte types, use the parquet UUID logical type
 //	decimal   | for int32, int64 and [n]byte types, use the parquet DECIMAL logical type
 //	date      | for int32 types use the DATE logical type
-//	timestamp | for int64 types use the TIMESTAMP logical type with millisecond precision
+//	timestamp | for int64 types use the TIMESTAMP logical type with, by default, millisecond precision
+//	split     | for float32/float64, use the BYTE_STREAM_SPLIT encoding
 //
 // The date logical type is an int32 value of the number of days since the unix epoch
+//
+// The timestamp precision can be changed by defining which precision to use as an argument.
+// Supported precisions are: nanosecond, millisecond and microsecond. Example:
+//
+//  type Message struct {
+//    TimestrampMicros int64 `parquet:"timestamp_micros,timestamp(microsecond)"
+//  }
 //
 // The decimal tag must be followed by two integer parameters, the first integer
 // representing the scale and the second the precision; for example:
@@ -68,6 +77,10 @@ type Schema struct {
 //
 // Invalid combination of struct tags and Go types, or repeating options will
 // cause the function to panic.
+//
+// As a special case, if the field tag is "-", the field is omitted from the schema
+// and the data will not be written into the parquet file(s).
+// Note that a field with name "-" can still be generated using the tag "-,".
 //
 // The schema name is the Go type name of the value.
 func SchemaOf(model interface{}) *Schema {
@@ -314,10 +327,17 @@ func structFieldsOf(t reflect.Type) []reflect.StructField {
 
 func appendStructFields(t reflect.Type, fields []reflect.StructField, index []int, offset uintptr) []reflect.StructField {
 	for i, n := 0, t.NumField(); i < n; i++ {
+		f := t.Field(i)
+		if tag := f.Tag.Get("parquet"); tag != "" {
+			name, _ := split(tag)
+			if tag != "-," && name == "-" {
+				continue
+			}
+		}
+
 		fieldIndex := index[:len(index):len(index)]
 		fieldIndex = append(fieldIndex, i)
 
-		f := t.Field(i)
 		f.Offset += offset
 
 		if f.Anonymous {
@@ -391,7 +411,6 @@ func (f *structField) Value(base reflect.Value) reflect.Value {
 			return fieldByIndex(base, f.index)
 		}
 	}
-	return reflect.Value{}
 }
 
 func structFieldString(f reflect.StructField) string {
@@ -505,6 +524,14 @@ func makeStructField(f reflect.StructField) structField {
 				throwInvalidFieldTag(f, option)
 			}
 
+		case "split":
+			switch f.Type.Kind() {
+			case reflect.Float32, reflect.Float64:
+				setEncoding(&ByteStreamSplit)
+			default:
+				throwInvalidFieldTag(f, option)
+			}
+
 		case "list":
 			switch f.Type.Kind() {
 			case reflect.Slice:
@@ -545,7 +572,7 @@ func makeStructField(f reflect.StructField) structField {
 			case reflect.Int64:
 				baseType = Int64Type
 			case reflect.Array:
-				baseType = FixedLenByteArrayType(calcDecimalFixedLenByteArraySize(precision))
+				baseType = FixedLenByteArrayType(decimalFixedLenByteArraySize(precision))
 			default:
 				throwInvalidFieldTag(f, option)
 			}
@@ -561,7 +588,11 @@ func makeStructField(f reflect.StructField) structField {
 		case "timestamp":
 			switch f.Type.Kind() {
 			case reflect.Int64:
-				setNode(Timestamp(Millisecond))
+				timeUnit, err := parseTimestampArgs(args)
+				if err != nil {
+					throwInvalidFieldTag(f, args)
+				}
+				setNode(Timestamp(timeUnit))
 			default:
 				throwInvalidFieldTag(f, option)
 			}
@@ -591,6 +622,12 @@ func makeStructField(f reflect.StructField) structField {
 	}
 
 	return field
+}
+
+// FixedLenByteArray decimals are sized based on precision
+// this function calculates the necessary byte array size.
+func decimalFixedLenByteArraySize(precision int) int {
+	return int(math.Ceil((math.Log10(2) + float64(precision)) / math.Log10(256)))
 }
 
 func forEachStructTagOption(st reflect.StructTag, do func(option, args string)) {
@@ -704,6 +741,31 @@ func parseDecimalArgs(args string) (scale, precision int, err error) {
 		return 0, 0, err
 	}
 	return int(s), int(p), nil
+}
+
+func parseTimestampArgs(args string) (TimeUnit, error) {
+	if !strings.HasPrefix(args, "(") || !strings.HasSuffix(args, ")") {
+		return nil, fmt.Errorf("malformed timestamp args: %s", args)
+	}
+
+	args = strings.TrimPrefix(args, "(")
+	args = strings.TrimSuffix(args, ")")
+
+	if len(args) == 0 {
+		return Millisecond, nil
+	}
+
+	switch args {
+	case "millisecond":
+		return Millisecond, nil
+	case "microsecond":
+		return Microsecond, nil
+	case "nanosecond":
+		return Nanosecond, nil
+	default:
+	}
+
+	return nil, fmt.Errorf("unknown time unit: %s", args)
 }
 
 type goNode struct {

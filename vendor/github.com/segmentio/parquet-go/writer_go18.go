@@ -51,7 +51,7 @@ type GenericWriter[T any] struct {
 	// schema of the parquet file.
 	write writeFunc[T]
 	// This field is used to leverage the optimized writeRowsFunc algorithms.
-	buffers columnBufferWriter
+	columns []ColumnBuffer
 }
 
 // NewGenericWriter is like NewWriter but returns a GenericWriter[T] suited to
@@ -109,8 +109,17 @@ func makeWriteFunc[T any](t reflect.Type, schema *Schema) writeFunc[T] {
 	size := t.Size()
 	writeRows := writeRowsFuncOf(t, schema, nil)
 	return func(w *GenericWriter[T], rows []T) (n int, err error) {
-		defer w.buffers.clear()
-		err = writeRows(&w.buffers, makeArray(rows), size, 0, columnLevels{})
+		if w.columns == nil {
+			w.columns = make([]ColumnBuffer, len(w.base.writer.columns))
+			for i, c := range w.base.writer.columns {
+				// These fields are usually lazily initialized when writing rows,
+				// we need them to exist now tho.
+				c.columnBuffer = c.newColumnBuffer()
+				c.maxValues = int32(c.columnBuffer.Cap())
+				w.columns[i] = c.columnBuffer
+			}
+		}
+		err = writeRows(w.columns, makeArrayOf(rows), size, 0, columnLevels{})
 		if err == nil {
 			n = len(rows)
 		}
@@ -131,21 +140,6 @@ func (w *GenericWriter[T]) Reset(output io.Writer) {
 }
 
 func (w *GenericWriter[T]) Write(rows []T) (int, error) {
-	if w.buffers.columns == nil {
-		w.buffers = columnBufferWriter{
-			columns: make([]ColumnBuffer, len(w.base.writer.columns)),
-			values:  make([]Value, 0, defaultValueBufferSize),
-		}
-
-		for i, c := range w.base.writer.columns {
-			// These fields are usually lazily initialized when writing rows,
-			// we need them to exist now tho.
-			c.columnBuffer = c.newColumnBuffer()
-			c.maxValues = int32(c.columnBuffer.Cap())
-			w.buffers.columns[i] = c.columnBuffer
-		}
-	}
-
 	n, err := w.write(w, rows)
 	if err != nil {
 		return n, err

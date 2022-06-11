@@ -2,10 +2,7 @@ package delta
 
 import (
 	"sync"
-)
-
-const (
-	defaultBufferSize = 4096
+	"unsafe"
 )
 
 type int32Buffer struct {
@@ -35,4 +32,12 @@ func getInt32Buffer() *int32Buffer {
 
 func putInt32Buffer(b *int32Buffer) {
 	int32BufferPool.Put(b)
+}
+
+func bytesToInt32(b []byte) []int32 {
+	return unsafe.Slice(*(**int32)(unsafe.Pointer(&b)), len(b)/4)
+}
+
+func bytesToInt64(b []byte) []int64 {
+	return unsafe.Slice(*(**int64)(unsafe.Pointer(&b)), len(b)/8)
 }

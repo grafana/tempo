@@ -117,3 +117,10 @@ func (i uint64OffsetIndex) NumPages() int                { return 1 }
 func (i uint64OffsetIndex) Offset(int) int64             { return 0 }
 func (i uint64OffsetIndex) CompressedPageSize(int) int64 { return i.page.Size() }
 func (i uint64OffsetIndex) FirstRowIndex(int) int64      { return 0 }
+
+type be128OffsetIndex struct{ page *be128Page }
+
+func (i be128OffsetIndex) NumPages() int                { return 1 }
+func (i be128OffsetIndex) Offset(int) int64             { return 0 }
+func (i be128OffsetIndex) CompressedPageSize(int) int64 { return i.page.Size() }
+func (i be128OffsetIndex) FirstRowIndex(int) int64      { return 0 }

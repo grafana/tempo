@@ -1,13 +1,14 @@
 package parquet
 
 import (
-	"bytes"
 	"io"
+	"math/bits"
+	"unsafe"
 
 	"github.com/segmentio/parquet-go/deprecated"
 	"github.com/segmentio/parquet-go/encoding"
 	"github.com/segmentio/parquet-go/encoding/plain"
-	"github.com/segmentio/parquet-go/internal/bits"
+	"github.com/segmentio/parquet-go/internal/unsafecast"
 )
 
 const (
@@ -21,6 +22,12 @@ const (
 //
 // Programs can instantiate dictionaries by call the NewDictionary method of a
 // Type object.
+//
+// The current implementation has a limitation which prevents applications from
+// providing custom versions of this interface because it contains unexported
+// methods. The only way to create Dictionary values is to call the
+// NewDictionary of Type instances. This limitation may be lifted in future
+// releases.
 type Dictionary interface {
 	// Returns the type that the dictionary was created from.
 	Type() Type
@@ -46,7 +53,7 @@ type Dictionary interface {
 	Lookup(indexes []int32, values []Value)
 
 	// Returns the min and max values found in the given indexes.
-	Bounds(indexed []int32) (min, max Value)
+	Bounds(indexes []int32) (min, max Value)
 
 	// Resets the dictionary to its initial state, removing all values.
 	Reset()
@@ -56,21 +63,54 @@ type Dictionary interface {
 	// The returned page shares the underlying memory of the buffer, it remains
 	// valid to use until the dictionary's Reset method is called.
 	Page() BufferedPage
+
+	// See ColumnBuffer.writeValues for details on the use of unexported methods
+	// on interfaces.
+	insert(indexes []int32, rows array, size, offset uintptr)
+	//lookup(indexes []int32, rows array, size, offset uintptr)
+}
+
+func checkLookupIndexBounds(indexes []int32, rows array) {
+	if rows.len < len(indexes) {
+		panic("dictionary lookup with more indexes than values")
+	}
 }
 
 // The boolean dictionary always contains two values for true and false.
 type booleanDictionary struct {
 	booleanPage
-	index map[bool]int32
+	// There are only two possible values for booleans, false and true.
+	// Rather than using a Go map, we track the indexes of each values
+	// in an array of two 32 bits integers. When inserting values in the
+	// dictionary, we ensure that an index exist for each boolean value,
+	// then use the value 0 or 1 (false or true) to perform a lookup in
+	// the dictionary's map.
+	hashmap [2]int32
 }
 
 func newBooleanDictionary(typ Type, columnIndex int16, numValues int32, values []byte) *booleanDictionary {
+	indexOfFalse, indexOfTrue := int32(-1), int32(-1)
+
+	for i := int32(0); i < numValues && indexOfFalse < 0 && indexOfTrue < 0; i += 8 {
+		v := values[i]
+		if v != 0x00 {
+			indexOfTrue = i + int32(bits.TrailingZeros8(v))
+		}
+		if v != 0xFF {
+			indexOfFalse = i + int32(bits.TrailingZeros8(^v))
+		}
+	}
+
 	return &booleanDictionary{
 		booleanPage: booleanPage{
 			typ:         typ,
-			bits:        values[:bits.ByteCount(uint(numValues))],
+			bits:        values[:byteCount(uint(numValues))],
 			numValues:   numValues,
 			columnIndex: ^columnIndex,
+		},
+		hashmap: [2]int32{
+			0: indexOfFalse,
+			1: indexOfTrue,
 		},
 	}
 }
@@ -79,36 +119,48 @@ func (d *booleanDictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *booleanDictionary) Len() int { return int(d.numValues) }
 
-func (d *booleanDictionary) Index(i int32) Value { return makeValueBoolean(d.valueAt(int(i))) }
+func (d *booleanDictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
+
+func (d *booleanDictionary) index(i int32) bool { return d.valueAt(int(i)) }
 
 func (d *booleanDictionary) Insert(indexes []int32, values []Value) {
-	_ = indexes[:len(values)]
+	var value Value
+	d.insert(indexes, makeArrayValue(values), unsafe.Sizeof(value), unsafe.Offsetof(value.u64))
+}
 
-	if d.index == nil {
-		d.index = make(map[bool]int32, cap(d.bits))
-		for i := 0; i < int(d.numValues); i++ {
-			d.index[d.valueAt(i)] = int32(i)
-		}
+func (d *booleanDictionary) insert(indexes []int32, rows array, size, offset uintptr) {
+	_ = indexes[:rows.len]
+
+	if d.hashmap[0] < 0 {
+		d.hashmap[0] = d.numValues
+		d.numValues++
+		d.bits = plain.AppendBoolean(d.bits, int(d.hashmap[0]), false)
 	}
 
-	for i, v := range values {
-		value := v.Boolean()
+	if d.hashmap[1] < 0 {
+		d.hashmap[1] = d.numValues
+		d.numValues++
+		d.bits = plain.AppendBoolean(d.bits, int(d.hashmap[1]), true)
+	}
 
-		index, exists := d.index[value]
-		if !exists {
-			index = d.numValues
-			d.bits = plain.AppendBoolean(d.bits, int(index), value)
-			d.index[value] = index
-			d.numValues++
-		}
+	dict := d.hashmap
 
-		indexes[i] = index
+	for i := 0; i < rows.len; i++ {
+		v := *(*byte)(rows.index(i, size, offset)) & 1
+		indexes[i] = dict[v]
 	}
 }
 
 func (d *booleanDictionary) Lookup(indexes []int32, values []Value) {
+	model := d.makeValue(false)
+	memsetValues(values, model)
+	d.lookup(indexes, makeArrayValue(values), unsafe.Sizeof(model), unsafe.Offsetof(model.u64))
+}
+
+func (d *booleanDictionary) lookup(indexes []int32, rows array, size, offset uintptr) {
+	checkLookupIndexBounds(indexes, rows)
 	for i, j := range indexes {
-		values[i] = d.Index(j)
+		*(*bool)(rows.index(i, size, offset)) = d.index(j)
 	}
 }
 
@@ -117,7 +169,7 @@ func (d *booleanDictionary) Bounds(indexes []int32) (min, max Value) {
 		hasFalse, hasTrue := false, false
 
 		for _, i := range indexes {
-			v := d.valueAt(int(i))
+			v := d.index(i)
 			if v {
 				hasTrue = true
 			} else {
@@ -128,8 +180,8 @@ func (d *booleanDictionary) Bounds(indexes []int32) (min, max Value) {
 			}
 		}
 
-		min = makeValueBoolean(!hasFalse)
-		max = makeValueBoolean(hasTrue)
+		min = d.makeValue(!hasFalse)
+		max = d.makeValue(hasTrue)
 	}
 	return min, max
 }
@@ -138,7 +190,7 @@ func (d *booleanDictionary) Reset() {
 	d.bits = d.bits[:0]
 	d.offset = 0
 	d.numValues = 0
-	d.index = nil
+	d.hashmap = [2]int32{-1, -1}
 }
 
 func (d *booleanDictionary) Page() BufferedPage {
@@ -147,14 +199,14 @@ func (d *booleanDictionary) Page() BufferedPage {
 
 type int32Dictionary struct {
 	int32Page
-	index map[int32]int32
+	hashmap map[int32]int32
 }
 
 func newInt32Dictionary(typ Type, columnIndex int16, numValues int32, values []byte) *int32Dictionary {
 	return &int32Dictionary{
 		int32Page: int32Page{
 			typ:         typ,
-			values:      bits.BytesToInt32(values)[:numValues],
+			values:      unsafecast.BytesToInt32(values)[:numValues],
 			columnIndex: ^columnIndex,
 		},
 	}
@@ -164,26 +216,33 @@ func (d *int32Dictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *int32Dictionary) Len() int { return len(d.values) }
 
-func (d *int32Dictionary) Index(i int32) Value { return makeValueInt32(d.values[i]) }
+func (d *int32Dictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
+
+func (d *int32Dictionary) index(i int32) int32 { return d.values[i] }
 
 func (d *int32Dictionary) Insert(indexes []int32, values []Value) {
-	_ = indexes[:len(values)]
+	var value Value
+	d.insert(indexes, makeArrayValue(values), unsafe.Sizeof(value), unsafe.Offsetof(value.u64))
+}
 
-	if d.index == nil {
-		d.index = make(map[int32]int32, cap(d.values))
+func (d *int32Dictionary) insert(indexes []int32, rows array, size, offset uintptr) {
+	_ = indexes[:rows.len]
+
+	if d.hashmap == nil {
+		d.hashmap = make(map[int32]int32, cap(d.values))
 		for i, v := range d.values {
-			d.index[v] = int32(i)
+			d.hashmap[v] = int32(i)
 		}
 	}
 
-	for i, v := range values {
-		value := v.Int32()
+	for i := 0; i < rows.len; i++ {
+		value := *(*int32)(rows.index(i, size, offset))
 
-		index, exists := d.index[value]
+		index, exists := d.hashmap[value]
 		if !exists {
 			index = int32(len(d.values))
 			d.values = append(d.values, value)
-			d.index[value] = index
+			d.hashmap[value] = index
 		}
 
 		indexes[i] = index
@@ -191,35 +250,23 @@ func (d *int32Dictionary) Insert(indexes []int32, values []Value) {
 }
 
 func (d *int32Dictionary) Lookup(indexes []int32, values []Value) {
-	for i, j := range indexes {
-		values[i] = d.Index(j)
-	}
+	model := d.makeValue(0)
+	memsetValues(values, model)
+	d.lookup(indexes, makeArrayValue(values), unsafe.Sizeof(model), unsafe.Offsetof(model.u64))
 }
 
 func (d *int32Dictionary) Bounds(indexes []int32) (min, max Value) {
 	if len(indexes) > 0 {
-		minValue := d.values[indexes[0]]
-		maxValue := minValue
-
-		for _, i := range indexes[1:] {
-			value := d.values[i]
-			switch {
-			case value < minValue:
-				minValue = value
-			case value > maxValue:
-				maxValue = value
-			}
-		}
-
-		min = makeValueInt32(minValue)
-		max = makeValueInt32(maxValue)
+		minValue, maxValue := d.bounds(indexes)
+		min = d.makeValue(minValue)
+		max = d.makeValue(maxValue)
 	}
 	return min, max
 }
 
 func (d *int32Dictionary) Reset() {
 	d.values = d.values[:0]
-	d.index = nil
+	d.hashmap = nil
 }
 
 func (d *int32Dictionary) Page() BufferedPage {
@@ -228,14 +275,14 @@ func (d *int32Dictionary) Page() BufferedPage {
 
 type int64Dictionary struct {
 	int64Page
-	index map[int64]int32
+	hashmap map[int64]int32
 }
 
 func newInt64Dictionary(typ Type, columnIndex int16, numValues int32, values []byte) *int64Dictionary {
 	return &int64Dictionary{
 		int64Page: int64Page{
 			typ:         typ,
-			values:      bits.BytesToInt64(values)[:numValues],
+			values:      unsafecast.BytesToInt64(values)[:numValues],
 			columnIndex: ^columnIndex,
 		},
 	}
@@ -245,26 +292,33 @@ func (d *int64Dictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *int64Dictionary) Len() int { return len(d.values) }
 
-func (d *int64Dictionary) Index(i int32) Value { return makeValueInt64(d.values[i]) }
+func (d *int64Dictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
+
+func (d *int64Dictionary) index(i int32) int64 { return d.values[i] }
 
 func (d *int64Dictionary) Insert(indexes []int32, values []Value) {
-	_ = indexes[:len(values)]
+	var value Value
+	d.insert(indexes, makeArrayValue(values), unsafe.Sizeof(value), unsafe.Offsetof(value.u64))
+}
 
-	if d.index == nil {
-		d.index = make(map[int64]int32, cap(d.values))
+func (d *int64Dictionary) insert(indexes []int32, rows array, size, offset uintptr) {
+	_ = indexes[:rows.len]
+
+	if d.hashmap == nil {
+		d.hashmap = make(map[int64]int32, cap(d.values))
 		for i, v := range d.values {
-			d.index[v] = int32(i)
+			d.hashmap[v] = int32(i)
 		}
 	}
 
-	for i, v := range values {
-		value := v.Int64()
+	for i := 0; i < rows.len; i++ {
+		value := *(*int64)(rows.index(i, size, offset))
 
-		index, exists := d.index[value]
+		index, exists := d.hashmap[value]
 		if !exists {
 			index = int32(len(d.values))
 			d.values = append(d.values, value)
-			d.index[value] = index
+			d.hashmap[value] = index
 		}
 
 		indexes[i] = index
@@ -272,35 +326,23 @@ func (d *int64Dictionary) Insert(indexes []int32, values []Value) {
 }
 
 func (d *int64Dictionary) Lookup(indexes []int32, values []Value) {
-	for i, j := range indexes {
-		values[i] = d.Index(j)
-	}
+	model := d.makeValue(0)
+	memsetValues(values, model)
+	d.lookup(indexes, makeArrayValue(values), unsafe.Sizeof(model), unsafe.Offsetof(model.u64))
 }
 
 func (d *int64Dictionary) Bounds(indexes []int32) (min, max Value) {
 	if len(indexes) > 0 {
-		minValue := d.values[indexes[0]]
-		maxValue := minValue
-
-		for _, i := range indexes[1:] {
-			value := d.values[i]
-			switch {
-			case value < minValue:
-				minValue = value
-			case value > maxValue:
-				maxValue = value
-			}
-		}
-
-		min = makeValueInt64(minValue)
-		max = makeValueInt64(maxValue)
+		minValue, maxValue := d.bounds(indexes)
+		min = d.makeValue(minValue)
+		max = d.makeValue(maxValue)
 	}
 	return min, max
 }
 
 func (d *int64Dictionary) Reset() {
 	d.values = d.values[:0]
-	d.index = nil
+	d.hashmap = nil
 }
 
 func (d *int64Dictionary) Page() BufferedPage {
@@ -309,7 +351,7 @@ func (d *int64Dictionary) Page() BufferedPage {
 
 type int96Dictionary struct {
 	int96Page
-	index map[deprecated.Int96]int32
+	hashmap map[deprecated.Int96]int32
 }
 
 func newInt96Dictionary(typ Type, columnIndex int16, numValues int32, values []byte) *int96Dictionary {
@@ -326,26 +368,40 @@ func (d *int96Dictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *int96Dictionary) Len() int { return len(d.values) }
 
-func (d *int96Dictionary) Index(i int32) Value { return makeValueInt96(d.values[i]) }
+func (d *int96Dictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
+
+func (d *int96Dictionary) index(i int32) deprecated.Int96 { return d.values[i] }
 
 func (d *int96Dictionary) Insert(indexes []int32, values []Value) {
-	_ = indexes[:len(values)]
+	d.insertValues(indexes, len(values), func(i int) deprecated.Int96 {
+		return values[i].Int96()
+	})
+}
 
-	if d.index == nil {
-		d.index = make(map[deprecated.Int96]int32, cap(d.values))
+func (d *int96Dictionary) insert(indexes []int32, rows array, size, offset uintptr) {
+	d.insertValues(indexes, rows.len, func(i int) deprecated.Int96 {
+		return *(*deprecated.Int96)(rows.index(i, size, offset))
+	})
+}
+
+func (d *int96Dictionary) insertValues(indexes []int32, count int, valueAt func(int) deprecated.Int96) {
+	_ = indexes[:count]
+
+	if d.hashmap == nil {
+		d.hashmap = make(map[deprecated.Int96]int32, cap(d.values))
 		for i, v := range d.values {
-			d.index[v] = int32(i)
+			d.hashmap[v] = int32(i)
 		}
 	}
 
-	for i, v := range values {
-		value := v.Int96()
+	for i := 0; i < count; i++ {
+		value := valueAt(i)
 
-		index, exists := d.index[value]
+		index, exists := d.hashmap[value]
 		if !exists {
 			index = int32(len(d.values))
 			d.values = append(d.values, value)
-			d.index[value] = index
+			d.hashmap[value] = index
 		}
 
 		indexes[i] = index
@@ -360,11 +416,11 @@ func (d *int96Dictionary) Lookup(indexes []int32, values []Value) {
 
 func (d *int96Dictionary) Bounds(indexes []int32) (min, max Value) {
 	if len(indexes) > 0 {
-		minValue := d.values[indexes[0]]
+		minValue := d.index(indexes[0])
 		maxValue := minValue
 
 		for _, i := range indexes[1:] {
-			value := d.values[i]
+			value := d.index(i)
 			switch {
 			case value.Less(minValue):
 				minValue = value
@@ -373,15 +429,15 @@ func (d *int96Dictionary) Bounds(indexes []int32) (min, max Value) {
 			}
 		}
 
-		min = makeValueInt96(minValue)
-		max = makeValueInt96(maxValue)
+		min = d.makeValue(minValue)
+		max = d.makeValue(maxValue)
 	}
 	return min, max
 }
 
 func (d *int96Dictionary) Reset() {
 	d.values = d.values[:0]
-	d.index = nil
+	d.hashmap = nil
 }
 
 func (d *int96Dictionary) Page() BufferedPage {
@@ -390,14 +446,14 @@ func (d *int96Dictionary) Page() BufferedPage {
 
 type floatDictionary struct {
 	floatPage
-	index map[float32]int32
+	hashmap map[float32]int32
 }
 
 func newFloatDictionary(typ Type, columnIndex int16, numValues int32, values []byte) *floatDictionary {
 	return &floatDictionary{
 		floatPage: floatPage{
 			typ:         typ,
-			values:      bits.BytesToFloat32(values)[:numValues],
+			values:      unsafecast.BytesToFloat32(values)[:numValues],
 			columnIndex: ^columnIndex,
 		},
 	}
@@ -407,26 +463,33 @@ func (d *floatDictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *floatDictionary) Len() int { return len(d.values) }
 
-func (d *floatDictionary) Index(i int32) Value { return makeValueFloat(d.values[i]) }
+func (d *floatDictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
+
+func (d *floatDictionary) index(i int32) float32 { return d.values[i] }
 
 func (d *floatDictionary) Insert(indexes []int32, values []Value) {
-	_ = indexes[:len(values)]
+	var value Value
+	d.insert(indexes, makeArrayValue(values), unsafe.Sizeof(value), unsafe.Offsetof(value.u64))
+}
 
-	if d.index == nil {
-		d.index = make(map[float32]int32, cap(d.values))
+func (d *floatDictionary) insert(indexes []int32, rows array, size, offset uintptr) {
+	_ = indexes[:rows.len]
+
+	if d.hashmap == nil {
+		d.hashmap = make(map[float32]int32, cap(d.values))
 		for i, v := range d.values {
-			d.index[v] = int32(i)
+			d.hashmap[v] = int32(i)
 		}
 	}
 
-	for i, v := range values {
-		value := v.Float()
+	for i := 0; i < rows.len; i++ {
+		value := *(*float32)(rows.index(i, size, offset))
 
-		index, exists := d.index[value]
+		index, exists := d.hashmap[value]
 		if !exists {
 			index = int32(len(d.values))
 			d.values = append(d.values, value)
-			d.index[value] = index
+			d.hashmap[value] = index
 		}
 
 		indexes[i] = index
@@ -434,35 +497,23 @@ func (d *floatDictionary) Insert(indexes []int32, values []Value) {
 }
 
 func (d *floatDictionary) Lookup(indexes []int32, values []Value) {
-	for i, j := range indexes {
-		values[i] = d.Index(j)
-	}
+	model := d.makeValue(0)
+	memsetValues(values, model)
+	d.lookup(indexes, makeArrayValue(values), unsafe.Sizeof(model), unsafe.Offsetof(model.u64))
 }
 
 func (d *floatDictionary) Bounds(indexes []int32) (min, max Value) {
 	if len(indexes) > 0 {
-		minValue := d.values[indexes[0]]
-		maxValue := minValue
-
-		for _, i := range indexes[1:] {
-			value := d.values[i]
-			switch {
-			case value < minValue:
-				minValue = value
-			case value > maxValue:
-				maxValue = value
-			}
-		}
-
-		min = makeValueFloat(minValue)
-		max = makeValueFloat(maxValue)
+		minValue, maxValue := d.bounds(indexes)
+		min = d.makeValue(minValue)
+		max = d.makeValue(maxValue)
 	}
 	return min, max
 }
 
 func (d *floatDictionary) Reset() {
 	d.values = d.values[:0]
-	d.index = nil
+	d.hashmap = nil
 }
 
 func (d *floatDictionary) Page() BufferedPage {
@@ -471,14 +522,14 @@ func (d *floatDictionary) Page() BufferedPage {
 
 type doubleDictionary struct {
 	doublePage
-	index map[float64]int32
+	hashmap map[float64]int32
 }
 
 func newDoubleDictionary(typ Type, columnIndex int16, numValues int32, values []byte) *doubleDictionary {
 	return &doubleDictionary{
 		doublePage: doublePage{
 			typ:         typ,
-			values:      bits.BytesToFloat64(values)[:numValues],
+			values:      unsafecast.BytesToFloat64(values)[:numValues],
 			columnIndex: ^columnIndex,
 		},
 	}
@@ -488,26 +539,33 @@ func (d *doubleDictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *doubleDictionary) Len() int { return len(d.values) }
 
-func (d *doubleDictionary) Index(i int32) Value { return makeValueDouble(d.values[i]) }
+func (d *doubleDictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
+
+func (d *doubleDictionary) index(i int32) float64 { return d.values[i] }
 
 func (d *doubleDictionary) Insert(indexes []int32, values []Value) {
-	_ = indexes[:len(values)]
+	var value Value
+	d.insert(indexes, makeArrayValue(values), unsafe.Sizeof(value), unsafe.Offsetof(value.u64))
+}
 
-	if d.index == nil {
-		d.index = make(map[float64]int32, cap(d.values))
+func (d *doubleDictionary) insert(indexes []int32, rows array, size, offset uintptr) {
+	_ = indexes[:rows.len]
+
+	if d.hashmap == nil {
+		d.hashmap = make(map[float64]int32, cap(d.values))
 		for i, v := range d.values {
-			d.index[v] = int32(i)
+			d.hashmap[v] = int32(i)
 		}
 	}
 
-	for i, v := range values {
-		value := v.Double()
+	for i := 0; i < rows.len; i++ {
+		value := *(*float64)(rows.index(i, size, offset))
 
-		index, exists := d.index[value]
+		index, exists := d.hashmap[value]
 		if !exists {
 			index = int32(len(d.values))
 			d.values = append(d.values, value)
-			d.index[value] = index
+			d.hashmap[value] = index
 		}
 
 		indexes[i] = index
@@ -515,35 +573,23 @@ func (d *doubleDictionary) Insert(indexes []int32, values []Value) {
 }
 
 func (d *doubleDictionary) Lookup(indexes []int32, values []Value) {
-	for i, j := range indexes {
-		values[i] = d.Index(j)
-	}
+	model := d.makeValue(0)
+	memsetValues(values, model)
+	d.lookup(indexes, makeArrayValue(values), unsafe.Sizeof(model), unsafe.Offsetof(model.u64))
 }
 
 func (d *doubleDictionary) Bounds(indexes []int32) (min, max Value) {
 	if len(indexes) > 0 {
-		minValue := d.values[indexes[0]]
-		maxValue := minValue
-
-		for _, i := range indexes[1:] {
-			value := d.values[i]
-			switch {
-			case value < minValue:
-				minValue = value
-			case value > maxValue:
-				maxValue = value
-			}
-		}
-
-		min = makeValueDouble(minValue)
-		max = makeValueDouble(maxValue)
+		minValue, maxValue := d.bounds(indexes)
+		min = d.makeValue(minValue)
+		max = d.makeValue(maxValue)
 	}
 	return min, max
 }
 
 func (d *doubleDictionary) Reset() {
 	d.values = d.values[:0]
-	d.index = nil
+	d.hashmap = nil
 }
 
 func (d *doubleDictionary) Page() BufferedPage {
@@ -553,7 +599,7 @@ func (d *doubleDictionary) Page() BufferedPage {
 type byteArrayDictionary struct {
 	byteArrayPage
 	offsets []uint32
-	index   map[string]int32
+	hashmap map[string]int32
 }
 
 func newByteArrayDictionary(typ Type, columnIndex int16, numValues int32, values []byte) *byteArrayDictionary {
@@ -581,66 +627,80 @@ func (d *byteArrayDictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *byteArrayDictionary) Len() int { return len(d.offsets) }
 
-func (d *byteArrayDictionary) Index(i int32) Value {
-	return makeValueBytes(ByteArray, d.valueAt(d.offsets[i]))
-}
+func (d *byteArrayDictionary) Index(i int32) Value { return d.makeValueBytes(d.index(i)) }
+
+func (d *byteArrayDictionary) index(i int32) []byte { return d.valueAt(d.offsets[i]) }
 
 func (d *byteArrayDictionary) Insert(indexes []int32, values []Value) {
-	_ = indexes[:len(values)]
+	var value Value
+	d.insert(indexes, makeArrayValue(values), unsafe.Sizeof(value), unsafe.Offsetof(value.ptr))
+}
 
-	if d.index == nil {
-		d.index = make(map[string]int32, cap(d.offsets))
+func (d *byteArrayDictionary) insert(indexes []int32, rows array, size, offset uintptr) {
+	_ = indexes[:rows.len]
+
+	if d.hashmap == nil {
+		d.hashmap = make(map[string]int32, cap(d.offsets))
 		for index, offset := range d.offsets {
-			d.index[bits.BytesToString(d.valueAt(offset))] = int32(index)
+			d.hashmap[string(d.valueAt(offset))] = int32(index)
 		}
 	}
 
-	for i, v := range values {
-		value := v.ByteArray()
+	for i := 0; i < rows.len; i++ {
+		value := *(*string)(rows.index(i, size, offset))
 
-		index, exists := d.index[string(value)]
+		index, exists := d.hashmap[value]
 		if !exists {
 			index = int32(len(d.offsets))
 			value = d.append(value)
-			stringValue := bits.BytesToString(value)
-			d.index[stringValue] = index
+			d.hashmap[value] = index
 		}
 
 		indexes[i] = index
 	}
 }
 
-func (d *byteArrayDictionary) append(value []byte) []byte {
+func (d *byteArrayDictionary) append(value string) string {
 	offset := len(d.values)
-	d.values = plain.AppendByteArray(d.values, value)
+	d.values = plain.AppendByteArrayString(d.values, value)
 	d.offsets = append(d.offsets, uint32(offset))
 	d.numValues++
-	return d.values[offset+plain.ByteArrayLengthSize : len(d.values) : len(d.values)]
+	return string(d.values[offset+plain.ByteArrayLengthSize : len(d.values)])
 }
 
 func (d *byteArrayDictionary) Lookup(indexes []int32, values []Value) {
-	for i, j := range indexes {
-		values[i] = d.Index(j)
-	}
+	model := d.makeValueString("")
+	memsetValues(values, model)
+	d.lookupString(indexes, makeArrayValue(values), unsafe.Sizeof(model), unsafe.Offsetof(model.ptr))
 }
 
 func (d *byteArrayDictionary) Bounds(indexes []int32) (min, max Value) {
 	if len(indexes) > 0 {
-		minValue := d.valueAt(d.offsets[indexes[0]])
+		base := d.index(indexes[0])
+		minValue := unsafecast.BytesToString(base)
 		maxValue := minValue
+		values := [64]string{}
 
-		for _, i := range indexes[1:] {
-			value := d.valueAt(d.offsets[i])
-			switch {
-			case bytes.Compare(value, minValue) < 0:
-				minValue = value
-			case bytes.Compare(value, maxValue) > 0:
-				maxValue = value
+		for i := 1; i < len(indexes); i += len(values) {
+			n := len(indexes) - i
+			if n > len(values) {
+				n = len(values)
+			}
+			j := i + n
+			d.lookupString(indexes[i:j:j], makeArrayString(values[:n:n]), unsafe.Sizeof(values[0]), 0)
+
+			for _, value := range values[:n:n] {
+				switch {
+				case value < minValue:
+					minValue = value
+				case value > maxValue:
+					maxValue = value
+				}
 			}
 		}
 
-		min = makeValueBytes(ByteArray, minValue)
-		max = makeValueBytes(ByteArray, maxValue)
+		min = d.makeValueString(minValue)
+		max = d.makeValueString(maxValue)
 	}
 	return min, max
 }
@@ -649,7 +709,7 @@ func (d *byteArrayDictionary) Reset() {
 	d.offsets = d.offsets[:0]
 	d.values = d.values[:0]
 	d.numValues = 0
-	d.index = nil
+	d.hashmap = nil
 }
 
 func (d *byteArrayDictionary) Page() BufferedPage {
@@ -658,7 +718,7 @@ func (d *byteArrayDictionary) Page() BufferedPage {
 
 type fixedLenByteArrayDictionary struct {
 	fixedLenByteArrayPage
-	index map[string]int32
+	hashmap map[string]int32
 }
 
 func newFixedLenByteArrayDictionary(typ Type, columnIndex int16, numValues int32, data []byte) *fixedLenByteArrayDictionary {
@@ -678,33 +738,47 @@ func (d *fixedLenByteArrayDictionary) Type() Type { return newIndexedType(d.typ,
 func (d *fixedLenByteArrayDictionary) Len() int { return len(d.data) / d.size }
 
 func (d *fixedLenByteArrayDictionary) Index(i int32) Value {
-	return makeValueBytes(FixedLenByteArray, d.value(i))
+	return d.makeValueBytes(d.index(i))
 }
 
-func (d *fixedLenByteArrayDictionary) value(i int32) []byte {
-	return d.data[int(i)*d.size : int(i+1)*d.size]
+func (d *fixedLenByteArrayDictionary) index(i int32) []byte {
+	j := (int(i) + 0) * d.size
+	k := (int(i) + 1) * d.size
+	return d.data[j:k:k]
 }
 
 func (d *fixedLenByteArrayDictionary) Insert(indexes []int32, values []Value) {
-	_ = indexes[:len(values)]
+	d.insertValues(indexes, len(values), func(i int) *byte {
+		return values[i].ptr
+	})
+}
 
-	if d.index == nil {
-		d.index = make(map[string]int32, cap(d.data)/d.size)
+func (d *fixedLenByteArrayDictionary) insert(indexes []int32, rows array, size, offset uintptr) {
+	d.insertValues(indexes, rows.len, func(i int) *byte {
+		return (*byte)(rows.index(i, size, offset))
+	})
+}
+
+func (d *fixedLenByteArrayDictionary) insertValues(indexes []int32, count int, valueAt func(int) *byte) {
+	_ = indexes[:count]
+
+	if d.hashmap == nil {
+		d.hashmap = make(map[string]int32, cap(d.data)/d.size)
 		for i, j := 0, int32(0); i < len(d.data); i += d.size {
-			d.index[bits.BytesToString(d.data[i:i+d.size])] = j
+			d.hashmap[string(d.data[i:i+d.size])] = j
 			j++
 		}
 	}
 
-	for i, v := range values {
-		value := v.ByteArray()
+	for i := 0; i < count; i++ {
+		value := unsafe.Slice(valueAt(i), d.size)
 
-		index, exists := d.index[string(value)]
+		index, exists := d.hashmap[string(value)]
 		if !exists {
 			index = int32(d.Len())
 			start := len(d.data)
 			d.data = append(d.data, value...)
-			d.index[bits.BytesToString(d.data[start:])] = index
+			d.hashmap[string(d.data[start:])] = index
 		}
 
 		indexes[i] = index
@@ -712,35 +786,45 @@ func (d *fixedLenByteArrayDictionary) Insert(indexes []int32, values []Value) {
 }
 
 func (d *fixedLenByteArrayDictionary) Lookup(indexes []int32, values []Value) {
-	for i, j := range indexes {
-		values[i] = d.Index(j)
-	}
+	model := d.makeValueString("")
+	memsetValues(values, model)
+	d.lookupString(indexes, makeArrayValue(values), unsafe.Sizeof(model), unsafe.Offsetof(model.ptr))
 }
 
 func (d *fixedLenByteArrayDictionary) Bounds(indexes []int32) (min, max Value) {
 	if len(indexes) > 0 {
-		minValue := d.value(indexes[0])
+		base := d.index(indexes[0])
+		minValue := unsafecast.BytesToString(base)
 		maxValue := minValue
+		values := [64]string{}
 
-		for _, i := range indexes[1:] {
-			value := d.value(i)
-			switch {
-			case bytes.Compare(value, minValue) < 0:
-				minValue = value
-			case bytes.Compare(value, maxValue) > 0:
-				maxValue = value
+		for i := 1; i < len(indexes); i += len(values) {
+			n := len(indexes) - i
+			if n > len(values) {
+				n = len(values)
+			}
+			j := i + n
+			d.lookupString(indexes[i:j:j], makeArrayString(values[:n:n]), unsafe.Sizeof(values[0]), 0)
+
+			for _, value := range values[:n:n] {
+				switch {
+				case value < minValue:
+					minValue = value
+				case value > maxValue:
+					maxValue = value
+				}
 			}
 		}
 
-		min = makeValueBytes(FixedLenByteArray, minValue)
-		max = makeValueBytes(FixedLenByteArray, maxValue)
+		min = d.makeValueString(minValue)
+		max = d.makeValueString(maxValue)
 	}
 	return min, max
 }
 
 func (d *fixedLenByteArrayDictionary) Reset() {
 	d.data = d.data[:0]
-	d.index = nil
+	d.hashmap = nil
 }
 
 func (d *fixedLenByteArrayDictionary) Page() BufferedPage {
@@ -749,14 +833,14 @@ func (d *fixedLenByteArrayDictionary) Page() BufferedPage {
 
 type uint32Dictionary struct {
 	uint32Page
-	index map[uint32]int32
+	hashmap map[uint32]int32
 }
 
 func newUint32Dictionary(typ Type, columnIndex int16, numValues int32, data []byte) *uint32Dictionary {
 	return &uint32Dictionary{
 		uint32Page: uint32Page{
 			typ:         typ,
-			values:      bits.BytesToUint32(data)[:numValues],
+			values:      unsafecast.BytesToUint32(data)[:numValues],
 			columnIndex: ^columnIndex,
 		},
 	}
@@ -766,26 +850,33 @@ func (d *uint32Dictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *uint32Dictionary) Len() int { return len(d.values) }
 
-func (d *uint32Dictionary) Index(i int32) Value { return makeValueUint32(d.values[i]) }
+func (d *uint32Dictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
+
+func (d *uint32Dictionary) index(i int32) uint32 { return d.values[i] }
 
 func (d *uint32Dictionary) Insert(indexes []int32, values []Value) {
-	_ = indexes[:len(values)]
+	var value Value
+	d.insert(indexes, makeArrayValue(values), unsafe.Sizeof(value), unsafe.Offsetof(value.u64))
+}
 
-	if d.index == nil {
-		d.index = make(map[uint32]int32, cap(d.values))
+func (d *uint32Dictionary) insert(indexes []int32, rows array, size, offset uintptr) {
+	_ = indexes[:rows.len]
+
+	if d.hashmap == nil {
+		d.hashmap = make(map[uint32]int32, cap(d.values))
 		for i, v := range d.values {
-			d.index[v] = int32(i)
+			d.hashmap[v] = int32(i)
 		}
 	}
 
-	for i, v := range values {
-		value := v.Uint32()
+	for i := 0; i < rows.len; i++ {
+		value := *(*uint32)(rows.index(i, size, offset))
 
-		index, exists := d.index[value]
+		index, exists := d.hashmap[value]
 		if !exists {
 			index = int32(len(d.values))
 			d.values = append(d.values, value)
-			d.index[value] = index
+			d.hashmap[value] = index
 		}
 
 		indexes[i] = index
@@ -793,35 +884,23 @@ func (d *uint32Dictionary) Insert(indexes []int32, values []Value) {
 }
 
 func (d *uint32Dictionary) Lookup(indexes []int32, values []Value) {
-	for i, j := range indexes {
-		values[i] = d.Index(j)
-	}
+	model := d.makeValue(0)
+	memsetValues(values, model)
+	d.lookup(indexes, makeArrayValue(values), unsafe.Sizeof(model), unsafe.Offsetof(model.u64))
 }
 
 func (d *uint32Dictionary) Bounds(indexes []int32) (min, max Value) {
 	if len(indexes) > 0 {
-		minValue := d.values[indexes[0]]
-		maxValue := minValue
-
-		for _, i := range indexes[1:] {
-			value := d.values[i]
-			switch {
-			case value < minValue:
-				minValue = value
-			case value > maxValue:
-				maxValue = value
-			}
-		}
-
-		min = makeValueUint32(minValue)
-		max = makeValueUint32(maxValue)
+		minValue, maxValue := d.bounds(indexes)
+		min = d.makeValue(minValue)
+		max = d.makeValue(maxValue)
 	}
 	return min, max
 }
 
 func (d *uint32Dictionary) Reset() {
 	d.values = d.values[:0]
-	d.index = nil
+	d.hashmap = nil
 }
 
 func (d *uint32Dictionary) Page() BufferedPage {
@@ -830,14 +909,14 @@ func (d *uint32Dictionary) Page() BufferedPage {
 
 type uint64Dictionary struct {
 	uint64Page
-	index map[uint64]int32
+	hashmap map[uint64]int32
 }
 
 func newUint64Dictionary(typ Type, columnIndex int16, numValues int32, data []byte) *uint64Dictionary {
 	return &uint64Dictionary{
 		uint64Page: uint64Page{
 			typ:         typ,
-			values:      bits.BytesToUint64(data),
+			values:      unsafecast.BytesToUint64(data),
 			columnIndex: ^columnIndex,
 		},
 	}
@@ -847,26 +926,33 @@ func (d *uint64Dictionary) Type() Type { return newIndexedType(d.typ, d) }
 
 func (d *uint64Dictionary) Len() int { return len(d.values) }
 
-func (d *uint64Dictionary) Index(i int32) Value { return makeValueUint64(d.values[i]) }
+func (d *uint64Dictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
+
+func (d *uint64Dictionary) index(i int32) uint64 { return d.values[i] }
 
 func (d *uint64Dictionary) Insert(indexes []int32, values []Value) {
-	_ = indexes[:len(values)]
+	var value Value
+	d.insert(indexes, makeArrayValue(values), unsafe.Sizeof(value), unsafe.Offsetof(value.u64))
+}
 
-	if d.index == nil {
-		d.index = make(map[uint64]int32, cap(d.values))
+func (d *uint64Dictionary) insert(indexes []int32, rows array, size, offset uintptr) {
+	_ = indexes[:rows.len]
+
+	if d.hashmap == nil {
+		d.hashmap = make(map[uint64]int32, cap(d.values))
 		for i, v := range d.values {
-			d.index[v] = int32(i)
+			d.hashmap[v] = int32(i)
 		}
 	}
 
-	for i, v := range values {
-		value := v.Uint64()
+	for i := 0; i < rows.len; i++ {
+		value := *(*uint64)(rows.index(i, size, offset))
 
-		index, exists := d.index[value]
+		index, exists := d.hashmap[value]
 		if !exists {
 			index = int32(len(d.values))
 			d.values = append(d.values, value)
-			d.index[value] = index
+			d.hashmap[value] = index
 		}
 
 		indexes[i] = index
@@ -874,39 +960,110 @@ func (d *uint64Dictionary) Insert(indexes []int32, values []Value) {
 }
 
 func (d *uint64Dictionary) Lookup(indexes []int32, values []Value) {
-	for i, j := range indexes {
-		values[i] = d.Index(j)
-	}
+	model := d.makeValue(0)
+	memsetValues(values, model)
+	d.lookup(indexes, makeArrayValue(values), unsafe.Sizeof(model), unsafe.Offsetof(model.u64))
 }
 
 func (d *uint64Dictionary) Bounds(indexes []int32) (min, max Value) {
 	if len(indexes) > 0 {
-		minValue := d.values[indexes[0]]
-		maxValue := minValue
-
-		for _, i := range indexes[1:] {
-			value := d.values[i]
-			switch {
-			case value < minValue:
-				minValue = value
-			case value > maxValue:
-				maxValue = value
-			}
-		}
-
-		min = makeValueUint64(minValue)
-		max = makeValueUint64(maxValue)
+		minValue, maxValue := d.bounds(indexes)
+		min = d.makeValue(minValue)
+		max = d.makeValue(maxValue)
 	}
 	return min, max
 }
 
 func (d *uint64Dictionary) Reset() {
 	d.values = d.values[:0]
-	d.index = nil
+	d.hashmap = nil
 }
 
 func (d *uint64Dictionary) Page() BufferedPage {
 	return &d.uint64Page
+}
+
+type be128Dictionary struct {
+	be128Page
+	hashmap map[[16]byte]int32
+}
+
+func newBE128Dictionary(typ Type, columnIndex int16, numValues int32, data []byte) *be128Dictionary {
+	return &be128Dictionary{
+		be128Page: be128Page{
+			typ:         typ,
+			values:      unsafecast.BytesToUint128(data),
+			columnIndex: ^columnIndex,
+		},
+	}
+}
+
+func (d *be128Dictionary) Type() Type { return newIndexedType(d.typ, d) }
+
+func (d *be128Dictionary) Len() int { return len(d.values) }
+
+func (d *be128Dictionary) Index(i int32) Value { return d.makeValue(d.index(i)) }
+
+func (d *be128Dictionary) index(i int32) *[16]byte { return &d.values[i] }
+
+func (d *be128Dictionary) Insert(indexes []int32, values []Value) {
+	d.insertValues(indexes, len(values), func(i int) [16]byte {
+		return *(*[16]byte)(values[i].ByteArray())
+	})
+}
+
+func (d *be128Dictionary) insert(indexes []int32, rows array, size, offset uintptr) {
+	d.insertValues(indexes, rows.len, func(i int) [16]byte {
+		return *(*[16]byte)(rows.index(i, size, offset))
+	})
+}
+
+func (d *be128Dictionary) insertValues(indexes []int32, count int, valueAt func(int) [16]byte) {
+	_ = indexes[:count]
+
+	if d.hashmap == nil {
+		d.hashmap = make(map[[16]byte]int32, cap(d.values))
+		for i, v := range d.values {
+			d.hashmap[v] = int32(i)
+		}
+	}
+
+	for i := 0; i < count; i++ {
+		value := valueAt(i)
+
+		index, exists := d.hashmap[value]
+		if !exists {
+			index = int32(len(d.values))
+			d.values = append(d.values, value)
+			d.hashmap[value] = index
+		}
+
+		indexes[i] = index
+	}
+}
+
+func (d *be128Dictionary) Lookup(indexes []int32, values []Value) {
+	model := d.makeValueString("")
+	memsetValues(values, model)
+	d.lookupString(indexes, makeArrayValue(values), unsafe.Sizeof(model), unsafe.Offsetof(model.ptr))
+}
+
+func (d *be128Dictionary) Bounds(indexes []int32) (min, max Value) {
+	if len(indexes) > 0 {
+		minValue, maxValue := d.bounds(indexes)
+		min = d.makeValue(minValue)
+		max = d.makeValue(maxValue)
+	}
+	return min, max
+}
+
+func (d *be128Dictionary) Reset() {
+	d.values = d.values[:0]
+	d.hashmap = nil
+}
+
+func (d *be128Dictionary) Page() BufferedPage {
+	return &d.be128Page
 }
 
 // indexedType is a wrapper around a Type value which overrides object
@@ -921,8 +1078,8 @@ func newIndexedType(typ Type, dict Dictionary) *indexedType {
 	return &indexedType{Type: typ, dict: dict}
 }
 
-func (t *indexedType) NewColumnBuffer(columnIndex, bufferSize int) ColumnBuffer {
-	return newIndexedColumnBuffer(t, makeColumnIndex(columnIndex), bufferSize)
+func (t *indexedType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newIndexedColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
 }
 
 func (t *indexedType) NewPage(columnIndex, numValues int, data []byte) Page {
@@ -960,7 +1117,7 @@ func newIndexedPage(typ *indexedType, columnIndex int16, numValues int32, values
 
 	return &indexedPage{
 		typ:         typ,
-		values:      bits.BytesToInt32(values[:size]),
+		values:      unsafecast.BytesToInt32(values[:size]),
 		columnIndex: ^columnIndex,
 	}
 }
@@ -983,7 +1140,7 @@ func (page *indexedPage) RepetitionLevels() []byte { return nil }
 
 func (page *indexedPage) DefinitionLevels() []byte { return nil }
 
-func (page *indexedPage) Data() []byte { return bits.Int32ToBytes(page.values) }
+func (page *indexedPage) Data() []byte { return unsafecast.Int32ToBytes(page.values) }
 
 func (page *indexedPage) Values() ValueReader { return &indexedPageValues{page: page} }
 
@@ -1057,11 +1214,11 @@ func (r *indexedPageValues) ReadValues(values []Value) (n int, err error) {
 // builds a page of indexes into a parent dictionary when values are written.
 type indexedColumnBuffer struct{ indexedPage }
 
-func newIndexedColumnBuffer(typ *indexedType, columnIndex int16, bufferSize int) *indexedColumnBuffer {
+func newIndexedColumnBuffer(typ *indexedType, columnIndex int16, numValues int32) *indexedColumnBuffer {
 	return &indexedColumnBuffer{
 		indexedPage: indexedPage{
 			typ:         typ,
-			values:      make([]int32, 0, bufferSize/4),
+			values:      make([]int32, 0, numValues),
 			columnIndex: ^columnIndex,
 		},
 	}
@@ -1112,13 +1269,28 @@ func (col *indexedColumnBuffer) WriteValues(values []Value) (int, error) {
 	if j <= cap(col.values) {
 		col.values = col.values[:j]
 	} else {
-		colValues := make([]int32, j, 2*j)
-		copy(colValues, col.values)
-		col.values = colValues
+		tmp := make([]int32, j, 2*j)
+		copy(tmp, col.values)
+		col.values = tmp
 	}
 
 	col.typ.dict.Insert(col.values[i:], values)
 	return len(values), nil
+}
+
+func (col *indexedColumnBuffer) writeValues(rows array, size, offset uintptr, _ columnLevels) {
+	i := len(col.values)
+	j := len(col.values) + rows.len
+
+	if j <= cap(col.values) {
+		col.values = col.values[:j]
+	} else {
+		tmp := make([]int32, j, 2*j)
+		copy(tmp, col.values)
+		col.values = tmp
+	}
+
+	col.typ.dict.insert(col.values[i:], rows, size, offset)
 }
 
 func (col *indexedColumnBuffer) ReadValuesAt(values []Value, offset int64) (n int, err error) {
