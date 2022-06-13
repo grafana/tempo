@@ -1,0 +1,136 @@
+package traceql
+
+import (
+	"strings"
+	"testing"
+	"text/scanner"
+	"time"
+
+	"github.com/stretchr/testify/require"
+)
+
+type lexerTestCase struct {
+	input    string
+	expected []int
+}
+
+func TestLexerAttributes(t *testing.T) {
+	testLexer(t, ([]lexerTestCase{
+		// attributes
+		{`.foo`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`.count`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`.foo3`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`.foo+bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`.foo-bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
+		// parent attributes
+		{`parent.foo`, []int{PARENT_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`parent.count`, []int{PARENT_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`parent.foo3`, []int{PARENT_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`parent.foo+bar`, []int{PARENT_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`parent.foo-bar`, []int{PARENT_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		// span attributes
+		{`span.foo`, []int{SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`span.count`, []int{SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`span.foo3`, []int{SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`span.foo+bar`, []int{SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`span.foo-bar`, []int{SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		// resource attributes
+		{`resource.foo`, []int{RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`resource.count`, []int{RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`resource.foo3`, []int{RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`resource.foo+bar`, []int{RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`resource.foo-bar`, []int{RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		// parent span attributes
+		{`parent.span.foo`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`parent.span.count`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`parent.span.foo3`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`parent.span.foo+bar`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`parent.span.foo-bar`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		// parent resource attributes
+		{`parent.resource.foo`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`parent.resource.count`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`parent.resource.foo3`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`parent.resource.foo+bar`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`parent.resource.foo-bar`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		// attribute enders: <space>, {, }, (, ) all force end an attribute
+		{`.foo .bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE, DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`.foo}.bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE, CLOSE_BRACE, DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`.foo{.bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE, OPEN_BRACE, DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`.foo).bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE, CLOSE_PARENS, DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`.foo(.bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE, OPEN_PARENS, DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`. foo`, []int{DOT, END_ATTRIBUTE, IDENTIFIER}},
+		// not attributes
+		{`.3`, []int{FLOAT}},
+		{`.24h`, []int{FLOAT, IDENTIFIER}},
+	}))
+}
+
+func TestLexerDuration(t *testing.T) {
+	testLexer(t, ([]lexerTestCase{
+		// duration
+		{"1ns", []int{DURATION}},
+		{"1s", []int{DURATION}},
+		{"1us", []int{DURATION}},
+		{"1m", []int{DURATION}},
+		{"1h", []int{DURATION}},
+		{"1µs", []int{DURATION}},
+		{"1y", []int{DURATION}},
+		{"1w", []int{DURATION}},
+		{"1d", []int{DURATION}},
+		{"1h15m30.918273645s", []int{DURATION}},
+		// not duration
+		{"1t", []int{INTEGER, IDENTIFIER}},
+		{"1", []int{INTEGER}},
+	}))
+}
+
+func TestLexerParseDuration(t *testing.T) {
+	const MICROSECOND = 1000 * time.Nanosecond
+	const DAY = 24 * time.Hour
+	const WEEK = 7 * DAY
+	const YEAR = 365 * DAY
+
+	for _, tc := range []struct {
+		input    string
+		expected time.Duration
+	}{
+		{"1ns", time.Nanosecond},
+		{"1s", time.Second},
+		{"1us", MICROSECOND},
+		{"1m", time.Minute},
+		{"1h", time.Hour},
+		{"1µs", MICROSECOND},
+		{"1y", YEAR},
+		{"1w", WEEK},
+		{"1d", DAY},
+		{"1h15m30.918273645s", time.Hour + 15*time.Minute + 30*time.Second + 918273645*time.Nanosecond},
+	} {
+		actual, err := parseDuration(tc.input)
+
+		require.Equal(t, err, nil)
+		require.Equal(t, tc.expected, actual)
+	}
+}
+
+func testLexer(t *testing.T, tcs []lexerTestCase) {
+	for _, tc := range tcs {
+		t.Run(tc.input, func(t *testing.T) {
+			actual := []int{}
+			l := lexer{
+				Scanner: scanner.Scanner{
+					Mode: scanner.SkipComments | scanner.ScanStrings,
+				},
+			}
+			l.Init(strings.NewReader(tc.input))
+			var lval yySymType
+			for {
+				tok := l.Lex(&lval)
+				if tok == 0 {
+					break
+				}
+				actual = append(actual, tok)
+			}
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
