@@ -123,10 +123,18 @@ distributor:
 
     # Optional.
     # Enable to log every received trace id to help debug ingestion
-    [log_received_traces: <bool>]
+    # WARNING: Deprecated. Use log_received_spans instead.
+    [log_received_traces: <boolean> | default = false]
 
     # Optional.
-    # disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
+    # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs
+    log_received_spans:
+        [enabled: <boolean> | default = false]
+        [include_all_attributes: <boolean> | default = false]
+        [filter_by_status_error: <boolean> | default = false]
+
+    # Optional.
+    # Disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
     #  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
     [extend_writes: <bool>]
 
