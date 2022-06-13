@@ -210,6 +210,9 @@ func (ScalarFilter) __spansetExpression() {}
 type FieldExpression interface {
 	element
 	typedExpression
+
+	// referencesSpan returns true if this field expression has any attributes or intrinsics. i.e. it references the span itself
+	referencesSpan() bool
 	__fieldExpression()
 }
 
@@ -217,6 +220,14 @@ type BinaryOperation struct {
 	op  Operator
 	lhs FieldExpression
 	rhs FieldExpression
+}
+
+func newBinaryOperation(op Operator, lhs FieldExpression, rhs FieldExpression) BinaryOperation {
+	return BinaryOperation{
+		op:  op,
+		lhs: lhs,
+		rhs: rhs,
+	}
 }
 
 // nolint: revive
@@ -237,17 +248,20 @@ func (o BinaryOperation) impliedType() StaticType {
 	return o.rhs.impliedType()
 }
 
-func newBinaryOperation(op Operator, lhs FieldExpression, rhs FieldExpression) BinaryOperation {
-	return BinaryOperation{
-		op:  op,
-		lhs: lhs,
-		rhs: rhs,
-	}
+func (o BinaryOperation) referencesSpan() bool {
+	return o.lhs.referencesSpan() || o.rhs.referencesSpan()
 }
 
 type UnaryOperation struct {
 	op Operator
 	e  FieldExpression
+}
+
+func newUnaryOperation(op Operator, e FieldExpression) UnaryOperation {
+	return UnaryOperation{
+		op: op,
+		e:  e,
+	}
 }
 
 // nolint: revive
@@ -258,11 +272,8 @@ func (o UnaryOperation) impliedType() StaticType {
 	return o.e.impliedType()
 }
 
-func newUnaryOperation(op Operator, e FieldExpression) UnaryOperation {
-	return UnaryOperation{
-		op: op,
-		e:  e,
-	}
+func (o UnaryOperation) referencesSpan() bool {
+	return o.e.referencesSpan()
 }
 
 // **********************
@@ -283,6 +294,10 @@ func (Static) __fieldExpression() {}
 
 // nolint: revive
 func (Static) __scalarExpression() {}
+
+func (Static) referencesSpan() bool {
+	return false
+}
 
 func (s Static) impliedType() StaticType {
 	return s.staticType
@@ -347,6 +362,19 @@ type Attribute struct {
 	intrinsic Intrinsic
 }
 
+// newAttribute creates a new attribute with the given identifier string. If the identifier
+//  string matches an intrinsic use that.
+func newAttribute(att string) Attribute {
+	intrinsic := intrinsicFromString(att)
+
+	return Attribute{
+		scope:     attributeScopeNone,
+		parent:    false,
+		name:      att,
+		intrinsic: intrinsic,
+	}
+}
+
 // nolint: revive
 func (Attribute) __fieldExpression() {}
 
@@ -367,17 +395,8 @@ func (a Attribute) impliedType() StaticType {
 	return typeAttribute
 }
 
-// newAttribute creates a new attribute with the given identifier string. If the identifier
-//  string matches an intrinsic use that.
-func newAttribute(att string) Attribute {
-	intrinsic := intrinsicFromString(att)
-
-	return Attribute{
-		scope:     attributeScopeNone,
-		parent:    false,
-		name:      att,
-		intrinsic: intrinsic,
-	}
+func (Attribute) referencesSpan() bool {
+	return true
 }
 
 // newScopedAttribute creates a new scopedattribute with the given identifier string.

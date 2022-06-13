@@ -17,6 +17,10 @@ func (p Pipeline) validate() error {
 }
 
 func (o GroupOperation) validate() error {
+	if !o.e.referencesSpan() {
+		return fmt.Errorf("grouping field expressions must reference the span: %s", o.String())
+	}
+
 	return o.e.validate()
 }
 
@@ -58,6 +62,10 @@ func (a Aggregate) validate() error {
 	t := a.e.impliedType()
 	if t != typeAttribute && !t.isNumeric() {
 		return fmt.Errorf("aggregate field expressions must resolve to a number type: %s", a.String())
+	}
+
+	if !a.e.referencesSpan() {
+		return fmt.Errorf("aggregate field expressions must reference the span: %s", a.String())
 	}
 
 	return nil
