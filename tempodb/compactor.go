@@ -7,11 +7,13 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/metrics"
 )
 
 const (
@@ -23,6 +25,39 @@ const (
 	DefaultFlushSizeBytes uint32 = 30 * 1024 * 1024 // 30 MiB
 
 	DefaultIteratorBufferSize = 1000
+)
+
+var (
+	metricCompactionBlocks = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_blocks_total",
+		Help:      "Total number of blocks compacted.",
+	}, []string{"level"})
+	metricCompactionObjectsWritten = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_objects_written_total",
+		Help:      "Total number of objects written to backend during compaction.",
+	}, []string{"level"})
+	metricCompactionBytesWritten = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_bytes_written_total",
+		Help:      "Total number of bytes written to backend during compaction.",
+	}, []string{"level"})
+	metricCompactionErrors = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_errors_total",
+		Help:      "Total number of errors occurring during compaction.",
+	})
+	metricCompactionObjectsCombined = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_objects_combined_total",
+		Help:      "Total number of objects combined during compaction.",
+	}, []string{"level"})
+	metricCompactionOutstandingBlocks = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_outstanding_blocks",
+		Help:      "Number of blocks remaining to be compacted before next maintenance cycle",
+	}, []string{"tenant"})
 )
 
 // todo: pass a context/chan in to cancel this cleanly
@@ -81,7 +116,7 @@ func (rw *readerWriter) doCompaction() {
 			level.Warn(rw.logger).Log("msg", "unable to find meta during compaction.  trying again on this block list", "err", err)
 		} else if err != nil {
 			level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
-			metrics.MetricCompactionErrors.Inc()
+			metricCompactionErrors.Inc()
 		}
 
 		// after a maintenance cycle bail out
@@ -136,14 +171,22 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		compactionLevelLabel: compactionLevelLabel,
 	}
 
-	compactor := enc.NewCompactor()
 	opts := common.DefaultCompactionOptions()
 	opts.BlockConfig = *rw.cfg.Block
 	opts.ChunkSizeBytes = rw.compactorCfg.ChunkSizeBytes
 	opts.FlushSizeBytes = rw.compactorCfg.FlushSizeBytes
 	opts.OutputBlocks = outputBlocks
 	opts.Combiner = combiner
-	newCompactedBlocks, err := compactor.Compact(ctx, rw.logger, rw.r, rw.getWriterForBlock, blockMetas, opts)
+	opts.BytesWritten = func(compactionLevel, bytes int) {
+		metricCompactionBytesWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(bytes))
+	}
+	opts.ObjectsWritten = func(compactionLevel, objs int) {
+		metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
+	}
+
+	compactor := enc.NewCompactor(opts)
+
+	newCompactedBlocks, err := compactor.Compact(ctx, rw.logger, rw.r, rw.getWriterForBlock, blockMetas)
 	if err != nil {
 		return err
 	}
@@ -151,7 +194,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	// mark old blocks compacted so they don't show up in polling
 	markCompacted(rw, tenantID, blockMetas, newCompactedBlocks)
 
-	metrics.MetricCompactionBlocks.WithLabelValues(compactionLevelLabel).Add(float64(len(blockMetas)))
+	metricCompactionBlocks.WithLabelValues(compactionLevelLabel).Add(float64(len(blockMetas)))
 
 	return nil
 }
@@ -161,7 +204,7 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.Block
 		// Mark in the backend
 		if err := rw.c.MarkBlockCompacted(meta.BlockID, tenantID); err != nil {
 			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
-			metrics.MetricCompactionErrors.Inc()
+			metricCompactionErrors.Inc()
 		}
 	}
 
@@ -192,7 +235,7 @@ func measureOutstandingBlocks(tenantID string, blockSelector CompactionBlockSele
 		}
 		totalOutstandingBlocks += len(leftToBeCompacted)
 	}
-	metrics.MetricCompactionOutstandingBlocks.WithLabelValues(tenantID).Set(float64(totalOutstandingBlocks))
+	metricCompactionOutstandingBlocks.WithLabelValues(tenantID).Set(float64(totalOutstandingBlocks))
 }
 
 func compactionLevelForBlocks(blockMetas []*backend.BlockMeta) uint8 {
@@ -217,7 +260,7 @@ type instrumentedObjectCombiner struct {
 func (i instrumentedObjectCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
 	b, wasCombined, err := i.inner.Combine(dataEncoding, i.tenant, objs...)
 	if wasCombined {
-		metrics.MetricCompactionObjectsCombined.WithLabelValues(i.compactionLevelLabel).Inc()
+		metricCompactionObjectsCombined.WithLabelValues(i.compactionLevelLabel).Inc()
 	}
 	return b, wasCombined, err
 }
