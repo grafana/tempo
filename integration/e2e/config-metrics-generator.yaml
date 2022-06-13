@@ -8,7 +8,8 @@ distributor:
     jaeger:
       protocols:
         grpc:
-  log_received_traces: true
+  log_received_spans:
+    enabled: true
 
 ingester:
   lifecycler:
@@ -44,3 +45,4 @@ memberlist:
 
 overrides:
   metrics_generator_processors: [service-graphs, span-metrics]
+  metrics_generator_max_active_series: 1000

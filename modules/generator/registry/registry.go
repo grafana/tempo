@@ -20,6 +20,11 @@ var (
 		Name:      "metrics_generator_registry_active_series",
 		Help:      "The active series per tenant",
 	}, []string{"tenant"})
+	metricMaxActiveSeries = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_registry_max_active_series",
+		Help:      "The maximum active series per tenant",
+	}, []string{"tenant"})
 	metricTotalSeriesAdded = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "metrics_generator_registry_series_added_total",
@@ -63,6 +68,7 @@ type ManagedRegistry struct {
 
 	logger                   log.Logger
 	metricActiveSeries       prometheus.Gauge
+	metricMaxActiveSeries    prometheus.Gauge
 	metricTotalSeriesAdded   prometheus.Counter
 	metricTotalSeriesRemoved prometheus.Counter
 	metricTotalSeriesLimited prometheus.Counter
@@ -105,6 +111,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 
 		logger:                   logger,
 		metricActiveSeries:       metricActiveSeries.WithLabelValues(tenant),
+		metricMaxActiveSeries:    metricMaxActiveSeries.WithLabelValues(tenant),
 		metricTotalSeriesAdded:   metricTotalSeriesAdded.WithLabelValues(tenant),
 		metricTotalSeriesRemoved: metricTotalSeriesRemoved.WithLabelValues(tenant),
 		metricTotalSeriesLimited: metricTotalSeriesLimited.WithLabelValues(tenant),
@@ -195,6 +202,9 @@ func (r *ManagedRegistry) collectMetrics(ctx context.Context) {
 	// set active series in case there is drift
 	r.activeSeries.Store(activeSeries)
 	r.metricActiveSeries.Set(float64(activeSeries))
+
+	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
+	r.metricMaxActiveSeries.Set(float64(maxActiveSeries))
 
 	err = appender.Commit()
 	if err != nil {

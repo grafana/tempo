@@ -90,7 +90,7 @@ Serverless is not required, but with larger loads, serverless is recommended to 
 improve performance. If you find that you are scaling up your quantity of queriers, yet are not 
 acheiving the latencies you would like, switch to serverless.
 
-Tempo has support for Google Cloud Functions and AWS Lambda. In both cases you will use the following
+Tempo has support for Google Cloud Run and AWS Lambda. In both cases you will use the following
 settings to configure Tempo to use the serverless:
 
 ```
@@ -122,4 +122,4 @@ querier:
 See here for cloud-specific details:
 
 - [AWS Lambda](./serverless_aws.md)
-- [Google Cloud Functions](./serverless_gcp.md)
+- [Google Cloud Run](./serverless_gcp.md)

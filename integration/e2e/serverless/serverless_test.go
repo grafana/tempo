@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	configServerlessGCF    = "config-serverless-gcf.yaml"
+	configServerlessGCR    = "config-serverless-gcr.yaml"
 	configServerlessLambda = "config-serverless-lambda.yaml"
 )
 
@@ -27,9 +27,9 @@ func TestServerless(t *testing.T) {
 		config     string
 	}{
 		{
-			name:       "gcf",
-			serverless: newTempoServerlessGCF(),
-			config:     configServerlessGCF,
+			name:       "gcr",
+			serverless: newTempoServerlessGCR(),
+			config:     configServerlessGCR,
 		},
 		{
 			name:       "lambda",
@@ -87,6 +87,15 @@ func TestServerless(t *testing.T) {
 			require.NoError(t, tempoIngester2.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 			require.NoError(t, tempoIngester3.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 
+			features := []*labels.Matcher{
+				{
+					Type:  labels.MatchEqual,
+					Name:  "feature",
+					Value: "search_external_endpoints",
+				},
+			}
+			require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_feature_enabled`}, e2e.WithLabelMatchers(features...), e2e.WaitMissingMetrics))
+
 			apiClient := tempoUtil.NewClient("http://"+tempoQueryFrontend.Endpoint(3200), "")
 
 			// flush trace to backend
@@ -114,10 +123,10 @@ func TestServerless(t *testing.T) {
 
 }
 
-func newTempoServerlessGCF() *e2e.HTTPService {
+func newTempoServerlessGCR() *e2e.HTTPService {
 	s := e2e.NewHTTPService(
 		"serverless",
-		"tempo-serverless", // created by buildpacks in ./cmd/tempo-serverless
+		"tempo-serverless", // created by Makefile in /cmd/tempo-serverless
 		nil,
 		nil,
 		8080,

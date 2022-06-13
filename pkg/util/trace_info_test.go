@@ -10,11 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestUnixMicro(t *testing.T) {
-	now := time.Now()
-	assert.Equal(t, now.UnixMicro(), unixMicro(now))
-}
-
 func TestTraceInfo(t *testing.T) {
 	writeBackoff := 1 * time.Second
 	longWriteBackoff := 5 * time.Second

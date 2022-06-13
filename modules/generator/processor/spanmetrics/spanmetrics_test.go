@@ -38,16 +38,16 @@ func TestSpanMetrics(t *testing.T) {
 		"service":     "test-service",
 		"span_name":   "test",
 		"span_kind":   "SPAN_KIND_CLIENT",
-		"span_status": "STATUS_CODE_OK",
+		"status_code": "STATUS_CODE_OK",
 	})
 
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
 
-	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, 0.5)))
-	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, 1)))
-	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, math.Inf(1))))
-	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_count", lbls))
-	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_sum", lbls))
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 0.5)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 1)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
 }
 
 func TestSpanMetrics_dimensions(t *testing.T) {
@@ -86,7 +86,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 		"service":        "test-service",
 		"span_name":      "test",
 		"span_kind":      "SPAN_KIND_CLIENT",
-		"span_status":    "STATUS_CODE_OK",
+		"status_code":    "STATUS_CODE_OK",
 		"foo":            "foo-value",
 		"bar":            "bar-value",
 		"does_not_exist": "",
@@ -94,11 +94,11 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
 
-	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, 0.5)))
-	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, 1)))
-	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_bucket", withLe(lbls, math.Inf(1))))
-	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_count", lbls))
-	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_duration_seconds_sum", lbls))
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 0.5)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 1)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
 }
 
 func withLe(lbls labels.Labels, le float64) labels.Labels {

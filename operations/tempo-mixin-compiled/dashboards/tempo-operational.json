@@ -40,8 +40,8 @@
  "editable": true,
  "fiscalYearStartMonth": 0,
  "graphTooltip": 1,
- "id": 279,
- "iteration": 1653408744788,
+ "id": 280,
+ "iteration": 1654204064275,
  "links": [
   {
    "asDropdown": true,
@@ -866,8 +866,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -956,8 +955,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -1056,8 +1054,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -1158,8 +1155,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -1251,8 +1247,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -1354,8 +1349,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -1451,8 +1445,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -1561,8 +1554,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -1653,8 +1645,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -1756,8 +1747,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -1850,8 +1840,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -1961,8 +1950,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -2053,8 +2041,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -2156,8 +2143,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -2250,8 +2236,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -2359,8 +2344,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -2451,8 +2435,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -2554,8 +2537,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -2648,8 +2630,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -2757,8 +2738,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -2849,8 +2829,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -2952,8 +2931,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -3046,8 +3024,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -3130,231 +3107,281 @@
    "id": 19,
    "panels": [
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": {
+      "type": "prometheus",
       "uid": "$ds"
      },
-     "fill": 0,
-     "fillGradient": 0,
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 0,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "normal"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
      "gridPos": {
       "h": 5,
       "w": 3,
       "x": 0,
-      "y": 24
+      "y": 9
      },
-     "hiddenSeries": false,
      "id": 10,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": false,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
      "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
+      "legend": {
+       "calcs": [
 
-     ],
-     "spaceLength": 10,
-     "stack": true,
-     "steppedLine": false,
+       ],
+       "displayMode": "hidden",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d452322apre",
      "targets": [
       {
-       "expr": "rate(tempo_distributor_spans_received_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])",
+       "datasource": {
+        "type": "prometheus",
+        "uid": "P666011C0B63BDCA4"
+       },
+       "editorMode": "code",
+       "expr": "sum by(cluster) (rate(tempo_distributor_spans_received_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
        "interval": "",
        "legendFormat": "{{pod}}",
+       "range": true,
        "refId": "A"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
      "title": "Spans Received",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "$ds"
      },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "normal"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
 
       ]
      },
-     "yaxes": [
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
-    },
-    {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
-     "datasource": {
-      "uid": "$ds"
-     },
-     "fill": 1,
-     "fillGradient": 0,
      "gridPos": {
       "h": 5,
       "w": 3,
       "x": 3,
-      "y": 24
+      "y": 9
      },
-     "hiddenSeries": false,
      "id": 9,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": false,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
      "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
+      "legend": {
+       "calcs": [
 
-     ],
-     "spaceLength": 10,
-     "stack": true,
-     "steppedLine": false,
+       ],
+       "displayMode": "hidden",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d452322apre",
      "targets": [
       {
-       "expr": "rate(tempo_ingester_traces_created_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])",
+       "datasource": {
+        "type": "prometheus",
+        "uid": "P1809F7CD0C75ACF3"
+       },
+       "editorMode": "builder",
+       "expr": "sum by(cluster) (rate(tempo_ingester_traces_created_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
        "interval": "",
        "legendFormat": "",
+       "range": true,
        "refId": "A"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
      "title": "Traces Created",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
+     "type": "timeseries"
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": {
       "uid": "$ds"
      },
-     "fill": 1,
-     "fillGradient": 0,
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
      "gridPos": {
       "h": 5,
       "w": 3,
       "x": 6,
-      "y": 24
+      "y": 9
      },
-     "hiddenSeries": false,
      "id": 8,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": false,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
      "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
+      "legend": {
+       "calcs": [
 
-     ],
-     "spaceLength": 10,
-     "stack": false,
-     "steppedLine": false,
+       ],
+       "displayMode": "hidden",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d452322apre",
      "targets": [
       {
        "expr": "sum(increase(tempo_ingester_blocks_flushed_total{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\"}[1h]))",
@@ -3363,88 +3390,89 @@
        "refId": "A"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
      "title": "Blocks Flushed (1h)",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
+     "type": "timeseries"
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": {
       "uid": "$ds"
      },
-     "fill": 1,
-     "fillGradient": 0,
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
      "gridPos": {
       "h": 5,
       "w": 3,
       "x": 9,
-      "y": 24
+      "y": 9
      },
-     "hiddenSeries": false,
      "id": 12,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": false,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
      "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
+      "legend": {
+       "calcs": [
 
-     ],
-     "spaceLength": 10,
-     "stack": false,
-     "steppedLine": false,
+       ],
+       "displayMode": "hidden",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d452322apre",
      "targets": [
       {
        "expr": "increase(tempo_ingester_failed_flushes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]) > 0",
@@ -3453,88 +3481,89 @@
        "refId": "A"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
      "title": "Failed Flushes",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
+     "type": "timeseries"
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": {
       "uid": "$ds"
      },
-     "fill": 1,
-     "fillGradient": 0,
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
      "gridPos": {
       "h": 5,
       "w": 3,
       "x": 12,
-      "y": 24
+      "y": 9
      },
-     "hiddenSeries": false,
      "id": 26,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": false,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
      "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
+      "legend": {
+       "calcs": [
 
-     ],
-     "spaceLength": 10,
-     "stack": false,
-     "steppedLine": false,
+       ],
+       "displayMode": "hidden",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d452322apre",
      "targets": [
       {
        "expr": "sum(increase(tempo_ingester_blocks_cleared_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h]))",
@@ -3543,88 +3572,89 @@
        "refId": "A"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
      "title": "Blocks Cleared (1h)",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
+     "type": "timeseries"
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": {
       "uid": "$ds"
      },
-     "fill": 1,
-     "fillGradient": 0,
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "points",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 6,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "always",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
      "gridPos": {
       "h": 5,
       "w": 3,
       "x": 15,
-      "y": 24
+      "y": 9
      },
-     "hiddenSeries": false,
      "id": 36,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": false,
-     "linewidth": 1,
-     "nullPointMode": "null",
      "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": true,
-     "renderer": "flot",
-     "seriesOverrides": [
+      "legend": {
+       "calcs": [
 
-     ],
-     "spaceLength": 10,
-     "stack": false,
-     "steppedLine": false,
+       ],
+       "displayMode": "list",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d452322apre",
      "targets": [
       {
        "expr": "histogram_quantile(.99, sum(rate(tempo_ingester_flush_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le))",
@@ -3645,88 +3675,89 @@
        "refId": "C"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
      "title": "Flush Duration",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "s",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
+     "type": "timeseries"
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": {
       "uid": "$ds"
      },
-     "fill": 1,
-     "fillGradient": 0,
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
      "gridPos": {
       "h": 10,
       "w": 7,
       "x": 0,
-      "y": 29
+      "y": 14
      },
-     "hiddenSeries": false,
      "id": 71,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
      "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
+      "legend": {
+       "calcs": [
 
-     ],
-     "spaceLength": 10,
-     "stack": false,
-     "steppedLine": false,
+       ],
+       "displayMode": "list",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d452322apre",
      "targets": [
       {
        "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (status_code)",
@@ -3735,89 +3766,89 @@
        "refId": "A"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
      "title": "Pushes/sec (gateway)",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "short",
-       "label": "",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
+     "type": "timeseries"
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": {
       "uid": "$ds"
      },
-     "fill": 1,
-     "fillGradient": 0,
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "none"
+      },
+      "overrides": [
+
+      ]
+     },
      "gridPos": {
       "h": 10,
       "w": 6,
       "x": 7,
-      "y": 29
+      "y": 14
      },
-     "hiddenSeries": false,
      "id": 72,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
      "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
+      "legend": {
+       "calcs": [
 
-     ],
-     "spaceLength": 10,
-     "stack": false,
-     "steppedLine": false,
+       ],
+       "displayMode": "list",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d452322apre",
      "targets": [
       {
        "expr": "sum(rate(tempo_receiver_accepted_spans{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
@@ -3832,89 +3863,89 @@
        "refId": "B"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
      "title": "OTEL Distributor Spans/second",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "none",
-       "label": "",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
+     "type": "timeseries"
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": {
       "uid": "$ds"
      },
-     "fill": 1,
-     "fillGradient": 0,
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
      "gridPos": {
       "h": 5,
       "w": 6,
       "x": 13,
-      "y": 29
+      "y": 14
      },
-     "hiddenSeries": false,
      "id": 79,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
      "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
+      "legend": {
+       "calcs": [
 
-     ],
-     "spaceLength": 10,
-     "stack": false,
-     "steppedLine": false,
+       ],
+       "displayMode": "list",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d452322apre",
      "targets": [
       {
        "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
@@ -3935,88 +3966,89 @@
        "refId": "C"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
      "title": "Push Latency (Gateway)",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "s",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
+     "type": "timeseries"
     },
     {
-     "aliasColors": {
-
-     },
-     "bars": false,
-     "dashLength": 10,
-     "dashes": false,
      "datasource": {
       "uid": "$ds"
      },
-     "fill": 1,
-     "fillGradient": 0,
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
      "gridPos": {
       "h": 5,
       "w": 6,
       "x": 13,
-      "y": 34
+      "y": 19
      },
-     "hiddenSeries": false,
      "id": 2,
-     "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
-     },
-     "lines": true,
-     "linewidth": 1,
-     "nullPointMode": "null",
      "options": {
-      "alertThreshold": true
-     },
-     "percentage": false,
-     "pluginVersion": "8.2.0-32962pre",
-     "pointradius": 2,
-     "points": false,
-     "renderer": "flot",
-     "seriesOverrides": [
+      "legend": {
+       "calcs": [
 
-     ],
-     "spaceLength": 10,
-     "stack": false,
-     "steppedLine": false,
+       ],
+       "displayMode": "list",
+       "placement": "bottom"
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d452322apre",
      "targets": [
       {
        "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
@@ -4037,41 +4069,8 @@
        "refId": "C"
       }
      ],
-     "thresholds": [
-
-     ],
-     "timeRegions": [
-
-     ],
      "title": "Push Latency (Ingester)",
-     "tooltip": {
-      "shared": true,
-      "sort": 0,
-      "value_type": "individual"
-     },
-     "type": "graph",
-     "xaxis": {
-      "mode": "time",
-      "show": true,
-      "values": [
-
-      ]
-     },
-     "yaxes": [
-      {
-       "format": "s",
-       "logBase": 1,
-       "show": true
-      },
-      {
-       "format": "short",
-       "logBase": 1,
-       "show": true
-      }
-     ],
-     "yaxis": {
-      "align": false
-     }
+     "type": "timeseries"
     }
    ],
    "title": "Write",
@@ -4138,8 +4137,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -4232,8 +4230,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -4356,8 +4353,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -4450,8 +4446,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -4572,8 +4567,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -4670,8 +4664,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -4764,8 +4757,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -4865,8 +4857,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -5049,8 +5040,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          }
         ]
        },
@@ -5158,8 +5148,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -5250,8 +5239,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          },
          {
           "color": "red",
@@ -5342,8 +5330,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          }
         ]
        },
@@ -5436,8 +5423,7 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green",
-          "value": null
+          "color": "green"
          }
         ]
        },
@@ -5500,9 +5486,9 @@
   "list": [
    {
     "current": {
-     "selected": false,
-     "text": "ops-cortex",
-     "value": "ops-cortex"
+     "selected": true,
+     "text": "default",
+     "value": "default"
     },
     "hide": 0,
     "includeAll": false,
@@ -5512,6 +5498,7 @@
 
     ],
     "query": "prometheus",
+    "queryValue": "",
     "refresh": 1,
     "regex": "",
     "skipUrlSync": false,
@@ -5570,7 +5557,7 @@
    },
    {
     "current": {
-     "selected": true,
+     "selected": false,
      "text": "tempo-ops",
      "value": "tempo-ops"
     },
@@ -5602,7 +5589,7 @@
    {
     "allValue": ".*",
     "current": {
-     "selected": true,
+     "selected": false,
      "text": "All",
      "value": "$__all"
     },

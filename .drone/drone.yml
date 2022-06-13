@@ -237,19 +237,19 @@ steps:
   image: golang:1.17-alpine
   commands:
   - apk add make git zip bash
+  - ./tools/image-tag | cut -d, -f 1 | tr A-Z a-z > .tags
   - cd ./cmd/tempo-serverless
-  - make build-gcf-zip
+  - make build-docker-gcr-binary
   - make build-lambda-zip
 
-- name: deploy-tempo-serverless-gcs
-  image: google/cloud-sdk
-  commands:
-  - cd ./cmd/tempo-serverless/cloud-functions
-  - printf "%s" "$ops_tools_fn_upload" > ./creds.json && gcloud auth activate-service-account --key-file ./creds.json && gsutil cp tempo-serverless*.zip gs://ops-tools-tempo-function-source
-  - printf "%s" "$ops_tools_fn_upload" > ./creds.json && gcloud auth activate-service-account --key-file ./creds.json && gsutil cp tempo-serverless*.zip gs://grafanalabs-global-tempo-function-source
-  environment:
-    ops_tools_fn_upload:
-      from_secret: ops_tools_fn_upload
+- name: deploy-tempo-serverless-gcr
+  image: plugins/gcr
+  settings:
+    context: ./cmd/tempo-serverless/cloud-run
+    dockerfile: ./cmd/tempo-serverless/cloud-run/Dockerfile
+    json_key:
+      from_secret: ops_tools_img_upload
+    repo: ops-tools-1203/tempo-serverless
 
 - name: deploy-tempo-dev-serverless-lambda
   image: amazon/aws-cli
@@ -316,7 +316,7 @@ get:
 
 ---
 kind: secret
-name: ops_tools_fn_upload
+name: ops_tools_img_upload
 
 get:
   path: infra/data/ci/tempo-ops-tools-function-upload
@@ -356,6 +356,6 @@ get:
 
 ---
 kind: signature
-hmac: f6b369054ba6fc3a405267392d59434ef37a0609dad4bd37f6eecd136bb422fc
+hmac: 8228dfd60728f4d8356a1ac2c8ed9c941a08069aeeef29491ad5dcdb0722e7da
 
 ...

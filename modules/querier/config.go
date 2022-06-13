@@ -17,6 +17,7 @@ type Config struct {
 	ExtraQueryDelay         time.Duration `yaml:"extra_query_delay,omitempty"`
 	MaxConcurrentQueries    int           `yaml:"max_concurrent_queries"`
 	Worker                  worker.Config `yaml:"frontend_worker"`
+	QueryRelevantIngesters  bool          `yaml:"query_relevant_ingesters"`
 }
 
 type SearchConfig struct {
@@ -30,6 +31,7 @@ type SearchConfig struct {
 // RegisterFlagsAndApplyDefaults register flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.TraceLookupQueryTimeout = 10 * time.Second
+	cfg.QueryRelevantIngesters = false
 	cfg.ExtraQueryDelay = 0
 	cfg.MaxConcurrentQueries = 5
 	cfg.Search.PreferSelf = 2
