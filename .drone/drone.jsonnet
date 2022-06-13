@@ -36,7 +36,7 @@ local docker_username_secret = secret('docker_username', 'infra/data/ci/docker_h
 local docker_password_secret = secret('docker_password', 'infra/data/ci/docker_hub', 'password');
 
 // secrets for pushing serverless code packages
-local fn_upload_ops_tools_secret = secret('ops_tools_fn_upload', 'infra/data/ci/tempo-ops-tools-function-upload', 'credentials.json');
+local image_upload_ops_tools_secret = secret('ops_tools_img_upload', 'infra/data/ci/tempo-ops-tools-function-upload', 'credentials.json');
 
 // secret needed to access us.gcr.io in deploy_to_dev()
 local docker_config_json_secret = secret('dockerconfigjson', 'secret/data/common/gcr', '.dockerconfigjson');
@@ -44,24 +44,10 @@ local docker_config_json_secret = secret('dockerconfigjson', 'secret/data/common
 // secret needed for dep-tools
 local gh_token_secret = secret('gh_token', 'infra/data/ci/github/grafanabot', 'pat');
 
-// gcs buckets to copy serverless functions to
-local gcp_secrets = [fn_upload_ops_tools_secret.name];
-local gcp_serverless_deployments = [
-  {
-    bucket: 'ops-tools-tempo-function-source',
-    secret: fn_upload_ops_tools_secret.name,
-  },
-  {
-    bucket: 'grafanalabs-global-tempo-function-source',
-    secret: fn_upload_ops_tools_secret.name,
-  },
-];
-
 local aws_dev_access_key_id = secret('AWS_ACCESS_KEY_ID-dev', 'infra/data/ci/tempo-dev/aws-credentials-drone', 'access_key_id');
 local aws_dev_secret_access_key = secret('AWS_SECRET_ACCESS_KEY-dev', 'infra/data/ci/tempo-dev/aws-credentials-drone', 'secret_access_key');
 local aws_prod_access_key_id = secret('AWS_ACCESS_KEY_ID-prod', 'infra/data/ci/tempo-prod/aws-credentials-drone', 'access_key_id');
 local aws_prod_secret_access_key = secret('AWS_SECRET_ACCESS_KEY-prod', 'infra/data/ci/tempo-prod/aws-credentials-drone', 'secret_access_key');
-
 
 local aws_serverless_deployments = [
   {
@@ -239,26 +225,23 @@ local deploy_to_dev() = {
                 image: 'golang:1.17-alpine',
                 commands: [
                   'apk add make git zip bash',
+                  './tools/image-tag | cut -d, -f 1 | tr A-Z a-z > .tags', # values in .tags are used by the next step when pushing the image
                   'cd ./cmd/tempo-serverless',
-                  'make build-gcf-zip',
+                  'make build-docker-gcr-binary',
                   'make build-lambda-zip',
                 ],
               },
               {
-                name: 'deploy-tempo-serverless-gcs',
-                image: 'google/cloud-sdk',
-                environment: {
-                  [s]: {
-                    from_secret: s,
-                  }
-                  for s in gcp_secrets
+                name: 'deploy-tempo-serverless-gcr',
+                image: 'plugins/gcr',
+                settings: {
+                  repo: 'ops-tools-1203/tempo-serverless',
+                  context: './cmd/tempo-serverless/cloud-run',
+                  dockerfile: './cmd/tempo-serverless/cloud-run/Dockerfile',
+                  json_key: {
+                    from_secret: image_upload_ops_tools_secret.name,
+                  },
                 },
-                commands: [
-                  'cd ./cmd/tempo-serverless/cloud-functions',
-                ] + [
-                  'printf "%%s" "$%s" > ./creds.json && gcloud auth activate-service-account --key-file ./creds.json && gsutil cp tempo-serverless*.zip gs://%s' % [d.secret, d.bucket]
-                  for d in gcp_serverless_deployments
-                ],
               },
             ] +
             [
@@ -288,7 +271,7 @@ local deploy_to_dev() = {
   docker_password_secret,
   docker_config_json_secret,
   gh_token_secret,
-  fn_upload_ops_tools_secret,
+  image_upload_ops_tools_secret,
   aws_dev_access_key_id,
   aws_dev_secret_access_key,
   aws_prod_access_key_id,

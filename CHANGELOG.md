@@ -5,6 +5,7 @@
 * [CHANGE] metrics-generator: Changed added metric label `instance` to `__metrics_gen_instance` to reduce collisions with custom dimensions. [#1439](https://github.com/grafana/tempo/pull/1439) (@joe-elliott)
 * [CHANGE] Don't enforce `max_bytes_per_tag_values_query` when set to 0. [#1447](https://github.com/grafana/tempo/pull/1447) (@joe-elliott)
 * [CHANGE] Add new querier service in deployment jsonnet to serve `/status` endpoint. [#1474](https://github.com/grafana/tempo/pull/1474) (@annanay25)
+* [CHANGE] Swapped out Google Cloud Functions serverless docs and build for Google Cloud Run. [#1483](https://github.com/grafana/tempo/pull/1483) (@joe-elliott)
 * [CHANGE] **BREAKING CHANGE** Change spanmetrics metric names and labels to match OTel conventions. [#1478](https://github.com/grafana/tempo/pull/1478) (@mapno)
 Old metric names:
 ```

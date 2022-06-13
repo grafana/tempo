@@ -1,35 +1,32 @@
-# todo: get docker run working?
-# PACK=docker run -u ${shell id -u} -v /var/run/docker.sock:/var/run/docker.sock -v $(PWD):/workspace -w /workspace buildpacksio/pack
 PACK=pack
 VERSION=$(shell ../../tools/image-tag | cut -d, -f 1)
 
-IN_CLOUD_FUNCTIONS=cd cloud-functions &&
+IN_CLOUD_RUN=cd cloud-run &&
 IN_LAMBDA=cd lambda &&
 
+LOWER_VERSION = `echo $(VERSION) | tr A-Z a-z`
+
 #
-# build docker images for local testing and code zip files for google cloud functions
+# build docker images for local testing and code zip files for google cloud run
 #
 .PHONY: build-docker
-build-docker: build-docker-gcf build-docker-lambda-test
-
-.PHONY: build-docker-gcf
-build-docker-gcf: 
-	$(IN_CLOUD_FUNCTIONS) go mod vendor
-	$(IN_CLOUD_FUNCTIONS) $(PACK) build tempo-serverless \
-	  								--builder gcr.io/buildpacks/builder:v1 \
-	  								--env GOOGLE_RUNTIME=go \
-	  								--env GOOGLE_FUNCTION_SIGNATURE_TYPE=http \
-	  								--env GOOGLE_FUNCTION_TARGET=Handler 	  
-	$(IN_CLOUD_FUNCTIONS) rm -rf vendor
-
-.PHONY: build-gcf-zip
-build-gcf-zip:
-	$(IN_CLOUD_FUNCTIONS) go mod vendor
-	$(IN_CLOUD_FUNCTIONS) zip tempo-serverless-$(VERSION).zip ./* -r
-	$(IN_CLOUD_FUNCTIONS) rm -rf vendor
+build-docker: build-docker-lambda-test build-docker-gcr
 
 #
-# build docker images for local testing and code zip files for aws lambda
+# google cloud run
+#
+.PHONY: build-docker-gcr-binary
+build-docker-gcr-binary:
+	$(IN_CLOUD_RUN) CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o main
+
+.PHONY: build-docker-gcr
+build-docker-gcr: build-docker-gcr-binary
+	$(IN_CLOUD_RUN) docker build -f ./Dockerfile -t tempo-serverless:$(LOWER_VERSION) .
+	$(IN_CLOUD_RUN) rm main
+	docker tag tempo-serverless:$(LOWER_VERSION) tempo-serverless:latest
+
+#
+# aws lambda
 #
 .PHONY: build-docker-lambda-test
 build-docker-lambda-test:
@@ -49,7 +46,8 @@ test:
 	go test -v .
 
 ### Tidy dependencies for tempo-serverless module
+ # todo: remove -compat arg when moving to 1.18
 .PHONY: update-mod
 update-mod:
-	$(IN_LAMBDA) go mod tidy -e
-	$(IN_CLOUD_FUNCTIONS) go mod tidy -e
+	$(IN_LAMBDA) go mod tidy -e -compat=1.17
+	$(IN_CLOUD_RUN) go mod tidy -e -compat=1.17

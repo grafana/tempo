@@ -3,35 +3,31 @@ title: Backend search - serverless GCP setup
 weight: 10
 ---
 
-# Google Cloud Functions
+# Google Cloud Run
 
-This document will walk you through setting up a Google Cloud Function for serverless backend search.
+This document will walk you through setting up a Google Cloud Run for serverless backend search.
 For more guidance on configuration options for full backend search [check here](./backend_search.md).
 
-1. Build the code package:
+1. Build the docker image:
 
     ```bash
-    cd ./cmd/tempo-serverless && make build-gcf-zip
+    cd ./cmd/tempo-serverless && make build-docker-gcr
     ```
 
-    This will create a ZIP file containing all the code required for 
-    the function. The file name will be of the form: `./cloud-functions/tempo-<branch name>-<commit hash>.zip`.
+    This will create the Docker container image to be deployed to Google Cloud Run.
+    The docker image will be named: `tempo-serverless:latest` and `tempo-serverless:<branch>-<commit hash>`.
     Here is an example of that name:
 
     ```bash
-    ls cloud-functions/*.zip
-    cloud-functions/tempo-serverless-backend-search-297172a.zip
+    $ docker images | grep tempo-serverless
+    tempo-serverless                                                           cloud-run-3be4efa               146c9d9fa63c   58 seconds ago   47.9MB
+    tempo-serverless                                                           latest                          146c9d9fa63c   58 seconds ago   47.9MB
     ```
 
-2. Provision a GCS bucket.
+2. Push the image to a Google Container Registry repo.
 
-3. Copy the ZIP file into your bucket.
-
-    ```
-    gsutil cp cloud-functions/tempo-serverless-backend-search-297172a.zip gs://<newly provisioned gcs bucket>
-    ```
-
-4. Provision the Google Cloud Function. This example uses Terraform:
+3. Provision the Google Cloud Run service. This example uses Terraform. Configuration values
+   should be adjusted to meet the needs of your installation.
 
     ```
     locals {
@@ -39,36 +35,71 @@ For more guidance on configuration options for full backend search [check here](
       count = 1
     }
     
-    resource "google_cloudfunctions_function" "function" {
+    resource "google_cloud_run_service" "run" {
       count = local.count
-    
-      name        = "<function name>-${count.index}"
-      description = "Tempo Search Function"
-      runtime     = "go116"
-    
-      available_memory_mb   = 1024
-      source_archive_bucket = <GCS bucket created above>
-      source_archive_object = "tempo-serverless-backend-search-297172a.zip"
-      trigger_http          = true
-      entry_point           = "Handler"
-      ingress_settings      = "ALLOW_INTERNAL_ONLY"
-      min_instances         = 1
-    
-      // Tempo serverless functions are configured via environment variables
-      environment_variables = {
-        "TEMPO_GCS_BUCKET_NAME"          = "<GCS bucket name backing your Tempo instance>"
-        "TEMPO_BACKEND"                  = "gcs"
-        "TEMPO_GCS_HEDGE_REQUESTS_AT"    = "400ms"
-        "TEMPO_GCS_HEDGE_REQUESTS_UP_TO" = "2"
+
+      name     = "<service name>"
+      location = "<appropriate region>"
+
+      metadata {
+        annotations = {
+            "run.googleapis.com/ingress"      = "internal",     # this annotation can be used to limit connectivity to the service
+        }
+      }
+
+      template {
+        metadata {
+          annotations = {
+              "autoscaling.knative.dev/minScale"                   = "1",
+              "autoscaling.knative.dev/maxScale"                   = "1000",
+              "autoscaling.knative.dev/panic-threshold-percentage" = "110.0",  # default 200.0. how aggressively to go into panic mode and start scaling heavily
+              "autoscaling.knative.dev/window"                     = "10s",    # default 60s. window over which to average metrics to make scaling decisions
+          }
+        }
+        spec {
+          container_concurrency = 4
+          containers {
+            image = "<container image created above>"
+            resources {
+              limits = {
+                  cpu = "2"
+                  memory = "1Gi"
+              }
+            }
+            env {
+              name = "TEMPO_GCS_BUCKET_NAME"
+              value = "<gcs bucket where tempo data is stored>"
+            }
+            env {
+              name = "TEMPO_BACKEND"
+              value = "gcs"
+            }
+            env {
+              name = "TEMPO_GCS_HEDGE_REQUESTS_AT"
+              value = "400ms"
+            }
+            env {
+              name = "TEMPO_GCS_HEDGE_REQUESTS_UP_TO"
+              value = "2"
+            }
+            env {
+              name = "GOGC"
+              value = "400"
+            }
+          }
+        }
+      }
+
+      traffic {
+        percent         = 100
+        latest_revision = true
       }
     }
     ```
 
-5. Add the newly-created functions as external endpoints in your querier
+5. Add the newly-created cloud run service as external endpoints in your querier
 configuration.
-The endpoint can be retrieved from the trigger tab in Google Cloud Functions:
-
-    <p align="center"><img src="../backend_search_cloud_function_trigger.png" alt="Google Cloud Functions trigger tab"></p>
+The endpoint can be retrieved from the "details" tab in Google Cloud Run:
 
     ```
     querier:
