@@ -79,7 +79,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	// Write test data, occasionally flushing (cutting new row group)
 	rowGroupSize := 5
 	for _, tr := range traces {
-		require.NoError(t, s.Add(tr))
+		require.NoError(t, s.Add(tr, 0, 0))
 		if s.CurrentBufferedObjects() >= rowGroupSize {
 			_, err = s.Flush()
 			require.NoError(t, err)

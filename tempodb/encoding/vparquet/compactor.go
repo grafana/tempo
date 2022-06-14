@@ -28,6 +28,7 @@ type Compactor struct {
 
 func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta, opts common.CompactionOptions) (newCompactedBlocks []*backend.BlockMeta, err error) {
 
+	var minBlockStart, maxBlockEnd time.Time
 	bookmarks := make([]*bookmark, 0, len(inputs))
 
 	var compactionLevel uint8
@@ -37,6 +38,13 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		if blockMeta.CompactionLevel > compactionLevel {
 			compactionLevel = blockMeta.CompactionLevel
+		}
+
+		if blockMeta.StartTime.Before(minBlockStart) || minBlockStart.IsZero() {
+			minBlockStart = blockMeta.StartTime
+		}
+		if blockMeta.EndTime.After(maxBlockEnd) {
+			maxBlockEnd = blockMeta.EndTime
 		}
 
 		block := newBackendBlock(blockMeta, r)
@@ -81,10 +89,15 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 			currentBlock = newStreamingBlock(ctx, &opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriterWithQueue)
 			currentBlock.meta.CompactionLevel = nextCompactionLevel
+			currentBlock.meta.StartTime = minBlockStart
+			currentBlock.meta.EndTime = maxBlockEnd
 			newCompactedBlocks = append(newCompactedBlocks, currentBlock.meta)
 		}
 
-		err = currentBlock.Add(lowestObject)
+		// Write trace.
+		// Note - not specifying trace start/end here, we set the overall block start/stop
+		// times from the input metas.
+		err = currentBlock.Add(lowestObject, 0, 0)
 		if err != nil {
 			return nil, err
 		}

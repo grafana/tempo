@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/decoder"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -45,13 +46,18 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			break
 		}
 
+		start, end, err := dec.FastRange(obj)
+		if err != nil && err != decoder.ErrUnsupported {
+			return nil, err
+		}
+
 		tr, err := dec.PrepareForRead(obj)
 		if err != nil {
 			return nil, err
 		}
 
 		trp := traceToParquet(tr)
-		err = s.Add(&trp)
+		err = s.Add(&trp, start, end)
 		if err != nil {
 			return nil, err
 		}
@@ -117,7 +123,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	}
 }
 
-func (b *streamingBlock) Add(tr *Trace) error {
+func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
 
 	err := b.pw.Write(tr)
 	if err != nil {
@@ -130,8 +136,15 @@ func (b *streamingBlock) Add(tr *Trace) error {
 	}
 
 	b.bloom.Add(id)
-	start := uint32(tr.StartTimeUnixNano / uint64(time.Second))
-	b.meta.ObjectAdded(id, start, start+uint32(tr.DurationNanos/uint64(time.Second)))
+
+	// Use overridden start/end times if given, else
+	// derive from actual trace data
+	if start == 0 || end == 0 {
+		start = uint32(tr.StartTimeUnixNano / uint64(time.Second))
+		end = uint32(tr.StartTimeUnixNano / uint64(time.Second))
+	}
+
+	b.meta.ObjectAdded(id, start, end)
 	b.currentBufferedTraces++
 	return nil
 }

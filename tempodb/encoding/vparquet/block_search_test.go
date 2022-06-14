@@ -209,7 +209,7 @@ func makeBackendBlockWithTrace(t *testing.T, tr *Trace) *backendBlock {
 
 	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
-	require.NoError(t, s.Add(tr))
+	require.NoError(t, s.Add(tr, 0, 0))
 
 	_, err = s.Complete()
 	require.NoError(t, err)
