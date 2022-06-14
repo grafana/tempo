@@ -55,7 +55,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	recordsPerBlock := (totalRecords / int(opts.OutputBlocks))
 
 	var currentBlock *streamingBlock
-	m := newMultiblockIterator(ctx, bookmarks)
+	m := newMultiblockIterator(bookmarks)
 	defer m.Close()
 
 	for {

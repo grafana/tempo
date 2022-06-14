@@ -10,7 +10,7 @@ type MultiBlockIterator struct {
 	bookmarks []*bookmark
 }
 
-func newMultiblockIterator(ctx context.Context, bookmarks []*bookmark) *MultiBlockIterator {
+func newMultiblockIterator(bookmarks []*bookmark) *MultiBlockIterator {
 	return &MultiBlockIterator{
 		bookmarks: bookmarks,
 	}

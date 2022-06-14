@@ -365,7 +365,8 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 }
 
 type parquetSearchMetrics struct {
-	pTraceID *pq.InstrumentedPredicate
+	// TODO:  this isn't accurate, figure out a good way to measure this
+	//pTraceID *pq.InstrumentedPredicate
 }
 
 func (p *parquetSearchMetrics) ToProto() *tempopb.SearchMetrics {

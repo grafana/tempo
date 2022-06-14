@@ -56,7 +56,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			return nil, err
 		}
 
-		if s.CurrentBufferLength() > cfg.RowGroupSizeBytes {
+		if s.CurrentBufferLength() > cfg.RowGroupSizeBytes || s.CurrentBufferedObjects() > 10_000 {
 			_, err = s.Flush()
 			if err != nil {
 				return nil, err
@@ -100,7 +100,10 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 
 	sch := parquet.SchemaOf(new(Trace))
 
-	pw := parquet.NewWriter(bw, sch)
+	// Since we store the trace ID as 32-byte hex string, we have to increase the
+	// column/page index size so that min/max return the whole value instead of
+	// a truncated form. This allows FindTraceByID to use binary search accurately.
+	pw := parquet.NewWriter(bw, sch, parquet.ColumnIndexSizeLimit(32))
 
 	return &streamingBlock{
 		ctx:   ctx,
