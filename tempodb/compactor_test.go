@@ -24,6 +24,8 @@ import (
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -579,6 +581,103 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	rw.doCompaction()
 	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID)))
 	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID2)))
+}
+
+func TestCompactionHonorsBlockStartEndTimes(t *testing.T) {
+
+	testEncodings := []string{v2.VersionString, vparquet.VersionString}
+	for _, enc := range testEncodings {
+		t.Run(enc, func(t *testing.T) {
+			testCompactionHonorsBlockStartEndTimes(t, enc)
+		})
+	}
+}
+
+func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion string) {
+	tempDir := t.TempDir()
+
+	r, w, c, err := New(&Config{
+		Backend: "local",
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			IndexDownsampleBytes: 11,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Version:              targetBlockVersion,
+			Encoding:             backend.EncNone,
+			IndexPageSizeBytes:   1000,
+		},
+		WAL: &wal.Config{
+			Filepath:       path.Join(tempDir, "wal"),
+			IngestionSlack: time.Since(time.Unix(0, 0)), // Let us use obvious start/end times below
+		},
+		BlocklistPoll: 0,
+	}, log.NewNopLogger())
+	require.NoError(t, err)
+
+	c.EnableCompaction(&CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      24 * time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	}, &mockSharder{}, &mockOverrides{})
+
+	r.EnablePolling(&mockJobSharder{})
+
+	cutTestBlockWithTraces(t, w, testTenantID, []testData{
+		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 100, 101},
+		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 102, 103},
+	})
+	cutTestBlockWithTraces(t, w, testTenantID, []testData{
+		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 104, 105},
+		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 106, 107},
+	})
+
+	rw := r.(*readerWriter)
+	rw.pollBlocklist()
+
+	// compact everything
+	err = rw.compact(rw.blocklist.Metas(testTenantID), testTenantID)
+	require.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	// New blocklist contains 1 compacted block with min start and max end
+	blocks := rw.blocklist.Metas(testTenantID)
+	require.Equal(t, 1, len(blocks))
+	require.Equal(t, uint8(1), blocks[0].CompactionLevel)
+	require.Equal(t, 100, int(blocks[0].StartTime.Unix()))
+	require.Equal(t, 107, int(blocks[0].EndTime.Unix()))
+}
+
+type testData struct {
+	id         common.ID
+	t          *tempopb.Trace
+	start, end uint32
+}
+
+func cutTestBlockWithTraces(t testing.TB, w Writer, tenantID string, data []testData) common.BackendBlock {
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	wal := w.WAL()
+
+	head, err := wal.NewBlock(uuid.New(), tenantID, model.CurrentEncoding)
+	require.NoError(t, err)
+
+	for _, d := range data {
+		writeTraceToWal(t, head, dec, d.id, d.t, d.start, d.end)
+	}
+
+	b, err := w.CompleteBlock(head, &mockCombiner{})
+	require.NoError(t, err)
+
+	return b
 }
 
 func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, recordCount int) []common.BackendBlock {

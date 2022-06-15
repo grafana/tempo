@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
-	"time"
 
 	"github.com/google/uuid"
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -136,14 +135,6 @@ func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
 	}
 
 	b.bloom.Add(id)
-
-	// Use overridden start/end times if given, else
-	// derive from actual trace data
-	if start == 0 || end == 0 {
-		start = uint32(tr.StartTimeUnixNano / uint64(time.Second))
-		end = uint32(tr.StartTimeUnixNano / uint64(time.Second))
-	}
-
 	b.meta.ObjectAdded(id, start, end)
 	b.currentBufferedTraces++
 	return nil

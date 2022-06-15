@@ -88,8 +88,6 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 			currentBlock = newStreamingBlock(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriterWithQueue)
 			currentBlock.meta.CompactionLevel = nextCompactionLevel
-			currentBlock.meta.StartTime = minBlockStart
-			currentBlock.meta.EndTime = maxBlockEnd
 			newCompactedBlocks = append(newCompactedBlocks, currentBlock.meta)
 		}
 
@@ -114,6 +112,8 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		// ship block to backend if done
 		if currentBlock.meta.TotalObjects >= recordsPerBlock {
 			currenBlockPtrCopy := currentBlock
+			currenBlockPtrCopy.meta.StartTime = minBlockStart
+			currenBlockPtrCopy.meta.EndTime = maxBlockEnd
 			go c.finishBlock(currenBlockPtrCopy, l)
 			currentBlock = nil
 		}
@@ -121,6 +121,8 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 	// ship final block to backend
 	if currentBlock != nil {
+		currentBlock.meta.StartTime = minBlockStart
+		currentBlock.meta.EndTime = maxBlockEnd
 		go c.finishBlock(currentBlock, l)
 	}
 
