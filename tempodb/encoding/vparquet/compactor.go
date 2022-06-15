@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"runtime"
-	"strconv"
 	"time"
 
 	"github.com/go-kit/log"
@@ -16,17 +15,17 @@ import (
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/metrics"
 )
 
-func NewCompactor() common.Compactor {
-	return &Compactor{}
+func NewCompactor(opts common.CompactionOptions) common.Compactor {
+	return &Compactor{opts: opts}
 }
 
 type Compactor struct {
+	opts common.CompactionOptions
 }
 
-func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta, opts common.CompactionOptions) (newCompactedBlocks []*backend.BlockMeta, err error) {
+func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
 
 	var minBlockStart, maxBlockEnd time.Time
 	bookmarks := make([]*bookmark, 0, len(inputs))
@@ -55,12 +54,12 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		// wrap bookmark with a prefetch iterator
-		bookmarks = append(bookmarks, newBookmark(newPrefetchIterator(ctx, iter, opts.PrefetchTraceCount/len(inputs))))
+		bookmarks = append(bookmarks, newBookmark(newPrefetchIterator(ctx, iter, c.opts.PrefetchTraceCount/len(inputs))))
 	}
 
 	nextCompactionLevel := compactionLevel + 1
 
-	recordsPerBlock := (totalRecords / int(opts.OutputBlocks))
+	recordsPerBlock := (totalRecords / int(c.opts.OutputBlocks))
 
 	var currentBlock *streamingBlock
 	m := newMultiblockIterator(bookmarks)
@@ -87,7 +86,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			}
 			w := writerCallback(newMeta, time.Now())
 
-			currentBlock = newStreamingBlock(ctx, &opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriterWithQueue)
+			currentBlock = newStreamingBlock(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriterWithQueue)
 			currentBlock.meta.CompactionLevel = nextCompactionLevel
 			currentBlock.meta.StartTime = minBlockStart
 			currentBlock.meta.EndTime = maxBlockEnd
@@ -106,7 +105,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		//if currentBlock.CurrentBufferLength() >= int(opts.FlushSizeBytes) {
 		if currentBlock.CurrentBufferedObjects() > 10000 {
 			runtime.GC()
-			err = appendBlock(currentBlock)
+			err = c.appendBlock(currentBlock)
 			if err != nil {
 				return nil, errors.Wrap(err, "error writing partial block")
 			}
@@ -115,42 +114,52 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		// ship block to backend if done
 		if currentBlock.meta.TotalObjects >= recordsPerBlock {
 			currenBlockPtrCopy := currentBlock
-			go finishBlock(currenBlockPtrCopy, l)
+			go c.finishBlock(currenBlockPtrCopy, l)
 			currentBlock = nil
 		}
 	}
 
 	// ship final block to backend
 	if currentBlock != nil {
-		go finishBlock(currentBlock, l)
+		go c.finishBlock(currentBlock, l)
 	}
 
 	return newCompactedBlocks, nil
 }
 
-func appendBlock(block *streamingBlock) error {
-	compactionLevelLabel := strconv.Itoa(int(block.meta.CompactionLevel - 1))
-	metrics.MetricCompactionObjectsWritten.WithLabelValues(compactionLevelLabel).Add(float64(block.CurrentBufferedObjects()))
+func (c *Compactor) appendBlock(block *streamingBlock) error {
+	compactionLevel := int(block.meta.CompactionLevel - 1)
+	if c.opts.ObjectsWritten != nil {
+		c.opts.ObjectsWritten(compactionLevel, block.CurrentBufferedObjects())
+	}
 
 	bytesFlushed, err := block.Flush()
 	if err != nil {
 		return err
 	}
-	metrics.MetricCompactionBytesWritten.WithLabelValues(compactionLevelLabel).Add(float64(bytesFlushed))
+
+	if c.opts.BytesWritten != nil {
+		c.opts.BytesWritten(compactionLevel, bytesFlushed)
+	}
 
 	return nil
 }
 
-func finishBlock(block *streamingBlock, l log.Logger) {
+func (c *Compactor) finishBlock(block *streamingBlock, l log.Logger) {
 	bytesFlushed, err := block.Complete()
 	if err != nil {
 		level.Error(l).Log("msg", "error shipping block to backend", "blockID", block.meta.BlockID.String(), "err", err)
-		metrics.MetricCompactionErrors.Inc()
+		if c.opts.IncCompactionErrors != nil {
+			c.opts.IncCompactionErrors()
+		}
+		return
 	}
 
 	level.Info(l).Log("msg", "wrote compacted block", "meta", fmt.Sprintf("%+v", block.meta))
-	compactionLevelLabel := strconv.Itoa(int(block.meta.CompactionLevel) - 1)
-	metrics.MetricCompactionBytesWritten.WithLabelValues(compactionLevelLabel).Add(float64(bytesFlushed))
+	compactionLevel := int(block.meta.CompactionLevel) - 1
+	if c.opts.BytesWritten != nil {
+		c.opts.BytesWritten(compactionLevel, bytesFlushed)
+	}
 }
 
 type bookmark struct {

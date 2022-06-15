@@ -50,8 +50,9 @@ type CompactionOptions struct {
 	BlockConfig        BlockConfig
 	Combiner           model.ObjectCombiner
 
-	ObjectsWritten func(compactionLevel, objects int)
-	BytesWritten   func(compactionLevel, bytes int)
+	ObjectsWritten      func(compactionLevel, objects int)
+	BytesWritten        func(compactionLevel, bytes int)
+	IncCompactionErrors func()
 }
 
 func DefaultCompactionOptions() CompactionOptions {

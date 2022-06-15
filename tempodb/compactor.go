@@ -183,6 +183,9 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	opts.ObjectsWritten = func(compactionLevel, objs int) {
 		metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
 	}
+	opts.IncCompactionErrors = func() {
+		metricCompactionErrors.Inc()
+	}
 
 	compactor := enc.NewCompactor(opts)
 

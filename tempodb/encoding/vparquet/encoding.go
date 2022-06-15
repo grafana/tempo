@@ -16,8 +16,8 @@ func (v Encoding) Version() string {
 	return VersionString
 }
 
-func (v Encoding) NewCompactor() common.Compactor {
-	return NewCompactor()
+func (v Encoding) NewCompactor(opts common.CompactionOptions) common.Compactor {
+	return NewCompactor(opts)
 }
 
 func (v Encoding) OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error) {
