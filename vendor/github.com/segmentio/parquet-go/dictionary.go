@@ -8,6 +8,7 @@ import (
 	"github.com/segmentio/parquet-go/deprecated"
 	"github.com/segmentio/parquet-go/encoding"
 	"github.com/segmentio/parquet-go/encoding/plain"
+	"github.com/segmentio/parquet-go/internal/bitpack"
 	"github.com/segmentio/parquet-go/internal/unsafecast"
 )
 
@@ -104,7 +105,7 @@ func newBooleanDictionary(typ Type, columnIndex int16, numValues int32, values [
 	return &booleanDictionary{
 		booleanPage: booleanPage{
 			typ:         typ,
-			bits:        values[:byteCount(uint(numValues))],
+			bits:        values[:bitpack.ByteCount(uint(numValues))],
 			numValues:   numValues,
 			columnIndex: ^columnIndex,
 		},

@@ -8,8 +8,8 @@
 //
 // func validateByteArrays([]byte) status
 TEXT ·validateByteArrays(SB), NOSPLIT, $0-32
-    MOVQ arg+0(FP), AX
-    MOVQ arg+8(FP), BX
+    MOVQ arg_base+0(FP), AX
+    MOVQ arg_len+8(FP), BX
 
     CMPQ BX, $0
     JE done
@@ -42,5 +42,5 @@ errTooShort:
     RET
 errTooLarge:
     MOVQ $2, CX
-    MOVQ CX, ret+32(FP)
+    MOVQ CX, ret+24(FP)
     RET

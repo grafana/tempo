@@ -31,7 +31,3 @@ func max(a, b int) int {
 	}
 	return b
 }
-
-func byteCount(numBits uint) int {
-	return int((numBits + 7) / 8)
-}

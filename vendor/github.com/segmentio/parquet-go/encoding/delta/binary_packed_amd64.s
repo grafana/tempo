@@ -19,13 +19,13 @@
     VPERMD Y1, Y3, Y0
 
 // func blockDeltaInt32AVX2(block *[blockSize]int32, lastValue int32) int32
-TEXT ·blockDeltaInt32AVX2(SB), NOSPLIT, $0-24
+TEXT ·blockDeltaInt32AVX2(SB), NOSPLIT, $0-20
     MOVQ block+0(FP), AX
     MOVL 4*blockSize-4(AX), CX
     MOVL CX, ret+16(FP)
 
     VPBROADCASTD lastValue+8(FP), Y0
-    VMOVDQU deltaInt32Perm<>(SB), Y3
+    VMOVDQU ·rotateLeft32(SB), Y3
 
     XORQ SI, SI
 loop:
@@ -39,18 +39,8 @@ loop:
     VZEROUPPER
     RET
 
-GLOBL deltaInt32Perm<>(SB), RODATA|NOPTR, $32
-DATA deltaInt32Perm<>+0(SB)/4, $7
-DATA deltaInt32Perm<>+4(SB)/4, $0
-DATA deltaInt32Perm<>+8(SB)/4, $1
-DATA deltaInt32Perm<>+12(SB)/4, $2
-DATA deltaInt32Perm<>+16(SB)/4, $3
-DATA deltaInt32Perm<>+20(SB)/4, $4
-DATA deltaInt32Perm<>+24(SB)/4, $5
-DATA deltaInt32Perm<>+28(SB)/4, $6
-
 // func blockMinInt32AVX2(block *[blockSize]int32) int32
-TEXT ·blockMinInt32AVX2(SB), NOSPLIT, $0-16
+TEXT ·blockMinInt32AVX2(SB), NOSPLIT, $0-12
     MOVQ block+0(FP), AX
     VPBROADCASTD (AX), Y15
 
@@ -120,7 +110,7 @@ TEXT ·blockMinInt32AVX2(SB), NOSPLIT, $0-16
     VMOVDQU Y4, offset+96(baseAddr)
 
 // func blockSubInt32AVX2(block *[blockSize]int32, value int32)
-TEXT ·blockSubInt32AVX2(SB), NOSPLIT, $0-16
+TEXT ·blockSubInt32AVX2(SB), NOSPLIT, $0-12
     MOVQ block+0(FP), AX
     VPBROADCASTD value+8(FP), Y0
     subInt32AVX2x32(AX, 0)
@@ -187,15 +177,15 @@ loop:
     VZEROUPPER
     RET
 
-// miniBlockPackInt32Default is the generic implementation of the algorithm to
+// encodeMiniBlockInt32Default is the generic implementation of the algorithm to
 // pack 32 bit integers into values of a given bit width (<=32).
 //
 // This algorithm is much slower than the vectorized versions, but is useful
 // as a reference implementation to run the tests against, and as fallback when
 // the code runs on a CPU which does not support the AVX2 instruction set.
 //
-// func miniBlockPackInt32Default(dst *byte, src *[miniBlockSize]int32, bitWidth uint)
-TEXT ·miniBlockPackInt32Default(SB), NOSPLIT, $0-24
+// func encodeMiniBlockInt32Default(dst *byte, src *[miniBlockSize]int32, bitWidth uint)
+TEXT ·encodeMiniBlockInt32Default(SB), NOSPLIT, $0-24
     MOVQ dst+0(FP), AX
     MOVQ src+8(FP), BX
     MOVQ bitWidth+16(FP), R9
@@ -219,7 +209,7 @@ loop:
     JNE loop
     RET
 
-// miniBlockPackInt32x1bitAVX2 packs 32 bit integers into 1 bit values in the
+// encodeMiniBlockInt32x1bitAVX2 packs 32 bit integers into 1 bit values in the
 // the output buffer.
 //
 // The algorithm uses MOVMSKPS to extract the 8 relevant bits from the 8 values
@@ -228,8 +218,8 @@ loop:
 // block has 32 values (the block size is 128 and there are 4 mini blocks per
 // block).
 //
-// func miniBlockPackInt32x1bitAVX2(dst *byte, src *[miniBlockSize]int32)
-TEXT ·miniBlockPackInt32x1bitAVX2(SB), NOSPLIT, $0-16
+// func encodeMiniBlockInt32x1bitAVX2(dst *byte, src *[miniBlockSize]int32)
+TEXT ·encodeMiniBlockInt32x1bitAVX2(SB), NOSPLIT, $0-16
     MOVQ dst+0(FP), AX
     MOVQ src+8(FP), BX
 
@@ -259,17 +249,17 @@ TEXT ·miniBlockPackInt32x1bitAVX2(SB), NOSPLIT, $0-16
     VZEROUPPER
     RET
 
-// miniBlockPackInt32x2bitsAVX2 implements an algorithm for packing 32 bit
+// encodeMiniBlockInt32x2bitsAVX2 implements an algorithm for packing 32 bit
 // integers into 2 bit values.
 //
-// The algorithm is derived from the one employed in miniBlockPackInt32x1bitAVX2
+// The algorithm is derived from the one employed in encodeMiniBlockInt32x1bitAVX2
 // but needs to perform a bit extra work since MOVMSKPS can only extract one bit
 // per packed integer of each YMM vector. We run two passes to extract the two
 // bits needed to compose each item of the result, and merge the values by
 // interleaving the first and second bits with PDEP.
 //
-// func miniBlockPackInt32x2bitsAVX2(dst *byte, src *[miniBlockSize]int32)
-TEXT ·miniBlockPackInt32x2bitsAVX2(SB), NOSPLIT, $0-16
+// func encodeMiniBlockInt32x2bitsAVX2(dst *byte, src *[miniBlockSize]int32)
+TEXT ·encodeMiniBlockInt32x2bitsAVX2(SB), NOSPLIT, $0-16
     MOVQ dst+0(FP), AX
     MOVQ src+8(FP), BX
 
@@ -323,12 +313,12 @@ TEXT ·miniBlockPackInt32x2bitsAVX2(SB), NOSPLIT, $0-16
     VZEROUPPER
     RET
 
-// miniBlockPackInt32x32bitsAVX2 is a specialization of the bit packing logic
+// encodeMiniBlockInt32x32bitsAVX2 is a specialization of the bit packing logic
 // for 32 bit integers when the output bit width is also 32, in which case a
 // simple copy of the mini block to the output buffer produces the result.
 //
-// func miniBlockPackInt32x32bitsAVX2(dst *byte, src *[miniBlockSize]int32)
-TEXT ·miniBlockPackInt32x32bitsAVX2(SB), NOSPLIT, $0-16
+// func encodeMiniBlockInt32x32bitsAVX2(dst *byte, src *[miniBlockSize]int32)
+TEXT ·encodeMiniBlockInt32x32bitsAVX2(SB), NOSPLIT, $0-16
     MOVQ dst+0(FP), AX
     MOVQ src+8(FP), BX
     VMOVDQU 0(BX), Y0
@@ -342,7 +332,7 @@ TEXT ·miniBlockPackInt32x32bitsAVX2(SB), NOSPLIT, $0-16
     VZEROUPPER
     RET
 
-// miniBlockPackInt32x3to16bitsAVX2 is the algorithm used to bit-pack 32 bit
+// encodeMiniBlockInt32x3to16bitsAVX2 is the algorithm used to bit-pack 32 bit
 // integers into values of width 3 to 16 bits.
 //
 // This function is a small overhead due to having to initialize registers with
@@ -369,7 +359,7 @@ TEXT ·miniBlockPackInt32x32bitsAVX2(SB), NOSPLIT, $0-16
 // which may not be aligned on byte boundaries so we shift the lower and upper
 // bits and compose two sets of 128 bits sequences (VPSLLQ, VPSRLQ, VBLENDPD),
 // merge them and write the 16 bytes result to the output buffer.
-TEXT ·miniBlockPackInt32x3to16bitsAVX2(SB), NOSPLIT, $0-24
+TEXT ·encodeMiniBlockInt32x3to16bitsAVX2(SB), NOSPLIT, $0-24
     MOVQ dst+0(FP), AX
     MOVQ src+8(FP), BX
     MOVQ bitWidth+16(FP), CX
@@ -428,6 +418,84 @@ DATA sixtyfour<>+0(SB)/8, $64
 DATA sixtyfour<>+8(SB)/8, $64
 DATA sixtyfour<>+16(SB)/8, $64
 DATA sixtyfour<>+24(SB)/8, $64
+
+// func decodeBlockInt32Default(dst []int32, minDelta, lastValue int32) int32
+TEXT ·decodeBlockInt32Default(SB), NOSPLIT, $0-36
+    MOVQ dst_base+0(FP), AX
+    MOVQ dst_len+8(FP), BX
+    MOVLQZX minDelta+24(FP), CX
+    MOVLQZX lastValue+28(FP), DX
+    XORQ SI, SI
+    JMP test
+loop:
+    MOVL (AX)(SI*4), DI
+    ADDL CX, DI
+    ADDL DI, DX
+    MOVL DX, (AX)(SI*4)
+    INCQ SI
+test:
+    CMPQ SI, BX
+    JNE loop
+done:
+    MOVL DX, ret+32(FP)
+    RET
+
+// func decodeBlockInt32AVX2(dst []int32, minDelta, lastValue int32) int32
+TEXT ·decodeBlockInt32AVX2(SB), NOSPLIT, $0-36
+    MOVQ dst_base+0(FP), AX
+    MOVQ dst_len+8(FP), BX
+    MOVLQZX minDelta+24(FP), CX
+    MOVLQZX lastValue+28(FP), DX
+    XORQ SI, SI
+
+    CMPQ BX, $8
+    JB test
+
+    MOVQ BX, DI
+    SHRQ $3, DI
+    SHLQ $3, DI
+
+    VPXOR X1, X1, X1
+    MOVQ CX, X0
+    MOVQ DX, X1
+    VPBROADCASTD X0, Y0
+loopAVX2:
+    VMOVDQU (AX)(SI*4), Y2
+    VPADDD Y0, Y2, Y2 // Y2[:] += minDelta
+    VPADDD Y1, Y2, Y2 // Y2[0] += lastValue
+
+    VPSLLDQ $4, Y2, Y3
+    VPADDD Y3, Y2, Y2
+
+    VPSLLDQ $8, Y2, Y3
+    VPADDD Y3, Y2, Y2
+
+    VPSHUFD $0xFF, X2, X1
+    VPERM2I128 $1, Y2, Y2, Y3
+    VPADDD X1, X3, X3
+
+    VMOVDQU X2, (AX)(SI*4)
+    VMOVDQU X3, 16(AX)(SI*4)
+    VPSRLDQ $12, X3, X1 // lastValue
+
+    ADDQ $8, SI
+    CMPQ SI, DI
+    JNE loopAVX2
+    VZEROUPPER
+    MOVQ X1, DX
+    JMP test
+loop:
+    MOVL (AX)(SI*4), DI
+    ADDL CX, DI
+    ADDL DI, DX
+    MOVL DX, (AX)(SI*4)
+    INCQ SI
+test:
+    CMPQ SI, BX
+    JNE loop
+done:
+    MOVL DX, ret+32(FP)
+    RET
 
 // -----------------------------------------------------------------------------
 // 64 bits
@@ -622,15 +690,15 @@ loop:
     VZEROUPPER
     RET
 
-// miniBlockPackInt64Default is the generic implementation of the algorithm to
+// encodeMiniBlockInt64Default is the generic implementation of the algorithm to
 // pack 64 bit integers into values of a given bit width (<=64).
 //
 // This algorithm is much slower than the vectorized versions, but is useful
 // as a reference implementation to run the tests against, and as fallback when
 // the code runs on a CPU which does not support the AVX2 instruction set.
 //
-// func miniBlockPackInt64Default(dst *byte, src *[miniBlockSize]int64, bitWidth uint)
-TEXT ·miniBlockPackInt64Default(SB), NOSPLIT, $0-24
+// func encodeMiniBlockInt64Default(dst *byte, src *[miniBlockSize]int64, bitWidth uint)
+TEXT ·encodeMiniBlockInt64Default(SB), NOSPLIT, $0-24
     MOVQ dst+0(FP), AX
     MOVQ src+8(FP), BX
     MOVQ bitWidth+16(FP), R10
@@ -663,8 +731,8 @@ loop:
     JNE loop
     RET
 
-// func miniBlockPackInt64x1bitAVX2(dst *byte, src *[miniBlockSize]int64)
-TEXT ·miniBlockPackInt64x1bitAVX2(SB), NOSPLIT, $0-16
+// func encodeMiniBlockInt64x1bitAVX2(dst *byte, src *[miniBlockSize]int64)
+TEXT ·encodeMiniBlockInt64x1bitAVX2(SB), NOSPLIT, $0-16
     MOVQ dst+0(FP), AX
     MOVQ src+8(FP), BX
 
@@ -715,8 +783,8 @@ TEXT ·miniBlockPackInt64x1bitAVX2(SB), NOSPLIT, $0-16
     VZEROUPPER
     RET
 
-// func miniBlockPackInt64x2bitsAVX2(dst *byte, src *[miniBlockSize]int64)
-TEXT ·miniBlockPackInt64x2bitsAVX2(SB), NOSPLIT, $0-16
+// func encodeMiniBlockInt64x2bitsAVX2(dst *byte, src *[miniBlockSize]int64)
+TEXT ·encodeMiniBlockInt64x2bitsAVX2(SB), NOSPLIT, $0-16
     MOVQ dst+0(FP), AX
     MOVQ src+8(FP), BX
 
@@ -807,8 +875,8 @@ TEXT ·miniBlockPackInt64x2bitsAVX2(SB), NOSPLIT, $0-16
     VZEROUPPER
     RET
 
-// func miniBlockPackInt64x64bitsAVX2(dst *byte, src *[miniBlockSize]int64)
-TEXT ·miniBlockPackInt64x64bitsAVX2(SB), NOSPLIT, $0-16
+// func encodeMiniBlockInt64x64bitsAVX2(dst *byte, src *[miniBlockSize]int64)
+TEXT ·encodeMiniBlockInt64x64bitsAVX2(SB), NOSPLIT, $0-16
     MOVQ dst+0(FP), AX
     MOVQ src+8(FP), BX
     VMOVDQU 0(BX), Y0
@@ -828,4 +896,25 @@ TEXT ·miniBlockPackInt64x64bitsAVX2(SB), NOSPLIT, $0-16
     VMOVDQU Y6, 192(AX)
     VMOVDQU Y7, 224(AX)
     VZEROUPPER
+    RET
+
+// func decodeBlockInt64Default(dst []int64, minDelta, lastValue int64) int64
+TEXT ·decodeBlockInt64Default(SB), NOSPLIT, $0-48
+    MOVQ dst_base+0(FP), AX
+    MOVQ dst_len+8(FP), BX
+    MOVQ minDelta+24(FP), CX
+    MOVQ lastValue+32(FP), DX
+    XORQ SI, SI
+    JMP test
+loop:
+    MOVQ (AX)(SI*8), DI
+    ADDQ CX, DI
+    ADDQ DI, DX
+    MOVQ DX, (AX)(SI*8)
+    INCQ SI
+test:
+    CMPQ SI, BX
+    JNE loop
+done:
+    MOVQ DX, ret+40(FP)
     RET

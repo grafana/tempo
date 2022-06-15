@@ -18,6 +18,7 @@ func init() {
 		encodeInt32Bitpack = encodeInt32BitpackAVX2
 	default:
 		encodeInt32IndexEqual8Contiguous = encodeInt32IndexEqual8ContiguousSSE
+		encodeInt32Bitpack = encodeInt32BitpackDefault
 	}
 }
 
@@ -43,3 +44,6 @@ func encodeInt32BitpackAVX2(dst []byte, src [][8]int32, bitWidth uint) int {
 		return encodeInt32BitpackDefault(dst, src, bitWidth)
 	}
 }
+
+//go:noescape
+func decodeBytesBitpack(dst, src []byte, count, bitWidth uint)

@@ -140,6 +140,8 @@ func Float64ToUint64(data []float64) []uint64 { return Slice[uint64](data) }
 
 func Uint32ToInt32(data []uint32) []int32 { return Slice[int32](data) }
 
+func Uint32ToInt64(data []uint32) []int64 { return Slice[int64](data) }
+
 func Uint64ToInt64(data []uint64) []int64 { return Slice[int64](data) }
 
 func BytesToBool(data []byte) []bool { return Slice[bool](data) }

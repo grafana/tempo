@@ -83,6 +83,10 @@ func Uint32ToInt32(data []uint32) []int32 {
 	return unsafe.Slice(*(**int32)(unsafe.Pointer(&data)), len(data))
 }
 
+func Uint32ToInt64(data []uint32) []int64 {
+	return unsafe.Slice(*(**int64)(unsafe.Pointer(&data)), len(data)/2)
+}
+
 func Uint64ToInt64(data []uint64) []int64 {
 	return unsafe.Slice(*(**int64)(unsafe.Pointer(&data)), len(data))
 }

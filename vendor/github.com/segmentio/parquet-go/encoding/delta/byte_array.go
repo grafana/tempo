@@ -137,90 +137,54 @@ func (e *ByteArrayEncoding) EncodeFixedLenByteArray(dst, src []byte, size int) (
 
 func (e *ByteArrayEncoding) DecodeByteArray(dst, src []byte) ([]byte, error) {
 	dst = dst[:0]
-	err := e.decode(src, func(prefix, suffix []byte) ([]byte, error) {
-		n := len(prefix) + len(suffix)
-		b := [4]byte{}
-		plain.PutByteArrayLength(b[:], n)
-		dst = append(dst, b[:]...)
-		i := len(dst)
-		dst = append(dst, prefix...)
-		dst = append(dst, suffix...)
-		return dst[i:len(dst):len(dst)], nil
-	})
-	if err != nil {
-		err = encoding.Error(e, err)
-	}
-	return dst, err
-}
 
-func (e *ByteArrayEncoding) DecodeFixedLenByteArray(dst, src []byte, size int) ([]byte, error) {
-	if size < 0 || size > encoding.MaxFixedLenByteArraySize {
-		return dst[:0], encoding.Error(e, encoding.ErrInvalidArgument)
-	}
-	dst = dst[:0]
-	err := e.decode(src, func(prefix, suffix []byte) ([]byte, error) {
-		n := len(prefix) + len(suffix)
-		if n != size {
-			return nil, fmt.Errorf("cannot decode value of size %d into fixed-length byte array of size %d", n, size)
-		}
-		i := len(dst)
-		dst = append(dst, prefix...)
-		dst = append(dst, suffix...)
-		return dst[i:len(dst):len(dst)], nil
-	})
-	if err != nil {
-		err = encoding.Error(e, err)
-	}
-	return dst, err
-}
-
-func (e *ByteArrayEncoding) decode(src []byte, observe func(prefix, suffix []byte) ([]byte, error)) error {
 	prefix := getInt32Buffer()
 	defer putInt32Buffer(prefix)
 
-	length := getInt32Buffer()
-	defer putInt32Buffer(length)
+	suffix := getInt32Buffer()
+	defer putInt32Buffer(suffix)
 
 	var err error
 	src, err = prefix.decode(src)
 	if err != nil {
-		return err
+		return dst, encoding.Errorf(e, "decoding prefix lengths: %w", err)
 	}
-	src, err = length.decode(src)
+	src, err = suffix.decode(src)
 	if err != nil {
-		return err
+		return dst, encoding.Errorf(e, "decoding suffix lengths: %w", err)
 	}
-	if len(prefix.values) != len(length.values) {
-		return fmt.Errorf("number of prefix and lengths mismatch: %d != %d", len(prefix.values), len(length.values))
+	if len(prefix.values) != len(suffix.values) {
+		return dst, encoding.Error(e, errPrefixAndSuffixLengthMismatch(len(prefix.values), len(suffix.values)))
 	}
+	return decodeByteArray(dst, src, prefix.values, suffix.values)
+}
 
-	var lastValue []byte
-	for i, n := range length.values {
-		if int(n) < 0 {
-			return fmt.Errorf("invalid negative value length: %d", n)
-		}
-		if int(n) > len(src) {
-			return fmt.Errorf("value length is larger than the input size: %d > %d", n, len(src))
-		}
+func (e *ByteArrayEncoding) DecodeFixedLenByteArray(dst, src []byte, size int) ([]byte, error) {
+	dst = dst[:0]
 
-		p := prefix.values[i]
-		if int(p) < 0 {
-			return fmt.Errorf("invalid negative prefix length: %d", p)
-		}
-		if int(p) > len(lastValue) {
-			return fmt.Errorf("prefix length %d is larger than the last value of size %d", p, len(lastValue))
-		}
-
-		prefix := lastValue[:p:p]
-		suffix := src[:n:n]
-		src = src[n:len(src):len(src)]
-
-		if lastValue, err = observe(prefix, suffix); err != nil {
-			return err
-		}
+	if size < 0 || size > encoding.MaxFixedLenByteArraySize {
+		return dst, encoding.Error(e, encoding.ErrInvalidArgument)
 	}
 
-	return nil
+	prefix := getInt32Buffer()
+	defer putInt32Buffer(prefix)
+
+	suffix := getInt32Buffer()
+	defer putInt32Buffer(suffix)
+
+	var err error
+	src, err = prefix.decode(src)
+	if err != nil {
+		return dst, fmt.Errorf("decoding prefix lengths: %w", err)
+	}
+	src, err = suffix.decode(src)
+	if err != nil {
+		return dst, fmt.Errorf("decoding suffix lengths: %w", err)
+	}
+	if len(prefix.values) != len(suffix.values) {
+		return dst, errPrefixAndSuffixLengthMismatch(len(prefix.values), len(suffix.values))
+	}
+	return decodeFixedLenByteArray(dst, src, size, prefix.values, suffix.values)
 }
 
 func linearSearchPrefixLength(base, data []byte) (n int) {

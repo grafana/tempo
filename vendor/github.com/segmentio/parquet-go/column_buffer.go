@@ -9,6 +9,7 @@ import (
 
 	"github.com/segmentio/parquet-go/deprecated"
 	"github.com/segmentio/parquet-go/encoding/plain"
+	"github.com/segmentio/parquet-go/internal/bitpack"
 	"github.com/segmentio/parquet-go/internal/unsafecast"
 )
 
@@ -589,10 +590,10 @@ func (col *repeatedColumnBuffer) Less(i, j int) bool {
 	row2Length := repeatedRowLength(col.repetitionLevels[row2.offset:])
 
 	for k := 0; k < row1Length && k < row2Length; k++ {
-		x := int(row1.offset) + k
-		y := int(row2.offset) + k
-		definitionLevel1 := col.definitionLevels[j+k]
-		definitionLevel2 := col.definitionLevels[j+k]
+		x := int(row1.baseOffset)
+		y := int(row2.baseOffset)
+		definitionLevel1 := col.definitionLevels[int(row1.offset)+k]
+		definitionLevel2 := col.definitionLevels[int(row2.offset)+k]
 		switch {
 		case less(col.base, x, y, col.maxDefinitionLevel, definitionLevel1, definitionLevel2):
 			return true
@@ -616,42 +617,32 @@ func (col *repeatedColumnBuffer) Swap(i, j int) {
 }
 
 func (col *repeatedColumnBuffer) WriteValues(values []Value) (numValues int, err error) {
-	// The values may belong to the last row that was written if they do not
-	// start with a repetition level less than the column's maximum.
-	var continuation Row
-	if len(values) > 0 && values[0].repetitionLevel != 0 {
-		continuation, values = splitRowValues(values)
-	}
-
-	if len(continuation) > 0 {
-		for i, v := range continuation {
-			if v.definitionLevel == col.maxDefinitionLevel {
-				if _, err := col.base.WriteValues(continuation[i : i+1]); err != nil {
-					return numValues, err
-				}
-			}
-			col.repetitionLevels = append(col.repetitionLevels, v.repetitionLevel)
-			col.definitionLevels = append(col.definitionLevels, v.definitionLevel)
-			numValues++
-		}
-	}
-
-	maxNumValues := 0
+	maxRowLen := 0
 	defer func() {
-		clearValues(col.buffer[:maxNumValues])
+		clearValues(col.buffer[:maxRowLen])
 	}()
 
-	var row []Value
+	for i := 0; i < len(values); {
+		j := i
 
-	for len(values) > 0 {
-		row, values = splitRowValues(values)
-		if err := col.writeRow(row); err != nil {
+		if values[j].repetitionLevel == 0 {
+			j++
+		}
+
+		for j < len(values) && values[j].repetitionLevel != 0 {
+			j++
+		}
+
+		if err := col.writeRow(values[i:j]); err != nil {
 			return numValues, err
 		}
-		numValues += len(row)
-		if len(col.buffer) > maxNumValues {
-			maxNumValues = len(col.buffer)
+
+		if len(col.buffer) > maxRowLen {
+			maxRowLen = len(col.buffer)
 		}
+
+		numValues += j - i
+		i = j
 	}
 
 	return numValues, nil
@@ -659,6 +650,7 @@ func (col *repeatedColumnBuffer) WriteValues(values []Value) (numValues int, err
 
 func (col *repeatedColumnBuffer) writeRow(row []Value) error {
 	col.buffer = col.buffer[:0]
+
 	for _, v := range row {
 		if v.definitionLevel == col.maxDefinitionLevel {
 			col.buffer = append(col.buffer, v)
@@ -672,10 +664,12 @@ func (col *repeatedColumnBuffer) writeRow(row []Value) error {
 		}
 	}
 
-	col.rows = append(col.rows, region{
-		offset:     uint32(len(col.repetitionLevels)),
-		baseOffset: uint32(baseOffset),
-	})
+	if row[0].repetitionLevel == 0 {
+		col.rows = append(col.rows, region{
+			offset:     uint32(len(col.repetitionLevels)),
+			baseOffset: uint32(baseOffset),
+		})
+	}
 
 	for _, v := range row {
 		col.repetitionLevels = append(col.repetitionLevels, v.repetitionLevel)
@@ -816,7 +810,7 @@ func (col *booleanColumnBuffer) WriteValues(values []Value) (int, error) {
 }
 
 func (col *booleanColumnBuffer) writeValues(rows array, size, offset uintptr, _ columnLevels) {
-	numBytes := byteCount(uint(col.numValues) + uint(rows.len))
+	numBytes := bitpack.ByteCount(uint(col.numValues) + uint(rows.len))
 	if cap(col.bits) < numBytes {
 		col.bits = append(make([]byte, 0, 2*cap(col.bits)), col.bits...)
 	}
@@ -890,7 +884,7 @@ func (col *booleanColumnBuffer) writeValues(rows array, size, offset uintptr, _ 
 		i++
 	}
 
-	col.bits = col.bits[:byteCount(uint(col.numValues))]
+	col.bits = col.bits[:bitpack.ByteCount(uint(col.numValues))]
 }
 
 func (col *booleanColumnBuffer) ReadValuesAt(values []Value, offset int64) (n int, err error) {

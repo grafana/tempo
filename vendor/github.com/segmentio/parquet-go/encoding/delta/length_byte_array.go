@@ -19,14 +19,8 @@ func (e *LengthByteArrayEncoding) Encoding() format.Encoding {
 }
 
 func (e *LengthByteArrayEncoding) EncodeByteArray(dst, src []byte) ([]byte, error) {
-	dst, err := e.encodeByteArray(dst[:0], src)
-	if err != nil {
-		err = encoding.Error(e, err)
-	}
-	return dst, err
-}
+	dst = dst[:0]
 
-func (e *LengthByteArrayEncoding) encodeByteArray(dst, src []byte) ([]byte, error) {
 	length := getInt32Buffer()
 	defer putInt32Buffer(length)
 
@@ -35,16 +29,16 @@ func (e *LengthByteArrayEncoding) encodeByteArray(dst, src []byte) ([]byte, erro
 	for i := 0; i < len(src); {
 		r := len(src) - i
 		if r < plain.ByteArrayLengthSize {
-			return dst, plain.ErrTooShort(r)
+			return dst, encoding.Error(e, plain.ErrTooShort(r))
 		}
 		n := plain.ByteArrayLength(src[i:])
 		i += plain.ByteArrayLengthSize
 		r -= plain.ByteArrayLengthSize
 		if n > r {
-			return dst, plain.ErrTooShort(n)
+			return dst, encoding.Error(e, plain.ErrTooShort(n))
 		}
 		if n > plain.MaxByteArrayLength {
-			return dst, plain.ErrTooLarge(n)
+			return dst, encoding.Error(e, plain.ErrTooLarge(n))
 		}
 		length.values = append(length.values, int32(n))
 		totalSize += n
@@ -68,29 +62,19 @@ func (e *LengthByteArrayEncoding) encodeByteArray(dst, src []byte) ([]byte, erro
 }
 
 func (e *LengthByteArrayEncoding) DecodeByteArray(dst, src []byte) ([]byte, error) {
-	return e.decodeByteArray(dst[:0], src)
-}
+	dst = dst[:0]
 
-func (e *LengthByteArrayEncoding) decodeByteArray(dst, src []byte) ([]byte, error) {
 	length := getInt32Buffer()
 	defer putInt32Buffer(length)
 
-	var err error
-	src, err = length.decode(src)
+	src, err := length.decode(src)
 	if err != nil {
-		return dst, err
+		return dst, encoding.Error(e, err)
 	}
 
-	for _, n := range length.values {
-		if int(n) < 0 {
-			return dst, encoding.Errorf(e, "invalid negative value length: %d", n)
-		}
-		if int(n) > len(src) {
-			return dst, encoding.Errorf(e, "value length is larger than the input size: %d > %d", n, len(src))
-		}
-		dst = plain.AppendByteArray(dst, src[:n])
-		src = src[n:]
+	dst, err = decodeLengthByteArray(dst, src, length.values)
+	if err != nil {
+		err = encoding.Error(e, err)
 	}
-
-	return dst, nil
+	return dst, err
 }

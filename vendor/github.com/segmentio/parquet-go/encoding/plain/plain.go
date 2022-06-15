@@ -224,6 +224,12 @@ func AppendByteArrayString(b []byte, v string) []byte {
 	return b
 }
 
+func AppendByteArrayLength(b []byte, n int) []byte {
+	length := [ByteArrayLengthSize]byte{}
+	PutByteArrayLength(length[:], n)
+	return append(b, length[:]...)
+}
+
 func ByteArrayLength(b []byte) int {
 	return int(binary.LittleEndian.Uint32(b))
 }

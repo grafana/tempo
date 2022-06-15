@@ -4,6 +4,8 @@ package rle
 
 import (
 	"encoding/binary"
+
+	"github.com/segmentio/parquet-go/internal/bitpack"
 )
 
 func encodeBytesBitpack(dst []byte, src []uint64, bitWidth uint) int {
@@ -35,4 +37,32 @@ func encodeInt32IndexEqual8Contiguous(words [][8]int32) (n int) {
 
 func encodeInt32Bitpack(dst []byte, src [][8]int32, bitWidth uint) int {
 	return encodeInt32BitpackDefault(dst, src, bitWidth)
+}
+
+func decodeBytesBitpack(dst, src []byte, count, bitWidth uint) {
+	dst = dst[:0]
+
+	bitMask := uint64(1<<bitWidth) - 1
+	byteCount := bitpack.ByteCount(8 * bitWidth)
+
+	for i := 0; count > 0; count -= 8 {
+		j := i + byteCount
+
+		bits := [8]byte{}
+		copy(bits[:], src[i:j])
+		word := binary.LittleEndian.Uint64(bits[:])
+
+		dst = append(dst,
+			byte((word>>(0*bitWidth))&bitMask),
+			byte((word>>(1*bitWidth))&bitMask),
+			byte((word>>(2*bitWidth))&bitMask),
+			byte((word>>(3*bitWidth))&bitMask),
+			byte((word>>(4*bitWidth))&bitMask),
+			byte((word>>(5*bitWidth))&bitMask),
+			byte((word>>(6*bitWidth))&bitMask),
+			byte((word>>(7*bitWidth))&bitMask),
+		)
+
+		i = j
+	}
 }
