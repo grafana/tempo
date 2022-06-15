@@ -38,6 +38,7 @@ const (
 	urlParamDataEncoding  = "dataEncoding"
 	urlParamVersion       = "version"
 	urlParamSize          = "size"
+	urlParamFooterSize    = "footerSize"
 
 	// maxBytes (serverless only)
 	urlParamMaxBytes = "maxBytes"
@@ -253,6 +254,9 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 	}
 	req.TotalRecords = uint32(totalRecords)
 
+	// Data encoding can be blank for some block formats, therefore
+	// no validation on the param here.  Eventually we may be able
+	// to remove this parameter entirely.
 	dataEncoding := r.URL.Query().Get(urlParamDataEncoding)
 	req.DataEncoding = dataEncoding
 
@@ -268,6 +272,15 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 		return nil, fmt.Errorf("invalid size %s: %w", s, err)
 	}
 	req.Size_ = size
+
+	// Footer size can be 0 for some blocks, just ensure we
+	// get a valid integer.
+	f := r.URL.Query().Get(urlParamFooterSize)
+	footerSize, err := strconv.ParseUint(f, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid footerSize %s: %w", f, err)
+	}
+	req.FooterSize = uint32(footerSize)
 
 	return req, nil
 }

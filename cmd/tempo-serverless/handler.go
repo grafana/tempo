@@ -89,6 +89,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		BlockID:       blockID,
 		DataEncoding:  searchReq.DataEncoding,
 		Size:          searchReq.Size_,
+		FooterSize:    searchReq.FooterSize,
 	}
 
 	block, err := encoding.OpenBlock(meta, reader)

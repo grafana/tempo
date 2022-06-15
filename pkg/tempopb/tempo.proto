@@ -64,6 +64,7 @@ message SearchBlockRequest {
   string dataEncoding = 8;
   string version = 9;
   uint64 size = 10; // total size of data file
+  uint32 footerSize = 11; // size of file footer (parquet)
 }
 
 message SearchResponse {
