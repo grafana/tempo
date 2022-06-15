@@ -50,8 +50,8 @@ func FromVersion(v string) (VersionedEncoding, error) {
 	return nil, fmt.Errorf("%s is not a valid block version", v)
 }
 
-// LatestEncoding is used by Compactor and Complete block
-func LatestEncoding() VersionedEncoding {
+// DefaultEncoding for newly written blocks.
+func DefaultEncoding() VersionedEncoding {
 	return v2.Encoding{}
 }
 

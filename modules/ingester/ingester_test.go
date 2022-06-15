@@ -325,7 +325,7 @@ func defaultIngesterModule(t *testing.T, tmpDir string) *Ingester {
 				IndexDownsampleBytes: 2,
 				BloomFP:              0.01,
 				BloomShardSizeBytes:  100_000,
-				Version:              encoding.LatestEncoding().Version(),
+				Version:              encoding.DefaultEncoding().Version(),
 				Encoding:             backend.EncLZ4_1M,
 				IndexPageSizeBytes:   1000,
 			},
