@@ -32,11 +32,13 @@ func (p *prefetchIter) prefetchLoop(ctx context.Context) {
 
 	for {
 		t, err := p.iter.Next(ctx)
-		if err == io.EOF {
+		if err != nil && err != io.EOF {
+			p.err.Store(err)
 			return
 		}
-		if err != nil {
-			p.err.Store(err)
+
+		// block iterator returns nil error on io.EOF
+		if t == nil || err == io.EOF {
 			return
 		}
 

@@ -21,6 +21,7 @@ func TestCombiner(t *testing.T) {
 		traceA        *Trace
 		traceB        *Trace
 		expectedTotal int
+		expectedTrace *Trace
 	}{
 		{
 			traceA:        nil,
@@ -37,6 +38,89 @@ func TestCombiner(t *testing.T) {
 			traceB:        &Trace{},
 			expectedTotal: 0,
 		},
+		{
+			traceA: &Trace{
+				TraceID:         "traceID",
+				RootServiceName: "serviceNameA",
+				ResourceSpans: []ResourceSpans{
+					{
+						Resource: Resource{
+							ServiceName: "serviceNameA",
+						},
+						InstrumentationLibrarySpans: []ILS{
+							{
+								Spans: []Span{
+									{
+										ID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										StatusCode: 0,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			traceB: &Trace{
+				TraceID:         "traceID",
+				RootServiceName: "serviceNameB",
+				ResourceSpans: []ResourceSpans{
+					{
+						Resource: Resource{
+							ServiceName: "serviceNameB",
+						},
+						InstrumentationLibrarySpans: []ILS{
+							{
+								Spans: []Span{
+									{
+										ID:           []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+										ParentSpanID: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										StatusCode:   0,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedTotal: 2,
+			expectedTrace: &Trace{
+				TraceID:         "traceID",
+				RootServiceName: "serviceNameA",
+				ResourceSpans: []ResourceSpans{
+					{
+						Resource: Resource{
+							ServiceName: "serviceNameA",
+						},
+						InstrumentationLibrarySpans: []ILS{
+							{
+								Spans: []Span{
+									{
+										ID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										StatusCode: 0,
+									},
+								},
+							},
+						},
+					},
+					{
+						Resource: Resource{
+							ServiceName: "serviceNameB",
+						},
+						InstrumentationLibrarySpans: []ILS{
+							{
+								Spans: []Span{
+									{
+										ID:           []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+										ParentSpanID: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										StatusCode:   0,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 		/*{
 			traceA:        sameTrace,
 			traceB:        sameTrace,
@@ -46,8 +130,11 @@ func TestCombiner(t *testing.T) {
 
 	for _, tt := range tests {
 		for _, m := range methods {
-			_, actualTotal := m(tt.traceA, tt.traceB)
+			actualTrace, actualTotal := m(tt.traceA, tt.traceB)
 			assert.Equal(t, tt.expectedTotal, actualTotal)
+			if tt.expectedTrace != nil {
+				assert.Equal(t, tt.expectedTrace, actualTrace)
+			}
 		}
 	}
 }
