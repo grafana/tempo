@@ -34,19 +34,21 @@ func NewStringInPredicate(ss []string) Predicate {
 }
 
 func (p *StringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
-	ci := cc.ColumnIndex()
+	if ci := cc.ColumnIndex(); ci != nil {
 
-	for _, subs := range p.ss {
-		for i := 0; i < ci.NumPages(); i++ {
-			ok := bytes.Compare(ci.MinValue(i).ByteArray(), subs) <= 0 && bytes.Compare(ci.MaxValue(i).ByteArray(), subs) >= 0
-			if ok {
-				// At least one page in this chunk matches
-				return true
+		for _, subs := range p.ss {
+			for i := 0; i < ci.NumPages(); i++ {
+				ok := bytes.Compare(ci.MinValue(i).ByteArray(), subs) <= 0 && bytes.Compare(ci.MaxValue(i).ByteArray(), subs) >= 0
+				if ok {
+					// At least one page in this chunk matches
+					return true
+				}
 			}
 		}
+		return false
 	}
 
-	return false
+	return true
 }
 
 func (p *StringInPredicate) KeepValue(v pq.Value) bool {
@@ -151,17 +153,19 @@ func NewIntBetweenPredicate(min, max int64) *IntBetweenPredicate {
 }
 
 func (p *IntBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
-	ci := c.ColumnIndex()
 
-	for i := 0; i < ci.NumPages(); i++ {
-		min := ci.MinValue(i).Int64()
-		max := ci.MaxValue(i).Int64()
-		if p.max >= min && p.min <= max {
-			return true
+	if ci := c.ColumnIndex(); ci != nil {
+		for i := 0; i < ci.NumPages(); i++ {
+			min := ci.MinValue(i).Int64()
+			max := ci.MaxValue(i).Int64()
+			if p.max >= min && p.min <= max {
+				return true
+			}
 		}
+		return false
 	}
 
-	return false
+	return true
 }
 
 func (p *IntBetweenPredicate) KeepValue(v pq.Value) bool {
