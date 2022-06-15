@@ -39,7 +39,7 @@ func DefaultSearchOptions() SearchOptions {
 }
 
 type Compactor interface {
-	Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta, opts CompactionOptions) ([]*backend.BlockMeta, error)
+	Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta) ([]*backend.BlockMeta, error)
 }
 
 type CompactionOptions struct {
@@ -49,6 +49,9 @@ type CompactionOptions struct {
 	OutputBlocks       uint8
 	BlockConfig        BlockConfig
 	Combiner           model.ObjectCombiner
+
+	ObjectsWritten func(compactionLevel, objects int)
+	BytesWritten   func(compactionLevel, bytes int)
 }
 
 func DefaultCompactionOptions() CompactionOptions {

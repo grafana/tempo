@@ -24,7 +24,6 @@ import (
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/metrics"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -289,7 +288,7 @@ func TestSameIDCompaction(t *testing.T) {
 	blocks, _ = blockSelector.BlocksToCompact()
 	assert.Len(t, blocks, blockCount)
 
-	combinedStart, err := test.GetCounterVecValue(metrics.MetricCompactionObjectsCombined, "0")
+	combinedStart, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
 	require.NoError(t, err)
 
 	err = rw.compact(blocks, testTenantID)
@@ -323,7 +322,7 @@ func TestSameIDCompaction(t *testing.T) {
 		require.Equal(t, expectedBytes, b2)
 	}
 
-	combinedEnd, err := test.GetCounterVecValue(metrics.MetricCompactionObjectsCombined, "0")
+	combinedEnd, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
 	require.NoError(t, err)
 	require.Equal(t, float64(sharded), combinedEnd-combinedStart)
 }
@@ -442,13 +441,13 @@ func TestCompactionMetrics(t *testing.T) {
 	rw.pollBlocklist()
 
 	// Get starting metrics
-	processedStart, err := test.GetCounterVecValue(metrics.MetricCompactionObjectsWritten, "0")
+	processedStart, err := test.GetCounterVecValue(metricCompactionObjectsWritten, "0")
 	assert.NoError(t, err)
 
-	blocksStart, err := test.GetCounterVecValue(metrics.MetricCompactionBlocks, "0")
+	blocksStart, err := test.GetCounterVecValue(metricCompactionBlocks, "0")
 	assert.NoError(t, err)
 
-	bytesStart, err := test.GetCounterVecValue(metrics.MetricCompactionBytesWritten, "0")
+	bytesStart, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0")
 	assert.NoError(t, err)
 
 	// compact everything
@@ -456,15 +455,15 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Check metric
-	processedEnd, err := test.GetCounterVecValue(metrics.MetricCompactionObjectsWritten, "0")
+	processedEnd, err := test.GetCounterVecValue(metricCompactionObjectsWritten, "0")
 	assert.NoError(t, err)
 	assert.Equal(t, float64(blockCount*recordCount), processedEnd-processedStart)
 
-	blocksEnd, err := test.GetCounterVecValue(metrics.MetricCompactionBlocks, "0")
+	blocksEnd, err := test.GetCounterVecValue(metricCompactionBlocks, "0")
 	assert.NoError(t, err)
 	assert.Equal(t, float64(blockCount), blocksEnd-blocksStart)
 
-	bytesEnd, err := test.GetCounterVecValue(metrics.MetricCompactionBytesWritten, "0")
+	bytesEnd, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0")
 	assert.NoError(t, err)
 	assert.Greater(t, bytesEnd, bytesStart) // calculating the exact bytes requires knowledge of the bytes as written in the blocks.  just make sure it goes up
 }

@@ -1,11 +1,10 @@
-module github.com/grafana/tempo/cmd/tempo-serverless/lambda
+module github.com/grafana/tempo/cmd/tempo-serverless/cloud-run
 
 go 1.17
 
 require (
-	github.com/aws/aws-lambda-go v1.28.0
 	github.com/gogo/protobuf v1.3.2
-	github.com/grafana/tempo v0.0.0-00010101000000-000000000000
+	github.com/grafana/tempo v1.2.0-rc.0.0.20211029120833-dee59ebe564c
 )
 
 require (

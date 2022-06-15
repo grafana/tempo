@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"runtime"
-	"strconv"
 	"time"
 
 	"github.com/go-kit/log"
@@ -14,20 +13,20 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/metrics"
 	"github.com/pkg/errors"
 )
 
 type Compactor struct {
+	opts common.CompactionOptions
 }
 
 var _ common.Compactor = (*Compactor)(nil)
 
-func NewCompactor() *Compactor {
-	return &Compactor{}
+func NewCompactor(opts common.CompactionOptions) *Compactor {
+	return &Compactor{opts}
 }
 
-func (*Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta, opts common.CompactionOptions) (newCompactedBlocks []*backend.BlockMeta, err error) {
+func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
 
 	tenantID := inputs[0].TenantID
 	dataEncoding := inputs[0].DataEncoding // blocks chosen for compaction always have the same data encoding
@@ -56,7 +55,7 @@ func (*Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w
 			return nil, err
 		}
 
-		iter, err := block.Iterator(opts.ChunkSizeBytes)
+		iter, err := block.Iterator(c.opts.ChunkSizeBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -66,9 +65,9 @@ func (*Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w
 
 	nextCompactionLevel := compactionLevel + 1
 
-	recordsPerBlock := (totalRecords / int(opts.OutputBlocks))
+	recordsPerBlock := (totalRecords / int(c.opts.OutputBlocks))
 
-	combiner := opts.Combiner
+	combiner := c.opts.Combiner
 	if combiner == nil {
 		combiner = model.StaticCombiner
 	}
@@ -76,7 +75,7 @@ func (*Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w
 	var currentBlock *StreamingBlock
 	var tracker backend.AppendTracker
 
-	iter := NewMultiblockIterator(ctx, iters, opts.PrefetchTraceCount, combiner, dataEncoding, l)
+	iter := NewMultiblockIterator(ctx, iters, c.opts.PrefetchTraceCount, combiner, dataEncoding, l)
 	defer iter.Close()
 
 	for {
@@ -92,7 +91,7 @@ func (*Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w
 
 		// make a new block if necessary
 		if currentBlock == nil {
-			currentBlock, err = NewStreamingBlock(&opts.BlockConfig, uuid.New(), tenantID, inputs, recordsPerBlock)
+			currentBlock, err = NewStreamingBlock(&c.opts.BlockConfig, uuid.New(), tenantID, inputs, recordsPerBlock)
 			if err != nil {
 				return nil, errors.Wrap(err, "error making new compacted block")
 			}
@@ -106,9 +105,9 @@ func (*Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w
 		}
 
 		// write partial block
-		if currentBlock.CurrentBufferLength() >= int(opts.FlushSizeBytes) {
+		if currentBlock.CurrentBufferLength() >= int(c.opts.FlushSizeBytes) {
 			runtime.GC()
-			tracker, err = appendBlock(ctx, writerCallback, tracker, currentBlock)
+			tracker, err = c.appendBlock(ctx, writerCallback, tracker, currentBlock)
 			if err != nil {
 				return nil, errors.Wrap(err, "error writing partial block")
 			}
@@ -116,7 +115,7 @@ func (*Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w
 
 		// ship block to backend if done
 		if currentBlock.Length() >= recordsPerBlock {
-			err = finishBlock(ctx, writerCallback, tracker, currentBlock, l)
+			err = c.finishBlock(ctx, writerCallback, tracker, currentBlock, l)
 			if err != nil {
 				return nil, errors.Wrap(err, "error shipping block to backend")
 			}
@@ -127,7 +126,7 @@ func (*Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w
 
 	// ship final block to backend
 	if currentBlock != nil {
-		err = finishBlock(ctx, writerCallback, tracker, currentBlock, l)
+		err = c.finishBlock(ctx, writerCallback, tracker, currentBlock, l)
 		if err != nil {
 			return nil, errors.Wrap(err, "error shipping block to backend")
 		}
@@ -136,28 +135,37 @@ func (*Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w
 	return newCompactedBlocks, nil
 }
 
-func appendBlock(ctx context.Context, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, tracker backend.AppendTracker, block *StreamingBlock) (backend.AppendTracker, error) {
-	compactionLevelLabel := strconv.Itoa(int(block.BlockMeta().CompactionLevel - 1))
-	metrics.MetricCompactionObjectsWritten.WithLabelValues(compactionLevelLabel).Add(float64(block.CurrentBufferedObjects()))
+func (c *Compactor) appendBlock(ctx context.Context, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, tracker backend.AppendTracker, block *StreamingBlock) (backend.AppendTracker, error) {
+	compactionLevel := int(block.BlockMeta().CompactionLevel - 1)
+
+	if c.opts.ObjectsWritten != nil {
+		c.opts.ObjectsWritten(compactionLevel, block.CurrentBufferedObjects())
+	}
 
 	tracker, bytesFlushed, err := block.FlushBuffer(ctx, tracker, writerCallback(block.BlockMeta(), time.Now()))
 	if err != nil {
 		return nil, err
 	}
-	metrics.MetricCompactionBytesWritten.WithLabelValues(compactionLevelLabel).Add(float64(bytesFlushed))
+
+	if c.opts.BytesWritten != nil {
+		c.opts.BytesWritten(compactionLevel, bytesFlushed)
+	}
 
 	return tracker, nil
 }
 
-func finishBlock(ctx context.Context, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, tracker backend.AppendTracker, block *StreamingBlock, l log.Logger) error {
+func (c *Compactor) finishBlock(ctx context.Context, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, tracker backend.AppendTracker, block *StreamingBlock, l log.Logger) error {
 	level.Info(l).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", block.BlockMeta()))
 
 	bytesFlushed, err := block.Complete(ctx, tracker, writerCallback(block.BlockMeta(), time.Now()))
 	if err != nil {
 		return err
 	}
-	compactionLevelLabel := strconv.Itoa(int(block.BlockMeta().CompactionLevel - 1))
-	metrics.MetricCompactionBytesWritten.WithLabelValues(compactionLevelLabel).Add(float64(bytesFlushed))
+
+	if c.opts.BytesWritten != nil {
+		compactionLevel := int(block.BlockMeta().CompactionLevel - 1)
+		c.opts.BytesWritten(compactionLevel, bytesFlushed)
+	}
 
 	return nil
 }

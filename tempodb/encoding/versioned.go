@@ -21,7 +21,7 @@ type VersionedEncoding interface {
 
 	// NewCompactor creates a Compactor that can be used to combine blocks of this
 	// encoding. It is expected to use internal details for efficiency.
-	NewCompactor() common.Compactor
+	NewCompactor(common.CompactionOptions) common.Compactor
 
 	// CreateBlock with the given attributes and trace contents.
 	// BlockMeta is used as a container for many options. Required fields:

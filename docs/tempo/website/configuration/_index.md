@@ -123,10 +123,18 @@ distributor:
 
     # Optional.
     # Enable to log every received trace id to help debug ingestion
-    [log_received_traces: <bool>]
+    # WARNING: Deprecated. Use log_received_spans instead.
+    [log_received_traces: <boolean> | default = false]
 
     # Optional.
-    # disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
+    # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs
+    log_received_spans:
+        [enabled: <boolean> | default = false]
+        [include_all_attributes: <boolean> | default = false]
+        [filter_by_status_error: <boolean> | default = false]
+
+    # Optional.
+    # Disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
     #  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
     [extend_writes: <bool>]
 
@@ -341,6 +349,13 @@ querier:
     # not distinguish between the types of queries.
     [max_concurrent_queries: <int> | default = 5]
 
+    # The query frontend sents sharded requests to ingesters and querier (/api/traces/<id>)
+    # By default, all healthy ingesters are queried for the trace id.
+    # When true the querier will hash the trace id in the same way that distributors do and then 
+    # only query those ingesters who own the trace id hash as determined by the ring.
+    # If this parameter is set, the number of 404s could increase during rollout or scaling of ingesters.
+    [query_relevant_ingesters: <bool> | default = false]
+
     search:
         # Timeout for search requests    
         [query_timeout: <duration> | default = 30s]
@@ -532,7 +547,11 @@ storage:
 
             # optional.
             # enable if endpoint is http
-            [insecure: <bool>]          
+            [insecure: <bool>]
+
+            # optional.
+            # Set to true to disable verification of an TLS endpoint.  The default value is false.
+            [insecure_skip_verify: <bool>]
 
             # optional.
             # enable to use path-style requests.

@@ -1,13 +1,19 @@
 package distributor
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
+	kitlog "github.com/go-kit/log"
 	"github.com/gogo/status"
 	"github.com/golang/protobuf/proto"
 	"github.com/grafana/dskit/flagext"
@@ -648,7 +654,7 @@ func TestDistributor(t *testing.T) {
 			flagext.DefaultValues(limits)
 
 			// todo:  test limits
-			d := prepare(t, limits, nil)
+			d := prepare(t, limits, nil, nil)
 
 			b := test.MakeBatch(tc.lines, []byte{})
 			response, err := d.PushBatches(ctx, []*v1.ResourceSpans{b})
@@ -659,7 +665,301 @@ func TestDistributor(t *testing.T) {
 	}
 }
 
-func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client) *Distributor {
+func TestLogSpans(t *testing.T) {
+	for i, tc := range []struct {
+		LogReceivedTraces       bool // Backwards compatibility with old config
+		LogReceivedSpansEnabled bool
+		filterByStatusError     bool
+		includeAllAttributes    bool
+		batches                 []*v1.ResourceSpans
+		expectedLogsSpan        []logSpan
+	}{
+		{
+			LogReceivedSpansEnabled: false,
+			batches: []*v1.ResourceSpans{
+				makeResourceSpans("test", []*v1.InstrumentationLibrarySpans{
+					makeInstrumentationLibrary(
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil)),
+				}),
+			},
+			expectedLogsSpan: []logSpan{},
+		},
+		{
+			LogReceivedTraces: true,
+			batches: []*v1.ResourceSpans{
+				makeResourceSpans("test", []*v1.InstrumentationLibrarySpans{
+					makeInstrumentationLibrary(
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil)),
+				}),
+			},
+			expectedLogsSpan: []logSpan{
+				{
+					Msg:     "received",
+					Level:   "info",
+					TraceID: "0a0102030405060708090a0b0c0d0e0f",
+					SpanID:  "dad44adc9a83b370",
+				},
+			},
+		},
+		{
+			LogReceivedSpansEnabled: true,
+			filterByStatusError:     false,
+			batches: []*v1.ResourceSpans{
+				makeResourceSpans("test-service", []*v1.InstrumentationLibrarySpans{
+					makeInstrumentationLibrary(
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil),
+						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", nil)),
+					makeInstrumentationLibrary(
+						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", nil)),
+				}),
+				makeResourceSpans("test-service2", []*v1.InstrumentationLibrarySpans{
+					makeInstrumentationLibrary(
+						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", nil)),
+				}),
+			},
+			expectedLogsSpan: []logSpan{
+				{
+					Msg:     "received",
+					Level:   "info",
+					TraceID: "0a0102030405060708090a0b0c0d0e0f",
+					SpanID:  "dad44adc9a83b370",
+				},
+				{
+					Msg:     "received",
+					Level:   "info",
+					TraceID: "e3210a2b38097332d1fe43083ea93d29",
+					SpanID:  "6c21c48da4dbd1a7",
+				},
+				{
+					Msg:     "received",
+					Level:   "info",
+					TraceID: "bb42ec04df789ff04b10ea5274491685",
+					SpanID:  "1b3a296034f4031e",
+				},
+				{
+					Msg:     "received",
+					Level:   "info",
+					TraceID: "b1c792dea27d511c145df8402bdd793a",
+					SpanID:  "56afb9fe18b6c2d6",
+				},
+			},
+		},
+		{
+			LogReceivedSpansEnabled: true,
+			filterByStatusError:     true,
+			batches: []*v1.ResourceSpans{
+				makeResourceSpans("test-service", []*v1.InstrumentationLibrarySpans{
+					makeInstrumentationLibrary(
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil),
+						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
+					makeInstrumentationLibrary(
+						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", nil)),
+				}),
+				makeResourceSpans("test-service2", []*v1.InstrumentationLibrarySpans{
+					makeInstrumentationLibrary(
+						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
+				}),
+			},
+			expectedLogsSpan: []logSpan{
+				{
+					Msg:     "received",
+					Level:   "info",
+					TraceID: "e3210a2b38097332d1fe43083ea93d29",
+					SpanID:  "6c21c48da4dbd1a7",
+				},
+				{
+					Msg:     "received",
+					Level:   "info",
+					TraceID: "b1c792dea27d511c145df8402bdd793a",
+					SpanID:  "56afb9fe18b6c2d6",
+				},
+			},
+		},
+		{
+			LogReceivedSpansEnabled: true,
+			filterByStatusError:     true,
+			includeAllAttributes:    true,
+			batches: []*v1.ResourceSpans{
+				makeResourceSpans("test-service", []*v1.InstrumentationLibrarySpans{
+					makeInstrumentationLibrary(
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil,
+							makeAttribute("tag1", "value1")),
+						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR},
+							makeAttribute("tag1", "value1"),
+							makeAttribute("tag2", "value2"))),
+					makeInstrumentationLibrary(
+						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", nil)),
+				}, makeAttribute("resource_attribute1", "value1")),
+				makeResourceSpans("test-service2", []*v1.InstrumentationLibrarySpans{
+					makeInstrumentationLibrary(
+						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
+				}, makeAttribute("resource_attribute2", "value2")),
+			},
+			expectedLogsSpan: []logSpan{
+				{
+					Msg:                "received",
+					Level:              "info",
+					TraceID:            "e3210a2b38097332d1fe43083ea93d29",
+					SpanID:             "6c21c48da4dbd1a7",
+					SpanServiceName:    "test-service",
+					SpanStatus:         "STATUS_CODE_ERROR",
+					SpanKind:           "SPAN_KIND_SERVER",
+					SpanTag1:           "value1",
+					SpanTag2:           "value2",
+					ResourceAttribute1: "value1",
+				},
+				{
+					Msg:                "received",
+					Level:              "info",
+					TraceID:            "b1c792dea27d511c145df8402bdd793a",
+					SpanID:             "56afb9fe18b6c2d6",
+					SpanServiceName:    "test-service2",
+					SpanStatus:         "STATUS_CODE_ERROR",
+					SpanKind:           "SPAN_KIND_SERVER",
+					ResourceAttribute2: "value2",
+				},
+			},
+		},
+		{
+			LogReceivedSpansEnabled: true,
+			filterByStatusError:     false,
+			includeAllAttributes:    true,
+			batches: []*v1.ResourceSpans{
+				makeResourceSpans("test-service", []*v1.InstrumentationLibrarySpans{
+					makeInstrumentationLibrary(
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil, makeAttribute("tag1", "value1"))),
+				}),
+			},
+			expectedLogsSpan: []logSpan{
+				{
+					Msg:             "received",
+					Level:           "info",
+					TraceID:         "0a0102030405060708090a0b0c0d0e0f",
+					SpanID:          "dad44adc9a83b370",
+					SpanServiceName: "test-service",
+					SpanStatus:      "STATUS_CODE_OK",
+					SpanKind:        "SPAN_KIND_SERVER",
+					SpanTag1:        "value1",
+				},
+			},
+		},
+	} {
+		t.Run(fmt.Sprintf("[%d] TestLogSpans LogReceivedTraces=%v LogReceivedSpansEnabled=%v filterByStatusError=%v includeAllAttributes=%v", i, tc.LogReceivedTraces, tc.LogReceivedSpansEnabled, tc.filterByStatusError, tc.includeAllAttributes), func(t *testing.T) {
+			limits := &overrides.Limits{}
+			flagext.DefaultValues(limits)
+
+			buf := &bytes.Buffer{}
+			logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
+
+			d := prepare(t, limits, nil, logger)
+			d.cfg.LogReceivedTraces = tc.LogReceivedTraces
+			d.cfg.LogReceivedSpans = LogReceivedSpansConfig{
+				Enabled:              tc.LogReceivedSpansEnabled,
+				FilterByStatusError:  tc.filterByStatusError,
+				IncludeAllAttributes: tc.includeAllAttributes,
+			}
+
+			_, err := d.PushBatches(ctx, tc.batches)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			bufJSON := "[" + strings.TrimRight(strings.ReplaceAll(buf.String(), "\n", ","), ",") + "]"
+			var actualLogsSpan []logSpan
+			err = json.Unmarshal([]byte(bufJSON), &actualLogsSpan)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			assert.Equal(t, len(tc.expectedLogsSpan), len(actualLogsSpan))
+			for i, expectedLogSpan := range tc.expectedLogsSpan {
+				assert.EqualValues(t, expectedLogSpan, actualLogsSpan[i])
+			}
+		})
+	}
+}
+
+type logSpan struct {
+	Msg                string `json:"msg"`
+	Level              string `json:"level"`
+	TraceID            string `json:"traceid"`
+	SpanID             string `json:"spanid"`
+	SpanStatus         string `json:"span_status,omitempty"`
+	SpanKind           string `json:"span_kind,omitempty"`
+	SpanServiceName    string `json:"span_service_name,omitempty"`
+	SpanTag1           string `json:"span_tag1,omitempty"`
+	SpanTag2           string `json:"span_tag2,omitempty"`
+	ResourceAttribute1 string `json:"span_resource_attribute1,omitempty"`
+	ResourceAttribute2 string `json:"span_resource_attribute2,omitempty"`
+}
+
+func makeAttribute(key string, value string) *v1_common.KeyValue {
+	return &v1_common.KeyValue{
+		Key:   key,
+		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: value}},
+	}
+}
+
+func makeSpan(traceID string, spanID string, status *v1.Status, attributes ...*v1_common.KeyValue) *v1.Span {
+	if status == nil {
+		status = &v1.Status{Code: v1.Status_STATUS_CODE_OK}
+	}
+
+	traceIDBytes, err := hex.DecodeString(traceID)
+	if err != nil {
+		panic(err)
+	}
+	spanIDBytes, err := hex.DecodeString(spanID)
+	if err != nil {
+		panic(err)
+	}
+
+	return &v1.Span{
+		TraceId:    traceIDBytes,
+		SpanId:     spanIDBytes,
+		Status:     status,
+		Kind:       v1.Span_SPAN_KIND_SERVER,
+		Attributes: attributes,
+	}
+}
+
+func makeInstrumentationLibrary(spans ...*v1.Span) *v1.InstrumentationLibrarySpans {
+	return &v1.InstrumentationLibrarySpans{
+		InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+			Name:    "super library",
+			Version: "0.0.1",
+		},
+		Spans: spans,
+	}
+}
+
+func makeResourceSpans(serviceName string, ils []*v1.InstrumentationLibrarySpans, attributes ...*v1_common.KeyValue) *v1.ResourceSpans {
+	rs := &v1.ResourceSpans{
+		Resource: &v1_resource.Resource{
+			Attributes: []*v1_common.KeyValue{
+				{
+					Key: "service.name",
+					Value: &v1_common.AnyValue{
+						Value: &v1_common.AnyValue_StringValue{
+							StringValue: serviceName,
+						},
+					},
+				},
+			},
+		},
+		InstrumentationLibrarySpans: ils,
+	}
+
+	rs.Resource.Attributes = append(rs.Resource.Attributes, attributes...)
+
+	return rs
+}
+
+func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client, logger log.Logger) *Distributor {
+	if logger == nil {
+		logger = log.NewNopLogger()
+	}
+
 	var (
 		distributorConfig Config
 		clientConfig      ingester_client.Config
@@ -695,7 +995,7 @@ func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client) *Distrib
 	l := logging.Level{}
 	_ = l.Set("error")
 	mw := receiver.MultiTenancyMiddleware()
-	d, err := New(distributorConfig, clientConfig, ingestersRing, generator_client.Config{}, nil, overrides, mw, l, false, false, prometheus.NewPedanticRegistry())
+	d, err := New(distributorConfig, clientConfig, ingestersRing, generator_client.Config{}, nil, overrides, mw, logger, l, false, false, prometheus.NewPedanticRegistry())
 	require.NoError(t, err)
 
 	return d

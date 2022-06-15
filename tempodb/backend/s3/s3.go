@@ -16,9 +16,9 @@ import (
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/minio/minio-go/v7"
+	minio "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -36,14 +36,14 @@ type readerWriter struct {
 // appendTracker is a struct used to track multipart uploads
 type appendTracker struct {
 	uploadID   string
-	partNum    int
-	parts      []minio.ObjectPart
 	objectName string
+	parts      []minio.ObjectPart
+	partNum    int
 }
 
 type overrideSignatureVersion struct {
-	useV2    bool
 	upstream credentials.Provider
+	useV2    bool
 }
 
 func (s *overrideSignatureVersion) Retrieve() (credentials.Value, error) {
@@ -344,6 +344,10 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	customTransport, err := minio.DefaultTransport(!cfg.Insecure)
 	if err != nil {
 		return nil, errors.Wrap(err, "create minio.DefaultTransport")
+	}
+
+	if cfg.InsecureSkipVerify {
+		customTransport.TLSClientConfig.InsecureSkipVerify = true
 	}
 
 	// add instrumentation

@@ -17,7 +17,8 @@ distributor:
       protocols:
         grpc:
     zipkin:
-  log_received_traces: true
+  log_received_spans:
+    enabled: true
 
 ingester:
   lifecycler:
