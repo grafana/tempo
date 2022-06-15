@@ -100,7 +100,9 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 
 	or := &parquetOptimizedReaderAt{br, int64(b.meta.Size), b.meta.FooterSize}
 
-	pf, err := parquet.OpenFile(or, int64(b.meta.Size))
+	span2, _ := opentracing.StartSpanFromContext(derivedCtx, "parquet.OpenFile")
+	pf, err := parquet.OpenFile(or, int64(b.meta.Size), parquet.SkipPageIndex(true))
+	span2.Finish()
 	if err != nil {
 		return nil, err
 	}
