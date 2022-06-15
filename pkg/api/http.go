@@ -354,6 +354,7 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 	q.Set(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
 	q.Set(urlParamDataEncoding, searchReq.DataEncoding)
 	q.Set(urlParamVersion, searchReq.Version)
+	q.Set(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
 
 	req.URL.RawQuery = q.Encode()
 
