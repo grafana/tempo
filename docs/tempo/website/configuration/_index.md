@@ -921,7 +921,7 @@ memberlist:
 Tempo provides an overrides module for users to set global or per-tenant override settings.
 
 ### Ingestion limits
-The default limits in Tempo may not be sufficient in high volume tracing environments. Errors including `RATE_LIMITED`/`TRACE_TOO_LARGE`/`LIVE_TRACES_EXCEEDED` will occur when these limits are exceeded. See below for how to override these limits globally or per tenant.
+The default limits in Tempo may not be sufficient in high-volume tracing environments. Errors including `RATE_LIMITED`/`TRACE_TOO_LARGE`/`LIVE_TRACES_EXCEEDED` occur when these limits are exceeded. See below for how to override these limits globally or per tenant.
 
 #### Standard overrides
 You can create an `overrides` section to configure new ingestion limits that applies to all tenants of the cluster.  
