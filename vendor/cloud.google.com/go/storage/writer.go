@@ -21,10 +21,10 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/golang/protobuf/proto"
-	"golang.org/x/xerrors"
 	"google.golang.org/api/googleapi"
 	raw "google.golang.org/api/storage/v1"
 	storagepb "google.golang.org/genproto/googleapis/storage/v2"
@@ -47,34 +47,60 @@ type Writer struct {
 	// attributes are ignored.
 	ObjectAttrs
 
-	// SendCRC specifies whether to transmit a CRC32C field. It should be set
+	// SendCRC32C specifies whether to transmit a CRC32C field. It should be set
 	// to true in addition to setting the Writer's CRC32C field, because zero
 	// is a valid CRC and normally a zero would not be transmitted.
 	// If a CRC32C is sent, and the data written does not match the checksum,
 	// the write will be rejected.
+	//
+	// Note: SendCRC32C must be set to true BEFORE the first call to
+	// Writer.Write() in order to send the checksum. If it is set after that
+	// point, the checksum will be ignored.
 	SendCRC32C bool
 
 	// ChunkSize controls the maximum number of bytes of the object that the
 	// Writer will attempt to send to the server in a single request. Objects
 	// smaller than the size will be sent in a single request, while larger
-	// objects will be split over multiple requests. The size will be rounded up
-	// to the nearest multiple of 256K.
+	// objects will be split over multiple requests. The value will be rounded up
+	// to the nearest multiple of 256K. The default ChunkSize is 16MiB.
 	//
-	// ChunkSize will default to a reasonable value. If you perform many
-	// concurrent writes of small objects (under ~8MB), you may wish set ChunkSize
-	// to a value that matches your objects' sizes to avoid consuming large
-	// amounts of memory. See
+	// Each Writer will internally allocate a buffer of size ChunkSize. This is
+	// used to buffer input data and allow for the input to be sent again if a
+	// request must be retried.
+	//
+	// If you upload small objects (< 16MiB), you should set ChunkSize
+	// to a value slightly larger than the objects' sizes to avoid memory bloat.
+	// This is especially important if you are uploading many small objects
+	// concurrently. See
 	// https://cloud.google.com/storage/docs/json_api/v1/how-tos/upload#size
 	// for more information about performance trade-offs related to ChunkSize.
 	//
 	// If ChunkSize is set to zero, chunking will be disabled and the object will
 	// be uploaded in a single request without the use of a buffer. This will
 	// further reduce memory used during uploads, but will also prevent the writer
-	// from retrying in case of a transient error from the server, since a buffer
-	// is required in order to retry the failed request.
+	// from retrying in case of a transient error from the server or resuming an
+	// upload that fails midway through, since the buffer is required in order to
+	// retry the failed request.
 	//
 	// ChunkSize must be set before the first Write call.
 	ChunkSize int
+
+	// ChunkRetryDeadline sets a per-chunk retry deadline for multi-chunk
+	// resumable uploads.
+	//
+	// For uploads of larger files, the Writer will attempt to retry if the
+	// request to upload a particular chunk fails with a transient error.
+	// If a single chunk has been attempting to upload for longer than this
+	// deadline and the request fails, it will no longer be retried, and the error
+	// will be returned to the caller. This is only applicable for files which are
+	// large enough to require a multi-chunk resumable upload. The default value
+	// is 32s. Users may want to pick a longer deadline if they are using larger
+	// values for ChunkSize or if they expect to have a slow or unreliable
+	// internet connection.
+	//
+	// To set a deadline on the entire upload, use context timeout or
+	// cancellation.
+	ChunkRetryDeadline time.Duration
 
 	// ProgressFunc can be used to monitor the progress of a large write.
 	// operation. If ProgressFunc is not nil and writing requires multiple
@@ -127,6 +153,9 @@ func (w *Writer) open() error {
 	if c := attrs.ContentType; c != "" {
 		mediaOpts = append(mediaOpts, googleapi.ContentType(c))
 	}
+	if w.ChunkRetryDeadline != 0 {
+		mediaOpts = append(mediaOpts, googleapi.ChunkRetryDeadline(w.ChunkRetryDeadline))
+	}
 
 	go func() {
 		defer close(w.donec)
@@ -172,6 +201,22 @@ func (w *Writer) open() error {
 			// call to set up the upload as well as calls to upload individual chunks
 			// for a resumable upload (as long as the chunk size is non-zero). Hence
 			// there is no need to add retries here.
+
+			// Retry only when the operation is idempotent or the retry policy is RetryAlways.
+			isIdempotent := w.o.conds != nil && (w.o.conds.GenerationMatch >= 0 || w.o.conds.DoesNotExist == true)
+			var useRetry bool
+			if (w.o.retry == nil || w.o.retry.policy == RetryIdempotent) && isIdempotent {
+				useRetry = true
+			} else if w.o.retry != nil && w.o.retry.policy == RetryAlways {
+				useRetry = true
+			}
+			if useRetry {
+				if w.o.retry != nil {
+					call.WithRetry(w.o.retry.backoff, w.o.retry.shouldRetry)
+				} else {
+					call.WithRetry(nil, nil)
+				}
+			}
 			resp, err = call.Do()
 		}
 		if err != nil {
@@ -220,7 +265,7 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 		// Preserve existing functionality that when context is canceled, Write will return
 		// context.Canceled instead of "io: read/write on closed pipe". This hides the
 		// pipe implementation detail from users and makes Write seem as though it's an RPC.
-		if xerrors.Is(werr, context.Canceled) || xerrors.Is(werr, context.DeadlineExceeded) {
+		if errors.Is(werr, context.Canceled) || errors.Is(werr, context.DeadlineExceeded) {
 			return n, werr
 		}
 	}
@@ -411,17 +456,12 @@ func (w *Writer) openGRPC() error {
 //
 // This is an experimental API and not intended for public use.
 func (w *Writer) startResumableUpload() error {
-	var common *storagepb.CommonRequestParams
-	if w.o.userProject != "" {
-		common = &storagepb.CommonRequestParams{UserProject: w.o.userProject}
-	}
 	spec, err := w.writeObjectSpec()
 	if err != nil {
 		return err
 	}
 	upres, err := w.o.c.gc.StartResumableWrite(w.ctx, &storagepb.StartResumableWriteRequest{
-		WriteObjectSpec:     spec,
-		CommonRequestParams: common,
+		WriteObjectSpec: spec,
 	})
 
 	w.upid = upres.GetUploadId()
