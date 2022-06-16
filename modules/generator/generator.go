@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/go-kit/log"
@@ -58,6 +59,11 @@ type Generator struct {
 func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer, logger log.Logger) (*Generator, error) {
 	if cfg.Storage.Path == "" {
 		return nil, errors.New("must configure metrics_generator.storage.path")
+	}
+
+	err := os.MkdirAll(cfg.Storage.Path, os.ModePerm)
+	if err != nil {
+		return nil, err
 	}
 
 	g := &Generator{
