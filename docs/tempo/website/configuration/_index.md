@@ -1041,7 +1041,7 @@ overrides:
 
 #### Tenant-specific overrides
 
-You can set tenant-specific overrides settings in a separate file and point `per_tenant_override_config` to it. This overrides file is dynamically loaded.  It can be changed at runtime and will be reloaded by Tempo without restarting the application. All of the override settings detailed above can be set per tenant.
+You can set tenant-specific overrides settings in a separate file and point `per_tenant_override_config` to it. This overrides file is dynamically loaded. It can be changed at runtime and reloaded by Tempo without restarting the application. These override settings can be set per tenant.
 ```yaml
 # /conf/tempo.yaml
 # Overrides configuration block
