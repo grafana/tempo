@@ -2,14 +2,18 @@ package vparquet
 
 import (
 	"context"
+	"fmt"
 	"io"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
+
+	tempo_io "github.com/grafana/tempo/pkg/io"
 )
 
 type blockIterator struct {
-	r *parquet.Reader
+	blockID string
+	r       *parquet.Reader
 }
 
 func (b *backendBlock) Iterator(ctx context.Context) (Iterator, error) {
@@ -25,7 +29,7 @@ func (b *backendBlock) Iterator(ctx context.Context) (Iterator, error) {
 
 	r := parquet.NewReader(pf, parquet.SchemaOf(&Trace{}))
 
-	return &blockIterator{r}, nil
+	return &blockIterator{blockID: b.meta.BlockID.String(), r: r}, nil
 }
 
 func (i *blockIterator) Next(context.Context) (*Trace, error) {
@@ -36,7 +40,7 @@ func (i *blockIterator) Next(context.Context) (*Trace, error) {
 	case io.EOF:
 		return nil, nil
 	default:
-		return nil, err
+		return nil, errors.Wrap(err, fmt.Sprintf("error iterating through block %s", i.blockID))
 	}
 }
 
