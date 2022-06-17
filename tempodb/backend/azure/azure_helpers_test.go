@@ -1,6 +1,7 @@
 package azure
 
 import (
+	"os"
 	"testing"
 
 	"github.com/grafana/dskit/flagext"
@@ -23,7 +24,8 @@ func TestGetStorageAccountNameInConfig(t *testing.T) {
 
 func TestGetStorageAccountNameInEnv(t *testing.T) {
 	cfg := Config{}
-	t.Setenv("AZURE_STORAGE_ACCOUNT", TestStorageAccountName)
+	os.Setenv("AZURE_STORAGE_ACCOUNT", TestStorageAccountName)
+	defer os.Unsetenv("AZURE_STORAGE_ACCOUNT")
 
 	actual := getStorageAccountName(&cfg)
 	assert.Equal(t, TestStorageAccountName, actual)
@@ -48,7 +50,8 @@ func TestGetStorageAccountKeyInConfig(t *testing.T) {
 
 func TestGetStorageAccountKeyInEnv(t *testing.T) {
 	cfg := Config{}
-	t.Setenv("AZURE_STORAGE_KEY", TestStorageAccountKey)
+	os.Setenv("AZURE_STORAGE_KEY", TestStorageAccountKey)
+	defer os.Unsetenv("AZURE_STORAGE_KEY")
 
 	actual := getStorageAccountKey(&cfg)
 	assert.Equal(t, TestStorageAccountKey, actual)
