@@ -35,6 +35,10 @@ type backendOptions struct {
 	S3Pass     string `name:"s3-pass" help:"s3 password, optional, overrides password in config file"`
 }
 
+type tracingOptions struct {
+	OTELEndpoint string `arg:"" help:"OpenTelemetry endpoint for OTLP"`
+}
+
 var cli struct {
 	globalOptions
 
@@ -73,6 +77,10 @@ var cli struct {
 
 	Parquet struct {
 		Convert convertParquet `cmd:"" help:"convert from an existing file to tempodb parquet schema"`
+	} `cmd:""`
+
+	Write struct {
+		Trace writeTraceCmd `cmd:"" help:"write a trace to an OTEL endpoint"`
 	} `cmd:""`
 }
 
