@@ -32,7 +32,7 @@ type writeTraceCmd struct {
 	SpanCount int64 `arg:"" help:"The number of spans to send in the trace"`
 }
 
-func (cmd *writeTraceCmd) Run(opts *globalOptions) error {
+func (cmd *writeTraceCmd) Run(_ *globalOptions) error {
 	cmd.logger = newLogger()
 
 	shutdownTracer, err := cmd.installOpenTelemetryTracer()
