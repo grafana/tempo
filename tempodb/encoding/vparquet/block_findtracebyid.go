@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
 	"github.com/willf/bloom"
@@ -63,7 +64,7 @@ func (rt *RowTracker) findTraceByID(idx int, traceID string) int {
 	}
 
 	pages := traceIDColumnChunk.Pages()
-	buffer := make([]parquet.Value, 1000)
+	buffer := make([]parquet.Value, 10000)
 	for {
 		pg, err := pages.ReadPage()
 		if pg == nil || err == io.EOF {
@@ -110,17 +111,23 @@ func (rt *RowTracker) findTraceByID(idx int, traceID string) int {
 
 // Simple binary search algorithm over the parquet rowgroups to efficiently
 // search for traceID in the block (works only because rows are sorted by traceID)
-func (rt *RowTracker) binarySearch(start int, end int, traceID string) int {
+func (rt *RowTracker) binarySearch(span opentracing.Span, start int, end int, traceID string) int {
 	if start > end {
 		return -1
 	}
 
 	// check mid point
 	midResult := rt.findTraceByID((start+end)/2, traceID)
+	span.LogFields(
+		log.Message("checked mid result"),
+		log.Int("start", start),
+		log.Int("end", end),
+		log.Int("midResult", midResult),
+	)
 	if midResult == SearchPrevious {
-		return rt.binarySearch(start, ((start+end)/2)-1, traceID)
+		return rt.binarySearch(span, start, ((start+end)/2)-1, traceID)
 	} else if midResult < 0 {
-		return rt.binarySearch(((start+end)/2)+1, end, traceID)
+		return rt.binarySearch(span, ((start+end)/2)+1, end, traceID)
 	}
 
 	return midResult
@@ -200,7 +207,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, id common.ID) (_ *temp
 	}
 
 	// find row number of matching traceID
-	rowMatch := rt.binarySearch(0, numRowGroups-1, traceID)
+	rowMatch := rt.binarySearch(span, 0, numRowGroups-1, traceID)
 
 	// traceID not found in this block
 	if rowMatch < 0 {
@@ -214,13 +221,15 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, id common.ID) (_ *temp
 		return nil, errors.Wrap(err, "seek to row")
 	}
 
+	span.LogFields(log.Message("seeked to row"), log.Int("row", rowMatch))
+
 	tr := new(Trace)
 	err = r.Read(tr)
 	if err != nil {
 		return nil, errors.Wrap(err, "error reading row from backend")
 	}
 
-	fmt.Printf("Found trace id: %s in parquet block %v at row %d\n", traceID, b.meta.BlockID, rowMatch)
+	span.LogFields(log.Message("read trace"))
 
 	// convert to proto trace and return
 	return parquetTraceToTempopbTrace(tr)
