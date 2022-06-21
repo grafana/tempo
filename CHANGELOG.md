@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [FEATURE] Add parquet block format [#1479](https://github.com/grafana/tempo/pull/1479) (@annanay25, @mdisibio)
 * [FEATURE] Mark `log_received_traces` as deprecated. New flag is `log_received_spans`.
   Extend distributor spans logger with optional features to include span attributes and a filter by error status. [#1465](https://github.com/grafana/tempo/pull/1465) (@faustodavid)
 * [CHANGE] metrics-generator: Changed added metric label `instance` to `__metrics_gen_instance` to reduce collisions with custom dimensions. [#1439](https://github.com/grafana/tempo/pull/1439) (@joe-elliott)
