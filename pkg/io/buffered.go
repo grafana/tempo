@@ -199,6 +199,8 @@ type BufferedWriteFlusher interface {
 // BufferedWriterWithQueue is an attempt at writing an async queue of outgoing data to the underlying writer.
 // As a tradeoff for removing flushes from the hot path, this writer does not provide guarantees about
 // bubbling up errors and takes a best effort approach to signal a failure.
+//
+// Note: This is not used at the moment due to concerns with error handling when writing async data to the backend.
 type BufferedWriterWithQueue struct {
 	w   io.Writer
 	buf []byte
@@ -215,7 +217,7 @@ func NewBufferedWriterWithQueue(w io.Writer) BufferedWriteFlusher {
 		w:       w,
 		buf:     nil,
 		flushCh: make(chan []byte, 10), // todo: guess better?
-		doneCh:  make(chan struct{}),
+		doneCh:  make(chan struct{}, 1),
 	}
 
 	go b.flushLoop()

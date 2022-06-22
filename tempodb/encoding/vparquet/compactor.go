@@ -86,7 +86,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			}
 			w := writerCallback(newMeta, time.Now())
 
-			currentBlock = newStreamingBlock(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriterWithQueue)
+			currentBlock = newStreamingBlock(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriter)
 			currentBlock.meta.CompactionLevel = nextCompactionLevel
 			newCompactedBlocks = append(newCompactedBlocks, currentBlock.meta)
 		}
@@ -111,10 +111,13 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		// ship block to backend if done
 		if currentBlock.meta.TotalObjects >= recordsPerBlock {
-			currenBlockPtrCopy := currentBlock
-			currenBlockPtrCopy.meta.StartTime = minBlockStart
-			currenBlockPtrCopy.meta.EndTime = maxBlockEnd
-			go c.finishBlock(currenBlockPtrCopy, l)
+			currentBlockPtrCopy := currentBlock
+			currentBlockPtrCopy.meta.StartTime = minBlockStart
+			currentBlockPtrCopy.meta.EndTime = maxBlockEnd
+			err := c.finishBlock(currentBlockPtrCopy, l)
+			if err != nil {
+				return nil, errors.Wrap(err, fmt.Sprintf("error shipping block to backend, blockID %s", currentBlockPtrCopy.meta.BlockID.String()))
+			}
 			currentBlock = nil
 		}
 	}
@@ -123,7 +126,10 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	if currentBlock != nil {
 		currentBlock.meta.StartTime = minBlockStart
 		currentBlock.meta.EndTime = maxBlockEnd
-		go c.finishBlock(currentBlock, l)
+		err := c.finishBlock(currentBlock, l)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("error shipping block to backend, blockID %s", currentBlock.meta.BlockID.String()))
+		}
 	}
 
 	return newCompactedBlocks, nil
@@ -147,14 +153,10 @@ func (c *Compactor) appendBlock(block *streamingBlock) error {
 	return nil
 }
 
-func (c *Compactor) finishBlock(block *streamingBlock, l log.Logger) {
+func (c *Compactor) finishBlock(block *streamingBlock, l log.Logger) error {
 	bytesFlushed, err := block.Complete()
 	if err != nil {
-		level.Error(l).Log("msg", "error shipping block to backend", "blockID", block.meta.BlockID.String(), "err", err)
-		if c.opts.IncCompactionErrors != nil {
-			c.opts.IncCompactionErrors()
-		}
-		return
+		return errors.Wrap(err, "error completing block")
 	}
 
 	level.Info(l).Log("msg", "wrote compacted block", "meta", fmt.Sprintf("%+v", block.meta))
@@ -162,6 +164,7 @@ func (c *Compactor) finishBlock(block *streamingBlock, l log.Logger) {
 	if c.opts.BytesWritten != nil {
 		c.opts.BytesWritten(compactionLevel, bytesFlushed)
 	}
+	return nil
 }
 
 type bookmark struct {
