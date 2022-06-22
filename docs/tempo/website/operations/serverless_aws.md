@@ -3,7 +3,7 @@ title: Backend search - serverless AWS setup
 weight: 11
 ---
 
-# AWS Lambda
+# AWS Lambda for serverless backend search
 
 This document will walk you through setting up an AWS Lambda for serverless backend search.
 For more guidance on configuration options for full backend search [check here](./backend_search.md).

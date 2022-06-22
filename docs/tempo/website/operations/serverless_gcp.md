@@ -3,9 +3,9 @@ title: Backend search - serverless GCP setup
 weight: 10
 ---
 
-# Google Cloud Run
+# Google Cloud Run for serverless backend search
 
-This document will walk you through setting up a Google Cloud Run for serverless backend search.
+This document walks you through setting up a Google Cloud Run for serverless backend search.
 For more guidance on configuration options for full backend search [check here](./backend_search.md).
 
 1. Build the docker image:
@@ -97,7 +97,7 @@ For more guidance on configuration options for full backend search [check here](
     }
     ```
 
-5. Add the newly-created cloud run service as external endpoints in your querier
+4. Add the newly-created cloud run service as external endpoints in your querier
 configuration.
 The endpoint can be retrieved from the "details" tab in Google Cloud Run:
 

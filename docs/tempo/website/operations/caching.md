@@ -47,7 +47,7 @@ Too many open connections
 
 When using the [memcached_exporter](https://github.com/prometheus/memcached_exporter), the number of open connections can be observed at `memcached_current_connections`. 
 
-### Cache Size Control
+### Cache size control
 
 Tempo querier accesses bloom filters of all blocks while searching for a trace. This essentially mandates the size
 of cache to be at-least the total size of the bloom filters (the working set) . However, in larger deployments, the

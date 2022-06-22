@@ -48,8 +48,8 @@ exporters:
 - Multitenancy on ingestion is currently [only working](https://github.com/grafana/tempo/issues/495) with GPRC and this may never change. It is strongly recommended to use the OpenTelemetry Collector to support multitenancy as described above.
 - The way the read path is configured is temporary and should be much more straightforward once the [tempo-query dependency is removed](https://github.com/grafana/tempo/issues/382).
 
-## Enabling Multitenancy
-To enable multitenancy on Tempo backend, simply set the following config value on all Tempo components:
+## Enabling multi-tenancy
+To enable multi-tenancy on Tempo backend, set the following configuration value on all Tempo components:
 ```
 multitenancy_enabled: true
 ```

@@ -1,5 +1,5 @@
 ---
-title: Deployment
+title: Deploying Tempo
 aliases:
   - /docs/tempo/latest/deployment
   - /docs/tempo/latest/deployment/deployment
@@ -13,7 +13,7 @@ Tempo can be easily deployed through a number of tools as explained in this docu
 > **Note**: The Tanka and Helm examples are equivalent.
 > They are both provided for people who prefer different configuration mechanisms.
 
-## Tanka / Jsonnet
+## Tanka/Jsonnet
 
 The Jsonnet files that you need to deploy Tempo with Tanka are available here:
 
@@ -36,7 +36,7 @@ You can find a collection of Kubernetes manifests to deploy Tempo in the
 [operations/jsonnet-compiled](https://github.com/grafana/tempo/tree/main/operations/jsonnet-compiled)
 folder.  These are generated using the Tanka / Jsonnet.
 
-# Deployment scenarios
+## Deployment scenarios
 
 Tempo can be deployed in one of three modes:
 
@@ -50,7 +50,7 @@ which is the monolithic deployment mode.
 
 > **Note:** _Monolithic mode_ was previously called _single binary mode_. Similarly _scalable monolithic mode_ was previously called _scalable single binary mode_. While the documentation has been updated to reflect this change, some URL names and deployment tooling (e.g. Helm charts) do not yet reflect this change. 
 
-## Monolithic
+### Monolithic
 
 Monolithic mode deployment runs all top-level components in a single
 process, forming an instance of Tempo.  The monolithic mode is the simplest
@@ -65,7 +65,7 @@ Find docker-compose deployment examples at:
 - [https://github.com/grafana/tempo/tree/main/example/docker-compose/local](https://github.com/grafana/tempo/tree/main/example/docker-compose/local)
 - [https://github.com/grafana/tempo/tree/main/example/docker-compose/s3](https://github.com/grafana/tempo/tree/main/example/docker-compose/s3)
 
-## Scalable monolithic
+### Scalable monolithic
 
 Scalable monolithic mode is similar to the monolithic mode in
 that all components are run within one process. Horizontal scale out is
@@ -82,7 +82,7 @@ Find a docker-compose deployment example at:
 
 - [https://github.com/grafana/tempo/tree/main/example/docker-compose/scalable-single-binary](https://github.com/grafana/tempo/tree/main/example/docker-compose/scalable-single-binary)
 
-## Microservices
+### Microservices
 
 In microservices mode, components are deployed in distinct processes.  Scaling
 is per component, which allows for greater flexibility in scaling and more

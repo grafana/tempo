@@ -1,12 +1,12 @@
 ---
-title: Example Setups
+title: Example setups
 aliases:
 - /docs/tempo/latest/getting-started/quickstart-tempo/
 - /docs/tempo/latest/guides/loki-derived-fields/
 weight: 200
 ---
 
-# Running the Tempo Backend
+# Running the Tempo backend
 
 These examples show various deployment and [configuration]({{< relref "../configuration" >}}) options. They include trace
 generators so an existing application is not necessary to get started experimenting with Tempo. If you are interested in
@@ -34,9 +34,9 @@ There are monolithic mode and microservices examples.
 The Helm [example](https://github.com/grafana/tempo/tree/main/example/helm) shows a complete microservice based deployment. 
 There are monolithic mode and microservices examples.
 
-## The New Stack (TNS) Demo
+## The New Stack demo
 
-The [TNS demo](https://github.com/grafana/tns) demonstrates a fully-instrumented three-tier application and the integration of Grafana, Prometheus, Loki, and Tempo [features](https://github.com/grafana/tns#demoable-things), including metrics to traces (exemplars), logs to traces, and traces to logs.  A good place to start is the [docker-compose setup](https://github.com/grafana/tns/tree/main/production/docker-compose) which includes a pre-built dashboard, load generator, and exemplars.
+The [New Stack (TNS) demo](https://github.com/grafana/tns) demonstrates a fully-instrumented three-tier application and the integration of Grafana, Prometheus, Loki, and Tempo [features](https://github.com/grafana/tns#demoable-things), including metrics to traces (exemplars), logs to traces, and traces to logs. A good place to start is the [docker-compose setup](https://github.com/grafana/tns/tree/main/production/docker-compose) which includes a pre-built dashboard, load generator, and exemplars.
 
 Explanation:
 - Metrics To Traces (Exemplars)

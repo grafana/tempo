@@ -1,9 +1,9 @@
 ---
-title: Bad Blocks
+title: Bad blocks
 weight: 475
 ---
 
-# Bad Blocks
+# Bad blocks
 
 Queries fail with an error message containing:
 

@@ -15,17 +15,17 @@ Together, these can be used to monitor Tempo in production.
 Tempo is already instrumented with metrics, logs and traces.
 These can be collected to observe Tempo.
 
-#### Metrics
+### Metrics
 
 Tempo is instrumented with [Prometheus metrics](https://prometheus.io/).
 It emits RED metrics for most services and backends.
 The [Tempo mixin](#dashboards) provides several dashboards using these metrics.
 
-#### Logs
+### Logs
 
 Tempo emits logs in the `key=value` ([logfmt](https://brandur.org/logfmt)) format.
 
-#### Traces
+### Traces
 
 Tempo uses the [Jaeger Golang SDK](https://github.com/jaegertracing/jaeger-client-go) for tracing instrumentation.
 As of this writing, the complete read path and some parts of the write of Tempo are instrumented for tracing.
@@ -44,10 +44,10 @@ JAEGER_SAMPLER_PARAM=1
 ## Dashboards
 
 The [Tempo mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) has four Grafana dashboards in the `yamls` folder that you can download and import into your Grafana UI.
-Note that at the moment, these work well when Tempo is run in a k8s environment and metrics scraped have the
-`cluster` and `namespace` labels!
+At the moment, these work well when Tempo is run in a Kubernetes (k8s) environment and metrics scraped have the
+`cluster` and `namespace` labels.
 
-### Tempo / Reads
+### Tempo Reads dashboard
 
 > This is available as `tempo-reads.json`.
 
@@ -57,18 +57,18 @@ Each query touches the Gateway, Tempo-Query, Query-Frontend, Queriers, Ingesters
 Use this dashboard to monitor the performance of each of the above mentioned components and to decide the number of
 replicas in each deployment.
 
-### Tempo / Writes
+### Tempo Writes dashboard
 
 > This is available as `tempo-writes.json`.
 
-The Reads dashboard gives information information on Requests, Errors and Duration (R.E.D) on the write/ingest Path of Tempo.
+The Writes dashboard gives information information on Requests, Errors and Duration (R.E.D) on the write/ingest Path of Tempo.
 A write query touches the Gateway, Distributors, Ingesters and eventually the backend. This dashboard also gives information
 on the number of operations performed by the Compactor to the backend.
 
 Use this dashboard to monitor the performance of each of the above mentioned components and to decide the number of
 replicas in each deployment.
 
-### Tempo / Resources
+### Tempo Resources dashboard
 
 > This is available as `tempo-resources.json`.
 
@@ -77,7 +77,7 @@ provisioning for the different Tempo components.
 
 Use this dashboard to see if any components are running close to their assigned limits!
 
-### Tempo / Operational
+### Tempo Operational dashboard
 
 > This is available as `tempo-operational.json`.
 
@@ -91,7 +91,7 @@ This dashboard is included in this repo for two reasons:
 - We want it in our internal infrastructure and we vendor the tempo-mixin to do this.
 
 
-## Rules and Alerts
+## Rules and alerts
 
 The Rules and Alerts are available as [yaml files in the compiled mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin-compiled) on the repository.
 

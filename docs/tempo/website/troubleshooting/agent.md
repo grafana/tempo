@@ -1,9 +1,9 @@
 ---
-title: Agent Troubleshooting
+title: Agent troubleshooting
 weight: 472
 ---
 
-# Agent Troubleshooting
+# Agent troubleshooting
 
 Sometimes it can be difficult to tell what, if anything, the Grafana Agent is sending along to the backend. This document focuses
 on a few techniques to gain visibility on how many traces are being pushed to the Agent and if they're making it to the
@@ -24,7 +24,7 @@ traces_exporter_sent_spans
 traces_exporter_send_failed_spans
 ```
 
-## Automatic Logging
+## Automatic logging
 
 If metrics and logs are looking good, but you are still unable to find traces in Grafana Cloud then we can turn on [Automatic Logging]({{< relref "../grafana-agent/automatic-logging" >}}). A recommend debug setup is:
 
