@@ -5,8 +5,8 @@ weight: 5
 
 # Compression and encoding
 
-Tempo can compress traces that it pushes into the backend. This requires a bit extra
-memory and CPU but reduces the amount of stored data.  Anecdotal tests suggest that `zstd` will
+Tempo can compress traces that it pushes to backend storage. This requires extra
+memory and CPU, but it reduces the quantity of stored data.  Anecdotal tests suggest that `zstd` will
 cut your storage costs to ~15% of the uncompressed amount.  It is _highly_ recommended to use the
 default `zstd`.
 

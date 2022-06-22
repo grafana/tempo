@@ -76,7 +76,7 @@ And open `http://localhost:16686/trace/0123456789abcdef` in the browser of your 
 
 <p align="center"><img src="../pushing-spans-with-http.png" alt="single span"></p>
 
-## More spans!
+## More spans
 
 Now that we have the basics down, it's easy to continue building our trace.  By specifying the same trace ID and a parent span ID, we can start building a trace.
 

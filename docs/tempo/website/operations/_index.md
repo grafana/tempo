@@ -3,7 +3,7 @@ title: Deployment and operations
 weight: 300
 ---
 
-# Deployement and operations
+# Deployment and operations
 
 Resources for deploying and running Tempo:
 

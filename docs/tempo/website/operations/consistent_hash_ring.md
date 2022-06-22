@@ -50,7 +50,7 @@ Unhealthy distributors have little impact but should be forgotten to reduce cost
 **Available on:** Distributors  
 **Path:** `/ingester/ring`
 
-Unhealthy ingesters will cause writes to fail. If the ingester is really gone forget immediately!
+Unhealthy ingesters will cause writes to fail. If the ingester is really gone, forget it immediately.
 
 ### Metrics-generators
 **Available on:** Distributors  
@@ -62,7 +62,7 @@ Unhealthy metrics-generators will cause writes to fail. If the metrics-generator
 **Available on:** Compactors  
 **Path:** `/compactor/ring`
 
-Unhealthy compactors will allow the blocklist to grow significantly. If the compactor is really gone forget immediately!
+Unhealthy compactors will allow the blocklist to grow significantly. If the compactor is really gone, forget it immediately.
 
 ## Configuring the rings
 

@@ -5,7 +5,7 @@ weight: 7
 
 # Manifest
 
-This document contains all Tempo options and their defaults. It is likely quite overwhelming and if you are just getting 
+This document contains all Tempo options and their defaults. It is likely quite overwhelming if you are just getting 
 started. Refer to [Tempo examples](https://github.com/grafana/tempo/tree/main/example/docker-compose) 
 and other [configuration documentation](..). Most installations will require only setting 10 to 20 of these options.
 
