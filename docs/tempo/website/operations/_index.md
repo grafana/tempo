@@ -1,7 +1,9 @@
 ---
-title: Deployment and Operations
+title: Deployment and 0perations
 weight: 300
 ---
+
+# Deployement and operations
 
 Resources for deploying and running Tempo:
 
@@ -12,6 +14,6 @@ Resources for deploying and running Tempo:
 - [Ingester PVCs](ingester_pvcs)
 - [Caching](caching)
 - [Tempo CLI](tempo_cli)
-- [Polling/Tenant Index](polling)
+- [Polling and tenant index](polling)
 - [Backend search](backend_search)
 - [Server-side metrics](server_side_metrics)

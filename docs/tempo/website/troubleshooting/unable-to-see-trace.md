@@ -5,7 +5,7 @@ aliases:
 - /docs/tempo/latest/troubleshooting/missing-trace
 ---
 
-# I am unable to find my traces in Tempo
+# Unable to find traces in Tempo
 
 **Potential causes**
 - There could be issues in ingestion of the data into Tempo, that is, spans are either not being sent correctly to Tempo or they are not getting sampled.
@@ -34,19 +34,19 @@ If the value of `tempo_distributor_spans_received_total` is 0, possible reasons 
 
 Receiver specific traffic information can also be obtained using `tempo_receiver_accepted_spans` which has a label for the receiver (protocol used for ingestion. Ex: `jaeger-thrift`).
 
-#### Solutions
+### Solutions
 
-##### Fixing protocol/port problems
+#### Fixing protocol/port problems
 - Find out which communication protocol is being used by the application to emit traces. This is unique to every client SDK. For instance: Jaeger Golang Client uses `Thrift Compact over UDP` by default.
 - Check the list of supported protocols and their ports and ensure that the correct combination is being used. You will find the list of supported protocols and ports here: https://grafana.com/docs/tempo/latest/getting-started/#step-1-spin-up-tempo-backend
 
-##### Fixing sampling issues
+#### Fixing sampling issues
 - These issues can be tricky to determine because most SDKs use a probabilistic sampler by default. This may lead to just one in a 1000 records being picked up.
 - Check the sampling configuration of the tracer being initialized in the application and make sure it has a high sampling rate.
 - Some clients also provide metrics on the number of spans reported from the application, for example `jaeger_tracer_reporter_spans_total`. Check the value of that metric if available and make sure it is greater than zero.
 - Another way to diagnose this problem would be to generate lots and lots of traces to see if some records make their way to Tempo.
 
-##### Fixing incorrect endpoint issue
+#### Fixing incorrect endpoint issue
 - If the application is also running inside docker, make sure the application is sending traces to the correct endpoint (`tempo:<receiver-port>`).
 
 ## Case 2 - tempo_ingester_traces_created_total is 0
@@ -55,7 +55,7 @@ If the value of `tempo_ingester_traces_created_total` is 0, the possible reason 
 
 This can also be confirmed by checking the metric `tempo_request_duration_seconds_count{route='/tempopb.Pusher/Push'}` exposed from the ingester which indicates that it is receiving ingestion requests from the distributor.
 
-#### Solution
+### Solution
 - Check logs of distributors for a message like `msg="pusher failed to consume trace data" err="DoBatch: IngesterCount <= 0"`.
   This is likely because no ingester is joining the gossip ring, make sure the same gossip ring address is supplied to the distributors and ingesters.
 
@@ -80,7 +80,7 @@ If the pipeline is not reporting any dropped spans, check whether application sp
   Note that the Grafana Agent and Tempo share the same metric. Make sure to check the value of the metric from both services.
   If the value of `tempo_receiver_refused_spans` is greater than 0, then the possible reason is the application spans are being dropped due to rate limiting.
 
-#### Solution
+### Solution
 - If the pipeline (Grafana Agent) is found to be dropping spans, the deployment may need to be scaled up. Look for a message like `too few agents compared to the ingestion rate` in the agent logs.
 - There might also be issues with connectivity to Tempo backend, check the agent for logs like `error sending batch, will retry` and make sure the Tempo endpoint and credentials are correctly configured.
 - If Tempo is found to be dropping spans, then the possible reason is the application spans are being dropped due to rate limiting.
@@ -112,7 +112,7 @@ Possible reasons for the above errors are:
 - Not connected to Tempo Querier correctly
 - Insufficient permissions
 
-#### Solutions
+### Solutions
 - Fixing connection issues
   - If the queriers are not connected to the Query Frontend, check the following section in Querier configuration and make sure the address of the Query Frontend is correct
     ```

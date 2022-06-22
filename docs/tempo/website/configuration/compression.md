@@ -1,14 +1,14 @@
 ---
-title: Compression/Encoding
+title: Compression and encoding
 weight: 5
 ---
 
-# Compression/Encoding
+# Compression and encoding
 
-Tempo has the ability to compress traces that it pushes into the backend. This requires a bit extra
-memory and cpu but seriously reduces the amount of stored data.  Anecdotal tests suggest that zstd will
+Tempo can compress traces that it pushes into the backend. This requires a bit extra
+memory and CPU but reduces the amount of stored data.  Anecdotal tests suggest that `zstd` will
 cut your storage costs to ~15% of the uncompressed amount.  It is _highly_ recommended to use the
-default zstd.
+default `zstd`.
 
 Compression is configured under storage like so:
 
@@ -32,14 +32,14 @@ The following options are supported:
 - s2
 
 It is important to note that although all of these compression formats are supported in Tempo, at Grafana
-we use zstd and it's possible/probable that the other compression algorithms may have issue at scale.  Please 
-file an issue if you stumble upon any problems!
+we use `zstd` and it's possible/probable that the other compression algorithms may have issue at scale.  
+File an issue if you have any problems.
 
 ## WAL
 
-The WAL also supports compression. By default this is configured to use snappy. This comes with a small performance
+The WAL also supports compression. By default, this is configured to use `snappy`. This comes with a small performance
 penalty but reduces disk I/O and and adds checksums to the WAL. All of the above configuration options are supported
-but only snappy has been tested at scale.
+but only `snappy` has been tested at scale.
 
 ```
 storage:

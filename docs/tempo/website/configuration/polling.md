@@ -32,7 +32,7 @@ storage:
         [blocklist_poll_stale_tenant_index: <duration>]
 ```
 
-Due to the mechanics of the [tenant index]({{< relref "../operations/polling" >}}) the blocklist will be stale by
+Due to the mechanics of the [tenant index]({{< relref "../operations/polling" >}}), the blocklist will be stale by
 at most 2 times the configured `blocklist_poll` duration. There are two configuration options that need to be balanced 
 against the `blockist_poll` to handle this:
 
@@ -57,6 +57,6 @@ compactor:
     [compacted_block_retention: <duration>]
 ```
 
-Additionally, it is important that the querier `blocklist_poll` duration is greater than or equal to the compactor 
-`blocklist_poll` duration. Otherwise a querier may not correctly check all assigned blocks and incorrectly return 404. 
+Additionally, the querier `blocklist_poll` duration needs to be greater than or equal to the compactor 
+`blocklist_poll` duration. Otherwise, a querier may not correctly check all assigned blocks and incorrectly return 404. 
 It is recommended to simply set both components to use the same poll duration.

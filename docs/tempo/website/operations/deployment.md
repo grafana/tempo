@@ -1,5 +1,5 @@
 ---
-title: Deployment
+title: Deploying Tempo
 aliases:
   - /docs/tempo/latest/deployment
   - /docs/tempo/latest/deployment/deployment
@@ -13,7 +13,7 @@ Tempo can be easily deployed through a number of tools as explained in this docu
 > **Note**: The Tanka and Helm examples are equivalent.
 > They are both provided for people who prefer different configuration mechanisms.
 
-## Tanka / Jsonnet
+## Tanka/Jsonnet
 
 The Jsonnet files that you need to deploy Tempo with Tanka are available here:
 

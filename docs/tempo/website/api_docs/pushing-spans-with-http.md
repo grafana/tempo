@@ -1,5 +1,5 @@
 ---
-title: Pushing Spans with HTTP
+title: Pushing spans with HTTP
 aliases:
 - /docs/tempo/latest/guides/pushing-spans-with-http/
 ---
@@ -33,9 +33,9 @@ and run Tempo using it:
 docker run -p 9411:9411 -p 3200:3200 -v $(pwd)/config.yaml:/config.yaml grafana/tempo:latest -config.file /config.yaml
 ```
 
-## Pushing Spans
+## Pushing spans
 
-Now that Tempo is running and listening on port 9411 for [Zipkin spans](https://zipkin.io/zipkin-api/#/default/post_spans) let's push a span to it using `curl`.
+Now that Tempo is running and listening on port 9411 for [Zipkin spans](https://zipkin.io/zipkin-api/#/default/post_spans), let's push a span to it using `curl`.
 
 ```bash
 curl -X POST http://localhost:9411 -H 'Content-Type: application/json' -d '[{
@@ -56,7 +56,7 @@ curl -X POST http://localhost:9411 -H 'Content-Type: application/json' -d '[{
 
 Note that the `timestamp` field is in microseconds and was obtained by running `date +%s%6N`.  The `duration` field is also in microseconds and so 100000 is 100 milliseconds.
 
-## Retrieving Traces
+## Retrieving traces
 
 The easiest way to get the trace is to execute a simple curl command to Tempo.  The returned format is [OTLP](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto).
 
@@ -76,9 +76,9 @@ And open `http://localhost:16686/trace/0123456789abcdef` in the browser of your 
 
 <p align="center"><img src="../pushing-spans-with-http.png" alt="single span"></p>
 
-## More Spans!
+## More spans!
 
-Now that we have the basics down it's easy to continue building our trace.  By specifying the same trace id and a parent span id we can start building a trace.
+Now that we have the basics down, it's easy to continue building our trace.  By specifying the same trace ID and a parent span ID, we can start building a trace.
 
 ```bash
 curl -X POST http://localhost:9411 -H 'Content-Type: application/json' -d '[{

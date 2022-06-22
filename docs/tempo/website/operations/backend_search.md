@@ -88,17 +88,17 @@ query_frontend:
 
 Serverless is not required, but with larger loads, serverless is recommended to reduce costs and
 improve performance. If you find that you are scaling up your quantity of queriers, yet are not 
-acheiving the latencies you would like, switch to serverless.
+achieving the latencies you would like, switch to serverless.
 
-Tempo has support for Google Cloud Run and AWS Lambda. In both cases you will use the following
-settings to configure Tempo to use the serverless:
+Tempo has support for Google Cloud Run and AWS Lambda. In both cases, you will use the following
+settings to configure Tempo to use a serverless environment:
 
 ```
 querier:
   search:
     # A list of external endpoints that the querier will use to offload backend search requests. They must  
     # take and return the same value as /api/search endpoint on the querier. This is intended to be
-    # used with serverless technologies for massive parrallelization of the search path.
+    # used with serverless technologies for massive parallelization of the search path.
     # The default value of "" disables this feature.
     [external_endpoints: <list of strings> | default = <empty list>]
 

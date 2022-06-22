@@ -48,7 +48,7 @@ The backend can be configured in a few ways:
 
 Each option applies only to the command in which it is used. For example, `--backend <value>` does not permanently change where Tempo stores data. It only changes it for command in which you apply the option.
 
-## Query API Command
+## Query API command
 Call the tempo API and retrieve a trace by ID.
 ```bash
 tempo-cli query api <api-endpoint> <trace-id>
@@ -66,7 +66,7 @@ Options:
 tempo-cli query api http://tempo:3200 f1cfe82a8eef933b
 ```
 
-## Query Blocks Command
+## Query Blocks command
 Iterate over all backend blocks and dump all data found for a given trace id.
 ```bash
 tempo-cli query blocks <trace-id> <tenant-id>
@@ -85,7 +85,7 @@ See backend options above.
 tempo-cli query blocks f1cfe82a8eef933b single-tenant
 ```
 
-## List Blocks
+## List blocks
 Lists information about all blocks for the given tenant, and optionally perform integrity checks on indexes for duplicate records.
 
 ```bash
@@ -118,7 +118,7 @@ Explanation of output:
 tempo-cli list blocks -c ./tempo.yaml single-tenant
 ```
 
-## List Block
+## List block
 Lists information about a single block, and optionally, scan its contents.
 
 ```bash
@@ -137,7 +137,7 @@ Options:
 tempo-cli list block -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b0bbf69f1
 ```
 
-## List Compaction Summary
+## List compaction summary
 Summarizes information about all blocks for the given tenant based on compaction level. This command is useful to analyze or troubleshoot compactor behavior.
 
 ```bash
@@ -152,7 +152,7 @@ Arguments:
 tempo-cli list compaction-summary -c ./tempo.yaml single-tenant
 ```
 
-## List Cache Summary
+## List cache summary
 Prints information about the number of bloom filter shards per day per compaction level. This command is useful to
 estimate and fine-tune cache storage. Read the [caching topic](../caching) for more information.
 
@@ -168,7 +168,7 @@ Arguments:
 tempo-cli list cache-summary -c ./tempo.yaml single-tenant
 ```
 
-## List Index
+## List index
 Lists basic index info for the given block.
 
 ```bash
@@ -184,7 +184,7 @@ Arguments:
 tempo-cli list index -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b0bbf69f1
 ```
 
-## View Index
+## View index
 View the index contents for the given block.
 
 ```bash
@@ -200,7 +200,7 @@ Arguments:
 tempo-cli view index -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b0bbf69f1
 ```
 
-## Generate Bloom Filter
+## Generate bloom filter
 
 To generate the bloom filter for a block if the files were deleted/corrupted.
 
@@ -219,7 +219,7 @@ tempo-cli gen bloom --backend=local --bucket=./cmd/tempo-cli/test-data/ single-t
 
 The bloom filter will be generated at the required location under the block folder.
 
-## Generate Index
+## Generate index
 
 To generate the index/bloom for a block if the files were deleted/corrupted.
 
@@ -236,7 +236,7 @@ tempo-cli gen index --backend=local --bucket=./cmd/tempo-cli/test-data/ single-t
 
 The index will be generated at the required location under the block folder.
 
-## Search Blocks Command
+## Search blocks command
 Search blocks in a given time range for a specific key/value pair.
 ```bash
 tempo-cli search blocks <name> <value> <start> <end> <tenant-id>
