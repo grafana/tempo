@@ -1,5 +1,5 @@
 ---
-title: Deployment and 0perations
+title: Deployment and operations
 weight: 300
 ---
 
