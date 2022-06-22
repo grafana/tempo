@@ -66,7 +66,7 @@ Options:
 tempo-cli query api http://tempo:3200 f1cfe82a8eef933b
 ```
 
-## Query Blocks command
+## Query blocks command
 Iterate over all backend blocks and dump all data found for a given trace id.
 ```bash
 tempo-cli query blocks <trace-id> <tenant-id>
