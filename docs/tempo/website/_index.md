@@ -12,9 +12,9 @@ Grafana Tempo is an open source, easy-to-use and high-volume distributed tracing
 
 > **Note:** You can use [Grafana Cloud](https://grafana.com/products/cloud/features/#cloud-dashboards-grafana) to avoid installing, maintaining, and scaling your own instance of Grafana Tempo. The free forever plan includes 50GB of free traces. [Create an account to get started](https://grafana.com/auth/sign-up/create-user?pg=docs-tempo&plcmt=in-text).
 
-- [Getting Started](getting-started/)
+- [Getting started](getting-started/)
 - [Configuration](configuration/)
-- [Deployment and Operations](operations/)
+- [Deployment and operations](operations/)
 - [Metrics-generator](metrics-generator/)
 - [API](api_docs/) 
 - [Grafana Agent](grafana-agent/)
