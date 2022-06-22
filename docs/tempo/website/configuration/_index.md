@@ -821,6 +821,9 @@ storage:
             # number of bytes per index record
             [index_downsample_bytes: <uint64> | default = 1MiB]
 
+            # block format version. options: v2, vParquet
+            [version: <string> | default = v2]
+
             # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
             [encoding: <string> | default = zstd]
 
@@ -919,10 +922,9 @@ memberlist:
 ## Overrides
 
 Tempo provides an overrides module for users to set global or per-tenant override settings.
-**Currenly only ingestion limits can be overridden.**
 
 ### Ingestion limits
-The default limits in Tempo may not be sufficient in high volume tracing environments. Errors including `RATE_LIMITED`/`TRACE_TOO_LARGE`/`LIVE_TRACES_EXCEEDED` will occur when these limits are exceeded.
+The default limits in Tempo may not be sufficient in high-volume tracing environments. Errors including `RATE_LIMITED`/`TRACE_TOO_LARGE`/`LIVE_TRACES_EXCEEDED` occur when these limits are exceeded. See below for how to override these limits globally or per tenant.
 
 #### Standard overrides
 You can create an `overrides` section to configure new ingestion limits that applies to all tenants of the cluster.  
@@ -1042,7 +1044,7 @@ overrides:
 
 #### Tenant-specific overrides
 
-You can set tenant-specific overrides settings in a separate file and point `per_tenant_override_config` to it. This overrides file is dynamically loaded.  It can be changed at runtime and will be reloaded by Tempo without restarting the application.
+You can set tenant-specific overrides settings in a separate file and point `per_tenant_override_config` to it. This overrides file is dynamically loaded. It can be changed at runtime and reloaded by Tempo without restarting the application. These override settings can be set per tenant.
 ```yaml
 # /conf/tempo.yaml
 # Overrides configuration block

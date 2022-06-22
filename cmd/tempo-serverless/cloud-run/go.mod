@@ -8,10 +8,10 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.100.2 // indirect
-	cloud.google.com/go/compute v1.5.0 // indirect
+	cloud.google.com/go v0.102.0 // indirect
+	cloud.google.com/go/compute v1.6.1 // indirect
 	cloud.google.com/go/iam v0.3.0 // indirect
-	cloud.google.com/go/storage v1.18.2 // indirect
+	cloud.google.com/go/storage v1.22.1 // indirect
 	github.com/Azure/azure-pipeline-go v0.2.3 // indirect
 	github.com/Azure/azure-storage-blob-go v0.14.0 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
@@ -50,9 +50,11 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/flatbuffers v2.0.0+incompatible // indirect
-	github.com/google/go-cmp v0.5.7 // indirect
+	github.com/google/go-cmp v0.5.8 // indirect
 	github.com/google/uuid v1.3.0 // indirect
-	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
+	github.com/googleapis/gax-go/v2 v2.4.0 // indirect
+	github.com/googleapis/go-type-adapters v1.0.0 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/grafana/dskit v0.0.0-20220331160727-49faf69f72ca // indirect
@@ -127,18 +129,18 @@ require (
 	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/crypto v0.0.0-20220214200702-86341886e292 // indirect
 	golang.org/x/mod v0.5.1 // indirect
-	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd // indirect
-	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
-	golang.org/x/sys v0.0.0-20220610221304-9f5ed59c137d // indirect
+	golang.org/x/net v0.0.0-20220615171555-694bf12d69de // indirect
+	golang.org/x/oauth2 v0.0.0-20220608161450-d0670ef3b1eb // indirect
+	golang.org/x/sys v0.0.0-20220615213510-4f61da869c0c // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
 	golang.org/x/tools v0.1.9 // indirect
-	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
-	google.golang.org/api v0.70.0 // indirect
+	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f // indirect
+	google.golang.org/api v0.84.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20220222213610-43724f9ea8cf // indirect
-	google.golang.org/grpc v1.44.0 // indirect
-	google.golang.org/protobuf v1.27.1 // indirect
+	google.golang.org/genproto v0.0.0-20220616135557-88e70c0c3a90 // indirect
+	google.golang.org/grpc v1.47.0 // indirect
+	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/ini.v1 v1.66.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -151,3 +153,7 @@ replace (
 	k8s.io/api => k8s.io/api v0.20.4
 	k8s.io/client-go => k8s.io/client-go v0.20.4
 )
+
+// Remove grpc override when the following is merged.
+// https://github.com/weaveworks/common/issues/239
+replace google.golang.org/grpc => google.golang.org/grpc v1.45.0

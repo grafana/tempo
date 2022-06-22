@@ -4,19 +4,17 @@ title: Service graphs
 
 # Service graphs
 
-<span style="background-color:#f3f973;">This is an experimental feature. See below for more information on how to enable.</span>
+<span style="background-color:#f3f973;">This is an experimental feature. For more information about how to enable it, continue reading.</span>
 
 A service graph is a visual representation of the interrelationships between various services.
-Service graphs help to understand the structure of a distributed system,
-and the connections and dependencies between its components.
-
-Service graphs are great for:
+Service graphs help you to understand the structure of a distributed system,
+and the connections and dependencies between its components:
 
 - **Infer the topology of a distributed system.**
   As distributed systems grow, they become more complex.
-  Service graphs can help you understand the structure of the system.
-- **Provide a high level overview of the health of your system.**
-  Service graphs show error rates, latencies, among other relevant data.
+  Service graphs help you to understand the structure of the system.
+- **Provide a high-level overview of the health of your system.**
+  Service graphs display error rates, latencies, as well as other relevant data.
 - **Provide an historic view of a system’s topology.**
   Distributed systems change very frequently,
   and service graphs offer a way of seeing how these systems have evolved over time.

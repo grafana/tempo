@@ -216,7 +216,7 @@ vendor-check: gen-proto gen-flat update-mod gen-traceql
 .PHONY: update-mod
 update-mod:
 	go mod vendor
-	go mod tidy -e
+	go mod tidy -e -compat=1.17
 	$(MAKE) -C cmd/tempo-serverless update-mod
 
 
