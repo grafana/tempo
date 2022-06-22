@@ -46,8 +46,7 @@ test:
 	go test -v .
 
 ### Tidy dependencies for tempo-serverless module
- # todo: remove -compat arg when moving to 1.18
 .PHONY: update-mod
 update-mod:
-	$(IN_LAMBDA) go mod tidy -e -compat=1.17
-	$(IN_CLOUD_RUN) go mod tidy -e -compat=1.17
+	$(IN_LAMBDA) go mod tidy -e
+	$(IN_CLOUD_RUN) go mod tidy -e

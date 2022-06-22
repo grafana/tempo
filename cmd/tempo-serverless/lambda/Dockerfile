@@ -1,4 +1,4 @@
-# 
+#
 #  docker run -p 8080:8080 -p 9000:9000 tempo-serverless
 #
 #  to exercise the function after building using the raw lambda interface
@@ -13,7 +13,7 @@
 #
 # build the lambda and retrive the lambda-local-proxy
 #
-FROM golang:1.17-buster AS build
+FROM golang:1.18-buster AS build
 
 # copy in the lambda. todo: build in container
 COPY lambda /

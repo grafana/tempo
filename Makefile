@@ -216,15 +216,13 @@ vendor-check: gen-proto gen-flat update-mod gen-traceql
 .PHONY: update-mod
 update-mod:
 	go mod vendor
-	go mod tidy -e -compat=1.17
+	go mod tidy -e
 	$(MAKE) -C cmd/tempo-serverless update-mod
 
 
 ### Release (intended to be used in the .github/workflows/release.yml)
-# Note: goreleaser is pinned to 1.6.3 because newer versions require go1.18. Once we have migrated 
-#  the project and CI pipeline to 1.18 we can go back to using @latest.
 $(GORELEASER):
-	go install github.com/goreleaser/goreleaser@v1.6.3
+	go install github.com/goreleaser/goreleaser@latest
 
 release: $(GORELEASER)
 	$(GORELEASER) build --skip-validate --rm-dist
@@ -257,7 +255,7 @@ jsonnet-check:
 .PHONY: docker-serverless test-serverless
 docker-serverless:
 	$(MAKE) -C cmd/tempo-serverless build-docker
-	
+
 test-serverless:
 	$(MAKE) -C cmd/tempo-serverless test
 
