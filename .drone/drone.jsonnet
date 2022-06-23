@@ -100,7 +100,7 @@ local image_tag_for_cd() = {
 
 local build_binaries(arch) = {
   name: 'build-tempo-binaries',
-  image: 'golang:1.17-alpine',
+  image: 'golang:1.18-alpine',
   commands: [
     'apk add make git',
   ] + [
@@ -222,7 +222,7 @@ local deploy_to_dev() = {
     steps+: [
               {
                 name: 'build-tempo-serverless',
-                image: 'golang:1.17-alpine',
+                image: 'golang:1.18-alpine',
                 commands: [
                   'apk add make git zip bash',
                   './tools/image-tag | cut -d, -f 1 | tr A-Z a-z > .tags', # values in .tags are used by the next step when pushing the image
