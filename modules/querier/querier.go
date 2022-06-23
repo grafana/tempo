@@ -442,6 +442,7 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		Version:       req.Version,
 		TenantID:      tenantID,
 		Encoding:      enc,
+		Size:          req.Size_,
 		IndexPageSize: req.IndexPageSize,
 		TotalRecords:  req.TotalRecords,
 		BlockID:       blockID,

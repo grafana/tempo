@@ -29,6 +29,6 @@ func (v Encoding) CopyBlock(ctx context.Context, meta *backend.BlockMeta, from b
 	return CopyBlock(ctx, meta, from, to)
 }
 
-func (v Encoding) CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, dec model.ObjectDecoder, to backend.Writer) (*backend.BlockMeta, error) {
+func (v Encoding) CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, dec model.ObjectDecoder, _ backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
 	return CreateBlock(ctx, cfg, meta, i, dec, to)
 }

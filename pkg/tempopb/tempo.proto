@@ -63,6 +63,8 @@ message SearchBlockRequest {
   uint32 totalRecords = 7;
   string dataEncoding = 8;
   string version = 9;
+  uint64 size = 10; // total size of data file
+  uint32 footerSize = 11; // size of file footer (parquet)
 }
 
 message SearchResponse {
@@ -84,6 +86,7 @@ message SearchMetrics {
   uint32 inspectedBlocks = 3;
   uint32 skippedBlocks = 4;
   uint32 skippedTraces = 5;
+  uint64 totalBlockBytes = 6;
 }
 
 message SearchTagsRequest {

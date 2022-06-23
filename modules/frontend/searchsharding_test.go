@@ -159,7 +159,7 @@ func TestBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=json&encoding=gzip&end=20&indexPageSize=13&k=test&pagesToSearch=100&start=10&startPage=0&totalRecords=100&v=test&version=glarg",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=json&encoding=gzip&end=20&footerSize=0&indexPageSize=13&k=test&pagesToSearch=100&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=glarg",
 			},
 		},
 		// bytes/per request is too small for the page size
@@ -173,9 +173,9 @@ func TestBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&pagesToSearch=1&start=10&startPage=0&totalRecords=3&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&pagesToSearch=1&start=10&startPage=1&totalRecords=3&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&pagesToSearch=1&start=10&startPage=2&totalRecords=3&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=0&totalRecords=3&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=1&totalRecords=3&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=1&size=1000&start=10&startPage=2&totalRecords=3&v=test&version=",
 			},
 		},
 		// 100 pages, 10 bytes per page, 1k allowed per request
@@ -189,7 +189,7 @@ func TestBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&pagesToSearch=100&start=10&startPage=0&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=100&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
 			},
 		},
 		// 100 pages, 10 bytes per page, 900 allowed per request
@@ -203,8 +203,8 @@ func TestBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&pagesToSearch=90&start=10&startPage=0&totalRecords=100&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&pagesToSearch=90&start=10&startPage=90&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=90&totalRecords=100&v=test&version=",
 			},
 		},
 		// two blocks
@@ -223,10 +223,10 @@ func TestBackendRequests(t *testing.T) {
 				},
 			},
 			expectedURIs: []string{
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&pagesToSearch=90&start=10&startPage=0&totalRecords=100&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&pagesToSearch=90&start=10&startPage=90&totalRecords=100&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000001&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&pagesToSearch=180&start=10&startPage=0&totalRecords=200&v=test&version=",
-				"/querier?blockID=00000000-0000-0000-0000-000000000001&dataEncoding=&encoding=none&end=20&indexPageSize=0&k=test&pagesToSearch=180&start=10&startPage=180&totalRecords=200&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=0&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000000&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=90&size=1000&start=10&startPage=90&totalRecords=100&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000001&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=180&size=1000&start=10&startPage=0&totalRecords=200&v=test&version=",
+				"/querier?blockID=00000000-0000-0000-0000-000000000001&dataEncoding=&encoding=none&end=20&footerSize=0&indexPageSize=0&k=test&pagesToSearch=180&size=1000&start=10&startPage=180&totalRecords=200&v=test&version=",
 			},
 		},
 	}
@@ -437,6 +437,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			response2:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
 			expectedResponse: &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{
 				InspectedBlocks: 1,
+				TotalBlockBytes: defaultTargetBytesPerRequest * 2,
 			}},
 		},
 		{
@@ -529,6 +530,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 					InspectedBytes:  10,
 					SkippedBlocks:   12,
 					SkippedTraces:   19,
+					TotalBlockBytes: defaultTargetBytesPerRequest * 2,
 				}},
 		},
 		{
@@ -634,6 +636,9 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 				require.NoError(t, err)
 				err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
 				require.NoError(t, err)
+
+				// We don't need to check on this metric
+				//actualResp.Metrics.TotalBlockBytes = 0
 
 				assert.Equal(t, tc.expectedResponse, actualResp)
 			}

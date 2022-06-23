@@ -37,6 +37,8 @@ const (
 	urlParamTotalRecords  = "totalRecords"
 	urlParamDataEncoding  = "dataEncoding"
 	urlParamVersion       = "version"
+	urlParamSize          = "size"
+	urlParamFooterSize    = "footerSize"
 
 	// maxBytes (serverless only)
 	urlParamMaxBytes = "maxBytes"
@@ -240,9 +242,6 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 	if err != nil {
 		return nil, fmt.Errorf("invalid indexPageSize %s: %w", s, err)
 	}
-	if indexPageSize <= 0 {
-		return nil, fmt.Errorf("indexPageSize must be greater than 0. received %d", indexPageSize)
-	}
 	req.IndexPageSize = uint32(indexPageSize)
 
 	s = r.URL.Query().Get(urlParamTotalRecords)
@@ -255,10 +254,10 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 	}
 	req.TotalRecords = uint32(totalRecords)
 
+	// Data encoding can be blank for some block formats, therefore
+	// no validation on the param here.  Eventually we may be able
+	// to remove this parameter entirely.
 	dataEncoding := r.URL.Query().Get(urlParamDataEncoding)
-	if dataEncoding == "" {
-		return nil, errors.New("dataEncoding required")
-	}
 	req.DataEncoding = dataEncoding
 
 	version := r.URL.Query().Get(urlParamVersion)
@@ -266,6 +265,22 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 		return nil, errors.New("version required")
 	}
 	req.Version = version
+
+	s = r.URL.Query().Get(urlParamSize)
+	size, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid size %s: %w", s, err)
+	}
+	req.Size_ = size
+
+	// Footer size can be 0 for some blocks, just ensure we
+	// get a valid integer.
+	f := r.URL.Query().Get(urlParamFooterSize)
+	footerSize, err := strconv.ParseUint(f, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid footerSize %s: %w", f, err)
+	}
+	req.FooterSize = uint32(footerSize)
 
 	return req, nil
 }
@@ -284,7 +299,6 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 	}
 
 	q := req.URL.Query()
-
 	q.Set(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
 	q.Set(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
 	if searchReq.Limit != 0 {
@@ -331,6 +345,7 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 	}
 
 	q := req.URL.Query()
+	q.Set(urlParamSize, strconv.FormatUint(searchReq.Size_, 10))
 	q.Set(urlParamBlockID, searchReq.BlockID)
 	q.Set(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
 	q.Set(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))
@@ -339,6 +354,7 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 	q.Set(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
 	q.Set(urlParamDataEncoding, searchReq.DataEncoding)
 	q.Set(urlParamVersion, searchReq.Version)
+	q.Set(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
 
 	req.URL.RawQuery = q.Encode()
 

@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -41,6 +42,7 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration)
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
+			Version:              encoding.DefaultEncoding().Version(),
 			Encoding:             enc,
 			IndexPageSizeBytes:   1000,
 		},
@@ -607,6 +609,7 @@ func TestCompleteBlockHonorsStartStopTimes(t *testing.T) {
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
+			Version:              encoding.DefaultEncoding().Version(),
 			Encoding:             backend.EncNone,
 			IndexPageSizeBytes:   1000,
 		},
@@ -654,6 +657,7 @@ func TestShouldCache(t *testing.T) {
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
+			Version:              encoding.DefaultEncoding().Version(),
 			Encoding:             backend.EncLZ4_256k,
 			IndexPageSizeBytes:   1000,
 		},

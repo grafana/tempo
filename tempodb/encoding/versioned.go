@@ -8,11 +8,11 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 )
 
-// VersionedEncoding has a whole bunch of versioned functionality.  This is
-//  currently quite sloppy and could easily be tightened up to just a few methods
-//  but it is what it is for now!
+// VersionedEncoding represents a backend block version, and the methods to
+// read/write them.
 type VersionedEncoding interface {
 	Version() string
 
@@ -32,7 +32,7 @@ type VersionedEncoding interface {
 	// * StartTime
 	// * EndTime
 	// * TotalObjects
-	CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, dec model.ObjectDecoder, to backend.Writer) (*backend.BlockMeta, error)
+	CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, dec model.ObjectDecoder, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error)
 
 	// CopyBlock from one backend to another.
 	CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error
@@ -41,15 +41,17 @@ type VersionedEncoding interface {
 // FromVersion returns a versioned encoding for the provided string
 func FromVersion(v string) (VersionedEncoding, error) {
 	switch v {
-	case "v2":
+	case v2.VersionString:
 		return v2.Encoding{}, nil
+	case vparquet.VersionString:
+		return vparquet.Encoding{}, nil
 	}
 
 	return nil, fmt.Errorf("%s is not a valid block version", v)
 }
 
-// LatestEncoding is used by Compactor and Complete block
-func LatestEncoding() VersionedEncoding {
+// DefaultEncoding for newly written blocks.
+func DefaultEncoding() VersionedEncoding {
 	return v2.Encoding{}
 }
 
@@ -57,6 +59,7 @@ func LatestEncoding() VersionedEncoding {
 func allEncodings() []VersionedEncoding {
 	return []VersionedEncoding{
 		v2.Encoding{},
+		vparquet.Encoding{},
 	}
 }
 

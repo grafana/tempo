@@ -226,6 +226,12 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	overallResponse := newSearchResponse(ctx, int(searchReq.Limit))
 	overallResponse.resultsMetrics.InspectedBlocks = uint32(len(blocks))
 
+	totalBlockBytes := uint64(0)
+	for _, b := range blocks {
+		totalBlockBytes += b.Size
+	}
+	overallResponse.resultsMetrics.TotalBlockBytes = totalBlockBytes
+
 	for _, req := range reqs {
 		if overallResponse.shouldQuit() {
 			break
@@ -280,6 +286,11 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	wg.Wait()
 
 	// all goroutines have finished, we can safely access searchResults fields directly now
+	span.SetTag("inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks)
+	span.SetTag("inspectedBytes", overallResponse.resultsMetrics.InspectedBytes)
+	span.SetTag("inspectedTraces", overallResponse.resultsMetrics.InspectedTraces)
+	span.SetTag("totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
+
 	if overallResponse.err != nil {
 		return nil, overallResponse.err
 	}
@@ -358,6 +369,8 @@ func (s *searchSharder) backendRequests(ctx context.Context, tenantID string, pa
 				TotalRecords:  m.TotalRecords,
 				DataEncoding:  m.DataEncoding,
 				Version:       m.Version,
+				Size_:         m.Size,
+				FooterSize:    m.FooterSize,
 			})
 
 			if err != nil {

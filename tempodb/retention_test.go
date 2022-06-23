@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -29,6 +30,7 @@ func TestRetention(t *testing.T) {
 			IndexDownsampleBytes: 17,
 			BloomFP:              0.01,
 			BloomShardSizeBytes:  100_000,
+			Version:              encoding.DefaultEncoding().Version(),
 			Encoding:             backend.EncLZ4_256k,
 			IndexPageSizeBytes:   1000,
 		},
@@ -89,6 +91,7 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 			IndexDownsampleBytes: 17,
 			BloomFP:              0.01,
 			BloomShardSizeBytes:  100_000,
+			Version:              encoding.DefaultEncoding().Version(),
 			Encoding:             backend.EncLZ4_256k,
 			IndexPageSizeBytes:   1000,
 		},
@@ -155,6 +158,7 @@ func TestBlockRetentionOverride(t *testing.T) {
 			IndexDownsampleBytes: 17,
 			BloomFP:              0.01,
 			BloomShardSizeBytes:  100_000,
+			Version:              encoding.DefaultEncoding().Version(),
 			Encoding:             backend.EncLZ4_256k,
 			IndexPageSizeBytes:   1000,
 		},

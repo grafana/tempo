@@ -22,6 +22,7 @@ import (
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -612,6 +613,7 @@ func defaultInstance(t require.TestingT, tmpDir string) *instance {
 				IndexDownsampleBytes: 2,
 				BloomFP:              0.01,
 				BloomShardSizeBytes:  100_000,
+				Version:              encoding.DefaultEncoding().Version(),
 				Encoding:             backend.EncLZ4_1M,
 				IndexPageSizeBytes:   1000,
 			},

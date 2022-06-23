@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -48,9 +49,11 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.IntVar(&cfg.Trace.Block.BloomShardSizeBytes, util.PrefixConfig(prefix, "trace.block.bloom-filter-shard-size-bytes"), 100*1024, "Bloom Filter Shard Size in bytes.")
 	f.IntVar(&cfg.Trace.Block.IndexDownsampleBytes, util.PrefixConfig(prefix, "trace.block.index-downsample-bytes"), 1024*1024, "Number of bytes (before compression) per index record.")
 	f.IntVar(&cfg.Trace.Block.IndexPageSizeBytes, util.PrefixConfig(prefix, "trace.block.index-page-size-bytes"), 250*1024, "Number of bytes per index page.")
+	cfg.Trace.Block.Version = encoding.DefaultEncoding().Version()
 	cfg.Trace.Block.Encoding = backend.EncZstd
 	cfg.Trace.Block.SearchEncoding = backend.EncSnappy
 	cfg.Trace.Block.SearchPageSizeBytes = 1024 * 1024 // 1 MB
+	cfg.Trace.Block.RowGroupSizeBytes = 30_000_000    // 30 MB
 
 	cfg.Trace.Azure = &azure.Config{}
 	f.StringVar(&cfg.Trace.Azure.StorageAccountName, util.PrefixConfig(prefix, "trace.azure.storage-account-name"), "", "Azure storage account name.")

@@ -821,6 +821,9 @@ storage:
             # number of bytes per index record
             [index_downsample_bytes: <uint64> | default = 1MiB]
 
+            # block format version. options: v2, vParquet
+            [version: <string> | default = v2]
+
             # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
             [encoding: <string> | default = zstd]
 
