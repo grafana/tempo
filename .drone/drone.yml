@@ -327,3 +327,8 @@ get:
   path: infra/data/ci/tempo-prod/aws-credentials-drone
 kind: secret
 name: AWS_SECRET_ACCESS_KEY-prod
+---
+kind: signature
+hmac: e0033c313e61914ebd5c214c1dd85380abd7a287bfdadd0b0c2774b194162781
+
+...
