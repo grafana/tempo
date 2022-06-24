@@ -6,7 +6,7 @@ weight: 10
 # Google Cloud Run for serverless backend search
 
 This document walks you through setting up a Google Cloud Run for serverless backend search.
-For more guidance on configuration options for full backend search [check here](./backend_search.md).
+For more guidance on configuration options for full backend search [check here]({{< relref "backend_search/" >}}).
 
 1. Build the docker image:
 
