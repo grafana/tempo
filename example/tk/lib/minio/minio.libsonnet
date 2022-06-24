@@ -9,11 +9,12 @@
     container.new('minio', 'minio/minio:latest') +
     container.withPorts([
       containerPort.new('minio', 9000),
+      containerPort.new('minio-console', 9010),
     ]) +
     container.withCommand([
-        'sh',
-        '-euc',
-        'mkdir -p /data/tempo && minio server /data',
+      'sh',
+      '-euc',
+      'mkdir -p /data/tempo && minio server /data --console-address=:9010',
     ]) +
     container.withEnvMap({
       MINIO_ACCESS_KEY: 'tempo',
@@ -23,9 +24,9 @@
   minio_deployment:
     deployment.new('minio',
                    1,
-                   [ $.minio_container ],
+                   [$.minio_container],
                    { app: 'minio' }),
 
   minio_service:
-    k.util.serviceFor($.minio_deployment)
+    k.util.serviceFor($.minio_deployment),
 }
