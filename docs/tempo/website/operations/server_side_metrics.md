@@ -54,4 +54,4 @@ This results in a clean division of responsibility and limits the blast radius f
 
 ## Configuration
 
-For a detailed view of all the config options for the metrics generator, visit [its config page](../../configuration#metrics-generator)
+For a detailed view of all the config options for the metrics generator, visit [its config page]({{< relref "../configuration/#metrics-generator" >}})

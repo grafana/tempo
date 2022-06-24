@@ -454,9 +454,9 @@ For more information on configuration options, see [here](https://github.com/gra
 The storage block is used to configure TempoDB. It supports S3, GCS, Azure, local file system, and optionally can use Memcached or Redis for increased query performance.  
 
 The following example shows common options.  For further platform-specific information refer to the following:
-* [GCS](gcs/)
-* [S3](s3/)
-* [Azure](azure/)
+* [GCS]({{< relref "gcs/" >}})
+* [S3]({{< relref "s3/" >}})
+* [Azure]({{< relref "azure/" >}})
 
 ```yaml
 # Storage configuration for traces

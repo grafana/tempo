@@ -4,6 +4,8 @@ aliases:
 - /docs/tempo/latest/guides/pushing-spans-with-http/
 ---
 
+# Pushing spans with HTTP
+
 Sometimes using a tracing system is intimidating because it seems like you need complex application instrumentation
 or a span ingestion pipeline in order to push spans.  This guide aims to show an extremely basic technique for
 pushing spans with http/json from a Bash script using the [Zipkin](https://zipkin.io/) receiver.

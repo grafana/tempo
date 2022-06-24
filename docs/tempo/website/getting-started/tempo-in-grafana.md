@@ -30,7 +30,7 @@ Ingesters default to storing the last 15 minutes of traces.
 
 To enable recent traces search:
 -  Run Tempo, enabling search in the YAML configuration.
-Refer to the [search](../../configuration#search) configuration documentation.
+Refer to the [search]({{< relref "../configuration#search" >}}) configuration documentation.
 -  Run Grafana 8.2 or a more recent version. Enable the `tempoSearch` [feature toggle](https://github.com/grafana/tempo/blob/main/example/docker-compose/tempo-search/grafana.ini).
 
 <p align="center"><img src="../tempo-search.png" alt="Tempo Search"></p>
@@ -41,8 +41,8 @@ Tempo includes the the ability to search the entire backend datastore.
 
 To enable search of the backend datastore:
 -  Run Tempo, enabling search in the YAML configuration.
-Refer to the [search](../../configuration#search) configuration documentation.
-Further configration information is in [backend search](../../operations/backend_search).
+Refer to the [search]({{< relref "../configuration#search" >}}) configuration documentation.
+Further configuration information is in [backend search]({{< relref "../operations/backend_search" >}}).
 The Tempo configuration is the same for searching recent traces or
 for search of the backend datastore. 
 -  Run Grafana 8.3.6 or a more recent version. Enable the `tempoBackendSearch` [feature toggle](https://github.com/grafana/tempo/blob/main/example/docker-compose/tempo-search/grafana.ini). This will cause Grafana to pass the `start` and `end` parameters necessary for the backend datastore search.
