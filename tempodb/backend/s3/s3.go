@@ -108,10 +108,7 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 	objName := backend.ObjectFileName(keypath, name)
 
 	putObjectOptions := minio.PutObjectOptions{PartSize: rw.cfg.PartSize}
-
-	if name != backend.TenantIndexName {
-		putObjectOptions.UserTags = rw.cfg.BlockTags
-	}
+	putObjectOptions.UserTags = rw.cfg.BlockTags
 
 	info, err := rw.core.Client.PutObject(
 		ctx,
