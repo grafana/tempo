@@ -50,6 +50,11 @@ var (
 		[]string{"feature"},
 		nil,
 	)
+
+	featureEnabledMetricsGeneratorStats = usagestats.NewInt("feature_enabled_metrics_generator")
+	featureEnabledAuthStats             = usagestats.NewInt("feature_enabled_auth_stats")
+	featureEnabledMultitenancyStats     = usagestats.NewInt("feature_enabled_multitenancy")
+	featureEnabledSearchStats           = usagestats.NewInt("feature_enabled_search")
 )
 
 // App is the root datastructure.
@@ -85,6 +90,21 @@ func New(cfg Config) (*App, error) {
 	}
 
 	usagestats.Edition("oss")
+
+	featureEnabledAuthStats.Set(0)
+	if cfg.AuthEnabled {
+		featureEnabledAuthStats.Set(1)
+	}
+
+	featureEnabledMetricsGeneratorStats.Set(0)
+	if cfg.MetricsGeneratorEnabled {
+		featureEnabledMetricsGeneratorStats.Set(1)
+	}
+
+	featureEnabledSearchStats.Set(0)
+	if cfg.SearchEnabled {
+		featureEnabledSearchStats.Set(1)
+	}
 
 	app.setupAuthMiddleware()
 
