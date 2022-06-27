@@ -391,7 +391,7 @@ func (t *App) setupModuleManager() error {
 		Compactor:            {Store, Server, Overrides, MemberlistKV, UsageReport},
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor},
 		ScalableSingleBinary: {SingleBinary},
-		UsageReport:          {},
+		UsageReport:          {MemberlistKV},
 	}
 
 	if t.cfg.MetricsGeneratorEnabled {
