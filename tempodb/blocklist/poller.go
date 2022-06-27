@@ -3,6 +3,7 @@ package blocklist
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sort"
 	"strconv"
 	"time"
@@ -192,6 +193,8 @@ func (p *Poller) pollTenantBlocks(ctx context.Context, tenantID string) ([]*back
 		bg.Add(1)
 		go func(uuid uuid.UUID) {
 			defer bg.Done()
+
+			time.Sleep(time.Duration(rand.Intn(500)) * time.Millisecond)
 			m, cm, err := p.pollBlock(ctx, tenantID, uuid)
 			if m != nil {
 				chMeta <- m
