@@ -9,6 +9,8 @@ import (
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 
+type TagCallback func(t string)
+
 type SearchDataMap map[string]map[string]struct{}
 
 func NewSearchDataMap() SearchDataMap {
@@ -56,13 +58,13 @@ func (s SearchDataMap) Range(f func(k, v string)) {
 	}
 }
 
-func (s SearchDataMap) RangeKeys(f func(k string)) {
+func (s SearchDataMap) RangeKeys(f TagCallback) {
 	for k := range s {
 		f(k)
 	}
 }
 
-func (s SearchDataMap) RangeKeyValues(k string, f func(v string)) {
+func (s SearchDataMap) RangeKeyValues(k string, f TagCallback) {
 	for v := range s[k] {
 		f(v)
 	}

@@ -304,45 +304,43 @@ func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) 
 }
 
 func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
-	_, err := user.ExtractOrgID(ctx)
+	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "error extracting org id in Querier.SearchTags")
 	}
 
+	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
+	distinctValues := util.NewDistinctStringCollector(limit)
+
+	// Virtual tags. Get these first
+	for _, k := range search.GetVirtualTags() {
+		distinctValues.Collect(k)
+	}
+
+	// Get results from all ingesters
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTags")
 	}
-
-	// Get results from all ingesters
 	lookupResults, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
 		return client.SearchTags(ctx, req)
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "error querying ingesters in Querier.SearchTags")
 	}
-
-	// Collect only unique values
-	uniqueMap := map[string]struct{}{}
 	for _, resp := range lookupResults {
 		for _, res := range resp.response.(*tempopb.SearchTagsResponse).TagNames {
-			uniqueMap[res] = struct{}{}
+			distinctValues.Collect(res)
 		}
 	}
 
-	// Extra tags
-	for _, k := range search.GetVirtualTags() {
-		uniqueMap[k] = struct{}{}
+	if distinctValues.Exceeded() {
+		level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
 	}
 
-	// Final response (sorted)
 	resp := &tempopb.SearchTagsResponse{
-		TagNames: make([]string, 0, len(uniqueMap)),
+		TagNames: distinctValues.Strings(),
 	}
-	for k := range uniqueMap {
-		resp.TagNames = append(resp.TagNames, k)
-	}
-	sort.Strings(resp.TagNames)
 
 	return resp, nil
 }
@@ -353,47 +351,38 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		return nil, errors.Wrap(err, "error extracting org id in Querier.SearchTagValues")
 	}
 
+	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
+	distinctValues := util.NewDistinctStringCollector(limit)
+
+	// Virtual tags values. Get these first.
+	for _, v := range search.GetVirtualTagValues(req.TagName) {
+		distinctValues.Collect(v)
+	}
+
+	// Get results from all ingesters
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTagValues")
 	}
-
-	// Get results from all ingesters
 	lookupResults, err := q.forGivenIngesters(ctx, replicationSet, func(client tempopb.QuerierClient) (interface{}, error) {
 		return client.SearchTagValues(ctx, req)
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "error querying ingesters in Querier.SearchTagValues")
 	}
-
-	// Collect only unique values
-	uniqueMap := map[string]struct{}{}
 	for _, resp := range lookupResults {
 		for _, res := range resp.response.(*tempopb.SearchTagValuesResponse).TagValues {
-			uniqueMap[res] = struct{}{}
+			distinctValues.Collect(res)
 		}
 	}
 
-	// Extra values
-	for _, v := range search.GetVirtualTagValues(req.TagName) {
-		uniqueMap[v] = struct{}{}
+	if distinctValues.Exceeded() {
+		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
 	}
 
-	// fetch response size limit for tag-values query
-	tagValuesLimitBytes := q.limits.MaxBytesPerTagValuesQuery(userID)
-	if tagValuesLimitBytes > 0 && !util.MapSizeWithinLimit(uniqueMap, tagValuesLimitBytes) {
-		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID)
-		return nil, fmt.Errorf("tag values exceeded allowed max bytes (%d)", tagValuesLimitBytes)
-	}
-
-	// Final response (sorted)
 	resp := &tempopb.SearchTagValuesResponse{
-		TagValues: make([]string, 0, len(uniqueMap)),
+		TagValues: distinctValues.Strings(),
 	}
-	for k := range uniqueMap {
-		resp.TagValues = append(resp.TagValues, k)
-	}
-	sort.Strings(resp.TagValues)
 
 	return resp, nil
 }
