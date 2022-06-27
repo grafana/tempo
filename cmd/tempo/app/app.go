@@ -101,6 +101,11 @@ func New(cfg Config) (*App, error) {
 		featureEnabledMetricsGeneratorStats.Set(1)
 	}
 
+	featureEnabledMultitenancyStats.Set(0)
+	if cfg.SearchEnabled {
+		featureEnabledMultitenancyStats.Set(1)
+	}
+
 	featureEnabledSearchStats.Set(0)
 	if cfg.SearchEnabled {
 		featureEnabledSearchStats.Set(1)
