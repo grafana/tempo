@@ -12,12 +12,18 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
+var (
+	replicationFactorStats = usagestats.NewInt("ring_replication_factor")
+	kvStoreStats           = usagestats.NewString("ring_kv_store")
+)
+
 // New creates a new distributed consistent hash ring.  It shadows the cortex
 // ring.New method so we can use our own replication strategy for repl factor = 2
 func New(cfg ring.Config, name, key string, reg prometheus.Registerer) (*ring.Ring, error) {
 	reg = prometheus.WrapRegistererWithPrefix("cortex_", reg)
 
-	usagestats.NewInt("replication_factor").Set(int64(cfg.ReplicationFactor))
+	replicationFactorStats.Set(int64(cfg.ReplicationFactor))
+	kvStoreStats.Set(cfg.KVStore.Store)
 
 	if cfg.ReplicationFactor == 2 {
 		return newEventuallyConsistentRing(cfg, name, key, reg)
