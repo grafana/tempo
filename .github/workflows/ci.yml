@@ -160,3 +160,19 @@ jobs:
 
       - name: Check tempo-mixin
         run: make tempo-mixin-check
+
+  release:
+    name: Release Snapshot
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go 1.18
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.18
+
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Release Snapshot
+        run: |
+          make release-snapshot
