@@ -224,12 +224,13 @@ update-mod:
 $(GORELEASER):
 	go install github.com/goreleaser/goreleaser@latest
 
+.PHONY: release
 release: $(GORELEASER)
-	$(GORELEASER) build --skip-validate --rm-dist
 	$(GORELEASER) release --rm-dist
 
+.PHONY: release-snapshot
 release-snapshot: $(GORELEASER)
-	$(GORELEASER) build --skip-validate --rm-dist --snapshot
+	$(GORELEASER) release --skip-validate --rm-dist --snapshot
 
 ### Docs
 .PHONY: docs
