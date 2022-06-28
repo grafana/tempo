@@ -135,7 +135,7 @@ func (s *BackendSearchBlock) BlockID() uuid.UUID {
 	return s.id
 }
 
-func (s *BackendSearchBlock) Tags(ctx context.Context, tags map[string]struct{}) error {
+func (s *BackendSearchBlock) Tags(ctx context.Context, cb tagCallback) error {
 	header, err := s.readSearchHeader(ctx)
 	if err != nil {
 		return err
@@ -145,16 +145,13 @@ func (s *BackendSearchBlock) Tags(ctx context.Context, tags map[string]struct{})
 	for i, ii := 0, header.TagsLength(); i < ii; i++ {
 		header.Tags(kv, i)
 		key := string(kv.Key())
-		// check the tag is already set, this is more performant with repetitive values
-		if _, ok := tags[key]; !ok {
-			tags[key] = struct{}{}
-		}
+		cb(key)
 	}
 
 	return nil
 }
 
-func (s *BackendSearchBlock) TagValues(ctx context.Context, tagName string, tagValues map[string]struct{}) error {
+func (s *BackendSearchBlock) TagValues(ctx context.Context, tagName string, cb tagCallback) error {
 	header, err := s.readSearchHeader(ctx)
 	if err != nil {
 		return err
@@ -164,10 +161,7 @@ func (s *BackendSearchBlock) TagValues(ctx context.Context, tagName string, tagV
 	if kv != nil {
 		for j, valueLength := 0, kv.ValueLength(); j < valueLength; j++ {
 			value := string(kv.Value(j))
-			// check the value is already set, this is more performant with repetitive values
-			if _, ok := tagValues[value]; !ok {
-				tagValues[value] = struct{}{}
-			}
+			cb(value)
 		}
 	}
 	return nil
