@@ -63,6 +63,15 @@ func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
 }
 
 func TestCompaction(t *testing.T) {
+	testEncodings := []string{v2.VersionString, vparquet.VersionString}
+	for _, enc := range testEncodings {
+		t.Run(enc, func(t *testing.T) {
+			testCompaction(t, enc)
+		})
+	}
+}
+
+func testCompaction(t *testing.T, targetBlockVersion string) {
 	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
@@ -78,7 +87,7 @@ func TestCompaction(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
+			Version:              targetBlockVersion,
 			Encoding:             backend.EncLZ4_4M,
 			IndexPageSizeBytes:   1000,
 		},
@@ -99,7 +108,7 @@ func TestCompaction(t *testing.T) {
 	r.EnablePolling(&mockJobSharder{})
 
 	wal := w.WAL()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	blockCount := 4
 	recordCount := 100
@@ -117,6 +126,7 @@ func TestCompaction(t *testing.T) {
 		for j := 0; j < recordCount; j++ {
 			id := test.ValidTraceID(nil)
 			req := test.MakeTrace(10, id)
+
 			writeTraceToWal(t, head, dec, id, req, 0, 0)
 
 			allReqs = append(allReqs, req)
@@ -147,25 +157,25 @@ func TestCompaction(t *testing.T) {
 		if len(blocks) == 0 {
 			break
 		}
-		assert.Len(t, blocks, inputBlocks)
+		require.Len(t, blocks, inputBlocks)
 
 		compactions++
 		err := rw.compact(blocks, testTenantID)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		expectedBlockCount -= blocksPerCompaction
 		expectedCompactedCount += inputBlocks
 		checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
 	}
 
-	assert.Equal(t, expectedCompactions, compactions)
+	require.Equal(t, expectedCompactions, compactions)
 
 	// do we have the right number of records
 	var records int
 	for _, meta := range rw.blocklist.Metas(testTenantID) {
 		records += meta.TotalObjects
 	}
-	assert.Equal(t, blockCount*recordCount, records)
+	require.Equal(t, blockCount*recordCount, records)
 
 	// now see if we can find our ids
 	for i, id := range allIds {
@@ -180,12 +190,26 @@ func TestCompaction(t *testing.T) {
 		}
 		tr, _ := c.Result()
 
-		// Traces come out of the combiner sorted,
-		// so do the same here.
+		// Sort all traces to check equality consistently.
 		trace.SortTrace(allReqs[i])
+		trace.SortTrace(tr)
+
 		require.True(t, proto.Equal(allReqs[i], tr))
 	}
 }
+
+/*func getspanids(tr *tempopb.Trace) []string {
+	d := util.NewDistinctStringCollector(100_000_000)
+
+	for _, b := range tr.Batches {
+		for _, ils := range b.InstrumentationLibrarySpans {
+			for _, s := range ils.Spans {
+				d.Collect(util.TraceIDToHexString(s.SpanId))
+			}
+		}
+	}
+	return d.Strings()
+}*/
 
 // TestSameIDCompaction is a bit gross in that it has a bad dependency with on the /pkg/model
 // module to do a full e2e compaction/combination test.
@@ -226,7 +250,7 @@ func TestSameIDCompaction(t *testing.T) {
 	r.EnablePolling(&mockJobSharder{})
 
 	wal := w.WAL()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	dec := model.MustNewSegmentDecoder(v1.Encoding)
 
@@ -288,7 +312,7 @@ func TestSameIDCompaction(t *testing.T) {
 	list := rw.blocklist.Metas(testTenantID)
 	blockSelector := newTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, blockCount)
 	blocks, _ = blockSelector.BlocksToCompact()
-	assert.Len(t, blocks, blockCount)
+	require.Len(t, blocks, blockCount)
 
 	combinedStart, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
 	require.NoError(t, err)
@@ -305,8 +329,8 @@ func TestSameIDCompaction(t *testing.T) {
 	// search for all ids
 	for i, id := range allIds {
 		trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, 0, 0)
-		assert.NoError(t, err)
-		assert.Nil(t, failedBlocks)
+		require.NoError(t, err)
+		require.Nil(t, failedBlocks)
 
 		c := trace.NewCombiner()
 		for _, tr := range trs {

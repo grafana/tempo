@@ -73,7 +73,7 @@ func (p *prefetchIter) Next(ctx context.Context) (*Trace, error) {
 			if err := p.err.Load(); err != nil {
 				return nil, err
 			}
-			return nil, io.EOF
+			return nil, nil
 		}
 
 		return t, nil

@@ -183,7 +183,9 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, id common.ID) (_ *temp
 
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 32)
 
-	pf, err := parquet.OpenFile(br, int64(b.meta.Size))
+	or := &parquetOptimizedReaderAt{br, int64(b.meta.Size), b.meta.FooterSize}
+
+	pf, err := parquet.OpenFile(or, int64(b.meta.Size))
 	if err != nil {
 		return nil, errors.Wrap(err, "error opening file in FindTraceByID")
 	}
@@ -234,3 +236,21 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, id common.ID) (_ *temp
 	// convert to proto trace and return
 	return parquetTraceToTempopbTrace(tr)
 }
+
+/*func dumpParquetRow(sch parquet.Schema, row parquet.Row) {
+	for i, r := range row {
+		slicestr := ""
+		if r.Kind() == parquet.ByteArray {
+			slicestr = util.TraceIDToHexString(r.ByteArray())
+		}
+		fmt.Printf("row[%d] = c:%d (%s) r:%d d:%d v:%s (%s)\n",
+			i,
+			r.Column(),
+			strings.Join(sch.Columns()[r.Column()], "."),
+			r.RepetitionLevel(),
+			r.DefinitionLevel(),
+			r.String(),
+			slicestr,
+		)
+	}
+}*/
