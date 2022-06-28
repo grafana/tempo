@@ -1,3 +1,9 @@
+archives:
+  - id: default
+    builds:
+      - tempo
+      - tempo-query
+      - tempo-cli
 builds:
   - id: "tempo"
     main: ./cmd/tempo
@@ -5,9 +11,20 @@ builds:
     env:
       - CGO_ENABLED=0
     goos:
+      - darwin
       - linux
+      - windows
     goarch:
       - amd64
+      - arm64
+      - arm
+    ignore:
+      - goarch: arm
+        goos: darwin
+      - goarch: arm
+        goos: windows
+      - goarch: arm64
+        goos: windows
     flags:
       - -v
       - -trimpath
@@ -24,9 +41,20 @@ builds:
     env:
       - CGO_ENABLED=0
     goos:
+      - darwin
       - linux
+      - windows
     goarch:
       - amd64
+      - arm64
+      - arm
+    ignore:
+      - goarch: arm
+        goos: darwin
+      - goarch: arm
+        goos: windows
+      - goarch: arm64
+        goos: windows
     flags:
       - -v
       - -trimpath
@@ -43,9 +71,20 @@ builds:
     env:
       - CGO_ENABLED=0
     goos:
+      - darwin
       - linux
+      - windows
     goarch:
       - amd64
+      - arm64
+      - arm
+    ignore:
+      - goarch: arm
+        goos: darwin
+      - goarch: arm
+        goos: windows
+      - goarch: arm64
+        goos: windows
     flags:
       - -v
       - -trimpath
@@ -65,8 +104,10 @@ changelog:
       - '^example:'
       - '^integration:'
       - '^vendor:'
-snapshot:
-  name_template: '{{ .Version }}-SNAPSHOT-{{ .ShortCommit }}'
+checksum:
+  name_template: SHA256SUMS
 release:
   draft: true
   prerelease: auto
+snapshot:
+  name_template: '{{ .Version }}-SNAPSHOT-{{ .ShortCommit }}'
