@@ -17,6 +17,7 @@ This document explains the configuration options for Tempo as well as the detail
   - [storage](#storage)
   - [memberlist](#memberlist)
   - [overrides](#overrides)
+  - [usage-report](#usage-report)
   - [search](#search)
 
 #### Use environment variables in the configuration
@@ -1144,3 +1145,19 @@ search_enabled: true
 ```
 
 Additional search-related settings are available in the [distributor](#distributor) and [ingester](#ingester) sections.
+
+## Usage-report
+
+By default, Tempo will report anonymous usage data to Grafana Labs concerning
+the shape of a deployment.  This data is used to determine how common
+the deployment of certain features are, or if a feature flag has been enabled,
+replication factor or compression levels, etc.
+
+The reporting is controlled by a configuration option.  To disable the
+automatic reporting of this generic information, the following configuration
+can be used.
+
+```yaml
+usage_report:
+  reporting_enabled: false
+```
