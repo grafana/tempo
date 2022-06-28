@@ -17,7 +17,22 @@ import (
 	"go.uber.org/atomic"
 )
 
+const (
+	blockStatusLiveLabel      = "live"
+	blockStatusCompactedLabel = "compacted"
+)
+
 var (
+	metricBackendObjects = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempodb",
+		Name:      "backend_objects_total",
+		Help:      "Total number of objects (traces) in the backend",
+	}, []string{"tenant", "status"})
+	metricBackendBytes = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempodb",
+		Name:      "backend_bytes_total",
+		Help:      "Total number of bytes in the backend.",
+	}, []string{"tenant", "status"})
 	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
 		Name:      "blocklist_poll_errors_total",
@@ -126,6 +141,12 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 
 		blocklist[tenantID] = newBlockList
 		compactedBlocklist[tenantID] = newCompactedBlockList
+
+		totalObjectsBlockMeta, totalObjectsCompactedBlockMeta, totalBytesBlockMeta, totalBytesCompactedBlockMeta := p.sumTotalBackendMetas(newBlockList, newCompactedBlockList)
+		metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(totalObjectsBlockMeta))
+		metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(totalObjectsCompactedBlockMeta))
+		metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(totalBytesBlockMeta))
+		metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(totalBytesCompactedBlockMeta))
 	}
 
 	return blocklist, compactedBlocklist, nil
@@ -274,4 +295,23 @@ func (p *Poller) tenantIndexPollError(idx *backend.TenantIndex, err error) error
 	}
 
 	return nil
+}
+
+func (p *Poller) sumTotalBackendMetas(blockMeta []*backend.BlockMeta, compactedBlockMeta []*backend.CompactedBlockMeta) (int, int, uint64, uint64) {
+	var sumTotalObjectsBM int
+	var sumTotalObjectsCBM int
+	var sumTotalBytesBM uint64
+	var sumTotalBytesCBM uint64
+
+	for _, bm := range blockMeta {
+		sumTotalObjectsBM += bm.TotalObjects
+		sumTotalBytesBM += bm.Size
+	}
+
+	for _, cbm := range compactedBlockMeta {
+		sumTotalObjectsCBM += cbm.TotalObjects
+		sumTotalBytesCBM += cbm.Size
+	}
+
+	return sumTotalObjectsBM, sumTotalObjectsCBM, sumTotalBytesBM, sumTotalBytesCBM
 }
