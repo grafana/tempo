@@ -632,6 +632,12 @@ storage:
         # Default 0 (disabled).
         [blocklist_poll_stale_tenant_index: <duration>]
 
+        # Offsets the concurrent blocklist polling by a random amount. The maximum amount of offset
+        # is the provided value in milliseconds. This configuration value can be used if the polling
+        # cycle is overwhelming your backend with concurrent requests.
+        # Default 0 (disabled)
+        [blocklist_poll_jitter_ms: <int>]
+
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"
         [cache: <string>]

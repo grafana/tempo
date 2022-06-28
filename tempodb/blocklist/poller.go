@@ -58,6 +58,7 @@ type PollerConfig struct {
 	PollFallback        bool
 	TenantIndexBuilders int
 	StaleTenantIndex    time.Duration
+	PollJitterMs        int
 }
 
 // JobSharder is used to determine if a particular job is owned by this process
@@ -194,7 +195,10 @@ func (p *Poller) pollTenantBlocks(ctx context.Context, tenantID string) ([]*back
 		go func(uuid uuid.UUID) {
 			defer bg.Done()
 
-			time.Sleep(time.Duration(rand.Intn(500)) * time.Millisecond)
+			if p.cfg.PollJitterMs > 0 {
+				time.Sleep(time.Duration(rand.Intn(p.cfg.PollJitterMs)) * time.Millisecond)
+			}
+
 			m, cm, err := p.pollBlock(ctx, tenantID, uuid)
 			if m != nil {
 				chMeta <- m

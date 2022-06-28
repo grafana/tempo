@@ -14,6 +14,24 @@ For Tempo to authenticate to and access Azure blob storage, the following config
       - For a system-assigned managed identity, no additional configuration is required.
       - For a user-assigned managed identity, you'll need to set `user-assigned-id` to the client ID for the managed identity in the configuration file.
 
+## Azure Blocklist Polling
+
+If you are hosting Tempo on Azure two values may need to be tweaked to ensure consistently successful blocklist polling. If you are 
+experiencing [this issue](https://stackoverflow.com/questions/12917857/the-specified-block-list-is-invalid-while-uploading-blobs-in-parallel/55902744#55902744) we would recommend to set `blocklist_poll_tenant_index_builders` to 1.
+
+Additionally if you are seeing DNS failures like the following you may want to try increasing `blocklist_poll_jitter_ms`. Discussion [here](https://github.com/grafana/tempo/issues/1462).
+```
+reading storage container: Head "https://tempoe**************.blob.core.windows.net/tempo/single-tenant/d8aafc48-5796-4221-ac0b-58e001d18515/meta.compacted.json?timeout=61": dial tcp: lookup tempoe**************.blob.core.windows.net on 10.0.0.10:53: dial udp 10.0.0.10:53: operation was canceled
+```
+
+Your final config may look something like:
+```
+  storage:
+    trace:
+      blocklist_poll_tenant_index_builders: 1
+      blocklist_poll_jitter_ms: 500
+```
+
 ## (Optional) Storage Account management policy for cleaning up the storage container
 
 The following Storage Account management policy shows an example of cleaning up
