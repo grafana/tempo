@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
@@ -16,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCreateBlockHonorsTraceStartEndTimes(t *testing.T) {
+func TestCreateBlockHonorsTraceStartEndTimesFromWalMeta(t *testing.T) {
 	ctx := context.Background()
 
 	rawR, rawW, _, err := local.New(&local.Config{
@@ -29,9 +30,9 @@ func TestCreateBlockHonorsTraceStartEndTimes(t *testing.T) {
 
 	iter := newTestIterator()
 
-	iter.Add(test.MakeTrace(10, nil), 100, 101)
-	iter.Add(test.MakeTrace(10, nil), 101, 102)
-	iter.Add(test.MakeTrace(10, nil), 102, 103)
+	iter.Add(test.MakeTrace(10, nil), 100, 401)
+	iter.Add(test.MakeTrace(10, nil), 101, 402)
+	iter.Add(test.MakeTrace(10, nil), 102, 403)
 
 	cfg := &common.BlockConfig{
 		BloomFP:             0.01,
@@ -40,11 +41,13 @@ func TestCreateBlockHonorsTraceStartEndTimes(t *testing.T) {
 
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
 	meta.TotalObjects = 1
+	meta.StartTime = time.Unix(300, 0)
+	meta.EndTime = time.Unix(305, 0)
 
 	outMeta, err := CreateBlock(ctx, cfg, meta, iter, iter.decoder, r, w)
 	require.NoError(t, err)
-	require.Equal(t, 100, int(outMeta.StartTime.Unix()))
-	require.Equal(t, 103, int(outMeta.EndTime.Unix()))
+	require.Equal(t, 300, int(outMeta.StartTime.Unix()))
+	require.Equal(t, 305, int(outMeta.EndTime.Unix()))
 }
 
 type testIterator struct {
