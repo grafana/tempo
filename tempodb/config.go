@@ -24,8 +24,11 @@ const (
 	DefaultBlocklistPollConcurrency = uint(50)
 	DefaultRetentionConcurrency     = uint(10)
 	DefaultTenantIndexBuilders      = 2
-	DefaultPrefetchTraceCount       = 1000
-	DefaultSearchChunkSizeBytes     = 1_000_000
+
+	DefaultPrefetchTraceCount   = 1000
+	DefaultSearchChunkSizeBytes = 1_000_000
+	DefaultReadBufferCount      = 8
+	DefaultReadBufferSize       = 4 * 1024 * 1024
 )
 
 // Config holds the entirety of tempodb configuration
@@ -60,8 +63,33 @@ type Config struct {
 }
 
 type SearchConfig struct {
+	// v2 blocks
 	ChunkSizeBytes     uint32 `yaml:"chunk_size_bytes"`
 	PrefetchTraceCount int    `yaml:"prefetch_trace_count"`
+
+	// vParquet blocks
+	ReadBufferCount int `yaml:"read_buffer_count"`
+	ReadBufferSize  int `yaml:"read_buffer_size"`
+}
+
+func (c SearchConfig) ApplyToOptions(o *common.SearchOptions) {
+	o.ChunkSizeBytes = c.ChunkSizeBytes
+	o.PrefetchTraceCount = c.PrefetchTraceCount
+	o.ReadBufferCount = c.ReadBufferCount
+	o.ReadBufferSize = c.ReadBufferSize
+
+	if o.ChunkSizeBytes == 0 {
+		o.ChunkSizeBytes = DefaultSearchChunkSizeBytes
+	}
+	if o.PrefetchTraceCount <= 0 {
+		o.PrefetchTraceCount = DefaultPrefetchTraceCount
+	}
+	if o.ReadBufferSize <= 0 {
+		o.ReadBufferSize = DefaultReadBufferSize
+	}
+	if o.ReadBufferCount <= 0 {
+		o.ReadBufferCount = DefaultReadBufferCount
+	}
 }
 
 // CompactorConfig contains compaction configuration options

@@ -146,7 +146,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		RootTraceName:     wantTr.RootSpanName,
 	}
 	for _, req := range searchesThatMatch {
-		res, err := b.Search(ctx, req, common.DefaultSearchOptions())
+		res, err := b.Search(ctx, req, defaultSearchOptions())
 		require.NoError(t, err)
 		require.Equal(t, 1, len(res.Traces), req)
 		require.Equal(t, expected, res.Traces[0], "search request:", req)
@@ -182,7 +182,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		makeReq("foo", "baz"),
 	}
 	for _, req := range searchesThatDontMatch {
-		res, err := b.Search(ctx, req, common.DefaultSearchOptions())
+		res, err := b.Search(ctx, req, defaultSearchOptions())
 		require.NoError(t, err)
 		require.Empty(t, res.Traces, "search request:", req)
 	}
@@ -217,4 +217,12 @@ func makeBackendBlockWithTrace(t *testing.T, tr *Trace) *backendBlock {
 	b := newBackendBlock(s.meta, r)
 
 	return b
+}
+
+func defaultSearchOptions() common.SearchOptions {
+	return common.SearchOptions{
+		ChunkSizeBytes:  1_000_000,
+		ReadBufferCount: 8,
+		ReadBufferSize:  4 * 1024 * 1024,
+	}
 }

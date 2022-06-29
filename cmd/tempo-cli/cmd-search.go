@@ -8,16 +8,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 const (
-	layoutString   = "2006-01-02T15:04:05"
-	chunkSize      = 10 * 1024 * 1024
-	iteratorBuffer = 10000
-	limit          = 20
+	layoutString = "2006-01-02T15:04:05"
+	limit        = 20
 )
 
 type searchBlocksCmd struct {
@@ -92,9 +91,8 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 		blockmetas = append(blockmetas, q)
 	}
 
-	searchOpts := common.DefaultSearchOptions()
-	searchOpts.ChunkSizeBytes = chunkSize
-	searchOpts.PrefetchTraceCount = iteratorBuffer
+	searchOpts := common.SearchOptions{}
+	tempodb.SearchConfig{}.ApplyToOptions(&searchOpts)
 
 	fmt.Println("Blocks In Range:", len(blockmetas))
 	foundids := []string{}

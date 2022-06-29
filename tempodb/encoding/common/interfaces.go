@@ -28,16 +28,6 @@ type SearchOptions struct {
 	ReadBufferSize     int
 }
 
-func DefaultSearchOptions() SearchOptions {
-	return SearchOptions{
-		ChunkSizeBytes: 1_000_000,
-
-		// 32 MB buffering
-		ReadBufferCount: 8,
-		ReadBufferSize:  4 * 1024 * 1024,
-	}
-}
-
 type Compactor interface {
 	Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta) ([]*backend.BlockMeta, error)
 }
