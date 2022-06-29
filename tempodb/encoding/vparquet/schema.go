@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"math"
 
-	"github.com/pkg/errors"
-
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -128,10 +126,13 @@ type ResourceSpans struct {
 }
 
 type Trace struct {
-	// TraceID is string for better useability on downstream systems
-	// i.e: something other than Tempo is reading these files.
-	TraceID       string          `parquet:""`
+	// TraceID is a byte slice as it helps maintain the sort order of traces within a parquet file
+	TraceID       []byte          `parquet:""`
 	ResourceSpans []ResourceSpans `parquet:"rs"`
+
+	// TraceIDHexString is for better useability on downstream systems i.e: something other than Tempo is reading these files.
+	// It will not be used as the primary traceID field within Tempo and is only helpful for debugging purposes.
+	TraceIDHexString string `parquet:",snappy"`
 
 	// Trace-level attributes for searching
 	StartTimeUnixNano uint64 `parquet:",delta"`
@@ -168,7 +169,8 @@ func attrToParquet(a *v1.KeyValue) Attribute {
 
 func traceToParquet(tr *tempopb.Trace) Trace {
 	ot := Trace{
-		TraceID: util.TraceIDToHexString(tr.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId),
+		TraceIDHexString: util.TraceIDToHexString(tr.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId),
+		TraceID:          util.PadTraceIDTo16Bytes(tr.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId),
 	}
 
 	// Trace-level items
@@ -406,11 +408,6 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) (*tempopb.Trace, error) {
 	protoTrace := &tempopb.Trace{}
 	protoTrace.Batches = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
 
-	protoTraceID, err := util.HexStringToTraceID(parquetTrace.TraceID)
-	if err != nil {
-		return nil, errors.Wrap(err, "error converting from hex string to traceID")
-	}
-
 	for _, rs := range parquetTrace.ResourceSpans {
 		protoBatch := &v1_trace.ResourceSpans{}
 		protoBatch.Resource = &v1_resource.Resource{
@@ -467,7 +464,7 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) (*tempopb.Trace, error) {
 			for _, span := range ils.Spans {
 
 				protoSpan := &v1_trace.Span{
-					TraceId:           protoTraceID,
+					TraceId:           parquetTrace.TraceID,
 					SpanId:            span.ID,
 					TraceState:        span.TraceState,
 					Name:              span.Name,

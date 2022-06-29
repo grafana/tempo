@@ -1,9 +1,9 @@
 package vparquet
 
 import (
+	"bytes"
 	"context"
 	"sort"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -43,7 +42,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	for i := 0; i < 16; i++ {
 		bar := "bar"
 		traces = append(traces, &Trace{
-			TraceID: util.TraceIDToHexString(test.ValidTraceID(nil)),
+			TraceID: test.ValidTraceID(nil),
 			ResourceSpans: []ResourceSpans{
 				{
 					Resource: Resource{
@@ -70,7 +69,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 
 	// Sort
 	sort.Slice(traces, func(i, j int) bool {
-		return strings.Compare(traces[i].TraceID, traces[j].TraceID) == -1
+		return bytes.Compare(traces[i].TraceID, traces[j].TraceID) == -1
 	})
 
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
@@ -96,10 +95,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 		wantProto, err := parquetTraceToTempopbTrace(tr)
 		require.NoError(t, err)
 
-		id, err := util.HexStringToTraceID(tr.TraceID)
-		require.NoError(t, err)
-
-		gotProto, err := b.FindTraceByID(ctx, id)
+		gotProto, err := b.FindTraceByID(ctx, tr.TraceID)
 		require.NoError(t, err)
 
 		require.Equal(t, wantProto, gotProto)
@@ -115,17 +111,31 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 	r := backend.NewReader(rawR)
 	ctx := context.Background()
 
-	blocks, err := r.Blocks(ctx, "vulture-tenant")
+	blocks, err := r.Blocks(ctx, "single-tenant")
 	require.NoError(t, err)
 	assert.Len(t, blocks, 1)
 
-	meta, err := r.BlockMeta(ctx, blocks[0], "vulture-tenant")
+	meta, err := r.BlockMeta(ctx, blocks[0], "single-tenant")
 	require.NoError(t, err)
 
 	b := newBackendBlock(meta, r)
-	bytes, _ := util.HexStringToTraceID("7d80fcd3e4978d6143030ef00d8bccc1")
-	tr, err := b.FindTraceByID(ctx, bytes)
+
+	iter, err := b.Iterator(context.Background())
 	require.NoError(t, err)
 
-	require.NotNil(t, tr)
+	for {
+		tr, err := iter.Next(context.Background())
+		require.NoError(t, err)
+
+		if tr == nil {
+			break
+		}
+
+		// fmt.Println(tr)
+		// fmt.Println("going to search for traceID", util.TraceIDToHexString(tr.TraceID))
+
+		protoTr, err := b.FindTraceByID(ctx, tr.TraceID)
+		require.NoError(t, err)
+		require.NotNil(t, protoTr)
+	}
 }

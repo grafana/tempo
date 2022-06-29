@@ -97,3 +97,9 @@ func TestEqualHexStringTraceIDs(t *testing.T) {
 	assert.Nil(t, err)
 	assert.True(t, v)
 }
+
+func TestPadTraceIDTo16Bytes(t *testing.T) {
+	tid := []byte{0x01, 0x02}
+	expected := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02}
+	assert.Equal(t, expected, PadTraceIDTo16Bytes(tid))
+}

@@ -44,6 +44,7 @@ var cli struct {
 		CompactionSummary listCompactionSummaryCmd `cmd:"" help:"List summary of data by compaction level"`
 		CacheSummary      listCacheSummaryCmd      `cmd:"" help:"List summary of bloom sizes per day per compaction level"`
 		Index             listIndexCmd             `cmd:"" help:"List information about a block index"`
+		Column            listColumnCmd            `cmd:"" help:"List values in a given column"`
 	} `cmd:""`
 
 	View struct {
