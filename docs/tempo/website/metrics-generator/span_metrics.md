@@ -1,10 +1,10 @@
 ---
 aliases:
 - /docs/tempo/latest/server_side_metrics/span_metrics/
-title: Span metrics
+title: Generate metrics from spans
 ---
 
-# Generating metrics from spans
+# Generate metrics from spans
 
 The span metrics processor generates metrics from ingested tracing data automatically.
 Span metrics aggregates request, error and duration (RED) metrics from span data.

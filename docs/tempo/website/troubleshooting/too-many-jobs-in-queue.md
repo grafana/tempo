@@ -3,7 +3,7 @@ title: Too many jobs in the queue
 weight: 474
 ---
 
-# Error message ‘Too many jobs in the queue’
+# Error message: ‘Too many jobs in the queue’
 
 The error message might also be
 - `queue doesn't have room for 100 jobs`

@@ -1,11 +1,11 @@
 ---
-title: Unable to Find Traces
+title: Unable to find traces
 weight: 473
 aliases:
 - /docs/tempo/latest/troubleshooting/missing-trace
 ---
 
-# Unable to find traces in Tempo
+# Unable to find traces
 
 **Potential causes**
 - There could be issues in ingestion of the data into Tempo, that is, spans are either not being sent correctly to Tempo or they are not getting sampled.
@@ -36,6 +36,7 @@ Receiver specific traffic information can also be obtained using `tempo_receiver
 
 ### Solutions
 
+There are three possible solutiosn. 
 #### Fixing protocol/port problems
 - Find out which communication protocol is being used by the application to emit traces. This is unique to every client SDK. For instance: Jaeger Golang Client uses `Thrift Compact over UDP` by default.
 - Check the list of supported protocols and their ports and ensure that the correct combination is being used. You will find the list of supported protocols and ports here: https://grafana.com/docs/tempo/latest/getting-started/#step-1-spin-up-tempo-backend

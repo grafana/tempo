@@ -3,7 +3,7 @@ title: Getting started
 weight: 150
 ---
 
-# Getting started with Tempo
+# Getting started 
 
 Distributed tracing visualizes the lifecycle of a request as it passes through
 a set of applications. There are a few components that must be configured in order to get a
@@ -11,7 +11,7 @@ working distributed tracing visualization.
 
 This document discusses the four major pieces necessary to build out a tracing system:
 Instrumentation, Pipeline, Backend and Visualization. If one were to build a diagram laying
-out these pieces it may look something like this:
+out these pieces, it may look something like this:
 
 <p align="center"><img src="getting-started.png" alt="Tracing Overview"></p>
 
