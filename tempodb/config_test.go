@@ -31,10 +31,10 @@ func TestApplyToOptions(t *testing.T) {
 	cfg.ChunkSizeBytes = 4
 	cfg.PrefetchTraceCount = 5
 	cfg.ReadBufferCount = 6
-	cfg.ReadBufferSize = 7
+	cfg.ReadBufferSizeBytes = 7
 	cfg.ApplyToOptions(&opts)
 	require.Equal(t, cfg.ChunkSizeBytes, uint32(4))
 	require.Equal(t, cfg.PrefetchTraceCount, 5)
 	require.Equal(t, cfg.ReadBufferCount, 6)
-	require.Equal(t, cfg.ReadBufferSize, 7)
+	require.Equal(t, cfg.ReadBufferSizeBytes, 7)
 }

@@ -44,7 +44,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Trace.Search.ChunkSizeBytes = tempodb.DefaultSearchChunkSizeBytes
 	cfg.Trace.Search.PrefetchTraceCount = tempodb.DefaultPrefetchTraceCount
 	cfg.Trace.Search.ReadBufferCount = tempodb.DefaultReadBufferCount
-	cfg.Trace.Search.ReadBufferSize = tempodb.DefaultReadBufferSize
+	cfg.Trace.Search.ReadBufferSizeBytes = tempodb.DefaultReadBufferSize
 
 	cfg.Trace.Block = &common.BlockConfig{}
 	f.Float64Var(&cfg.Trace.Block.BloomFP, util.PrefixConfig(prefix, "trace.block.bloom-filter-false-positive"), .01, "Bloom Filter False Positive.")

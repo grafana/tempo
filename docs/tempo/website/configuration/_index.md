@@ -669,9 +669,9 @@ storage:
             # Size of read buffers used when performing search on a vparquet block. This times read_buffer_count
             # is the total amount of bytes used for buffering when performing search on a parquet block.
             # Default: 4194304
-            [read_buffer_size: <int>]
+            [read_buffer_size_bytes: <int>]
 
-            # Number of read buffers used when performing search on a vparquet block. This times read_buffer_size
+            # Number of read buffers used when performing search on a vparquet block. This times read_buffer_size_bytes
             # is the total amount of bytes used for buffering when performing search on a parquet block.
             # Default: 8
             [read_buffer_count: <int>]

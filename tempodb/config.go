@@ -68,15 +68,15 @@ type SearchConfig struct {
 	PrefetchTraceCount int    `yaml:"prefetch_trace_count"`
 
 	// vParquet blocks
-	ReadBufferCount int `yaml:"read_buffer_count"`
-	ReadBufferSize  int `yaml:"read_buffer_size"`
+	ReadBufferCount     int `yaml:"read_buffer_count"`
+	ReadBufferSizeBytes int `yaml:"read_buffer_size_bytes"`
 }
 
 func (c SearchConfig) ApplyToOptions(o *common.SearchOptions) {
 	o.ChunkSizeBytes = c.ChunkSizeBytes
 	o.PrefetchTraceCount = c.PrefetchTraceCount
 	o.ReadBufferCount = c.ReadBufferCount
-	o.ReadBufferSize = c.ReadBufferSize
+	o.ReadBufferSize = c.ReadBufferSizeBytes
 
 	if o.ChunkSizeBytes == 0 {
 		o.ChunkSizeBytes = DefaultSearchChunkSizeBytes
