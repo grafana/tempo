@@ -31,7 +31,7 @@ jobs:
           git add cmd/tempo-serverless/lambda/go.sum
           git add cmd/tempo-serverless/cloud-run/go.mod
           git add cmd/tempo-serverless/cloud-run/go.sum
-          git commit -m 'Update serverless gomod'
+          git diff --quiet --staged || git commit -m 'Update serverless gomod'
 
       - name: Push changes
         env:
