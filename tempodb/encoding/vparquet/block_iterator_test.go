@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -19,11 +20,11 @@ func TestIteratorReadsAllRows(t *testing.T) {
 	r := backend.NewReader(rawR)
 	ctx := context.Background()
 
-	blocks, err := r.Blocks(ctx, "vulture-tenant")
+	blocks, err := r.Blocks(ctx, "single-tenant")
 	require.NoError(t, err)
 	require.Len(t, blocks, 1)
 
-	meta, err := r.BlockMeta(ctx, blocks[0], "vulture-tenant")
+	meta, err := r.BlockMeta(ctx, blocks[0], "single-tenant")
 	require.NoError(t, err)
 
 	b := newBackendBlock(meta, r)
@@ -32,11 +33,15 @@ func TestIteratorReadsAllRows(t *testing.T) {
 	require.NoError(t, err)
 	defer iter.Close()
 
+	actualCount := 0
 	for {
 		tr, err := iter.Next(context.Background())
 		if tr == nil {
 			break
 		}
+		actualCount++
 		require.NoError(t, err)
 	}
+
+	assert.Equal(t, meta.TotalObjects, actualCount)
 }
