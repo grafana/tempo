@@ -44,6 +44,10 @@ local docker_config_json_secret = secret('dockerconfigjson', 'secret/data/common
 // secret needed for dep-tools
 local gh_token_secret = secret('gh_token', 'infra/data/ci/github/grafanabot', 'pat');
 
+// secret to sign linux packages
+local gpg_passphrase = secret('gpg_passphrase', 'infra/data/ci/packages-publish/gpg', 'passphrase');
+local gpg_private_key = secret('gpg_private_key', 'infra/data/ci/packages-publish/gpg', 'private-key');
+
 local aws_dev_access_key_id = secret('AWS_ACCESS_KEY_ID-dev', 'infra/data/ci/tempo-dev/aws-credentials-drone', 'access_key_id');
 local aws_dev_secret_access_key = secret('AWS_SECRET_ACCESS_KEY-dev', 'infra/data/ci/tempo-dev/aws-credentials-drone', 'secret_access_key');
 local aws_prod_access_key_id = secret('AWS_ACCESS_KEY_ID-prod', 'infra/data/ci/tempo-prod/aws-credentials-drone', 'access_key_id');
@@ -266,32 +270,107 @@ local deploy_to_dev() = {
               for d in aws_serverless_deployments
             ],
   },
-  // Build and deploy serverless code packages
+  // Build and release packages
+  // Tested by installing the packages on a systemd container
   pipeline('release') {
     trigger: {
       event: ['tag', 'pull_request'],
     },
+    volumes+: [
+      {
+        name: 'cgroup',
+        host: {
+          path: '/sys/fs/cgroup',
+        },
+      },
+      {
+        name: 'docker',
+        host: {
+          path: '/var/run/docker.sock',
+        },
+      },
+    ],
+    // Launch systemd containers to test the packages
+    services: [
+      {
+        name: 'systemd-debian',
+        image: 'jrei/systemd-debian:12',
+        volumes: [
+          {
+            name: 'cgroup',
+            path: '/sys/fs/cgroup',
+          },
+        ],
+        privileged: true,
+      },
+      {
+        name: 'systemd-centos',
+        image: 'jrei/systemd-centos:8',
+        volumes: [
+          {
+            name: 'cgroup',
+            path: '/sys/fs/cgroup',
+          },
+        ],
+        privileged: true,
+      },
+    ],
     steps+: [
+      {
+        name: 'fetch',
+        image: 'docker:git',
+        commands: ['git fetch --tags'],
+      },
+      {
+        name: 'write-key',
+        image: 'golang:1.18',
+        commands: ['printf "%s" "$NFPM_SIGNING_KEY" > $NFPM_SIGNING_KEY_FILE'],
+        environment: {
+          NFPM_SIGNING_KEY: { from_secret: gpg_private_key.name },
+          NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
+        },
+      },
       {
         name: 'test release',
         image: 'golang:1.18',
-        commands: [
-          'make release-snapshot',
-        ],
-        when: {
-          event: ['pull_request'],
+        commands: ['make release-snapshot'],
+        environment: {
+          NFPM_DEFAULT_PASSPHRASE: { from_secret: gpg_passphrase.name },
+          NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
         },
+      },
+      {
+        name: 'test deb package',
+        image: 'docker',
+        commands: ['./tools/packaging/verify-deb-install.sh'],
+        volumes: [
+          {
+            name: 'docker',
+            path: '/var/run/docker.sock',
+          },
+        ],
+        privileged: true,
+      },
+      {
+        name: 'test rpm package',
+        image: 'docker',
+        commands: ['./tools/packaging/verify-rpm-install.sh'],
+        volumes: [
+          {
+            name: 'docker',
+            path: '/var/run/docker.sock',
+          },
+        ],
+        privileged: true,
       },
       {
         name: 'release',
         image: 'golang:1.18',
-        commands: [
-          'make release',
-        ],
-        env: {
-          GITHUB_TOKEN: {
-            from_secret: gh_token_secret.name,
-          },
+        commands: ['make release'],
+        environment: {
+          GITHUB_TOKEN: { from_secret: gh_token_secret.name },
+          NFPM_DEFAULT_PASSPHRASE: { from_secret: gpg_passphrase.name },
+          NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
         },
         when: {
           event: ['tag'],
@@ -309,4 +388,6 @@ local deploy_to_dev() = {
   aws_dev_secret_access_key,
   aws_prod_access_key_id,
   aws_prod_secret_access_key,
+  gpg_private_key,
+  gpg_passphrase,
 ]
