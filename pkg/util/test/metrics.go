@@ -39,3 +39,23 @@ func GetCounterVecValue(metric *prometheus.CounterVec, label string) (float64, e
 	}
 	return m.Counter.GetValue(), nil
 }
+
+func GetHistogramValue(m *prometheus.HistogramVec, labels ...string) (map[float64]uint64, error) {
+	metric, err := m.MetricVec.GetMetricWithLabelValues(labels...)
+	if err != nil {
+		return nil, err
+	}
+	var dtoMetric = &dto.Metric{}
+	err = metric.Write(dtoMetric)
+	if err != nil {
+		return nil, err
+	}
+
+	ret := map[float64]uint64{}
+	for _, b := range dtoMetric.Histogram.Bucket {
+		ret[b.GetUpperBound()] = b.GetCumulativeCount()
+	}
+	ret[-1] = dtoMetric.Histogram.GetSampleCount()
+
+	return ret, nil
+}

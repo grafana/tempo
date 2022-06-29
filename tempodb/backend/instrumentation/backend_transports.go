@@ -38,3 +38,7 @@ func (i instrumentedTransport) RoundTrip(req *http.Request) (*http.Response, err
 	}
 	return resp, err
 }
+
+func HistogramVec() *prometheus.HistogramVec {
+	return requestDuration
+}

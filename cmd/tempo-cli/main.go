@@ -68,7 +68,8 @@ var cli struct {
 	} `cmd:""`
 
 	Search struct {
-		Blocks searchBlocksCmd `cmd:"" help:"search for a traceid directly from backend blocks"`
+		Blocks   searchBlocksCmd   `cmd:"" help:"search for a key value pair directly from backend blocks"`
+		OneBlock searchOneBlockCmd `cmd:"" help:"search for a key value pair from exactly one backend block"`
 	} `cmd:""`
 }
 

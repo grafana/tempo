@@ -82,7 +82,9 @@ func calculateBounds(offset, length int64, bufferSize int, readerAtSize int64) (
 	// If read extends past the end of reader,
 	// back offset up to fill the whole buffer
 	if offset+sz >= readerAtSize {
-		offset = readerAtSize - sz
+		//offset = readerAtSize - sz
+		// jpe - reduces head of line blocking by only pulling exactly the footer when requested
+		sz = readerAtSize - offset
 	}
 
 	return offset, sz
@@ -102,7 +104,13 @@ func (r *BufferedReaderAt) ReadAt(b []byte, offset int64) (int, error) {
 	// that it will satisfy, but by taking the read-lock will
 	// wait until the first call has finished populating the buffer .
 
+	s := recordStart(len(b), offset)
+	defer func() {
+		recordDone(s)
+		dumpStats(s)
+	}()
 	r.mtx.Lock()
+	recordReaderLockAcquired(s)
 
 	if len(r.buffers) == 0 {
 		r.mtx.Unlock()
@@ -124,6 +132,8 @@ func (r *BufferedReaderAt) ReadAt(b []byte, offset int64) (int, error) {
 		}
 	}
 
+	recordBufFound(s, buf)
+
 	if buf == nil {
 		// No buffer satisfied read, overwrite least-recently-used
 		buf = lru
@@ -135,6 +145,8 @@ func (r *BufferedReaderAt) ReadAt(b []byte, offset int64) (int, error) {
 		r.prep(buf, offset, int64(len(b)))
 		buf.count = r.count
 		r.mtx.Unlock()
+
+		recordBufLock(s)
 
 		if _, err := r.populate(buf); err != nil {
 			return 0, err
@@ -150,6 +162,8 @@ func (r *BufferedReaderAt) ReadAt(b []byte, offset int64) (int, error) {
 	defer buf.mtx.RUnlock()
 	buf.count = r.count
 	r.mtx.Unlock()
+
+	recordBufLock(s)
 
 	r.read(buf, b, offset)
 	return len(b), nil
