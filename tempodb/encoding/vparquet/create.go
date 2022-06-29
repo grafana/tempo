@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/decoder"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/pkg/errors"
@@ -44,18 +43,13 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			break
 		}
 
-		start, end, err := dec.FastRange(obj)
-		if err != nil && err != decoder.ErrUnsupported {
-			return nil, err
-		}
-
 		tr, err := dec.PrepareForRead(obj)
 		if err != nil {
 			return nil, err
 		}
 
 		trp := traceToParquet(tr)
-		err = s.Add(&trp, start, end)
+		err = s.Add(&trp, 0, 0) // start and end time of the wal meta are used.
 		if err != nil {
 			return nil, err
 		}

@@ -2,7 +2,6 @@ package ingester
 
 import (
 	"context"
-	"fmt"
 	"sort"
 
 	"github.com/go-kit/log/level"
@@ -186,17 +185,20 @@ func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr 
 }
 
 func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse, error) {
-	tags := map[string]struct{}{}
+	userID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
+	distinctValues := util.NewDistinctStringCollector(limit)
 
 	kv := &tempofb.KeyValues{}
-	err := i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
+	err = i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
 		for i, ii := 0, entry.TagsLength(); i < ii; i++ {
 			entry.Tags(kv, i)
 			key := string(kv.Key())
-			// check the tag is already set, this is more performant with repetitive values
-			if _, ok := tags[key]; !ok {
-				tags[key] = struct{}{}
-			}
+			distinctValues.Collect(key)
 		}
 	})
 	if err != nil {
@@ -204,24 +206,29 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 	}
 
 	err = i.visitSearchableBlocks(ctx, func(block search.SearchableBlock) error {
-		return block.Tags(ctx, tags)
+		return block.Tags(ctx, distinctValues.Collect)
 	})
 	if err != nil {
 		return nil, err
 	}
 
+	if distinctValues.Exceeded() {
+		level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
+	}
+
 	return &tempopb.SearchTagsResponse{
-		TagNames: extractKeys(tags),
+		TagNames: distinctValues.Strings(),
 	}, nil
 }
 
 func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempopb.SearchTagValuesResponse, error) {
-	values := map[string]struct{}{}
-
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
+	distinctValues := util.NewDistinctStringCollector(limit)
 
 	kv := &tempofb.KeyValues{}
 	tagNameBytes := []byte(tagName)
@@ -230,10 +237,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 		if kv != nil {
 			for i, ii := 0, kv.ValueLength(); i < ii; i++ {
 				key := string(kv.Value(i))
-				// check the value is already set, this is more performant with repetitive values
-				if _, ok := values[key]; !ok {
-					values[key] = struct{}{}
-				}
+				distinctValues.Collect(key)
 			}
 		}
 	})
@@ -241,28 +245,19 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 		return nil, err
 	}
 
-	// check if size of values map is within limit after scanning live traces
-	maxBytesPerTagValuesQuery := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
-	if maxBytesPerTagValuesQuery > 0 && !util.MapSizeWithinLimit(values, maxBytesPerTagValuesQuery) {
-		level.Warn(log.Logger).Log("msg", "size of tag values from live traces exceeded limit, reduce cardinality or size of tags", "tag", tagName, "userID", userID)
-		return nil, fmt.Errorf("tag values exceeded allowed max bytes (%d)", maxBytesPerTagValuesQuery)
-	}
-
 	err = i.visitSearchableBlocks(ctx, func(block search.SearchableBlock) error {
-		return block.TagValues(ctx, tagName, values)
+		return block.TagValues(ctx, tagName, distinctValues.Collect)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	// check if size of values map is within limit after scanning all blocks
-	if maxBytesPerTagValuesQuery > 0 && !util.MapSizeWithinLimit(values, maxBytesPerTagValuesQuery) {
-		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", tagName, "userID", userID)
-		return nil, fmt.Errorf("tag values exceeded allowed max bytes (%d)", maxBytesPerTagValuesQuery)
+	if distinctValues.Exceeded() {
+		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", tagName, "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
 	}
 
 	return &tempopb.SearchTagValuesResponse{
-		TagValues: extractKeys(values),
+		TagValues: distinctValues.Strings(),
 	}, nil
 }
 
@@ -353,12 +348,4 @@ func (i *instance) visitSearchableBlocksLocalBlocks(ctx context.Context, visitFn
 		}
 	}
 	return nil
-}
-
-func extractKeys(set map[string]struct{}) []string {
-	keys := make([]string, 0, len(set))
-	for k := range set {
-		keys = append(keys, k)
-	}
-	return keys
 }

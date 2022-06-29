@@ -13,7 +13,7 @@ GORELEASER := $(GOPATH)/bin/goreleaser
 # Build Images
 DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.2.1
 FLATBUFFERS_IMAGE ?= neomantra/flatbuffers
-LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.15.0
+LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.21.0
 DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
@@ -224,12 +224,13 @@ update-mod:
 $(GORELEASER):
 	go install github.com/goreleaser/goreleaser@latest
 
+.PHONY: release
 release: $(GORELEASER)
-	$(GORELEASER) build --skip-validate --rm-dist
 	$(GORELEASER) release --rm-dist
 
+.PHONY: release-snapshot
 release-snapshot: $(GORELEASER)
-	$(GORELEASER) build --skip-validate --rm-dist --snapshot
+	$(GORELEASER) release --skip-validate --rm-dist --snapshot
 
 ### Docs
 .PHONY: docs
@@ -274,10 +275,9 @@ drone:
 	# piggyback on Loki's build image, this image contains a newer version of drone-cli than is
 	# released currently (1.4.0). The newer version of drone-clie keeps drone.yml human-readable.
 	# This will run 'make drone-jsonnet' from within the container
-	docker run --rm -v $(shell pwd):/src/loki ${LOKI_BUILD_IMAGE} drone-jsonnet
+	docker run -e DRONE_SERVER -e DRONE_TOKEN --rm -v $(shell pwd):/src/loki ${LOKI_BUILD_IMAGE} drone-jsonnet drone-signature
 
 	drone lint .drone/drone.yml
-	@make drone-signature
 
 drone-jsonnet:
 	drone jsonnet --stream --format --source .drone/drone.jsonnet --target .drone/drone.yml

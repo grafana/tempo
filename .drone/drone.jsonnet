@@ -225,7 +225,7 @@ local deploy_to_dev() = {
                 image: 'golang:1.18-alpine',
                 commands: [
                   'apk add make git zip bash',
-                  './tools/image-tag | cut -d, -f 1 | tr A-Z a-z > .tags', # values in .tags are used by the next step when pushing the image
+                  './tools/image-tag | cut -d, -f 1 | tr A-Z a-z > .tags',  // values in .tags are used by the next step when pushing the image
                   'cd ./cmd/tempo-serverless',
                   'make build-docker-gcr-binary',
                   'make build-lambda-zip',
@@ -265,6 +265,39 @@ local deploy_to_dev() = {
 
               for d in aws_serverless_deployments
             ],
+  },
+  // Build and deploy serverless code packages
+  pipeline('release') {
+    trigger: {
+      event: ['tag', 'pull_request'],
+    },
+    steps+: [
+      {
+        name: 'test release',
+        image: 'golang:1.18',
+        commands: [
+          'make release-snapshot',
+        ],
+        when: {
+          event: ['pull_request'],
+        },
+      },
+      {
+        name: 'release',
+        image: 'golang:1.18',
+        commands: [
+          'make release',
+        ],
+        env: {
+          GITHUB_TOKEN: {
+            from_secret: gh_token_secret.name,
+          },
+        },
+        when: {
+          event: ['tag'],
+        },
+      },
+    ],
   },
 ] + [
   docker_username_secret,

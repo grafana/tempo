@@ -165,9 +165,9 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 	assert.Equal(t, expectedTagValues, srv.TagValues)
 }
 
-// TestInstanceSearchMaxBytesPerTagValuesQueryFails confirms that SearchTagValues returns
-//  an error if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
-func TestInstanceSearchMaxBytesPerTagValuesQueryFails(t *testing.T) {
+// TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
+//  partial results if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
+func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Limits{
 		MaxBytesPerTagValuesQuery: 10,
 	})
@@ -186,9 +186,9 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryFails(t *testing.T) {
 	_, _ = writeTracesWithSearchData(t, i, tagKey, tagValue, true)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
-	srv, err := i.SearchTagValues(userCtx, tagKey)
-	assert.Error(t, err)
-	assert.Nil(t, srv)
+	resp, err := i.SearchTagValues(userCtx, tagKey)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(resp.TagValues)) // Only two values of the form "bar123" fit in the 10 byte limit above.
 }
 
 // writes traces to the given instance along with search data. returns
@@ -346,7 +346,9 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		_, err := i.SearchTags(context.Background())
+		// SearchTags queries now require userID in ctx
+		ctx := user.InjectOrgID(context.Background(), "test")
+		_, err := i.SearchTags(ctx)
 		require.NoError(t, err, "error getting search tags")
 	})
 
