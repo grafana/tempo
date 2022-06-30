@@ -68,12 +68,16 @@ func EqualHexStringTraceIDs(a, b string) (bool, error) {
 }
 
 func PadTraceIDTo16Bytes(traceID []byte) []byte {
+	if len(traceID) > 16 {
+		return traceID[len(traceID)-16:]
+	}
+
 	if len(traceID) == 16 {
 		return traceID
 	}
 
-	padded := make([]byte, 16-len(traceID))
-	padded = append(padded, traceID...)
+	padded := make([]byte, 16)
+	copy(padded[16-len(traceID):], traceID)
 
 	return padded
 }

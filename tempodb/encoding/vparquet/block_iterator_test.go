@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -43,5 +42,5 @@ func TestIteratorReadsAllRows(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	assert.Equal(t, meta.TotalObjects, actualCount)
+	require.Equal(t, meta.TotalObjects, actualCount)
 }

@@ -1,6 +1,6 @@
 ## main / unreleased
 
-* [FEATURE] Add parquet block format [#1479](https://github.com/grafana/tempo/pull/1479) (@annanay25, @mdisibio)
+* [FEATURE] Add parquet block format [#1479](https://github.com/grafana/tempo/pull/1479) [#1531](https://github.com/grafana/tempo/pull/1531) (@annanay25, @mdisibio)
 * [FEATURE] Mark `log_received_traces` as deprecated. New flag is `log_received_spans`.
   Extend distributor spans logger with optional features to include span attributes and a filter by error status. [#1465](https://github.com/grafana/tempo/pull/1465) (@faustodavid)
 * [CHANGE] metrics-generator: Changed added metric label `instance` to `__metrics_gen_instance` to reduce collisions with custom dimensions. [#1439](https://github.com/grafana/tempo/pull/1439) (@joe-elliott)
@@ -31,7 +31,6 @@ Additionally, default label `span_status` is renamed to `status_code`.
 * [BUGFIX] Fix nil pointer panic when the trace by id path errors. [#1441](https://github.com/grafana/tempo/pull/1441) (@joe-elliott)
 * [BUGFIX] Update tempo microservices Helm values example which missed the 'enabled' key for thriftHttp. [#1472](https://github.com/grafana/tempo/pull/1472) (@hajowieland)
 * [BUGFIX] Fix race condition in forwarder overrides loop. [1468](https://github.com/grafana/tempo/pull/1468) (@mapno)
-* [BUGFIX] Fix bug with FindTraceByID logic due to lexicographic ordering of TraceID string. Migrate TraceID column in parquet schema to byte slices. [#1531](https://github.com/grafana/tempo/pull/1531) (@annanay25)
 * [ENHANCEMENT] Add a config to query single ingester instance based on trace id hash for Trace By ID API. (1484)[https://github.com/grafana/tempo/pull/1484] (@sagarwala, @bikashmishra100, @ashwinidulams)
 
 ## v1.4.1 / 2022-05-05
