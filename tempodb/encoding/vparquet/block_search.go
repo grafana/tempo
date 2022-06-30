@@ -23,8 +23,7 @@ import (
 
 // These are reserved search parameters
 const (
-	LabelName   = "name"
-	LabelStatus = "status"
+	LabelName = "name"
 
 	StatusCodeTag   = "status.code"
 	StatusCodeUnset = "unset"
@@ -182,7 +181,7 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 			}
 			// Non-numeric string field
 			otherAttrConditions[k] = v
-		case LabelStatus:
+		case StatusCodeTag:
 			code := StatusCodeMapping[v]
 			resourceIters = append(resourceIters, makeIter("rs.ils.Spans.StatusCode", pq.NewIntBetweenPredicate(int64(code), int64(code)), ""))
 		default:
