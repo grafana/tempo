@@ -280,19 +280,64 @@ name: release
 platform:
   arch: amd64
   os: linux
+services:
+- image: jrei/systemd-debian:12
+  name: systemd-debian
+  privileged: true
+  volumes:
+  - name: cgroup
+    path: /sys/fs/cgroup
+- image: jrei/systemd-centos:8
+  name: systemd-centos
+  privileged: true
+  volumes:
+  - name: cgroup
+    path: /sys/fs/cgroup
 steps:
 - commands:
+  - git fetch --tags
+  image: docker:git
+  name: fetch
+- commands:
+  - printf "%s" "$NFPM_SIGNING_KEY" > $NFPM_SIGNING_KEY_FILE
+  environment:
+    NFPM_SIGNING_KEY:
+      from_secret: gpg_private_key
+    NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
+  image: golang:1.18
+  name: write-key
+- commands:
   - make release-snapshot
+  environment:
+    NFPM_DEFAULT_PASSPHRASE:
+      from_secret: gpg_passphrase
+    NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
   image: golang:1.18
   name: test release
-  when:
-    event:
-    - pull_request
+- commands:
+  - ./tools/packaging/verify-deb-install.sh
+  image: docker
+  name: test deb package
+  privileged: true
+  volumes:
+  - name: docker
+    path: /var/run/docker.sock
+- commands:
+  - ./tools/packaging/verify-rpm-install.sh
+  image: docker
+  name: test rpm package
+  privileged: true
+  volumes:
+  - name: docker
+    path: /var/run/docker.sock
 - commands:
   - make release
-  env:
+  environment:
     GITHUB_TOKEN:
       from_secret: gh_token
+    NFPM_DEFAULT_PASSPHRASE:
+      from_secret: gpg_passphrase
+    NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
   image: golang:1.18
   name: release
   when:
@@ -302,6 +347,13 @@ trigger:
   event:
   - tag
   - pull_request
+volumes:
+- host:
+    path: /sys/fs/cgroup
+  name: cgroup
+- host:
+    path: /var/run/docker.sock
+  name: docker
 ---
 get:
   name: username
@@ -357,7 +409,19 @@ get:
 kind: secret
 name: AWS_SECRET_ACCESS_KEY-prod
 ---
+get:
+  name: private-key
+  path: infra/data/ci/packages-publish/gpg
+kind: secret
+name: gpg_private_key
+---
+get:
+  name: passphrase
+  path: infra/data/ci/packages-publish/gpg
+kind: secret
+name: gpg_passphrase
+---
 kind: signature
-hmac: 7ca773a7d91dc9bfd7558d10cc9241409c93725bfbbb844c75ca7c3cab8b9e3b
+hmac: 63a7ae0db4d5c09efef4a24cb0019dd08bef208ba7a4462a8e882d34d3bc706b
 
 ...
