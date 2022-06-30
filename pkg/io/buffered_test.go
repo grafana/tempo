@@ -2,6 +2,7 @@ package io
 
 import (
 	"bytes"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -95,6 +96,24 @@ func TestBufferedReaderAt(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, input[tr.offset:tr.offset+tr.length], b)
 		}
+	}
+}
+
+func TestBufferedReaderConcurrency(t *testing.T) {
+	input := make([]byte, 1024)
+	inputReader := bytes.NewReader(input)
+
+	r := NewBufferedReaderAt(inputReader, int64(len(input)), 50, 1)
+
+	for i := 0; i < 1000; i++ {
+		length := rand.Intn(100)
+		offset := rand.Intn(len(input) - length)
+		b := make([]byte, length)
+
+		go func() {
+			_, err := r.ReadAt(b, int64(offset))
+			require.NoError(t, err)
+		}()
 	}
 }
 

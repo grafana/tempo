@@ -127,12 +127,12 @@ func (r *BufferedReaderAt) ReadAt(b []byte, offset int64) (int, error) {
 	if buf == nil {
 		// No buffer satisfied read, overwrite least-recently-used
 		buf = lru
-		r.prep(buf, offset, int64(len(b)))
 
 		// Here we exchange the top-level lock for
 		// the buffer's individual write lock
 		buf.mtx.Lock()
 		defer buf.mtx.Unlock()
+		r.prep(buf, offset, int64(len(b)))
 		buf.count = r.count
 		r.mtx.Unlock()
 
