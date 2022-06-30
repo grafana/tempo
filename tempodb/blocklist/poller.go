@@ -18,7 +18,22 @@ import (
 	"go.uber.org/atomic"
 )
 
+const (
+	blockStatusLiveLabel      = "live"
+	blockStatusCompactedLabel = "compacted"
+)
+
 var (
+	metricBackendObjects = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempodb",
+		Name:      "backend_objects_total",
+		Help:      "Total number of objects (traces) in the backend",
+	}, []string{"tenant", "status"})
+	metricBackendBytes = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempodb",
+		Name:      "backend_bytes_total",
+		Help:      "Total number of bytes in the backend.",
+	}, []string{"tenant", "status"})
 	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
 		Name:      "blocklist_poll_errors_total",
@@ -128,6 +143,12 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 
 		blocklist[tenantID] = newBlockList
 		compactedBlocklist[tenantID] = newCompactedBlockList
+
+		backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
+		metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
+		metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
+		metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
+		metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
 	}
 
 	return blocklist, compactedBlocklist, nil
@@ -281,4 +302,35 @@ func (p *Poller) tenantIndexPollError(idx *backend.TenantIndex, err error) error
 	}
 
 	return nil
+}
+
+type backendMetaMetrics struct {
+	blockMetaTotalObjects          int
+	compactedBlockMetaTotalObjects int
+	blockMetaTotalBytes            uint64
+	compactedBlockMetaTotalBytes   uint64
+}
+
+func sumTotalBackendMetaMetrics(blockMeta []*backend.BlockMeta, compactedBlockMeta []*backend.CompactedBlockMeta) backendMetaMetrics {
+	var sumTotalObjectsBM int
+	var sumTotalObjectsCBM int
+	var sumTotalBytesBM uint64
+	var sumTotalBytesCBM uint64
+
+	for _, bm := range blockMeta {
+		sumTotalObjectsBM += bm.TotalObjects
+		sumTotalBytesBM += bm.Size
+	}
+
+	for _, cbm := range compactedBlockMeta {
+		sumTotalObjectsCBM += cbm.TotalObjects
+		sumTotalBytesCBM += cbm.Size
+	}
+
+	return backendMetaMetrics{
+		blockMetaTotalObjects:          sumTotalObjectsBM,
+		compactedBlockMetaTotalObjects: sumTotalObjectsCBM,
+		blockMetaTotalBytes:            sumTotalBytesBM,
+		compactedBlockMetaTotalBytes:   sumTotalBytesCBM,
+	}
 }
