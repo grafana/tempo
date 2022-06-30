@@ -130,9 +130,9 @@ type Trace struct {
 	TraceID       []byte          `parquet:""`
 	ResourceSpans []ResourceSpans `parquet:"rs"`
 
-	// TraceIDHexString is for better useability on downstream systems i.e: something other than Tempo is reading these files.
+	// TraceIDText is for better useability on downstream systems i.e: something other than Tempo is reading these files.
 	// It will not be used as the primary traceID field within Tempo and is only helpful for debugging purposes.
-	TraceIDHexString string `parquet:",snappy"`
+	TraceIDText string `parquet:",snappy"`
 
 	// Trace-level attributes for searching
 	StartTimeUnixNano uint64 `parquet:",delta"`
@@ -169,8 +169,8 @@ func attrToParquet(a *v1.KeyValue) Attribute {
 
 func traceToParquet(tr *tempopb.Trace) Trace {
 	ot := Trace{
-		TraceIDHexString: util.TraceIDToHexString(tr.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId),
-		TraceID:          util.PadTraceIDTo16Bytes(tr.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId),
+		TraceIDText: util.TraceIDToHexString(tr.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId),
+		TraceID:     util.PadTraceIDTo16Bytes(tr.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId),
 	}
 
 	// Trace-level items
