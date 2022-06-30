@@ -26,7 +26,7 @@ import (
 	gen "go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/jaeger"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -123,6 +123,15 @@ func (e *Exporter) Shutdown(ctx context.Context) error {
 	return e.uploader.shutdown(ctx)
 }
 
+// MarshalLog is the marshaling function used by the logging system to represent this exporter.
+func (e *Exporter) MarshalLog() interface{} {
+	return struct {
+		Type string
+	}{
+		Type: "jaeger",
+	}
+}
+
 func spanToThrift(ss sdktrace.ReadOnlySpan) *gen.Span {
 	attr := ss.Attributes()
 	tags := make([]*gen.Tag, 0, len(attr))
@@ -147,13 +156,15 @@ func spanToThrift(ss sdktrace.ReadOnlySpan) *gen.Span {
 	}
 
 	if ss.Status().Code != codes.Unset {
-		tags = append(tags, getInt64Tag(keyStatusCode, int64(ss.Status().Code)))
+		switch ss.Status().Code {
+		case codes.Ok:
+			tags = append(tags, getStringTag(keyStatusCode, "OK"))
+		case codes.Error:
+			tags = append(tags, getBoolTag(keyError, true))
+			tags = append(tags, getStringTag(keyStatusCode, "ERROR"))
+		}
 		if ss.Status().Description != "" {
 			tags = append(tags, getStringTag(keyStatusMessage, ss.Status().Description))
-		}
-
-		if ss.Status().Code == codes.Error {
-			tags = append(tags, getBoolTag(keyError, true))
 		}
 	}
 
