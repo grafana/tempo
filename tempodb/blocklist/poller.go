@@ -142,11 +142,11 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 		blocklist[tenantID] = newBlockList
 		compactedBlocklist[tenantID] = newCompactedBlockList
 
-		totalObjectsBlockMeta, totalObjectsCompactedBlockMeta, totalBytesBlockMeta, totalBytesCompactedBlockMeta := p.sumTotalBackendMetas(newBlockList, newCompactedBlockList)
-		metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(totalObjectsBlockMeta))
-		metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(totalObjectsCompactedBlockMeta))
-		metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(totalBytesBlockMeta))
-		metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(totalBytesCompactedBlockMeta))
+		backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
+		metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
+		metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
+		metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
+		metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
 	}
 
 	return blocklist, compactedBlocklist, nil
@@ -297,7 +297,14 @@ func (p *Poller) tenantIndexPollError(idx *backend.TenantIndex, err error) error
 	return nil
 }
 
-func (p *Poller) sumTotalBackendMetas(blockMeta []*backend.BlockMeta, compactedBlockMeta []*backend.CompactedBlockMeta) (int, int, uint64, uint64) {
+type backendMetaMetrics struct {
+	blockMetaTotalObjects          int
+	compactedBlockMetaTotalObjects int
+	blockMetaTotalBytes            int
+	compactedBlockMetaTotalBytes   int
+}
+
+func sumTotalBackendMetaMetrics(blockMeta []*backend.BlockMeta, compactedBlockMeta []*backend.CompactedBlockMeta) backendMetaMetrics {
 	var sumTotalObjectsBM int
 	var sumTotalObjectsCBM int
 	var sumTotalBytesBM uint64
@@ -313,5 +320,10 @@ func (p *Poller) sumTotalBackendMetas(blockMeta []*backend.BlockMeta, compactedB
 		sumTotalBytesCBM += cbm.Size
 	}
 
-	return sumTotalObjectsBM, sumTotalObjectsCBM, sumTotalBytesBM, sumTotalBytesCBM
+	return backendMetaMetrics{
+		blockMetaTotalObjects:          sumTotalObjectsBM,
+		compactedBlockMetaTotalObjects: sumTotalObjectsCBM,
+		blockMetaTotalBytes:            int(sumTotalBytesBM),
+		compactedBlockMetaTotalBytes:   int(sumTotalBytesCBM),
+	}
 }

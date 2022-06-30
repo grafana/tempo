@@ -388,9 +388,9 @@ func TestBlockListBackendMetrics(t *testing.T) {
 		compactedList                        PerTenantCompacted
 		testType                             string
 		expectedBackendObjectsTotal          int
-		expectedBackendBytesTotal            uint64
+		expectedBackendBytesTotal            int
 		expectedCompactedBackendObjectsTotal int
-		expectedCompacteddBackendByteTotal   uint64
+		expectedCompacteddBackendByteTotal   int
 	}{
 		{
 			name: "total backend objects calculation is correct",
@@ -485,25 +485,13 @@ func TestBlockListBackendMetrics(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			c := newMockCompactor(tc.compactedList, false)
-			r := newMockReader(tc.list, tc.compactedList, false)
-			w := &backend.MockWriter{}
-
-			poller := NewPoller(&PollerConfig{
-				PollConcurrency:     testPollConcurrency,
-				PollFallback:        testPollFallback,
-				TenantIndexBuilders: testBuilders,
-			}, &mockJobSharder{
-				owns: true,
-			}, r, c, w, log.NewNopLogger())
-
 			newBlockList := tc.list["test"]
 			newCompactedBlockList := tc.compactedList["test"]
-			totalObjectsBlockMeta, totalObjectsCompactedBlockMeta, totalBytesBlockMeta, totalBytesCompactedBlockMeta := poller.sumTotalBackendMetas(newBlockList, newCompactedBlockList)
-			assert.Equal(t, tc.expectedBackendObjectsTotal, totalObjectsBlockMeta)
-			assert.Equal(t, tc.expectedCompactedBackendObjectsTotal, totalObjectsCompactedBlockMeta)
-			assert.Equal(t, tc.expectedBackendBytesTotal, totalBytesBlockMeta)
-			assert.Equal(t, tc.expectedCompacteddBackendByteTotal, totalBytesCompactedBlockMeta)
+			backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
+			assert.Equal(t, tc.expectedBackendObjectsTotal, backendMetaMetrics.blockMetaTotalObjects)
+			assert.Equal(t, tc.expectedCompactedBackendObjectsTotal, backendMetaMetrics.compactedBlockMetaTotalObjects)
+			assert.Equal(t, tc.expectedBackendBytesTotal, backendMetaMetrics.blockMetaTotalBytes)
+			assert.Equal(t, tc.expectedCompacteddBackendByteTotal, backendMetaMetrics.compactedBlockMetaTotalBytes)
 		})
 	}
 
