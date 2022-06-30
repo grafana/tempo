@@ -388,9 +388,9 @@ func TestBlockListBackendMetrics(t *testing.T) {
 		compactedList                        PerTenantCompacted
 		testType                             string
 		expectedBackendObjectsTotal          int
-		expectedBackendBytesTotal            int
+		expectedBackendBytesTotal            uint64
 		expectedCompactedBackendObjectsTotal int
-		expectedCompacteddBackendByteTotal   int
+		expectedCompacteddBackendBytesTotal  uint64
 	}{
 		{
 			name: "total backend objects calculation is correct",
@@ -434,7 +434,7 @@ func TestBlockListBackendMetrics(t *testing.T) {
 			expectedBackendObjectsTotal:          25,
 			expectedBackendBytesTotal:            0,
 			expectedCompactedBackendObjectsTotal: 35,
-			expectedCompacteddBackendByteTotal:   0,
+			expectedCompacteddBackendBytesTotal:  0,
 			testType:                             "backend objects",
 		},
 		{
@@ -479,7 +479,7 @@ func TestBlockListBackendMetrics(t *testing.T) {
 			expectedBackendObjectsTotal:          0,
 			expectedBackendBytesTotal:            1000,
 			expectedCompactedBackendObjectsTotal: 0,
-			expectedCompacteddBackendByteTotal:   1250,
+			expectedCompacteddBackendBytesTotal:  1250,
 			testType:                             "backend bytes",
 		},
 	}
@@ -491,7 +491,7 @@ func TestBlockListBackendMetrics(t *testing.T) {
 			assert.Equal(t, tc.expectedBackendObjectsTotal, backendMetaMetrics.blockMetaTotalObjects)
 			assert.Equal(t, tc.expectedCompactedBackendObjectsTotal, backendMetaMetrics.compactedBlockMetaTotalObjects)
 			assert.Equal(t, tc.expectedBackendBytesTotal, backendMetaMetrics.blockMetaTotalBytes)
-			assert.Equal(t, tc.expectedCompacteddBackendByteTotal, backendMetaMetrics.compactedBlockMetaTotalBytes)
+			assert.Equal(t, tc.expectedCompacteddBackendBytesTotal, backendMetaMetrics.compactedBlockMetaTotalBytes)
 		})
 	}
 

@@ -300,8 +300,8 @@ func (p *Poller) tenantIndexPollError(idx *backend.TenantIndex, err error) error
 type backendMetaMetrics struct {
 	blockMetaTotalObjects          int
 	compactedBlockMetaTotalObjects int
-	blockMetaTotalBytes            int
-	compactedBlockMetaTotalBytes   int
+	blockMetaTotalBytes            uint64
+	compactedBlockMetaTotalBytes   uint64
 }
 
 func sumTotalBackendMetaMetrics(blockMeta []*backend.BlockMeta, compactedBlockMeta []*backend.CompactedBlockMeta) backendMetaMetrics {
@@ -323,7 +323,7 @@ func sumTotalBackendMetaMetrics(blockMeta []*backend.BlockMeta, compactedBlockMe
 	return backendMetaMetrics{
 		blockMetaTotalObjects:          sumTotalObjectsBM,
 		compactedBlockMetaTotalObjects: sumTotalObjectsCBM,
-		blockMetaTotalBytes:            int(sumTotalBytesBM),
-		compactedBlockMetaTotalBytes:   int(sumTotalBytesCBM),
+		blockMetaTotalBytes:            sumTotalBytesBM,
+		compactedBlockMetaTotalBytes:   sumTotalBytesCBM,
 	}
 }
