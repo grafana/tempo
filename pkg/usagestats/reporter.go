@@ -1,3 +1,5 @@
+// This code was forked from Loki.
+// https://github.com/grafana/loki/tree/caf7dde32be8b085549273fc6c238e3b6b656a3a/pkg/usagestats
 package usagestats
 
 import (
