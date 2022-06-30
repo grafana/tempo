@@ -3,13 +3,14 @@ package tempodb
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"math/rand"
 	"path"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/golang/protobuf/proto"
+	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,16 +63,16 @@ func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
 	return m.blockRetention
 }
 
-func TestCompaction(t *testing.T) {
+func TestCompactionRoundtrip(t *testing.T) {
 	testEncodings := []string{v2.VersionString, vparquet.VersionString}
 	for _, enc := range testEncodings {
 		t.Run(enc, func(t *testing.T) {
-			testCompaction(t, enc)
+			testCompactionRoundtrip(t, enc)
 		})
 	}
 }
 
-func testCompaction(t *testing.T, targetBlockVersion string) {
+func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
@@ -194,22 +195,13 @@ func testCompaction(t *testing.T, targetBlockVersion string) {
 		trace.SortTrace(allReqs[i])
 		trace.SortTrace(tr)
 
-		require.True(t, proto.Equal(allReqs[i], tr))
-	}
-}
-
-/*func getspanids(tr *tempopb.Trace) []string {
-	d := util.NewDistinctStringCollector(100_000_000)
-
-	for _, b := range tr.Batches {
-		for _, ils := range b.InstrumentationLibrarySpans {
-			for _, s := range ils.Spans {
-				d.Collect(util.TraceIDToHexString(s.SpanId))
-			}
+		if !proto.Equal(allReqs[i], tr) {
+			wantJson, _ := json.MarshalIndent(allReqs[i], "", "  ")
+			gotJson, _ := json.MarshalIndent(tr, "", "  ")
+			require.Equal(t, wantJson, gotJson)
 		}
 	}
-	return d.Strings()
-}*/
+}
 
 // TestSameIDCompaction is a bit gross in that it has a bad dependency with on the /pkg/model
 // module to do a full e2e compaction/combination test.
