@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	replicationFactorStats = usagestats.NewInt("ring_replication_factor")
-	kvStoreStats           = usagestats.NewString("ring_kv_store")
+	statReplicationFactor = usagestats.NewInt("ring_replication_factor")
+	statKvStore           = usagestats.NewString("ring_kv_store")
 )
 
 // New creates a new distributed consistent hash ring.  It shadows the cortex
@@ -22,8 +22,8 @@ var (
 func New(cfg ring.Config, name, key string, reg prometheus.Registerer) (*ring.Ring, error) {
 	reg = prometheus.WrapRegistererWithPrefix("cortex_", reg)
 
-	replicationFactorStats.Set(int64(cfg.ReplicationFactor))
-	kvStoreStats.Set(cfg.KVStore.Store)
+	statReplicationFactor.Set(int64(cfg.ReplicationFactor))
+	statKvStore.Set(cfg.KVStore.Store)
 
 	if cfg.ReplicationFactor == 2 {
 		return newEventuallyConsistentRing(cfg, name, key, reg)

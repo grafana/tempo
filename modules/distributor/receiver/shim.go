@@ -53,11 +53,11 @@ var (
 		Buckets:   prom_client.DefBuckets,
 	})
 
-	receiverOtlpStats       = usagestats.NewInt("receier_enabled_otlp")
-	receiverJaegerstats     = usagestats.NewInt("receier_enabled_jaeger")
-	receiverZipkinStats     = usagestats.NewInt("receier_enabled_zipkin")
-	receiverOpencensusStats = usagestats.NewInt("receier_enabled_opencensus")
-	receiverKafkaStats      = usagestats.NewInt("receier_enabled_kafka")
+	statReceiverOtlp       = usagestats.NewInt("receiver_enabled_otlp")
+	statReceiverJaeger     = usagestats.NewInt("receiver_enabled_jaeger")
+	statReceiverZipkin     = usagestats.NewInt("receiver_enabled_zipkin")
+	statReceiverOpencensus = usagestats.NewInt("receiver_enabled_opencensus")
+	statReceiverKafka      = usagestats.NewInt("receiver_enabled_kafka")
 )
 
 type BatchPusher interface {
@@ -106,15 +106,15 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 	for recv := range receiverCfg {
 		switch recv {
 		case "otlp":
-			receiverOtlpStats.Set(1)
+			statReceiverOtlp.Set(1)
 		case "jaeger":
 			receiverJaegerstats.Set(1)
 		case "zipkin":
-			receiverZipkinStats.Set(1)
+			statReceiverZipkin.Set(1)
 		case "opencensus":
-			receiverOpencensusStats.Set(1)
+			statReceiverOpencensus.Set(1)
 		case "kafka":
-			receiverKafkaStats.Set(1)
+			statReceiverKafka.Set(1)
 		}
 	}
 
