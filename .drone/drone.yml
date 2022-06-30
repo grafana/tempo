@@ -274,6 +274,35 @@ trigger:
   - refs/heads/r?
   - refs/heads/r??
 ---
+depends_on: []
+kind: pipeline
+name: release
+platform:
+  arch: amd64
+  os: linux
+steps:
+- commands:
+  - make release-snapshot
+  image: golang:1.18
+  name: test release
+  when:
+    event:
+    - pull_request
+- commands:
+  - make release
+  env:
+    GITHUB_TOKEN:
+      from_secret: gh_token
+  image: golang:1.18
+  name: release
+  when:
+    event:
+    - tag
+trigger:
+  event:
+  - tag
+  - pull_request
+---
 get:
   name: username
   path: infra/data/ci/docker_hub
@@ -329,6 +358,6 @@ kind: secret
 name: AWS_SECRET_ACCESS_KEY-prod
 ---
 kind: signature
-hmac: e0033c313e61914ebd5c214c1dd85380abd7a287bfdadd0b0c2774b194162781
+hmac: 7ca773a7d91dc9bfd7558d10cc9241409c93725bfbbb844c75ca7c3cab8b9e3b
 
 ...

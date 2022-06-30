@@ -24,7 +24,7 @@ For the sake of clarity, in this document we have grouped API endpoints by servi
 | [Search tag names](#search-tags) | Query-frontend | HTTP | `GET /api/search/tags` |
 | [Search tag values](#search-tag-values) | Query-frontend | HTTP | `GET /api/search/tag/<tag>/values` |
 | [Query Echo Endpoint](#query-echo-endpoint) | Query-frontend |  HTTP | `GET /api/echo` |
-| [Memberlist](#memberlist) | Distributor, Ingester, Querier, Compactor |  HTTP | `GET /memberlist` |
+| Memberlist | Distributor, Ingester, Querier, Compactor |  HTTP | `GET /memberlist` |
 | [Flush](#flush) | Ingester |  HTTP | `GET,POST /flush` |
 | [Shutdown](#shutdown) | Ingester |  HTTP | `GET,POST /shutdown` |
 | [Distributor ring status](#distributor-ring-status) (*) | Distributor |  HTTP | `GET /distributor/ring` |
@@ -83,7 +83,7 @@ Agent, OpenTelemetry Collector, or Jaeger Agent.
 |  Jaeger | GRPC | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 |  Zipkin | HTTP | [Link](https://zipkin.io/zipkin-api/) |
 
-For information on how to use the Zipkin endpoint with curl (for debugging purposes) check [here](pushing-spans-with-http). 
+For information on how to use the Zipkin endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP]({{< relref "pushing-spans-with-http/" >}}).
 
 ### Query
 
@@ -147,7 +147,7 @@ The URL query parameters support the following values:
 - `maxDuration = (go duration value)`
   Optional.  Find traces with no greater than this duration.  Uses the same form as `minDuration`.
 - `limit = (integer)`
-  Optional.  Limit the number of search results. Default is 20, but this is configurable in the querier. Refer to [Configuration](../configuration#querier).
+  Optional.  Limit the number of search results. Default is 20, but this is configurable in the querier. Refer to [Configuration]({{< relref "../configuration#querier" >}}).
 - `start = (unix epoch seconds)`
   Optional.  Along with `end` define a time range from which traces should be returned. 
 - `end = (unix epoch seconds)`
@@ -289,7 +289,7 @@ ingester service.
 
 ### Distributor ring status
 
-> Note: this endpoint is only available when Tempo is configured with [the global override strategy](../configuration/ingestion-limit#override-strategies).
+> Note: this endpoint is only available when Tempo is configured with [the global override strategy]({{< relref "../configuration/#override-strategies" >}}).
 
 ```
 GET /distributor/ring
@@ -298,7 +298,7 @@ GET /distributor/ring
 Displays a web page with the distributor hash ring status, including the state, healthy and last heartbeat time of each
 distributor.
 
-_For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring)._
+_For more information, check the page on [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}})._
 
 ### Ingesters ring status
 
@@ -308,7 +308,7 @@ GET /ingester/ring
 
 Displays a web page with the ingesters hash ring status, including the state, healthy and last heartbeat time of each ingester.
 
-_For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring)._
+_For more information, check the page on [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}})_
 
 ### Metrics-generator ring status
 
@@ -318,9 +318,9 @@ GET /metrics-generator/ring
 
 Displays a web page with the metrics-generator hash ring status, including the state, health, and last heartbeat time of each metrics-generator.
 
-This endpoint is only available when the metrics-generator is enabled. See [metrics-generator](../configuration/_index.md#metrics-generator).
+This endpoint is only available when the metrics-generator is enabled. See [metrics-generator]({{< relref "../configuration/#metrics-generator" >}}).
 
-_For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring)._
+_For more information, check the page on [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}})_
 
 ### Compactor ring status
 
@@ -331,7 +331,7 @@ GET /compactor/ring
 Displays a web page with the compactor hash ring status, including the state, healthy and last heartbeat time of each
 compactor.
 
-_For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring)._
+_For more information, check the page on [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}})_
 
 ### Status
 

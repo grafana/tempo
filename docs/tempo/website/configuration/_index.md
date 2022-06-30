@@ -454,9 +454,9 @@ For more information on configuration options, see [here](https://github.com/gra
 The storage block is used to configure TempoDB. It supports S3, GCS, Azure, local file system, and optionally can use Memcached or Redis for increased query performance.  
 
 The following example shows common options.  For further platform-specific information refer to the following:
-* [GCS](gcs/)
-* [S3](s3/)
-* [Azure](azure/)
+* [GCS]({{< relref "gcs/" >}})
+* [S3]({{< relref "s3/" >}})
+* [Azure]({{< relref "azure/" >}})
 
 ```yaml
 # Storage configuration for traces
@@ -631,6 +631,12 @@ storage:
         # the bucket contents.
         # Default 0 (disabled).
         [blocklist_poll_stale_tenant_index: <duration>]
+
+        # Offsets the concurrent blocklist polling by a random amount. The maximum amount of offset
+        # is the provided value in milliseconds. This configuration value can be used if the polling
+        # cycle is overwhelming your backend with concurrent requests.
+        # Default 0 (disabled)
+        [blocklist_poll_jitter_ms: <int>]
 
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"

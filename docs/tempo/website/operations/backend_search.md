@@ -54,7 +54,7 @@ querier:
 
 ### Query frontend
 
-[Query frontend](../../configuration#query-frontend) lists all configuration
+[Query frontend]({{< relref "../configuration#query-frontend" >}}) lists all configuration
 options. 
 
 These suggestions will help deal with scaling issues.
@@ -121,5 +121,5 @@ querier:
 
 See here for cloud-specific details:
 
-- [AWS Lambda](./serverless_aws.md)
-- [Google Cloud Run](./serverless_gcp.md)
+- [AWS Lambda]({{< relref "serverless_aws/" >}})
+- [Google Cloud Run]({{< relref "serverless_gcp/" >}})

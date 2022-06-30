@@ -87,23 +87,13 @@ func (s *StreamingSearchBlock) Append(ctx context.Context, id common.ID, searchD
 	return s.appender.Append(id, combined)
 }
 
-func (s *StreamingSearchBlock) Tags(ctx context.Context, tags map[string]struct{}) error {
-	s.header.Tags.RangeKeys(func(k string) {
-		// check the tag is already set, this is more performant with repetitive values
-		if _, ok := tags[k]; !ok {
-			tags[k] = struct{}{}
-		}
-	})
+func (s *StreamingSearchBlock) Tags(_ context.Context, cb tagCallback) error {
+	s.header.Tags.RangeKeys((tempofb.TagCallback)(cb))
 	return nil
 }
 
-func (s *StreamingSearchBlock) TagValues(ctx context.Context, tagName string, tagValues map[string]struct{}) error {
-	s.header.Tags.RangeKeyValues(tagName, func(v string) {
-		// check the value is already set, this is more performant with repetitive values
-		if _, ok := tagValues[v]; !ok {
-			tagValues[v] = struct{}{}
-		}
-	})
+func (s *StreamingSearchBlock) TagValues(_ context.Context, tagName string, cb tagCallback) error {
+	s.header.Tags.RangeKeyValues(tagName, (tempofb.TagCallback)(cb))
 	return nil
 }
 

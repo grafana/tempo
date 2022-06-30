@@ -4,9 +4,11 @@ import (
 	"context"
 )
 
+type tagCallback func(t string)
+
 type SearchableBlock interface {
-	Tags(ctx context.Context, tags map[string]struct{}) error
-	TagValues(ctx context.Context, tagName string, tagValues map[string]struct{}) error
+	Tags(ctx context.Context, cb tagCallback) error
+	TagValues(ctx context.Context, tagName string, cb tagCallback) error
 	Search(ctx context.Context, p Pipeline, sr *Results) error
 }
 

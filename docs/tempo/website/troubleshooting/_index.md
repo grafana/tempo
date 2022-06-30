@@ -9,12 +9,12 @@ This section helps with day zero operational issues that may come up when gettin
 
 ## Sending traces
 
-- [Spans are being refused with "pusher failed to consume trace data"](max-trace-limit-reached)
-- [Is the Grafana Agent sending to the backend?](agent)
+- [Spans are being refused with "pusher failed to consume trace data"]({{< relref "max-trace-limit-reached/" >}})
+- [Is the Grafana Agent sending to the backend?]({{< relref "agent/" >}})
 
 ## Querying
 
-- [Unable to find my traces in Tempo](unable-to-see-trace)
-- [Error message "Too many jobs in the queue"](too-many-jobs-in-queue)
-- [Queries fail with 500 and "error using pageFinder"](bad-blocks)
-- [I can search traces, but there are no service name or span name values available](search-tag)
+- [Unable to find my traces in Tempo]({{< relref "unable-to-see-trace/" >}})
+- [Error message "Too many jobs in the queue"]({{< relref "too-many-jobs-in-queue/" >}})
+- [Queries fail with 500 and "error using pageFinder"]({{< relref "bad-blocks/" >}})
+- [I can search traces, but there are no service name or span name values available]({{< relref "search-tag" >}})

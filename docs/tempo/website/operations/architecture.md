@@ -10,7 +10,7 @@ A collection of documents that detail Tempo architectural decisions and operatio
 
 # Architecture
 
-This topic provides an overview of the major components of Tempo.  Refer to the [example setups]({{< relref "../getting-started/example-demo-app" >}})
+This topic provides an overview of the major components of Tempo. Refer to the [example setups]({{< relref "../getting-started/example-demo-app" >}})
 or [deployment options]({{< relref "./deployment" >}}) for help deploying.
 
 <p align="center"><img src="../tempo_arch.png" alt="Tempo Architecture"></p>
@@ -24,12 +24,12 @@ Tempo comprises of the following top-level components.
 The distributor accepts spans in multiple formats including Jaeger, OpenTelemetry, Zipkin. It routes spans to ingesters by hashing the `traceID` and using a [distributed consistent hash ring]({{< relref "consistent_hash_ring" >}}).
 
 The distributor uses the receiver layer from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector).
-For best performance it is recommended to ingest [OTel Proto](https://github.com/open-telemetry/opentelemetry-proto).  For this reason
+For best performance it is recommended to ingest [OTel Proto](https://github.com/open-telemetry/opentelemetry-proto). For this reason
 the [Grafana Agent](https://github.com/grafana/agent) uses the otlp exporter/receiver to send spans to Tempo.
 
 ### Ingester
 
-The Ingester batches trace into blocks, creates bloom filters and indexes, and then flushes it all to the backend. 
+The Ingester batches trace into blocks, creates bloom filters and indexes, and then flushes it all to the backend.
 Blocks in the backend are generated in the following layout.
 
 ```
@@ -75,4 +75,4 @@ This is an **optional** component that derives metrics from ingested traces and 
 
 When using older versions of Grafana (7.4.x), you must also use `tempo-query` in order to visualize traces. The
 `tempo-query` is [Jaeger Query](https://www.jaegertracing.io/docs/1.19/deployment/#query-service--ui) with a [GRPC Plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc) that allows it to query Tempo.
-For more information, refer to [these example](https://github.com/grafana/tempo/tree/main/example/docker-compose/grafana7.4) and [these docs](../../configuration/querying).
+For more information, refer to [these example](https://github.com/grafana/tempo/tree/main/example/docker-compose/grafana7.4) and [these docs]({{< relref "../configuration/querying/" >}}).
