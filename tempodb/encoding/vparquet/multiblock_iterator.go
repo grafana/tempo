@@ -1,9 +1,9 @@
 package vparquet
 
 import (
+	"bytes"
 	"context"
 	"io"
-	"strings"
 )
 
 type MultiBlockIterator struct {
@@ -31,7 +31,7 @@ func (m *MultiBlockIterator) Next(ctx context.Context) (*Trace, error) {
 		return nil, io.EOF
 	}
 
-	var lowestID string
+	var lowestID []byte
 	var lowestObjects []*Trace
 	var lowestBookmarks []*bookmark
 
@@ -45,7 +45,7 @@ func (m *MultiBlockIterator) Next(ctx context.Context) (*Trace, error) {
 			continue
 		}
 
-		comparison := strings.Compare(currentObject.TraceID, lowestID)
+		comparison := bytes.Compare(currentObject.TraceID, lowestID)
 
 		if comparison == 0 {
 			lowestObjects = append(lowestObjects, currentObject)
