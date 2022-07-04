@@ -354,7 +354,7 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 
 		matchMap := match.ToMap()
 		result := &tempopb.TraceSearchMetadata{
-			TraceID:           matchMap["TraceID"][0].String(),
+			TraceID:           util.TraceIDToHexString(matchMap["TraceID"][0].Bytes()),
 			RootServiceName:   matchMap["RootServiceName"][0].String(),
 			RootTraceName:     matchMap["RootSpanName"][0].String(),
 			StartTimeUnixNano: matchMap["StartTimeUnixNano"][0].Uint64(),

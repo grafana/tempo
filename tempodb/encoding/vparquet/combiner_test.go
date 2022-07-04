@@ -40,7 +40,7 @@ func TestCombiner(t *testing.T) {
 		},
 		{
 			traceA: &Trace{
-				TraceID:         "traceID",
+				TraceID:         []byte{0x00, 0x01},
 				RootServiceName: "serviceNameA",
 				ResourceSpans: []ResourceSpans{
 					{
@@ -61,7 +61,7 @@ func TestCombiner(t *testing.T) {
 				},
 			},
 			traceB: &Trace{
-				TraceID:         "traceID",
+				TraceID:         []byte{0x00, 0x01},
 				RootServiceName: "serviceNameB",
 				ResourceSpans: []ResourceSpans{
 					{
@@ -84,7 +84,7 @@ func TestCombiner(t *testing.T) {
 			},
 			expectedTotal: 2,
 			expectedTrace: &Trace{
-				TraceID:         "traceID",
+				TraceID:         []byte{0x00, 0x01},
 				RootServiceName: "serviceNameA",
 				ResourceSpans: []ResourceSpans{
 					{
