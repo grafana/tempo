@@ -108,7 +108,7 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 		case "otlp":
 			statReceiverOtlp.Set(1)
 		case "jaeger":
-			receiverJaegerstats.Set(1)
+			statReceiverJaeger.Set(1)
 		case "zipkin":
 			statReceiverZipkin.Set(1)
 		case "opencensus":
