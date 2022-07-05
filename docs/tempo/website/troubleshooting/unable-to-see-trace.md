@@ -36,7 +36,7 @@ Receiver specific traffic information can also be obtained using `tempo_receiver
 
 ### Solutions
 
-There are three possible solutiosn. 
+There are three possible solutions. 
 #### Fixing protocol/port problems
 - Find out which communication protocol is being used by the application to emit traces. This is unique to every client SDK. For instance: Jaeger Golang Client uses `Thrift Compact over UDP` by default.
 - Check the list of supported protocols and their ports and ensure that the correct combination is being used. You will find the list of supported protocols and ports here: https://grafana.com/docs/tempo/latest/getting-started/#step-1-spin-up-tempo-backend
