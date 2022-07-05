@@ -92,7 +92,7 @@ func SearchTestSuite() (
 			{
 				Resource: &v1_resource.Resource{
 					Attributes: []*v1_common.KeyValue{
-						stringKV("service.name", "RootService"),
+						stringKV("service.name", "rootservice"),
 					},
 				},
 				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
@@ -100,7 +100,7 @@ func SearchTestSuite() (
 						Spans: []*v1.Span{
 							{
 								TraceId:           id,
-								Name:              "RootSpan",
+								Name:              "rootspan",
 								StartTimeUnixNano: uint64(1000 * time.Second),
 								EndTimeUnixNano:   uint64(1001 * time.Second),
 								Status:            &v1.Status{},
@@ -116,8 +116,8 @@ func SearchTestSuite() (
 		TraceID:           util.TraceIDToHexString(id),
 		StartTimeUnixNano: uint64(1000 * time.Second),
 		DurationMs:        1000,
-		RootServiceName:   "RootService",
-		RootTraceName:     "RootSpan",
+		RootServiceName:   "rootservice",
+		RootTraceName:     "rootspan",
 	}
 
 	// Matches
