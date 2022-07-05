@@ -88,8 +88,10 @@ func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (
 		return nil, nil
 
 	}
-	if !(req.Start <= uint32(traceEndMs/1000) && req.End >= uint32(traceStartMs/1000)) {
-		return nil, nil
+	if req.Start > 0 || req.End > 0 {
+		if !(req.Start <= uint32(traceEndMs/1000) && req.End >= uint32(traceStartMs/1000)) {
+			return nil, nil
+		}
 	}
 
 	// woohoo!
@@ -124,7 +126,7 @@ func allTagsFound(tagsToFind map[string]string) bool {
 // the provided tags map
 func matchSpan(tags map[string]string, s *v1.Span) {
 	if name, ok := tags[SpanNameTag]; ok {
-		if name == s.Name {
+		if strings.Contains(s.Name, name) {
 			delete(tags, SpanNameTag)
 		}
 	}

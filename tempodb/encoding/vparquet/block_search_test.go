@@ -122,7 +122,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		makeReq(LabelHTTPMethod, "get"),
 		makeReq(LabelHTTPUrl, "hello"),
 		makeReq(LabelHTTPStatusCode, "500"),
-		makeReq(LabelStatus, StatusCodeError),
+		makeReq(StatusCodeTag, StatusCodeError),
 
 		// Span attributes
 		makeReq("foo", "bar"),
@@ -176,7 +176,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		makeReq(LabelHTTPMethod, "post"),
 		makeReq(LabelHTTPUrl, "asdf"),
 		makeReq(LabelHTTPStatusCode, "200"),
-		makeReq(LabelStatus, StatusCodeOK),
+		makeReq(StatusCodeTag, StatusCodeOK),
 
 		// Span attributes
 		makeReq("foo", "baz"),
