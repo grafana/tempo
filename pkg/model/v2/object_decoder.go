@@ -61,8 +61,10 @@ func (d *ObjectDecoder) Matches(id []byte, obj []byte, req *tempopb.SearchReques
 		return nil, err
 	}
 
-	if !(req.Start <= end && req.End >= start) {
-		return nil, nil
+	if req.Start > 0 || req.End > 0 {
+		if !(req.Start <= end && req.End >= start) {
+			return nil, nil
+		}
 	}
 
 	// assert duration before we unmarshal
