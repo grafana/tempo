@@ -1,5 +1,7 @@
 ---
 title: Tempo API
+description: Grafana Tempo exposes an API for pushing and querying traces, and operating the cluster itself.
+menuTitle: Tempo API
 weight: 500
 ---
 

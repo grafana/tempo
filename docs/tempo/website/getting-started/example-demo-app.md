@@ -1,12 +1,12 @@
 ---
-title: Example configurations
+title: Example setups
 aliases:
 - /docs/tempo/latest/getting-started/quickstart-tempo/
 - /docs/tempo/latest/guides/loki-derived-fields/
 weight: 200
 ---
 
-# Example configurations
+# Example setups
 
 These examples show various deployment and [configuration]({{< relref "../configuration" >}}) options. They include trace
 generators so an existing application is not necessary to get started experimenting with Tempo. If you are interested in
