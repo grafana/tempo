@@ -42,10 +42,12 @@ func (s SearchDataMap) Add(k, v string) {
 	}
 }
 
+// Contains is an exact match on key, but substring on value
 func (s SearchDataMap) Contains(k, v string) bool {
-	if values, ok := s[k]; ok {
-		_, ok := values[v]
-		return ok
+	for vv := range s[k] {
+		if strings.Contains(vv, v) {
+			return true
+		}
 	}
 	return false
 }

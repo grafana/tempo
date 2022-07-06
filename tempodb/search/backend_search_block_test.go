@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -56,35 +57,69 @@ func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.E
 }
 
 func TestBackendSearchBlockSearch(t *testing.T) {
-	traceCount := 10_000
+	ctx := context.Background()
 
 	for _, enc := range backend.SupportedEncoding {
 		t.Run(enc.String(), func(t *testing.T) {
 
-			b2 := newBackendSearchBlockWithTraces(t, traceCount, enc, 0)
+			id, wantTr, _, _, meta, searchesThatMatch, searchesThatDontMatch := trace.SearchTestSuite()
 
-			p := NewSearchPipeline(&tempopb.SearchRequest{
-				Tags: map[string]string{"key20": "value_B_20"},
+			// Create backend search block with the test trace
+			data := trace.ExtractSearchData(wantTr, id, func(s string) bool { return true })
+
+			f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
+			require.NoError(t, err)
+
+			b1, err := NewStreamingSearchBlockForFile(f, uuid.New(), enc)
+			require.NoError(t, err)
+
+			require.NoError(t, b1.Append(ctx, id, [][]byte{data}))
+
+			l, err := local.NewBackend(&local.Config{
+				Path: t.TempDir(),
 			})
+			require.NoError(t, err)
 
-			sr := NewResults()
+			blockID := uuid.New()
+			err = NewBackendSearchBlock(b1, backend.NewWriter(l), blockID, testTenantID, enc, 0)
+			require.NoError(t, err)
 
-			sr.StartWorker()
-			go func() {
-				defer sr.FinishWorker()
-				err := b2.Search(context.TODO(), p, sr)
-				require.NoError(t, err)
-			}()
-			sr.AllWorkersStarted()
+			b2 := OpenBackendSearchBlock(blockID, testTenantID, backend.NewReader(l))
 
-			var results []*tempopb.TraceSearchMetadata
-			for r := range sr.Results() {
-				results = append(results, r)
+			// Perform test suite
+
+			for _, req := range searchesThatMatch {
+				resp := search(t, b2, req)
+				require.Equal(t, 1, len(resp.Traces), "search request:", req)
+				require.Equal(t, meta, resp.Traces[0])
 			}
-			require.Equal(t, 1, len(results))
-			require.Equal(t, traceCount, int(sr.TracesInspected()))
+
+			for _, req := range searchesThatDontMatch {
+				resp := search(t, b2, req)
+				require.Equal(t, 0, len(resp.Traces), "search request:", req)
+			}
 		})
 	}
+}
+
+func search(t *testing.T, block SearchableBlock, req *tempopb.SearchRequest) *tempopb.SearchResponse {
+	p := NewSearchPipeline(req)
+
+	sr := NewResults()
+
+	sr.StartWorker()
+	go func() {
+		defer sr.FinishWorker()
+		err := block.Search(context.TODO(), p, sr)
+		require.NoError(t, err)
+	}()
+	sr.AllWorkersStarted()
+
+	resp := &tempopb.SearchResponse{}
+	for r := range sr.Results() {
+		resp.Traces = append(resp.Traces, r)
+	}
+	return resp
 }
 
 func TestBackendSearchBlockFinalSize(t *testing.T) {
