@@ -63,7 +63,7 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 
 	err := os.MkdirAll(cfg.Storage.Path, os.ModePerm)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to mkdir on %s: %w", cfg.Storage.Path, err)
 	}
 
 	g := &Generator{
