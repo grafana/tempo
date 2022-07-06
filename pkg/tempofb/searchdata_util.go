@@ -9,7 +9,7 @@ import (
 // Get searches the entry and returns the first value found for the given key.
 func (s *SearchEntry) Get(k string) string {
 	kv := &KeyValues{}
-	kb := bytes.ToLower([]byte(k))
+	kb := []byte(k)
 
 	// TODO - Use binary search since keys/values are sorted
 	for i := 0; i < s.TagsLength(); i++ {

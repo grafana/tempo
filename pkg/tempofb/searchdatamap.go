@@ -110,10 +110,6 @@ func writeKeyValues(b *flatbuffers.Builder, key string, values []string, h hash.
 	}
 
 	// Preparation, must be done before hashing/caching.
-	key = strings.ToLower(key)
-	for i := range values {
-		values[i] = strings.ToLower(values[i])
-	}
 	sort.Strings(values)
 
 	// Hash, cache (optional)
@@ -134,7 +130,7 @@ func writeKeyValues(b *flatbuffers.Builder, key string, values []string, h hash.
 	ko := b.CreateSharedString(key)
 	valueStrings := make([]flatbuffers.UOffsetT, len(values))
 	for i := range values {
-		valueStrings[i] = b.CreateSharedString(strings.ToLower(values[i]))
+		valueStrings[i] = b.CreateSharedString(values[i])
 	}
 
 	KeyValuesStartValueVector(b, len(valueStrings))
