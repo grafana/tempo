@@ -16,7 +16,7 @@ unless you make some the of the changes detailed here.
 ## Configuration
 
 Queriers and query frontends have additional configuration related
-to search of the backend datastore. 
+to search of the backend datastore.
 Some defaults are currently tuned for a search by trace ID.
 
 ### All components
@@ -50,12 +50,19 @@ querier:
     # these multiple serverless functions.
     external_endpoints:
     - https://<serverless endpoint>
+
+    # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
+    # be set to p99 of search requests to reduce long tail latency.
+    external_hedge_requests_at: 5s
+
+    # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
+    external_hedge_requests_up_to: 3
 ```
 
 ### Query frontend
 
 [Query frontend]({{< relref "../configuration#query-frontend" >}}) lists all configuration
-options. 
+options.
 
 These suggestions will help deal with scaling issues.
 
@@ -75,19 +82,12 @@ query_frontend:
     # At larger scales, increase the number of jobs attempted simultaneously,
     # per search query.
     concurrent_jobs: 2000
-
-    # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
-    # be set to p99 of search requests to reduce long tail latency.
-    hedge_requests_at: 5s
-
-    # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
-    hedge_requests_up_to: 3
 ```
 
 ## Serverless environment
 
 Serverless is not required, but with larger loads, serverless is recommended to reduce costs and
-improve performance. If you find that you are scaling up your quantity of queriers, yet are not 
+improve performance. If you find that you are scaling up your quantity of queriers, yet are not
 achieving the latencies you would like, switch to serverless.
 
 Tempo has support for Google Cloud Run and AWS Lambda. In both cases, you will use the following
@@ -96,7 +96,7 @@ settings to configure Tempo to use a serverless environment:
 ```
 querier:
   search:
-    # A list of external endpoints that the querier will use to offload backend search requests. They must  
+    # A list of external endpoints that the querier will use to offload backend search requests. They must
     # take and return the same value as /api/search endpoint on the querier. This is intended to be
     # used with serverless technologies for massive parallelization of the search path.
     # The default value of "" disables this feature.
@@ -105,7 +105,7 @@ querier:
     # If external_endpoints is set then the querier will primarily act as a proxy for whatever serverless backend
     # you have configured. This setting allows the operator to have the querier prefer itself for a configurable
     # number of subqueries. In the default case of 2 the querier will process up to 2 search requests subqueries before starting
-    # to reach out to external_endpoints. 
+    # to reach out to external_endpoints.
     # Setting this to 0 will disable this feature and the querier will proxy all search subqueries to external_endpoints.
     [prefer_self: <int> | default = 2 ]
 
