@@ -50,7 +50,10 @@ func SearchTestSuite() (
 	start, end uint32,
 	expected *tempopb.TraceSearchMetadata,
 	searchesThatMatch []*tempopb.SearchRequest,
-	searchesThatDontMatch []*tempopb.SearchRequest) {
+	searchesThatDontMatch []*tempopb.SearchRequest,
+	tagNames []string,
+	tagValues map[string][]string,
+) {
 
 	id = test.ValidTraceID(nil)
 
@@ -214,6 +217,48 @@ func SearchTestSuite() (
 
 		// Span attributes
 		makeReq("foo", "baz"), // wrong case
+	}
+
+	tagNames = []string{
+		"bat",
+		"cluster",
+		"container",
+		"foo",
+		"http.method",
+		"http.status_code",
+		"http.url",
+		"k8s.cluster.name",
+		"k8s.container.name",
+		"k8s.namespace.name",
+		"k8s.pod.name",
+		"name",
+		"namespace",
+		"pod",
+		"root.name",
+		"root.service.name",
+		"service.name",
+		"status.code",
+	}
+
+	tagValues = map[string][]string{
+		"bat":                {"Baz"},
+		"cluster":            {"MyCluster"},
+		"container":          {"MyContainer"},
+		"foo":                {"Bar"},
+		"http.method":        {"Get"},
+		"http.status_code":   {"500"},
+		"http.url":           {"url/Hello/World"},
+		"k8s.cluster.name":   {"k8sCluster"},
+		"k8s.container.name": {"k8sContainer"},
+		"k8s.namespace.name": {"k8sNamespace"},
+		"k8s.pod.name":       {"k8sPod"},
+		"name":               {"MySpan", "RootSpan"},
+		"namespace":          {"MyNamespace"},
+		"pod":                {"MyPod"},
+		"root.name":          {"RootSpan"},
+		"root.service.name":  {"RootService"},
+		"service.name":       {"MyService", "RootService"},
+		"status.code":        {"0", "2"},
 	}
 
 	return

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -157,7 +158,7 @@ func TestStreamingSearchBlockSearchMetrics(t *testing.T) {
 func TestStreamingSearchBlock(t *testing.T) {
 	ctx := context.Background()
 
-	id, wantTr, _, _, meta, searchesThatMatch, searchesThatDontMatch := trace.SearchTestSuite()
+	id, wantTr, _, _, meta, searchesThatMatch, searchesThatDontMatch, tags, tagValues := trace.SearchTestSuite()
 
 	// Create backend search block with the test trace
 	data := trace.ExtractSearchData(wantTr, id, func(s string) bool { return true })
@@ -181,6 +182,18 @@ func TestStreamingSearchBlock(t *testing.T) {
 	for _, req := range searchesThatDontMatch {
 		resp := search(t, b1, req)
 		require.Equal(t, 0, len(resp.Traces), "search request:", req)
+	}
+
+	var gotTags []string
+	b1.Tags(ctx, func(k string) { gotTags = append(gotTags, k) })
+	sort.Strings(gotTags)
+	require.Equal(t, tags, gotTags)
+
+	for k, v := range tagValues {
+		var gotValues []string
+		b1.TagValues(ctx, k, func(s string) { gotValues = append(gotValues, s) })
+		sort.Strings(gotValues)
+		require.Equal(t, v, gotValues)
 	}
 }
 
