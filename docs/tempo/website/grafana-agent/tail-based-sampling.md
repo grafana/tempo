@@ -227,6 +227,7 @@ traces:
           - action: replace
             source_labels:
               - __meta_kubernetes_namespace
+            target_label: namespace
     tail_sampling:
       policies:
       - type: string_attribute
