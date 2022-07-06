@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -98,7 +99,7 @@ func TestStreamingSearchBlockReplay(t *testing.T) {
 	}
 }
 
-func TestStreamingSearchBlockSearchBlock(t *testing.T) {
+func TestStreamingSearchBlockSearchMetrics(t *testing.T) {
 	traceCount := 10
 	_, sb := newStreamingSearchBlockWithTraces(t, traceCount, backend.EncNone)
 
@@ -150,6 +151,36 @@ func TestStreamingSearchBlockSearchBlock(t *testing.T) {
 			require.Equal(t, tc.expectedTracesInspected, int(sr.TracesInspected()))
 			require.Equal(t, tc.expectedBlocksSkipped, int(sr.BlocksSkipped()))
 		})
+	}
+}
+
+func TestStreamingSearchBlock(t *testing.T) {
+	ctx := context.Background()
+
+	id, wantTr, _, _, meta, searchesThatMatch, searchesThatDontMatch := trace.SearchTestSuite()
+
+	// Create backend search block with the test trace
+	data := trace.ExtractSearchData(wantTr, id, func(s string) bool { return true })
+
+	f, err := os.OpenFile(path.Join(t.TempDir(), "searchdata"), os.O_CREATE|os.O_RDWR, 0644)
+	require.NoError(t, err)
+
+	b1, err := NewStreamingSearchBlockForFile(f, uuid.New(), backend.EncGZIP)
+	require.NoError(t, err)
+
+	require.NoError(t, b1.Append(ctx, id, [][]byte{data}))
+
+	// Perform test suite
+
+	for _, req := range searchesThatMatch {
+		resp := search(t, b1, req)
+		require.Equal(t, 1, len(resp.Traces), "search request:", req)
+		require.Equal(t, meta, resp.Traces[0])
+	}
+
+	for _, req := range searchesThatDontMatch {
+		resp := search(t, b1, req)
+		require.Equal(t, 0, len(resp.Traces), "search request:", req)
 	}
 }
 

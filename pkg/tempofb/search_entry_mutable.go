@@ -2,12 +2,11 @@ package tempofb
 
 import (
 	flatbuffers "github.com/google/flatbuffers/go"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 // SearchEntryMutable is a mutable form of the flatbuffer-compiled SearchEntry struct to make building and transporting easier.
 type SearchEntryMutable struct {
-	TraceID           common.ID
+	TraceID           []byte
 	Tags              SearchDataMap
 	StartTimeUnixNano uint64
 	EndTimeUnixNano   uint64

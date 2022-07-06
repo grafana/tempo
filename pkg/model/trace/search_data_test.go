@@ -1,11 +1,10 @@
-package distributor
+package trace
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -20,7 +19,7 @@ func TestExtractSearchData(t *testing.T) {
 		name       string
 		trace      *tempopb.Trace
 		id         []byte
-		extractTag extractTagFunc
+		extractTag ExtractTagFunc
 		searchData *tempofb.SearchEntryMutable
 	}{
 		{
@@ -64,11 +63,11 @@ func TestExtractSearchData(t *testing.T) {
 			searchData: &tempofb.SearchEntryMutable{
 				TraceID: traceIDA,
 				Tags: tempofb.NewSearchDataMapWithData(map[string][]string{
-					"foo":                    {"bar"},
-					trace.RootSpanNameTag:    {"firstSpan"},
-					trace.SpanNameTag:        {"firstSpan"},
-					trace.RootServiceNameTag: {"baz"},
-					trace.ServiceNameTag:     {"baz"},
+					"foo":              {"bar"},
+					RootSpanNameTag:    {"firstSpan"},
+					SpanNameTag:        {"firstSpan"},
+					RootServiceNameTag: {"baz"},
+					ServiceNameTag:     {"baz"},
 				}),
 				StartTimeUnixNano: 0,
 				EndTimeUnixNano:   0,
@@ -118,7 +117,7 @@ func TestExtractSearchData(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.searchData.ToBytes(), extractSearchData(tc.trace, tc.id, tc.extractTag))
+			assert.Equal(t, tc.searchData.ToBytes(), ExtractSearchData(tc.trace, tc.id, tc.extractTag))
 		})
 	}
 }
