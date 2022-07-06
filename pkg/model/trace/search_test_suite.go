@@ -34,7 +34,16 @@ func makeReq(k, v string) *tempopb.SearchRequest {
 	}
 }
 
-// This is a fully-populated trace that we search for every condition
+// SearchTestSuite returns a set of search test cases that ensure
+// search behavior is consistent across block types and modules.
+// The return parameters are:
+// * trace ID
+// * trace - a fully-populated trace that is searched for every condition. If testing a
+//           block format, then write this trace to the block.
+// * start, end - the unix second start/end times for the trace, i.e. slack-adjusted timestamps
+// * expected - The exact search result that should be returned for every matching request
+// * searchesThatMatch - List of search requests that are expected to match the trace
+// * searchesThatDontMatch - List of requests that don't match the trace
 func SearchTestSuite() (
 	id []byte,
 	tr *tempopb.Trace,
