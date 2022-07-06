@@ -20,5 +20,5 @@ type Config struct {
 	// SignatureV2 configures the object storage to use V2 signing instead of V4
 	SignatureV2    bool              `yaml:"signature_v2"`
 	ForcePathStyle bool              `yaml:"forcepathstyle"`
-	BlockTags      map[string]string `yaml:"block_tags"`
+	Tags           map[string]string `yaml:"tags"`
 }

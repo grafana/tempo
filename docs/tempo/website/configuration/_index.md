@@ -569,12 +569,11 @@ storage:
             # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
             [hedge_requests_up_to: <int>]
 
-           # Optional
-           # Example: "block_tags: {'key': 'value'}"
-           # A map key value string for user tags to store on the S3 block objects. This string helps set up filters in S3 lifecycles.
-           # The tags are not set on index.json.gz files since these files are rewritten often.
-           # See the [S3 documentation on object tagging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) for more detail. 
-            [block_tags: <map[string]string>]
+            # Optional
+            # Example: "tags: {'key': 'value'}"
+            # A map of key value strings for user tags to store on the S3 objects. This helps set up filters in S3 lifecycles.
+            # See the [S3 documentation on object tagging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) for more detail. 
+            [tags: <map[string]string>]
 
         # azure configuration. Will be used only if value of backend is "azure"
         # EXPERIMENTAL

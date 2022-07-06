@@ -118,7 +118,7 @@ func TestReadError(t *testing.T) {
 	assert.Equal(t, wups, errB)
 }
 
-func fakeServerWithBlockTags(t *testing.T, obj *url.Values) *httptest.Server {
+func fakeServerWithTags(t *testing.T, obj *url.Values) *httptest.Server {
 	require.NotNil(t, obj)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -148,8 +148,8 @@ func fakeServerWithBlockTags(t *testing.T, obj *url.Values) *httptest.Server {
 func TestObjectBlockTags(t *testing.T) {
 
 	tests := []struct {
-		name      string
-		blocktags map[string]string
+		name string
+		tags map[string]string
 		// expectedObject raw.Object
 	}{
 		{
@@ -162,7 +162,7 @@ func TestObjectBlockTags(t *testing.T) {
 			// rawObject := raw.Object{}
 			var obj url.Values
 
-			server := fakeServerWithBlockTags(t, &obj)
+			server := fakeServerWithTags(t, &obj)
 			_, w, _, err := New(&Config{
 				Region:    "blerg",
 				AccessKey: "test",
@@ -170,14 +170,14 @@ func TestObjectBlockTags(t *testing.T) {
 				Bucket:    "blerg",
 				Insecure:  true,
 				Endpoint:  server.URL[7:], // [7:] -> strip http://
-				BlockTags: tc.blocktags,
+				Tags:      tc.tags,
 			})
 			require.NoError(t, err)
 
 			ctx := context.Background()
 			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, bytes.NewReader([]byte{}), 0, false)
 
-			for k, v := range tc.blocktags {
+			for k, v := range tc.tags {
 				vv := obj.Get(k)
 				require.NotEmpty(t, vv)
 				require.Equal(t, v, vv)
