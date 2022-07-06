@@ -168,7 +168,7 @@ func TestStreamingSearchBlock(t *testing.T) {
 	b1, err := NewStreamingSearchBlockForFile(f, uuid.New(), backend.EncGZIP)
 	require.NoError(t, err)
 
-	b1.Append(ctx, id, [][]byte{data})
+	require.NoError(t, b1.Append(ctx, id, [][]byte{data}))
 
 	// Perform test suite
 
