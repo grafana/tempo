@@ -1,7 +1,7 @@
 ## GCS
 In this example Tempo is configured to write data to GCS via [fake-gcs-server](https://github.com/fsouza/fake-gcs-server) which presents a GCS compatible API.
 
-1. First start up the azure stack.
+1. First start up the GCS stack.
 
 ```console
 docker-compose up -d
