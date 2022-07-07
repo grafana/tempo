@@ -49,13 +49,27 @@ func Test_generateTenantRemoteWriteConfigs_singleTenant(t *testing.T) {
 			URL:     &prometheus_common_config.URL{URL: urlMustParse("http://prometheus-1/api/prom/push")},
 			Headers: map[string]string{},
 		},
+		{
+			URL: &prometheus_common_config.URL{URL: urlMustParse("http://prometheus-2/api/prom/push")},
+			Headers: map[string]string{
+				"x-scope-orgid": "my-custom-tenant-id",
+			},
+		},
 	}
 
 	result := generateTenantRemoteWriteConfigs(original, util.FakeTenantID, logger)
 
 	assert.Equal(t, original[0].URL, result[0].URL)
+
+	assert.Equal(t, original[0].URL, result[0].URL)
+	assert.Equal(t, map[string]string{}, original[0].Headers, "Original headers have been modified")
 	// X-Scope-OrgID has not been injected
-	assert.Empty(t, result[0].Headers)
+	assert.Equal(t, map[string]string{}, result[0].Headers)
+
+	assert.Equal(t, original[1].URL, result[1].URL)
+	assert.Equal(t, map[string]string{"x-scope-orgid": "my-custom-tenant-id"}, original[1].Headers, "Original headers have been modified")
+	// X-Scope-OrgID has not been modified
+	assert.Equal(t, map[string]string{"x-scope-orgid": "my-custom-tenant-id"}, result[1].Headers)
 }
 
 func Test_copyMap(t *testing.T) {
