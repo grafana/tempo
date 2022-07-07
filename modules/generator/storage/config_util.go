@@ -12,8 +12,7 @@ import (
 )
 
 // generateTenantRemoteWriteConfigs creates a copy of the remote write configurations with the
-// X-Scope-OrgID header present for the given tenant. If the remote write config already contains
-// this header it will be overwritten.
+// X-Scope-OrgID header present for the given tenant, unless Tempo is run in single tenant mode.
 func generateTenantRemoteWriteConfigs(originalCfgs []prometheus_config.RemoteWriteConfig, tenant string, logger log.Logger) []*prometheus_config.RemoteWriteConfig {
 	var cloneCfgs []*prometheus_config.RemoteWriteConfig
 
@@ -21,19 +20,19 @@ func generateTenantRemoteWriteConfigs(originalCfgs []prometheus_config.RemoteWri
 		cloneCfg := &prometheus_config.RemoteWriteConfig{}
 		*cloneCfg = originalCfg
 
-		// Copy headers so we can modify them
-		cloneCfg.Headers = copyMap(cloneCfg.Headers)
-
-		// Ensure that no variation of the X-Scope-OrgId header can be added, which might trick authentication
-		for k, v := range cloneCfg.Headers {
-			if strings.EqualFold(user.OrgIDHeaderName, strings.TrimSpace(k)) {
-				level.Warn(logger).Log("msg", "discarding X-Scope-OrgId header", "key", k, "value", v)
-				delete(cloneCfg.Headers, k)
-			}
-		}
-
-		// inject the X-Scope-OrgId header for multi-tenant metrics backends
+		// Inject/overwrite X-Scope-OrgID header in multi-tenant setups
 		if tenant != util.FakeTenantID {
+			// Copy headers so we can modify them
+			cloneCfg.Headers = copyMap(cloneCfg.Headers)
+
+			// Ensure that no variation of the X-Scope-OrgId header can be added, which might trick authentication
+			for k, v := range cloneCfg.Headers {
+				if strings.EqualFold(user.OrgIDHeaderName, strings.TrimSpace(k)) {
+					level.Warn(logger).Log("msg", "discarding X-Scope-OrgId header", "key", k, "value", v)
+					delete(cloneCfg.Headers, k)
+				}
+			}
+
 			cloneCfg.Headers[user.OrgIDHeaderName] = tenant
 		}
 
