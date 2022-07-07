@@ -185,13 +185,13 @@ func TestStreamingSearchBlock(t *testing.T) {
 	}
 
 	var gotTags []string
-	b1.Tags(ctx, func(k string) { gotTags = append(gotTags, k) })
+	require.NoError(t, b1.Tags(ctx, func(k string) { gotTags = append(gotTags, k) }))
 	sort.Strings(gotTags)
 	require.Equal(t, tags, gotTags)
 
 	for k, v := range tagValues {
 		var gotValues []string
-		b1.TagValues(ctx, k, func(s string) { gotValues = append(gotValues, s) })
+		require.NoError(t, b1.TagValues(ctx, k, func(s string) { gotValues = append(gotValues, s) }))
 		sort.Strings(gotValues)
 		require.Equal(t, v, gotValues)
 	}
