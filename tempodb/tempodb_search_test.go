@@ -46,6 +46,11 @@ func testSearchCompleteBlock(t *testing.T, blockVersion string) {
 			Filepath:       path.Join(tempDir, "wal"),
 			IngestionSlack: time.Since(time.Time{}),
 		},
+		Search: &SearchConfig{
+			ChunkSizeBytes:      1_000_000,
+			ReadBufferCount:     8,
+			ReadBufferSizeBytes: 4 * 1024 * 1024,
+		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
 	require.NoError(t, err)
@@ -80,24 +85,15 @@ func testSearchCompleteBlock(t *testing.T, blockVersion string) {
 	meta := block.BlockMeta()
 
 	for _, req := range searchesThatMatch {
-		res, err := r.Search(ctx, meta, req, defaultSearchOptions())
+		res, err := r.Search(ctx, meta, req, common.SearchOptions{})
 		require.NoError(t, err)
 		require.Equal(t, 1, len(res.Traces), "search request: %+v", req)
 		require.Equal(t, wantMeta, res.Traces[0], "search request:", req)
 	}
 
 	for _, req := range searchesThatDontMatch {
-		res, err := rw.Search(ctx, meta, req, defaultSearchOptions())
+		res, err := rw.Search(ctx, meta, req, common.SearchOptions{})
 		require.NoError(t, err)
 		require.Empty(t, res.Traces, "search request:", req)
-	}
-
-}
-
-func defaultSearchOptions() common.SearchOptions {
-	return common.SearchOptions{
-		ChunkSizeBytes:  1_000_000,
-		ReadBufferCount: 8,
-		ReadBufferSize:  4 * 1024 * 1024,
 	}
 }
