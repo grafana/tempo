@@ -666,6 +666,16 @@ storage:
             # Example: "prefetch_trace_count: 10000"
             [prefetch_trace_count: <int>]
 
+            # Size of read buffers used when performing search on a vparquet block. This value times the read_buffer_count
+            # is the total amount of bytes used for buffering when performing search on a parquet block.
+            # Default: 4194304
+            [read_buffer_size_bytes: <int>]
+
+            # Number of read buffers used when performing search on a vparquet block. This value times the  read_buffer_size_bytes
+            # is the total amount of bytes used for buffering when performing search on a parquet block.
+            # Default: 8
+            [read_buffer_count: <int>]
+
         # Cortex Background cache configuration. Requires having a cache configured.
         background_cache:
 
