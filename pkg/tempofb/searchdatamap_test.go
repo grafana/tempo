@@ -2,8 +2,11 @@ package tempofb
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
+	flatbuffers "github.com/google/flatbuffers/go"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -54,6 +57,33 @@ func TestSearchDataMap(t *testing.T) {
 	searchDataMap.RangeKeyValues("does-not-exist", captureSliceFn)
 	assert.ElementsMatch(t, []string{}, strs)
 	strs = nil
+}
+
+func TestSearchDataMapMaxBufferLen(t *testing.T) {
+	// Verify we don't get a panic when
+	// writing more data than can fit in a flatbuffer.
+
+	m := NewSearchDataMap()
+
+	// This generates roughly 960MB of data:
+	// 1M entries, 960 bytes each
+	for i := 0; i < 1024; i++ {
+		k := uuid.New().String()
+		for j := 0; j < 1024; j++ {
+			v := strings.Repeat(uuid.New().String(), 30) // 32*30=960
+			m.Add(k, v)
+		}
+	}
+
+	fmt.Println("generated map")
+
+	// Try to write more than 2GB of data
+	// Start with 512 MB buffer to reduce buffer copying
+	// and make the test quicker
+	b := flatbuffers.NewBuilder(512 * 1024 * 1024)
+	for i := 0; i < 5; i++ {
+		WriteSearchDataMap(b, m, nil)
+	}
 }
 
 func BenchmarkSearchDataMapAdd(b *testing.B) {

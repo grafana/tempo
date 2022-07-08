@@ -9,6 +9,18 @@ import (
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 
+const (
+	// Only save first 1KB of value for searching
+	maxValueLen = 1024
+
+	// Soft cap for flatbuffer max buffer size. Signed int32s means the maximum
+	// internal size is 2GB, but since the size is checked when growing and doubling,
+	// the practical limit is 1GB. 900MB is a soft cap comfortably below which prevents
+	// the growth from 1GB->2GB and panic, and also enough room to finish writing
+	// outstanding entries and generate a valid (albeit imcomplete) struct.
+	maxBufferLen = 900 << 20
+)
+
 type TagCallback func(t string)
 
 type SearchDataMap map[string]map[string]struct{}
@@ -34,6 +46,11 @@ func (s SearchDataMap) Add(k, v string) {
 		// first entry
 		s[k] = map[string]struct{}{v: {}}
 		return
+	}
+
+	// Max value size
+	if len(v) > maxValueLen {
+		v = v[0:maxValueLen]
 	}
 
 	// For repeats it is more performant to avoid the map assigns.
@@ -90,7 +107,12 @@ func WriteSearchDataMap(b *flatbuffers.Builder, d SearchDataMap, cache map[uint6
 			values = append(values, v)
 		})
 
-		offsets = append(offsets, writeKeyValues(b, k, values, h, cache))
+		offset := writeKeyValues(b, k, values, h, cache)
+		if offset == 0 {
+			continue
+		}
+
+		offsets = append(offsets, offset)
 	}
 
 	SearchEntryStartTagsVector(b, len(offsets))
@@ -106,6 +128,12 @@ func WriteSearchDataMap(b *flatbuffers.Builder, d SearchDataMap, cache map[uint6
 func writeKeyValues(b *flatbuffers.Builder, key string, values []string, h hash.Hash64, cache map[uint64]flatbuffers.UOffsetT) flatbuffers.UOffsetT {
 	// Skip empty keys
 	if len(values) <= 0 {
+		return 0
+	}
+
+	// Stop writing new entries when buffer has exceeded
+	// the soft cap.
+	if b.Offset() > maxBufferLen {
 		return 0
 	}
 
