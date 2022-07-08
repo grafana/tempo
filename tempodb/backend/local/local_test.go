@@ -58,7 +58,7 @@ func TestReadWrite(t *testing.T) {
 	assert.Equal(t, fakeObject, actualObjectBytes)
 
 	actualReadRange := make([]byte, 5)
-	err = r.ReadRange(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]), 5, actualReadRange)
+	err = r.ReadRange(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]), 5, actualReadRange, false)
 	assert.NoError(t, err, "unexpected error range")
 	assert.Equal(t, fakeObject[5:10], actualReadRange)
 

@@ -55,7 +55,7 @@ func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, bloc
 
 func (b *BackendReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	b.TotalBytesRead += uint64(len(p))
-	err := b.r.ReadRange(b.ctx, b.name, b.blockID, b.tenantID, uint64(off), p)
+	err := b.r.ReadRange(b.ctx, b.name, b.blockID, b.tenantID, uint64(off), p, false)
 	return len(p), err
 }
 

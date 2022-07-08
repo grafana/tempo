@@ -74,7 +74,7 @@ func TestHedge(t *testing.T) {
 			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
-			_ = r.ReadRange(ctx, "object", []string{"test"}, 10, []byte{})
+			_ = r.ReadRange(ctx, "object", []string{"test"}, 10, []byte{}, false)
 			time.Sleep(tc.returnIn)
 			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
