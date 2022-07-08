@@ -6,7 +6,7 @@ updates:
   - package-ecosystem: 'gomod'
     directory: '/'
     schedule:
-      interval: 'daily'
+      interval: 'weekly'
 
   - package-ecosystem: 'docker'
     directory: '/'
@@ -18,4 +18,4 @@ updates:
     # default location of `.github/workflows`
     directory: '/'
     schedule:
-      interval: 'daily'
+      interval: 'weekly'

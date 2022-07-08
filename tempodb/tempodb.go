@@ -354,6 +354,7 @@ func (rw *readerWriter) Search(ctx context.Context, meta *backend.BlockMeta, req
 		return nil, err
 	}
 
+	rw.cfg.Search.ApplyToOptions(&opts)
 	return block.Search(ctx, req, opts)
 }
 

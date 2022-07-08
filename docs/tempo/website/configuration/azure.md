@@ -1,11 +1,11 @@
 ---
-title: Azure permissions and management
+title: Azure blob storage permissions and management
 weight: 3
 ---
 
 # Azure blob storage permissions and management
 
-For Tempo to authenticate to and access Azure blob storage, the following configuration is required:
+Tempo requires the following configuration to authenticate to and access Azure blob storage:
 
 - Storage Account name specified in the configuration file as `storage-account-name` or in the environment variable `AZURE_STORAGE_ACCOUNT`
 - Credentials for accessing the Storage Account; can be one of the following

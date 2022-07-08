@@ -3,7 +3,7 @@ title: Polling and monitoring
 weight: 8
 ---
 
-# Polling
+# Polling 
 
 Tempo maintains knowledge of the state of the backend by polling it on regular intervals. There are currently
 only two components that need this knowledge and, consequently, only two that poll the backend: compactors
