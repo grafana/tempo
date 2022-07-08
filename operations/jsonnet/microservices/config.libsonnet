@@ -80,11 +80,13 @@
       },
     },
     metrics_generator: {
+      pvc_size: error 'Must specify an ingester pvc size',
+      pvc_storage_class: error 'Must specify an ingester pvc storage class',
       replicas: 0,
       resources: {
-        requests:{
+        requests: {
           cpu: '500m',
-          memory: '1Gi'
+          memory: '1Gi',
         },
         limits: {
           cpu: '1',
