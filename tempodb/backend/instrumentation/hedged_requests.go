@@ -1,15 +1,10 @@
 package instrumentation
 
 import (
-	"time"
-
 	"github.com/cristalhq/hedgedhttp"
+	"github.com/grafana/tempo/pkg/hedgedmetrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-)
-
-const (
-	hedgedMetricsPublishDuration = 10 * time.Second
 )
 
 var (
@@ -24,20 +19,5 @@ var (
 
 // PublishHedgedMetrics flushes metrics from hedged requests every 10 seconds
 func PublishHedgedMetrics(s *hedgedhttp.Stats) {
-	PublishHedgedMetricsToGauge(s, hedgedRequestsMetrics)
-}
-
-// PublishHedgedMetrics flushes metrics from hedged requests every 10 seconds
-func PublishHedgedMetricsToGauge(s *hedgedhttp.Stats, gauge prometheus.Gauge) {
-	ticker := time.NewTicker(hedgedMetricsPublishDuration)
-	go func() {
-		for range ticker.C {
-			snap := s.Snapshot()
-			hedgedRequests := int64(snap.ActualRoundTrips) - int64(snap.RequestedRoundTrips)
-			if hedgedRequests < 0 {
-				hedgedRequests = 0
-			}
-			gauge.Set(float64(hedgedRequests))
-		}
-	}()
+	hedgedmetrics.Publish(s, hedgedRequestsMetrics)
 }

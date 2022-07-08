@@ -32,13 +32,13 @@ import (
 	"github.com/grafana/tempo/modules/querier/worker"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/hedgedmetrics"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/search"
 )
@@ -115,7 +115,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 		if err != nil {
 			return nil, err
 		}
-		instrumentation.PublishHedgedMetricsToGauge(stats, metricExternalHedgedRequests)
+		hedgedmetrics.Publish(stats, metricExternalHedgedRequests)
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
