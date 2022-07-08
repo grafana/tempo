@@ -38,6 +38,7 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/search"
 )
@@ -102,10 +103,12 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 	//
 	if cfg.Search.HedgeRequestsAt != 0 {
 		var err error
-		q.searchClient, err = hedgedhttp.NewClient(cfg.Search.HedgeRequestsAt, cfg.Search.HedgeRequestsUpTo, http.DefaultClient)
+		var stats *hedgedhttp.Stats
+		q.searchClient, stats, err = hedgedhttp.NewClientAndStats(cfg.Search.HedgeRequestsAt, cfg.Search.HedgeRequestsUpTo, http.DefaultClient)
 		if err != nil {
 			return nil, err
 		}
+		instrumentation.PublishHedgedMetrics(stats)
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
