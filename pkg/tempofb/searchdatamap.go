@@ -17,7 +17,7 @@ const (
 	// internal size is 2GB, but since the size is checked when growing and doubling,
 	// the practical limit is 1GB. 900MB is a soft cap comfortably below which prevents
 	// the growth from 1GB->2GB and panic, and also enough room to finish writing
-	// outstanding entries and generate a valid (albeit imcomplete) struct.
+	// outstanding entries and generate a valid (albeit incomplete) struct.
 	maxBufferLen = 900 << 20
 )
 
