@@ -55,6 +55,13 @@ var (
 		Help:      "The duration of the external endpoints.",
 		Buckets:   prometheus.DefBuckets,
 	}, []string{"endpoint"})
+	metricExternalHedgedRequests = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: "tempo",
+			Name:      "querier_external_endpoint_hedged_roundtrips_total",
+			Help:      "Total number of hedged external requests. Registered as a gauge for code sanity. This is a counter.",
+		},
+	)
 )
 
 // Querier handlers queries.
@@ -108,7 +115,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 		if err != nil {
 			return nil, err
 		}
-		instrumentation.PublishHedgedMetrics(stats)
+		instrumentation.PublishHedgedMetricsToGauge(stats, metricExternalHedgedRequests)
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
