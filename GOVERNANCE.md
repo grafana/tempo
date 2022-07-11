@@ -47,7 +47,6 @@ In case a member leaves, the [offboarding](#offboarding) procedure is applied.
 The current team members are:
 
 - Annanay Agarwal - [annanay25](https://github.com/annanay25) ([Grafana Labs](https://grafana.com/))
-- Daniel González - [dgzlopes](https://github.com/dgzlopes) ([k6.io](https://k6.io/))
 - Joe Elliott - [joe-elliott](https://github.com/joe-elliott) ([Grafana Labs](https://grafana.com/))
 - Koenraad Verheyden - [kvrhdn](https://github.com/kvrhdn) ([Grafana Labs](https://grafana.com/))
 - Mario Rodriguez - [mapno](https://github.com/mapno) ([Grafana Labs](https://grafana.com/))
