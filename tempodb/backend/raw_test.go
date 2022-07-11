@@ -59,7 +59,7 @@ func TestReader(t *testing.T) {
 	assert.Equal(t, expected, actual)
 
 	m.Range = expected
-	err = r.ReadRange(ctx, "test", uuid.New(), "test", 10, actual)
+	err = r.ReadRange(ctx, "test", uuid.New(), "test", 10, actual, false)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)
 

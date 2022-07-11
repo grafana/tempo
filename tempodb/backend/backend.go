@@ -39,8 +39,9 @@ type Reader interface {
 	Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) ([]byte, error)
 	// StreamReader is for streaming entire objects from the backend.  It is expected this will _not_ be cached.
 	StreamReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error)
-	// ReadRange is for reading parts of large objects from the backend.  It is expected this will _not_ be cached.
-	ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error
+	// ReadRange is for reading parts of large objects from the backend.
+	// There will be an attempt to retrieve this from cache if shouldCache is true. Cache key will be tenantID:blockID:offset:bufferLength
+	ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, shouldCache bool) error
 	// Tenants returns a list of all tenants in a backend
 	Tenants(ctx context.Context) ([]string, error)
 	// Blocks returns returns a list of block UUIDs given a tenant

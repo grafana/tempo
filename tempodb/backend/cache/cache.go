@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/grafana/tempo/pkg/cache"
@@ -58,8 +59,25 @@ func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.Ke
 }
 
 // ReadRange implements backend.RawReader
-func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte) error {
-	return r.nextReader.ReadRange(ctx, name, keypath, offset, buffer)
+func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, shouldCache bool) error {
+	var k string
+	if shouldCache {
+		// cache key is tenantID:blockID:offset:length - file name is not needed in key
+		keyGen := keypath
+		keyGen = append(keyGen, strconv.Itoa(int(offset)), strconv.Itoa(len(buffer)))
+		k = strings.Join(keyGen, ":")
+		found, vals, _ := r.cache.Fetch(ctx, []string{k})
+		if len(found) > 0 {
+			copy(buffer, vals[0])
+		}
+	}
+
+	err := r.nextReader.ReadRange(ctx, name, keypath, offset, buffer, false)
+	if err == nil && shouldCache {
+		r.cache.Store(ctx, []string{k}, [][]byte{buffer})
+	}
+
+	return err
 }
 
 // Shutdown implements backend.RawReader
