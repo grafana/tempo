@@ -107,13 +107,18 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, _ bool) error {
 	objName := backend.ObjectFileName(keypath, name)
 
+	putObjectOptions := minio.PutObjectOptions{
+		PartSize: rw.cfg.PartSize,
+		UserTags: rw.cfg.Tags,
+	}
+
 	info, err := rw.core.Client.PutObject(
 		ctx,
 		rw.cfg.Bucket,
 		objName,
 		data,
 		size,
-		minio.PutObjectOptions{PartSize: rw.cfg.PartSize},
+		putObjectOptions,
 	)
 	if err != nil {
 		return errors.Wrapf(err, "error writing object to s3 backend, object %s", objName)
