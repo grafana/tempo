@@ -107,8 +107,10 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, _ bool) error {
 	objName := backend.ObjectFileName(keypath, name)
 
-	putObjectOptions := minio.PutObjectOptions{PartSize: rw.cfg.PartSize}
-	putObjectOptions.UserTags = rw.cfg.Tags
+	putObjectOptions := minio.PutObjectOptions{
+		PartSize: rw.cfg.PartSize,
+		UserTags: rw.cfg.Tags,
+	}
 
 	info, err := rw.core.Client.PutObject(
 		ctx,
