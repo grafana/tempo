@@ -28,14 +28,17 @@ Additionally, default label `span_status` is renamed to `status_code`.
 * [ENHANCEMENT] Add metric to track feature enablement [#1459](https://github.com/grafana/tempo/pull/1459) (@zalegrala)
 * [ENHANCEMENT] Added s3 config option `insecure_skip_verify` [#1470](https://github.com/grafana/tempo/pull/1470) (@zalegrala)
 * [ENHANCEMENT] Added polling option to reduce issues in Azure `blocklist_poll_jitter_ms` [#1518](https://github.com/grafana/tempo/pull/1518) (@joe-elliott)
+* [ENHANCEMENT] Add a config to query single ingester instance based on trace id hash for Trace By ID API. (1484)[https://github.com/grafana/tempo/pull/1484] (@sagarwala, @bikashmishra100, @ashwinidulams)
+* [ENHANCEMENT] Add blocklist metrics for total backend objects and total backend bytes [#1519](https://github.com/grafana/tempo/pull/1519) (@ie-pham)
+* [ENHANCEMENT] Adds `tempo_querier_external_endpoint_hedged_roundtrips_total` to count the total hedged requests [#1558](https://github.com/grafana/tempo/pull/1558) (@joe-elliott)
+  **BREAKING CHANGE** Removed deprecated metrics `tempodb_(gcs|s3|azure)_request_duration_seconds` in favor of `tempodb_backend_request_duration_seconds`. These metrics 
+  have been deprecated since v1.1.
 * [BUGFIX] Fix nil pointer panic when the trace by id path errors. [#1441](https://github.com/grafana/tempo/pull/1441) (@joe-elliott)
 * [BUGFIX] Update tempo microservices Helm values example which missed the 'enabled' key for thriftHttp. [#1472](https://github.com/grafana/tempo/pull/1472) (@hajowieland)
 * [BUGFIX] Fix race condition in forwarder overrides loop. [1468](https://github.com/grafana/tempo/pull/1468) (@mapno)
 * [BUGFIX] Fix v2 backend check on span name to be substring [#1538](https://github.com/grafana/tempo/pull/1538) (@mdisibio)
 * [BUGFIX] Fix wal check on span name to be substring [#1548](https://github.com/grafana/tempo/pull/1548) (@mdisibio)
 * [BUGFIX] metrics-generator: do not remove x-scope-orgid header in single tenant modus [#1554](https://github.com/grafana/tempo/pull/1554) (@kvrhdn)
-* [ENHANCEMENT] Add a config to query single ingester instance based on trace id hash for Trace By ID API. (1484)[https://github.com/grafana/tempo/pull/1484] (@sagarwala, @bikashmishra100, @ashwinidulams)
-* [ENHANCEMENT] Add blocklist metrics for total backend objects and total backend bytes [#1519](https://github.com/grafana/tempo/pull/1519) (@ie-pham)
 
 ## v1.4.1 / 2022-05-05
 

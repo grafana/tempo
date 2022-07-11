@@ -37,7 +37,7 @@ func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.Contain
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
 
 	// add instrumentation
-	transport := instrumentation.NewAzureTransport(customTransport)
+	transport := instrumentation.NewTransport(customTransport)
 	var stats *hedgedhttp.Stats
 
 	// hedge if desired (0 means disabled)

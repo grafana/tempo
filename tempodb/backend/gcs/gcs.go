@@ -253,7 +253,7 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 	}
 
 	// add instrumentation
-	transport = instrumentation.NewGCSTransport(transport)
+	transport = instrumentation.NewTransport(transport)
 	var stats *hedgedhttp.Stats
 
 	// hedge if desired (0 means disabled)

@@ -351,7 +351,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	}
 
 	// add instrumentation
-	transport := instrumentation.NewS3Transport(customTransport)
+	transport := instrumentation.NewTransport(customTransport)
 	var stats *hedgedhttp.Stats
 
 	if hedge && cfg.HedgeRequestsAt != 0 {
