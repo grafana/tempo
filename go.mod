@@ -32,7 +32,7 @@ require (
 	github.com/google/go-cmp v0.5.8
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
-	github.com/grafana/dskit v0.0.0-20220331160727-49faf69f72ca
+	github.com/grafana/dskit v0.0.0-20220708154635-9c29dc5195e4
 	github.com/grafana/e2e v0.1.0
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v1.1.0
@@ -69,7 +69,7 @@ require (
 	github.com/thanos-io/thanos v0.24.0
 	github.com/uber-go/atomic v1.4.0
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
-	github.com/weaveworks/common v0.0.0-20210913144402-035033b78a78
+	github.com/weaveworks/common v0.0.0-20220629114710-e3b70df0f08b
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/collector v0.46.0
