@@ -74,9 +74,7 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 
 	err := r.nextReader.ReadRange(ctx, name, keypath, offset, buffer, false)
 	if err == nil && shouldCache {
-		bufCopy := make([]byte, len(buffer))
-		copy(bufCopy, buffer)
-		r.cache.Store(ctx, []string{k}, [][]byte{bufCopy})
+		r.cache.Store(ctx, []string{k}, [][]byte{buffer})
 	}
 
 	return err
