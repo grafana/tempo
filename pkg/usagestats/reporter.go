@@ -263,7 +263,7 @@ func (rep *Reporter) running(ctx context.Context) error {
 			if !next.Equal(now) && now.Sub(rep.lastReport) < reportInterval {
 				continue
 			}
-			level.Debug(rep.logger).Log("msg", "reporting cluster stats", "date", time.Now())
+			level.Info(rep.logger).Log("msg", "reporting cluster stats", "date", time.Now())
 			if err := rep.reportUsage(ctx, next); err != nil {
 				level.Info(rep.logger).Log("msg", "failed to report usage", "err", err)
 				continue
