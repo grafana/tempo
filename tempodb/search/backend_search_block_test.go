@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sort"
 	"strconv"
 	"sync"
 	"testing"
@@ -62,7 +63,7 @@ func TestBackendSearchBlockSearch(t *testing.T) {
 	for _, enc := range backend.SupportedEncoding {
 		t.Run(enc.String(), func(t *testing.T) {
 
-			id, wantTr, _, _, meta, searchesThatMatch, searchesThatDontMatch := trace.SearchTestSuite()
+			id, wantTr, _, _, meta, searchesThatMatch, searchesThatDontMatch, tags, tagValues := trace.SearchTestSuite()
 
 			// Create backend search block with the test trace
 			data := trace.ExtractSearchData(wantTr, id, func(s string) bool { return true })
@@ -97,6 +98,18 @@ func TestBackendSearchBlockSearch(t *testing.T) {
 			for _, req := range searchesThatDontMatch {
 				resp := search(t, b2, req)
 				require.Equal(t, 0, len(resp.Traces), "search request:", req)
+			}
+
+			var gotTags []string
+			require.NoError(t, b2.Tags(ctx, func(k string) { gotTags = append(gotTags, k) }))
+			sort.Strings(gotTags)
+			require.Equal(t, tags, gotTags)
+
+			for k, v := range tagValues {
+				var gotValues []string
+				require.NoError(t, b1.TagValues(ctx, k, func(s string) { gotValues = append(gotValues, s) }))
+				sort.Strings(gotValues)
+				require.Equal(t, v, gotValues)
 			}
 		})
 	}

@@ -50,7 +50,10 @@ func SearchTestSuite() (
 	start, end uint32,
 	expected *tempopb.TraceSearchMetadata,
 	searchesThatMatch []*tempopb.SearchRequest,
-	searchesThatDontMatch []*tempopb.SearchRequest) {
+	searchesThatDontMatch []*tempopb.SearchRequest,
+	tagNames []string,
+	tagValues map[string][]string,
+) {
 
 	id = test.ValidTraceID(nil)
 
@@ -62,16 +65,16 @@ func SearchTestSuite() (
 			{
 				Resource: &v1_resource.Resource{
 					Attributes: []*v1_common.KeyValue{
-						stringKV("service.name", "myservice"),
-						stringKV("cluster", "cluster"),
-						stringKV("namespace", "namespace"),
-						stringKV("pod", "pod"),
-						stringKV("container", "container"),
-						stringKV("k8s.cluster.name", "k8scluster"),
-						stringKV("k8s.namespace.name", "k8snamespace"),
-						stringKV("k8s.pod.name", "k8spod"),
-						stringKV("k8s.container.name", "k8scontainer"),
-						stringKV("bat", "baz"),
+						stringKV("service.name", "MyService"),
+						stringKV("cluster", "MyCluster"),
+						stringKV("namespace", "MyNamespace"),
+						stringKV("pod", "MyPod"),
+						stringKV("container", "MyContainer"),
+						stringKV("k8s.cluster.name", "k8sCluster"),
+						stringKV("k8s.namespace.name", "k8sNamespace"),
+						stringKV("k8s.pod.name", "k8sPod"),
+						stringKV("k8s.container.name", "k8sContainer"),
+						stringKV("bat", "Baz"),
 					},
 				},
 				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
@@ -79,7 +82,7 @@ func SearchTestSuite() (
 						Spans: []*v1.Span{
 							{
 								TraceId:           id,
-								Name:              "hello",
+								Name:              "MySpan",
 								SpanId:            []byte{1, 2, 3},
 								ParentSpanId:      []byte{4, 5, 6},
 								StartTimeUnixNano: uint64(1000 * time.Second),
@@ -88,10 +91,10 @@ func SearchTestSuite() (
 									Code: v1.Status_STATUS_CODE_ERROR,
 								},
 								Attributes: []*v1_common.KeyValue{
-									stringKV("http.method", "get"),
-									stringKV("http.url", "url/hello/world"),
+									stringKV("http.method", "Get"),
+									stringKV("http.url", "url/Hello/World"),
 									intKV("http.status_code", 500),
-									stringKV("foo", "bar"),
+									stringKV("foo", "Bar"),
 								},
 							},
 						},
@@ -101,7 +104,7 @@ func SearchTestSuite() (
 			{
 				Resource: &v1_resource.Resource{
 					Attributes: []*v1_common.KeyValue{
-						stringKV("service.name", "rootservice"),
+						stringKV("service.name", "RootService"),
 					},
 				},
 				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
@@ -109,7 +112,7 @@ func SearchTestSuite() (
 						Spans: []*v1.Span{
 							{
 								TraceId:           id,
-								Name:              "rootspan",
+								Name:              "RootSpan",
 								StartTimeUnixNano: uint64(1000 * time.Second),
 								EndTimeUnixNano:   uint64(1001 * time.Second),
 								Status:            &v1.Status{},
@@ -125,8 +128,8 @@ func SearchTestSuite() (
 		TraceID:           util.TraceIDToHexString(id),
 		StartTimeUnixNano: uint64(1000 * time.Second),
 		DurationMs:        1000,
-		RootServiceName:   "rootservice",
-		RootTraceName:     "rootspan",
+		RootServiceName:   "RootService",
+		RootTraceName:     "RootSpan",
 	}
 
 	// Matches
@@ -154,34 +157,34 @@ func SearchTestSuite() (
 		},
 
 		// Well-known resource attributes
-		makeReq("service.name", "service"),
-		makeReq("cluster", "cluster"),
-		makeReq("namespace", "namespace"),
-		makeReq("pod", "pod"),
-		makeReq("container", "container"),
-		makeReq("k8s.cluster.name", "k8scluster"),
-		makeReq("k8s.namespace.name", "k8snamespace"),
-		makeReq("k8s.pod.name", "k8spod"),
-		makeReq("k8s.container.name", "k8scontainer"),
+		makeReq("service.name", "Service"),
+		makeReq("cluster", "Cluster"),
+		makeReq("namespace", "Namespace"),
+		makeReq("pod", "Pod"),
+		makeReq("container", "Container"),
+		makeReq("k8s.cluster.name", "k8sCluster"),
+		makeReq("k8s.namespace.name", "k8sNamespace"),
+		makeReq("k8s.pod.name", "k8sPod"),
+		makeReq("k8s.container.name", "k8sContainer"),
 
 		// Well-known span attributes
-		makeReq("name", "ell"),
-		makeReq("http.method", "get"),
-		makeReq("http.url", "hello"),
+		makeReq("name", "Span"),
+		makeReq("http.method", "Get"),
+		makeReq("http.url", "Hello"),
 		makeReq("http.status_code", "500"),
 		makeReq("status.code", "error"),
 
 		// Span attributes
-		makeReq("foo", "bar"),
+		makeReq("foo", "Bar"),
 		// Resource attributes
-		makeReq("bat", "baz"),
+		makeReq("bat", "Baz"),
 
 		// Multiple
 		{
 			Tags: map[string]string{
-				"service.name": "service",
-				"http.method":  "get",
-				"foo":          "bar",
+				"service.name": "Service",
+				"http.method":  "Get",
+				"foo":          "Bar",
 			},
 		},
 	}
@@ -200,11 +203,11 @@ func SearchTestSuite() (
 		},
 
 		// Well-known resource attributes
-		makeReq("service.name", "foo"),
-		makeReq("cluster", "foo"),
-		makeReq("namespace", "foo"),
-		makeReq("pod", "foo"),
-		makeReq("container", "foo"),
+		makeReq("service.name", "service"), // wrong case
+		makeReq("cluster", "cluster"),      // wrong case
+		makeReq("namespace", "namespace"),  // wrong case
+		makeReq("pod", "pod"),              // wrong case
+		makeReq("container", "container"),  // wrong case
 
 		// Well-known span attributes
 		makeReq("http.method", "post"),
@@ -213,7 +216,49 @@ func SearchTestSuite() (
 		makeReq("status.code", "ok"),
 
 		// Span attributes
-		makeReq("foo", "baz"),
+		makeReq("foo", "baz"), // wrong case
+	}
+
+	tagNames = []string{
+		"bat",
+		"cluster",
+		"container",
+		"foo",
+		"http.method",
+		"http.status_code",
+		"http.url",
+		"k8s.cluster.name",
+		"k8s.container.name",
+		"k8s.namespace.name",
+		"k8s.pod.name",
+		"name",
+		"namespace",
+		"pod",
+		"root.name",
+		"root.service.name",
+		"service.name",
+		"status.code",
+	}
+
+	tagValues = map[string][]string{
+		"bat":                {"Baz"},
+		"cluster":            {"MyCluster"},
+		"container":          {"MyContainer"},
+		"foo":                {"Bar"},
+		"http.method":        {"Get"},
+		"http.status_code":   {"500"},
+		"http.url":           {"url/Hello/World"},
+		"k8s.cluster.name":   {"k8sCluster"},
+		"k8s.container.name": {"k8sContainer"},
+		"k8s.namespace.name": {"k8sNamespace"},
+		"k8s.pod.name":       {"k8sPod"},
+		"name":               {"MySpan", "RootSpan"},
+		"namespace":          {"MyNamespace"},
+		"pod":                {"MyPod"},
+		"root.name":          {"RootSpan"},
+		"root.service.name":  {"RootService"},
+		"service.name":       {"MyService", "RootService"},
+		"status.code":        {"0", "2"},
 	}
 
 	return

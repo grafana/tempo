@@ -56,6 +56,41 @@ func TestSearchDataMap(t *testing.T) {
 	strs = nil
 }
 
+/*  NOTE - This test is commented out because we weren't able to
+           get it passing in GitHub CI.  Possibly ooming due to the large
+		   amounts of memory involved, but didn't find anything conclusive.
+		   However the test is still valuable so it is left here but
+		   commented out.
+func TestSearchDataMapMaxBufferLen(t *testing.T) {
+	// Verify we don't get a panic when
+	// writing more data than can fit in a flatbuffer.
+
+	randomMap := func() SearchDataMap {
+		m := NewSearchDataMap()
+
+		// This generates roughly 98MB of data:
+		// 100K entries, 960 bytes each
+		for i := 0; i < 100; i++ {
+			k := uuid.New().String()
+			for j := 0; j < 1024; j++ {
+				v := strings.Repeat(uuid.New().String(), 30) // 32*30=960
+				m.Add(k, v)
+			}
+		}
+
+		return m
+	}
+
+	// Try to write too much data
+	// Start with 512 MB buffer to reduce buffer copying
+	// and make the test quicker
+	b := flatbuffers.NewBuilder(512 * 1024 * 1024)
+	for i := 0; i < maxBufferLen/98_000_000+1; i++ {
+		WriteSearchDataMap(b, randomMap(), nil)
+		fmt.Println("flatbuffer offset is", b.Offset())
+	}
+}*/
+
 func BenchmarkSearchDataMapAdd(b *testing.B) {
 	testCases := []struct {
 		name    string
