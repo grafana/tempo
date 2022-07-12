@@ -1,5 +1,5 @@
 ---
-title: Instrumentation
+title: Instrumentation references
 aliases:
 - /docs/tempo/latest/guides/instrumentation/
 weight: 100

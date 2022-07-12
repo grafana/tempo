@@ -277,7 +277,7 @@ drone:
 	# This will run 'make drone-jsonnet' from within the container
 	docker run -e DRONE_SERVER -e DRONE_TOKEN --rm -v $(shell pwd):/src/loki ${LOKI_BUILD_IMAGE} drone-jsonnet drone-signature
 
-	drone lint .drone/drone.yml
+	drone lint .drone/drone.yml --trusted
 
 drone-jsonnet:
 	drone jsonnet --stream --format --source .drone/drone.jsonnet --target .drone/drone.yml

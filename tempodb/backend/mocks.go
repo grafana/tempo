@@ -39,7 +39,7 @@ func (m *MockRawReader) Read(ctx context.Context, name string, keypath KeyPath, 
 
 	return io.NopCloser(bytes.NewReader(m.R)), int64(len(m.R)), nil
 }
-func (m *MockRawReader) ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte) error {
+func (m *MockRawReader) ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte, _ bool) error {
 	copy(buffer, m.Range)
 
 	return nil
@@ -126,7 +126,7 @@ func (m *MockReader) StreamReader(ctx context.Context, name string, blockID uuid
 	panic("StreamReader is not yet supported for mock reader")
 }
 
-func (m *MockReader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
+func (m *MockReader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, _ bool) error {
 	copy(buffer, m.Range)
 
 	return nil

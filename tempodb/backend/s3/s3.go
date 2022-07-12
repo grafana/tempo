@@ -107,13 +107,18 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, _ bool) error {
 	objName := backend.ObjectFileName(keypath, name)
 
+	putObjectOptions := minio.PutObjectOptions{
+		PartSize: rw.cfg.PartSize,
+		UserTags: rw.cfg.Tags,
+	}
+
 	info, err := rw.core.Client.PutObject(
 		ctx,
 		rw.cfg.Bucket,
 		objName,
 		data,
 		size,
-		minio.PutObjectOptions{PartSize: rw.cfg.PartSize},
+		putObjectOptions,
 	)
 	if err != nil {
 		return errors.Wrapf(err, "error writing object to s3 backend, object %s", objName)
@@ -245,7 +250,7 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 }
 
 // ReadRange implements backend.Reader
-func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte) error {
+func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ bool) error {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "s3.ReadRange", opentracing.Tags{
 		"len":    len(buffer),
 		"offset": offset,
@@ -351,7 +356,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	}
 
 	// add instrumentation
-	transport := instrumentation.NewS3Transport(customTransport)
+	transport := instrumentation.NewTransport(customTransport)
 	var stats *hedgedhttp.Stats
 
 	if hedge && cfg.HedgeRequestsAt != 0 {

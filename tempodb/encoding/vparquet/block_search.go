@@ -23,8 +23,7 @@ import (
 
 // These are reserved search parameters
 const (
-	LabelName   = "name"
-	LabelStatus = "status"
+	LabelName = "name"
 
 	StatusCodeTag   = "status.code"
 	StatusCodeUnset = "unset"
@@ -56,7 +55,7 @@ func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, bloc
 
 func (b *BackendReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	b.TotalBytesRead += uint64(len(p))
-	err := b.r.ReadRange(b.ctx, b.name, b.blockID, b.tenantID, uint64(off), p)
+	err := b.r.ReadRange(b.ctx, b.name, b.blockID, b.tenantID, uint64(off), p, false)
 	return len(p), err
 }
 
@@ -182,7 +181,7 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 			}
 			// Non-numeric string field
 			otherAttrConditions[k] = v
-		case LabelStatus:
+		case StatusCodeTag:
 			code := StatusCodeMapping[v]
 			resourceIters = append(resourceIters, makeIter("rs.ils.Spans.StatusCode", pq.NewIntBetweenPredicate(int64(code), int64(code)), ""))
 		default:
@@ -354,7 +353,7 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 
 		matchMap := match.ToMap()
 		result := &tempopb.TraceSearchMetadata{
-			TraceID:           matchMap["TraceID"][0].String(),
+			TraceID:           util.TraceIDToHexString(matchMap["TraceID"][0].Bytes()),
 			RootServiceName:   matchMap["RootServiceName"][0].String(),
 			RootTraceName:     matchMap["RootSpanName"][0].String(),
 			StartTimeUnixNano: matchMap["StartTimeUnixNano"][0].Uint64(),

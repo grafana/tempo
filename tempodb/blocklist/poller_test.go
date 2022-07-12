@@ -381,6 +381,122 @@ func TestTenantIndexPollError(t *testing.T) {
 	}, nil))
 }
 
+func TestBlockListBackendMetrics(t *testing.T) {
+	tests := []struct {
+		name                                 string
+		list                                 PerTenant
+		compactedList                        PerTenantCompacted
+		testType                             string
+		expectedBackendObjectsTotal          int
+		expectedBackendBytesTotal            uint64
+		expectedCompactedBackendObjectsTotal int
+		expectedCompacteddBackendBytesTotal  uint64
+	}{
+		{
+			name: "total backend objects calculation is correct",
+			list: PerTenant{
+				"test": []*backend.BlockMeta{
+					{
+						TotalObjects: 10,
+					},
+					{
+						TotalObjects: 7,
+					},
+					{
+						TotalObjects: 8,
+					},
+				},
+			},
+			compactedList: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							TotalObjects: 7,
+						},
+					},
+					{
+						BlockMeta: backend.BlockMeta{
+							TotalObjects: 8,
+						},
+					},
+					{
+						BlockMeta: backend.BlockMeta{
+							TotalObjects: 5,
+						},
+					},
+					{
+						BlockMeta: backend.BlockMeta{
+							TotalObjects: 15,
+						},
+					},
+				},
+			},
+			expectedBackendObjectsTotal:          25,
+			expectedBackendBytesTotal:            0,
+			expectedCompactedBackendObjectsTotal: 35,
+			expectedCompacteddBackendBytesTotal:  0,
+			testType:                             "backend objects",
+		},
+		{
+			name: "total backend bytes calculation is correct",
+			list: PerTenant{
+				"test": []*backend.BlockMeta{
+					{
+						Size: 250,
+					},
+					{
+						Size: 500,
+					},
+					{
+						Size: 250,
+					},
+				},
+			},
+			compactedList: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							Size: 300,
+						},
+					},
+					{
+						BlockMeta: backend.BlockMeta{
+							Size: 200,
+						},
+					},
+					{
+						BlockMeta: backend.BlockMeta{
+							Size: 250,
+						},
+					},
+					{
+						BlockMeta: backend.BlockMeta{
+							Size: 500,
+						},
+					},
+				},
+			},
+			expectedBackendObjectsTotal:          0,
+			expectedBackendBytesTotal:            1000,
+			expectedCompactedBackendObjectsTotal: 0,
+			expectedCompacteddBackendBytesTotal:  1250,
+			testType:                             "backend bytes",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			newBlockList := tc.list["test"]
+			newCompactedBlockList := tc.compactedList["test"]
+			backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
+			assert.Equal(t, tc.expectedBackendObjectsTotal, backendMetaMetrics.blockMetaTotalObjects)
+			assert.Equal(t, tc.expectedCompactedBackendObjectsTotal, backendMetaMetrics.compactedBlockMetaTotalObjects)
+			assert.Equal(t, tc.expectedBackendBytesTotal, backendMetaMetrics.blockMetaTotalBytes)
+			assert.Equal(t, tc.expectedCompacteddBackendBytesTotal, backendMetaMetrics.compactedBlockMetaTotalBytes)
+		})
+	}
+
+}
+
 func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compactor {
 	return &backend.MockCompactor{
 		BlockMetaFn: func(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {

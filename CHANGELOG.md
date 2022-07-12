@@ -1,8 +1,9 @@
 ## main / unreleased
 
-* [FEATURE] Add parquet block format [#1479](https://github.com/grafana/tempo/pull/1479) (@annanay25, @mdisibio)
+* [FEATURE] Add parquet block format [#1479](https://github.com/grafana/tempo/pull/1479) [#1531](https://github.com/grafana/tempo/pull/1531) (@annanay25, @mdisibio)
 * [FEATURE] Mark `log_received_traces` as deprecated. New flag is `log_received_spans`.
   Extend distributor spans logger with optional features to include span attributes and a filter by error status. [#1465](https://github.com/grafana/tempo/pull/1465) (@faustodavid)
+* [FEATURE] Add tags option for s3 backends.  This allows new objects to be written with the configured tags. [#1442](https://github.com/grafana/tempo/pull/1442) (@stevenbrookes)
 * [CHANGE] metrics-generator: Changed added metric label `instance` to `__metrics_gen_instance` to reduce collisions with custom dimensions. [#1439](https://github.com/grafana/tempo/pull/1439) (@joe-elliott)
 * [CHANGE] Don't enforce `max_bytes_per_tag_values_query` when set to 0. [#1447](https://github.com/grafana/tempo/pull/1447) (@joe-elliott)
 * [CHANGE] Add new querier service in deployment jsonnet to serve `/status` endpoint. [#1474](https://github.com/grafana/tempo/pull/1474) (@annanay25)
@@ -19,6 +20,7 @@ traces_spanmetrics_latency_{sum,count,bucket}
 Additionally, default label `span_status` is renamed to `status_code`.
 * [CHANGE] Update to Go 1.18 [#1504](https://github.com/grafana/tempo/pull/1504) (@annanay25)
 * [CHANGE] Change tag/value lookups to return partial results when reaching response size limit instead of failing [#1517](https://github.com/grafana/tempo/pull/1517) (@mdisibio)
+* [CHANGE] Change search to be case-sensitive [#1547](https://github.com/grafana/tempo/issues/1547) (@mdisibio)
 * [FEATURE] metrics-generator: support per-tenant processor configuration [#1434](https://github.com/grafana/tempo/pull/1434) (@kvrhdn)
 * [FEATURE] Include rollout dashboard [#1456](https://github.com/grafana/tempo/pull/1456) (@zalegrala)
 * [FEATURE] Add SentinelPassword configuration for Redis [#1463](https://github.com/grafana/tempo/pull/1463) (@zalegrala)
@@ -27,10 +29,19 @@ Additionally, default label `span_status` is renamed to `status_code`.
 * [ENHANCEMENT] Azure Backend: Add support for authentication with Managed Identities. [#1457](https://github.com/grafana/tempo/pull/1457) (@joe-elliott)
 * [ENHANCEMENT] Add metric to track feature enablement [#1459](https://github.com/grafana/tempo/pull/1459) (@zalegrala)
 * [ENHANCEMENT] Added s3 config option `insecure_skip_verify` [#1470](https://github.com/grafana/tempo/pull/1470) (@zalegrala)
+* [ENHANCEMENT] Added polling option to reduce issues in Azure `blocklist_poll_jitter_ms` [#1518](https://github.com/grafana/tempo/pull/1518) (@joe-elliott)
+* [ENHANCEMENT] Add a config to query single ingester instance based on trace id hash for Trace By ID API. (1484)[https://github.com/grafana/tempo/pull/1484] (@sagarwala, @bikashmishra100, @ashwinidulams)
+* [ENHANCEMENT] Add blocklist metrics for total backend objects and total backend bytes [#1519](https://github.com/grafana/tempo/pull/1519) (@ie-pham)
+* [ENHANCEMENT] Adds `tempo_querier_external_endpoint_hedged_roundtrips_total` to count the total hedged requests [#1558](https://github.com/grafana/tempo/pull/1558) (@joe-elliott)
+  **BREAKING CHANGE** Removed deprecated metrics `tempodb_(gcs|s3|azure)_request_duration_seconds` in favor of `tempodb_backend_request_duration_seconds`. These metrics 
+  have been deprecated since v1.1.
 * [BUGFIX] Fix nil pointer panic when the trace by id path errors. [#1441](https://github.com/grafana/tempo/pull/1441) (@joe-elliott)
 * [BUGFIX] Update tempo microservices Helm values example which missed the 'enabled' key for thriftHttp. [#1472](https://github.com/grafana/tempo/pull/1472) (@hajowieland)
 * [BUGFIX] Fix race condition in forwarder overrides loop. [1468](https://github.com/grafana/tempo/pull/1468) (@mapno)
-* [ENHANCEMENT] Add a config to query single ingester instance based on trace id hash for Trace By ID API. (1484)[https://github.com/grafana/tempo/pull/1484] (@sagarwala, @bikashmishra100, @ashwinidulams)
+* [BUGFIX] Fix v2 backend check on span name to be substring [#1538](https://github.com/grafana/tempo/pull/1538) (@mdisibio)
+* [BUGFIX] Fix wal check on span name to be substring [#1548](https://github.com/grafana/tempo/pull/1548) (@mdisibio)
+* [BUGFIX] Prevent ingester panic "cannot grow buffer" [#1258](https://github.com/grafana/tempo/issues/1258) (@mdisibio)
+* [BUGFIX] metrics-generator: do not remove x-scope-orgid header in single tenant modus [#1554](https://github.com/grafana/tempo/pull/1554) (@kvrhdn)
 
 ## v1.4.1 / 2022-05-05
 

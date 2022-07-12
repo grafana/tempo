@@ -133,7 +133,7 @@ func (rw *Backend) Read(ctx context.Context, name string, keypath backend.KeyPat
 }
 
 // ReadRange implements backend.Reader
-func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte) error {
+func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ bool) error {
 	span, _ := opentracing.StartSpanFromContext(ctx, "local.ReadRange", opentracing.Tags{
 		"len":    len(buffer),
 		"offset": offset,

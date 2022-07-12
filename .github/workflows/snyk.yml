@@ -47,7 +47,7 @@ jobs:
 
       - name: Use the Upload Artifact GitHub Action
         continue-on-error: true
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: snyk_scans
           path: snyk_scans

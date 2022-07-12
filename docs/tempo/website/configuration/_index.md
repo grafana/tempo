@@ -569,6 +569,12 @@ storage:
             # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
             [hedge_requests_up_to: <int>]
 
+            # Optional
+            # Example: "tags: {'key': 'value'}"
+            # A map of key value strings for user tags to store on the S3 objects. This helps set up filters in S3 lifecycles.
+            # See the [S3 documentation on object tagging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) for more detail. 
+            [tags: <map[string]string>]
+
         # azure configuration. Will be used only if value of backend is "azure"
         # EXPERIMENTAL
         azure:
@@ -632,6 +638,12 @@ storage:
         # Default 0 (disabled).
         [blocklist_poll_stale_tenant_index: <duration>]
 
+        # Offsets the concurrent blocklist polling by a random amount. The maximum amount of offset
+        # is the provided value in milliseconds. This configuration value can be used if the polling
+        # cycle is overwhelming your backend with concurrent requests.
+        # Default 0 (disabled)
+        [blocklist_poll_jitter_ms: <int>]
+
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"
         [cache: <string>]
@@ -659,6 +671,16 @@ storage:
             # can improve trace search performance at the cost of memory.
             # Example: "prefetch_trace_count: 10000"
             [prefetch_trace_count: <int>]
+
+            # Size of read buffers used when performing search on a vparquet block. This value times the read_buffer_count
+            # is the total amount of bytes used for buffering when performing search on a parquet block.
+            # Default: 4194304
+            [read_buffer_size_bytes: <int>]
+
+            # Number of read buffers used when performing search on a vparquet block. This value times the  read_buffer_size_bytes
+            # is the total amount of bytes used for buffering when performing search on a parquet block.
+            # Default: 8
+            [read_buffer_count: <int>]
 
         # Cortex Background cache configuration. Requires having a cache configured.
         background_cache:

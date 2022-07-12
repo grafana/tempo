@@ -31,7 +31,7 @@ For more guidance on configuration options for full backend search [check here](
     aws s3 cp lambda/tempo-serverless-backend-search-297172a.zip gs://<newly provisioned gcs bucket>
     ```
 
-4. Provision the Lambda. In order for a Lambda function to be invoked via http we also need to create an
+4. Provision the Lambda. For a Lambda function to be invoked via HTTP, we also need to create an
    ALB and some other resources. This example uses Terraform and only includes the function definition.
    Additionally, you will need a VPC, security groups, IAM roles, an ALB, target groups, etc., but that is
    beyond the scope of this guide.

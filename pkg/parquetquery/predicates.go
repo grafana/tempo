@@ -95,7 +95,7 @@ var _ Predicate = (*SubstringPredicate)(nil)
 
 func NewSubstringPredicate(substring string) *SubstringPredicate {
 	return &SubstringPredicate{
-		substring: strings.ToLower(substring),
+		substring: substring,
 		matches:   map[string]bool{},
 	}
 }
@@ -116,10 +116,9 @@ func (p *SubstringPredicate) KeepValue(v pq.Value) bool {
 		return m
 	}
 
-	m := strings.Contains(strings.ToLower(vs), p.substring)
+	m := strings.Contains(vs, p.substring)
 	p.matches[vs] = m
 	return m
-	//return strings.Contains(strings.ToLower(v.String()), s.substring)
 }
 
 func (p *SubstringPredicate) KeepPage(page pq.Page) bool {

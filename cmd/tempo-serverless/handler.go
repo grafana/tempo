@@ -97,11 +97,12 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		return nil, httpError("creating backend block", err, http.StatusInternalServerError)
 	}
 
-	opts := common.DefaultSearchOptions()
-	opts.StartPage = int(searchReq.StartPage)
-	opts.TotalPages = int(searchReq.PagesToSearch)
-	opts.PrefetchTraceCount = cfg.Search.PrefetchTraceCount
-	opts.MaxBytes = maxBytes
+	opts := common.SearchOptions{
+		StartPage:  int(searchReq.StartPage),
+		TotalPages: int(searchReq.PagesToSearch),
+		MaxBytes:   maxBytes,
+	}
+	cfg.Search.ApplyToOptions(&opts)
 
 	resp, err := block.Search(r.Context(), searchReq.SearchReq, opts)
 	if err != nil {

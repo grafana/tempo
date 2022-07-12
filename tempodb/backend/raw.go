@@ -38,8 +38,9 @@ type RawReader interface {
 	List(ctx context.Context, keypath KeyPath) ([]string, error)
 	// Read is for streaming entire objects from the backend.  There will be an attempt to retrieve this from cache if shouldCache is true.
 	Read(ctx context.Context, name string, keyPath KeyPath, shouldCache bool) (io.ReadCloser, int64, error)
-	// ReadRange is for reading parts of large objects from the backend.  It is expected this will _not_ be cached.
-	ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte) error
+	// ReadRange is for reading parts of large objects from the backend.
+	// There will be an attempt to retrieve this from cache if shouldCache is true. Cache key will be tenantID:blockID:offset:bufferLength
+	ReadRange(ctx context.Context, name string, keypath KeyPath, offset uint64, buffer []byte, shouldCache bool) error
 	// Shutdown must be called when the Reader is finished and cleans up any associated resources.
 	Shutdown()
 }
@@ -123,8 +124,8 @@ func (r *reader) StreamReader(ctx context.Context, name string, blockID uuid.UUI
 	return r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), false)
 }
 
-func (r *reader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte) error {
-	return r.r.ReadRange(ctx, name, KeyPathForBlock(blockID, tenantID), offset, buffer)
+func (r *reader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, shouldCache bool) error {
+	return r.r.ReadRange(ctx, name, KeyPathForBlock(blockID, tenantID), offset, buffer, shouldCache)
 }
 
 func (r *reader) Tenants(ctx context.Context) ([]string, error) {

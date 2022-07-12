@@ -26,7 +26,7 @@ func TestBackendBlockSearch(t *testing.T) {
 	// Trace
 	// This is a fully-populated trace that we search for every condition
 	wantTr := &Trace{
-		TraceID:           util.TraceIDToHexString(test.ValidTraceID(nil)),
+		TraceID:           test.ValidTraceID(nil),
 		StartTimeUnixNano: uint64(1000 * time.Second),
 		EndTimeUnixNano:   uint64(2000 * time.Second),
 		DurationNanos:     uint64((100 * time.Millisecond).Nanoseconds()),
@@ -122,7 +122,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		makeReq(LabelHTTPMethod, "get"),
 		makeReq(LabelHTTPUrl, "hello"),
 		makeReq(LabelHTTPStatusCode, "500"),
-		makeReq(LabelStatus, StatusCodeError),
+		makeReq(StatusCodeTag, StatusCodeError),
 
 		// Span attributes
 		makeReq("foo", "bar"),
@@ -139,14 +139,14 @@ func TestBackendBlockSearch(t *testing.T) {
 		},
 	}
 	expected := &tempopb.TraceSearchMetadata{
-		TraceID:           wantTr.TraceID,
+		TraceID:           util.TraceIDToHexString(wantTr.TraceID),
 		StartTimeUnixNano: wantTr.StartTimeUnixNano,
 		DurationMs:        uint32(wantTr.DurationNanos / uint64(time.Millisecond)),
 		RootServiceName:   wantTr.RootServiceName,
 		RootTraceName:     wantTr.RootSpanName,
 	}
 	for _, req := range searchesThatMatch {
-		res, err := b.Search(ctx, req, common.DefaultSearchOptions())
+		res, err := b.Search(ctx, req, defaultSearchOptions())
 		require.NoError(t, err)
 		require.Equal(t, 1, len(res.Traces), req)
 		require.Equal(t, expected, res.Traces[0], "search request:", req)
@@ -176,13 +176,13 @@ func TestBackendBlockSearch(t *testing.T) {
 		makeReq(LabelHTTPMethod, "post"),
 		makeReq(LabelHTTPUrl, "asdf"),
 		makeReq(LabelHTTPStatusCode, "200"),
-		makeReq(LabelStatus, StatusCodeOK),
+		makeReq(StatusCodeTag, StatusCodeOK),
 
 		// Span attributes
 		makeReq("foo", "baz"),
 	}
 	for _, req := range searchesThatDontMatch {
-		res, err := b.Search(ctx, req, common.DefaultSearchOptions())
+		res, err := b.Search(ctx, req, defaultSearchOptions())
 		require.NoError(t, err)
 		require.Empty(t, res.Traces, "search request:", req)
 	}
@@ -217,4 +217,12 @@ func makeBackendBlockWithTrace(t *testing.T, tr *Trace) *backendBlock {
 	b := newBackendBlock(s.meta, r)
 
 	return b
+}
+
+func defaultSearchOptions() common.SearchOptions {
+	return common.SearchOptions{
+		ChunkSizeBytes:  1_000_000,
+		ReadBufferCount: 8,
+		ReadBufferSize:  4 * 1024 * 1024,
+	}
 }

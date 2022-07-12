@@ -354,6 +354,7 @@ func (rw *readerWriter) Search(ctx context.Context, meta *backend.BlockMeta, req
 		return nil, err
 	}
 
+	rw.cfg.Search.ApplyToOptions(&opts)
 	return block.Search(ctx, req, opts)
 }
 
@@ -412,6 +413,7 @@ func (rw *readerWriter) EnablePolling(sharder blocklist.JobSharder) {
 		PollFallback:        rw.cfg.BlocklistPollFallback,
 		TenantIndexBuilders: rw.cfg.BlocklistPollTenantIndexBuilders,
 		StaleTenantIndex:    rw.cfg.BlocklistPollStaleTenantIndex,
+		PollJitterMs:        rw.cfg.BlocklistPollJitterMs,
 	}, sharder, rw.r, rw.c, rw.w, rw.logger)
 
 	rw.blocklistPoller = blocklistPoller

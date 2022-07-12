@@ -230,7 +230,7 @@ func SearchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUti
 	// verify attribute value is present in tag values
 	tagValuesResp, err := client.SearchTagValues(attr.Key)
 	require.NoError(t, err)
-	require.Contains(t, tagValuesResp.TagValues, strings.ToLower(attr.GetValue().GetStringValue()))
+	require.Contains(t, tagValuesResp.TagValues, attr.GetValue().GetStringValue())
 
 	// verify trace can be found using attribute
 	resp, err := client.Search(attr.GetKey() + "=" + attr.GetValue().GetStringValue())

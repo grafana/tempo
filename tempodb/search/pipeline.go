@@ -2,7 +2,6 @@ package search
 
 import (
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/grafana/tempo/pkg/model/trace"
@@ -79,8 +78,8 @@ func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 				continue
 			}
 
-			kb = append(kb, []byte(strings.ToLower(k)))
-			vb = append(vb, []byte(strings.ToLower(v)))
+			kb = append(kb, []byte(k))
+			vb = append(vb, []byte(v))
 		}
 
 		p.tagfilters = append(p.tagfilters, func(s tempofb.TagContainer) bool {

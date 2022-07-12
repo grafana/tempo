@@ -32,6 +32,7 @@ import (
 	"github.com/grafana/tempo/modules/querier/worker"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/hedgedmetrics"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
@@ -54,6 +55,13 @@ var (
 		Help:      "The duration of the external endpoints.",
 		Buckets:   prometheus.DefBuckets,
 	}, []string{"endpoint"})
+	metricExternalHedgedRequests = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: "tempo",
+			Name:      "querier_external_endpoint_hedged_roundtrips_total",
+			Help:      "Total number of hedged external requests. Registered as a gauge for code sanity. This is a counter.",
+		},
+	)
 )
 
 // Querier handlers queries.
@@ -102,10 +110,12 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 	//
 	if cfg.Search.HedgeRequestsAt != 0 {
 		var err error
-		q.searchClient, err = hedgedhttp.NewClient(cfg.Search.HedgeRequestsAt, cfg.Search.HedgeRequestsUpTo, http.DefaultClient)
+		var stats *hedgedhttp.Stats
+		q.searchClient, stats, err = hedgedhttp.NewClientAndStats(cfg.Search.HedgeRequestsAt, cfg.Search.HedgeRequestsUpTo, http.DefaultClient)
 		if err != nil {
 			return nil, err
 		}
+		hedgedmetrics.Publish(stats, metricExternalHedgedRequests)
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
@@ -438,7 +448,7 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		DataEncoding:  req.DataEncoding,
 	}
 
-	opts := common.DefaultSearchOptions()
+	opts := common.SearchOptions{}
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 	opts.MaxBytes = q.limits.MaxBytesPerTrace(tenantID)

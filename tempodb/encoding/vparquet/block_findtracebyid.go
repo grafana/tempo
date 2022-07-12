@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
@@ -16,7 +15,6 @@ import (
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -38,7 +36,7 @@ type RowTracker struct {
 
 // Scanning for a traceID within a rowGroup. Parameters are the rowgroup number and traceID to be searched.
 // Includes logic to look through bloom filters and page bounds as it goes through the rowgroup.
-func (rt *RowTracker) findTraceByID(idx int, traceID string) int {
+func (rt *RowTracker) findTraceByID(idx int, traceID []byte) int {
 	rgIdx := rt.rgs[idx]
 	rowMatch := int64(rt.startRowNum[idx])
 	traceIDColumnChunk := rgIdx.ColumnChunks()[rt.colIndex]
@@ -54,12 +52,12 @@ func (rt *RowTracker) findTraceByID(idx int, traceID string) int {
 
 	// get row group bounds
 	numPages := traceIDColumnChunk.ColumnIndex().NumPages()
-	min := traceIDColumnChunk.ColumnIndex().MinValue(0).String()
-	max := traceIDColumnChunk.ColumnIndex().MaxValue(numPages - 1).String()
-	if strings.Compare(traceID, min) < 0 {
+	min := traceIDColumnChunk.ColumnIndex().MinValue(0).Bytes()
+	max := traceIDColumnChunk.ColumnIndex().MaxValue(numPages - 1).Bytes()
+	if bytes.Compare(traceID, min) < 0 {
 		return SearchPrevious
 	}
-	if strings.Compare(max, traceID) < 0 {
+	if bytes.Compare(max, traceID) < 0 {
 		return SearchNext
 	}
 
@@ -72,10 +70,10 @@ func (rt *RowTracker) findTraceByID(idx int, traceID string) int {
 		}
 
 		if min, max, ok := pg.Bounds(); ok {
-			if strings.Compare(traceID, min.String()) < 0 {
+			if bytes.Compare(traceID, min.Bytes()) < 0 {
 				return SearchPrevious
 			}
-			if strings.Compare(max.String(), traceID) < 0 {
+			if bytes.Compare(max.Bytes(), traceID) < 0 {
 				rowMatch += pg.NumRows()
 				continue
 			}
@@ -85,7 +83,7 @@ func (rt *RowTracker) findTraceByID(idx int, traceID string) int {
 		for {
 			x, err := vr.ReadValues(buffer)
 			for y := 0; y < x; y++ {
-				if strings.Compare(buffer[y].String(), traceID) == 0 {
+				if bytes.Compare(buffer[y].Bytes(), traceID) == 0 {
 					rowMatch += int64(y)
 					return int(rowMatch)
 				}
@@ -102,7 +100,6 @@ func (rt *RowTracker) findTraceByID(idx int, traceID string) int {
 
 			rowMatch += int64(x)
 		}
-		break
 	}
 
 	// did not find the trace
@@ -111,7 +108,7 @@ func (rt *RowTracker) findTraceByID(idx int, traceID string) int {
 
 // Simple binary search algorithm over the parquet rowgroups to efficiently
 // search for traceID in the block (works only because rows are sorted by traceID)
-func (rt *RowTracker) binarySearch(span opentracing.Span, start int, end int, traceID string) int {
+func (rt *RowTracker) binarySearch(span opentracing.Span, start int, end int, traceID []byte) int {
 	if start > end {
 		return -1
 	}
@@ -159,7 +156,7 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 	return filter.Test(id), nil
 }
 
-func (b *backendBlock) FindTraceByID(ctx context.Context, id common.ID) (_ *tempopb.Trace, err error) {
+func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID) (_ *tempopb.Trace, err error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.FindTraceByID",
 		opentracing.Tags{
 			"blockID":   b.meta.BlockID,
@@ -168,15 +165,13 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, id common.ID) (_ *temp
 		})
 	defer span.Finish()
 
-	found, err := b.checkBloom(derivedCtx, id)
+	found, err := b.checkBloom(derivedCtx, traceID)
 	if err != nil {
 		return nil, err
 	}
 	if !found {
 		return nil, nil
 	}
-
-	traceID := util.TraceIDToHexString(id)
 
 	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
 	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()

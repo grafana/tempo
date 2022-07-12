@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -73,7 +74,7 @@ func TestHedge(t *testing.T) {
 			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
-			_ = r.ReadRange(ctx, "object", backend.KeyPath{"test"}, 10, []byte{})
+			_ = r.ReadRange(ctx, "object", backend.KeyPath{"test"}, 10, []byte{}, false)
 			time.Sleep(tc.returnIn)
 			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
@@ -115,4 +116,72 @@ func TestReadError(t *testing.T) {
 	wups := fmt.Errorf("wups")
 	errB = readError(wups)
 	assert.Equal(t, wups, errB)
+}
+
+func fakeServerWithTags(t *testing.T, obj *url.Values) *httptest.Server {
+	require.NotNil(t, obj)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch method := r.Method; method {
+		case "PUT":
+			// https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
+			switch tagHeaders := r.Header.Get("X-Amz-Tagging"); tagHeaders {
+			case "":
+			default:
+				value, err := url.ParseQuery(tagHeaders)
+				require.NoError(t, err)
+				*obj = value
+			}
+		case "GET":
+			// return fake list response b/c it's the only call that has to succeed
+			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+		<ListBucketResult>
+		</ListBucketResult>`))
+		}
+
+	}))
+	t.Cleanup(server.Close)
+
+	return server
+}
+
+func TestObjectBlockTags(t *testing.T) {
+
+	tests := []struct {
+		name string
+		tags map[string]string
+		// expectedObject raw.Object
+	}{
+		{
+			"env", map[string]string{"env": "prod", "app": "thing"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// rawObject := raw.Object{}
+			var obj url.Values
+
+			server := fakeServerWithTags(t, &obj)
+			_, w, _, err := New(&Config{
+				Region:    "blerg",
+				AccessKey: "test",
+				SecretKey: flagext.SecretWithValue("test"),
+				Bucket:    "blerg",
+				Insecure:  true,
+				Endpoint:  server.URL[7:], // [7:] -> strip http://
+				Tags:      tc.tags,
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, bytes.NewReader([]byte{}), 0, false)
+
+			for k, v := range tc.tags {
+				vv := obj.Get(k)
+				require.NotEmpty(t, vv)
+				require.Equal(t, v, vv)
+			}
+		})
+	}
 }

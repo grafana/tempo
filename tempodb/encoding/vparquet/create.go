@@ -8,8 +8,6 @@ import (
 	"github.com/google/uuid"
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/decoder"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/pkg/errors"
@@ -45,18 +43,13 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			break
 		}
 
-		start, end, err := dec.FastRange(obj)
-		if err != nil && err != decoder.ErrUnsupported {
-			return nil, err
-		}
-
 		tr, err := dec.PrepareForRead(obj)
 		if err != nil {
 			return nil, err
 		}
 
 		trp := traceToParquet(tr)
-		err = s.Add(&trp, start, end)
+		err = s.Add(&trp, 0, 0) // start and end time of the wal meta are used.
 		if err != nil {
 			return nil, err
 		}
@@ -105,10 +98,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 
 	sch := parquet.SchemaOf(new(Trace))
 
-	// Since we store the trace ID as 32-byte hex string, we have to increase the
-	// column/page index size so that min/max return the whole value instead of
-	// a truncated form. This allows FindTraceByID to use binary search accurately.
-	pw := parquet.NewWriter(bw, sch, parquet.ColumnIndexSizeLimit(32))
+	pw := parquet.NewWriter(bw, sch)
 
 	return &streamingBlock{
 		ctx:   ctx,
@@ -129,13 +119,8 @@ func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
 		return err
 	}
 
-	id, err := util.HexStringToTraceID(tr.TraceID)
-	if err != nil {
-		return err
-	}
-
-	b.bloom.Add(id)
-	b.meta.ObjectAdded(id, start, end)
+	b.bloom.Add(tr.TraceID)
+	b.meta.ObjectAdded(tr.TraceID, start, end)
 	b.currentBufferedTraces++
 	return nil
 }
@@ -198,7 +183,7 @@ func (b *streamingBlock) Complete() (int, error) {
 
 	// Read the footer size out of the parquet footer
 	buf := make([]byte, 8)
-	err = b.r.ReadRange(b.ctx, DataFileName, b.meta.BlockID, b.meta.TenantID, b.meta.Size-8, buf)
+	err = b.r.ReadRange(b.ctx, DataFileName, b.meta.BlockID, b.meta.TenantID, b.meta.Size-8, buf, false)
 	if err != nil {
 		return 0, errors.Wrap(err, "error reading parquet file footer")
 	}
