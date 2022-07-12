@@ -28,6 +28,7 @@ Additionally, default label `span_status` is renamed to `status_code`.
       external_hedge_requests_at: 4s    -> 8s
       external_hedge_requests_up_to: 3  -> 2
   ```
+* [CHANGE] Include emptyDir for metrics generator wal storage [#1556](https://github.com/grafana/tempo/pull/1556) (@zalegrala)
 * [FEATURE] metrics-generator: support per-tenant processor configuration [#1434](https://github.com/grafana/tempo/pull/1434) (@kvrhdn)
 * [FEATURE] Include rollout dashboard [#1456](https://github.com/grafana/tempo/pull/1456) (@zalegrala)
 * [FEATURE] Add SentinelPassword configuration for Redis [#1463](https://github.com/grafana/tempo/pull/1463) (@zalegrala)
