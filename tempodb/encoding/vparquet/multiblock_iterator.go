@@ -29,7 +29,7 @@ func (m *MultiBlockIterator) Next(ctx context.Context) (*Trace, error) {
 	// find lowest ID of the new object
 	for _, b := range m.bookmarks {
 		currentObject, err := b.current(ctx)
-		if err != nil {
+		if err != nil && err != io.EOF {
 			return nil, err
 		}
 		if currentObject == nil {
