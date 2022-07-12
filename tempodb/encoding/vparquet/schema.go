@@ -2,15 +2,14 @@ package vparquet
 
 import (
 	"bytes"
-	"math"
 
 	"github.com/golang/protobuf/jsonpb"
-	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 // Label names for conversion b/n Proto <> Parquet
@@ -167,14 +166,15 @@ func attrToParquet(a *v1.KeyValue) Attribute {
 	return p
 }
 
-func traceToParquet(tr *tempopb.Trace) Trace {
+func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
+
 	ot := Trace{
-		TraceIDText: util.TraceIDToHexString(tr.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId),
-		TraceID:     util.PadTraceIDTo16Bytes(tr.Batches[0].InstrumentationLibrarySpans[0].Spans[0].TraceId),
+		TraceIDText: util.TraceIDToHexString(id),
+		TraceID:     util.PadTraceIDTo16Bytes(id),
 	}
 
 	// Trace-level items
-	traceStart := uint64(math.MaxUint64)
+	traceStart := uint64(0)
 	traceEnd := uint64(0)
 	var rootSpan *v1_trace.Span
 	var rootBatch *v1_trace.ResourceSpans
@@ -233,7 +233,7 @@ func traceToParquet(tr *tempopb.Trace) Trace {
 
 			for _, s := range ils.Spans {
 
-				if s.StartTimeUnixNano < traceStart {
+				if traceStart == 0 || s.StartTimeUnixNano < traceStart {
 					traceStart = s.StartTimeUnixNano
 				}
 				if s.EndTimeUnixNano > traceEnd {
@@ -294,8 +294,6 @@ func traceToParquet(tr *tempopb.Trace) Trace {
 	ot.StartTimeUnixNano = traceStart
 	ot.EndTimeUnixNano = traceEnd
 	ot.DurationNanos = traceEnd - traceStart
-	ot.RootServiceName = trace.RootSpanNotYetReceivedText
-	ot.RootSpanName = trace.RootSpanNotYetReceivedText
 
 	if rootSpan != nil && rootBatch != nil && rootBatch.Resource != nil {
 		ot.RootSpanName = rootSpan.Name

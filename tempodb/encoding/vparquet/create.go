@@ -38,7 +38,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 	s := newStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
 
 	for {
-		_, obj, err := i.Next(ctx)
+		id, obj, err := i.Next(ctx)
 		if err == io.EOF {
 			break
 		}
@@ -48,7 +48,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			return nil, err
 		}
 
-		trp := traceToParquet(tr)
+		trp := traceToParquet(id, tr)
 		err = s.Add(&trp, 0, 0) // start and end time of the wal meta are used.
 		if err != nil {
 			return nil, err
