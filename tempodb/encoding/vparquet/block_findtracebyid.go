@@ -83,7 +83,7 @@ func (rt *RowTracker) findTraceByID(idx int, traceID []byte) int {
 		for {
 			x, err := vr.ReadValues(buffer)
 			for y := 0; y < x; y++ {
-				if bytes.Compare(buffer[y].Bytes(), traceID) == 0 {
+				if bytes.Equal(buffer[y].Bytes(), traceID) {
 					rowMatch += int64(y)
 					return int(rowMatch)
 				}

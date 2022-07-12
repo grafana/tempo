@@ -196,9 +196,9 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 		trace.SortTrace(tr)
 
 		if !proto.Equal(allReqs[i], tr) {
-			wantJson, _ := json.MarshalIndent(allReqs[i], "", "  ")
-			gotJson, _ := json.MarshalIndent(tr, "", "  ")
-			require.Equal(t, wantJson, gotJson)
+			wantJSON, _ := json.MarshalIndent(allReqs[i], "", "  ")
+			gotJSON, _ := json.MarshalIndent(tr, "", "  ")
+			require.Equal(t, wantJSON, gotJSON)
 		}
 	}
 }
