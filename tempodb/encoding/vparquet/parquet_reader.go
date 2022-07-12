@@ -49,14 +49,17 @@ type parquetOptimizedReaderAt struct {
 
 var _ io.ReaderAt = (*parquetOptimizedReaderAt)(nil)
 
+// this will be called by parquet-go in OpenFile() to set offset and length of footer section
 func (r *parquetOptimizedReaderAt) SetFooterSection(offset, length int64) {
 	r.cachedObjects[offset] = length
 }
 
+// this will be called by parquet-go in OpenFile() to set offset and length of column indexes
 func (r *parquetOptimizedReaderAt) SetColumnIndexSection(offset, length int64) {
 	r.cachedObjects[offset] = length
 }
 
+// this will be called by parquet-go in OpenFile() to set offset and length of offset index section
 func (r *parquetOptimizedReaderAt) SetOffsetIndexSection(offset, length int64) {
 	r.cachedObjects[offset] = length
 }
