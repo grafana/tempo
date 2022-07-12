@@ -7,7 +7,7 @@ import (
 	"reflect"
 )
 
-// A Reader reads Go values from parquet files.
+// Deprecated: A Reader reads Go values from parquet files.
 //
 // This example showcases a typical use of parquet readers:
 //
@@ -29,6 +29,8 @@ import (
 //	}
 //
 //
+// For programs building with Go 1.18 or later, the GenericReader[T] type
+// supersedes this one.
 type Reader struct {
 	seen     reflect.Type
 	file     reader

@@ -35,7 +35,9 @@ dependency on and install with the following command:
 go get github.com/segmentio/parquet-go
 ```
 
-Go 1.17 or later is required to use the package.
+Go 1.18 or later is required to use the package. As a backward-compatibility
+mechanism, the package can also be built with Go 1.17, in which case the APIs
+based on Generics are disabled.
 
 ### Compatibility Guarantees
 
@@ -46,34 +48,46 @@ use cases that the library solves for. These occurrences are expected to be rare
 in frequency and documentation will be produce to guide users on how to adapt
 their programs to breaking changes.
 
-One planned breaking change will be to support generics, which were released in
-Go 1.18 and will simplify the code and provide better type safety.
-The targetted timeline for this change is end of 2022; programs depending on
-parquet-go will be expected to compile with Go 1.18 by then, at which point
-we will drop compatibility with Go 1.17.
-
 ## Usage
 
 The following sections describe how to use APIs exposed by the library,
 highlighting the use cases with code examples to demonstrate how they are used
 in practice.
 
-### Writing Parquet Files: [parquet.Writer](https://pkg.go.dev/github.com/segmentio/parquet-go#Writer)
+### Writing Parquet Files: [parquet.GenericWriter[T]](https://pkg.go.dev/github.com/segmentio/parquet-go#GenericWriter)
 
 A parquet file is a collection of rows sharing the same schema, arranged in
 columns to support faster scan operations on subsets of the data set.
 
-The `parquet.Writer` type denormalizes rows into columns, then encodes the
-columns into a parquet file, generating row groups, column chunks, and pages
+For simple use cases, the `parquet.WriteFile[T]` function allows the creation
+of parquet files on the file system from a slice of Go values representing the
+rows to write to the file.
+
+```go
+type RowType struct { FirstName, LastName string }
+
+if err := parquet.WriteFile("file.parquet", []RowType{
+    {FirstName: "Bob"},
+    {FirstName: "Alice"},
+}); err != nil {
+    ...
+}
+```
+
+The `parquet.GenericWriter[T]` type denormalizes rows into columns, then encodes
+the columns into a parquet file, generating row groups, column chunks, and pages
 based on configurable heuristics.
 
 ```go
-writer := parquet.NewWriter(file)
+type RowType struct { FirstName, LastName string }
 
-for _, row := range rows {
-    if err := writer.Write(row); err != nil {
-        ...
-    }
+writer := parquet.NewGenericWriter[RowType](output)
+
+_, err := writer.Write([]RowType{
+    ...
+})
+if err != nil {
+    ...
 }
 
 // Closing the writer is necessary to flush buffers and write the file footer.
@@ -82,49 +96,35 @@ if err := writer.Close(); err != nil {
 }
 ```
 
-By default, the writer will lazily determine the schema of rows by introspecting
-the struct types of row values.
-
 Explicit declaration of the parquet schema on a writer is useful when the
 application needs to ensure that data written to a file adheres to a predefined
-schema and the rows come from dynamic or user input. The `parquet.Schema` type
-is a in-memory representation of the schema of parquet rows, translated from the
-type of Go values, and can be used for this purpose.
+schema, which may differ from the schema derived from the writer's type
+parameter. The `parquet.Schema` type is a in-memory representation of the schema
+of parquet rows, translated from the type of Go values, and can be used for this
+purpose.
 
 ```go
-schema := parquet.SchemaOf(rows[0])
-writer := parquet.NewWriter(file, schema)
+schema := parquet.SchemaOf(new(RowType))
+writer := parquet.NewGenericWriter[any](output, schema)
 ...
 ```
 
-### Reading Parquet Files: [parquet.Reader](https://pkg.go.dev/github.com/segmentio/parquet-go#Reader)
+### Reading Parquet Files: [parquet.GenericReader[T]](https://pkg.go.dev/github.com/segmentio/parquet-go#GenericReader)
 
-The `parquet.Reader` type supports reading rows from parquet files into Go
-values. When reading rows, the schema is already determined by metadata within
-the file; the reader knows how to leverage this information so the application
-does not need to explicitly declare the schema of values that will be read.
-However, the reader will validate that the schemas of the file and Go value
-are compatible.
-
-This example shows how a `parquet.Reader` is typically used:
+For simple use cases where the data set fits in memory and the program will
+read most rows of the file, the `parquet.ReadFile[T]` function returns a slice
+of Go values representing the rows read from the file.
 
 ```go
-reader := parquet.NewReader(file)
+type RowType struct { FirstName, LastName string }
 
-for {
-    row := new(RowType)
-    err := reader.Read(row)
-    if err != nil {
-        if err == io.EOF {
-            break
-        }
-        ...
-    }
+rows, err := parquet.ReadFile[RowType]("file.parquet")
+if err != nil {
     ...
 }
 
-if err := reader.Close(); err != nil {
-    ...
+for _, c := range rows {
+    fmt.Printf("%+v\n", c)
 }
 ```
 
@@ -189,8 +189,11 @@ rules from a source to a target schema. The function is used to build converted
 views of `parquet.RowReader` or `parquet.RowGroup`, for example:
 
 ```go
-source := parquet.NewSchema(&RowTypeV1{})
-target := parquet.NewSchema(&RowTypeV2{})
+type RowTypeV1 struct { ID int64; FirstName string }
+type RowTypeV2 struct { ID int64; FirstName, LastName string }
+
+source := parquet.NewSchema(RowTypeV1{})
+target := parquet.NewSchema(RowTypeV2{})
 
 conversion, err := parquet.Convert(target, source)
 if err != nil {
@@ -212,48 +215,52 @@ At this time, conversion rules only supports adding or removing columns from
 the schemas, there are no type conversions performed, nor ways to rename
 columns, etc... More advanced conversion rules may be added in the future.
 
-### Sorting Row Groups: [parquet.Buffer](https://pkg.go.dev/github.com/segmentio/parquet-go#Buffer)
+### Sorting Row Groups: [parquet.GenericBuffer[T]](https://pkg.go.dev/github.com/segmentio/parquet-go#Buffer)
 
-The `parquet.Writer` type is optimized for minimal memory usage, keeping the
-order rows unchanged and flushing pages as soon as they are filled.
+The `parquet.GenericWriter[T]` type is optimized for minimal memory usage,
+keeping the order of rows unchanged and flushing pages as soon as they are filled.
 
 Parquet supports expressing columns by which rows are sorted through the
 declaration of _sorting columns_ on row groups. Sorting row groups requires
 buffering all rows before ordering and writing them to a parquet file.
 
 To help with those use cases, the `segmentio/parquet-go` package exposes the
-`parquet.Buffer` type which acts as a buffer of rows and implements
+`parquet.GenericBuffer[T]` type which acts as a buffer of rows and implements
 `sort.Interface` to allow applications to sort rows prior to writing them
 to a file.
 
 The columns that rows are ordered by are configured when creating
-`parquet.Buffer` instances using the `parquet.SortingColumns` function to
-construct row group options configuring the buffer. The type of parquet columns
-defines how values are compared, see [Parquet Logical Types](https://github.com/apache/parquet-format/blob/master/LogicalTypes.md)
+`parquet.GenericBuffer[T]` instances using the `parquet.SortingColumns` function
+to construct row group options configuring the buffer. The type of parquet
+columns defines how values are compared, see [Parquet Logical Types](https://github.com/apache/parquet-format/blob/master/LogicalTypes.md)
 for details.
 
 When written to a file, the buffer is materialized into a single row group with
 the declared sorting columns. After being written, buffers can be reused by
 calling their `Reset` method.
 
-The following example shows how to use a `parquet.Buffer` to order rows written
-to a parquet file:
+The following example shows how to use a `parquet.GenericBuffer[T]` to order rows
+written to a parquet file:
 
 ```go
-buffer := parquet.NewBuffer(
+type RowType struct { FirstName, LastName string }
+
+buffer := parquet.NewGenericBuffer[RowType](
     parquet.SortingColumns(
         parquet.Ascending("LastName"),
         parquet.Ascending("FistName"),
     ),
 )
 
-buffer.Write(&Character{FirstName: "Luke", LastName: "Skywalker"})
-buffer.Write(&Character{FirstName: "Han", LastName: "Solo"})
-buffer.Write(&Character{FirstName: "Anakin", LastName: "Skywalker"})
+buffer.Write([]RowType{
+    {FirstName: "Luke", LastName: "Skywalker"},
+    {FirstName: "Han", LastName: "Solo"},
+    {FirstName: "Anakin", LastName: "Skywalker"},
+})
 
 sort.Sort(buffer)
 
-writer := parquet.NewWriter(output)
+writer := parquet.NewGenericWriter[RowType](output)
 _, err := parquet.CopyRows(writer, buffer.Rows())
 if err != nil {
     ...
@@ -295,7 +302,7 @@ if err != nil {
     ...
 }
 
-writer := parquet.NewWriter(output)
+writer := parquet.NewGenericWriter[RowType](output)
 _, err := parquet.CopyRows(writer, merge)
 if err != nil {
     ...
@@ -316,7 +323,12 @@ configure the list of columns to create filters for using the `parquet.BloomFilt
 option when instantiating writers; for example:
 
 ```go
-writer := parquet.NewWriter(output,
+type RowType struct {
+    FirstName string `parquet:"first_name"`
+    LastName  string `parquet:"last_name"`
+}
+
+writer := parquet.NewGenericWriter[RowType](output,
     parquet.BloomFilters(
         // Configures the write to generate split-block bloom filters for the
         // "first_name" and "last_name" columns of the parquet schema of rows
@@ -331,11 +343,11 @@ writer := parquet.NewWriter(output,
 Generating bloom filters requires to know how many values exist in a column
 chunk in order to properly size the filter, which requires buffering all the
 values written to the column in memory. Because of it, the memory footprint
-of `parquet.Writer` increases linearly with the number of columns that the
-writer needs to generate filters for. This extra cost is optimized away when
-rows are copied from a `parquet.Buffer` to a writer, since in this case the
-number of values per column in known since the buffer already holds all the
-values in memory.
+of `parquet.GenericWriter[T]` increases linearly with the number of columns
+that the writer needs to generate filters for. This extra cost is optimized
+away when rows are copied from a `parquet.GenericBuffer[T]` to a writer, since
+in this case the number of values per column in known since the buffer already
+holds all the values in memory.
 
 When reading parquet files, column chunks expose the generated bloom filters
 with the `parquet.ColumnChunk.BloomFilter` method, returning a
@@ -432,11 +444,11 @@ values, for example slices of primitive Go types like `[]float32`; this would be
 the case if the application is built on top of a framework like
 [Apache Arrow](https://pkg.go.dev/github.com/apache/arrow/go/arrow).
 
-`parquet.Buffer` is an implementation of the `parquet.RowGroup` interface which
-maintains in-memory buffers of column values. Rows can be written by either
-boxing primitive values into arrays of `parquet.Value`, or type asserting the
-columns to a access specialized versions of the write methods accepting arrays
-of Go primitive types.
+`parquet.GenericBuffer[T]` is an implementation of the `parquet.RowGroup`
+interface which maintains in-memory buffers of column values. Rows can be
+written by either boxing primitive values into arrays of `parquet.Value`,
+or type asserting the columns to a access specialized versions of the write
+methods accepting arrays of Go primitive types.
 
 When using either of these models, the application is responsible for ensuring
 that the same number of rows are written to each column or the resulting parquet
@@ -446,23 +458,22 @@ The following examples demonstrate how to use these two models to write columns
 of Go values:
 
 ```go
-func writeColumns(buffer *parquet.Buffer, columns [3][]interface{}) error {
-    values := make([]parquet.Value, len(columns[0]))
-    for i := range columns {
-        c := buffer.ColumnBuffers()[i]
-        for j, v := range columns[i] {
-            values[j] = parquet.ValueOf(v)
-        }
-        if _, err := c.WriteValues(values); err != nil {
-            return err
-        }
+type RowType struct { FirstName, LastName string }
+
+func writeColumns(buffer *parquet.GenericBuffer[RowType], firstNames []string) error {
+    values := make([]parquet.Value, len(firstNames))
+    for i := range firstNames {
+        values[i] = parquet.ValueOf(firstNames[i])
     }
-    return nil
+    _, err := buffer.ColumnBuffers()[0].WriteValues(values)
+    return err
 }
 ```
 
 ```go
-func writeColumns(buffer *parquet.Buffer, ids []int64, values []float32) error {
+type RowType struct { ID int64; Value float32 }
+
+func writeColumns(buffer *parquet.GenericBuffer[RowType], ids []int64, values []float32) error {
     if len(ids) != len(values) {
         return fmt.Errorf("number of ids and values mismatch: ids=%d values=%d", len(ids), len(values))
     }
@@ -491,7 +502,7 @@ to expose column values of the row group.
 
 This model can be preferable when the underlying storage or in-memory
 representation of the data needs to be optimized further than what can be
-achieved by using an intermediary buffering layer with `parquet.Buffer`.
+achieved by using an intermediary buffering layer with `parquet.GenericBuffer[T]`.
 
 See [parquet.RowGroup](https://pkg.go.dev/github.com/segmentio/parquet-go#RowGroup)
 for the full interface documentation.
@@ -503,18 +514,21 @@ can create the row group. This may require significant amounts of memory as the
 entire file content must be buffered prior to generating it. In some cases, the
 files might even be larger than the amount of memory available to the program.
 
-The `parquet.Writer` can be configured to use disk storage instead as a scratch
-buffer when generating files, by configuring a different page buffer pool using
-the `parquet.ColumnPageBuffers` option and `parquet.PageBufferPool` interface.
+The `parquet.GenericWriter[T]` can be configured to use disk storage instead as
+a scratch buffer when generating files, by configuring a different page buffer
+pool using the `parquet.ColumnPageBuffers` option and `parquet.PageBufferPool`
+interface.
 
-The parquet-go package provides an implementation of the interface which uses
-temporary files to store pages while a file is generated, allowing programs to
-use local storage as swap space to hold pages and keep memory utilization to a
-minimum. The following example demonstrates how to configure a parquet writer
-to use on-disk page buffers:
+The `segmentio/parquet-go` package provides an implementation of the interface
+which uses temporary files to store pages while a file is generated, allowing
+programs to use local storage as swap space to hold pages and keep memory
+utilization to a minimum. The following example demonstrates how to configure
+a parquet writer to use on-disk page buffers:
 
 ```go
-writer := parquet.NewWriter(output,
+type RowType struct { ... }
+
+writer := parquet.NewGenericWriter[RowType](output,
     parquet.ColumnPageBuffers(
         parquet.NewFileBufferPool("", "buffers.*"),
     ),

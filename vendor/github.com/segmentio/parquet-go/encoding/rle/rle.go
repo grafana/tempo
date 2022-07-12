@@ -341,7 +341,7 @@ func decodeInt32(dst, src []byte, bitWidth uint) ([]byte, error) {
 		return dst, errDecodeInvalidBitWidth("INT32", bitWidth)
 	}
 
-	buf := make([]byte, 2*bitpack.Padding)
+	buf := make([]byte, 2*bitpack.PaddingInt32)
 
 	for i := 0; i < len(src); {
 		u, n := binary.Uvarint(src[i:])
@@ -367,10 +367,10 @@ func decodeInt32(dst, src []byte, bitWidth uint) ([]byte, error) {
 			// buffer we can use it, otherwise we have to copy it to a larger
 			// location (which should rarely happen).
 			in := src[i : i+length]
-			if (cap(in) - len(in)) >= bitpack.Padding {
+			if (cap(in) - len(in)) >= bitpack.PaddingInt32 {
 				in = in[:cap(in)]
 			} else {
-				buf = resize(buf, len(in)+bitpack.Padding)
+				buf = resize(buf, len(in)+bitpack.PaddingInt32)
 				copy(buf, in)
 				in = buf
 			}
@@ -505,4 +505,52 @@ func encodeInt32BitpackDefault(dst []byte, src [][8]int32, bitWidth uint) int {
 	bits := unsafe.Slice((*int32)(unsafe.Pointer(&src[0])), len(src)*8)
 	bitpack.PackInt32(dst, bits, bitWidth)
 	return bitpack.ByteCount(uint(len(src)*8) * bitWidth)
+}
+
+func encodeBytesBitpackDefault(dst []byte, src []uint64, bitWidth uint) int {
+	bitMask := uint64(1<<bitWidth) - 1
+	n := 0
+
+	for _, word := range src {
+		word = (word & bitMask) |
+			(((word >> 8) & bitMask) << (1 * bitWidth)) |
+			(((word >> 16) & bitMask) << (2 * bitWidth)) |
+			(((word >> 24) & bitMask) << (3 * bitWidth)) |
+			(((word >> 32) & bitMask) << (4 * bitWidth)) |
+			(((word >> 40) & bitMask) << (5 * bitWidth)) |
+			(((word >> 48) & bitMask) << (6 * bitWidth)) |
+			(((word >> 56) & bitMask) << (7 * bitWidth))
+		binary.LittleEndian.PutUint64(dst[n:], word)
+		n += int(bitWidth)
+	}
+
+	return n
+}
+
+func decodeBytesBitpackDefault(dst, src []byte, count, bitWidth uint) {
+	dst = dst[:0]
+
+	bitMask := uint64(1<<bitWidth) - 1
+	byteCount := bitpack.ByteCount(8 * bitWidth)
+
+	for i := 0; count > 0; count -= 8 {
+		j := i + byteCount
+
+		bits := [8]byte{}
+		copy(bits[:], src[i:j])
+		word := binary.LittleEndian.Uint64(bits[:])
+
+		dst = append(dst,
+			byte((word>>(0*bitWidth))&bitMask),
+			byte((word>>(1*bitWidth))&bitMask),
+			byte((word>>(2*bitWidth))&bitMask),
+			byte((word>>(3*bitWidth))&bitMask),
+			byte((word>>(4*bitWidth))&bitMask),
+			byte((word>>(5*bitWidth))&bitMask),
+			byte((word>>(6*bitWidth))&bitMask),
+			byte((word>>(7*bitWidth))&bitMask),
+		)
+
+		i = j
+	}
 }

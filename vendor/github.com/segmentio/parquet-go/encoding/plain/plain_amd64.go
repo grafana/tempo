@@ -3,4 +3,4 @@
 package plain
 
 //go:noescape
-func validateByteArrays([]byte) status
+func validateByteArray([]byte) status

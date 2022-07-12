@@ -1507,7 +1507,7 @@ func (col *byteArrayColumnBuffer) WriteByteArrays(values []byte) (int, error) {
 func (col *byteArrayColumnBuffer) writeByteArrays(values []byte) (count, bytes int, err error) {
 	baseCount, baseBytes := len(col.offsets), len(col.values)
 
-	err = plain.RangeByteArrays(values, func(value []byte) error {
+	err = plain.RangeByteArray(values, func(value []byte) error {
 		col.append(unsafecast.BytesToString(value))
 		return nil
 	})

@@ -1192,22 +1192,17 @@ type indexedPageValues struct {
 }
 
 func (r *indexedPageValues) ReadValues(values []Value) (n int, err error) {
-	dict := r.page.typ.dict
-	pageValues := r.page.values
-	columnIndex := r.page.columnIndex
-
-	for n < len(values) && r.offset < len(pageValues) {
-		v := dict.Index(pageValues[r.offset])
-		v.columnIndex = columnIndex
-		values[n] = v
-		r.offset++
-		n++
+	if n = len(r.page.values) - r.offset; n == 0 {
+		return 0, io.EOF
 	}
-
-	if r.offset == len(pageValues) {
+	if n > len(values) {
+		n = len(values)
+	}
+	r.page.typ.dict.Lookup(r.page.values[r.offset:r.offset+n], values[:n])
+	r.offset += n
+	if r.offset == len(r.page.values) {
 		err = io.EOF
 	}
-
 	return n, err
 }
 

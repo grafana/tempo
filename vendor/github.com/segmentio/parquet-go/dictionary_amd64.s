@@ -598,8 +598,10 @@ TEXT ·dictionaryBoundsBE128(SB), NOSPLIT, $0-72
     SHLQ $4, DI // the dictionary contains 16 byte words
     LEAQ (AX)(DI*1), R8
     MOVQ R8, R9
-    MOVBEQQ 0(AX)(DI*1), R10 // min (high)
-    MOVBEQQ 8(AX)(DI*1), R11 // min (low)
+    MOVQ 0(AX)(DI*1), R10 // min (high)
+    MOVQ 8(AX)(DI*1), R11 // min (low)
+    BSWAPQ R10
+    BSWAPQ R11
     MOVQ R10, R12 // max (high)
     MOVQ R11, R13 // max (low)
 

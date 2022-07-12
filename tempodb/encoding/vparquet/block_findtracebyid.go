@@ -178,7 +178,9 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID) (_ 
 
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 32)
 
-	pf, err := parquet.OpenFile(br, int64(b.meta.Size))
+	or := &parquetOptimizedReaderAt{br, rr, int64(b.meta.Size), b.meta.FooterSize, map[int64]int64{}}
+
+	pf, err := parquet.OpenFile(or, int64(b.meta.Size))
 	if err != nil {
 		return nil, errors.Wrap(err, "error opening file in FindTraceByID")
 	}
