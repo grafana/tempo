@@ -1,7 +1,4 @@
 {
-  local k = import 'ksonnet-util/kausal.libsonnet',
-  local pvc = k.core.v1.persistentVolumeClaim,
-
   util+:: {
     local k = import 'ksonnet-util/kausal.libsonnet',
     local container = k.core.v1.container,

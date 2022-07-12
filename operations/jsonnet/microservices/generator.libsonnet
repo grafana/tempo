@@ -4,7 +4,6 @@
   local container = k.core.v1.container,
   local containerPort = k.core.v1.containerPort,
   local deployment = k.apps.v1.deployment,
-  local statefulset = k.apps.v1.statefulSet,
   local volume = k.core.v1.volume,
   local volumeMount = k.core.v1.volumeMount,
 
