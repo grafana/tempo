@@ -2,7 +2,7 @@
 
 package plain
 
-func validateByteArrays(b []byte) status {
+func validateByteArray(b []byte) status {
 	for i := 0; i < len(b); {
 		r := len(b) - i
 		if r < ByteArrayLengthSize {

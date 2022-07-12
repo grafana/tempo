@@ -693,13 +693,13 @@ func isMaxByteArrayValue(value []byte) bool {
 
 func splitByteArrays(data []byte) [][]byte {
 	length := 0
-	plain.RangeByteArrays(data, func([]byte) error {
+	plain.RangeByteArray(data, func([]byte) error {
 		length++
 		return nil
 	})
 	buffer := make([]byte, 0, len(data)-(4*length))
 	values := make([][]byte, 0, length)
-	plain.RangeByteArrays(data, func(value []byte) error {
+	plain.RangeByteArray(data, func(value []byte) error {
 		offset := len(buffer)
 		buffer = append(buffer, value...)
 		values = append(values, buffer[offset:])

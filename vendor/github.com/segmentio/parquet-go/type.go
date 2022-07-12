@@ -999,7 +999,7 @@ func JSON() Node { return Leaf(&jsonType{}) }
 
 type jsonType format.JsonType
 
-func (t *jsonType) String() string { return (*jsonType)(t).String() }
+func (t *jsonType) String() string { return (*format.JsonType)(t).String() }
 
 func (t *jsonType) Kind() Kind { return ByteArray }
 

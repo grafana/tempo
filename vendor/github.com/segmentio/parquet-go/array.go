@@ -2,46 +2,22 @@ package parquet
 
 import (
 	"unsafe"
+
+	"github.com/segmentio/parquet-go/sparse"
 )
 
-type array struct {
-	ptr unsafe.Pointer
-	len int
+func makeArrayValue(values []Value, offset uintptr) sparse.Array {
+	ptr := *(*unsafe.Pointer)(unsafe.Pointer(&values))
+	return sparse.UnsafeArray(unsafe.Add(ptr, offset), len(values), unsafe.Sizeof(Value{}))
 }
 
-func makeArray(ptr unsafe.Pointer, len int) array {
-	return array{ptr: ptr, len: len}
+func makeArrayString(values []string) sparse.Array {
+	str := ""
+	ptr := *(*unsafe.Pointer)(unsafe.Pointer(&values))
+	return sparse.UnsafeArray(ptr, len(values), unsafe.Sizeof(str))
 }
 
-func makeArrayBool(values []bool) array {
-	return *(*array)(unsafe.Pointer(&values))
-}
-
-func makeArrayString(values []string) array {
-	return *(*array)(unsafe.Pointer(&values))
-}
-
-func makeArrayValue(values []Value) array {
-	return *(*array)(unsafe.Pointer(&values))
-}
-
-func makeArrayBE128(values []*[16]byte) array {
-	return *(*array)(unsafe.Pointer(&values))
-}
-
-func (a array) index(i int, size, offset uintptr) unsafe.Pointer {
-	return unsafe.Add(a.ptr, uintptr(i)*size+offset)
-}
-
-func (a array) slice(i, j int, size, offset uintptr) array {
-	if i < 0 || i > a.len || j < 0 || j > a.len {
-		panic("slice index out of bounds")
-	}
-	if i > j {
-		panic("negative slice length")
-	}
-	return array{
-		ptr: a.index(i, size, offset),
-		len: j - i,
-	}
+func makeArrayBE128(values []*[16]byte) sparse.Array {
+	ptr := *(*unsafe.Pointer)(unsafe.Pointer(&values))
+	return sparse.UnsafeArray(ptr, len(values), unsafe.Sizeof((*[16]byte)(nil)))
 }

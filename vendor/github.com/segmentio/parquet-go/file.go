@@ -54,6 +54,9 @@ func OpenFile(r io.ReaderAt, size int64, options ...FileOption) (*File, error) {
 		return nil, fmt.Errorf("invalid magic header of parquet file: %q", b[:4])
 	}
 
+	if cast, ok := f.reader.(interface{ SetMagicFooterSection(offset, length int64) }); ok {
+		cast.SetMagicFooterSection(size-8, 8)
+	}
 	if _, err := r.ReadAt(b[:8], size-8); err != nil {
 		return nil, fmt.Errorf("reading magic footer of parquet file: %w", err)
 	}
@@ -64,6 +67,9 @@ func OpenFile(r io.ReaderAt, size int64, options ...FileOption) (*File, error) {
 	footerSize := int64(binary.LittleEndian.Uint32(b[:4]))
 	footerData := make([]byte, footerSize)
 
+	if cast, ok := f.reader.(interface{ SetFooterSection(offset, length int64) }); ok {
+		cast.SetFooterSection(size-(footerSize+8), footerSize)
+	}
 	if _, err := f.reader.ReadAt(footerData, size-(footerSize+8)); err != nil {
 		return nil, fmt.Errorf("reading footer of parquet file: %w", err)
 	}
@@ -85,7 +91,7 @@ func OpenFile(r io.ReaderAt, size int64, options ...FileOption) (*File, error) {
 	}
 
 	schema := NewSchema(f.root.Name(), f.root)
-	columns := make([]*Column, 0, MaxColumnIndex+1)
+	columns := make([]*Column, 0, numLeafColumnsOf(f.root))
 	f.schema = schema
 	f.root.forEachLeaf(func(c *Column) { columns = append(columns, c) })
 
@@ -117,6 +123,12 @@ func OpenFile(r io.ReaderAt, size int64, options ...FileOption) (*File, error) {
 						return nil, err
 					}
 					offset, _ = s.Seek(0, io.SeekCurrent)
+					if cast, ok := r.(interface{ SetBloomFilterSection(offset, length int64) }); ok {
+						bloomFilterOffset := c.chunk.MetaData.BloomFilterOffset
+						bloomFilterLength := (offset - bloomFilterOffset) + int64(h.NumBytes)
+						cast.SetBloomFilterSection(bloomFilterOffset, bloomFilterLength)
+					}
+
 					c.bloomFilter = newBloomFilter(r, offset, &h)
 				}
 			}
@@ -192,6 +204,9 @@ func (f *File) ReadPageIndex() ([]format.ColumnIndex, []format.OffsetIndex, erro
 	if columnIndexOffset > 0 {
 		columnIndexData := indexBuffer[:columnIndexLength]
 
+		if cast, ok := f.reader.(interface{ SetColumnIndexSection(offset, length int64) }); ok {
+			cast.SetColumnIndexSection(columnIndexOffset, columnIndexLength)
+		}
 		if _, err := f.reader.ReadAt(columnIndexData, columnIndexOffset); err != nil {
 			return nil, nil, fmt.Errorf("reading %d bytes column index at offset %d: %w", columnIndexLength, columnIndexOffset, err)
 		}
@@ -213,6 +228,9 @@ func (f *File) ReadPageIndex() ([]format.ColumnIndex, []format.OffsetIndex, erro
 	if offsetIndexOffset > 0 {
 		offsetIndexData := indexBuffer[:offsetIndexLength]
 
+		if cast, ok := f.reader.(interface{ SetOffsetIndexSection(offset, length int64) }); ok {
+			cast.SetOffsetIndexSection(offsetIndexOffset, offsetIndexLength)
+		}
 		if _, err := f.reader.ReadAt(offsetIndexData, offsetIndexOffset); err != nil {
 			return nil, nil, fmt.Errorf("reading %d bytes offset index at offset %d: %w", offsetIndexLength, offsetIndexOffset, err)
 		}
@@ -245,6 +263,9 @@ func (f *File) Root() *Column { return f.root }
 
 // Schema returns the schema of f.
 func (f *File) Schema() *Schema { return f.schema }
+
+// Metadata returns the metadata of f.
+func (f *File) Metadata() *format.FileMetaData { return &f.metadata }
 
 // Size returns the size of f (in bytes).
 func (f *File) Size() int64 { return f.size }
@@ -292,9 +313,7 @@ func (f *File) hasIndexes() bool {
 	return f.columnIndexes != nil && f.offsetIndexes != nil
 }
 
-var (
-	_ io.ReaderAt = (*File)(nil)
-)
+var _ io.ReaderAt = (*File)(nil)
 
 func sortKeyValueMetadata(keyValueMetadata []format.KeyValue) {
 	sort.Slice(keyValueMetadata, func(i, j int) bool {

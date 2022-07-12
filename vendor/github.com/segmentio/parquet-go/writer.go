@@ -18,8 +18,8 @@ import (
 	"github.com/segmentio/parquet-go/format"
 )
 
-// A Writer uses a parquet schema and sequence of Go values to produce a parquet
-// file to an io.Writer.
+// Deprecated: A Writer uses a parquet schema and sequence of Go values to
+// produce a parquet file to an io.Writer.
 //
 // This example showcases a typical use of parquet writers:
 //
@@ -41,6 +41,9 @@ import (
 // entire row group. Programs that need to produce parquet files with sorted
 // row groups should use the Buffer type to buffer and sort the rows prior to
 // writing them to a Writer.
+//
+// For programs building with Go 1.18 or later, the GenericWriter[T] type
+// supersedes this one.
 type Writer struct {
 	output io.Writer
 	config *WriterConfig

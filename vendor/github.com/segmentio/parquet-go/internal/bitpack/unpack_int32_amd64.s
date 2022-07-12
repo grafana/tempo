@@ -3,7 +3,7 @@
 #include "funcdata.h"
 #include "textflag.h"
 
-// func unpackInt32Default(dst []int32, src []uint32, bitWidth uint)
+// func unpackInt32Default(dst []int32, src []byte, bitWidth uint)
 TEXT ·unpackInt32Default(SB), NOSPLIT, $0-56
     MOVQ dst_base+0(FP), AX
     MOVQ dst_len+8(FP), DX
@@ -95,7 +95,7 @@ test:
 // In this version of the algorithm, we can perform a single memory load in each
 // loop iteration since we know that 8 values will fit in a single XMM register.
 //
-// func unpackInt32x1to16bitsAVX2(dst []int32, src []uint32, bitWidth uint)
+// func unpackInt32x1to16bitsAVX2(dst []int32, src []byte, bitWidth uint)
 TEXT ·unpackInt32x1to16bitsAVX2(SB), NOSPLIT, $56-56
     NO_LOCAL_POINTERS
     MOVQ dst_base+0(FP), AX
@@ -115,7 +115,7 @@ TEXT ·unpackInt32x1to16bitsAVX2(SB), NOSPLIT, $56-56
     SHLQ CX, R8
     DECQ R8
     MOVQ R8, X0
-    VPBROADCASTD X0, X0
+    VPBROADCASTD X0, X0 // bitMask = (1 << bitWidth) - 1
 
     MOVQ CX, R9
     DECQ R9
@@ -173,7 +173,7 @@ done:
 // In this version of the algorithm, we need to 32 bytes at each loop iteration
 // because 8 bit-packed values will span across two XMM registers.
 //
-// func unpackInt32x17to26bitsAVX2(dst []int32, src []uint32, bitWidth uint)
+// func unpackInt32x17to26bitsAVX2(dst []int32, src []byte, bitWidth uint)
 TEXT ·unpackInt32x17to26bitsAVX2(SB), NOSPLIT, $56-56
     NO_LOCAL_POINTERS
     MOVQ dst_base+0(FP), AX
@@ -262,7 +262,7 @@ done:
 //
 // The amount of LEFT shifts is always "8 minus the amount of RIGHT shift".
 //
-// func unpackInt32x27to31bitsAVX2(dst []int32, src []uint32, bitWidth uint)
+// func unpackInt32x27to31bitsAVX2(dst []int32, src []byte, bitWidth uint)
 TEXT ·unpackInt32x27to31bitsAVX2(SB), NOSPLIT, $56-56
     NO_LOCAL_POINTERS
     MOVQ dst_base+0(FP), AX

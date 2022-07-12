@@ -2,13 +2,12 @@
 
 #include "textflag.h"
 
-// func nullIndex8bits(bits *uint64, rows array, size, offset uintptr)
-TEXT ·nullIndex8bits(SB), NOSPLIT, $0-40
+// func nullIndex8(bits *uint64, rows sparse.Array)
+TEXT ·nullIndex8(SB), NOSPLIT, $0-32
     MOVQ bits+0(FP), AX
-    MOVQ rows_ptr+8(FP), BX
-    MOVQ rows_len+16(FP), DI
-    MOVQ size+24(FP), DX
-    ADDQ offset+32(FP), BX
+    MOVQ rows_array_ptr+8(FP), BX
+    MOVQ rows_array_len+16(FP), DI
+    MOVQ rows_array_off+24(FP), DX
 
     MOVQ $1, CX
     XORQ SI, SI
@@ -33,13 +32,12 @@ next1x1:
 done:
     RET
 
-// func nullIndex32bits(bits *uint64, rows array, size, offset uintptr)
-TEXT ·nullIndex32bits(SB), NOSPLIT, $0-40
+// func nullIndex32(bits *uint64, rows sparse.Array)
+TEXT ·nullIndex32(SB), NOSPLIT, $0-32
     MOVQ bits+0(FP), AX
-    MOVQ rows_ptr+8(FP), BX
-    MOVQ rows_len+16(FP), DI
-    MOVQ size+24(FP), DX
-    ADDQ offset+32(FP), BX
+    MOVQ rows_array_ptr+8(FP), BX
+    MOVQ rows_array_len+16(FP), DI
+    MOVQ rows_array_off+24(FP), DX
 
     MOVQ $1, CX
     XORQ SI, SI
@@ -57,7 +55,7 @@ TEXT ·nullIndex32bits(SB), NOSPLIT, $0-40
     SHRQ $3, R8
     SHLQ $3, R8
 
-    VPBROADCASTD size+24(FP), Y0
+    VPBROADCASTD rows_array_off+24(FP), Y0
     VPMULLD ·range0n8(SB), Y0, Y0
     VPCMPEQD Y1, Y1, Y1
     VPCMPEQD Y2, Y2, Y2
@@ -112,13 +110,12 @@ next1x4:
 done:
     RET
 
-// func nullIndex64bits(bits *uint64, rows array, size, offset uintptr)
-TEXT ·nullIndex64bits(SB), NOSPLIT, $0-40
+// func nullIndex64(bits *uint64, rows sparse.Array)
+TEXT ·nullIndex64(SB), NOSPLIT, $0-32
     MOVQ bits+0(FP), AX
-    MOVQ rows_ptr+8(FP), BX
-    MOVQ rows_len+16(FP), DI
-    MOVQ size+24(FP), DX
-    ADDQ offset+32(FP), BX
+    MOVQ rows_array_ptr+8(FP), BX
+    MOVQ rows_array_len+16(FP), DI
+    MOVQ rows_array_off+24(FP), DX
 
     MOVQ $1, CX
     XORQ SI, SI
@@ -136,8 +133,8 @@ TEXT ·nullIndex64bits(SB), NOSPLIT, $0-40
     SHRQ $2, R8
     SHLQ $2, R8
 
-    VPBROADCASTQ size+24(FP), Y0
-    VPMULLD ·scale4x8(SB), Y0, Y0
+    VPBROADCASTQ rows_array_off+24(FP), Y0
+    VPMULLD scale4x8<>(SB), Y0, Y0
     VPCMPEQQ Y1, Y1, Y1
     VPCMPEQQ Y2, Y2, Y2
     VPXOR Y3, Y3, Y3
@@ -191,13 +188,18 @@ next1x8:
 done:
     RET
 
-// func nullIndex128bits(bits *uint64, rows array, size, offset uintptr)
-TEXT ·nullIndex128bits(SB), NOSPLIT, $0-40
+GLOBL scale4x8<>(SB), RODATA|NOPTR, $32
+DATA scale4x8<>+0(SB)/8,  $0
+DATA scale4x8<>+8(SB)/8,  $1
+DATA scale4x8<>+16(SB)/8, $2
+DATA scale4x8<>+24(SB)/8, $3
+
+// func nullIndex128(bits *uint64, rows sparse.Array)
+TEXT ·nullIndex128(SB), NOSPLIT, $0-32
     MOVQ bits+0(FP), AX
-    MOVQ rows_ptr+8(FP), BX
-    MOVQ rows_len+16(FP), DI
-    MOVQ size+24(FP), DX
-    ADDQ offset+32(FP), BX
+    MOVQ rows_array_ptr+8(FP), BX
+    MOVQ rows_array_len+16(FP), DI
+    MOVQ rows_array_off+24(FP), DX
 
     CMPQ DI, $0
     JE done

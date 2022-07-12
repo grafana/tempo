@@ -9,6 +9,8 @@ import (
 var (
 	encodeInt32IndexEqual8Contiguous func(words [][8]int32) int
 	encodeInt32Bitpack               func(dst []byte, src [][8]int32, bitWidth uint) int
+	encodeBytesBitpack               func(dst []byte, src []uint64, bitWidth uint) int
+	decodeBytesBitpack               func(dst, src []byte, count, bitWidth uint)
 )
 
 func init() {
@@ -20,10 +22,19 @@ func init() {
 		encodeInt32IndexEqual8Contiguous = encodeInt32IndexEqual8ContiguousSSE
 		encodeInt32Bitpack = encodeInt32BitpackDefault
 	}
+
+	switch {
+	case cpu.X86.HasBMI2:
+		encodeBytesBitpack = encodeBytesBitpackBMI2
+		decodeBytesBitpack = decodeBytesBitpackBMI2
+	default:
+		encodeBytesBitpack = encodeBytesBitpackDefault
+		decodeBytesBitpack = decodeBytesBitpackDefault
+	}
 }
 
 //go:noescape
-func encodeBytesBitpack(dst []byte, src []uint64, bitWidth uint) int
+func encodeBytesBitpackBMI2(dst []byte, src []uint64, bitWidth uint) int
 
 //go:noescape
 func encodeInt32IndexEqual8ContiguousAVX2(words [][8]int32) int
@@ -46,4 +57,4 @@ func encodeInt32BitpackAVX2(dst []byte, src [][8]int32, bitWidth uint) int {
 }
 
 //go:noescape
-func decodeBytesBitpack(dst, src []byte, count, bitWidth uint)
+func decodeBytesBitpackBMI2(dst, src []byte, count, bitWidth uint)

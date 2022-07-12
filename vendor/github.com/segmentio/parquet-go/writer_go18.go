@@ -106,7 +106,6 @@ func writeFuncOf[T any](t reflect.Type, schema *Schema) writeFunc[T] {
 }
 
 func makeWriteFunc[T any](t reflect.Type, schema *Schema) writeFunc[T] {
-	size := t.Size()
 	writeRows := writeRowsFuncOf(t, schema, nil)
 	return func(w *GenericWriter[T], rows []T) (n int, err error) {
 		if w.columns == nil {
@@ -119,7 +118,7 @@ func makeWriteFunc[T any](t reflect.Type, schema *Schema) writeFunc[T] {
 				w.columns[i] = c.columnBuffer
 			}
 		}
-		err = writeRows(w.columns, makeArrayOf(rows), size, 0, columnLevels{})
+		err = writeRows(w.columns, makeArrayOf(rows), columnLevels{})
 		if err == nil {
 			n = len(rows)
 		}

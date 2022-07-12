@@ -2,79 +2,83 @@
 
 package parquet
 
-import "unsafe"
+import (
+	"unsafe"
 
-func (d *int32Dictionary) lookup(indexes []int32, rows array, size, offset uintptr) {
+	"github.com/segmentio/parquet-go/sparse"
+)
+
+func (d *int32Dictionary) lookup(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	for i, j := range indexes {
-		*(*int32)(rows.index(i, size, offset)) = d.index(j)
+		*(*int32)(rows.Index(i)) = d.index(j)
 	}
 }
 
-func (d *int64Dictionary) lookup(indexes []int32, rows array, size, offset uintptr) {
+func (d *int64Dictionary) lookup(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	for i, j := range indexes {
-		*(*int64)(rows.index(i, size, offset)) = d.index(j)
+		*(*int64)(rows.Index(i)) = d.index(j)
 	}
 }
 
-func (d *floatDictionary) lookup(indexes []int32, rows array, size, offset uintptr) {
+func (d *floatDictionary) lookup(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	for i, j := range indexes {
-		*(*float32)(rows.index(i, size, offset)) = d.index(j)
+		*(*float32)(rows.Index(i)) = d.index(j)
 	}
 }
 
-func (d *doubleDictionary) lookup(indexes []int32, rows array, size, offset uintptr) {
+func (d *doubleDictionary) lookup(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	for i, j := range indexes {
-		*(*float64)(rows.index(i, size, offset)) = d.index(j)
+		*(*float64)(rows.Index(i)) = d.index(j)
 	}
 }
 
-func (d *byteArrayDictionary) lookupString(indexes []int32, rows array, size, offset uintptr) {
-	checkLookupIndexBounds(indexes, rows)
-	for i, j := range indexes {
-		v := d.index(j)
-		*(*string)(rows.index(i, size, offset)) = *(*string)(unsafe.Pointer(&v))
-	}
-}
-
-func (d *fixedLenByteArrayDictionary) lookupString(indexes []int32, rows array, size, offset uintptr) {
+func (d *byteArrayDictionary) lookupString(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	for i, j := range indexes {
 		v := d.index(j)
-		*(*string)(rows.index(i, size, offset)) = *(*string)(unsafe.Pointer(&v))
+		*(*string)(rows.Index(i)) = *(*string)(unsafe.Pointer(&v))
 	}
 }
 
-func (d *uint32Dictionary) lookup(indexes []int32, rows array, size, offset uintptr) {
+func (d *fixedLenByteArrayDictionary) lookupString(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	for i, j := range indexes {
-		*(*uint32)(rows.index(i, size, offset)) = d.index(j)
+		v := d.index(j)
+		*(*string)(rows.Index(i)) = *(*string)(unsafe.Pointer(&v))
 	}
 }
 
-func (d *uint64Dictionary) lookup(indexes []int32, rows array, size, offset uintptr) {
+func (d *uint32Dictionary) lookup(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	for i, j := range indexes {
-		*(*uint64)(rows.index(i, size, offset)) = d.index(j)
+		*(*uint32)(rows.Index(i)) = d.index(j)
 	}
 }
 
-func (d *be128Dictionary) lookupString(indexes []int32, rows array, size, offset uintptr) {
+func (d *uint64Dictionary) lookup(indexes []int32, rows sparse.Array) {
+	checkLookupIndexBounds(indexes, rows)
+	for i, j := range indexes {
+		*(*uint64)(rows.Index(i)) = d.index(j)
+	}
+}
+
+func (d *be128Dictionary) lookupString(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	s := "0123456789ABCDEF"
 	for i, j := range indexes {
 		*(**[16]byte)(unsafe.Pointer(&s)) = d.index(j)
-		*(*string)(rows.index(i, size, offset)) = s
+		*(*string)(rows.Index(i)) = s
 	}
 }
 
-func (d *be128Dictionary) lookupPointer(indexes []int32, rows array, size, offset uintptr) {
+func (d *be128Dictionary) lookupPointer(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	for i, j := range indexes {
-		*(**[16]byte)(rows.index(i, size, offset)) = d.index(j)
+		*(**[16]byte)(rows.Index(i)) = d.index(j)
 	}
 }
 
@@ -191,7 +195,7 @@ func (d *be128Dictionary) bounds(indexes []int32) (min, max *[16]byte) {
 			n = len(values)
 		}
 		j := i + n
-		d.lookupPointer(indexes[i:j:j], makeArrayBE128(values[:n:n]), unsafe.Sizeof(values[0]), 0)
+		d.lookupPointer(indexes[i:j:j], makeArrayBE128(values[:n:n]))
 
 		for _, value := range values[:n:n] {
 			switch {
