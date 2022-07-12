@@ -156,8 +156,8 @@ querier:
     query_timeout: 30s
     prefer_self: 2
     external_endpoints: []
-    external_hedge_requests_at: 4s
-    external_hedge_requests_up_to: 3
+    external_hedge_requests_at: 8s
+    external_hedge_requests_up_to: 2
   query_timeout: 10s
   max_concurrent_queries: 5
   frontend_worker:

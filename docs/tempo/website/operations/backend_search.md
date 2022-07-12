@@ -53,10 +53,10 @@ querier:
 
     # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
     # be set to p99 of search requests to reduce long tail latency.
-    external_hedge_requests_at: 5s
+    external_hedge_requests_at: 8s
 
     # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
-    external_hedge_requests_up_to: 3
+    external_hedge_requests_up_to: 2
 ```
 
 ### Query frontend
