@@ -28,7 +28,14 @@ Additionally, default label `span_status` is renamed to `status_code`.
       external_hedge_requests_at: 4s    -> 8s
       external_hedge_requests_up_to: 3  -> 2
   ```
-* [CHANGE] Include emptyDir for metrics generator wal storage [#1556](https://github.com/grafana/tempo/pull/1556) (@zalegrala)
+* [CHANGE] **BREAKING CHANGE** Include emptyDir for metrics generator wal storage in jsonnet [#1556](https://github.com/grafana/tempo/pull/1556) (@zalegrala)
+Jsonnet users will now need to specify a storage request and limit for the generator wal.
+    _config+:: {
+      metrics_generator+: {
+        ephemeral_storage_request_size: '10Gi',
+        ephemeral_storage_limit_size: '11Gi',
+      },
+    }
 * [FEATURE] metrics-generator: support per-tenant processor configuration [#1434](https://github.com/grafana/tempo/pull/1434) (@kvrhdn)
 * [FEATURE] Include rollout dashboard [#1456](https://github.com/grafana/tempo/pull/1456) (@zalegrala)
 * [FEATURE] Add SentinelPassword configuration for Redis [#1463](https://github.com/grafana/tempo/pull/1463) (@zalegrala)
