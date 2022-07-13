@@ -26,6 +26,8 @@ jobs:
 
       - name: Commit serverless gomod changes
         run: |
+          git config user.name grafanabot[bot]
+          git config user.email bot@grafana.com
           git add cmd/tempo-serverless/lambda/go.mod
           git add cmd/tempo-serverless/lambda/go.sum
           git add cmd/tempo-serverless/cloud-run/go.mod
