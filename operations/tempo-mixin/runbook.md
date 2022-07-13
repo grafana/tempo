@@ -264,3 +264,6 @@ After compaction has been scaled out, it'll take a time for compactors to catch
 up with their outstanding blocks.
 Take a look at `tempodb_compaction_outstanding_blocks` and check if blocks start
 going down. If not, further scaling may be necessary.
+
+Since the number of blocks is elevated, it may also be necessary to review the queue-related
+settings to prevent [trace lookup failures](#trace-lookup-failures).
