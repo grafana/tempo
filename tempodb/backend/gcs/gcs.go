@@ -138,10 +138,6 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 	return objects, nil
 }
 
-func (rw *readerWriter) DeleteObject(ctx context.Context, keypath backend.KeyPath) error {
-	return rw.bucket.Object(path.Join(keypath...)).Delete(ctx)
-}
-
 // Read implements backend.Reader
 func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Read")

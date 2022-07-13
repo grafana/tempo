@@ -30,7 +30,6 @@ type RawWriter interface {
 	Append(ctx context.Context, name string, keypath KeyPath, tracker AppendTracker, buffer []byte) (AppendTracker, error)
 	// Closes any resources associated with the AppendTracker
 	CloseAppend(ctx context.Context, tracker AppendTracker) error
-	DeleteObject(ctx context.Context, keypath KeyPath) error
 }
 
 // RawReader is a collection of methods to read data from tempodb backends

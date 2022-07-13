@@ -96,10 +96,6 @@ func (rw *Backend) CloseAppend(ctx context.Context, tracker backend.AppendTracke
 	return dst.Close()
 }
 
-func (rw *Backend) DeleteObject(ctx context.Context, keypath backend.KeyPath) error {
-	return os.Remove(rw.rootPath(keypath))
-}
-
 // List implements backend.Reader
 func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
 	path := rw.rootPath(keypath)

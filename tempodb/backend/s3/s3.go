@@ -205,10 +205,6 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 	return nil
 }
 
-func (rw *readerWriter) DeleteObject(ctx context.Context, keypath backend.KeyPath) error {
-	return rw.core.RemoveObject(ctx, rw.cfg.Bucket, path.Join(keypath...), minio.RemoveObjectOptions{})
-}
-
 // List implements backend.Reader
 func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
 	prefix := path.Join(keypath...)

@@ -109,11 +109,6 @@ func (r *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTr
 	return r.nextWriter.CloseAppend(ctx, tracker)
 }
 
-// DeleteObject implements backend.RawWriter
-func (r *readerWriter) DeleteObject(ctx context.Context, keypath backend.KeyPath) error {
-	return r.nextWriter.DeleteObject(ctx, keypath)
-}
-
 func key(keypath backend.KeyPath, name string) string {
 	return strings.Join(keypath, ":") + ":" + name
 }

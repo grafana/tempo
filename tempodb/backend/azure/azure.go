@@ -107,10 +107,6 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 	return nil
 }
 
-func (rw *readerWriter) DeleteObject(ctx context.Context, keypath backend.KeyPath) error {
-	return rw.delete(ctx, path.Join(keypath...))
-}
-
 // List implements backend.Reader
 func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
 	marker := blob.Marker{}
