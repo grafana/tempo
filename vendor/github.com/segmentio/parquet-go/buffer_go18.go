@@ -69,10 +69,9 @@ func bufferFuncOf[T any](t reflect.Type, schema *Schema) bufferFunc[T] {
 }
 
 func makeBufferFunc[T any](t reflect.Type, schema *Schema) bufferFunc[T] {
-	size := t.Size()
 	writeRows := writeRowsFuncOf(t, schema, nil)
 	return func(buf *GenericBuffer[T], rows []T) (n int, err error) {
-		err = writeRows(buf.base.columns, makeArrayOf(rows), size, 0, columnLevels{})
+		err = writeRows(buf.base.columns, makeArrayOf(rows), columnLevels{})
 		if err == nil {
 			n = len(rows)
 		}

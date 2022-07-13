@@ -12,8 +12,8 @@ DATA bitMasks<>+40(SB)/8, $0b001111110011111100111111001111110011111100111111001
 DATA bitMasks<>+48(SB)/8, $0b0111111101111111011111110111111101111111011111110111111101111111
 DATA bitMasks<>+56(SB)/8, $0b1111111111111111111111111111111111111111111111111111111111111111
 
-// func decodeBytesBitpack(dst, src []byte, count, bitWidth uint)
-TEXT ·decodeBytesBitpack(SB), NOSPLIT, $0-64
+// func decodeBytesBitpackBMI2(dst, src []byte, count, bitWidth uint)
+TEXT ·decodeBytesBitpackBMI2(SB), NOSPLIT, $0-64
     MOVQ dst_base+0(FP), AX
     MOVQ src_base+24(FP), BX
     MOVQ count+48(FP), CX
@@ -34,8 +34,8 @@ test:
     JNE loop
     RET
 
-// func encodeBytesBitpack(dst []byte, src []uint64, bitWidth uint) int
-TEXT ·encodeBytesBitpack(SB), NOSPLIT, $0-64
+// func encodeBytesBitpackBMI2(dst []byte, src []uint64, bitWidth uint) int
+TEXT ·encodeBytesBitpackBMI2(SB), NOSPLIT, $0-64
     MOVQ dst_base+0(FP), AX
     MOVQ src_base+24(FP), BX
     MOVQ src_len+32(FP), CX

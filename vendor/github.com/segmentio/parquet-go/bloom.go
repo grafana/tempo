@@ -177,7 +177,7 @@ func (splitBlockEncoding) EncodeByteArray(dst, src []byte) ([]byte, error) {
 	filter := bloom.MakeSplitBlockFilter(dst)
 	buffer := make([]uint64, 0, filterEncodeBufferSize)
 
-	err := plain.RangeByteArrays(src, func(value []byte) error {
+	err := plain.RangeByteArray(src, func(value []byte) error {
 		if len(buffer) == cap(buffer) {
 			filter.InsertBulk(buffer)
 			buffer = buffer[:0]

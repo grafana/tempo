@@ -3,13 +3,14 @@ package tempodb
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"math/rand"
 	"path"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/golang/protobuf/proto"
+	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,7 +63,16 @@ func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
 	return m.blockRetention
 }
 
-func TestCompaction(t *testing.T) {
+func TestCompactionRoundtrip(t *testing.T) {
+	testEncodings := []string{v2.VersionString, vparquet.VersionString}
+	for _, enc := range testEncodings {
+		t.Run(enc, func(t *testing.T) {
+			testCompactionRoundtrip(t, enc)
+		})
+	}
+}
+
+func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
@@ -78,7 +88,7 @@ func TestCompaction(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
+			Version:              targetBlockVersion,
 			Encoding:             backend.EncLZ4_4M,
 			IndexPageSizeBytes:   1000,
 		},
@@ -99,7 +109,7 @@ func TestCompaction(t *testing.T) {
 	r.EnablePolling(&mockJobSharder{})
 
 	wal := w.WAL()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	blockCount := 4
 	recordCount := 100
@@ -117,6 +127,7 @@ func TestCompaction(t *testing.T) {
 		for j := 0; j < recordCount; j++ {
 			id := test.ValidTraceID(nil)
 			req := test.MakeTrace(10, id)
+
 			writeTraceToWal(t, head, dec, id, req, 0, 0)
 
 			allReqs = append(allReqs, req)
@@ -147,25 +158,25 @@ func TestCompaction(t *testing.T) {
 		if len(blocks) == 0 {
 			break
 		}
-		assert.Len(t, blocks, inputBlocks)
+		require.Len(t, blocks, inputBlocks)
 
 		compactions++
 		err := rw.compact(blocks, testTenantID)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		expectedBlockCount -= blocksPerCompaction
 		expectedCompactedCount += inputBlocks
 		checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
 	}
 
-	assert.Equal(t, expectedCompactions, compactions)
+	require.Equal(t, expectedCompactions, compactions)
 
 	// do we have the right number of records
 	var records int
 	for _, meta := range rw.blocklist.Metas(testTenantID) {
 		records += meta.TotalObjects
 	}
-	assert.Equal(t, blockCount*recordCount, records)
+	require.Equal(t, blockCount*recordCount, records)
 
 	// now see if we can find our ids
 	for i, id := range allIds {
@@ -180,10 +191,15 @@ func TestCompaction(t *testing.T) {
 		}
 		tr, _ := c.Result()
 
-		// Traces come out of the combiner sorted,
-		// so do the same here.
+		// Sort all traces to check equality consistently.
 		trace.SortTrace(allReqs[i])
-		require.True(t, proto.Equal(allReqs[i], tr))
+		trace.SortTrace(tr)
+
+		if !proto.Equal(allReqs[i], tr) {
+			wantJSON, _ := json.MarshalIndent(allReqs[i], "", "  ")
+			gotJSON, _ := json.MarshalIndent(tr, "", "  ")
+			require.Equal(t, wantJSON, gotJSON)
+		}
 	}
 }
 
@@ -226,7 +242,7 @@ func TestSameIDCompaction(t *testing.T) {
 	r.EnablePolling(&mockJobSharder{})
 
 	wal := w.WAL()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	dec := model.MustNewSegmentDecoder(v1.Encoding)
 
@@ -288,7 +304,7 @@ func TestSameIDCompaction(t *testing.T) {
 	list := rw.blocklist.Metas(testTenantID)
 	blockSelector := newTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, blockCount)
 	blocks, _ = blockSelector.BlocksToCompact()
-	assert.Len(t, blocks, blockCount)
+	require.Len(t, blocks, blockCount)
 
 	combinedStart, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
 	require.NoError(t, err)
@@ -305,8 +321,8 @@ func TestSameIDCompaction(t *testing.T) {
 	// search for all ids
 	for i, id := range allIds {
 		trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, 0, 0)
-		assert.NoError(t, err)
-		assert.Nil(t, failedBlocks)
+		require.NoError(t, err)
+		require.Nil(t, failedBlocks)
 
 		c := trace.NewCombiner()
 		for _, tr := range trs {

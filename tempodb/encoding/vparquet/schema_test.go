@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -130,7 +131,7 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 								TraceId: traceIDA,
 								Name:    "secondSpan",
 								Status: &v1_trace.Status{
-									Code: v1_trace.Status_STATUS_CODE_OK,
+									Code: v1_trace.Status_STATUS_CODE_ERROR,
 								},
 								ParentSpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 							},
@@ -141,8 +142,19 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 		},
 	}
 
-	parquetTrace := traceToParquet(expectedTrace)
+	parquetTrace := traceToParquet(traceIDA, expectedTrace)
 	actualTrace, err := parquetTraceToTempopbTrace(&parquetTrace)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedTrace, actualTrace)
+}
+
+func TestProtoToParquetEmptyTrace(t *testing.T) {
+
+	want := Trace{
+		TraceID: make([]byte, 16),
+	}
+
+	got := traceToParquet(nil, &tempopb.Trace{})
+
+	require.Equal(t, want, got)
 }

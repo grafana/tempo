@@ -825,7 +825,7 @@ github.com/segmentio/encoding/thrift
 # github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
 ## explicit
 github.com/segmentio/fasthash/fnv1a
-# github.com/segmentio/parquet-go v0.0.0-20220615011901-16edc2ee0508
+# github.com/segmentio/parquet-go v0.0.0-20220711225945-6dc5e4bb634a
 ## explicit; go 1.18
 github.com/segmentio/parquet-go
 github.com/segmentio/parquet-go/bloom
@@ -845,9 +845,13 @@ github.com/segmentio/parquet-go/encoding/delta
 github.com/segmentio/parquet-go/encoding/plain
 github.com/segmentio/parquet-go/encoding/rle
 github.com/segmentio/parquet-go/format
+github.com/segmentio/parquet-go/hashprobe
+github.com/segmentio/parquet-go/hashprobe/aeshash
+github.com/segmentio/parquet-go/hashprobe/wyhash
 github.com/segmentio/parquet-go/internal/bitpack
 github.com/segmentio/parquet-go/internal/bytealg
 github.com/segmentio/parquet-go/internal/unsafecast
+github.com/segmentio/parquet-go/sparse
 # github.com/sercand/kuberesolver v2.4.0+incompatible
 ## explicit
 github.com/sercand/kuberesolver

@@ -323,8 +323,8 @@ func decodeInt32(dst, src []byte) ([]byte, []byte, error) {
 					miniBlockData = miniBlockData[:miniBlockSize]
 				}
 				src = src[len(miniBlockData):]
-				if cap(miniBlockData) < miniBlockSize+bitpack.Padding {
-					miniBlockTemp = resize(miniBlockTemp[:0], miniBlockSize+bitpack.Padding)
+				if cap(miniBlockData) < miniBlockSize+bitpack.PaddingInt32 {
+					miniBlockTemp = resize(miniBlockTemp[:0], miniBlockSize+bitpack.PaddingInt32)
 					miniBlockData = miniBlockTemp[:copy(miniBlockTemp, miniBlockData)]
 				}
 				miniBlockData = miniBlockData[:miniBlockSize]
@@ -386,8 +386,8 @@ func decodeInt64(dst, src []byte) ([]byte, []byte, error) {
 					miniBlockData = src[:miniBlockSize]
 				}
 				src = src[len(miniBlockData):]
-				if len(miniBlockData) < miniBlockSize+bitpack.Padding {
-					miniBlockTemp = resize(miniBlockTemp[:0], miniBlockSize+bitpack.Padding)
+				if len(miniBlockData) < miniBlockSize+bitpack.PaddingInt64 {
+					miniBlockTemp = resize(miniBlockTemp[:0], miniBlockSize+bitpack.PaddingInt64)
 					miniBlockData = miniBlockTemp[:copy(miniBlockTemp, miniBlockData)]
 				}
 				miniBlockData = miniBlockData[:miniBlockSize]

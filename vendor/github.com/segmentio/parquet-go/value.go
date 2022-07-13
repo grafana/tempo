@@ -257,6 +257,10 @@ func makeValue(k Kind, v reflect.Value) Value {
 			if v.Type().Elem().Kind() == reflect.Uint8 {
 				return makeValueFixedLenByteArray(v)
 			}
+		case reflect.Slice:
+			if v.Type().Elem().Kind() == reflect.Uint8 {
+				return makeValueBytes(k, v.Bytes())
+			}
 		}
 	}
 

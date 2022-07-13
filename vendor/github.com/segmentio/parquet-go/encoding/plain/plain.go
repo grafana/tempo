@@ -71,7 +71,7 @@ func (e *Encoding) EncodeDouble(dst, src []byte) ([]byte, error) {
 }
 
 func (e *Encoding) EncodeByteArray(dst []byte, src []byte) ([]byte, error) {
-	if err := ValidateByteArrays(src); err != nil {
+	if err := ValidateByteArray(src); err != nil {
 		return dst[:0], encoding.Error(e, err)
 	}
 	return append(dst[:0], src...), nil
@@ -124,7 +124,7 @@ func (e *Encoding) DecodeDouble(dst, src []byte) ([]byte, error) {
 }
 
 func (e *Encoding) DecodeByteArray(dst, src []byte) ([]byte, error) {
-	if err := ValidateByteArrays(src); err != nil {
+	if err := ValidateByteArray(src); err != nil {
 		return dst[:0], encoding.Error(e, err)
 	}
 	return append(dst[:0], src...), nil
@@ -246,8 +246,8 @@ const (
 	errTooLarge
 )
 
-func ValidateByteArrays(b []byte) error {
-	switch validateByteArrays(b) {
+func ValidateByteArray(b []byte) error {
+	switch validateByteArray(b) {
 	case errTooShort:
 		return ErrTooShort(len(b))
 	case errTooLarge:
@@ -257,7 +257,7 @@ func ValidateByteArrays(b []byte) error {
 	}
 }
 
-func RangeByteArrays(b []byte, do func([]byte) error) (err error) {
+func RangeByteArray(b []byte, do func([]byte) error) (err error) {
 	for len(b) > 0 {
 		var v []byte
 		if v, b, err = NextByteArray(b); err != nil {
