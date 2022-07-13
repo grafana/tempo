@@ -44,6 +44,10 @@ tempo {
         },
       },
     },
+    metrics_generator+: {
+      ephemeral_storage_request: '10Gi',
+      ephemeral_storage_limit: '11Gi',
+    },
     memcached+: {
       replicas: 5,
     },

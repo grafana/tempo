@@ -23,6 +23,7 @@ k {
     max_item_size:: '1m',
     memory_limit_mb:: 1024,
     overprovision_factor:: 1.2,
+    cpu_requests:: '500m',
     cpu_limits:: '3',
     connection_limit:: 1024,
     memory_request_overhead_mb:: 100,
@@ -43,7 +44,7 @@ k {
         '-c %(connection_limit)s' % self,
         '-v',
       ]) +
-      $.util.resourcesRequests('500m', $.util.bytesToK8sQuantity(self.memory_request_bytes)) +
+      $.util.resourcesRequests(self.cpu_requests, $.util.bytesToK8sQuantity(self.memory_request_bytes)) +
       $.util.resourcesLimits(self.cpu_limits, $.util.bytesToK8sQuantity(self.memory_limits_bytes)),
 
     memcached_exporter::

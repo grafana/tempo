@@ -19,7 +19,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: 345364f17b5771460510d3d5b9028e3c
+        config_hash: 38371b26593e9c469c05ce32310ccdc9
       labels:
         app: metrics-generator
         name: metrics-generator
@@ -45,13 +45,17 @@ spec:
         resources:
           limits:
             cpu: "1"
+            ephemeral-storage: 11Gi
             memory: 2Gi
           requests:
             cpu: 500m
+            ephemeral-storage: 10Gi
             memory: 1Gi
         volumeMounts:
         - mountPath: /conf
           name: tempo-conf
+        - mountPath: /var/tempo/generator_wal
+          name: metrics-generator-wal-data
         - mountPath: /overrides
           name: overrides
       volumes:
@@ -61,3 +65,5 @@ spec:
       - configMap:
           name: tempo-overrides
         name: overrides
+      - emptyDir: {}
+        name: metrics-generator-wal-data

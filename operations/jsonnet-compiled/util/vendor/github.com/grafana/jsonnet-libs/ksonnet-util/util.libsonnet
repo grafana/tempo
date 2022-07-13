@@ -162,7 +162,7 @@ local util(k) = {
     ])
     + (if annotations != {} then deployment.mixin.spec.template.metadata.withAnnotationsMixin(annotations) else {}),
 
-  hostVolumeMount(name, hostPath, path, readOnly=false, volumeMountMixin={})::
+  hostVolumeMount(name, hostPath, path, readOnly=false, volumeMountMixin={}, volumeMixin={})::
     local container = k.core.v1.container,
           deployment = k.apps.v1.deployment,
           volumeMount = k.core.v1.volumeMount,
@@ -174,7 +174,8 @@ local util(k) = {
 
     deployment.mapContainers(addMount) +
     deployment.mixin.spec.template.spec.withVolumesMixin([
-      volume.fromHostPath(name, hostPath),
+      volume.fromHostPath(name, hostPath) +
+      volumeMixin,
     ]),
 
   pvcVolumeMount(pvcName, path, readOnly=false, volumeMountMixin={})::
