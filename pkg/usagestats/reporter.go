@@ -103,11 +103,11 @@ func (rep *Reporter) initLeader(ctx context.Context) *ClusterSeed {
 		// Fetch the remote cluster seed.
 		remoteSeed, err := rep.fetchSeed(ctx,
 			func(err error) bool {
-				// we only want to retry if the error is not an object not found error
-				return err != backend.ErrDoesNotExist
+				// we only want to retry if the error is not an object not found error or a bad see file error
+				return err != backend.ErrDoesNotExist && err != backend.ErrBadSeedFile
 			})
 		if err != nil {
-			if err == backend.ErrDoesNotExist {
+			if err == backend.ErrDoesNotExist || err == backend.ErrBadSeedFile {
 				// we are the leader and we need to save the file.
 				if err := rep.writeSeedFile(ctx, seed); err != nil {
 					level.Info(rep.logger).Log("msg", "failed to CAS cluster seed key", "err", err)
@@ -183,10 +183,9 @@ func (rep *Reporter) fetchSeed(ctx context.Context, continueFn func(err error) b
 			}
 			level.Debug(rep.logger).Log("msg", "failed to read cluster seed file", "err", err)
 			if readingErr > attemptNumber {
-				if delErr := rep.writer.DeleteObject(ctx, backend.KeyPath{ClusterSeedFileName}); delErr != nil {
-					level.Error(rep.logger).Log("msg", "failed to delete corrupted cluster seed file, deleting it", "err", delErr)
+				if err == backend.ErrBadSeedFile {
+					level.Debug(rep.logger).Log("msg", "seed file corrupted")
 				}
-				readingErr = 0
 			}
 			if continueFn == nil || continueFn(err) {
 				backoff.Wait()
@@ -216,7 +215,7 @@ func (rep *Reporter) readSeedFile(ctx context.Context) (*ClusterSeed, error) {
 	}
 	seed, err := JSONCodec.Decode(data)
 	if err != nil {
-		return nil, err
+		return nil, backend.ErrBadSeedFile
 	}
 	return seed.(*ClusterSeed), nil
 }

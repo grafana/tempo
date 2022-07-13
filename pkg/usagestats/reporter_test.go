@@ -1,6 +1,7 @@
 package usagestats
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -29,20 +30,20 @@ func Test_LeaderElection(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		go func() {
-			r, err := NewReporter(Config{Leader: true, Enabled: true}, kv.Config{
+			r, leaderErr := NewReporter(Config{Leader: true, Enabled: true}, kv.Config{
 				Store: "inmemory",
 			}, objectClient, objectClient, log.NewLogfmtLogger(os.Stdout), nil)
-			require.NoError(t, err)
+			require.NoError(t, leaderErr)
 			r.init(context.Background())
 			result <- r.cluster
 		}()
 	}
 	for i := 0; i < 7; i++ {
 		go func() {
-			r, err := NewReporter(Config{Leader: false, Enabled: true}, kv.Config{
+			r, nonLeaderError := NewReporter(Config{Leader: false, Enabled: true}, kv.Config{
 				Store: "inmemory",
 			}, objectClient, objectClient, log.NewLogfmtLogger(os.Stdout), nil)
-			require.NoError(t, err)
+			require.NoError(t, nonLeaderError)
 			r.init(context.Background())
 			result <- r.cluster
 		}()
@@ -63,6 +64,63 @@ func Test_LeaderElection(t *testing.T) {
 	// verify that the ID found is also correctly stored in the kv store and not overridden by another leader.
 	data, err := kvClient.Get(context.Background(), seedKey)
 	require.NoError(t, err)
+	t.Logf("data: %+v", data.(*ClusterSeed))
+	require.Equal(t, data.(*ClusterSeed).UID, first)
+}
+
+func Test_LeaderElectionWithBrokenSeedFile(t *testing.T) {
+	stabilityCheckInterval = 100 * time.Millisecond
+
+	result := make(chan *ClusterSeed, 10)
+
+	objectClient, err := local.NewBackend(&local.Config{
+		Path: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	// Ensure that leader election succeeds even when the seed file has been
+	// corrupted.  This means that we don't need to extend the interface of the
+	// backend in order to delete a corrupted seed file.
+	err = objectClient.Write(context.Background(), ClusterSeedFileName, []string{}, bytes.NewReader([]byte("{")), -1, false)
+	require.NoError(t, err)
+
+	for i := 0; i < 3; i++ {
+		go func() {
+			r, leaderErr := NewReporter(Config{Leader: true, Enabled: true}, kv.Config{
+				Store: "inmemory",
+			}, objectClient, objectClient, log.NewLogfmtLogger(os.Stdout), nil)
+			require.NoError(t, leaderErr)
+			r.init(context.Background())
+			result <- r.cluster
+		}()
+	}
+	for i := 0; i < 7; i++ {
+		go func() {
+			r, nonLeaderError := NewReporter(Config{Leader: false, Enabled: true}, kv.Config{
+				Store: "inmemory",
+			}, objectClient, objectClient, log.NewLogfmtLogger(os.Stdout), nil)
+			require.NoError(t, nonLeaderError)
+			r.init(context.Background())
+			result <- r.cluster
+		}()
+	}
+
+	var UID []string
+	for i := 0; i < 10; i++ {
+		cluster := <-result
+		require.NotNil(t, cluster)
+		UID = append(UID, cluster.UID)
+	}
+	first := UID[0]
+	for _, uid := range UID {
+		require.Equal(t, first, uid)
+	}
+	kvClient, err := kv.NewClient(kv.Config{Store: "inmemory"}, JSONCodec, nil, log.NewLogfmtLogger(os.Stdout))
+	require.NoError(t, err)
+	// verify that the ID found is also correctly stored in the kv store and not overridden by another leader.
+	data, err := kvClient.Get(context.Background(), seedKey)
+	require.NoError(t, err)
+	t.Logf("data: %+v", data.(*ClusterSeed))
 	require.Equal(t, data.(*ClusterSeed).UID, first)
 }
 
