@@ -48,7 +48,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
 
-	or := &parquetOptimizedReaderAt{br, rr, int64(b.meta.Size), b.meta.FooterSize, map[int64]int64{}}
+	or := NewParquetOptimizedReaderAt(br, rr, int64(b.meta.Size), uint32(b.meta.FooterSize))
 
 	span2, _ := opentracing.StartSpanFromContext(derivedCtx, "parquet.OpenFile")
 	pf, err := parquet.OpenFile(or, int64(b.meta.Size), parquet.SkipPageIndex(true))
