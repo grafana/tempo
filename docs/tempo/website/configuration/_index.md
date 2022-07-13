@@ -1148,14 +1148,14 @@ Additional search-related settings are available in the [distributor](#distribut
 
 ## Usage-report
 
-By default, Tempo will report anonymous usage data to Grafana Labs concerning
-the shape of a deployment.  This data is used to determine how common
-the deployment of certain features are, or if a feature flag has been enabled,
+By default, Tempo will report anonymous usage data about the shape of a
+deployment to Grafana Labs. This data is used to determine how common the
+deployment of certain features are, if a feature flag has been enabled,
 replication factor or compression levels, etc.
 
-The reporting is controlled by a configuration option.  To disable the
-automatic reporting of this generic information, the following configuration
-can be used.
+Reporting is controlled by a configuration option. You can disable the
+automatic reporting of this generic information using the following
+configuration:
 
 ```yaml
 usage_report:
