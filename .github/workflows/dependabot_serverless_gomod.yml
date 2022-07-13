@@ -1,9 +1,13 @@
 name: Dependabot serverless gomod update
 on: pull_request
 
-permissions:
-  contents: write
-  pull-requests: write
+# NOTE: For this job, we are unable to use the GITHUB_TOKEN from the action
+# itself.  The reason for this is that the tokens handed out for actions dont'
+# contain the necessary permissions to kick off workflows in the case a new
+# commit is added, as is the case here.  For this job, we use the GH_BOT token
+# secret in the repo, which has the necessary permissions.  This allows the
+# final commit+push on this job to execute the rest of the workflow required by
+# the PR build configuration.
 
 jobs:
   dependabot:
@@ -26,7 +30,7 @@ jobs:
 
       - name: Commit serverless gomod changes
         run: |
-          git config user.name grafanabot[bot]
+          git config user.name grafanabot
           git config user.email bot@grafana.com
           git add cmd/tempo-serverless/lambda/go.mod
           git add cmd/tempo-serverless/lambda/go.sum
