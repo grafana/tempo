@@ -48,10 +48,8 @@ func (m *MultiBlockIterator) Next(ctx context.Context) (*Trace, error) {
 		}
 	}
 
-	lowestObject := lowestObjects[0]
-	if len(lowestObjects) > 1 {
-		lowestObject = CombineTraces(lowestObjects...)
-	}
+	lowestObject := CombineTraces(lowestObjects...)
+
 	for _, b := range lowestBookmarks {
 		b.clear()
 	}
