@@ -57,7 +57,7 @@ type parquetOptimizedReaderAt struct {
 var _ io.ReaderAt = (*parquetOptimizedReaderAt)(nil)
 var _ ParquetMetadataSections = (*parquetOptimizedReaderAt)(nil)
 
-func NewParquetOptimizedReaderAt(br io.ReaderAt, rr *BackendReaderAt, size int64, footerSize uint32) *parquetOptimizedReaderAt {
+func newParquetOptimizedReaderAt(br io.ReaderAt, rr *BackendReaderAt, size int64, footerSize uint32) *parquetOptimizedReaderAt {
 	return &parquetOptimizedReaderAt{br, rr, size, footerSize, map[int64]int64{}}
 }
 
@@ -91,7 +91,7 @@ func (r *parquetOptimizedReaderAt) ReadAt(p []byte, off int64) (int, error) {
 
 	// check if the offset and length is stored as a special object
 	if r.cachedObjects[off] == int64(len(p)) {
-		r.br.ReadAtWithCache(p, off)
+		return r.br.ReadAtWithCache(p, off)
 	}
 
 	return r.r.ReadAt(p, off)
