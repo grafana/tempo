@@ -825,11 +825,7 @@ github.com/segmentio/encoding/thrift
 # github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
 ## explicit
 github.com/segmentio/fasthash/fnv1a
-<<<<<<< HEAD
-# github.com/segmentio/parquet-go v0.0.0-20220711093320-3dfa7c5b3344
-=======
 # github.com/segmentio/parquet-go v0.0.0-20220711225945-6dc5e4bb634a
->>>>>>> main
 ## explicit; go 1.18
 github.com/segmentio/parquet-go
 github.com/segmentio/parquet-go/bloom
