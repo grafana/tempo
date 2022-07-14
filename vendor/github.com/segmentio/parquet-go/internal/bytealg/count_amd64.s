@@ -6,7 +6,7 @@
 TEXT ·Count(SB), NOSPLIT, $0-40
     MOVQ data_base+0(FP), AX
     MOVQ data_len+8(FP), CX
-    MOVQ value+24(FP), BX
+    MOVB value+24(FP), BX
     MOVQ CX, DX // len
     ADDQ AX, CX // end
     XORQ SI, SI // count

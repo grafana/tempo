@@ -45,6 +45,31 @@ Another way to increase parallelism is by increasing the size of the worker pool
 A theoretically ideal value for this config to avoid _any_ queueing would be (Size of blocklist / Max Concurrent Queries).
 But also factor in the resources provided to the querier.
 
+### Trace Lookup Failures
+
+If trace lookups are fail with the error: `error querying store in Querier.FindTraceByID: queue doesn't have room for <xyz> jobs`, this 
+means that the number of blocks has exceeded the queriers' ability to check them all.  This can be caused by an increase in
+the number of blocks, or if the number of queriers was reduced.
+
+Check the following metrics and data points:
+- Metric: `tempodb_blocklist_length` - Look for a recent increase in blocks
+- The number of queriers
+- The queue_depth setting in the queriers:
+    ```
+    storage:
+      trace:
+        pool:
+          queue_depth: xyz (default 10000)
+    ```
+
+The queue won't have room when the number of blocks per querier exceeds the queue_depth:
+  (blocklist_length / number of queriers) > queue_depth
+
+Consider the following resolutions:
+- Increase the number of queriers
+- Increase the queue_depth size to do more work per querier
+- Adjust compaction settings to reduce the number of blocks
+
 ### Serverless/External Endpoints
 
 If the request latency issues are due to backend searches with serverless/external endpoints there may be additional configuration
@@ -239,3 +264,6 @@ After compaction has been scaled out, it'll take a time for compactors to catch
 up with their outstanding blocks.
 Take a look at `tempodb_compaction_outstanding_blocks` and check if blocks start
 going down. If not, further scaling may be necessary.
+
+Since the number of blocks is elevated, it may also be necessary to review the queue-related
+settings to prevent [trace lookup failures](#trace-lookup-failures).

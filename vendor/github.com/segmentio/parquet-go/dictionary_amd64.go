@@ -4,6 +4,7 @@ package parquet
 
 import (
 	"github.com/segmentio/parquet-go/internal/unsafecast"
+	"github.com/segmentio/parquet-go/sparse"
 )
 
 //go:noescape
@@ -28,74 +29,74 @@ func dictionaryBoundsUint64(dict []uint64, indexes []int32) (min, max uint64, er
 func dictionaryBoundsBE128(dict [][16]byte, indexes []int32) (min, max *[16]byte, err errno)
 
 //go:noescape
-func dictionaryLookup32bits(dict []uint32, indexes []int32, rows array, size, offset uintptr) errno
+func dictionaryLookup32(dict []uint32, indexes []int32, rows sparse.Array) errno
 
 //go:noescape
-func dictionaryLookup64bits(dict []uint64, indexes []int32, rows array, size, offset uintptr) errno
+func dictionaryLookup64(dict []uint64, indexes []int32, rows sparse.Array) errno
 
 //go:noescape
-func dictionaryLookupByteArrayString(dict []uint32, page []byte, indexes []int32, rows array, size, offset uintptr) errno
+func dictionaryLookupByteArrayString(dict []uint32, page []byte, indexes []int32, rows sparse.Array) errno
 
 //go:noescape
-func dictionaryLookupFixedLenByteArrayString(dict []byte, len int, indexes []int32, rows array, size, offset uintptr) errno
+func dictionaryLookupFixedLenByteArrayString(dict []byte, len int, indexes []int32, rows sparse.Array) errno
 
 //go:noescape
-func dictionaryLookupFixedLenByteArrayPointer(dict []byte, len int, indexes []int32, rows array, size, offset uintptr) errno
+func dictionaryLookupFixedLenByteArrayPointer(dict []byte, len int, indexes []int32, rows sparse.Array) errno
 
-func (d *int32Dictionary) lookup(indexes []int32, rows array, size, offset uintptr) {
+func (d *int32Dictionary) lookup(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	dict := unsafecast.Int32ToUint32(d.values)
-	dictionaryLookup32bits(dict, indexes, rows, size, offset).check()
+	dictionaryLookup32(dict, indexes, rows).check()
 }
 
-func (d *int64Dictionary) lookup(indexes []int32, rows array, size, offset uintptr) {
+func (d *int64Dictionary) lookup(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	dict := unsafecast.Int64ToUint64(d.values)
-	dictionaryLookup64bits(dict, indexes, rows, size, offset).check()
+	dictionaryLookup64(dict, indexes, rows).check()
 }
 
-func (d *floatDictionary) lookup(indexes []int32, rows array, size, offset uintptr) {
+func (d *floatDictionary) lookup(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	dict := unsafecast.Float32ToUint32(d.values)
-	dictionaryLookup32bits(dict, indexes, rows, size, offset).check()
+	dictionaryLookup32(dict, indexes, rows).check()
 }
 
-func (d *doubleDictionary) lookup(indexes []int32, rows array, size, offset uintptr) {
+func (d *doubleDictionary) lookup(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	dict := unsafecast.Float64ToUint64(d.values)
-	dictionaryLookup64bits(dict, indexes, rows, size, offset).check()
+	dictionaryLookup64(dict, indexes, rows).check()
 }
 
-func (d *byteArrayDictionary) lookupString(indexes []int32, rows array, size, offset uintptr) {
+func (d *byteArrayDictionary) lookupString(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
-	dictionaryLookupByteArrayString(d.offsets, d.values, indexes, rows, size, offset).check()
+	dictionaryLookupByteArrayString(d.offsets, d.values, indexes, rows).check()
 }
 
-func (d *fixedLenByteArrayDictionary) lookupString(indexes []int32, rows array, size, offset uintptr) {
+func (d *fixedLenByteArrayDictionary) lookupString(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
-	dictionaryLookupFixedLenByteArrayString(d.data, d.size, indexes, rows, size, offset).check()
+	dictionaryLookupFixedLenByteArrayString(d.data, d.size, indexes, rows).check()
 }
 
-func (d *uint32Dictionary) lookup(indexes []int32, rows array, size, offset uintptr) {
+func (d *uint32Dictionary) lookup(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
-	dictionaryLookup32bits(d.values, indexes, rows, size, offset).check()
+	dictionaryLookup32(d.values, indexes, rows).check()
 }
 
-func (d *uint64Dictionary) lookup(indexes []int32, rows array, size, offset uintptr) {
+func (d *uint64Dictionary) lookup(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
-	dictionaryLookup64bits(d.values, indexes, rows, size, offset).check()
+	dictionaryLookup64(d.values, indexes, rows).check()
 }
 
-func (d *be128Dictionary) lookupString(indexes []int32, rows array, size, offset uintptr) {
-	checkLookupIndexBounds(indexes, rows)
-	dict := unsafecast.Uint128ToBytes(d.values)
-	dictionaryLookupFixedLenByteArrayString(dict, 16, indexes, rows, size, offset).check()
-}
-
-func (d *be128Dictionary) lookupPointer(indexes []int32, rows array, size, offset uintptr) {
+func (d *be128Dictionary) lookupString(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	dict := unsafecast.Uint128ToBytes(d.values)
-	dictionaryLookupFixedLenByteArrayPointer(dict, 16, indexes, rows, size, offset).check()
+	dictionaryLookupFixedLenByteArrayString(dict, 16, indexes, rows).check()
+}
+
+func (d *be128Dictionary) lookupPointer(indexes []int32, rows sparse.Array) {
+	checkLookupIndexBounds(indexes, rows)
+	dict := unsafecast.Uint128ToBytes(d.values)
+	dictionaryLookupFixedLenByteArrayPointer(dict, 16, indexes, rows).check()
 }
 
 func (d *int32Dictionary) bounds(indexes []int32) (min, max int32) {

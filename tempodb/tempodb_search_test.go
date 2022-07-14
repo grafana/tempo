@@ -65,7 +65,7 @@ func testSearchCompleteBlock(t *testing.T, blockVersion string) {
 	r.EnablePolling(&mockJobSharder{})
 	rw := r.(*readerWriter)
 
-	id, wantTr, start, end, wantMeta, searchesThatMatch, searchesThatDontMatch := trace.SearchTestSuite()
+	id, wantTr, start, end, wantMeta, searchesThatMatch, searchesThatDontMatch, _, _ := trace.SearchTestSuite()
 
 	// Write to wal
 	wal := w.WAL()

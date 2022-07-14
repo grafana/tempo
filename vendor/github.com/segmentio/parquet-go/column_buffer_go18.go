@@ -9,6 +9,7 @@ import (
 
 	"github.com/segmentio/parquet-go/deprecated"
 	"github.com/segmentio/parquet-go/internal/unsafecast"
+	"github.com/segmentio/parquet-go/sparse"
 )
 
 // writeRowsFunc is the type of functions that apply rows to a set of column
@@ -18,15 +19,10 @@ import (
 //
 // - rows is the array of Go values to write to the column buffers.
 //
-// - size is the size of Go values in the rows array (in bytes).
-//
-// - offset is the byte offset of the value being written in each element of the
-//   rows array.
-//
 // - levels is used to track the column index, repetition and definition levels
 //   of values when writing optional or repeated columns.
 //
-type writeRowsFunc func(columns []ColumnBuffer, rows array, size, offset uintptr, levels columnLevels) error
+type writeRowsFunc func(columns []ColumnBuffer, rows sparse.Array, levels columnLevels) error
 
 // writeRowsFuncOf generates a writeRowsFunc function for the given Go type and
 // parquet schema. The column path indicates the column that the function is
@@ -78,22 +74,22 @@ func writeRowsFuncOf(t reflect.Type, schema *Schema, path columnPath) writeRowsF
 func writeRowsFuncOfRequired(t reflect.Type, schema *Schema, path columnPath) writeRowsFunc {
 	column := schema.mapping.lookup(path)
 	columnIndex := column.columnIndex
-	return func(columns []ColumnBuffer, rows array, size, offset uintptr, levels columnLevels) error {
-		columns[columnIndex].writeValues(rows, size, offset, levels)
+	return func(columns []ColumnBuffer, rows sparse.Array, levels columnLevels) error {
+		columns[columnIndex].writeValues(rows, levels)
 		return nil
 	}
 }
 
 func writeRowsFuncOfOptional(t reflect.Type, schema *Schema, path columnPath, writeRows writeRowsFunc) writeRowsFunc {
 	nullIndex := nullIndexFuncOf(t)
-	return func(columns []ColumnBuffer, rows array, size, offset uintptr, levels columnLevels) error {
-		if rows.len == 0 {
-			return writeRows(columns, rows, size, 0, levels)
+	return func(columns []ColumnBuffer, rows sparse.Array, levels columnLevels) error {
+		if rows.Len() == 0 {
+			return writeRows(columns, rows, levels)
 		}
 
-		nulls := acquireBitmap(rows.len)
+		nulls := acquireBitmap(rows.Len())
 		defer releaseBitmap(nulls)
-		nullIndex(nulls.bits, rows, size, offset)
+		nullIndex(nulls.bits, rows)
 
 		nullLevels := levels
 		levels.definitionLevel++
@@ -113,7 +109,7 @@ func writeRowsFuncOfOptional(t reflect.Type, schema *Schema, path columnPath, wr
 		// This optimization is defeated by inputs alternating null and non-null
 		// sequences of single values, we do not expect this condition to be a
 		// common case.
-		for i := 0; i < rows.len; {
+		for i := 0; i < rows.Len(); {
 			j := 0
 			x := i / 64
 			y := i % 64
@@ -137,13 +133,12 @@ func writeRowsFuncOfOptional(t reflect.Type, schema *Schema, path columnPath, wr
 			}
 
 		writeNulls:
-			if j = x*64 + y; j > rows.len {
-				j = rows.len
+			if j = x*64 + y; j > rows.Len() {
+				j = rows.Len()
 			}
 
 			if i < j {
-				slice := rows.slice(i, j, size, offset)
-				if err := writeRows(columns, slice, size, offset, nullLevels); err != nil {
+				if err := writeRows(columns, rows.Slice(i, j), nullLevels); err != nil {
 					return err
 				}
 				i = j
@@ -168,13 +163,12 @@ func writeRowsFuncOfOptional(t reflect.Type, schema *Schema, path columnPath, wr
 			}
 
 		writeNonNulls:
-			if j = x*64 + y; j > rows.len {
-				j = rows.len
+			if j = x*64 + y; j > rows.Len() {
+				j = rows.Len()
 			}
 
 			if i < j {
-				slice := rows.slice(i, j, size, offset)
-				if err := writeRows(columns, slice, size, offset, levels); err != nil {
+				if err := writeRows(columns, rows.Slice(i, j), levels); err != nil {
 					return err
 				}
 				i = j
@@ -187,7 +181,7 @@ func writeRowsFuncOfOptional(t reflect.Type, schema *Schema, path columnPath, wr
 
 func writeRowsFuncOfPointer(t reflect.Type, schema *Schema, path columnPath) writeRowsFunc {
 	elemType := t.Elem()
-	elemSize := elemType.Size()
+	elemSize := uintptr(elemType.Size())
 	writeRows := writeRowsFuncOf(elemType, schema, path)
 
 	if len(path) == 0 {
@@ -195,19 +189,18 @@ func writeRowsFuncOfPointer(t reflect.Type, schema *Schema, path columnPath) wri
 		// type. In this case, we do not need to increase the definition level
 		// since we are not deailng with an optional field but a pointer to the
 		// row type.
-		return func(columns []ColumnBuffer, rows array, size, _ uintptr, levels columnLevels) error {
-			if rows.len == 0 {
-				return writeRows(columns, rows, size, 0, levels)
+		return func(columns []ColumnBuffer, rows sparse.Array, levels columnLevels) error {
+			if rows.Len() == 0 {
+				return writeRows(columns, rows, levels)
 			}
 
-			for i := 0; i < rows.len; i++ {
-				p := *(*unsafe.Pointer)(rows.index(i, size, 0))
-				a := array{}
+			for i := 0; i < rows.Len(); i++ {
+				p := *(*unsafe.Pointer)(rows.Index(i))
+				a := sparse.Array{}
 				if p != nil {
-					a.ptr = p
-					a.len = 1
+					a = makeArray(p, 1, elemSize)
 				}
-				if err := writeRows(columns, a, elemSize, 0, levels); err != nil {
+				if err := writeRows(columns, a, levels); err != nil {
 					return err
 				}
 			}
@@ -216,21 +209,20 @@ func writeRowsFuncOfPointer(t reflect.Type, schema *Schema, path columnPath) wri
 		}
 	}
 
-	return func(columns []ColumnBuffer, rows array, size, offset uintptr, levels columnLevels) error {
-		if rows.len == 0 {
-			return writeRows(columns, rows, size, 0, levels)
+	return func(columns []ColumnBuffer, rows sparse.Array, levels columnLevels) error {
+		if rows.Len() == 0 {
+			return writeRows(columns, rows, levels)
 		}
 
-		for i := 0; i < rows.len; i++ {
-			p := *(*unsafe.Pointer)(rows.index(i, size, offset))
-			a := array{}
+		for i := 0; i < rows.Len(); i++ {
+			p := *(*unsafe.Pointer)(rows.Index(i))
+			a := sparse.Array{}
 			elemLevels := levels
 			if p != nil {
-				a.ptr = p
-				a.len = 1
+				a = makeArray(p, 1, elemSize)
 				elemLevels.definitionLevel++
 			}
-			if err := writeRows(columns, a, elemSize, 0, elemLevels); err != nil {
+			if err := writeRows(columns, a, elemLevels); err != nil {
 				return err
 			}
 		}
@@ -241,36 +233,34 @@ func writeRowsFuncOfPointer(t reflect.Type, schema *Schema, path columnPath) wri
 
 func writeRowsFuncOfSlice(t reflect.Type, schema *Schema, path columnPath) writeRowsFunc {
 	elemType := t.Elem()
-	elemSize := elemType.Size()
+	elemSize := uintptr(elemType.Size())
 	writeRows := writeRowsFuncOf(elemType, schema, path)
-	return func(columns []ColumnBuffer, rows array, size, offset uintptr, levels columnLevels) error {
-		if rows.len == 0 {
-			return writeRows(columns, rows, size, 0, levels)
+	return func(columns []ColumnBuffer, rows sparse.Array, levels columnLevels) error {
+		if rows.Len() == 0 {
+			return writeRows(columns, rows, levels)
 		}
 
 		levels.repetitionDepth++
 
-		for i := 0; i < rows.len; i++ {
-			p := rows.index(i, size, offset)
-			a := *(*array)(p)
-			n := a.len
+		for i := 0; i < rows.Len(); i++ {
+			p := (*sliceHeader)(rows.Index(i))
+			a := makeArray(p.base, p.len, elemSize)
+			b := sparse.Array{}
 
 			elemLevels := levels
-			if n > 0 {
-				a.len = 1
+			if a.Len() > 0 {
+				b = a.Slice(0, 1)
 				elemLevels.definitionLevel++
 			}
 
-			if err := writeRows(columns, a, elemSize, 0, elemLevels); err != nil {
+			if err := writeRows(columns, b, elemLevels); err != nil {
 				return err
 			}
 
-			if n > 1 {
+			if a.Len() > 1 {
 				elemLevels.repetitionLevel = elemLevels.repetitionDepth
-				a.ptr = a.index(1, elemSize, 0)
-				a.len = n - 1
 
-				if err := writeRows(columns, a, elemSize, 0, elemLevels); err != nil {
+				if err := writeRows(columns, a.Slice(1, a.Len()), elemLevels); err != nil {
 					return err
 				}
 			}
@@ -316,9 +306,9 @@ func writeRowsFuncOfStruct(t reflect.Type, schema *Schema, path columnPath) writ
 		}
 	}
 
-	return func(buffers []ColumnBuffer, rows array, size, offset uintptr, levels columnLevels) error {
+	return func(buffers []ColumnBuffer, rows sparse.Array, levels columnLevels) error {
 		for _, column := range columns {
-			if err := column.writeRows(buffers, rows, size, offset+column.offset, levels); err != nil {
+			if err := column.writeRows(buffers, rows.Offset(column.offset), levels); err != nil {
 				return err
 			}
 		}
@@ -329,26 +319,26 @@ func writeRowsFuncOfStruct(t reflect.Type, schema *Schema, path columnPath) writ
 func writeRowsFuncOfMap(t reflect.Type, schema *Schema, path columnPath) writeRowsFunc {
 	keyPath := path.append("key_value", "key")
 	keyType := t.Key()
-	keySize := keyType.Size()
+	keySize := uintptr(keyType.Size())
 	writeKeys := writeRowsFuncOf(keyType, schema, keyPath)
 
 	valuePath := path.append("key_value", "value")
 	valueType := t.Elem()
-	valueSize := valueType.Size()
+	valueSize := uintptr(valueType.Size())
 	writeValues := writeRowsFuncOf(valueType, schema, valuePath)
 
-	writeKeyValues := func(columns []ColumnBuffer, keys, values array, levels columnLevels) error {
-		if err := writeKeys(columns, keys, keySize, 0, levels); err != nil {
+	writeKeyValues := func(columns []ColumnBuffer, keys, values sparse.Array, levels columnLevels) error {
+		if err := writeKeys(columns, keys, levels); err != nil {
 			return err
 		}
-		if err := writeValues(columns, values, valueSize, 0, levels); err != nil {
+		if err := writeValues(columns, values, levels); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	return func(columns []ColumnBuffer, rows array, size, offset uintptr, levels columnLevels) error {
-		if rows.len == 0 {
+	return func(columns []ColumnBuffer, rows sparse.Array, levels columnLevels) error {
+		if rows.Len() == 0 {
 			return writeKeyValues(columns, rows, rows, levels)
 		}
 
@@ -356,11 +346,12 @@ func writeRowsFuncOfMap(t reflect.Type, schema *Schema, path columnPath) writeRo
 		mapKey := reflect.New(keyType).Elem()
 		mapValue := reflect.New(valueType).Elem()
 
-		for i := 0; i < rows.len; i++ {
-			m := reflect.NewAt(t, rows.index(i, size, offset)).Elem()
+		for i := 0; i < rows.Len(); i++ {
+			m := reflect.NewAt(t, rows.Index(i)).Elem()
 
 			if m.Len() == 0 {
-				if err := writeKeyValues(columns, array{}, array{}, levels); err != nil {
+				empty := sparse.Array{}
+				if err := writeKeyValues(columns, empty, empty, levels); err != nil {
 					return err
 				}
 			} else {
@@ -371,8 +362,8 @@ func writeRowsFuncOfMap(t reflect.Type, schema *Schema, path columnPath) writeRo
 					mapKey.SetIterKey(it)
 					mapValue.SetIterValue(it)
 
-					k := makeArray(unsafecast.PointerOfValue(mapKey), 1)
-					v := makeArray(unsafecast.PointerOfValue(mapValue), 1)
+					k := makeArray(unsafecast.PointerOfValue(mapKey), 1, keySize)
+					v := makeArray(unsafecast.PointerOfValue(mapValue), 1, valueSize)
 
 					if err := writeKeyValues(columns, k, v, elemLevels); err != nil {
 						return err

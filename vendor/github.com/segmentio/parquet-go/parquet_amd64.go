@@ -4,12 +4,6 @@ package parquet
 
 import "golang.org/x/sys/cpu"
 
-const (
-	// For very short inputs we are better off staying in Go code; since the
-	// functions get inlined the abstractions have zero overhead then.
-	minLenAVX2 = 8
-)
-
 var (
 	// This variable is used in x86 assembly source files to gate the use of
 	// AVX2 instructions depending on whether the CPU supports it.
@@ -20,9 +14,5 @@ var (
 	// follwing instructions from the DQ set:
 	// * VPBROADCASTQ (with 64 bits source register)
 	// * VBROADCASTI64X2
-	hasAVX512MinMaxBE128 = hasAVX512F && cpu.X86.HasAVX512DQ
+	hasAVX512MinMaxBE128 = cpu.X86.HasAVX512F && cpu.X86.HasAVX512DQ
 )
-
-func optimize(n int) bool {
-	return n >= minLenAVX2 && hasAVX2
-}

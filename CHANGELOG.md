@@ -20,6 +20,14 @@ traces_spanmetrics_latency_{sum,count,bucket}
 Additionally, default label `span_status` is renamed to `status_code`.
 * [CHANGE] Update to Go 1.18 [#1504](https://github.com/grafana/tempo/pull/1504) (@annanay25)
 * [CHANGE] Change tag/value lookups to return partial results when reaching response size limit instead of failing [#1517](https://github.com/grafana/tempo/pull/1517) (@mdisibio)
+* [CHANGE] Change search to be case-sensitive [#1547](https://github.com/grafana/tempo/issues/1547) (@mdisibio)
+* [CHANGE] Relax Hedged request defaults for external endpoints. [#1566](https://github.com/grafana/tempo/pull/1566) (@joe-elliott)
+  ```
+  querier:
+    search:
+      external_hedge_requests_at: 4s    -> 8s
+      external_hedge_requests_up_to: 3  -> 2
+  ```
 * [FEATURE] metrics-generator: support per-tenant processor configuration [#1434](https://github.com/grafana/tempo/pull/1434) (@kvrhdn)
 * [FEATURE] Include rollout dashboard [#1456](https://github.com/grafana/tempo/pull/1456) (@zalegrala)
 * [FEATURE] Add SentinelPassword configuration for Redis [#1463](https://github.com/grafana/tempo/pull/1463) (@zalegrala)
@@ -39,6 +47,7 @@ Additionally, default label `span_status` is renamed to `status_code`.
 * [BUGFIX] Fix race condition in forwarder overrides loop. [1468](https://github.com/grafana/tempo/pull/1468) (@mapno)
 * [BUGFIX] Fix v2 backend check on span name to be substring [#1538](https://github.com/grafana/tempo/pull/1538) (@mdisibio)
 * [BUGFIX] Fix wal check on span name to be substring [#1548](https://github.com/grafana/tempo/pull/1548) (@mdisibio)
+* [BUGFIX] Prevent ingester panic "cannot grow buffer" [#1258](https://github.com/grafana/tempo/issues/1258) (@mdisibio)
 * [BUGFIX] metrics-generator: do not remove x-scope-orgid header in single tenant modus [#1554](https://github.com/grafana/tempo/pull/1554) (@kvrhdn)
 
 ## v1.4.1 / 2022-05-05

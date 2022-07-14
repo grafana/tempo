@@ -2,53 +2,55 @@
 
 package parquet
 
-func nullIndexBool(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex[bool](bits, rows, size, offset)
+import "github.com/segmentio/parquet-go/sparse"
+
+func nullIndexBool(bits []uint64, rows sparse.Array) {
+	nullIndex[bool](bits, rows)
 }
 
-func nullIndexInt(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex[int](bits, rows, size, offset)
+func nullIndexInt(bits []uint64, rows sparse.Array) {
+	nullIndex[int](bits, rows)
 }
 
-func nullIndexInt32(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex[int32](bits, rows, size, offset)
+func nullIndexInt32(bits []uint64, rows sparse.Array) {
+	nullIndex[int32](bits, rows)
 }
 
-func nullIndexInt64(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex[int64](bits, rows, size, offset)
+func nullIndexInt64(bits []uint64, rows sparse.Array) {
+	nullIndex[int64](bits, rows)
 }
 
-func nullIndexUint(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex[uint](bits, rows, size, offset)
+func nullIndexUint(bits []uint64, rows sparse.Array) {
+	nullIndex[uint](bits, rows)
 }
 
-func nullIndexUint32(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex[uint32](bits, rows, size, offset)
+func nullIndexUint32(bits []uint64, rows sparse.Array) {
+	nullIndex[uint32](bits, rows)
 }
 
-func nullIndexUint64(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex[uint64](bits, rows, size, offset)
+func nullIndexUint64(bits []uint64, rows sparse.Array) {
+	nullIndex[uint64](bits, rows)
 }
 
-func nullIndexUint128(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex[[16]byte](bits, rows, size, offset)
+func nullIndexUint128(bits []uint64, rows sparse.Array) {
+	nullIndex[[16]byte](bits, rows)
 }
 
-func nullIndexFloat32(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex[float32](bits, rows, size, offset)
+func nullIndexFloat32(bits []uint64, rows sparse.Array) {
+	nullIndex[float32](bits, rows)
 }
 
-func nullIndexFloat64(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex[float64](bits, rows, size, offset)
+func nullIndexFloat64(bits []uint64, rows sparse.Array) {
+	nullIndex[float64](bits, rows)
 }
 
-func nullIndexString(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex[string](bits, rows, size, offset)
+func nullIndexString(bits []uint64, rows sparse.Array) {
+	nullIndex[string](bits, rows)
 }
 
-func nullIndexSlice(bits []uint64, rows array, size, offset uintptr) {
-	for i := 0; i < rows.len; i++ {
-		p := *(**struct{})(rows.index(i, size, offset))
+func nullIndexSlice(bits []uint64, rows sparse.Array) {
+	for i := 0; i < rows.Len(); i++ {
+		p := *(**struct{})(rows.Index(i))
 		b := uint64(0)
 		if p != nil {
 			b = 1
@@ -57,6 +59,6 @@ func nullIndexSlice(bits []uint64, rows array, size, offset uintptr) {
 	}
 }
 
-func nullIndexPointer(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex[*struct{}](bits, rows, size, offset)
+func nullIndexPointer(bits []uint64, rows sparse.Array) {
+	nullIndex[*struct{}](bits, rows)
 }

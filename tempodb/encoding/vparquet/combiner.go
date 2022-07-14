@@ -32,6 +32,10 @@ func tokenForID(h hash.Hash64, buffer []byte, kind int32, b []byte) token {
 }
 
 func CombineTraces(traces ...*Trace) *Trace {
+	if len(traces) == 1 {
+		return traces[0]
+	}
+
 	c := NewCombiner()
 	for i := 0; i < len(traces); i++ {
 		c.ConsumeWithFinal(traces[i], i == len(traces)-1)

@@ -83,7 +83,7 @@ func (rt *RowTracker) findTraceByID(idx int, traceID []byte) int {
 		for {
 			x, err := vr.ReadValues(buffer)
 			for y := 0; y < x; y++ {
-				if bytes.Compare(buffer[y].Bytes(), traceID) == 0 {
+				if bytes.Equal(buffer[y].Bytes(), traceID) {
 					rowMatch += int64(y)
 					return int(rowMatch)
 				}
@@ -231,3 +231,21 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID) (_ 
 	// convert to proto trace and return
 	return parquetTraceToTempopbTrace(tr)
 }
+
+/*func dumpParquetRow(sch parquet.Schema, row parquet.Row) {
+	for i, r := range row {
+		slicestr := ""
+		if r.Kind() == parquet.ByteArray {
+			slicestr = util.TraceIDToHexString(r.ByteArray())
+		}
+		fmt.Printf("row[%d] = c:%d (%s) r:%d d:%d v:%s (%s)\n",
+			i,
+			r.Column(),
+			strings.Join(sch.Columns()[r.Column()], "."),
+			r.RepetitionLevel(),
+			r.DefinitionLevel(),
+			r.String(),
+			slicestr,
+		)
+	}
+}*/

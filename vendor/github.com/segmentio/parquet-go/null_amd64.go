@@ -2,71 +2,73 @@
 
 package parquet
 
-//go:noescape
-func nullIndex8bits(bits *uint64, rows array, size, offset uintptr)
+import "github.com/segmentio/parquet-go/sparse"
 
 //go:noescape
-func nullIndex32bits(bits *uint64, rows array, size, offset uintptr)
+func nullIndex8(bits *uint64, rows sparse.Array)
 
 //go:noescape
-func nullIndex64bits(bits *uint64, rows array, size, offset uintptr)
+func nullIndex32(bits *uint64, rows sparse.Array)
 
 //go:noescape
-func nullIndex128bits(bits *uint64, rows array, size, offset uintptr)
+func nullIndex64(bits *uint64, rows sparse.Array)
 
-func nullIndexBool(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex8bits(&bits[0], rows, size, offset)
+//go:noescape
+func nullIndex128(bits *uint64, rows sparse.Array)
+
+func nullIndexBool(bits []uint64, rows sparse.Array) {
+	nullIndex8(&bits[0], rows)
 }
 
-func nullIndexInt(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex64bits(&bits[0], rows, size, offset)
+func nullIndexInt(bits []uint64, rows sparse.Array) {
+	nullIndex64(&bits[0], rows)
 }
 
-func nullIndexInt32(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex32bits(&bits[0], rows, size, offset)
+func nullIndexInt32(bits []uint64, rows sparse.Array) {
+	nullIndex32(&bits[0], rows)
 }
 
-func nullIndexInt64(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex64bits(&bits[0], rows, size, offset)
+func nullIndexInt64(bits []uint64, rows sparse.Array) {
+	nullIndex64(&bits[0], rows)
 }
 
-func nullIndexUint(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex64bits(&bits[0], rows, size, offset)
+func nullIndexUint(bits []uint64, rows sparse.Array) {
+	nullIndex64(&bits[0], rows)
 }
 
-func nullIndexUint32(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex32bits(&bits[0], rows, size, offset)
+func nullIndexUint32(bits []uint64, rows sparse.Array) {
+	nullIndex32(&bits[0], rows)
 }
 
-func nullIndexUint64(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex64bits(&bits[0], rows, size, offset)
+func nullIndexUint64(bits []uint64, rows sparse.Array) {
+	nullIndex64(&bits[0], rows)
 }
 
-func nullIndexUint128(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex128bits(&bits[0], rows, size, offset)
+func nullIndexUint128(bits []uint64, rows sparse.Array) {
+	nullIndex128(&bits[0], rows)
 }
 
-func nullIndexFloat32(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex32bits(&bits[0], rows, size, offset)
+func nullIndexFloat32(bits []uint64, rows sparse.Array) {
+	nullIndex32(&bits[0], rows)
 }
 
-func nullIndexFloat64(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex64bits(&bits[0], rows, size, offset)
+func nullIndexFloat64(bits []uint64, rows sparse.Array) {
+	nullIndex64(&bits[0], rows)
 }
 
-func nullIndexString(bits []uint64, rows array, size, offset uintptr) {
+func nullIndexString(bits []uint64, rows sparse.Array) {
 	// We offset by an extra 8 bytes to test the lengths of string values where
 	// the first field is the pointer and the second is the length which we want
 	// to test.
-	nullIndex64bits(&bits[0], rows, size, offset+8)
+	nullIndex64(&bits[0], rows.Offset(8))
 }
 
-func nullIndexSlice(bits []uint64, rows array, size, offset uintptr) {
+func nullIndexSlice(bits []uint64, rows sparse.Array) {
 	// Slice values are null if their pointer is nil, which is held in the first
 	// 8 bytes of the object so we can simply test 64 bits words.
-	nullIndex64bits(&bits[0], rows, size, offset)
+	nullIndex64(&bits[0], rows)
 }
 
-func nullIndexPointer(bits []uint64, rows array, size, offset uintptr) {
-	nullIndex64bits(&bits[0], rows, size, offset)
+func nullIndexPointer(bits []uint64, rows sparse.Array) {
+	nullIndex64(&bits[0], rows)
 }

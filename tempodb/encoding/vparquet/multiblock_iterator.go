@@ -17,17 +17,8 @@ func newMultiblockIterator(bookmarks []*bookmark) *MultiBlockIterator {
 }
 
 func (m *MultiBlockIterator) Next(ctx context.Context) (*Trace, error) {
-	allDone := func() bool {
-		for _, b := range m.bookmarks {
-			if !b.done(ctx) {
-				return false
-			}
-		}
-		return true
-	}
 
-	// check if all bookmarks are done
-	if allDone() {
+	if m.done(ctx) {
 		return nil, io.EOF
 	}
 
@@ -38,7 +29,7 @@ func (m *MultiBlockIterator) Next(ctx context.Context) (*Trace, error) {
 	// find lowest ID of the new object
 	for _, b := range m.bookmarks {
 		currentObject, err := b.current(ctx)
-		if err != nil {
+		if err != nil && err != io.EOF {
 			return nil, err
 		}
 		if currentObject == nil {
@@ -58,6 +49,7 @@ func (m *MultiBlockIterator) Next(ctx context.Context) (*Trace, error) {
 	}
 
 	lowestObject := CombineTraces(lowestObjects...)
+
 	for _, b := range lowestBookmarks {
 		b.clear()
 	}
@@ -69,4 +61,13 @@ func (m *MultiBlockIterator) Close() {
 	for _, b := range m.bookmarks {
 		b.close()
 	}
+}
+
+func (m *MultiBlockIterator) done(ctx context.Context) bool {
+	for _, b := range m.bookmarks {
+		if !b.done(ctx) {
+			return false
+		}
+	}
+	return true
 }

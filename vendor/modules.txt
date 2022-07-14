@@ -84,7 +84,7 @@ github.com/apache/thrift/lib/go/thrift
 ## explicit; go 1.12
 github.com/armon/go-metrics
 github.com/armon/go-metrics/prometheus
-# github.com/aws/aws-sdk-go v1.43.8
+# github.com/aws/aws-sdk-go v1.44.45
 ## explicit; go 1.11
 github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/arn
@@ -222,8 +222,6 @@ github.com/felixge/httpsnoop
 github.com/fsnotify/fsnotify
 # github.com/go-kit/kit v0.12.0
 ## explicit; go 1.17
-github.com/go-kit/kit/log
-github.com/go-kit/kit/log/level
 github.com/go-kit/kit/metrics
 github.com/go-kit/kit/metrics/expvar
 github.com/go-kit/kit/metrics/generic
@@ -328,7 +326,7 @@ github.com/gorilla/handlers
 # github.com/gorilla/mux v1.8.0
 ## explicit; go 1.12
 github.com/gorilla/mux
-# github.com/grafana/dskit v0.0.0-20220331160727-49faf69f72ca
+# github.com/grafana/dskit v0.0.0-20220708154635-9c29dc5195e4
 ## explicit; go 1.17
 github.com/grafana/dskit/backoff
 github.com/grafana/dskit/crypto/tls
@@ -343,7 +341,6 @@ github.com/grafana/dskit/kv/consul
 github.com/grafana/dskit/kv/etcd
 github.com/grafana/dskit/kv/memberlist
 github.com/grafana/dskit/limiter
-github.com/grafana/dskit/middleware
 github.com/grafana/dskit/modules
 github.com/grafana/dskit/netutil
 github.com/grafana/dskit/ring
@@ -430,7 +427,7 @@ github.com/hashicorp/hcl/hcl/token
 github.com/hashicorp/hcl/json/parser
 github.com/hashicorp/hcl/json/scanner
 github.com/hashicorp/hcl/json/token
-# github.com/hashicorp/memberlist v0.3.1 => github.com/grafana/memberlist v0.2.5-0.20211201083710-c7bc8e9df94b
+# github.com/hashicorp/memberlist v0.3.1 => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
 ## explicit; go 1.12
 github.com/hashicorp/memberlist
 # github.com/hashicorp/serf v0.9.6
@@ -739,7 +736,7 @@ github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
 ## explicit
 github.com/pmezard/go-difflib/difflib
-# github.com/prometheus/client_golang v1.12.1
+# github.com/prometheus/client_golang v1.12.2
 ## explicit; go 1.13
 github.com/prometheus/client_golang/prometheus
 github.com/prometheus/client_golang/prometheus/internal
@@ -761,9 +758,9 @@ github.com/prometheus/common/version
 # github.com/prometheus/common/sigv4 v0.1.0
 ## explicit; go 1.15
 github.com/prometheus/common/sigv4
-# github.com/prometheus/node_exporter v1.0.0-rc.0.0.20200428091818-01054558c289
-## explicit; go 1.13
-github.com/prometheus/node_exporter/https
+# github.com/prometheus/exporter-toolkit v0.7.1
+## explicit; go 1.14
+github.com/prometheus/exporter-toolkit/web
 # github.com/prometheus/procfs v0.7.3
 ## explicit; go 1.13
 github.com/prometheus/procfs
@@ -828,7 +825,11 @@ github.com/segmentio/encoding/thrift
 # github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
 ## explicit
 github.com/segmentio/fasthash/fnv1a
+<<<<<<< HEAD
 # github.com/segmentio/parquet-go v0.0.0-20220711093320-3dfa7c5b3344
+=======
+# github.com/segmentio/parquet-go v0.0.0-20220711225945-6dc5e4bb634a
+>>>>>>> main
 ## explicit; go 1.18
 github.com/segmentio/parquet-go
 github.com/segmentio/parquet-go/bloom
@@ -848,9 +849,13 @@ github.com/segmentio/parquet-go/encoding/delta
 github.com/segmentio/parquet-go/encoding/plain
 github.com/segmentio/parquet-go/encoding/rle
 github.com/segmentio/parquet-go/format
+github.com/segmentio/parquet-go/hashprobe
+github.com/segmentio/parquet-go/hashprobe/aeshash
+github.com/segmentio/parquet-go/hashprobe/wyhash
 github.com/segmentio/parquet-go/internal/bitpack
 github.com/segmentio/parquet-go/internal/bytealg
 github.com/segmentio/parquet-go/internal/unsafecast
+github.com/segmentio/parquet-go/sparse
 # github.com/sercand/kuberesolver v2.4.0+incompatible
 ## explicit
 github.com/sercand/kuberesolver
@@ -941,8 +946,8 @@ github.com/uber/jaeger-lib/metrics/expvar
 github.com/uber/jaeger-lib/metrics/go-kit
 github.com/uber/jaeger-lib/metrics/go-kit/expvar
 github.com/uber/jaeger-lib/metrics/prometheus
-# github.com/weaveworks/common v0.0.0-20210913144402-035033b78a78
-## explicit; go 1.13
+# github.com/weaveworks/common v0.0.0-20220706100410-67d27ed40fae
+## explicit; go 1.14
 github.com/weaveworks/common/errors
 github.com/weaveworks/common/grpc
 github.com/weaveworks/common/httpgrpc
@@ -1157,7 +1162,9 @@ go.uber.org/zap/zapgrpc
 # golang.org/x/crypto v0.0.0-20220214200702-86341886e292
 ## explicit; go 1.17
 golang.org/x/crypto/argon2
+golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blake2b
+golang.org/x/crypto/blowfish
 golang.org/x/crypto/md4
 golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/pkcs12
@@ -1402,5 +1409,5 @@ gopkg.in/yaml.v3
 # k8s.io/client-go => k8s.io/client-go v0.20.4
 # go.opentelemetry.io/otel/bridge/opentracing => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348
 # go.opentelemetry.io/collector => github.com/grafana/opentelemetry-collector v0.4.1-0.20220315084747-b05fe1477960
-# github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.2.5-0.20211201083710-c7bc8e9df94b
+# github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
 # google.golang.org/grpc => google.golang.org/grpc v1.45.0

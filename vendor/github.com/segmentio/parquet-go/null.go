@@ -9,6 +9,7 @@ import (
 	"github.com/segmentio/parquet-go/deprecated"
 	"github.com/segmentio/parquet-go/internal/bytealg"
 	"github.com/segmentio/parquet-go/internal/unsafecast"
+	"github.com/segmentio/parquet-go/sparse"
 )
 
 // nullIndexFunc is the type of functions used to detect null values in rows.
@@ -18,12 +19,12 @@ import (
 //
 // The function writes one bit to the output buffer for each row in the input,
 // the buffer must be sized accordingly.
-type nullIndexFunc func(bits []uint64, rows array, size, offset uintptr)
+type nullIndexFunc func(bits []uint64, rows sparse.Array)
 
-func nullIndex[T comparable](bits []uint64, rows array, size, offset uintptr) {
+func nullIndex[T comparable](bits []uint64, rows sparse.Array) {
 	var zero T
-	for i := 0; i < rows.len; i++ {
-		v := *(*T)(rows.index(i, size, offset))
+	for i := 0; i < rows.Len(); i++ {
+		v := *(*T)(rows.Index(i))
 		if v != zero {
 			x := uint(i) / 64
 			y := uint(i) % 64
@@ -32,7 +33,7 @@ func nullIndex[T comparable](bits []uint64, rows array, size, offset uintptr) {
 	}
 }
 
-func nullIndexStruct(bits []uint64, rows array, size, offset uintptr) {
+func nullIndexStruct(bits []uint64, rows sparse.Array) {
 	bytealg.Broadcast(unsafecast.Slice[byte](bits), 0xFF)
 }
 
@@ -97,9 +98,9 @@ func nullIndexFuncOf(t reflect.Type) nullIndexFunc {
 }
 
 func nullIndexFuncOfByteArray(n int) nullIndexFunc {
-	return func(bits []uint64, rows array, size, offset uintptr) {
-		for i := 0; i < rows.len; i++ {
-			p := (*byte)(rows.index(i, size, offset))
+	return func(bits []uint64, rows sparse.Array) {
+		for i := 0; i < rows.Len(); i++ {
+			p := (*byte)(rows.Index(i))
 			b := unsafe.Slice(p, n)
 			if !isZero(b) {
 				x := uint(i) / 64

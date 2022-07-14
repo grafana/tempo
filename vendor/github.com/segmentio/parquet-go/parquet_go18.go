@@ -29,7 +29,7 @@ func Read[T any](r io.ReaderAt, size int64, options ...ReaderOption) (rows []T, 
 	reader := NewGenericReader[T](file, config)
 	n, err := reader.Read(rows)
 	if n < len(rows) && err == io.EOF {
-		rows, err = rows[:n], err
+		rows, err = rows[:n], nil
 	}
 	reader.Close()
 	return rows, err
