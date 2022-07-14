@@ -37,13 +37,6 @@ func (b *BackendReaderAt) ReadAtWithCache(p []byte, off int64) (int, error) {
 	return len(p), err
 }
 
-// Set of functions called by the parquet-go library in OpenFile() to set offset and lengths of metadata objects
-type ParquetMetadataSections interface {
-	SetFooterSection(offset, length int64)
-	SetColumnIndexSection(offset, length int64)
-	SetOffsetIndexSection(offset, length int64)
-}
-
 type parquetOptimizedReaderAt struct {
 	r          io.ReaderAt
 	br         *BackendReaderAt
@@ -55,23 +48,22 @@ type parquetOptimizedReaderAt struct {
 }
 
 var _ io.ReaderAt = (*parquetOptimizedReaderAt)(nil)
-var _ ParquetMetadataSections = (*parquetOptimizedReaderAt)(nil)
 
 func newParquetOptimizedReaderAt(br io.ReaderAt, rr *BackendReaderAt, size int64, footerSize uint32) *parquetOptimizedReaderAt {
 	return &parquetOptimizedReaderAt{br, rr, size, footerSize, map[int64]int64{}}
 }
 
-// called by parquet-go to set offset and length of footer section
+// called by parquet-go in OpenFile() to set offset and length of footer section
 func (r *parquetOptimizedReaderAt) SetFooterSection(offset, length int64) {
 	r.cachedObjects[offset] = length
 }
 
-// called by parquet-go to set offset and length of column indexes
+// called by parquet-go in OpenFile() to set offset and length of column indexes
 func (r *parquetOptimizedReaderAt) SetColumnIndexSection(offset, length int64) {
 	r.cachedObjects[offset] = length
 }
 
-// called by parquet-go to set offset and length of offset index section
+// called by parquet-go in OpenFile() to set offset and length of offset index section
 func (r *parquetOptimizedReaderAt) SetOffsetIndexSection(offset, length int64) {
 	r.cachedObjects[offset] = length
 }
