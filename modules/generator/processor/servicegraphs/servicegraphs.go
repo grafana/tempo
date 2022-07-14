@@ -149,11 +149,11 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 
 		for _, ils := range rs.InstrumentationLibrarySpans {
 			for _, span := range ils.Spans {
-				connectionType := store.UNKNOWN
+				connectionType := store.Unknown
 
 				switch span.Kind {
 				case v1_trace.Span_SPAN_KIND_PRODUCER:
-					connectionType = store.MESSAGING_SYSTEM
+					connectionType = store.MessagingSystem
 					fallthrough
 
 				case v1_trace.Span_SPAN_KIND_CLIENT:
@@ -169,14 +169,14 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						// A database request will only have one span, we don't wait for the server
 						// span but just copy details from the client span
 						if dbName, ok := processor_util.FindAttributeValue("db.name", rs.Resource.Attributes, span.Attributes); ok {
-							e.ConnectionType = store.DATABASE
+							e.ConnectionType = store.Database
 							e.ServerService = dbName
 							e.ServerLatencySec = spanDurationSec(span)
 						}
 					})
 
 				case v1_trace.Span_SPAN_KIND_CONSUMER:
-					connectionType = store.MESSAGING_SYSTEM
+					connectionType = store.MessagingSystem
 					fallthrough
 
 				case v1_trace.Span_SPAN_KIND_SERVER:
