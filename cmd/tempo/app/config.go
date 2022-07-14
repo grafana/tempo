@@ -148,6 +148,10 @@ func (c *Config) CheckConfig() {
 	if c.Distributor.LogReceivedTraces {
 		level.Warn(log.Logger).Log("msg", "c.Distributor.LogReceivedTraces is deprecated. The new flag is c.Distributor.log_received_spans.enabled")
 	}
+
+	if c.StorageConfig.Trace.Backend == "local" && c.Target != SingleBinary {
+		level.Warn(log.Logger).Log("msg", "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.")
+	}
 }
 
 func (c *Config) Describe(ch chan<- *prometheus.Desc) {
