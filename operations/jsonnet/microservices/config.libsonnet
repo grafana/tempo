@@ -80,11 +80,13 @@
       },
     },
     metrics_generator: {
+      ephemeral_storage_request_size: error 'Must specify a generator ephemeral_storage_request size',
+      ephemeral_storage_limit_size: error 'Must specify a metrics generator ephemeral_storage_limit size',
       replicas: 0,
       resources: {
-        requests:{
+        requests: {
           cpu: '500m',
-          memory: '1Gi'
+          memory: '1Gi',
         },
         limits: {
           cpu: '1',

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: querier
+  name: querier
+  namespace: tracing
+spec:
+  ports:
+  - name: querier-prom-metrics
+    port: 3200
+    targetPort: 3200
+  selector:
+    app: querier
+    name: querier
+    tempo-gossip-member: "true"

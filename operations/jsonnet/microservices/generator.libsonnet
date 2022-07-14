@@ -1,13 +1,15 @@
 {
   local k = import 'ksonnet-util/kausal.libsonnet',
+
   local container = k.core.v1.container,
   local containerPort = k.core.v1.containerPort,
-  local volumeMount = k.core.v1.volumeMount,
   local deployment = k.apps.v1.deployment,
   local volume = k.core.v1.volume,
+  local volumeMount = k.core.v1.volumeMount,
 
   local target_name = 'metrics-generator',
   local tempo_config_volume = 'tempo-conf',
+  local tempo_generator_wal_volume = 'metrics-generator-wal-data',
   local tempo_overrides_config_volume = 'overrides',
 
   tempo_metrics_generator_container::
@@ -22,9 +24,12 @@
     ]) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
+      volumeMount.new(tempo_generator_wal_volume, $.tempo_metrics_generator_config.metrics_generator.storage.path),
       volumeMount.new(tempo_overrides_config_volume, '/overrides'),
     ]) +
     $.util.withResources($._config.metrics_generator.resources) +
+    container.mixin.resources.withRequestsMixin({ 'ephemeral-storage': $._config.metrics_generator.ephemeral_storage_request_size }) +
+    container.mixin.resources.withLimitsMixin({ 'ephemeral-storage': $._config.metrics_generator.ephemeral_storage_limit_size }) +
     $.util.readinessProbe,
 
   tempo_metrics_generator_deployment:
@@ -35,7 +40,7 @@
       {
         app: target_name,
         [$._config.gossip_member_label]: 'true',
-      }
+      },
     ) +
     deployment.mixin.spec.strategy.rollingUpdate.withMaxSurge(3) +
     deployment.mixin.spec.strategy.rollingUpdate.withMaxUnavailable(1) +
@@ -45,6 +50,7 @@
     deployment.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_metrics_generator_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
+      volume.fromEmptyDir(tempo_generator_wal_volume),
     ]),
 
   tempo_metrics_generator_service:

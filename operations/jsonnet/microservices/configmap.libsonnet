@@ -66,7 +66,13 @@
 
   tempo_ingester_config:: $.tempo_config {},
 
-  tempo_metrics_generator_config:: $.tempo_config{},
+  tempo_metrics_generator_config:: $.tempo_config {
+    metrics_generator+: {
+      storage+: {
+        path: '/var/tempo/generator_wal',
+      },
+    },
+  },
 
   tempo_compactor_config:: $.tempo_config {
     compactor+: {

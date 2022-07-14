@@ -4,8 +4,8 @@
     local container = k.core.v1.container,
 
     withResources(resources)::
-        k.util.resourcesRequests(resources.requests.cpu, resources.requests.memory) +
-        k.util.resourcesLimits(resources.limits.cpu, resources.limits.memory),
+      k.util.resourcesRequests(resources.requests.cpu, resources.requests.memory) +
+      k.util.resourcesLimits(resources.limits.cpu, resources.limits.memory),
 
     readinessProbe::
       container.mixin.readinessProbe.httpGet.withPath('/ready') +

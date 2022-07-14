@@ -111,13 +111,13 @@
 
   local rbacPatch = {
     local role = {
-      rulesType: $.rbac.v1beta1.policyRule,
+      rulesType: $.rbac.v1.policyRule,
     },
     role+: role,
     clusterRole+: role,
 
     local binding = {
-      subjectsType: $.rbac.v1beta1.subject,
+      subjectsType: $.rbac.v1.subject,
     },
     roleBinding+: binding,
     clusterRoleBinding+: binding,
@@ -130,6 +130,7 @@
   },
   rbac+: {
     v1+: rbacPatch,
+    // TODO: the v1beta1 RBAC API has been removed in Kubernetes 1.22 and should get removed once 1.22 is the oldest supported version
     v1beta1+: rbacPatch,
   },
 
