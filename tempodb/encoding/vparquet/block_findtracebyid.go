@@ -178,8 +178,8 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID) (_ 
 
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 32)
 
-	// todo: in its current state, this will **not** crash in the absence of a cache, but maybe we should make cache settings configurable here
-	or := newParquetOptimizedReaderAt(br, rr, int64(b.meta.Size), b.meta.FooterSize, common.CacheControl{Footer: true, ColumnIndex: true, OffsetIndex: true})
+	// todo: disabling by default but we should make cache settings configurable here
+	or := newParquetOptimizedReaderAt(br, rr, int64(b.meta.Size), b.meta.FooterSize, common.CacheControl{Footer: false, ColumnIndex: false, OffsetIndex: false})
 
 	pf, err := parquet.OpenFile(or, int64(b.meta.Size))
 	if err != nil {
