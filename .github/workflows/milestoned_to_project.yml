@@ -1,0 +1,16 @@
+name: Milestoned issue to Tempo Squad Project.
+
+on:
+  # Triggers the workflow on when an issue is milestoned.
+  issues:
+    types: [milestoned]
+    
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/add-to-project@v0.1.0
+        with:
+          project-url: https://github.com/orgs/grafana/projects/135
+          github-token: ${{ secrets.GH_BOT_ACCESS_TOKEN }}
