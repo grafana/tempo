@@ -70,6 +70,11 @@ type SearchConfig struct {
 	// vParquet blocks
 	ReadBufferCount     int `yaml:"read_buffer_count"`
 	ReadBufferSizeBytes int `yaml:"read_buffer_size_bytes"`
+	CacheControl        struct {
+		Footer      bool `yaml:"footer"`
+		ColumnIndex bool `yaml:"column_index"`
+		OffsetIndex bool `yaml:"offset_index"`
+	} `yaml:"cache_control"`
 }
 
 func (c SearchConfig) ApplyToOptions(o *common.SearchOptions) {
@@ -90,6 +95,10 @@ func (c SearchConfig) ApplyToOptions(o *common.SearchOptions) {
 	if o.ReadBufferCount <= 0 {
 		o.ReadBufferCount = DefaultReadBufferCount
 	}
+
+	o.CacheControl.Footer = c.CacheControl.Footer
+	o.CacheControl.ColumnIndex = c.CacheControl.ColumnIndex
+	o.CacheControl.OffsetIndex = c.CacheControl.OffsetIndex
 }
 
 // CompactorConfig contains compaction configuration options

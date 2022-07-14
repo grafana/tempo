@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 type BackendReaderAt struct {
@@ -43,29 +44,35 @@ type parquetOptimizedReaderAt struct {
 	readerSize int64
 	footerSize uint32
 
-	// storing offsets and length of objects we want to cache
-	cachedObjects map[int64]int64
+	cacheControl  common.CacheControl
+	cachedObjects map[int64]int64 // storing offsets and length of objects we want to cache
 }
 
 var _ io.ReaderAt = (*parquetOptimizedReaderAt)(nil)
 
-func newParquetOptimizedReaderAt(br io.ReaderAt, rr *BackendReaderAt, size int64, footerSize uint32) *parquetOptimizedReaderAt {
-	return &parquetOptimizedReaderAt{br, rr, size, footerSize, map[int64]int64{}}
+func newParquetOptimizedReaderAt(br io.ReaderAt, rr *BackendReaderAt, size int64, footerSize uint32, cc common.CacheControl) *parquetOptimizedReaderAt {
+	return &parquetOptimizedReaderAt{br, rr, size, footerSize, cc, map[int64]int64{}}
 }
 
 // called by parquet-go in OpenFile() to set offset and length of footer section
 func (r *parquetOptimizedReaderAt) SetFooterSection(offset, length int64) {
-	r.cachedObjects[offset] = length
+	if r.cacheControl.Footer {
+		r.cachedObjects[offset] = length
+	}
 }
 
 // called by parquet-go in OpenFile() to set offset and length of column indexes
 func (r *parquetOptimizedReaderAt) SetColumnIndexSection(offset, length int64) {
-	r.cachedObjects[offset] = length
+	if r.cacheControl.ColumnIndex {
+		r.cachedObjects[offset] = length
+	}
 }
 
 // called by parquet-go in OpenFile() to set offset and length of offset index section
 func (r *parquetOptimizedReaderAt) SetOffsetIndexSection(offset, length int64) {
-	r.cachedObjects[offset] = length
+	if r.cacheControl.OffsetIndex {
+		r.cachedObjects[offset] = length
+	}
 }
 
 func (r *parquetOptimizedReaderAt) ReadAt(p []byte, off int64) (int, error) {

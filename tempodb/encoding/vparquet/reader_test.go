@@ -31,6 +31,8 @@ func (d *dummyReader) SetOffsetIndexSection(_ int64, _ int64) { d.offsetIndex = 
 
 // TestParquetGoSetsMetadataSections tests if the special metadata sections are set correctly for caching.
 // It is the best way right now to ensure that the interface used by the underlying parquet-go library does not drift.
+// If this test starts failing at some point, we should update the interface used by `parquetOptimizedReaderAt` to match
+// the specification in parquet-go
 func TestParquetGoSetsMetadataSections(t *testing.T) {
 	rawR, _, _, err := local.New(&local.Config{
 		Path: "./test-data",
