@@ -195,6 +195,14 @@ func columnIteratorPoolGet(capacity, len int) *columnIteratorBuffer {
 	return res
 }
 
+func columnIteratorPoolPut(b *columnIteratorBuffer) {
+	b.values = b.values[:cap(b.values)]
+	for i := range b.values {
+		b.values[i] = pq.Value{}
+	
+	columnIteratorPool.Put(b)
+}
+
 var columnIteratorResultPool = sync.Pool{
 	New: func() interface{} {
 		return &IteratorResult{Entries: make([]struct {
@@ -371,7 +379,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 					} else {
 						// All values excluded, we go ahead and immediately
 						// return the buffer to the pool.
-						columnIteratorPool.Put(newBuffer)
+						columnIteratorPoolPut(newBuffer)
 					}
 				}
 
@@ -413,7 +421,7 @@ func (c *ColumnIterator) next() (RowNumber, pq.Value) {
 		}
 
 		// Done with this buffer
-		columnIteratorPool.Put(c.curr)
+		columnIteratorPoolPut(c.curr)
 		c.curr = nil
 	}
 
