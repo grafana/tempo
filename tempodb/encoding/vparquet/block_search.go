@@ -147,8 +147,8 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 		// columns at the resource or span levels.  We want to search
 		// both locations. But we also only want to read the columns once.
 
-		var keys []string
-		var vals []string
+		keys := make([]string, 0, len(otherAttrConditions))
+		vals := make([]string, 0, len(otherAttrConditions))
 		for k, v := range otherAttrConditions {
 			keys = append(keys, k)
 			vals = append(vals, v)
