@@ -57,35 +57,35 @@ Tempo uses the Weaveworks/common server. For more information on configuration o
 server:
     # HTTP server listen host
     [http_listen_address: <string>]
-    
+
     # HTTP server listen port
     [http_listen_port: <int> | default = 80]
-    
+
     # gRPC server listen host
     [grpc_listen_address: <string>]
-    
+
     # gRPC server listen port
     [grpc_listen_port: <int> | default = 9095]
-    
+
     # Register instrumentation handlers (/metrics, etc.)
     [register_instrumentation: <boolean> | default = true]
-    
+
     # Timeout for graceful shutdowns
     [graceful_shutdown_timeout: <duration> | default = 30s]
-    
+
     # Read timeout for HTTP server
     [http_server_read_timeout: <duration> | default = 30s]
-    
+
     # Write timeout for HTTP server
     [http_server_write_timeout: <duration> | default = 30s]
-    
+
     # Idle timeout for HTTP server
     [http_server_idle_timeout: <duration> | default = 120s]
-    
+
     # Max gRPC message size that can be received
     # This value may need to be increased if you have large traces
     [grpc_server_max_recv_msg_size: <int> | default = 4194304]
-    
+
     # Max gRPC message size that can be sent
     # This value may need to be increased if you have large traces
     [grpc_server_max_send_msg_size: <int> | default = 4194304]
@@ -154,8 +154,8 @@ The ingester is responsible for batching up traces and pushing them to [TempoDB]
 ingester:
 
     # Lifecycler is responsible for managing the lifecycle of entries in the ring.
-    # For a complete list of config options check the lifecycler section under the ingester config at the following link - 
-    # https://cortexmetrics.io/docs/configuration/configuration-file/#ingester_config 
+    # For a complete list of config options check the lifecycler section under the ingester config at the following link -
+    # https://cortexmetrics.io/docs/configuration/configuration-file/#ingester_config
     lifecycler:
         ring:
             # number of replicas of each span to make while pushing to the backend
@@ -176,7 +176,7 @@ ingester:
     # maximum length of time before cutting a block
     # (default: 1h)
     [max_block_duration: <duration>]
-    
+
     # duration to keep blocks in the ingester after they have been flushed
     # (default: 15m)
     [ complete_block_timeout: <duration>]
@@ -263,12 +263,12 @@ metrics_generator:
         wal:
 
         # How long to wait when flushing samples on shutdown
-        [remote_write_flush_deadline: <duration> | default = 1m]     
+        [remote_write_flush_deadline: <duration> | default = 1m]
 
         # A list of remote write endpoints.
         # https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
         remote_write:
-            [- <Prometheus remote write config>]  
+            [- <Prometheus remote write config>]
 ```
 
 ## Query-frontend
@@ -287,7 +287,7 @@ query_frontend:
     # The number of shards to split a trace by id query into.
     # (default: 20)
     [query_shards: <int>]
-    
+
     # number of block queries that are tolerated to error before considering the entire query as failed
     # numbers greater than 0 make possible for a read to return partial results
     # partial results are indicated with HTTP status code 206
@@ -308,7 +308,7 @@ query_frontend:
         # (default: 20)
         [default_result_limit: <int>]
 
-        # The maximum allowed value of the limit parameter on search requests. If the search request limit parameter 
+        # The maximum allowed value of the limit parameter on search requests. If the search request limit parameter
         # exceeds the value configured here it will be set to the value configured here.
         # The default value of 0 disables this limit.
         # (default: 0)
@@ -319,7 +319,7 @@ query_frontend:
         # (default: 1h1m0s)
         [max_duration: <duration>]
 
-        # query_backend_after and query_ingesters_until together control where the query-frontend searches for traces. 
+        # query_backend_after and query_ingesters_until together control where the query-frontend searches for traces.
         # Time ranges before query_ingesters_until will be searched in the ingesters only.
         # Time ranges after query_backend_after will be searched in the backend/object storage only.
         # Time ranges from query_backend_after through query_ingesters_until will be queried from both locations.
@@ -351,16 +351,16 @@ querier:
 
     # The query frontend sents sharded requests to ingesters and querier (/api/traces/<id>)
     # By default, all healthy ingesters are queried for the trace id.
-    # When true the querier will hash the trace id in the same way that distributors do and then 
+    # When true the querier will hash the trace id in the same way that distributors do and then
     # only query those ingesters who own the trace id hash as determined by the ring.
     # If this parameter is set, the number of 404s could increase during rollout or scaling of ingesters.
     [query_relevant_ingesters: <bool> | default = false]
 
     search:
-        # Timeout for search requests    
+        # Timeout for search requests
         [query_timeout: <duration> | default = 30s]
 
-        # A list of external endpoints that the querier will use to offload backend search requests. They must  
+        # A list of external endpoints that the querier will use to offload backend search requests. They must
         # take and return the same value as /api/search endpoint on the querier. This is intended to be
         # used with serverless technologies for massive parrallelization of the search path.
         # The default value of "" disables this feature.
@@ -369,7 +369,7 @@ querier:
         # If search_external_endpoints is set then the querier will primarily act as a proxy for whatever serverless backend
         # you have configured. This setting allows the operator to have the querier prefer itself for a configurable
         # number of subqueries. In the default case of 2 the querier will process up to 2 search requests subqueries before starting
-        # to reach out to search_external_endpoints. 
+        # to reach out to search_external_endpoints.
         # Setting this to 0 will disable this feature and the querier will proxy all search subqueries to search_external_endpoints.
         [prefer_self: <int> | default = 2 ]
 
@@ -441,7 +441,7 @@ compactor:
         [iterator_buffer_size: <int>]
 
         # Optional. The maximum amount of time to spend compacting a single tenant before moving to the next. Default is 5m.
-        [max_time_per_tenant: <duration>] 
+        [max_time_per_tenant: <duration>]
 
         # Optional. The time between compaction cycles. Default is 30s.
         # Note: The default will be used if the value is set to 0.
@@ -451,7 +451,7 @@ compactor:
 ## Storage
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/tempodb/config.go).
 
-The storage block is used to configure TempoDB. It supports S3, GCS, Azure, local file system, and optionally can use Memcached or Redis for increased query performance.  
+The storage block is used to configure TempoDB. It supports S3, GCS, Azure, local file system, and optionally can use Memcached or Redis for increased query performance.
 
 The following example shows common options.  For further platform-specific information refer to the following:
 * [GCS]({{< relref "gcs/" >}})
@@ -539,7 +539,7 @@ storage:
 
             # optional.
             # access key when using static credentials.
-            [access_key: <string>] 
+            [access_key: <string>]
 
             # optional.
             # secret key when using static credentials.
@@ -572,7 +572,7 @@ storage:
             # Optional
             # Example: "tags: {'key': 'value'}"
             # A map of key value strings for user tags to store on the S3 objects. This helps set up filters in S3 lifecycles.
-            # See the [S3 documentation on object tagging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) for more detail. 
+            # See the [S3 documentation on object tagging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) for more detail.
             [tags: <map[string]string>]
 
         # azure configuration. Will be used only if value of backend is "azure"
@@ -588,7 +588,7 @@ storage:
             # Azure endpoint to use, defaults to Azure global(core.windows.net) for other
             # regions this needs to be changed e.g Azure China(blob.core.chinacloudapi.cn),
             # Azure German(blob.core.cloudapi.de), Azure US Government(blob.core.usgovcloudapi.net).
-            [endpoint-suffix: <string>]  
+            [endpoint-suffix: <string>]
 
             # Name of the azure storage account
             [storage-account-name: <string>]
@@ -618,7 +618,7 @@ storage:
             [hedge-requests-up-to: <int>]
 
         # How often to repoll the backend for new blocks. Default is 5m
-        [blocklist_poll: <duration>] 
+        [blocklist_poll: <duration>]
 
         # Number of blocks to process in parallel during polling. Default is 50.
         [blocklist_poll_concurrency: <int>]
@@ -627,7 +627,7 @@ storage:
         # fallback to scanning the entire bucket. Set to false to disable this behavior. Default is true.
         [blocklist_poll_fallback: <bool>]
 
-        # Maximum number of compactors that should build the tenant index. All other components will download 
+        # Maximum number of compactors that should build the tenant index. All other components will download
         # the index.  Default 2.
         [blocklist_poll_tenant_index_builders: <int>]
 
@@ -682,6 +682,18 @@ storage:
             # Default: 8
             [read_buffer_count: <int>]
 
+            # Granular cache control settings for parquet metadata objects
+            cache_control:
+
+                # Specifies if footer should be cached
+                [footer: <bool> | default = false]
+
+                # Specifies if column index should be cached
+                [column_index: <bool> | default = false]
+
+                # Specifies if offset index should be cached
+                [offset_index: <bool> | default = false]
+
         # Cortex Background cache configuration. Requires having a cache configured.
         background_cache:
 
@@ -722,7 +734,7 @@ storage:
             # Optional
             # period with which to poll DNS for memcache servers.
             # (default: 1m)
-            [update_interval: <duration>] 
+            [update_interval: <duration>]
 
             # Optional
             # use consistent hashing to distribute keys to memcache servers.
@@ -732,17 +744,17 @@ storage:
             # Optional
             # trip circuit-breaker after this number of consecutive dial failures.
             # (default: 10)
-            [circuit_breaker_consecutive_failures: 10] 
+            [circuit_breaker_consecutive_failures: 10]
 
             # Optional
             # duration circuit-breaker remains open after tripping.
             # (default: 10s)
-            [circuit_breaker_timeout: 10s] 
+            [circuit_breaker_timeout: 10s]
 
             # Optional
             # reset circuit-breaker counts after this long.
             # (default: 10s)
-            [circuit_breaker_interval: 10s] 
+            [circuit_breaker_interval: 10s]
 
         # Redis configuration block
         # EXPERIMENTAL
@@ -753,7 +765,7 @@ storage:
 
             # optional.
             # maximum time to wait before giving up on redis requests. (default 100ms)
-            [timeout: 500ms] 
+            [timeout: 500ms]
 
             # optional.
             # redis Sentinel master name. (default "")
@@ -766,7 +778,7 @@ storage:
 
             # optional.
             # how long keys stay in the redis. (default 0)
-            [expiration: <duration>] 
+            [expiration: <duration>]
 
             # optional.
             # enable connecting to redis with TLS. (default false)
@@ -800,7 +812,7 @@ storage:
         pool:
 
             # total number of workers pulling jobs from the queue (default: 50)
-            [max_workers: <int>] 
+            [max_workers: <int>]
 
             # length of job queue. imporatant for querier as it queues a job for every block it has to search
             # (default: 10000)
@@ -811,7 +823,7 @@ storage:
 
             # where to store the head blocks while they are being appended to
             # Example: "wal: /var/tempo/wal"
-            [path: <string>] 
+            [path: <string>]
 
             # wal encoding/compression.
             # options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
@@ -826,7 +838,7 @@ storage:
             # This is also used for querying traces by ID when the start and end parameters are specified. To prevent spans too far
             # in the past or future from impacting the block start and end times we use this configuration option.
             # This option only allows spans that occur within the configured duration to adjust the block start and
-            # end times. 
+            # end times.
             # This can result in trace not being found if the trace falls outside the slack configuration value as the
             # start and end times of the block will not be updated in this case.
             [ingestion_time_range_slack: <duration> | default = 2m]
@@ -863,55 +875,55 @@ storage:
 memberlist:
     # Name of the node in memberlist cluster. Defaults to hostname.
     [node_name: <string> | default = ""]
-    
+
     # Add random suffix to the node name.
     [randomize_node_name: <boolean> | default = true]
-    
+
     # The timeout for establishing a connection with a remote node, and for
     # read/write operations.
     [stream_timeout: <duration> | default = 10s]
-    
+
     # Multiplication factor used when sending out messages (factor * log(N+1)).
     [retransmit_factor: <int> | default = 2]
-    
+
     # How often to use pull/push sync.
     [pull_push_interval: <duration> | default = 30s]
-    
+
     # How often to gossip.
     [gossip_interval: <duration> | default = 1s]
-    
+
     # How many nodes to gossip to.
     [gossip_nodes: <int> | default = 2]
-    
+
     # How long to keep gossiping to dead nodes, to give them chance to refute their
     # death.
     [gossip_to_dead_nodes_time: <duration> | default = 30s]
-    
+
     # How soon can dead node's name be reclaimed with new address. Defaults to 0,
     # which is disabled.
     [dead_node_reclaim_time: <duration> | default = 0s]
-    
+
     # Other cluster members to join. Can be specified multiple times. It can be an
     # IP, hostname or an entry specified in the DNS Service Discovery format (see
     # https://cortexmetrics.io/docs/configuration/arguments/#dns-service-discovery
     # for more details).
     # A "Headless" Cluster IP service in Kubernetes.
-    # Example: 
+    # Example:
     #   - gossip-ring.tracing.svc.cluster.local:7946
     [join_members: <list of string> | default = ]
-    
+
     # Min backoff duration to join other cluster members.
     [min_join_backoff: <duration> | default = 1s]
-    
+
     # Max backoff duration to join other cluster members.
     [max_join_backoff: <duration> | default = 1m]
-    
+
     # Max number of retries to join other cluster members.
     [max_join_retries: <int> | default = 10]
-    
+
     # If this node fails to join memberlist cluster, abort.
     [abort_if_cluster_join_fails: <boolean> | default = true]
-    
+
     # If not 0, how often to rejoin the cluster. Occasional rejoin can help to fix
     # the cluster split issue, and is harmless otherwise. For example when using
     # only few components as a seed nodes (via -memberlist.join), then it's
@@ -919,23 +931,23 @@ memberlist:
     # resolves to all gossiping nodes (eg. Kubernetes headless service), then rejoin
     # is not needed.
     [rejoin_interval: <duration> | default = 0s]
-    
+
     # How long to keep LEFT ingesters in the ring.
     [left_ingesters_timeout: <duration> | default = 5m]
-    
+
     # Timeout for leaving memberlist cluster.
     [leave_timeout: <duration> | default = 5s]
-    
+
     # IP address to listen on for gossip messages. Multiple addresses may be
     # specified. Defaults to 0.0.0.0
     [bind_addr: <list of string> | default = ]
-    
+
     # Port to listen on for gossip messages.
     [bind_port: <int> | default = 7946]
-    
+
     # Timeout used when connecting to other nodes to send packet.
     [packet_dial_timeout: <duration> | default = 5s]
-    
+
     # Timeout for writing 'packet' data.
     [packet_write_timeout: <duration> | default = 5s]
 
@@ -949,13 +961,13 @@ Tempo provides an overrides module for users to set global or per-tenant overrid
 The default limits in Tempo may not be sufficient in high-volume tracing environments. Errors including `RATE_LIMITED`/`TRACE_TOO_LARGE`/`LIVE_TRACES_EXCEEDED` occur when these limits are exceeded. See below for how to override these limits globally or per tenant.
 
 #### Standard overrides
-You can create an `overrides` section to configure new ingestion limits that applies to all tenants of the cluster.  
+You can create an `overrides` section to configure new ingestion limits that applies to all tenants of the cluster.
 A snippet of a config.yaml file showing how the overrides section is [here](https://github.com/grafana/tempo/blob/a000a0d461221f439f585e7ed55575e7f51a0acd/integration/bench/config.yaml#L39-L40).
 
 ```yaml
 # Overrides configuration block
 overrides:
-    
+
     # Global ingestion limits configurations
 
     # Specifies whether the ingestion rate limits should be applied by each instance
@@ -969,7 +981,7 @@ overrides:
     #   adding 10 bytes
     [ingestion_burst_size_bytes: <int> | default = 20000000 (20MB) ]
 
-    # Per-user ingestion rate limit (bytes) used in ingestion. 
+    # Per-user ingestion rate limit (bytes) used in ingestion.
     # Results in errors like
     #   RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while
     #   adding 10 bytes
@@ -993,7 +1005,7 @@ overrides:
     # This override limit is used by the ingester.
     [max_traces_per_user: <int> | default = 10000]
 
-    # Maximum size of search data for a single trace in bytes. A value of 0 
+    # Maximum size of search data for a single trace in bytes. A value of 0
     # disables the check. From an operational perspective, the size of search
     # data is proportional to the total size of all tags in a trace.
     [max_search_bytes_per_trace: <int> | default = 5000]
@@ -1029,7 +1041,7 @@ overrides:
     [metrics_generator_processor_service_graphs_dimensions: <list of string>]
     [metrics_generator_processor_span_metrics_histogram_buckets: <<list of float>]
     [metrics_generator_processor_span_metrics_dimensions: <list of string>]
-      
+
     # Maximum number of active series in the registry, per instance of the metrics-generator. A
     # value of 0 disables this check.
     # If the limit is reached, no new series will be added but existing series will still be
@@ -1125,7 +1137,7 @@ overrides:
 
 ## Search
 
-Tempo search can be enabled by the following top-level setting.  In microservices mode, it must be set for the distributors and queriers. 
+Tempo search can be enabled by the following top-level setting.  In microservices mode, it must be set for the distributors and queriers.
 
 ```yaml
 search_enabled: true
