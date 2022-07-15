@@ -446,6 +446,7 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		TotalRecords:  req.TotalRecords,
 		BlockID:       blockID,
 		DataEncoding:  req.DataEncoding,
+		FooterSize:    req.FooterSize,
 	}
 
 	opts := common.SearchOptions{}
