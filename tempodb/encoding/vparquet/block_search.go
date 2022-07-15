@@ -295,6 +295,7 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 		makeIter("StartTimeUnixNano"),
 		makeIter("DurationNanos"),
 	}, nil)
+	defer iter2.Close()
 
 	for {
 		match := iter2.Next()
