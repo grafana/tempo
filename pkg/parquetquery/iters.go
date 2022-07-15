@@ -199,7 +199,7 @@ func columnIteratorPoolPut(b *columnIteratorBuffer) {
 	b.values = b.values[:cap(b.values)]
 	for i := range b.values {
 		b.values[i] = pq.Value{}
-	
+	}
 	columnIteratorPool.Put(b)
 }
 
