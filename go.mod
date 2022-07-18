@@ -42,7 +42,7 @@ require (
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/klauspost/compress v1.15.7
 	github.com/minio/minio-go/v7 v7.0.16-0.20211116163909-d00629356463
-	github.com/mitchellh/mapstructure v1.4.3
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter v0.46.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.46.0
