@@ -122,7 +122,7 @@ You will need those components to fully use service graphs.
 **Note** Since 9.0.4 service graphs have been enabled by default in Grafana. Prior to Grafana 9.0.4, service graphs were hidden 
 under the [feature toggle](https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana/#feature_toggles) `tempoServiceGraph`. 
 
-Configure a Tempo datasource's 'Service Graphs' by linking to the prometheus backend where metrics are being sent:
+Configure a Tempo datasource's 'Service Graphs' by linking to the Prometheus backend where metrics are being sent:
 
 ```
 apiVersion: 1
