@@ -42,7 +42,7 @@ type Compactor interface {
 type CompactionOptions struct {
 	ChunkSizeBytes     uint32
 	FlushSizeBytes     uint32
-	PrefetchTraceCount int // How many traces to prefetch async.
+	IteratorBufferSize int // How many traces to prefetch async.
 	OutputBlocks       uint8
 	BlockConfig        BlockConfig
 	Combiner           model.ObjectCombiner
@@ -55,7 +55,7 @@ func DefaultCompactionOptions() CompactionOptions {
 	return CompactionOptions{
 		ChunkSizeBytes:     1_000_000,
 		FlushSizeBytes:     30 * 1024 * 1024, // 30 MiB
-		PrefetchTraceCount: 1000,
+		IteratorBufferSize: 1000,
 		OutputBlocks:       1,
 	}
 }

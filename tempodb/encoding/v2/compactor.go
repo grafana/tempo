@@ -75,7 +75,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	var currentBlock *StreamingBlock
 	var tracker backend.AppendTracker
 
-	iter := NewMultiblockIterator(ctx, iters, c.opts.PrefetchTraceCount, combiner, dataEncoding, l)
+	iter := NewMultiblockIterator(ctx, iters, c.opts.IteratorBufferSize, combiner, dataEncoding, l)
 	defer iter.Close()
 
 	for {
