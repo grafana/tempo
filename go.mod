@@ -35,14 +35,14 @@ require (
 	github.com/grafana/dskit v0.0.0-20220708154635-9c29dc5195e4
 	github.com/grafana/e2e v0.1.0
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
-	github.com/hashicorp/go-hclog v1.1.0
+	github.com/hashicorp/go-hclog v1.2.1
 	github.com/hashicorp/go-plugin v1.4.3
 	github.com/jaegertracing/jaeger v1.31.0
 	github.com/jedib0t/go-pretty/v6 v6.2.4
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/klauspost/compress v1.15.7
 	github.com/minio/minio-go/v7 v7.0.16-0.20211116163909-d00629356463
-	github.com/mitchellh/mapstructure v1.4.3
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter v0.46.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.46.0
@@ -65,7 +65,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/sony/gobreaker v0.4.1
 	github.com/spf13/viper v1.10.1
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.7.2
 	github.com/thanos-io/thanos v0.24.0
 	github.com/uber-go/atomic v1.4.0
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
