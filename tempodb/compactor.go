@@ -175,6 +175,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	opts.BlockConfig = *rw.cfg.Block
 	opts.ChunkSizeBytes = rw.compactorCfg.ChunkSizeBytes
 	opts.FlushSizeBytes = rw.compactorCfg.FlushSizeBytes
+	opts.PrefetchTraceCount = rw.compactorCfg.IteratorBufferSize
 	opts.OutputBlocks = outputBlocks
 	opts.Combiner = combiner
 	opts.BytesWritten = func(compactionLevel, bytes int) {
