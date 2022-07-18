@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -51,12 +52,8 @@ func (cmd *searchOneBlockCmd) Run(opts *globalOptions) error {
 	fmt.Println("Searching:")
 	spew.Dump(meta)
 
-	searchOpts := common.DefaultSearchOptions()
-	searchOpts.ChunkSizeBytes = chunkSize
-	searchOpts.PrefetchTraceCount = iteratorBuffer
-	// jpe make these default?
-	searchOpts.ReadBufferCount = 8
-	searchOpts.ReadBufferSize = 1 * 1024 * 1024
+	searchOpts := common.SearchOptions{}
+	tempodb.SearchConfig{}.ApplyToOptions(&searchOpts)
 
 	start := time.Now()
 	block, err := encoding.OpenBlock(meta, r)
