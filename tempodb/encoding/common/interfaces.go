@@ -51,15 +51,6 @@ type CompactionOptions struct {
 	BytesWritten   func(compactionLevel, bytes int)
 }
 
-func DefaultCompactionOptions() CompactionOptions {
-	return CompactionOptions{
-		ChunkSizeBytes:     1_000_000,
-		FlushSizeBytes:     30 * 1024 * 1024, // 30 MiB
-		IteratorBufferSize: 1000,
-		OutputBlocks:       1,
-	}
-}
-
 type Iterator interface {
 	// Next returns the next trace and optionally the start and stop times
 	// for the trace that may have been adjusted.
