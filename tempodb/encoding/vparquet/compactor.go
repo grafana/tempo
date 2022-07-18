@@ -54,7 +54,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		// wrap bookmark with a prefetch iterator
-		bookmarks = append(bookmarks, newBookmark(newPrefetchIterator(ctx, iter, c.opts.PrefetchTraceCount/len(inputs))))
+		bookmarks = append(bookmarks, newBookmark(newPrefetchIterator(ctx, iter, c.opts.IteratorBufferSize/len(inputs))))
 	}
 
 	nextCompactionLevel := compactionLevel + 1
