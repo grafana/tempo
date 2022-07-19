@@ -57,6 +57,7 @@ Jsonnet users will now need to specify a storage request and limit for the gener
 * [BUGFIX] Fix wal check on span name to be substring [#1548](https://github.com/grafana/tempo/pull/1548) (@mdisibio)
 * [BUGFIX] Prevent ingester panic "cannot grow buffer" [#1258](https://github.com/grafana/tempo/issues/1258) (@mdisibio)
 * [BUGFIX] metrics-generator: do not remove x-scope-orgid header in single tenant modus [#1554](https://github.com/grafana/tempo/pull/1554) (@kvrhdn)
+* [BUGFIX] Fixed issue where backend does not support `root.name` and `root.service.name` [#1589](https://github.com/grafana/tempo/pull/1589) (@kvrhdn)
 
 ## v1.4.1 / 2022-05-05
 
