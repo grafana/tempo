@@ -70,6 +70,11 @@ func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (
 				// checks non attribute span properties for matching
 				matchSpan(tagsToFind, s)
 				matchAttributes(tagsToFind, s.Attributes)
+
+				// special root span check
+				if len(s.ParentSpanId) == 0 && b.Resource != nil {
+					matchRootServiceName(tagsToFind, b.Resource.Attributes)
+				}
 			}
 		}
 	}
@@ -142,6 +147,12 @@ func matchSpan(tags map[string]string, s *v1.Span) {
 			delete(tags, StatusCodeTag)
 		}
 	}
+
+	if name, ok := tags[RootSpanNameTag]; ok {
+		if strings.Contains(s.Name, name) && len(s.ParentSpanId) == 0 {
+			delete(tags, RootSpanNameTag)
+		}
+	}
 }
 
 // matchAttributes tests to see if any tags in the map match any passed attributes
@@ -181,6 +192,20 @@ func matchAttributes(tags map[string]string, atts []*v1common.KeyValue) {
 
 		if match {
 			delete(tags, a.Key)
+		}
+	}
+}
+
+func matchRootServiceName(tags map[string]string, atts []*v1common.KeyValue) {
+	name, ok := tags[RootServiceNameTag]
+	if !ok {
+		return
+	}
+
+	for _, a := range atts {
+		if a.Key == "service.name" && strings.Contains(a.Value.GetStringValue(), name) {
+			delete(tags, RootServiceNameTag)
+			return
 		}
 	}
 }

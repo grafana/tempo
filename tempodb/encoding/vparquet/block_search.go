@@ -101,6 +101,10 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 
 	for k, v := range req.Tags {
 		switch k {
+		case LabelRootServiceName:
+			traceIters = append(traceIters, makeIter("RootServiceName", pq.NewSubstringPredicate(v), ""))
+		case LabelRootSpanName:
+			traceIters = append(traceIters, makeIter("RootSpanName", pq.NewSubstringPredicate(v), ""))
 		case LabelServiceName:
 			resourceIters = append(resourceIters, makeIter("rs.Resource.ServiceName", pq.NewSubstringPredicate(v), ""))
 		case LabelCluster:
