@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -30,6 +31,9 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	var minBlockStart, maxBlockEnd time.Time
 	bookmarks := make([]*bookmark, 0, len(inputs))
 
+	// used for reusing *Trace objects read by the block iterator
+	pool := sync.Pool{New: func() any { return &Trace{} }}
+
 	var compactionLevel uint8
 	var totalRecords int
 	for _, blockMeta := range inputs {
@@ -48,7 +52,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		block := newBackendBlock(blockMeta, r)
 
-		iter, err := block.Iterator(ctx)
+		iter, err := block.Iterator(ctx, pool)
 		if err != nil {
 			return nil, err
 		}
@@ -101,7 +105,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		// write partial block
 		//if currentBlock.CurrentBufferLength() >= int(opts.FlushSizeBytes) {
-		if currentBlock.CurrentBufferedObjects() > 10000 {
+		if currentBlock.CurrentBufferedObjects() > 3000 {
 			runtime.GC()
 			err = c.appendBlock(currentBlock)
 			if err != nil {
@@ -119,6 +123,10 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 				return nil, errors.Wrap(err, fmt.Sprintf("error shipping block to backend, blockID %s", currentBlockPtrCopy.meta.BlockID.String()))
 			}
 			currentBlock = nil
+		}
+
+		if lowestObject != nil {
+			pool.Put(lowestObject)
 		}
 	}
 

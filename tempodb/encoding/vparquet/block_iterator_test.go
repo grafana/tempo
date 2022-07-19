@@ -2,6 +2,7 @@ package vparquet
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ func TestIteratorReadsAllRows(t *testing.T) {
 
 	b := newBackendBlock(meta, r)
 
-	iter, err := b.Iterator(context.Background())
+	iter, err := b.Iterator(context.Background(), sync.Pool{})
 	require.NoError(t, err)
 	defer iter.Close()
 
