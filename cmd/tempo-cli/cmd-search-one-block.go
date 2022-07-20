@@ -63,7 +63,7 @@ func (cmd *searchOneBlockCmd) Run(opts *globalOptions) error {
 
 	resp, err := block.Search(ctx, searchReq, searchOpts)
 	if err != nil {
-		return errors.Wrap(err, "error searching block:")
+		return errors.Wrap(err, "error searching block")
 	}
 
 	fmt.Println("Duration:", time.Since(start))
