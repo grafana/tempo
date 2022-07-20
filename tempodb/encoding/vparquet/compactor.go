@@ -52,7 +52,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		block := newBackendBlock(blockMeta, r)
 
-		iter, err := block.Iterator(ctx, pool)
+		iter, err := block.Iterator(ctx, &pool)
 		if err != nil {
 			return nil, err
 		}
@@ -125,9 +125,8 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			currentBlock = nil
 		}
 
-		if lowestObject != nil {
-			pool.Put(lowestObject)
-		}
+		// add trace object into pool for reuse by parquet row reader
+		pool.Put(lowestObject)
 	}
 
 	// ship final block to backend

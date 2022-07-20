@@ -43,8 +43,13 @@ func (m *MultiBlockIterator) Next(ctx context.Context) (*Trace, error) {
 			lowestBookmarks = append(lowestBookmarks, b)
 		} else if len(lowestID) == 0 || comparison == -1 {
 			lowestID = currentObject.TraceID
-			lowestObjects = []*Trace{currentObject}
-			lowestBookmarks = []*bookmark{b}
+
+			// reset and reuse
+			lowestObjects = lowestObjects[:0]
+			lowestBookmarks = lowestBookmarks[:0]
+
+			lowestObjects = append(lowestObjects, currentObject)
+			lowestBookmarks = append(lowestBookmarks, b)
 		}
 	}
 

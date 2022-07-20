@@ -15,10 +15,10 @@ import (
 type blockIterator struct {
 	blockID string
 	r       *parquet.Reader
-	pool    sync.Pool
+	pool    *sync.Pool
 }
 
-func (b *backendBlock) Iterator(ctx context.Context, pool sync.Pool) (Iterator, error) {
+func (b *backendBlock) Iterator(ctx context.Context, pool *sync.Pool) (Iterator, error) {
 	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
 
 	// 32 MB memory buffering
@@ -35,7 +35,15 @@ func (b *backendBlock) Iterator(ctx context.Context, pool sync.Pool) (Iterator, 
 }
 
 func (i *blockIterator) Next(context.Context) (*Trace, error) {
-	t := i.pool.Get().(*Trace)
+	var t *Trace
+	x := i.pool.Get()
+	if x != nil {
+		if cast, ok := x.(*Trace); ok {
+			t = cast
+		}
+	} else {
+		t = &Trace{}
+	}
 
 	switch err := i.r.Read(t); err {
 	case nil:
