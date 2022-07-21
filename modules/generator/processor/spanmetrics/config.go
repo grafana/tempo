@@ -2,6 +2,8 @@ package spanmetrics
 
 import (
 	"flag"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -17,5 +19,5 @@ type Config struct {
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	cfg.HistogramBuckets = []float64{.002, .004, .006, .01, .05, .1, .2, .4, .8, 1., 1.4, 2., 5., 10., 15.}
+	cfg.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
 }
