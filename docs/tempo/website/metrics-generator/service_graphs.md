@@ -32,7 +32,7 @@ The processor uses the [OpenTelemetry semantic conventions](https://github.com/o
 It currently supports the following requests:
 - a direct request between two services: the outgoing and the incoming span must have [`span.kind`](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind) `client` and `server` respectively.
 - a request across a messaging system: the outgoing and the incoming span must have `span.kind` `producer` and `consumer` respectively.
-- a database request: in this case the processor looks for a single span with `span.kind` equal to `client` containing the attribute `db.name`.
+- a database request: in this case the processor looks for spans containing attributes `span.kind`=`client` as well as `db.name`.
 
 Every span that can be paired up to form a request is kept in an in-memory store, until its corresponding pair span is received or the maximum waiting time has passed.
 When either of these conditions are reached, the request is recorded and removed from the local store.
