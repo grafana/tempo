@@ -58,11 +58,13 @@ The following metrics are exported:
 
 Duration is measured both from the client and the server sides.
 
+Possible values for `connection_type`: unset, `messaging_system` or `database`.
+
+Additional labels can be included using the `dimensions` configuration option.
+
 Since the service graph processor has to process both sides of an edge,
 it needs to process all spans of a trace to function properly.
 If spans of a trace are spread out over multiple instances it will not be possible to pair up spans reliably.
-
-Additional labels can be included using the `dimensions` configuration option.
 
 ## Cardinality
 
