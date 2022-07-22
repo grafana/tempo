@@ -30,6 +30,9 @@ ingester:
     heartbeat_period: 100ms
 
 compactor:
+  ring:
+    kvstore:
+      store: memberlist
   compaction:
     compaction_window: 1h              # blocks in this time window will be compacted together
     max_block_bytes: 100_000_000       # maximum size of compacted blocks
