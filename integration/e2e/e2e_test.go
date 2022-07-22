@@ -459,7 +459,7 @@ func callIngesterRing(t *testing.T, svc *e2e.HTTPService) {
 	fmt.Printf("Calling %s on %s\n", endpoint, svc.Name())
 	res, err := e2e.DoGet("http://" + svc.Endpoint(3200) + endpoint)
 	require.NoError(t, err)
-	assert.Equal(t, 200, res.StatusCode)
+	require.Equal(t, 200, res.StatusCode)
 }
 
 func callCompactorRing(t *testing.T, svc *e2e.HTTPService) {
@@ -467,7 +467,7 @@ func callCompactorRing(t *testing.T, svc *e2e.HTTPService) {
 	fmt.Printf("Calling %s on %s\n", endpoint, svc.Name())
 	res, err := e2e.DoGet("http://" + svc.Endpoint(3200) + endpoint)
 	require.NoError(t, err)
-	assert.Equal(t, 200, res.StatusCode)
+	require.Equal(t, 200, res.StatusCode)
 }
 
 func callStatus(t *testing.T, svc *e2e.HTTPService) {
@@ -478,7 +478,7 @@ func callStatus(t *testing.T, svc *e2e.HTTPService) {
 	// body, err := ioutil.ReadAll(res.Body)
 	// require.NoError(t, err)
 	// t.Logf("body: %+v", string(body))
-	assert.Equal(t, 200, res.StatusCode)
+	require.Equal(t, 200, res.StatusCode)
 }
 
 func assertEcho(t *testing.T, url string) {
