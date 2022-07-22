@@ -391,6 +391,9 @@ func TestScalableSingleBinary(t *testing.T) {
 	for _, i := range []*e2e.HTTPService{tempo1, tempo2, tempo3} {
 		callFlush(t, i)
 		require.NoError(t, i.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
+		callIngesterRing(t, i)
+		callCompactorRing(t, i)
+		callStatus(t, i)
 	}
 
 	apiClient1 := tempoUtil.NewClient("http://"+tempo1.Endpoint(3200), "")
@@ -449,6 +452,33 @@ func callFlush(t *testing.T, ingester *e2e.HTTPService) {
 	res, err := e2e.DoGet("http://" + ingester.Endpoint(3200) + "/flush")
 	require.NoError(t, err)
 	require.Equal(t, 204, res.StatusCode)
+}
+
+func callIngesterRing(t *testing.T, svc *e2e.HTTPService) {
+	endpoint := "/ingester/ring"
+	fmt.Printf("Calling %s on %s\n", endpoint, svc.Name())
+	res, err := e2e.DoGet("http://" + svc.Endpoint(3200) + endpoint)
+	require.NoError(t, err)
+	assert.Equal(t, 200, res.StatusCode)
+}
+
+func callCompactorRing(t *testing.T, svc *e2e.HTTPService) {
+	endpoint := "/compactor/ring"
+	fmt.Printf("Calling %s on %s\n", endpoint, svc.Name())
+	res, err := e2e.DoGet("http://" + svc.Endpoint(3200) + endpoint)
+	require.NoError(t, err)
+	assert.Equal(t, 200, res.StatusCode)
+}
+
+func callStatus(t *testing.T, svc *e2e.HTTPService) {
+	endpoint := "/status/endpoints"
+	fmt.Printf("Calling %s on %s\n", endpoint, svc.Name())
+	res, err := e2e.DoGet("http://" + svc.Endpoint(3200) + endpoint)
+	require.NoError(t, err)
+	// body, err := ioutil.ReadAll(res.Body)
+	// require.NoError(t, err)
+	// t.Logf("body: %+v", string(body))
+	assert.Equal(t, 200, res.StatusCode)
 }
 
 func assertEcho(t *testing.T, url string) {
