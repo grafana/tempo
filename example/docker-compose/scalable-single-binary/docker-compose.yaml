@@ -13,6 +13,8 @@ services:
           - tempo
     depends_on:
       - minio
+    ports:
+      - 3200:3200
 
   tempo2:
     image: grafana/tempo:latest
