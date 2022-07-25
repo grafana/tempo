@@ -250,8 +250,8 @@ github.com/go-redis/redis/v8/internal/pool
 github.com/go-redis/redis/v8/internal/proto
 github.com/go-redis/redis/v8/internal/rand
 github.com/go-redis/redis/v8/internal/util
-# github.com/go-test/deep v1.0.7
-## explicit; go 1.13
+# github.com/go-test/deep v1.0.8
+## explicit; go 1.16
 github.com/go-test/deep
 # github.com/gogo/googleapis v1.4.1
 ## explicit; go 1.12
@@ -292,7 +292,7 @@ github.com/golang/snappy
 # github.com/google/btree v1.0.1
 ## explicit; go 1.12
 github.com/google/btree
-# github.com/google/flatbuffers v2.0.0+incompatible
+# github.com/google/flatbuffers v2.0.6+incompatible
 ## explicit
 github.com/google/flatbuffers/go
 # github.com/google/go-cmp v0.5.8
