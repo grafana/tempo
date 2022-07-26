@@ -46,43 +46,37 @@ func TestIteratorReadsAllRows(t *testing.T) {
 	require.Equal(t, meta.TotalObjects, actualCount)
 }
 
-func TestIteratorReusesObjectsViaPool(t *testing.T) {
+/*func BenchmarkIterator(b *testing.B) {
 	rawR, _, _, err := local.New(&local.Config{
 		Path: "./test-data",
 	})
-	require.NoError(t, err)
+	require.NoError(b, err)
 
 	r := backend.NewReader(rawR)
 	ctx := context.Background()
 
 	blocks, err := r.Blocks(ctx, "single-tenant")
-	require.NoError(t, err)
-	require.Len(t, blocks, 1)
+	require.NoError(b, err)
+	require.Len(b, blocks, 1)
 
 	meta, err := r.BlockMeta(ctx, blocks[0], "single-tenant")
-	require.NoError(t, err)
+	require.NoError(b, err)
 
-	b := newBackendBlock(meta, r)
+	bl := newBackendBlock(meta, r)
 
-	// track number of objects created through pool.New()
-	count := 0
-	pool := sync.Pool{New: func() any { count++; return &Trace{} }}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
 
-	iter, err := b.Iterator(context.Background(), &pool)
-	require.NoError(t, err)
-	defer iter.Close()
+		iter, _ := bl.Iterator(ctx)
 
-	for {
-		tr, err := iter.Next(context.Background())
-		if tr == nil {
-			break
+		for {
+			tr, _ := iter.Next(ctx)
+			if tr == nil {
+				break
+			}
+			tracePool.Put(tr)
 		}
-		require.NoError(t, err)
 
-		// reuse objects
-		pool.Put(tr)
+		iter.Close()
 	}
-
-	// only the first object should be created via pool
-	require.Equal(t, 1, count)
-}
+}*/

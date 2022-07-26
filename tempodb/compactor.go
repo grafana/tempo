@@ -181,6 +181,9 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		BytesWritten: func(compactionLevel, bytes int) {
 			metricCompactionBytesWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(bytes))
 		},
+		ObjectsCombined: func(compactionLevel, objs int) {
+			metricCompactionObjectsCombined.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
+		},
 		ObjectsWritten: func(compactionLevel, objs int) {
 			metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
 		},

@@ -47,8 +47,9 @@ type CompactionOptions struct {
 	BlockConfig        BlockConfig
 	Combiner           model.ObjectCombiner
 
-	ObjectsWritten func(compactionLevel, objects int)
-	BytesWritten   func(compactionLevel, bytes int)
+	ObjectsCombined func(compactionLevel, objects int)
+	ObjectsWritten  func(compactionLevel, objects int)
+	BytesWritten    func(compactionLevel, bytes int)
 }
 
 type Iterator interface {

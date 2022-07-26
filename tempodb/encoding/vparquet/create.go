@@ -128,6 +128,19 @@ func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
 	return nil
 }
 
+func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) error {
+
+	_, err := b.pw.WriteRows([]parquet.Row{row})
+	if err != nil {
+		return err
+	}
+
+	b.bloom.Add(id)
+	b.meta.ObjectAdded(id, start, end)
+	b.currentBufferedTraces++
+	return nil
+}
+
 func (b *streamingBlock) CurrentBufferLength() int {
 	return b.bw.Len()
 }

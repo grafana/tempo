@@ -203,9 +203,18 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	}
 }
 
+func TestSameIDCompaction(t *testing.T) {
+	testEncodings := []string{v2.VersionString, vparquet.VersionString}
+	for _, enc := range testEncodings {
+		t.Run(enc, func(t *testing.T) {
+			testSameIDCompaction(t, enc)
+		})
+	}
+}
+
 // TestSameIDCompaction is a bit gross in that it has a bad dependency with on the /pkg/model
 // module to do a full e2e compaction/combination test.
-func TestSameIDCompaction(t *testing.T) {
+func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
@@ -221,7 +230,7 @@ func TestSameIDCompaction(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
+			Version:              targetBlockVersion,
 			Encoding:             backend.EncSnappy,
 			IndexPageSizeBytes:   1000,
 		},
@@ -743,7 +752,7 @@ func BenchmarkCompaction(b *testing.B) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
+			Version:              vparquet.VersionString,
 			Encoding:             backend.EncZstd,
 			IndexPageSizeBytes:   1000,
 		},
@@ -775,4 +784,59 @@ func BenchmarkCompaction(b *testing.B) {
 
 	err = rw.compact(metas, testTenantID)
 	require.NoError(b, err)
+}
+
+func TestCrazy(t *testing.T) {
+	tempDir := t.TempDir()
+
+	_, _, c, err := New(&Config{
+		Backend: "local",
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: "/Users/marty/src/tmp",
+		},
+		Block: &common.BlockConfig{
+			IndexDownsampleBytes: 11,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Version:              vparquet.VersionString,
+			Encoding:             backend.EncZstd,
+			IndexPageSizeBytes:   1000,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, log.NewNopLogger())
+	require.NoError(t, err)
+
+	c.EnableCompaction(&CompactorConfig{
+		ChunkSizeBytes:     1_000_000,
+		FlushSizeBytes:     1_000_000,
+		IteratorBufferSize: 1000,
+	}, &mockSharder{}, &mockOverrides{})
+
+	rw := c.(*readerWriter)
+
+	tenantID := "1"
+
+	inputs := []*backend.BlockMeta{
+		{
+			BlockID:         uuid.MustParse("2db9913c-de0e-48fd-aaeb-369e063b486d"),
+			Version:         "vParquet",
+			TenantID:        tenantID,
+			StartTime:       time.Now(),
+			EndTime:         time.Now(),
+			TotalObjects:    2167939,
+			Size:            7132565802,
+			CompactionLevel: 2,
+			TotalRecords:    217,
+			FooterSize:      1049800,
+		},
+	}
+
+	rw.compact(inputs, tenantID)
 }
