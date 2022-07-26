@@ -218,7 +218,7 @@ func (rw *readerWriter) append(ctx context.Context, src []byte, name string) err
 	base64BlockIDs[len(l.CommittedBlocks)] = id
 
 	// After all the blocks are uploaded, atomically commit them to the blob.
-	_, err = appendBlobURL.CommitBlockList(ctx, base64BlockIDs, blob.BlobHTTPHeaders{}, blob.Metadata{}, blob.BlobAccessConditions{}, blob.DefaultAccessTier, nil, blob.ClientProvidedKeyOptions{})
+	_, err = appendBlobURL.CommitBlockList(ctx, base64BlockIDs, blob.BlobHTTPHeaders{}, blob.Metadata{}, blob.BlobAccessConditions{}, blob.DefaultAccessTier, blob.BlobTagsMap{}, blob.ClientProvidedKeyOptions{}, blob.ImmutabilityPolicyOptions{})
 	if err != nil {
 		return err
 	}
