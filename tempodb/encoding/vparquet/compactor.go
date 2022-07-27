@@ -18,53 +18,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-/*type slicePool struct {
-	mtx  sync.Mutex
-	free []*Trace
-}
-
-func (p *slicePool) Get() *Trace {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
-	if len(p.free) > 0 {
-		tr := p.free[0]
-		p.free = p.free[1:]
-		return tr
-	}
-
-	tr := &Trace{}
-	tr.ResourceSpans = make([]ResourceSpans, 10)
-	for i := range tr.ResourceSpans {
-		rs := &tr.ResourceSpans[i]
-		rs.InstrumentationLibrarySpans = make([]ILS, 10)
-		rs.Resource.Attrs = make([]Attribute, 10)
-
-		for j := range rs.InstrumentationLibrarySpans {
-			ils := &rs.InstrumentationLibrarySpans[j]
-			ils.Spans = make([]Span, 10)
-			for k := range ils.Spans {
-				s := &ils.Spans[k]
-				s.Attrs = make([]Attribute, 10)
-				s.Events = make([]Event, 10)
-				for l := range s.Events {
-					s.Events[l].Attrs = make([]EventAttribute, 10)
-				}
-			}
-		}
-	}
-	return tr
-}
-
-func (p *slicePool) Put(tr *Trace) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
-	if len(p.free) < 100 {
-		p.free = append(p.free, tr)
-	}
-}*/
-
 func NewCompactor(opts common.CompactionOptions) common.Compactor {
 	return &Compactor{opts: opts}
 }
@@ -75,11 +28,13 @@ type Compactor struct {
 
 func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
 
-	var minBlockStart, maxBlockEnd time.Time
-	bookmarks := make([]*bookmarkRaw, 0, len(inputs))
-
-	var compactionLevel uint8
-	var totalRecords int
+	var (
+		minBlockStart   time.Time
+		maxBlockEnd     time.Time
+		bookmarks       = make([]*bookmark, 0, len(inputs))
+		compactionLevel uint8
+		totalRecords    int
+	)
 	for _, blockMeta := range inputs {
 		totalRecords += blockMeta.TotalObjects
 
@@ -102,31 +57,44 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		// wrap bookmark with a prefetch iterator
-		bookmarks = append(bookmarks, newBookmarkRaw(iter))
+		bookmarks = append(bookmarks, newBookmark(newPrefetchIterator(ctx, iter, c.opts.IteratorBufferSize/len(inputs))))
 	}
 
-	nextCompactionLevel := compactionLevel + 1
+	var (
+		nextCompactionLevel = compactionLevel + 1
+		recordsPerBlock     = (totalRecords / int(c.opts.OutputBlocks))
+		sch                 = parquet.SchemaOf(new(Trace))
+	)
 
-	recordsPerBlock := (totalRecords / int(c.opts.OutputBlocks))
+	combine := func(rows []parquet.Row) (parquet.Row, error) {
+		if len(rows) == 0 {
+			return nil, nil
+		}
 
-	sch := parquet.SchemaOf(new(Trace))
-	re := func(row parquet.Row) *Trace {
-		tr := new(Trace)
-		sch.Reconstruct(tr, row)
-		return tr
-	}
-	de := func(tr *Trace) parquet.Row {
-		return sch.Deconstruct(nil, tr)
-	}
+		if len(rows) == 1 {
+			return rows[0], nil
+		}
 
-	objsCombined := func() {
+		// Time to combine.
+		cmb := NewCombiner()
+		for i, row := range rows {
+			tr := new(Trace)
+			err := sch.Reconstruct(tr, row)
+			if err != nil {
+				return nil, err
+			}
+			cmb.ConsumeWithFinal(tr, i == len(rows)-1)
+		}
+		tr, _ := cmb.Result()
+
 		c.opts.ObjectsCombined(int(compactionLevel), 1)
+		return sch.Deconstruct(nil, tr), nil
 	}
 
-	var currentBlock *streamingBlock
-	m := newMultiblockIteratorRaw(re, de, bookmarks, objsCombined)
+	m := newMultiblockIterator(bookmarks, combine)
 	defer m.Close()
 
+	var currentBlock *streamingBlock
 	for {
 		lowestID, lowestObject, err := m.Next(ctx)
 		if err == io.EOF {
@@ -163,7 +131,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		// write partial block
 		//if currentBlock.CurrentBufferLength() >= int(opts.FlushSizeBytes) {
-		if currentBlock.CurrentBufferedObjects() > 3000 {
+		if currentBlock.CurrentBufferedObjects() > 10_000 {
 			runtime.GC()
 			err = c.appendBlock(currentBlock)
 			if err != nil {
@@ -182,13 +150,6 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			}
 			currentBlock = nil
 		}
-
-		// add trace object into pool for reuse by parquet row reader
-		/*if spanCount(lowestObject) < 100_000 {
-			reset(lowestObject)
-			// Only put small traces back in the pool
-			pool.Put(lowestObject)
-		}*/
 	}
 
 	// ship final block to backend
@@ -203,74 +164,6 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 	return newCompactedBlocks, nil
 }
-
-/*func spanCount(tr *Trace) int {
-	c := 0
-	for i := range tr.ResourceSpans {
-		for j := range tr.ResourceSpans[i].InstrumentationLibrarySpans {
-			c += len(tr.ResourceSpans[i].InstrumentationLibrarySpans[j].Spans)
-		}
-	}
-	return c
-}
-
-func reset(tr *Trace) {
-	//spanCount := 0
-
-	tr.RootServiceName = ""
-	tr.RootSpanName = ""
-	tr.TraceID = nil
-	tr.TraceIDText = ""
-
-	for i := range tr.ResourceSpans {
-		rs := &tr.ResourceSpans[i]
-		rs.Resource.ServiceName = ""
-		rs.Resource.Cluster = nil
-		rs.Resource.Namespace = nil
-		rs.Resource.Pod = nil
-		rs.Resource.Container = nil
-		rs.Resource.K8sClusterName = nil
-		rs.Resource.K8sNamespaceName = nil
-		rs.Resource.K8sPodName = nil
-		rs.Resource.K8sContainerName = nil
-		rs.Resource.Test = ""
-
-		for a := range rs.Resource.Attrs {
-			rs.Resource.Attrs[a] = Attribute{}
-		}
-
-		for j := range rs.InstrumentationLibrarySpans {
-			ils := &rs.InstrumentationLibrarySpans[j]
-			ils.InstrumentationLibrary.Name = ""
-			ils.InstrumentationLibrary.Version = ""
-
-			for k := range ils.Spans {
-				s := &ils.Spans[k]
-				s.Name = ""
-				s.ID = nil
-				s.ParentSpanID = nil
-				s.StatusMessage = ""
-				s.TraceState = ""
-				s.HttpMethod = nil
-				s.HttpStatusCode = nil
-				s.HttpUrl = nil
-
-				for a := range s.Attrs {
-					s.Attrs[a] = Attribute{}
-				}
-				for e := range s.Events {
-					s.Events[e].Name = ""
-					for a := range s.Events[e].Attrs {
-						s.Events[e].Attrs[a] = EventAttribute{}
-					}
-				}
-				//spanCount++
-			}
-		}
-	}
-
-	//return spanCount < 100_000
-}*/
 
 func (c *Compactor) appendBlock(block *streamingBlock) error {
 	compactionLevel := int(block.meta.CompactionLevel - 1)
@@ -305,60 +198,20 @@ func (c *Compactor) finishBlock(block *streamingBlock, l log.Logger) error {
 }
 
 type bookmark struct {
-	iter Iterator
+	iter RawIterator
 
-	currentObject *Trace
+	currentID     common.ID
+	currentObject parquet.Row
 	currentErr    error
 }
 
-func newBookmark(iter Iterator) *bookmark {
+func newBookmark(iter RawIterator) *bookmark {
 	return &bookmark{
 		iter: iter,
 	}
 }
 
-func (b *bookmark) current(ctx context.Context) (*Trace, error) {
-	if b.currentErr != nil {
-		return nil, b.currentErr
-	}
-
-	if b.currentObject != nil {
-		return b.currentObject, nil
-	}
-
-	b.currentObject, b.currentErr = b.iter.Next(ctx)
-	return b.currentObject, b.currentErr
-}
-
-func (b *bookmark) done(ctx context.Context) bool {
-	obj, err := b.current(ctx)
-
-	return obj == nil || err != nil
-}
-
-func (b *bookmark) clear() {
-	b.currentObject = nil
-}
-
-func (b *bookmark) close() {
-	b.iter.Close()
-}
-
-type bookmarkRaw struct {
-	iter *rawIterator
-
-	currentID     []byte
-	currentObject parquet.Row
-	currentErr    error
-}
-
-func newBookmarkRaw(iter *rawIterator) *bookmarkRaw {
-	return &bookmarkRaw{
-		iter: iter,
-	}
-}
-
-func (b *bookmarkRaw) current(ctx context.Context) ([]byte, parquet.Row, error) {
+func (b *bookmark) current(ctx context.Context) ([]byte, parquet.Row, error) {
 	if b.currentErr != nil {
 		return nil, nil, b.currentErr
 	}
@@ -371,16 +224,16 @@ func (b *bookmarkRaw) current(ctx context.Context) ([]byte, parquet.Row, error) 
 	return b.currentID, b.currentObject, b.currentErr
 }
 
-func (b *bookmarkRaw) done(ctx context.Context) bool {
+func (b *bookmark) done(ctx context.Context) bool {
 	_, obj, err := b.current(ctx)
 
 	return obj == nil || err != nil
 }
 
-func (b *bookmarkRaw) clear() {
+func (b *bookmark) clear() {
 	b.currentObject = nil
 }
 
-func (b *bookmarkRaw) close() {
-	//b.iter.Close()
+func (b *bookmark) close() {
+	b.iter.Close()
 }

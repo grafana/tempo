@@ -10,53 +10,54 @@ import (
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/parquetquery"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
+
+func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader, error) {
+	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
+
+	// 32 MB memory buffering
+	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 64)
+
+	pf, err := parquet.OpenFile(br, int64(b.meta.Size))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	r := parquet.NewReader(pf, parquet.SchemaOf(&Trace{}))
+	return pf, r, nil
+}
+
+func (b *backendBlock) Iterator(ctx context.Context) (Iterator, error) {
+	_, r, err := b.open(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &blockIterator{blockID: b.meta.BlockID.String(), r: r}, nil
+}
+
+func (b *backendBlock) RawIterator(ctx context.Context) (*rawIterator, error) {
+	pf, r, err := b.open(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	traceIDIndex, _ := parquetquery.GetColumnIndexByPath(pf, TraceIDColumnName)
+	if traceIDIndex < 0 {
+		return nil, fmt.Errorf("cannot find trace ID column in '%s' in block '%s'", TraceIDColumnName, b.meta.BlockID.String())
+	}
+
+	return &rawIterator{b.meta.BlockID.String(), r, traceIDIndex}, nil
+}
 
 type blockIterator struct {
 	blockID string
 	r       *parquet.Reader
-	//pool    *sync.Pool
-	pool *slicePool
-}
-
-func (b *backendBlock) Iterator(ctx context.Context, pool *slicePool) (Iterator, error) {
-	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
-
-	// 32 MB memory buffering
-	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 64)
-
-	pf, err := parquet.OpenFile(br, int64(b.meta.Size))
-	if err != nil {
-		return nil, err
-	}
-
-	r := parquet.NewReader(pf, parquet.SchemaOf(&Trace{}))
-
-	return &blockIterator{blockID: b.meta.BlockID.String(), r: r, pool: pool}, nil
-}
-
-func (b *backendBlock) RawIterator(ctx context.Context) (*rawIterator, error) {
-	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
-
-	// 32 MB memory buffering
-	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 64)
-
-	pf, err := parquet.OpenFile(br, int64(b.meta.Size))
-	if err != nil {
-		return nil, err
-	}
-
-	r := parquet.NewReader(pf, parquet.SchemaOf(&Trace{}))
-
-	traceIDIndex, _ := parquetquery.GetColumnIndexByPath(pf, TraceIDColumnName)
-
-	return &rawIterator{blockID: b.meta.BlockID.String(), r: r, traceIDIndex: traceIDIndex}, nil
 }
 
 func (i *blockIterator) Next(context.Context) (*Trace, error) {
-	//var t *Trace
-	t := i.pool.Get()
-
+	t := &Trace{}
 	switch err := i.r.Read(t); err {
 	case nil:
 		return t, nil
@@ -77,7 +78,9 @@ type rawIterator struct {
 	traceIDIndex int
 }
 
-func (i *rawIterator) getTraceID(r parquet.Row) []byte {
+var _ RawIterator = (*rawIterator)(nil)
+
+func (i *rawIterator) getTraceID(r parquet.Row) common.ID {
 	for _, v := range r {
 		if v.Column() == i.traceIDIndex {
 			return v.ByteArray()
@@ -86,7 +89,7 @@ func (i *rawIterator) getTraceID(r parquet.Row) []byte {
 	return nil
 }
 
-func (i *rawIterator) Next(context.Context) ([]byte, parquet.Row, error) {
+func (i *rawIterator) Next(context.Context) (common.ID, parquet.Row, error) {
 	rows := make([]parquet.Row, 1)
 
 	n, err := i.r.ReadRows(rows)
@@ -99,4 +102,8 @@ func (i *rawIterator) Next(context.Context) ([]byte, parquet.Row, error) {
 	}
 
 	return nil, nil, errors.Wrap(err, fmt.Sprintf("error iterating through block %s", i.blockID))
+}
+
+func (i *rawIterator) Close() {
+	i.r.Close()
 }
