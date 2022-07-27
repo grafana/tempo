@@ -36,6 +36,7 @@ Jsonnet users will now need to specify a storage request and limit for the gener
         ephemeral_storage_limit_size: '11Gi',
       },
     }
+* [CHANGE] Two additional latency buckets added to the default settings for generated spanmetrics. Note that this will increase cardinality when using the defaults. [#1593](https://github.com/grafana/tempo/pull/1593) (@fredr)
 * [FEATURE] metrics-generator: support per-tenant processor configuration [#1434](https://github.com/grafana/tempo/pull/1434) (@kvrhdn)
 * [FEATURE] Include rollout dashboard [#1456](https://github.com/grafana/tempo/pull/1456) (@zalegrala)
 * [FEATURE] Add SentinelPassword configuration for Redis [#1463](https://github.com/grafana/tempo/pull/1463) (@zalegrala)
