@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -34,6 +35,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		bookmarks       = make([]*bookmark, 0, len(inputs))
 		compactionLevel uint8
 		totalRecords    int
+		pool            = rowPool{}
 	)
 	for _, blockMeta := range inputs {
 		totalRecords += blockMeta.TotalObjects
@@ -51,7 +53,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		block := newBackendBlock(blockMeta, r)
 
-		iter, err := block.RawIterator(ctx)
+		iter, err := block.RawIterator(ctx, &pool)
 		if err != nil {
 			return nil, err
 		}
@@ -127,6 +129,10 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		err = currentBlock.AddRaw(lowestID, lowestObject, 0, 0)
 		if err != nil {
 			return nil, err
+		}
+
+		if len(lowestObject) < 100_000 {
+			pool.Put(lowestObject)
 		}
 
 		// write partial block
@@ -236,4 +242,24 @@ func (b *bookmark) clear() {
 
 func (b *bookmark) close() {
 	b.iter.Close()
+}
+
+type rowPool struct {
+	pool sync.Pool
+}
+
+func (r *rowPool) Get() parquet.Row {
+	x := r.pool.Get()
+	if x != nil {
+		return x.(parquet.Row)
+	}
+	return parquet.Row{}
+}
+
+func (r *rowPool) Put(row parquet.Row) {
+	// Clear
+	for i := range row {
+		row[i] = parquet.Value{}
+	}
+	r.pool.Put(row[:0])
 }

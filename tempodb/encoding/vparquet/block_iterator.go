@@ -37,7 +37,7 @@ func (b *backendBlock) Iterator(ctx context.Context) (Iterator, error) {
 	return &blockIterator{blockID: b.meta.BlockID.String(), r: r}, nil
 }
 
-func (b *backendBlock) RawIterator(ctx context.Context) (*rawIterator, error) {
+func (b *backendBlock) RawIterator(ctx context.Context, pool *rowPool) (*rawIterator, error) {
 	pf, r, err := b.open(ctx)
 	if err != nil {
 		return nil, err
@@ -48,7 +48,7 @@ func (b *backendBlock) RawIterator(ctx context.Context) (*rawIterator, error) {
 		return nil, fmt.Errorf("cannot find trace ID column in '%s' in block '%s'", TraceIDColumnName, b.meta.BlockID.String())
 	}
 
-	return &rawIterator{b.meta.BlockID.String(), r, traceIDIndex}, nil
+	return &rawIterator{b.meta.BlockID.String(), r, traceIDIndex, pool}, nil
 }
 
 type blockIterator struct {
@@ -76,6 +76,7 @@ type rawIterator struct {
 	blockID      string
 	r            *parquet.Reader
 	traceIDIndex int
+	pool         *rowPool
 }
 
 var _ RawIterator = (*rawIterator)(nil)
@@ -90,8 +91,7 @@ func (i *rawIterator) getTraceID(r parquet.Row) common.ID {
 }
 
 func (i *rawIterator) Next(context.Context) (common.ID, parquet.Row, error) {
-	rows := make([]parquet.Row, 1)
-
+	rows := []parquet.Row{i.pool.Get()}
 	n, err := i.r.ReadRows(rows)
 	if n > 0 {
 		return i.getTraceID(rows[0]), rows[0], nil
