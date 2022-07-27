@@ -25,19 +25,19 @@ and the connections and dependencies between its components:
 
 ## How they work
 
-The metrics-generator will process traces and generate service graphs in the form of prometheus metrics.
+The metrics-generator processes traces and generates service graphs in the form of prometheus metrics.
 
 Service graphs work by inspecting traces and looking for spans with parent-children relationship that represent a request.
 The processor uses the [OpenTelemetry semantic conventions](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/README.md) to detect a myriad of requests.
 It currently supports the following requests:
-- a direct request between two services: the outgoing and the incoming span must have [`span.kind`](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind) `client` and `server` respectively.
-- a request across a messaging system: the outgoing and the incoming span must have `span.kind` `producer` and `consumer` respectively.
-- a database request: in this case the processor looks for spans containing attributes `span.kind`=`client` as well as `db.name`.
+- A direct request between two services where the outgoing and the incoming span must have [`span.kind`](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind) `client` and `server` respectively.
+- A request across a messaging system where the outgoing and the incoming span must have `span.kind` `producer` and `consumer` respectively.
+- A database request; in this case the processor looks for spans containing attributes `span.kind`=`client` as well as `db.name`.
 
 Every span that can be paired up to form a request is kept in an in-memory store, until its corresponding pair span is received or the maximum waiting time has passed.
 When either of these conditions are reached, the request is recorded and removed from the local store.
 
-Each emitted metrics serie will have the `client` and `server` label corresponding with the service doing the request and the service receiving the request.
+Each emitted metrics series have the `client` and `server` label corresponding with the service doing the request and the service receiving the request.
 
 ```
   tempo_service_graph_request_total{client="app", server="db", connection_type="database"} 20
@@ -58,13 +58,13 @@ The following metrics are exported:
 
 Duration is measured both from the client and the server sides.
 
-Possible values for `connection_type`: unset, `messaging_system` or `database`.
+Possible values for `connection_type`: unset, `messaging_system`, or `database`.
 
 Additional labels can be included using the `dimensions` configuration option.
 
 Since the service graph processor has to process both sides of an edge,
 it needs to process all spans of a trace to function properly.
-If spans of a trace are spread out over multiple instances it will not be possible to pair up spans reliably.
+If spans of a trace are spread out over multiple instances, spans are not paired up reliably.
 
 ## Cardinality
 
