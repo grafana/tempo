@@ -135,13 +135,13 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			return nil, err
 		}
 
-		if len(lowestObject) < 100_000 {
+		if len(lowestObject) < 50_000 {
 			pool.Put(lowestObject)
 		}
 
 		// write partial block
 		//if currentBlock.CurrentBufferLength() >= int(opts.FlushSizeBytes) {
-		if currentBlock.CurrentBufferedObjects() > 10_000 {
+		if currentBlock.CurrentBufferedObjects() > 5_000 {
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock)
 			if err != nil {
