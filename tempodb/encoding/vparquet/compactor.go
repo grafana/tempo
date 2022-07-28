@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
 
@@ -53,13 +54,16 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		block := newBackendBlock(blockMeta, r)
 
-		iter, err := block.RawIterator(ctx, &pool)
+		span, derivedCtx := opentracing.StartSpanFromContext(ctx, "vparquet.compactor.iterator")
+		defer span.Finish()
+
+		iter, err := block.RawIterator(derivedCtx, &pool)
 		if err != nil {
 			return nil, err
 		}
 
 		// wrap bookmark with a prefetch iterator
-		bookmarks = append(bookmarks, newBookmark(newPrefetchIterator(ctx, iter, c.opts.IteratorBufferSize/len(inputs))))
+		bookmarks = append(bookmarks, newBookmark(newPrefetchIterator(derivedCtx, iter, c.opts.IteratorBufferSize/len(inputs))))
 	}
 
 	var (
@@ -139,7 +143,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		//if currentBlock.CurrentBufferLength() >= int(opts.FlushSizeBytes) {
 		if currentBlock.CurrentBufferedObjects() > 10_000 {
 			runtime.GC()
-			err = c.appendBlock(currentBlock)
+			err = c.appendBlock(ctx, currentBlock)
 			if err != nil {
 				return nil, errors.Wrap(err, "error writing partial block")
 			}
@@ -150,7 +154,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			currentBlockPtrCopy := currentBlock
 			currentBlockPtrCopy.meta.StartTime = minBlockStart
 			currentBlockPtrCopy.meta.EndTime = maxBlockEnd
-			err := c.finishBlock(currentBlockPtrCopy, l)
+			err := c.finishBlock(ctx, currentBlockPtrCopy, l)
 			if err != nil {
 				return nil, errors.Wrap(err, fmt.Sprintf("error shipping block to backend, blockID %s", currentBlockPtrCopy.meta.BlockID.String()))
 			}
@@ -162,7 +166,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	if currentBlock != nil {
 		currentBlock.meta.StartTime = minBlockStart
 		currentBlock.meta.EndTime = maxBlockEnd
-		err := c.finishBlock(currentBlock, l)
+		err := c.finishBlock(ctx, currentBlock, l)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("error shipping block to backend, blockID %s", currentBlock.meta.BlockID.String()))
 		}
@@ -171,7 +175,10 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	return newCompactedBlocks, nil
 }
 
-func (c *Compactor) appendBlock(block *streamingBlock) error {
+func (c *Compactor) appendBlock(ctx context.Context, block *streamingBlock) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "vparquet.compactor.appendBlock")
+	defer span.Finish()
+
 	compactionLevel := int(block.meta.CompactionLevel - 1)
 	if c.opts.ObjectsWritten != nil {
 		c.opts.ObjectsWritten(compactionLevel, block.CurrentBufferedObjects())
@@ -189,7 +196,10 @@ func (c *Compactor) appendBlock(block *streamingBlock) error {
 	return nil
 }
 
-func (c *Compactor) finishBlock(block *streamingBlock, l log.Logger) error {
+func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l log.Logger) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "vparquet.compactor.finishBlock")
+	defer span.Finish()
+
 	bytesFlushed, err := block.Complete()
 	if err != nil {
 		return errors.Wrap(err, "error completing block")

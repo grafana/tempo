@@ -61,6 +61,11 @@ func (rw *Backend) Write(ctx context.Context, name string, keypath backend.KeyPa
 
 // Append implements backend.Writer
 func (rw *Backend) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "local.Append", opentracing.Tags{
+		"len": len(buffer),
+	})
+	defer span.Finish()
+
 	var dst *os.File
 	if tracker == nil {
 		blockFolder := rw.rootPath(keypath)

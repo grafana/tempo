@@ -84,6 +84,11 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 
 // Append implements backend.Writer
 func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "gcs.Append", opentracing.Tags{
+		"len": len(buffer),
+	})
+	defer span.Finish()
+
 	var w *storage.Writer
 	if tracker == nil {
 		w = rw.writer(ctx, backend.ObjectFileName(keypath, name))
