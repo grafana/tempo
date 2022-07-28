@@ -91,6 +91,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			Version:              targetBlockVersion,
 			Encoding:             backend.EncLZ4_4M,
 			IndexPageSizeBytes:   1000,
+			RowGroupSizeBytes:    30_000_000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -100,7 +101,8 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	require.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
-		ChunkSizeBytes:          10,
+		ChunkSizeBytes:          10_000_000,
+		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -233,6 +235,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 			Version:              targetBlockVersion,
 			Encoding:             backend.EncSnappy,
 			IndexPageSizeBytes:   1000,
+			RowGroupSizeBytes:    30_000_000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -242,10 +245,11 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	require.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
-		ChunkSizeBytes:          10,
+		ChunkSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
+		FlushSizeBytes:          10_000_000,
 	}, &mockSharder{}, &mockOverrides{})
 
 	r.EnablePolling(&mockJobSharder{})
@@ -637,6 +641,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 			Version:              targetBlockVersion,
 			Encoding:             backend.EncNone,
 			IndexPageSizeBytes:   1000,
+			RowGroupSizeBytes:    30_000_000,
 		},
 		WAL: &wal.Config{
 			Filepath:       path.Join(tempDir, "wal"),
@@ -647,7 +652,8 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	require.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
-		ChunkSizeBytes:          10,
+		ChunkSizeBytes:          10_000_000,
+		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -815,8 +821,8 @@ func TestCrazy(t *testing.T) {
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:     1_000_000,
-		FlushSizeBytes:     1_000_000,
-		IteratorBufferSize: 1000,
+		FlushSizeBytes:     30_000_000,
+		IteratorBufferSize: 100,
 	}, &mockSharder{}, &mockOverrides{})
 
 	rw := c.(*readerWriter)

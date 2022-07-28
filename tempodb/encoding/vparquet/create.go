@@ -57,7 +57,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			return nil, err
 		}
 
-		if s.CurrentBufferLength() > cfg.RowGroupSizeBytes || s.CurrentBufferedObjects() > 10_000 {
+		if s.CurrentBufferLength() > cfg.RowGroupSizeBytes || s.CurrentBufferedObjects() > 5_000 {
 			_, err = s.Flush()
 			if err != nil {
 				return nil, err
@@ -142,7 +142,7 @@ func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) e
 }
 
 func (b *streamingBlock) CurrentBufferLength() int {
-	return b.bw.Len()
+	return int(b.pw.Size())
 }
 
 func (b *streamingBlock) CurrentBufferedObjects() int {

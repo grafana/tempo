@@ -140,8 +140,8 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		// write partial block
-		//if currentBlock.CurrentBufferLength() >= int(opts.FlushSizeBytes) {
-		if currentBlock.CurrentBufferedObjects() > 5_000 {
+		if currentBlock.CurrentBufferLength() >= int(c.opts.FlushSizeBytes) /*|| currentBlock.CurrentBufferedObjects() > 5_000*/ {
+			fmt.Printf("Flushing block: bytes: %d objs: %d\n", currentBlock.CurrentBufferLength(), currentBlock.CurrentBufferedObjects())
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock)
 			if err != nil {

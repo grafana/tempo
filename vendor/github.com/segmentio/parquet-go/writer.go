@@ -113,6 +113,13 @@ func (w *Writer) Flush() error {
 	return nil
 }
 
+func (w *Writer) Size() int64 {
+	if w.writer != nil {
+		return w.writer.size()
+	}
+	return 0
+}
+
 // Reset clears the state of the writer without flushing any of the buffers,
 // and setting the output to the io.Writer passed as argument, allowing the
 // writer to be reused to produce another parquet file.
@@ -447,6 +454,13 @@ func (w *writer) flush() error {
 	return err
 }
 
+func (w *writer) size() (sz int64) {
+	for _, c := range w.columns {
+		sz += c.size()
+	}
+	return
+}
+
 func (w *writer) writeFileHeader() error {
 	if w.writer.writer == nil {
 		return io.ErrClosedPipe
@@ -588,7 +602,7 @@ func (w *writer) writeRowGroup(rowGroupSchema *Schema, rowGroupSortingColumns []
 		}
 
 		for _, page := range c.pages {
-			if _, err := io.Copy(&w.writer, page); err != nil {
+			if _, err := io.Copy(&w.writer /*page*/, page.rw); err != nil {
 				return 0, fmt.Errorf("writing buffered pages of row group column %d: %w", i, err)
 			}
 		}
@@ -780,9 +794,15 @@ func (wb *writerBuffers) swapPageAndScratchBuffers() {
 	wb.page, wb.scratch = wb.scratch, wb.page[:0]
 }
 
+type pageBuffer struct {
+	rw io.ReadWriter
+	sz int64
+}
+
 type writerColumn struct {
 	pool  PageBufferPool
-	pages []io.ReadWriter
+	pages []pageBuffer
+	//pages []io.ReadWriter
 
 	columnPath   columnPath
 	columnType   Type
@@ -825,6 +845,14 @@ type writerColumn struct {
 	offsetIndex *format.OffsetIndex
 }
 
+func (c *writerColumn) size() (sz int64) {
+	sz += c.columnBuffer.Size()
+	for _, pg := range c.pages {
+		sz += pg.sz
+	}
+	return
+}
+
 func (c *writerColumn) reset() {
 	if c.columnBuffer != nil {
 		c.columnBuffer.Reset()
@@ -836,10 +864,12 @@ func (c *writerColumn) reset() {
 		c.dictionary.Reset()
 	}
 	for _, page := range c.pages {
-		c.pool.PutPageBuffer(page)
+		//c.pool.PutPageBuffer(page)
+		c.pool.PutPageBuffer(page.rw)
 	}
 	for i := range c.pages {
-		c.pages[i] = nil
+		//c.pages[i] = nil
+		c.pages[i] = pageBuffer{}
 	}
 	for i := range c.filter.pages {
 		c.filter.pages[i] = nil
@@ -1293,7 +1323,10 @@ func (c *writerColumn) writePage(size int64, writeTo func(io.Writer) (int64, err
 	if written != size {
 		return fmt.Errorf("writing parquet column page expected %dB but got %dB: %w", size, written, io.ErrShortWrite)
 	}
-	c.pages, buffer = append(c.pages, buffer), nil
+	newPage := pageBuffer{buffer, size}
+	buffer = nil
+	c.pages = append(c.pages, newPage)
+	//c.pages, buffer = append(c.pages, buffer), nil
 	return nil
 }
 
