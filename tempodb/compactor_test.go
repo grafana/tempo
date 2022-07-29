@@ -743,6 +743,15 @@ func makeTraceID(i int, j int) []byte {
 }
 
 func BenchmarkCompaction(b *testing.B) {
+	testEncodings := []string{v2.VersionString, vparquet.VersionString}
+	for _, enc := range testEncodings {
+		b.Run(enc, func(b *testing.B) {
+			benchmarkCompaction(b, enc)
+		})
+	}
+}
+
+func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 	tempDir := b.TempDir()
 
 	_, w, c, err := New(&Config{
@@ -758,7 +767,7 @@ func BenchmarkCompaction(b *testing.B) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
-			Version:              vparquet.VersionString,
+			Version:              targetBlockVersion,
 			Encoding:             backend.EncZstd,
 			IndexPageSizeBytes:   1000,
 			RowGroupSizeBytes:    30_000_000,
@@ -774,14 +783,15 @@ func BenchmarkCompaction(b *testing.B) {
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:     10_000_000,
-		FlushSizeBytes:     30_000_000,
+		FlushSizeBytes:     10_000_000,
 		IteratorBufferSize: DefaultIteratorBufferSize,
 	}, &mockSharder{}, &mockOverrides{})
 
-	n := b.N
+	traceCount := 10_000
+	blockCount := 8
 
 	// Cut input blocks
-	blocks := cutTestBlocks(b, w, testTenantID, 8, n)
+	blocks := cutTestBlocks(b, w, testTenantID, blockCount, traceCount)
 	metas := make([]*backend.BlockMeta, 0)
 	for _, b := range blocks {
 		metas = append(metas, b.BlockMeta())
