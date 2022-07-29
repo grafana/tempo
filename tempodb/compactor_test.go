@@ -761,6 +761,7 @@ func BenchmarkCompaction(b *testing.B) {
 			Version:              vparquet.VersionString,
 			Encoding:             backend.EncZstd,
 			IndexPageSizeBytes:   1000,
+			RowGroupSizeBytes:    30_000_000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -772,8 +773,8 @@ func BenchmarkCompaction(b *testing.B) {
 	rw := c.(*readerWriter)
 
 	c.EnableCompaction(&CompactorConfig{
-		ChunkSizeBytes:     1_000_000,
-		FlushSizeBytes:     1_000_000,
+		ChunkSizeBytes:     10_000_000,
+		FlushSizeBytes:     30_000_000,
 		IteratorBufferSize: DefaultIteratorBufferSize,
 	}, &mockSharder{}, &mockOverrides{})
 
@@ -792,7 +793,7 @@ func BenchmarkCompaction(b *testing.B) {
 	require.NoError(b, err)
 }
 
-func TestCrazy(t *testing.T) {
+/*func TestCrazy(t *testing.T) {
 	tempDir := t.TempDir()
 
 	_, _, c, err := New(&Config{
@@ -821,8 +822,8 @@ func TestCrazy(t *testing.T) {
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:     1_000_000,
-		FlushSizeBytes:     30_000_000,
-		IteratorBufferSize: 100,
+		FlushSizeBytes:     20_000_000,
+		IteratorBufferSize: 200,
 	}, &mockSharder{}, &mockOverrides{})
 
 	rw := c.(*readerWriter)
@@ -842,7 +843,19 @@ func TestCrazy(t *testing.T) {
 			TotalRecords:    217,
 			FooterSize:      1049800,
 		},
+		{
+			BlockID:         uuid.MustParse(("146ca13a-7489-4958-ad9a-c56c5d9c8975")),
+			Version:         "vParquet",
+			TenantID:        tenantID,
+			StartTime:       time.Now(),
+			EndTime:         time.Now(),
+			TotalObjects:    2167939,
+			Size:            7129260540,
+			CompactionLevel: 3,
+			TotalRecords:    285,
+			FooterSize:      1372793,
+		},
 	}
 
 	rw.compact(inputs, tenantID)
-}
+}*/

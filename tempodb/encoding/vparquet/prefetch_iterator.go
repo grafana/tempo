@@ -37,6 +37,7 @@ func newPrefetchIterator(ctx context.Context, iter RawIterator, bufferSize int) 
 
 func (p *prefetchIter) prefetchLoop(ctx context.Context) {
 	defer close(p.resultsCh)
+	defer p.iter.Close()
 
 	for {
 		id, t, err := p.iter.Next(ctx)

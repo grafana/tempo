@@ -31,12 +31,13 @@ type Compactor struct {
 func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
 
 	var (
+		compactionLevel uint8
+		totalRecords    int
 		minBlockStart   time.Time
 		maxBlockEnd     time.Time
 		bookmarks       = make([]*bookmark, 0, len(inputs))
-		compactionLevel uint8
-		totalRecords    int
-		pool            = rowPool{}
+		pool            = newRowPool(100_000)
+		prefetchSize    = c.opts.IteratorBufferSize / (len(inputs) + 1) // 1 for each input plus multiblock iterator
 	)
 	for _, blockMeta := range inputs {
 		totalRecords += blockMeta.TotalObjects
@@ -57,21 +58,21 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		span, derivedCtx := opentracing.StartSpanFromContext(ctx, "vparquet.compactor.iterator")
 		defer span.Finish()
 
-		iter, err := block.RawIterator(derivedCtx, &pool)
+		iter, err := block.RawIterator(derivedCtx, pool)
 		if err != nil {
 			return nil, err
 		}
 
 		// wrap bookmark with a prefetch iterator
-		bookmarks = append(bookmarks, newBookmark(newPrefetchIterator(derivedCtx, iter, c.opts.IteratorBufferSize/len(inputs))))
+		bookmarks = append(bookmarks, newBookmark(newPrefetchIterator(derivedCtx, iter, prefetchSize)))
 	}
 
 	var (
 		nextCompactionLevel = compactionLevel + 1
-		recordsPerBlock     = (totalRecords / int(c.opts.OutputBlocks))
 		sch                 = parquet.SchemaOf(new(Trace))
 	)
 
+	// Dedupe rows and also call the metrics callback.
 	combine := func(rows []parquet.Row) (parquet.Row, error) {
 		if len(rows) == 0 {
 			return nil, nil
@@ -90,17 +91,22 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 				return nil, err
 			}
 			cmb.ConsumeWithFinal(tr, i == len(rows)-1)
+			pool.Put(row)
 		}
 		tr, _ := cmb.Result()
 
 		c.opts.ObjectsCombined(int(compactionLevel), 1)
-		return sch.Deconstruct(nil, tr), nil
+		return sch.Deconstruct(pool.Get(), tr), nil
 	}
 
-	m := newMultiblockIterator(bookmarks, combine)
+	var (
+		m                  = newPrefetchIterator(ctx, newMultiblockIterator(bookmarks, combine), prefetchSize)
+		recordsPerBlock    = (totalRecords / int(c.opts.OutputBlocks))
+		currentBlock       *streamingBlock
+		currentBlockValues = 0
+	)
 	defer m.Close()
 
-	var currentBlock *streamingBlock
 	for {
 		lowestID, lowestObject, err := m.Next(ctx)
 		if err == io.EOF {
@@ -127,6 +133,17 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			newCompactedBlocks = append(newCompactedBlocks, currentBlock.meta)
 		}
 
+		// Flush existing block data if the next trace can't fit
+		// Here we repurpose FlushSizeBytes as number of raw column values.
+		if currentBlockValues+len(lowestObject) > int(c.opts.FlushSizeBytes) {
+			runtime.GC()
+			err = c.appendBlock(ctx, currentBlock, currentBlockValues)
+			if err != nil {
+				return nil, errors.Wrap(err, "error writing partial block")
+			}
+			currentBlockValues = 0
+		}
+
 		// Write trace.
 		// Note - not specifying trace start/end here, we set the overall block start/stop
 		// times from the input metas.
@@ -134,20 +151,8 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		if err != nil {
 			return nil, err
 		}
-
-		if len(lowestObject) < 50_000 {
-			pool.Put(lowestObject)
-		}
-
-		// write partial block
-		if currentBlock.CurrentBufferLength() >= int(c.opts.FlushSizeBytes) /*|| currentBlock.CurrentBufferedObjects() > 5_000*/ {
-			fmt.Printf("Flushing block: bytes: %d objs: %d\n", currentBlock.CurrentBufferLength(), currentBlock.CurrentBufferedObjects())
-			runtime.GC()
-			err = c.appendBlock(ctx, currentBlock)
-			if err != nil {
-				return nil, errors.Wrap(err, "error writing partial block")
-			}
-		}
+		currentBlockValues += len(lowestObject)
+		pool.Put(lowestObject)
 
 		// ship block to backend if done
 		if currentBlock.meta.TotalObjects >= recordsPerBlock {
@@ -175,13 +180,14 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	return newCompactedBlocks, nil
 }
 
-func (c *Compactor) appendBlock(ctx context.Context, block *streamingBlock) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "vparquet.compactor.appendBlock")
+func (c *Compactor) appendBlock(ctx context.Context, block *streamingBlock, currentBlockValues int) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "vparquet.compactor.appendBlock")
 	defer span.Finish()
 
+	objs := block.CurrentBufferedObjects()
 	compactionLevel := int(block.meta.CompactionLevel - 1)
 	if c.opts.ObjectsWritten != nil {
-		c.opts.ObjectsWritten(compactionLevel, block.CurrentBufferedObjects())
+		c.opts.ObjectsWritten(compactionLevel, objs)
 	}
 
 	bytesFlushed, err := block.Flush()
@@ -193,11 +199,13 @@ func (c *Compactor) appendBlock(ctx context.Context, block *streamingBlock) erro
 		c.opts.BytesWritten(compactionLevel, bytesFlushed)
 	}
 
+	fmt.Printf("Flushed block: bytes: %d objs: %d values: %d\n", bytesFlushed, objs, currentBlockValues)
+
 	return nil
 }
 
 func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l log.Logger) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "vparquet.compactor.finishBlock")
+	span, _ := opentracing.StartSpanFromContext(ctx, "vparquet.compactor.finishBlock")
 	defer span.Finish()
 
 	bytesFlushed, err := block.Complete()
@@ -255,19 +263,33 @@ func (b *bookmark) close() {
 }
 
 type rowPool struct {
-	pool sync.Pool
+	pool    sync.Pool
+	maxSize int
+}
+
+func newRowPool(maxRowSize int) *rowPool {
+	return &rowPool{
+		maxSize: maxRowSize,
+		pool: sync.Pool{
+			New: func() any {
+				return make(parquet.Row, 0, maxRowSize)
+			},
+		},
+	}
 }
 
 func (r *rowPool) Get() parquet.Row {
-	x := r.pool.Get()
-	if x != nil {
-		return x.(parquet.Row)
-	}
-	return parquet.Row{}
+	return r.pool.Get().(parquet.Row)
 }
 
 func (r *rowPool) Put(row parquet.Row) {
-	// Clear
+	if len(row) > r.maxSize {
+		return
+	}
+
+	// Clear before putting into the pool.
+	// This is important so that pool entries don't hang
+	// onto the underlying buffers.
 	for i := range row {
 		row[i] = parquet.Value{}
 	}

@@ -57,7 +57,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			return nil, err
 		}
 
-		if s.CurrentBufferLength() > cfg.RowGroupSizeBytes || s.CurrentBufferedObjects() > 5_000 {
+		if s.CurrentBufferedValues() > cfg.RowGroupSizeBytes {
 			_, err = s.Flush()
 			if err != nil {
 				return nil, err
@@ -82,8 +82,10 @@ type streamingBlock struct {
 	w     *backendWriter
 	r     backend.Reader
 	to    backend.Writer
+	sch   *parquet.Schema
 
 	currentBufferedTraces int
+	currentBufferedValues int
 }
 
 func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) *streamingBlock {
@@ -112,20 +114,14 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		w:     w,
 		r:     r,
 		to:    to,
+		sch:   sch,
 	}
 }
 
 func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
-
-	err := b.pw.Write(tr)
-	if err != nil {
-		return err
-	}
-
-	b.bloom.Add(tr.TraceID)
-	b.meta.ObjectAdded(tr.TraceID, start, end)
-	b.currentBufferedTraces++
-	return nil
+	row := b.sch.Deconstruct(nil, tr)
+	b.currentBufferedValues += len(row)
+	return b.AddRaw(tr.TraceID, row, start, end)
 }
 
 func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) error {
@@ -141,8 +137,8 @@ func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) e
 	return nil
 }
 
-func (b *streamingBlock) CurrentBufferLength() int {
-	return int(b.pw.Size())
+func (b *streamingBlock) CurrentBufferedValues() int {
+	return b.currentBufferedValues
 }
 
 func (b *streamingBlock) CurrentBufferedObjects() int {
@@ -160,6 +156,7 @@ func (b *streamingBlock) Flush() (int, error) {
 	b.meta.Size += uint64(n)
 	b.meta.TotalRecords++
 	b.currentBufferedTraces = 0
+	b.currentBufferedValues = 0
 
 	// Flush to underlying writer
 	return n, b.bw.Flush()
