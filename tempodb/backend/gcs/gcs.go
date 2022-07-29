@@ -69,7 +69,7 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 	return rw, rw, rw, nil
 }
 
-// StreamWriter implements backend.Writer
+// Write implements backend.Writer
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
 	w := rw.writer(ctx, backend.ObjectFileName(keypath, name))
 

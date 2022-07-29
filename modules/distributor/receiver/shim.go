@@ -37,6 +37,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
@@ -51,6 +52,12 @@ var (
 		Help:      "Records the amount of time to push a batch to the ingester.",
 		Buckets:   prom_client.DefBuckets,
 	})
+
+	statReceiverOtlp       = usagestats.NewInt("receiver_enabled_otlp")
+	statReceiverJaeger     = usagestats.NewInt("receiver_enabled_jaeger")
+	statReceiverZipkin     = usagestats.NewInt("receiver_enabled_zipkin")
+	statReceiverOpencensus = usagestats.NewInt("receiver_enabled_opencensus")
+	statReceiverKafka      = usagestats.NewInt("receiver_enabled_kafka")
 )
 
 type BatchPusher interface {
@@ -94,6 +101,21 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	for recv := range receiverCfg {
+		switch recv {
+		case "otlp":
+			statReceiverOtlp.Set(1)
+		case "jaeger":
+			statReceiverJaeger.Set(1)
+		case "zipkin":
+			statReceiverZipkin.Set(1)
+		case "opencensus":
+			statReceiverOpencensus.Set(1)
+		case "kafka":
+			statReceiverKafka.Set(1)
+		}
 	}
 
 	p := config.NewMapFromStringMap(map[string]interface{}{

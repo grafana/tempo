@@ -13,7 +13,13 @@ import (
 	"github.com/grafana/tempo/modules/frontend/transport"
 	v1 "github.com/grafana/tempo/modules/frontend/v1"
 	v2 "github.com/grafana/tempo/modules/frontend/v2"
+	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
+)
+
+var (
+	statWorkerConcurrency = usagestats.NewInt("frontend_worker_concurrency")
+	statVersion           = usagestats.NewString("frontend_version")
 )
 
 type Config struct {
@@ -85,6 +91,9 @@ func InitFrontend(cfg CombinedFrontendConfig, limits v1.Limits, grpcListenPort i
 		return rt, nil, nil, err
 
 	case cfg.FrontendV2.SchedulerAddress != "":
+		statVersion.Set("v2")
+		statWorkerConcurrency.Set(int64(cfg.FrontendV2.WorkerConcurrency))
+
 		// If query-scheduler address is configured, use Frontend.
 		if cfg.FrontendV2.Addr == "" {
 			addr, err := util.GetFirstAddressOf(cfg.FrontendV2.InfNames)
@@ -103,6 +112,7 @@ func InitFrontend(cfg CombinedFrontendConfig, limits v1.Limits, grpcListenPort i
 		return transport.AdaptGrpcRoundTripperToHTTPRoundTripper(fr), nil, fr, err
 
 	default:
+		statVersion.Set("v1")
 		// No scheduler = use original frontend.
 		fr, err := v1.New(cfg.FrontendV1, limits, log, reg)
 		if err != nil {

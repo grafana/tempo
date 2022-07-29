@@ -8,13 +8,22 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util/log"
+)
+
+var (
+	statReplicationFactor = usagestats.NewInt("ring_replication_factor")
+	statKvStore           = usagestats.NewString("ring_kv_store")
 )
 
 // New creates a new distributed consistent hash ring.  It shadows the cortex
 // ring.New method so we can use our own replication strategy for repl factor = 2
 func New(cfg ring.Config, name, key string, reg prometheus.Registerer) (*ring.Ring, error) {
 	reg = prometheus.WrapRegistererWithPrefix("cortex_", reg)
+
+	statReplicationFactor.Set(int64(cfg.ReplicationFactor))
+	statKvStore.Set(cfg.KVStore.Store)
 
 	if cfg.ReplicationFactor == 2 {
 		return newEventuallyConsistentRing(cfg, name, key, reg)

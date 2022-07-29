@@ -12,6 +12,7 @@ var (
 	ErrDoesNotExist  = fmt.Errorf("does not exist")
 	ErrEmptyTenantID = fmt.Errorf("empty tenant id")
 	ErrEmptyBlockID  = fmt.Errorf("empty block id")
+	ErrBadSeedFile   = fmt.Errorf("bad seed file")
 )
 
 // AppendTracker is an empty interface usable by the backend to track a long running append operation

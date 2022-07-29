@@ -28,7 +28,14 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	tempo_ring "github.com/grafana/tempo/pkg/ring"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util/log"
+	util_log "github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/azure"
+	"github.com/grafana/tempo/tempodb/backend/gcs"
+	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/backend/s3"
 )
 
 // The various modules that make up tempo.
@@ -47,6 +54,7 @@ const (
 	MemberlistKV         string = "memberlist-kv"
 	SingleBinary         string = "all"
 	ScalableSingleBinary string = "scalable-single-binary"
+	UsageReport          string = "usage-report"
 )
 
 func (t *App) initServer() (services.Service, error) {
@@ -283,6 +291,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.MemberlistKV.MetricsNamespace = metricsNamespace
 	t.cfg.MemberlistKV.Codecs = []codec.Codec{
 		ring.GetCodec(),
+		usagestats.JSONCodec,
 	}
 
 	dnsProviderReg := prometheus.WrapRegistererWithPrefix(
@@ -306,6 +315,48 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	return t.MemberlistKV, nil
 }
 
+func (t *App) initUsageReport() (services.Service, error) {
+	if !t.cfg.UsageReport.Enabled {
+		return nil, nil
+	}
+
+	t.cfg.UsageReport.Leader = false
+	if t.isModuleActive(Ingester) {
+		t.cfg.UsageReport.Leader = true
+	}
+
+	usagestats.Target(t.cfg.Target)
+
+	var err error
+	var reader backend.RawReader
+	var writer backend.RawWriter
+
+	switch t.cfg.StorageConfig.Trace.Backend {
+	case "local":
+		reader, writer, _, err = local.New(t.cfg.StorageConfig.Trace.Local)
+	case "gcs":
+		reader, writer, _, err = gcs.New(t.cfg.StorageConfig.Trace.GCS)
+	case "s3":
+		reader, writer, _, err = s3.New(t.cfg.StorageConfig.Trace.S3)
+	case "azure":
+		reader, writer, _, err = azure.New(t.cfg.StorageConfig.Trace.Azure)
+	default:
+		err = fmt.Errorf("unknown backend %s", t.cfg.StorageConfig.Trace.Backend)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize usage report: %w", err)
+	}
+
+	ur, err := usagestats.NewReporter(t.cfg.UsageReport, t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore, reader, writer, util_log.Logger, prometheus.DefaultRegisterer)
+	if err != nil {
+		level.Info(util_log.Logger).Log("msg", "failed to initialize usage report", "err", err)
+		return nil, nil
+	}
+	t.usageReport = ur
+	return ur, nil
+}
+
 func (t *App) setupModuleManager() error {
 	mm := modules.NewManager(log.Logger)
 
@@ -323,22 +374,24 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(Store, t.initStore, modules.UserInvisibleModule)
 	mm.RegisterModule(SingleBinary, nil)
 	mm.RegisterModule(ScalableSingleBinary, nil)
+	mm.RegisterModule(UsageReport, t.initUsageReport)
 
 	deps := map[string][]string{
 		// Server:       nil,
 		// Store:        nil,
 		Overrides:            {Server},
 		MemberlistKV:         {Server},
-		QueryFrontend:        {Store, Server, Overrides},
+		QueryFrontend:        {Store, Server, Overrides, UsageReport},
 		Ring:                 {Server, MemberlistKV},
 		MetricsGeneratorRing: {Server, MemberlistKV},
-		Distributor:          {Ring, Server, Overrides},
-		Ingester:             {Store, Server, Overrides, MemberlistKV},
-		MetricsGenerator:     {Server, Overrides, MemberlistKV},
-		Querier:              {Store, Ring, Overrides},
-		Compactor:            {Store, Server, Overrides, MemberlistKV},
+		Distributor:          {Ring, Server, Overrides, UsageReport},
+		Ingester:             {Store, Server, Overrides, MemberlistKV, UsageReport},
+		MetricsGenerator:     {Server, Overrides, MemberlistKV, UsageReport},
+		Querier:              {Store, Ring, Overrides, UsageReport},
+		Compactor:            {Store, Server, Overrides, MemberlistKV, UsageReport},
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor},
 		ScalableSingleBinary: {SingleBinary},
+		UsageReport:          {MemberlistKV, Store},
 	}
 
 	if t.cfg.MetricsGeneratorEnabled {
@@ -355,8 +408,34 @@ func (t *App) setupModuleManager() error {
 	}
 
 	t.ModuleManager = mm
+	t.deps = deps
 
 	return nil
+}
+
+func (t *App) isModuleActive(m string) bool {
+	if t.cfg.Target == m {
+		return true
+	}
+	if t.recursiveIsModuleActive(t.cfg.Target, m) {
+		return true
+	}
+
+	return false
+}
+
+func (t *App) recursiveIsModuleActive(target, m string) bool {
+	if targetDeps, ok := t.deps[target]; ok {
+		for _, dep := range targetDeps {
+			if dep == m {
+				return true
+			}
+			if t.recursiveIsModuleActive(dep, m) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func addHTTPAPIPrefix(cfg *Config, apiPath string) string {

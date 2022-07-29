@@ -208,6 +208,9 @@ github.com/eapache/go-xerial-snappy
 # github.com/eapache/queue v1.1.0
 ## explicit
 github.com/eapache/queue
+# github.com/edsrzf/mmap-go v1.1.0
+## explicit; go 1.17
+github.com/edsrzf/mmap-go
 # github.com/facette/natsort v0.0.0-20181210072756-2cd4dd1e2dcb
 ## explicit
 github.com/facette/natsort
@@ -342,6 +345,7 @@ github.com/grafana/dskit/kv/etcd
 github.com/grafana/dskit/kv/memberlist
 github.com/grafana/dskit/limiter
 github.com/grafana/dskit/modules
+github.com/grafana/dskit/multierror
 github.com/grafana/dskit/netutil
 github.com/grafana/dskit/ring
 github.com/grafana/dskit/ring/client
@@ -554,6 +558,9 @@ github.com/json-iterator/go
 # github.com/jsternberg/zap-logfmt v1.2.0
 ## explicit
 github.com/jsternberg/zap-logfmt
+# github.com/julienschmidt/httprouter v1.3.0
+## explicit; go 1.7
+github.com/julienschmidt/httprouter
 # github.com/klauspost/compress v1.15.7
 ## explicit; go 1.16
 github.com/klauspost/compress
@@ -760,6 +767,7 @@ github.com/prometheus/common/config
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
 github.com/prometheus/common/model
+github.com/prometheus/common/route
 github.com/prometheus/common/version
 # github.com/prometheus/common/sigv4 v0.1.0
 ## explicit; go 1.15
@@ -780,13 +788,18 @@ github.com/prometheus/prometheus/discovery/targetgroup
 github.com/prometheus/prometheus/model/exemplar
 github.com/prometheus/prometheus/model/labels
 github.com/prometheus/prometheus/model/relabel
+github.com/prometheus/prometheus/model/rulefmt
 github.com/prometheus/prometheus/model/textparse
 github.com/prometheus/prometheus/model/timestamp
 github.com/prometheus/prometheus/model/value
 github.com/prometheus/prometheus/prompb
+github.com/prometheus/prometheus/promql
+github.com/prometheus/prometheus/promql/parser
+github.com/prometheus/prometheus/rules
 github.com/prometheus/prometheus/scrape
 github.com/prometheus/prometheus/storage
 github.com/prometheus/prometheus/storage/remote
+github.com/prometheus/prometheus/template
 github.com/prometheus/prometheus/tsdb
 github.com/prometheus/prometheus/tsdb/agent
 github.com/prometheus/prometheus/tsdb/chunkenc
@@ -801,11 +814,15 @@ github.com/prometheus/prometheus/tsdb/tombstones
 github.com/prometheus/prometheus/tsdb/tsdbutil
 github.com/prometheus/prometheus/tsdb/wal
 github.com/prometheus/prometheus/util/gate
+github.com/prometheus/prometheus/util/httputil
 github.com/prometheus/prometheus/util/logging
 github.com/prometheus/prometheus/util/osutil
 github.com/prometheus/prometheus/util/pool
+github.com/prometheus/prometheus/util/stats
 github.com/prometheus/prometheus/util/strutil
+github.com/prometheus/prometheus/util/teststorage
 github.com/prometheus/prometheus/util/testutil
+github.com/prometheus/prometheus/web/api/v1
 # github.com/prometheus/statsd_exporter v0.21.0
 ## explicit; go 1.13
 github.com/prometheus/statsd_exporter/pkg/mapper
