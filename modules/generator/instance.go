@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
 var (
@@ -44,6 +45,11 @@ var (
 		Name:      "metrics_generator_bytes_received_total",
 		Help:      "The total number of proto bytes received per tenant",
 	}, []string{"tenant"})
+	metricSpansDiscarded = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_spans_discarded_total",
+		Help:      "The total number of discarded spans received per tenant",
+	}, []string{"tenant", "reason"})
 )
 
 type instance struct {
@@ -248,7 +254,13 @@ func (i *instance) updateProcessorMetrics() {
 }
 
 func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
+	fmt.Println("Before filter")
+	count(req)
+
 	i.updatePushMetrics(req)
+
+	fmt.Println("After filter")
+	count(req)
 
 	i.processorsMtx.RLock()
 	defer i.processorsMtx.RUnlock()
@@ -261,14 +273,27 @@ func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 func (i *instance) updatePushMetrics(req *tempopb.PushSpansRequest) {
 	size := 0
 	spanCount := 0
+	expiredSpans := 0
 	for _, b := range req.Batches {
 		size += b.Size()
 		for _, ils := range b.InstrumentationLibrarySpans {
 			spanCount += len(ils.Spans)
+			// filter spans that have end time > max_age
+			var newSpansArr []*v1.Span
+			time_now := time.Now().UnixNano()
+			for _, span := range ils.Spans {
+				if span.EndTimeUnixNano >= uint64(time_now-i.cfg.MaxSpanAge*1000000000) {
+					newSpansArr = append(newSpansArr, span)
+				} else {
+					expiredSpans++
+				}
+			}
+			ils.Spans = newSpansArr
 		}
 	}
 	metricBytesIngested.WithLabelValues(i.instanceID).Add(float64(size))
 	metricSpansIngested.WithLabelValues(i.instanceID).Add(float64(spanCount))
+	metricSpansDiscarded.WithLabelValues(i.instanceID, "max_age_reached").Add(float64(expiredSpans))
 }
 
 // shutdown stops the instance and flushes any remaining data. After shutdown
@@ -289,4 +314,14 @@ func (i *instance) shutdown() {
 	if err != nil {
 		level.Error(i.logger).Log("msg", "closing wal failed", "tenant", i.instanceID, "err", err)
 	}
+}
+
+func count(req *tempopb.PushSpansRequest) {
+	spanCount := 0
+	for _, b := range req.Batches {
+		for _, ils := range b.InstrumentationLibrarySpans {
+			spanCount += len(ils.Spans)
+		}
+	}
+	fmt.Println("Span count:", spanCount)
 }
