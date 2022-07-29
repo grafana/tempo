@@ -17,8 +17,8 @@ This document explains the configuration options for Tempo as well as the detail
   - [storage](#storage)
   - [memberlist](#memberlist)
   - [overrides](#overrides)
-  - [usage-report](#usage-report)
   - [search](#search)
+  - [usage-report](#usage-report)
 
 #### Use environment variables in the configuration
 
