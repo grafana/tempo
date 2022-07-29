@@ -120,7 +120,6 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 
 func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
 	row := b.sch.Deconstruct(nil, tr)
-	b.currentBufferedValues += len(row)
 	return b.AddRaw(tr.TraceID, row, start, end)
 }
 
@@ -134,6 +133,7 @@ func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) e
 	b.bloom.Add(id)
 	b.meta.ObjectAdded(id, start, end)
 	b.currentBufferedTraces++
+	b.currentBufferedValues += len(row)
 	return nil
 }
 

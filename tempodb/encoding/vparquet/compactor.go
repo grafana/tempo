@@ -100,10 +100,9 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	}
 
 	var (
-		m                  = newPrefetchIterator(ctx, newMultiblockIterator(bookmarks, combine), prefetchSize)
-		recordsPerBlock    = (totalRecords / int(c.opts.OutputBlocks))
-		currentBlock       *streamingBlock
-		currentBlockValues = 0
+		m               = newPrefetchIterator(ctx, newMultiblockIterator(bookmarks, combine), prefetchSize)
+		recordsPerBlock = (totalRecords / int(c.opts.OutputBlocks))
+		currentBlock    *streamingBlock
 	)
 	defer m.Close()
 
@@ -135,13 +134,12 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		// Flush existing block data if the next trace can't fit
 		// Here we repurpose FlushSizeBytes as number of raw column values.
-		if currentBlockValues+len(lowestObject) > int(c.opts.FlushSizeBytes) {
+		if currentBlock.CurrentBufferedValues()+len(lowestObject) > int(c.opts.FlushSizeBytes) {
 			runtime.GC()
-			err = c.appendBlock(ctx, currentBlock, currentBlockValues)
+			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
 				return nil, errors.Wrap(err, "error writing partial block")
 			}
-			currentBlockValues = 0
 		}
 
 		// Write trace.
@@ -151,7 +149,6 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		if err != nil {
 			return nil, err
 		}
-		currentBlockValues += len(lowestObject)
 		pool.Put(lowestObject)
 
 		// ship block to backend if done
@@ -180,12 +177,16 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	return newCompactedBlocks, nil
 }
 
-func (c *Compactor) appendBlock(ctx context.Context, block *streamingBlock, currentBlockValues int) error {
+func (c *Compactor) appendBlock(ctx context.Context, block *streamingBlock, l log.Logger) error {
 	span, _ := opentracing.StartSpanFromContext(ctx, "vparquet.compactor.appendBlock")
 	defer span.Finish()
 
-	objs := block.CurrentBufferedObjects()
-	compactionLevel := int(block.meta.CompactionLevel - 1)
+	var (
+		objs            = block.CurrentBufferedObjects()
+		vals            = block.CurrentBufferedValues()
+		compactionLevel = int(block.meta.CompactionLevel - 1)
+	)
+
 	if c.opts.ObjectsWritten != nil {
 		c.opts.ObjectsWritten(compactionLevel, objs)
 	}
@@ -199,7 +200,7 @@ func (c *Compactor) appendBlock(ctx context.Context, block *streamingBlock, curr
 		c.opts.BytesWritten(compactionLevel, bytesFlushed)
 	}
 
-	fmt.Printf("Flushed block: bytes: %d objs: %d values: %d\n", bytesFlushed, objs, currentBlockValues)
+	level.Info(l).Log("msg", "flushed to block", "bytes", bytesFlushed, "objects", objs, "values", vals)
 
 	return nil
 }
