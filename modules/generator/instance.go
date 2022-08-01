@@ -254,14 +254,7 @@ func (i *instance) updateProcessorMetrics() {
 }
 
 func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
-	fmt.Println("Before filter")
-	count(req)
-
 	i.updatePushMetrics(req)
-
-	fmt.Println("After filter")
-	count(req)
-
 	i.processorsMtx.RLock()
 	defer i.processorsMtx.RUnlock()
 
@@ -280,9 +273,9 @@ func (i *instance) updatePushMetrics(req *tempopb.PushSpansRequest) {
 			spanCount += len(ils.Spans)
 			// filter spans that have end time > max_age
 			var newSpansArr []*v1.Span
-			time_now := time.Now().UnixNano()
+			timeNow := time.Now().UnixNano()
 			for _, span := range ils.Spans {
-				if span.EndTimeUnixNano >= uint64(time_now-i.cfg.MaxSpanAge*1000000000) {
+				if span.EndTimeUnixNano >= uint64(timeNow-i.cfg.MaxSpanAge*1000000000) {
 					newSpansArr = append(newSpansArr, span)
 				} else {
 					expiredSpans++
@@ -314,14 +307,4 @@ func (i *instance) shutdown() {
 	if err != nil {
 		level.Error(i.logger).Log("msg", "closing wal failed", "tenant", i.instanceID, "err", err)
 	}
-}
-
-func count(req *tempopb.PushSpansRequest) {
-	spanCount := 0
-	for _, b := range req.Batches {
-		for _, ils := range b.InstrumentationLibrarySpans {
-			spanCount += len(ils.Spans)
-		}
-	}
-	fmt.Println("Span count:", spanCount)
 }
