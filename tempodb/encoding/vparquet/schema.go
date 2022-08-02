@@ -15,6 +15,9 @@ import (
 // Label names for conversion b/n Proto <> Parquet
 
 const (
+	LabelRootSpanName    = "root.name"
+	LabelRootServiceName = "root.service.name"
+
 	LabelServiceName = "service.name"
 	LabelCluster     = "cluster"
 	LabelNamespace   = "namespace"

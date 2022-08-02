@@ -1,6 +1,9 @@
 package build
 
-import "github.com/prometheus/common/version"
+import (
+	"github.com/prometheus/common/version"
+	prom "github.com/prometheus/prometheus/web/api/v1"
+)
 
 // Version information passed to Prometheus version package.
 // Package path as used by linker changes based on vendoring being used or not,
@@ -20,4 +23,15 @@ func init() {
 	version.Branch = Branch
 	version.BuildUser = BuildUser
 	version.BuildDate = BuildDate
+}
+
+func GetVersion() prom.PrometheusVersion {
+	return prom.PrometheusVersion{
+		Version:   version.Version,
+		Revision:  version.Revision,
+		Branch:    version.Branch,
+		BuildUser: version.BuildUser,
+		BuildDate: version.BuildDate,
+		GoVersion: version.GoVersion,
+	}
 }

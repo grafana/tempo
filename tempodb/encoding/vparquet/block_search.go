@@ -2,23 +2,20 @@ package vparquet
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
-	"io"
 	"math"
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/opentracing/opentracing-go"
+	"github.com/segmentio/parquet-go"
+
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/opentracing/opentracing-go"
-	"github.com/segmentio/parquet-go"
 )
 
 // These are reserved search parameters
@@ -37,52 +34,6 @@ var StatusCodeMapping = map[string]int{
 	StatusCodeError: int(v1.Status_STATUS_CODE_ERROR),
 }
 
-type BackendReaderAt struct {
-	ctx      context.Context
-	r        backend.Reader
-	name     string
-	blockID  uuid.UUID
-	tenantID string
-
-	TotalBytesRead uint64
-}
-
-var _ io.ReaderAt = (*BackendReaderAt)(nil)
-
-func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, blockID uuid.UUID, tenantID string) *BackendReaderAt {
-	return &BackendReaderAt{ctx, r, name, blockID, tenantID, 0}
-}
-
-func (b *BackendReaderAt) ReadAt(p []byte, off int64) (int, error) {
-	b.TotalBytesRead += uint64(len(p))
-	err := b.r.ReadRange(b.ctx, b.name, b.blockID, b.tenantID, uint64(off), p, false)
-	return len(p), err
-}
-
-type parquetOptimizedReaderAt struct {
-	r          io.ReaderAt
-	readerSize int64
-	footerSize uint32
-}
-
-var _ io.ReaderAt = (*parquetOptimizedReaderAt)(nil)
-
-func (r *parquetOptimizedReaderAt) ReadAt(p []byte, off int64) (int, error) {
-	if len(p) == 4 && off == 0 {
-		// Magic header
-		return copy(p, []byte("PAR1")), nil
-	}
-
-	if len(p) == 8 && off == r.readerSize-8 && r.footerSize > 0 /* not present in previous block metas */ {
-		// Magic footer
-		binary.LittleEndian.PutUint32(p, r.footerSize)
-		copy(p[4:8], []byte("PAR1"))
-		return 8, nil
-	}
-
-	return r.r.ReadAt(p, off)
-}
-
 func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (_ *tempopb.SearchResponse, err error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.Search",
 		opentracing.Tags{
@@ -97,7 +48,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
 
-	or := &parquetOptimizedReaderAt{br, int64(b.meta.Size), b.meta.FooterSize}
+	or := newParquetOptimizedReaderAt(br, rr, int64(b.meta.Size), b.meta.FooterSize, opts.CacheControl)
 
 	span2, _ := opentracing.StartSpanFromContext(derivedCtx, "parquet.OpenFile")
 	pf, err := parquet.OpenFile(or, int64(b.meta.Size), parquet.SkipPageIndex(true))
@@ -150,6 +101,10 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 
 	for k, v := range req.Tags {
 		switch k {
+		case LabelRootServiceName:
+			traceIters = append(traceIters, makeIter("RootServiceName", pq.NewSubstringPredicate(v), ""))
+		case LabelRootSpanName:
+			traceIters = append(traceIters, makeIter("RootSpanName", pq.NewSubstringPredicate(v), ""))
 		case LabelServiceName:
 			resourceIters = append(resourceIters, makeIter("rs.Resource.ServiceName", pq.NewSubstringPredicate(v), ""))
 		case LabelCluster:
@@ -196,8 +151,8 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 		// columns at the resource or span levels.  We want to search
 		// both locations. But we also only want to read the columns once.
 
-		var keys []string
-		var vals []string
+		keys := make([]string, 0, len(otherAttrConditions))
+		vals := make([]string, 0, len(otherAttrConditions))
 		for k, v := range otherAttrConditions {
 			keys = append(keys, k)
 			vals = append(vals, v)
@@ -344,6 +299,7 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 		makeIter("StartTimeUnixNano"),
 		makeIter("DurationNanos"),
 	}, nil)
+	defer iter2.Close()
 
 	for {
 		match := iter2.Next()

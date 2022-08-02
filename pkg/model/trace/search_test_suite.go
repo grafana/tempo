@@ -166,6 +166,8 @@ func SearchTestSuite() (
 		makeReq("k8s.namespace.name", "k8sNamespace"),
 		makeReq("k8s.pod.name", "k8sPod"),
 		makeReq("k8s.container.name", "k8sContainer"),
+		makeReq("root.service.name", "RootService"),
+		makeReq("root.name", "RootSpan"),
 
 		// Well-known span attributes
 		makeReq("name", "Span"),
@@ -214,6 +216,8 @@ func SearchTestSuite() (
 		makeReq("http.url", "asdf"),
 		makeReq("http.status_code", "200"),
 		makeReq("status.code", "ok"),
+		makeReq("root.service.name", "NotRootService"),
+		makeReq("root.name", "NotRootSpan"),
 
 		// Span attributes
 		makeReq("foo", "baz"), // wrong case

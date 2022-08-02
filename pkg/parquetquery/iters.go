@@ -195,6 +195,14 @@ func columnIteratorPoolGet(capacity, len int) *columnIteratorBuffer {
 	return res
 }
 
+func columnIteratorPoolPut(b *columnIteratorBuffer) {
+	b.values = b.values[:cap(b.values)]
+	for i := range b.values {
+		b.values[i] = pq.Value{}
+	}
+	columnIteratorPool.Put(b)
+}
+
 var columnIteratorResultPool = sync.Pool{
 	New: func() interface{} {
 		return &IteratorResult{Entries: make([]struct {
@@ -371,7 +379,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 					} else {
 						// All values excluded, we go ahead and immediately
 						// return the buffer to the pool.
-						columnIteratorPool.Put(newBuffer)
+						columnIteratorPoolPut(newBuffer)
 					}
 				}
 
@@ -413,7 +421,7 @@ func (c *ColumnIterator) next() (RowNumber, pq.Value) {
 		}
 
 		// Done with this buffer
-		columnIteratorPool.Put(c.curr)
+		columnIteratorPoolPut(c.curr)
 		c.curr = nil
 	}
 
@@ -498,8 +506,8 @@ func (j *JoinIterator) Next() *IteratorResult {
 	for {
 		lowestRowNumber := MaxRowNumber()
 		highestRowNumber := EmptyRowNumber()
-		lowestIters := make([]int, 0, len(j.iters))
 
+		foundMatch := true
 		for iterNum := range j.iters {
 			res := j.peek(iterNum)
 
@@ -508,27 +516,24 @@ func (j *JoinIterator) Next() *IteratorResult {
 				return nil
 			}
 
-			c := CompareRowNumbers(j.definitionLevel, res.RowNumber, lowestRowNumber)
-			switch c {
-			case -1:
-				// New lowest, reset
-				lowestIters = lowestIters[:0]
-				lowestRowNumber = res.RowNumber
-				fallthrough
-
-			case 0:
-				// Same, append
-				lowestIters = append(lowestIters, iterNum)
-			}
-
 			if CompareRowNumbers(j.definitionLevel, res.RowNumber, highestRowNumber) == 1 {
 				// New high water mark
 				highestRowNumber = res.RowNumber
 			}
+
+			c := CompareRowNumbers(j.definitionLevel, res.RowNumber, lowestRowNumber)
+			if c == -1 && iterNum != 0 {
+				// if we have a new lowest that is not the first iterator there's no way for
+				//  all iterators to match
+				foundMatch = false
+				break
+			}
+
+			lowestRowNumber = res.RowNumber
 		}
 
 		// All iterators pointing at same row?
-		if len(lowestIters) == len(j.iters) {
+		if foundMatch {
 			// Get the data
 			result := j.collect(lowestRowNumber)
 

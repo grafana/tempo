@@ -34,12 +34,10 @@ traces:
 To see all the available config options, refer to the [configuration reference](https://grafana.com/docs/agent/latest/configuration/traces-config/).
 
 Metrics are registered in the Agent's default registerer.
-Therefore, they are exposed at `/metrics` in the Agent's server port.
+Therefore, they are exposed at `/metrics` in the Agent's server port (default 12345).
 One option is to use the Agent self-scrape capabilities to export the metrics to a prometheus compatible backend.
 
 ```
-server:
-  http_listen_port: 12345
 metrics:
   configs:
     - name: default

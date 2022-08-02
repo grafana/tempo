@@ -35,6 +35,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 )
@@ -49,6 +50,11 @@ var (
 		[]string{"feature"},
 		nil,
 	)
+
+	statFeatureEnabledMetricsGenerator = usagestats.NewInt("feature_enabled_metrics_generator")
+	statFeatureEnabledAuth             = usagestats.NewInt("feature_enabled_auth_stats")
+	statFeatureEnabledMultitenancy     = usagestats.NewInt("feature_enabled_multitenancy")
+	statFeatureEnabledSearch           = usagestats.NewInt("feature_enabled_search")
 )
 
 // App is the root datastructure.
@@ -66,6 +72,7 @@ type App struct {
 	ingester      *ingester.Ingester
 	generator     *generator.Generator
 	store         storage.Store
+	usageReport   *usagestats.Reporter
 	MemberlistKV  *memberlist.KVInitService
 
 	HTTPAuthMiddleware       middleware.Interface
@@ -73,12 +80,35 @@ type App struct {
 
 	ModuleManager *modules.Manager
 	serviceMap    map[string]services.Service
+	deps          map[string][]string
 }
 
 // New makes a new app.
 func New(cfg Config) (*App, error) {
 	app := &App{
 		cfg: cfg,
+	}
+
+	usagestats.Edition("oss")
+
+	statFeatureEnabledAuth.Set(0)
+	if cfg.AuthEnabled {
+		statFeatureEnabledAuth.Set(1)
+	}
+
+	statFeatureEnabledMetricsGenerator.Set(0)
+	if cfg.MetricsGeneratorEnabled {
+		statFeatureEnabledMetricsGenerator.Set(1)
+	}
+
+	statFeatureEnabledMultitenancy.Set(0)
+	if cfg.SearchEnabled {
+		statFeatureEnabledMultitenancy.Set(1)
+	}
+
+	statFeatureEnabledSearch.Set(0)
+	if cfg.SearchEnabled {
+		statFeatureEnabledSearch.Set(1)
 	}
 
 	app.setupAuthMiddleware()

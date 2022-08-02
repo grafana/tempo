@@ -6,7 +6,17 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/services"
 
+	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/tempodb"
+)
+
+var (
+	statCache               = usagestats.NewString("storage_cache")
+	statBackend             = usagestats.NewString("storage_backend")
+	statWalEncoding         = usagestats.NewString("storage_wal_encoding")
+	statWalSearchEncoding   = usagestats.NewString("storage_wal_search_encoding")
+	statBlockEncoding       = usagestats.NewString("storage_block_encoding")
+	statBlockSearchEncoding = usagestats.NewString("storage_block_search_encoding")
 )
 
 // Store wraps the tempodb storage layer
@@ -30,6 +40,14 @@ type store struct {
 
 // NewStore creates a new Tempo Store using configuration supplied.
 func NewStore(cfg Config, logger log.Logger) (Store, error) {
+
+	statCache.Set(cfg.Trace.Cache)
+	statBackend.Set(cfg.Trace.Backend)
+	statWalEncoding.Set(cfg.Trace.WAL.Encoding.String())
+	statWalSearchEncoding.Set(cfg.Trace.WAL.SearchEncoding.String())
+	statBlockEncoding.Set(cfg.Trace.Block.Encoding.String())
+	statBlockSearchEncoding.Set(cfg.Trace.Block.SearchEncoding.String())
+
 	r, w, c, err := tempodb.New(&cfg.Trace, logger)
 	if err != nil {
 		return nil, err

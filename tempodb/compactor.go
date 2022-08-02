@@ -171,17 +171,19 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		compactionLevelLabel: compactionLevelLabel,
 	}
 
-	opts := common.DefaultCompactionOptions()
-	opts.BlockConfig = *rw.cfg.Block
-	opts.ChunkSizeBytes = rw.compactorCfg.ChunkSizeBytes
-	opts.FlushSizeBytes = rw.compactorCfg.FlushSizeBytes
-	opts.OutputBlocks = outputBlocks
-	opts.Combiner = combiner
-	opts.BytesWritten = func(compactionLevel, bytes int) {
-		metricCompactionBytesWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(bytes))
-	}
-	opts.ObjectsWritten = func(compactionLevel, objs int) {
-		metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
+	opts := common.CompactionOptions{
+		BlockConfig:        *rw.cfg.Block,
+		ChunkSizeBytes:     rw.compactorCfg.ChunkSizeBytes,
+		FlushSizeBytes:     rw.compactorCfg.FlushSizeBytes,
+		IteratorBufferSize: rw.compactorCfg.IteratorBufferSize,
+		OutputBlocks:       outputBlocks,
+		Combiner:           combiner,
+		BytesWritten: func(compactionLevel, bytes int) {
+			metricCompactionBytesWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(bytes))
+		},
+		ObjectsWritten: func(compactionLevel, objs int) {
+			metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
+		},
 	}
 
 	compactor := enc.NewCompactor(opts)

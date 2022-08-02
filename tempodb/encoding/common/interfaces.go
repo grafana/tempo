@@ -18,6 +18,12 @@ type Searcher interface {
 	Search(ctx context.Context, req *tempopb.SearchRequest, opts SearchOptions) (*tempopb.SearchResponse, error)
 }
 
+type CacheControl struct {
+	Footer      bool
+	ColumnIndex bool
+	OffsetIndex bool
+}
+
 type SearchOptions struct {
 	ChunkSizeBytes     uint32 // Buffer size to read from backend storage.
 	StartPage          int    // Controls searching only a subset of the block. Which page to begin searching at.
@@ -26,6 +32,7 @@ type SearchOptions struct {
 	PrefetchTraceCount int    // How many traces to prefetch async.
 	ReadBufferCount    int
 	ReadBufferSize     int
+	CacheControl       CacheControl
 }
 
 type Compactor interface {
@@ -35,22 +42,13 @@ type Compactor interface {
 type CompactionOptions struct {
 	ChunkSizeBytes     uint32
 	FlushSizeBytes     uint32
-	PrefetchTraceCount int // How many traces to prefetch async.
+	IteratorBufferSize int // How many traces to prefetch async.
 	OutputBlocks       uint8
 	BlockConfig        BlockConfig
 	Combiner           model.ObjectCombiner
 
 	ObjectsWritten func(compactionLevel, objects int)
 	BytesWritten   func(compactionLevel, bytes int)
-}
-
-func DefaultCompactionOptions() CompactionOptions {
-	return CompactionOptions{
-		ChunkSizeBytes:     1_000_000,
-		FlushSizeBytes:     30 * 1024 * 1024, // 30 MiB
-		PrefetchTraceCount: 1000,
-		OutputBlocks:       1,
-	}
 }
 
 type Iterator interface {
