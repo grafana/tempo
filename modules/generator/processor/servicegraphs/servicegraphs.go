@@ -153,9 +153,9 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 
 				switch span.Kind {
 				case v1_trace.Span_SPAN_KIND_PRODUCER:
+					// override connection type and continue processing as span kind client
 					connectionType = store.MessagingSystem
 					fallthrough
-
 				case v1_trace.Span_SPAN_KIND_CLIENT:
 					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
 					isNew, err = p.store.UpsertEdge(key, func(e *store.Edge) {
@@ -176,9 +176,9 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 					})
 
 				case v1_trace.Span_SPAN_KIND_CONSUMER:
+					// override connection type and continue processing as span kind server
 					connectionType = store.MessagingSystem
 					fallthrough
-
 				case v1_trace.Span_SPAN_KIND_SERVER:
 					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
 					isNew, err = p.store.UpsertEdge(key, func(e *store.Edge) {
