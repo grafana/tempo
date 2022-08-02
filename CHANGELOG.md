@@ -6,6 +6,7 @@
 * [FEATURE] Add tags option for s3 backends.  This allows new objects to be written with the configured tags. [#1442](https://github.com/grafana/tempo/pull/1442) (@stevenbrookes)
 * [FEATURE] Add anonymous usage reporting, enabled by default. [#1481](https://github.com/grafana/tempo/pull/1481) (@zalegrala)
 **BREAKING CHANGE** As part of the usage stats inclusion, the distributor will also require access to the store.  This is required so the distirbutor can know which cluster it should be reporting membership of.
+* [FEATURE] Include messaging systems and databases in service graphs. [#1576](https://github.com/grafana/tempo/pull/1576) (@kvrhdn)
 * [CHANGE] metrics-generator: Changed added metric label `instance` to `__metrics_gen_instance` to reduce collisions with custom dimensions. [#1439](https://github.com/grafana/tempo/pull/1439) (@joe-elliott)
 * [CHANGE] Don't enforce `max_bytes_per_tag_values_query` when set to 0. [#1447](https://github.com/grafana/tempo/pull/1447) (@joe-elliott)
 * [CHANGE] Add new querier service in deployment jsonnet to serve `/status` endpoint. [#1474](https://github.com/grafana/tempo/pull/1474) (@annanay25)

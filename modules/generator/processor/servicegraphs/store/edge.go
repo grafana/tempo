@@ -2,11 +2,20 @@ package store
 
 import "time"
 
+type ConnectionType string
+
+const (
+	Unknown         ConnectionType = ""
+	MessagingSystem                = "messaging_system"
+	Database                       = "database"
+)
+
 // Edge is an Edge between two nodes in the graph
 type Edge struct {
 	key string
 
 	TraceID                            string
+	ConnectionType                     ConnectionType
 	ServerService, ClientService       string
 	ServerLatencySec, ClientLatencySec float64
 

@@ -76,7 +76,7 @@ type Processor struct {
 }
 
 func New(cfg Config, tenant string, registry registry.Registry, logger log.Logger) gen.Processor {
-	labels := []string{"client", "server"}
+	labels := []string{"client", "server", "connection_type"}
 	for _, d := range cfg.Dimensions {
 		labels = append(labels, strutil.SanitizeLabelName(d))
 	}
@@ -149,20 +149,41 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 
 		for _, ils := range rs.InstrumentationLibrarySpans {
 			for _, span := range ils.Spans {
+				connectionType := store.Unknown
+
 				switch span.Kind {
+				case v1_trace.Span_SPAN_KIND_PRODUCER:
+					// override connection type and continue processing as span kind client
+					connectionType = store.MessagingSystem
+					fallthrough
 				case v1_trace.Span_SPAN_KIND_CLIENT:
 					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.SpanId))
 					isNew, err = p.store.UpsertEdge(key, func(e *store.Edge) {
 						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
+						e.ConnectionType = connectionType
 						e.ClientService = svcName
 						e.ClientLatencySec = spanDurationSec(span)
 						e.Failed = e.Failed || p.spanFailed(span)
 						p.upsertDimensions(e.Dimensions, rs.Resource.Attributes, span.Attributes)
+
+						// A database request will only have one span, we don't wait for the server
+						// span but just copy details from the client span
+						if dbName, ok := processor_util.FindAttributeValue("db.name", rs.Resource.Attributes, span.Attributes); ok {
+							e.ConnectionType = store.Database
+							e.ServerService = dbName
+							e.ServerLatencySec = spanDurationSec(span)
+						}
 					})
+
+				case v1_trace.Span_SPAN_KIND_CONSUMER:
+					// override connection type and continue processing as span kind server
+					connectionType = store.MessagingSystem
+					fallthrough
 				case v1_trace.Span_SPAN_KIND_SERVER:
 					key := buildKey(hex.EncodeToString(span.TraceId), hex.EncodeToString(span.ParentSpanId))
 					isNew, err = p.store.UpsertEdge(key, func(e *store.Edge) {
 						e.TraceID = tempo_util.TraceIDToHexString(span.TraceId)
+						e.ConnectionType = connectionType
 						e.ServerService = svcName
 						e.ServerLatencySec = spanDurationSec(span)
 						e.Failed = e.Failed || p.spanFailed(span)
@@ -214,7 +235,7 @@ func (p *Processor) Shutdown(_ context.Context) {
 
 func (p *Processor) onComplete(e *store.Edge) {
 	labelValues := make([]string, 0, 2+len(p.Cfg.Dimensions))
-	labelValues = append(labelValues, e.ClientService, e.ServerService)
+	labelValues = append(labelValues, e.ClientService, e.ServerService, string(e.ConnectionType))
 
 	for _, dimension := range p.Cfg.Dimensions {
 		labelValues = append(labelValues, e.Dimensions[dimension])

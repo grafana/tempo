@@ -25,65 +25,113 @@ func TestServiceGraphs(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 
-	cfg.HistogramBuckets = []float64{2.0, 3.0}
-	cfg.Dimensions = []string{"component", "does-not-exist"}
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Dimensions = []string{"beast"}
 
 	p := New(cfg, "test", testRegistry, log.NewNopLogger())
 	defer p.Shutdown(context.Background())
 
-	traces, err := loadTestData("testdata/test-sample.json")
+	request, err := loadTestData("testdata/trace-with-queue-database.json")
 	require.NoError(t, err)
 
-	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: traces.Batches})
+	p.PushSpans(context.Background(), request)
 
-	// Manually call expire to force removal of completed edges.
-	sgp := p.(*Processor)
-	sgp.store.Expire()
-
-	lbAppLabels := labels.FromMap(map[string]string{
-		"client":         "lb",
-		"server":         "app",
-		"component":      "net/http",
-		"does_not_exist": "",
+	requesterToServerLabels := labels.FromMap(map[string]string{
+		"client":          "mythical-requester",
+		"server":          "mythical-server",
+		"connection_type": "",
+		"beast":           "manticore",
 	})
-	appDbLabels := labels.FromMap(map[string]string{
-		"client":         "app",
-		"server":         "db",
-		"component":      "net/http",
-		"does_not_exist": "",
+	serverToDatabaseLabels := labels.FromMap(map[string]string{
+		"client":          "mythical-server",
+		"server":          "postgres",
+		"connection_type": "database",
+		"beast":           "",
+	})
+	requesterToRecorderLabels := labels.FromMap(map[string]string{
+		"client":          "mythical-requester",
+		"server":          "mythical-recorder",
+		"connection_type": "messaging_system",
+		"beast":           "",
 	})
 
 	fmt.Println(testRegistry)
 
-	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_total`, appDbLabels))
-	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, appDbLabels))
+	// counters
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, requesterToServerLabels))
 
-	assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(appDbLabels, 2.0)))
-	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(appDbLabels, 3.0)))
-	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(appDbLabels, math.Inf(1))))
-	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_client_seconds_count`, appDbLabels))
-	assert.Equal(t, 4.4, testRegistry.Query(`traces_service_graph_request_client_seconds_sum`, appDbLabels))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, serverToDatabaseLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, serverToDatabaseLabels))
 
-	assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(appDbLabels, 2.0)))
-	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(appDbLabels, 3.0)))
-	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(appDbLabels, math.Inf(1))))
-	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_server_seconds_count`, appDbLabels))
-	assert.Equal(t, 5.0, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, appDbLabels))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToRecorderLabels))
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, requesterToRecorderLabels))
 
-	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_total`, lbAppLabels))
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_failed_total`, lbAppLabels))
+	// histograms
+	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(requesterToServerLabels, 0.04)))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(requesterToServerLabels, math.Inf(1))))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_count`, requesterToServerLabels))
+	assert.InDelta(t, 0.045, testRegistry.Query(`traces_service_graph_request_client_seconds_sum`, requesterToServerLabels), 0.001)
 
-	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(lbAppLabels, 2.0)))
-	assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(lbAppLabels, 3.0)))
-	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(lbAppLabels, math.Inf(1))))
-	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_client_seconds_count`, lbAppLabels))
-	assert.Equal(t, 7.8, testRegistry.Query(`traces_service_graph_request_client_seconds_sum`, lbAppLabels))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(requesterToServerLabels, 0.04)))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(requesterToServerLabels, math.Inf(1))))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_count`, requesterToServerLabels))
+	assert.InDelta(t, 0.029, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, requesterToServerLabels), 0.001)
 
-	assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(lbAppLabels, 2.0)))
-	assert.Equal(t, 2.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(lbAppLabels, 3.0)))
-	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(lbAppLabels, math.Inf(1))))
-	assert.Equal(t, 3.0, testRegistry.Query(`traces_service_graph_request_server_seconds_count`, lbAppLabels))
-	assert.Equal(t, 6.2, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, lbAppLabels))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(serverToDatabaseLabels, 0.04)))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(serverToDatabaseLabels, math.Inf(1))))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_count`, serverToDatabaseLabels))
+	assert.InDelta(t, 0.023, testRegistry.Query(`traces_service_graph_request_client_seconds_sum`, serverToDatabaseLabels), 0.001)
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(serverToDatabaseLabels, 0.04)))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(serverToDatabaseLabels, math.Inf(1))))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_count`, serverToDatabaseLabels))
+	assert.InDelta(t, 0.023, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, serverToDatabaseLabels), 0.001)
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(requesterToRecorderLabels, 0.04)))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(requesterToRecorderLabels, math.Inf(1))))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_client_seconds_count`, requesterToRecorderLabels))
+	assert.InDelta(t, 0.000068, testRegistry.Query(`traces_service_graph_request_client_seconds_sum`, requesterToRecorderLabels), 0.001)
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(requesterToRecorderLabels, 0.04)))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(requesterToRecorderLabels, math.Inf(1))))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_count`, requesterToRecorderLabels))
+	assert.InDelta(t, 0.000693, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, requesterToRecorderLabels), 0.001)
+}
+
+func TestServiceGraphs_failedRequests(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-failed-requests.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	requesterToServerLabels := labels.FromMap(map[string]string{
+		"client":          "mythical-requester",
+		"server":          "mythical-server",
+		"connection_type": "",
+	})
+	serverToDatabaseLabels := labels.FromMap(map[string]string{
+		"client":          "mythical-server",
+		"server":          "postgres",
+		"connection_type": "database",
+	})
+
+	fmt.Println(testRegistry)
+
+	// counters
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_failed_total`, requesterToServerLabels))
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, serverToDatabaseLabels))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_failed_total`, serverToDatabaseLabels))
 }
 
 func TestServiceGraphs_tooManySpansErr(t *testing.T) {
@@ -95,14 +143,14 @@ func TestServiceGraphs_tooManySpansErr(t *testing.T) {
 	p := New(cfg, "test", &testRegistry, log.NewNopLogger())
 	defer p.Shutdown(context.Background())
 
-	traces, err := loadTestData("testdata/test-sample.json")
+	request, err := loadTestData("testdata/trace-with-queue-database.json")
 	require.NoError(t, err)
 
-	err = p.(*Processor).consume(traces.Batches)
+	err = p.(*Processor).consume(request.Batches)
 	assert.True(t, errors.As(err, &tooManySpansError{}))
 }
 
-func loadTestData(path string) (*tempopb.Trace, error) {
+func loadTestData(path string) (*tempopb.PushSpansRequest, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -110,7 +158,7 @@ func loadTestData(path string) (*tempopb.Trace, error) {
 
 	trace := &tempopb.Trace{}
 	err = jsonpb.Unmarshal(f, trace)
-	return trace, err
+	return &tempopb.PushSpansRequest{Batches: trace.Batches}, err
 }
 
 func withLe(lbls labels.Labels, le float64) labels.Labels {
