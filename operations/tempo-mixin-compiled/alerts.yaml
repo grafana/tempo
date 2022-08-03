@@ -145,3 +145,12 @@
     "for": "24h"
     "labels":
       "severity": "critical"
+  - "alert": "TempoIngesterReplayErrors"
+    "annotations":
+      "message": "Tempo ingester has encountered errors while replaying a block on startup in {{ $labels.cluster }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}"
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterReplayErrors"
+    "expr": |
+      sum by (cluster, namespace, tenant) (increase(tempo_ingester_replay_errors_total{namespace=~".*"}[5m])) > 0
+    "for": "5m"
+    "labels":
+      "severity": "critical"
