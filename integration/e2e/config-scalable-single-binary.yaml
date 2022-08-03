@@ -7,6 +7,11 @@ distributor:
       protocols:
         grpc:
 
+compactor:
+  ring:
+    kvstore:
+      store: memberlist
+
 ingester:
   lifecycler:
     # address: 127.0.0.1
@@ -27,7 +32,7 @@ storage:
     backend: s3
     s3:
       bucket: tempo
-      endpoint: tempo_e2e-minio-9000:9000  # TODO: this is brittle, fix this eventually
+      endpoint: tempo_e2e-minio-9000:9000 # TODO: this is brittle, fix this eventually
       access_key: Cheescake # TODO: use cortex_e2e.MinioAccessKey
       secret_key: supersecret # TODO: use cortex_e2e.MinioSecretKey
       insecure: true
@@ -39,9 +44,9 @@ memberlist:
   abort_if_cluster_join_fails: false
   bind_port: 7946
   join_members:
-  - tempo-1:7946
-  - tempo-2:7946
-  - tempo-3:7946
+    - tempo-1:7946
+    - tempo-2:7946
+    - tempo-3:7946
 
 querier:
   frontend_worker:
