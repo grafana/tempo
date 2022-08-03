@@ -267,3 +267,18 @@ going down. If not, further scaling may be necessary.
 
 Since the number of blocks is elevated, it may also be necessary to review the queue-related
 settings to prevent [trace lookup failures](#trace-lookup-failures).
+
+## TempoIngesterReplayErrors
+
+This alert fires when an ingester has encountered an error while replaying a block on startup.
+
+How to fix:
+
+Check the ingester logs for errors to identify the culprit ingester, tenant, and block ID. 
+
+If an ingester is restarted unexpectedly while writing a block to disk, the files might be corrupted.
+The error "Unexpected error reloading meta for local block. Ignoring and continuing." indicates there was an error parsing the
+meta.json.  Repair the meta.json and then restart the ingester to successfully recover the block. Or if
+it is not able to be repaired then the block files can be simply deleted as the ingester has already started
+without it.  As long as the replication factor is 2 or higher, then there will be no data loss as the
+same data was also written to another ingester.

@@ -87,6 +87,11 @@ var (
 		Name:      "ingester_bytes_received_total",
 		Help:      "The total bytes received per tenant.",
 	}, []string{"tenant", "data_type"})
+	metricReplayErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "ingester_replay_errors_total",
+		Help:      "The total number of replay errors received per tenant.",
+	}, []string{"tenant"})
 )
 
 type instance struct {
@@ -619,10 +624,13 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*wal.LocalBlock
 				if err != nil {
 					return nil, errors.Wrapf(err, "deleting bad local block tenant %v block %v", i.instanceID, id.String())
 				}
-				continue
+			} else {
+				// Block with unknown error
+				level.Error(log.Logger).Log("msg", "Unexpected error reloading meta for local block. Ignoring and continuing. This block should be investigated.", "tenant", i.instanceID, "block", id.String(), "error", err)
+				metricReplayErrorsTotal.WithLabelValues(i.instanceID).Inc()
 			}
 
-			return nil, err
+			continue
 		}
 
 		b, err := encoding.OpenBlock(meta, i.localReader)

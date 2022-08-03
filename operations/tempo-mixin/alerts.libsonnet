@@ -230,6 +230,20 @@
               runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoCompactorsTooManyOutstandingBlocks',
             },
           },
+          {
+            alert: 'TempoIngesterReplayErrors',
+            'for': '5m',
+            expr: |||
+              sum by (%s) (increase(tempo_ingester_replay_errors_total{namespace=~"%s"}[5m])) > 0
+            ||| % [$._config.group_by_tenant, $._config.namespace],
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Tempo ingester has encountered errors while replaying a block on startup in {{ $labels.cluster }}/{{ $labels.namespace }} for tenant {{ $labels.tenant }}',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterReplayErrors',
+            },
+          },
         ],
       },
     ],
