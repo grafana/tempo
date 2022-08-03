@@ -57,6 +57,8 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			return nil, err
 		}
 
+		// Here we repurpose RowGroupSizeBytes as number of raw column values.
+		// This is a fairly close approximation.
 		if s.CurrentBufferedValues() > cfg.RowGroupSizeBytes {
 			_, err = s.Flush()
 			if err != nil {

@@ -134,6 +134,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		// Flush existing block data if the next trace can't fit
 		// Here we repurpose FlushSizeBytes as number of raw column values.
+		// This is a fairly close approximation.
 		if currentBlock.CurrentBufferedValues()+len(lowestObject) > int(c.opts.FlushSizeBytes) {
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
