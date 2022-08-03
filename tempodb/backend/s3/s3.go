@@ -130,6 +130,11 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 
 // AppendObject implements backend.Writer
 func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "s3.Append", opentracing.Tags{
+		"len": len(buffer),
+	})
+	defer span.Finish()
+
 	var a appendTracker
 	objectName := backend.ObjectFileName(keypath, name)
 

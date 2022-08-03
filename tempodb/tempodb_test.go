@@ -22,6 +22,8 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -597,6 +599,15 @@ func TestCompleteBlock(t *testing.T) {
 }
 
 func TestCompleteBlockHonorsStartStopTimes(t *testing.T) {
+	testEncodings := []string{v2.VersionString, vparquet.VersionString}
+	for _, enc := range testEncodings {
+		t.Run(enc, func(t *testing.T) {
+			testCompleteBlockHonorsStartStopTimes(t, enc)
+		})
+	}
+}
+
+func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion string) {
 
 	tempDir := t.TempDir()
 
@@ -609,7 +620,7 @@ func TestCompleteBlockHonorsStartStopTimes(t *testing.T) {
 			IndexDownsampleBytes: 17,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
+			Version:              targetBlockVersion,
 			Encoding:             backend.EncNone,
 			IndexPageSizeBytes:   1000,
 		},

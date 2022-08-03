@@ -91,6 +91,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			Version:              targetBlockVersion,
 			Encoding:             backend.EncLZ4_4M,
 			IndexPageSizeBytes:   1000,
+			RowGroupSizeBytes:    30_000_000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -100,7 +101,8 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	require.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
-		ChunkSizeBytes:          10,
+		ChunkSizeBytes:          10_000_000,
+		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -203,9 +205,18 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	}
 }
 
+func TestSameIDCompaction(t *testing.T) {
+	testEncodings := []string{v2.VersionString, vparquet.VersionString}
+	for _, enc := range testEncodings {
+		t.Run(enc, func(t *testing.T) {
+			testSameIDCompaction(t, enc)
+		})
+	}
+}
+
 // TestSameIDCompaction is a bit gross in that it has a bad dependency with on the /pkg/model
 // module to do a full e2e compaction/combination test.
-func TestSameIDCompaction(t *testing.T) {
+func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
@@ -221,9 +232,10 @@ func TestSameIDCompaction(t *testing.T) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
+			Version:              targetBlockVersion,
 			Encoding:             backend.EncSnappy,
 			IndexPageSizeBytes:   1000,
+			RowGroupSizeBytes:    30_000_000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -233,10 +245,11 @@ func TestSameIDCompaction(t *testing.T) {
 	require.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
-		ChunkSizeBytes:          10,
+		ChunkSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
+		FlushSizeBytes:          10_000_000,
 	}, &mockSharder{}, &mockOverrides{})
 
 	r.EnablePolling(&mockJobSharder{})
@@ -628,6 +641,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 			Version:              targetBlockVersion,
 			Encoding:             backend.EncNone,
 			IndexPageSizeBytes:   1000,
+			RowGroupSizeBytes:    30_000_000,
 		},
 		WAL: &wal.Config{
 			Filepath:       path.Join(tempDir, "wal"),
@@ -638,7 +652,8 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	require.NoError(t, err)
 
 	c.EnableCompaction(&CompactorConfig{
-		ChunkSizeBytes:          10,
+		ChunkSizeBytes:          10_000_000,
+		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
@@ -728,6 +743,15 @@ func makeTraceID(i int, j int) []byte {
 }
 
 func BenchmarkCompaction(b *testing.B) {
+	testEncodings := []string{v2.VersionString, vparquet.VersionString}
+	for _, enc := range testEncodings {
+		b.Run(enc, func(b *testing.B) {
+			benchmarkCompaction(b, enc)
+		})
+	}
+}
+
+func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 	tempDir := b.TempDir()
 
 	_, w, c, err := New(&Config{
@@ -743,9 +767,10 @@ func BenchmarkCompaction(b *testing.B) {
 			IndexDownsampleBytes: 11,
 			BloomFP:              .01,
 			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
+			Version:              targetBlockVersion,
 			Encoding:             backend.EncZstd,
 			IndexPageSizeBytes:   1000,
+			RowGroupSizeBytes:    30_000_000,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
@@ -757,15 +782,16 @@ func BenchmarkCompaction(b *testing.B) {
 	rw := c.(*readerWriter)
 
 	c.EnableCompaction(&CompactorConfig{
-		ChunkSizeBytes:     1_000_000,
-		FlushSizeBytes:     1_000_000,
+		ChunkSizeBytes:     10_000_000,
+		FlushSizeBytes:     10_000_000,
 		IteratorBufferSize: DefaultIteratorBufferSize,
 	}, &mockSharder{}, &mockOverrides{})
 
-	n := b.N
+	traceCount := 10_000
+	blockCount := 8
 
 	// Cut input blocks
-	blocks := cutTestBlocks(b, w, testTenantID, 8, n)
+	blocks := cutTestBlocks(b, w, testTenantID, blockCount, traceCount)
 	metas := make([]*backend.BlockMeta, 0)
 	for _, b := range blocks {
 		metas = append(metas, b.BlockMeta())

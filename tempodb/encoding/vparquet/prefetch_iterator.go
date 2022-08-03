@@ -4,21 +4,29 @@ import (
 	"context"
 	"io"
 
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/segmentio/parquet-go"
 	"go.uber.org/atomic"
 )
 
 type prefetchIter struct {
-	iter Iterator
-
-	resultsCh chan *Trace
+	iter      RawIterator
+	resultsCh chan fetchEntry
 	quitCh    chan struct{}
 	err       atomic.Error
 }
 
-func newPrefetchIterator(ctx context.Context, iter Iterator, bufferSize int) Iterator {
+type fetchEntry struct {
+	id  common.ID
+	row parquet.Row
+}
+
+var _ RawIterator = (*prefetchIter)(nil)
+
+func newPrefetchIterator(ctx context.Context, iter RawIterator, bufferSize int) *prefetchIter {
 	p := &prefetchIter{
 		iter:      iter,
-		resultsCh: make(chan *Trace, bufferSize),
+		resultsCh: make(chan fetchEntry, bufferSize),
 		quitCh:    make(chan struct{}, 1),
 	}
 
@@ -29,9 +37,10 @@ func newPrefetchIterator(ctx context.Context, iter Iterator, bufferSize int) Ite
 
 func (p *prefetchIter) prefetchLoop(ctx context.Context) {
 	defer close(p.resultsCh)
+	defer p.iter.Close()
 
 	for {
-		t, err := p.iter.Next(ctx)
+		id, t, err := p.iter.Next(ctx)
 		if err != nil && err != io.EOF {
 			p.err.Store(err)
 			return
@@ -51,32 +60,32 @@ func (p *prefetchIter) prefetchLoop(ctx context.Context) {
 			// Signalled to quit early
 			return
 
-		case p.resultsCh <- t:
+		case p.resultsCh <- fetchEntry{id, t}:
 			// Send results. Blocks until available buffer in channel
 			// created by receiving in current()
 		}
 	}
 }
 
-func (p *prefetchIter) Next(ctx context.Context) (*Trace, error) {
+func (p *prefetchIter) Next(ctx context.Context) (common.ID, parquet.Row, error) {
 	if err := p.err.Load(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, nil, ctx.Err()
 
-	case t, ok := <-p.resultsCh:
+	case f, ok := <-p.resultsCh:
 		if !ok {
 			// Closed due to error?
 			if err := p.err.Load(); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			return nil, io.EOF
+			return nil, nil, io.EOF
 		}
 
-		return t, nil
+		return f.id, f.row, nil
 	}
 }
 

@@ -57,7 +57,9 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			return nil, err
 		}
 
-		if s.CurrentBufferLength() > cfg.RowGroupSizeBytes || s.CurrentBufferedObjects() > 10_000 {
+		// Here we repurpose RowGroupSizeBytes as number of raw column values.
+		// This is a fairly close approximation.
+		if s.CurrentBufferedValues() > cfg.RowGroupSizeBytes {
 			_, err = s.Flush()
 			if err != nil {
 				return nil, err
@@ -82,8 +84,10 @@ type streamingBlock struct {
 	w     *backendWriter
 	r     backend.Reader
 	to    backend.Writer
+	sch   *parquet.Schema
 
 	currentBufferedTraces int
+	currentBufferedValues int
 }
 
 func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) *streamingBlock {
@@ -112,24 +116,31 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		w:     w,
 		r:     r,
 		to:    to,
+		sch:   sch,
 	}
 }
 
 func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
+	row := b.sch.Deconstruct(nil, tr)
+	return b.AddRaw(tr.TraceID, row, start, end)
+}
 
-	err := b.pw.Write(tr)
+func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) error {
+
+	_, err := b.pw.WriteRows([]parquet.Row{row})
 	if err != nil {
 		return err
 	}
 
-	b.bloom.Add(tr.TraceID)
-	b.meta.ObjectAdded(tr.TraceID, start, end)
+	b.bloom.Add(id)
+	b.meta.ObjectAdded(id, start, end)
 	b.currentBufferedTraces++
+	b.currentBufferedValues += len(row)
 	return nil
 }
 
-func (b *streamingBlock) CurrentBufferLength() int {
-	return b.bw.Len()
+func (b *streamingBlock) CurrentBufferedValues() int {
+	return b.currentBufferedValues
 }
 
 func (b *streamingBlock) CurrentBufferedObjects() int {
@@ -147,6 +158,7 @@ func (b *streamingBlock) Flush() (int, error) {
 	b.meta.Size += uint64(n)
 	b.meta.TotalRecords++
 	b.currentBufferedTraces = 0
+	b.currentBufferedValues = 0
 
 	// Flush to underlying writer
 	return n, b.bw.Flush()

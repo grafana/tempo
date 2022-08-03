@@ -7,10 +7,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -22,7 +24,7 @@ const (
 
 	DefaultCompactionCycle = 30 * time.Second
 
-	DefaultFlushSizeBytes uint32 = 30 * 1024 * 1024 // 30 MiB
+	DefaultFlushSizeBytes uint32 = 20 * 1024 * 1024 // 20 MiB
 
 	DefaultIteratorBufferSize = 1000
 )
@@ -134,6 +136,13 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 
 	// todo - add timeout?
 	ctx := context.Background()
+	span, ctx := opentracing.StartSpanFromContext(ctx, "rw.compact")
+	defer span.Finish()
+
+	traceID, _ := util.ExtractTraceID(ctx)
+	if traceID != "" {
+		level.Info(rw.logger).Log("msg", "beginning compaction", "traceID", traceID)
+	}
 
 	if len(blockMetas) == 0 {
 		return nil
@@ -180,6 +189,9 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		Combiner:           combiner,
 		BytesWritten: func(compactionLevel, bytes int) {
 			metricCompactionBytesWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(bytes))
+		},
+		ObjectsCombined: func(compactionLevel, objs int) {
+			metricCompactionObjectsCombined.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
 		},
 		ObjectsWritten: func(compactionLevel, objs int) {
 			metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
