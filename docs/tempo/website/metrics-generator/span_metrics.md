@@ -29,6 +29,7 @@ exemplars can be automatically added, providing additional value to these metric
 ## How to run 
 
 To enable service graphs in Tempo/GET, enable the metrics generator and add an overrides section which enables the `span-metrics` generator. See [here for configuration details]({{< relref "../configuration/#metrics-generator" >}}).
+
 ## How it works
 
 The span metrics processor works by inspecting every received span and computing the total count and the duration of spans for every unique combination of dimensions.
