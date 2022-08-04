@@ -2,6 +2,7 @@
 aliases:
 - /docs/tempo/latest/server_side_metrics/span_metrics/
 title: Generate metrics from spans
+weight: 400
 ---
 
 # Generate metrics from spans
@@ -10,7 +11,7 @@ The span metrics processor generates metrics from ingested tracing data, includi
 
 Span metrics generate two metrics:
 * A counter that computes requests
-* A histogram that computes operation’s durations.
+* A histogram that tracks the distribution of durations of all requests
 
 Span metrics are of particular interest if your system is not monitored with metrics,
 but it has distributed tracing implemented.
@@ -25,6 +26,9 @@ An exemplar is a specific trace representative of measurement taken in a given t
 Since traces and metrics co-exist in the metrics-generator,
 exemplars can be automatically added, providing additional value to these metrics.
 
+## How to run 
+
+To enable service graphs in Tempo/GET, enable the metrics generator and add an overrides section which enables the `span-metrics` generator. See [here for configuration details]({{< relref "../configuration/#metrics-generator" >}}).
 ## How it works
 
 The span metrics processor works by inspecting every received span and computing the total count and the duration of spans for every unique combination of dimensions.
