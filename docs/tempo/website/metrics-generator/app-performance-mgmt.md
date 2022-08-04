@@ -33,7 +33,7 @@ To use the APM dashboard, you need:
 * Tempo or Grafana Cloud Traces with the metrics generator enabled and configured to send data to a Prometheus compatible metrics
 * [Services graphs]({{< relref "../metrics-generator/service_graphs/#how-to-run" >}}), which are enabled by default in Grafana
 * [APM table enabled](https://grafana.com/docs/grafana/next/datasources/tempo/) within the service graph tab (use the `tempoApmTable` feature flag in Grafana to enable)
-* Span metrics enabled in your Tempo data source configuration
+* [Span metrics]({{< relref "../metrics-generator/span_metrics/#how-to-run" >}}) enabled in your Tempo data source configuration
 
 The APM dashboard can be generated with the metrics-generator or Grafana Agent.
 
@@ -160,8 +160,8 @@ In the example below, each field or label represents a key-value pair. Number 1 
 
 <p align="center"><img src="../apm-filter-example-numbered.png" alt="APM filter example with numbers"></p>
 
-If your metrics queries are too specific, they may not return any results. In this case, the updated filter returned no data.
+If your metrics queries are too specific, they may not return any results. 
 
-Updating the filter to be less specific returns more results. In this case, the results show only span metrics data associated with the `span_name` label with a value of `/base.Ruler/Rules`. No service graph data was available.
+Updating the filter to be less specific returns a result. In this case, the results show only span metrics data associated with the `span_name` label with a value of `/base.Ruler/Rules`. No service graph data was available.
 
 <p align="center"><img src="../apm-filter-example2.png" alt="APM filter example with one results"></p>
