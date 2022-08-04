@@ -1,8 +1,11 @@
 package vparquet
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/dustin/go-humanize"
+	"github.com/segmentio/parquet-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -10,6 +13,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util/test"
 )
 
 func TestProtoParquetRoundTrip(t *testing.T) {
@@ -157,4 +161,63 @@ func TestProtoToParquetEmptyTrace(t *testing.T) {
 	got := traceToParquet(nil, &tempopb.Trace{})
 
 	require.Equal(t, want, got)
+}
+
+func BenchmarkProtoToParquet(b *testing.B) {
+
+	batchCount := 100
+	spanCounts := []int{
+		100, 1000,
+		10000,
+	}
+
+	for _, spanCount := range spanCounts {
+		b.Run("SpanCount:"+humanize.SI(float64(batchCount*spanCount), ""), func(b *testing.B) {
+
+			id := test.ValidTraceID(nil)
+			tr := test.MakeTraceWithSpanCount(batchCount, spanCount, id)
+
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				traceToParquet(id, tr)
+			}
+		})
+	}
+}
+
+func BenchmarkDeconstruct(b *testing.B) {
+
+	batchCount := 100
+	spanCounts := []int{
+		100, 1000,
+		10000,
+	}
+
+	poolSizes := []int{
+		100_000,
+		30_000_000,
+	}
+
+	for _, spanCount := range spanCounts {
+		for _, poolSize := range poolSizes {
+			ss := humanize.SI(float64(batchCount*spanCount), "")
+			ps := humanize.SI(float64(poolSize), "")
+			b.Run(fmt.Sprintf("SpanCount%v/Pool%v", ss, ps), func(b *testing.B) {
+
+				id := test.ValidTraceID(nil)
+				tr := traceToParquet(id, test.MakeTraceWithSpanCount(batchCount, spanCount, id))
+				sch := parquet.SchemaOf(tr)
+
+				b.ResetTimer()
+
+				pool := newRowPool(poolSize)
+
+				for i := 0; i < b.N; i++ {
+					r2 := sch.Deconstruct(pool.Get(), tr)
+					pool.Put(r2)
+				}
+			})
+		}
+	}
 }
