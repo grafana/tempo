@@ -53,7 +53,7 @@ Grafana provides a built-in Application Performance Management (APM) dashboard.
 The Grafana APM dashboard visualizes the span metrics (traces data for rates, error rates, and durations (RED)) and service graphs.
 Once the requirements are set up, this pre-configured dashboard is immediately available in **Explore > Service Graphs**.
 
-For more information, refer to the APM dashboard documentation.
+For more information, refer to the [APM dashboard documentation]({{< relref "../metrics-generator/app-performance-mgmt/" >}}).
 
 <p align="center"><img src="apm-overview.png" alt="Tempo Search"></p>
 
