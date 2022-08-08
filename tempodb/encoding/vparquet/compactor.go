@@ -20,7 +20,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-func NewCompactor(opts common.CompactionOptions) common.Compactor {
+func NewCompactor(opts common.CompactionOptions) *Compactor {
 	return &Compactor{opts: opts}
 }
 
@@ -36,8 +36,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		minBlockStart   time.Time
 		maxBlockEnd     time.Time
 		bookmarks       = make([]*bookmark, 0, len(inputs))
-		pool            = newRowPool(100_000)
-		prefetchSize    = c.opts.IteratorBufferSize / (len(inputs) + 1) // 1 for each input plus multiblock iterator
+		pool            = newRowPool(int(c.opts.FlushSizeBytes))
 	)
 	for _, blockMeta := range inputs {
 		totalRecords += blockMeta.TotalObjects
@@ -63,8 +62,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			return nil, err
 		}
 
-		// wrap bookmark with a prefetch iterator
-		bookmarks = append(bookmarks, newBookmark(newPrefetchIterator(derivedCtx, iter, prefetchSize)))
+		bookmarks = append(bookmarks, newBookmark(iter))
 	}
 
 	var (
@@ -100,7 +98,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	}
 
 	var (
-		m               = newPrefetchIterator(ctx, newMultiblockIterator(bookmarks, combine), prefetchSize)
+		m               = newMultiblockIterator(bookmarks, combine)
 		recordsPerBlock = (totalRecords / int(c.opts.OutputBlocks))
 		currentBlock    *streamingBlock
 	)
@@ -135,7 +133,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		// Flush existing block data if the next trace can't fit
 		// Here we repurpose FlushSizeBytes as number of raw column values.
 		// This is a fairly close approximation.
-		if currentBlock.CurrentBufferedValues()+len(lowestObject) > int(c.opts.FlushSizeBytes) {
+		if currentBlock.CurrentBufferedValues() > 0 && currentBlock.CurrentBufferedValues()+len(lowestObject) > int(c.opts.FlushSizeBytes) {
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
@@ -150,6 +148,16 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		if err != nil {
 			return nil, err
 		}
+
+		// Flush again if block is already full.
+		if currentBlock.CurrentBufferedValues() > int(c.opts.FlushSizeBytes) {
+			runtime.GC()
+			err = c.appendBlock(ctx, currentBlock, l)
+			if err != nil {
+				return nil, errors.Wrap(err, "error writing partial block")
+			}
+		}
+
 		pool.Put(lowestObject)
 
 		// ship block to backend if done
@@ -257,6 +265,7 @@ func (b *bookmark) done(ctx context.Context) bool {
 }
 
 func (b *bookmark) clear() {
+	b.currentID = nil
 	b.currentObject = nil
 }
 
@@ -285,10 +294,6 @@ func (r *rowPool) Get() parquet.Row {
 }
 
 func (r *rowPool) Put(row parquet.Row) {
-	if len(row) > r.maxSize {
-		return
-	}
-
 	// Clear before putting into the pool.
 	// This is important so that pool entries don't hang
 	// onto the underlying buffers.
