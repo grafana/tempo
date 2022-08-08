@@ -24,6 +24,7 @@ func (a Array) Uint16Array() Uint16Array   { return Uint16Array{a.array} }
 func (a Array) Uint32Array() Uint32Array   { return Uint32Array{a.array} }
 func (a Array) Uint64Array() Uint64Array   { return Uint64Array{a.array} }
 func (a Array) Uint128Array() Uint128Array { return Uint128Array{a.array} }
+func (a Array) StringArray() StringArray   { return StringArray{a.array} }
 
 type array struct {
 	ptr unsafe.Pointer
@@ -270,3 +271,19 @@ func (a Uint128Array) Uint16Array() Uint16Array    { return Uint16Array{a.array}
 func (a Uint128Array) Uint32Array() Uint32Array    { return Uint32Array{a.array} }
 func (a Uint128Array) Uint64Array() Uint64Array    { return Uint64Array{a.array} }
 func (a Uint128Array) UnsafeArray() Array          { return Array{a.array} }
+
+type StringArray struct{ array }
+
+func MakeStringArray(values []string) StringArray {
+	const sizeOfString = unsafe.Sizeof("")
+	return StringArray{makeArray(*(*unsafe.Pointer)(unsafe.Pointer(&values)), uintptr(len(values)), sizeOfString)}
+}
+
+func UnsafeStringArray(base unsafe.Pointer, length int, offset uintptr) StringArray {
+	return StringArray{makeArray(base, uintptr(length), offset)}
+}
+
+func (a StringArray) Len() int                   { return int(a.len) }
+func (a StringArray) Index(i int) string         { return *(*string)(a.index(i)) }
+func (a StringArray) Slice(i, j int) StringArray { return StringArray{a.slice(i, j)} }
+func (a StringArray) UnsafeArray() Array         { return Array{a.array} }

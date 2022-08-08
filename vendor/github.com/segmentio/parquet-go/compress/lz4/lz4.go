@@ -45,6 +45,8 @@ func (c *Codec) Encode(dst, src []byte) ([]byte, error) {
 		n, err := compressor.CompressBlock(src, dst)
 		if err != nil { // see Decode for details about error handling
 			dst = make([]byte, 2*len(dst))
+		} else if n == 0 {
+			dst = reserveAtLeast(dst, lz4.CompressBlockBound(len(src)))
 		} else {
 			return dst[:n], nil
 		}

@@ -797,6 +797,7 @@ indexOutOfBounds:
 TEXT ·dictionaryLookupByteArrayString(SB), NOSPLIT, $0-104
     MOVQ dict_base+0(FP), AX
     MOVQ dict_len+8(FP), BX
+    DECQ BX // the offsets have the total length as last element
 
     MOVQ page+24(FP), CX
 
@@ -816,16 +817,17 @@ loop:
     CMPL DI, BX
     JAE indexOutOfBounds
 
-    // Load the offset within the dictionary page where the value is stored.
+    // Load the offsets within the dictionary page where the value is stored.
     // We trust the offsets to be correct since they are generated internally by
     // the dictionary code, there is no need to check that they are within the
     // bounds of the dictionary page.
-    MOVL (AX)(DI*4), DI
+    MOVL 0(AX)(DI*4), DX
+    MOVL 4(AX)(DI*4), DI
 
-    // Load the value from the dictionary page. The page uses the PLAIN encoding
-    // where each byte array is prefixed with a 4 bytes little endian length.
-    LEAQ 4(CX)(DI*1), DX
-    MOVL (CX)(DI*1), DI
+    // Compute the length of the value (the difference between two consecutive
+    // offsets), and the pointer to the first byte of the string value.
+    SUBL DX, DI
+    LEAQ (CX)(DX*1), DX
 
     // Store the length and pointer to the value into the output location.
     // The memory layout is expected to hold a pointer and length, which are

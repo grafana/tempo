@@ -2,11 +2,9 @@ package delta
 
 import (
 	"bytes"
-	"fmt"
 	"sort"
 
 	"github.com/segmentio/parquet-go/encoding"
-	"github.com/segmentio/parquet-go/encoding/plain"
 	"github.com/segmentio/parquet-go/format"
 )
 
@@ -26,7 +24,7 @@ func (e *ByteArrayEncoding) Encoding() format.Encoding {
 	return format.DeltaByteArray
 }
 
-func (e *ByteArrayEncoding) EncodeByteArray(dst, src []byte) ([]byte, error) {
+func (e *ByteArrayEncoding) EncodeByteArray(dst []byte, src []byte, offsets []uint32) ([]byte, error) {
 	prefix := getInt32Buffer()
 	defer putInt32Buffer(prefix)
 
@@ -34,36 +32,27 @@ func (e *ByteArrayEncoding) EncodeByteArray(dst, src []byte) ([]byte, error) {
 	defer putInt32Buffer(length)
 
 	totalSize := 0
-	lastValue := ([]byte)(nil)
+	if len(offsets) > 0 {
+		lastValue := ([]byte)(nil)
+		baseOffset := offsets[0]
 
-	for i := 0; i < len(src); {
-		r := len(src) - i
-		if r < plain.ByteArrayLengthSize {
-			return dst[:0], plain.ErrTooShort(r)
-		}
-		n := plain.ByteArrayLength(src[i:])
-		i += plain.ByteArrayLengthSize
-		r -= plain.ByteArrayLengthSize
-		if n > r {
-			return dst[:0], plain.ErrTooShort(n)
-		}
-		if n > plain.MaxByteArrayLength {
-			return dst[:0], plain.ErrTooLarge(n)
-		}
-		v := src[i : i+n : i+n]
-		p := 0
+		for _, endOffset := range offsets[1:] {
+			v := src[baseOffset:endOffset:endOffset]
+			n := int(endOffset - baseOffset)
+			p := 0
+			baseOffset = endOffset
 
-		if len(v) <= maxLinearSearchPrefixLength {
-			p = linearSearchPrefixLength(lastValue, v)
-		} else {
-			p = binarySearchPrefixLength(lastValue, v)
-		}
+			if len(v) <= maxLinearSearchPrefixLength {
+				p = linearSearchPrefixLength(lastValue, v)
+			} else {
+				p = binarySearchPrefixLength(lastValue, v)
+			}
 
-		prefix.values = append(prefix.values, int32(p))
-		length.values = append(length.values, int32(n-p))
-		lastValue = v
-		totalSize += n - p
-		i += n
+			prefix.values = append(prefix.values, int32(p))
+			length.values = append(length.values, int32(n-p))
+			lastValue = v
+			totalSize += n - p
+		}
 	}
 
 	dst = dst[:0]
@@ -71,23 +60,24 @@ func (e *ByteArrayEncoding) EncodeByteArray(dst, src []byte) ([]byte, error) {
 	dst = encodeInt32(dst, length.values)
 	dst = resize(dst, len(dst)+totalSize)
 
-	b := dst[len(dst)-totalSize:]
-	i := plain.ByteArrayLengthSize
-	j := 0
+	if len(offsets) > 0 {
+		b := dst[len(dst)-totalSize:]
+		i := int(offsets[0])
+		j := 0
 
-	_ = length.values[:len(prefix.values)]
+		_ = length.values[:len(prefix.values)]
 
-	for k, p := range prefix.values {
-		n := p + length.values[k]
-		j += copy(b[j:], src[i+int(p):i+int(n)])
-		i += plain.ByteArrayLengthSize
-		i += int(n)
+		for k, p := range prefix.values {
+			n := p + length.values[k]
+			j += copy(b[j:], src[i+int(p):i+int(n)])
+			i += int(n)
+		}
 	}
 
 	return dst, nil
 }
 
-func (e *ByteArrayEncoding) EncodeFixedLenByteArray(dst, src []byte, size int) ([]byte, error) {
+func (e *ByteArrayEncoding) EncodeFixedLenByteArray(dst []byte, src []byte, size int) ([]byte, error) {
 	// The parquet specs say that this encoding is only supported for BYTE_ARRAY
 	// values, but the reference Java implementation appears to support
 	// FIXED_LEN_BYTE_ARRAY as well:
@@ -135,8 +125,8 @@ func (e *ByteArrayEncoding) EncodeFixedLenByteArray(dst, src []byte, size int) (
 	return dst, nil
 }
 
-func (e *ByteArrayEncoding) DecodeByteArray(dst, src []byte) ([]byte, error) {
-	dst = dst[:0]
+func (e *ByteArrayEncoding) DecodeByteArray(dst []byte, src []byte, offsets []uint32) ([]byte, []uint32, error) {
+	dst, offsets = dst[:0], offsets[:0]
 
 	prefix := getInt32Buffer()
 	defer putInt32Buffer(prefix)
@@ -147,23 +137,23 @@ func (e *ByteArrayEncoding) DecodeByteArray(dst, src []byte) ([]byte, error) {
 	var err error
 	src, err = prefix.decode(src)
 	if err != nil {
-		return dst, encoding.Errorf(e, "decoding prefix lengths: %w", err)
+		return dst, offsets, e.wrapf("decoding prefix lengths: %w", err)
 	}
 	src, err = suffix.decode(src)
 	if err != nil {
-		return dst, encoding.Errorf(e, "decoding suffix lengths: %w", err)
+		return dst, offsets, e.wrapf("decoding suffix lengths: %w", err)
 	}
 	if len(prefix.values) != len(suffix.values) {
-		return dst, encoding.Error(e, errPrefixAndSuffixLengthMismatch(len(prefix.values), len(suffix.values)))
+		return dst, offsets, e.wrap(errPrefixAndSuffixLengthMismatch(len(prefix.values), len(suffix.values)))
 	}
-	return decodeByteArray(dst, src, prefix.values, suffix.values)
+	return decodeByteArray(dst, src, prefix.values, suffix.values, offsets)
 }
 
-func (e *ByteArrayEncoding) DecodeFixedLenByteArray(dst, src []byte, size int) ([]byte, error) {
+func (e *ByteArrayEncoding) DecodeFixedLenByteArray(dst []byte, src []byte, size int) ([]byte, error) {
 	dst = dst[:0]
 
 	if size < 0 || size > encoding.MaxFixedLenByteArraySize {
-		return dst, encoding.Error(e, encoding.ErrInvalidArgument)
+		return dst, e.wrap(encoding.ErrInvalidArgument)
 	}
 
 	prefix := getInt32Buffer()
@@ -175,16 +165,27 @@ func (e *ByteArrayEncoding) DecodeFixedLenByteArray(dst, src []byte, size int) (
 	var err error
 	src, err = prefix.decode(src)
 	if err != nil {
-		return dst, fmt.Errorf("decoding prefix lengths: %w", err)
+		return dst, e.wrapf("decoding prefix lengths: %w", err)
 	}
 	src, err = suffix.decode(src)
 	if err != nil {
-		return dst, fmt.Errorf("decoding suffix lengths: %w", err)
+		return dst, e.wrapf("decoding suffix lengths: %w", err)
 	}
 	if len(prefix.values) != len(suffix.values) {
-		return dst, errPrefixAndSuffixLengthMismatch(len(prefix.values), len(suffix.values))
+		return dst, e.wrap(errPrefixAndSuffixLengthMismatch(len(prefix.values), len(suffix.values)))
 	}
-	return decodeFixedLenByteArray(dst, src, size, prefix.values, suffix.values)
+	return decodeFixedLenByteArray(dst[:0], src, size, prefix.values, suffix.values)
+}
+
+func (e *ByteArrayEncoding) wrap(err error) error {
+	if err != nil {
+		err = encoding.Error(e, err)
+	}
+	return err
+}
+
+func (e *ByteArrayEncoding) wrapf(msg string, args ...interface{}) error {
+	return encoding.Errorf(e, msg, args...)
 }
 
 func linearSearchPrefixLength(base, data []byte) (n int) {

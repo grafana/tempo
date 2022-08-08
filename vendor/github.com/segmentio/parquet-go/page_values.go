@@ -307,8 +307,9 @@ func (r *byteArrayPageValues) ReadByteArrays(values []byte) (int, error) {
 }
 
 func (r *byteArrayPageValues) readByteArrays(values []byte) (c, n int, err error) {
-	for r.offset < len(r.page.values) {
-		b := r.page.valueAt(uint32(r.offset))
+	numValues := r.page.len()
+	for r.offset < numValues {
+		b := r.page.index(r.offset)
 		k := plain.ByteArrayLengthSize + len(b)
 		if k > (len(values) - n) {
 			break
@@ -316,11 +317,10 @@ func (r *byteArrayPageValues) readByteArrays(values []byte) (c, n int, err error
 		plain.PutByteArrayLength(values[n:], len(b))
 		n += plain.ByteArrayLengthSize
 		n += copy(values[n:], b)
-		r.offset += plain.ByteArrayLengthSize
-		r.offset += len(b)
+		r.offset++
 		c++
 	}
-	if r.offset == len(r.page.values) {
+	if r.offset == numValues {
 		err = io.EOF
 	} else if n == 0 && len(values) > 0 {
 		err = io.ErrShortBuffer
@@ -329,14 +329,14 @@ func (r *byteArrayPageValues) readByteArrays(values []byte) (c, n int, err error
 }
 
 func (r *byteArrayPageValues) ReadValues(values []Value) (n int, err error) {
-	for n < len(values) && r.offset < len(r.page.values) {
-		value := r.page.valueAt(uint32(r.offset))
+	numValues := r.page.len()
+	for n < len(values) && r.offset < numValues {
+		value := r.page.index(r.offset)
 		values[n] = r.page.makeValueBytes(copyBytes(value))
-		r.offset += plain.ByteArrayLengthSize
-		r.offset += len(value)
+		r.offset++
 		n++
 	}
-	if r.offset == len(r.page.values) {
+	if r.offset == numValues {
 		err = io.EOF
 	}
 	return n, err

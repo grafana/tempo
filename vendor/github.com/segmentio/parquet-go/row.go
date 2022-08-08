@@ -663,10 +663,36 @@ func reconstructFuncOfGroup(columnIndex int16, node Node) (int16, reconstructFun
 	return columnIndex, func(value reflect.Value, levels levels, row Row) (Row, error) {
 		var err error
 
-		for i, f := range funcs {
-			if row, err = f(fields[i].Value(value), levels, row); err != nil {
-				err = fmt.Errorf("%s → %w", fields[i].Name(), err)
-				break
+		if value.Kind() == reflect.Interface && value.IsNil() {
+			value.Set(reflect.MakeMap(reflect.TypeOf((map[string]interface{})(nil))))
+			value = value.Elem()
+		}
+
+		if value.Kind() == reflect.Map {
+			elemType := value.Type().Elem()
+			name := reflect.New(reflect.TypeOf("")).Elem()
+			elem := reflect.New(elemType).Elem()
+			zero := reflect.Zero(elemType)
+
+			if value.Len() > 0 {
+				value.Set(reflect.MakeMap(value.Type()))
+			}
+
+			for i, f := range funcs {
+				name.SetString(fields[i].Name())
+				if row, err = f(elem, levels, row); err != nil {
+					err = fmt.Errorf("%s → %w", name, err)
+					break
+				}
+				value.SetMapIndex(name, elem)
+				elem.Set(zero)
+			}
+		} else {
+			for i, f := range funcs {
+				if row, err = f(fields[i].Value(value), levels, row); err != nil {
+					err = fmt.Errorf("%s → %w", fields[i].Name(), err)
+					break
+				}
 			}
 		}
 

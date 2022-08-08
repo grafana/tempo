@@ -235,6 +235,15 @@ func writeRowsFuncOfSlice(t reflect.Type, schema *Schema, path columnPath) write
 	elemType := t.Elem()
 	elemSize := uintptr(elemType.Size())
 	writeRows := writeRowsFuncOf(elemType, schema, path)
+
+	// When the element is a pointer type, the writeRows function will be an
+	// instance returned by writeRowsFuncOfPointer, which handles incrementing
+	// the definition level if the pointer value is not nil.
+	definitionLevelIncrement := byte(0)
+	if elemType.Kind() != reflect.Ptr {
+		definitionLevelIncrement = 1
+	}
+
 	return func(columns []ColumnBuffer, rows sparse.Array, levels columnLevels) error {
 		if rows.Len() == 0 {
 			return writeRows(columns, rows, levels)
@@ -250,7 +259,7 @@ func writeRowsFuncOfSlice(t reflect.Type, schema *Schema, path columnPath) write
 			elemLevels := levels
 			if a.Len() > 0 {
 				b = a.Slice(0, 1)
-				elemLevels.definitionLevel++
+				elemLevels.definitionLevel += definitionLevelIncrement
 			}
 
 			if err := writeRows(columns, b, elemLevels); err != nil {

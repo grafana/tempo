@@ -310,7 +310,11 @@ func newWriter(output io.Writer, config *WriterConfig) *writer {
 		}
 
 		if isDictionaryEncoding(encoding) {
-			dictionary = columnType.NewDictionary(columnIndex, 0, make([]byte, 0, defaultDictBufferSize))
+			dictBuffer := columnType.NewValues(
+				make([]byte, 0, defaultDictBufferSize),
+				nil,
+			)
+			dictionary = columnType.NewDictionary(columnIndex, 0, dictBuffer)
 			columnType = dictionary.Type()
 		}
 
@@ -720,18 +724,19 @@ func (wb *writerBuffers) reset() {
 	wb.page = wb.page[:0]
 }
 
+func encodeLevels(dst, src []byte, maxLevel byte) ([]byte, error) {
+	bitWidth := bits.Len8(maxLevel)
+	return levelEncodingsRLE[bitWidth-1].EncodeLevels(dst, src)
+}
+
 func (wb *writerBuffers) encodeRepetitionLevels(page BufferedPage, maxRepetitionLevel byte) (err error) {
-	bitWidth := bits.Len8(maxRepetitionLevel)
-	encoding := &levelEncodingsRLE[bitWidth-1]
-	wb.repetitions, err = encoding.EncodeLevels(wb.repetitions[:0], page.RepetitionLevels())
-	return err
+	wb.repetitions, err = encodeLevels(wb.repetitions, page.RepetitionLevels(), maxRepetitionLevel)
+	return
 }
 
 func (wb *writerBuffers) encodeDefinitionLevels(page BufferedPage, maxDefinitionLevel byte) (err error) {
-	bitWidth := bits.Len8(maxDefinitionLevel)
-	encoding := &levelEncodingsRLE[bitWidth-1]
-	wb.definitions, err = encoding.EncodeLevels(wb.definitions[:0], page.DefinitionLevels())
-	return err
+	wb.definitions, err = encodeLevels(wb.definitions, page.DefinitionLevels(), maxDefinitionLevel)
+	return
 }
 
 func (wb *writerBuffers) prependLevelsToDataPageV1(maxRepetitionLevel, maxDefinitionLevel byte) {
@@ -893,9 +898,10 @@ func (c *writerColumn) flushFilterPages() error {
 		// If there is a dictionary, it contains all the values that we need to
 		// write to the filter.
 		if dict := c.dictionary; dict != nil {
-			if c.filter.bits == nil {
-				c.resizeBloomFilter(int64(dict.Len()))
-			}
+			// Need to always attempt to resize the filter, as the writer might
+			// be reused after resetting which would have reset the length of
+			// the filter to 0.
+			c.resizeBloomFilter(int64(dict.Len()))
 			if err := c.writePageToFilter(dict.Page()); err != nil {
 				return err
 			}
