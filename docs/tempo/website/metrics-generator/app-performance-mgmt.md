@@ -26,7 +26,7 @@ You can use the APM dashboard to:
 
 ## Requirements to enable the APM dashboard
 
-You have to enable metric graph and service graph generation on the Grafana backend so metrics are generated as traces are ingested.
+You have to enable span metrics and service graph generation on the Grafana backend so metrics are generated as traces are ingested.
 
 To use the APM dashboard, you need:
 
