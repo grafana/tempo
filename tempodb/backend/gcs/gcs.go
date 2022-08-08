@@ -126,7 +126,7 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 		Versions:  false,
 	})
 
-	objects := make([]string, 0)
+	var objects []string
 	for {
 		attrs, err := iter.Next()
 		if err == iterator.Done {
