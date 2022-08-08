@@ -155,7 +155,8 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 func TestProtoToParquetEmptyTrace(t *testing.T) {
 
 	want := Trace{
-		TraceID: make([]byte, 16),
+		TraceID:       make([]byte, 16),
+		ResourceSpans: []ResourceSpans{},
 	}
 
 	got := traceToParquet(nil, &tempopb.Trace{})
