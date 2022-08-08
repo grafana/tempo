@@ -134,7 +134,7 @@ func (r *reader) Tenants(ctx context.Context) ([]string, error) {
 	list, err := r.r.List(ctx, nil)
 
 	// this filter is added to fix a GCS usage stats issue that would result in ""
-	filteredList := make([]string, 0)
+	var filteredList []string
 	for _, tenant := range list {
 		if tenant != "" && tenant != ClusterSeedFileName {
 			filteredList = append(filteredList, tenant)
