@@ -55,7 +55,7 @@ Once the requirements are set up, this pre-configured dashboard is immediately a
 
 For more information, refer to the [APM dashboard documentation]({{< relref "../metrics-generator/app-performance-mgmt/" >}}).
 
-<p align="center"><img src="../apm-overview.png" alt="Tempo Search"></p>
+<p align="center"><img src="../apm-overview.png" alt="APM dashboard overview"></p>
 
 ## View JSON file
 A local JSON file containing a trace can be uploaded and viewed in the Grafana UI.  This is useful in cases where access to the original Tempo datasource is limited, or for preserving traces outside of Tempo.  The JSON data can be downloaded via the Tempo API or the Inspector panel while viewing the trace in Grafana.
