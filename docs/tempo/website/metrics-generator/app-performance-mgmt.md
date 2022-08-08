@@ -19,7 +19,7 @@ You can use the APM dashboard to:
 
 * Discover spans which are consistently erroring and the rates at which they occur
 * Get an overview of the overall rate of span calls throughout your services
-* Determine how long the top 10% slowest queries in your service take to complete
+* Determine how long the slowest queries in your service take to complete
 * Examine all traces that contain spans of particular interest based on rate, error and duration values (RED signals)
 
 <p align="center"><img src="../../getting-started/apm-overview.png" alt="APM dashboard"></p>
@@ -30,7 +30,7 @@ You have to enable metric graph and service graph generation on the Grafana back
 
 To use the APM dashboard, you need:
 
-* Tempo or Grafana Cloud Traces with the metrics generator enabled and configured to send data to a Prometheus compatible metrics
+* Tempo or Grafana Cloud Traces with the metrics generator enabled and configured to send data to a Prometheus-compatible metrics store
 * [Services graphs]({{< relref "../metrics-generator/service_graphs/#how-to-run" >}}), which are enabled by default in Grafana
 * [APM table enabled](https://grafana.com/docs/grafana/next/datasources/tempo/) within the service graph tab (use the `tempoApmTable` feature flag in Grafana to enable)
 * [Span metrics]({{< relref "../metrics-generator/span_metrics/#how-to-run" >}}) enabled in your Tempo data source configuration
@@ -90,7 +90,7 @@ The table contains seven columns with five column headings. Selecting a heading 
 A service graph (node graph) is a visual representation of the interrelationships between various services.
 Service graphs help to understand the structure of a distributed system, and the connections and dependencies between its components.
 
-Service graphs infer the topology of a distributed system, provide a high level overview of the health of your system, and an historic view of a system’s topology.
+Service graphs infer the topology of a distributed system, provide a high level overview of the health of your system, and a historic view of a system’s topology.
 Service graphs show error rates and latencies, among other relevant data.
 The service graph layout can be the default or grid. 
 
@@ -110,8 +110,8 @@ For information about service graphs and how they are calculated, refer to the [
 
 ## Use filters to reveal details
 
-The APM dashboard provides a gateway to your tracing information in the service graphs and span metrics. 
-his dashboard is derived from a fixed set of metrics queries.
+The APM dashboard uses service graphs and span metrics to provide a gateway to your tracing information.
+This dashboard is derived from a fixed set of metrics queries.
 These underlying queries can not be changed.
 However, you can choose which traces are included in the metrics query by filtering.
 
@@ -121,7 +121,7 @@ You can explore data by clicking on selectable items or by using filters.
 
 Clicking on selectable items, such as underlined text in the APM table or nodes on the service graph, lets you reveal specific details based upon your selection.
 
-In the APM table, you can select items in the **Rate**, **Error Rate**, **Duration (p90)**, and **Links** columns. Choosing one if these items provides details about the span metrics.
+In the APM table, you can select items in the **Rate**, **Error Rate**, **Duration (p90)**, and **Links** columns. Choosing one of these items provides details about the span metrics.
 
 <p align="center"><img src="../apm-rate-drilldown.png" alt="APM table with rate drill-down"></p>
 
@@ -156,7 +156,7 @@ Filters can be removed by selecting the filter drop-down and choosing **– remo
 
 <p align="center"><img src="../apm-remove-filter.png" alt="APM remove filters"></p>
 
-In the example below, each field or label represents a key-value pair. Number 1 selects a service as the label whose value is Go-http-client (2). The second key-value pair has a client as a label whose value is 02e807.
+In the example below, each field or label represents a key-value pair. Number 1 selects a service as the label whose value is `Go-http-client` (2). The second key-value pair has a client as a label whose value is `02e807`.
 
 <p align="center"><img src="../apm-filter-example-numbered.png" alt="APM filter example with numbers"></p>
 
