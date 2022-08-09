@@ -105,9 +105,8 @@ type instance struct {
 	completingBlocks []*wal.AppendBlock
 	completeBlocks   []*wal.LocalBlock
 
-	searchHeadBlock      *searchStreamingBlockEntry
-	searchAppendBlocks   map[*wal.AppendBlock]*searchStreamingBlockEntry
-	searchCompleteBlocks map[*wal.LocalBlock]*searchLocalBlockEntry
+	searchHeadBlock    *searchStreamingBlockEntry
+	searchAppendBlocks map[*wal.AppendBlock]*searchStreamingBlockEntry
 
 	lastBlockCut time.Time
 
@@ -136,10 +135,9 @@ type searchLocalBlockEntry struct {
 
 func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
 	i := &instance{
-		traces:               map[uint32]*liveTrace{},
-		largeTraces:          map[uint32]int{},
-		searchAppendBlocks:   map[*wal.AppendBlock]*searchStreamingBlockEntry{},
-		searchCompleteBlocks: map[*wal.LocalBlock]*searchLocalBlockEntry{},
+		traces:             map[uint32]*liveTrace{},
+		largeTraces:        map[uint32]int{},
+		searchAppendBlocks: map[*wal.AppendBlock]*searchStreamingBlockEntry{},
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
@@ -280,7 +278,6 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 // CompleteBlock moves a completingBlock to a completeBlock. The new completeBlock has the same ID.
 func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
-
 	var completingBlock *wal.AppendBlock
 	for _, iterBlock := range i.completingBlocks {
 		if iterBlock.BlockID() == blockID {
@@ -305,29 +302,13 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	if err != nil {
 		return errors.Wrap(err, "error creating ingester block")
 	}
-
-	// Search data (optional)
-	i.blocksMtx.RLock()
-	oldSearch := i.searchAppendBlocks[completingBlock]
-	i.blocksMtx.RUnlock()
-
-	var newSearch *search.BackendSearchBlock
-	if oldSearch != nil {
-		newSearch, err = i.writer.CompleteSearchBlockWithBackend(oldSearch.b, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID, i.localReader, i.localWriter)
-		if err != nil {
-			return err
-		}
-	}
-
 	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
-
-	if newSearch != nil {
-		i.searchCompleteBlocks[ingesterBlock] = &searchLocalBlockEntry{
-			b: newSearch,
-		}
-	}
 	i.completeBlocks = append(i.completeBlocks, ingesterBlock)
+	i.blocksMtx.Unlock()
+
+	// jpe clean up this:
+	//    i.searchAppendBlocks[completingBlock] or does that happen below?
+	// jpe - what about cleaning up existing search blocks associated with completed blocks
 
 	return nil
 }
@@ -389,13 +370,6 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 
 		if flushedTime.Add(completeBlockTimeout).Before(time.Now()) {
 			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
-
-			searchEntry := i.searchCompleteBlocks[b]
-			if searchEntry != nil {
-				searchEntry.mtx.Lock()
-				defer searchEntry.mtx.Unlock()
-				delete(i.searchCompleteBlocks, b)
-			}
 
 			err = i.local.ClearBlock(b.BlockMeta().BlockID, i.instanceID)
 			if err == nil {
@@ -480,7 +454,8 @@ func (i *instance) AddCompletingBlock(b *wal.AppendBlock, s *search.StreamingSea
 }
 
 // getOrCreateTrace will return a new trace object for the given request
-//  It must be called under the i.tracesMtx lock
+//
+//	It must be called under the i.tracesMtx lock
 func (i *instance) getOrCreateTrace(traceID []byte) *liveTrace {
 	fp := i.tokenForTraceID(traceID)
 	trace, ok := i.traces[fp]
@@ -645,11 +620,8 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*wal.LocalBlock
 
 		rediscoveredBlocks = append(rediscoveredBlocks, ib)
 
-		sb := search.OpenBackendSearchBlock(b.BlockMeta().BlockID, b.BlockMeta().TenantID, i.localReader)
-
 		i.blocksMtx.Lock()
 		i.completeBlocks = append(i.completeBlocks, ib)
-		i.searchCompleteBlocks[ib] = &searchLocalBlockEntry{b: sb}
 		i.blocksMtx.Unlock()
 
 		level.Info(log.Logger).Log("msg", "reloaded local block", "tenantID", i.instanceID, "block", id.String(), "flushed", ib.FlushedTime())

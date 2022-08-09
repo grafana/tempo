@@ -13,7 +13,9 @@ import (
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/search"
+	"github.com/grafana/tempo/tempodb/wal"
 )
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
@@ -38,9 +40,9 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	// deadlocking with other activity (ingest, flushing), caused by releasing
 	// and then attempting to retake the lock.
 	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
 	i.searchWAL(ctx, p, sr)
-	i.searchLocalBlocks(ctx, p, sr)
-	i.blocksMtx.RUnlock()
+	i.searchLocalBlocks(ctx, req, sr)
 
 	sr.AllWorkersStarted()
 
@@ -161,29 +163,39 @@ func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.
 }
 
 // searchLocalBlocks starts a search task for every local block. Must be called under lock.
-func (i *instance) searchLocalBlocks(ctx context.Context, p search.Pipeline, sr *search.Results) {
-	for _, e := range i.searchCompleteBlocks {
+func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchRequest, sr *search.Results) {
+	for _, e := range i.completeBlocks {
 		sr.StartWorker()
-		go func(e *searchLocalBlockEntry) {
+		go func(e *wal.LocalBlock) {
+			// jpe detect if parquet block or not?
+			// jpe make parquet required?
+			defer sr.FinishWorker()
+
 			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchLocalBlocks")
 			defer span.Finish()
 
-			defer sr.FinishWorker()
-
-			e.mtx.RLock()
-			defer e.mtx.RUnlock()
+			blockID := e.BlockMeta().BlockID
 
 			span.LogFields(ot_log.Event("local block entry mtx acquired"))
-			span.SetTag("blockID", e.b.BlockID().String())
+			span.SetTag("blockID", blockID)
 
-			err := e.b.Search(ctx, p, sr)
+			resp, err := e.Search(ctx, req, common.SearchOptions{}) // jpe options?
 			if err != nil {
-				level.Error(log.Logger).Log("msg", "error searching local block", "blockID", e.b.BlockID().String(), "err", err)
+				level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "err", err)
 			}
+
+			for _, t := range resp.Traces {
+				sr.AddResult(ctx, t)
+			}
+			sr.AddBlockInspected()
+
+			sr.AddBytesInspected(resp.Metrics.InspectedBytes)
+			sr.AddTraceInspected(resp.Metrics.InspectedTraces)
 		}(e)
 	}
 }
 
+// jpe add search tags functionality
 func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
@@ -221,6 +233,7 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 	}, nil
 }
 
+// jpe add search tag values functionality?
 func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempopb.SearchTagValuesResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
@@ -286,12 +299,7 @@ func (i *instance) visitSearchableBlocks(ctx context.Context, visitFn func(block
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
-	err := i.visitSearchableBlocksWAL(ctx, visitFn)
-	if err != nil {
-		return err
-	}
-
-	return i.visitSearchableBlocksLocalBlocks(ctx, visitFn)
+	return i.visitSearchableBlocksWAL(ctx, visitFn)
 }
 
 // visitSearchableBlocksWAL visits every WAL block. Must be called under lock.
@@ -315,30 +323,6 @@ func (i *instance) visitSearchableBlocksWAL(ctx context.Context, visitFn func(bl
 	}
 
 	for _, b := range i.searchAppendBlocks {
-		err := visitUnderLock(b)
-		if err != nil {
-			return err
-		}
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// visitSearchableBlocksWAL visits every local block. Must be called under lock.
-func (i *instance) visitSearchableBlocksLocalBlocks(ctx context.Context, visitFn func(block search.SearchableBlock) error) error {
-	span, _ := opentracing.StartSpanFromContext(ctx, "instance.visitSearchableBlocksLocalBlocks")
-	defer span.Finish()
-
-	visitUnderLock := func(entry *searchLocalBlockEntry) error {
-		entry.mtx.RLock()
-		defer entry.mtx.RUnlock()
-
-		return visitFn(entry.b)
-	}
-
-	for _, b := range i.searchCompleteBlocks {
 		err := visitUnderLock(b)
 		if err != nil {
 			return err

@@ -166,7 +166,8 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 }
 
 // TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
-//  partial results if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
+//
+//	partial results if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
 func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Limits{
 		MaxBytesPerTagValuesQuery: 10,
@@ -192,8 +193,9 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 }
 
 // writes traces to the given instance along with search data. returns
-//  ids expected to be returned from a tag search and strings expected to
-//  be returned from a tag value search
+//
+//	ids expected to be returned from a tag search and strings expected to
+//	be returned from a tag value search
 func writeTracesWithSearchData(t *testing.T, i *instance, tagKey string, tagValue string, postFixValue bool) ([][]byte, []string) {
 	// This matches the encoding for live traces, since
 	// we are pushing to the instance directly it must match.
@@ -439,7 +441,6 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 }
 
 func TestInstanceSearchMetrics(t *testing.T) {
-
 	i := defaultInstance(t, t.TempDir())
 
 	// This matches the encoding for live traces, since
@@ -473,7 +474,8 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	search := func() *tempopb.SearchMetrics {
 		sr, err := i.Search(context.Background(), &tempopb.SearchRequest{
 			// Exhaustive search
-			Tags: map[string]string{search.SecretExhaustiveSearchTag: "!"},
+			Tags:  map[string]string{search.SecretExhaustiveSearchTag: "!"},
+			Limit: 999,
 		})
 		require.NoError(t, err)
 		return sr.Metrics
@@ -506,10 +508,10 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	require.NoError(t, err)
 	err = i.ClearCompletingBlock(blockID)
 	require.NoError(t, err)
-	// Complete blocks are paged and search data is normalized, therefore smaller than individual wal entries.
+	// Complete blocks are searched using a v2 block as of right now but should change by the end of this PR. So the bytes should be greater.
 	m = search()
 	require.Equal(t, numTraces, m.InspectedTraces)
-	require.Less(t, m.InspectedBytes, numBytes)
+	require.Greater(t, m.InspectedBytes, numBytes)
 	require.Equal(t, uint32(2), m.InspectedBlocks) // 1 head block, 1 complete block
 }
 

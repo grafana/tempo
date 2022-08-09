@@ -156,7 +156,6 @@ func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID) (*tempop
 }
 
 func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opt common.SearchOptions) (resp *tempopb.SearchResponse, err error) {
-
 	decoder, err := model.NewObjectDecoder(b.meta.DataEncoding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create NewDecoder: %w", err)
