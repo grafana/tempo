@@ -68,7 +68,7 @@ These metrics are created from ingested tracing data, including RED metrics.
 Span metrics generate two metrics:
 
 * A counter that computes requests
-* A histogram that tracks the distribution of durations of all requests per second
+* A histogram that tracks the distribution of durations of all requests
 
 For information about span metrics and how they are calculated, refer to the [Span metrics documentation]({{< relref "../metrics-generator/span_metrics.md" >}}).
 
