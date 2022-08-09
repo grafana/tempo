@@ -49,7 +49,7 @@ for search of the backend datastore.
 
 ## APM dashboard
 
-Grafana provides a built-in Application Performance Management (APM) dashboard.
+Grafana provides a built-in Application Performance Management (APM) dashboard available in Grafana Cloud and Grafana 9.1.
 The Grafana APM dashboard visualizes the span metrics (traces data for rates, error rates, and durations (RED)) and service graphs.
 Once the requirements are set up, this pre-configured dashboard is immediately available in **Explore > Service Graphs**.
 

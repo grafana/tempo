@@ -41,13 +41,18 @@ For information on how to configure these features, refer to the [Grafana Tempo 
 
 ## APM dashboard
 
-Using this dashboard, you can see the top five spans by request rate. You can refine any of this data using the filters. Selecting any of the data points lets you see more specific data.
+Using this dashboard, you can see the top five spans with a type of server (listed in the `Name` column).  
+You can refine any of this data using the filters.
+Selecting any of the data points lets you see more specific data.
 
 The APM dashboard provides a span metrics visualization (APM table, screen section 2) and service graph (screen section 3). In addition, you can use the filters (screen section 1) to customize the data displayed.
 
 <p align="center"><img src="../apm-overview-numbered.png" alt="APM dashboard with numbered sections"></p>
 
-Any information in the APM table that has an underline can be selected to show more detailed information. You can also select any node in the service graph to display additional information. In the dashboard shown below, the `Ingester.QueryStream` span has a request rate of `144220.22` requests per second. The `cortex/IngesterQuery` span has the highest request rate.
+Any information in the APM table that has an underline can be selected to show more detailed information.
+You can also select any node in the service graph to display additional information.
+In the dashboard shown below, the `Ingester.QueryStream` span has a request rate of `144220.22` requests per second.
+The `/cortex.Ingester/Query` span has the highest request rate.
 
 ### Error rate example
 
