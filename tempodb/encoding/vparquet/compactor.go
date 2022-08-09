@@ -80,6 +80,21 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			return rows[0], nil
 		}
 
+		// Total
+		if c.opts.MaxBytesPerTrace > 0 {
+			sum := 0
+			for _, row := range rows {
+				sum += estimateProtoSize(row)
+			}
+			if sum > c.opts.MaxBytesPerTrace {
+				// Trace too large to compact
+				for _, discardedRow := range rows[1:] {
+					c.opts.SpansDiscarded(countSpans(sch, discardedRow))
+				}
+				return rows[0], nil
+			}
+		}
+
 		// Time to combine.
 		cmb := NewCombiner()
 		for i, row := range rows {
@@ -301,4 +316,44 @@ func (r *rowPool) Put(row parquet.Row) {
 		row[i] = parquet.Value{}
 	}
 	r.pool.Put(row[:0])
+}
+
+// estimateProtoSize estimates the byte-length of the corresponding
+// trace in tempopb.Trace format. This method is unreasonably effective.
+// Testing on real blocks shows 90-98% accuracy.
+func estimateProtoSize(row parquet.Row) (size int) {
+	for _, v := range row {
+		size += 1 // Field identifier
+
+		switch v.Kind() {
+		case parquet.ByteArray:
+			size += len(v.ByteArray())
+
+		case parquet.FixedLenByteArray:
+			size += len(v.ByteArray())
+
+		default:
+			// All other types (ints, bools) approach 1 byte per value
+			size += 1
+		}
+	}
+	return
+}
+
+// countSpans counts the number of spans in the given trace in deconstructed
+// parquet row format. It simply counts the number of values for span ID, which
+// is always present.
+func countSpans(schema *parquet.Schema, row parquet.Row) (spans int) {
+	spanID, found := schema.Lookup("rs", "ils", "Spans", "ID")
+	if !found {
+		return 0
+	}
+
+	for _, v := range row {
+		if v.Column() == spanID.ColumnIndex {
+			spans++
+		}
+	}
+
+	return
 }

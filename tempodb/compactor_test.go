@@ -44,6 +44,8 @@ func (m *mockSharder) Combine(dataEncoding string, tenantID string, objs ...[]by
 	return model.StaticCombiner.Combine(dataEncoding, objs...)
 }
 
+func (m *mockSharder) RecordDiscardedSpans(count int, tenantID string) {}
+
 type mockCombiner struct {
 }
 
@@ -56,11 +58,16 @@ type mockJobSharder struct{}
 func (m *mockJobSharder) Owns(_ string) bool { return true }
 
 type mockOverrides struct {
-	blockRetention time.Duration
+	blockRetention   time.Duration
+	maxBytesPerTrace int
 }
 
 func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
 	return m.blockRetention
+}
+
+func (m *mockOverrides) MaxBytesPerTraceForTenant(_ string) int {
+	return m.maxBytesPerTrace
 }
 
 func TestCompactionRoundtrip(t *testing.T) {
@@ -787,7 +794,7 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 		IteratorBufferSize: DefaultIteratorBufferSize,
 	}, &mockSharder{}, &mockOverrides{})
 
-	traceCount := 10_000
+	traceCount := 20_000
 	blockCount := 8
 
 	// Cut input blocks

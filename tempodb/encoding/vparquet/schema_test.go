@@ -222,3 +222,30 @@ func BenchmarkDeconstruct(b *testing.B) {
 		}
 	}
 }
+
+func TestParquetRowSizeEstimate(t *testing.T) {
+
+	batchCount := 100
+	spanCounts := []int{
+		100, 1000,
+		10000,
+	}
+
+	for _, spanCount := range spanCounts {
+		ss := humanize.SI(float64(batchCount*spanCount), "")
+		t.Run(fmt.Sprintf("SpanCount%v", ss), func(t *testing.T) {
+
+			id := test.ValidTraceID(nil)
+			tr := test.MakeTraceWithSpanCount(batchCount, spanCount, id)
+			proto, _ := tr.Marshal()
+			fmt.Println("Size of proto is:", len(proto))
+
+			parq := traceToParquet(id, tr)
+			sch := parquet.SchemaOf(parq)
+			row := sch.Deconstruct(nil, parq)
+
+			fmt.Println("Size of parquet is:", estimateProtoSize(row))
+			fmt.Println("Span count of parquet is:", countSpans(sch, row))
+		})
+	}
+}
