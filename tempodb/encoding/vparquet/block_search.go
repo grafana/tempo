@@ -232,6 +232,7 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 			}
 		}
 
+		iter.Close()
 		iter = pq.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, []pq.Iterator{
 			makeIter("rs.ils.Spans.Attrs.Key", keyPred, "keys"),
 			makeIter("rs.ils.Spans.Attrs.Value", nil, "values"),
@@ -247,6 +248,7 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 				cb(s.String())
 			}
 		}
+		iter.Close()
 
 		return nil
 	}
@@ -259,9 +261,12 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 
 	// now search all row groups
 	rgs := pf.RowGroups()
+	complete := true
+rowgroups:
 	for _, rg := range rgs {
 		// search all special attributes
 		cc := rg.ColumnChunks()[idx]
+
 		pgs := cc.Pages()
 		for {
 			pg, err := pgs.ReadPage()
@@ -274,16 +279,42 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 
 			// if this column has a dictionary we are in luck!
 			dict := pg.Dictionary()
-			if dict == nil {
-				continue
+			if dict != nil {
+				for i := 0; i < dict.Len(); i++ {
+					s := string(dict.Index(int32(i)).ByteArray())
+					cb(s)
+				}
+				break
 			}
 
-			// jpe - handle non string cols like http status code and span status
-			for i := 0; i < dict.Len(); i++ {
-				s := string(dict.Index(int32(i)).ByteArray())
-				cb(s)
+			// if this column doesn't have a dictionary we need to bite the bullet and iterate every page, bail!
+			complete = false
+			continue rowgroups
+		}
+	}
+
+	if !complete {
+		makeIter := func(name string, predicate pq.Predicate, selectAs string) pq.Iterator { // jpe put someplace?
+			index, _ := pq.GetColumnIndexByPath(pf, name)
+			if index == -1 {
+				// TODO - don't panic, error instead
+				panic("column not found in parquet file:" + name)
+			}
+			return pq.NewColumnIterator(ctx, rgs, index, name, 1000, predicate, selectAs)
+		}
+
+		iter := makeIter(columnName, nil, "values")
+		for {
+			match := iter.Next()
+			if match == nil {
+				break
+			}
+			m := match.ToMap()
+			for _, s := range m["values"] {
+				cb(s.String())
 			}
 		}
+		iter.Close()
 	}
 
 	return nil
