@@ -151,10 +151,6 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	var err error
 	startTime := time.Now()
 
-	defer func() {
-		level.Info(rw.logger).Log("msg", "compaction complete", "elapsed", time.Since(startTime))
-	}()
-
 	var totalRecords int
 	for _, blockMeta := range blockMetas {
 		level.Info(rw.logger).Log("msg", "compacting block", "block", fmt.Sprintf("%+v", blockMeta))
@@ -214,6 +210,17 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	markCompacted(rw, tenantID, blockMetas, newCompactedBlocks)
 
 	metricCompactionBlocks.WithLabelValues(compactionLevelLabel).Add(float64(len(blockMetas)))
+
+	logArgs := []interface{}{
+		"msg",
+		"compaction complete",
+		"elapsed",
+		time.Since(startTime),
+	}
+	for _, meta := range newCompactedBlocks {
+		logArgs = append(logArgs, "block", fmt.Sprintf("%+v", meta))
+	}
+	level.Info(rw.logger).Log(logArgs...)
 
 	return nil
 }
