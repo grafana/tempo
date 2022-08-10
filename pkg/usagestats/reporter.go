@@ -23,8 +23,6 @@ import (
 )
 
 const (
-	// File name for the cluster seed file.
-	ClusterSeedFileName = "tempo_cluster_seed.json"
 	// attemptNumber how many times we will try to read a corrupted cluster seed before deleting it.
 	attemptNumber = 4
 	// seedKey is the key for the cluster seed to use with the kv store.
@@ -200,7 +198,7 @@ func (rep *Reporter) fetchSeed(ctx context.Context, continueFn func(err error) b
 
 // readSeedFile reads the cluster seed file from the object store.
 func (rep *Reporter) readSeedFile(ctx context.Context) (*ClusterSeed, error) {
-	reader, _, err := rep.reader.Read(ctx, ClusterSeedFileName, backend.KeyPath{}, false)
+	reader, _, err := rep.reader.Read(ctx, backend.ClusterSeedFileName, backend.KeyPath{}, false)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +224,7 @@ func (rep *Reporter) writeSeedFile(ctx context.Context, seed ClusterSeed) error 
 	if err != nil {
 		return err
 	}
-	return rep.writer.Write(ctx, ClusterSeedFileName, []string{}, bytes.NewReader(data), -1, false)
+	return rep.writer.Write(ctx, backend.ClusterSeedFileName, []string{}, bytes.NewReader(data), -1, false)
 }
 
 // running inits the reporter seed and start sending report for every interval

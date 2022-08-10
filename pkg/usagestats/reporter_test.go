@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
@@ -81,7 +82,7 @@ func Test_LeaderElectionWithBrokenSeedFile(t *testing.T) {
 	// Ensure that leader election succeeds even when the seed file has been
 	// corrupted.  This means that we don't need to extend the interface of the
 	// backend in order to delete a corrupted seed file.
-	err = objectClient.Write(context.Background(), ClusterSeedFileName, []string{}, bytes.NewReader([]byte("{")), -1, false)
+	err = objectClient.Write(context.Background(), backend.ClusterSeedFileName, []string{}, bytes.NewReader([]byte("{")), -1, false)
 	require.NoError(t, err)
 
 	for i := 0; i < 3; i++ {

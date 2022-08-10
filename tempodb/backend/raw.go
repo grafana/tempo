@@ -17,6 +17,8 @@ const (
 	MetaName          = "meta.json"
 	CompactedMetaName = "meta.compacted.json"
 	TenantIndexName   = "index.json.gz"
+	// File name for the cluster seed file.
+	ClusterSeedFileName = "tempo_cluster_seed.json"
 )
 
 // KeyPath is an ordered set of strings that govern where data is read/written from the backend
@@ -129,7 +131,17 @@ func (r *reader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, 
 }
 
 func (r *reader) Tenants(ctx context.Context) ([]string, error) {
-	return r.r.List(ctx, nil)
+	list, err := r.r.List(ctx, nil)
+
+	// this filter is added to fix a GCS usage stats issue that would result in ""
+	var filteredList []string
+	for _, tenant := range list {
+		if tenant != "" && tenant != ClusterSeedFileName {
+			filteredList = append(filteredList, tenant)
+		}
+	}
+
+	return filteredList, err
 }
 
 func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error) {
