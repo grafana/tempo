@@ -20,7 +20,7 @@ type Searcher interface {
 	// jpe - extend interface here to include Search Tag Values
 	Search(ctx context.Context, req *tempopb.SearchRequest, opts SearchOptions) (*tempopb.SearchResponse, error)
 	SearchTags(ctx context.Context, cb TagCallback, opts SearchOptions) error
-	SearchTagValues(ctx context.Context, cb TagCallback, opts SearchOptions) error
+	SearchTagValues(ctx context.Context, tag string, cb TagCallback, opts SearchOptions) error
 }
 
 type CacheControl struct {

@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -233,6 +234,24 @@ func TestBackendBlockSearchTags(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Empty(t, attrs)
+}
+
+func TestBackendBlockSearchTagValues(t *testing.T) {
+	traces, attrs := makeTraces()
+	block := makeBackendBlockWithTraces(t, traces)
+
+	ctx := context.Background()
+	for tag, val := range attrs {
+		wasCalled := false
+		cb := func(s string) {
+			wasCalled = true
+			assert.Equal(t, val, s, tag)
+		}
+
+		err := block.SearchTagValues(ctx, tag, cb, defaultSearchOptions())
+		require.NoError(t, err)
+		require.True(t, wasCalled, tag)
+	}
 }
 
 func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {

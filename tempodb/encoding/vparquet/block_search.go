@@ -175,13 +175,123 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 	return nil
 }
 
-func (b *backendBlock) SearchTagValues(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
+func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTagValues",
+		opentracing.Tags{
+			"blockID":   b.meta.BlockID,
+			"tenantID":  b.meta.TenantID,
+			"blockSize": b.meta.Size,
+		})
+	defer span.Finish()
+
+	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
+	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()
+
+	// jpe - leave off b/c this is local only at first?
+	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
+
+	or := newParquetOptimizedReaderAt(br, rr, int64(b.meta.Size), b.meta.FooterSize, opts.CacheControl)
+
+	span2, _ := opentracing.StartSpanFromContext(derivedCtx, "parquet.OpenFile")
+	pf, err := parquet.OpenFile(or, int64(b.meta.Size), parquet.SkipPageIndex(true))
+	span2.Finish()
+	if err != nil {
+		return err
+	}
+
+	// find column index
+	columnName := labelMappings[tag]
+
+	// jpe - make this less shitty - if this is a generic column we need to plow through the generic column values
+	if columnName == "" {
+		rgs := pf.RowGroups()
+		makeIter := func(name string, predicate pq.Predicate, selectAs string) pq.Iterator { // jpe put someplace?
+			index, _ := pq.GetColumnIndexByPath(pf, name)
+			if index == -1 {
+				// TODO - don't panic, error instead
+				panic("column not found in parquet file:" + name)
+			}
+			return pq.NewColumnIterator(ctx, rgs, index, name, 1000, predicate, selectAs)
+		}
+
+		keyPred := pq.NewStringInPredicate([]string{tag})
+
+		iter := pq.NewJoinIterator(DefinitionLevelResourceAttrs, []pq.Iterator{
+			makeIter("rs.Resource.Attrs.Key", keyPred, "keys"),
+			makeIter("rs.Resource.Attrs.Value", nil, "values"),
+		}, nil)
+
+		for {
+			match := iter.Next()
+			if match == nil {
+				break
+			}
+			m := match.ToMap()
+			for _, s := range m["values"] {
+				cb(s.String())
+			}
+		}
+
+		iter = pq.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, []pq.Iterator{
+			makeIter("rs.ils.Spans.Attrs.Key", keyPred, "keys"),
+			makeIter("rs.ils.Spans.Attrs.Value", nil, "values"),
+		}, nil)
+
+		for {
+			match := iter.Next()
+			if match == nil {
+				break
+			}
+			m := match.ToMap()
+			for _, s := range m["values"] {
+				cb(s.String())
+			}
+		}
+
+		return nil
+	}
+
+	// this is a special column
+	idx, _ := pq.GetColumnIndexByPath(pf, columnName)
+	if idx == -1 {
+		return fmt.Errorf("column not found (%s, %s)", tag, columnName)
+	}
+
+	// now search all row groups
+	rgs := pf.RowGroups()
+	for _, rg := range rgs {
+		// search all special attributes
+		cc := rg.ColumnChunks()[idx]
+		pgs := cc.Pages()
+		for {
+			pg, err := pgs.ReadPage()
+			if err == io.EOF || pg == nil {
+				break
+			}
+			if err != nil {
+				return err
+			}
+
+			// if this column has a dictionary we are in luck!
+			dict := pg.Dictionary()
+			if dict == nil {
+				continue
+			}
+
+			// jpe - handle non string cols like http status code and span status
+			for i := 0; i < dict.Len(); i++ {
+				s := string(dict.Index(int32(i)).ByteArray())
+				cb(s)
+			}
+		}
+	}
+
 	return nil
 }
 
 func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, pf *parquet.File, rgs []parquet.RowGroup) (pq.Iterator, parquetSearchMetrics) {
 
-	makeIter := func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
+	makeIter := func(name string, predicate pq.Predicate, selectAs string) pq.Iterator { // jpe put someplace?
 		index, _ := pq.GetColumnIndexByPath(pf, name)
 		if index == -1 {
 			// TODO - don't panic, error instead
@@ -377,7 +487,7 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 		makeIter("TraceID"),
 		makeIter("RootServiceName"),
 		makeIter("RootSpanName"),
-		makeIter("StartTimeUnixNano"),
+		makeIter("StartTimeUnixNano"), // jpe use constants?
 		makeIter("DurationNanos"),
 	}, nil)
 	defer iter2.Close()
