@@ -323,7 +323,7 @@ func (r *rowPool) Put(row parquet.Row) {
 // Testing on real blocks shows 90-98% accuracy.
 func estimateProtoSize(row parquet.Row) (size int) {
 	for _, v := range row {
-		size += 1 // Field identifier
+		size++ // Field identifier
 
 		switch v.Kind() {
 		case parquet.ByteArray:
@@ -334,7 +334,7 @@ func estimateProtoSize(row parquet.Row) (size int) {
 
 		default:
 			// All other types (ints, bools) approach 1 byte per value
-			size += 1
+			size++
 		}
 	}
 	return

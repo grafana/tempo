@@ -49,7 +49,7 @@ func benchmarkCompactor(b *testing.B, traceCount, batchCount, spanCount int) {
 		RowGroupSizeBytes:   20_000_000,
 	}
 
-	meta := createTestBlock(ctx, cfg, r, w, traceCount, batchCount, spanCount)
+	meta := createTestBlock(b, ctx, cfg, r, w, traceCount, batchCount, spanCount)
 
 	inputs := []*backend.BlockMeta{meta}
 
@@ -63,7 +63,8 @@ func benchmarkCompactor(b *testing.B, traceCount, batchCount, spanCount int) {
 			FlushSizeBytes: 30_000_000,
 		})
 
-		c.Compact(ctx, l, r, func(*backend.BlockMeta, time.Time) backend.Writer { return w }, inputs)
+		_, err = c.Compact(ctx, l, r, func(*backend.BlockMeta, time.Time) backend.Writer { return w }, inputs)
+		require.NoError(b, err)
 	}
 }
 
@@ -85,7 +86,7 @@ func BenchmarkCompactorDupes(b *testing.B) {
 	}
 
 	// 1M span traces
-	meta := createTestBlock(ctx, cfg, r, w, 10, 1000, 1000)
+	meta := createTestBlock(b, ctx, cfg, r, w, 10, 1000, 1000)
 	inputs := []*backend.BlockMeta{meta, meta}
 
 	b.ResetTimer()
@@ -100,14 +101,15 @@ func BenchmarkCompactorDupes(b *testing.B) {
 			SpansDiscarded:   func(spans int) {},
 		})
 
-		c.Compact(ctx, l, r, func(*backend.BlockMeta, time.Time) backend.Writer { return w }, inputs)
+		_, err = c.Compact(ctx, l, r, func(*backend.BlockMeta, time.Time) backend.Writer { return w }, inputs)
+		require.NoError(b, err)
 	}
 }
 
 // createTestBlock with the number of given traces and the needed sizes.
 // Trace IDs are guaranteed to be monotonically increasing so that
 // the block will be iterated in order.
-func createTestBlock(ctx context.Context, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, traceCount, batchCount, spanCount int) *backend.BlockMeta {
+func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, traceCount, batchCount, spanCount int) *backend.BlockMeta {
 	inMeta := &backend.BlockMeta{
 		TenantID:     tenantID,
 		BlockID:      uuid.New(),
@@ -123,14 +125,17 @@ func createTestBlock(ctx context.Context, cfg *common.BlockConfig, r backend.Rea
 		tr := test.MakeTraceWithSpanCount(batchCount, spanCount, id)
 		trp := traceToParquet(id, tr)
 
-		sb.Add(&trp, 0, 0)
+		err := sb.Add(&trp, 0, 0)
+		require.NoError(t, err)
 
 		if sb.CurrentBufferedValues() > 20_000_000 {
-			sb.Flush()
+			_, err := sb.Flush()
+			require.NoError(t, err)
 		}
 	}
 
-	sb.Complete()
+	_, err := sb.Complete()
+	require.NoError(t, err)
 
 	return sb.meta
 }
