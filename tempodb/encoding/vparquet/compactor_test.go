@@ -109,6 +109,7 @@ func BenchmarkCompactorDupes(b *testing.B) {
 // createTestBlock with the number of given traces and the needed sizes.
 // Trace IDs are guaranteed to be monotonically increasing so that
 // the block will be iterated in order.
+// nolint: revive
 func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, traceCount, batchCount, spanCount int) *backend.BlockMeta {
 	inMeta := &backend.BlockMeta{
 		TenantID:     tenantID,
