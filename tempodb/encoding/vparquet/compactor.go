@@ -36,7 +36,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		minBlockStart   time.Time
 		maxBlockEnd     time.Time
 		bookmarks       = make([]*bookmark, 0, len(inputs))
-		pool            = newRowPool(int(c.opts.FlushSizeBytes))
+		pool            = newRowPool(int(c.opts.MaxBytesPerTrace)) // This is largest trace that can be expected, and assumes 1 byte per value on average (same as flushing)
 	)
 	for _, blockMeta := range inputs {
 		totalRecords += blockMeta.TotalObjects
@@ -289,16 +289,14 @@ func (b *bookmark) close() {
 }
 
 type rowPool struct {
-	pool    sync.Pool
-	maxSize int
+	pool sync.Pool
 }
 
-func newRowPool(maxRowSize int) *rowPool {
+func newRowPool(defaultRowSize int) *rowPool {
 	return &rowPool{
-		maxSize: maxRowSize,
 		pool: sync.Pool{
 			New: func() any {
-				return make(parquet.Row, 0, maxRowSize)
+				return make(parquet.Row, 0, defaultRowSize)
 			},
 		},
 	}

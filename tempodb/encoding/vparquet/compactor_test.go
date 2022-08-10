@@ -58,9 +58,10 @@ func benchmarkCompactor(b *testing.B, traceCount, batchCount, spanCount int) {
 	for i := 0; i < b.N; i++ {
 		fmt.Println(b.N)
 		c := NewCompactor(common.CompactionOptions{
-			BlockConfig:    *cfg,
-			OutputBlocks:   1,
-			FlushSizeBytes: 30_000_000,
+			BlockConfig:      *cfg,
+			OutputBlocks:     1,
+			FlushSizeBytes:   30_000_000,
+			MaxBytesPerTrace: 50_000_000,
 		})
 
 		_, err = c.Compact(ctx, l, r, func(*backend.BlockMeta, time.Time) backend.Writer { return w }, inputs)
