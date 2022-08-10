@@ -2,6 +2,8 @@ package vparquet
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"math"
 	"strconv"
 	"time"
@@ -19,9 +21,6 @@ import (
 
 // These are reserved search parameters
 const (
-	LabelName = "name"
-
-	StatusCodeTag   = "status.code"
 	StatusCodeUnset = "unset"
 	StatusCodeOK    = "ok"
 	StatusCodeError = "error"
@@ -78,6 +77,108 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	return results, nil
 }
 
+func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTags",
+		opentracing.Tags{
+			"blockID":   b.meta.BlockID,
+			"tenantID":  b.meta.TenantID,
+			"blockSize": b.meta.Size,
+		})
+	defer span.Finish()
+
+	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
+	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()
+
+	// jpe - use buffered reader at?
+	or := newParquetOptimizedReaderAt(rr, rr, int64(b.meta.Size), b.meta.FooterSize, opts.CacheControl)
+
+	span2, _ := opentracing.StartSpanFromContext(derivedCtx, "parquet.OpenFile")
+	pf, err := parquet.OpenFile(or, int64(b.meta.Size), parquet.SkipPageIndex(true))
+	span2.Finish()
+	if err != nil {
+		return err
+	}
+
+	// find indexes of generic attribute columns
+	resourceKeyIdx, _ := pq.GetColumnIndexByPath(pf, "rs.Resource.Attrs.Key") // jpe make these 2 constants somewhere?
+	spanKeyIdx, _ := pq.GetColumnIndexByPath(pf, "rs.ils.Spans.Attrs.Key")
+	if resourceKeyIdx == -1 || spanKeyIdx == -1 {
+		return fmt.Errorf("resource or span attributes col not found (%d, %d)", resourceKeyIdx, spanKeyIdx)
+	}
+	idxs := []int{
+		resourceKeyIdx,
+		spanKeyIdx,
+	}
+
+	// find indexes of all special columns
+	unfoundIdxs := map[int]string{}
+	for lbl, col := range labelMappings {
+		idx, _ := pq.GetColumnIndexByPath(pf, col)
+		if idx == -1 {
+			continue
+		}
+
+		unfoundIdxs[idx] = lbl
+	}
+
+	// now search all row groups
+	rgs := pf.RowGroups()
+	for _, rg := range rgs {
+		// search all special attributes
+		for idx, lbl := range unfoundIdxs {
+			cc := rg.ColumnChunks()[idx]
+			pgs := cc.Pages()
+			for {
+				pg, err := pgs.ReadPage()
+				if err == io.EOF || pg == nil {
+					break
+				}
+				if err != nil {
+					return err
+				}
+
+				// if a special attribute has any non-null values, include it
+				if pg.NumNulls() < pg.NumValues() {
+					cb(lbl)
+					delete(unfoundIdxs, idx)
+					break
+				}
+			}
+		}
+
+		// search other attributes
+		for _, idx := range idxs {
+			cc := rg.ColumnChunks()[idx]
+			pgs := cc.Pages()
+			for {
+				pg, err := pgs.ReadPage()
+				if err == io.EOF || pg == nil {
+					break
+				}
+				if err != nil {
+					return err
+				}
+
+				dict := pg.Dictionary()
+				if dict == nil {
+					continue
+				}
+
+				for i := 0; i < dict.Len(); i++ {
+					s := string(dict.Index(int32(i)).ByteArray())
+					cb(s)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (b *backendBlock) SearchTagValues(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
+	return nil
+}
+
 func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, pf *parquet.File, rgs []parquet.RowGroup) (pq.Iterator, parquetSearchMetrics) {
 
 	makeIter := func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
@@ -96,48 +197,32 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 	otherAttrConditions := map[string]string{}
 
 	for k, v := range req.Tags {
-		switch k {
-		case LabelRootServiceName:
-			traceIters = append(traceIters, makeIter("RootServiceName", pq.NewSubstringPredicate(v), ""))
-		case LabelRootSpanName:
-			traceIters = append(traceIters, makeIter("RootSpanName", pq.NewSubstringPredicate(v), ""))
-		case LabelServiceName:
-			resourceIters = append(resourceIters, makeIter("rs.Resource.ServiceName", pq.NewSubstringPredicate(v), ""))
-		case LabelCluster:
-			resourceIters = append(resourceIters, makeIter("rs.Resource.Cluster", pq.NewSubstringPredicate(v), ""))
-		case LabelNamespace:
-			resourceIters = append(resourceIters, makeIter("rs.Resource.Namespace", pq.NewSubstringPredicate(v), ""))
-		case LabelPod:
-			resourceIters = append(resourceIters, makeIter("rs.Resource.Pod", pq.NewSubstringPredicate(v), ""))
-		case LabelContainer:
-			resourceIters = append(resourceIters, makeIter("rs.Resource.Container", pq.NewSubstringPredicate(v), ""))
-		case LabelK8sClusterName:
-			resourceIters = append(resourceIters, makeIter("rs.Resource.K8sClusterName", pq.NewSubstringPredicate(v), ""))
-		case LabelK8sNamespaceName:
-			resourceIters = append(resourceIters, makeIter("rs.Resource.K8sNamespaceName", pq.NewSubstringPredicate(v), ""))
-		case LabelK8sPodName:
-			resourceIters = append(resourceIters, makeIter("rs.Resource.K8sPodName", pq.NewSubstringPredicate(v), ""))
-		case LabelK8sContainerName:
-			resourceIters = append(resourceIters, makeIter("rs.Resource.K8sContainerName", pq.NewSubstringPredicate(v), ""))
-		case LabelName:
-			resourceIters = append(resourceIters, makeIter("rs.ils.Spans.Name", pq.NewSubstringPredicate(v), ""))
-		case LabelHTTPMethod:
-			resourceIters = append(resourceIters, makeIter("rs.ils.Spans.HttpMethod", pq.NewSubstringPredicate(v), ""))
-		case LabelHTTPUrl:
-			resourceIters = append(resourceIters, makeIter("rs.ils.Spans.HttpUrl", pq.NewSubstringPredicate(v), ""))
-		case LabelHTTPStatusCode:
+		column := labelMappings[k]
+
+		// if we don't have a column mapping then pass it forward to otherAttribute handling
+		if column == "" {
+			otherAttrConditions[k] = v
+			continue
+		}
+
+		// most columns are just a substring predicate over the column, but we have
+		// special handling for http status code and span status
+		if k == LabelHTTPStatusCode {
 			if i, err := strconv.Atoi(v); err == nil {
-				resourceIters = append(resourceIters, makeIter("rs.ils.Spans.HttpStatusCode", pq.NewIntBetweenPredicate(int64(i), int64(i)), ""))
+				resourceIters = append(resourceIters, makeIter(column, pq.NewIntBetweenPredicate(int64(i), int64(i)), ""))
 				break
 			}
 			// Non-numeric string field
 			otherAttrConditions[k] = v
-		case StatusCodeTag:
-			code := StatusCodeMapping[v]
-			resourceIters = append(resourceIters, makeIter("rs.ils.Spans.StatusCode", pq.NewIntBetweenPredicate(int64(code), int64(code)), ""))
-		default:
-			otherAttrConditions[k] = v
+			continue
 		}
+		if k == LabelStatusCode {
+			code := StatusCodeMapping[v]
+			resourceIters = append(resourceIters, makeIter(column, pq.NewIntBetweenPredicate(int64(code), int64(code)), ""))
+			continue
+		}
+
+		traceIters = append(traceIters, makeIter(column, pq.NewSubstringPredicate(v), ""))
 	}
 
 	// Generic attribute conditions?

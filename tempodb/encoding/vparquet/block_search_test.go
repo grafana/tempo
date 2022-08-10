@@ -139,7 +139,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		makeReq(LabelHTTPMethod, "get"),
 		makeReq(LabelHTTPUrl, "hello"),
 		makeReq(LabelHTTPStatusCode, "500"),
-		makeReq(StatusCodeTag, StatusCodeError),
+		makeReq(LabelStatusCode, StatusCodeError),
 
 		// Span attributes
 		makeReq("foo", "bar"),
@@ -205,7 +205,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		makeReq(LabelHTTPMethod, "post"),
 		makeReq(LabelHTTPUrl, "asdf"),
 		makeReq(LabelHTTPStatusCode, "200"),
-		makeReq(StatusCodeTag, StatusCodeOK),
+		makeReq(LabelStatusCode, StatusCodeOK),
 
 		// Span attributes
 		makeReq("foo", "baz"),
@@ -218,8 +218,24 @@ func TestBackendBlockSearch(t *testing.T) {
 	}
 }
 
-func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
+func TestBackendBlockSearchTags(t *testing.T) {
+	traces, attrs := makeTraces()
+	block := makeBackendBlockWithTraces(t, traces)
 
+	cb := func(s string) {
+		_, exists := attrs[s]
+		require.True(t, exists, s)
+		delete(attrs, s)
+	}
+
+	ctx := context.Background()
+	err := block.SearchTags(ctx, cb, defaultSearchOptions())
+	require.NoError(t, err)
+
+	require.Empty(t, attrs)
+}
+
+func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: t.TempDir(),
 	})
@@ -261,4 +277,91 @@ func defaultSearchOptions() common.SearchOptions {
 		ReadBufferCount: 8,
 		ReadBufferSize:  4 * 1024 * 1024,
 	}
+}
+
+func makeTraces() ([]*Trace, map[string]string) {
+	traces := []*Trace{}
+	attrVals := make(map[string]string)
+
+	ptr := func(s string) *string { return &s }
+
+	attrVals[LabelCluster] = "cluster"
+	attrVals[LabelServiceName] = "servicename"
+	attrVals[LabelRootServiceName] = "servicename"
+	attrVals[LabelNamespace] = "ns"
+	attrVals[LabelPod] = "pod"
+	attrVals[LabelContainer] = "con"
+	attrVals[LabelK8sClusterName] = "kclust"
+	attrVals[LabelK8sNamespaceName] = "kns"
+	attrVals[LabelK8sPodName] = "kpod"
+	attrVals[LabelK8sContainerName] = "k8scon"
+
+	attrVals[LabelName] = "name"
+	attrVals[LabelRootSpanName] = "name"
+	attrVals[LabelHTTPMethod] = "method"
+	attrVals[LabelHTTPUrl] = "url"
+	attrVals[LabelHTTPStatusCode] = "404"
+	attrVals[LabelStatusCode] = "2"
+
+	for i := 0; i < 10; i++ {
+		tr := &Trace{}
+
+		for j := 0; j < 3; j++ {
+			key := test.RandomString()
+			val := test.RandomString()
+			attrVals[key] = val
+
+			rs := ResourceSpans{
+				Resource: Resource{
+					ServiceName:      "servicename",
+					Cluster:          ptr("cluster"),
+					Namespace:        ptr("ns"),
+					Pod:              ptr("pod"),
+					Container:        ptr("con"),
+					K8sClusterName:   ptr("kclust"),
+					K8sNamespaceName: ptr("kns"),
+					K8sPodName:       ptr("kpod"),
+					K8sContainerName: ptr("k8scon"),
+					Attrs: []Attribute{
+						{
+							Key:   key,
+							Value: &val,
+						},
+					},
+				},
+				InstrumentationLibrarySpans: []ILS{
+					{},
+				},
+			}
+			tr.ResourceSpans = append(tr.ResourceSpans, rs)
+
+			for k := 0; k < 10; k++ {
+				key := test.RandomString()
+				val := test.RandomString()
+				attrVals[key] = val
+
+				sts := int64(404)
+				span := Span{
+					Name:           "span",
+					HttpMethod:     ptr("method"),
+					HttpUrl:        ptr("url"),
+					HttpStatusCode: &sts,
+					StatusCode:     2,
+					Attrs: []Attribute{
+						{
+							Key:   key,
+							Value: &val,
+						},
+					},
+				}
+
+				rs.InstrumentationLibrarySpans[0].Spans = append(rs.InstrumentationLibrarySpans[0].Spans, span)
+			}
+
+		}
+
+		traces = append(traces, tr)
+	}
+
+	return traces, attrVals
 }
