@@ -47,10 +47,13 @@ var (
 	}, []string{"tenant"})
 	metricSpansDiscarded = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
-		Name:      "metrics_generator_spans_discarded_total",
+		Name:      "metrics_generator_discarded_spans_total",
 		Help:      "The total number of discarded spans received per tenant",
 	}, []string{"tenant", "reason"})
 )
+
+const reason_outside_time_range_slack = "outside_metrics_ingestion_slack"
+const future_slack = 5 * time.Hour * 24
 
 type instance struct {
 	cfg *Config
@@ -254,7 +257,7 @@ func (i *instance) updateProcessorMetrics() {
 }
 
 func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
-	i.updatePushMetrics(req)
+	i.preprocessSpans(req)
 	i.processorsMtx.RLock()
 	defer i.processorsMtx.RUnlock()
 
@@ -263,30 +266,36 @@ func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 	}
 }
 
-func (i *instance) updatePushMetrics(req *tempopb.PushSpansRequest) {
+func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 	size := 0
 	spanCount := 0
-	expiredSpans := 0
+	expiredSpanCount := 0
 	for _, b := range req.Batches {
 		size += b.Size()
 		for _, ils := range b.InstrumentationLibrarySpans {
 			spanCount += len(ils.Spans)
-			// filter spans that have end time > max_age
-			var newSpansArr []*v1.Span
-			timeNow := time.Now().UnixNano()
+			// filter spans that have end time > max_age and end time more than 5 days in the future
+			newSpansArr := make([]*v1.Span, len(ils.Spans))
+			timeNow := time.Now()
+			index := 0
 			for _, span := range ils.Spans {
-				if span.EndTimeUnixNano >= uint64(timeNow-i.cfg.MaxSpanAge*1000000000) {
-					newSpansArr = append(newSpansArr, span)
+				if span.EndTimeUnixNano >= uint64(timeNow.Add(-i.cfg.MetricsIngestionSlack).UnixNano()) && span.EndTimeUnixNano <= uint64(timeNow.Add(future_slack).UnixNano()) {
+					newSpansArr[index] = span
+					index++
 				} else {
-					expiredSpans++
+					expiredSpanCount++
 				}
 			}
-			ils.Spans = newSpansArr
+			ils.Spans = newSpansArr[0:index]
 		}
 	}
-	metricBytesIngested.WithLabelValues(i.instanceID).Add(float64(size))
+	i.updatePushMetrics(size, spanCount, expiredSpanCount)
+}
+
+func (i *instance) updatePushMetrics(bytesIngested int, spanCount int, expiredSpanCount int) {
+	metricBytesIngested.WithLabelValues(i.instanceID).Add(float64(bytesIngested))
 	metricSpansIngested.WithLabelValues(i.instanceID).Add(float64(spanCount))
-	metricSpansDiscarded.WithLabelValues(i.instanceID, "max_age_reached").Add(float64(expiredSpans))
+	metricSpansDiscarded.WithLabelValues(i.instanceID, reason_outside_time_range_slack).Add(float64(expiredSpanCount))
 }
 
 // shutdown stops the instance and flushes any remaining data. After shutdown

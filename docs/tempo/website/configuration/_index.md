@@ -275,6 +275,12 @@ metrics_generator:
         # https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
         remote_write:
             [- <Prometheus remote write config>]
+
+    metrics:
+        # This option only allows spans with start time that occur within the configured duration to be
+        # considered in metrics generation
+        # This is to filter out spans that are outdated
+        [ingestion_time_range_slack: <duration> | default = 2m]
 ```
 
 ## Query-frontend

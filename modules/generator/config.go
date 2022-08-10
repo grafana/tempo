@@ -2,11 +2,11 @@ package generator
 
 import (
 	"flag"
-
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
+	"time"
 )
 
 const (
@@ -19,11 +19,13 @@ const (
 
 // Config for a generator.
 type Config struct {
-	Ring       RingConfig      `yaml:"ring"`
-	Processor  ProcessorConfig `yaml:"processor"`
-	Registry   registry.Config `yaml:"registry"`
-	Storage    storage.Config  `yaml:"storage"`
-	MaxSpanAge int64           `yaml:"max_span_age_sec"`
+	Ring      RingConfig      `yaml:"ring"`
+	Processor ProcessorConfig `yaml:"processor"`
+	Registry  registry.Config `yaml:"registry"`
+	Storage   storage.Config  `yaml:"storage"`
+	// MetricsIngestionSlack is the max amount of time passed since a span's start time
+	// for the span to be considered in metrics generation
+	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -32,8 +34,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Processor.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Registry.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Storage.RegisterFlagsAndApplyDefaults(prefix, f)
-	// setting default for max span age before discarding to 30 sec
-	cfg.MaxSpanAge = 30
+	// setting default for max span age before discarding to 2m
+	cfg.MetricsIngestionSlack = 2 * time.Minute
 }
 
 type ProcessorConfig struct {
