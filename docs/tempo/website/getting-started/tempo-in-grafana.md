@@ -47,6 +47,16 @@ The Tempo configuration is the same for searching recent traces or
 for search of the backend datastore. 
 -  Run Grafana 8.3.6 or a more recent version. Enable the `tempoBackendSearch` [feature toggle](https://github.com/grafana/tempo/blob/main/example/docker-compose/tempo-search/grafana.ini). This will cause Grafana to pass the `start` and `end` parameters necessary for the backend datastore search.
 
+## APM dashboard
+
+Grafana provides a built-in Application Performance Management (APM) dashboard available in Grafana Cloud and Grafana 9.1.
+The Grafana APM dashboard visualizes the span metrics (traces data for rates, error rates, and durations (RED)) and service graphs.
+Once the requirements are set up, this pre-configured dashboard is immediately available in **Explore > Service Graphs**.
+
+For more information, refer to the [APM dashboard documentation]({{< relref "../metrics-generator/app-performance-mgmt/" >}}).
+
+<p align="center"><img src="../apm-overview.png" alt="APM dashboard overview"></p>
+
 ## View JSON file
 A local JSON file containing a trace can be uploaded and viewed in the Grafana UI.  This is useful in cases where access to the original Tempo datasource is limited, or for preserving traces outside of Tempo.  The JSON data can be downloaded via the Tempo API or the Inspector panel while viewing the trace in Grafana.
 
