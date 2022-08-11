@@ -95,10 +95,10 @@ var (
 )
 
 type instance struct {
-	tracesMtx   sync.Mutex
-	traces      map[uint32]*liveTrace
-	largeTraces map[uint32]int // maxBytes that trace exceeded
-	traceCount  atomic.Int32
+	tracesMtx  sync.Mutex
+	traces     map[uint32]*liveTrace
+	traceSizes map[uint32]uint32
+	traceCount atomic.Int32
 
 	blocksMtx        sync.RWMutex
 	headBlock        *wal.AppendBlock
@@ -137,7 +137,7 @@ type searchLocalBlockEntry struct {
 func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
 	i := &instance{
 		traces:               map[uint32]*liveTrace{},
-		largeTraces:          map[uint32]int{},
+		traceSizes:           map[uint32]uint32{},
 		searchAppendBlocks:   map[*wal.AppendBlock]*searchStreamingBlockEntry{},
 		searchCompleteBlocks: map[*wal.LocalBlock]*searchLocalBlockEntry{},
 
@@ -199,20 +199,27 @@ func (i *instance) push(ctx context.Context, id, traceBytes, searchData []byte) 
 
 	tkn := i.tokenForTraceID(id)
 
-	if maxBytes, ok := i.largeTraces[tkn]; ok {
-		return status.Errorf(codes.FailedPrecondition, (newTraceTooLargeError(id, i.instanceID, maxBytes, len(traceBytes)).Error()))
-	}
-
-	trace := i.getOrCreateTrace(id)
-	err := trace.Push(ctx, i.instanceID, traceBytes, searchData)
-	if err != nil {
-		if e, ok := err.(*traceTooLargeError); ok {
-			i.largeTraces[tkn] = trace.maxBytes
-			return status.Errorf(codes.FailedPrecondition, e.Error())
+	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
+	if maxBytes > 0 {
+		size := i.traceSizes[tkn]
+		if int(size)+len(traceBytes) > maxBytes {
+			return status.Errorf(codes.FailedPrecondition, (newTraceTooLargeError(id, i.instanceID, maxBytes, len(traceBytes)).Error()))
 		}
 	}
 
-	return err
+	trace := i.getOrCreateTrace(id)
+
+	err := trace.Push(ctx, i.instanceID, traceBytes, searchData)
+	if err != nil {
+		if e, ok := err.(*traceTooLargeError); ok {
+			return status.Errorf(codes.FailedPrecondition, e.Error())
+		}
+		return err
+	}
+
+	i.traceSizes[tkn] = i.traceSizes[tkn] + uint32(len(traceBytes))
+
+	return nil
 }
 
 func (i *instance) measureReceivedBytes(traceBytes []byte, searchData []byte) {
@@ -510,7 +517,7 @@ func (i *instance) resetHeadBlock() error {
 
 	// Clear large traces when cutting block
 	i.tracesMtx.Lock()
-	i.largeTraces = map[uint32]int{}
+	i.traceSizes = make(map[uint32]uint32, len(i.traceSizes))
 	i.tracesMtx.Unlock()
 
 	oldHeadBlock := i.headBlock
