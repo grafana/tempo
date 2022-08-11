@@ -118,7 +118,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		r:     r,
 		to:    to,
 		sch:   sch,
-		pool:  newRowPool(0),
+		pool:  newRowPool(10_000),
 	}
 }
 
