@@ -58,8 +58,8 @@ type Attribute struct {
 }
 
 type EventAttribute struct {
-	Key   string `parquet:",zstd,dict"`
-	Value string `parquet:",zstd"` // Json-encoded data
+	Key   string `parquet:",snappy,dict"`
+	Value string `parquet:",snappy"` // Json-encoded data
 }
 
 type Event struct {
