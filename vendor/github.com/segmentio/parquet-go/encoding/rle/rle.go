@@ -41,12 +41,12 @@ func (e *Encoding) Encoding() format.Encoding {
 	return format.RLE
 }
 
-func (e *Encoding) EncodeLevels(dst, src []byte) ([]byte, error) {
+func (e *Encoding) EncodeLevels(dst []byte, src []uint8) ([]byte, error) {
 	dst, err := encodeBytes(dst[:0], src, uint(e.BitWidth))
 	return dst, e.wrap(err)
 }
 
-func (e *Encoding) EncodeBoolean(dst, src []byte) ([]byte, error) {
+func (e *Encoding) EncodeBoolean(dst []byte, src []byte) ([]byte, error) {
 	// In the case of encoding a boolean values, the 4 bytes length of the
 	// output is expected by the parquet format. We add the bytes as placeholder
 	// before appending the encoded data.
@@ -56,20 +56,17 @@ func (e *Encoding) EncodeBoolean(dst, src []byte) ([]byte, error) {
 	return dst, e.wrap(err)
 }
 
-func (e *Encoding) EncodeInt32(dst, src []byte) ([]byte, error) {
-	if (len(src) % 4) != 0 {
-		return dst[:0], encoding.ErrEncodeInvalidInputSize(e, "INT32", len(src))
-	}
-	dst, err := encodeInt32(dst[:0], unsafecast.BytesToInt32(src), uint(e.BitWidth))
+func (e *Encoding) EncodeInt32(dst []byte, src []int32) ([]byte, error) {
+	dst, err := encodeInt32(dst[:0], src, uint(e.BitWidth))
 	return dst, e.wrap(err)
 }
 
-func (e *Encoding) DecodeLevels(dst, src []byte) ([]byte, error) {
+func (e *Encoding) DecodeLevels(dst []uint8, src []byte) ([]uint8, error) {
 	dst, err := decodeBytes(dst[:0], src, uint(e.BitWidth))
 	return dst, e.wrap(err)
 }
 
-func (e *Encoding) DecodeBoolean(dst, src []byte) ([]byte, error) {
+func (e *Encoding) DecodeBoolean(dst []byte, src []byte) ([]byte, error) {
 	if len(src) == 4 {
 		return dst[:0], nil
 	}
@@ -85,9 +82,10 @@ func (e *Encoding) DecodeBoolean(dst, src []byte) ([]byte, error) {
 	return dst, e.wrap(err)
 }
 
-func (e *Encoding) DecodeInt32(dst, src []byte) ([]byte, error) {
-	dst, err := decodeInt32(dst[:0], src, uint(e.BitWidth))
-	return dst, e.wrap(err)
+func (e *Encoding) DecodeInt32(dst []int32, src []byte) ([]int32, error) {
+	buf := unsafecast.Int32ToBytes(dst)
+	buf, err := decodeInt32(buf[:0], src, uint(e.BitWidth))
+	return unsafecast.BytesToInt32(buf), e.wrap(err)
 }
 
 func (e *Encoding) wrap(err error) error {

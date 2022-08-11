@@ -26,6 +26,8 @@ func GatherUint64(dst []uint64, src Uint64Array) int { return gather64(dst, src)
 
 func GatherUint128(dst [][16]byte, src Uint128Array) int { return gather128(dst, src) }
 
+func GatherString(dst []string, src StringArray) int { return gatherString(dst, src) }
+
 func min(a, b int) int {
 	if a < b {
 		return a

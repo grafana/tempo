@@ -32,21 +32,27 @@ func NewGenericReader[T any](input io.ReaderAt, options ...ReaderOption) *Generi
 		panic(err)
 	}
 
-	t := typeOf[T]()
-	if c.Schema == nil {
-		c.Schema = schemaOf(dereference(t))
-	}
-
 	f, err := openFile(input)
 	if err != nil {
 		panic(err)
+	}
+
+	rowGroup := fileRowGroupOf(f)
+
+	t := typeOf[T]()
+	if c.Schema == nil {
+		if t == nil {
+			c.Schema = rowGroup.Schema()
+		} else {
+			c.Schema = schemaOf(dereference(t))
+		}
 	}
 
 	r := &GenericReader[T]{
 		base: Reader{
 			file: reader{
 				schema:   c.Schema,
-				rowGroup: fileRowGroupOf(f),
+				rowGroup: rowGroup,
 			},
 		},
 	}
@@ -68,7 +74,11 @@ func NewGenericRowGroupReader[T any](rowGroup RowGroup, options ...ReaderOption)
 
 	t := typeOf[T]()
 	if c.Schema == nil {
-		c.Schema = schemaOf(dereference(t))
+		if t == nil {
+			c.Schema = rowGroup.Schema()
+		} else {
+			c.Schema = schemaOf(dereference(t))
+		}
 	}
 
 	r := &GenericReader[T]{
@@ -151,6 +161,9 @@ var (
 type readFunc[T any] func(*GenericReader[T], []T) (int, error)
 
 func readFuncOf[T any](t reflect.Type, schema *Schema) readFunc[T] {
+	if t == nil {
+		return (*GenericReader[T]).readRows
+	}
 	switch t.Kind() {
 	case reflect.Interface, reflect.Map:
 		return (*GenericReader[T]).readRows

@@ -68,6 +68,13 @@ func init() {
 	prngSource = rand.NewSource(seed).(rand.Source64)
 }
 
+func tableSizeAndMaxLen(groupSize, numValues int, maxLoad float64) (size, maxLen int) {
+	n := int(math.Ceil((1 / maxLoad) * float64(numValues)))
+	size = nextPowerOf2((n + (groupSize - 1)) / groupSize)
+	maxLen = int(math.Ceil(maxLoad * float64(groupSize*size)))
+	return
+}
+
 func nextPowerOf2(n int) int {
 	return 1 << (64 - bits.LeadingZeros64(uint64(n-1)))
 }
@@ -185,13 +192,12 @@ func (t *table32) size() int {
 }
 
 func (t *table32) init(cap int, maxLoad float64) {
-	m := int(math.Ceil((1 / maxLoad) * float64(cap)))
-	n := nextPowerOf2((m + (table32GroupSize - 1)) / table32GroupSize)
+	size, maxLen := tableSizeAndMaxLen(table32GroupSize, cap, maxLoad)
 	*t = table32{
-		maxLen:  int(math.Ceil(maxLoad * float64(table32GroupSize*n))),
+		maxLen:  maxLen,
 		maxLoad: maxLoad,
 		seed:    randSeed(),
-		table:   make([]table32Group, n),
+		table:   make([]table32Group, size),
 	}
 }
 
@@ -431,13 +437,12 @@ func (t *table64) size() int {
 }
 
 func (t *table64) init(cap int, maxLoad float64) {
-	m := int(math.Ceil((1 / maxLoad) * float64(cap)))
-	n := nextPowerOf2((m + (table64GroupSize - 1)) / table64GroupSize)
+	size, maxLen := tableSizeAndMaxLen(table64GroupSize, cap, maxLoad)
 	*t = table64{
-		maxLen:  int(math.Ceil(maxLoad * float64(table64GroupSize*n))),
+		maxLen:  maxLen,
 		maxLoad: maxLoad,
 		seed:    randSeed(),
-		table:   make([]table64Group, n),
+		table:   make([]table64Group, size),
 	}
 }
 
@@ -622,14 +627,13 @@ func makeTable128(cap int, maxLoad float64) (t table128) {
 }
 
 func (t *table128) init(cap int, maxLoad float64) {
-	m := int(math.Ceil((1 / maxLoad) * float64(cap)))
-	n := nextPowerOf2(m)
+	size, maxLen := tableSizeAndMaxLen(1, cap, maxLoad)
 	*t = table128{
-		cap:     n,
-		maxLen:  int(math.Ceil(maxLoad * float64(n))),
+		cap:     size,
+		maxLen:  maxLen,
 		maxLoad: maxLoad,
 		seed:    randSeed(),
-		table:   make([]byte, 16*n+4*n),
+		table:   make([]byte, 16*size+4*size),
 	}
 }
 

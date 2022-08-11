@@ -1,139 +1,122 @@
 //go:build !purego
 
-#include "funcdata.h"
 #include "textflag.h"
 
-// func validateLengthValuesAVX2(lengths []int32) (totalLength int, ok bool)
-TEXT ·validateLengthValuesAVX2(SB), NOSPLIT, $0-33
+// func encodeByteArrayLengths(lengths []int32, offsets []uint32)
+TEXT ·encodeByteArrayLengths(SB), NOSPLIT, $0-48
     MOVQ lengths_base+0(FP), AX
     MOVQ lengths_len+8(FP), CX
-
-    XORQ BX, BX // totalLength
-    XORQ DX, DX // err
+    MOVQ offsets_base+24(FP), BX
     XORQ SI, SI
-    XORQ DI, DI
-    XORQ R8, R8
 
-    CMPQ CX, $16
+    CMPQ CX, $4
     JB test
 
-    MOVQ CX, DI
-    SHRQ $4, DI
-    SHLQ $4, DI
+    MOVQ CX, DX
+    SHRQ $2, DX
+    SHLQ $2, DX
 
-    VPXOR X0, X0, X0 // totalLengths
-    VPXOR X1, X1, X1 // negative test
-loopAVX2:
-    VMOVDQU (AX)(SI*4), Y2
-    VMOVDQU 32(AX)(SI*4), Y3
-    VPADDD Y2, Y0, Y0
-    VPADDD Y3, Y0, Y0
-    VPOR Y2, Y1, Y1
-    VPOR Y3, Y1, Y1
-    ADDQ $16, SI
-    CMPQ SI, DI
-    JNE loopAVX2
-
-    // If any of the 32 bit words has its most significant bit set to 1,
-    // then at least one of the values was negative, which must be reported as
-    // an error.
-    VMOVMSKPS Y1, R8
-    CMPQ R8, $0
-    JNE done
-
-    VPSRLDQ $4, Y0, Y1
-    VPSRLDQ $8, Y0, Y2
-    VPSRLDQ $12, Y0, Y3
-
-    VPADDD Y1, Y0, Y0
-    VPADDD Y3, Y2, Y2
-    VPADDD Y2, Y0, Y0
-
-    VPERM2I128 $1, Y0, Y0, Y1
-    VPADDD Y1, Y0, Y0
-    VZEROUPPER
-    MOVQ X0, BX
-    ANDQ $0x7FFFFFFF, BX
-
+loopSSE2:
+    MOVOU 0(BX)(SI*4), X0
+    MOVOU 4(BX)(SI*4), X1
+    PSUBL X0, X1
+    MOVOU X1, (AX)(SI*4)
+    ADDQ $4, SI
+    CMPQ SI, DX
+    JNE loopSSE2
     JMP test
 loop:
-    MOVL (AX)(SI*4), DI
-    ADDL DI, BX
-    ORL DI, R8
+    MOVL 0(BX)(SI*4), R8
+    MOVL 4(BX)(SI*4), R9
+    SUBL R8, R9
+    MOVL R9, (AX)(SI*4)
     INCQ SI
 test:
     CMPQ SI, CX
     JNE loop
-    CMPL R8, $0
-    JL done
-    MOVB $1, DX
-done:
-    MOVQ BX, totalLength+24(FP)
-    MOVB DX, ok+32(FP)
     RET
 
-// This function is an optimization of the decodeLengthByteArray using AVX2
-// instructions to implement an opportunistic copy strategy which improves
-// throughput compared to using runtime.memmove (via Go's copy).
-//
-// Parquet columns of type BYTE_ARRAY will often hold short strings, rarely
-// exceeding a couple hundred bytes in size. Making a function call to
-// runtime.memmove for each value results in spending most of the CPU time
-// on branching rather than actually copying bytes to the output buffer.
-//
-// This function works by always assuming it can copy 16 bytes of data between
-// the input and outputs, even in the event where a value is shorter than this.
-//
-// The pointers to the current positions for input and output pointers are
-// always adjusted by the right number of bytes so that the next writes
-// overwrite any extra bytes that were written in the previous iteration of the
-// copy loop.
-//
-// The throughput of this function is not as good as runtime.memmove for large
-// buffers, but it ends up being close to an order of magnitude higher for the
-// common case of working with short strings.
-//
-// func decodeLengthByteArrayAVX2(dst, src []byte, lengths []int32) int
-TEXT ·decodeLengthByteArrayAVX2(SB), NOSPLIT, $0-80
-    MOVQ dst_base+0(FP), AX
-    MOVQ src_base+24(FP), BX
-    MOVQ lengths_base+48(FP), DX
-    MOVQ lengths_len+56(FP), DI
+// func decodeByteArrayLengths(offsets []uint32, length []int32) (lastOffset uint32, invalidLength int32)
+TEXT ·decodeByteArrayLengths(SB), NOSPLIT, $0-56
+    MOVQ offsets_base+0(FP), AX
+    MOVQ lengths_base+24(FP), BX
+    MOVQ lengths_len+32(FP), CX
 
-    LEAQ (DX)(DI*4), DI
-    LEAQ 4(AX), AX
-    XORQ CX, CX
+    XORQ DX, DX // lastOffset
+    XORQ DI, DI // invalidLength
+    XORQ SI, SI
+
+    CMPQ CX, $4
+    JL test
+
+    MOVQ CX, R8
+    SHRQ $2, R8
+    SHLQ $2, R8
+
+    MOVL $0, (AX)
+    PXOR X0, X0
+    PXOR X3, X3
+    // This loop computes the prefix sum of the lengths array in order to
+    // generate values of the offsets array.
+    //
+    // We stick to SSE2 to keep the code simple (the Go compiler appears to
+    // assume that SSE2 must be supported on AMD64) which already yields most
+    // of the performance that we could get on this subroutine if we were using
+    // AVX2.
+    //
+    // The X3 register also accumulates a mask of all length values, which is
+    // checked after the loop to determine whether any of the lengths were
+    // negative.
+    //
+    // The following article contains a description of the prefix sum algorithm
+    // used in this function: https://en.algorithmica.org/hpc/algorithms/prefix/
+loopSSE2:
+    MOVOU (BX)(SI*4), X1
+    POR X1, X3
+
+    MOVOA X1, X2
+    PSLLDQ $4, X2
+    PADDD X2, X1
+
+    MOVOA X1, X2
+    PSLLDQ $8, X2
+    PADDD X2, X1
+
+    PADDD X1, X0
+    MOVOU X0, 4(AX)(SI*4)
+
+    PSHUFD $0b11111111, X0, X0
+
+    ADDQ $4, SI
+    CMPQ SI, R8
+    JNE loopSSE2
+
+    // If any of the most significant bits of double words in the X3 register
+    // are set to 1, it indicates that one of the lengths was negative and
+    // therefore the prefix sum is invalid.
+    //
+    // TODO: we report the invalid length as -1, effectively losing the original
+    // value due to the aggregation within X3. This is something that we might
+    // want to address in the future to provide better error reporting.
+    MOVMSKPS X3, R8
+    MOVL $-1, R9
+    CMPL R8, $0
+    CMOVLNE R9, DI
+
+    MOVQ X0, DX
     JMP test
 loop:
-    MOVL (DX), CX
-    MOVL CX, -4(AX)
-    // First pass moves 16 bytes, this makes it a very fast path for short
-    // strings.
-    VMOVDQU (BX), X0
-    VMOVDQU X0, (AX)
-    CMPQ CX, $16
-    JA copy
-next:
-    LEAQ 4(AX)(CX*1), AX
-    LEAQ 0(BX)(CX*1), BX
-    LEAQ 4(DX), DX
+    MOVL (BX)(SI*4), R8
+    MOVL DX, (AX)(SI*4)
+    ADDL R8, DX
+    CMPL R8, $0
+    CMOVLLT R8, DI
+    INCQ SI
 test:
-    CMPQ DX, DI
-    JNE loop
-    MOVQ dst_base+0(FP), BX
-    SUBQ BX, AX
-    SUBQ $4, AX
-    MOVQ AX, ret+72(FP)
-    VZEROUPPER
-    RET
-copy:
-    // Values longer than 16 bytes enter this loop and move 32 byte chunks
-    // which helps improve throughput on larger chunks.
-    MOVQ $16, SI
-copyLoop32:
-    VMOVDQU (BX)(SI*1), Y0
-    VMOVDQU Y0, (AX)(SI*1)
-    ADDQ $32, SI
     CMPQ SI, CX
-    JAE next
-    JMP copyLoop32
+    JNE loop
+
+    MOVL DX, (AX)(SI*4)
+    MOVL DX, lastOffset+48(FP)
+    MOVL DI, invalidLength+52(FP)
+    RET

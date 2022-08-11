@@ -182,12 +182,14 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 	var rootSpan *v1_trace.Span
 	var rootBatch *v1_trace.ResourceSpans
 
+	ot.ResourceSpans = make([]ResourceSpans, 0, len(tr.Batches))
 	for _, b := range tr.Batches {
 		ob := ResourceSpans{
 			Resource: Resource{},
 		}
 
 		if b.Resource != nil {
+			ob.Resource.Attrs = make([]Attribute, 0, len(b.Resource.Attributes))
 			for _, a := range b.Resource.Attributes {
 				switch a.Key {
 				case LabelServiceName:
@@ -225,6 +227,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 			}
 		}
 
+		ob.InstrumentationLibrarySpans = make([]ILS, 0, len(b.InstrumentationLibrarySpans))
 		for _, ils := range b.InstrumentationLibrarySpans {
 			oils := ILS{}
 			if ils.InstrumentationLibrary != nil {
@@ -234,6 +237,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 				}
 			}
 
+			oils.Spans = make([]Span, 0, len(ils.Spans))
 			for _, s := range ils.Spans {
 
 				if traceStart == 0 || s.StartTimeUnixNano < traceStart {
@@ -247,7 +251,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 					rootBatch = b
 				}
 
-				events := []Event{}
+				events := make([]Event, 0, len(s.Events))
 				for _, e := range s.Events {
 					events = append(events, eventToParquet(e))
 				}
@@ -261,7 +265,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 					StatusMessage:          s.Status.Message,
 					StartUnixNanos:         s.StartTimeUnixNano,
 					EndUnixNanos:           s.EndTimeUnixNano,
-					Attrs:                  []Attribute{},
+					Attrs:                  make([]Attribute, 0, len(s.Attributes)),
 					DroppedAttributesCount: int32(s.DroppedAttributesCount),
 					Events:                 events,
 					DroppedEventsCount:     int32(s.DroppedEventsCount),

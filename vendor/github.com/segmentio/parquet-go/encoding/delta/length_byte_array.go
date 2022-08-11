@@ -2,7 +2,6 @@ package delta
 
 import (
 	"github.com/segmentio/parquet-go/encoding"
-	"github.com/segmentio/parquet-go/encoding/plain"
 	"github.com/segmentio/parquet-go/format"
 )
 
@@ -18,63 +17,54 @@ func (e *LengthByteArrayEncoding) Encoding() format.Encoding {
 	return format.DeltaLengthByteArray
 }
 
-func (e *LengthByteArrayEncoding) EncodeByteArray(dst, src []byte) ([]byte, error) {
-	dst = dst[:0]
+func (e *LengthByteArrayEncoding) EncodeByteArray(dst []byte, src []byte, offsets []uint32) ([]byte, error) {
+	if len(offsets) == 0 {
+		return dst[:0], nil
+	}
 
 	length := getInt32Buffer()
 	defer putInt32Buffer(length)
 
-	totalSize := 0
+	length.resize(len(offsets) - 1)
+	encodeByteArrayLengths(length.values, offsets)
 
-	for i := 0; i < len(src); {
-		r := len(src) - i
-		if r < plain.ByteArrayLengthSize {
-			return dst, encoding.Error(e, plain.ErrTooShort(r))
-		}
-		n := plain.ByteArrayLength(src[i:])
-		i += plain.ByteArrayLengthSize
-		r -= plain.ByteArrayLengthSize
-		if n > r {
-			return dst, encoding.Error(e, plain.ErrTooShort(n))
-		}
-		if n > plain.MaxByteArrayLength {
-			return dst, encoding.Error(e, plain.ErrTooLarge(n))
-		}
-		length.values = append(length.values, int32(n))
-		totalSize += n
-		i += n
-	}
-
+	dst = dst[:0]
 	dst = encodeInt32(dst, length.values)
-	dst = resize(dst, len(dst)+totalSize)
-
-	b := dst[len(dst)-totalSize:]
-	i := plain.ByteArrayLengthSize
-	j := 0
-
-	for _, n := range length.values {
-		j += copy(b[j:], src[i:i+int(n)])
-		i += plain.ByteArrayLengthSize
-		i += int(n)
-	}
-
+	dst = append(dst, src...)
 	return dst, nil
 }
 
-func (e *LengthByteArrayEncoding) DecodeByteArray(dst, src []byte) ([]byte, error) {
-	dst = dst[:0]
+func (e *LengthByteArrayEncoding) DecodeByteArray(dst []byte, src []byte, offsets []uint32) ([]byte, []uint32, error) {
+	dst, offsets = dst[:0], offsets[:0]
 
 	length := getInt32Buffer()
 	defer putInt32Buffer(length)
 
 	src, err := length.decode(src)
 	if err != nil {
-		return dst, encoding.Error(e, err)
+		return dst, offsets, e.wrap(err)
 	}
 
-	dst, err = decodeLengthByteArray(dst, src, length.values)
+	if size := len(length.values) + 1; cap(offsets) < size {
+		offsets = make([]uint32, size)
+	} else {
+		offsets = offsets[:size]
+	}
+
+	lastOffset, invalidLength := decodeByteArrayLengths(offsets, length.values)
+	if invalidLength != 0 {
+		return dst, offsets, e.wrap(errInvalidNegativeValueLength(int(invalidLength)))
+	}
+	if int(lastOffset) > len(src) {
+		return dst, offsets, e.wrap(errValueLengthOutOfBounds(int(lastOffset), len(src)))
+	}
+
+	return append(dst, src[:lastOffset]...), offsets, nil
+}
+
+func (e *LengthByteArrayEncoding) wrap(err error) error {
 	if err != nil {
 		err = encoding.Error(e, err)
 	}
-	return dst, err
+	return err
 }

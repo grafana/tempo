@@ -85,6 +85,7 @@ type streamingBlock struct {
 	r     backend.Reader
 	to    backend.Writer
 	sch   *parquet.Schema
+	pool  *rowPool
 
 	currentBufferedTraces int
 	currentBufferedValues int
@@ -117,11 +118,14 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		r:     r,
 		to:    to,
 		sch:   sch,
+		pool:  newRowPool(0),
 	}
 }
 
 func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
-	row := b.sch.Deconstruct(nil, tr)
+	row := b.sch.Deconstruct(b.pool.Get(), tr)
+	defer b.pool.Put(row)
+
 	return b.AddRaw(tr.TraceID, row, start, end)
 }
 

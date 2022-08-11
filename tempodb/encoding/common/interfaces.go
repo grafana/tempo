@@ -43,6 +43,7 @@ type CompactionOptions struct {
 	ChunkSizeBytes     uint32
 	FlushSizeBytes     uint32
 	IteratorBufferSize int // How many traces to prefetch async.
+	MaxBytesPerTrace   int
 	OutputBlocks       uint8
 	BlockConfig        BlockConfig
 	Combiner           model.ObjectCombiner
@@ -50,6 +51,7 @@ type CompactionOptions struct {
 	ObjectsCombined func(compactionLevel, objects int)
 	ObjectsWritten  func(compactionLevel, objects int)
 	BytesWritten    func(compactionLevel, bytes int)
+	SpansDiscarded  func(spans int)
 }
 
 type Iterator interface {

@@ -20,23 +20,20 @@ func (e *DictionaryEncoding) Encoding() format.Encoding {
 	return format.RLEDictionary
 }
 
-func (e *DictionaryEncoding) EncodeInt32(dst, src []byte) ([]byte, error) {
-	if (len(src) % 4) != 0 {
-		return dst[:0], encoding.ErrEncodeInvalidInputSize(e, "INT32", len(src))
-	}
-	src32 := unsafecast.BytesToInt32(src)
-	bitWidth := maxLenInt32(src32)
+func (e *DictionaryEncoding) EncodeInt32(dst []byte, src []int32) ([]byte, error) {
+	bitWidth := maxLenInt32(src)
 	dst = append(dst[:0], byte(bitWidth))
-	dst, err := encodeInt32(dst, src32, uint(bitWidth))
+	dst, err := encodeInt32(dst, src, uint(bitWidth))
 	return dst, e.wrap(err)
 }
 
-func (e *DictionaryEncoding) DecodeInt32(dst, src []byte) ([]byte, error) {
+func (e *DictionaryEncoding) DecodeInt32(dst []int32, src []byte) ([]int32, error) {
 	if len(src) == 0 {
 		return dst[:0], nil
 	}
-	dst, err := decodeInt32(dst[:0], src[1:], uint(src[0]))
-	return dst, e.wrap(err)
+	buf := unsafecast.Int32ToBytes(dst)
+	buf, err := decodeInt32(buf[:0], src[1:], uint(src[0]))
+	return unsafecast.BytesToInt32(buf), e.wrap(err)
 }
 
 func (e *DictionaryEncoding) wrap(err error) error {

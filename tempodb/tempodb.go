@@ -92,10 +92,12 @@ type Compactor interface {
 type CompactorSharder interface {
 	Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error)
 	Owns(hash string) bool
+	RecordDiscardedSpans(count int, tenantID string)
 }
 
 type CompactorOverrides interface {
 	BlockRetentionForTenant(tenantID string) time.Duration
+	MaxBytesPerTraceForTenant(tenantID string) int
 }
 
 type WriteableBlock interface {

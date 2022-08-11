@@ -70,9 +70,11 @@ func NewGenericWriter[T any](output io.Writer, options ...WriterOption) *Generic
 		panic(err)
 	}
 
+	schema := config.Schema
 	t := typeOf[T]()
-	schema := schemaOf(dereference(t))
-	if config.Schema == nil {
+
+	if schema == nil && t != nil {
+		schema = schemaOf(dereference(t))
 		config.Schema = schema
 	}
 
@@ -90,6 +92,9 @@ func NewGenericWriter[T any](output io.Writer, options ...WriterOption) *Generic
 type writeFunc[T any] func(*GenericWriter[T], []T) (int, error)
 
 func writeFuncOf[T any](t reflect.Type, schema *Schema) writeFunc[T] {
+	if t == nil {
+		return (*GenericWriter[T]).writeAny
+	}
 	switch t.Kind() {
 	case reflect.Interface, reflect.Map:
 		return (*GenericWriter[T]).writeRows
@@ -187,6 +192,16 @@ func (w *GenericWriter[T]) writeRows(rows []T) (int, error) {
 	}
 
 	return w.base.WriteRows(w.base.rowbuf)
+}
+
+func (w *GenericWriter[T]) writeAny(rows []T) (n int, err error) {
+	for i := range rows {
+		if err = w.base.Write(rows[i]); err != nil {
+			return n, err
+		}
+		n++
+	}
+	return n, nil
 }
 
 var (

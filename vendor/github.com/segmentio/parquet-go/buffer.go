@@ -67,7 +67,11 @@ func (buf *Buffer) configure(schema *Schema) {
 		encoding := encodingOf(leaf.node)
 
 		if isDictionaryEncoding(encoding) {
-			dictBuffer := make([]byte, 0, columnType.EstimateSize(bufferCap))
+			estimatedDictBufferSize := columnType.EstimateSize(bufferCap)
+			dictBuffer := columnType.NewValues(
+				make([]byte, 0, estimatedDictBufferSize),
+				nil,
+			)
 			dictionary = columnType.NewDictionary(columnIndex, 0, dictBuffer)
 			columnType = dictionary.Type()
 		}

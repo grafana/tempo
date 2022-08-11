@@ -23,6 +23,7 @@ type fetchEntry struct {
 
 var _ RawIterator = (*prefetchIter)(nil)
 
+// nolint: unused, deadcode
 func newPrefetchIterator(ctx context.Context, iter RawIterator, bufferSize int) *prefetchIter {
 	p := &prefetchIter{
 		iter:      iter,

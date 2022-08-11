@@ -149,10 +149,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	}
 
 	var err error
-
-	defer func() {
-		level.Info(rw.logger).Log("msg", "compaction complete")
-	}()
+	startTime := time.Now()
 
 	var totalRecords int
 	for _, blockMeta := range blockMetas {
@@ -187,6 +184,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		IteratorBufferSize: rw.compactorCfg.IteratorBufferSize,
 		OutputBlocks:       outputBlocks,
 		Combiner:           combiner,
+		MaxBytesPerTrace:   rw.compactorOverrides.MaxBytesPerTraceForTenant(tenantID),
 		BytesWritten: func(compactionLevel, bytes int) {
 			metricCompactionBytesWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(bytes))
 		},
@@ -195,6 +193,9 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		},
 		ObjectsWritten: func(compactionLevel, objs int) {
 			metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
+		},
+		SpansDiscarded: func(spans int) {
+			rw.compactorSharder.RecordDiscardedSpans(spans, tenantID)
 		},
 	}
 
@@ -209,6 +210,17 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	markCompacted(rw, tenantID, blockMetas, newCompactedBlocks)
 
 	metricCompactionBlocks.WithLabelValues(compactionLevelLabel).Add(float64(len(blockMetas)))
+
+	logArgs := []interface{}{
+		"msg",
+		"compaction complete",
+		"elapsed",
+		time.Since(startTime),
+	}
+	for _, meta := range newCompactedBlocks {
+		logArgs = append(logArgs, "block", fmt.Sprintf("%+v", meta))
+	}
+	level.Info(rw.logger).Log(logArgs...)
 
 	return nil
 }

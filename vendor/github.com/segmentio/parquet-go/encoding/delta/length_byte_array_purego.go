@@ -2,21 +2,23 @@
 
 package delta
 
-import (
-	"github.com/segmentio/parquet-go/encoding/plain"
-)
-
-func decodeLengthByteArray(dst, src []byte, lengths []int32) ([]byte, error) {
+func encodeByteArrayLengths(lengths []int32, offsets []uint32) {
 	for i := range lengths {
-		n := int(lengths[i])
-		if n < 0 {
-			return dst, errInvalidNegativeValueLength(n)
-		}
-		if n > len(src) {
-			return dst, errValueLengthOutOfBounds(n, len(src))
-		}
-		dst = plain.AppendByteArray(dst, src[:n])
-		src = src[n:]
+		lengths[i] = int32(offsets[i+1] - offsets[i])
 	}
-	return dst, nil
+}
+
+func decodeByteArrayLengths(offsets []uint32, lengths []int32) (uint32, int32) {
+	lastOffset := uint32(0)
+
+	for i, n := range lengths {
+		if n < 0 {
+			return lastOffset, n
+		}
+		offsets[i] = lastOffset
+		lastOffset += uint32(n)
+	}
+
+	offsets[len(lengths)] = lastOffset
+	return lastOffset, 0
 }

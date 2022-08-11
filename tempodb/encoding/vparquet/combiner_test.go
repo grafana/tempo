@@ -3,6 +3,8 @@ package vparquet
 import (
 	"testing"
 
+	"github.com/dustin/go-humanize"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -136,5 +138,54 @@ func TestCombiner(t *testing.T) {
 				assert.Equal(t, tt.expectedTrace, actualTrace)
 			}
 		}
+	}
+}
+
+func BenchmarkCombine(b *testing.B) {
+
+	batchCount := 100
+	spanCounts := []int{
+		100, 1000, 10000,
+	}
+
+	for _, spanCount := range spanCounts {
+		b.Run("SpanCount:"+humanize.SI(float64(batchCount*spanCount), ""), func(b *testing.B) {
+			id1 := test.ValidTraceID(nil)
+			tr1 := traceToParquet(id1, test.MakeTraceWithSpanCount(batchCount, spanCount, id1))
+
+			id2 := test.ValidTraceID(nil)
+			tr2 := traceToParquet(id2, test.MakeTraceWithSpanCount(batchCount, spanCount, id2))
+
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				c := NewCombiner()
+				c.ConsumeWithFinal(&tr1, false)
+				c.ConsumeWithFinal(&tr2, true)
+				c.Result()
+			}
+		})
+	}
+}
+
+func BenchmarkSortTrace(b *testing.B) {
+
+	batchCount := 100
+	spanCounts := []int{
+		100, 1000, 10000,
+	}
+
+	for _, spanCount := range spanCounts {
+		b.Run("SpanCount:"+humanize.SI(float64(batchCount*spanCount), ""), func(b *testing.B) {
+
+			id := test.ValidTraceID(nil)
+			tr := traceToParquet(id, test.MakeTraceWithSpanCount(batchCount, spanCount, id))
+
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				SortTrace(&tr)
+			}
+		})
 	}
 }

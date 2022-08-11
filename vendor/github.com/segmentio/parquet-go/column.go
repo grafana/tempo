@@ -487,11 +487,13 @@ func schemaRepetitionTypeOf(s *format.SchemaElement) format.FieldRepetitionType 
 }
 
 type dictPage struct {
-	values []byte
+	values  []byte
+	offsets []uint32
 }
 
 func (p *dictPage) reset() {
 	p.values = p.values[:0]
+	p.offsets = p.offsets[:0]
 }
 
 type dataPage struct {
@@ -499,6 +501,7 @@ type dataPage struct {
 	definitionLevels []byte
 	data             []byte
 	values           []byte
+	offsets          []uint32
 	dictionary       Dictionary
 }
 
@@ -507,6 +510,7 @@ func (p *dataPage) reset() {
 	p.definitionLevels = p.definitionLevels[:0]
 	p.data = p.data[:0]
 	p.values = p.values[:0]
+	p.offsets = p.offsets[:0]
 	p.dictionary = nil
 }
 
@@ -602,25 +606,26 @@ func (c *Column) decodeDataPageV2(header DataPageHeaderV2, page *dataPage) (Page
 }
 
 func (c *Column) decodeDataPage(header DataPageHeader, numValues int64, page *dataPage, data []byte) (Page, error) {
-	encoding := LookupEncoding(header.Encoding())
+	pageEncoding := LookupEncoding(header.Encoding())
 	pageType := c.Type()
 
-	if isDictionaryEncoding(encoding) {
+	if isDictionaryEncoding(pageEncoding) {
 		// In some legacy configurations, the PLAIN_DICTIONARY encoding is used
 		// on data page headers to indicate that the page contains indexes into
 		// the dictionary page, but the page is still encoded using the RLE
 		// encoding in this case, so we convert it to RLE_DICTIONARY.
-		encoding = &RLEDictionary
+		pageEncoding = &RLEDictionary
 		pageType = indexedPageType{newIndexedType(pageType, page.dictionary)}
 	}
 
-	var err error
-	page.values, err = pageType.Decode(page.values, data, encoding)
+	values := pageType.NewValues(page.values, page.offsets)
+	values, err := pageType.Decode(values, data, pageEncoding)
 	if err != nil {
 		return nil, err
 	}
+	page.values, page.offsets = values.Data()
 
-	newPage := pageType.NewPage(c.Index(), int(numValues), page.values)
+	newPage := pageType.NewPage(c.Index(), int(numValues), values)
 	switch {
 	case c.maxRepetitionLevel > 0:
 		newPage = newRepeatedPage(newPage.Buffer(), c.maxRepetitionLevel, c.maxDefinitionLevel, page.repetitionLevels, page.definitionLevels)
@@ -681,19 +686,19 @@ func (c *Column) decodeDictionary(header DictionaryPageHeader, page *dataPage, d
 	}
 
 	pageType := c.Type()
-	encoding := header.Encoding()
-	if encoding == format.PlainDictionary {
-		encoding = format.Plain
+	pageEncoding := header.Encoding()
+	if pageEncoding == format.PlainDictionary {
+		pageEncoding = format.Plain
 	}
 
-	var err error
-	page.values, err = pageType.Decode(page.values, page.data, LookupEncoding(encoding))
+	values := pageType.NewValues(dict.values, dict.offsets)
+	values, err := pageType.Decode(values, page.data, LookupEncoding(pageEncoding))
 	if err != nil {
 		return nil, err
 	}
-
-	dict.values = append(dict.values[:0], page.values...)
-	return pageType.NewDictionary(int(c.index), int(header.NumValues()), dict.values), nil
+	dict.values, dict.offsets = values.Data()
+	values = pageType.NewValues(dict.values, dict.offsets)
+	return pageType.NewDictionary(int(c.index), int(header.NumValues()), values), nil
 }
 
 var (

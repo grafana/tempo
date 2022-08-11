@@ -3,7 +3,6 @@
 package delta
 
 import (
-	"github.com/segmentio/parquet-go/encoding/plain"
 	"golang.org/x/sys/cpu"
 )
 
@@ -49,19 +48,29 @@ func validatePrefixAndSuffixLengthValues(prefix, suffix []int32, maxLength int) 
 }
 
 //go:noescape
+func decodeByteArrayOffsets(offsets []uint32, prefix, suffix []int32)
+
+//go:noescape
 func decodeByteArrayAVX2(dst, src []byte, prefix, suffix []int32) int
 
-func decodeByteArray(dst, src []byte, prefix, suffix []int32) ([]byte, error) {
+func decodeByteArray(dst, src []byte, prefix, suffix []int32, offsets []uint32) ([]byte, []uint32, error) {
 	totalPrefixLength, totalSuffixLength, err := validatePrefixAndSuffixLengthValues(prefix, suffix, len(src))
 	if err != nil {
-		return dst, err
+		return dst, offsets, err
 	}
 
-	totalLength := plain.ByteArrayLengthSize*len(prefix) + totalPrefixLength + totalSuffixLength
+	totalLength := totalPrefixLength + totalSuffixLength
 	dst = resizeNoMemclr(dst, totalLength+padding)
+
+	if size := len(prefix) + 1; cap(offsets) < size {
+		offsets = make([]uint32, size)
+	} else {
+		offsets = offsets[:size]
+	}
 
 	_ = prefix[:len(suffix)]
 	_ = suffix[:len(prefix)]
+	decodeByteArrayOffsets(offsets, prefix, suffix)
 
 	var lastValue []byte
 	var i int
@@ -88,23 +97,18 @@ func decodeByteArray(dst, src []byte, prefix, suffix []int32) ([]byte, error) {
 	for k := range prefix {
 		p := int(prefix[k])
 		n := int(suffix[k])
-		plain.PutByteArrayLength(dst[i:], p+n)
-		i += plain.ByteArrayLengthSize
-		k := i
+		lastValueOffset := i
 		i += copy(dst[i:], lastValue[:p])
 		i += copy(dst[i:], src[j:j+n])
 		j += n
-		lastValue = dst[k:]
+		lastValue = dst[lastValueOffset:]
 	}
 
-	return dst[:totalLength], nil
+	return dst[:totalLength], offsets, nil
 }
 
 //go:noescape
-func decodeFixedLenByteArrayAVX2(dst, src []byte, prefix, suffix []int32) int
-
-//go:noescape
-func decodeFixedLenByteArrayAVX2x128bits(dst, src []byte, prefix, suffix []int32) int
+func decodeByteArrayAVX2x128bits(dst, src []byte, prefix, suffix []int32) int
 
 func decodeFixedLenByteArray(dst, src []byte, size int, prefix, suffix []int32) ([]byte, error) {
 	totalPrefixLength, totalSuffixLength, err := validatePrefixAndSuffixLengthValues(prefix, suffix, len(src))
@@ -133,9 +137,9 @@ func decodeFixedLenByteArray(dst, src []byte, size int, prefix, suffix []int32) 
 
 		if k > 0 && n >= padding {
 			if size == 16 {
-				i = decodeFixedLenByteArrayAVX2x128bits(dst, src, prefix[:k], suffix[:k])
+				i = decodeByteArrayAVX2x128bits(dst, src, prefix[:k], suffix[:k])
 			} else {
-				i = decodeFixedLenByteArrayAVX2(dst, src, prefix[:k], suffix[:k])
+				i = decodeByteArrayAVX2(dst, src, prefix[:k], suffix[:k])
 			}
 			j = len(src) - n
 			prefix = prefix[k:]

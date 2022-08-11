@@ -5,6 +5,7 @@ package encoding
 import (
 	"math"
 
+	"github.com/segmentio/parquet-go/deprecated"
 	"github.com/segmentio/parquet-go/format"
 )
 
@@ -27,29 +28,30 @@ type Encoding interface {
 	// destination buffer, potentially reallocating it if it was too short to
 	// contain the output.
 	//
-	// The source are expected to be encoded using the PLAIN encoding, and
-	// therefore the methods act as conversions into the target encoding.
-	EncodeLevels(dst, src []byte) ([]byte, error)
-	EncodeBoolean(dst, src []byte) ([]byte, error)
-	EncodeInt32(dst, src []byte) ([]byte, error)
-	EncodeInt64(dst, src []byte) ([]byte, error)
-	EncodeInt96(dst, src []byte) ([]byte, error)
-	EncodeFloat(dst, src []byte) ([]byte, error)
-	EncodeDouble(dst, src []byte) ([]byte, error)
-	EncodeByteArray(dst, src []byte) ([]byte, error)
-	EncodeFixedLenByteArray(dst, src []byte, size int) ([]byte, error)
+	// The methods panic if the type of src values differ from the type of
+	// values being encoded.
+	EncodeLevels(dst []byte, src []uint8) ([]byte, error)
+	EncodeBoolean(dst []byte, src []byte) ([]byte, error)
+	EncodeInt32(dst []byte, src []int32) ([]byte, error)
+	EncodeInt64(dst []byte, src []int64) ([]byte, error)
+	EncodeInt96(dst []byte, src []deprecated.Int96) ([]byte, error)
+	EncodeFloat(dst []byte, src []float32) ([]byte, error)
+	EncodeDouble(dst []byte, src []float64) ([]byte, error)
+	EncodeByteArray(dst []byte, src []byte, offsets []uint32) ([]byte, error)
+	EncodeFixedLenByteArray(dst []byte, src []byte, size int) ([]byte, error)
 
 	// Decode methods deserialize from the source buffer into the destination
 	// slice, potentially growing it if it was too short to contain the result.
 	//
-	// Values are written in the destination buffer in the PLAIN encoding.
-	DecodeLevels(dst, src []byte) ([]byte, error)
-	DecodeBoolean(dst, src []byte) ([]byte, error)
-	DecodeInt32(dst, src []byte) ([]byte, error)
-	DecodeInt64(dst, src []byte) ([]byte, error)
-	DecodeInt96(dst, src []byte) ([]byte, error)
-	DecodeFloat(dst, src []byte) ([]byte, error)
-	DecodeDouble(dst, src []byte) ([]byte, error)
-	DecodeByteArray(dst, src []byte) ([]byte, error)
-	DecodeFixedLenByteArray(dst, src []byte, size int) ([]byte, error)
+	// The methods panic if the type of dst values differ from the type of
+	// values being decoded.
+	DecodeLevels(dst []uint8, src []byte) ([]uint8, error)
+	DecodeBoolean(dst []byte, src []byte) ([]byte, error)
+	DecodeInt32(dst []int32, src []byte) ([]int32, error)
+	DecodeInt64(dst []int64, src []byte) ([]int64, error)
+	DecodeInt96(dst []deprecated.Int96, src []byte) ([]deprecated.Int96, error)
+	DecodeFloat(dst []float32, src []byte) ([]float32, error)
+	DecodeDouble(dst []float64, src []byte) ([]float64, error)
+	DecodeByteArray(dst []byte, src []byte, offsets []uint32) ([]byte, []uint32, error)
+	DecodeFixedLenByteArray(dst []byte, src []byte, size int) ([]byte, error)
 }
