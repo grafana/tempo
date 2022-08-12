@@ -59,7 +59,7 @@ type Attribute struct {
 
 type EventAttribute struct {
 	Key   string `parquet:",snappy,dict"`
-	Value string `parquet:",snappy"` // Was json-encoded data, is now proto encoded data
+	Value []byte `parquet:",snappy"` // Was json-encoded data, is now proto encoded data
 }
 
 type Event struct {
@@ -325,11 +325,11 @@ func eventToParquet(e *v1_trace.Span_Event) Event {
 
 	for _, a := range e.Attributes {
 		b := make([]byte, a.Value.Size())
-		a.Value.MarshalToSizedBuffer(b)
+		_, _ = a.Value.MarshalToSizedBuffer(b)
 
 		ee.Attrs = append(ee.Attrs, EventAttribute{
 			Key:   a.Key,
-			Value: string(b),
+			Value: b,
 		})
 	}
 
@@ -401,7 +401,7 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 					//  this code attempts proto first and, if there was an error, falls back to json
 					err := protoAttr.Value.Unmarshal([]byte(a.Value))
 					if err != nil {
-						_ = jsonpb.Unmarshal(bytes.NewBufferString(a.Value), protoAttr.Value)
+						_ = jsonpb.Unmarshal(bytes.NewBuffer(a.Value), protoAttr.Value)
 					}
 
 					protoEvent.Attributes = append(protoEvent.Attributes, protoAttr)
