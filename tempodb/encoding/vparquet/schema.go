@@ -399,7 +399,7 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 
 					// event attributes are currently encoded as proto, but were previously json.
 					//  this code attempts proto first and, if there was an error, falls back to json
-					err := protoAttr.Value.Unmarshal([]byte(a.Value))
+					err := protoAttr.Value.Unmarshal(a.Value)
 					if err != nil {
 						_ = jsonpb.Unmarshal(bytes.NewBuffer(a.Value), protoAttr.Value)
 					}
