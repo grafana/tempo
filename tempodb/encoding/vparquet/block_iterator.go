@@ -16,8 +16,8 @@ import (
 func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader, error) {
 	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
 
-	// 32 MB memory buffering
-	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 64)
+	// 128 MB memory buffering
+	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 2*1024*1024, 64)
 
 	pf, err := parquet.OpenFile(br, int64(b.meta.Size))
 	if err != nil {
