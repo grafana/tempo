@@ -47,13 +47,12 @@ var (
 	}, []string{"tenant"})
 	metricSpansDiscarded = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
-		Name:      "metrics_generator_discarded_spans_total",
+		Name:      "metrics_generator_spans_discarded_total",
 		Help:      "The total number of discarded spans received per tenant",
 	}, []string{"tenant", "reason"})
 )
 
 const reason_outside_time_range_slack = "outside_metrics_ingestion_slack"
-const future_slack = 5 * time.Hour * 24
 
 type instance struct {
 	cfg *Config
@@ -279,7 +278,7 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 			timeNow := time.Now()
 			index := 0
 			for _, span := range ils.Spans {
-				if span.EndTimeUnixNano >= uint64(timeNow.Add(-i.cfg.MetricsIngestionSlack).UnixNano()) && span.EndTimeUnixNano <= uint64(timeNow.Add(future_slack).UnixNano()) {
+				if span.EndTimeUnixNano >= uint64(timeNow.Add(-i.cfg.MetricsIngestionSlack).UnixNano()) && span.EndTimeUnixNano <= uint64(timeNow.Add(i.cfg.MetricsIngestionSlack).UnixNano()) {
 					newSpansArr[index] = span
 					index++
 				} else {
