@@ -218,7 +218,7 @@ func BenchmarkEventToParquet(b *testing.B) {
 		},
 	}
 
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < b.N; i++ {
 		eventToParquet(e)
 	}
 }
