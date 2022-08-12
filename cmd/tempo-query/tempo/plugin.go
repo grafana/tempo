@@ -34,6 +34,8 @@ const (
 	operationSearchTag   = "name"
 	minDurationSearchTag = "minDuration"
 	maxDurationSearchTag = "maxDuration"
+	startTimeMaxTag      = "end"
+	startTimeMinTag      = "start"
 	numTracesSearchTag   = "limit"
 )
 
@@ -188,6 +190,9 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 	urlQuery.Set(minDurationSearchTag, query.DurationMin.String())
 	urlQuery.Set(maxDurationSearchTag, query.DurationMax.String())
 	urlQuery.Set(numTracesSearchTag, strconv.Itoa(query.NumTraces))
+	urlQuery.Set(startTimeMaxTag, fmt.Sprintf("%d", query.StartTimeMax.Unix()))
+	urlQuery.Set(startTimeMinTag, fmt.Sprintf("%d", query.StartTimeMin.Unix()))
+
 	for k, v := range query.Tags {
 		urlQuery.Set(k, v)
 	}
