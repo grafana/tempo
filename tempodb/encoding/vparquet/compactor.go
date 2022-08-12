@@ -38,8 +38,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		bookmarks       = make([]*bookmark, 0, len(inputs))
 		// MaxBytesPerTrace is the largest trace that can be expected, and assumes 1 byte per value on average (same as flushing).
 		// Divide by 4 to presumably require 2 slice allocations if we ever see a trace this large
-		pool         = newRowPool(c.opts.MaxBytesPerTrace / 4)
-		prefetchSize = c.opts.IteratorBufferSize / len(inputs)
+		pool = newRowPool(c.opts.MaxBytesPerTrace / 4)
 	)
 	for _, blockMeta := range inputs {
 		totalRecords += blockMeta.TotalObjects
