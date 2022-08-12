@@ -5,7 +5,10 @@ weight: 700
 
 # Troubleshooting
 
-This section helps with day zero operational issues that may come up when getting started with Tempo. The documents walk you through debugging each part of the ingestion and query pipeline to drill down and diagnose issues.
+This section helps with day zero operational issues that may come up when getting started with Tempo.
+The documents walk you through debugging each part of the ingestion and query pipeline to diagnose issues.
+
+In addition, the [Tempo runbook](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/runbook.md) can help with remediating operational issues.
 
 ## Sending traces
 
