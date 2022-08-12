@@ -65,7 +65,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			return nil, err
 		}
 
-		bookmarks = append(bookmarks, newBookmark(newPrefetchIterator(derivedCtx, iter, prefetchSize)))
+		bookmarks = append(bookmarks, newBookmark(iter))
 	}
 
 	var (
