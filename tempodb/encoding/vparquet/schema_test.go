@@ -187,6 +187,42 @@ func BenchmarkProtoToParquet(b *testing.B) {
 	}
 }
 
+func BenchmarkEventToParquet(b *testing.B) {
+	e := &v1_trace.Span_Event{
+		TimeUnixNano: 1000,
+		Name:         "blerg",
+		Attributes: []*v1.KeyValue{
+			// String
+			{Key: "s", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "s2"}}},
+
+			// Int
+			{Key: "i", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
+
+			// Double
+			{Key: "d", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 123.456}}},
+
+			// Bool
+			{Key: "b", Value: &v1.AnyValue{Value: &v1.AnyValue_BoolValue{BoolValue: true}}},
+
+			// KVList
+			{Key: "kv", Value: &v1.AnyValue{Value: &v1.AnyValue_KvlistValue{KvlistValue: &v1.KeyValueList{Values: []*v1.KeyValue{
+				{Key: "s2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "s3"}}},
+				{Key: "i2", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 789}}},
+			}}}}},
+
+			// Array
+			{Key: "a", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{
+				{Value: &v1.AnyValue_StringValue{StringValue: "s4"}},
+				{Value: &v1.AnyValue_IntValue{IntValue: 101112}},
+			}}}}},
+		},
+	}
+
+	for i := 0; i < b.N; i++ {
+		eventToParquet(e)
+	}
+}
+
 func BenchmarkDeconstruct(b *testing.B) {
 
 	batchCount := 100
