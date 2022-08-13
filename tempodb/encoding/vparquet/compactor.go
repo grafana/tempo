@@ -82,6 +82,14 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			return rows[0], nil
 		}
 
+		isEqual := true
+		for i := 1; i < len(rows) && isEqual; i++ {
+			isEqual = rows[i-1].Equal(rows[i])
+		}
+		if isEqual {
+			return rows[0], nil
+		}
+
 		// Total
 		if c.opts.MaxBytesPerTrace > 0 {
 			sum := 0
