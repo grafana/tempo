@@ -36,7 +36,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		ResourceSpans: []ResourceSpans{
 			{
 				Resource: Resource{
-					ServiceName:      "myserviceA",
+					ServiceName:      "myservice",
 					Cluster:          strPtr("cluster"),
 					Namespace:        strPtr("namespace"),
 					Pod:              strPtr("pod"),
