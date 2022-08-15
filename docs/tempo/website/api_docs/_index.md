@@ -9,7 +9,8 @@ weight: 500
 
 Tempo exposes an API for pushing and querying traces, and operating the cluster itself.
 
-For the sake of clarity, API endpoints are grouped by service. These endpoints are exposed both when running Tempo in microservices and monolithic mode:
+For the sake of clarity, API endpoints are grouped by service.
+These endpoints are exposed both when running Tempo in microservices and monolithic mode:
 - **microservices**: each service exposes its own endpoints
 - **monolithic**: the Tempo process exposes all API endpoints for the services running internally
 
@@ -291,7 +292,7 @@ ingester service.
 
 ### Distributor ring status
 
-> Note: this endpoint is only available when Tempo is configured with [the global override strategy]({{< relref "../configuration/#override-strategies" >}}).
+> **Note**: This endpoint is only available when Tempo is configured with [the global override strategy]({{< relref "../configuration/#overrides" >}}).
 
 ```
 GET /distributor/ring
