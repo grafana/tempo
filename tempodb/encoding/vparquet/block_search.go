@@ -2,7 +2,6 @@ package vparquet
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"strconv"
 	"time"
@@ -75,9 +74,6 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	results := searchParquetFile(derivedCtx, pf, req, rgs)
 	results.Metrics.InspectedBlocks++
 	results.Metrics.InspectedBytes += rr.TotalBytesRead
-
-	traceID, _ := util.ExtractTraceID(ctx)
-	fmt.Println("Searched parquet file:", traceID, b.meta.BlockID, opts.StartPage, opts.TotalPages, results)
 
 	return results, nil
 }
