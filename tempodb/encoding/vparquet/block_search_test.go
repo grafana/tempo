@@ -35,7 +35,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		ResourceSpans: []ResourceSpans{
 			{
 				Resource: Resource{
-					ServiceName:      "myservice",
+					ServiceName:      "myserviceA",
 					Cluster:          strPtr("cluster"),
 					Namespace:        strPtr("namespace"),
 					Pod:              strPtr("pod"),
@@ -70,7 +70,23 @@ func TestBackendBlockSearch(t *testing.T) {
 		},
 	}
 
-	b := makeBackendBlockWithTrace(t, wantTr)
+	// make a bunch of traces and include our wantTr above
+	total := 100
+	insertAt := 50
+	allTraces := make([]*Trace, 0, total)
+	for i := 0; i < total; i++ {
+		if i == insertAt {
+			allTraces = append(allTraces, wantTr)
+			continue
+		}
+
+		id := test.ValidTraceID(nil)
+		pbTrace := test.MakeTrace(10, id)
+		pqTrace := traceToParquet(id, pbTrace)
+		allTraces = append(allTraces, &pqTrace)
+	}
+
+	b := makeBackendBlockWithTraces(t, allTraces)
 	ctx := context.TODO()
 
 	// Helper function to make a tag search
@@ -79,6 +95,8 @@ func TestBackendBlockSearch(t *testing.T) {
 			Tags: map[string]string{
 				k: v,
 			},
+			Start: 1000,
+			End:   2000,
 		}
 	}
 
@@ -145,11 +163,23 @@ func TestBackendBlockSearch(t *testing.T) {
 		RootServiceName:   wantTr.RootServiceName,
 		RootTraceName:     wantTr.RootSpanName,
 	}
+
+	findInResults := func(id string, res []*tempopb.TraceSearchMetadata) *tempopb.TraceSearchMetadata {
+		for _, r := range res {
+			if r.TraceID == id {
+				return r
+			}
+		}
+		return nil
+	}
+
 	for _, req := range searchesThatMatch {
 		res, err := b.Search(ctx, req, defaultSearchOptions())
 		require.NoError(t, err)
-		require.Equal(t, 1, len(res.Traces), req)
-		require.Equal(t, expected, res.Traces[0], "search request:", req)
+
+		meta := findInResults(expected.TraceID, res.Traces)
+		require.NotNil(t, meta, "search request:", req)
+		require.Equal(t, expected, meta, "search request:", req)
 	}
 
 	// Excludes
@@ -184,11 +214,12 @@ func TestBackendBlockSearch(t *testing.T) {
 	for _, req := range searchesThatDontMatch {
 		res, err := b.Search(ctx, req, defaultSearchOptions())
 		require.NoError(t, err)
-		require.Empty(t, res.Traces, "search request:", req)
+		meta := findInResults(expected.TraceID, res.Traces)
+		require.Nil(t, meta, req)
 	}
 }
 
-func makeBackendBlockWithTrace(t *testing.T, tr *Trace) *backendBlock {
+func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: t.TempDir(),
@@ -209,7 +240,9 @@ func makeBackendBlockWithTrace(t *testing.T, tr *Trace) *backendBlock {
 
 	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
-	require.NoError(t, s.Add(tr, 0, 0))
+	for _, tr := range trs {
+		require.NoError(t, s.Add(tr, 0, 0))
+	}
 
 	_, err = s.Complete()
 	require.NoError(t, err)
