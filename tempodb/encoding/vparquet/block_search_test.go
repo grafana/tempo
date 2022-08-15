@@ -2,6 +2,7 @@ package vparquet
 
 import (
 	"context"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -71,8 +72,8 @@ func TestBackendBlockSearch(t *testing.T) {
 	}
 
 	// make a bunch of traces and include our wantTr above
-	total := 100
-	insertAt := 50
+	total := 1000
+	insertAt := rand.Intn(total)
 	allTraces := make([]*Trace, 0, total)
 	for i := 0; i < total; i++ {
 		if i == insertAt {
@@ -95,8 +96,6 @@ func TestBackendBlockSearch(t *testing.T) {
 			Tags: map[string]string{
 				k: v,
 			},
-			Start: 1000,
-			End:   2000,
 		}
 	}
 
@@ -240,8 +239,12 @@ func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 
 	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
-	for _, tr := range trs {
+	for i, tr := range trs {
 		require.NoError(t, s.Add(tr, 0, 0))
+		if i%100 == 0 {
+			_, err := s.Flush()
+			require.NoError(t, err)
+		}
 	}
 
 	_, err = s.Complete()
