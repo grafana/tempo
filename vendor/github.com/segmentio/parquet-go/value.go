@@ -447,19 +447,19 @@ func (v Value) AppendBytes(b []byte) []byte {
 //
 // The following formatting options are supported:
 //
-//		%c	prints the column index
-//		%+c	prints the column index, prefixed with "C:"
-//		%d	prints the definition level
-//		%+d	prints the definition level, prefixed with "D:"
-//		%r	prints the repetition level
-//		%+r	prints the repetition level, prefixed with "R:"
-//		%q	prints the quoted representation of v
-//		%+q	prints the quoted representation of v, prefixed with "V:"
-//		%s	prints the string representation of v
-//		%+s	prints the string representation of v, prefixed with "V:"
-//		%v	same as %s
-//		%+v	prints a verbose representation of v
-//		%#v	prints a Go value representation of v
+//	%c	prints the column index
+//	%+c	prints the column index, prefixed with "C:"
+//	%d	prints the definition level
+//	%+d	prints the definition level, prefixed with "D:"
+//	%r	prints the repetition level
+//	%+r	prints the repetition level, prefixed with "R:"
+//	%q	prints the quoted representation of v
+//	%+q	prints the quoted representation of v, prefixed with "V:"
+//	%s	prints the string representation of v
+//	%+s	prints the string representation of v, prefixed with "V:"
+//	%v	same as %s
+//	%+v	prints a verbose representation of v
+//	%#v	prints a Go value representation of v
 //
 // Format satisfies the fmt.Formatter interface.
 func (v Value) Format(w fmt.State, r rune) {

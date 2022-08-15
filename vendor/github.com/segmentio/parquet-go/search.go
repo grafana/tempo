@@ -56,7 +56,6 @@ func Search(index ColumnIndex, value Value, typ Type) int {
 //	pageIndex := parquet.Find(columnIndex, value,
 //		parquet.CompareNullsFirst(typ.Compare),
 //	)
-//
 func Find(index ColumnIndex, value Value, cmp func(Value, Value) int) int {
 	switch {
 	case index.IsAscending():

@@ -23,7 +23,6 @@ package parquet
 // running more AVX-512 instructions in the tight loops causes more contention
 // on CPU ports.
 //
-//
 // Optimizations being trade offs, using min/max functions independently appears
 // to yield better throughput when the data resides in CPU caches:
 //

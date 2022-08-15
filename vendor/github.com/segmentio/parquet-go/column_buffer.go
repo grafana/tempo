@@ -46,8 +46,8 @@ type ColumnBuffer interface {
 	// the original, mutations of either column will not modify the other.
 	Clone() ColumnBuffer
 
-	// Returns the column as a BufferedPage.
-	Page() BufferedPage
+	// Returns the column as a Page.
+	Page() Page
 
 	// Clears all rows written to the column.
 	Reset()
@@ -207,7 +207,7 @@ func (col *optionalColumnBuffer) Pages() Pages {
 	return onePage(col.Page())
 }
 
-func (col *optionalColumnBuffer) Page() BufferedPage {
+func (col *optionalColumnBuffer) Page() Page {
 	// No need for any cyclic sorting if the rows have not been reordered.
 	// This case is also important because the cyclic sorting modifies the
 	// buffer which makes it unsafe to read the buffer concurrently.
@@ -248,7 +248,8 @@ func (col *optionalColumnBuffer) Page() BufferedPage {
 		col.reordered = false
 	}
 
-	return newOptionalPage(col.base.Page(), col.maxDefinitionLevel, col.definitionLevels)
+	definitionLevels := makeBufferRef(&buffer{data: col.definitionLevels})
+	return newOptionalPage(col.base.Page(), col.maxDefinitionLevel, definitionLevels)
 }
 
 func (col *optionalColumnBuffer) Reset() {
@@ -497,7 +498,7 @@ func (col *repeatedColumnBuffer) Pages() Pages {
 	return onePage(col.Page())
 }
 
-func (col *repeatedColumnBuffer) Page() BufferedPage {
+func (col *repeatedColumnBuffer) Page() Page {
 	if col.reordered {
 		if col.reordering == nil {
 			col.reordering = col.Clone().(*repeatedColumnBuffer)
@@ -550,12 +551,14 @@ func (col *repeatedColumnBuffer) Page() BufferedPage {
 		col.reordered = false
 	}
 
+	repetitionLevels := makeBufferRef(&buffer{data: col.repetitionLevels})
+	definitionLevels := makeBufferRef(&buffer{data: col.definitionLevels})
 	return newRepeatedPage(
 		col.base.Page(),
 		col.maxRepetitionLevel,
 		col.maxDefinitionLevel,
-		col.repetitionLevels,
-		col.definitionLevels,
+		repetitionLevels,
+		definitionLevels,
 	)
 }
 
@@ -757,7 +760,7 @@ func (col *booleanColumnBuffer) Dictionary() Dictionary { return nil }
 
 func (col *booleanColumnBuffer) Pages() Pages { return onePage(col.Page()) }
 
-func (col *booleanColumnBuffer) Page() BufferedPage { return &col.booleanPage }
+func (col *booleanColumnBuffer) Page() Page { return &col.booleanPage }
 
 func (col *booleanColumnBuffer) Reset() {
 	col.bits = col.bits[:0]
@@ -913,7 +916,7 @@ func (col *int32ColumnBuffer) Dictionary() Dictionary { return nil }
 
 func (col *int32ColumnBuffer) Pages() Pages { return onePage(col.Page()) }
 
-func (col *int32ColumnBuffer) Page() BufferedPage { return &col.int32Page }
+func (col *int32ColumnBuffer) Page() Page { return &col.int32Page }
 
 func (col *int32ColumnBuffer) Reset() { col.values = col.values[:0] }
 
@@ -1008,7 +1011,7 @@ func (col *int64ColumnBuffer) Dictionary() Dictionary { return nil }
 
 func (col *int64ColumnBuffer) Pages() Pages { return onePage(col.Page()) }
 
-func (col *int64ColumnBuffer) Page() BufferedPage { return &col.int64Page }
+func (col *int64ColumnBuffer) Page() Page { return &col.int64Page }
 
 func (col *int64ColumnBuffer) Reset() { col.values = col.values[:0] }
 
@@ -1102,7 +1105,7 @@ func (col *int96ColumnBuffer) Dictionary() Dictionary { return nil }
 
 func (col *int96ColumnBuffer) Pages() Pages { return onePage(col.Page()) }
 
-func (col *int96ColumnBuffer) Page() BufferedPage { return &col.int96Page }
+func (col *int96ColumnBuffer) Page() Page { return &col.int96Page }
 
 func (col *int96ColumnBuffer) Reset() { col.values = col.values[:0] }
 
@@ -1195,7 +1198,7 @@ func (col *floatColumnBuffer) Dictionary() Dictionary { return nil }
 
 func (col *floatColumnBuffer) Pages() Pages { return onePage(col.Page()) }
 
-func (col *floatColumnBuffer) Page() BufferedPage { return &col.floatPage }
+func (col *floatColumnBuffer) Page() Page { return &col.floatPage }
 
 func (col *floatColumnBuffer) Reset() { col.values = col.values[:0] }
 
@@ -1289,7 +1292,7 @@ func (col *doubleColumnBuffer) Dictionary() Dictionary { return nil }
 
 func (col *doubleColumnBuffer) Pages() Pages { return onePage(col.Page()) }
 
-func (col *doubleColumnBuffer) Page() BufferedPage { return &col.doublePage }
+func (col *doubleColumnBuffer) Page() Page { return &col.doublePage }
 
 func (col *doubleColumnBuffer) Reset() { col.values = col.values[:0] }
 
@@ -1401,7 +1404,7 @@ func (col *byteArrayColumnBuffer) Dictionary() Dictionary { return nil }
 
 func (col *byteArrayColumnBuffer) Pages() Pages { return onePage(col.Page()) }
 
-func (col *byteArrayColumnBuffer) Page() BufferedPage {
+func (col *byteArrayColumnBuffer) Page() Page {
 	if len(col.lengths) > 0 && orderOfUint32(col.offsets) < 1 { // unordered?
 		if cap(col.scratch) < len(col.values) {
 			col.scratch = make([]byte, 0, cap(col.values))
@@ -1561,7 +1564,7 @@ func (col *fixedLenByteArrayColumnBuffer) Dictionary() Dictionary { return nil }
 
 func (col *fixedLenByteArrayColumnBuffer) Pages() Pages { return onePage(col.Page()) }
 
-func (col *fixedLenByteArrayColumnBuffer) Page() BufferedPage { return &col.fixedLenByteArrayPage }
+func (col *fixedLenByteArrayColumnBuffer) Page() Page { return &col.fixedLenByteArrayPage }
 
 func (col *fixedLenByteArrayColumnBuffer) Reset() { col.data = col.data[:0] }
 
@@ -1677,7 +1680,7 @@ func (col *uint32ColumnBuffer) Dictionary() Dictionary { return nil }
 
 func (col *uint32ColumnBuffer) Pages() Pages { return onePage(col.Page()) }
 
-func (col *uint32ColumnBuffer) Page() BufferedPage { return &col.uint32Page }
+func (col *uint32ColumnBuffer) Page() Page { return &col.uint32Page }
 
 func (col *uint32ColumnBuffer) Reset() { col.values = col.values[:0] }
 
@@ -1771,7 +1774,7 @@ func (col *uint64ColumnBuffer) Dictionary() Dictionary { return nil }
 
 func (col *uint64ColumnBuffer) Pages() Pages { return onePage(col.Page()) }
 
-func (col *uint64ColumnBuffer) Page() BufferedPage { return &col.uint64Page }
+func (col *uint64ColumnBuffer) Page() Page { return &col.uint64Page }
 
 func (col *uint64ColumnBuffer) Reset() { col.values = col.values[:0] }
 
@@ -1869,7 +1872,7 @@ func (col *be128ColumnBuffer) Dictionary() Dictionary { return nil }
 
 func (col *be128ColumnBuffer) Pages() Pages { return onePage(col.Page()) }
 
-func (col *be128ColumnBuffer) Page() BufferedPage { return &col.be128Page }
+func (col *be128ColumnBuffer) Page() Page { return &col.be128Page }
 
 func (col *be128ColumnBuffer) Reset() { col.values = col.values[:0] }
 

@@ -59,14 +59,14 @@ type Schema struct {
 //	timestamp | for int64 types use the TIMESTAMP logical type with, by default, millisecond precision
 //	split     | for float32/float64, use the BYTE_STREAM_SPLIT encoding
 //
-// The date logical type is an int32 value of the number of days since the unix epoch
+// # The date logical type is an int32 value of the number of days since the unix epoch
 //
 // The timestamp precision can be changed by defining which precision to use as an argument.
 // Supported precisions are: nanosecond, millisecond and microsecond. Example:
 //
-//  type Message struct {
-//    TimestrampMicros int64 `parquet:"timestamp_micros,timestamp(microsecond)"
-//  }
+//	type Message struct {
+//	  TimestrampMicros int64 `parquet:"timestamp_micros,timestamp(microsecond)"
+//	}
 //
 // The decimal tag must be followed by two integer parameters, the first integer
 // representing the scale and the second the precision; for example:
@@ -90,9 +90,9 @@ type Schema struct {
 //
 // For example, the following will set the int64 key of the map to be a timestamp:
 //
-//  type Actions struct {
-//    Action map[int64]string `parquet:"," parquet-key:",timestamp"`
-//  }
+//	type Actions struct {
+//	  Action map[int64]string `parquet:"," parquet-key:",timestamp"`
+//	}
 //
 // The schema name is the Go type name of the value.
 func SchemaOf(model interface{}) *Schema {

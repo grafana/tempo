@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"runtime"
 
 	"github.com/segmentio/parquet-go/deprecated"
 	"github.com/segmentio/parquet-go/encoding"
@@ -41,7 +42,7 @@ type Page interface {
 	NumValues() int64
 	NumNulls() int64
 
-	// Returns the min and max values currently buffered in the writer.
+	// Returns the page's min and max values.
 	//
 	// The third value is a boolean indicating whether the page bounds were
 	// available. Page bounds may not be known if the page contained no values
@@ -61,23 +62,13 @@ type Page interface {
 	// available.
 	Values() ValueReader
 
-	// Buffer returns the page as a BufferedPage, which may be the page itself
-	// if it was already buffered.
-	Buffer() BufferedPage
-}
-
-// BufferedPage is an extension of the Page interface implemented by pages
-// that are buffered in memory.
-type BufferedPage interface {
-	Page
-
 	// Returns a copy of the page which does not share any of the buffers, but
 	// contains the same values, repetition and definition levels.
-	Clone() BufferedPage
+	Clone() Page
 
 	// Returns a new page which is as slice of the receiver between row indexes
 	// i and j.
-	Slice(i, j int64) BufferedPage
+	Slice(i, j int64) Page
 
 	// Expose the lists of repetition and definition levels of the page.
 	//
@@ -95,24 +86,6 @@ type BufferedPage interface {
 	// multiple calls to this method, applications must treat the content as
 	// immutable.
 	Data() encoding.Values
-}
-
-// CompressedPage is an extension of the Page interface implemented by pages
-// that have been compressed to their on-file representation.
-type CompressedPage interface {
-	Page
-
-	// Returns a representation of the page header.
-	PageHeader() PageHeader
-
-	// Returns a reader exposing the content of the compressed page.
-	PageData() io.Reader
-
-	// Returns the size of the page data.
-	PageSize() int64
-
-	// CRC returns the IEEE CRC32 checksum of the page.
-	CRC() uint32
 }
 
 // PageReader is an interface implemented by types that support producing a
@@ -144,23 +117,145 @@ type Pages interface {
 	io.Closer
 }
 
+// AsyncPages wraps the given Pages instance to perform page reads
+// asynchronously in a separate goroutine.
+//
+// Performing page reads asynchronously is important when the application may
+// be reading pages from a high latency backend, and the last
+// page read may be processed while initiating reading of the next page.
+func AsyncPages(pages Pages) Pages {
+	p := new(asyncPages)
+	p.init(pages, nil)
+	// If the pages object gets garbage collected without Close being called,
+	// this finalizer would ensure that the goroutine is stopped and doesn't
+	// leak.
+	runtime.SetFinalizer(p, func(p *asyncPages) { p.Close() })
+	return p
+}
+
+type asyncPages struct {
+	read    <-chan asyncPage
+	seek    chan<- int64
+	done    chan<- struct{}
+	version int64
+}
+
+type asyncPage struct {
+	page    Page
+	err     error
+	version int64
+}
+
+func (pages *asyncPages) init(base Pages, done chan struct{}) {
+	read := make(chan asyncPage)
+	seek := make(chan int64, 1)
+
+	pages.read = read
+	pages.seek = seek
+
+	if done == nil {
+		done = make(chan struct{})
+		pages.done = done
+	}
+
+	go readPages(base, read, seek, done)
+}
+
+func (pages *asyncPages) Close() (err error) {
+	if pages.done != nil {
+		close(pages.done)
+		pages.done = nil
+	}
+	for p := range pages.read {
+		// Capture the last error, which is the value returned from closing the
+		// underlying Pages instance.
+		err = p.err
+	}
+	pages.seek = nil
+	return err
+}
+
+func (pages *asyncPages) ReadPage() (Page, error) {
+	for {
+		p, ok := <-pages.read
+		if !ok {
+			return nil, io.EOF
+		}
+		// Because calls to SeekToRow might be made concurrently to reading
+		// pages, it is possible for ReadPage to see pages that were read before
+		// the last SeekToRow call.
+		//
+		// A version number is attached to each page read asynchronously to
+		// discard outdated pages and ensure that we maintain a consistent view
+		// of the sequence of pages read.
+		if p.version == pages.version {
+			return p.page, p.err
+		}
+	}
+}
+
+func (pages *asyncPages) SeekToRow(rowIndex int64) error {
+	if pages.seek == nil {
+		return io.ErrClosedPipe
+	}
+	// The seek channel has a capacity of 1 to allow the first SeekToRow call to
+	// be non-blocking.
+	//
+	// If SeekToRow calls are performed faster than they can be handled by the
+	// goroutine reading pages, this path might become a contention point.
+	pages.seek <- rowIndex
+	pages.version++
+	return nil
+}
+
+func readPages(pages Pages, read chan<- asyncPage, seek <-chan int64, done <-chan struct{}) {
+	defer func() {
+		read <- asyncPage{err: pages.Close(), version: -1}
+		close(read)
+	}()
+
+	version := int64(0)
+	for {
+		page, err := pages.ReadPage()
+
+		for {
+			select {
+			case <-done:
+				return
+			case read <- asyncPage{
+				page:    page,
+				err:     err,
+				version: version,
+			}:
+			case rowIndex := <-seek:
+				version++
+				err = pages.SeekToRow(rowIndex)
+			}
+			if err == nil {
+				break
+			}
+		}
+	}
+}
+
 func copyPagesAndClose(w PageWriter, r Pages) (int64, error) {
 	defer r.Close()
 	return CopyPages(w, r)
 }
 
 type singlePage struct {
-	page Page
-	seek int64
+	page    Page
+	seek    int64
+	numRows int64
 }
 
 func (r *singlePage) ReadPage() (Page, error) {
 	if r.page != nil {
-		if numRows := r.page.NumRows(); r.seek < numRows {
+		if r.seek < r.numRows {
 			seek := r.seek
-			r.seek = numRows
+			r.seek = r.numRows
 			if seek > 0 {
-				return r.page.Buffer().Slice(seek, numRows), nil
+				return r.page.Slice(seek, r.numRows), nil
 			}
 			return r.page, nil
 		}
@@ -179,7 +274,9 @@ func (r *singlePage) Close() error {
 	return nil
 }
 
-func onePage(page Page) Pages { return &singlePage{page: page} }
+func onePage(page Page) Pages {
+	return &singlePage{page: page, numRows: page.NumRows()}
+}
 
 // CopyPages copies pages from src to dst, returning the number of values that
 // were copied.
@@ -204,7 +301,7 @@ func CopyPages(dst PageWriter, src PageReader) (numValues int64, err error) {
 	}
 }
 
-func forEachPageSlice(page BufferedPage, wantSize int64, do func(BufferedPage) error) error {
+func forEachPageSlice(page Page, wantSize int64, do func(Page) error) error {
 	numRows := page.NumRows()
 	if numRows == 0 {
 		return nil
@@ -219,7 +316,10 @@ func forEachPageSlice(page BufferedPage, wantSize int64, do func(BufferedPage) e
 
 	for numPages > 0 {
 		lastRowIndex := rowIndex + ((numRows - rowIndex) / numPages)
-		if err := do(page.Slice(rowIndex, lastRowIndex)); err != nil {
+		pageSlice := page.Slice(rowIndex, lastRowIndex)
+		err := do(pageSlice)
+		unref(pageSlice)
+		if err != nil {
 			return err
 		}
 		rowIndex = lastRowIndex
@@ -256,14 +356,13 @@ func (page *errorPage) NumRows() int64                    { return 1 }
 func (page *errorPage) NumValues() int64                  { return 1 }
 func (page *errorPage) NumNulls() int64                   { return 0 }
 func (page *errorPage) Bounds() (min, max Value, ok bool) { return }
-func (page *errorPage) Clone() BufferedPage               { return page }
-func (page *errorPage) Slice(i, j int64) BufferedPage     { return page }
+func (page *errorPage) Clone() Page                       { return page }
+func (page *errorPage) Slice(i, j int64) Page             { return page }
 func (page *errorPage) Size() int64                       { return 1 }
 func (page *errorPage) RepetitionLevels() []byte          { return nil }
 func (page *errorPage) DefinitionLevels() []byte          { return nil }
 func (page *errorPage) Data() encoding.Values             { return encoding.Values{} }
 func (page *errorPage) Values() ValueReader               { return errorPageValues{page: page} }
-func (page *errorPage) Buffer() BufferedPage              { return page }
 
 type errorPageValues struct{ page *errorPage }
 
@@ -275,12 +374,12 @@ func errPageBoundsOutOfRange(i, j, n int64) error {
 }
 
 type optionalPage struct {
-	base               BufferedPage
+	base               Page
 	maxDefinitionLevel byte
-	definitionLevels   []byte
+	definitionLevels   bufferRef
 }
 
-func newOptionalPage(base BufferedPage, maxDefinitionLevel byte, definitionLevels []byte) *optionalPage {
+func newOptionalPage(base Page, maxDefinitionLevel byte, definitionLevels bufferRef) *optionalPage {
 	return &optionalPage{
 		base:               base,
 		maxDefinitionLevel: maxDefinitionLevel,
@@ -294,21 +393,21 @@ func (page *optionalPage) Column() int { return page.base.Column() }
 
 func (page *optionalPage) Dictionary() Dictionary { return page.base.Dictionary() }
 
-func (page *optionalPage) NumRows() int64 { return int64(len(page.definitionLevels)) }
+func (page *optionalPage) NumRows() int64 { return int64(page.definitionLevels.len) }
 
-func (page *optionalPage) NumValues() int64 { return int64(len(page.definitionLevels)) }
+func (page *optionalPage) NumValues() int64 { return int64(page.definitionLevels.len) }
 
 func (page *optionalPage) NumNulls() int64 {
-	return int64(countLevelsNotEqual(page.definitionLevels, page.maxDefinitionLevel))
+	return int64(countLevelsNotEqual(page.definitionLevels.data(), page.maxDefinitionLevel))
 }
 
 func (page *optionalPage) Bounds() (min, max Value, ok bool) { return page.base.Bounds() }
 
-func (page *optionalPage) Size() int64 { return page.base.Size() + int64(len(page.definitionLevels)) }
+func (page *optionalPage) Size() int64 { return page.base.Size() + int64(page.definitionLevels.len) }
 
 func (page *optionalPage) RepetitionLevels() []byte { return nil }
 
-func (page *optionalPage) DefinitionLevels() []byte { return page.definitionLevels }
+func (page *optionalPage) DefinitionLevels() []byte { return page.definitionLevels.data() }
 
 func (page *optionalPage) Data() encoding.Values { return page.base.Data() }
 
@@ -319,35 +418,34 @@ func (page *optionalPage) Values() ValueReader {
 	}
 }
 
-func (page *optionalPage) Buffer() BufferedPage { return page }
-
-func (page *optionalPage) Clone() BufferedPage {
+func (page *optionalPage) Clone() Page {
 	return newOptionalPage(
 		page.base.Clone(),
 		page.maxDefinitionLevel,
-		append([]byte{}, page.definitionLevels...),
+		page.definitionLevels.clone(),
 	)
 }
 
-func (page *optionalPage) Slice(i, j int64) BufferedPage {
-	numNulls1 := int64(countLevelsNotEqual(page.definitionLevels[:i], page.maxDefinitionLevel))
-	numNulls2 := int64(countLevelsNotEqual(page.definitionLevels[i:j], page.maxDefinitionLevel))
+func (page *optionalPage) Slice(i, j int64) Page {
+	definitionLevels := page.definitionLevels.data()
+	numNulls1 := int64(countLevelsNotEqual(definitionLevels[:i], page.maxDefinitionLevel))
+	numNulls2 := int64(countLevelsNotEqual(definitionLevels[i:j], page.maxDefinitionLevel))
 	return newOptionalPage(
 		page.base.Slice(i-numNulls1, j-(numNulls1+numNulls2)),
 		page.maxDefinitionLevel,
-		page.definitionLevels[i:j],
+		page.definitionLevels.slice(int(i), int(j)),
 	)
 }
 
 type repeatedPage struct {
-	base               BufferedPage
+	base               Page
 	maxRepetitionLevel byte
 	maxDefinitionLevel byte
-	definitionLevels   []byte
-	repetitionLevels   []byte
+	definitionLevels   bufferRef
+	repetitionLevels   bufferRef
 }
 
-func newRepeatedPage(base BufferedPage, maxRepetitionLevel, maxDefinitionLevel byte, repetitionLevels, definitionLevels []byte) *repeatedPage {
+func newRepeatedPage(base Page, maxRepetitionLevel, maxDefinitionLevel byte, repetitionLevels, definitionLevels bufferRef) *repeatedPage {
 	return &repeatedPage{
 		base:               base,
 		maxRepetitionLevel: maxRepetitionLevel,
@@ -363,23 +461,27 @@ func (page *repeatedPage) Column() int { return page.base.Column() }
 
 func (page *repeatedPage) Dictionary() Dictionary { return page.base.Dictionary() }
 
-func (page *repeatedPage) NumRows() int64 { return int64(countLevelsEqual(page.repetitionLevels, 0)) }
+func (page *repeatedPage) NumRows() int64 {
+	return int64(countLevelsEqual(page.repetitionLevels.data(), 0))
+}
 
-func (page *repeatedPage) NumValues() int64 { return int64(len(page.definitionLevels)) }
+func (page *repeatedPage) NumValues() int64 {
+	return int64(page.definitionLevels.len)
+}
 
 func (page *repeatedPage) NumNulls() int64 {
-	return int64(countLevelsNotEqual(page.definitionLevels, page.maxDefinitionLevel))
+	return int64(countLevelsNotEqual(page.definitionLevels.data(), page.maxDefinitionLevel))
 }
 
 func (page *repeatedPage) Bounds() (min, max Value, ok bool) { return page.base.Bounds() }
 
 func (page *repeatedPage) Size() int64 {
-	return int64(len(page.repetitionLevels)) + int64(len(page.definitionLevels)) + page.base.Size()
+	return int64(page.repetitionLevels.len) + int64(page.definitionLevels.len) + page.base.Size()
 }
 
-func (page *repeatedPage) RepetitionLevels() []byte { return page.repetitionLevels }
+func (page *repeatedPage) RepetitionLevels() []byte { return page.repetitionLevels.data() }
 
-func (page *repeatedPage) DefinitionLevels() []byte { return page.definitionLevels }
+func (page *repeatedPage) DefinitionLevels() []byte { return page.definitionLevels.data() }
 
 func (page *repeatedPage) Data() encoding.Values { return page.base.Data() }
 
@@ -390,19 +492,17 @@ func (page *repeatedPage) Values() ValueReader {
 	}
 }
 
-func (page *repeatedPage) Buffer() BufferedPage { return page }
-
-func (page *repeatedPage) Clone() BufferedPage {
+func (page *repeatedPage) Clone() Page {
 	return newRepeatedPage(
 		page.base.Clone(),
 		page.maxRepetitionLevel,
 		page.maxDefinitionLevel,
-		append([]byte{}, page.repetitionLevels...),
-		append([]byte{}, page.definitionLevels...),
+		page.repetitionLevels.clone(),
+		page.definitionLevels.clone(),
 	)
 }
 
-func (page *repeatedPage) Slice(i, j int64) BufferedPage {
+func (page *repeatedPage) Slice(i, j int64) Page {
 	numRows := page.NumRows()
 	if i < 0 || i > numRows {
 		panic(errPageBoundsOutOfRange(i, j, numRows))
@@ -414,11 +514,12 @@ func (page *repeatedPage) Slice(i, j int64) BufferedPage {
 		panic(errPageBoundsOutOfRange(i, j, numRows))
 	}
 
+	repetitionLevels := page.repetitionLevels.data()
 	rowIndex0 := 0
-	rowIndex1 := len(page.repetitionLevels)
-	rowIndex2 := len(page.repetitionLevels)
+	rowIndex1 := len(repetitionLevels)
+	rowIndex2 := len(repetitionLevels)
 
-	for k, def := range page.repetitionLevels {
+	for k, def := range repetitionLevels {
 		if def == 0 {
 			if rowIndex0 == int(i) {
 				rowIndex1 = k
@@ -428,7 +529,7 @@ func (page *repeatedPage) Slice(i, j int64) BufferedPage {
 		}
 	}
 
-	for k, def := range page.repetitionLevels[rowIndex1:] {
+	for k, def := range repetitionLevels[rowIndex1:] {
 		if def == 0 {
 			if rowIndex0 == int(j) {
 				rowIndex2 = rowIndex1 + k
@@ -438,8 +539,9 @@ func (page *repeatedPage) Slice(i, j int64) BufferedPage {
 		}
 	}
 
-	numNulls1 := countLevelsNotEqual(page.definitionLevels[:rowIndex1], page.maxDefinitionLevel)
-	numNulls2 := countLevelsNotEqual(page.definitionLevels[rowIndex1:rowIndex2], page.maxDefinitionLevel)
+	definitionLevels := page.definitionLevels.data()
+	numNulls1 := countLevelsNotEqual(definitionLevels[:rowIndex1], page.maxDefinitionLevel)
+	numNulls2 := countLevelsNotEqual(definitionLevels[rowIndex1:rowIndex2], page.maxDefinitionLevel)
 
 	i = int64(rowIndex1 - numNulls1)
 	j = int64(rowIndex2 - (numNulls1 + numNulls2))
@@ -448,8 +550,8 @@ func (page *repeatedPage) Slice(i, j int64) BufferedPage {
 		page.base.Slice(i, j),
 		page.maxRepetitionLevel,
 		page.maxDefinitionLevel,
-		page.repetitionLevels[rowIndex1:rowIndex2],
-		page.definitionLevels[rowIndex1:rowIndex2],
+		page.repetitionLevels.slice(int(rowIndex1), int(rowIndex2)),
+		page.definitionLevels.slice(int(rowIndex1), int(rowIndex2)),
 	)
 }
 
@@ -491,8 +593,6 @@ func (page *booleanPage) DefinitionLevels() []byte { return nil }
 func (page *booleanPage) Data() encoding.Values { return encoding.BooleanValues(page.bits) }
 
 func (page *booleanPage) Values() ValueReader { return &booleanPageValues{page: page} }
-
-func (page *booleanPage) Buffer() BufferedPage { return page }
 
 func (page *booleanPage) valueAt(i int) bool {
 	j := uint32(int(page.offset)+i) / 8
@@ -547,7 +647,7 @@ func (page *booleanPage) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *booleanPage) Clone() BufferedPage {
+func (page *booleanPage) Clone() Page {
 	return &booleanPage{
 		typ:         page.typ,
 		bits:        append([]byte{}, page.bits...),
@@ -557,7 +657,7 @@ func (page *booleanPage) Clone() BufferedPage {
 	}
 }
 
-func (page *booleanPage) Slice(i, j int64) BufferedPage {
+func (page *booleanPage) Slice(i, j int64) Page {
 	off := i / 8
 	end := j / 8
 
@@ -616,8 +716,6 @@ func (page *int32Page) Data() encoding.Values { return encoding.Int32Values(page
 
 func (page *int32Page) Values() ValueReader { return &int32PageValues{page: page} }
 
-func (page *int32Page) Buffer() BufferedPage { return page }
-
 func (page *int32Page) min() int32 { return minInt32(page.values) }
 
 func (page *int32Page) max() int32 { return maxInt32(page.values) }
@@ -633,7 +731,7 @@ func (page *int32Page) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *int32Page) Clone() BufferedPage {
+func (page *int32Page) Clone() Page {
 	return &int32Page{
 		typ:         page.typ,
 		values:      append([]int32{}, page.values...),
@@ -641,7 +739,7 @@ func (page *int32Page) Clone() BufferedPage {
 	}
 }
 
-func (page *int32Page) Slice(i, j int64) BufferedPage {
+func (page *int32Page) Slice(i, j int64) Page {
 	return &int32Page{
 		typ:         page.typ,
 		values:      page.values[i:j],
@@ -691,8 +789,6 @@ func (page *int64Page) Data() encoding.Values { return encoding.Int64Values(page
 
 func (page *int64Page) Values() ValueReader { return &int64PageValues{page: page} }
 
-func (page *int64Page) Buffer() BufferedPage { return page }
-
 func (page *int64Page) min() int64 { return minInt64(page.values) }
 
 func (page *int64Page) max() int64 { return maxInt64(page.values) }
@@ -708,7 +804,7 @@ func (page *int64Page) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *int64Page) Clone() BufferedPage {
+func (page *int64Page) Clone() Page {
 	return &int64Page{
 		typ:         page.typ,
 		values:      append([]int64{}, page.values...),
@@ -716,7 +812,7 @@ func (page *int64Page) Clone() BufferedPage {
 	}
 }
 
-func (page *int64Page) Slice(i, j int64) BufferedPage {
+func (page *int64Page) Slice(i, j int64) Page {
 	return &int64Page{
 		typ:         page.typ,
 		values:      page.values[i:j],
@@ -766,8 +862,6 @@ func (page *int96Page) Data() encoding.Values { return encoding.Int96Values(page
 
 func (page *int96Page) Values() ValueReader { return &int96PageValues{page: page} }
 
-func (page *int96Page) Buffer() BufferedPage { return page }
-
 func (page *int96Page) min() deprecated.Int96 { return deprecated.MinInt96(page.values) }
 
 func (page *int96Page) max() deprecated.Int96 { return deprecated.MaxInt96(page.values) }
@@ -785,7 +879,7 @@ func (page *int96Page) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *int96Page) Clone() BufferedPage {
+func (page *int96Page) Clone() Page {
 	return &int96Page{
 		typ:         page.typ,
 		values:      append([]deprecated.Int96{}, page.values...),
@@ -793,7 +887,7 @@ func (page *int96Page) Clone() BufferedPage {
 	}
 }
 
-func (page *int96Page) Slice(i, j int64) BufferedPage {
+func (page *int96Page) Slice(i, j int64) Page {
 	return &int96Page{
 		typ:         page.typ,
 		values:      page.values[i:j],
@@ -843,8 +937,6 @@ func (page *floatPage) Data() encoding.Values { return encoding.FloatValues(page
 
 func (page *floatPage) Values() ValueReader { return &floatPageValues{page: page} }
 
-func (page *floatPage) Buffer() BufferedPage { return page }
-
 func (page *floatPage) min() float32 { return minFloat32(page.values) }
 
 func (page *floatPage) max() float32 { return maxFloat32(page.values) }
@@ -860,7 +952,7 @@ func (page *floatPage) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *floatPage) Clone() BufferedPage {
+func (page *floatPage) Clone() Page {
 	return &floatPage{
 		typ:         page.typ,
 		values:      append([]float32{}, page.values...),
@@ -868,7 +960,7 @@ func (page *floatPage) Clone() BufferedPage {
 	}
 }
 
-func (page *floatPage) Slice(i, j int64) BufferedPage {
+func (page *floatPage) Slice(i, j int64) Page {
 	return &floatPage{
 		typ:         page.typ,
 		values:      page.values[i:j],
@@ -918,8 +1010,6 @@ func (page *doublePage) Data() encoding.Values { return encoding.DoubleValues(pa
 
 func (page *doublePage) Values() ValueReader { return &doublePageValues{page: page} }
 
-func (page *doublePage) Buffer() BufferedPage { return page }
-
 func (page *doublePage) min() float64 { return minFloat64(page.values) }
 
 func (page *doublePage) max() float64 { return maxFloat64(page.values) }
@@ -935,7 +1025,7 @@ func (page *doublePage) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *doublePage) Clone() BufferedPage {
+func (page *doublePage) Clone() Page {
 	return &doublePage{
 		typ:         page.typ,
 		values:      append([]float64{}, page.values...),
@@ -943,7 +1033,7 @@ func (page *doublePage) Clone() BufferedPage {
 	}
 }
 
-func (page *doublePage) Slice(i, j int64) BufferedPage {
+func (page *doublePage) Slice(i, j int64) Page {
 	return &doublePage{
 		typ:         page.typ,
 		values:      page.values[i:j],
@@ -997,8 +1087,6 @@ func (page *byteArrayPage) Data() encoding.Values {
 }
 
 func (page *byteArrayPage) Values() ValueReader { return &byteArrayPageValues{page: page} }
-
-func (page *byteArrayPage) Buffer() BufferedPage { return page }
 
 func (page *byteArrayPage) len() int { return len(page.offsets) - 1 }
 
@@ -1078,7 +1166,7 @@ func (page *byteArrayPage) cloneOffsets() []uint32 {
 	return offsets
 }
 
-func (page *byteArrayPage) Clone() BufferedPage {
+func (page *byteArrayPage) Clone() Page {
 	return &byteArrayPage{
 		typ:         page.typ,
 		values:      page.cloneValues(),
@@ -1087,7 +1175,7 @@ func (page *byteArrayPage) Clone() BufferedPage {
 	}
 }
 
-func (page *byteArrayPage) Slice(i, j int64) BufferedPage {
+func (page *byteArrayPage) Slice(i, j int64) Page {
 	return &byteArrayPage{
 		typ:         page.typ,
 		values:      page.values,
@@ -1151,8 +1239,6 @@ func (page *fixedLenByteArrayPage) Values() ValueReader {
 	return &fixedLenByteArrayPageValues{page: page}
 }
 
-func (page *fixedLenByteArrayPage) Buffer() BufferedPage { return page }
-
 func (page *fixedLenByteArrayPage) min() []byte { return minFixedLenByteArray(page.data, page.size) }
 
 func (page *fixedLenByteArrayPage) max() []byte { return maxFixedLenByteArray(page.data, page.size) }
@@ -1170,7 +1256,7 @@ func (page *fixedLenByteArrayPage) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *fixedLenByteArrayPage) Clone() BufferedPage {
+func (page *fixedLenByteArrayPage) Clone() Page {
 	return &fixedLenByteArrayPage{
 		typ:         page.typ,
 		data:        append([]byte{}, page.data...),
@@ -1179,7 +1265,7 @@ func (page *fixedLenByteArrayPage) Clone() BufferedPage {
 	}
 }
 
-func (page *fixedLenByteArrayPage) Slice(i, j int64) BufferedPage {
+func (page *fixedLenByteArrayPage) Slice(i, j int64) Page {
 	return &fixedLenByteArrayPage{
 		typ:         page.typ,
 		data:        page.data[i*int64(page.size) : j*int64(page.size)],
@@ -1236,8 +1322,6 @@ func (page *uint32Page) Data() encoding.Values { return encoding.Uint32Values(pa
 
 func (page *uint32Page) Values() ValueReader { return &uint32PageValues{page: page} }
 
-func (page *uint32Page) Buffer() BufferedPage { return page }
-
 func (page *uint32Page) min() uint32 { return minUint32(page.values) }
 
 func (page *uint32Page) max() uint32 { return maxUint32(page.values) }
@@ -1253,7 +1337,7 @@ func (page *uint32Page) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *uint32Page) Clone() BufferedPage {
+func (page *uint32Page) Clone() Page {
 	return &uint32Page{
 		typ:         page.typ,
 		values:      append([]uint32{}, page.values...),
@@ -1261,7 +1345,7 @@ func (page *uint32Page) Clone() BufferedPage {
 	}
 }
 
-func (page *uint32Page) Slice(i, j int64) BufferedPage {
+func (page *uint32Page) Slice(i, j int64) Page {
 	return &uint32Page{
 		typ:         page.typ,
 		values:      page.values[i:j],
@@ -1311,8 +1395,6 @@ func (page *uint64Page) Data() encoding.Values { return encoding.Uint64Values(pa
 
 func (page *uint64Page) Values() ValueReader { return &uint64PageValues{page: page} }
 
-func (page *uint64Page) Buffer() BufferedPage { return page }
-
 func (page *uint64Page) min() uint64 { return minUint64(page.values) }
 
 func (page *uint64Page) max() uint64 { return maxUint64(page.values) }
@@ -1328,7 +1410,7 @@ func (page *uint64Page) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *uint64Page) Clone() BufferedPage {
+func (page *uint64Page) Clone() Page {
 	return &uint64Page{
 		typ:         page.typ,
 		values:      append([]uint64{}, page.values...),
@@ -1336,7 +1418,7 @@ func (page *uint64Page) Clone() BufferedPage {
 	}
 }
 
-func (page *uint64Page) Slice(i, j int64) BufferedPage {
+func (page *uint64Page) Slice(i, j int64) Page {
 	return &uint64Page{
 		typ:         page.typ,
 		values:      page.values[i:j],
@@ -1386,8 +1468,6 @@ func (page *be128Page) Data() encoding.Values { return encoding.Uint128Values(pa
 
 func (page *be128Page) Values() ValueReader { return &be128PageValues{page: page} }
 
-func (page *be128Page) Buffer() BufferedPage { return page }
-
 func (page *be128Page) min() []byte { return minBE128(page.values) }
 
 func (page *be128Page) max() []byte { return maxBE128(page.values) }
@@ -1403,7 +1483,7 @@ func (page *be128Page) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *be128Page) Clone() BufferedPage {
+func (page *be128Page) Clone() Page {
 	return &be128Page{
 		typ:         page.typ,
 		values:      append([][16]byte{}, page.values...),
@@ -1411,7 +1491,7 @@ func (page *be128Page) Clone() BufferedPage {
 	}
 }
 
-func (page *be128Page) Slice(i, j int64) BufferedPage {
+func (page *be128Page) Slice(i, j int64) Page {
 	return &be128Page{
 		typ:         page.typ,
 		values:      page.values[i:j],
@@ -1460,9 +1540,8 @@ func (page *nullPage) Size() int64                       { return 1 }
 func (page *nullPage) Values() ValueReader {
 	return &nullPageValues{column: page.column, remain: page.count}
 }
-func (page *nullPage) Buffer() BufferedPage { return page }
-func (page *nullPage) Clone() BufferedPage  { return page }
-func (page *nullPage) Slice(i, j int64) BufferedPage {
+func (page *nullPage) Clone() Page { return page }
+func (page *nullPage) Slice(i, j int64) Page {
 	return &nullPage{column: page.column, count: page.count - int(j-i)}
 }
 func (page *nullPage) RepetitionLevels() []byte { return nil }

@@ -16,12 +16,13 @@ type optionalPageValues struct {
 
 func (r *optionalPageValues) ReadValues(values []Value) (n int, err error) {
 	maxDefinitionLevel := r.page.maxDefinitionLevel
+	definitionLevels := r.page.definitionLevels.data()
 	columnIndex := ^int16(r.page.Column())
 
-	for n < len(values) && r.offset < len(r.page.definitionLevels) {
-		for n < len(values) && r.offset < len(r.page.definitionLevels) && r.page.definitionLevels[r.offset] != maxDefinitionLevel {
+	for n < len(values) && r.offset < len(definitionLevels) {
+		for n < len(values) && r.offset < len(definitionLevels) && definitionLevels[r.offset] != maxDefinitionLevel {
 			values[n] = Value{
-				definitionLevel: r.page.definitionLevels[r.offset],
+				definitionLevel: definitionLevels[r.offset],
 				columnIndex:     columnIndex,
 			}
 			r.offset++
@@ -30,7 +31,7 @@ func (r *optionalPageValues) ReadValues(values []Value) (n int, err error) {
 
 		i := n
 		j := r.offset
-		for i < len(values) && j < len(r.page.definitionLevels) && r.page.definitionLevels[j] == maxDefinitionLevel {
+		for i < len(values) && j < len(definitionLevels) && definitionLevels[j] == maxDefinitionLevel {
 			i++
 			j++
 		}
@@ -49,7 +50,7 @@ func (r *optionalPageValues) ReadValues(values []Value) (n int, err error) {
 		}
 	}
 
-	if r.offset == len(r.page.definitionLevels) {
+	if r.offset == len(definitionLevels) {
 		err = io.EOF
 	}
 	return n, err
@@ -63,13 +64,15 @@ type repeatedPageValues struct {
 
 func (r *repeatedPageValues) ReadValues(values []Value) (n int, err error) {
 	maxDefinitionLevel := r.page.maxDefinitionLevel
+	definitionLevels := r.page.definitionLevels.data()
+	repetitionLevels := r.page.repetitionLevels.data()
 	columnIndex := ^int16(r.page.Column())
 
-	for n < len(values) && r.offset < len(r.page.definitionLevels) {
-		for n < len(values) && r.offset < len(r.page.definitionLevels) && r.page.definitionLevels[r.offset] != maxDefinitionLevel {
+	for n < len(values) && r.offset < len(definitionLevels) {
+		for n < len(values) && r.offset < len(definitionLevels) && definitionLevels[r.offset] != maxDefinitionLevel {
 			values[n] = Value{
-				repetitionLevel: r.page.repetitionLevels[r.offset],
-				definitionLevel: r.page.definitionLevels[r.offset],
+				repetitionLevel: repetitionLevels[r.offset],
+				definitionLevel: definitionLevels[r.offset],
 				columnIndex:     columnIndex,
 			}
 			r.offset++
@@ -78,14 +81,14 @@ func (r *repeatedPageValues) ReadValues(values []Value) (n int, err error) {
 
 		i := n
 		j := r.offset
-		for i < len(values) && j < len(r.page.definitionLevels) && r.page.definitionLevels[j] == maxDefinitionLevel {
+		for i < len(values) && j < len(definitionLevels) && definitionLevels[j] == maxDefinitionLevel {
 			i++
 			j++
 		}
 
 		if n < i {
 			for j, err = r.values.ReadValues(values[n:i]); j > 0; j-- {
-				values[n].repetitionLevel = r.page.repetitionLevels[r.offset]
+				values[n].repetitionLevel = repetitionLevels[r.offset]
 				values[n].definitionLevel = maxDefinitionLevel
 				r.offset++
 				n++
@@ -97,7 +100,7 @@ func (r *repeatedPageValues) ReadValues(values []Value) (n int, err error) {
 		}
 	}
 
-	if r.offset == len(r.page.definitionLevels) {
+	if r.offset == len(definitionLevels) {
 		err = io.EOF
 	}
 	return n, err
