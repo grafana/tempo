@@ -84,7 +84,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		isEqual := true
 		for i := 1; i < len(rows) && isEqual; i++ {
-			isEqual = rows[i-1].Equal(rows[i])
+			isEqual = rows[0].Equal(rows[i])
 		}
 		if isEqual {
 			for i := 1; i < len(rows); i++ {
