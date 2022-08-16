@@ -59,7 +59,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 
 		// Here we repurpose RowGroupSizeBytes as number of raw column values.
 		// This is a fairly close approximation.
-		if s.CurrentBufferedValues() > cfg.RowGroupSizeBytes {
+		if s.CurrentBufferedBytes() > cfg.RowGroupSizeBytes {
 			_, err = s.Flush()
 			if err != nil {
 				return nil, err
@@ -80,15 +80,14 @@ type streamingBlock struct {
 	bloom *common.ShardedBloomFilter
 	meta  *backend.BlockMeta
 	bw    tempo_io.BufferedWriteFlusher
-	pw    *parquet.Writer
+	pw    *parquet.GenericWriter[*Trace]
 	w     *backendWriter
 	r     backend.Reader
 	to    backend.Writer
-	sch   *parquet.Schema
-	pool  *rowPool
 
+	bufferedTraces        []*Trace
 	currentBufferedTraces int
-	currentBufferedValues int
+	currentBufferedBytes  int
 }
 
 func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) *streamingBlock {
@@ -101,50 +100,36 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	bloom := common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(meta.TotalObjects))
 
 	w := &backendWriter{ctx, to, DataFileName, meta.BlockID, meta.TenantID, nil}
-
 	bw := createBufferedWriter(w)
-
-	sch := parquet.SchemaOf(new(Trace))
-
-	pw := parquet.NewWriter(bw, sch)
+	pw := parquet.NewGenericWriter[*Trace](bw)
 
 	return &streamingBlock{
-		ctx:   ctx,
-		meta:  newMeta,
-		bloom: bloom,
-		bw:    bw,
-		pw:    pw,
-		w:     w,
-		r:     r,
-		to:    to,
-		sch:   sch,
-		pool:  newRowPool(10_000),
+		ctx:            ctx,
+		meta:           newMeta,
+		bloom:          bloom,
+		bw:             bw,
+		pw:             pw,
+		w:              w,
+		r:              r,
+		to:             to,
+		bufferedTraces: make([]*Trace, 0, 1000), // jpe 1000?
 	}
 }
 
-func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
-	row := b.sch.Deconstruct(b.pool.Get(), tr)
-	defer b.pool.Put(row)
-
-	return b.AddRaw(tr.TraceID, row, start, end)
-}
-
-func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) error {
-
-	_, err := b.pw.WriteRows([]parquet.Row{row})
-	if err != nil {
-		return err
-	}
+func (b *streamingBlock) Add(tr *Trace, start, end uint32) error { // jpe remove error ret?
+	b.bufferedTraces = append(b.bufferedTraces, tr)
+	id := tr.TraceID
 
 	b.bloom.Add(id)
 	b.meta.ObjectAdded(id, start, end)
 	b.currentBufferedTraces++
-	b.currentBufferedValues += len(row)
+	b.currentBufferedBytes += estimateTraceSize(tr)
+
 	return nil
 }
 
-func (b *streamingBlock) CurrentBufferedValues() int {
-	return b.currentBufferedValues
+func (b *streamingBlock) CurrentBufferedBytes() int {
+	return b.currentBufferedBytes
 }
 
 func (b *streamingBlock) CurrentBufferedObjects() int {
@@ -152,8 +137,15 @@ func (b *streamingBlock) CurrentBufferedObjects() int {
 }
 
 func (b *streamingBlock) Flush() (int, error) {
+	// batch write traces
+	_, err := b.pw.Write(b.bufferedTraces)
+	if err != nil {
+		return 0, err
+	}
+	b.bufferedTraces = b.bufferedTraces[:0]
+
 	// Flush row group
-	err := b.pw.Flush()
+	err = b.pw.Flush()
 	if err != nil {
 		return 0, err
 	}
@@ -162,16 +154,23 @@ func (b *streamingBlock) Flush() (int, error) {
 	b.meta.Size += uint64(n)
 	b.meta.TotalRecords++
 	b.currentBufferedTraces = 0
-	b.currentBufferedValues = 0
+	b.currentBufferedBytes = 0
 
 	// Flush to underlying writer
 	return n, b.bw.Flush()
 }
 
 func (b *streamingBlock) Complete() (int, error) {
+	// batch write traces
+	_, err := b.pw.Write(b.bufferedTraces)
+	if err != nil {
+		return 0, err
+	}
+	b.bufferedTraces = b.bufferedTraces[:0]
+
 	// Flush final row group
 	b.meta.TotalRecords++
-	err := b.pw.Flush()
+	err = b.pw.Flush()
 	if err != nil {
 		return 0, err
 	}
@@ -214,4 +213,10 @@ func (b *streamingBlock) Complete() (int, error) {
 	b.meta.BloomShardCount = uint16(b.bloom.GetShardCount())
 
 	return n, writeBlockMeta(b.ctx, b.to, b.meta, b.bloom)
+}
+
+// jpe ??
+func estimateTraceSize(tr *Trace) (size int) {
+	size = 10000
+	return
 }

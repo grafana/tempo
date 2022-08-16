@@ -281,7 +281,6 @@ func TestParquetRowSizeEstimate(t *testing.T) {
 			row := sch.Deconstruct(nil, parq)
 
 			fmt.Println("Size of parquet is:", estimateProtoSize(row))
-			fmt.Println("Span count of parquet is:", countSpans(sch, row))
 		})
 	}
 }

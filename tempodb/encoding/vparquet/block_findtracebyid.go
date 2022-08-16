@@ -213,7 +213,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID) (_ 
 	}
 
 	// seek to row and read
-	r := parquet.NewReader(pf)
+	r := parquet.NewGenericReader[*Trace](pf) // jpe readerat? parquetfile?
 	err = r.SeekToRow(int64(rowMatch))
 	if err != nil {
 		return nil, errors.Wrap(err, "seek to row")
@@ -221,16 +221,20 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID) (_ 
 
 	span.LogFields(log.Message("seeked to row"), log.Int("row", rowMatch))
 
-	tr := new(Trace)
-	err = r.Read(tr)
+	tr := make([]*Trace, 1)
+	_, err = r.Read(tr)
 	if err != nil {
 		return nil, errors.Wrap(err, "error reading row from backend")
+	}
+
+	if tr[0] == nil { // jpe ?
+		return nil, fmt.Errorf("read trace is nil")
 	}
 
 	span.LogFields(log.Message("read trace"))
 
 	// convert to proto trace and return
-	return parquetTraceToTempopbTrace(tr)
+	return parquetTraceToTempopbTrace(tr[0])
 }
 
 /*func dumpParquetRow(sch parquet.Schema, row parquet.Row) {
