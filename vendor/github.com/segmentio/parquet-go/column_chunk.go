@@ -46,6 +46,7 @@ type columnChunkReader struct {
 	offset int         // offset of the next value in the buffer
 	reader Pages       // reader of column pages
 	values ValueReader // reader for values from the current page
+	page   Page        // current page
 }
 
 func (r *columnChunkReader) buffered() int {
@@ -57,6 +58,8 @@ func (r *columnChunkReader) reset() {
 	r.buffer = r.buffer[:0]
 	r.offset = 0
 	r.values = nil
+	unref(r.page)
+	r.page = nil
 }
 
 func (r *columnChunkReader) close() (err error) {
@@ -78,10 +81,13 @@ func (r *columnChunkReader) readValues() error {
 	}
 	if r.values == nil {
 		for {
+			unref(r.page)
+			r.page = nil
 			p, err := r.reader.ReadPage()
 			if err != nil {
 				return err
 			}
+			r.page = p
 			if p.NumValues() > 0 {
 				r.values = p.Values()
 				break

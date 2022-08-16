@@ -8,8 +8,7 @@
 // casting a [][16]byte to a []byte in order to use functions of the standard
 // bytes package on the slices.
 //
-//		With great power comes great responsibility.
-//
+//	With great power comes great responsibility.
 package unsafecast
 
 import (

@@ -75,11 +75,11 @@ type Dictionary interface {
 	// Resets the dictionary to its initial state, removing all values.
 	Reset()
 
-	// Returns a BufferedPage representing the content of the dictionary.
+	// Returns a Page representing the content of the dictionary.
 	//
 	// The returned page shares the underlying memory of the buffer, it remains
 	// valid to use until the dictionary's Reset method is called.
-	Page() BufferedPage
+	Page() Page
 
 	// See ColumnBuffer.writeValues for details on the use of unexported methods
 	// on interfaces.
@@ -211,7 +211,7 @@ func (d *booleanDictionary) Reset() {
 	d.table = [2]int32{-1, -1}
 }
 
-func (d *booleanDictionary) Page() BufferedPage {
+func (d *booleanDictionary) Page() Page {
 	return &d.booleanPage
 }
 
@@ -311,7 +311,7 @@ func (d *int32Dictionary) Reset() {
 	}
 }
 
-func (d *int32Dictionary) Page() BufferedPage {
+func (d *int32Dictionary) Page() Page {
 	return &d.int32Page
 }
 
@@ -398,7 +398,7 @@ func (d *int64Dictionary) Reset() {
 	}
 }
 
-func (d *int64Dictionary) Page() BufferedPage {
+func (d *int64Dictionary) Page() Page {
 	return &d.int64Page
 }
 
@@ -493,7 +493,7 @@ func (d *int96Dictionary) Reset() {
 	d.hashmap = nil
 }
 
-func (d *int96Dictionary) Page() BufferedPage {
+func (d *int96Dictionary) Page() Page {
 	return &d.int96Page
 }
 
@@ -580,7 +580,7 @@ func (d *floatDictionary) Reset() {
 	}
 }
 
-func (d *floatDictionary) Page() BufferedPage {
+func (d *floatDictionary) Page() Page {
 	return &d.floatPage
 }
 
@@ -667,7 +667,7 @@ func (d *doubleDictionary) Reset() {
 	}
 }
 
-func (d *doubleDictionary) Page() BufferedPage {
+func (d *doubleDictionary) Page() Page {
 	return &d.doublePage
 }
 
@@ -794,7 +794,7 @@ func (d *byteArrayDictionary) Reset() {
 	}
 }
 
-func (d *byteArrayDictionary) Page() BufferedPage {
+func (d *byteArrayDictionary) Page() Page {
 	return &d.byteArrayPage
 }
 
@@ -909,7 +909,7 @@ func (d *fixedLenByteArrayDictionary) Reset() {
 	d.hashmap = nil
 }
 
-func (d *fixedLenByteArrayDictionary) Page() BufferedPage {
+func (d *fixedLenByteArrayDictionary) Page() Page {
 	return &d.fixedLenByteArrayPage
 }
 
@@ -996,7 +996,7 @@ func (d *uint32Dictionary) Reset() {
 	}
 }
 
-func (d *uint32Dictionary) Page() BufferedPage {
+func (d *uint32Dictionary) Page() Page {
 	return &d.uint32Page
 }
 
@@ -1083,7 +1083,7 @@ func (d *uint64Dictionary) Reset() {
 	}
 }
 
-func (d *uint64Dictionary) Page() BufferedPage {
+func (d *uint64Dictionary) Page() Page {
 	return &d.uint64Page
 }
 
@@ -1201,7 +1201,7 @@ func (d *be128Dictionary) Reset() {
 	}
 }
 
-func (d *be128Dictionary) Page() BufferedPage {
+func (d *be128Dictionary) Page() Page {
 	return &d.be128Page
 }
 
@@ -1229,7 +1229,7 @@ func (t *indexedType) NewValues(values []byte, _ []uint32) encoding.Values {
 	return encoding.Int32ValuesFromBytes(values)
 }
 
-// indexedPage is an implementation of the BufferedPage interface which stores
+// indexedPage is an implementation of the Page interface which stores
 // indexes instead of plain value. The indexes reference the values in a
 // dictionary that the page was created for.
 type indexedPage struct {
@@ -1288,8 +1288,6 @@ func (page *indexedPage) Data() encoding.Values { return encoding.Int32Values(pa
 
 func (page *indexedPage) Values() ValueReader { return &indexedPageValues{page: page} }
 
-func (page *indexedPage) Buffer() BufferedPage { return page }
-
 func (page *indexedPage) Bounds() (min, max Value, ok bool) {
 	if ok = len(page.values) > 0; ok {
 		min, max = page.typ.dict.Bounds(page.values)
@@ -1299,7 +1297,7 @@ func (page *indexedPage) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *indexedPage) Clone() BufferedPage {
+func (page *indexedPage) Clone() Page {
 	return &indexedPage{
 		typ:         page.typ,
 		values:      append([]int32{}, page.values...),
@@ -1307,7 +1305,7 @@ func (page *indexedPage) Clone() BufferedPage {
 	}
 }
 
-func (page *indexedPage) Slice(i, j int64) BufferedPage {
+func (page *indexedPage) Slice(i, j int64) Page {
 	return &indexedPage{
 		typ:         page.typ,
 		values:      page.values[i:j],
@@ -1383,7 +1381,7 @@ func (col *indexedColumnBuffer) Dictionary() Dictionary { return col.typ.dict }
 
 func (col *indexedColumnBuffer) Pages() Pages { return onePage(col.Page()) }
 
-func (col *indexedColumnBuffer) Page() BufferedPage { return &col.indexedPage }
+func (col *indexedColumnBuffer) Page() Page { return &col.indexedPage }
 
 func (col *indexedColumnBuffer) Reset() { col.values = col.values[:0] }
 

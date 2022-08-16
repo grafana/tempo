@@ -149,7 +149,7 @@ func (t *Uint32Table) ProbeArray(keys sparse.Uint32Array, values []int32) int {
 //
 // The table uses the following memory layout:
 //
-//		[group 0][group 1][...][group N]
+//	[group 0][group 1][...][group N]
 //
 // Each group contains up to 7 key/value pairs, and is exactly 64 bytes in size,
 // which allows it to fit within a single cache line, and ensures that probes
@@ -598,7 +598,7 @@ func (t *Uint128Table) ProbeArray(keys sparse.Uint128Array, values []int32) int 
 //
 // This table uses the following memory layout:
 //
-//		[key A][key B][...][value A][value B][...]
+//	[key A][key B][...][value A][value B][...]
 //
 // The table stores values as their actual value plus one, and uses zero as a
 // sentinel to determine whether a slot is occupied. A linear probing strategy

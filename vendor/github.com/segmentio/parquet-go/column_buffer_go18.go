@@ -19,9 +19,8 @@ import (
 //
 // - rows is the array of Go values to write to the column buffers.
 //
-// - levels is used to track the column index, repetition and definition levels
-//   of values when writing optional or repeated columns.
-//
+//   - levels is used to track the column index, repetition and definition levels
+//     of values when writing optional or repeated columns.
 type writeRowsFunc func(columns []ColumnBuffer, rows sparse.Array, levels columnLevels) error
 
 // writeRowsFuncOf generates a writeRowsFunc function for the given Go type and

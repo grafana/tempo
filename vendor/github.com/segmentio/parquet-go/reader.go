@@ -28,7 +28,6 @@ import (
 //		...
 //	}
 //
-//
 // For programs building with Go 1.18 or later, the GenericReader[T] type
 // supersedes this one.
 type Reader struct {
@@ -61,7 +60,6 @@ type Reader struct {
 //		reader := parquet.NewReader(input, config)
 //		...
 //	}
-//
 func NewReader(input io.ReaderAt, options ...ReaderOption) *Reader {
 	c, err := NewReaderConfig(options...)
 	if err != nil {

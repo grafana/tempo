@@ -3,6 +3,7 @@ package parquet
 import (
 	"fmt"
 	"io"
+	"runtime"
 )
 
 // RowGroup is an interface representing a parquet row group. From the Parquet
@@ -255,21 +256,33 @@ type rowGroupRows struct {
 	seek     int64
 	inited   bool
 	closed   bool
+	done     chan<- struct{}
 }
 
 func (r *rowGroupRows) init() {
 	const columnBufferSize = defaultValueBufferSize
 	columns := r.rowGroup.ColumnChunks()
+	readers := make([]asyncPages, len(columns))
 	buffer := make([]Value, columnBufferSize*len(columns))
 	r.columns = make([]columnChunkReader, len(columns))
 
+	done := make(chan struct{})
+	r.done = done
+
 	for i, column := range columns {
+		reader := &readers[i]
+		reader.init(column.Pages(), done)
+
 		r.columns[i].buffer = buffer[:0:columnBufferSize]
-		r.columns[i].reader = column.Pages()
+		r.columns[i].reader = reader
 		buffer = buffer[columnBufferSize:]
 	}
 
 	r.inited = true
+	// This finalizer is used to ensure that the goroutines started by calling
+	// init on the underlying page readers will be shutdown in the event that
+	// Close isn't called and the rowGroupRows object is garbage collected.
+	runtime.SetFinalizer(r, func(r *rowGroupRows) { r.Close() })
 }
 
 func (r *rowGroupRows) Reset() {
@@ -284,6 +297,11 @@ func (r *rowGroupRows) Reset() {
 
 func (r *rowGroupRows) Close() error {
 	var lastErr error
+
+	if r.done != nil {
+		close(r.done)
+		r.done = nil
+	}
 
 	for i := range r.columns {
 		if err := r.columns[i].close(); err != nil {
