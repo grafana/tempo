@@ -9,10 +9,11 @@ import (
 	"github.com/segmentio/parquet-go"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.GenericReader[*Trace], error) {
+func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader, error) {
 	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
 
 	// 128 MB memory buffering
@@ -23,7 +24,7 @@ func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Generi
 		return nil, nil, err
 	}
 
-	r := parquet.NewGenericReader[*Trace](pf) // reader at? parquet file?
+	r := parquet.NewReader(pf, parquet.SchemaOf(&Trace{}))
 	return pf, r, nil
 }
 
@@ -36,20 +37,30 @@ func (b *backendBlock) Iterator(ctx context.Context) (Iterator, error) {
 	return &blockIterator{blockID: b.meta.BlockID.String(), r: r}, nil
 }
 
+func (b *backendBlock) RawIterator(ctx context.Context, pool *rowPool) (*rawIterator, error) {
+	pf, r, err := b.open(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	traceIDIndex, _ := parquetquery.GetColumnIndexByPath(pf, TraceIDColumnName)
+	if traceIDIndex < 0 {
+		return nil, fmt.Errorf("cannot find trace ID column in '%s' in block '%s'", TraceIDColumnName, b.meta.BlockID.String())
+	}
+
+	return &rawIterator{b.meta.BlockID.String(), r, traceIDIndex, pool}, nil
+}
+
 type blockIterator struct {
 	blockID string
-	r       *parquet.GenericReader[*Trace]
+	r       *parquet.Reader
 }
 
 func (i *blockIterator) Next(context.Context) (*Trace, error) {
-	tr := make([]*Trace, 1)
-	_, err := i.r.Read(tr) // jpe batch
-	switch err {
+	t := &Trace{}
+	switch err := i.r.Read(t); err {
 	case nil:
-		if tr[0] == nil {
-			return nil, fmt.Errorf("unexpected nil trace in iteration")
-		}
-		return tr[0], nil
+		return t, nil
 	case io.EOF:
 		return nil, nil
 	default:

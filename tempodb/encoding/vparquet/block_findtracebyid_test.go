@@ -98,7 +98,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 		gotProto, err := b.FindTraceByID(ctx, tr.TraceID)
 		require.NoError(t, err)
 
-		assert.Equal(t, wantProto, gotProto)
+		require.Equal(t, wantProto, gotProto)
 	}
 }
 

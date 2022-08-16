@@ -59,7 +59,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 
 		// Here we repurpose RowGroupSizeBytes as number of raw column values.
 		// This is a fairly close approximation.
-		if s.CurrentBufferedBytes() > cfg.RowGroupSizeBytes {
+		if s.EstimatedBufferedBytes() > cfg.RowGroupSizeBytes {
 			_, err = s.Flush()
 			if err != nil {
 				return nil, err
@@ -128,7 +128,21 @@ func (b *streamingBlock) Add(tr *Trace, start, end uint32) error { // jpe remove
 	return nil
 }
 
-func (b *streamingBlock) CurrentBufferedBytes() int {
+func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) error {
+	_, err := b.pw.WriteRows([]parquet.Row{row})
+	if err != nil {
+		return err
+	}
+
+	b.bloom.Add(id)
+	b.meta.ObjectAdded(id, start, end)
+	b.currentBufferedTraces++
+	b.currentBufferedBytes += estimateProtoSize(row)
+
+	return nil
+}
+
+func (b *streamingBlock) EstimatedBufferedBytes() int {
 	return b.currentBufferedBytes
 }
 
@@ -138,14 +152,16 @@ func (b *streamingBlock) CurrentBufferedObjects() int {
 
 func (b *streamingBlock) Flush() (int, error) {
 	// batch write traces
-	_, err := b.pw.Write(b.bufferedTraces)
-	if err != nil {
-		return 0, err
+	if len(b.bufferedTraces) > 0 {
+		_, err := b.pw.Write(b.bufferedTraces)
+		if err != nil {
+			return 0, err
+		}
+		b.bufferedTraces = b.bufferedTraces[:0]
 	}
-	b.bufferedTraces = b.bufferedTraces[:0]
 
 	// Flush row group
-	err = b.pw.Flush()
+	err := b.pw.Flush()
 	if err != nil {
 		return 0, err
 	}
@@ -162,15 +178,17 @@ func (b *streamingBlock) Flush() (int, error) {
 
 func (b *streamingBlock) Complete() (int, error) {
 	// batch write traces
-	_, err := b.pw.Write(b.bufferedTraces)
-	if err != nil {
-		return 0, err
+	if len(b.bufferedTraces) > 0 {
+		_, err := b.pw.Write(b.bufferedTraces)
+		if err != nil {
+			return 0, err
+		}
+		b.bufferedTraces = b.bufferedTraces[:0]
 	}
-	b.bufferedTraces = b.bufferedTraces[:0]
 
 	// Flush final row group
 	b.meta.TotalRecords++
-	err = b.pw.Flush()
+	err := b.pw.Flush()
 	if err != nil {
 		return 0, err
 	}
@@ -217,6 +235,82 @@ func (b *streamingBlock) Complete() (int, error) {
 
 // jpe ??
 func estimateTraceSize(tr *Trace) (size int) {
-	size = 10000
+	size += len(tr.TraceID)
+	size += len(tr.TraceIDText)
+	size += len(tr.RootServiceName)
+	size += len(tr.RootSpanName)
+	size += 8 + 8 + 8 // start/end/duration
+
+	for _, rs := range tr.ResourceSpans {
+		size += estimateAttrSize(rs.Resource.Attrs)
+		size += len(rs.Resource.ServiceName)
+		size += strLen(rs.Resource.Namespace)
+		size += strLen(rs.Resource.Cluster)
+		size += strLen(rs.Resource.Pod)
+		size += strLen(rs.Resource.Container)
+		size += strLen(rs.Resource.K8sClusterName)
+		size += strLen(rs.Resource.K8sContainerName)
+		size += strLen(rs.Resource.K8sNamespaceName)
+		size += strLen(rs.Resource.K8sPodName)
+
+		for _, ils := range rs.InstrumentationLibrarySpans {
+			size += len(ils.InstrumentationLibrary.Name)
+			size += len(ils.InstrumentationLibrary.Version)
+			for _, s := range ils.Spans {
+				size += 8 + 8 + 8 + 8 + 4 + 4 // start/end/kind/statuscode/dropped events/dropped attrs
+				size += len(s.ID)
+				size += len(s.ParentSpanID)
+				size += len(s.Name)
+				size += strLen(s.HttpMethod)
+				size += strLen(s.HttpUrl)
+				size += len(s.StatusMessage)
+				size += len(s.TraceState)
+				if s.HttpStatusCode != nil {
+					size += 8
+				}
+				size += estimateAttrSize(s.Attrs)
+				size += estimateEventsSize(s.Events)
+			}
+		}
+	}
 	return
+}
+
+func estimateAttrSize(attrs []Attribute) (size int) {
+	for _, a := range attrs {
+		size += len(a.Key)
+		size += strLen(a.Value)
+		size += len(a.ValueArray)
+		size += len(a.ValueKVList)
+		if a.ValueBool != nil {
+			size += 1
+		}
+		if a.ValueDouble != nil {
+			size += 8
+		}
+		if a.ValueInt != nil {
+			size += 8
+		}
+	}
+	return
+}
+
+func estimateEventsSize(events []Event) (size int) {
+	for _, e := range events {
+		size += 8 + 4 // time/dropped attributes
+		size += len(e.Name)
+
+		for _, eva := range e.Attrs {
+			size += len(eva.Value)
+			size += len(eva.Key)
+		}
+	}
+	return
+}
+
+func strLen(s *string) (size int) {
+	if s == nil {
+		return 0
+	}
+	return len(*s)
 }

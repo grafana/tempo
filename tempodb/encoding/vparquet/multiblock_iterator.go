@@ -6,18 +6,19 @@ import (
 	"io"
 
 	"github.com/pkg/errors"
+	"github.com/segmentio/parquet-go"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-type combineFn func([]*Trace) (*Trace, error)
+type combineFn func([]parquet.Row) (parquet.Row, error)
 
 type MultiBlockIterator struct {
 	bookmarks []*bookmark
 	combine   combineFn
 }
 
-var _ Iterator = (*MultiBlockIterator)(nil)
+var _ RawIterator = (*MultiBlockIterator)(nil)
 
 func newMultiblockIterator(bookmarks []*bookmark, combine combineFn) *MultiBlockIterator {
 	return &MultiBlockIterator{
@@ -26,35 +27,35 @@ func newMultiblockIterator(bookmarks []*bookmark, combine combineFn) *MultiBlock
 	}
 }
 
-func (m *MultiBlockIterator) Next(ctx context.Context) (*Trace, error) {
+func (m *MultiBlockIterator) Next(ctx context.Context) (common.ID, parquet.Row, error) {
 
 	if m.done(ctx) {
-		return nil, io.EOF
+		return nil, nil, io.EOF
 	}
 
 	var (
 		lowestID        common.ID
-		lowestObjects   []*Trace
+		lowestObjects   []parquet.Row
 		lowestBookmarks []*bookmark
 	)
 
 	// find lowest ID of the new object
 	for _, b := range m.bookmarks {
-		currentObject, err := b.current(ctx)
+		id, currentObject, err := b.current(ctx)
 		if err != nil && err != io.EOF {
-			return nil, err
+			return nil, nil, err
 		}
 		if currentObject == nil {
 			continue
 		}
 
-		comparison := bytes.Compare(currentObject.TraceID, lowestID)
+		comparison := bytes.Compare(id, lowestID)
 
 		if comparison == 0 {
 			lowestObjects = append(lowestObjects, currentObject)
 			lowestBookmarks = append(lowestBookmarks, b)
 		} else if len(lowestID) == 0 || comparison == -1 {
-			lowestID = currentObject.TraceID
+			lowestID = id
 
 			// reset and reuse
 			lowestObjects = lowestObjects[:0]
@@ -67,14 +68,14 @@ func (m *MultiBlockIterator) Next(ctx context.Context) (*Trace, error) {
 
 	lowestObject, err := m.combine(lowestObjects)
 	if err != nil {
-		return nil, errors.Wrap(err, "combining")
+		return nil, nil, errors.Wrap(err, "combining")
 	}
 
 	for _, b := range lowestBookmarks {
 		b.clear()
 	}
 
-	return lowestObject, nil
+	return lowestID, lowestObject, nil
 }
 
 func (m *MultiBlockIterator) Close() {
