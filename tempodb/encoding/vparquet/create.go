@@ -228,7 +228,11 @@ func (b *streamingBlock) Complete() (int, error) {
 	return n, writeBlockMeta(b.ctx, b.to, b.meta, b.bloom)
 }
 
-// jpe ??
+// estimateTraceSize attempts to estimate the size of trace in bytes. This is used to make choose
+// when to cut a row group during block creation.
+// TODO: This function regularly estimates lower values then estimateProtoSize() and the size
+// of the actual proto. It's also quite inefficient. Perhaps just using static values per span or attribute
+// would be a better choice?
 func estimateTraceSize(tr *Trace) (size int) {
 	size += len(tr.TraceID)
 	size += len(tr.TraceIDText)
