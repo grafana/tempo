@@ -194,17 +194,15 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 	urlQuery.Set(startTimeMaxTag, fmt.Sprintf("%d", query.StartTimeMax.Unix()))
 	urlQuery.Set(startTimeMinTag, fmt.Sprintf("%d", query.StartTimeMin.Unix()))
 
-	tagsBuilder := &strings.Builder{}
-	tagsEncoder := logfmt.NewEncoder(tagsBuilder)
-	// service parameter is required and validated in jaeger-query
-	tagsEncoder.EncodeKeyval(serviceSearchTag, query.ServiceName)
-	if query.OperationName != "" {
-		tagsEncoder.EncodeKeyval(operationSearchTag, query.OperationName)
+	queryParam, err := createTagsQueryParam(
+		query.ServiceName,
+		query.OperationName,
+		query.Tags,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tags query parameter: %w", err)
 	}
-	for k, v := range query.Tags {
-		tagsEncoder.EncodeKeyval(k, v)
-	}
-	urlQuery.Set(tagsSearchTag, tagsBuilder.String())
+	urlQuery.Set(tagsSearchTag, queryParam)
 
 	url.RawQuery = urlQuery.Encode()
 
@@ -249,6 +247,28 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 	}
 
 	return jaegerTraceIDs, nil
+}
+
+func createTagsQueryParam(service string, operation string, tags map[string]string) (string, error) {
+	tagsBuilder := &strings.Builder{}
+	tagsEncoder := logfmt.NewEncoder(tagsBuilder)
+	err := tagsEncoder.EncodeKeyval(serviceSearchTag, service)
+	if err != nil {
+		return "", err
+	}
+	if operation != "" {
+		err := tagsEncoder.EncodeKeyval(operationSearchTag, operation)
+		if err != nil {
+			return "", err
+		}
+	}
+	for k, v := range tags {
+		err := tagsEncoder.EncodeKeyval(k, v)
+		if err != nil {
+			return "", err
+		}
+	}
+	return tagsBuilder.String(), nil
 }
 
 func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, tagName string) ([]string, error) {
