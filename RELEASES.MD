@@ -24,7 +24,9 @@ This document details release procedures for Tempo.  Currently it's pretty dang 
 - Submit a PR cleaning up the changelog and moving everything under "main/unreleased" to be under
   the newly minted version.
 - Update helm
-  - Submit a PR to `github.com/grafana/helm-charts` to update to the newly cut version.
+  - Submit PRs to `github.com/grafana/helm-charts` to update to the newly cut version.
+    - One PR each for the `tempo`, `tempo-distributed` and `tempo-vulture` helm charts.
+    - Search the chart for the previous version and udpate each version number to current.
 
 # Patch Releases
 
