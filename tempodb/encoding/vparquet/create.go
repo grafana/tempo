@@ -52,10 +52,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		id = append([]byte(nil), id...)
 
 		trp := traceToParquet(id, tr)
-		err = s.Add(&trp, 0, 0) // start and end time of the wal meta are used.
-		if err != nil {
-			return nil, err
-		}
+		s.Add(&trp, 0, 0) // start and end time of the wal meta are used.
 
 		// Here we repurpose RowGroupSizeBytes as number of raw column values.
 		// This is a fairly close approximation.
@@ -112,11 +109,11 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		w:              w,
 		r:              r,
 		to:             to,
-		bufferedTraces: make([]*Trace, 0, 1000), // jpe 1000?
+		bufferedTraces: make([]*Trace, 0, 1000),
 	}
 }
 
-func (b *streamingBlock) Add(tr *Trace, start, end uint32) error { // jpe remove error ret?
+func (b *streamingBlock) Add(tr *Trace, start, end uint32) {
 	b.bufferedTraces = append(b.bufferedTraces, tr)
 	id := tr.TraceID
 
@@ -124,8 +121,6 @@ func (b *streamingBlock) Add(tr *Trace, start, end uint32) error { // jpe remove
 	b.meta.ObjectAdded(id, start, end)
 	b.currentBufferedTraces++
 	b.currentBufferedBytes += estimateTraceSize(tr)
-
-	return nil
 }
 
 func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) error {
