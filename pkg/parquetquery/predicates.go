@@ -17,6 +17,7 @@ type Predicate interface {
 }
 
 // StringInPredicate checks for any of the given strings.
+// Case sensitive exact byte matching
 type StringInPredicate struct {
 	ss [][]byte
 }
@@ -177,6 +178,48 @@ func (p *IntBetweenPredicate) KeepPage(page pq.Page) bool {
 		return p.max >= min.Int64() && p.min <= max.Int64()
 	}
 	return true
+}
+
+type OrPredicate struct {
+	preds []Predicate
+}
+
+var _ Predicate = (*OrPredicate)(nil)
+
+func NewOrPredicate(preds ...Predicate) *OrPredicate {
+	return &OrPredicate{
+		preds: preds,
+	}
+}
+
+func (p *OrPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+	for _, p := range p.preds {
+		if p.KeepColumnChunk(c) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (p *OrPredicate) KeepPage(page pq.Page) bool {
+	for _, p := range p.preds {
+		if p.KeepPage(page) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (p *OrPredicate) KeepValue(v pq.Value) bool {
+	for _, p := range p.preds {
+		if p.KeepValue(v) {
+			return true
+		}
+	}
+
+	return false
 }
 
 type InstrumentedPredicate struct {

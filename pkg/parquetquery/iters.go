@@ -113,23 +113,36 @@ func (t *RowNumber) Skip(numRows int64) {
 type IteratorResult struct {
 	RowNumber RowNumber
 	Entries   []struct {
-		k string
-		v pq.Value
+		Key   string
+		Value pq.Value
+	}
+	OtherEntries []struct {
+		Key   string
+		Value interface{}
 	}
 }
 
 func (r *IteratorResult) Reset() {
 	r.Entries = r.Entries[:0]
+	r.OtherEntries = r.OtherEntries[:0]
 }
 
 func (r *IteratorResult) Append(rr *IteratorResult) {
 	r.Entries = append(r.Entries, rr.Entries...)
+	r.OtherEntries = append(r.OtherEntries, rr.OtherEntries...)
 }
 
 func (r *IteratorResult) AppendValue(k string, v pq.Value) {
 	r.Entries = append(r.Entries, struct {
-		k string
-		v pq.Value
+		Key   string
+		Value pq.Value
+	}{k, v})
+}
+
+func (r *IteratorResult) AppendOtherValue(k string, v interface{}) {
+	r.OtherEntries = append(r.OtherEntries, struct {
+		Key   string
+		Value interface{}
 	}{k, v})
 }
 
@@ -139,7 +152,7 @@ func (r *IteratorResult) AppendValue(k string, v pq.Value) {
 func (r *IteratorResult) ToMap() map[string][]pq.Value {
 	m := map[string][]pq.Value{}
 	for _, e := range r.Entries {
-		m[e.k] = append(m[e.k], e.v)
+		m[e.Key] = append(m[e.Key], e.Value)
 	}
 	return m
 }
@@ -157,8 +170,8 @@ func (r *IteratorResult) Columns(buffer [][]pq.Value, names ...string) [][]pq.Va
 
 	for _, e := range r.Entries {
 		for i := range names {
-			if e.k == names[i] {
-				buffer[i] = append(buffer[i], e.v)
+			if e.Key == names[i] {
+				buffer[i] = append(buffer[i], e.Value)
 				break
 			}
 
@@ -208,8 +221,8 @@ func columnIteratorPoolPut(b *columnIteratorBuffer) {
 var columnIteratorResultPool = sync.Pool{
 	New: func() interface{} {
 		return &IteratorResult{Entries: make([]struct {
-			k string
-			v pq.Value
+			Key   string
+			Value pq.Value
 		}, 0, 10)} // For luck
 	},
 }
