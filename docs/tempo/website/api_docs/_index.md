@@ -193,6 +193,8 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.nam
 
 <span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
 
+Ingester configuration `complete_block_timeout` affects how long tags are available for search.
+
 This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
 
@@ -233,6 +235,8 @@ $ curl -G -s http://localhost:3200/api/search/tags  | jq
 ### Search Tag Values
 
 <span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
+
+Ingester configuration `complete_block_timeout` affects how long tags are available for search.
 
 This endpoint retrieves all discovered values for the given tag, which can be used in search.  The endpoint is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.  The following request will return all discovered service names.
