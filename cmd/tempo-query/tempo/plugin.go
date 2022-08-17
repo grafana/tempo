@@ -30,6 +30,7 @@ const (
 )
 
 const (
+	tagsSearchTag        = "tags"
 	serviceSearchTag     = "service.name"
 	operationSearchTag   = "name"
 	minDurationSearchTag = "minDuration"
@@ -185,17 +186,23 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 		Path:   "api/search",
 	}
 	urlQuery := url.Query()
-	urlQuery.Set(serviceSearchTag, query.ServiceName)
-	urlQuery.Set(operationSearchTag, query.OperationName)
 	urlQuery.Set(minDurationSearchTag, query.DurationMin.String())
 	urlQuery.Set(maxDurationSearchTag, query.DurationMax.String())
 	urlQuery.Set(numTracesSearchTag, strconv.Itoa(query.NumTraces))
 	urlQuery.Set(startTimeMaxTag, fmt.Sprintf("%d", query.StartTimeMax.Unix()))
 	urlQuery.Set(startTimeMinTag, fmt.Sprintf("%d", query.StartTimeMin.Unix()))
 
-	for k, v := range query.Tags {
-		urlQuery.Set(k, v)
+	tags := ""
+	// service parameter is required and validated in jaeger-query
+	tags = fmt.Sprintf("%s=%s", serviceSearchTag, query.ServiceName)
+	if query.OperationName != "" {
+		tags += fmt.Sprintf(" %s=%s", operationSearchTag, query.OperationName)
 	}
+	for k, v := range query.Tags {
+		tags += fmt.Sprintf(" %s=%s", k, v)
+	}
+	urlQuery.Set(tagsSearchTag, tags)
+
 	url.RawQuery = urlQuery.Encode()
 
 	req, err := b.newGetRequest(ctx, url.String(), span)
