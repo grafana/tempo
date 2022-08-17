@@ -282,7 +282,7 @@ func estimateAttrSize(attrs []Attribute) (size int) {
 		size += len(a.ValueArray)
 		size += len(a.ValueKVList)
 		if a.ValueBool != nil {
-			size += 1
+			size++
 		}
 		if a.ValueDouble != nil {
 			size += 8
