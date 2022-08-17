@@ -31,7 +31,7 @@ const (
 
 var (
 	reportCheckInterval = time.Minute
-	reportInterval      = 5 * time.Minute
+	reportInterval      = 4 * time.Hour
 
 	stabilityCheckInterval   = 5 * time.Second
 	stabilityMinimunRequired = 6
