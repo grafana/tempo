@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/go-logfmt/logfmt"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
@@ -30,6 +32,7 @@ const (
 )
 
 const (
+	tagsSearchTag        = "tags"
 	serviceSearchTag     = "service.name"
 	operationSearchTag   = "name"
 	minDurationSearchTag = "minDuration"
@@ -185,17 +188,22 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 		Path:   "api/search",
 	}
 	urlQuery := url.Query()
-	urlQuery.Set(serviceSearchTag, query.ServiceName)
-	urlQuery.Set(operationSearchTag, query.OperationName)
 	urlQuery.Set(minDurationSearchTag, query.DurationMin.String())
 	urlQuery.Set(maxDurationSearchTag, query.DurationMax.String())
 	urlQuery.Set(numTracesSearchTag, strconv.Itoa(query.NumTraces))
 	urlQuery.Set(startTimeMaxTag, fmt.Sprintf("%d", query.StartTimeMax.Unix()))
 	urlQuery.Set(startTimeMinTag, fmt.Sprintf("%d", query.StartTimeMin.Unix()))
 
-	for k, v := range query.Tags {
-		urlQuery.Set(k, v)
+	queryParam, err := createTagsQueryParam(
+		query.ServiceName,
+		query.OperationName,
+		query.Tags,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tags query parameter: %w", err)
 	}
+	urlQuery.Set(tagsSearchTag, queryParam)
+
 	url.RawQuery = urlQuery.Encode()
 
 	req, err := b.newGetRequest(ctx, url.String(), span)
@@ -239,6 +247,28 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 	}
 
 	return jaegerTraceIDs, nil
+}
+
+func createTagsQueryParam(service string, operation string, tags map[string]string) (string, error) {
+	tagsBuilder := &strings.Builder{}
+	tagsEncoder := logfmt.NewEncoder(tagsBuilder)
+	err := tagsEncoder.EncodeKeyval(serviceSearchTag, service)
+	if err != nil {
+		return "", err
+	}
+	if operation != "" {
+		err := tagsEncoder.EncodeKeyval(operationSearchTag, operation)
+		if err != nil {
+			return "", err
+		}
+	}
+	for k, v := range tags {
+		err := tagsEncoder.EncodeKeyval(k, v)
+		if err != nil {
+			return "", err
+		}
+	}
+	return tagsBuilder.String(), nil
 }
 
 func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, tagName string) ([]string, error) {
