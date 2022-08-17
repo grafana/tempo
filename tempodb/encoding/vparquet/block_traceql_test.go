@@ -17,6 +17,8 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	strPtr := func(s string) *string { return &s }
 	intPtr := func(i int64) *int64 { return &i }
 
+	// This is a fully populated trace that we
+	// search many different ways.
 	wantTr := &Trace{
 		TraceID:           test.ValidTraceID(nil),
 		StartTimeUnixNano: uint64(1000 * time.Second),
@@ -117,6 +119,13 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		makeReq(LabelHTTPStatusCode, traceql.OperationEq, int64(200)),
 		makeReq(LabelHTTPStatusCode, traceql.OperationGT, int64(600)),
 		makeReq(".foo", traceql.OperationEq, "xyz"),
+		{
+			// Matches neither condition
+			Conditions: []traceql.Condition{
+				{Selector: ".foo", Operation: traceql.OperationEq, Operands: []interface{}{"xyz"}},
+				{Selector: LabelHTTPStatusCode, Operation: traceql.OperationEq, Operands: []interface{}{1000}},
+			},
+		},
 	}
 
 	for _, req := range searchesThatDontMatch {

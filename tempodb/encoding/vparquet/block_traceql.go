@@ -14,6 +14,37 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
+// Helper function to create an iterator, that abstracts away
+// context like file and rowgroups.
+type makeIterFunc func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator
+
+// Helper function to create a column predicate for the given conditions
+type makePredicateForCondition func(traceql.Operation, []interface{}) (parquetquery.Predicate, error)
+
+type columnLevel int
+
+const (
+	columnLevelResource = iota
+	columnLevelSpan
+)
+
+// Lookup table of all well-known intrinsics and dedicated columns
+// TODO - Add parameter type checking here somehow, i.e. assert
+//		  that if searching "name" then the operands are strings
+var wellKnownColumnLookups = map[string]struct {
+	columnPath  string // path.to.column
+	level       columnLevel
+	predicateFn makePredicateForCondition
+}{
+	// Resource-level intrinsics and columns
+	LabelServiceName: {"rs.Resource.ServiceName", columnLevelResource, createStringPredicate},
+
+	// Span-level intrinsics and columns
+	LabelName:           {"rs.ils.Spans.Name", columnLevelSpan, createStringPredicate},
+	LabelHTTPStatusCode: {"rs.ils.Spans.HttpStatusCode", columnLevelSpan, createIntPredicate},
+}
+
+// Fetch spansets from the block for the given traceql request.
 func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 
 	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
@@ -26,7 +57,7 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest)
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "opening parquet file")
 	}
 
-	iter, err := createIterator(ctx, req.Conditions, pf)
+	iter, err := createFetchIterator(ctx, req.Conditions, pf)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "creating condition iter")
 	}
@@ -38,8 +69,73 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest)
 	}, nil
 }
 
-func createIterator(ctx context.Context, conditions []traceql.Condition, pf *parquet.File) (parquetquery.Iterator, error) {
+// spansetIterator turns the parquet iterator into the final
+// traceql iterator.  Every row it receives is one spanset.
+type spansetIterator struct {
+	iter parquetquery.Iterator
+}
 
+var _ traceql.SpansetIterator = (*spansetIterator)(nil)
+
+func (i *spansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
+
+	res := i.iter.Next()
+	if res == nil {
+		return nil, nil
+	}
+
+	// The spanset is in the OtherEntries
+	spanset := res.OtherEntries[0].Value.(*traceql.Spanset)
+
+	return spanset, nil
+}
+
+func createFetchIterator(ctx context.Context, conditions []traceql.Condition, pf *parquet.File) (parquetquery.Iterator, error) {
+
+	// Categorize conditions into span-level or resource-level
+	var (
+		spanConditions     []traceql.Condition
+		resourceConditions []traceql.Condition
+	)
+	for _, cond := range conditions {
+
+		// Well-known column or intrinsic?
+		if entry, ok := wellKnownColumnLookups[cond.Selector]; ok {
+			switch entry.level {
+			case columnLevelSpan:
+				spanConditions = append(spanConditions, cond)
+			case columnLevelResource:
+				resourceConditions = append(resourceConditions, cond)
+			}
+
+			continue
+		}
+
+		// Attribute selector?
+		if strings.HasPrefix(cond.Selector, ".") {
+			isSpan := true
+			isRes := true
+			if strings.HasPrefix(cond.Selector, ".span.") {
+				isRes = false
+			} else if strings.HasPrefix(cond.Selector, ".resource") {
+				isSpan = false
+			}
+
+			if isSpan {
+				spanConditions = append(spanConditions, cond)
+			}
+			if isRes {
+				resourceConditions = append(resourceConditions, cond)
+			}
+
+			continue
+		}
+
+		return nil, fmt.Errorf("unknown traceql selector: %s", cond.Selector)
+	}
+
+	// For now we iterate all row groups in the file
+	// TODO: Add sharding params to the traceql request?
 	makeIter := func(name string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator {
 		index, _ := parquetquery.GetColumnIndexByPath(pf, name)
 		if index == -1 {
@@ -49,132 +145,144 @@ func createIterator(ctx context.Context, conditions []traceql.Condition, pf *par
 		return parquetquery.NewColumnIterator(ctx, pf.RowGroups(), index, name, 1000, predicate, selectAs)
 	}
 
-	var spanConditions []traceql.Condition
-	var resourceConditions []traceql.Condition
+	spanIter, err := createSpanIterator(makeIter, spanConditions)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating span iterator")
+	}
 
-	// Break conditions up into span-level or resource-level
+	resourceIter, err := createResourceIterator(makeIter, spanIter, resourceConditions)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating resource iterator")
+	}
+
+	traceIter, err := createTraceIterator(makeIter, resourceIter)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating trace iterator")
+	}
+
+	return traceIter, nil
+}
+
+// createSpanIterator iterates through all span-level columns, groups them into rows representing
+// one span each.  Spans are returned that match any of the given conditions.
+func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition) (parquetquery.Iterator, error) {
+
+	var iters []parquetquery.Iterator
+	attrKeys := []string{}
+	attrStringPreds := []parquetquery.Predicate{}
+
 	for _, cond := range conditions {
-		switch cond.Selector {
-		case LabelName:
-			spanConditions = append(spanConditions, cond)
-		case LabelServiceName:
-			resourceConditions = append(resourceConditions, cond)
-		case LabelHTTPStatusCode:
-			spanConditions = append(spanConditions, cond)
-		default:
-			if strings.HasPrefix(cond.Selector, ".") {
-				isSpan := true
-				isRes := true
-				if strings.HasPrefix(cond.Selector, ".span.") {
-					isRes = false
-				} else if strings.HasPrefix(cond.Selector, ".resource") {
-					isSpan = false
-				}
 
-				if isSpan {
-					spanConditions = append(spanConditions, cond)
-				}
-				if isRes {
-					resourceConditions = append(resourceConditions, cond)
-				}
+		// Well-known selector?
+		if entry, ok := wellKnownColumnLookups[cond.Selector]; ok {
+			pred, err := entry.predicateFn(cond.Operation, cond.Operands)
+			if err != nil {
+				return nil, errors.Wrap(err, "creating predicate")
 			}
+			iters = append(iters, makeIter(entry.columnPath, pred, cond.Selector))
+			continue
+		}
+
+		// Arbitrary attribute lookup
+		s := cond.Selector
+		s = strings.TrimPrefix(s, ".span")
+		s = strings.TrimPrefix(s, ".")
+		attrKeys = append(attrKeys, s)
+
+		pred, err := createStringPredicate(cond.Operation, cond.Operands)
+		if err != nil {
+			return nil, errors.Wrap(err, "creating attribute span predicate")
+		}
+		if pred != nil {
+			attrStringPreds = append(attrStringPreds, pred)
 		}
 	}
+	var attrIters []parquetquery.Iterator
+	if len(attrKeys) > 0 {
+		attrIters = append(attrIters, makeIter("rs.ils.Spans.Attrs.Key", parquetquery.NewStringInPredicate(attrKeys), "key"))
+	}
+	if len(attrStringPreds) > 0 {
+		attrIters = append(attrIters, makeIter("rs.ils.Spans.Attrs.Value", parquetquery.NewOrPredicate(attrStringPreds...), "strings"))
+	}
+	if len(attrIters) > 0 {
+		// Join iterator here keeps key/value pairs together
+		iters = append(iters, parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, attrIters, nil))
+	}
 
-	var spanItrs []parquetquery.Iterator
-	spanAttrKeys := []string{}
-	spanAttrStringPreds := []parquetquery.Predicate{}
-	for _, cond := range spanConditions {
+	// Static columns that are always loaded
+	iters = append(iters, makeIter("rs.ils.Spans.ID", nil, "ID"))
+	iters = append(iters, makeIter("rs.ils.Spans.StartUnixNanos", nil, "StartTimeUnixNanos"))
+	iters = append(iters, makeIter("rs.ils.Spans.EndUnixNanos", nil, "EndTimeUnixNanos"))
 
-		switch cond.Selector {
-		case LabelName:
-			var names []string
-			for _, operand := range cond.Operands {
-				names = append(names, operand.(string))
-			}
-			spanItrs = append(spanItrs, makeIter("rs.ils.Spans.Name", parquetquery.NewStringInPredicate(names), cond.Selector))
-		case LabelHTTPStatusCode:
-			pred, err := createIntPredicate(cond.Operation, cond.Operands)
+	spanIter := parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpan, iters, &spanCollector{})
+
+	return spanIter, nil
+}
+
+// createResourceIter iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
+// one batch each. It builds on top of the span iterator, and turns the groups of spans and resource-level values into
+// spansets.  Spansets are returned that match any of the given conditions.
+
+func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Iterator, conditions []traceql.Condition) (parquetquery.Iterator, error) {
+	iters := []parquetquery.Iterator{
+		spanIterator,
+	}
+	attrKeys := []string{}
+	attrStringPreds := []parquetquery.Predicate{}
+	for _, cond := range conditions {
+
+		// Well-known selector?
+		if entry, ok := wellKnownColumnLookups[cond.Selector]; ok {
+			pred, err := entry.predicateFn(cond.Operation, cond.Operands)
 			if err != nil {
-				return nil, errors.Wrap(err, "creating http status code predicate")
+				return nil, errors.Wrap(err, "creating predicate")
 			}
-			spanItrs = append(spanItrs, makeIter("rs.ils.Spans.HttpStatusCode", pred, cond.Selector))
-		default:
-			s := cond.Selector
-			s = strings.TrimPrefix(s, ".span")
-			s = strings.TrimPrefix(s, ".")
-			spanAttrKeys = append(spanAttrKeys, s)
+			iters = append(iters, makeIter(entry.columnPath, pred, cond.Selector))
+			continue
+		}
 
-			pred, err := createStringPredicate(cond.Operation, cond.Operands)
-			if err != nil {
-				return nil, errors.Wrap(err, "creating attribute span predicate")
-			}
-			if pred != nil {
-				spanAttrStringPreds = append(spanAttrStringPreds, pred)
-			}
+		s := cond.Selector
+		s = strings.TrimPrefix(s, ".resource")
+		s = strings.TrimPrefix(s, ".")
+		attrKeys = append(attrKeys, s)
+
+		pred, err := createStringPredicate(cond.Operation, cond.Operands)
+		if err != nil {
+			return nil, errors.Wrap(err, "creating attribute resource predicate")
+		}
+		if pred != nil {
+			attrStringPreds = append(attrStringPreds, pred)
 		}
 	}
-	var spanAttrIters []parquetquery.Iterator
-	if len(spanAttrKeys) > 0 {
-		spanAttrIters = append(spanAttrIters, makeIter("rs.ils.Spans.Attrs.Key", parquetquery.NewStringInPredicate(spanAttrKeys), "key"))
+	var attrIters []parquetquery.Iterator
+	if len(attrKeys) > 0 {
+		attrIters = append(attrIters, makeIter("rs.Resource.Attrs.Key", parquetquery.NewStringInPredicate(attrKeys), "key"))
 	}
-	if len(spanAttrStringPreds) > 0 {
-		spanAttrIters = append(spanAttrIters, makeIter("rs.ils.Spans.Attrs.Value", parquetquery.NewOrPredicate(spanAttrStringPreds...), "strings"))
+	if len(attrStringPreds) > 0 {
+		attrIters = append(attrIters, makeIter("rs.Resource.Attrs.Value", parquetquery.NewOrPredicate(attrStringPreds...), "strings"))
 	}
-	if len(spanAttrIters) > 0 {
-		spanItrs = append(spanItrs, parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, spanAttrIters, nil))
+	if len(attrIters) > 0 {
+		iters = append(iters, parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, attrIters, nil))
 	}
-	spanItrs = append(spanItrs, makeIter("rs.ils.Spans.ID", nil, "ID"))
-	spanItrs = append(spanItrs, makeIter("rs.ils.Spans.StartUnixNanos", nil, "StartTimeUnixNanos"))
-	spanItrs = append(spanItrs, makeIter("rs.ils.Spans.EndUnixNanos", nil, "EndTimeUnixNanos"))
 
-	spanIter := parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpan, spanItrs, &spanCollector{})
+	// Final resource iterator.
+	// Union to return resources that match any of the conditions.
+	// BatchCollector to group the spans into spanset
+	resourceIter := parquetquery.NewUnionIterator(DefinitionLevelResourceSpans, iters, &batchCollector{})
 
-	resourceIters := []parquetquery.Iterator{
-		spanIter,
-	}
-	resourceAttrKeys := []string{}
-	resourceAttrStringPreds := []parquetquery.Predicate{}
-	for _, cond := range resourceConditions {
-		switch cond.Selector {
-		case LabelServiceName:
-			var names []string
-			for _, operand := range cond.Operands {
-				names = append(names, operand.(string))
-			}
-			resourceIters = append(resourceIters, makeIter("rs.Resource.ServiceName", parquetquery.NewStringInPredicate(names), cond.Selector))
-		default:
-			s := cond.Selector
-			s = strings.TrimPrefix(s, ".resource")
-			s = strings.TrimPrefix(s, ".")
-			resourceAttrKeys = append(resourceAttrKeys, s)
+	return resourceIter, nil
+}
 
-			pred, err := createStringPredicate(cond.Operation, cond.Operands)
-			if err != nil {
-				return nil, errors.Wrap(err, "creating attribute resource predicate")
-			}
-			if pred != nil {
-				resourceAttrStringPreds = append(resourceAttrStringPreds, pred)
-			}
-		}
-	}
-	var resourceAttrIters []parquetquery.Iterator
-	if len(resourceAttrKeys) > 0 {
-		resourceAttrIters = append(resourceAttrIters, makeIter("rs.Resource.Attrs.Key", parquetquery.NewStringInPredicate(resourceAttrKeys), "key"))
-	}
-	if len(resourceAttrStringPreds) > 0 {
-		resourceAttrIters = append(resourceAttrIters, makeIter("rs.Resource.Attrs.Value", parquetquery.NewOrPredicate(resourceAttrStringPreds...), "strings"))
-	}
-	if len(resourceAttrIters) > 0 {
-		resourceIters = append(resourceIters, parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, resourceAttrIters, nil))
-	}
-	resourceIter := parquetquery.NewUnionIterator(DefinitionLevelResourceSpans, resourceIters, &batchCollector{})
-
+func createTraceIterator(makeIter makeIterFunc, resourceIter parquetquery.Iterator) (parquetquery.Iterator, error) {
 	traceIters := []parquetquery.Iterator{
 		resourceIter,
+		// Add static columns that are always return
 		makeIter("TraceID", nil, "TraceID"),
 	}
 
+	// Final trace iterator
+	// Join iterator means it requires matching resources to have been found
+	// TraceCollor adds trace-level data to the spansets
 	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, &traceCollector{}), nil
 }
 
@@ -244,6 +352,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		Attributes: make(map[string]interface{}),
 	}
 
+	// Merge all individual columns into the span
 	for _, kv := range res.Entries {
 		switch kv.Key {
 		case "ID":
@@ -270,6 +379,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	return true
 }
 
+// batchCollector receives rows of matching resource-level
 // This turns groups of batch values and Spans into SpanSets
 type batchCollector struct {
 }
@@ -322,6 +432,9 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	return true
 }
 
+// traceCollector receives rows from the resource-level matches.
+// It adds trace-level attributes into the spansets before
+// they are returned
 type traceCollector struct {
 }
 
@@ -338,23 +451,4 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	}
 
 	return true
-}
-
-type spansetIterator struct {
-	iter parquetquery.Iterator
-}
-
-var _ traceql.SpansetIterator = (*spansetIterator)(nil)
-
-func (i *spansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
-
-	res := i.iter.Next()
-	if res == nil {
-		return nil, nil
-	}
-
-	// The spanset is in the OtherEntries
-	spanset := res.OtherEntries[0].Value.(*traceql.Spanset)
-
-	return spanset, nil
 }
