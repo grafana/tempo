@@ -128,13 +128,7 @@ func createIterator(ctx context.Context, conditions []traceql.Condition, pf *par
 	spanItrs = append(spanItrs, makeIter("rs.ils.Spans.StartUnixNanos", nil, "StartTimeUnixNanos"))
 	spanItrs = append(spanItrs, makeIter("rs.ils.Spans.EndUnixNanos", nil, "EndTimeUnixNanos"))
 
-	var spanIter parquetquery.Iterator
-	if len(spanConditions) == 1 && len(resourceConditions) == 0 {
-		// The only conditions are 1 span condition,
-		spanIter = parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, spanItrs, &spanCollector{})
-	} else {
-		spanIter = parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpan, spanItrs, &spanCollector{})
-	}
+	spanIter := parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpan, spanItrs, &spanCollector{})
 
 	resourceIters := []parquetquery.Iterator{
 		spanIter,
@@ -174,14 +168,7 @@ func createIterator(ctx context.Context, conditions []traceql.Condition, pf *par
 	if len(resourceAttrIters) > 0 {
 		resourceIters = append(resourceIters, parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, resourceAttrIters, nil))
 	}
-	var resourceIter parquetquery.Iterator
-	if len(spanConditions) == 0 {
-		// In this case there are no span conditions.  The join iterator is used to only return
-		// spans for matching batches.
-		resourceIter = parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, resourceIters, &batchCollector{})
-	} else {
-		resourceIter = parquetquery.NewUnionIterator(DefinitionLevelResourceSpans, resourceIters, &batchCollector{})
-	}
+	resourceIter := parquetquery.NewUnionIterator(DefinitionLevelResourceSpans, resourceIters, &batchCollector{})
 
 	traceIters := []parquetquery.Iterator{
 		resourceIter,
@@ -218,9 +205,14 @@ func createIntPredicate(op traceql.Operation, operands []interface{}) (parquetqu
 	}
 
 	// Ensure operand is int
-	i, ok := operands[0].(int64)
-	if !ok {
-		return nil, fmt.Errorf("operand is not int64: %+v", operands[0])
+	var i int64
+	switch v := operands[0].(type) {
+	case int:
+		i = int64(v)
+	case int64:
+		i = v
+	default:
+		return nil, fmt.Errorf("operand is not int: %+v", operands[0])
 	}
 
 	// Defaults

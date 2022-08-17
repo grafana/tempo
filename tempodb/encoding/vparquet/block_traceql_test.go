@@ -87,10 +87,17 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		makeReq(LabelHTTPStatusCode, traceql.OperationGT, int64(200)),
 		makeReq(".foo", traceql.OperationEq, "abc"),
 		makeReq(".foo", traceql.OperationEq, "def"),
-		makeReq(".foo", traceql.OperationIn, "abc", "def"),
+		makeReq(".foo", traceql.OperationIn, "abc", "xyz"), // Matches either condition
 		makeReq(".resource.foo", traceql.OperationEq, "abc"),
 		makeReq(".span.foo", traceql.OperationEq, "def"),
 		makeReq(".foo", traceql.OperationNone), // Here we are only projecting the value up to higher logic
+		{
+			// Matches either condition
+			Conditions: []traceql.Condition{
+				{Selector: ".foo", Operation: traceql.OperationEq, Operands: []interface{}{"baz"}},
+				{Selector: LabelHTTPStatusCode, Operation: traceql.OperationGT, Operands: []interface{}{100}},
+			},
+		},
 	}
 
 	for _, req := range searchesThatMatch {
