@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/go-logfmt/logfmt"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
@@ -192,16 +194,17 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 	urlQuery.Set(startTimeMaxTag, fmt.Sprintf("%d", query.StartTimeMax.Unix()))
 	urlQuery.Set(startTimeMinTag, fmt.Sprintf("%d", query.StartTimeMin.Unix()))
 
-	tags := ""
+	tagsBuilder := &strings.Builder{}
+	tagsEncoder := logfmt.NewEncoder(tagsBuilder)
 	// service parameter is required and validated in jaeger-query
-	tags = fmt.Sprintf("%s=%s", serviceSearchTag, query.ServiceName)
+	tagsEncoder.EncodeKeyval(serviceSearchTag, query.ServiceName)
 	if query.OperationName != "" {
-		tags += fmt.Sprintf(" %s=%s", operationSearchTag, query.OperationName)
+		tagsEncoder.EncodeKeyval(operationSearchTag, query.OperationName)
 	}
 	for k, v := range query.Tags {
-		tags += fmt.Sprintf(" %s=%s", k, v)
+		tagsEncoder.EncodeKeyval(k, v)
 	}
-	urlQuery.Set(tagsSearchTag, tags)
+	urlQuery.Set(tagsSearchTag, tagsBuilder.String())
 
 	url.RawQuery = urlQuery.Encode()
 
