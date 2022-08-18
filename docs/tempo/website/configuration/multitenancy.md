@@ -1,6 +1,6 @@
 ---
 title: Multi-tenancy
-weight: 6
+weight: 60
 ---
 ## Multi-tenancy
 
