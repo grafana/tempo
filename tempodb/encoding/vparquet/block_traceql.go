@@ -21,6 +21,20 @@ type makeIterFunc func(columnName string, predicate parquetquery.Predicate, sele
 // Helper function to create a column predicate for the given conditions
 type makePredicateForCondition func(traceql.Operation, []interface{}) (parquetquery.Predicate, error)
 
+const (
+	columnPathTraceID             = "TraceID"
+	columnPathResourceAttrKey     = "rs.Resource.Attrs.Key"
+	columnPathResourceAttrString  = "rs.Resource.Attrs.Value"
+	columnPathResourceServiceName = "rs.Resource.ServiceName"
+	columnPathSpanID              = "rs.ils.Spans.ID"
+	columnPathSpanName            = "rs.ils.Spans.Name"
+	columnPathSpanStartTime       = "rs.ils.Spans.StartUnixNanos"
+	columnPathSpanEndTime         = "rs.ils.Spans.EndUnixNanos"
+	columnPathSpanAttrKey         = "rs.ils.Spans.Attrs.Key"
+	columnPathSpanAttrString      = "rs.ils.Spans.Attrs.Value"
+	columnPathSpanHttpStatusCode  = "rs.ils.Spans.HttpStatusCode"
+)
+
 type columnLevel int
 
 const (
@@ -32,16 +46,16 @@ const (
 // TODO - Add parameter type checking here somehow, i.e. assert
 //		  that if searching "name" then the operands are strings
 var wellKnownColumnLookups = map[string]struct {
-	columnPath  string // path.to.column
-	level       columnLevel
+	columnPath  string      // path.to.column
+	level       columnLevel // span or resource level
 	predicateFn makePredicateForCondition
 }{
 	// Resource-level intrinsics and columns
-	LabelServiceName: {"rs.Resource.ServiceName", columnLevelResource, createStringPredicate},
+	LabelServiceName: {columnPathResourceServiceName, columnLevelResource, createStringPredicate},
 
 	// Span-level intrinsics and columns
-	LabelName:           {"rs.ils.Spans.Name", columnLevelSpan, createStringPredicate},
-	LabelHTTPStatusCode: {"rs.ils.Spans.HttpStatusCode", columnLevelSpan, createIntPredicate},
+	LabelName:           {columnPathSpanName, columnLevelSpan, createStringPredicate},
+	LabelHTTPStatusCode: {columnPathSpanHttpStatusCode, columnLevelSpan, createIntPredicate},
 }
 
 // Fetch spansets from the block for the given traceql request.
@@ -57,15 +71,13 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest)
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "opening parquet file")
 	}
 
-	iter, err := createFetchIterator(ctx, req.Conditions, pf)
+	iter, err := fetch(ctx, req.Conditions, pf)
 	if err != nil {
-		return traceql.FetchSpansResponse{}, errors.Wrap(err, "creating condition iter")
+		return traceql.FetchSpansResponse{}, errors.Wrap(err, "creating fetch iter")
 	}
 
 	return traceql.FetchSpansResponse{
-		Results: &spansetIterator{
-			iter: iter,
-		},
+		Results: iter,
 	}, nil
 }
 
@@ -90,7 +102,7 @@ func (i *spansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
 	return spanset, nil
 }
 
-func createFetchIterator(ctx context.Context, conditions []traceql.Condition, pf *parquet.File) (parquetquery.Iterator, error) {
+func fetch(ctx context.Context, conditions []traceql.Condition, pf *parquet.File) (*spansetIterator, error) {
 
 	// Categorize conditions into span-level or resource-level
 	var (
@@ -107,7 +119,6 @@ func createFetchIterator(ctx context.Context, conditions []traceql.Condition, pf
 			case columnLevelResource:
 				resourceConditions = append(resourceConditions, cond)
 			}
-
 			continue
 		}
 
@@ -160,7 +171,7 @@ func createFetchIterator(ctx context.Context, conditions []traceql.Condition, pf
 		return nil, errors.Wrap(err, "creating trace iterator")
 	}
 
-	return traceIter, nil
+	return &spansetIterator{traceIter}, nil
 }
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
@@ -199,10 +210,10 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition) (
 	}
 	var attrIters []parquetquery.Iterator
 	if len(attrKeys) > 0 {
-		attrIters = append(attrIters, makeIter("rs.ils.Spans.Attrs.Key", parquetquery.NewStringInPredicate(attrKeys), "key"))
+		attrIters = append(attrIters, makeIter(columnPathSpanAttrKey, parquetquery.NewStringInPredicate(attrKeys), "key"))
 	}
 	if len(attrStringPreds) > 0 {
-		attrIters = append(attrIters, makeIter("rs.ils.Spans.Attrs.Value", parquetquery.NewOrPredicate(attrStringPreds...), "strings"))
+		attrIters = append(attrIters, makeIter(columnPathSpanAttrString, parquetquery.NewOrPredicate(attrStringPreds...), "strings"))
 	}
 	if len(attrIters) > 0 {
 		// Join iterator here keeps key/value pairs together
@@ -210,9 +221,9 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition) (
 	}
 
 	// Static columns that are always loaded
-	iters = append(iters, makeIter("rs.ils.Spans.ID", nil, "ID"))
-	iters = append(iters, makeIter("rs.ils.Spans.StartUnixNanos", nil, "StartTimeUnixNanos"))
-	iters = append(iters, makeIter("rs.ils.Spans.EndUnixNanos", nil, "EndTimeUnixNanos"))
+	iters = append(iters, makeIter(columnPathSpanID, nil, columnPathSpanID))
+	iters = append(iters, makeIter(columnPathSpanStartTime, nil, columnPathSpanStartTime))
+	iters = append(iters, makeIter(columnPathSpanEndTime, nil, columnPathSpanEndTime))
 
 	spanIter := parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpan, iters, &spanCollector{})
 
@@ -256,10 +267,10 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 	}
 	var attrIters []parquetquery.Iterator
 	if len(attrKeys) > 0 {
-		attrIters = append(attrIters, makeIter("rs.Resource.Attrs.Key", parquetquery.NewStringInPredicate(attrKeys), "key"))
+		attrIters = append(attrIters, makeIter(columnPathResourceAttrKey, parquetquery.NewStringInPredicate(attrKeys), "key"))
 	}
 	if len(attrStringPreds) > 0 {
-		attrIters = append(attrIters, makeIter("rs.Resource.Attrs.Value", parquetquery.NewOrPredicate(attrStringPreds...), "strings"))
+		attrIters = append(attrIters, makeIter(columnPathResourceAttrString, parquetquery.NewOrPredicate(attrStringPreds...), "strings"))
 	}
 	if len(attrIters) > 0 {
 		iters = append(iters, parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, attrIters, nil))
@@ -277,7 +288,7 @@ func createTraceIterator(makeIter makeIterFunc, resourceIter parquetquery.Iterat
 	traceIters := []parquetquery.Iterator{
 		resourceIter,
 		// Add static columns that are always return
-		makeIter("TraceID", nil, "TraceID"),
+		makeIter(columnPathTraceID, nil, columnPathTraceID),
 	}
 
 	// Final trace iterator
@@ -355,11 +366,11 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// Merge all individual columns into the span
 	for _, kv := range res.Entries {
 		switch kv.Key {
-		case "ID":
+		case columnPathSpanID:
 			span.ID = kv.Value.ByteArray()
-		case "StartTimeUnixNanos":
+		case columnPathSpanStartTime:
 			span.StartTimeUnixNanos = kv.Value.Uint64()
-		case "EndTimeUnixNanos":
+		case columnPathSpanEndTime:
 			span.EndtimeUnixNanos = kv.Value.Uint64()
 		default:
 			switch kv.Value.Kind() {
@@ -445,7 +456,7 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	for k, v := range res.ToMap() {
 		switch k {
-		case "TraceID":
+		case columnPathTraceID:
 			spanset.TraceID = v[0].ByteArray()
 		}
 	}
