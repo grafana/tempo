@@ -37,8 +37,8 @@ const (
 )
 
 var labelMappings = map[string]string{
-	LabelRootSpanName:     "RootServiceName",
-	LabelRootServiceName:  "RootSpanName",
+	LabelRootSpanName:     "RootSpanName",
+	LabelRootServiceName:  "RootServiceName",
 	LabelServiceName:      "rs.Resource.ServiceName",
 	LabelCluster:          "rs.Resource.Cluster",
 	LabelNamespace:        "rs.Resource.Namespace",

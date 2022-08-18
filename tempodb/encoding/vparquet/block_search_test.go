@@ -306,7 +306,7 @@ func makeTraces() ([]*Trace, map[string]string) {
 
 	attrVals[LabelCluster] = "cluster"
 	attrVals[LabelServiceName] = "servicename"
-	attrVals[LabelRootServiceName] = "servicename"
+	attrVals[LabelRootServiceName] = "rootsvc"
 	attrVals[LabelNamespace] = "ns"
 	attrVals[LabelPod] = "pod"
 	attrVals[LabelContainer] = "con"
@@ -315,15 +315,18 @@ func makeTraces() ([]*Trace, map[string]string) {
 	attrVals[LabelK8sPodName] = "kpod"
 	attrVals[LabelK8sContainerName] = "k8scon"
 
-	attrVals[LabelName] = "name"
-	attrVals[LabelRootSpanName] = "name"
+	attrVals[LabelName] = "span"
+	attrVals[LabelRootSpanName] = "rootspan"
 	attrVals[LabelHTTPMethod] = "method"
 	attrVals[LabelHTTPUrl] = "url"
 	attrVals[LabelHTTPStatusCode] = "404"
 	attrVals[LabelStatusCode] = "2"
 
 	for i := 0; i < 10; i++ {
-		tr := &Trace{}
+		tr := &Trace{
+			RootServiceName: "rootsvc",
+			RootSpanName:    "rootspan",
+		}
 
 		for j := 0; j < 3; j++ {
 			key := test.RandomString()
