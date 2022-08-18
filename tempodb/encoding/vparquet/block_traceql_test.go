@@ -145,3 +145,125 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		require.Nil(t, spanSet, "search request:", req)
 	}
 }
+
+func TestBackendBlockSearchTraceQLResults(t *testing.T) {
+
+	// Helper functions to make pointers
+	strPtr := func(s string) *string { return &s }
+	intPtr := func(i int64) *int64 { return &i }
+
+	// This is a fully populated trace that we
+	// search many different ways.
+	wantTr := &Trace{
+		TraceID:           test.ValidTraceID(nil),
+		StartTimeUnixNano: uint64(1000 * time.Second),
+		EndTimeUnixNano:   uint64(2000 * time.Second),
+		DurationNanos:     uint64((100 * time.Millisecond).Nanoseconds()),
+		RootServiceName:   "RootService",
+		RootSpanName:      "RootSpan",
+		ResourceSpans: []ResourceSpans{
+			{
+				Resource: Resource{
+					ServiceName:      "myservice",
+					Cluster:          strPtr("cluster"),
+					Namespace:        strPtr("namespace"),
+					Pod:              strPtr("pod"),
+					Container:        strPtr("container"),
+					K8sClusterName:   strPtr("k8scluster"),
+					K8sNamespaceName: strPtr("k8snamespace"),
+					K8sPodName:       strPtr("k8spod"),
+					K8sContainerName: strPtr("k8scontainer"),
+					Attrs: []Attribute{
+						{Key: "foo", Value: strPtr("abc")},
+					},
+				},
+				InstrumentationLibrarySpans: []ILS{
+					{
+						Spans: []Span{
+							{
+								Name:           "hello",
+								StartUnixNanos: uint64(100 * time.Second),
+								EndUnixNanos:   uint64(200 * time.Second),
+								HttpMethod:     strPtr("get"),
+								HttpUrl:        strPtr("url/hello/world"),
+								HttpStatusCode: intPtr(500),
+								ID:             []byte("spanid"),
+								ParentSpanID:   []byte{},
+								StatusCode:     int(v1.Status_STATUS_CODE_ERROR),
+								Attrs: []Attribute{
+									{Key: "foo", Value: strPtr("def")},
+									{Key: "bar", ValueInt: intPtr(123)},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
+	ctx := context.TODO()
+
+	// Helper function to make a basic search
+	/*makeReq := func(k string, op traceql.Operation, v ...interface{}) traceql.FetchSpansRequest {
+		return traceql.FetchSpansRequest{
+			Conditions: []traceql.Condition{
+				{
+					Selector:  k,
+					Operation: op,
+					Operands:  v,
+				},
+			},
+		}
+	}*/
+
+	testCases := []struct {
+		req             traceql.FetchSpansRequest
+		expectedResults []traceql.Spanset
+	}{
+		{
+			req: traceql.FetchSpansRequest{
+				Conditions: []traceql.Condition{
+					{Selector: ".span.foo", Operation: traceql.OperationEq, Operands: []interface{}{"def"}},
+					{Selector: ".span.bar", Operation: traceql.OperationEq, Operands: []interface{}{123}},
+				},
+			},
+			expectedResults: []traceql.Spanset{
+				{
+					TraceID: wantTr.TraceID,
+					Spans: []traceql.Span{
+						{
+							ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
+							StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
+							EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
+							Attributes: map[string]interface{}{
+								"bar": int64(123),
+								"foo": "def",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		req := tc.req
+		resp, err := b.Fetch(ctx, req)
+		require.NoError(t, err, "search request:", req)
+
+		// Turn iterator into slice
+		var actualResults []traceql.Spanset
+		for {
+			spanSet, err := resp.Results.Next(ctx)
+			require.NoError(t, err)
+			if spanSet == nil {
+				break
+			}
+			actualResults = append(actualResults, *spanSet)
+		}
+		//require.True(t, reflect.DeepEqual(tc.expectedResults, actualResults), "search request:", req)
+		require.Equal(t, tc.expectedResults, actualResults, "search request:", req)
+	}
+}

@@ -33,7 +33,7 @@ type Span struct {
 
 type Spanset struct {
 	TraceID []byte
-	Spans   []*Span
+	Spans   []Span
 }
 
 type SpansetIterator interface {

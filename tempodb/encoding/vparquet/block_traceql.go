@@ -32,6 +32,7 @@ const (
 	columnPathSpanEndTime         = "rs.ils.Spans.EndUnixNanos"
 	columnPathSpanAttrKey         = "rs.ils.Spans.Attrs.Key"
 	columnPathSpanAttrString      = "rs.ils.Spans.Attrs.Value"
+	columnPathSpanAttrInt         = "rs.ils.Spans.Attrs.ValueInt"
 	columnPathSpanHttpStatusCode  = "rs.ils.Spans.HttpStatusCode"
 )
 
@@ -181,6 +182,7 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition) (
 	var iters []parquetquery.Iterator
 	attrKeys := []string{}
 	attrStringPreds := []parquetquery.Predicate{}
+	attrIntPreds := []parquetquery.Predicate{}
 
 	for _, cond := range conditions {
 
@@ -200,12 +202,36 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition) (
 		s = strings.TrimPrefix(s, ".")
 		attrKeys = append(attrKeys, s)
 
-		pred, err := createStringPredicate(cond.Operation, cond.Operands)
-		if err != nil {
-			return nil, errors.Wrap(err, "creating attribute span predicate")
+		stringOperands := []interface{}{}
+		intOperands := []interface{}{}
+
+		for _, op := range cond.Operands {
+			switch opv := op.(type) {
+			case string:
+				stringOperands = append(stringOperands, opv)
+			case int, int64:
+				intOperands = append(intOperands, opv)
+			}
 		}
-		if pred != nil {
-			attrStringPreds = append(attrStringPreds, pred)
+
+		if len(stringOperands) > 0 {
+			pred, err := createStringPredicate(cond.Operation, cond.Operands)
+			if err != nil {
+				return nil, errors.Wrap(err, "creating attribute span predicate")
+			}
+			if pred != nil {
+				attrStringPreds = append(attrStringPreds, pred)
+			}
+		}
+
+		if len(intOperands) > 0 {
+			pred, err := createIntPredicate(cond.Operation, cond.Operands)
+			if err != nil {
+				return nil, errors.Wrap(err, "creating attribute span predicate")
+			}
+			if pred != nil {
+				attrIntPreds = append(attrIntPreds, pred)
+			}
 		}
 	}
 	var attrIters []parquetquery.Iterator
@@ -213,11 +239,14 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition) (
 		attrIters = append(attrIters, makeIter(columnPathSpanAttrKey, parquetquery.NewStringInPredicate(attrKeys), "key"))
 	}
 	if len(attrStringPreds) > 0 {
-		attrIters = append(attrIters, makeIter(columnPathSpanAttrString, parquetquery.NewOrPredicate(attrStringPreds...), "strings"))
+		attrIters = append(attrIters, makeIter(columnPathSpanAttrString, parquetquery.NewOrPredicate(attrStringPreds...), "string"))
+	}
+	if len(attrIntPreds) > 0 {
+		attrIters = append(attrIters, makeIter(columnPathSpanAttrInt, parquetquery.NewOrPredicate(attrIntPreds...), "int"))
 	}
 	if len(attrIters) > 0 {
 		// Join iterator here keeps key/value pairs together
-		iters = append(iters, parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, attrIters, nil))
+		iters = append(iters, parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpanAttrs, attrIters, &attributeCollector{}))
 	}
 
 	// Static columns that are always loaded
@@ -373,6 +402,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case columnPathSpanEndTime:
 			span.EndtimeUnixNanos = kv.Value.Uint64()
 		default:
+			// TODO - I think this is obsolete now that attributeCollector exists
 			switch kv.Value.Kind() {
 			case parquet.Int32:
 				span.Attributes[kv.Key] = kv.Value.Int32()
@@ -383,9 +413,13 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			}
 		}
 	}
+	for _, e := range res.OtherEntries {
+		span.Attributes[e.Key] = e.Value
+	}
 
+	res.Entries = res.Entries[:0]
+	res.OtherEntries = res.OtherEntries[:0]
 	res.AppendOtherValue("span", span)
-	res.Entries = nil
 
 	return true
 }
@@ -404,7 +438,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		switch kv.Key {
 		case "span":
 			if span, ok := kv.Value.(*traceql.Span); ok {
-				sp.Spans = append(sp.Spans, span)
+				sp.Spans = append(sp.Spans, *span)
 			}
 		}
 	}
@@ -460,6 +494,45 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			spanset.TraceID = v[0].ByteArray()
 		}
 	}
+
+	return true
+}
+
+type attributeCollector struct {
+}
+
+var _ parquetquery.GroupPredicate = (*attributeCollector)(nil)
+
+func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
+
+	//gotKey := false
+	//gotVal := false
+
+	var key string
+	var val interface{}
+
+	for _, e := range res.Entries {
+		switch e.Key {
+		case "key":
+			//gotKey = true
+			key = e.Value.String()
+		case "string":
+			//gotVal = true
+			val = e.Value.String()
+		case "int":
+			//gotVal = true
+			val = e.Value.Int64()
+		}
+	}
+
+	//if !gotKey || !gotVal {
+	if key == "" || val == nil {
+		// Not a whole pair
+		return false
+	}
+
+	res.Entries = res.Entries[:0]
+	res.AppendOtherValue(key, val)
 
 	return true
 }

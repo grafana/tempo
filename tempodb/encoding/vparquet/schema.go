@@ -40,6 +40,7 @@ const DefinitionLevelTrace = 0
 const DefinitionLevelResourceSpans = 1
 const DefinitionLevelResourceAttrs = 2
 const DefinitionLevelResourceSpansILSSpan = 3
+const DefinitionLevelResourceSpansILSSpanAttrs = 4
 
 var (
 	jsonMarshaler = new(jsonpb.Marshaler)
