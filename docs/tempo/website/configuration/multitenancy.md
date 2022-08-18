@@ -2,7 +2,7 @@
 title: Multi-tenancy
 weight: 60
 ---
-## Multi-tenancy
+# Multi-tenancy
 
 Tempo is a multi-tenant distributed tracing backend. It supports multi-tenancy through the use
 of a header: `X-Scope-OrgID`. 
