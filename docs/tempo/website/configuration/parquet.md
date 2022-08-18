@@ -25,7 +25,7 @@ To use Parquet, set the block format option to `vParquet` in the Storage section
 
 ```yaml
 # block format version. options: v2, vParquet
-[version: <string> | default = v2]
+[version: vParquet | default = v2]
 ```
 
 ## Parquet configuration parameters
