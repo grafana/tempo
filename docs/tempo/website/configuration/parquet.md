@@ -30,7 +30,7 @@ To use Parquet, set the block format option to `vParquet` in the Storage section
 [version: vParquet | default = v2]
 ```
 
-The following adjustments are recommended for your querier configuration: 
+The following adjustments are recommended for your configuration: 
 
 ```yaml
 querier:

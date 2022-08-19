@@ -1182,6 +1182,8 @@ The following configuration values are used:
 - Ring replication factor, and `kvstore` 
 - Features toggles enabled
 
+No performance data is collected. 
+
 You can disable the automatic reporting of this generic information using the following
 configuration:
 
