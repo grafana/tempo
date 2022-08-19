@@ -2,9 +2,9 @@ package app
 
 import (
 	"flag"
+	"fmt"
 	"time"
 
-	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv/memberlist"
 	"github.com/grafana/tempo/modules/compactor"
@@ -19,7 +19,6 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/server"
@@ -117,43 +116,64 @@ func (c *Config) MultitenancyIsEnabled() bool {
 	return c.MultitenancyEnabled || c.AuthEnabled
 }
 
-// CheckConfig checks if config values are suspect.
-func (c *Config) CheckConfig() {
+// CheckConfig checks if config values are suspect and returns a bundled list of warnings and explanation.
+func (c *Config) CheckConfig() []ConfigWarning {
+	var warnings []ConfigWarning
 	if c.Target == MetricsGenerator && !c.MetricsGeneratorEnabled {
-		level.Warn(log.Logger).Log("msg", "target == metrics-generator but metrics_generator_enabled != true",
-			"explain", "The metrics-generator will only receive data if metrics_generator_enabled is set to true globally")
+		warnings = append(warnings, ConfigWarning{
+			Message: "target == metrics-generator but metrics_generator_enabled != true",
+			Explain: "The metrics-generator will only receive data if metrics_generator_enabled is set to true globally",
+		})
 	}
 
 	if c.Ingester.CompleteBlockTimeout < c.StorageConfig.Trace.BlocklistPoll {
-		level.Warn(log.Logger).Log("msg", "ingester.complete_block_timeout < storage.trace.blocklist_poll",
-			"explain", "You may receive 404s between the time the ingesters have flushed a trace and the querier is aware of the new block")
+		warnings = append(warnings, ConfigWarning{
+			Message: "ingester.complete_block_timeout < storage.trace.blocklist_poll",
+			Explain: "You may receive 404s between the time the ingesters have flushed a trace and the querier is aware of the new block",
+		})
 	}
 
 	if c.Compactor.Compactor.BlockRetention < c.StorageConfig.Trace.BlocklistPoll {
-		level.Warn(log.Logger).Log("msg", "compactor.compaction.compacted_block_timeout < storage.trace.blocklist_poll",
-			"explain", "Queriers and Compactors may attempt to read a block that no longer exists")
+		warnings = append(warnings, ConfigWarning{
+			Message: "compactor.compaction.compacted_block_timeout < storage.trace.blocklist_poll",
+			Explain: "Queriers and Compactors may attempt to read a block that no longer exists",
+		})
 	}
 
 	if c.Compactor.Compactor.RetentionConcurrency == 0 {
-		level.Warn(log.Logger).Log("msg", "c.Compactor.Compactor.RetentionConcurrency must be greater than zero. Using default.", "default", tempodb.DefaultRetentionConcurrency)
+		warnings = append(warnings, ConfigWarning{
+			Message: "c.Compactor.Compactor.RetentionConcurrency must be greater than zero. Using default.",
+			Explain: fmt.Sprintf("default=%d", tempodb.DefaultRetentionConcurrency),
+		})
 	}
 
 	if c.StorageConfig.Trace.Backend == "s3" && c.Compactor.Compactor.FlushSizeBytes < 5242880 {
-		level.Warn(log.Logger).Log("msg", "c.Compactor.Compactor.FlushSizeBytes < 5242880",
-			"explain", "Compaction flush size should be 5MB or higher for S3 backend")
+		warnings = append(warnings, ConfigWarning{
+			Message: "c.Compactor.Compactor.FlushSizeBytes < 5242880",
+			Explain: "Compaction flush size should be 5MB or higher for S3 backend",
+		})
 	}
 
 	if c.StorageConfig.Trace.BlocklistPollConcurrency == 0 {
-		level.Warn(log.Logger).Log("msg", "c.StorageConfig.Trace.BlocklistPollConcurrency must be greater than zero. Using default.", "default", tempodb.DefaultBlocklistPollConcurrency)
+		warnings = append(warnings, ConfigWarning{
+			Message: "c.StorageConfig.Trace.BlocklistPollConcurrency must be greater than zero. Using default.",
+			Explain: fmt.Sprintf("default=%d", tempodb.DefaultBlocklistPollConcurrency),
+		})
 	}
 
 	if c.Distributor.LogReceivedTraces {
-		level.Warn(log.Logger).Log("msg", "c.Distributor.LogReceivedTraces is deprecated. The new flag is c.Distributor.log_received_spans.enabled")
+		warnings = append(warnings, ConfigWarning{
+			Message: "c.Distributor.LogReceivedTraces is deprecated. The new flag is c.Distributor.log_received_spans.enabled",
+		})
 	}
 
 	if c.StorageConfig.Trace.Backend == "local" && c.Target != SingleBinary {
-		level.Warn(log.Logger).Log("msg", "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.")
+		warnings = append(warnings, ConfigWarning{
+			Message: "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.",
+		})
 	}
+
+	return warnings
 }
 
 func (c *Config) Describe(ch chan<- *prometheus.Desc) {
@@ -183,4 +203,10 @@ func (c *Config) Collect(ch chan<- prometheus.Metric) {
 	for label, value := range features {
 		ch <- prometheus.MustNewConstMetric(metricConfigFeatDesc, prometheus.GaugeValue, float64(value), label)
 	}
+}
+
+// ConfigWarning bundles message and explanation strings in one structure.
+type ConfigWarning struct {
+	Message string
+	Explain string
 }
