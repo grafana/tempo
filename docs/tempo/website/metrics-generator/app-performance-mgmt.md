@@ -32,12 +32,12 @@ To use the APM dashboard, you need:
 
 * Tempo or Grafana Cloud Traces with either 1) the metrics generator enabled and configured or 2) the Grafana Agent enabled and configured to send data to a Prometheus-compatible metrics store
 * [Services graphs]({{< relref "../metrics-generator/service_graphs/#how-to-run" >}}), which are enabled by default in Grafana
-* [APM table enabled](https://grafana.com/docs/grafana/next/datasources/tempo/) within the service graph tab (use the `tempoApmTable` feature flag in Grafana to enable)
+* [APM table enabled](https://grafana.com/docs/grafana/latest/datasources/tempo/) within the service graph tab (use the `tempoApmTable` feature flag in Grafana to enable)
 * [Span metrics]({{< relref "../metrics-generator/span_metrics/#how-to-run" >}}) enabled in your Tempo data source configuration
 
 The APM dashboard can be generated with the metrics-generator or Grafana Agent.
 
-For information on how to configure these features, refer to the [Grafana Tempo data sources documentation](https://grafana.com/docs/grafana/next/datasources/tempo/).
+For information on how to configure these features, refer to the [Grafana Tempo data sources documentation](https://grafana.com/docs/grafana/latest/datasources/tempo/).
 
 ## APM dashboard
 
@@ -134,7 +134,7 @@ In the APM table, you can select items in the **Rate**, **Error Rate**, **Durati
 
 You can view request rate, request histogram, failed request rate, and traces for any node in the service graph.
 To view more information, select the node in the service graph and then choose an option from the popup.
-For details on navigating the service graph, refer to the [Node graph panel](https://grafana.com/docs/grafana/next/visualizations/node-graph/) documentation.
+For details on navigating the service graph, refer to the [Node graph panel](https://grafana.com/docs/grafana/latest/visualizations/node-graph/) documentation.
 
 <p align="center"><img src="../apm-service-graph-drilldown.png" alt="APM service graph with drill-down"></p>
 
