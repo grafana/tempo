@@ -1173,6 +1173,15 @@ and which replication factor or compression levels are used.
 By providing information on how people use Tempo, usage reporting helps the Tempo team decide where to focus their development and documentation efforts. No private information is collected, and all reports are completely anonymous.
 
 Reporting is controlled by a configuration option.
+
+The following configuration values are used: 
+
+- Receivers enabled
+- Frontend concurrency and version
+- Storage cache, backend, wal and block encodings
+- Ring replication factor, and `kvstore` 
+- Features toggles enabled
+
 You can disable the automatic reporting of this generic information using the following
 configuration:
 
