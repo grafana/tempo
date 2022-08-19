@@ -48,8 +48,6 @@ storage:
       hedge_requests_up_to: 2
 ```
 
-
-
 ## Parquet configuration parameters
 
 Some parameters in the Tempo configuration are specific to Parquet.  
