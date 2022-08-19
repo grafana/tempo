@@ -5,21 +5,20 @@ weight: 75
 
 # Apache Parquet backend
 
+<span style="background-color:#f3f973;">This is an experimental feature released with [Tempo 1.5]({{< relref "../release-notes/v1.5/" >}}). For more information about how to enable it, continue reading.</span>
+
 Tempo now has a columnar block format based on Apache Parquet.
 A columnar block format may result in improved search performance and also enables a large ecosystem of tools access to the underlying trace data.
-
-<span style="background-color:#f3f973;">This is an experimental feature. For more information about how to enable it, continue reading.</span>
 
 For more information, refer to the [Parquet design document](https://github.com/mdisibio/tempo/blob/design-proposal-parquet/docs/design-proposals/2022-04%20Parquet.md) and [Issue 1480](https://github.com/grafana/tempo/issues/1480).
 
 ## Considerations
 
-While Parquet can be used as a drop-in replacement, Parquet requires more CPU and memory resources.
+The new Parquet block format can be used as a drop-in replacement for Tempo's existing block format.
 No data conversion or upgrade process is necessary.
-Once Parquet is enabled, Tempo starts writing new data in the new format.
-Existing data are left as-is. 
+As soon as the Parquet format is enabled, Tempo starts writing data in that format, leaving existing data as-is.
 
-## Enable Parquet 
+## Enable Parquet
 
 To use Parquet, set the block format option to `vParquet` in the Storage section of the configuration file.
 
