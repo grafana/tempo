@@ -462,6 +462,7 @@ The following example shows common options.  For further platform-specific infor
 * [GCS]({{< relref "gcs/" >}})
 * [S3]({{< relref "s3/" >}})
 * [Azure]({{< relref "azure/" >}})
+* [Parquet]({{< relref "parquet/" >}})
 
 ```yaml
 # Storage configuration for traces

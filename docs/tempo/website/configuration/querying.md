@@ -1,6 +1,6 @@
 ---
 title: Querying with Grafana
-weight: 3
+weight: 30
 ---
 
 The way Grafana queries Tempo changed from 7.4.x to 7.5.x. This document aims to explain the difference between the two
