@@ -27,6 +27,29 @@ To use Parquet, set the block format option to `vParquet` in the Storage section
 [version: vParquet | default = v2]
 ```
 
+The following adjustments are recommended for your querier configuration: 
+
+```yaml
+querier:
+  max_concurrent_queries: 100
+  search:
+    prefer_self: 50   # only if you're using external endpoints
+
+query_frontend:
+  max_outstanding_per_tenant: 2000
+  search:
+    concurrent_jobs: 2000
+    target_bytes_per_job: 400_000_000
+
+storage:
+  trace:
+    <gcs|s3|azure>:
+      hedge_requests_at: 1s
+      hedge_requests_up_to: 2
+```
+
+
+
 ## Parquet configuration parameters
 
 Some parameters in the Tempo configuration are specific to Parquet.  
