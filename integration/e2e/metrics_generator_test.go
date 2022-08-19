@@ -147,6 +147,7 @@ func TestMetricsGenerator(t *testing.T) {
 	// Span metrics
 	lbls = []string{"service", "lb", "span_name", "lb-get", "span_kind", "SPAN_KIND_CLIENT", "status_code", "STATUS_CODE_UNSET"}
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
+	assert.NotEqual(t, 0, sumValues(metricFamilies, "traces_spanmetrics_size_total", lbls))
 	assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "1")))
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "2")))
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "+Inf")))
@@ -155,6 +156,7 @@ func TestMetricsGenerator(t *testing.T) {
 
 	lbls = []string{"service", "app", "span_name", "app-handle", "span_kind", "SPAN_KIND_SERVER", "status_code", "STATUS_CODE_UNSET"}
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
+	assert.NotEqual(t, 0, sumValues(metricFamilies, "traces_spanmetrics_size_total", lbls))
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "1")))
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "2")))
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "+Inf")))
@@ -164,9 +166,9 @@ func TestMetricsGenerator(t *testing.T) {
 	// Verify metrics
 	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(2), "tempo_metrics_generator_spans_received_total"))
 
-	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(23), "tempo_metrics_generator_registry_active_series"))
+	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_active_series"))
 	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(1000), "tempo_metrics_generator_registry_max_active_series"))
-	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(23), "tempo_metrics_generator_registry_series_added_total"))
+	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_series_added_total"))
 }
 
 func newPrometheus() *e2e.HTTPService {
