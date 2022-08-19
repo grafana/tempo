@@ -5,7 +5,7 @@ weight: 75
 
 # Apache Parquet backend
 
-<span style="background-color:#f3f973;">This is an experimental feature released with [Tempo 1.5]({{< relref "../release-notes/v1.5/" >}}). For more information about how to enable it, continue reading.</span>
+<span style="background-color:#f3f973;">This is an experimental feature released with [Tempo 1.5]({{< relref "../release-notes/v1-5/" >}}). For more information about how to enable it, continue reading.</span>
 
 Tempo now has a columnar block format based on Apache Parquet.
 A columnar block format may result in improved search performance and also enables a large ecosystem of tools access to the underlying trace data.
@@ -30,7 +30,7 @@ To use Parquet, set the block format option to `vParquet` in the Storage section
 [version: vParquet | default = v2]
 ```
 
-The following adjustments are recommended for your configuration: 
+The following adjustments are recommended for your configuration:
 
 ```yaml
 querier:
@@ -54,7 +54,7 @@ storage:
 ## Parquet configuration parameters
 
 Some parameters in the Tempo configuration are specific to Parquet.  
-For more information, refer to the [configuration documentation](https://grafana.com/docs/tempo/latest/configuration/#storage).
+For more information, refer to the [usage-report configuration documentation](https://grafana.com/docs/tempo/latest/configuration/#storage).
 
 ### Trace search parameters
 
