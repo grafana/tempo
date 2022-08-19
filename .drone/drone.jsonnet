@@ -365,7 +365,7 @@ local deploy_to_dev() = {
       },
       {
         name: 'release',
-        image: 'golang:9',
+        image: 'golang:1.19',
         commands: ['make release'],
         environment: {
           GITHUB_TOKEN: { from_secret: gh_token_secret.name },
