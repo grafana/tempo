@@ -18,6 +18,9 @@ The new Parquet block format can be used as a drop-in replacement for Tempo's ex
 No data conversion or upgrade process is necessary.
 As soon as the Parquet format is enabled, Tempo starts writing data in that format, leaving existing data as-is.
 
+Please note, however, that enabling the Parquet block format means Tempo will require more CPU and memory resources than it previously did. 
+
+
 ## Enable Parquet
 
 To use Parquet, set the block format option to `vParquet` in the Storage section of the configuration file.
