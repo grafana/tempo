@@ -19,6 +19,7 @@ type BackendReaderAt struct {
 	blockID  uuid.UUID
 	tenantID string
 
+	// nolint: typecheck
 	TotalBytesRead atomic.Uint64
 }
 
