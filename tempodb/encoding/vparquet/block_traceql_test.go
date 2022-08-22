@@ -13,59 +13,7 @@ import (
 
 func TestBackendBlockSearchTraceQL(t *testing.T) {
 
-	// Helper functions to make pointers
-	strPtr := func(s string) *string { return &s }
-	intPtr := func(i int64) *int64 { return &i }
-
-	// This is a fully populated trace that we
-	// search many different ways.
-	wantTr := &Trace{
-		TraceID:           test.ValidTraceID(nil),
-		StartTimeUnixNano: uint64(1000 * time.Second),
-		EndTimeUnixNano:   uint64(2000 * time.Second),
-		DurationNanos:     uint64((100 * time.Millisecond).Nanoseconds()),
-		RootServiceName:   "RootService",
-		RootSpanName:      "RootSpan",
-		ResourceSpans: []ResourceSpans{
-			{
-				Resource: Resource{
-					ServiceName:      "myservice",
-					Cluster:          strPtr("cluster"),
-					Namespace:        strPtr("namespace"),
-					Pod:              strPtr("pod"),
-					Container:        strPtr("container"),
-					K8sClusterName:   strPtr("k8scluster"),
-					K8sNamespaceName: strPtr("k8snamespace"),
-					K8sPodName:       strPtr("k8spod"),
-					K8sContainerName: strPtr("k8scontainer"),
-					Attrs: []Attribute{
-						{Key: "foo", Value: strPtr("abc")},
-					},
-				},
-				InstrumentationLibrarySpans: []ILS{
-					{
-						Spans: []Span{
-							{
-								Name:           "hello",
-								StartUnixNanos: uint64(100 * time.Second),
-								EndUnixNanos:   uint64(200 * time.Second),
-								HttpMethod:     strPtr("get"),
-								HttpUrl:        strPtr("url/hello/world"),
-								HttpStatusCode: intPtr(500),
-								ID:             []byte("spanid"),
-								ParentSpanID:   []byte{},
-								StatusCode:     int(v1.Status_STATUS_CODE_ERROR),
-								Attrs: []Attribute{
-									{Key: "foo", Value: strPtr("def")},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
+	wantTr := fullyPopulatedTestTrace()
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.TODO()
 
@@ -82,15 +30,19 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		}
 	}
 
+	// scratch pad thinking
+	// { span.foo=bar     } // returns spans with foo=bar					<-- this is handled by iterating resources with no filters
+	// { .foo=bar         } // returns spans with foo=bar or foo missing    <-- how to do this?  hmm
+	// { resource.foo=bar } // returns all spans							<-- this is handled by iterating spans with no filters
+	// { .foo=bar || .foo=baz } // returns spans with foo in bar/baz or missing
+
 	searchesThatMatch := []traceql.FetchSpansRequest{
 		makeReq(LabelName, traceql.OperationEq, "hello"),
 		makeReq(LabelServiceName, traceql.OperationEq, "myservice"),
 		makeReq(LabelHTTPStatusCode, traceql.OperationEq, int64(500)),
 		makeReq(LabelHTTPStatusCode, traceql.OperationGT, int64(200)),
-		makeReq(".foo", traceql.OperationEq, "abc"),
-		makeReq(".foo", traceql.OperationEq, "def"),
-		makeReq(".foo", traceql.OperationIn, "abc", "xyz"), // Matches either condition
-		makeReq(".foo", traceql.OperationIn, "xyz", "abc"), // Same as above but reversed order
+		makeReq(".foo", traceql.OperationEq, "def", "xyz"),
+		makeReq(".foo", traceql.OperationIn, "xyz", "def"), // Same as above but reversed order
 		makeReq(".resource.foo", traceql.OperationEq, "abc"),
 		makeReq(".span.foo", traceql.OperationEq, "def"),
 		makeReq(".foo", traceql.OperationNone), // Here we are only projecting the value up to higher logic
@@ -122,11 +74,12 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	}
 
 	searchesThatDontMatch := []traceql.FetchSpansRequest{
+		makeReq(".foo", traceql.OperationEq, "abc"),        // This should not return results because the span has overridden this attribute to "def".
+		makeReq(".foo", traceql.OperationIn, "abc", "xyz"), // Same as above but additional test value
 		makeReq(LabelName, traceql.OperationEq, "nothello"),
 		makeReq(LabelServiceName, traceql.OperationEq, "notmyservice"),
 		makeReq(LabelHTTPStatusCode, traceql.OperationEq, int64(200)),
 		makeReq(LabelHTTPStatusCode, traceql.OperationGT, int64(600)),
-		makeReq(".foo", traceql.OperationEq, "xyz"),
 		{
 			// Matches neither condition
 			Conditions: []traceql.Condition{
@@ -147,14 +100,126 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 }
 
 func TestBackendBlockSearchTraceQLResults(t *testing.T) {
+	wantTr := fullyPopulatedTestTrace()
+	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
+	ctx := context.TODO()
 
+	// Helper functions to make requests
+
+	makeReq := func(conditions ...traceql.Condition) traceql.FetchSpansRequest {
+		return traceql.FetchSpansRequest{
+			Conditions: conditions,
+		}
+	}
+
+	makeCond := func(k string, op traceql.Operation, v ...interface{}) traceql.Condition {
+		return traceql.Condition{Selector: k, Operation: op, Operands: v}
+	}
+
+	makeSpansets := func(sets ...traceql.Spanset) []traceql.Spanset {
+		return sets
+	}
+
+	makeSpanset := func(traceID []byte, spans ...traceql.Span) traceql.Spanset {
+		return traceql.Spanset{TraceID: traceID, Spans: spans}
+	}
+
+	testCases := []struct {
+		req             traceql.FetchSpansRequest
+		expectedResults []traceql.Spanset
+	}{
+		{
+			// Span attributes lookup
+			// Only matches 1 condition. Returns span but only attributes that matched
+			makeReq(
+				makeCond(".span.foo", traceql.OperationEq, "bar"), // matches resource but not span
+				makeCond(".span.bar", traceql.OperationEq, 123),   // matches
+			),
+			makeSpansets(
+				makeSpanset(
+					wantTr.TraceID,
+					traceql.Span{
+						ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
+						StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
+						EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
+						Attributes: map[string]interface{}{
+							// foo not returned because the span didn't match it
+							"bar": int64(123),
+						},
+					},
+				),
+			),
+		},
+
+		{
+			// Resource attributes lookup
+			makeReq(
+				makeCond(".resource.foo", traceql.OperationEq, "abc"), // matches resource but not span
+			),
+			makeSpansets(
+				makeSpanset(
+					wantTr.TraceID,
+					traceql.Span{
+						ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
+						StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
+						EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
+						Attributes: map[string]interface{}{
+							// Foo matched on resource.
+							// TODO - This seems misleading since the span has foo=<something else>
+							//        but for this query we never even looked at span attribute columns.
+							"foo": "abc",
+						},
+					},
+				),
+			),
+		},
+
+		{
+			makeReq(
+				makeCond(".foo", traceql.OperationEq, "xyz"),            // doesn't match anything
+				makeCond(LabelHTTPStatusCode, traceql.OperationEq, 500), // matches span
+			),
+			makeSpansets(
+				makeSpanset(
+					wantTr.TraceID,
+					traceql.Span{
+						ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
+						StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
+						EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
+						Attributes: map[string]interface{}{
+							LabelHTTPStatusCode: int64(500), // This is the only attribute that matched anything
+						},
+					},
+				),
+			),
+		},
+	}
+
+	for _, tc := range testCases {
+		req := tc.req
+		resp, err := b.Fetch(ctx, req)
+		require.NoError(t, err, "search request:", req)
+
+		// Turn iterator into slice
+		var actualResults []traceql.Spanset
+		for {
+			spanSet, err := resp.Results.Next(ctx)
+			require.NoError(t, err)
+			if spanSet == nil {
+				break
+			}
+			actualResults = append(actualResults, *spanSet)
+		}
+		require.Equal(t, tc.expectedResults, actualResults, "search request:", req)
+	}
+}
+
+func fullyPopulatedTestTrace() *Trace {
 	// Helper functions to make pointers
 	strPtr := func(s string) *string { return &s }
 	intPtr := func(i int64) *int64 { return &i }
 
-	// This is a fully populated trace that we
-	// search many different ways.
-	wantTr := &Trace{
+	return &Trace{
 		TraceID:           test.ValidTraceID(nil),
 		StartTimeUnixNano: uint64(1000 * time.Second),
 		EndTimeUnixNano:   uint64(2000 * time.Second),
@@ -200,70 +265,5 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 				},
 			},
 		},
-	}
-
-	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
-	ctx := context.TODO()
-
-	// Helper function to make a basic search
-	/*makeReq := func(k string, op traceql.Operation, v ...interface{}) traceql.FetchSpansRequest {
-		return traceql.FetchSpansRequest{
-			Conditions: []traceql.Condition{
-				{
-					Selector:  k,
-					Operation: op,
-					Operands:  v,
-				},
-			},
-		}
-	}*/
-
-	testCases := []struct {
-		req             traceql.FetchSpansRequest
-		expectedResults []traceql.Spanset
-	}{
-		{
-			req: traceql.FetchSpansRequest{
-				Conditions: []traceql.Condition{
-					{Selector: ".span.foo", Operation: traceql.OperationEq, Operands: []interface{}{"def"}},
-					{Selector: ".span.bar", Operation: traceql.OperationEq, Operands: []interface{}{123}},
-				},
-			},
-			expectedResults: []traceql.Spanset{
-				{
-					TraceID: wantTr.TraceID,
-					Spans: []traceql.Span{
-						{
-							ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
-							StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
-							EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
-							Attributes: map[string]interface{}{
-								"bar": int64(123),
-								"foo": "def",
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		req := tc.req
-		resp, err := b.Fetch(ctx, req)
-		require.NoError(t, err, "search request:", req)
-
-		// Turn iterator into slice
-		var actualResults []traceql.Spanset
-		for {
-			spanSet, err := resp.Results.Next(ctx)
-			require.NoError(t, err)
-			if spanSet == nil {
-				break
-			}
-			actualResults = append(actualResults, *spanSet)
-		}
-		//require.True(t, reflect.DeepEqual(tc.expectedResults, actualResults), "search request:", req)
-		require.Equal(t, tc.expectedResults, actualResults, "search request:", req)
 	}
 }

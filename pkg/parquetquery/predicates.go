@@ -194,6 +194,10 @@ func NewOrPredicate(preds ...Predicate) *OrPredicate {
 
 func (p *OrPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
 	for _, p := range p.preds {
+		if p == nil {
+			// Nil means all values are returned
+			return true
+		}
 		if p.KeepColumnChunk(c) {
 			return true
 		}
@@ -204,6 +208,10 @@ func (p *OrPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
 
 func (p *OrPredicate) KeepPage(page pq.Page) bool {
 	for _, p := range p.preds {
+		if p == nil {
+			// Nil means all values are returned
+			return true
+		}
 		if p.KeepPage(page) {
 			return true
 		}
@@ -214,6 +222,10 @@ func (p *OrPredicate) KeepPage(page pq.Page) bool {
 
 func (p *OrPredicate) KeepValue(v pq.Value) bool {
 	for _, p := range p.preds {
+		if p == nil {
+			// Nil means all values are returned
+			return true
+		}
 		if p.KeepValue(v) {
 			return true
 		}
