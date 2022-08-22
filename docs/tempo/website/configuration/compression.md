@@ -1,6 +1,6 @@
 ---
 title: Compression and encoding
-weight: 5
+weight: 50
 ---
 
 # Compression and encoding

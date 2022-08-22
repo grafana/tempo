@@ -1,6 +1,6 @@
 ---
 title: Manifest
-weight: 7
+weight: 70
 ---
 
 # Manifest

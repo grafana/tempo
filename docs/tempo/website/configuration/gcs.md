@@ -1,6 +1,6 @@
 ---
 title: Google Cloud Storage permissions
-weight: 1
+weight: 10
 ---
 
 # Google Cloud Storage permissions
