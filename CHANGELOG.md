@@ -2,9 +2,6 @@
 
 * [ENHANCEMENT] metrics-generator: expose span size as a metric [#1662](https://github.com/grafana/tempo/pull/1662) (@ie-pham)
 * [ENHANCEMENT] Set Max Idle connections to 100 for Azure, should reduce DNS errors in Azure [#1632](https://github.com/grafana/tempo/pull/1632) (@electron0zero)
-
-
-
 * [CHANGE] Use Parquet for local block search, tag search and tag value search instead of flatbuffers.
   - Makes Parquet the default encoding.
   - *BREAKING CHANGE* Local search for traces, tags and tag values no longer works with v2 blocks. It is recommended to manually 
