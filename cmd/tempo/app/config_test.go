@@ -15,12 +15,12 @@ func TestConfig_CheckConfig(t *testing.T) {
 	tt := []struct {
 		name   string
 		config *Config
-		expect int
+		expect []ConfigWarning
 	}{
 		{
 			name:   "check default cfg and expect no warnings",
 			config: newDefaultConfig(),
-			expect: 0,
+			expect: nil,
 		},
 		{
 			name: "hit all except local backend warnings",
@@ -36,7 +36,15 @@ func TestConfig_CheckConfig(t *testing.T) {
 					LogReceivedTraces: true,
 				},
 			},
-			expect: 7,
+			expect: []ConfigWarning{
+				warnMetricsGenerator,
+				warnCompleteBlockTimeout,
+				warnBlockRetention,
+				warnRetentionConcurrency,
+				warnStorageTraceBackendS3,
+				warnBlocklistPollConcurrency,
+				warnLogReceivedTraces,
+			},
 		},
 		{
 			name: "hit local backend warnings",
@@ -49,14 +57,14 @@ func TestConfig_CheckConfig(t *testing.T) {
 				cfg.Target = "something"
 				return cfg
 			}(),
-			expect: 1,
+			expect: []ConfigWarning{warnStorageTraceBackendLocal},
 		},
 	}
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			warnings := tc.config.CheckConfig()
-			assert.Equal(t, tc.expect, len(warnings))
+			assert.Equal(t, tc.expect, warnings)
 		})
 	}
 }

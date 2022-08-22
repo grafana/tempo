@@ -120,57 +120,35 @@ func (c *Config) MultitenancyIsEnabled() bool {
 func (c *Config) CheckConfig() []ConfigWarning {
 	var warnings []ConfigWarning
 	if c.Target == MetricsGenerator && !c.MetricsGeneratorEnabled {
-		warnings = append(warnings, ConfigWarning{
-			Message: "target == metrics-generator but metrics_generator_enabled != true",
-			Explain: "The metrics-generator will only receive data if metrics_generator_enabled is set to true globally",
-		})
+		warnings = append(warnings, warnMetricsGenerator)
 	}
 
 	if c.Ingester.CompleteBlockTimeout < c.StorageConfig.Trace.BlocklistPoll {
-		warnings = append(warnings, ConfigWarning{
-			Message: "ingester.complete_block_timeout < storage.trace.blocklist_poll",
-			Explain: "You may receive 404s between the time the ingesters have flushed a trace and the querier is aware of the new block",
-		})
+		warnings = append(warnings, warnCompleteBlockTimeout)
 	}
 
 	if c.Compactor.Compactor.BlockRetention < c.StorageConfig.Trace.BlocklistPoll {
-		warnings = append(warnings, ConfigWarning{
-			Message: "compactor.compaction.compacted_block_timeout < storage.trace.blocklist_poll",
-			Explain: "Queriers and Compactors may attempt to read a block that no longer exists",
-		})
+		warnings = append(warnings, warnBlockRetention)
 	}
 
 	if c.Compactor.Compactor.RetentionConcurrency == 0 {
-		warnings = append(warnings, ConfigWarning{
-			Message: "c.Compactor.Compactor.RetentionConcurrency must be greater than zero. Using default.",
-			Explain: fmt.Sprintf("default=%d", tempodb.DefaultRetentionConcurrency),
-		})
+		warnings = append(warnings, warnRetentionConcurrency)
 	}
 
 	if c.StorageConfig.Trace.Backend == "s3" && c.Compactor.Compactor.FlushSizeBytes < 5242880 {
-		warnings = append(warnings, ConfigWarning{
-			Message: "c.Compactor.Compactor.FlushSizeBytes < 5242880",
-			Explain: "Compaction flush size should be 5MB or higher for S3 backend",
-		})
+		warnings = append(warnings, warnStorageTraceBackendS3)
 	}
 
 	if c.StorageConfig.Trace.BlocklistPollConcurrency == 0 {
-		warnings = append(warnings, ConfigWarning{
-			Message: "c.StorageConfig.Trace.BlocklistPollConcurrency must be greater than zero. Using default.",
-			Explain: fmt.Sprintf("default=%d", tempodb.DefaultBlocklistPollConcurrency),
-		})
+		warnings = append(warnings, warnBlocklistPollConcurrency)
 	}
 
 	if c.Distributor.LogReceivedTraces {
-		warnings = append(warnings, ConfigWarning{
-			Message: "c.Distributor.LogReceivedTraces is deprecated. The new flag is c.Distributor.log_received_spans.enabled",
-		})
+		warnings = append(warnings, warnLogReceivedTraces)
 	}
 
 	if c.StorageConfig.Trace.Backend == "local" && c.Target != SingleBinary {
-		warnings = append(warnings, ConfigWarning{
-			Message: "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.",
-		})
+		warnings = append(warnings, warnStorageTraceBackendLocal)
 	}
 
 	return warnings
@@ -210,3 +188,36 @@ type ConfigWarning struct {
 	Message string
 	Explain string
 }
+
+var (
+	warnMetricsGenerator = ConfigWarning{
+		Message: "target == metrics-generator but metrics_generator_enabled != true",
+		Explain: "The metrics-generator will only receive data if metrics_generator_enabled is set to true globally",
+	}
+	warnCompleteBlockTimeout = ConfigWarning{
+		Message: "ingester.complete_block_timeout < storage.trace.blocklist_poll",
+		Explain: "You may receive 404s between the time the ingesters have flushed a trace and the querier is aware of the new block",
+	}
+	warnBlockRetention = ConfigWarning{
+		Message: "compactor.compaction.compacted_block_timeout < storage.trace.blocklist_poll",
+		Explain: "Queriers and Compactors may attempt to read a block that no longer exists",
+	}
+	warnRetentionConcurrency = ConfigWarning{
+		Message: "c.Compactor.Compactor.RetentionConcurrency must be greater than zero. Using default.",
+		Explain: fmt.Sprintf("default=%d", tempodb.DefaultRetentionConcurrency),
+	}
+	warnStorageTraceBackendS3 = ConfigWarning{
+		Message: "c.Compactor.Compactor.FlushSizeBytes < 5242880",
+		Explain: "Compaction flush size should be 5MB or higher for S3 backend",
+	}
+	warnBlocklistPollConcurrency = ConfigWarning{
+		Message: "c.StorageConfig.Trace.BlocklistPollConcurrency must be greater than zero. Using default.",
+		Explain: fmt.Sprintf("default=%d", tempodb.DefaultBlocklistPollConcurrency),
+	}
+	warnLogReceivedTraces = ConfigWarning{
+		Message: "c.Distributor.LogReceivedTraces is deprecated. The new flag is c.Distributor.log_received_spans.enabled",
+	}
+	warnStorageTraceBackendLocal = ConfigWarning{
+		Message: "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.",
+	}
+)
