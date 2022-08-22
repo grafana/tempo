@@ -474,8 +474,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	search := func() *tempopb.SearchMetrics {
 		sr, err := i.Search(context.Background(), &tempopb.SearchRequest{
 			// Exhaustive search
-			Tags:  map[string]string{search.SecretExhaustiveSearchTag: "!"},
-			Limit: 999,
+			Tags: map[string]string{search.SecretExhaustiveSearchTag: "!"},
 		})
 		require.NoError(t, err)
 		return sr.Metrics
