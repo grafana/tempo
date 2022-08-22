@@ -38,7 +38,6 @@ func (p *StringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 
 		for _, subs := range p.ss {
 			for i := 0; i < ci.NumPages(); i++ {
-				// jpe does this work?
 				ok := bytes.Compare(ci.MinValue(i).ByteArray(), subs) <= 0 && bytes.Compare(ci.MaxValue(i).ByteArray(), subs) >= 0
 				if ok {
 					// At least one page in this chunk matches

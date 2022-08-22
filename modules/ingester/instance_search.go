@@ -179,7 +179,7 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 			span.LogFields(ot_log.Event("local block entry mtx acquired"))
 			span.SetTag("blockID", blockID)
 
-			resp, err := e.Search(ctx, req, common.SearchOptions{}) // jpe options?
+			resp, err := e.Search(ctx, req, common.SearchOptions{}) // jpe options? buffers = 0 for no buffered reader at
 			if err != nil {
 				level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "err", err)
 			}
@@ -195,7 +195,7 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 	}
 }
 
-// jpe add search tags functionality
+// jpe add search tags functionality- skip unsupported blocks
 func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
@@ -233,7 +233,7 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 	}, nil
 }
 
-// jpe add search tag values functionality?
+// jpe add search tag values functionality? - skip unsupported blocks
 func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempopb.SearchTagValuesResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {

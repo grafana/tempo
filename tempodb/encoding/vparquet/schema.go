@@ -13,7 +13,6 @@ import (
 )
 
 // Label names for conversion b/n Proto <> Parquet
-
 const (
 	LabelRootSpanName    = "root.name"
 	LabelRootServiceName = "root.service.name"
@@ -36,34 +35,40 @@ const (
 	LabelStatusCode     = "status.code"
 )
 
-var labelMappings = map[string]string{
-	LabelRootSpanName:     "RootSpanName",
-	LabelRootServiceName:  "RootServiceName",
-	LabelServiceName:      "rs.Resource.ServiceName",
-	LabelCluster:          "rs.Resource.Cluster",
-	LabelNamespace:        "rs.Resource.Namespace",
-	LabelPod:              "rs.Resource.Pod",
-	LabelContainer:        "rs.Resource.Container",
-	LabelK8sClusterName:   "rs.Resource.K8sClusterName",
-	LabelK8sNamespaceName: "rs.Resource.K8sNamespaceName",
-	LabelK8sPodName:       "rs.Resource.K8sPodName",
-	LabelK8sContainerName: "rs.Resource.K8sContainerName",
-	LabelName:             "rs.ils.Spans.Name",
-	LabelHTTPMethod:       "rs.ils.Spans.HttpMethod",
-	LabelHTTPUrl:          "rs.ils.Spans.HttpUrl",
-	LabelHTTPStatusCode:   "rs.ils.Spans.HttpStatusCode",
-	LabelStatusCode:       "rs.ils.Spans.StatusCode",
-}
-
 // These definition levels match the schema below
+const (
+	DefinitionLevelTrace                = 0
+	DefinitionLevelResourceSpans        = 1
+	DefinitionLevelResourceAttrs        = 2
+	DefinitionLevelResourceSpansILSSpan = 3
 
-const DefinitionLevelTrace = 0
-const DefinitionLevelResourceSpans = 1
-const DefinitionLevelResourceAttrs = 2
-const DefinitionLevelResourceSpansILSSpan = 3
+	FieldResourceAttrKey = "rs.Resource.Attrs.Key"
+	FieldResourceAttrVal = "rs.Resource.Attrs.Value"
+	FieldSpanAttrKey     = "rs.ils.Spans.Attrs.Key"
+	FieldSpanAttrVal     = "rs.ils.Spans.Attrs.Value"
+)
 
 var (
 	jsonMarshaler = new(jsonpb.Marshaler)
+
+	labelMappings = map[string]string{
+		LabelRootSpanName:     "RootSpanName",
+		LabelRootServiceName:  "RootServiceName",
+		LabelServiceName:      "rs.Resource.ServiceName",
+		LabelCluster:          "rs.Resource.Cluster",
+		LabelNamespace:        "rs.Resource.Namespace",
+		LabelPod:              "rs.Resource.Pod",
+		LabelContainer:        "rs.Resource.Container",
+		LabelK8sClusterName:   "rs.Resource.K8sClusterName",
+		LabelK8sNamespaceName: "rs.Resource.K8sNamespaceName",
+		LabelK8sPodName:       "rs.Resource.K8sPodName",
+		LabelK8sContainerName: "rs.Resource.K8sContainerName",
+		LabelName:             "rs.ils.Spans.Name",
+		LabelHTTPMethod:       "rs.ils.Spans.HttpMethod",
+		LabelHTTPUrl:          "rs.ils.Spans.HttpUrl",
+		LabelHTTPStatusCode:   "rs.ils.Spans.HttpStatusCode",
+		LabelStatusCode:       "rs.ils.Spans.StatusCode",
+	}
 )
 
 type Attribute struct {

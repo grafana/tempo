@@ -32,6 +32,26 @@ var StatusCodeMapping = map[string]int{
 	StatusCodeError: int(v1.Status_STATUS_CODE_ERROR),
 }
 
+func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions) (*parquet.File, *BackendReaderAt, error) {
+	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
+
+	readerAt := io.ReaderAt(backendReaderAt)
+	// if we have no buffers configured then skip creating the buffered reader and optimized reader.
+	// a likely case is when we are reading a file on the local disk such as in ingester search
+	if opts.ReadBufferCount > 0 {
+		br := tempo_io.NewBufferedReaderAt(readerAt, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
+		or := newParquetOptimizedReaderAt(br, backendReaderAt, int64(b.meta.Size), b.meta.FooterSize, opts.CacheControl)
+
+		readerAt = or
+	}
+
+	span, _ := opentracing.StartSpanFromContext(ctx, "parquet.OpenFile")
+	defer span.Finish()
+	pf, err := parquet.OpenFile(readerAt, int64(b.meta.Size), parquet.SkipPageIndex(true))
+
+	return pf, backendReaderAt, err
+}
+
 func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (_ *tempopb.SearchResponse, err error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.Search",
 		opentracing.Tags{
@@ -41,19 +61,11 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 		})
 	defer span.Finish()
 
-	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
-	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()
-
-	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
-
-	or := newParquetOptimizedReaderAt(br, rr, int64(b.meta.Size), b.meta.FooterSize, opts.CacheControl)
-
-	span2, _ := opentracing.StartSpanFromContext(derivedCtx, "parquet.OpenFile")
-	pf, err := parquet.OpenFile(or, int64(b.meta.Size), parquet.SkipPageIndex(true))
-	span2.Finish()
+	pf, rr, err := b.openForSearch(derivedCtx, opts)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
+	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()
 
 	// Get list of row groups to inspect. Ideally we use predicate pushdown
 	// here to keep only row groups that can potentially satisfy the request
@@ -86,46 +98,39 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 		})
 	defer span.Finish()
 
-	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
+	pf, rr, err := b.openForSearch(derivedCtx, opts)
+	if err != nil {
+		return fmt.Errorf("unexpected error opening parquet file: %w", err)
+	}
 	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()
 
-	// jpe - use buffered reader at?
-	or := newParquetOptimizedReaderAt(rr, rr, int64(b.meta.Size), b.meta.FooterSize, opts.CacheControl)
-
-	span2, _ := opentracing.StartSpanFromContext(derivedCtx, "parquet.OpenFile")
-	pf, err := parquet.OpenFile(or, int64(b.meta.Size), parquet.SkipPageIndex(true))
-	span2.Finish()
-	if err != nil {
-		return err
-	}
-
 	// find indexes of generic attribute columns
-	resourceKeyIdx, _ := pq.GetColumnIndexByPath(pf, "rs.Resource.Attrs.Key") // jpe make these 2 constants somewhere?
-	spanKeyIdx, _ := pq.GetColumnIndexByPath(pf, "rs.ils.Spans.Attrs.Key")
+	resourceKeyIdx, _ := pq.GetColumnIndexByPath(pf, FieldResourceAttrKey)
+	spanKeyIdx, _ := pq.GetColumnIndexByPath(pf, FieldSpanAttrKey)
 	if resourceKeyIdx == -1 || spanKeyIdx == -1 {
 		return fmt.Errorf("resource or span attributes col not found (%d, %d)", resourceKeyIdx, spanKeyIdx)
 	}
-	idxs := []int{
+	standardAttrIdxs := []int{
 		resourceKeyIdx,
 		spanKeyIdx,
 	}
 
 	// find indexes of all special columns
-	unfoundIdxs := map[int]string{}
+	specialAttrIdxs := map[int]string{}
 	for lbl, col := range labelMappings {
 		idx, _ := pq.GetColumnIndexByPath(pf, col)
 		if idx == -1 {
 			continue
 		}
 
-		unfoundIdxs[idx] = lbl
+		specialAttrIdxs[idx] = lbl
 	}
 
 	// now search all row groups
 	rgs := pf.RowGroups()
 	for _, rg := range rgs {
 		// search all special attributes
-		for idx, lbl := range unfoundIdxs {
+		for idx, lbl := range specialAttrIdxs {
 			cc := rg.ColumnChunks()[idx]
 			pgs := cc.Pages()
 			for {
@@ -140,14 +145,14 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 				// if a special attribute has any non-null values, include it
 				if pg.NumNulls() < pg.NumValues() {
 					cb(lbl)
-					delete(unfoundIdxs, idx)
+					delete(specialAttrIdxs, idx) // remove from map so we won't search again
 					break
 				}
 			}
 		}
 
 		// search other attributes
-		for _, idx := range idxs {
+		for _, idx := range standardAttrIdxs {
 			cc := rg.ColumnChunks()[idx]
 			pgs := cc.Pages()
 			for {
@@ -184,152 +189,32 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 		})
 	defer span.Finish()
 
-	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
+	pf, rr, err := b.openForSearch(derivedCtx, opts)
+	if err != nil {
+		return fmt.Errorf("unexpected error opening parquet file: %w", err)
+	}
 	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()
 
-	// jpe - leave off b/c this is local only at first?
-	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
-
-	or := newParquetOptimizedReaderAt(br, rr, int64(b.meta.Size), b.meta.FooterSize, opts.CacheControl)
-
-	span2, _ := opentracing.StartSpanFromContext(derivedCtx, "parquet.OpenFile")
-	pf, err := parquet.OpenFile(or, int64(b.meta.Size), parquet.SkipPageIndex(true))
-	span2.Finish()
-	if err != nil {
-		return err
-	}
-
-	// find column index
-	columnName := labelMappings[tag]
-
-	// jpe - make this less shitty - if this is a generic column we need to plow through the generic column values
-	if columnName == "" {
-		rgs := pf.RowGroups()
-		makeIter := func(name string, predicate pq.Predicate, selectAs string) pq.Iterator { // jpe put someplace?
-			index, _ := pq.GetColumnIndexByPath(pf, name)
-			if index == -1 {
-				// TODO - don't panic, error instead
-				panic("column not found in parquet file:" + name)
-			}
-			return pq.NewColumnIterator(ctx, rgs, index, name, 1000, predicate, selectAs)
+	// labelMappings will indicate whether this is a search for a special or standard
+	// column
+	column := labelMappings[tag]
+	if column == "" {
+		searchStandardTagValues(ctx, tag, pf, cb)
+		if err != nil {
+			return fmt.Errorf("unexpected error searching standard tags: %w", err)
 		}
-
-		keyPred := pq.NewStringInPredicate([]string{tag})
-
-		iter := pq.NewJoinIterator(DefinitionLevelResourceAttrs, []pq.Iterator{
-			makeIter("rs.Resource.Attrs.Key", keyPred, "keys"),
-			makeIter("rs.Resource.Attrs.Value", nil, "values"),
-		}, nil)
-
-		for {
-			match := iter.Next()
-			if match == nil {
-				break
-			}
-			m := match.ToMap()
-			for _, s := range m["values"] {
-				cb(s.String())
-			}
-		}
-
-		iter.Close()
-		iter = pq.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, []pq.Iterator{
-			makeIter("rs.ils.Spans.Attrs.Key", keyPred, "keys"),
-			makeIter("rs.ils.Spans.Attrs.Value", nil, "values"),
-		}, nil)
-
-		for {
-			match := iter.Next()
-			if match == nil {
-				break
-			}
-			m := match.ToMap()
-			for _, s := range m["values"] {
-				cb(s.String())
-			}
-		}
-		iter.Close()
-
 		return nil
 	}
 
-	// this is a special column
-	idx, _ := pq.GetColumnIndexByPath(pf, columnName)
-	if idx == -1 {
-		return fmt.Errorf("column not found (%s, %s)", tag, columnName)
+	err = searchSpecialTagValues(ctx, column, pf, cb)
+	if err != nil {
+		return fmt.Errorf("unexpected error searching special tags: %w", err)
 	}
-
-	// now search all row groups
-	rgs := pf.RowGroups()
-	complete := true
-rowgroups:
-	for _, rg := range rgs {
-		// search all special attributes
-		cc := rg.ColumnChunks()[idx]
-
-		pgs := cc.Pages()
-		for {
-			pg, err := pgs.ReadPage()
-			if err == io.EOF || pg == nil {
-				break
-			}
-			if err != nil {
-				return err
-			}
-
-			// if this column has a dictionary we are in luck!
-			dict := pg.Dictionary()
-			if dict != nil {
-				for i := 0; i < dict.Len(); i++ {
-					s := string(dict.Index(int32(i)).ByteArray())
-					cb(s)
-				}
-				break
-			}
-
-			// if this column doesn't have a dictionary we need to bite the bullet and iterate every page, bail!
-			complete = false
-			continue rowgroups
-		}
-	}
-
-	if !complete {
-		makeIter := func(name string, predicate pq.Predicate, selectAs string) pq.Iterator { // jpe put someplace?
-			index, _ := pq.GetColumnIndexByPath(pf, name)
-			if index == -1 {
-				// TODO - don't panic, error instead
-				panic("column not found in parquet file:" + name)
-			}
-			return pq.NewColumnIterator(ctx, rgs, index, name, 1000, predicate, selectAs)
-		}
-
-		iter := makeIter(columnName, nil, "values")
-		for {
-			match := iter.Next()
-			if match == nil {
-				break
-			}
-			m := match.ToMap()
-			for _, s := range m["values"] {
-				cb(s.String())
-			}
-		}
-		iter.Close()
-	}
-
 	return nil
 }
 
-func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, pf *parquet.File, rgs []parquet.RowGroup) (pq.Iterator, parquetSearchMetrics) {
-
-	makeIter := func(name string, predicate pq.Predicate, selectAs string) pq.Iterator { // jpe put someplace?
-		index, _ := pq.GetColumnIndexByPath(pf, name)
-		if index == -1 {
-			// TODO - don't panic, error instead
-			panic("column not found in parquet file:" + name)
-		}
-		return pq.NewColumnIterator(ctx, rgs, index, name, 1000, predicate, selectAs)
-	}
+func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, pf *parquet.File, rgs []parquet.RowGroup) pq.Iterator {
+	makeIter := makeIterFunc(ctx, rgs, pf)
 
 	// Wire up iterators
 	var resourceIters []pq.Iterator
@@ -389,13 +274,13 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 		j := pq.NewUnionIterator(DefinitionLevelResourceSpans, []pq.Iterator{
 			// This iterator finds all keys/values at the resource level
 			pq.NewJoinIterator(DefinitionLevelResourceAttrs, []pq.Iterator{
-				makeIter("rs.Resource.Attrs.Key", keyPred, "keys"),
-				makeIter("rs.Resource.Attrs.Value", valPred, "values"),
+				makeIter(FieldResourceAttrKey, keyPred, "keys"),
+				makeIter(FieldResourceAttrVal, valPred, "values"),
 			}, nil),
 			// This iterator finds all keys/values at the span level
 			pq.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, []pq.Iterator{
-				makeIter("rs.ils.Spans.Attrs.Key", keyPred, "keys"),
-				makeIter("rs.ils.Spans.Attrs.Value", valPred, "values"),
+				makeIter(FieldSpanAttrKey, keyPred, "keys"),
+				makeIter(FieldSpanAttrVal, valPred, "values"),
 			}, nil),
 		}, pq.NewKeyValueGroupPredicate(keys, vals))
 
@@ -445,15 +330,15 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 	case 0:
 		// Empty request, in this case every trace matches so we can
 		// simply iterate any column.
-		return makeIter("TraceID", nil, ""), parquetSearchMetrics{}
+		return makeIter("TraceID", nil, "")
 
 	case 1:
 		// There is only 1 iterator already, no need to wrap it up
-		return traceIters[0], parquetSearchMetrics{}
+		return traceIters[0]
 
 	default:
 		// Join all conditions
-		return pq.NewJoinIterator(DefinitionLevelTrace, traceIters, nil), parquetSearchMetrics{}
+		return pq.NewJoinIterator(DefinitionLevelTrace, traceIters, nil)
 	}
 }
 
@@ -480,7 +365,7 @@ func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.Searc
 }
 
 func searchRaw(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup) []pq.RowNumber {
-	iter, _ := makePipelineWithRowGroups(ctx, req, pf, rgs)
+	iter := makePipelineWithRowGroups(ctx, req, pf, rgs)
 	if iter == nil {
 		panic("make pipeline failed")
 	}
@@ -503,23 +388,16 @@ func searchRaw(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest
 }
 
 func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup, rowNumbers []pq.RowNumber) []*tempopb.TraceSearchMetadata {
-	makeIter := func(name string) pq.Iterator {
-		index, _ := pq.GetColumnIndexByPath(pf, name)
-		if index == -1 {
-			// TODO - don't panic, error instead
-			panic("column not found in parquet file:" + name)
-		}
-		return pq.NewColumnIterator(ctx, rgs, index, name, 1000, nil, name)
-	}
+	makeIter := makeIterFunc(ctx, rgs, pf)
 
 	results := []*tempopb.TraceSearchMetadata{}
 	iter2 := pq.NewJoinIterator(DefinitionLevelTrace, []pq.Iterator{
 		&rowNumberIterator{rowNumbers: rowNumbers},
-		makeIter("TraceID"),
-		makeIter("RootServiceName"),
-		makeIter("RootSpanName"),
-		makeIter("StartTimeUnixNano"), // jpe use constants?
-		makeIter("DurationNanos"),
+		makeIter("TraceID", nil, ""),
+		makeIter("RootServiceName", nil, ""),
+		makeIter("RootSpanName", nil, ""),
+		makeIter("StartTimeUnixNano", nil, ""),
+		makeIter("DurationNanos", nil, ""),
 	}, nil)
 	defer iter2.Close()
 
@@ -543,14 +421,121 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 	return results
 }
 
-type parquetSearchMetrics struct {
-	// TODO:  this isn't accurate, figure out a good way to measure this
-	//pTraceID *pq.InstrumentedPredicate
+// searchStandardTagValues searches a parquet file for "standard" tags. i.e. tags that don't have unique
+// columns and are contained in labelMappings
+func searchStandardTagValues(ctx context.Context, tag string, pf *parquet.File, cb common.TagCallback) error {
+	rgs := pf.RowGroups()
+	makeIter := makeIterFunc(ctx, rgs, pf)
+
+	keyPred := pq.NewStringInPredicate([]string{tag})
+
+	iter := pq.NewJoinIterator(DefinitionLevelResourceAttrs, []pq.Iterator{
+		makeIter(FieldResourceAttrKey, keyPred, "keys"),
+		makeIter(FieldResourceAttrVal, nil, "values"),
+	}, nil)
+	for {
+		match := iter.Next()
+		if match == nil {
+			break
+		}
+		m := match.ToMap()
+		for _, s := range m["values"] {
+			cb(s.String())
+		}
+	}
+	iter.Close()
+
+	iter = pq.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, []pq.Iterator{
+		makeIter(FieldSpanAttrKey, keyPred, "keys"),
+		makeIter(FieldSpanAttrVal, nil, "values"),
+	}, nil)
+	for {
+		match := iter.Next()
+		if match == nil {
+			break
+		}
+		m := match.ToMap()
+		for _, s := range m["values"] {
+			cb(s.String())
+		}
+	}
+	iter.Close()
+
+	return nil
 }
 
-func (p *parquetSearchMetrics) ToProto() *tempopb.SearchMetrics {
-	return &tempopb.SearchMetrics{
-		//InspectedTraces: uint32(p.pTraceID.InspectedValues.Load()),
+// searchSpecialTagValues searches a parquet file for all values for the provided column. It first attempts
+// to only pull all values from the column's dictionary. If this fails it falls back to scanning the entire path.
+func searchSpecialTagValues(ctx context.Context, column string, pf *parquet.File, cb common.TagCallback) error {
+	idx, _ := pq.GetColumnIndexByPath(pf, column)
+	if idx == -1 {
+		return fmt.Errorf("column not found: %s", column)
+	}
+
+	// now search all row groups
+	rgs := pf.RowGroups()
+	dictionarySearch := true
+rowgroups:
+	for _, rg := range rgs {
+		cc := rg.ColumnChunks()[idx]
+
+		pgs := cc.Pages()
+		for {
+			pg, err := pgs.ReadPage()
+			if err == io.EOF || pg == nil {
+				break
+			}
+			if err != nil {
+				return err
+			}
+
+			// if this column has a dictionary we are in luck!
+			dict := pg.Dictionary()
+			if dict != nil {
+				for i := 0; i < dict.Len(); i++ {
+					s := string(dict.Index(int32(i)).ByteArray())
+					cb(s)
+				}
+				break
+			}
+
+			// if this column doesn't have a dictionary we need to bite the bullet and iterate every page, bail!
+			dictionarySearch = false
+			continue rowgroups
+		}
+	}
+
+	if !dictionarySearch {
+		makeIter := makeIterFunc(ctx, rgs, pf)
+
+		iter := makeIter(column, nil, "values")
+		for {
+			match := iter.Next()
+			if match == nil {
+				break
+			}
+			m := match.ToMap()
+			for _, s := range m["values"] {
+				cb(s.String())
+			}
+		}
+		iter.Close()
+	}
+
+	return nil
+}
+
+func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
+	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
+		index, _ := pq.GetColumnIndexByPath(pf, name)
+		if index == -1 {
+			// TODO - don't panic, error instead
+			panic("column not found in parquet file:" + name)
+		}
+		if selectAs == "" {
+			selectAs = name
+		}
+		return pq.NewColumnIterator(ctx, rgs, index, name, 1000, predicate, selectAs)
 	}
 }
 
