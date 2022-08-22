@@ -128,11 +128,6 @@ type searchStreamingBlockEntry struct {
 	mtx sync.RWMutex
 }
 
-type searchLocalBlockEntry struct {
-	b   *search.BackendSearchBlock
-	mtx sync.RWMutex
-}
-
 func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
 	i := &instance{
 		traces:             map[uint32]*liveTrace{},

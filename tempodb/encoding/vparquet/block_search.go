@@ -200,7 +200,7 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 	// column
 	column := labelMappings[tag]
 	if column == "" {
-		searchStandardTagValues(ctx, tag, pf, cb)
+		err = searchStandardTagValues(ctx, tag, pf, cb)
 		if err != nil {
 			return fmt.Errorf("unexpected error searching standard tags: %w", err)
 		}
