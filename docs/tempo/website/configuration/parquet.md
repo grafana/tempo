@@ -54,7 +54,7 @@ storage:
 ## Parquet configuration parameters
 
 Some parameters in the Tempo configuration are specific to Parquet.  
-For more information, refer to the [usage-report configuration documentation](https://grafana.com/docs/tempo/latest/configuration/#storage).
+For more information, refer to the [storage configuration documentation](https://grafana.com/docs/tempo/latest/configuration/#storage).
 
 ### Trace search parameters
 
