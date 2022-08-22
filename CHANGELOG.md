@@ -2,6 +2,14 @@
 
 * [ENHANCEMENT] metrics-generator: expose span size as a metric [#1662](https://github.com/grafana/tempo/pull/1662) (@ie-pham)
 
+
+
+* [CHANGE] Use Parquet for local block search, tag search and tag value search instead of flatbuffers.
+  - Makes Parquet the default encoding.
+  - *BREAKING CHANGE* Local search for traces, tags and tag values no longer works with v2 blocks. It is recommended to manually 
+  clean out the search folder to remove no longer used files. By default these files are located at `/var/tempo/wal/search`.
+    - SearchTags/Values will not return all values until all blocks are flushed from the ingester
+
 ## v1.5.0 / 2022-08-17
 
 * [CHANGE] metrics-generator: Changed added metric label `instance` to `__metrics_gen_instance` to reduce collisions with custom dimensions. [#1439](https://github.com/grafana/tempo/pull/1439) (@joe-elliott)

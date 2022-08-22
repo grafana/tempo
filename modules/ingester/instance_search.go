@@ -184,9 +184,10 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 			span.LogFields(ot_log.Event("local block entry mtx acquired"))
 			span.SetTag("blockID", blockID)
 
-			resp, err := e.Search(ctx, req, common.SearchOptions{}) // jpe options? buffers = 0 for no buffered reader at
+			resp, err := e.Search(ctx, req, common.SearchOptions{})
 			if err != nil {
 				level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "err", err)
+				return
 			}
 
 			for _, t := range resp.Traces {
@@ -237,7 +238,7 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 		i.blocksMtx.RLock()
 		defer i.blocksMtx.RUnlock()
 		for _, b := range i.completeBlocks {
-			err = b.SearchTags(ctx, distinctValues.Collect, common.SearchOptions{}) // jpe !!
+			err = b.SearchTags(ctx, distinctValues.Collect, common.SearchOptions{})
 			if err == common.ErrUnsupported {
 				level.Warn(log.Logger).Log("msg", "block does not support tag search", "blockID", b.BlockMeta().BlockID)
 				continue
@@ -260,7 +261,6 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 	}, nil
 }
 
-// jpe add search tag values functionality? - skip unsupported blocks
 func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempopb.SearchTagValuesResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
@@ -301,7 +301,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 		i.blocksMtx.RLock()
 		defer i.blocksMtx.RUnlock()
 		for _, b := range i.completeBlocks {
-			err = b.SearchTagValues(ctx, tagName, distinctValues.Collect, common.SearchOptions{}) // jpe !!
+			err = b.SearchTagValues(ctx, tagName, distinctValues.Collect, common.SearchOptions{})
 			if err == common.ErrUnsupported {
 				level.Warn(log.Logger).Log("msg", "block does not support tag value search", "blockID", b.BlockMeta().BlockID)
 				continue

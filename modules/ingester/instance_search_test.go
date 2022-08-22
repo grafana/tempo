@@ -160,7 +160,7 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 	require.NoError(t, err)
 
 	sort.Strings(srv.TagValues)
-	assert.Len(t, sr.TagNames, 1)
+	assert.Contains(t, sr.TagNames, tagName)
 	assert.Equal(t, tagName, sr.TagNames[0])
 	assert.Equal(t, expectedTagValues, srv.TagValues)
 }
@@ -508,7 +508,6 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	require.NoError(t, err)
 	err = i.ClearCompletingBlock(blockID)
 	require.NoError(t, err)
-	// Complete blocks are searched using a v2 block as of right now but should change by the end of this PR. So the bytes should be greater.
 	m = search()
 	require.Equal(t, numTraces, m.InspectedTraces)
 	require.Greater(t, m.InspectedBytes, numBytes)

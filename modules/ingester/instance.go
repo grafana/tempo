@@ -306,10 +306,6 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	i.completeBlocks = append(i.completeBlocks, ingesterBlock)
 	i.blocksMtx.Unlock()
 
-	// jpe clean up this:
-	//    i.searchAppendBlocks[completingBlock] or does that happen below?
-	// jpe - what about cleaning up existing search blocks associated with completed blocks
-
 	return nil
 }
 

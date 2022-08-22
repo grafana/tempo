@@ -65,7 +65,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
-	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()
+	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
 	// Get list of row groups to inspect. Ideally we use predicate pushdown
 	// here to keep only row groups that can potentially satisfy the request
@@ -84,7 +84,8 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	// TODO: error handling
 	results := searchParquetFile(derivedCtx, pf, req, rgs)
 	results.Metrics.InspectedBlocks++
-	results.Metrics.InspectedBytes += rr.TotalBytesRead
+	results.Metrics.InspectedBytes += rr.TotalBytesRead.Load()
+	results.Metrics.InspectedTraces += uint32(b.meta.TotalObjects)
 
 	return results, nil
 }
@@ -102,7 +103,7 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 	if err != nil {
 		return fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
-	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()
+	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
 	// find indexes of generic attribute columns
 	resourceKeyIdx, _ := pq.GetColumnIndexByPath(pf, FieldResourceAttrKey)
@@ -193,7 +194,7 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 	if err != nil {
 		return fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
-	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()
+	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
 	// labelMappings will indicate whether this is a search for a special or standard
 	// column

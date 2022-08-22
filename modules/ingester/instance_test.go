@@ -93,7 +93,7 @@ func TestInstanceFind(t *testing.T) {
 	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local)
 	require.NoError(t, err, "unexpected error creating new instance")
 
-	numTraces := 500
+	numTraces := 10
 	ids := [][]byte{}
 	traces := []*tempopb.Trace{}
 	for j := 0; j < numTraces; j++ {

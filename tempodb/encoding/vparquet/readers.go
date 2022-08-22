@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 
@@ -18,17 +19,17 @@ type BackendReaderAt struct {
 	blockID  uuid.UUID
 	tenantID string
 
-	TotalBytesRead uint64
+	TotalBytesRead atomic.Uint64
 }
 
 var _ io.ReaderAt = (*BackendReaderAt)(nil)
 
 func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, blockID uuid.UUID, tenantID string) *BackendReaderAt {
-	return &BackendReaderAt{ctx, r, name, blockID, tenantID, 0}
+	return &BackendReaderAt{ctx, r, name, blockID, tenantID, atomic.Uint64{}}
 }
 
 func (b *BackendReaderAt) ReadAt(p []byte, off int64) (int, error) {
-	b.TotalBytesRead += uint64(len(p))
+	b.TotalBytesRead.Add(uint64(len(p)))
 	err := b.r.ReadRange(b.ctx, b.name, b.blockID, b.tenantID, uint64(off), p, false)
 	return len(p), err
 }

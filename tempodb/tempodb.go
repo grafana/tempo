@@ -390,7 +390,8 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 }
 
 // EnablePolling activates the polling loop. Pass nil if this component
-//  should never be a tenant index builder.
+//
+//	should never be a tenant index builder.
 func (rw *readerWriter) EnablePolling(sharder blocklist.JobSharder) {
 	if sharder == nil {
 		sharder = blocklist.OwnsNothingSharder
