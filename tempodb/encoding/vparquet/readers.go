@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
-	"sync/atomic"
 
 	"github.com/google/uuid"
+	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -19,14 +19,13 @@ type BackendReaderAt struct {
 	blockID  uuid.UUID
 	tenantID string
 
-	// nolint: typecheck
 	TotalBytesRead atomic.Uint64
 }
 
 var _ io.ReaderAt = (*BackendReaderAt)(nil)
 
 func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, blockID uuid.UUID, tenantID string) *BackendReaderAt {
-	return &BackendReaderAt{ctx, r, name, blockID, tenantID, atomic.Uint64{}} // nolint: typecheck
+	return &BackendReaderAt{ctx, r, name, blockID, tenantID, atomic.Uint64{}}
 }
 
 func (b *BackendReaderAt) ReadAt(p []byte, off int64) (int, error) {
