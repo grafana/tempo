@@ -26,7 +26,7 @@ type BackendReaderAt struct {
 var _ io.ReaderAt = (*BackendReaderAt)(nil)
 
 func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, blockID uuid.UUID, tenantID string) *BackendReaderAt {
-	return &BackendReaderAt{ctx, r, name, blockID, tenantID, atomic.Uint64{}}
+	return &BackendReaderAt{ctx, r, name, blockID, tenantID, atomic.Uint64{}} // nolint: typecheck
 }
 
 func (b *BackendReaderAt) ReadAt(p []byte, off int64) (int, error) {
