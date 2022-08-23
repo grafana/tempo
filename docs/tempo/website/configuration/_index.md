@@ -1,6 +1,9 @@
 ---
 title: Configuration
 weight: 200
+alias:
+- /docs/tempo/latest/configuration/
+- /docs/tempo/latest/configuration/ingestion-limit/
 ---
 
 # Configuration
