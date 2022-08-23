@@ -174,7 +174,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID) (_ 
 	}
 
 	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
-	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()
+	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 32)
 
