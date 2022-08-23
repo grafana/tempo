@@ -1,6 +1,4 @@
 ---
-aliases:
-- /docs/tempo/latest/server_side_metrics/service_graphs/
 title: Application performance management
 menuTitle: APM dashboard
 weight: 200
