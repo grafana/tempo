@@ -83,7 +83,7 @@ func NewOverrides(defaults Limits) (*Overrides, error) {
 
 	if defaults.PerTenantOverrideConfig != "" {
 		runtimeCfg := runtimeconfig.Config{
-			LoadPath:     defaults.PerTenantOverrideConfig,
+			LoadPath:     []string{defaults.PerTenantOverrideConfig},
 			ReloadPeriod: time.Duration(defaults.PerTenantOverridePeriod),
 			Loader:       loadPerTenantOverrides,
 		}
