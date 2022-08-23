@@ -16,8 +16,7 @@ package strutil
 import (
 	"fmt"
 	"net/url"
-
-	"github.com/grafana/regexp"
+	"regexp"
 )
 
 var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)

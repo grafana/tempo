@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,7 +32,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/grafana/regexp"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"

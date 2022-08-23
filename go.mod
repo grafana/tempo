@@ -59,7 +59,7 @@ require (
 	github.com/prometheus/client_golang v1.13.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.37.0
-	github.com/prometheus/prometheus v1.8.2-0.20220228151929-e25a59925555
+	github.com/prometheus/prometheus v1.8.2-0.20220308163432-03831554a519
 	github.com/prometheus/statsd_exporter v0.21.0 // indirect
 	github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
 	github.com/segmentio/parquet-go v0.0.0-20220811205829-7efc157d28af
@@ -67,7 +67,7 @@ require (
 	github.com/sony/gobreaker v0.4.1
 	github.com/spf13/viper v1.12.0
 	github.com/stretchr/testify v1.7.2
-	github.com/thanos-io/thanos v0.24.0
+	github.com/thanos-io/thanos v0.27.0
 	github.com/uber-go/atomic v1.4.0
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	github.com/weaveworks/common v0.0.0-20220706100410-67d27ed40fae
@@ -75,13 +75,13 @@ require (
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/collector v0.46.0
 	go.opentelemetry.io/collector/model v0.46.0
-	go.opentelemetry.io/otel v1.4.1
+	go.opentelemetry.io/otel v1.5.0
 	go.opentelemetry.io/otel/bridge/opencensus v0.25.0
-	go.opentelemetry.io/otel/bridge/opentracing v1.2.0
+	go.opentelemetry.io/otel/bridge/opentracing v1.5.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.2.0
 	go.opentelemetry.io/otel/metric v0.27.0
-	go.opentelemetry.io/otel/sdk v1.4.1
-	go.opentelemetry.io/otel/trace v1.4.1
+	go.opentelemetry.io/otel/sdk v1.5.0
+	go.opentelemetry.io/otel/trace v1.5.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
 	go.uber.org/multierr v1.8.0
@@ -136,12 +136,10 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.2.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/btree v1.0.1 // indirect
-	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.4.0 // indirect
 	github.com/googleapis/go-type-adapters v1.0.0 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
-	github.com/grafana/regexp v0.0.0-20220202152315-e74e38789280 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/hashicorp/consul/api v1.12.0 // indirect
@@ -244,7 +242,6 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220616135557-88e70c0c3a90 // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
-	k8s.io/utils v0.0.0-20210930125809-cb0fa318a74b // indirect
 )
 
 replace (

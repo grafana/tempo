@@ -15,8 +15,7 @@ package httputil
 
 import (
 	"net/http"
-
-	"github.com/grafana/regexp"
+	"regexp"
 )
 
 var corsHeaders = map[string]string{
