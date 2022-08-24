@@ -2,6 +2,7 @@ package parquetquery
 
 import (
 	"bytes"
+	"regexp"
 	"strings"
 
 	pq "github.com/segmentio/parquet-go"
@@ -78,6 +79,86 @@ func (p *StringInPredicate) KeepPage(page pq.Page) bool {
 					// At least 1 string present in this page
 					return true
 				}
+			}
+		}
+
+		return false
+	}
+
+	return true
+}
+
+// RegexInPredicate checks for match against any of the given regexs.
+// Memoized and resets on each row group.
+type RegexInPredicate struct {
+	regs    []*regexp.Regexp
+	matches map[string]bool
+}
+
+var _ Predicate = (*RegexInPredicate)(nil)
+
+func NewRegexInPredicate(regs []string) (*RegexInPredicate, error) {
+	p := &RegexInPredicate{
+		regs: make([]*regexp.Regexp, 0, len(regs)),
+	}
+	for _, reg := range regs {
+		r, err := regexp.Compile(reg)
+		if err != nil {
+			return nil, err
+		}
+		p.regs = append(p.regs, r)
+	}
+	return p, nil
+}
+
+func (p *RegexInPredicate) keep(v *pq.Value) bool {
+	if v.Kind() < 0 {
+		// Null
+		return false
+	}
+
+	s := v.String()
+	if matched, ok := p.matches[s]; ok {
+		return matched
+	}
+
+	matched := false
+	for _, r := range p.regs {
+		if r.MatchString(s) {
+			matched = true
+			break
+		}
+	}
+
+	p.matches[s] = matched
+	return matched
+}
+
+func (p *RegexInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
+	// Reset match cache on each row group change
+	p.matches = make(map[string]bool, len(p.matches))
+
+	// Can we do any filtering here?
+	return true
+}
+
+func (p *RegexInPredicate) KeepValue(v pq.Value) bool {
+	return p.keep(&v)
+}
+
+func (p *RegexInPredicate) KeepPage(page pq.Page) bool {
+
+	// If a dictionary column then ensure at least one matching
+	// value exists in the dictionary
+	dict := page.Dictionary()
+	if dict != nil && dict.Len() > 0 {
+		len := dict.Len()
+
+		for i := 0; i < len; i++ {
+			dictionaryEntry := dict.Index(int32(i))
+			if p.keep(&dictionaryEntry) {
+				// At least 1 dictionary entry matches
+				return true
 			}
 		}
 

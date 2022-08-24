@@ -108,7 +108,7 @@ func checkConditions(conditions []traceql.Condition) error {
 				return fmt.Errorf("operand %v must have exactly 1 argument. condition: %+v", cond.Operation, cond)
 			}
 
-		case traceql.OperationIn:
+		case traceql.OperationIn, traceql.OperationRegexIn:
 			if opCount == 0 {
 				return fmt.Errorf("operand IN requires at least 1 argument. condition: %+v", cond)
 			}
@@ -317,11 +317,8 @@ func createStringPredicate(op traceql.Operation, operands []interface{}) (parque
 	if op == traceql.OperationNone {
 		return nil, nil
 	}
-	if op != traceql.OperationEq && op != traceql.OperationIn {
-		return nil, fmt.Errorf("operand not supported for strings: %+v", op)
-	}
 
-	vals := []string{}
+	vals := make([]string, 0, len(operands))
 
 	for _, op := range operands {
 		s, ok := op.(string)
@@ -331,7 +328,17 @@ func createStringPredicate(op traceql.Operation, operands []interface{}) (parque
 		vals = append(vals, s)
 	}
 
-	return parquetquery.NewStringInPredicate(vals), nil
+	switch op {
+	case traceql.OperationEq, traceql.OperationIn:
+		return parquetquery.NewStringInPredicate(vals), nil
+
+	case traceql.OperationRegexIn:
+		return parquetquery.NewRegexInPredicate(vals)
+
+	default:
+		return nil, fmt.Errorf("operand not supported for strings: %+v", op)
+	}
+
 }
 
 func createIntPredicate(op traceql.Operation, operands []interface{}) (parquetquery.Predicate, error) {

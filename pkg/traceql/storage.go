@@ -10,6 +10,7 @@ const (
 	OperationLT
 	OperationGT
 	OperationIn
+	OperationRegexIn
 )
 
 type Condition struct {

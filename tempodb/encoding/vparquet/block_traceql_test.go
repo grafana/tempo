@@ -47,6 +47,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		makeReq(".bool", traceql.OperationEq, false),                // Bool
 		makeReq(".foo", traceql.OperationIn, "def", "xyz"),          // String IN
 		makeReq(".foo", traceql.OperationIn, "xyz", "def"),          // String IN Same as above but reversed order
+		makeReq(".foo", traceql.OperationRegexIn, "d.*"),            // Regex IN
 		makeReq(".resource.foo", traceql.OperationEq, "abc"),        // Resource-level only
 		makeReq(".span.foo", traceql.OperationEq, "def"),            // Span-level only
 		makeReq(".foo", traceql.OperationNone),                      // Projection only
@@ -80,6 +81,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	searchesThatDontMatch := []traceql.FetchSpansRequest{
 		makeReq(".foo", traceql.OperationEq, "abc"),        // This should not return results because the span has overridden this attribute to "def".
 		makeReq(".foo", traceql.OperationIn, "abc", "xyz"), // Same as above but additional test value
+		makeReq(".foo", traceql.OperationRegexIn, "xyz.*"), // Regex IN
 		makeReq(".span.bool", traceql.OperationEq, true),
 		makeReq(LabelName, traceql.OperationEq, "nothello"),
 		makeReq(LabelServiceName, traceql.OperationEq, "notmyservice"),
