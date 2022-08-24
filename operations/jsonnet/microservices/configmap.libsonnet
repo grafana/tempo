@@ -54,7 +54,7 @@
     memberlist: {
       abort_if_cluster_join_fails: false,
       bind_port: $._config.gossip_ring_port,
-      join_members: ['gossip-ring.%s.svc.cluster.local:%d' % [$._config.namespace, $._config.gossip_ring_port]],
+      join_members: ['gossip-ring.%s.svc.cluster.local.:%d' % [$._config.namespace, $._config.gossip_ring_port]],
     },
   },
 
@@ -107,7 +107,7 @@
     },
     querier+: {
       frontend_worker+: {
-        frontend_address: 'query-frontend-discovery.%s.svc.cluster.local:9095' % [$._config.namespace],
+        frontend_address: 'query-frontend-discovery.%s.svc.cluster.local.:9095' % [$._config.namespace],
       },
     },
   },
