@@ -79,17 +79,6 @@
     v1+: appsPatch,
     v1beta1+: appsPatch,
   },
-  extensions+: {
-    v1beta1+: appsPatch {
-      ingress+: {
-        spec+: {
-          rulesType: $.extensions.v1beta1.ingressRule {
-            httpType+: { pathsType: $.extensions.v1beta1.httpIngressPath },
-          },
-        },
-      },
-    },
-  },
 
   batch+: {
     local patch = {
