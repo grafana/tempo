@@ -26,6 +26,8 @@ const (
 	columnPathResourceAttrKey     = "rs.Resource.Attrs.Key"
 	columnPathResourceAttrString  = "rs.Resource.Attrs.Value"
 	columnPathResourceAttrInt     = "rs.Resource.Attrs.ValueInt"
+	columnPathResourceAttrDouble  = "rs.Resource.Attrs.ValueDouble"
+	columnPathResourceAttrBool    = "rs.Resource.Attrs.ValueBool"
 	columnPathResourceServiceName = "rs.Resource.ServiceName"
 	columnPathSpanID              = "rs.ils.Spans.ID"
 	columnPathSpanName            = "rs.ils.Spans.Name"
@@ -34,6 +36,8 @@ const (
 	columnPathSpanAttrKey         = "rs.ils.Spans.Attrs.Key"
 	columnPathSpanAttrString      = "rs.ils.Spans.Attrs.Value"
 	columnPathSpanAttrInt         = "rs.ils.Spans.Attrs.ValueInt"
+	columnPathSpanAttrDouble      = "rs.ils.Spans.Attrs.ValueDouble"
+	columnPathSpanAttrBool        = "rs.ils.Spans.Attrs.ValueBool"
 	columnPathSpanHttpStatusCode  = "rs.ils.Spans.HttpStatusCode"
 )
 
@@ -63,6 +67,11 @@ var wellKnownColumnLookups = map[string]struct {
 // Fetch spansets from the block for the given traceql request.
 func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 
+	err := checkConditions(req.Conditions)
+	if err != nil {
+		return traceql.FetchSpansResponse{}, errors.Wrap(err, "conditions invalid")
+	}
+
 	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
 
 	// 32 MB memory buffering
@@ -81,6 +90,34 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest)
 	return traceql.FetchSpansResponse{
 		Results: iter,
 	}, nil
+}
+
+func checkConditions(conditions []traceql.Condition) error {
+	for _, cond := range conditions {
+		opCount := len(cond.Operands)
+
+		switch cond.Operation {
+
+		case traceql.OperationNone:
+			if opCount != 0 {
+				return fmt.Errorf("operand eq must have exactly 1 argument. condition: %+v", cond)
+			}
+
+		case traceql.OperationEq, traceql.OperationGT, traceql.OperationLT:
+			if opCount != 1 {
+				return fmt.Errorf("operand %v must have exactly 1 argument. condition: %+v", cond.Operation, cond)
+			}
+
+		case traceql.OperationIn:
+			if opCount == 0 {
+				return fmt.Errorf("operand IN requires at least 1 argument. condition: %+v", cond)
+			}
+
+		default:
+			return fmt.Errorf("unknown operation. condition: %+v", cond)
+		}
+	}
+	return nil
 }
 
 // spansetIterator turns the parquet iterator into the final
@@ -182,10 +219,10 @@ func fetch(ctx context.Context, conditions []traceql.Condition, pf *parquet.File
 // one span each.  Spans are returned that match any of the given conditions.
 func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, requireAtLeastOneMatch bool) (parquetquery.Iterator, error) {
 
-	var iters []parquetquery.Iterator
-	attrKeys := []string{}
-	attrStringPreds := []parquetquery.Predicate{}
-	attrIntPreds := []parquetquery.Predicate{}
+	var (
+		iters             []parquetquery.Iterator
+		genericConditions []traceql.Condition
+	)
 
 	for _, cond := range conditions {
 
@@ -199,61 +236,16 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, r
 			continue
 		}
 
-		// Arbitrary attribute lookup
-		s := cond.Selector
-		s = strings.TrimPrefix(s, ".span")
-		s = strings.TrimPrefix(s, ".")
-		attrKeys = append(attrKeys, s)
-
-		if cond.Operation == traceql.OperationNone {
-			// This means we have to scan all values, we don't know what type
-			// to expect
-			attrStringPreds = append(attrStringPreds, nil)
-			attrIntPreds = append(attrIntPreds, nil)
-			continue
-		}
-
-		stringOperands := []interface{}{}
-		intOperands := []interface{}{}
-
-		for _, op := range cond.Operands {
-			switch opv := op.(type) {
-			case string:
-				stringOperands = append(stringOperands, opv)
-			case int, int64:
-				intOperands = append(intOperands, opv)
-			}
-		}
-
-		if len(stringOperands) > 0 {
-			pred, err := createStringPredicate(cond.Operation, stringOperands)
-			if err != nil {
-				return nil, errors.Wrap(err, "creating attribute span predicate")
-			}
-			attrStringPreds = append(attrStringPreds, pred)
-		}
-
-		if len(intOperands) > 0 {
-			pred, err := createIntPredicate(cond.Operation, intOperands)
-			if err != nil {
-				return nil, errors.Wrap(err, "creating attribute span predicate")
-			}
-			attrIntPreds = append(attrIntPreds, pred)
-		}
+		genericConditions = append(genericConditions, cond)
 	}
-	var attrIters []parquetquery.Iterator
-	if len(attrKeys) > 0 {
-		attrIters = append(attrIters, makeIter(columnPathSpanAttrKey, parquetquery.NewStringInPredicate(attrKeys), "key"))
+
+	attrIter, err := createAttributeIterator(makeIter, genericConditions, ".span.", DefinitionLevelResourceSpansILSSpanAttrs,
+		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating span attribute iterator")
 	}
-	if len(attrStringPreds) > 0 {
-		attrIters = append(attrIters, makeIter(columnPathSpanAttrString, parquetquery.NewOrPredicate(attrStringPreds...), "string"))
-	}
-	if len(attrIntPreds) > 0 {
-		attrIters = append(attrIters, makeIter(columnPathSpanAttrInt, parquetquery.NewOrPredicate(attrIntPreds...), "int"))
-	}
-	if len(attrIters) > 0 {
-		// Join iterator here keeps key/value pairs together
-		iters = append(iters, parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpanAttrs, attrIters, &attributeCollector{}))
+	if attrIter != nil {
+		iters = append(iters, attrIter)
 	}
 
 	// Static columns that are always loaded
@@ -271,12 +263,11 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, r
 // spansets.  Spansets are returned that match any of the given conditions.
 
 func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, requireAtLeastOneMatchOverall bool) (parquetquery.Iterator, error) {
-	iters := []parquetquery.Iterator{
-		spanIterator,
-	}
-	attrKeys := []string{}
-	attrStringPreds := []parquetquery.Predicate{}
-	attrIntPreds := []parquetquery.Predicate{}
+	var (
+		iters             = []parquetquery.Iterator{spanIterator}
+		genericConditions []traceql.Condition
+	)
+
 	for _, cond := range conditions {
 
 		// Well-known selector?
@@ -289,60 +280,16 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 			continue
 		}
 
-		// Arbitrary attribute lookup
-		s := cond.Selector
-		s = strings.TrimPrefix(s, ".resource")
-		s = strings.TrimPrefix(s, ".")
-		attrKeys = append(attrKeys, s)
-
-		if cond.Operation == traceql.OperationNone {
-			// This means we have to scan all values, we don't know what type
-			// to expect
-			attrStringPreds = append(attrStringPreds, nil)
-			attrIntPreds = append(attrIntPreds, nil)
-			continue
-		}
-
-		stringOperands := []interface{}{}
-		intOperands := []interface{}{}
-
-		for _, op := range cond.Operands {
-			switch opv := op.(type) {
-			case string:
-				stringOperands = append(stringOperands, opv)
-			case int, int64:
-				intOperands = append(intOperands, opv)
-			}
-		}
-
-		if len(stringOperands) > 0 {
-			pred, err := createStringPredicate(cond.Operation, stringOperands)
-			if err != nil {
-				return nil, errors.Wrap(err, "creating attribute span predicate")
-			}
-			attrStringPreds = append(attrStringPreds, pred)
-		}
-
-		if len(intOperands) > 0 {
-			pred, err := createIntPredicate(cond.Operation, intOperands)
-			if err != nil {
-				return nil, errors.Wrap(err, "creating attribute span predicate")
-			}
-			attrIntPreds = append(attrIntPreds, pred)
-		}
+		genericConditions = append(genericConditions, cond)
 	}
-	var attrIters []parquetquery.Iterator
-	if len(attrKeys) > 0 {
-		attrIters = append(attrIters, makeIter(columnPathResourceAttrKey, parquetquery.NewStringInPredicate(attrKeys), "key"))
+
+	attrIter, err := createAttributeIterator(makeIter, genericConditions, ".resource.", DefinitionLevelResourceAttrs,
+		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating span attribute iterator")
 	}
-	if len(attrStringPreds) > 0 {
-		attrIters = append(attrIters, makeIter(columnPathResourceAttrString, parquetquery.NewOrPredicate(attrStringPreds...), "string"))
-	}
-	if len(attrIntPreds) > 0 {
-		attrIters = append(attrIters, makeIter(columnPathResourceAttrInt, parquetquery.NewOrPredicate(attrIntPreds...), "int"))
-	}
-	if len(attrIters) > 0 {
-		iters = append(iters, parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, attrIters, &attributeCollector{}))
+	if attrIter != nil {
+		iters = append(iters, attrIter)
 	}
 
 	// Final resource iterator.
@@ -420,6 +367,160 @@ func createIntPredicate(op traceql.Operation, operands []interface{}) (parquetqu
 	return parquetquery.NewIntBetweenPredicate(min, max), nil
 }
 
+func createFloatPredicate(op traceql.Operation, operands []interface{}) (parquetquery.Predicate, error) {
+	if op == traceql.OperationNone {
+		return nil, nil
+	}
+
+	// Ensure operand is int
+	var i float64
+	switch v := operands[0].(type) {
+	case float32:
+		i = float64(v)
+	case float64:
+		i = v
+	default:
+		return nil, fmt.Errorf("operand is not float: %+v", operands[0])
+	}
+
+	// Defaults
+	min := math.Inf(-1)
+	max := math.Inf(1)
+
+	switch op {
+	case traceql.OperationEq:
+		min = i
+		max = i
+	case traceql.OperationGT:
+		min = math.Nextafter(i, max)
+	case traceql.OperationLT:
+		max = math.Nextafter(i, min)
+	}
+
+	return parquetquery.NewFloatBetweenPredicate(min, max), nil
+}
+
+func createBoolPredicate(op traceql.Operation, operands []interface{}) (parquetquery.Predicate, error) {
+	if op == traceql.OperationNone {
+		return nil, nil
+	}
+
+	// Ensure operand is bool
+	var b bool
+	switch v := operands[0].(type) {
+	case bool:
+		b = v
+	default:
+		return nil, fmt.Errorf("operand is not bool: %+v", operands[0])
+	}
+
+	return parquetquery.NewBoolPredicate(b), nil
+}
+
+func createAttributeIterator(makeIter makeIterFunc, conditions []traceql.Condition,
+	prefix string,
+	definitionLevel int,
+	keyPath, strPath, intPath, floatPath, boolPath string,
+) (parquetquery.Iterator, error) {
+	var (
+		attrKeys        = []string{}
+		attrStringPreds = []parquetquery.Predicate{}
+		attrIntPreds    = []parquetquery.Predicate{}
+		attrFltPreds    = []parquetquery.Predicate{}
+		boolPreds       = []parquetquery.Predicate{}
+	)
+	for _, cond := range conditions {
+
+		// Arbitrary attribute lookup
+		s := cond.Selector
+		s = strings.TrimPrefix(s, prefix)
+		s = strings.TrimPrefix(s, ".")
+		attrKeys = append(attrKeys, s)
+
+		if cond.Operation == traceql.OperationNone {
+			// This means we have to scan all values, we don't know what type
+			// to expect
+			attrStringPreds = append(attrStringPreds, nil)
+			attrIntPreds = append(attrIntPreds, nil)
+			attrFltPreds = append(attrFltPreds, nil)
+			boolPreds = append(boolPreds, nil)
+			continue
+		}
+
+		var (
+			stringOperands = []interface{}{}
+			intOperands    = []interface{}{}
+			fltOperands    = []interface{}{}
+			boolOperands   = []interface{}{}
+		)
+		for _, op := range cond.Operands {
+			switch opv := op.(type) {
+			case string:
+				stringOperands = append(stringOperands, opv)
+			case int, int64:
+				intOperands = append(intOperands, opv)
+			case float32, float64:
+				fltOperands = append(fltOperands, opv)
+			case bool:
+				boolOperands = append(boolOperands, opv)
+			}
+		}
+
+		if len(stringOperands) > 0 {
+			pred, err := createStringPredicate(cond.Operation, stringOperands)
+			if err != nil {
+				return nil, errors.Wrap(err, "creating attribute predicate")
+			}
+			attrStringPreds = append(attrStringPreds, pred)
+		}
+
+		if len(intOperands) > 0 {
+			pred, err := createIntPredicate(cond.Operation, intOperands)
+			if err != nil {
+				return nil, errors.Wrap(err, "creating attribute predicate")
+			}
+			attrIntPreds = append(attrIntPreds, pred)
+		}
+
+		if len(fltOperands) > 0 {
+			pred, err := createFloatPredicate(cond.Operation, fltOperands)
+			if err != nil {
+				return nil, errors.Wrap(err, "creating attribute predicate")
+			}
+			attrFltPreds = append(attrFltPreds, pred)
+		}
+		if len(boolOperands) > 0 {
+			pred, err := createBoolPredicate(cond.Operation, boolOperands)
+			if err != nil {
+				return nil, errors.Wrap(err, "creating attribute predicate")
+			}
+			boolPreds = append(boolPreds, pred)
+		}
+	}
+	var attrIters []parquetquery.Iterator
+	if len(attrKeys) > 0 {
+		attrIters = append(attrIters, makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key"))
+	}
+	if len(attrStringPreds) > 0 {
+		attrIters = append(attrIters, makeIter(strPath, parquetquery.NewOrPredicate(attrStringPreds...), "string"))
+	}
+	if len(attrIntPreds) > 0 {
+		attrIters = append(attrIters, makeIter(intPath, parquetquery.NewOrPredicate(attrIntPreds...), "int"))
+	}
+	if len(attrFltPreds) > 0 {
+		attrIters = append(attrIters, makeIter(floatPath, parquetquery.NewOrPredicate(attrFltPreds...), "float"))
+	}
+	if len(boolPreds) > 0 {
+		attrIters = append(attrIters, makeIter(boolPath, parquetquery.NewOrPredicate(boolPreds...), "bool"))
+	}
+
+	var iter parquetquery.Iterator
+	if len(attrIters) > 0 {
+		iter = parquetquery.NewUnionIterator(definitionLevel, attrIters, &attributeCollector{})
+	}
+	return iter, nil
+}
+
 // This turns groups of span values into Span objects
 type spanCollector struct {
 	requireAtLeastOneMatch bool
@@ -470,8 +571,6 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 
 		if !matchFound {
-			res.Entries = res.Entries[:0]
-			res.OtherEntries = res.OtherEntries[:0]
 			return false
 		}
 	}
@@ -507,12 +606,10 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	// Throw out batches without any spans
 	if len(sp.Spans) == 0 {
-		res.Entries = res.Entries[:0]
-		res.OtherEntries = res.OtherEntries[:0]
 		return false
 	}
 
-	// From Attributes from dedicated resource-level columns
+	// Gather Attributes from dedicated resource-level columns
 	for _, e := range res.Entries {
 		switch e.Value.Kind() {
 		case parquet.Int64:
@@ -523,8 +620,6 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	}
 
 	if c.requireAtLeastOneMatch && len(resAttrs) == 0 {
-		res.Entries = res.Entries[:0]
-		res.OtherEntries = res.OtherEntries[:0]
 		return false
 	}
 
@@ -556,8 +651,6 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			}
 		}
 		if !matchFound {
-			res.Entries = res.Entries[:0]
-			res.OtherEntries = res.OtherEntries[:0]
 			return false
 		}
 	}
@@ -590,6 +683,9 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	return true
 }
 
+// attributeCollector receives rows from the individual key/string/int/etc
+// columns and joins them together into map[key]value entries with the
+// right type.
 type attributeCollector struct {
 }
 
@@ -605,21 +701,32 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case "key":
 			key = e.Value.String()
 		case "string":
-			val = e.Value.String()
+			if e.Value.Kind() >= 0 {
+				val = e.Value.String()
+			}
 		case "int":
-			val = e.Value.Int64()
+			if e.Value.Kind() >= 0 {
+				val = e.Value.Int64()
+			}
+		case "float":
+			if e.Value.Kind() >= 0 {
+				val = e.Value.Double()
+			}
+		case "bool":
+			if e.Value.Kind() >= 0 {
+				val = e.Value.Boolean()
+			}
 		}
 	}
 
 	if key == "" {
 		// This means we got a value within range but some other key.
 		// Just ignore
-		res.Entries = res.Entries[:0]
-		res.OtherEntries = res.OtherEntries[:0]
 		return false
 	}
 
 	res.Entries = res.Entries[:0]
+	res.OtherEntries = res.OtherEntries[:0]
 	res.AppendOtherValue(key, val)
 
 	return true

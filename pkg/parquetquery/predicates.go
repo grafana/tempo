@@ -180,6 +180,69 @@ func (p *IntBetweenPredicate) KeepPage(page pq.Page) bool {
 	return true
 }
 
+type FloatBetweenPredicate struct {
+	min, max float64
+}
+
+var _ Predicate = (*FloatBetweenPredicate)(nil)
+
+func NewFloatBetweenPredicate(min, max float64) *FloatBetweenPredicate {
+	return &FloatBetweenPredicate{min, max}
+}
+
+func (p *FloatBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+
+	if ci := c.ColumnIndex(); ci != nil {
+		for i := 0; i < ci.NumPages(); i++ {
+			min := ci.MinValue(i).Double()
+			max := ci.MaxValue(i).Double()
+			if p.max >= min && p.min <= max {
+				return true
+			}
+		}
+		return false
+	}
+
+	return true
+}
+
+func (p *FloatBetweenPredicate) KeepValue(v pq.Value) bool {
+	vv := v.Double()
+	return p.min <= vv && vv <= p.max
+}
+
+func (p *FloatBetweenPredicate) KeepPage(page pq.Page) bool {
+	if min, max, ok := page.Bounds(); ok {
+		return p.max >= min.Double() && p.min <= max.Double()
+	}
+	return true
+}
+
+// BoolPredicate checks for bools equal to the value
+type BoolPredicate struct {
+	b bool
+}
+
+var _ Predicate = (*BoolPredicate)(nil)
+
+func NewBoolPredicate(b bool) *BoolPredicate {
+	return &BoolPredicate{b}
+}
+
+func (p *BoolPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+	// Can we do anything here?
+	return true
+}
+
+func (p *BoolPredicate) KeepPage(page pq.Page) bool {
+	// Can we do anything here?
+	return true
+}
+
+func (p *BoolPredicate) KeepValue(v pq.Value) bool {
+	return p.b == v.Boolean()
+}
+
 type OrPredicate struct {
 	preds []Predicate
 }
