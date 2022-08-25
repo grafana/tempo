@@ -101,8 +101,9 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			}
 			if sum > c.opts.MaxBytesPerTrace {
 				// Trace too large to compact
-				for _, discardedRow := range rows[1:] {
-					c.opts.SpansDiscarded(countSpans(sch, discardedRow))
+				for i := 1; i < len(rows); i++ {
+					c.opts.SpansDiscarded(countSpans(sch, rows[i]))
+					pool.Put(rows[i])
 				}
 				return rows[0], nil
 			}
