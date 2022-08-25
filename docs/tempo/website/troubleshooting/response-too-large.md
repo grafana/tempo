@@ -11,7 +11,7 @@ The error message will take a similar form to the following:
 500 Internal Server Error Body: response larger than the max (<size> vs <limit>)
 ```
 
-This error indicates that the response receiver or sent is too large.
+This error indicates that the response received or sent is too large.
 This can happen in multiple places, but it's most commonly seen in the query path,
 with messages between the querier and the query frontend.
 
@@ -20,7 +20,7 @@ with messages between the querier and the query frontend.
 ### Tempo server (general)
 
 Tempo components communicate with each other via gRPC requests.
-In order to increase the maximum message size, you can increase the gRPC message size limit in the server block.
+To increase the maximum message size, you can increase the gRPC message size limit in the server block.
 
 ```yaml
 server:
@@ -28,12 +28,12 @@ server:
   grpc_server_max_send_msg_size: <size>
 ```
 
-Note that the server config block is not synchronized across components.
-Most likely, you will need to increase the message size limit in multiple components.
+The server config block is not synchronized across components.
+Most likely you will need to increase the message size limit in multiple components.
 
 ### Querier
 
-Additionally, querier workers can be configured to use a larger message size limit as well.
+Additionally, querier workers can be configured to use a larger message size limit.
 
 ```yaml
 querier:
