@@ -1,6 +1,7 @@
 ---
 aliases:
 - /docs/tempo/latest/server_side_metrics/service_graphs/
+- /docs/tempo/latest/metrics-generator/service_graphs/
 title: Service graphs
 weight: 500
 ---
