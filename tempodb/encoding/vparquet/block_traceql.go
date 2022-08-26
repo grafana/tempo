@@ -380,6 +380,7 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, r
 					durationMax = v
 				}
 			}
+			continue
 		}
 
 		cond.Selector = strings.TrimPrefix(cond.Selector, "span")
@@ -422,6 +423,8 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, r
 		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
 	}
 
+	dynamicIterCount := len(iters)
+
 	// Static columns that are always loaded
 	iters = append(iters, makeIter(columnPathSpanID, nil, columnPathSpanID))
 	iters = append(iters, makeIter(columnPathSpanStartTime, nil, columnPathSpanStartTime))
@@ -433,9 +436,16 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, r
 		durationMin,
 		durationMax,
 	}
-	spanIter := parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpan, iters, spanCol)
 
-	return spanIter, nil
+	// TODO - This is an optimization for cases like { span.foo=bar }
+	// Since it is the only span condition and required to match,
+	// we can use a Join to skip over the static columns like ID, etc
+	// where there wasn't a match on foo=bar
+	if requireAtLeastOneMatch && dynamicIterCount == 1 {
+		return parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, iters, spanCol), nil
+	}
+
+	return parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpan, iters, spanCol), nil
 }
 
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
@@ -490,12 +500,25 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 		iters = append(iters, attrIter)
 	}
 
-	// Final resource iterator.
-	// Union to return resources that match any of the conditions.
-	// BatchCollector to group the spans into spanset
-	resourceIter := parquetquery.NewUnionIterator(DefinitionLevelResourceSpans, iters, &batchCollector{requireAtLeastOneMatch, requireAtLeastOneMatchOverall})
+	batchCol := &batchCollector{
+		requireAtLeastOneMatch,
+		requireAtLeastOneMatchOverall,
+	}
 
-	return resourceIter, nil
+	// TODO - This is an optimization for cases like { resource.foo=bar }
+	// Since it is the only resource condition and required to match,
+	// we can use a Join to skip over the spans for batches
+	// where there wasn't a match on foo=bar
+	if requireAtLeastOneMatch && len(iters) == 2 /* 1 iter + spanIter */ {
+		return parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, iters, batchCol), nil
+	}
+
+	// TODO - Nice optimization needed: Since we throw out batches
+	// without any spans, need to incorporate a Join in here somehow
+	// which will have the same effect but more efficiently.
+	// The existing Join can't be used because the resource-level conditions
+	// are optional.  Need to create a LeftJoin?
+	return parquetquery.NewUnionIterator(DefinitionLevelResourceSpans, iters, batchCol), nil
 }
 
 func createTraceIterator(makeIter makeIterFunc, resourceIter parquetquery.Iterator) (parquetquery.Iterator, error) {
@@ -707,11 +730,16 @@ func createAttributeIterator(makeIter makeIterFunc, conditions []traceql.Conditi
 		attrIters = append(attrIters, makeIter(boolPath, parquetquery.NewOrPredicate(boolPreds...), "bool"))
 	}
 
-	var iter parquetquery.Iterator
+	// TODO - Need an optimization here.  We should be using the key iterator to join with
+	// and skip ahead to only inspect values for the matching keys.  However the existing join
+	// doesn't work for this since we also need to identify cases where the attribute had an unmatching
+	// value (different than missing entirely).  Need to create a LeftJoin which requires key present,
+	// and values are optional?
 	if len(attrIters) > 0 {
-		iter = parquetquery.NewUnionIterator(definitionLevel, attrIters, &attributeCollector{})
+		return parquetquery.NewUnionIterator(definitionLevel, attrIters, &attributeCollector{}), nil
 	}
-	return iter, nil
+
+	return nil, nil
 }
 
 // This turns groups of span values into Span objects
