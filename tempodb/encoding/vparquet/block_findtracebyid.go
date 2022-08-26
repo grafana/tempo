@@ -182,7 +182,6 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	if opts.ReadBufferCount > 0 {
 		br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
 
-		// todo: disabling by default but we should make cache settings configurable here
 		or := newParquetOptimizedReaderAt(br, rr, int64(b.meta.Size), b.meta.FooterSize, opts.CacheControl)
 		readerAt = or
 	}
