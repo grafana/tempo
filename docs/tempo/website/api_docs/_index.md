@@ -133,8 +133,6 @@ but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is
 
 ### Search
 
-<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
-
 Tempo's Search API finds traces based on span and process attributes (tags and values).  The API is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.  The following request is used to find traces containing spans
 from service "myservice" and the url contains "api/myapi".
@@ -189,9 +187,7 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.nam
 }
 ```
 
-### Search Tags
-
-<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
+### Search tags
 
 Ingester configuration `complete_block_timeout` affects how long tags are available for search.
 
@@ -232,9 +228,7 @@ $ curl -G -s http://localhost:3200/api/search/tags  | jq
 }
 ```
 
-### Search Tag Values
-
-<span style="background-color:#f3f973;">This experimental endpoint is disabled by default and can be enabled via the `search_enabled` YAML config option.</span>
+### Search tag values
 
 Ingester configuration `complete_block_timeout` affects how long tags are available for search.
 
