@@ -176,7 +176,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	// todo: combine with open logic from the other search functions
 	var readerAt io.ReaderAt
 	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
-	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()
+	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
 	readerAt = rr
 	if opts.ReadBufferCount > 0 {
