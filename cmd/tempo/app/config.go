@@ -71,6 +71,10 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	flagext.DefaultValues(&c.Server)
 	c.Server.LogLevel.RegisterFlags(f)
 
+	// Increase max message size to 16MB
+	c.Server.GPRCServerMaxRecvMsgSize = 16 * 1024 * 1024
+	c.Server.GRPCServerMaxSendMsgSize = 16 * 1024 * 1024
+
 	// The following GRPC server settings are added to address this issue - https://github.com/grafana/tempo/issues/493
 	// The settings prevent the grpc server from sending a GOAWAY message if a client sends heartbeat messages
 	// too frequently (due to lack of real traffic).
