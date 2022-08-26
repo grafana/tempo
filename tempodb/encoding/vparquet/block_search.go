@@ -468,59 +468,16 @@ func searchStandardTagValues(ctx context.Context, tag string, pf *parquet.File, 
 // searchSpecialTagValues searches a parquet file for all values for the provided column. It first attempts
 // to only pull all values from the column's dictionary. If this fails it falls back to scanning the entire path.
 func searchSpecialTagValues(ctx context.Context, column string, pf *parquet.File, cb common.TagCallback) error {
-	idx, _ := pq.GetColumnIndexByPath(pf, column)
-	if idx == -1 {
-		return fmt.Errorf("column not found: %s", column)
-	}
-
-	// now search all row groups
+	pred := newReportValuesPredicate(cb)
 	rgs := pf.RowGroups()
-	dictionarySearch := true
-rowgroups:
-	for _, rg := range rgs {
-		cc := rg.ColumnChunks()[idx]
 
-		pgs := cc.Pages()
-		for {
-			pg, err := pgs.ReadPage()
-			if err == io.EOF || pg == nil {
-				break
-			}
-			if err != nil {
-				return err
-			}
-
-			// if this column has a dictionary we are in luck!
-			dict := pg.Dictionary()
-			if dict != nil {
-				for i := 0; i < dict.Len(); i++ {
-					s := string(dict.Index(int32(i)).ByteArray())
-					cb(s)
-				}
-				break
-			}
-
-			// if this column doesn't have a dictionary we need to bite the bullet and iterate every page, bail!
-			dictionarySearch = false
-			continue rowgroups
+	iter := makeIterFunc(ctx, rgs, pf)(column, pred, "")
+	defer iter.Close()
+	for {
+		match := iter.Next()
+		if match == nil {
+			break
 		}
-	}
-
-	if !dictionarySearch {
-		makeIter := makeIterFunc(ctx, rgs, pf)
-
-		iter := makeIter(column, nil, "values")
-		for {
-			match := iter.Next()
-			if match == nil {
-				break
-			}
-			m := match.ToMap()
-			for _, s := range m["values"] {
-				cb(s.String())
-			}
-		}
-		iter.Close()
 	}
 
 	return nil
@@ -564,3 +521,41 @@ func (r *rowNumberIterator) SeekTo(to pq.RowNumber, definitionLevel int) *pq.Ite
 }
 
 func (r *rowNumberIterator) Close() {}
+
+// reportValuesPredicate is a "fake" predicate that uses existing iterator logic to find all values in a given column
+type reportValuesPredicate struct {
+	cb common.TagCallback
+}
+
+func newReportValuesPredicate(cb common.TagCallback) *reportValuesPredicate {
+	return &reportValuesPredicate{cb: cb}
+}
+
+// KeepColumnChunk always returns true b/c we always have to dig deeper to find all values
+func (r *reportValuesPredicate) KeepColumnChunk(cc parquet.ColumnChunk) bool {
+	return true
+}
+
+// KeepPage checks to see if the page has a dictionary. if it does then we can report the values contained in it
+// and return false b/c we don't have to go to the actual columns to retrieve values. if there is no dict we return
+// true so the iterator will call KeepValue on all values in the column
+func (r *reportValuesPredicate) KeepPage(pg parquet.Page) bool {
+	if dict := pg.Dictionary(); dict != nil {
+		for i := 0; i < dict.Len(); i++ {
+			s := string(dict.Index(int32(i)).ByteArray())
+			r.cb(s)
+		}
+
+		return false
+	}
+
+	return true
+}
+
+// KeepValue is only called if this column does not have a dictionary. Just report everything to r.cb and
+// return false so the iterator do any extra work.
+func (r *reportValuesPredicate) KeepValue(v parquet.Value) bool {
+	r.cb(v.String())
+
+	return false
+}
