@@ -19,7 +19,8 @@ import (
 
 // These are reserved search parameters
 const (
-	LabelName = "name"
+	LabelName     = "name"
+	LabelDuration = "duration"
 
 	StatusCodeTag   = "status.code"
 	StatusCodeUnset = "unset"

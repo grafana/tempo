@@ -17,67 +17,44 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.TODO()
 
-	// Helper function to make a basic search
-	makeReq := func(k string, op traceql.Operation, v ...interface{}) traceql.FetchSpansRequest {
-		return traceql.FetchSpansRequest{
-			Conditions: []traceql.Condition{
-				{
-					Selector:  k,
-					Operation: op,
-					Operands:  v,
-				},
-			},
-		}
-	}
-
-	// scratch pad thinking
-	// { span.foo=bar     } // returns spans with foo=bar					<-- this is handled by iterating resources with no filters
-	// { .foo=bar         } // returns spans with foo=bar or foo missing    <-- how to do this?  hmm
-	// { resource.foo=bar } // returns all spans							<-- this is handled by iterating spans with no filters
-	// { .foo=bar || .foo=baz } // returns spans with foo in bar/baz or missing
-
 	searchesThatMatch := []traceql.FetchSpansRequest{
 		{}, // Empty request
-		makeReq(LabelName, traceql.OperationEq, "hello"),                        // Well-known attribute: name
-		makeReq("resource."+LabelServiceName, traceql.OperationEq, "myservice"), // Well-known attribute: service.name
-		makeReq("."+LabelHTTPStatusCode, traceql.OperationEq, int64(500)),       // Well-known attribute: http.status_code int
-		makeReq("."+LabelHTTPStatusCode, traceql.OperationGT, int64(200)),       // Well-known attribute: http.status_code int
-		makeReq(".float", traceql.OperationGT, 456.7),                           // Float
-		makeReq(".float", traceql.OperationLT, 456.781),                         // Float
-		makeReq(".bool", traceql.OperationEq, false),                            // Bool
-		makeReq(".foo", traceql.OperationIn, "def", "xyz"),                      // String IN
-		makeReq(".foo", traceql.OperationIn, "xyz", "def"),                      // String IN Same as above but reversed order
-		makeReq(".foo", traceql.OperationRegexIn, "d.*"),                        // Regex IN
-		makeReq("resource.foo", traceql.OperationEq, "abc"),                     // Resource-level only
-		makeReq("span.foo", traceql.OperationEq, "def"),                         // Span-level only
-		makeReq(".foo", traceql.OperationNone),                                  // Projection only
-		{
+		makeReq(makeCond(LabelName, traceql.OperationEq, "hello")),                        // Intrinsic: name
+		makeReq(makeCond(LabelDuration, traceql.OperationEq, uint64(100*time.Second))),    // Intrinsic: duration
+		makeReq(makeCond(LabelDuration, traceql.OperationGT, uint64(99*time.Second))),     // Intrinsic: duration
+		makeReq(makeCond(LabelDuration, traceql.OperationLT, uint64(101*time.Second))),    // Intrinsic: duration
+		makeReq(makeCond("resource."+LabelServiceName, traceql.OperationEq, "myservice")), // Well-known attribute: service.name
+		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, int64(500))),       // Well-known attribute: http.status_code int
+		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, int64(200))),       // Well-known attribute: http.status_code int
+		makeReq(makeCond(".float", traceql.OperationGT, 456.7)),                           // Float
+		makeReq(makeCond(".float", traceql.OperationLT, 456.781)),                         // Float
+		makeReq(makeCond(".bool", traceql.OperationEq, false)),                            // Bool
+		makeReq(makeCond(".foo", traceql.OperationIn, "def", "xyz")),                      // String IN
+		makeReq(makeCond(".foo", traceql.OperationIn, "xyz", "def")),                      // String IN Same as above but reversed order
+		makeReq(makeCond(".foo", traceql.OperationRegexIn, "d.*")),                        // Regex IN
+		makeReq(makeCond("resource.foo", traceql.OperationEq, "abc")),                     // Resource-level only
+		makeReq(makeCond("span.foo", traceql.OperationEq, "def")),                         // Span-level only
+		makeReq(makeCond(".foo", traceql.OperationNone)),                                  // Projection only
+		makeReq(
 			// Matches either condition
-			Conditions: []traceql.Condition{
-				{Selector: ".foo", Operation: traceql.OperationEq, Operands: []interface{}{"baz"}},
-				{Selector: "." + LabelHTTPStatusCode, Operation: traceql.OperationGT, Operands: []interface{}{int64(100)}},
-			},
-		},
-		{
+			makeCond(".foo", traceql.OperationEq, "baz"),
+			makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, int64(100)),
+		),
+		makeReq(
 			// Same as above but reversed order
-			Conditions: []traceql.Condition{
-				{Selector: "." + LabelHTTPStatusCode, Operation: traceql.OperationGT, Operands: []interface{}{int64(100)}},
-				{Selector: ".foo", Operation: traceql.OperationEq, Operands: []interface{}{"baz"}},
-			},
-		},
-		{
+			makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, int64(100)),
+			makeCond(".foo", traceql.OperationEq, "baz"),
+		),
+		makeReq(
 			// Same attribute with mixed types
-			Conditions: []traceql.Condition{
-				{Selector: ".foo", Operation: traceql.OperationGT, Operands: []interface{}{int64(100)}},
-				{Selector: ".foo", Operation: traceql.OperationEq, Operands: []interface{}{"def"}},
-			},
-		},
+			makeCond(".foo", traceql.OperationGT, int64(100)),
+			makeCond(".foo", traceql.OperationEq, "def"),
+		),
 		// Edge cases
-		makeReq(".name", traceql.OperationEq, "Bob"),                           // Almost conflicts with intrinsic but still works
-		makeReq("resource."+LabelServiceName, traceql.OperationEq, int64(123)), // service.name doesn't match type of dedicated column
-		makeReq("."+LabelServiceName, traceql.OperationEq, "spanservicename"),  // service.name present on span
-		makeReq("."+LabelHTTPStatusCode, traceql.OperationEq, "500ouch"),       // http.status_code doesn't match type of dedicated column
-
+		makeReq(makeCond(".name", traceql.OperationEq, "Bob")),                           // Almost conflicts with intrinsic but still works
+		makeReq(makeCond("resource."+LabelServiceName, traceql.OperationEq, int64(123))), // service.name doesn't match type of dedicated column
+		makeReq(makeCond("."+LabelServiceName, traceql.OperationEq, "spanservicename")),  // service.name present on span
+		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, "500ouch")),       // http.status_code doesn't match type of dedicated column
 	}
 
 	for _, req := range searchesThatMatch {
@@ -92,21 +69,19 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	}
 
 	searchesThatDontMatch := []traceql.FetchSpansRequest{
-		makeReq(".foo", traceql.OperationEq, "abc"),        // This should not return results because the span has overridden this attribute to "def".
-		makeReq(".foo", traceql.OperationIn, "abc", "xyz"), // Same as above but additional test value
-		makeReq(".foo", traceql.OperationRegexIn, "xyz.*"), // Regex IN
-		makeReq(".span.bool", traceql.OperationEq, true),
-		makeReq(LabelName, traceql.OperationEq, "nothello"),
-		makeReq("."+LabelServiceName, traceql.OperationEq, "notmyservice"),
-		makeReq("."+LabelHTTPStatusCode, traceql.OperationEq, int64(200)),
-		makeReq("."+LabelHTTPStatusCode, traceql.OperationGT, int64(600)),
-		{
+		makeReq(makeCond(".foo", traceql.OperationEq, "abc")),                        // This should not return results because the span has overridden this attribute to "def".
+		makeReq(makeCond(".foo", traceql.OperationIn, "abc", "xyz")),                 // Same as above but additional test value
+		makeReq(makeCond(".foo", traceql.OperationRegexIn, "xyz.*")),                 // Regex IN
+		makeReq(makeCond(".span.bool", traceql.OperationEq, true)),                   // Bool not match
+		makeReq(makeCond(LabelName, traceql.OperationEq, "nothello")),                // Well-known attribute: name not match
+		makeReq(makeCond("."+LabelServiceName, traceql.OperationEq, "notmyservice")), // Well-known attribute: service.name not match
+		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, int64(200))),  // Well-known attribute: http.status_code not match
+		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, int64(600))),  // Well-known attribute: http.status_code not match
+		makeReq(
 			// Matches neither condition
-			Conditions: []traceql.Condition{
-				{Selector: ".foo", Operation: traceql.OperationEq, Operands: []interface{}{"xyz"}},
-				{Selector: "." + LabelHTTPStatusCode, Operation: traceql.OperationEq, Operands: []interface{}{1000}},
-			},
-		},
+			makeCond(".foo", traceql.OperationEq, "xyz"),
+			makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, 1000),
+		),
 	}
 
 	for _, req := range searchesThatDontMatch {
@@ -125,16 +100,6 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 	ctx := context.TODO()
 
 	// Helper functions to make requests
-
-	makeReq := func(conditions ...traceql.Condition) traceql.FetchSpansRequest {
-		return traceql.FetchSpansRequest{
-			Conditions: conditions,
-		}
-	}
-
-	makeCond := func(k string, op traceql.Operation, v ...interface{}) traceql.Condition {
-		return traceql.Condition{Selector: k, Operation: op, Operands: v}
-	}
 
 	makeSpansets := func(sets ...traceql.Spanset) []traceql.Spanset {
 		return sets
@@ -246,6 +211,46 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 			makeReq(makeCond(".xyz", traceql.OperationEq, "xyz")),
 			nil,
 		},
+
+		{
+			// Empty request returns 1 spanset with all spans
+			traceql.FetchSpansRequest{},
+			makeSpansets(
+				makeSpanset(
+					wantTr.TraceID,
+					traceql.Span{
+						ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
+						StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
+						EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
+						Attributes:         map[string]interface{}{},
+					},
+					traceql.Span{
+						ID:                 wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].ID,
+						StartTimeUnixNanos: wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
+						EndtimeUnixNanos:   wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
+						Attributes:         map[string]interface{}{},
+					},
+				),
+			),
+		},
+
+		{
+			// 2nd span only
+			makeReq(makeCond(LabelName, traceql.OperationEq, "world")),
+			makeSpansets(
+				makeSpanset(
+					wantTr.TraceID,
+					traceql.Span{
+						ID:                 wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].ID,
+						StartTimeUnixNanos: wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
+						EndtimeUnixNanos:   wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
+						Attributes: map[string]interface{}{
+							LabelName: "world",
+						},
+					},
+				),
+			),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -265,6 +270,16 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 		}
 		require.Equal(t, tc.expectedResults, actualResults, "search request:", req)
 	}
+}
+
+func makeReq(conditions ...traceql.Condition) traceql.FetchSpansRequest {
+	return traceql.FetchSpansRequest{
+		Conditions: conditions,
+	}
+}
+
+func makeCond(k string, op traceql.Operation, v ...interface{}) traceql.Condition {
+	return traceql.Condition{Selector: k, Operation: op, Operands: v}
 }
 
 func fullyPopulatedTestTrace() *Trace {
@@ -302,13 +317,13 @@ func fullyPopulatedTestTrace() *Trace {
 					{
 						Spans: []Span{
 							{
+								ID:             []byte("spanid"),
 								Name:           "hello",
 								StartUnixNanos: uint64(100 * time.Second),
 								EndUnixNanos:   uint64(200 * time.Second),
 								HttpMethod:     strPtr("get"),
 								HttpUrl:        strPtr("url/hello/world"),
 								HttpStatusCode: intPtr(500),
-								ID:             []byte("spanid"),
 								ParentSpanID:   []byte{},
 								StatusCode:     int(v1.Status_STATUS_CODE_ERROR),
 								Attrs: []Attribute{
@@ -322,6 +337,21 @@ func fullyPopulatedTestTrace() *Trace {
 									{Key: LabelServiceName, Value: strPtr("spanservicename")}, // Overrides resource-level dedicated column
 									{Key: LabelHTTPStatusCode, Value: strPtr("500ouch")},      // Different type than dedicated column
 								},
+							},
+						},
+					},
+				},
+			},
+			{
+				Resource: Resource{
+					ServiceName: "service2",
+				},
+				InstrumentationLibrarySpans: []ILS{
+					{
+						Spans: []Span{
+							{
+								ID:   []byte("spanid2"),
+								Name: "world",
 							},
 						},
 					},

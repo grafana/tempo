@@ -50,7 +50,8 @@ const (
 )
 
 var intrinsics = map[string]columnLevel{
-	LabelName: columnLevelSpan,
+	LabelName:     columnLevelSpan,
+	LabelDuration: columnLevelSpan,
 }
 
 // Lookup table of all well-known attributes with dedicated columns
@@ -333,6 +334,9 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, r
 		columnPredicates  = map[string][]parquetquery.Predicate{}
 		iters             []parquetquery.Iterator
 		genericConditions []traceql.Condition
+		durationFilter    = false
+		durationMin       = uint64(math.MaxUint64) // Initially reversed to exclude all
+		durationMax       = uint64(0)              // Initially reversed to exclude all
 	)
 
 	addPredicate := func(columnPath string, p parquetquery.Predicate) {
@@ -343,6 +347,7 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, r
 
 		// Intrinsic?
 		switch cond.Selector {
+
 		case LabelName:
 			pred, err := createStringPredicate(cond.Operation, cond.Operands)
 			if err != nil {
@@ -351,6 +356,30 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, r
 			addPredicate(columnPathSpanName, pred)
 			columnSelectAs[columnPathSpanName] = cond.Selector
 			continue
+
+		case LabelDuration:
+			durationFilter = true
+			v := cond.Operands[0].(uint64)
+			// This is kind of hacky. Merge all duration filters onto the min/max range
+			switch cond.Operation {
+			case traceql.OperationEq:
+				if v < durationMin {
+					durationMin = v
+				}
+				if v > durationMax {
+					durationMax = v
+				}
+			case traceql.OperationGT:
+				durationMax = uint64(math.MaxUint64)
+				if v < durationMin {
+					durationMin = v
+				}
+			case traceql.OperationLT:
+				durationMin = 0
+				if v > durationMax {
+					durationMax = v
+				}
+			}
 		}
 
 		cond.Selector = strings.TrimPrefix(cond.Selector, "span")
@@ -398,7 +427,13 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, r
 	iters = append(iters, makeIter(columnPathSpanStartTime, nil, columnPathSpanStartTime))
 	iters = append(iters, makeIter(columnPathSpanEndTime, nil, columnPathSpanEndTime))
 
-	spanIter := parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpan, iters, &spanCollector{requireAtLeastOneMatch})
+	spanCol := &spanCollector{
+		requireAtLeastOneMatch,
+		durationFilter,
+		durationMin,
+		durationMax,
+	}
+	spanIter := parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpan, iters, spanCol)
 
 	return spanIter, nil
 }
@@ -682,6 +717,9 @@ func createAttributeIterator(makeIter makeIterFunc, conditions []traceql.Conditi
 // This turns groups of span values into Span objects
 type spanCollector struct {
 	requireAtLeastOneMatch bool
+
+	duration                 bool
+	durationMin, durationMax uint64
 }
 
 var _ parquetquery.GroupPredicate = (*spanCollector)(nil)
@@ -717,6 +755,20 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 				span.Attributes[kv.Key] = kv.Value.String()
 			}
 		}
+	}
+
+	// TODO - We don't have a dedicated span duration column (oops)
+	// so for now we calculate it from the much larger start and end columns
+	// Introduce a dedicated column for efficiency
+	if c.duration {
+		dur := span.EndtimeUnixNanos - span.StartTimeUnixNanos
+		if dur < c.durationMin || dur > c.durationMax {
+			return false
+		}
+		// This satisfies subsequent logic that checks to see if the span
+		// ever matched anything.  TODO: Find a more efficient way to do
+		// this since the span already
+		span.Attributes["duration"] = dur
 	}
 
 	if c.requireAtLeastOneMatch {
