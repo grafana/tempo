@@ -187,7 +187,7 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.nam
 }
 ```
 
-### Search Tags
+### Search tags
 
 Ingester configuration `complete_block_timeout` affects how long tags are available for search.
 
@@ -228,7 +228,7 @@ $ curl -G -s http://localhost:3200/api/search/tags  | jq
 }
 ```
 
-### Search Tag Values
+### Search tag values
 
 Ingester configuration `complete_block_timeout` affects how long tags are available for search.
 
