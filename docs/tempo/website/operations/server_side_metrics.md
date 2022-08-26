@@ -5,8 +5,6 @@ weight: 12
 
 # Server-side metrics
 
-<span style="background-color:#f3f973;">Server-side metrics is an experimental feature.</span>
-
 Server-side metrics is a feature that derive metrics from ingested traces.
 
 To generate metrics, it uses an additional component: the metrics-generator.
@@ -54,4 +52,4 @@ This results in a clean division of responsibility and limits the blast radius f
 
 ## Configuration
 
-For a detailed view of all the config options for the metrics generator, visit [its config page]({{< relref "../configuration/#metrics-generator" >}})
+For a detailed view of all the config options for the metrics generator, visit [its config page]({{< relref "../configuration/#metrics-generator" >}}).
