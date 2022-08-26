@@ -394,11 +394,11 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 	results := []*tempopb.TraceSearchMetadata{}
 	iter2 := pq.NewJoinIterator(DefinitionLevelTrace, []pq.Iterator{
 		&rowNumberIterator{rowNumbers: rowNumbers},
-		makeIter("TraceID", nil, ""),
-		makeIter("RootServiceName", nil, ""),
-		makeIter("RootSpanName", nil, ""),
-		makeIter("StartTimeUnixNano", nil, ""),
-		makeIter("DurationNanos", nil, ""),
+		makeIter("TraceID", nil, "TraceID"),
+		makeIter("RootServiceName", nil, "RootServiceName"),
+		makeIter("RootSpanName", nil, "RootSpanName"),
+		makeIter("StartTimeUnixNano", nil, "StartTimeUnixNano"),
+		makeIter("DurationNanos", nil, "DurationNanos"),
 	}, nil)
 	defer iter2.Close()
 
@@ -532,9 +532,6 @@ func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File)
 		if index == -1 {
 			// TODO - don't panic, error instead
 			panic("column not found in parquet file:" + name)
-		}
-		if selectAs == "" {
-			selectAs = name
 		}
 		return pq.NewColumnIterator(ctx, rgs, index, name, 1000, predicate, selectAs)
 	}
