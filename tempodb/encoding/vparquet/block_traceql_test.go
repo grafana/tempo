@@ -38,33 +38,46 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 
 	searchesThatMatch := []traceql.FetchSpansRequest{
 		{}, // Empty request
-		makeReq(LabelName, traceql.OperationEq, "hello"),            // Well-known attribute: name
-		makeReq(LabelServiceName, traceql.OperationEq, "myservice"), // Well-known attribute: service.name
-		makeReq(LabelHTTPStatusCode, traceql.OperationEq, 500),      // Well-known attribute: http.status_code int
-		makeReq(LabelHTTPStatusCode, traceql.OperationGT, 200),      // Well-known attribute: http.status_code int
-		makeReq(".float", traceql.OperationGT, 456.7),               // Float
-		makeReq(".float", traceql.OperationLT, 456.781),             // Float
-		makeReq(".bool", traceql.OperationEq, false),                // Bool
-		makeReq(".foo", traceql.OperationIn, "def", "xyz"),          // String IN
-		makeReq(".foo", traceql.OperationIn, "xyz", "def"),          // String IN Same as above but reversed order
-		makeReq(".foo", traceql.OperationRegexIn, "d.*"),            // Regex IN
-		makeReq(".resource.foo", traceql.OperationEq, "abc"),        // Resource-level only
-		makeReq(".span.foo", traceql.OperationEq, "def"),            // Span-level only
-		makeReq(".foo", traceql.OperationNone),                      // Projection only
+		makeReq(LabelName, traceql.OperationEq, "hello"),                        // Well-known attribute: name
+		makeReq("resource."+LabelServiceName, traceql.OperationEq, "myservice"), // Well-known attribute: service.name
+		makeReq("."+LabelHTTPStatusCode, traceql.OperationEq, int64(500)),       // Well-known attribute: http.status_code int
+		makeReq("."+LabelHTTPStatusCode, traceql.OperationGT, int64(200)),       // Well-known attribute: http.status_code int
+		makeReq(".float", traceql.OperationGT, 456.7),                           // Float
+		makeReq(".float", traceql.OperationLT, 456.781),                         // Float
+		makeReq(".bool", traceql.OperationEq, false),                            // Bool
+		makeReq(".foo", traceql.OperationIn, "def", "xyz"),                      // String IN
+		makeReq(".foo", traceql.OperationIn, "xyz", "def"),                      // String IN Same as above but reversed order
+		makeReq(".foo", traceql.OperationRegexIn, "d.*"),                        // Regex IN
+		makeReq("resource.foo", traceql.OperationEq, "abc"),                     // Resource-level only
+		makeReq("span.foo", traceql.OperationEq, "def"),                         // Span-level only
+		makeReq(".foo", traceql.OperationNone),                                  // Projection only
 		{
 			// Matches either condition
 			Conditions: []traceql.Condition{
 				{Selector: ".foo", Operation: traceql.OperationEq, Operands: []interface{}{"baz"}},
-				{Selector: LabelHTTPStatusCode, Operation: traceql.OperationGT, Operands: []interface{}{100}},
+				{Selector: "." + LabelHTTPStatusCode, Operation: traceql.OperationGT, Operands: []interface{}{int64(100)}},
 			},
 		},
 		{
 			// Same as above but reversed order
 			Conditions: []traceql.Condition{
-				{Selector: LabelHTTPStatusCode, Operation: traceql.OperationGT, Operands: []interface{}{100}},
+				{Selector: "." + LabelHTTPStatusCode, Operation: traceql.OperationGT, Operands: []interface{}{int64(100)}},
 				{Selector: ".foo", Operation: traceql.OperationEq, Operands: []interface{}{"baz"}},
 			},
 		},
+		{
+			// Same attribute with mixed types
+			Conditions: []traceql.Condition{
+				{Selector: ".foo", Operation: traceql.OperationGT, Operands: []interface{}{int64(100)}},
+				{Selector: ".foo", Operation: traceql.OperationEq, Operands: []interface{}{"def"}},
+			},
+		},
+		// Edge cases
+		makeReq(".name", traceql.OperationEq, "Bob"),                           // Almost conflicts with intrinsic but still works
+		makeReq("resource."+LabelServiceName, traceql.OperationEq, int64(123)), // service.name doesn't match type of dedicated column
+		makeReq("."+LabelServiceName, traceql.OperationEq, "spanservicename"),  // service.name present on span
+		makeReq("."+LabelHTTPStatusCode, traceql.OperationEq, "500ouch"),       // http.status_code doesn't match type of dedicated column
+
 	}
 
 	for _, req := range searchesThatMatch {
@@ -84,14 +97,14 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		makeReq(".foo", traceql.OperationRegexIn, "xyz.*"), // Regex IN
 		makeReq(".span.bool", traceql.OperationEq, true),
 		makeReq(LabelName, traceql.OperationEq, "nothello"),
-		makeReq(LabelServiceName, traceql.OperationEq, "notmyservice"),
-		makeReq(LabelHTTPStatusCode, traceql.OperationEq, int64(200)),
-		makeReq(LabelHTTPStatusCode, traceql.OperationGT, int64(600)),
+		makeReq("."+LabelServiceName, traceql.OperationEq, "notmyservice"),
+		makeReq("."+LabelHTTPStatusCode, traceql.OperationEq, int64(200)),
+		makeReq("."+LabelHTTPStatusCode, traceql.OperationGT, int64(600)),
 		{
 			// Matches neither condition
 			Conditions: []traceql.Condition{
 				{Selector: ".foo", Operation: traceql.OperationEq, Operands: []interface{}{"xyz"}},
-				{Selector: LabelHTTPStatusCode, Operation: traceql.OperationEq, Operands: []interface{}{1000}},
+				{Selector: "." + LabelHTTPStatusCode, Operation: traceql.OperationEq, Operands: []interface{}{1000}},
 			},
 		},
 	}
@@ -139,8 +152,8 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 			// Span attributes lookup
 			// Only matches 1 condition. Returns span but only attributes that matched
 			makeReq(
-				makeCond(".span.foo", traceql.OperationEq, "bar"), // matches resource but not span
-				makeCond(".span.bar", traceql.OperationEq, 123),   // matches
+				makeCond("span.foo", traceql.OperationEq, "bar"),      // matches resource but not span
+				makeCond("span.bar", traceql.OperationEq, int64(123)), // matches
 			),
 			makeSpansets(
 				makeSpanset(
@@ -161,7 +174,7 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 		{
 			// Resource attributes lookup
 			makeReq(
-				makeCond(".resource.foo", traceql.OperationEq, "abc"), // matches resource but not span
+				makeCond("resource.foo", traceql.OperationEq, "abc"), // matches resource but not span
 			),
 			makeSpansets(
 				makeSpanset(
@@ -184,8 +197,8 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 		{
 			// Multiple attributes, only 1 matches and is returned
 			makeReq(
-				makeCond(".foo", traceql.OperationEq, "xyz"),            // doesn't match anything
-				makeCond(LabelHTTPStatusCode, traceql.OperationEq, 500), // matches span
+				makeCond(".foo", traceql.OperationEq, "xyz"),                       // doesn't match anything
+				makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, int64(500)), // matches span
 			),
 			makeSpansets(
 				makeSpanset(
@@ -205,10 +218,10 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 		{
 			// Project attributes of all types
 			makeReq(
-				makeCond(".foo", traceql.OperationNone),              // String
-				makeCond(LabelHTTPStatusCode, traceql.OperationNone), // Int
-				makeCond(".float", traceql.OperationNone),            // Float
-				makeCond(".bool", traceql.OperationNone),             // bool
+				makeCond(".foo", traceql.OperationNone),                  // String
+				makeCond("."+LabelHTTPStatusCode, traceql.OperationNone), // Int
+				makeCond(".float", traceql.OperationNone),                // Float
+				makeCond(".bool", traceql.OperationNone),                 // bool
 			),
 			makeSpansets(
 				makeSpanset(
@@ -282,6 +295,7 @@ func fullyPopulatedTestTrace() *Trace {
 					K8sContainerName: strPtr("k8scontainer"),
 					Attrs: []Attribute{
 						{Key: "foo", Value: strPtr("abc")},
+						{Key: LabelServiceName, ValueInt: intPtr(123)}, // Different type than dedicated column
 					},
 				},
 				InstrumentationLibrarySpans: []ILS{
@@ -302,6 +316,11 @@ func fullyPopulatedTestTrace() *Trace {
 									{Key: "bar", ValueInt: intPtr(123)},
 									{Key: "float", ValueDouble: fltPtr(456.78)},
 									{Key: "bool", ValueBool: boolPtr(false)},
+
+									// Edge-cases
+									{Key: LabelName, Value: strPtr("Bob")},                    // Conflicts with intrinsic but still looked up by .name
+									{Key: LabelServiceName, Value: strPtr("spanservicename")}, // Overrides resource-level dedicated column
+									{Key: LabelHTTPStatusCode, Value: strPtr("500ouch")},      // Different type than dedicated column
 								},
 							},
 						},

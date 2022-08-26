@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"reflect"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -48,23 +49,27 @@ const (
 	columnLevelSpan
 )
 
-// Lookup table of all well-known intrinsics and dedicated columns
-// TODO - Add parameter type checking here somehow, i.e. assert
-//		  that if searching "name" then the operands are strings
+var intrinsics = map[string]columnLevel{
+	LabelName: columnLevelSpan,
+}
+
+// Lookup table of all well-known attributes with dedicated columns
 var wellKnownColumnLookups = map[string]struct {
 	columnPath  string      // path.to.column
 	level       columnLevel // span or resource level
 	predicateFn makePredicateForCondition
+	typ         reflect.Type
 }{
-	// Resource-level intrinsics and columns
-	LabelServiceName: {columnPathResourceServiceName, columnLevelResource, createStringPredicate},
+	// Resource-level columns
+	LabelServiceName: {columnPathResourceServiceName, columnLevelResource, createStringPredicate, reflect.TypeOf("")},
 
-	// Span-level intrinsics and columns
-	LabelName:           {columnPathSpanName, columnLevelSpan, createStringPredicate},
-	LabelHTTPStatusCode: {columnPathSpanHttpStatusCode, columnLevelSpan, createIntPredicate},
+	// Span-level columns
+	LabelHTTPStatusCode: {columnPathSpanHttpStatusCode, columnLevelSpan, createIntPredicate, reflect.TypeOf(int64(0))},
 }
 
-// Fetch spansets from the block for the given traceql request.
+// Fetch spansets from the block for the given TraceQL FetchSpansRequest. The request is checked for
+// internal consistencies:  operand count matches the operation, all operands in each condition are identical
+// types, and the operand type is compatible with the operation.
 func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 
 	err := checkConditions(req.Conditions)
@@ -100,22 +105,41 @@ func checkConditions(conditions []traceql.Condition) error {
 
 		case traceql.OperationNone:
 			if opCount != 0 {
-				return fmt.Errorf("operand eq must have exactly 1 argument. condition: %+v", cond)
+				return fmt.Errorf("operanion none must have 0 arguments. condition: %+v", cond)
 			}
 
 		case traceql.OperationEq, traceql.OperationGT, traceql.OperationLT:
 			if opCount != 1 {
-				return fmt.Errorf("operand %v must have exactly 1 argument. condition: %+v", cond.Operation, cond)
+				return fmt.Errorf("operation %v must have exactly 1 argument. condition: %+v", cond.Operation, cond)
 			}
 
 		case traceql.OperationIn, traceql.OperationRegexIn:
 			if opCount == 0 {
-				return fmt.Errorf("operand IN requires at least 1 argument. condition: %+v", cond)
+				return fmt.Errorf("operation IN requires at least 1 argument. condition: %+v", cond)
 			}
 
 		default:
 			return fmt.Errorf("unknown operation. condition: %+v", cond)
 		}
+
+		// Verify all operands are of the same type
+		if opCount == 0 {
+			continue
+		}
+
+		for i := 1; i < opCount; i++ {
+			if reflect.TypeOf(cond.Operands[0]) != reflect.TypeOf(cond.Operands[i]) {
+				return fmt.Errorf("operands must be of the same type. condition: %+v", cond)
+			}
+		}
+	}
+
+	return nil
+}
+
+func operandType(operands []interface{}) reflect.Type {
+	if len(operands) > 0 {
+		return reflect.TypeOf(operands[0])
 	}
 	return nil
 }
@@ -141,6 +165,74 @@ func (i *spansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
 	return spanset, nil
 }
 
+// fetch is the core logic for executing the given conditions against the parquet columns. The algorithm
+// can be summarized as a hiearchy of iterators where we iterate related columns together and collect the results
+// at each level into attributes, spans, and spansets.  Each condition (.foo=bar) is pushed down to the one or more
+// matching columns using parquetquery.Predicates.  Results are collected The final return is an iterator where each result is 1 Spanset for each trace.
+//
+// Diagram:
+//
+//  Span attribute iterator: key    -----------------------------
+//                           ...    --------------------------  |
+//  Span attribute iterator: valueN ----------------------|  |  |
+//                                                        |  |  |
+//                                                        V  V  V
+//                                                     -------------
+//                                                     | attribute |
+//                                                     | collector |
+//                                                     -------------
+//                                                            |
+//                                                            | List of attributes
+//                                                            |
+//                                                            |
+//  Span column iterator 1    ---------------------------     |
+//                      ...   ------------------------  |     |
+//  Span column iterator N    ---------------------  |  |     |
+//    (ex: name, status)                          |  |  |     |
+//                                                V  V  V     V
+//                                            ------------------
+//                                            | span collector |
+//                                            ------------------
+//                                                            |
+//                                                            | List of Spans
+//  Resource attribute                                        |
+//   iterators:                                               |
+//     key     -----------------------------------------      |
+//     ...     --------------------------------------  |      |
+//     valueN  -----------------------------------  |  |      |
+//                                               |  |  |      |
+//                                               V  V  V      |
+//                                            -------------   |
+//                                            | attribute |   |
+//                                            | collector |   |
+//                                            -------------   |
+//                                                      |     |
+//                                                      |     |
+//                                                      |     |
+//                                                      |     |
+// Resource column iterator 1  --------------------     |     |
+//                      ...    -----------------  |     |     |
+// Resource column iterator N  --------------  |  |     |     |
+//    (ex: service.name)                    |  |  |     |     |
+//                                          V  V  V     V     V
+//                                         ----------------------
+//                                         |   batch collector  |
+//                                         ----------------------
+//                                                            |
+//                                                            | List of Spansets
+// Trace column iterator 1  --------------------------        |
+//                      ... -----------------------  |        |
+// Trace column iterator N  --------------------  |  |        |
+//    (ex: trace ID)                           |  |  |        |
+//                                             V  V  V        V
+//                                           -------------------
+//                                           | trace collector |
+//                                           -------------------
+//                                                            |
+//                                                            | Final Spanset
+//                                                            |
+//                                                            V
+
 func fetch(ctx context.Context, conditions []traceql.Condition, pf *parquet.File) (*spansetIterator, error) {
 
 	// Categorize conditions into span-level or resource-level
@@ -150,9 +242,9 @@ func fetch(ctx context.Context, conditions []traceql.Condition, pf *parquet.File
 	)
 	for _, cond := range conditions {
 
-		// Well-known column or intrinsic?
-		if entry, ok := wellKnownColumnLookups[cond.Selector]; ok {
-			switch entry.level {
+		// Intrinsic?
+		if level, ok := intrinsics[cond.Selector]; ok {
+			switch level {
 			case columnLevelSpan:
 				spanConditions = append(spanConditions, cond)
 			case columnLevelResource:
@@ -161,27 +253,25 @@ func fetch(ctx context.Context, conditions []traceql.Condition, pf *parquet.File
 			continue
 		}
 
-		// Attribute selector?
-		if strings.HasPrefix(cond.Selector, ".") {
-			isSpan := true
-			isRes := true
-			if strings.HasPrefix(cond.Selector, ".span.") {
-				isRes = false
-			} else if strings.HasPrefix(cond.Selector, ".resource") {
-				isSpan = false
-			}
+		// It must be an attribute selector?
+		switch {
 
-			if isSpan {
-				spanConditions = append(spanConditions, cond)
-			}
-			if isRes {
-				resourceConditions = append(resourceConditions, cond)
-			}
-
+		case strings.HasPrefix(cond.Selector, "."):
+			spanConditions = append(spanConditions, cond)
+			resourceConditions = append(resourceConditions, cond)
 			continue
-		}
 
-		return nil, fmt.Errorf("unknown traceql selector: %s", cond.Selector)
+		case strings.HasPrefix(cond.Selector, "span."):
+			spanConditions = append(spanConditions, cond)
+			continue
+
+		case strings.HasPrefix(cond.Selector, "resource"):
+			resourceConditions = append(resourceConditions, cond)
+			continue
+
+		default:
+			return nil, fmt.Errorf("unknown traceql selector: %s", cond.Selector)
+		}
 	}
 
 	// For now we iterate all row groups in the file
@@ -195,14 +285,33 @@ func fetch(ctx context.Context, conditions []traceql.Condition, pf *parquet.File
 		return parquetquery.NewColumnIterator(ctx, pf.RowGroups(), index, name, 1000, predicate, selectAs)
 	}
 
-	spanRequireAtLeastOneMatch := len(spanConditions) > 0 && len(resourceConditions) == 0
+	// Global state
+	// Span-filtering behavior changes depending on the resource-filtering in effect,
+	// and vice-versa.  For example consider the query { span.a=1 }.  If no spans have a=1
+	// then it generate the empty spanset.
+	// However once we add a resource condition: { span.a=1 || resource.b=2 }, now the span
+	// filtering must return all spans, even if no spans have a=1, because they might be
+	// matched upstream to a resource.
+	var (
+		// If there are only span conditions, then don't return a span upstream
+		// unless it matches at least 1 span-level condition.
+		spanRequireAtLeastOneMatch = len(spanConditions) > 0 && len(resourceConditions) == 0
+
+		// If there are only resource conditions, then don't return a resource upstream
+		// unless it matches at least 1 resource-level condition.
+		batchRequireAtLeastOneMatch = len(spanConditions) == 0 && len(resourceConditions) > 0
+
+		// Don't return the final spanset upstream unless it matched at least 1 condition
+		// anywhere, except in the case of the empty query: {}
+		batchRequireAtLeastOneMatchOverall = len(conditions) > 0
+	)
+
 	spanIter, err := createSpanIterator(makeIter, spanConditions, spanRequireAtLeastOneMatch)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span iterator")
 	}
 
-	batchRequireAtLeastOneMatch := len(spanConditions) == 0 && len(resourceConditions) > 0
-	resourceIter, err := createResourceIterator(makeIter, spanIter, resourceConditions, batchRequireAtLeastOneMatch, len(conditions) > 0)
+	resourceIter, err := createResourceIterator(makeIter, spanIter, resourceConditions, batchRequireAtLeastOneMatch, batchRequireAtLeastOneMatchOverall)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating resource iterator")
 	}
@@ -220,22 +329,54 @@ func fetch(ctx context.Context, conditions []traceql.Condition, pf *parquet.File
 func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, requireAtLeastOneMatch bool) (parquetquery.Iterator, error) {
 
 	var (
+		columnSelectAs    = map[string]string{}
+		columnPredicates  = map[string][]parquetquery.Predicate{}
 		iters             []parquetquery.Iterator
 		genericConditions []traceql.Condition
 	)
 
+	addPredicate := func(columnPath string, p parquetquery.Predicate) {
+		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
+	}
+
 	for _, cond := range conditions {
 
-		// Well-known selector?
-		if entry, ok := wellKnownColumnLookups[cond.Selector]; ok {
-			pred, err := entry.predicateFn(cond.Operation, cond.Operands)
+		// Intrinsic?
+		switch cond.Selector {
+		case LabelName:
+			pred, err := createStringPredicate(cond.Operation, cond.Operands)
 			if err != nil {
-				return nil, errors.Wrap(err, "creating predicate")
+				return nil, err
 			}
-			iters = append(iters, makeIter(entry.columnPath, pred, cond.Selector))
+			addPredicate(columnPathSpanName, pred)
+			columnSelectAs[columnPathSpanName] = cond.Selector
 			continue
 		}
 
+		cond.Selector = strings.TrimPrefix(cond.Selector, "span")
+		cond.Selector = strings.TrimPrefix(cond.Selector, ".")
+
+		// Well-known attribute?
+		if entry, ok := wellKnownColumnLookups[cond.Selector]; ok && entry.level == columnLevelSpan {
+			if cond.Operation == traceql.OperationNone {
+				addPredicate(entry.columnPath, nil) // No filtering
+				columnSelectAs[entry.columnPath] = cond.Selector
+				continue
+			}
+
+			// Same type?
+			if operandType(cond.Operands) == entry.typ {
+				pred, err := entry.predicateFn(cond.Operation, cond.Operands)
+				if err != nil {
+					return nil, errors.Wrap(err, "creating predicate")
+				}
+				addPredicate(entry.columnPath, pred)
+				columnSelectAs[entry.columnPath] = cond.Selector
+				continue
+			}
+		}
+
+		// Else: generic attribute lookup
 		genericConditions = append(genericConditions, cond)
 	}
 
@@ -248,6 +389,10 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, r
 		iters = append(iters, attrIter)
 	}
 
+	for columnPath, predicates := range columnPredicates {
+		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
+	}
+
 	// Static columns that are always loaded
 	iters = append(iters, makeIter(columnPathSpanID, nil, columnPathSpanID))
 	iters = append(iters, makeIter(columnPathSpanStartTime, nil, columnPathSpanStartTime))
@@ -258,32 +403,50 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, r
 	return spanIter, nil
 }
 
-// createResourceIter iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
+// createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
 // one batch each. It builds on top of the span iterator, and turns the groups of spans and resource-level values into
 // spansets.  Spansets are returned that match any of the given conditions.
-
 func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, requireAtLeastOneMatchOverall bool) (parquetquery.Iterator, error) {
 	var (
+		columnSelectAs    = map[string]string{}
+		columnPredicates  = map[string][]parquetquery.Predicate{}
 		iters             = []parquetquery.Iterator{spanIterator}
 		genericConditions []traceql.Condition
 	)
 
+	addPredicate := func(columnPath string, p parquetquery.Predicate) {
+		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
+	}
+
 	for _, cond := range conditions {
 
+		cond.Selector = strings.TrimPrefix(cond.Selector, "resource")
+		cond.Selector = strings.TrimPrefix(cond.Selector, ".")
+
 		// Well-known selector?
-		if entry, ok := wellKnownColumnLookups[cond.Selector]; ok {
-			pred, err := entry.predicateFn(cond.Operation, cond.Operands)
-			if err != nil {
-				return nil, errors.Wrap(err, "creating predicate")
+		if entry, ok := wellKnownColumnLookups[cond.Selector]; ok && entry.level == columnLevelResource {
+			if cond.Operation == traceql.OperationNone {
+				addPredicate(entry.columnPath, nil) // No filtering
+				columnSelectAs[entry.columnPath] = cond.Selector
+				continue
 			}
-			iters = append(iters, makeIter(entry.columnPath, pred, cond.Selector))
-			continue
+
+			// Same type?
+			if operandType(cond.Operands) == entry.typ {
+				pred, err := entry.predicateFn(cond.Operation, cond.Operands)
+				if err != nil {
+					return nil, errors.Wrap(err, "creating predicate")
+				}
+				iters = append(iters, makeIter(entry.columnPath, pred, cond.Selector))
+				continue
+			}
 		}
 
+		// Else: generic attribute lookup
 		genericConditions = append(genericConditions, cond)
 	}
 
-	attrIter, err := createAttributeIterator(makeIter, genericConditions, ".resource.", DefinitionLevelResourceAttrs,
+	attrIter, err := createAttributeIterator(makeIter, genericConditions, "resource.", DefinitionLevelResourceAttrs,
 		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span attribute iterator")
@@ -369,6 +532,8 @@ func createIntPredicate(op traceql.Operation, operands []interface{}) (parquetqu
 		min = i + 1
 	case traceql.OperationLT:
 		max = i - 1
+	default:
+		return nil, fmt.Errorf("operand not supported for integers: %+v", op)
 	}
 
 	return parquetquery.NewIntBetweenPredicate(min, max), nil
@@ -402,6 +567,8 @@ func createFloatPredicate(op traceql.Operation, operands []interface{}) (parquet
 		min = math.Nextafter(i, max)
 	case traceql.OperationLT:
 		max = math.Nextafter(i, min)
+	default:
+		return nil, fmt.Errorf("operand not supported for floats: %+v", op)
 	}
 
 	return parquetquery.NewFloatBetweenPredicate(min, max), nil
@@ -421,7 +588,13 @@ func createBoolPredicate(op traceql.Operation, operands []interface{}) (parquetq
 		return nil, fmt.Errorf("operand is not bool: %+v", operands[0])
 	}
 
-	return parquetquery.NewBoolPredicate(b), nil
+	switch op {
+	case traceql.OperationEq:
+		return parquetquery.NewBoolPredicate(b), nil
+
+	default:
+		return nil, fmt.Errorf("operand not supported for booleans: %+v", op)
+	}
 }
 
 func createAttributeIterator(makeIter makeIterFunc, conditions []traceql.Condition,
@@ -438,11 +611,7 @@ func createAttributeIterator(makeIter makeIterFunc, conditions []traceql.Conditi
 	)
 	for _, cond := range conditions {
 
-		// Arbitrary attribute lookup
-		s := cond.Selector
-		s = strings.TrimPrefix(s, prefix)
-		s = strings.TrimPrefix(s, ".")
-		attrKeys = append(attrKeys, s)
+		attrKeys = append(attrKeys, cond.Selector)
 
 		if cond.Operation == traceql.OperationNone {
 			// This means we have to scan all values, we don't know what type
@@ -454,56 +623,38 @@ func createAttributeIterator(makeIter makeIterFunc, conditions []traceql.Conditi
 			continue
 		}
 
-		var (
-			stringOperands = []interface{}{}
-			intOperands    = []interface{}{}
-			fltOperands    = []interface{}{}
-			boolOperands   = []interface{}{}
-		)
-		for _, op := range cond.Operands {
-			switch opv := op.(type) {
-			case string:
-				stringOperands = append(stringOperands, opv)
-			case int, int64:
-				intOperands = append(intOperands, opv)
-			case float32, float64:
-				fltOperands = append(fltOperands, opv)
-			case bool:
-				boolOperands = append(boolOperands, opv)
-			}
-		}
+		switch cond.Operands[0].(type) {
 
-		if len(stringOperands) > 0 {
-			pred, err := createStringPredicate(cond.Operation, stringOperands)
+		case string:
+			pred, err := createStringPredicate(cond.Operation, cond.Operands)
 			if err != nil {
 				return nil, errors.Wrap(err, "creating attribute predicate")
 			}
 			attrStringPreds = append(attrStringPreds, pred)
-		}
 
-		if len(intOperands) > 0 {
-			pred, err := createIntPredicate(cond.Operation, intOperands)
+		case int64:
+			pred, err := createIntPredicate(cond.Operation, cond.Operands)
 			if err != nil {
 				return nil, errors.Wrap(err, "creating attribute predicate")
 			}
 			attrIntPreds = append(attrIntPreds, pred)
-		}
 
-		if len(fltOperands) > 0 {
-			pred, err := createFloatPredicate(cond.Operation, fltOperands)
+		case float64:
+			pred, err := createFloatPredicate(cond.Operation, cond.Operands)
 			if err != nil {
 				return nil, errors.Wrap(err, "creating attribute predicate")
 			}
 			attrFltPreds = append(attrFltPreds, pred)
-		}
-		if len(boolOperands) > 0 {
-			pred, err := createBoolPredicate(cond.Operation, boolOperands)
+
+		case bool:
+			pred, err := createBoolPredicate(cond.Operation, cond.Operands)
 			if err != nil {
 				return nil, errors.Wrap(err, "creating attribute predicate")
 			}
 			boolPreds = append(boolPreds, pred)
 		}
 	}
+
 	var attrIters []parquetquery.Iterator
 	if len(attrKeys) > 0 {
 		attrIters = append(attrIters, makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key"))
@@ -678,14 +829,24 @@ type traceCollector struct {
 var _ parquetquery.GroupPredicate = (*traceCollector)(nil)
 
 func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
-	spanset := res.OtherEntries[0].Value.(*traceql.Spanset)
+	finalSpanset := &traceql.Spanset{}
 
 	for _, e := range res.Entries {
 		switch e.Key {
 		case columnPathTraceID:
-			spanset.TraceID = e.Value.ByteArray()
+			finalSpanset.TraceID = e.Value.ByteArray()
 		}
 	}
+
+	for _, e := range res.OtherEntries {
+		if spanset, ok := e.Value.(*traceql.Spanset); ok {
+			finalSpanset.Spans = append(finalSpanset.Spans, spanset.Spans...)
+		}
+	}
+
+	res.Entries = res.Entries[:0]
+	res.OtherEntries = res.OtherEntries[:0]
+	res.AppendOtherValue("spanset", finalSpanset)
 
 	return true
 }
@@ -704,25 +865,22 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	var val interface{}
 
 	for _, e := range res.Entries {
+		// Ignore nulls
+		if e.Value.Kind() < 0 {
+			continue
+		}
+
 		switch e.Key {
 		case "key":
 			key = e.Value.String()
 		case "string":
-			if e.Value.Kind() >= 0 {
-				val = e.Value.String()
-			}
+			val = e.Value.String()
 		case "int":
-			if e.Value.Kind() >= 0 {
-				val = e.Value.Int64()
-			}
+			val = e.Value.Int64()
 		case "float":
-			if e.Value.Kind() >= 0 {
-				val = e.Value.Double()
-			}
+			val = e.Value.Double()
 		case "bool":
-			if e.Value.Kind() >= 0 {
-				val = e.Value.Boolean()
-			}
+			val = e.Value.Boolean()
 		}
 	}
 
