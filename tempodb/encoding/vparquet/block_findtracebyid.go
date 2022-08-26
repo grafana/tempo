@@ -156,7 +156,7 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 	return filter.Test(id), nil
 }
 
-func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID) (_ *tempopb.Trace, err error) {
+func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.Trace, err error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.FindTraceByID",
 		opentracing.Tags{
 			"blockID":   b.meta.BlockID,
@@ -173,15 +173,21 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID) (_ 
 		return nil, nil
 	}
 
+	// todo: combine with open logic from the other search functions
+	var readerAt io.ReaderAt
 	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
 	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()
 
-	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 32)
+	readerAt = rr
+	if opts.ReadBufferCount > 0 {
+		br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
 
-	// todo: disabling by default but we should make cache settings configurable here
-	or := newParquetOptimizedReaderAt(br, rr, int64(b.meta.Size), b.meta.FooterSize, common.CacheControl{Footer: false, ColumnIndex: false, OffsetIndex: false})
+		// todo: disabling by default but we should make cache settings configurable here
+		or := newParquetOptimizedReaderAt(br, rr, int64(b.meta.Size), b.meta.FooterSize, opts.CacheControl)
+		readerAt = or
+	}
 
-	pf, err := parquet.OpenFile(or, int64(b.meta.Size))
+	pf, err := parquet.OpenFile(readerAt, int64(b.meta.Size), parquet.SkipBloomFilters(true))
 	if err != nil {
 		return nil, errors.Wrap(err, "error opening file in FindTraceByID")
 	}
