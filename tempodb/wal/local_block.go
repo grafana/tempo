@@ -48,12 +48,13 @@ func NewLocalBlock(ctx context.Context, existingBlock common.BackendBlock, l *lo
 	return c, nil
 }
 
-func (c *LocalBlock) FindTraceByID(ctx context.Context, id common.ID) (*tempopb.Trace, error) {
-	return c.BackendBlock.FindTraceByID(ctx, id)
+func (c *LocalBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
+	return c.BackendBlock.FindTraceByID(ctx, id, opts)
 }
 
 // FlushedTime returns the time the block was flushed.  Will return 0
-//  if the block was never flushed
+//
+//	if the block was never flushed
 func (c *LocalBlock) FlushedTime() time.Time {
 	unixTime := c.flushedTime.Load()
 	if unixTime == 0 {

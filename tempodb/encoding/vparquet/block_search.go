@@ -43,7 +43,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	defer span.Finish()
 
 	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
-	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()
+	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
 
@@ -73,7 +73,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	// TODO: error handling
 	results := searchParquetFile(derivedCtx, pf, req, rgs)
 	results.Metrics.InspectedBlocks++
-	results.Metrics.InspectedBytes += rr.TotalBytesRead
+	results.Metrics.InspectedBytes += rr.TotalBytesRead.Load()
 
 	return results, nil
 }
