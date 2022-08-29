@@ -1937,6 +1937,8 @@ github.com/segmentio/parquet-go v0.0.0-20220802221544-d84ed320251d h1:IxYmTiYCMa
 github.com/segmentio/parquet-go v0.0.0-20220802221544-d84ed320251d/go.mod h1:BuMbRhCCg3gFchup9zucJaUjQ4m6RxX+iVci37CoMPQ=
 github.com/segmentio/parquet-go v0.0.0-20220811205829-7efc157d28af h1:DTVh/gwrdXKC418tn2hLECLC+/XaYZ+5yngQZtHlzzw=
 github.com/segmentio/parquet-go v0.0.0-20220811205829-7efc157d28af/go.mod h1:PxYdAI6cGd+s1j4hZDQbz3VFgobF5fDA0weLeNWKTE4=
+github.com/segmentio/parquet-go v0.0.0-20220829181003-2ef012b80dbc h1:h4kxbgUecBMwwv2W8ldGwyl8U9IaZ0CAxi6Dv7RwhPw=
+github.com/segmentio/parquet-go v0.0.0-20220829181003-2ef012b80dbc/go.mod h1:PxYdAI6cGd+s1j4hZDQbz3VFgobF5fDA0weLeNWKTE4=
 github.com/sercand/kuberesolver v2.1.0+incompatible/go.mod h1:lWF3GL0xptCB/vCiJPl/ZshwPsX/n4Y7u0CW9E7aQIQ=
 github.com/sercand/kuberesolver v2.4.0+incompatible h1:WE2OlRf6wjLxHwNkkFLQGaZcVLEXjMjBPjjEU5vksH8=
 github.com/sercand/kuberesolver v2.4.0+incompatible/go.mod h1:lWF3GL0xptCB/vCiJPl/ZshwPsX/n4Y7u0CW9E7aQIQ=
