@@ -44,7 +44,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 		})
 	defer span.Finish()
 
-	pf, rr, err := b.openForSearch(derivedCtx, opts)
+	pf, rr, err := b.openForSearch(derivedCtx, opts, parquet.SkipPageIndex(true))
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
@@ -73,22 +73,25 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 }
 
 // openForSearch consolidates all the logic regarding opening a parquet file in object storage
-func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions) (*parquet.File, *BackendReaderAt, error) {
+func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions, o ...parquet.FileOption) (*parquet.File, *BackendReaderAt, error) {
 	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
 
 	readerAt := io.ReaderAt(backendReaderAt)
 	// if we have no buffers configured then skip creating the buffered reader and optimized reader.
 	// a likely case is when we are reading a file on the local disk such as in ingester search
 	if opts.ReadBufferCount > 0 {
-		br := tempo_io.NewBufferedReaderAt(readerAt, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
-		or := newParquetOptimizedReaderAt(br, backendReaderAt, int64(b.meta.Size), b.meta.FooterSize, opts.CacheControl)
+		readerAt = tempo_io.NewBufferedReaderAt(readerAt, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
+	}
 
-		readerAt = or
+	readerAt = newParquetOptimizedReaderAt(readerAt, int64(b.meta.Size), b.meta.FooterSize)
+
+	if opts.CacheControl.ColumnIndex || opts.CacheControl.Footer || opts.CacheControl.OffsetIndex {
+		readerAt = newCachedReaderAt(readerAt, backendReaderAt, opts.CacheControl)
 	}
 
 	span, _ := opentracing.StartSpanFromContext(ctx, "parquet.OpenFile")
 	defer span.Finish()
-	pf, err := parquet.OpenFile(readerAt, int64(b.meta.Size), parquet.SkipPageIndex(true))
+	pf, err := parquet.OpenFile(readerAt, int64(b.meta.Size), o...)
 
 	return pf, backendReaderAt, err
 }
