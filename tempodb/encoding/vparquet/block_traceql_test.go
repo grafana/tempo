@@ -55,6 +55,11 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, int64(500)),
 			makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, int64(500)),
 		),
+		{
+			// Overlaps time range
+			StartTimeUnixNanos: uint64(101 * time.Second),
+			EndTimeUnixNanos:   uint64(102 * time.Second),
+		},
 		// Edge cases
 		makeReq(makeCond(".name", traceql.OperationEq, "Bob")),                           // Almost conflicts with intrinsic but still works
 		makeReq(makeCond("resource."+LabelServiceName, traceql.OperationEq, int64(123))), // service.name doesn't match type of dedicated column
@@ -87,6 +92,11 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			makeCond(".foo", traceql.OperationEq, "xyz"),
 			makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, 1000),
 		),
+		{
+			// Outside time range
+			StartTimeUnixNanos: uint64(300 * time.Second),
+			EndTimeUnixNanos:   uint64(400 * time.Second),
+		},
 	}
 
 	for _, req := range searchesThatDontMatch {

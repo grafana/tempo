@@ -88,7 +88,7 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest)
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "opening parquet file")
 	}
 
-	iter, err := fetch(ctx, req.Conditions, pf)
+	iter, err := fetch(ctx, req, pf)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "creating fetch iter")
 	}
@@ -234,14 +234,14 @@ func (i *spansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
 //                                                            |
 //                                                            V
 
-func fetch(ctx context.Context, conditions []traceql.Condition, pf *parquet.File) (*spansetIterator, error) {
+func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File) (*spansetIterator, error) {
 
 	// Categorize conditions into span-level or resource-level
 	var (
 		spanConditions     []traceql.Condition
 		resourceConditions []traceql.Condition
 	)
-	for _, cond := range conditions {
+	for _, cond := range req.Conditions {
 
 		// Intrinsic?
 		if level, ok := intrinsics[cond.Selector]; ok {
@@ -304,10 +304,10 @@ func fetch(ctx context.Context, conditions []traceql.Condition, pf *parquet.File
 
 		// Don't return the final spanset upstream unless it matched at least 1 condition
 		// anywhere, except in the case of the empty query: {}
-		batchRequireAtLeastOneMatchOverall = len(conditions) > 0
+		batchRequireAtLeastOneMatchOverall = len(req.Conditions) > 0
 	)
 
-	spanIter, err := createSpanIterator(makeIter, spanConditions, spanRequireAtLeastOneMatch)
+	spanIter, err := createSpanIterator(makeIter, spanConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, spanRequireAtLeastOneMatch)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span iterator")
 	}
@@ -327,7 +327,7 @@ func fetch(ctx context.Context, conditions []traceql.Condition, pf *parquet.File
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
-func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, requireAtLeastOneMatch bool) (parquetquery.Iterator, error) {
+func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, start, end uint64, requireAtLeastOneMatch bool) (parquetquery.Iterator, error) {
 
 	var (
 		columnSelectAs    = map[string]string{}
@@ -423,12 +423,21 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, r
 		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
 	}
 
-	dynamicIterCount := len(iters)
+	// Time range filtering?
+	var startFilter, endFilter parquetquery.Predicate
+	if start > 0 && end > 0 {
+		// Here's how we detect the span overlaps the time window:
+		// Span start <= req.End
+		// Span end >= req.Start
+		startFilter = parquetquery.NewIntBetweenPredicate(0, int64(end))
+		endFilter = parquetquery.NewIntBetweenPredicate(int64(start), math.MaxInt64)
+	}
 
 	// Static columns that are always loaded
-	iters = append(iters, makeIter(columnPathSpanID, nil, columnPathSpanID))
-	iters = append(iters, makeIter(columnPathSpanStartTime, nil, columnPathSpanStartTime))
-	iters = append(iters, makeIter(columnPathSpanEndTime, nil, columnPathSpanEndTime))
+	var required []parquetquery.Iterator
+	required = append(required, makeIter(columnPathSpanID, nil, columnPathSpanID))
+	required = append(required, makeIter(columnPathSpanStartTime, startFilter, columnPathSpanStartTime))
+	required = append(required, makeIter(columnPathSpanEndTime, endFilter, columnPathSpanEndTime))
 
 	spanCol := &spanCollector{
 		requireAtLeastOneMatch,
@@ -439,13 +448,16 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, r
 
 	// TODO - This is an optimization for cases like { span.foo=bar }
 	// Since it is the only span condition and required to match,
-	// we can use a Join to skip over the static columns like ID, etc
-	// where there wasn't a match on foo=bar
-	if requireAtLeastOneMatch && dynamicIterCount == 1 {
-		return parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, iters, spanCol), nil
+	// we can move it into the required list.  This skips over static
+	// columns like ID where other conditions don't match.
+	if requireAtLeastOneMatch && len(iters) == 1 {
+		required = append(required, iters[0])
+		iters = iters[1:]
 	}
 
-	return parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpan, iters, spanCol), nil
+	// Left join here means the span id/start/end iterators + 1 are required,
+	// and all other conditions are optional. Whatever matches is returned.
+	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpans, required, iters, spanCol), nil
 }
 
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
