@@ -266,7 +266,7 @@ func fetch(ctx context.Context, conditions []traceql.Condition, pf *parquet.File
 			spanConditions = append(spanConditions, cond)
 			continue
 
-		case strings.HasPrefix(cond.Selector, "resource"):
+		case strings.HasPrefix(cond.Selector, "resource."):
 			resourceConditions = append(resourceConditions, cond)
 			continue
 
@@ -455,7 +455,7 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
-		iters             = []parquetquery.Iterator{spanIterator}
+		iters             = []parquetquery.Iterator{}
 		genericConditions []traceql.Condition
 	)
 
@@ -505,20 +505,24 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 		requireAtLeastOneMatchOverall,
 	}
 
-	// TODO - This is an optimization for cases like { resource.foo=bar }
-	// Since it is the only resource condition and required to match,
-	// we can use a Join to skip over the spans for batches
-	// where there wasn't a match on foo=bar
-	if requireAtLeastOneMatch && len(iters) == 2 /* 1 iter + spanIter */ {
-		return parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, iters, batchCol), nil
+	required := []parquetquery.Iterator{
+		spanIterator,
 	}
 
-	// TODO - Nice optimization needed: Since we throw out batches
-	// without any spans, need to incorporate a Join in here somehow
-	// which will have the same effect but more efficiently.
-	// The existing Join can't be used because the resource-level conditions
-	// are optional.  Need to create a LeftJoin?
-	return parquetquery.NewUnionIterator(DefinitionLevelResourceSpans, iters, batchCol), nil
+	// This is an optimization for cases like { resource.foo=bar }
+	// Since it is the only resource condition and required to match,
+	// we can move it into the required list.  This skips over spans
+	// where there wasn't a match on the resource
+	if requireAtLeastOneMatch && len(iters) == 1 {
+		required = append(required, iters[0])
+		iters = iters[1:]
+	}
+
+	// Left join here means the span iterator + 1 are required,
+	// and all other resource conditions are optional. Whatever matches
+	// is returned.
+	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpans,
+		required, iters, batchCol), nil
 }
 
 func createTraceIterator(makeIter makeIterFunc, resourceIter parquetquery.Iterator) (parquetquery.Iterator, error) {
@@ -713,30 +717,27 @@ func createAttributeIterator(makeIter makeIterFunc, conditions []traceql.Conditi
 		}
 	}
 
-	var attrIters []parquetquery.Iterator
-	if len(attrKeys) > 0 {
-		attrIters = append(attrIters, makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key"))
-	}
+	var valueIters []parquetquery.Iterator
 	if len(attrStringPreds) > 0 {
-		attrIters = append(attrIters, makeIter(strPath, parquetquery.NewOrPredicate(attrStringPreds...), "string"))
+		valueIters = append(valueIters, makeIter(strPath, parquetquery.NewOrPredicate(attrStringPreds...), "string"))
 	}
 	if len(attrIntPreds) > 0 {
-		attrIters = append(attrIters, makeIter(intPath, parquetquery.NewOrPredicate(attrIntPreds...), "int"))
+		valueIters = append(valueIters, makeIter(intPath, parquetquery.NewOrPredicate(attrIntPreds...), "int"))
 	}
 	if len(attrFltPreds) > 0 {
-		attrIters = append(attrIters, makeIter(floatPath, parquetquery.NewOrPredicate(attrFltPreds...), "float"))
+		valueIters = append(valueIters, makeIter(floatPath, parquetquery.NewOrPredicate(attrFltPreds...), "float"))
 	}
 	if len(boolPreds) > 0 {
-		attrIters = append(attrIters, makeIter(boolPath, parquetquery.NewOrPredicate(boolPreds...), "bool"))
+		valueIters = append(valueIters, makeIter(boolPath, parquetquery.NewOrPredicate(boolPreds...), "bool"))
 	}
 
-	// TODO - Need an optimization here.  We should be using the key iterator to join with
-	// and skip ahead to only inspect values for the matching keys.  However the existing join
-	// doesn't work for this since we also need to identify cases where the attribute had an unmatching
-	// value (different than missing entirely).  Need to create a LeftJoin which requires key present,
-	// and values are optional?
-	if len(attrIters) > 0 {
-		return parquetquery.NewUnionIterator(definitionLevel, attrIters, &attributeCollector{}), nil
+	if len(valueIters) > 0 {
+		// LeftJoin means only look at rows where the key is what we want.
+		// Bring in any of the typed values as needed.
+		return parquetquery.NewLeftJoinIterator(definitionLevel,
+			[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
+			valueIters,
+			&attributeCollector{}), nil
 	}
 
 	return nil, nil
@@ -775,10 +776,12 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?
 			switch kv.Value.Kind() {
-			case parquet.Int32:
-				span.Attributes[kv.Key] = kv.Value.Int32()
-			case parquet.Int64:
+			case parquet.Boolean:
+				span.Attributes[kv.Key] = kv.Value.Boolean()
+			case parquet.Int32, parquet.Int64:
 				span.Attributes[kv.Key] = kv.Value.Int64()
+			case parquet.Float:
+				span.Attributes[kv.Key] = kv.Value.Float()
 			case parquet.ByteArray:
 				span.Attributes[kv.Key] = kv.Value.String()
 			}
@@ -795,7 +798,8 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 		// This satisfies subsequent logic that checks to see if the span
 		// ever matched anything.  TODO: Find a more efficient way to do
-		// this since the span already
+		// this since duration is already present in the span data (start/end times)
+		// We need to flag that this span matched "something"
 		span.Attributes["duration"] = dur
 	}
 
@@ -830,20 +834,28 @@ type batchCollector struct {
 var _ parquetquery.GroupPredicate = (*batchCollector)(nil)
 
 func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
-	sp := &traceql.Spanset{}
+
+	// TODO - This wraps everything up in a spanset per batch.
+	// We probably don't need to do this, since the traceCollector
+	// flattens it into 1 spanset per trace.  All we really need
+	// todo is merge the resource-level attributes onto the spans
+	// and filter out spans that didn't match anything.
 
 	resAttrs := make(map[string]interface{})
+	spans := make([]traceql.Span, 0, len(res.OtherEntries))
 
 	for _, kv := range res.OtherEntries {
 		if span, ok := kv.Value.(*traceql.Span); ok {
-			sp.Spans = append(sp.Spans, *span)
+			spans = append(spans, *span)
 			continue
 		}
+
+		// Attributes show up here
 		resAttrs[kv.Key] = kv.Value
 	}
 
 	// Throw out batches without any spans
-	if len(sp.Spans) == 0 {
+	if len(spans) == 0 {
 		return false
 	}
 
@@ -863,7 +875,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	// Copy resource-level attributes to the individual spans now
 	for k, v := range resAttrs {
-		for _, span := range sp.Spans {
+		for _, span := range spans {
 			if _, alreadyExists := span.Attributes[k]; !alreadyExists {
 				span.Attributes[k] = v
 			}
@@ -871,7 +883,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	}
 
 	// Remove unmatched attributes
-	for _, span := range sp.Spans {
+	for _, span := range spans {
 		for k, v := range span.Attributes {
 			if v == nil {
 				delete(span.Attributes, k)
@@ -879,18 +891,24 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
-	// Throw out batches that don't have any attributes
+	sp := &traceql.Spanset{
+		Spans: make([]traceql.Span, 0, len(spans)),
+	}
+
+	// Copy over only spans that matched something
 	if c.requireAtLeastOneMatchOverall {
-		matchFound := false
-		for _, span := range sp.Spans {
+		for _, span := range spans {
 			if len(span.Attributes) > 0 {
-				matchFound = true
-				break
+				sp.Spans = append(sp.Spans, span)
 			}
 		}
-		if !matchFound {
-			return false
-		}
+	} else {
+		sp.Spans = spans
+	}
+
+	// Throw out batches without any spans
+	if len(sp.Spans) == 0 {
+		return false
 	}
 
 	res.Entries = res.Entries[:0]
@@ -945,7 +963,8 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	var val interface{}
 
 	for _, e := range res.Entries {
-		// Ignore nulls
+		// Ignore nulls, this leaves val as the remaining found value,
+		// or nil if the key was found but no matching values
 		if e.Value.Kind() < 0 {
 			continue
 		}
@@ -962,12 +981,6 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case "bool":
 			val = e.Value.Boolean()
 		}
-	}
-
-	if key == "" {
-		// This means we got a value within range but some other key.
-		// Just ignore
-		return false
 	}
 
 	res.Entries = res.Entries[:0]

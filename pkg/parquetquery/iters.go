@@ -616,6 +616,167 @@ func (j *JoinIterator) Close() {
 	}
 }
 
+// LeftJoinIterator joins two or more iterators for matches at the given definition level.
+// The first set of required iterators must all produce matching results. The second set
+// of optional iterators are collected if they also match.
+// TODO - This should technically obsolete the JoinIterator.
+type LeftJoinIterator struct {
+	definitionLevel              int
+	required, optional           []Iterator
+	peeksRequired, peeksOptional []*IteratorResult
+	pred                         GroupPredicate
+}
+
+var _ Iterator = (*JoinIterator)(nil)
+
+func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pred GroupPredicate) *LeftJoinIterator {
+	j := LeftJoinIterator{
+		definitionLevel: definitionLevel,
+		required:        required,
+		optional:        optional,
+		peeksRequired:   make([]*IteratorResult, len(required)),
+		peeksOptional:   make([]*IteratorResult, len(optional)),
+		pred:            pred,
+	}
+	return &j
+}
+
+func (j *LeftJoinIterator) Next() *IteratorResult {
+
+	// Here is the algorithm for joins:  On each pass of the iterators
+	// we remember which ones are pointing at the earliest rows. If all
+	// are the lowest (and therefore pointing at the same thing) then
+	// there is a successful join and return the result.
+	// Else we progress the iterators and try again.
+	// There is an optimization here in that we can seek to the highest
+	// row seen. It's impossible to have joins before that row.
+	for {
+		lowestRowNumber := MaxRowNumber()
+		highestRowNumber := EmptyRowNumber()
+		lowestIters := make([]int, 0, len(j.required))
+
+		for iterNum := range j.required {
+			res := j.peek(iterNum)
+
+			if res == nil {
+				// Iterator exhausted, no more joins possible
+				return nil
+			}
+
+			c := CompareRowNumbers(j.definitionLevel, res.RowNumber, lowestRowNumber)
+			switch c {
+			case -1:
+				// New lowest, reset
+				lowestIters = lowestIters[:0]
+				lowestRowNumber = res.RowNumber
+				fallthrough
+
+			case 0:
+				// Same, append
+				lowestIters = append(lowestIters, iterNum)
+			}
+
+			if CompareRowNumbers(j.definitionLevel, res.RowNumber, highestRowNumber) == 1 {
+				// New high water mark
+				highestRowNumber = res.RowNumber
+			}
+		}
+
+		// All iterators pointing at same row?
+		if len(lowestIters) == len(j.required) {
+			// Get the data
+			result := j.collect(lowestRowNumber)
+
+			// Keep group?
+			if j.pred == nil || j.pred.KeepGroup(result) {
+				// Yes
+				return result
+			}
+		}
+
+		// Skip all iterators to the highest row seen, it's impossible
+		// to find matches before that.
+		j.seekAll(highestRowNumber, j.definitionLevel)
+	}
+}
+
+func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) *IteratorResult {
+	j.seekAll(t, d)
+	return j.Next()
+}
+
+func (j *LeftJoinIterator) seekAll(t RowNumber, d int) {
+	t = TruncateRowNumber(d, t)
+	for iterNum, iter := range j.required {
+		if j.peeksRequired[iterNum] == nil || CompareRowNumbers(d, j.peeksRequired[iterNum].RowNumber, t) == -1 {
+			columnIteratorResultPoolPut(j.peeksRequired[iterNum])
+			j.peeksRequired[iterNum] = iter.SeekTo(t, d)
+		}
+	}
+	for iterNum, iter := range j.optional {
+		if j.peeksOptional[iterNum] == nil || CompareRowNumbers(d, j.peeksOptional[iterNum].RowNumber, t) == -1 {
+			columnIteratorResultPoolPut(j.peeksOptional[iterNum])
+			j.peeksOptional[iterNum] = iter.SeekTo(t, d)
+		}
+	}
+}
+
+func (j *LeftJoinIterator) peek(iterNum int) *IteratorResult {
+	if j.peeksRequired[iterNum] == nil {
+		j.peeksRequired[iterNum] = j.required[iterNum].Next()
+	}
+	return j.peeksRequired[iterNum]
+}
+
+// Collect data from the given iterators until they point at
+// the next row (according to the configured definition level)
+// or are exhausted.
+func (j *LeftJoinIterator) collect(rowNumber RowNumber) *IteratorResult {
+	result := columnIteratorResultPoolGet()
+	result.RowNumber = rowNumber
+
+	collect := func(iters []Iterator, peeks []*IteratorResult) {
+		for i := range iters {
+			// Collect matches
+			for peeks[i] != nil && CompareRowNumbers(j.definitionLevel, peeks[i].RowNumber, rowNumber) == 0 {
+				result.Append(peeks[i])
+				columnIteratorResultPoolPut(peeks[i])
+				peeks[i] = iters[i].Next()
+			}
+		}
+	}
+
+	skip := func(iters []Iterator, peeks []*IteratorResult) {
+		for i := range iters {
+			// Skip forward
+			if peeks[i] == nil {
+				peeks[i] = iters[i].Next()
+			}
+			for peeks[i] != nil && CompareRowNumbers(j.definitionLevel, peeks[i].RowNumber, rowNumber) < 0 {
+				columnIteratorResultPoolPut(peeks[i])
+				peeks[i] = iters[i].Next()
+			}
+		}
+	}
+
+	skip(j.required, j.peeksRequired)
+	skip(j.optional, j.peeksOptional)
+
+	collect(j.required, j.peeksRequired)
+	collect(j.optional, j.peeksOptional)
+
+	return result
+}
+
+func (j *LeftJoinIterator) Close() {
+	for _, i := range j.required {
+		i.Close()
+	}
+	for _, i := range j.optional {
+		i.Close()
+	}
+}
+
 // UnionIterator produces all results for all given iterators.  When iterators
 // align to the same row, based on the configured definition level, then the results
 // are returned together. Else the next matching iterator is returned.

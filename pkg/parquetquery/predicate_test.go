@@ -93,3 +93,20 @@ func BenchmarkSubstringPredicate(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkStringInPredicate(b *testing.B) {
+	p := NewStringInPredicate([]string{"abc"})
+
+	s := make([]parquet.Value, 1000)
+	for i := 0; i < 1000; i++ {
+		s[i] = parquet.ValueOf(uuid.New().String())
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		for _, ss := range s {
+			p.KeepValue(ss)
+		}
+	}
+}

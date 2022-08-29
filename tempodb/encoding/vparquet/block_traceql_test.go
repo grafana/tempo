@@ -50,6 +50,11 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			makeCond(".foo", traceql.OperationGT, int64(100)),
 			makeCond(".foo", traceql.OperationEq, "def"),
 		),
+		makeReq(
+			// Multiple conditions on same well-known attribute, matches either
+			makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, int64(500)),
+			makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, int64(500)),
+		),
 		// Edge cases
 		makeReq(makeCond(".name", traceql.OperationEq, "Bob")),                           // Almost conflicts with intrinsic but still works
 		makeReq(makeCond("resource."+LabelServiceName, traceql.OperationEq, int64(123))), // service.name doesn't match type of dedicated column
