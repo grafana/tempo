@@ -186,7 +186,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		readerAt = or
 	}
 
-	pf, err := parquet.OpenFile(readerAt, int64(b.meta.Size), parquet.SkipBloomFilters(true))
+	pf, err := parquet.OpenFile(readerAt, int64(b.meta.Size))
 	if err != nil {
 		return nil, errors.Wrap(err, "error opening file in FindTraceByID")
 	}
