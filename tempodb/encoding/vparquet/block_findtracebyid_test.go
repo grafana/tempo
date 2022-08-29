@@ -95,7 +95,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 		wantProto, err := parquetTraceToTempopbTrace(tr)
 		require.NoError(t, err)
 
-		gotProto, err := b.FindTraceByID(ctx, tr.TraceID)
+		gotProto, err := b.FindTraceByID(ctx, tr.TraceID, common.SearchOptions{})
 		require.NoError(t, err)
 
 		require.Equal(t, wantProto, gotProto)
@@ -134,7 +134,7 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 		// fmt.Println(tr)
 		// fmt.Println("going to search for traceID", util.TraceIDToHexString(tr.TraceID))
 
-		protoTr, err := b.FindTraceByID(ctx, tr.TraceID)
+		protoTr, err := b.FindTraceByID(ctx, tr.TraceID, common.SearchOptions{})
 		require.NoError(t, err)
 		require.NotNil(t, protoTr)
 	}

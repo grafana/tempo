@@ -1,6 +1,7 @@
 ---
 aliases:
 - /docs/tempo/latest/server_side_metrics/span_metrics/
+- /docs/tempo/latest/metrics-generator/span_metrics/
 title: Generate metrics from spans
 weight: 400
 ---
