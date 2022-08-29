@@ -3,6 +3,7 @@ package vparquet
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"io"
 
 	"github.com/google/uuid"
@@ -147,12 +148,8 @@ func (b *streamingBlock) CurrentBufferedObjects() int {
 
 func (b *streamingBlock) Flush() (int, error) {
 	// batch write traces
-	if len(b.bufferedTraces) > 0 {
-		_, err := b.pw.Write(b.bufferedTraces)
-		if err != nil {
-			return 0, err
-		}
-		b.bufferedTraces = b.bufferedTraces[:0]
+	if err := b.flushBufferedTraces(); err != nil {
+		return 0, fmt.Errorf("flushing buffered traces: %w", err)
 	}
 
 	// Flush row group
@@ -173,12 +170,8 @@ func (b *streamingBlock) Flush() (int, error) {
 
 func (b *streamingBlock) Complete() (int, error) {
 	// batch write traces
-	if len(b.bufferedTraces) > 0 {
-		_, err := b.pw.Write(b.bufferedTraces)
-		if err != nil {
-			return 0, err
-		}
-		b.bufferedTraces = b.bufferedTraces[:0]
+	if err := b.flushBufferedTraces(); err != nil {
+		return 0, fmt.Errorf("flushing buffered traces: %w", err)
 	}
 
 	// Flush final row group
@@ -228,6 +221,23 @@ func (b *streamingBlock) Complete() (int, error) {
 	return n, writeBlockMeta(b.ctx, b.to, b.meta, b.bloom)
 }
 
+func (b *streamingBlock) flushBufferedTraces() error {
+	// batch write traces
+	if len(b.bufferedTraces) > 0 {
+		_, err := b.pw.Write(b.bufferedTraces)
+		if err != nil {
+			return err
+		}
+		// zero out traces to allow the GC to collect
+		for i := range b.bufferedTraces {
+			b.bufferedTraces[i] = nil
+		}
+		b.bufferedTraces = b.bufferedTraces[:0]
+	}
+
+	return nil
+}
+
 // estimateTraceSize attempts to estimate the size of trace in bytes. This is used to make choose
 // when to cut a row group during block creation.
 // TODO: This function regularly estimates lower values then estimateProtoSize() and the size
@@ -239,6 +249,7 @@ func estimateTraceSize(tr *Trace) (size int) {
 	size += len(tr.RootServiceName)
 	size += len(tr.RootSpanName)
 	size += 8 + 8 + 8 // start/end/duration
+	size += 7
 
 	for _, rs := range tr.ResourceSpans {
 		size += estimateAttrSize(rs.Resource.Attrs)
@@ -251,10 +262,12 @@ func estimateTraceSize(tr *Trace) (size int) {
 		size += strLen(rs.Resource.K8sContainerName)
 		size += strLen(rs.Resource.K8sNamespaceName)
 		size += strLen(rs.Resource.K8sPodName)
+		size += 9
 
 		for _, ils := range rs.InstrumentationLibrarySpans {
 			size += len(ils.InstrumentationLibrary.Name)
 			size += len(ils.InstrumentationLibrary.Version)
+			size += 2
 			for _, s := range ils.Spans {
 				size += 8 + 8 + 8 + 8 + 4 + 4 // start/end/kind/statuscode/dropped events/dropped attrs
 				size += len(s.ID)
@@ -269,6 +282,7 @@ func estimateTraceSize(tr *Trace) (size int) {
 				}
 				size += estimateAttrSize(s.Attrs)
 				size += estimateEventsSize(s.Events)
+				size += 14
 			}
 		}
 	}
