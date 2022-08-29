@@ -76,15 +76,18 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions, o ...parquet.FileOption) (*parquet.File, *BackendReaderAt, error) {
 	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
 
+	// backend reader
 	readerAt := io.ReaderAt(backendReaderAt)
-	// if we have no buffers configured then skip creating the buffered reader and optimized reader.
-	// a likely case is when we are reading a file on the local disk such as in ingester search
+
+	// buffered reader
 	if opts.ReadBufferCount > 0 {
 		readerAt = tempo_io.NewBufferedReaderAt(readerAt, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
 	}
 
+	// optimized reader
 	readerAt = newParquetOptimizedReaderAt(readerAt, int64(b.meta.Size), b.meta.FooterSize)
 
+	// cached reader
 	if opts.CacheControl.ColumnIndex || opts.CacheControl.Footer || opts.CacheControl.OffsetIndex {
 		readerAt = newCachedReaderAt(readerAt, backendReaderAt, opts.CacheControl)
 	}
