@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -206,14 +207,26 @@ func (a *AppendBlock) Clear() error {
 
 func (a *AppendBlock) fullFilename() string {
 	if a.meta.Version == "v0" {
-		return filepath.Join(a.filepath, fmt.Sprintf("%v#%v", a.meta.BlockID, a.meta.TenantID))
+		if runtime.GOOS == "windows" {
+			return filepath.Join(a.filepath, fmt.Sprintf("%v#%v", a.meta.BlockID, a.meta.TenantID))
+		} else {
+			return filepath.Join(a.filepath, fmt.Sprintf("%v:%v", a.meta.BlockID, a.meta.TenantID))
+		}
 	}
 
 	var filename string
 	if a.meta.DataEncoding == "" {
-		filename = fmt.Sprintf("%v#%v#%v#%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding)
+		if runtime.GOOS == "windows" {
+			filename = fmt.Sprintf("%v#%v#%v#%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding)
+		} else {
+			filename = fmt.Sprintf("%v:%v:%v:%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding)
+		}
 	} else {
-		filename = fmt.Sprintf("%v#%v#%v#%v#%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding, a.meta.DataEncoding)
+		if runtime.GOOS == "windows" {
+			filename = fmt.Sprintf("%v#%v#%v#%v#%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding, a.meta.DataEncoding)
+		} else {
+			filename = fmt.Sprintf("%v:%v:%v:%v:%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding, a.meta.DataEncoding)
+		}
 	}
 
 	return filepath.Join(a.filepath, filename)
