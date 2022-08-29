@@ -165,7 +165,7 @@ func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File,
 	}
 
 	// blockID, tenantID, version, encoding (compression), dataEncoding
-	filename := fmt.Sprintf("%v:%v:%v:%v:%v", blockid, tenantid, walFileVersion, w.c.SearchEncoding, "")
+	filename := fmt.Sprintf("%v#%v#%v#%v#%v", blockid, tenantid, walFileVersion, w.c.SearchEncoding, "")
 	file, err := os.OpenFile(filepath.Join(p, filename), os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return nil, backend.EncNone, err
@@ -177,7 +177,7 @@ func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File,
 // ParseFilename returns (blockID, tenant, version, encoding, dataEncoding, error).
 // Example: "00000000-0000-0000-0000-000000000000:1:v2:snappy:v1"
 func ParseFilename(filename string) (uuid.UUID, string, string, backend.Encoding, string, error) {
-	splits := strings.Split(filename, ":")
+	splits := strings.Split(filename, "#")
 
 	if len(splits) != 4 && len(splits) != 5 {
 		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. unexpected number of segments", filename)
