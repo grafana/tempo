@@ -59,13 +59,13 @@ var wellKnownColumnLookups = map[string]struct {
 	columnPath  string      // path.to.column
 	level       columnLevel // span or resource level
 	predicateFn makePredicateForCondition
-	typ         reflect.Type
+	compatible  func(t reflect.Type) bool
 }{
 	// Resource-level columns
-	LabelServiceName: {columnPathResourceServiceName, columnLevelResource, createStringPredicate, reflect.TypeOf("")},
+	LabelServiceName: {columnPathResourceServiceName, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
 
 	// Span-level columns
-	LabelHTTPStatusCode: {columnPathSpanHttpStatusCode, columnLevelSpan, createIntPredicate, reflect.TypeOf(int64(0))},
+	LabelHTTPStatusCode: {columnPathSpanHttpStatusCode, columnLevelSpan, createIntPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf(int64(0)) || t == reflect.TypeOf(int(0)) }},
 }
 
 // Fetch spansets from the block for the given TraceQL FetchSpansRequest. The request is checked for
@@ -394,8 +394,8 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 				continue
 			}
 
-			// Same type?
-			if operandType(cond.Operands) == entry.typ {
+			// Compatible type?
+			if entry.compatible(operandType(cond.Operands)) {
 				pred, err := entry.predicateFn(cond.Operation, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
@@ -410,7 +410,7 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 		genericConditions = append(genericConditions, cond)
 	}
 
-	attrIter, err := createAttributeIterator(makeIter, genericConditions, ".span.", DefinitionLevelResourceSpansILSSpanAttrs,
+	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
 		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span attribute iterator")
@@ -446,18 +446,19 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 		durationMax,
 	}
 
-	// TODO - This is an optimization for cases like { span.foo=bar }
-	// Since it is the only span condition and required to match,
-	// we can move it into the required list.  This skips over static
-	// columns like ID where other conditions don't match.
-	if requireAtLeastOneMatch && len(iters) == 1 {
-		required = append(required, iters[0])
-		iters = iters[1:]
+	// This is an optimization for cases when only span conditions are
+	// present and we require at least one of them to match.  Wrap
+	// up the individual conditions with a union and move it into the
+	// required list.  This skips over static columns like ID that are
+	// omnipresent.
+	if requireAtLeastOneMatch && len(iters) > 0 {
+		required = append(required, parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpan, iters, nil))
+		iters = nil
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
 	// and all other conditions are optional. Whatever matches is returned.
-	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpans, required, iters, spanCol), nil
+	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol), nil
 }
 
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
@@ -488,8 +489,8 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 				continue
 			}
 
-			// Same type?
-			if operandType(cond.Operands) == entry.typ {
+			// Compatible type?
+			if entry.compatible(operandType(cond.Operands)) {
 				pred, err := entry.predicateFn(cond.Operation, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
@@ -503,7 +504,7 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 		genericConditions = append(genericConditions, cond)
 	}
 
-	attrIter, err := createAttributeIterator(makeIter, genericConditions, "resource.", DefinitionLevelResourceAttrs,
+	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceAttrs,
 		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span attribute iterator")
@@ -521,13 +522,13 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 		spanIterator,
 	}
 
-	// This is an optimization for cases like { resource.foo=bar }
-	// Since it is the only resource condition and required to match,
-	// we can move it into the required list.  This skips over spans
-	// where there wasn't a match on the resource
-	if requireAtLeastOneMatch && len(iters) == 1 {
-		required = append(required, iters[0])
-		iters = iters[1:]
+	// This is an optimization for cases when only resource conditions are
+	// present and we require at least one of them to match.  Wrap
+	// up the individual conditions with a union and move it into the
+	// required list.
+	if requireAtLeastOneMatch && len(iters) > 0 {
+		required = append(required, parquetquery.NewUnionIterator(DefinitionLevelResourceSpans, iters, nil))
+		iters = nil
 	}
 
 	// Left join here means the span iterator + 1 are required,
@@ -672,7 +673,6 @@ func createBoolPredicate(op traceql.Operation, operands []interface{}) (parquetq
 }
 
 func createAttributeIterator(makeIter makeIterFunc, conditions []traceql.Condition,
-	prefix string,
 	definitionLevel int,
 	keyPath, strPath, intPath, floatPath, boolPath string,
 ) (parquetquery.Iterator, error) {
@@ -706,14 +706,14 @@ func createAttributeIterator(makeIter makeIterFunc, conditions []traceql.Conditi
 			}
 			attrStringPreds = append(attrStringPreds, pred)
 
-		case int64:
+		case int, int64:
 			pred, err := createIntPredicate(cond.Operation, cond.Operands)
 			if err != nil {
 				return nil, errors.Wrap(err, "creating attribute predicate")
 			}
 			attrIntPreds = append(attrIntPreds, pred)
 
-		case float64:
+		case float32, float64:
 			pred, err := createFloatPredicate(cond.Operation, cond.Operands)
 			if err != nil {
 				return nil, errors.Wrap(err, "creating attribute predicate")

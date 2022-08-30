@@ -24,8 +24,8 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		makeReq(makeCond(LabelDuration, traceql.OperationGT, uint64(99*time.Second))),     // Intrinsic: duration
 		makeReq(makeCond(LabelDuration, traceql.OperationLT, uint64(101*time.Second))),    // Intrinsic: duration
 		makeReq(makeCond("resource."+LabelServiceName, traceql.OperationEq, "myservice")), // Well-known attribute: service.name
-		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, int64(500))),       // Well-known attribute: http.status_code int
-		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, int64(200))),       // Well-known attribute: http.status_code int
+		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, 500)),              // Well-known attribute: http.status_code int
+		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, 200)),              // Well-known attribute: http.status_code int
 		makeReq(makeCond(".float", traceql.OperationGT, 456.7)),                           // Float
 		makeReq(makeCond(".float", traceql.OperationLT, 456.781)),                         // Float
 		makeReq(makeCond(".bool", traceql.OperationEq, false)),                            // Bool
@@ -38,22 +38,22 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		makeReq(
 			// Matches either condition
 			makeCond(".foo", traceql.OperationEq, "baz"),
-			makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, int64(100)),
+			makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, 100),
 		),
 		makeReq(
 			// Same as above but reversed order
-			makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, int64(100)),
+			makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, 100),
 			makeCond(".foo", traceql.OperationEq, "baz"),
 		),
 		makeReq(
 			// Same attribute with mixed types
-			makeCond(".foo", traceql.OperationGT, int64(100)),
+			makeCond(".foo", traceql.OperationGT, 100),
 			makeCond(".foo", traceql.OperationEq, "def"),
 		),
 		makeReq(
 			// Multiple conditions on same well-known attribute, matches either
-			makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, int64(500)),
-			makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, int64(500)),
+			makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, 500),
+			makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, 500),
 		),
 		{
 			// Overlaps time range
@@ -61,10 +61,10 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			EndTimeUnixNanos:   uint64(102 * time.Second),
 		},
 		// Edge cases
-		makeReq(makeCond(".name", traceql.OperationEq, "Bob")),                           // Almost conflicts with intrinsic but still works
-		makeReq(makeCond("resource."+LabelServiceName, traceql.OperationEq, int64(123))), // service.name doesn't match type of dedicated column
-		makeReq(makeCond("."+LabelServiceName, traceql.OperationEq, "spanservicename")),  // service.name present on span
-		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, "500ouch")),       // http.status_code doesn't match type of dedicated column
+		makeReq(makeCond(".name", traceql.OperationEq, "Bob")),                          // Almost conflicts with intrinsic but still works
+		makeReq(makeCond("resource."+LabelServiceName, traceql.OperationEq, 123)),       // service.name doesn't match type of dedicated column
+		makeReq(makeCond("."+LabelServiceName, traceql.OperationEq, "spanservicename")), // service.name present on span
+		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, "500ouch")),      // http.status_code doesn't match type of dedicated column
 	}
 
 	for _, req := range searchesThatMatch {
@@ -85,8 +85,8 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		makeReq(makeCond(".span.bool", traceql.OperationEq, true)),                   // Bool not match
 		makeReq(makeCond(LabelName, traceql.OperationEq, "nothello")),                // Well-known attribute: name not match
 		makeReq(makeCond("."+LabelServiceName, traceql.OperationEq, "notmyservice")), // Well-known attribute: service.name not match
-		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, int64(200))),  // Well-known attribute: http.status_code not match
-		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, int64(600))),  // Well-known attribute: http.status_code not match
+		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, 200)),         // Well-known attribute: http.status_code not match
+		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, 600)),         // Well-known attribute: http.status_code not match
 		makeReq(
 			// Matches neither condition
 			makeCond(".foo", traceql.OperationEq, "xyz"),
