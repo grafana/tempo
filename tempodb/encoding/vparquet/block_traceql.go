@@ -23,23 +23,34 @@ type makeIterFunc func(columnName string, predicate parquetquery.Predicate, sele
 type makePredicateForCondition func(traceql.Operation, []interface{}) (parquetquery.Predicate, error)
 
 const (
-	columnPathTraceID             = "TraceID"
-	columnPathResourceAttrKey     = "rs.Resource.Attrs.Key"
-	columnPathResourceAttrString  = "rs.Resource.Attrs.Value"
-	columnPathResourceAttrInt     = "rs.Resource.Attrs.ValueInt"
-	columnPathResourceAttrDouble  = "rs.Resource.Attrs.ValueDouble"
-	columnPathResourceAttrBool    = "rs.Resource.Attrs.ValueBool"
-	columnPathResourceServiceName = "rs.Resource.ServiceName"
-	columnPathSpanID              = "rs.ils.Spans.ID"
-	columnPathSpanName            = "rs.ils.Spans.Name"
-	columnPathSpanStartTime       = "rs.ils.Spans.StartUnixNanos"
-	columnPathSpanEndTime         = "rs.ils.Spans.EndUnixNanos"
-	columnPathSpanAttrKey         = "rs.ils.Spans.Attrs.Key"
-	columnPathSpanAttrString      = "rs.ils.Spans.Attrs.Value"
-	columnPathSpanAttrInt         = "rs.ils.Spans.Attrs.ValueInt"
-	columnPathSpanAttrDouble      = "rs.ils.Spans.Attrs.ValueDouble"
-	columnPathSpanAttrBool        = "rs.ils.Spans.Attrs.ValueBool"
-	columnPathSpanHttpStatusCode  = "rs.ils.Spans.HttpStatusCode"
+	columnPathTraceID                  = "TraceID"
+	columnPathResourceAttrKey          = "rs.Resource.Attrs.Key"
+	columnPathResourceAttrString       = "rs.Resource.Attrs.Value"
+	columnPathResourceAttrInt          = "rs.Resource.Attrs.ValueInt"
+	columnPathResourceAttrDouble       = "rs.Resource.Attrs.ValueDouble"
+	columnPathResourceAttrBool         = "rs.Resource.Attrs.ValueBool"
+	columnPathResourceServiceName      = "rs.Resource.ServiceName"
+	columnPathResourceCluster          = "rs.Resource.Cluster"
+	columnPathResourceNamespace        = "rs.Resource.Namespace"
+	columnPathResourcePod              = "rs.Resource.Pod"
+	columnPathResourceContainer        = "rs.Resource.Container"
+	columnPathResourceK8sClusterName   = "rs.Resource.K8sClusterName"
+	columnPathResourceK8sNamespaceName = "rs.Resource.K8sNamespaceName"
+	columnPathResourceK8sPodName       = "rs.Resource.K8sPodName"
+	columnPathResourceK8sContainerName = "rs.Resource.K8sContainerName"
+
+	columnPathSpanID             = "rs.ils.Spans.ID"
+	columnPathSpanName           = "rs.ils.Spans.Name"
+	columnPathSpanStartTime      = "rs.ils.Spans.StartUnixNanos"
+	columnPathSpanEndTime        = "rs.ils.Spans.EndUnixNanos"
+	columnPathSpanAttrKey        = "rs.ils.Spans.Attrs.Key"
+	columnPathSpanAttrString     = "rs.ils.Spans.Attrs.Value"
+	columnPathSpanAttrInt        = "rs.ils.Spans.Attrs.ValueInt"
+	columnPathSpanAttrDouble     = "rs.ils.Spans.Attrs.ValueDouble"
+	columnPathSpanAttrBool       = "rs.ils.Spans.Attrs.ValueBool"
+	columnPathSpanHttpStatusCode = "rs.ils.Spans.HttpStatusCode"
+	columnPathSpanHttpMethod     = "rs.ils.Spans.HttpMethod"
+	columnPathSpanHttpUrl        = "rs.ils.Spans.HttpUrl"
 )
 
 type columnLevel int
@@ -62,10 +73,20 @@ var wellKnownColumnLookups = map[string]struct {
 	compatible  func(t reflect.Type) bool
 }{
 	// Resource-level columns
-	LabelServiceName: {columnPathResourceServiceName, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
+	LabelServiceName:      {columnPathResourceServiceName, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
+	LabelCluster:          {columnPathResourceCluster, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
+	LabelNamespace:        {columnPathResourceNamespace, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
+	LabelPod:              {columnPathResourcePod, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
+	LabelContainer:        {columnPathResourceContainer, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
+	LabelK8sClusterName:   {columnPathResourceK8sClusterName, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
+	LabelK8sNamespaceName: {columnPathResourceK8sNamespaceName, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
+	LabelK8sPodName:       {columnPathResourceK8sPodName, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
+	LabelK8sContainerName: {columnPathResourceK8sContainerName, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
 
 	// Span-level columns
 	LabelHTTPStatusCode: {columnPathSpanHttpStatusCode, columnLevelSpan, createIntPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf(int64(0)) || t == reflect.TypeOf(int(0)) }},
+	LabelHTTPMethod:     {columnPathSpanHttpMethod, columnLevelSpan, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
+	LabelHTTPUrl:        {columnPathSpanHttpUrl, columnLevelSpan, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
 }
 
 // Fetch spansets from the block for the given TraceQL FetchSpansRequest. The request is checked for

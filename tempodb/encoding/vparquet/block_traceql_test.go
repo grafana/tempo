@@ -19,22 +19,52 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 
 	searchesThatMatch := []traceql.FetchSpansRequest{
 		{}, // Empty request
-		makeReq(makeCond(LabelName, traceql.OperationEq, "hello")),                        // Intrinsic: name
-		makeReq(makeCond(LabelDuration, traceql.OperationEq, uint64(100*time.Second))),    // Intrinsic: duration
-		makeReq(makeCond(LabelDuration, traceql.OperationGT, uint64(99*time.Second))),     // Intrinsic: duration
-		makeReq(makeCond(LabelDuration, traceql.OperationLT, uint64(101*time.Second))),    // Intrinsic: duration
-		makeReq(makeCond("resource."+LabelServiceName, traceql.OperationEq, "myservice")), // Well-known attribute: service.name
-		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, 500)),              // Well-known attribute: http.status_code int
-		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, 200)),              // Well-known attribute: http.status_code int
-		makeReq(makeCond(".float", traceql.OperationGT, 456.7)),                           // Float
-		makeReq(makeCond(".float", traceql.OperationLT, 456.781)),                         // Float
-		makeReq(makeCond(".bool", traceql.OperationEq, false)),                            // Bool
-		makeReq(makeCond(".foo", traceql.OperationIn, "def", "xyz")),                      // String IN
-		makeReq(makeCond(".foo", traceql.OperationIn, "xyz", "def")),                      // String IN Same as above but reversed order
-		makeReq(makeCond(".foo", traceql.OperationRegexIn, "d.*")),                        // Regex IN
-		makeReq(makeCond("resource.foo", traceql.OperationEq, "abc")),                     // Resource-level only
-		makeReq(makeCond("span.foo", traceql.OperationEq, "def")),                         // Span-level only
-		makeReq(makeCond(".foo", traceql.OperationNone)),                                  // Projection only
+		{
+			// Time range
+			StartTimeUnixNanos: uint64(101 * time.Second),
+			EndTimeUnixNanos:   uint64(102 * time.Second),
+		},
+		// Intrinsics
+		makeReq(makeCond(LabelName, traceql.OperationEq, "hello")),
+		makeReq(makeCond(LabelDuration, traceql.OperationEq, uint64(100*time.Second))),
+		makeReq(makeCond(LabelDuration, traceql.OperationGT, uint64(99*time.Second))),
+		makeReq(makeCond(LabelDuration, traceql.OperationLT, uint64(101*time.Second))),
+		// Resource well-known attributes
+		makeReq(makeCond("."+LabelServiceName, traceql.OperationEq, "spanservicename")), // Overridden at span
+		makeReq(makeCond("."+LabelCluster, traceql.OperationEq, "cluster")),
+		makeReq(makeCond("."+LabelNamespace, traceql.OperationEq, "namespace")),
+		makeReq(makeCond("."+LabelPod, traceql.OperationEq, "pod")),
+		makeReq(makeCond("."+LabelContainer, traceql.OperationEq, "container")),
+		makeReq(makeCond("."+LabelK8sNamespaceName, traceql.OperationEq, "k8snamespace")),
+		makeReq(makeCond("."+LabelK8sClusterName, traceql.OperationEq, "k8scluster")),
+		makeReq(makeCond("."+LabelK8sPodName, traceql.OperationEq, "k8spod")),
+		makeReq(makeCond("."+LabelK8sContainerName, traceql.OperationEq, "k8scontainer")),
+		makeReq(makeCond("resource."+LabelServiceName, traceql.OperationEq, "myservice")),
+		makeReq(makeCond("resource."+LabelCluster, traceql.OperationEq, "cluster")),
+		makeReq(makeCond("resource."+LabelNamespace, traceql.OperationEq, "namespace")),
+		makeReq(makeCond("resource."+LabelPod, traceql.OperationEq, "pod")),
+		makeReq(makeCond("resource."+LabelContainer, traceql.OperationEq, "container")),
+		makeReq(makeCond("resource."+LabelK8sNamespaceName, traceql.OperationEq, "k8snamespace")),
+		makeReq(makeCond("resource."+LabelK8sClusterName, traceql.OperationEq, "k8scluster")),
+		makeReq(makeCond("resource."+LabelK8sPodName, traceql.OperationEq, "k8spod")),
+		makeReq(makeCond("resource."+LabelK8sContainerName, traceql.OperationEq, "k8scontainer")),
+		// Span well-known attributes
+		makeReq(makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, 500)),
+		makeReq(makeCond("."+LabelHTTPMethod, traceql.OperationEq, "get")),
+		makeReq(makeCond("."+LabelHTTPUrl, traceql.OperationEq, "url/hello/world")),
+		makeReq(makeCond("span."+LabelHTTPStatusCode, traceql.OperationEq, 500)),
+		makeReq(makeCond("span."+LabelHTTPMethod, traceql.OperationEq, "get")),
+		makeReq(makeCond("span."+LabelHTTPUrl, traceql.OperationEq, "url/hello/world")),
+		// Basic data types and operations
+		makeReq(makeCond(".float", traceql.OperationGT, 456.7)),       // Float >
+		makeReq(makeCond(".float", traceql.OperationLT, 456.781)),     // Float <
+		makeReq(makeCond(".bool", traceql.OperationEq, false)),        // Bool
+		makeReq(makeCond(".foo", traceql.OperationIn, "def", "xyz")),  // String IN
+		makeReq(makeCond(".foo", traceql.OperationIn, "xyz", "def")),  // String IN Same as above but reversed order
+		makeReq(makeCond(".foo", traceql.OperationRegexIn, "d.*")),    // Regex IN
+		makeReq(makeCond("resource.foo", traceql.OperationEq, "abc")), // Resource-level only
+		makeReq(makeCond("span.foo", traceql.OperationEq, "def")),     // Span-level only
+		makeReq(makeCond(".foo", traceql.OperationNone)),              // Projection only
 		makeReq(
 			// Matches either condition
 			makeCond(".foo", traceql.OperationEq, "baz"),
@@ -55,11 +85,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			makeCond("."+LabelHTTPStatusCode, traceql.OperationEq, 500),
 			makeCond("."+LabelHTTPStatusCode, traceql.OperationGT, 500),
 		),
-		{
-			// Overlaps time range
-			StartTimeUnixNanos: uint64(101 * time.Second),
-			EndTimeUnixNanos:   uint64(102 * time.Second),
-		},
+
 		// Edge cases
 		makeReq(makeCond(".name", traceql.OperationEq, "Bob")),                          // Almost conflicts with intrinsic but still works
 		makeReq(makeCond("resource."+LabelServiceName, traceql.OperationEq, 123)),       // service.name doesn't match type of dedicated column
