@@ -77,7 +77,7 @@ type Span struct {
 	// friendly like trace ID, and []byte is half the size of string.
 	ID                     []byte      `parquet:","`
 	Name                   string      `parquet:",snappy,dict"`
-	Kind                   int         `parquet:",dict"`
+	Kind                   int         `parquet:",delta"`
 	ParentSpanID           []byte      `parquet:","`
 	TraceState             string      `parquet:",snappy"`
 	StartUnixNanos         uint64      `parquet:",delta"`
@@ -129,12 +129,12 @@ type ResourceSpans struct {
 
 type Trace struct {
 	// TraceID is a byte slice as it helps maintain the sort order of traces within a parquet file
-	TraceID       []byte          `parquet:",delta"`
+	TraceID       []byte          `parquet:""`
 	ResourceSpans []ResourceSpans `parquet:"rs"`
 
 	// TraceIDText is for better useability on downstream systems i.e: something other than Tempo is reading these files.
 	// It will not be used as the primary traceID field within Tempo and is only helpful for debugging purposes.
-	TraceIDText string `parquet:",delta"`
+	TraceIDText string `parquet:",snappy"`
 
 	// Trace-level attributes for searching
 	StartTimeUnixNano uint64 `parquet:",delta"`
