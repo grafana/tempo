@@ -70,6 +70,10 @@ var cli struct {
 	Search struct {
 		Blocks searchBlocksCmd `cmd:"" help:"search for a traceid directly from backend blocks"`
 	} `cmd:""`
+
+	Util struct {
+		Convert convertParquet `cmd:"" help:"convert from one parquet schema to another"`
+	} `cmd:""`
 }
 
 func main() {
