@@ -46,10 +46,10 @@ var (
 )
 
 type Attribute struct {
-	Key string `parquet:",snappy,dict"`
+	Key string `parquet:",dict"`
 
 	// This is a bad design that leads to millions of null values. How can we fix this?
-	Value       *string  `parquet:",dict,snappy,optional"`
+	Value       *string  `parquet:",dict,optional"`
 	ValueInt    *int64   `parquet:",snappy,optional"`
 	ValueDouble *float64 `parquet:",snappy,optional"`
 	ValueBool   *bool    `parquet:",snappy,optional"`
@@ -58,7 +58,7 @@ type Attribute struct {
 }
 
 type EventAttribute struct {
-	Key   string `parquet:",snappy,dict"`
+	Key   string `parquet:",dict"`
 	Value []byte `parquet:",snappy"` // Was json-encoded data, is now proto encoded data
 }
 
@@ -77,7 +77,7 @@ type Span struct {
 	// friendly like trace ID, and []byte is half the size of string.
 	ID                     []byte      `parquet:","`
 	Name                   string      `parquet:",snappy,dict"`
-	Kind                   int         `parquet:",delta"`
+	Kind                   int         `parquet:",dict"`
 	ParentSpanID           []byte      `parquet:","`
 	TraceState             string      `parquet:",snappy"`
 	StartUnixNanos         uint64      `parquet:",delta"`
@@ -109,17 +109,17 @@ type Resource struct {
 	Attrs []Attribute
 
 	// Known attributes
-	ServiceName      string  `parquet:",snappy,dict"`
-	Cluster          *string `parquet:",snappy,optional,dict"`
-	Namespace        *string `parquet:",snappy,optional,dict"`
-	Pod              *string `parquet:",snappy,optional,dict"`
-	Container        *string `parquet:",snappy,optional,dict"`
-	K8sClusterName   *string `parquet:",snappy,optional,dict"`
-	K8sNamespaceName *string `parquet:",snappy,optional,dict"`
-	K8sPodName       *string `parquet:",snappy,optional,dict"`
-	K8sContainerName *string `parquet:",snappy,optional,dict"`
+	ServiceName      string  `parquet:",dict"`
+	Cluster          *string `parquet:",optional,dict"`
+	Namespace        *string `parquet:",optional,dict"`
+	Pod              *string `parquet:",optional,dict"`
+	Container        *string `parquet:",optional,dict"`
+	K8sClusterName   *string `parquet:",optional,dict"`
+	K8sNamespaceName *string `parquet:",optional,dict"`
+	K8sPodName       *string `parquet:",optional,dict"`
+	K8sContainerName *string `parquet:",optional,dict"`
 
-	Test string `parquet:",snappy,dict,optional"` // Always empty for testing
+	Test string `parquet:",dict,optional"` // Always empty for testing
 }
 
 type ResourceSpans struct {
@@ -129,12 +129,12 @@ type ResourceSpans struct {
 
 type Trace struct {
 	// TraceID is a byte slice as it helps maintain the sort order of traces within a parquet file
-	TraceID       []byte          `parquet:""`
+	TraceID       []byte          `parquet:",delta"`
 	ResourceSpans []ResourceSpans `parquet:"rs"`
 
 	// TraceIDText is for better useability on downstream systems i.e: something other than Tempo is reading these files.
 	// It will not be used as the primary traceID field within Tempo and is only helpful for debugging purposes.
-	TraceIDText string `parquet:",snappy"`
+	TraceIDText string `parquet:",delta"`
 
 	// Trace-level attributes for searching
 	StartTimeUnixNano uint64 `parquet:",delta"`
