@@ -46,10 +46,10 @@ var (
 )
 
 type Attribute struct {
-	Key string `parquet:",dict"`
+	Key string `parquet:",snappy,dict"`
 
 	// This is a bad design that leads to millions of null values. How can we fix this?
-	Value       *string  `parquet:",dict,optional"`
+	Value       *string  `parquet:",dict,snappy,optional"`
 	ValueInt    *int64   `parquet:",snappy,optional"`
 	ValueDouble *float64 `parquet:",snappy,optional"`
 	ValueBool   *bool    `parquet:",snappy,optional"`
@@ -58,7 +58,7 @@ type Attribute struct {
 }
 
 type EventAttribute struct {
-	Key   string `parquet:",dict"`
+	Key   string `parquet:",snappy,dict"`
 	Value []byte `parquet:",snappy"` // Was json-encoded data, is now proto encoded data
 }
 
@@ -109,17 +109,17 @@ type Resource struct {
 	Attrs []Attribute
 
 	// Known attributes
-	ServiceName      string  `parquet:",dict"`
-	Cluster          *string `parquet:",optional,dict"`
-	Namespace        *string `parquet:",optional,dict"`
-	Pod              *string `parquet:",optional,dict"`
-	Container        *string `parquet:",optional,dict"`
-	K8sClusterName   *string `parquet:",optional,dict"`
-	K8sNamespaceName *string `parquet:",optional,dict"`
-	K8sPodName       *string `parquet:",optional,dict"`
-	K8sContainerName *string `parquet:",optional,dict"`
+	ServiceName      string  `parquet:",snappy,dict"`
+	Cluster          *string `parquet:",snappy,optional,dict"`
+	Namespace        *string `parquet:",snappy,optional,dict"`
+	Pod              *string `parquet:",snappy,optional,dict"`
+	Container        *string `parquet:",snappy,optional,dict"`
+	K8sClusterName   *string `parquet:",snappy,optional,dict"`
+	K8sNamespaceName *string `parquet:",snappy,optional,dict"`
+	K8sPodName       *string `parquet:",snappy,optional,dict"`
+	K8sContainerName *string `parquet:",snappy,optional,dict"`
 
-	Test string `parquet:",dict,optional"` // Always empty for testing
+	Test string `parquet:",snappy,dict,optional"` // Always empty for testing
 }
 
 type ResourceSpans struct {
