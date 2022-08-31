@@ -22,7 +22,9 @@ type RedisConfig struct {
 	Expiration         time.Duration  `yaml:"expiration"`
 	DB                 int            `yaml:"db"`
 	PoolSize           int            `yaml:"pool_size"`
+	Username           string         `yaml:"username"`
 	Password           flagext.Secret `yaml:"password"`
+	SentinelUsername   string         `yaml:"sentinel_username"`
 	SentinelPassword   flagext.Secret `yaml:"sentinel_password"`
 	EnableTLS          bool           `yaml:"tls_enabled"`
 	InsecureSkipVerify bool           `yaml:"tls_insecure_skip_verify"`
@@ -38,7 +40,9 @@ func (cfg *RedisConfig) RegisterFlagsWithPrefix(prefix, description string, f *f
 	f.DurationVar(&cfg.Expiration, prefix+"redis.expiration", 0, description+"How long keys stay in the redis.")
 	f.IntVar(&cfg.DB, prefix+"redis.db", 0, description+"Database index.")
 	f.IntVar(&cfg.PoolSize, prefix+"redis.pool-size", 0, description+"Maximum number of connections in the pool.")
+	f.StringVar(&cfg.Username, prefix+"redis.username", "", description+"Username to use when connecting to redis (utilizes Redis 6+ ACL-based AUTH)")
 	f.Var(&cfg.Password, prefix+"redis.password", description+"Password to use when connecting to redis.")
+	f.StringVar(&cfg.SentinelUsername, prefix+"redis.sentinel-username", "", description+"Username to use when connecting to redis sentinel (utilizes Redis 6+ ACL_based AUTH)")
 	f.Var(&cfg.SentinelPassword, prefix+"redis.sentinel-password", description+"Password to use when connecting to redis sentinel.")
 	f.BoolVar(&cfg.EnableTLS, prefix+"redis.tls-enabled", false, description+"Enable connecting to redis with TLS.")
 	f.BoolVar(&cfg.InsecureSkipVerify, prefix+"redis.tls-insecure-skip-verify", false, description+"Skip validating server certificate.")
@@ -57,7 +61,9 @@ func NewRedisClient(cfg *RedisConfig) *RedisClient {
 	opt := &redis.UniversalOptions{
 		Addrs:            strings.Split(cfg.Endpoint, ","),
 		MasterName:       cfg.MasterName,
+		Username:         cfg.Username,
 		Password:         cfg.Password.String(),
+		SentinelUsername: cfg.SentinelUsername,
 		SentinelPassword: cfg.SentinelPassword.String(),
 		DB:               cfg.DB,
 		PoolSize:         cfg.PoolSize,
