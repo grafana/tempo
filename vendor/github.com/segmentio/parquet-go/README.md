@@ -192,8 +192,8 @@ views of `parquet.RowReader` or `parquet.RowGroup`, for example:
 type RowTypeV1 struct { ID int64; FirstName string }
 type RowTypeV2 struct { ID int64; FirstName, LastName string }
 
-source := parquet.NewSchema(RowTypeV1{})
-target := parquet.NewSchema(RowTypeV2{})
+source := parquet.SchemaOf(RowTypeV1{})
+target := parquet.SchemaOf(RowTypeV2{})
 
 conversion, err := parquet.Convert(target, source)
 if err != nil {

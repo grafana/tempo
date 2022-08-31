@@ -50,6 +50,48 @@ func TestCreateBlockHonorsTraceStartEndTimesFromWalMeta(t *testing.T) {
 	require.Equal(t, 305, int(outMeta.EndTime.Unix()))
 }
 
+// func TestEstimateTraceSize(t *testing.T) {
+// 	f := "<put data.parquet file here>"
+// 	file, err := os.OpenFile(f, os.O_RDONLY, 0644)
+// 	require.NoError(t, err)
+
+// 	count := 10000
+
+// 	totalProtoSz := 0
+// 	totalParqSz := 0
+
+// 	r := parquet.NewGenericReader[*Trace](file)
+// 	tr := make([]*Trace, 1)
+// 	for {
+// 		count--
+// 		if count == 0 {
+// 			break
+// 		}
+
+// 		_, err := r.Read(tr)
+// 		require.NoError(t, err)
+
+// 		if tr[0] == nil {
+// 			break
+// 		}
+// 		protoTr, err := parquetTraceToTempopbTrace(tr[0])
+// 		require.NoError(t, err)
+
+// 		protoSz := protoTr.Size()
+// 		parqSz := estimateTraceSize(tr[0])
+
+// 		totalProtoSz += protoSz
+// 		totalParqSz += parqSz
+
+// 		if float64(parqSz)/float64(protoSz) < .7 ||
+// 			float64(parqSz)/float64(protoSz) > 1.3 {
+// 			fmt.Println(protoTr)
+// 			break
+// 		}
+// 	}
+// 	fmt.Println(totalParqSz, totalProtoSz)
+// }
+
 type testIterator struct {
 	traces  [][]byte
 	decoder model.ObjectDecoder
