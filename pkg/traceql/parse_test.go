@@ -668,6 +668,7 @@ func TestSpansetFilterOperators(t *testing.T) {
 		{in: "{ .a || .b }", expected: newBinaryOperation(opOr, newAttribute("a"), newAttribute("b"))},
 		{in: "{ !.b }", expected: newUnaryOperation(opNot, newAttribute("b"))},
 		{in: "{ -.b }", expected: newUnaryOperation(opSub, newAttribute("b"))},
+		{in: "{ .a >= 3 }", expected: newBinaryOperation(opGreaterEqual, newAttribute("a"), newStaticInt(3))},
 	}
 
 	for _, tc := range tests {
