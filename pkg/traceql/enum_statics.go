@@ -43,18 +43,18 @@ func (t StaticType) isNumeric() bool {
 type Status int
 
 const (
-	statusError Status = iota
-	statusOk
-	statusUnset
+	StatusError Status = iota
+	StatusOk
+	StatusUnset
 )
 
 func (s Status) String() string {
 	switch s {
-	case statusError:
+	case StatusError:
 		return "error"
-	case statusOk:
+	case StatusOk:
 		return "ok"
-	case statusUnset:
+	case StatusUnset:
 		return "unset"
 	}
 

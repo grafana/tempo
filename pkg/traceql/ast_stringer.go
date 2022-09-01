@@ -7,7 +7,7 @@ import (
 )
 
 func (r RootExpr) String() string {
-	return r.p.String()
+	return r.Pipeline.String()
 }
 
 func (p Pipeline) String() string {
@@ -19,7 +19,7 @@ func (p Pipeline) String() string {
 }
 
 func (o GroupOperation) String() string {
-	return "by(" + o.e.String() + ")"
+	return "by(" + o.Expression.String() + ")"
 }
 
 func (o CoalesceOperation) String() string {
@@ -27,7 +27,7 @@ func (o CoalesceOperation) String() string {
 }
 
 func (o ScalarOperation) String() string {
-	return binaryOp(o.op, o.lhs, o.rhs)
+	return binaryOp(o.Op, o.LHS, o.RHS)
 }
 
 func (a Aggregate) String() string {
@@ -39,11 +39,11 @@ func (a Aggregate) String() string {
 }
 
 func (o SpansetOperation) String() string {
-	return binaryOp(o.op, o.lhs, o.rhs)
+	return binaryOp(o.Op, o.LHS, o.RHS)
 }
 
 func (f SpansetFilter) String() string {
-	return "{ " + f.e.String() + " }"
+	return "{ " + f.Expression.String() + " }"
 }
 
 func (f ScalarFilter) String() string {
@@ -51,48 +51,48 @@ func (f ScalarFilter) String() string {
 }
 
 func (o BinaryOperation) String() string {
-	return binaryOp(o.op, o.lhs, o.rhs)
+	return binaryOp(o.Op, o.LHS, o.RHS)
 }
 
 func (o UnaryOperation) String() string {
-	return unaryOp(o.op, o.e)
+	return unaryOp(o.Op, o.Expression)
 }
 
 func (n Static) String() string {
-	switch n.staticType {
+	switch n.Type {
 	case typeInt:
-		return strconv.Itoa(n.n)
+		return strconv.Itoa(n.N)
 	case typeFloat:
-		return strconv.FormatFloat(n.f, 'f', 5, 64)
+		return strconv.FormatFloat(n.F, 'f', 5, 64)
 	case typeString:
-		return "`" + n.s + "`"
+		return "`" + n.S + "`"
 	case typeBoolean:
-		return strconv.FormatBool(n.b)
+		return strconv.FormatBool(n.B)
 	case typeNil:
 		return "nil"
 	case typeDuration:
-		return n.d.String()
+		return n.D.String()
 	case typeStatus:
-		return n.status.String()
+		return n.Status.String()
 	}
 
-	return fmt.Sprintf("static(%d)", n.staticType)
+	return fmt.Sprintf("static(%d)", n.Type)
 }
 
 func (a Attribute) String() string {
 	scopes := []string{}
-	if a.parent {
+	if a.Parent {
 		scopes = append(scopes, "parent")
 	}
 
-	if a.scope != attributeScopeNone {
-		attributeScope := a.scope.String()
+	if a.Scope != attributeScopeNone {
+		attributeScope := a.Scope.String()
 		scopes = append(scopes, attributeScope)
 	}
 
-	att := a.name
-	if a.intrinsic != intrinsicNone {
-		att = a.intrinsic.String()
+	att := a.Name
+	if a.Intrinsic != IntrinsicNone {
+		att = a.Intrinsic.String()
 	}
 
 	scope := ""

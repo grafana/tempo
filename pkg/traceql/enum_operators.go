@@ -5,42 +5,42 @@ import "fmt"
 type Operator int
 
 const (
-	opAdd Operator = iota
-	opSub
-	opDiv
-	opMod
-	opMult
-	opEqual
-	opNotEqual
-	opRegex
-	opNotRegex
-	opGreater
-	opGreaterEqual
-	opLess
-	opLessEqual
-	opPower
-	opAnd
-	opOr
-	opNot
-	opSpansetChild
-	opSpansetDescendant
-	opSpansetAnd
-	opSpansetUnion
-	opSpansetSibling
+	OpAdd Operator = iota
+	OpSub
+	OpDiv
+	OpMod
+	OpMult
+	OpEqual
+	OpNotEqual
+	OpRegex
+	OpNotRegex
+	OpGreater
+	OpGreaterEqual
+	OpLess
+	OpLessEqual
+	OpPower
+	OpAnd
+	OpOr
+	OpNot
+	OpSpansetChild
+	OpSpansetDescendant
+	OpSpansetAnd
+	OpSpansetUnion
+	OpSpansetSibling
 )
 
 func (op Operator) isBoolean() bool {
-	return op == opOr ||
-		op == opAnd ||
-		op == opEqual ||
-		op == opNotEqual ||
-		op == opRegex ||
-		op == opNotRegex ||
-		op == opGreater ||
-		op == opGreaterEqual ||
-		op == opLess ||
-		op == opLessEqual ||
-		op == opNot
+	return op == OpOr ||
+		op == OpAnd ||
+		op == OpEqual ||
+		op == OpNotEqual ||
+		op == OpRegex ||
+		op == OpNotRegex ||
+		op == OpGreater ||
+		op == OpGreaterEqual ||
+		op == OpLess ||
+		op == OpLessEqual ||
+		op == OpNot
 }
 
 func (op Operator) binaryTypesValid(lhsT StaticType, rhsT StaticType) bool {
@@ -54,36 +54,36 @@ func binaryTypeValid(op Operator, t StaticType) bool {
 
 	switch t {
 	case typeBoolean:
-		return op == opAnd ||
-			op == opOr ||
-			op == opEqual ||
-			op == opNotEqual
+		return op == OpAnd ||
+			op == OpOr ||
+			op == OpEqual ||
+			op == OpNotEqual
 	case typeFloat:
 		fallthrough
 	case typeInt:
 		fallthrough
 	case typeDuration:
-		return op == opAdd ||
-			op == opSub ||
-			op == opMult ||
-			op == opDiv ||
-			op == opMod ||
-			op == opPower ||
-			op == opEqual ||
-			op == opNotEqual ||
-			op == opGreater ||
-			op == opGreaterEqual ||
-			op == opLess ||
-			op == opLessEqual
+		return op == OpAdd ||
+			op == OpSub ||
+			op == OpMult ||
+			op == OpDiv ||
+			op == OpMod ||
+			op == OpPower ||
+			op == OpEqual ||
+			op == OpNotEqual ||
+			op == OpGreater ||
+			op == OpGreaterEqual ||
+			op == OpLess ||
+			op == OpLessEqual
 	case typeString:
-		return op == opEqual ||
-			op == opNotEqual ||
-			op == opRegex ||
-			op == opNotRegex
+		return op == OpEqual ||
+			op == OpNotEqual ||
+			op == OpRegex ||
+			op == OpNotRegex
 	case typeNil:
 		fallthrough
 	case typeStatus:
-		return op == opEqual || op == opNotEqual
+		return op == OpEqual || op == OpNotEqual
 	}
 
 	return false
@@ -95,9 +95,9 @@ func (op Operator) unaryTypesValid(t StaticType) bool {
 	}
 
 	switch op {
-	case opSub:
+	case OpSub:
 		return t.isNumeric()
-	case opNot:
+	case OpNot:
 		return t == typeBoolean
 	}
 
@@ -107,49 +107,49 @@ func (op Operator) unaryTypesValid(t StaticType) bool {
 func (op Operator) String() string {
 
 	switch op {
-	case opAdd:
+	case OpAdd:
 		return "+"
-	case opSub:
+	case OpSub:
 		return "-"
-	case opDiv:
+	case OpDiv:
 		return "/"
-	case opMod:
+	case OpMod:
 		return "%"
-	case opMult:
+	case OpMult:
 		return "*"
-	case opEqual:
+	case OpEqual:
 		return "="
-	case opNotEqual:
+	case OpNotEqual:
 		return "!="
-	case opRegex:
+	case OpRegex:
 		return "=~"
-	case opNotRegex:
+	case OpNotRegex:
 		return "!~"
-	case opGreater:
+	case OpGreater:
 		return ">"
-	case opGreaterEqual:
+	case OpGreaterEqual:
 		return ">="
-	case opLess:
+	case OpLess:
 		return "<"
-	case opLessEqual:
+	case OpLessEqual:
 		return "<="
-	case opPower:
+	case OpPower:
 		return "^"
-	case opAnd:
+	case OpAnd:
 		return "&&"
-	case opOr:
+	case OpOr:
 		return "||"
-	case opNot:
+	case OpNot:
 		return "!"
-	case opSpansetChild:
+	case OpSpansetChild:
 		return ">"
-	case opSpansetDescendant:
+	case OpSpansetDescendant:
 		return ">>"
-	case opSpansetAnd:
+	case OpSpansetAnd:
 		return "&&"
-	case opSpansetSibling:
+	case OpSpansetSibling:
 		return "~"
-	case opSpansetUnion:
+	case OpSpansetUnion:
 		return "||"
 	}
 
