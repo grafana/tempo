@@ -79,9 +79,15 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	// backend reader
 	readerAt := io.ReaderAt(backendReaderAt)
 
-	// buffered reader
-	if opts.ReadBufferCount > 0 {
-		readerAt = tempo_io.NewBufferedReaderAt(readerAt, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
+	// buffering
+	if opts.ReadBufferSize > 0 {
+		//   only use buffered reader at if the block is small, otherwise it's far more effective to use larger
+		//   buffers in the parquet sdk
+		if opts.ReadBufferCount*opts.ReadBufferSize > int(b.meta.Size) {
+			readerAt = tempo_io.NewBufferedReaderAt(readerAt, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
+		} else {
+			o = append(o, parquet.ReadBufferSize(opts.ReadBufferSize))
+		}
 	}
 
 	// optimized reader
