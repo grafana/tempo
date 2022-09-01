@@ -42,7 +42,7 @@ func (cfg *RedisConfig) RegisterFlagsWithPrefix(prefix, description string, f *f
 	f.IntVar(&cfg.PoolSize, prefix+"redis.pool-size", 0, description+"Maximum number of connections in the pool.")
 	f.StringVar(&cfg.Username, prefix+"redis.username", "", description+"Username to use when connecting to redis (utilizes Redis 6+ ACL-based AUTH)")
 	f.Var(&cfg.Password, prefix+"redis.password", description+"Password to use when connecting to redis.")
-	f.StringVar(&cfg.SentinelUsername, prefix+"redis.sentinel-username", "", description+"Username to use when connecting to redis sentinel (utilizes Redis 6+ ACL_based AUTH)")
+	f.StringVar(&cfg.SentinelUsername, prefix+"redis.sentinel-username", "", description+"Username to use when connecting to redis sentinel (utilizes Redis 6+ ACL-based AUTH)")
 	f.Var(&cfg.SentinelPassword, prefix+"redis.sentinel-password", description+"Password to use when connecting to redis sentinel.")
 	f.BoolVar(&cfg.EnableTLS, prefix+"redis.tls-enabled", false, description+"Enable connecting to redis with TLS.")
 	f.BoolVar(&cfg.InsecureSkipVerify, prefix+"redis.tls-insecure-skip-verify", false, description+"Skip validating server certificate.")
