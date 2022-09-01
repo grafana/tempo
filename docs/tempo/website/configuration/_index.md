@@ -22,7 +22,7 @@ This document explains the configuration options for Tempo as well as the detail
   - [search](#search)
   - [usage-report](#usage-report)
 
-#### Use environment variables in the configuration
+## Use environment variables in the configuration
 
 You can use environment variable references in the configuration file to set values that need to be configurable during deployment using `--config.expand-env` option.
 To do this, use:
@@ -339,6 +339,7 @@ query_frontend:
 ```
 
 ## Querier
+
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/querier/config.go).
 
 The Querier is responsible for querying the backends/cache for the traceID.
@@ -401,6 +402,7 @@ It also queries compacted blocks that fall within the (2 * BlocklistPoll) range 
 is defined in the storage section below.
 
 ## Compactor
+
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/compactor/config.go).
 
 Compactors stream blocks from the storage backend, combine them and write them back.  Values shown below are the defaults.
@@ -456,11 +458,28 @@ compactor:
 ```
 
 ## Storage
+
+Tempo supports Amazon S3, GCS, Azure, local file system, and Parquet for storage. In addition, you can use Memcached or Redis for increased query performance.
+
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/tempodb/config.go).
 
-The storage block is used to configure TempoDB. It supports S3, GCS, Azure, local file system, and optionally can use Memcached or Redis for increased query performance.
+### Local storage recommendations
 
-The following example shows common options.  For further platform-specific information refer to the following:
+While you can use local storage, object storage is recommended for production workloads.
+Tempo is designed for object storage more than local storage.
+
+At Grafana Labs, we have almost exclusively run Tempo with SSDs instead of hard drives when using local storage.
+Hard drives should work if the read and write speeds are good. There may be more latency in I/O operations.
+
+How much storage space you need can be estimated by considering the ingested byes and retention. For example, ingested bytes per day *times* retention days = stored bytes.
+
+You can not use both local and object storage in the same Tempo deployment.
+
+### Storage block configuration example
+
+The storage block is used to configure TempoDB.
+The following example shows common options. For further platform-specific information, refer to the following:
+
 * [GCS]({{< relref "gcs/" >}})
 * [S3]({{< relref "s3/" >}})
 * [Azure]({{< relref "azure/" >}})
