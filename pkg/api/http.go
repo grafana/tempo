@@ -362,7 +362,8 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 }
 
 // AddServerlessParams takes an already existing http.Request and adds maxBytes
-//  to it
+//
+//	to it
 func AddServerlessParams(req *http.Request, maxBytes int) *http.Request {
 	if req == nil {
 		req = &http.Request{
@@ -378,7 +379,8 @@ func AddServerlessParams(req *http.Request, maxBytes int) *http.Request {
 }
 
 // ExtractServerlessParams extracts params for the serverless functions from
-//  an http.Request
+//
+//	an http.Request
 func ExtractServerlessParams(req *http.Request) (int, error) {
 	s, exists := extractQueryParam(req, urlParamMaxBytes)
 	if !exists {

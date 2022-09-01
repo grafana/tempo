@@ -70,17 +70,20 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 
 	unifiedMeta := getMeta(meta, compactedMeta, windowRange)
 
-	fmt.Println("ID            : ", unifiedMeta.BlockID)
-	fmt.Println("Version       : ", unifiedMeta.Version)
-	fmt.Println("Total Objects : ", unifiedMeta.TotalObjects)
-	fmt.Println("Data Size     : ", humanize.Bytes(unifiedMeta.Size))
-	fmt.Println("Encoding      : ", unifiedMeta.Encoding)
-	fmt.Println("Level         : ", unifiedMeta.CompactionLevel)
-	fmt.Println("Window        : ", unifiedMeta.window)
-	fmt.Println("Start         : ", unifiedMeta.StartTime)
-	fmt.Println("End           : ", unifiedMeta.EndTime)
-	fmt.Println("Duration      : ", fmt.Sprint(unifiedMeta.EndTime.Sub(unifiedMeta.StartTime).Round(time.Second)))
-	fmt.Println("Age           : ", fmt.Sprint(time.Since(unifiedMeta.EndTime).Round(time.Second)))
+	//nolint:all
+	{
+		fmt.Println("ID            : ", unifiedMeta.BlockID)
+		fmt.Println("Version       : ", unifiedMeta.Version)
+		fmt.Println("Total Objects : ", unifiedMeta.TotalObjects)
+		fmt.Println("Data Size     : ", humanize.Bytes(unifiedMeta.Size))
+		fmt.Println("Encoding      : ", unifiedMeta.Encoding)
+		fmt.Println("Level         : ", unifiedMeta.CompactionLevel)
+		fmt.Println("Window        : ", unifiedMeta.window)
+		fmt.Println("Start         : ", unifiedMeta.StartTime)
+		fmt.Println("End           : ", unifiedMeta.EndTime)
+		fmt.Println("Duration      : ", fmt.Sprint(unifiedMeta.EndTime.Sub(unifiedMeta.StartTime).Round(time.Second)))
+		fmt.Println("Age           : ", fmt.Sprint(time.Since(unifiedMeta.EndTime).Round(time.Second)))
+	}
 
 	if scan {
 		if meta.Version != v2.VersionString {
@@ -198,7 +201,8 @@ func printKVPairs(kvp kvPairs) {
 }
 
 // attempts to calculate the "value" that storing a given label would provide by. currently (number of times appeared)^2 / cardinality
-//  this is not researched and could definitely be improved
+//
+//	this is not researched and could definitely be improved
 func relativeValue(v values) float64 {
 	return (float64(v.count) * float64(v.count)) / float64(len(v.all))
 }

@@ -115,7 +115,8 @@ func (i *Ingester) ShutdownHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 // FlushHandler calls sweepAllInstances(true) which will force push all traces into the WAL and force
-//  mark all head blocks as ready to flush.
+//
+//	mark all head blocks as ready to flush.
 func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
 	i.sweepAllInstances(true)
 	w.WriteHeader(http.StatusNoContent)

@@ -24,7 +24,8 @@ type BufferedAppenderGeneric struct {
 }
 
 // NewBufferedAppender returns an bufferedAppender.  This appender builds a writes to
-//  the provided writer and also builds a downsampled records slice.
+//
+//	the provided writer and also builds a downsampled records slice.
 func NewBufferedAppenderGeneric(writer common.DataWriterGeneric, maxPageSize int) *BufferedAppenderGeneric {
 	return &BufferedAppenderGeneric{
 		writer:      writer,
@@ -34,7 +35,8 @@ func NewBufferedAppenderGeneric(writer common.DataWriterGeneric, maxPageSize int
 }
 
 // Append appends the id/object to the writer.  Note that the caller is giving up ownership of the two byte arrays backing the slices.
-//   Copies should be made and passed in if this is a problem
+//
+//	Copies should be made and passed in if this is a problem
 func (a *BufferedAppenderGeneric) Append(ctx context.Context, id common.ID, i interface{}) error {
 	bytesWritten, err := a.writer.Write(ctx, id, i)
 	if err != nil {

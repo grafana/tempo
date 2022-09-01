@@ -15,7 +15,7 @@ import (
 	"github.com/go-kit/log"
 	kitlog "github.com/go-kit/log"
 	"github.com/gogo/status"
-	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/proto" //nolint: all  //ProtoReflect
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"

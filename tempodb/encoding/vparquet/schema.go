@@ -3,7 +3,7 @@ package vparquet
 import (
 	"bytes"
 
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
@@ -415,7 +415,7 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 	return protoEvents
 }
 
-func parquetTraceToTempopbTrace(parquetTrace *Trace) (*tempopb.Trace, error) {
+func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 
 	protoTrace := &tempopb.Trace{}
 	protoTrace.Batches = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
@@ -534,5 +534,5 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) (*tempopb.Trace, error) {
 		protoTrace.Batches = append(protoTrace.Batches, protoBatch)
 	}
 
-	return protoTrace, nil
+	return protoTrace
 }

@@ -41,7 +41,8 @@ func InitLogger(cfg *server.Config) {
 }
 
 // TODO: remove once weaveworks/common updates to go-kit/log
-//                      -> we can then revert to using Level.Gokit
+//
+//	-> we can then revert to using Level.Gokit
 func LevelFilter(l string) level.Option {
 	switch l {
 	case "debug":

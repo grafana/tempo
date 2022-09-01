@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 	"sort"
@@ -519,7 +519,7 @@ func (q *Querier) searchExternalEndpoint(ctx context.Context, externalEndpoint s
 		return nil, fmt.Errorf("external endpoint failed to call http: %s, %w", externalEndpoint, err)
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to read body: %w", err)
 	}

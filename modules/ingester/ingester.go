@@ -173,7 +173,9 @@ func (i *Ingester) markUnavailable() {
 }
 
 // PushBytes implements tempopb.Pusher.PushBytes. Traces pushed to this endpoint are expected to be in the formats
-//  defined by ./pkg/model/v1
+//
+//	defined by ./pkg/model/v1
+//
 // This push function is extremely inefficient and is only provided as a migration path from the v1->v2 encodings
 func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
 	var err error
@@ -205,7 +207,8 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 }
 
 // PushBytes implements tempopb.Pusher.PushBytes. Traces pushed to this endpoint are expected to be in the formats
-//  defined by ./pkg/model/v2
+//
+//	defined by ./pkg/model/v2
 func (i *Ingester) PushBytesV2(ctx context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
 	if i.readonly {
 		return nil, ErrReadOnly

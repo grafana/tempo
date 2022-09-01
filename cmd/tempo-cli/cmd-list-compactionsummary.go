@@ -40,7 +40,7 @@ func displayCompactionSummary(results []blockStats) {
 	resultsByLevel := make(map[int][]blockStats)
 	var levels []int
 	for _, r := range results {
-		l := int(r.CompactionLevel)
+		l := int(r.CompactionLevel) //nolint:all //embedded typecheck
 
 		s, ok := resultsByLevel[l]
 		if !ok {
@@ -68,13 +68,14 @@ func displayCompactionSummary(results []blockStats) {
 
 		var newest time.Time
 		var oldest time.Time
+		//nolint:all //embedded typecheck
 		for _, r := range resultsByLevel[l] {
-			sizeSum += r.Size
-			countSum += r.TotalObjects
-			countBloomShards += int(r.BloomShardCount)
+			sizeSum += r.Size 
+			countSum += r.TotalObjects 
+			countBloomShards += int(r.BloomShardCount) 
 
 			if r.Size < sizeMin || sizeMin == 0 {
-				sizeMin = r.Size
+				sizeMin = r.Size 
 			}
 			if r.Size > sizeMax {
 				sizeMax = r.Size
@@ -85,7 +86,7 @@ func displayCompactionSummary(results []blockStats) {
 			if r.TotalObjects > countMax {
 				countMax = r.TotalObjects
 			}
-			if r.StartTime.Before(oldest) || oldest.IsZero() {
+			if r.StartTime.Before(oldest) || oldest.IsZero() { 
 				oldest = r.StartTime
 			}
 			if r.EndTime.After(newest) {

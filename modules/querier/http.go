@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
+	"github.com/golang/protobuf/proto" //nolint:all //ProtoReflect
 	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
