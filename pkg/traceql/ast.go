@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type element interface {
+type Element interface {
 	fmt.Stringer
 	validate() error
 }
@@ -18,7 +18,7 @@ type RootExpr struct {
 	Pipeline Pipeline
 }
 
-func newRootExpr(e element) *RootExpr {
+func newRootExpr(e Element) *RootExpr {
 	p, ok := e.(Pipeline)
 	if !ok {
 		p = newPipeline(e)
@@ -34,7 +34,7 @@ func newRootExpr(e element) *RootExpr {
 // **********************
 
 type Pipeline struct {
-	p []element
+	Elements []Element
 }
 
 // nolint: revive
@@ -43,23 +43,23 @@ func (Pipeline) __scalarExpression() {}
 // nolint: revive
 func (Pipeline) __spansetExpression() {}
 
-func newPipeline(i ...element) Pipeline {
+func newPipeline(i ...Element) Pipeline {
 	return Pipeline{
-		p: i,
+		Elements: i,
 	}
 }
 
-func (p Pipeline) addItem(i element) Pipeline {
-	p.p = append(p.p, i)
+func (p Pipeline) addItem(i Element) Pipeline {
+	p.Elements = append(p.Elements, i)
 	return p
 }
 
 func (p Pipeline) impliedType() StaticType {
-	if len(p.p) == 0 {
+	if len(p.Elements) == 0 {
 		return typeSpanset
 	}
 
-	finalItem := p.p[len(p.p)-1]
+	finalItem := p.Elements[len(p.Elements)-1]
 	aggregate, ok := finalItem.(Aggregate)
 	if ok {
 		return aggregate.impliedType()
@@ -89,7 +89,7 @@ func newCoalesceOperation() CoalesceOperation {
 // Scalars
 // **********************
 type ScalarExpression interface {
-	element
+	Element
 	typedExpression
 	__scalarExpression()
 }
@@ -153,7 +153,7 @@ func (a Aggregate) impliedType() StaticType {
 // Spansets
 // **********************
 type SpansetExpression interface {
-	element
+	Element
 	__spansetExpression()
 }
 
@@ -208,7 +208,7 @@ func (ScalarFilter) __spansetExpression() {}
 // Expressions
 // **********************
 type FieldExpression interface {
-	element
+	Element
 	typedExpression
 
 	// referencesSpan returns true if this field expression has any attributes or intrinsics. i.e. it references the span itself
@@ -368,7 +368,7 @@ func newAttribute(att string) Attribute {
 	intrinsic := intrinsicFromString(att)
 
 	return Attribute{
-		Scope:     attributeScopeNone,
+		Scope:     AttributeScopeNone,
 		Parent:    false,
 		Name:      att,
 		Intrinsic: intrinsic,
@@ -404,7 +404,7 @@ func (Attribute) referencesSpan() bool {
 func newScopedAttribute(scope AttributeScope, parent bool, att string) Attribute {
 	intrinsic := IntrinsicNone
 	// if we are explicitly passed a resource or span scopes then we shouldn't parse for intrinsic
-	if scope != attributeScopeResource && scope != attributeScopeSpan {
+	if scope != AttributeScopeResource && scope != AttributeScopeSpan {
 		intrinsic = intrinsicFromString(att)
 	}
 
@@ -418,7 +418,7 @@ func newScopedAttribute(scope AttributeScope, parent bool, att string) Attribute
 
 func newIntrinsic(n Intrinsic) Attribute {
 	return Attribute{
-		Scope:     attributeScopeNone,
+		Scope:     AttributeScopeNone,
 		Parent:    false,
 		Name:      n.String(),
 		Intrinsic: n,

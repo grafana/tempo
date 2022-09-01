@@ -718,14 +718,14 @@ func TestAttributes(t *testing.T) {
 		{in: ".http+", expected: newAttribute("http+")},
 		{in: ".😝", expected: newAttribute("😝")},
 		{in: ".http-other", expected: newAttribute("http-other")},
-		{in: "parent.duration", expected: newScopedAttribute(attributeScopeNone, true, "duration")},
-		{in: "parent.foo.bar.baz", expected: newScopedAttribute(attributeScopeNone, true, "foo.bar.baz")},
-		{in: "resource.foo.bar.baz", expected: newScopedAttribute(attributeScopeResource, false, "foo.bar.baz")},
-		{in: "span.foo.bar", expected: newScopedAttribute(attributeScopeSpan, false, "foo.bar")},
-		{in: "parent.resource.foo", expected: newScopedAttribute(attributeScopeResource, true, "foo")},
-		{in: "parent.span.foo", expected: newScopedAttribute(attributeScopeSpan, true, "foo")},
-		{in: "parent.resource.foo.bar.baz", expected: newScopedAttribute(attributeScopeResource, true, "foo.bar.baz")},
-		{in: "parent.span.foo.bar", expected: newScopedAttribute(attributeScopeSpan, true, "foo.bar")},
+		{in: "parent.duration", expected: newScopedAttribute(AttributeScopeNone, true, "duration")},
+		{in: "parent.foo.bar.baz", expected: newScopedAttribute(AttributeScopeNone, true, "foo.bar.baz")},
+		{in: "resource.foo.bar.baz", expected: newScopedAttribute(AttributeScopeResource, false, "foo.bar.baz")},
+		{in: "span.foo.bar", expected: newScopedAttribute(AttributeScopeSpan, false, "foo.bar")},
+		{in: "parent.resource.foo", expected: newScopedAttribute(AttributeScopeResource, true, "foo")},
+		{in: "parent.span.foo", expected: newScopedAttribute(AttributeScopeSpan, true, "foo")},
+		{in: "parent.resource.foo.bar.baz", expected: newScopedAttribute(AttributeScopeResource, true, "foo.bar.baz")},
+		{in: "parent.span.foo.bar", expected: newScopedAttribute(AttributeScopeSpan, true, "foo.bar")},
 	}
 
 	for _, tc := range tests {
@@ -778,7 +778,7 @@ func TestIntrinsics(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, &RootExpr{newPipeline(
 				newSpansetFilter(Attribute{
-					Scope:     attributeScopeNone,
+					Scope:     AttributeScopeNone,
 					Parent:    false,
 					Name:      tc.in,
 					Intrinsic: tc.expected,
@@ -791,7 +791,7 @@ func TestIntrinsics(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, &RootExpr{newPipeline(
 				newSpansetFilter(Attribute{
-					Scope:     attributeScopeNone,
+					Scope:     AttributeScopeNone,
 					Parent:    false,
 					Name:      tc.in,
 					Intrinsic: tc.expected,
@@ -804,7 +804,7 @@ func TestIntrinsics(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, &RootExpr{newPipeline(
 				newSpansetFilter(Attribute{
-					Scope:     attributeScopeSpan,
+					Scope:     AttributeScopeSpan,
 					Parent:    false,
 					Name:      tc.in,
 					Intrinsic: IntrinsicNone,
@@ -817,7 +817,7 @@ func TestIntrinsics(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, &RootExpr{newPipeline(
 				newSpansetFilter(Attribute{
-					Scope:     attributeScopeResource,
+					Scope:     AttributeScopeResource,
 					Parent:    false,
 					Name:      tc.in,
 					Intrinsic: IntrinsicNone,
@@ -830,7 +830,7 @@ func TestIntrinsics(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, &RootExpr{newPipeline(
 				newSpansetFilter(Attribute{
-					Scope:     attributeScopeNone,
+					Scope:     AttributeScopeNone,
 					Parent:    true,
 					Name:      tc.in,
 					Intrinsic: tc.expected,
@@ -843,7 +843,7 @@ func TestIntrinsics(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, &RootExpr{newPipeline(
 				newSpansetFilter(Attribute{
-					Scope:     attributeScopeNone,
+					Scope:     AttributeScopeNone,
 					Parent:    true,
 					Name:      tc.in + ".foo",
 					Intrinsic: IntrinsicNone,
@@ -856,7 +856,7 @@ func TestIntrinsics(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, &RootExpr{newPipeline(
 				newSpansetFilter(Attribute{
-					Scope:     attributeScopeResource,
+					Scope:     AttributeScopeResource,
 					Parent:    true,
 					Name:      tc.in,
 					Intrinsic: IntrinsicNone,
@@ -869,7 +869,7 @@ func TestIntrinsics(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, &RootExpr{newPipeline(
 				newSpansetFilter(Attribute{
-					Scope:     attributeScopeSpan,
+					Scope:     AttributeScopeSpan,
 					Parent:    true,
 					Name:      tc.in,
 					Intrinsic: IntrinsicNone,

@@ -1297,31 +1297,31 @@ yydefault:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:260
 		{
-			yyVAL.attributeField = newScopedAttribute(attributeScopeResource, false, yyDollar[2].staticStr)
+			yyVAL.attributeField = newScopedAttribute(AttributeScopeResource, false, yyDollar[2].staticStr)
 		}
 	case 101:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:261
 		{
-			yyVAL.attributeField = newScopedAttribute(attributeScopeSpan, false, yyDollar[2].staticStr)
+			yyVAL.attributeField = newScopedAttribute(AttributeScopeSpan, false, yyDollar[2].staticStr)
 		}
 	case 102:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:262
 		{
-			yyVAL.attributeField = newScopedAttribute(attributeScopeNone, true, yyDollar[2].staticStr)
+			yyVAL.attributeField = newScopedAttribute(AttributeScopeNone, true, yyDollar[2].staticStr)
 		}
 	case 103:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line pkg/traceql/expr.y:263
 		{
-			yyVAL.attributeField = newScopedAttribute(attributeScopeResource, true, yyDollar[3].staticStr)
+			yyVAL.attributeField = newScopedAttribute(AttributeScopeResource, true, yyDollar[3].staticStr)
 		}
 	case 104:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line pkg/traceql/expr.y:264
 		{
-			yyVAL.attributeField = newScopedAttribute(attributeScopeSpan, true, yyDollar[3].staticStr)
+			yyVAL.attributeField = newScopedAttribute(AttributeScopeSpan, true, yyDollar[3].staticStr)
 		}
 	}
 	goto yystack /* stack new state and value */

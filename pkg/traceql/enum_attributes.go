@@ -5,18 +5,18 @@ import "fmt"
 type AttributeScope int
 
 const (
-	attributeScopeNone AttributeScope = iota
-	attributeScopeResource
-	attributeScopeSpan
+	AttributeScopeNone AttributeScope = iota
+	AttributeScopeResource
+	AttributeScopeSpan
 )
 
 func (s AttributeScope) String() string {
 	switch s {
-	case attributeScopeNone:
+	case AttributeScopeNone:
 		return "none"
-	case attributeScopeSpan:
+	case AttributeScopeSpan:
 		return "span"
-	case attributeScopeResource:
+	case AttributeScopeResource:
 		return "resource"
 	}
 

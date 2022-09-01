@@ -257,9 +257,9 @@ intrinsicField:
 
 attributeField:
     DOT IDENTIFIER END_ATTRIBUTE                      { $$ = newAttribute($2)                                      }
-  | RESOURCE_DOT IDENTIFIER END_ATTRIBUTE             { $$ = newScopedAttribute(attributeScopeResource, false, $2) }
-  | SPAN_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = newScopedAttribute(attributeScopeSpan, false, $2)     }
-  | PARENT_DOT IDENTIFIER END_ATTRIBUTE               { $$ = newScopedAttribute(attributeScopeNone, true, $2)      }
-  | PARENT_DOT RESOURCE_DOT IDENTIFIER END_ATTRIBUTE  { $$ = newScopedAttribute(attributeScopeResource, true, $3)  }
-  | PARENT_DOT SPAN_DOT IDENTIFIER END_ATTRIBUTE      { $$ = newScopedAttribute(attributeScopeSpan, true, $3)      }
+  | RESOURCE_DOT IDENTIFIER END_ATTRIBUTE             { $$ = newScopedAttribute(AttributeScopeResource, false, $2) }
+  | SPAN_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = newScopedAttribute(AttributeScopeSpan, false, $2)     }
+  | PARENT_DOT IDENTIFIER END_ATTRIBUTE               { $$ = newScopedAttribute(AttributeScopeNone, true, $2)      }
+  | PARENT_DOT RESOURCE_DOT IDENTIFIER END_ATTRIBUTE  { $$ = newScopedAttribute(AttributeScopeResource, true, $3)  }
+  | PARENT_DOT SPAN_DOT IDENTIFIER END_ATTRIBUTE      { $$ = newScopedAttribute(AttributeScopeSpan, true, $3)      }
   ;

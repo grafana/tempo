@@ -7,7 +7,7 @@ func (r RootExpr) validate() error {
 }
 
 func (p Pipeline) validate() error {
-	for _, p := range p.p {
+	for _, p := range p.Elements {
 		err := p.validate()
 		if err != nil {
 			return err

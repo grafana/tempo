@@ -11,8 +11,8 @@ func (r RootExpr) String() string {
 }
 
 func (p Pipeline) String() string {
-	s := make([]string, 0, len(p.p))
-	for _, p := range p.p {
+	s := make([]string, 0, len(p.Elements))
+	for _, p := range p.Elements {
 		s = append(s, p.String())
 	}
 	return strings.Join(s, "|")
@@ -85,7 +85,7 @@ func (a Attribute) String() string {
 		scopes = append(scopes, "parent")
 	}
 
-	if a.Scope != attributeScopeNone {
+	if a.Scope != AttributeScopeNone {
 		attributeScope := a.Scope.String()
 		scopes = append(scopes, attributeScope)
 	}
@@ -104,15 +104,15 @@ func (a Attribute) String() string {
 	return scope + att
 }
 
-func binaryOp(op Operator, lhs element, rhs element) string {
+func binaryOp(op Operator, lhs Element, rhs Element) string {
 	return wrapElement(lhs) + " " + op.String() + " " + wrapElement(rhs)
 }
 
-func unaryOp(op Operator, e element) string {
+func unaryOp(op Operator, e Element) string {
 	return op.String() + wrapElement(e)
 }
 
-func wrapElement(e element) string {
+func wrapElement(e Element) string {
 	static, ok := e.(Static)
 	if ok {
 		return static.String()
