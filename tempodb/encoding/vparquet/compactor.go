@@ -160,7 +160,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		// Flush existing block data if the next trace can't fit
-		if currentBlock.CurrentBufferedValues() > 0 && currentBlock.CurrentBufferedValues()+estimateProtoSize(lowestObject) > c.opts.BlockConfig.RowGroupSizeBytes {
+		if currentBlock.EstimatedBufferedBytes() > 0 && currentBlock.EstimatedBufferedBytes()+estimateProtoSize(lowestObject) > c.opts.BlockConfig.RowGroupSizeBytes {
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
@@ -177,7 +177,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		// Flush again if block is already full.
-		if currentBlock.CurrentBufferedValues() > c.opts.BlockConfig.RowGroupSizeBytes {
+		if currentBlock.EstimatedBufferedBytes() > c.opts.BlockConfig.RowGroupSizeBytes {
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
@@ -219,7 +219,7 @@ func (c *Compactor) appendBlock(ctx context.Context, block *streamingBlock, l lo
 
 	var (
 		objs            = block.CurrentBufferedObjects()
-		vals            = block.CurrentBufferedValues()
+		vals            = block.EstimatedBufferedBytes()
 		compactionLevel = int(block.meta.CompactionLevel - 1)
 	)
 
