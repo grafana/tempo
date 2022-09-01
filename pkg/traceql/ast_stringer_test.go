@@ -33,7 +33,26 @@ func TestStringer(t *testing.T) {
 			}
 
 			assert.Equal(t, pass1, pass2)
-			t.Logf("\n\t1: %s\n\t2: %s", pass1.String(), pass2.String())
+			t.Logf("\n\tq: %s\n\t1: %s\n\t2: %s", q, pass1.String(), pass2.String())
+		})
+	}
+}
+
+func TestStringerRoundtrip(t *testing.T) {
+
+	roundtrippable := []string{
+		"{ duration = 1s }", // Check handling of some tricky parts where intrinsics / attributes overlap
+		"{ .duration = 1s }",
+		"{ parent.duration = 1s }",
+		"{ span.duration = 1s }",
+		"{ resource.duration = 1s }",
+	}
+
+	for _, q := range roundtrippable {
+		t.Run(q, func(t *testing.T) {
+			expr, err := Parse(q)
+			require.NoError(t, err)
+			require.Equal(t, q, expr.String())
 		})
 	}
 }

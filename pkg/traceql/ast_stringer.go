@@ -97,9 +97,13 @@ func (a Attribute) String() string {
 
 	scope := ""
 	if len(scopes) > 0 {
-		scope = strings.Join(scopes, ".")
+		scope = strings.Join(scopes, ".") + "."
 	}
-	scope += "."
+
+	// Top-level attributes get a "." but top-level intrinsics don't
+	if scope == "" && a.Intrinsic == IntrinsicNone {
+		scope += "."
+	}
 
 	return scope + att
 }

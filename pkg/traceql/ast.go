@@ -362,16 +362,13 @@ type Attribute struct {
 	Intrinsic Intrinsic
 }
 
-// newAttribute creates a new attribute with the given identifier string. If the identifier
-//  string matches an intrinsic use that.
+// newAttribute creates a new attribute with the given identifier string.
 func newAttribute(att string) Attribute {
-	intrinsic := intrinsicFromString(att)
-
 	return Attribute{
 		Scope:     AttributeScopeNone,
 		Parent:    false,
 		Name:      att,
-		Intrinsic: intrinsic,
+		Intrinsic: IntrinsicNone,
 	}
 }
 

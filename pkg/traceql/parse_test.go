@@ -794,7 +794,7 @@ func TestIntrinsics(t *testing.T) {
 					Scope:     AttributeScopeNone,
 					Parent:    false,
 					Name:      tc.in,
-					Intrinsic: tc.expected,
+					Intrinsic: IntrinsicNone,
 				}))}, actual)
 
 			// as span scoped attribute e.g span.duration
@@ -837,6 +837,7 @@ func TestIntrinsics(t *testing.T) {
 				}))}, actual)
 
 			// as nested parent scoped intrinsic e.g. parent.duration.foo
+			// this becomes lookup on attribute named "duration.foo"
 			s = "{ parent." + tc.in + ".foo }"
 			actual, err = Parse(s)
 
