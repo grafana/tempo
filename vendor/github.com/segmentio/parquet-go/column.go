@@ -646,21 +646,30 @@ func (c *Column) decodeDataPage(header DataPageHeader, numValues int, repetition
 			newPage,
 			c.maxRepetitionLevel,
 			c.maxDefinitionLevel,
-			makeBufferRef(repetitionLevels),
-			makeBufferRef(definitionLevels),
+			repetitionLevels.data,
+			definitionLevels.data,
 		)
 	case c.maxDefinitionLevel > 0:
 		newPage = newOptionalPage(
 			newPage,
 			c.maxDefinitionLevel,
-			makeBufferRef(definitionLevels),
+			definitionLevels.data,
 		)
 	}
+
+	bufferRef(vbuf)
+	bufferRef(obuf)
+	bufferRef(repetitionLevels)
+	bufferRef(definitionLevels)
+
 	newPage = &bufferedPage{
-		Page:    newPage,
-		values:  makeBufferRef(vbuf),
-		offsets: makeBufferRef(obuf),
+		Page:             newPage,
+		values:           vbuf,
+		offsets:          obuf,
+		repetitionLevels: repetitionLevels,
+		definitionLevels: definitionLevels,
 	}
+
 	return newPage, nil
 }
 

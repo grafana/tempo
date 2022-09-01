@@ -12,7 +12,6 @@ import (
 	"github.com/segmentio/parquet-go"
 	"github.com/willf/bloom"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -173,23 +172,11 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		return nil, nil
 	}
 
-	// todo: combine with open logic from the other search functions
-	var readerAt io.ReaderAt
-	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
-	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
-
-	readerAt = rr
-	if opts.ReadBufferCount > 0 {
-		br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
-
-		or := newParquetOptimizedReaderAt(br, rr, int64(b.meta.Size), b.meta.FooterSize, opts.CacheControl)
-		readerAt = or
-	}
-
-	pf, err := parquet.OpenFile(readerAt, int64(b.meta.Size))
+	pf, rr, err := b.openForSearch(derivedCtx, opts)
 	if err != nil {
-		return nil, errors.Wrap(err, "error opening file in FindTraceByID")
+		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
+	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
 	// traceID column index
 	colIndex, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)

@@ -12,6 +12,14 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+// This stack of readers is used to bridge the gap between the backend.Reader and the parquet.File.
+//  each fulfills a different role.
+// backend.Reader <- BackendReaderAt <- io.BufferedReaderAt <- parquetOptimizedReaderAt <- cachedReaderAt <- parquet.File
+//                                \                                                         /
+//                                  <------------------------------------------------------
+
+// BackendReaderAt is used to track backend requests and present a io.ReaderAt interface backed
+// by a backend.Reader
 type BackendReaderAt struct {
 	ctx      context.Context
 	r        backend.Reader
@@ -39,41 +47,19 @@ func (b *BackendReaderAt) ReadAtWithCache(p []byte, off int64) (int, error) {
 	return len(p), err
 }
 
+// parquetOptimizedReaderAt is used to cheat a few parquet calls. By default when opening a
+// file parquet always requests the magic number and then the footer length. We can save
+// both of these calls from going to the backend.
 type parquetOptimizedReaderAt struct {
 	r          io.ReaderAt
-	br         *BackendReaderAt
 	readerSize int64
 	footerSize uint32
-
-	cacheControl  common.CacheControl
-	cachedObjects map[int64]int64 // storing offsets and length of objects we want to cache
 }
 
 var _ io.ReaderAt = (*parquetOptimizedReaderAt)(nil)
 
-func newParquetOptimizedReaderAt(br io.ReaderAt, rr *BackendReaderAt, size int64, footerSize uint32, cc common.CacheControl) *parquetOptimizedReaderAt {
-	return &parquetOptimizedReaderAt{br, rr, size, footerSize, cc, map[int64]int64{}}
-}
-
-// called by parquet-go in OpenFile() to set offset and length of footer section
-func (r *parquetOptimizedReaderAt) SetFooterSection(offset, length int64) {
-	if r.cacheControl.Footer {
-		r.cachedObjects[offset] = length
-	}
-}
-
-// called by parquet-go in OpenFile() to set offset and length of column indexes
-func (r *parquetOptimizedReaderAt) SetColumnIndexSection(offset, length int64) {
-	if r.cacheControl.ColumnIndex {
-		r.cachedObjects[offset] = length
-	}
-}
-
-// called by parquet-go in OpenFile() to set offset and length of offset index section
-func (r *parquetOptimizedReaderAt) SetOffsetIndexSection(offset, length int64) {
-	if r.cacheControl.OffsetIndex {
-		r.cachedObjects[offset] = length
-	}
+func newParquetOptimizedReaderAt(r io.ReaderAt, size int64, footerSize uint32) *parquetOptimizedReaderAt {
+	return &parquetOptimizedReaderAt{r, size, footerSize}
 }
 
 func (r *parquetOptimizedReaderAt) ReadAt(p []byte, off int64) (int, error) {
@@ -89,6 +75,46 @@ func (r *parquetOptimizedReaderAt) ReadAt(p []byte, off int64) (int, error) {
 		return 8, nil
 	}
 
+	return r.r.ReadAt(p, off)
+}
+
+// cachedReaderAt is used to route specific reads to the caching layer. this must be passed directly into
+// the parquet.File so thet Set*Section() methods get called.
+type cachedReaderAt struct {
+	r             io.ReaderAt
+	br            *BackendReaderAt
+	cacheControl  common.CacheControl
+	cachedObjects map[int64]int64 // storing offsets and length of objects we want to cache
+}
+
+var _ io.ReaderAt = (*cachedReaderAt)(nil)
+
+func newCachedReaderAt(br io.ReaderAt, rr *BackendReaderAt, cc common.CacheControl) *cachedReaderAt {
+	return &cachedReaderAt{br, rr, cc, map[int64]int64{}}
+}
+
+// called by parquet-go in OpenFile() to set offset and length of footer section
+func (r *cachedReaderAt) SetFooterSection(offset, length int64) {
+	if r.cacheControl.Footer {
+		r.cachedObjects[offset] = length
+	}
+}
+
+// called by parquet-go in OpenFile() to set offset and length of column indexes
+func (r *cachedReaderAt) SetColumnIndexSection(offset, length int64) {
+	if r.cacheControl.ColumnIndex {
+		r.cachedObjects[offset] = length
+	}
+}
+
+// called by parquet-go in OpenFile() to set offset and length of offset index section
+func (r *cachedReaderAt) SetOffsetIndexSection(offset, length int64) {
+	if r.cacheControl.OffsetIndex {
+		r.cachedObjects[offset] = length
+	}
+}
+
+func (r *cachedReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	// check if the offset and length is stored as a special object
 	if r.cachedObjects[off] == int64(len(p)) {
 		return r.br.ReadAtWithCache(p, off)

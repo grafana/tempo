@@ -248,8 +248,7 @@ func (col *optionalColumnBuffer) Page() Page {
 		col.reordered = false
 	}
 
-	definitionLevels := makeBufferRef(&buffer{data: col.definitionLevels})
-	return newOptionalPage(col.base.Page(), col.maxDefinitionLevel, definitionLevels)
+	return newOptionalPage(col.base.Page(), col.maxDefinitionLevel, col.definitionLevels)
 }
 
 func (col *optionalColumnBuffer) Reset() {
@@ -551,14 +550,12 @@ func (col *repeatedColumnBuffer) Page() Page {
 		col.reordered = false
 	}
 
-	repetitionLevels := makeBufferRef(&buffer{data: col.repetitionLevels})
-	definitionLevels := makeBufferRef(&buffer{data: col.definitionLevels})
 	return newRepeatedPage(
 		col.base.Page(),
 		col.maxRepetitionLevel,
 		col.maxDefinitionLevel,
-		repetitionLevels,
-		definitionLevels,
+		col.repetitionLevels,
+		col.definitionLevels,
 	)
 }
 

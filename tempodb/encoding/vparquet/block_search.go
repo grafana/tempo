@@ -2,6 +2,8 @@ package vparquet
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"math"
 	"strconv"
 	"time"
@@ -42,19 +44,11 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 		})
 	defer span.Finish()
 
-	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
-	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
-
-	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
-
-	or := newParquetOptimizedReaderAt(br, rr, int64(b.meta.Size), b.meta.FooterSize, opts.CacheControl)
-
-	span2, _ := opentracing.StartSpanFromContext(derivedCtx, "parquet.OpenFile")
-	pf, err := parquet.OpenFile(or, int64(b.meta.Size), parquet.SkipPageIndex(true))
-	span2.Finish()
+	pf, rr, err := b.openForSearch(derivedCtx, opts, parquet.SkipPageIndex(true))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
+	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
 	// Get list of row groups to inspect. Ideally we use predicate pushdown
 	// here to keep only row groups that can potentially satisfy the request
@@ -76,6 +70,39 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	results.Metrics.InspectedBytes += rr.TotalBytesRead.Load()
 
 	return results, nil
+}
+
+// openForSearch consolidates all the logic regarding opening a parquet file in object storage
+func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions, o ...parquet.FileOption) (*parquet.File, *BackendReaderAt, error) {
+	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
+
+	// backend reader
+	readerAt := io.ReaderAt(backendReaderAt)
+
+	// buffering
+	if opts.ReadBufferSize > 0 {
+		//   only use buffered reader at if the block is small, otherwise it's far more effective to use larger
+		//   buffers in the parquet sdk
+		if opts.ReadBufferCount*opts.ReadBufferSize > int(b.meta.Size) {
+			readerAt = tempo_io.NewBufferedReaderAt(readerAt, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
+		} else {
+			o = append(o, parquet.ReadBufferSize(opts.ReadBufferSize))
+		}
+	}
+
+	// optimized reader
+	readerAt = newParquetOptimizedReaderAt(readerAt, int64(b.meta.Size), b.meta.FooterSize)
+
+	// cached reader
+	if opts.CacheControl.ColumnIndex || opts.CacheControl.Footer || opts.CacheControl.OffsetIndex {
+		readerAt = newCachedReaderAt(readerAt, backendReaderAt, opts.CacheControl)
+	}
+
+	span, _ := opentracing.StartSpanFromContext(ctx, "parquet.OpenFile")
+	defer span.Finish()
+	pf, err := parquet.OpenFile(readerAt, int64(b.meta.Size), o...)
+
+	return pf, backendReaderAt, err
 }
 
 func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, pf *parquet.File, rgs []parquet.RowGroup) (pq.Iterator, parquetSearchMetrics) {

@@ -259,11 +259,18 @@ func (s *Schema) Reconstruct(value interface{}, row Row) error {
 		v = v.Elem()
 	}
 	var err error
+
 	if s.reconstruct != nil {
 		row, err = s.reconstruct(v, levels{}, row)
 		if len(row) > 0 && err == nil {
-			err = fmt.Errorf("%d values remain unused after reconstructing go value of type %s from parquet row", len(row), v.Type())
+			err = fmt.Errorf(
+				"%d values remain unused after reconstructing go value of type %s from parquet row",
+				len(row),
+				v.Type(),
+			)
 		}
+	} else {
+		panic(fmt.Sprintf("Reconstruct called when undefined on schema: %v", s))
 	}
 	return err
 }
