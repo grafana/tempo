@@ -60,19 +60,19 @@ func (o UnaryOperation) String() string {
 
 func (n Static) String() string {
 	switch n.Type {
-	case typeInt:
+	case TypeInt:
 		return strconv.Itoa(n.N)
-	case typeFloat:
+	case TypeFloat:
 		return strconv.FormatFloat(n.F, 'f', 5, 64)
-	case typeString:
+	case TypeString:
 		return "`" + n.S + "`"
-	case typeBoolean:
+	case TypeBoolean:
 		return strconv.FormatBool(n.B)
-	case typeNil:
+	case TypeNil:
 		return "nil"
-	case typeDuration:
+	case TypeDuration:
 		return n.D.String()
-	case typeStatus:
+	case TypeStatus:
 		return n.Status.String()
 	}
 

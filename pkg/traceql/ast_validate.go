@@ -60,7 +60,7 @@ func (a Aggregate) validate() error {
 
 	// aggregate field expressions require a type of a number or attribute
 	t := a.e.impliedType()
-	if t != typeAttribute && !t.isNumeric() {
+	if t != TypeAttribute && !t.isNumeric() {
 		return fmt.Errorf("aggregate field expressions must resolve to a number type: %s", a.String())
 	}
 
@@ -84,7 +84,7 @@ func (f SpansetFilter) validate() error {
 	}
 
 	t := f.Expression.impliedType()
-	if t != typeAttribute && t != typeBoolean {
+	if t != TypeAttribute && t != TypeBoolean {
 		return fmt.Errorf("span filter field expressions must resolve to a boolean: %s", f.String())
 	}
 
@@ -139,7 +139,7 @@ func (o UnaryOperation) validate() error {
 	}
 
 	t := o.Expression.impliedType()
-	if t == typeAttribute {
+	if t == TypeAttribute {
 		return nil
 	}
 

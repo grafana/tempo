@@ -50,62 +50,62 @@ func TestOperatorBinaryTypesValid(t *testing.T) {
 		expected bool
 	}{
 		// numeric
-		{OpAdd, typeInt, true},
-		{OpDiv, typeDuration, true},
-		{OpMod, typeFloat, true},
-		{OpMult, typeInt, true},
-		{OpPower, typeDuration, true},
-		{OpSub, typeAttribute, true},
+		{OpAdd, TypeInt, true},
+		{OpDiv, TypeDuration, true},
+		{OpMod, TypeFloat, true},
+		{OpMult, TypeInt, true},
+		{OpPower, TypeDuration, true},
+		{OpSub, TypeAttribute, true},
 
-		{OpAdd, typeString, false},
-		{OpDiv, typeSpanset, false},
-		{OpMod, typeStatus, false},
-		{OpMult, typeNil, false},
-		{OpPower, typeBoolean, false},
+		{OpAdd, TypeString, false},
+		{OpDiv, TypeSpanset, false},
+		{OpMod, TypeStatus, false},
+		{OpMult, TypeNil, false},
+		{OpPower, TypeBoolean, false},
 		// equality
-		{OpEqual, typeDuration, true},
-		{OpNotEqual, typeStatus, true},
-		{OpEqual, typeString, true},
-		{OpNotEqual, typeInt, true},
-		{OpEqual, typeNil, true},
-		{OpNotEqual, typeAttribute, true},
-		{OpEqual, typeBoolean, true},
-		{OpNotEqual, typeFloat, true},
+		{OpEqual, TypeDuration, true},
+		{OpNotEqual, TypeStatus, true},
+		{OpEqual, TypeString, true},
+		{OpNotEqual, TypeInt, true},
+		{OpEqual, TypeNil, true},
+		{OpNotEqual, TypeAttribute, true},
+		{OpEqual, TypeBoolean, true},
+		{OpNotEqual, TypeFloat, true},
 
-		{OpEqual, typeSpanset, false},
+		{OpEqual, TypeSpanset, false},
 		// range comparison
-		{OpGreater, typeInt, true},
-		{OpGreaterEqual, typeFloat, true},
-		{OpLess, typeFloat, true},
-		{OpLessEqual, typeDuration, true},
+		{OpGreater, TypeInt, true},
+		{OpGreaterEqual, TypeFloat, true},
+		{OpLess, TypeFloat, true},
+		{OpLessEqual, TypeDuration, true},
 
-		{OpGreater, typeStatus, false},
-		{OpGreaterEqual, typeNil, false},
-		{OpLess, typeString, false},
-		{OpLessEqual, typeBoolean, false},
+		{OpGreater, TypeStatus, false},
+		{OpGreaterEqual, TypeNil, false},
+		{OpLess, TypeString, false},
+		{OpLessEqual, TypeBoolean, false},
 		// string comparison
-		{OpRegex, typeString, true},
-		{OpNotRegex, typeAttribute, true},
-		{OpRegex, typeString, true},
+		{OpRegex, TypeString, true},
+		{OpNotRegex, TypeAttribute, true},
+		{OpRegex, TypeString, true},
 
-		{OpRegex, typeInt, false},
-		{OpNotRegex, typeInt, false},
+		{OpRegex, TypeInt, false},
+		{OpNotRegex, TypeInt, false},
 		// boolean
-		{OpAnd, typeBoolean, true},
-		{OpOr, typeAttribute, true},
-		{OpAnd, typeAttribute, true},
+		{OpAnd, TypeBoolean, true},
+		{OpOr, TypeAttribute, true},
+		{OpAnd, TypeAttribute, true},
 
-		{OpAnd, typeDuration, false},
-		{OpOr, typeDuration, false},
+		{OpAnd, TypeDuration, false},
+		{OpOr, TypeDuration, false},
 		// not
-		{OpNot, typeBoolean, false},
+		{OpNot, TypeBoolean, false},
 	}
 
 	for _, tc := range tt {
 		t.Run(tc.op.String(), func(t *testing.T) {
-			actual := tc.op.binaryTypesValid(tc.t, typeAttribute)
+			actual := tc.op.binaryTypesValid(tc.t, TypeAttribute)
 			assert.Equal(t, tc.expected, actual)
-			actual = tc.op.binaryTypesValid(typeAttribute, tc.t)
+			actual = tc.op.binaryTypesValid(TypeAttribute, tc.t)
 			assert.Equal(t, tc.expected, actual)
 			actual = tc.op.binaryTypesValid(tc.t, tc.t)
 			assert.Equal(t, tc.expected, actual)
@@ -119,39 +119,39 @@ func TestOperatorUnaryTypesValid(t *testing.T) {
 		t        StaticType
 		expected bool
 	}{
-		{OpAdd, typeInt, false},
-		{OpDiv, typeInt, false},
-		{OpMod, typeInt, false},
-		{OpMult, typeInt, false},
-		{OpEqual, typeInt, false},
-		{OpNotEqual, typeInt, false},
-		{OpRegex, typeInt, false},
-		{OpNotRegex, typeInt, false},
-		{OpGreater, typeInt, false},
-		{OpGreaterEqual, typeInt, false},
-		{OpLess, typeInt, false},
-		{OpLessEqual, typeInt, false},
-		{OpPower, typeInt, false},
-		{OpAnd, typeInt, false},
-		{OpOr, typeInt, false},
-		{OpSpansetChild, typeInt, false},
-		{OpSpansetDescendant, typeInt, false},
-		{OpSpansetAnd, typeInt, false},
-		{OpSpansetUnion, typeInt, false},
-		{OpSpansetSibling, typeInt, false},
+		{OpAdd, TypeInt, false},
+		{OpDiv, TypeInt, false},
+		{OpMod, TypeInt, false},
+		{OpMult, TypeInt, false},
+		{OpEqual, TypeInt, false},
+		{OpNotEqual, TypeInt, false},
+		{OpRegex, TypeInt, false},
+		{OpNotRegex, TypeInt, false},
+		{OpGreater, TypeInt, false},
+		{OpGreaterEqual, TypeInt, false},
+		{OpLess, TypeInt, false},
+		{OpLessEqual, TypeInt, false},
+		{OpPower, TypeInt, false},
+		{OpAnd, TypeInt, false},
+		{OpOr, TypeInt, false},
+		{OpSpansetChild, TypeInt, false},
+		{OpSpansetDescendant, TypeInt, false},
+		{OpSpansetAnd, TypeInt, false},
+		{OpSpansetUnion, TypeInt, false},
+		{OpSpansetSibling, TypeInt, false},
 		// not
-		{OpNot, typeBoolean, true},
-		{OpNot, typeInt, false},
-		{OpNot, typeNil, false},
-		{OpNot, typeString, false},
+		{OpNot, TypeBoolean, true},
+		{OpNot, TypeInt, false},
+		{OpNot, TypeNil, false},
+		{OpNot, TypeString, false},
 		// sub
-		{OpSub, typeInt, true},
-		{OpSub, typeFloat, true},
-		{OpSub, typeDuration, true},
-		{OpSub, typeBoolean, false},
-		{OpSub, typeStatus, false},
-		{OpSub, typeNil, false},
-		{OpSub, typeSpanset, false},
+		{OpSub, TypeInt, true},
+		{OpSub, TypeFloat, true},
+		{OpSub, TypeDuration, true},
+		{OpSub, TypeBoolean, false},
+		{OpSub, TypeStatus, false},
+		{OpSub, TypeNil, false},
+		{OpSub, TypeSpanset, false},
 	}
 
 	for _, tc := range tt {

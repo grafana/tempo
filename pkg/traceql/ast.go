@@ -56,7 +56,7 @@ func (p Pipeline) addItem(i Element) Pipeline {
 
 func (p Pipeline) impliedType() StaticType {
 	if len(p.Elements) == 0 {
-		return typeSpanset
+		return TypeSpanset
 	}
 
 	finalItem := p.Elements[len(p.Elements)-1]
@@ -65,7 +65,7 @@ func (p Pipeline) impliedType() StaticType {
 		return aggregate.impliedType()
 	}
 
-	return typeSpanset
+	return TypeSpanset
 }
 
 type GroupOperation struct {
@@ -113,13 +113,13 @@ func (ScalarOperation) __scalarExpression() {}
 
 func (o ScalarOperation) impliedType() StaticType {
 	if o.Op.isBoolean() {
-		return typeBoolean
+		return TypeBoolean
 	}
 
 	// remaining operators will be based on the operands
 	// opAdd, opSub, opDiv, opMod, opMult
 	t := o.LHS.impliedType()
-	if t != typeAttribute {
+	if t != TypeAttribute {
 		return t
 	}
 
@@ -143,7 +143,7 @@ func (Aggregate) __scalarExpression() {}
 
 func (a Aggregate) impliedType() StaticType {
 	if a.agg == aggregateCount || a.e == nil {
-		return typeInt
+		return TypeInt
 	}
 
 	return a.e.impliedType()
@@ -235,13 +235,13 @@ func (BinaryOperation) __fieldExpression() {}
 
 func (o BinaryOperation) impliedType() StaticType {
 	if o.Op.isBoolean() {
-		return typeBoolean
+		return TypeBoolean
 	}
 
 	// remaining operators will be based on the operands
 	// opAdd, opSub, opDiv, opMod, opMult
 	t := o.LHS.impliedType()
-	if t != typeAttribute {
+	if t != TypeAttribute {
 		return t
 	}
 
@@ -305,48 +305,48 @@ func (s Static) impliedType() StaticType {
 
 func newStaticInt(n int) Static {
 	return Static{
-		Type: typeInt,
+		Type: TypeInt,
 		N:    n,
 	}
 }
 
 func newStaticFloat(f float64) Static {
 	return Static{
-		Type: typeFloat,
+		Type: TypeFloat,
 		F:    f,
 	}
 }
 
 func newStaticString(s string) Static {
 	return Static{
-		Type: typeString,
+		Type: TypeString,
 		S:    s,
 	}
 }
 
 func newStaticBool(b bool) Static {
 	return Static{
-		Type: typeBoolean,
+		Type: TypeBoolean,
 		B:    b,
 	}
 }
 
 func newStaticNil() Static {
 	return Static{
-		Type: typeNil,
+		Type: TypeNil,
 	}
 }
 
 func newStaticDuration(d time.Duration) Static {
 	return Static{
-		Type: typeDuration,
+		Type: TypeDuration,
 		D:    d,
 	}
 }
 
 func newStaticStatus(s Status) Static {
 	return Static{
-		Type:   typeStatus,
+		Type:   TypeStatus,
 		Status: s,
 	}
 }
@@ -381,18 +381,18 @@ func (Attribute) __fieldExpression() {}
 func (a Attribute) impliedType() StaticType {
 	switch a.Intrinsic {
 	case IntrinsicDuration:
-		return typeDuration
+		return TypeDuration
 	case IntrinsicChildCount:
-		return typeInt
+		return TypeInt
 	case IntrinsicName:
-		return typeString
+		return TypeString
 	case IntrinsicStatus:
-		return typeStatus
+		return TypeStatus
 	case IntrinsicParent:
-		return typeNil
+		return TypeNil
 	}
 
-	return typeAttribute
+	return TypeAttribute
 }
 
 func (Attribute) referencesSpan() bool {

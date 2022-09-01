@@ -5,22 +5,22 @@ import "fmt"
 type StaticType int
 
 const (
-	typeSpanset   StaticType = iota // type used by spanset pipelines
-	typeAttribute                   // a special constant that indicates the type is determined at query time by the attribute
-	typeInt
-	typeFloat
-	typeString
-	typeBoolean
-	typeNil
-	typeDuration
-	typeStatus
+	TypeSpanset   StaticType = iota // type used by spanset pipelines
+	TypeAttribute                   // a special constant that indicates the type is determined at query time by the attribute
+	TypeInt
+	TypeFloat
+	TypeString
+	TypeBoolean
+	TypeNil
+	TypeDuration
+	TypeStatus
 )
 
 // isMatchingOperand returns whether two types can be combined with a binary operator. the kind of operator is
 // immaterial. see Operator.typesValid() for code that determines if the passed types are valid for the given
 // operator.
 func (t StaticType) isMatchingOperand(otherT StaticType) bool {
-	if t == typeAttribute || otherT == typeAttribute {
+	if t == TypeAttribute || otherT == TypeAttribute {
 		return true
 	}
 
@@ -36,7 +36,7 @@ func (t StaticType) isMatchingOperand(otherT StaticType) bool {
 }
 
 func (t StaticType) isNumeric() bool {
-	return t == typeInt || t == typeFloat || t == typeDuration
+	return t == TypeInt || t == TypeFloat || t == TypeDuration
 }
 
 // Status represents valid static values of typeStatus
