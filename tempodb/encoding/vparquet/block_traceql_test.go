@@ -323,10 +323,10 @@ func makeCond(k string, op traceql.Operation, v ...interface{}) traceql.Conditio
 
 func parse(t *testing.T, q string) traceql.Condition {
 
-	ast, err := traceql.ExtractCondition(q)
+	cond, err := traceql.ExtractCondition(q)
 	require.NoError(t, err, "query:", q)
 
-	return ast
+	return cond
 }
 
 func fullyPopulatedTestTrace() *Trace {

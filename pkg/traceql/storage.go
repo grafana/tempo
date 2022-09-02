@@ -58,37 +58,37 @@ func ExtractCondition(query string) (cond Condition, err error) {
 		return cond, err
 	}
 
-	f, ok := ast.p.p[0].(SpansetFilter)
+	f, ok := ast.Pipeline.Elements[0].(SpansetFilter)
 	if !ok {
 		return Condition{}, fmt.Errorf("first pipeline element is not a SpansetFilter")
 	}
 
 	setAttribute := func(a Attribute) {
 		// LHS = attribute or instrinsic
-		if a.intrinsic == intrinsicNone {
-			switch a.scope {
-			case attributeScopeNone:
+		if a.Intrinsic == IntrinsicNone {
+			switch a.Scope {
+			case AttributeScopeNone:
 				cond.Selector = "."
-			case attributeScopeResource:
+			case AttributeScopeResource:
 				cond.Selector = "resource."
-			case attributeScopeSpan:
+			case AttributeScopeSpan:
 				cond.Selector = "span."
 			}
-			cond.Selector += a.name
+			cond.Selector += a.Name
 		} else {
-			cond.Selector = a.intrinsic.String()
+			cond.Selector = a.Intrinsic.String()
 		}
 	}
 
 	setOperator := func(op Operator) {
 		switch op {
-		case opEqual:
+		case OpEqual:
 			cond.Operation = OperationEq
-		case opGreater:
+		case OpGreater:
 			cond.Operation = OperationGT
-		case opLess:
+		case OpLess:
 			cond.Operation = OperationLT
-		case opRegex:
+		case OpRegex:
 			cond.Operation = OperationRegexIn
 		default:
 			err = fmt.Errorf("traceql operator not supported for storage testing: %s", op.String())
@@ -97,27 +97,27 @@ func ExtractCondition(query string) (cond Condition, err error) {
 
 	setOperand := func(s Static) {
 		// Operands
-		switch s.staticType {
-		case typeString:
-			cond.Operands = append(cond.Operands, s.s)
-		case typeInt:
-			cond.Operands = append(cond.Operands, s.n)
-		case typeFloat:
-			cond.Operands = append(cond.Operands, s.f)
-		case typeBoolean:
-			cond.Operands = append(cond.Operands, s.b)
-		case typeDuration:
-			cond.Operands = append(cond.Operands, uint64(s.d.Nanoseconds()))
+		switch s.Type {
+		case TypeString:
+			cond.Operands = append(cond.Operands, s.S)
+		case TypeInt:
+			cond.Operands = append(cond.Operands, s.N)
+		case TypeFloat:
+			cond.Operands = append(cond.Operands, s.F)
+		case TypeBoolean:
+			cond.Operands = append(cond.Operands, s.B)
+		case TypeDuration:
+			cond.Operands = append(cond.Operands, uint64(s.D.Nanoseconds()))
 		default:
 			err = fmt.Errorf("traceql operand not supported for storage testing: %s", s.String())
 		}
 	}
 
-	switch e := f.e.(type) {
+	switch e := f.Expression.(type) {
 	case BinaryOperation:
-		setAttribute(e.lhs.(Attribute))
-		setOperator(e.op)
-		setOperand(e.rhs.(Static))
+		setAttribute(e.LHS.(Attribute))
+		setOperator(e.Op)
+		setOperand(e.RHS.(Static))
 	case Attribute:
 		setAttribute(e)
 		cond.Operation = OperationNone
