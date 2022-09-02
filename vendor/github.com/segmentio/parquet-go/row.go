@@ -84,6 +84,10 @@ type RowReader interface {
 	// each row read from the reader. If the rows are not nil, the backing array
 	// of the slices will be used as an optimization to avoid re-allocating new
 	// arrays.
+	//
+	// The application is expected to handle the case where ReadRows returns
+	// less rows than requested and no error, by looking at the first returned
+	// value from ReadRows, which is the number of rows that were read.
 	ReadRows([]Row) (int, error)
 }
 
