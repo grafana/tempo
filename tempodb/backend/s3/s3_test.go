@@ -121,7 +121,7 @@ func TestReadError(t *testing.T) {
 	assert.Equal(t, wups, errB)
 }
 
-func fakeServerWithHeader(testedHeaderName string, t *testing.T, obj *url.Values) *httptest.Server {
+func fakeServerWithHeader(t *testing.T, obj *url.Values, testedHeaderName string) *httptest.Server {
 	require.NotNil(t, obj)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +165,7 @@ func TestObjectBlockTags(t *testing.T) {
 			// rawObject := raw.Object{}
 			var obj url.Values
 
-			server := fakeServerWithHeader(tagHeader, t, &obj)
+			server := fakeServerWithHeader(t, &obj, tagHeader)
 			_, w, _, err := New(&Config{
 				Region:    "blerg",
 				AccessKey: "test",
@@ -206,7 +206,7 @@ func TestObjectStorageClass(t *testing.T) {
 			// rawObject := raw.Object{}
 			var obj url.Values
 
-			server := fakeServerWithHeader(storageClassHeader, t, &obj)
+			server := fakeServerWithHeader(t, &obj, storageClassHeader)
 			_, w, _, err := New(&Config{
 				Region:       "blerg",
 				AccessKey:    "test",
