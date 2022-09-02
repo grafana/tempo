@@ -5,7 +5,8 @@ import "fmt"
 type Operator int
 
 const (
-	OpAdd Operator = iota
+	OpNone Operator = iota
+	OpAdd
 	OpSub
 	OpDiv
 	OpMod

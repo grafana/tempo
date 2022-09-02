@@ -20,7 +20,7 @@ import (
 type makeIterFunc func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator
 
 // Helper function to create a column predicate for the given conditions
-type makePredicateForCondition func(traceql.Operation, []interface{}) (parquetquery.Predicate, error)
+type makePredicateForCondition func(traceql.Operator, []interface{}) (parquetquery.Predicate, error)
 
 const (
 	columnPathTraceID                  = "TraceID"
@@ -123,21 +123,16 @@ func checkConditions(conditions []traceql.Condition) error {
 	for _, cond := range conditions {
 		opCount := len(cond.Operands)
 
-		switch cond.Operation {
+		switch cond.Op {
 
-		case traceql.OperationNone:
+		case traceql.OpNone:
 			if opCount != 0 {
 				return fmt.Errorf("operanion none must have 0 arguments. condition: %+v", cond)
 			}
 
-		case traceql.OperationEq, traceql.OperationGT, traceql.OperationLT:
+		case traceql.OpEqual, traceql.OpGreater, traceql.OpLess, traceql.OpRegex:
 			if opCount != 1 {
-				return fmt.Errorf("operation %v must have exactly 1 argument. condition: %+v", cond.Operation, cond)
-			}
-
-		case traceql.OperationIn, traceql.OperationRegexIn:
-			if opCount == 0 {
-				return fmt.Errorf("operation IN requires at least 1 argument. condition: %+v", cond)
+				return fmt.Errorf("operation %v must have exactly 1 argument. condition: %+v", cond.Op, cond)
 			}
 
 		default:
@@ -370,7 +365,7 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 		switch cond.Selector {
 
 		case LabelName:
-			pred, err := createStringPredicate(cond.Operation, cond.Operands)
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
 			}
@@ -382,24 +377,26 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 			durationFilter = true
 			v := cond.Operands[0].(uint64)
 			// This is kind of hacky. Merge all duration filters onto the min/max range
-			switch cond.Operation {
-			case traceql.OperationEq:
+			switch cond.Op {
+			case traceql.OpEqual:
 				if v < durationMin {
 					durationMin = v
 				}
 				if v > durationMax {
 					durationMax = v
 				}
-			case traceql.OperationGT:
+			case traceql.OpGreater:
 				durationMax = uint64(math.MaxUint64)
 				if v < durationMin {
 					durationMin = v
 				}
-			case traceql.OperationLT:
+			case traceql.OpLess:
 				durationMin = 0
 				if v > durationMax {
 					durationMax = v
 				}
+			default:
+				return nil, fmt.Errorf("Operator %v not supported for duration", cond.Op)
 			}
 			continue
 		}
@@ -409,7 +406,7 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 
 		// Well-known attribute?
 		if entry, ok := wellKnownColumnLookups[cond.Selector]; ok && entry.level == columnLevelSpan {
-			if cond.Operation == traceql.OperationNone {
+			if cond.Op == traceql.OpNone {
 				addPredicate(entry.columnPath, nil) // No filtering
 				columnSelectAs[entry.columnPath] = cond.Selector
 				continue
@@ -417,7 +414,7 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 
 			// Compatible type?
 			if entry.compatible(operandType(cond.Operands)) {
-				pred, err := entry.predicateFn(cond.Operation, cond.Operands)
+				pred, err := entry.predicateFn(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
 				}
@@ -504,7 +501,7 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 
 		// Well-known selector?
 		if entry, ok := wellKnownColumnLookups[cond.Selector]; ok && entry.level == columnLevelResource {
-			if cond.Operation == traceql.OperationNone {
+			if cond.Op == traceql.OpNone {
 				addPredicate(entry.columnPath, nil) // No filtering
 				columnSelectAs[entry.columnPath] = cond.Selector
 				continue
@@ -512,7 +509,7 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 
 			// Compatible type?
 			if entry.compatible(operandType(cond.Operands)) {
-				pred, err := entry.predicateFn(cond.Operation, cond.Operands)
+				pred, err := entry.predicateFn(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
 				}
@@ -572,8 +569,8 @@ func createTraceIterator(makeIter makeIterFunc, resourceIter parquetquery.Iterat
 	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, &traceCollector{}), nil
 }
 
-func createStringPredicate(op traceql.Operation, operands []interface{}) (parquetquery.Predicate, error) {
-	if op == traceql.OperationNone {
+func createStringPredicate(op traceql.Operator, operands []interface{}) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
 		return nil, nil
 	}
 
@@ -588,10 +585,10 @@ func createStringPredicate(op traceql.Operation, operands []interface{}) (parque
 	}
 
 	switch op {
-	case traceql.OperationEq, traceql.OperationIn:
+	case traceql.OpEqual:
 		return parquetquery.NewStringInPredicate(vals), nil
 
-	case traceql.OperationRegexIn:
+	case traceql.OpRegex:
 		return parquetquery.NewRegexInPredicate(vals)
 
 	default:
@@ -600,8 +597,8 @@ func createStringPredicate(op traceql.Operation, operands []interface{}) (parque
 
 }
 
-func createIntPredicate(op traceql.Operation, operands []interface{}) (parquetquery.Predicate, error) {
-	if op == traceql.OperationNone {
+func createIntPredicate(op traceql.Operator, operands []interface{}) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
 		return nil, nil
 	}
 
@@ -621,12 +618,12 @@ func createIntPredicate(op traceql.Operation, operands []interface{}) (parquetqu
 	max := int64(math.MaxInt64)
 
 	switch op {
-	case traceql.OperationEq:
+	case traceql.OpEqual:
 		min = i
 		max = i
-	case traceql.OperationGT:
+	case traceql.OpGreater:
 		min = i + 1
-	case traceql.OperationLT:
+	case traceql.OpLess:
 		max = i - 1
 	default:
 		return nil, fmt.Errorf("operand not supported for integers: %+v", op)
@@ -635,8 +632,8 @@ func createIntPredicate(op traceql.Operation, operands []interface{}) (parquetqu
 	return parquetquery.NewIntBetweenPredicate(min, max), nil
 }
 
-func createFloatPredicate(op traceql.Operation, operands []interface{}) (parquetquery.Predicate, error) {
-	if op == traceql.OperationNone {
+func createFloatPredicate(op traceql.Operator, operands []interface{}) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
 		return nil, nil
 	}
 
@@ -656,12 +653,12 @@ func createFloatPredicate(op traceql.Operation, operands []interface{}) (parquet
 	max := math.Inf(1)
 
 	switch op {
-	case traceql.OperationEq:
+	case traceql.OpEqual:
 		min = i
 		max = i
-	case traceql.OperationGT:
+	case traceql.OpGreater:
 		min = math.Nextafter(i, max)
-	case traceql.OperationLT:
+	case traceql.OpLess:
 		max = math.Nextafter(i, min)
 	default:
 		return nil, fmt.Errorf("operand not supported for floats: %+v", op)
@@ -670,8 +667,8 @@ func createFloatPredicate(op traceql.Operation, operands []interface{}) (parquet
 	return parquetquery.NewFloatBetweenPredicate(min, max), nil
 }
 
-func createBoolPredicate(op traceql.Operation, operands []interface{}) (parquetquery.Predicate, error) {
-	if op == traceql.OperationNone {
+func createBoolPredicate(op traceql.Operator, operands []interface{}) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
 		return nil, nil
 	}
 
@@ -685,7 +682,7 @@ func createBoolPredicate(op traceql.Operation, operands []interface{}) (parquetq
 	}
 
 	switch op {
-	case traceql.OperationEq:
+	case traceql.OpEqual:
 		return parquetquery.NewBoolPredicate(b), nil
 
 	default:
@@ -708,7 +705,7 @@ func createAttributeIterator(makeIter makeIterFunc, conditions []traceql.Conditi
 
 		attrKeys = append(attrKeys, cond.Selector)
 
-		if cond.Operation == traceql.OperationNone {
+		if cond.Op == traceql.OpNone {
 			// This means we have to scan all values, we don't know what type
 			// to expect
 			attrStringPreds = append(attrStringPreds, nil)
@@ -721,28 +718,28 @@ func createAttributeIterator(makeIter makeIterFunc, conditions []traceql.Conditi
 		switch cond.Operands[0].(type) {
 
 		case string:
-			pred, err := createStringPredicate(cond.Operation, cond.Operands)
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, errors.Wrap(err, "creating attribute predicate")
 			}
 			attrStringPreds = append(attrStringPreds, pred)
 
 		case int, int64:
-			pred, err := createIntPredicate(cond.Operation, cond.Operands)
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, errors.Wrap(err, "creating attribute predicate")
 			}
 			attrIntPreds = append(attrIntPreds, pred)
 
 		case float32, float64:
-			pred, err := createFloatPredicate(cond.Operation, cond.Operands)
+			pred, err := createFloatPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, errors.Wrap(err, "creating attribute predicate")
 			}
 			attrFltPreds = append(attrFltPreds, pred)
 
 		case bool:
-			pred, err := createBoolPredicate(cond.Operation, cond.Operands)
+			pred, err := createBoolPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, errors.Wrap(err, "creating attribute predicate")
 			}

@@ -5,21 +5,10 @@ import (
 	"fmt"
 )
 
-type Operation int
-
-const (
-	OperationNone Operation = iota
-	OperationEq
-	OperationLT
-	OperationGT
-	OperationIn
-	OperationRegexIn
-)
-
 type Condition struct {
-	Selector  string
-	Operation Operation
-	Operands  []interface{}
+	Selector string
+	Op       Operator
+	Operands []interface{}
 }
 
 type FetchSpansRequest struct {
@@ -80,21 +69,6 @@ func ExtractCondition(query string) (cond Condition, err error) {
 		}
 	}
 
-	setOperator := func(op Operator) {
-		switch op {
-		case OpEqual:
-			cond.Operation = OperationEq
-		case OpGreater:
-			cond.Operation = OperationGT
-		case OpLess:
-			cond.Operation = OperationLT
-		case OpRegex:
-			cond.Operation = OperationRegexIn
-		default:
-			err = fmt.Errorf("traceql operator not supported for storage testing: %s", op.String())
-		}
-	}
-
 	setOperand := func(s Static) {
 		// Operands
 		switch s.Type {
@@ -116,11 +90,11 @@ func ExtractCondition(query string) (cond Condition, err error) {
 	switch e := f.Expression.(type) {
 	case BinaryOperation:
 		setAttribute(e.LHS.(Attribute))
-		setOperator(e.Op)
 		setOperand(e.RHS.(Static))
+		cond.Op = e.Op
 	case Attribute:
 		setAttribute(e)
-		cond.Operation = OperationNone
+		cond.Op = OpNone
 		cond.Operands = nil
 	}
 

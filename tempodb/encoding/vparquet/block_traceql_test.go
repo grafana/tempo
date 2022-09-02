@@ -85,7 +85,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		),
 
 		// Edge cases
-		makeReq(makeCond(".name", traceql.OperationEq, "Bob")),           // Almost conflicts with intrinsic but still works
+		makeReq(makeCond(".name", traceql.OpEqual, "Bob")),               // Almost conflicts with intrinsic but still works
 		makeReq(parse(t, `{resource.`+LabelServiceName+` = 123}`)),       // service.name doesn't match type of dedicated column
 		makeReq(parse(t, `{.`+LabelServiceName+` = "spanservicename"}`)), // service.name present on span
 		makeReq(parse(t, `{.`+LabelHTTPStatusCode+` = "500ouch"}`)),      // http.status_code doesn't match type of dedicated column
@@ -317,8 +317,8 @@ func makeReq(conditions ...traceql.Condition) traceql.FetchSpansRequest {
 	}
 }
 
-func makeCond(k string, op traceql.Operation, v ...interface{}) traceql.Condition {
-	return traceql.Condition{Selector: k, Operation: op, Operands: v}
+func makeCond(k string, op traceql.Operator, v ...interface{}) traceql.Condition {
+	return traceql.Condition{Selector: k, Op: op, Operands: v}
 }
 
 func parse(t *testing.T, q string) traceql.Condition {
