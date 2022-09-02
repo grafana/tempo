@@ -3,11 +3,11 @@ package traceql
 import "fmt"
 
 func (r RootExpr) validate() error {
-	return r.p.validate()
+	return r.Pipeline.validate()
 }
 
 func (p Pipeline) validate() error {
-	for _, p := range p.p {
+	for _, p := range p.Elements {
 		err := p.validate()
 		if err != nil {
 			return err
@@ -17,11 +17,11 @@ func (p Pipeline) validate() error {
 }
 
 func (o GroupOperation) validate() error {
-	if !o.e.referencesSpan() {
+	if !o.Expression.referencesSpan() {
 		return fmt.Errorf("grouping field expressions must reference the span: %s", o.String())
 	}
 
-	return o.e.validate()
+	return o.Expression.validate()
 }
 
 func (o CoalesceOperation) validate() error {
@@ -29,20 +29,20 @@ func (o CoalesceOperation) validate() error {
 }
 
 func (o ScalarOperation) validate() error {
-	if err := o.lhs.validate(); err != nil {
+	if err := o.LHS.validate(); err != nil {
 		return err
 	}
-	if err := o.rhs.validate(); err != nil {
+	if err := o.RHS.validate(); err != nil {
 		return err
 	}
 
-	lhsT := o.lhs.impliedType()
-	rhsT := o.rhs.impliedType()
+	lhsT := o.LHS.impliedType()
+	rhsT := o.RHS.impliedType()
 	if !lhsT.isMatchingOperand(rhsT) {
 		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
 	}
 
-	if !o.op.binaryTypesValid(lhsT, rhsT) {
+	if !o.Op.binaryTypesValid(lhsT, rhsT) {
 		return fmt.Errorf("illegal operation for the given types: %s", o.String())
 	}
 
@@ -60,7 +60,7 @@ func (a Aggregate) validate() error {
 
 	// aggregate field expressions require a type of a number or attribute
 	t := a.e.impliedType()
-	if t != typeAttribute && !t.isNumeric() {
+	if t != TypeAttribute && !t.isNumeric() {
 		return fmt.Errorf("aggregate field expressions must resolve to a number type: %s", a.String())
 	}
 
@@ -72,19 +72,19 @@ func (a Aggregate) validate() error {
 }
 
 func (o SpansetOperation) validate() error {
-	if err := o.lhs.validate(); err != nil {
+	if err := o.LHS.validate(); err != nil {
 		return err
 	}
-	return o.rhs.validate()
+	return o.RHS.validate()
 }
 
 func (f SpansetFilter) validate() error {
-	if err := f.e.validate(); err != nil {
+	if err := f.Expression.validate(); err != nil {
 		return err
 	}
 
-	t := f.e.impliedType()
-	if t != typeAttribute && t != typeBoolean {
+	t := f.Expression.impliedType()
+	if t != TypeAttribute && t != TypeBoolean {
 		return fmt.Errorf("span filter field expressions must resolve to a boolean: %s", f.String())
 	}
 
@@ -113,20 +113,20 @@ func (f ScalarFilter) validate() error {
 }
 
 func (o BinaryOperation) validate() error {
-	if err := o.lhs.validate(); err != nil {
+	if err := o.LHS.validate(); err != nil {
 		return err
 	}
-	if err := o.rhs.validate(); err != nil {
+	if err := o.RHS.validate(); err != nil {
 		return err
 	}
 
-	lhsT := o.lhs.impliedType()
-	rhsT := o.rhs.impliedType()
+	lhsT := o.LHS.impliedType()
+	rhsT := o.RHS.impliedType()
 	if !lhsT.isMatchingOperand(rhsT) {
 		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
 	}
 
-	if !o.op.binaryTypesValid(lhsT, rhsT) {
+	if !o.Op.binaryTypesValid(lhsT, rhsT) {
 		return fmt.Errorf("illegal operation for the given types: %s", o.String())
 	}
 
@@ -134,16 +134,16 @@ func (o BinaryOperation) validate() error {
 }
 
 func (o UnaryOperation) validate() error {
-	if err := o.e.validate(); err != nil {
+	if err := o.Expression.validate(); err != nil {
 		return err
 	}
 
-	t := o.e.impliedType()
-	if t == typeAttribute {
+	t := o.Expression.impliedType()
+	if t == TypeAttribute {
 		return nil
 	}
 
-	if !o.op.unaryTypesValid(t) {
+	if !o.Op.unaryTypesValid(t) {
 		return fmt.Errorf("illegal operation for the given type: %s", o.String())
 	}
 
