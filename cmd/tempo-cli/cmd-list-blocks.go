@@ -49,7 +49,6 @@ func displayResults(results []blockStats, windowDuration time.Duration, includeC
 
 		line := make([]string, 0)
 
-		//nolint:all //embedded typecheck
 		for _, c := range columns {
 			s := ""
 			switch c {
@@ -70,9 +69,9 @@ func displayResults(results []blockStats, windowDuration time.Duration, includeC
 				window := time.Unix(r.window*int64(windowDuration.Seconds()), 0).UTC()
 				s = window.Format(time.RFC3339)
 			case "start":
-				s = r.StartTime.Format(time.RFC3339) 
+				s = r.StartTime.Format(time.RFC3339)
 			case "end":
-				s = r.EndTime.Format(time.RFC3339) 
+				s = r.EndTime.Format(time.RFC3339)
 			case "duration":
 				// Time range included in bucket
 				s = fmt.Sprint(r.EndTime.Sub(r.StartTime).Round(time.Second))

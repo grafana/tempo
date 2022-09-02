@@ -146,8 +146,7 @@ func marshalPageToWriter(b []byte, w io.Writer, header pageHeader) (int, error) 
 }
 
 // marshalHeaderToPage marshals the header only to the passed in page and then returns
-//
-//	the rest of the page slice for the caller to finish
+// the rest of the page slice for the caller to finish
 func marshalHeaderToPage(page []byte, header pageHeader) ([]byte, error) {
 	var headerLength uint16
 	var totalLength uint32

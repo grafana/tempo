@@ -341,7 +341,7 @@ func BenchmarkReadS2(b *testing.B) {
 }
 
 // Download a block from your backend and place in ./benchmark_block/<tenant id>/<guid>
-//
+
 //nolint:unparam
 func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsample int, benchRead bool) {
 	rawR, _, _, err := local.New(&local.Config{

@@ -92,7 +92,7 @@ func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRa
 	}
 
 	sort.Slice(results, func(i, j int) bool {
-		return results[i].EndTime.Before(results[j].EndTime) //nolint:all //embedded typecheck
+		return results[i].EndTime.Before(results[j].EndTime)
 	})
 
 	return results, nil

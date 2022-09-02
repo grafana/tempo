@@ -156,8 +156,7 @@ func matchSpan(tags map[string]string, s *v1.Span) {
 }
 
 // matchAttributes tests to see if any tags in the map match any passed attributes
-//
-//	if it finds a match it removes the key from the map
+// if it finds a match it removes the key from the map
 func matchAttributes(tags map[string]string, atts []*v1common.KeyValue) {
 	// start with the assumption that we won't find any matching attributes
 	for _, a := range atts {

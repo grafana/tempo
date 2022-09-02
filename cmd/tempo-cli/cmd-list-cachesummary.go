@@ -40,12 +40,12 @@ func displayCacheSummary(results []blockStats) {
 	bloomTable := make([][]int, 0)
 
 	for _, r := range results {
-		row := r.CompactionLevel //nolint:all //embedded typecheck
+		row := r.CompactionLevel
 		// extend rows
 		for len(bloomTable)-1 < int(row) {
 			bloomTable = append(bloomTable, make([]int, 0))
 		}
-		column := -1 * (int(time.Until(r.StartTime) / (time.Hour * 24))) //nolint:all //embedded typecheck
+		column := -1 * (int(time.Until(r.StartTime) / (time.Hour * 24)))
 		// extend column of given row
 		for len(bloomTable[row])-1 < column {
 			bloomTable[row] = append(bloomTable[row], 0)
@@ -56,7 +56,7 @@ func displayCacheSummary(results []blockStats) {
 		}
 
 		if int(row) < len(bloomTable) && column < len(bloomTable[row]) {
-			bloomTable[row][column] += int(r.BloomShardCount) //nolint:all //embedded typecheck
+			bloomTable[row][column] += int(r.BloomShardCount)
 		} else {
 			fmt.Println("something wrong with row / column", row, column)
 		}

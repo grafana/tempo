@@ -10,8 +10,7 @@ import (
 )
 
 // todo: pass a context/chan in to cancel this cleanly
-//
-//	once a maintenance cycle cleanup any blocks
+// once a maintenance cycle cleanup any blocks
 func (rw *readerWriter) retentionLoop() {
 	ticker := time.NewTicker(rw.cfg.BlocklistPoll)
 	for range ticker.C {
