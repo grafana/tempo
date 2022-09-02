@@ -19,6 +19,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const TAGHEADER = "X-Amz-Tagging"
+const STORAGECLASSHEADER = "X-Amz-Storage-Class"
+
 func TestHedge(t *testing.T) {
 	tests := []struct {
 		name                   string
@@ -118,17 +121,17 @@ func TestReadError(t *testing.T) {
 	assert.Equal(t, wups, errB)
 }
 
-func fakeServerWithTags(t *testing.T, obj *url.Values) *httptest.Server {
+func fakeServerWithHeader(testedHeaderName string, t *testing.T, obj *url.Values) *httptest.Server {
 	require.NotNil(t, obj)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch method := r.Method; method {
 		case "PUT":
 			// https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
-			switch tagHeaders := r.Header.Get("X-Amz-Tagging"); tagHeaders {
+			switch testedHeaderValue := r.Header.Get(testedHeaderName); testedHeaderValue {
 			case "":
 			default:
-				value, err := url.ParseQuery(tagHeaders)
+				value, err := url.ParseQuery(testedHeaderValue)
 				require.NoError(t, err)
 				*obj = value
 			}
@@ -162,7 +165,7 @@ func TestObjectBlockTags(t *testing.T) {
 			// rawObject := raw.Object{}
 			var obj url.Values
 
-			server := fakeServerWithTags(t, &obj)
+			server := fakeServerWithHeader(TAGHEADER, t, &obj)
 			_, w, _, err := New(&Config{
 				Region:    "blerg",
 				AccessKey: "test",
@@ -182,6 +185,42 @@ func TestObjectBlockTags(t *testing.T) {
 				require.NotEmpty(t, vv)
 				require.Equal(t, v, vv)
 			}
+		})
+	}
+}
+
+func TestObjectStorageClass(t *testing.T) {
+
+	tests := []struct {
+		name         string
+		StorageClass string
+		// expectedObject raw.Object
+	}{
+		{
+			"Standard", "STANDARD",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// rawObject := raw.Object{}
+			var obj url.Values
+
+			server := fakeServerWithHeader(STORAGECLASSHEADER, t, &obj)
+			_, w, _, err := New(&Config{
+				Region:       "blerg",
+				AccessKey:    "test",
+				SecretKey:    flagext.SecretWithValue("test"),
+				Bucket:       "blerg",
+				Insecure:     true,
+				Endpoint:     server.URL[7:], // [7:] -> strip http://
+				StorageClass: tc.StorageClass,
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, bytes.NewReader([]byte{}), 0, false)
+
 		})
 	}
 }

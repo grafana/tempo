@@ -21,4 +21,6 @@ type Config struct {
 	SignatureV2    bool              `yaml:"signature_v2"`
 	ForcePathStyle bool              `yaml:"forcepathstyle"`
 	Tags           map[string]string `yaml:"tags"`
+	StorageClass   string            `yaml:"storage_class"`
+	UserMetadata   map[string]string `yaml:"user_metadata"`
 }
