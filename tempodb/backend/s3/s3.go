@@ -103,7 +103,7 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 	return rw, rw, rw, nil
 }
 
-func getTempoObjectOptions(rw *readerWriter) minio.PutObjectOptions {
+func getPutObjectOptions(rw *readerWriter) minio.PutObjectOptions {
 	return minio.PutObjectOptions{
 		PartSize:     rw.cfg.PartSize,
 		UserTags:     rw.cfg.Tags,
@@ -116,7 +116,7 @@ func getTempoObjectOptions(rw *readerWriter) minio.PutObjectOptions {
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, _ bool) error {
 	objName := backend.ObjectFileName(keypath, name)
 
-	putObjectOptions := getTempoObjectOptions(rw)
+	putObjectOptions := getPutObjectOptions(rw)
 
 	info, err := rw.core.Client.PutObject(
 		ctx,
@@ -144,7 +144,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 	var a appendTracker
 	objectName := backend.ObjectFileName(keypath, name)
 
-	options := getTempoObjectOptions(rw)
+	options := getPutObjectOptions(rw)
 	if tracker != nil {
 		a = tracker.(appendTracker)
 	} else {

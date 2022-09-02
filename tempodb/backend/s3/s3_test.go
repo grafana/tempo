@@ -19,8 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const TAGHEADER = "X-Amz-Tagging"
-const STORAGECLASSHEADER = "X-Amz-Storage-Class"
+const tagHeader = "X-Amz-Tagging"
+const storageClassHeader = "X-Amz-Storage-Class"
 
 func TestHedge(t *testing.T) {
 	tests := []struct {
@@ -131,7 +131,7 @@ func fakeServerWithHeader(testedHeaderName string, t *testing.T, obj *url.Values
 			switch testedHeaderValue := r.Header.Get(testedHeaderName); testedHeaderValue {
 			case "":
 			default:
-				value, err := url.ParseQuery(testedHeaderValue)
+				value, err := url.ParseQuery(testedHeaderValueZ)
 				require.NoError(t, err)
 				*obj = value
 			}
@@ -165,7 +165,7 @@ func TestObjectBlockTags(t *testing.T) {
 			// rawObject := raw.Object{}
 			var obj url.Values
 
-			server := fakeServerWithHeader(TAGHEADER, t, &obj)
+			server := fakeServerWithHeader(tagHeader, t, &obj)
 			_, w, _, err := New(&Config{
 				Region:    "blerg",
 				AccessKey: "test",
@@ -206,7 +206,7 @@ func TestObjectStorageClass(t *testing.T) {
 			// rawObject := raw.Object{}
 			var obj url.Values
 
-			server := fakeServerWithHeader(STORAGECLASSHEADER, t, &obj)
+			server := fakeServerWithHeader(storageClassHeader, t, &obj)
 			_, w, _, err := New(&Config{
 				Region:       "blerg",
 				AccessKey:    "test",
