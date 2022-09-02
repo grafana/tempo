@@ -174,7 +174,6 @@ func (r *IteratorResult) Columns(buffer [][]pq.Value, names ...string) [][]pq.Va
 				buffer[i] = append(buffer[i], e.Value)
 				break
 			}
-
 		}
 	}
 	return buffer
@@ -331,91 +330,96 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 				continue
 			}
 		}
+		func(col pq.ColumnChunk) {
+			pgs := col.Pages()
+			defer func() {
+				if err := pgs.Close(); err != nil {
+					span.LogKV("closing error", err)
+				}
+			}()
+			for {
+				span2, _ := opentracing.StartSpanFromContext(ctx2, "columnIterator.iterate.ReadPage")
+				pg, err := pgs.ReadPage()
+				span2.Finish()
 
-		pgs := col.Pages()
-		for {
-			span2, _ := opentracing.StartSpanFromContext(ctx2, "columnIterator.iterate.ReadPage")
-			pg, err := pgs.ReadPage()
-			span2.Finish()
+				if pg == nil || err == io.EOF {
+					break
+				}
+				if err != nil {
+					return
+				}
 
-			if pg == nil || err == io.EOF {
-				break
-			}
-			if err != nil {
-				return
-			}
-
-			if checkSkip(pg.NumRows()) {
-				// Skip page
-				rn.Skip(pg.NumRows())
-				continue
-			}
-
-			if c.filter != nil {
-				if !c.filter.KeepPage(pg) {
+				if checkSkip(pg.NumRows()) {
 					// Skip page
 					rn.Skip(pg.NumRows())
 					continue
 				}
-			}
 
-			vr := pg.Values()
-			for {
-				count, err := vr.ReadValues(buffer)
-				if count > 0 {
+				if c.filter != nil {
+					if !c.filter.KeepPage(pg) {
+						// Skip page
+						rn.Skip(pg.NumRows())
+						continue
+					}
+				}
 
-					// Assign row numbers, filter values, and collect the results.
-					newBuffer := columnIteratorPoolGet(readSize, 0)
+				vr := pg.Values()
+				for {
+					count, err := vr.ReadValues(buffer)
+					if count > 0 {
 
-					for i := 0; i < count; i++ {
+						// Assign row numbers, filter values, and collect the results.
+						newBuffer := columnIteratorPoolGet(readSize, 0)
 
-						v := buffer[i]
+						for i := 0; i < count; i++ {
 
-						// We have to do this for all values (even if the
-						// value is excluded by the predicate)
-						rn.Next(v.RepetitionLevel(), v.DefinitionLevel())
+							v := buffer[i]
 
-						if c.filter != nil {
-							if !c.filter.KeepValue(v) {
-								continue
+							// We have to do this for all values (even if the
+							// value is excluded by the predicate)
+							rn.Next(v.RepetitionLevel(), v.DefinitionLevel())
+
+							if c.filter != nil {
+								if !c.filter.KeepValue(v) {
+									continue
+								}
 							}
+
+							newBuffer.rowNumbers = append(newBuffer.rowNumbers, rn)
+							newBuffer.values = append(newBuffer.values, v)
 						}
 
-						newBuffer.rowNumbers = append(newBuffer.rowNumbers, rn)
-						newBuffer.values = append(newBuffer.values, v)
-					}
-
-					if len(newBuffer.rowNumbers) > 0 {
-						select {
-						case c.ch <- newBuffer:
-						case <-c.quit:
-							return
+						if len(newBuffer.rowNumbers) > 0 {
+							select {
+							case c.ch <- newBuffer:
+							case <-c.quit:
+								return
+							}
+						} else {
+							// All values excluded, we go ahead and immediately
+							// return the buffer to the pool.
+							columnIteratorPoolPut(newBuffer)
 						}
-					} else {
-						// All values excluded, we go ahead and immediately
-						// return the buffer to the pool.
-						columnIteratorPoolPut(newBuffer)
 					}
-				}
 
-				// Error checks MUST occur after processing any returned data
-				// following io.Reader behavior.
-				if err == io.EOF {
-					break
-				}
-				if err != nil {
-					// todo: bubble up?
-					return
+					// Error checks MUST occur after processing any returned data
+					// following io.Reader behavior.
+					if err == io.EOF {
+						break
+					}
+					if err != nil {
+						// todo: bubble up?
+						return
+					}
 				}
 			}
-		}
+		}(col)
 	}
 }
 
 // Next returns the next matching value from the iterator.
 // Returns nil when finished.
 func (c *ColumnIterator) Next() *IteratorResult {
-
 	t, v := c.next()
 	if t.Valid() {
 		return c.makeResult(t, v)
@@ -510,7 +514,6 @@ func NewJoinIterator(definitionLevel int, iters []Iterator, pred GroupPredicate)
 }
 
 func (j *JoinIterator) Next() *IteratorResult {
-
 	// Here is the algorithm for joins:  On each pass of the iterators
 	// we remember which ones are pointing at the earliest rows. If all
 	// are the lowest (and therefore pointing at the same thing) then
@@ -800,7 +803,6 @@ func NewUnionIterator(definitionLevel int, iters []Iterator, pred GroupPredicate
 }
 
 func (u *UnionIterator) Next() *IteratorResult {
-
 	// Here is the algorithm for unions:  On each pass of the iterators
 	// we remember which ones are pointing at the earliest same row. The
 	// lowest iterators are then collected and a result is produced. Keep
@@ -925,7 +927,7 @@ func NewKeyValueGroupPredicate(keys, values []string) *KeyValueGroupPredicate {
 // KeepGroup checks if the given group contains all of the requested
 // key/value pairs.
 func (a *KeyValueGroupPredicate) KeepGroup(group *IteratorResult) bool {
-	//printGroup(group)
+	// printGroup(group)
 	a.buffer = group.Columns(a.buffer, "keys", "values")
 
 	keys, vals := a.buffer[0], a.buffer[1]

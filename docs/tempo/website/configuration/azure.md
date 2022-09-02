@@ -1,6 +1,6 @@
 ---
 title: Azure blob storage permissions and management
-weight: 3
+weight: 30
 ---
 
 # Azure blob storage permissions and management

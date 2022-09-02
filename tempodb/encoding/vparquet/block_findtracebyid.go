@@ -12,7 +12,6 @@ import (
 	"github.com/segmentio/parquet-go"
 	"github.com/willf/bloom"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -156,7 +155,7 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 	return filter.Test(id), nil
 }
 
-func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID) (_ *tempopb.Trace, err error) {
+func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.Trace, err error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.FindTraceByID",
 		opentracing.Tags{
 			"blockID":   b.meta.BlockID,
@@ -173,18 +172,11 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID) (_ 
 		return nil, nil
 	}
 
-	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
-	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead) }()
-
-	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 32)
-
-	// todo: disabling by default but we should make cache settings configurable here
-	or := newParquetOptimizedReaderAt(br, rr, int64(b.meta.Size), b.meta.FooterSize, common.CacheControl{Footer: false, ColumnIndex: false, OffsetIndex: false})
-
-	pf, err := parquet.OpenFile(or, int64(b.meta.Size))
+	pf, rr, err := b.openForSearch(derivedCtx, opts)
 	if err != nil {
-		return nil, errors.Wrap(err, "error opening file in FindTraceByID")
+		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
+	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
 	// traceID column index
 	colIndex, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)

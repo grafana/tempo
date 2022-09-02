@@ -140,7 +140,7 @@ func (b *BackendBlock) BlockMeta() *backend.BlockMeta {
 	return b.meta
 }
 
-func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID) (*tempopb.Trace, error) {
+func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
 	obj, err := b.find(ctx, id)
 	if err != nil {
 		return nil, err

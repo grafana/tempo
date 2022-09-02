@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -148,7 +149,10 @@ func queryBlock(ctx context.Context, r backend.Reader, c backend.Compactor, bloc
 		return nil, err
 	}
 
-	trace, err := block.FindTraceByID(ctx, traceID)
+	searchOpts := common.SearchOptions{}
+	tempodb.SearchConfig{}.ApplyToOptions(&searchOpts)
+
+	trace, err := block.FindTraceByID(ctx, traceID, searchOpts)
 	if err != nil {
 		return nil, err
 	}

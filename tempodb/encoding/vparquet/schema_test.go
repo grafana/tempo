@@ -280,8 +280,8 @@ func TestParquetRowSizeEstimate(t *testing.T) {
 			sch := parquet.SchemaOf(parq)
 			row := sch.Deconstruct(nil, parq)
 
-			fmt.Println("Size of parquet is:", estimateProtoSize(row))
-			fmt.Println("Span count of parquet is:", countSpans(sch, row))
+			fmt.Println("Size of parquet row is:", estimateProtoSize(row))
+			fmt.Println("Size of parquet is:", estimateTraceSize(&parq))
 		})
 	}
 }

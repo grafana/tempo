@@ -53,6 +53,7 @@ type conversion struct {
 	targetColumnKinds   []Kind
 	targetToSourceIndex []int16
 	sourceToTargetIndex []int16
+	convertFunc         convertFunc
 	schema              *Schema
 	buffers             sync.Pool
 }
@@ -82,10 +83,103 @@ func (c *conversion) putBuffer(b *conversionBuffer) {
 	c.buffers.Put(b)
 }
 
+// convertFunc takes a target and source row, then copies data
+// from the source to the target according to the heuristics determined
+// by the target schema given in makeConvertFunc
+type convertFunc func(Row, levels, *conversionBuffer) (Row, error)
+
+func (c *conversion) makeConvertFunc(node Node) (convert convertFunc) {
+	if !node.Leaf() {
+		_, convert = c.convertFuncOf(0, node)
+	}
+	return convert
+}
+
+func (c *conversion) convertFuncOf(tgtIdx int16, node Node) (int16, convertFunc) {
+	switch {
+	case node.Repeated():
+		return c.convertFuncOfRepeated(tgtIdx, node)
+	default:
+		return c.convertFuncOfRequired(tgtIdx, node)
+	}
+}
+
+func (c *conversion) convertFuncOfRequired(tgtIdx int16, node Node) (int16, convertFunc) {
+	switch {
+	case node.Leaf():
+		return c.convertFuncOfLeaf(tgtIdx, node)
+	default:
+		return c.convertFuncOfGroup(tgtIdx, node)
+	}
+}
+
+// convertFuncOfLeaf is the base case to our schema-tree traversal, doing the
+// actual copy of the value from the old Row (via conversionBuffer) to the new Row
+func (c *conversion) convertFuncOfLeaf(tgtIdx int16, node Node) (int16, convertFunc) {
+	return tgtIdx + 1, func(tgt Row, _ levels, src *conversionBuffer) (Row, error) {
+		value := Value{}
+		if tgtIdx >= 0 && len(src.columns[tgtIdx]) > 0 {
+			// Pop the top value and remove from the buffer.
+			value = src.columns[tgtIdx][0]
+			src.columns[tgtIdx] = src.columns[tgtIdx][1:]
+		}
+		value.kind = ^int8(c.targetColumnKinds[tgtIdx])
+		value.columnIndex = ^tgtIdx
+		tgt = append(tgt, value)
+		return tgt, nil
+	}
+}
+
+func (c *conversion) convertFuncOfGroup(tgtIdx int16, node Node) (int16, convertFunc) {
+	fields := node.Fields()
+	funcs := make([]convertFunc, len(fields))
+
+	for i, field := range fields {
+		tgtIdx, funcs[i] = c.convertFuncOf(tgtIdx, field)
+	}
+
+	return tgtIdx, func(tgt Row, levels levels, src *conversionBuffer) (Row, error) {
+		var err error
+		for i, convFunc := range funcs {
+			if tgt, err = convFunc(tgt, levels, src); err != nil {
+				err = fmt.Errorf("%s → %w", fields[i].Name(), err)
+				break
+			}
+		}
+		return tgt, err
+	}
+}
+
+func (c *conversion) convertFuncOfRepeated(tgtIdx int16, node Node) (int16, convertFunc) {
+	nextIdx, convFunc := c.convertFuncOf(tgtIdx, Required(node))
+	return nextIdx, func(tgt Row, levels levels, src *conversionBuffer) (Row, error) {
+		var err error
+
+		levels.repetitionDepth++
+
+		for _, elem := range src.columns[tgtIdx] {
+			if elem.repetitionLevel != levels.repetitionLevel {
+				break
+			}
+			tgt, err = convFunc(tgt, levels, src)
+			levels.repetitionLevel = levels.repetitionDepth
+		}
+
+		return tgt, err
+	}
+}
+
+// Convert here satisfies the Conversion interface, and does the actual work to
+// convert betweeen the source and target Rows.
 func (c *conversion) Convert(target, source Row) (Row, error) {
+	if c.convertFunc == nil {
+		c.convertFunc = c.makeConvertFunc(c.schema)
+	}
+
 	buffer := c.getBuffer()
 	defer c.putBuffer(buffer)
 
+	// Build conversion buffer
 	for _, value := range source {
 		sourceIndex := value.Column()
 		targetIndex := c.sourceToTargetIndex[sourceIndex]
@@ -96,17 +190,18 @@ func (c *conversion) Convert(target, source Row) (Row, error) {
 		}
 	}
 
+	// Fill empty columns
 	for i, values := range buffer.columns {
 		if len(values) == 0 {
-			values = append(values, Value{
+			buffer.columns[i] = append(buffer.columns[i], Value{
 				kind:        ^int8(c.targetColumnKinds[i]),
 				columnIndex: ^int16(i),
 			})
 		}
-		target = append(target, values...)
 	}
 
-	return target, nil
+	// Construct row from buffer
+	return c.convertFunc(target, levels{}, buffer)
 }
 
 func (c *conversion) Column(i int) int {
@@ -178,12 +273,13 @@ func Convert(to, from Node) (conv Conversion, err error) {
 		sourceToTargetIndex[i] = targetColumn.columnIndex
 	}
 
-	return &conversion{
+	c := &conversion{
 		targetColumnKinds:   targetColumnKinds,
 		targetToSourceIndex: targetToSourceIndex,
 		sourceToTargetIndex: sourceToTargetIndex,
 		schema:              schema,
-	}, nil
+	}
+	return c, nil
 }
 
 // ConvertRowGroup constructs a wrapper of the given row group which applies

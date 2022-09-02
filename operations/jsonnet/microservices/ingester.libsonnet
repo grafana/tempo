@@ -79,4 +79,12 @@
         servicePort.withProtocol('TCP'),
       ],
     ) + service.mixin.spec.withClusterIp('None'),  // headless service
+
+  local podDisruptionBudget = k.policy.v1beta1.podDisruptionBudget,
+  ingester_pdb:
+    podDisruptionBudget.new() +
+    podDisruptionBudget.mixin.metadata.withName(target_name) +
+    podDisruptionBudget.mixin.metadata.withLabels({ name: target_name }) +
+    podDisruptionBudget.mixin.spec.selector.withMatchLabels({ name: target_name }) +
+    podDisruptionBudget.mixin.spec.withMaxUnavailable(1),
 }

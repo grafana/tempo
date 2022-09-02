@@ -84,6 +84,10 @@ type RowReader interface {
 	// each row read from the reader. If the rows are not nil, the backing array
 	// of the slices will be used as an optimization to avoid re-allocating new
 	// arrays.
+	//
+	// The application is expected to handle the case where ReadRows returns
+	// less rows than requested and no error, by looking at the first returned
+	// value from ReadRows, which is the number of rows that were read.
 	ReadRows([]Row) (int, error)
 }
 
@@ -167,7 +171,12 @@ func (r *forwardRowSeeker) SeekToRow(rowIndex int64) error {
 		r.seek = rowIndex
 		return nil
 	}
-	return fmt.Errorf("SeekToRow: %T does not implement parquet.RowSeeker: cannot seek backward from row %d to %d", r.rows, r.index, rowIndex)
+	return fmt.Errorf(
+		"SeekToRow: %T does not implement parquet.RowSeeker: cannot seek backward from row %d to %d",
+		r.rows,
+		r.index,
+		rowIndex,
+	)
 }
 
 // CopyRows copies rows from src to dst.
@@ -361,6 +370,10 @@ type levels struct {
 	definitionLevel byte
 }
 
+// deconstructFunc accepts a row, the current levels, the value to deserialize
+// the current column onto, and returns the row minus the deserialied value(s)
+// It recurses until it hits a leaf node, then deserializes that value
+// individually as the base case.
 type deconstructFunc func(Row, levels, reflect.Value) Row
 
 func deconstructFuncOf(columnIndex int16, node Node) (int16, deconstructFunc) {
@@ -521,14 +534,24 @@ func reconstructFuncOf(columnIndex int16, node Node) (int16, reconstructFunc) {
 
 //go:noinline
 func reconstructFuncOfOptional(columnIndex int16, node Node) (int16, reconstructFunc) {
+	// We convert the optional func to required so that we eventually reach the
+	// leaf base-case.  We're still using the heuristics of optional in the
+	// returned closure (see levels.definitionLevel++), but we don't actually do
+	// deserialization here, that happens in the leaf function, hence this line.
 	nextColumnIndex, reconstruct := reconstructFuncOf(columnIndex, Required(node))
 	rowLength := nextColumnIndex - columnIndex
+
 	return nextColumnIndex, func(value reflect.Value, levels levels, row Row) (Row, error) {
 		if !row.startsWith(columnIndex) {
 			return row, fmt.Errorf("row is missing optional column %d", columnIndex)
 		}
 		if len(row) < int(rowLength) {
-			return row, fmt.Errorf("expected optional column %d to have at least %d values but got %d", columnIndex, rowLength, len(row))
+			return row, fmt.Errorf(
+				"expected optional column %d to have at least %d values but got %d",
+				columnIndex,
+				rowLength,
+				len(row),
+			)
 		}
 
 		levels.definitionLevel++
@@ -587,7 +610,12 @@ func reconstructRepeated(columnIndex, rowLength int16, levels levels, row Row, d
 		return row, fmt.Errorf("row is missing repeated column %d: %+v", columnIndex, row)
 	}
 	if len(row) < int(rowLength) {
-		return row, fmt.Errorf("expected repeated column %d to have at least %d values but got %d", columnIndex, rowLength, len(row))
+		return row, fmt.Errorf(
+			"expected repeated column %d to have at least %d values but got %d",
+			columnIndex,
+			rowLength,
+			len(row),
+		)
 	}
 
 	levels.repetitionDepth++
@@ -599,6 +627,7 @@ func reconstructRepeated(columnIndex, rowLength int16, levels levels, row Row, d
 
 	var err error
 	for row.startsWith(columnIndex) && row[0].repetitionLevel == levels.repetitionLevel {
+		// TODO: check specific error here.
 		if row, err = do(levels, row); err != nil {
 			break
 		}

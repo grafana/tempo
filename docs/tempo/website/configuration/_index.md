@@ -1,6 +1,8 @@
 ---
 title: Configuration
 weight: 200
+alias:
+- /docs/tempo/latest/configuration/
 ---
 
 # Configuration
@@ -462,6 +464,7 @@ The following example shows common options.  For further platform-specific infor
 * [GCS]({{< relref "gcs/" >}})
 * [S3]({{< relref "s3/" >}})
 * [Azure]({{< relref "azure/" >}})
+* [Parquet]({{< relref "parquet/" >}})
 
 ```yaml
 # Storage configuration for traces
@@ -470,7 +473,7 @@ storage:
     trace:
 
         # The storage backend to use
-        # Should be one of "gcs", "s3", "azure" or "local"
+        # Should be one of "gcs", "s3", "azure" or "local" (only supported in the monolithic mode)
         # CLI flag -storage.trace.backend
         [backend: <string>]
 
@@ -1167,9 +1170,22 @@ Additional search-related settings are available in the [distributor](#distribut
 
 By default, Tempo will report anonymous usage data about the shape of a deployment to Grafana Labs. 
 This data is used to determine how common the deployment of certain features are, if a feature flag has been enabled,
-replication factor or compression levels, etc.
+and which replication factor or compression levels are used.
+
+By providing information on how people use Tempo, usage reporting helps the Tempo team decide where to focus their development and documentation efforts. No private information is collected, and all reports are completely anonymous.
 
 Reporting is controlled by a configuration option.
+
+The following configuration values are used: 
+
+- Receivers enabled
+- Frontend concurrency and version
+- Storage cache, backend, wal and block encodings
+- Ring replication factor, and `kvstore` 
+- Features toggles enabled
+
+No performance data is collected. 
+
 You can disable the automatic reporting of this generic information using the following
 configuration:
 

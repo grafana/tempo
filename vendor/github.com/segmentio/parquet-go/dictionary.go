@@ -1371,6 +1371,8 @@ func (col *indexedColumnBuffer) Clone() ColumnBuffer {
 	}
 }
 
+func (col *indexedColumnBuffer) Type() Type { return col.typ.Type }
+
 func (col *indexedColumnBuffer) ColumnIndex() ColumnIndex { return indexedColumnIndex{col} }
 
 func (col *indexedColumnBuffer) OffsetIndex() OffsetIndex { return indexedOffsetIndex{col} }
