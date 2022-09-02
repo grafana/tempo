@@ -466,10 +466,10 @@ For more information on configuration options, see [here](https://github.com/gra
 ### Local storage recommendations
 
 While you can use local storage, object storage is recommended for production workloads.
+A local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk.
 Tempo is designed for object storage more than local storage.
 
-At Grafana Labs, we have almost exclusively run Tempo with SSDs instead of hard drives when using local storage.
-Hard drives should work if the read and write speeds are good. There may be more latency in I/O operations.
+At Grafana Labs, we have run Tempo with SSDs when using local storage. Hard drives have not been tested. 
 
 How much storage space you need can be estimated by considering the ingested byes and retention. For example, ingested bytes per day *times* retention days = stored bytes.
 
