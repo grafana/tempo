@@ -22,5 +22,5 @@ type Config struct {
 	ForcePathStyle bool              `yaml:"forcepathstyle"`
 	Tags           map[string]string `yaml:"tags"`
 	StorageClass   string            `yaml:"storage_class"`
-	UserMetadata   map[string]string `yaml:"user_metadata"`
+	Metadata       map[string]string `yaml:"metadata"`
 }

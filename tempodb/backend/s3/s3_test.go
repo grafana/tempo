@@ -131,7 +131,7 @@ func fakeServerWithHeader(t *testing.T, obj *url.Values, testedHeaderName string
 			switch testedHeaderValue := r.Header.Get(testedHeaderName); testedHeaderValue {
 			case "":
 			default:
-				value, err := url.ParseQuery(testedHeaderValueZ)
+				value, err := url.ParseQuery(testedHeaderValue)
 				require.NoError(t, err)
 				*obj = value
 			}
@@ -220,7 +220,7 @@ func TestObjectStorageClass(t *testing.T) {
 
 			ctx := context.Background()
 			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, bytes.NewReader([]byte{}), 0, false)
-
+			require.Equal(t, obj.Has(tc.StorageClass), true)
 		})
 	}
 }

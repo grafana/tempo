@@ -108,7 +108,7 @@ func getPutObjectOptions(rw *readerWriter) minio.PutObjectOptions {
 		PartSize:     rw.cfg.PartSize,
 		UserTags:     rw.cfg.Tags,
 		StorageClass: rw.cfg.StorageClass,
-		UserMetadata: rw.cfg.UserMetadata,
+		UserMetadata: rw.cfg.Metadata,
 	}
 }
 
