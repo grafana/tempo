@@ -5,10 +5,12 @@ import (
 	"fmt"
 )
 
+type Operands []Static
+
 type Condition struct {
 	Attribute Attribute
 	Op        Operator
-	Operands  []interface{}
+	Operands  Operands
 }
 
 type FetchSpansRequest struct {
@@ -41,6 +43,8 @@ type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
 }
 
+// ExtractCondition from the first spanset filter in the traceql query.
+// For testing purposes.
 func ExtractCondition(query string) (cond Condition, err error) {
 	ast, err := Parse(query)
 	if err != nil {
@@ -52,29 +56,11 @@ func ExtractCondition(query string) (cond Condition, err error) {
 		return Condition{}, fmt.Errorf("first pipeline element is not a SpansetFilter")
 	}
 
-	setOperand := func(s Static) {
-		// Operands
-		switch s.Type {
-		case TypeString:
-			cond.Operands = append(cond.Operands, s.S)
-		case TypeInt:
-			cond.Operands = append(cond.Operands, s.N)
-		case TypeFloat:
-			cond.Operands = append(cond.Operands, s.F)
-		case TypeBoolean:
-			cond.Operands = append(cond.Operands, s.B)
-		case TypeDuration:
-			cond.Operands = append(cond.Operands, uint64(s.D.Nanoseconds()))
-		default:
-			err = fmt.Errorf("traceql operand not supported for storage testing: %s", s.String())
-		}
-	}
-
 	switch e := f.Expression.(type) {
 	case BinaryOperation:
 		cond.Attribute = e.LHS.(Attribute)
 		cond.Op = e.Op
-		setOperand(e.RHS.(Static))
+		cond.Operands = []Static{e.RHS.(Static)}
 	case Attribute:
 		cond.Attribute = e
 		cond.Op = OpNone

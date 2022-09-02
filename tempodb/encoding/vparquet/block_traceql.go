@@ -19,7 +19,7 @@ import (
 type makeIterFunc func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator
 
 // Helper function to create a column predicate for the given conditions
-type makePredicateForCondition func(traceql.Operator, []interface{}) (parquetquery.Predicate, error)
+type makePredicateForCondition func(traceql.Operator, traceql.Operands) (parquetquery.Predicate, error)
 
 const (
 	columnPathTraceID                  = "TraceID"
@@ -52,35 +52,28 @@ const (
 	columnPathSpanHttpUrl        = "rs.ils.Spans.HttpUrl"
 )
 
-type columnLevel int
-
-const (
-	columnLevelResource = iota
-	columnLevelSpan
-)
-
 // Lookup table of all well-known attributes with dedicated columns
 var wellKnownColumnLookups = map[string]struct {
-	columnPath  string      // path.to.column
-	level       columnLevel // span or resource level
-	predicateFn makePredicateForCondition
-	compatible  func(t reflect.Type) bool
+	columnPath string                 // path.to.column
+	level      traceql.AttributeScope // span or resource level
+	//predicateFn makePredicateForCondition // Predicate fn
+	typ traceql.StaticType // Data type
 }{
 	// Resource-level columns
-	LabelServiceName:      {columnPathResourceServiceName, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
-	LabelCluster:          {columnPathResourceCluster, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
-	LabelNamespace:        {columnPathResourceNamespace, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
-	LabelPod:              {columnPathResourcePod, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
-	LabelContainer:        {columnPathResourceContainer, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
-	LabelK8sClusterName:   {columnPathResourceK8sClusterName, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
-	LabelK8sNamespaceName: {columnPathResourceK8sNamespaceName, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
-	LabelK8sPodName:       {columnPathResourceK8sPodName, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
-	LabelK8sContainerName: {columnPathResourceK8sContainerName, columnLevelResource, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
+	LabelServiceName:      {columnPathResourceServiceName, traceql.AttributeScopeResource, traceql.TypeString},
+	LabelCluster:          {columnPathResourceCluster, traceql.AttributeScopeResource, traceql.TypeString},
+	LabelNamespace:        {columnPathResourceNamespace, traceql.AttributeScopeResource, traceql.TypeString},
+	LabelPod:              {columnPathResourcePod, traceql.AttributeScopeResource, traceql.TypeString},
+	LabelContainer:        {columnPathResourceContainer, traceql.AttributeScopeResource, traceql.TypeString},
+	LabelK8sClusterName:   {columnPathResourceK8sClusterName, traceql.AttributeScopeResource, traceql.TypeString},
+	LabelK8sNamespaceName: {columnPathResourceK8sNamespaceName, traceql.AttributeScopeResource, traceql.TypeString},
+	LabelK8sPodName:       {columnPathResourceK8sPodName, traceql.AttributeScopeResource, traceql.TypeString},
+	LabelK8sContainerName: {columnPathResourceK8sContainerName, traceql.AttributeScopeResource, traceql.TypeString},
 
 	// Span-level columns
-	LabelHTTPStatusCode: {columnPathSpanHttpStatusCode, columnLevelSpan, createIntPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf(int64(0)) || t == reflect.TypeOf(int(0)) }},
-	LabelHTTPMethod:     {columnPathSpanHttpMethod, columnLevelSpan, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
-	LabelHTTPUrl:        {columnPathSpanHttpUrl, columnLevelSpan, createStringPredicate, func(t reflect.Type) bool { return t == reflect.TypeOf("") }},
+	LabelHTTPStatusCode: {columnPathSpanHttpStatusCode, traceql.AttributeScopeSpan, traceql.TypeInt},
+	LabelHTTPMethod:     {columnPathSpanHttpMethod, traceql.AttributeScopeSpan, traceql.TypeString},
+	LabelHTTPUrl:        {columnPathSpanHttpUrl, traceql.AttributeScopeSpan, traceql.TypeString},
 }
 
 // Fetch spansets from the block for the given TraceQL FetchSpansRequest. The request is checked for
@@ -148,11 +141,11 @@ func checkConditions(conditions []traceql.Condition) error {
 	return nil
 }
 
-func operandType(operands []interface{}) reflect.Type {
+func operandType(operands traceql.Operands) traceql.StaticType {
 	if len(operands) > 0 {
-		return reflect.TypeOf(operands[0])
+		return operands[0].Type
 	}
-	return nil
+	return traceql.TypeNil
 }
 
 // spansetIterator turns the parquet iterator into the final
@@ -356,8 +349,11 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 			continue
 
 		case traceql.IntrinsicDuration:
+			if cond.Operands[0].Type != traceql.TypeDuration {
+				return nil, fmt.Errorf("operand %v is not duration", cond.Operands[0])
+			}
 			durationFilter = true
-			v := cond.Operands[0].(uint64)
+			v := uint64(cond.Operands[0].D.Nanoseconds())
 			// This is kind of hacky. Merge all duration filters onto the min/max range
 			switch cond.Op {
 			case traceql.OpEqual:
@@ -384,7 +380,7 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 		}
 
 		// Well-known attribute?
-		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level == columnLevelSpan {
+		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeResource {
 			if cond.Op == traceql.OpNone {
 				addPredicate(entry.columnPath, nil) // No filtering
 				columnSelectAs[entry.columnPath] = cond.Attribute.Name
@@ -392,8 +388,8 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 			}
 
 			// Compatible type?
-			if entry.compatible(operandType(cond.Operands)) {
-				pred, err := entry.predicateFn(cond.Op, cond.Operands)
+			if entry.typ == operandType(cond.Operands) {
+				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
 				}
@@ -476,7 +472,7 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 	for _, cond := range conditions {
 
 		// Well-known selector?
-		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level == columnLevelResource {
+		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeSpan {
 			if cond.Op == traceql.OpNone {
 				addPredicate(entry.columnPath, nil) // No filtering
 				columnSelectAs[entry.columnPath] = cond.Attribute.Name
@@ -484,8 +480,8 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 			}
 
 			// Compatible type?
-			if entry.compatible(operandType(cond.Operands)) {
-				pred, err := entry.predicateFn(cond.Op, cond.Operands)
+			if entry.typ == operandType(cond.Operands) {
+				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
 				}
@@ -545,7 +541,26 @@ func createTraceIterator(makeIter makeIterFunc, resourceIter parquetquery.Iterat
 	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, &traceCollector{}), nil
 }
 
-func createStringPredicate(op traceql.Operator, operands []interface{}) (parquetquery.Predicate, error) {
+func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
+		return nil, nil
+	}
+
+	switch operands[0].Type {
+	case traceql.TypeString:
+		return createStringPredicate(op, operands)
+	case traceql.TypeInt:
+		return createIntPredicate(op, operands)
+	case traceql.TypeFloat:
+		return createFloatPredicate(op, operands)
+	case traceql.TypeBoolean:
+		return createBoolPredicate(op, operands)
+	default:
+		return nil, fmt.Errorf("cannot create predicate for operand: %v", operands[0])
+	}
+}
+
+func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
 	}
@@ -553,11 +568,10 @@ func createStringPredicate(op traceql.Operator, operands []interface{}) (parquet
 	vals := make([]string, 0, len(operands))
 
 	for _, op := range operands {
-		s, ok := op.(string)
-		if !ok {
+		if op.Type != traceql.TypeString {
 			return nil, fmt.Errorf("operand is not string: %+v", op)
 		}
-		vals = append(vals, s)
+		vals = append(vals, op.S)
 	}
 
 	switch op {
@@ -573,23 +587,18 @@ func createStringPredicate(op traceql.Operator, operands []interface{}) (parquet
 
 }
 
-func createIntPredicate(op traceql.Operator, operands []interface{}) (parquetquery.Predicate, error) {
+func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
 	}
 
 	// Ensure operand is int
-	var i int64
-	switch v := operands[0].(type) {
-	case int:
-		i = int64(v)
-	case int64:
-		i = v
-	default:
+	if operands[0].Type != traceql.TypeInt {
 		return nil, fmt.Errorf("operand is not int: %+v", operands[0])
 	}
 
 	// Defaults
+	i := int64(operands[0].N)
 	min := int64(math.MinInt64)
 	max := int64(math.MaxInt64)
 
@@ -608,23 +617,18 @@ func createIntPredicate(op traceql.Operator, operands []interface{}) (parquetque
 	return parquetquery.NewIntBetweenPredicate(min, max), nil
 }
 
-func createFloatPredicate(op traceql.Operator, operands []interface{}) (parquetquery.Predicate, error) {
+func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
 	}
 
-	// Ensure operand is int
-	var i float64
-	switch v := operands[0].(type) {
-	case float32:
-		i = float64(v)
-	case float64:
-		i = v
-	default:
+	// Ensure operand is float
+	if operands[0].Type != traceql.TypeFloat {
 		return nil, fmt.Errorf("operand is not float: %+v", operands[0])
 	}
 
 	// Defaults
+	i := operands[0].F
 	min := math.Inf(-1)
 	max := math.Inf(1)
 
@@ -643,23 +647,19 @@ func createFloatPredicate(op traceql.Operator, operands []interface{}) (parquetq
 	return parquetquery.NewFloatBetweenPredicate(min, max), nil
 }
 
-func createBoolPredicate(op traceql.Operator, operands []interface{}) (parquetquery.Predicate, error) {
+func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
 	}
 
 	// Ensure operand is bool
-	var b bool
-	switch v := operands[0].(type) {
-	case bool:
-		b = v
-	default:
+	if operands[0].Type != traceql.TypeBoolean {
 		return nil, fmt.Errorf("operand is not bool: %+v", operands[0])
 	}
 
 	switch op {
 	case traceql.OpEqual:
-		return parquetquery.NewBoolPredicate(b), nil
+		return parquetquery.NewBoolPredicate(operands[0].B), nil
 
 	default:
 		return nil, fmt.Errorf("operand not supported for booleans: %+v", op)
@@ -691,30 +691,30 @@ func createAttributeIterator(makeIter makeIterFunc, conditions []traceql.Conditi
 			continue
 		}
 
-		switch cond.Operands[0].(type) {
+		switch cond.Operands[0].Type {
 
-		case string:
+		case traceql.TypeString:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, errors.Wrap(err, "creating attribute predicate")
 			}
 			attrStringPreds = append(attrStringPreds, pred)
 
-		case int, int64:
+		case traceql.TypeInt:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, errors.Wrap(err, "creating attribute predicate")
 			}
 			attrIntPreds = append(attrIntPreds, pred)
 
-		case float32, float64:
+		case traceql.TypeFloat:
 			pred, err := createFloatPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, errors.Wrap(err, "creating attribute predicate")
 			}
 			attrFltPreds = append(attrFltPreds, pred)
 
-		case bool:
+		case traceql.TypeBoolean:
 			pred, err := createBoolPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, errors.Wrap(err, "creating attribute predicate")
