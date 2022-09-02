@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
@@ -59,11 +58,6 @@ const (
 	columnLevelResource = iota
 	columnLevelSpan
 )
-
-var intrinsics = map[string]columnLevel{
-	LabelName:     columnLevelSpan,
-	LabelDuration: columnLevelSpan,
-}
 
 // Lookup table of all well-known attributes with dedicated columns
 var wellKnownColumnLookups = map[string]struct {
@@ -259,35 +253,23 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File)
 	)
 	for _, cond := range req.Conditions {
 
-		// Intrinsic?
-		if level, ok := intrinsics[cond.Selector]; ok {
-			switch level {
-			case columnLevelSpan:
-				spanConditions = append(spanConditions, cond)
-			case columnLevelResource:
-				resourceConditions = append(resourceConditions, cond)
-			}
-			continue
-		}
+		switch cond.Attribute.Scope {
 
-		// It must be an attribute selector?
-		switch {
-
-		case strings.HasPrefix(cond.Selector, "."):
+		case traceql.AttributeScopeNone:
 			spanConditions = append(spanConditions, cond)
 			resourceConditions = append(resourceConditions, cond)
 			continue
 
-		case strings.HasPrefix(cond.Selector, "span."):
+		case traceql.AttributeScopeSpan:
 			spanConditions = append(spanConditions, cond)
 			continue
 
-		case strings.HasPrefix(cond.Selector, "resource."):
+		case traceql.AttributeScopeResource:
 			resourceConditions = append(resourceConditions, cond)
 			continue
 
 		default:
-			return nil, fmt.Errorf("unknown traceql selector: %s", cond.Selector)
+			return nil, fmt.Errorf("unsupported traceql scope: %s", cond.Attribute)
 		}
 	}
 
@@ -362,18 +344,18 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 	for _, cond := range conditions {
 
 		// Intrinsic?
-		switch cond.Selector {
+		switch cond.Attribute.Intrinsic {
 
-		case LabelName:
+		case traceql.IntrinsicName:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
 			}
 			addPredicate(columnPathSpanName, pred)
-			columnSelectAs[columnPathSpanName] = cond.Selector
+			columnSelectAs[columnPathSpanName] = cond.Attribute.String()
 			continue
 
-		case LabelDuration:
+		case traceql.IntrinsicDuration:
 			durationFilter = true
 			v := cond.Operands[0].(uint64)
 			// This is kind of hacky. Merge all duration filters onto the min/max range
@@ -396,19 +378,16 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 					durationMax = v
 				}
 			default:
-				return nil, fmt.Errorf("Operator %v not supported for duration", cond.Op)
+				return nil, fmt.Errorf("operator %v not supported for duration", cond.Op)
 			}
 			continue
 		}
 
-		cond.Selector = strings.TrimPrefix(cond.Selector, "span")
-		cond.Selector = strings.TrimPrefix(cond.Selector, ".")
-
 		// Well-known attribute?
-		if entry, ok := wellKnownColumnLookups[cond.Selector]; ok && entry.level == columnLevelSpan {
+		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level == columnLevelSpan {
 			if cond.Op == traceql.OpNone {
 				addPredicate(entry.columnPath, nil) // No filtering
-				columnSelectAs[entry.columnPath] = cond.Selector
+				columnSelectAs[entry.columnPath] = cond.Attribute.Name
 				continue
 			}
 
@@ -419,7 +398,7 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 					return nil, errors.Wrap(err, "creating predicate")
 				}
 				addPredicate(entry.columnPath, pred)
-				columnSelectAs[entry.columnPath] = cond.Selector
+				columnSelectAs[entry.columnPath] = cond.Attribute.Name
 				continue
 			}
 		}
@@ -496,14 +475,11 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 
 	for _, cond := range conditions {
 
-		cond.Selector = strings.TrimPrefix(cond.Selector, "resource")
-		cond.Selector = strings.TrimPrefix(cond.Selector, ".")
-
 		// Well-known selector?
-		if entry, ok := wellKnownColumnLookups[cond.Selector]; ok && entry.level == columnLevelResource {
+		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level == columnLevelResource {
 			if cond.Op == traceql.OpNone {
 				addPredicate(entry.columnPath, nil) // No filtering
-				columnSelectAs[entry.columnPath] = cond.Selector
+				columnSelectAs[entry.columnPath] = cond.Attribute.Name
 				continue
 			}
 
@@ -513,7 +489,7 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 				if err != nil {
 					return nil, errors.Wrap(err, "creating predicate")
 				}
-				iters = append(iters, makeIter(entry.columnPath, pred, cond.Selector))
+				iters = append(iters, makeIter(entry.columnPath, pred, cond.Attribute.Name))
 				continue
 			}
 		}
@@ -703,7 +679,7 @@ func createAttributeIterator(makeIter makeIterFunc, conditions []traceql.Conditi
 	)
 	for _, cond := range conditions {
 
-		attrKeys = append(attrKeys, cond.Selector)
+		attrKeys = append(attrKeys, cond.Attribute.Name)
 
 		if cond.Op == traceql.OpNone {
 			// This means we have to scan all values, we don't know what type
@@ -830,7 +806,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		// ever matched anything.  TODO: Find a more efficient way to do
 		// this since duration is already present in the span data (start/end times)
 		// We need to flag that this span matched "something"
-		span.Attributes["duration"] = dur
+		span.Attributes[traceql.IntrinsicDuration.String()] = dur
 	}
 
 	if c.requireAtLeastOneMatch {

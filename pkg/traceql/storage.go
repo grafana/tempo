@@ -6,9 +6,9 @@ import (
 )
 
 type Condition struct {
-	Selector string
-	Op       Operator
-	Operands []interface{}
+	Attribute Attribute
+	Op        Operator
+	Operands  []interface{}
 }
 
 type FetchSpansRequest struct {
@@ -52,23 +52,6 @@ func ExtractCondition(query string) (cond Condition, err error) {
 		return Condition{}, fmt.Errorf("first pipeline element is not a SpansetFilter")
 	}
 
-	setAttribute := func(a Attribute) {
-		// LHS = attribute or instrinsic
-		if a.Intrinsic == IntrinsicNone {
-			switch a.Scope {
-			case AttributeScopeNone:
-				cond.Selector = "."
-			case AttributeScopeResource:
-				cond.Selector = "resource."
-			case AttributeScopeSpan:
-				cond.Selector = "span."
-			}
-			cond.Selector += a.Name
-		} else {
-			cond.Selector = a.Intrinsic.String()
-		}
-	}
-
 	setOperand := func(s Static) {
 		// Operands
 		switch s.Type {
@@ -89,11 +72,11 @@ func ExtractCondition(query string) (cond Condition, err error) {
 
 	switch e := f.Expression.(type) {
 	case BinaryOperation:
-		setAttribute(e.LHS.(Attribute))
-		setOperand(e.RHS.(Static))
+		cond.Attribute = e.LHS.(Attribute)
 		cond.Op = e.Op
+		setOperand(e.RHS.(Static))
 	case Attribute:
-		setAttribute(e)
+		cond.Attribute = e
 		cond.Op = OpNone
 		cond.Operands = nil
 	}
