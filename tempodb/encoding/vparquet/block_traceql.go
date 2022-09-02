@@ -52,6 +52,11 @@ const (
 	columnPathSpanHttpUrl        = "rs.ils.Spans.HttpUrl"
 )
 
+var intrinsicDefaultScope = map[traceql.Intrinsic]traceql.AttributeScope{
+	traceql.IntrinsicName:     traceql.AttributeScopeSpan,
+	traceql.IntrinsicDuration: traceql.AttributeScopeSpan,
+}
+
 // Lookup table of all well-known attributes with dedicated columns
 var wellKnownColumnLookups = map[string]struct {
 	columnPath string                 // path.to.column
@@ -246,7 +251,15 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File)
 	)
 	for _, cond := range req.Conditions {
 
-		switch cond.Attribute.Scope {
+		// If no-scoped intrinsic then assign default scope
+		scope := cond.Attribute.Scope
+		if cond.Attribute.Scope == traceql.AttributeScopeNone {
+			if defscope, ok := intrinsicDefaultScope[cond.Attribute.Intrinsic]; ok {
+				scope = defscope
+			}
+		}
+
+		switch scope {
 
 		case traceql.AttributeScopeNone:
 			spanConditions = append(spanConditions, cond)

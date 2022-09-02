@@ -43,6 +43,14 @@ type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
 }
 
+func MustExtractCondition(query string) Condition {
+	c, err := ExtractCondition(query)
+	if err != nil {
+		panic(err)
+	}
+	return c
+}
+
 // ExtractCondition from the first spanset filter in the traceql query.
 // For testing purposes.
 func ExtractCondition(query string) (cond Condition, err error) {
