@@ -459,7 +459,7 @@ compactor:
 
 ## Storage
 
-Tempo supports Amazon S3, GCS, Azure, local file system, and Parquet for storage. In addition, you can use Memcached or Redis for increased query performance.
+Tempo supports Amazon S3, GCS, Azure, and local file system for storage. In addition, you can use Memcached or Redis for increased query performance.
 
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/tempodb/config.go).
 
