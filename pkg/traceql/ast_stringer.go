@@ -7,19 +7,19 @@ import (
 )
 
 func (r RootExpr) String() string {
-	return r.p.String()
+	return r.Pipeline.String()
 }
 
 func (p Pipeline) String() string {
-	s := make([]string, 0, len(p.p))
-	for _, p := range p.p {
+	s := make([]string, 0, len(p.Elements))
+	for _, p := range p.Elements {
 		s = append(s, p.String())
 	}
 	return strings.Join(s, "|")
 }
 
 func (o GroupOperation) String() string {
-	return "by(" + o.e.String() + ")"
+	return "by(" + o.Expression.String() + ")"
 }
 
 func (o CoalesceOperation) String() string {
@@ -27,7 +27,7 @@ func (o CoalesceOperation) String() string {
 }
 
 func (o ScalarOperation) String() string {
-	return binaryOp(o.op, o.lhs, o.rhs)
+	return binaryOp(o.Op, o.LHS, o.RHS)
 }
 
 func (a Aggregate) String() string {
@@ -39,11 +39,11 @@ func (a Aggregate) String() string {
 }
 
 func (o SpansetOperation) String() string {
-	return binaryOp(o.op, o.lhs, o.rhs)
+	return binaryOp(o.Op, o.LHS, o.RHS)
 }
 
 func (f SpansetFilter) String() string {
-	return "{ " + f.e.String() + " }"
+	return "{ " + f.Expression.String() + " }"
 }
 
 func (f ScalarFilter) String() string {
@@ -51,68 +51,72 @@ func (f ScalarFilter) String() string {
 }
 
 func (o BinaryOperation) String() string {
-	return binaryOp(o.op, o.lhs, o.rhs)
+	return binaryOp(o.Op, o.LHS, o.RHS)
 }
 
 func (o UnaryOperation) String() string {
-	return unaryOp(o.op, o.e)
+	return unaryOp(o.Op, o.Expression)
 }
 
 func (n Static) String() string {
-	switch n.staticType {
-	case typeInt:
-		return strconv.Itoa(n.n)
-	case typeFloat:
-		return strconv.FormatFloat(n.f, 'f', 5, 64)
-	case typeString:
-		return "`" + n.s + "`"
-	case typeBoolean:
-		return strconv.FormatBool(n.b)
-	case typeNil:
+	switch n.Type {
+	case TypeInt:
+		return strconv.Itoa(n.N)
+	case TypeFloat:
+		return strconv.FormatFloat(n.F, 'f', 5, 64)
+	case TypeString:
+		return "`" + n.S + "`"
+	case TypeBoolean:
+		return strconv.FormatBool(n.B)
+	case TypeNil:
 		return "nil"
-	case typeDuration:
-		return n.d.String()
-	case typeStatus:
-		return n.status.String()
+	case TypeDuration:
+		return n.D.String()
+	case TypeStatus:
+		return n.Status.String()
 	}
 
-	return fmt.Sprintf("static(%d)", n.staticType)
+	return fmt.Sprintf("static(%d)", n.Type)
 }
 
 func (a Attribute) String() string {
 	scopes := []string{}
-	if a.parent {
+	if a.Parent {
 		scopes = append(scopes, "parent")
 	}
 
-	if a.scope != attributeScopeNone {
-		attributeScope := a.scope.String()
+	if a.Scope != AttributeScopeNone {
+		attributeScope := a.Scope.String()
 		scopes = append(scopes, attributeScope)
 	}
 
-	att := a.name
-	if a.intrinsic != intrinsicNone {
-		att = a.intrinsic.String()
+	att := a.Name
+	if a.Intrinsic != IntrinsicNone {
+		att = a.Intrinsic.String()
 	}
 
 	scope := ""
 	if len(scopes) > 0 {
-		scope = strings.Join(scopes, ".")
+		scope = strings.Join(scopes, ".") + "."
 	}
-	scope += "."
+
+	// Top-level attributes get a "." but top-level intrinsics don't
+	if scope == "" && a.Intrinsic == IntrinsicNone {
+		scope += "."
+	}
 
 	return scope + att
 }
 
-func binaryOp(op Operator, lhs element, rhs element) string {
+func binaryOp(op Operator, lhs Element, rhs Element) string {
 	return wrapElement(lhs) + " " + op.String() + " " + wrapElement(rhs)
 }
 
-func unaryOp(op Operator, e element) string {
+func unaryOp(op Operator, e Element) string {
 	return op.String() + wrapElement(e)
 }
 
-func wrapElement(e element) string {
+func wrapElement(e Element) string {
 	static, ok := e.(Static)
 	if ok {
 		return static.String()

@@ -334,60 +334,6 @@ func (b *buffer) clone() (clone *buffer) {
 	return clone
 }
 
-type bufferRef struct {
-	buf *buffer
-	off int
-	len int
-}
-
-func makeBufferRef(buf *buffer) (ref bufferRef) {
-	if buf != nil {
-		buf.ref()
-		ref.buf = buf
-		ref.len = len(buf.data)
-	}
-	return ref
-}
-
-func (r *bufferRef) data() []byte {
-	if r.buf != nil {
-		i := r.off
-		j := r.off + r.len
-		return r.buf.data[i:j:j]
-	}
-	return nil
-}
-
-func (r *bufferRef) ref() bufferRef {
-	if r.buf != nil {
-		r.buf.ref()
-	}
-	return *r
-}
-
-func (r *bufferRef) unref() {
-	if r.buf != nil {
-		r.buf.unref()
-		r.buf = nil
-	}
-}
-
-func (r *bufferRef) slice(i, j int) bufferRef {
-	if r.buf != nil {
-		r.buf.ref()
-	}
-	return bufferRef{buf: r.buf, off: r.off + i, len: j - i}
-}
-
-func (r *bufferRef) clone() (clone bufferRef) {
-	clone.off = r.off
-	clone.len = r.len
-	if r.buf != nil {
-		clone.buf = r.buf.clone()
-	}
-	return clone
-}
-
 type bufferPool struct {
 	pool sync.Pool
 }
@@ -420,21 +366,49 @@ var (
 
 type bufferedPage struct {
 	Page
-	values  bufferRef
-	offsets bufferRef
+	values           *buffer
+	offsets          *buffer
+	repetitionLevels *buffer
+	definitionLevels *buffer
 }
 
 func (p *bufferedPage) Slice(i, j int64) Page {
+	bufferRef(p.values)
+	bufferRef(p.offsets)
+	bufferRef(p.definitionLevels)
+	bufferRef(p.repetitionLevels)
+
 	return &bufferedPage{
-		Page:    p.Page.Slice(i, j),
-		values:  p.values.ref(),
-		offsets: p.offsets.ref(),
+		values:           p.values,
+		offsets:          p.offsets,
+		definitionLevels: p.definitionLevels,
+		repetitionLevels: p.repetitionLevels,
+		Page:             p.Page.Slice(i, j),
 	}
 }
 
 func unref(page Page) {
 	if p, _ := page.(*bufferedPage); p != nil {
-		p.values.unref()
-		p.offsets.unref()
+		bufferUnref(p.values)
+		bufferUnref(p.offsets)
+		bufferUnref(p.definitionLevels)
+		bufferUnref(p.repetitionLevels)
+
+		p.values = nil
+		p.offsets = nil
+		p.definitionLevels = nil
+		p.repetitionLevels = nil
+	}
+}
+
+func bufferRef(buf *buffer) {
+	if buf != nil {
+		buf.ref()
+	}
+}
+
+func bufferUnref(buf *buffer) {
+	if buf != nil {
+		buf.unref()
 	}
 }

@@ -127,10 +127,8 @@ func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig,
 		tr := test.MakeTraceWithSpanCount(batchCount, spanCount, id)
 		trp := traceToParquet(id, tr)
 
-		err := sb.Add(&trp, 0, 0)
-		require.NoError(t, err)
-
-		if sb.CurrentBufferedValues() > 20_000_000 {
+		sb.Add(&trp, 0, 0)
+		if sb.EstimatedBufferedBytes() > 20_000_000 {
 			_, err := sb.Flush()
 			require.NoError(t, err)
 		}
