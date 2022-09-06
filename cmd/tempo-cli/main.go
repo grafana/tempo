@@ -71,8 +71,8 @@ var cli struct {
 		Blocks searchBlocksCmd `cmd:"" help:"search for a traceid directly from backend blocks"`
 	} `cmd:""`
 
-	Util struct {
-		Convert convertParquet `cmd:"" help:"convert from one parquet schema to another"`
+	Parquet struct {
+		Convert convertParquet `cmd:"" help:"convert from an existing file to tempodb parquet schema"`
 	} `cmd:""`
 }
 
