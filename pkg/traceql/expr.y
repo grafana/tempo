@@ -100,11 +100,11 @@ root:
 // **********************
 spansetPipelineExpression: // shares the same operators as spansetExpression. split out for readability
     OPEN_PARENS spansetPipelineExpression CLOSE_PARENS           { $$ = $2 }
-  | spansetPipelineExpression AND   spansetPipelineExpression    { $$ = newSpansetOperation(opSpansetAnd, $1, $3) }
-  | spansetPipelineExpression GT    spansetPipelineExpression    { $$ = newSpansetOperation(opSpansetChild, $1, $3) }
-  | spansetPipelineExpression DESC  spansetPipelineExpression    { $$ = newSpansetOperation(opSpansetDescendant, $1, $3) }
-  | spansetPipelineExpression OR    spansetPipelineExpression    { $$ = newSpansetOperation(opSpansetUnion, $1, $3) }
-  | spansetPipelineExpression TILDE spansetPipelineExpression    { $$ = newSpansetOperation(opSpansetSibling, $1, $3) }
+  | spansetPipelineExpression AND   spansetPipelineExpression    { $$ = newSpansetOperation(OpSpansetAnd, $1, $3) }
+  | spansetPipelineExpression GT    spansetPipelineExpression    { $$ = newSpansetOperation(OpSpansetChild, $1, $3) }
+  | spansetPipelineExpression DESC  spansetPipelineExpression    { $$ = newSpansetOperation(OpSpansetDescendant, $1, $3) }
+  | spansetPipelineExpression OR    spansetPipelineExpression    { $$ = newSpansetOperation(OpSpansetUnion, $1, $3) }
+  | spansetPipelineExpression TILDE spansetPipelineExpression    { $$ = newSpansetOperation(OpSpansetSibling, $1, $3) }
   | wrappedSpansetPipeline                                       { $$ = $1 }
   ;
 
@@ -131,11 +131,11 @@ coalesceOperation:
 
 spansetExpression: // shares the same operators as scalarPipelineExpression. split out for readability
     OPEN_PARENS spansetExpression CLOSE_PARENS   { $$ = $2 }
-  | spansetExpression AND   spansetExpression    { $$ = newSpansetOperation(opSpansetAnd, $1, $3) }
-  | spansetExpression GT    spansetExpression    { $$ = newSpansetOperation(opSpansetChild, $1, $3) }
-  | spansetExpression DESC  spansetExpression    { $$ = newSpansetOperation(opSpansetDescendant, $1, $3) }
-  | spansetExpression OR    spansetExpression    { $$ = newSpansetOperation(opSpansetUnion, $1, $3) }
-  | spansetExpression TILDE spansetExpression    { $$ = newSpansetOperation(opSpansetSibling, $1, $3) }
+  | spansetExpression AND   spansetExpression    { $$ = newSpansetOperation(OpSpansetAnd, $1, $3) }
+  | spansetExpression GT    spansetExpression    { $$ = newSpansetOperation(OpSpansetChild, $1, $3) }
+  | spansetExpression DESC  spansetExpression    { $$ = newSpansetOperation(OpSpansetDescendant, $1, $3) }
+  | spansetExpression OR    spansetExpression    { $$ = newSpansetOperation(OpSpansetUnion, $1, $3) }
+  | spansetExpression TILDE spansetExpression    { $$ = newSpansetOperation(OpSpansetSibling, $1, $3) }
   | spansetFilter                                { $$ = $1 } 
   ;
 
@@ -148,12 +148,12 @@ scalarFilter:
   ;
 
 scalarFilterOperation:
-    EQ     { $$ = opEqual        }
-  | NEQ    { $$ = opNotEqual     }
-  | LT     { $$ = opLess         }
-  | LTE    { $$ = opLessEqual    }
-  | GT     { $$ = opGreater      }
-  | GTE    { $$ = opGreaterEqual }
+    EQ     { $$ = OpEqual        }
+  | NEQ    { $$ = OpNotEqual     }
+  | LT     { $$ = OpLess         }
+  | LTE    { $$ = OpLessEqual    }
+  | GT     { $$ = OpGreater      }
+  | GTE    { $$ = OpGreaterEqual }
   ;
 
 // **********************
@@ -166,12 +166,12 @@ scalarPipelineExpressionFilter:
 
 scalarPipelineExpression: // shares the same operators as scalarExpression. split out for readability
     OPEN_PARENS scalarPipelineExpression CLOSE_PARENS        { $$ = $2 }                                   
-  | scalarPipelineExpression ADD scalarPipelineExpression    { $$ = newScalarOperation(opAdd, $1, $3) }
-  | scalarPipelineExpression SUB scalarPipelineExpression    { $$ = newScalarOperation(opSub, $1, $3) }
-  | scalarPipelineExpression MUL scalarPipelineExpression    { $$ = newScalarOperation(opMult, $1, $3) }
-  | scalarPipelineExpression DIV scalarPipelineExpression    { $$ = newScalarOperation(opDiv, $1, $3) }
-  | scalarPipelineExpression MOD scalarPipelineExpression    { $$ = newScalarOperation(opMod, $1, $3) }
-  | scalarPipelineExpression POW scalarPipelineExpression    { $$ = newScalarOperation(opPower, $1, $3) }
+  | scalarPipelineExpression ADD scalarPipelineExpression    { $$ = newScalarOperation(OpAdd, $1, $3) }
+  | scalarPipelineExpression SUB scalarPipelineExpression    { $$ = newScalarOperation(OpSub, $1, $3) }
+  | scalarPipelineExpression MUL scalarPipelineExpression    { $$ = newScalarOperation(OpMult, $1, $3) }
+  | scalarPipelineExpression DIV scalarPipelineExpression    { $$ = newScalarOperation(OpDiv, $1, $3) }
+  | scalarPipelineExpression MOD scalarPipelineExpression    { $$ = newScalarOperation(OpMod, $1, $3) }
+  | scalarPipelineExpression POW scalarPipelineExpression    { $$ = newScalarOperation(OpPower, $1, $3) }
   | wrappedScalarPipeline                                    { $$ = $1 }
   ;
 
@@ -185,12 +185,12 @@ scalarPipeline:
 
 scalarExpression: // shares the same operators as scalarPipelineExpression. split out for readability
     OPEN_PARENS scalarExpression CLOSE_PARENS  { $$ = $2 }                                   
-  | scalarExpression ADD scalarExpression      { $$ = newScalarOperation(opAdd, $1, $3) }
-  | scalarExpression SUB scalarExpression      { $$ = newScalarOperation(opSub, $1, $3) }
-  | scalarExpression MUL scalarExpression      { $$ = newScalarOperation(opMult, $1, $3) }
-  | scalarExpression DIV scalarExpression      { $$ = newScalarOperation(opDiv, $1, $3) }
-  | scalarExpression MOD scalarExpression      { $$ = newScalarOperation(opMod, $1, $3) }
-  | scalarExpression POW scalarExpression      { $$ = newScalarOperation(opPower, $1, $3) }
+  | scalarExpression ADD scalarExpression      { $$ = newScalarOperation(OpAdd, $1, $3) }
+  | scalarExpression SUB scalarExpression      { $$ = newScalarOperation(OpSub, $1, $3) }
+  | scalarExpression MUL scalarExpression      { $$ = newScalarOperation(OpMult, $1, $3) }
+  | scalarExpression DIV scalarExpression      { $$ = newScalarOperation(OpDiv, $1, $3) }
+  | scalarExpression MOD scalarExpression      { $$ = newScalarOperation(OpMod, $1, $3) }
+  | scalarExpression POW scalarExpression      { $$ = newScalarOperation(OpPower, $1, $3) }
   | aggregate                                  { $$ = $1 }
   | static                                     { $$ = $1 }
   ;
@@ -208,24 +208,24 @@ aggregate:
 // **********************
 fieldExpression:
     OPEN_PARENS fieldExpression CLOSE_PARENS { $$ = $2 }                                   
-  | fieldExpression ADD fieldExpression      { $$ = newBinaryOperation(opAdd, $1, $3) }
-  | fieldExpression SUB fieldExpression      { $$ = newBinaryOperation(opSub, $1, $3) }
-  | fieldExpression MUL fieldExpression      { $$ = newBinaryOperation(opMult, $1, $3) }
-  | fieldExpression DIV fieldExpression      { $$ = newBinaryOperation(opDiv, $1, $3) }
-  | fieldExpression MOD fieldExpression      { $$ = newBinaryOperation(opMod, $1, $3) }
-  | fieldExpression EQ fieldExpression       { $$ = newBinaryOperation(opEqual, $1, $3) }
-  | fieldExpression NEQ fieldExpression      { $$ = newBinaryOperation(opNotEqual, $1, $3) }
-  | fieldExpression LT fieldExpression       { $$ = newBinaryOperation(opLess, $1, $3) }
-  | fieldExpression LTE fieldExpression      { $$ = newBinaryOperation(opLessEqual, $1, $3) }
-  | fieldExpression GT fieldExpression       { $$ = newBinaryOperation(opGreater, $1, $3) }
-  | fieldExpression GTE fieldExpression      { $$ = newBinaryOperation(opGreaterEqual, $1, $3) }
-  | fieldExpression RE fieldExpression       { $$ = newBinaryOperation(opRegex, $1, $3) }
-  | fieldExpression NRE fieldExpression      { $$ = newBinaryOperation(opNotRegex, $1, $3) }
-  | fieldExpression POW fieldExpression      { $$ = newBinaryOperation(opPower, $1, $3) }
-  | fieldExpression AND fieldExpression      { $$ = newBinaryOperation(opAnd, $1, $3) }
-  | fieldExpression OR fieldExpression       { $$ = newBinaryOperation(opOr, $1, $3) }
-  | SUB fieldExpression                      { $$ = newUnaryOperation(opSub, $2) }
-  | NOT fieldExpression                      { $$ = newUnaryOperation(opNot, $2) }
+  | fieldExpression ADD fieldExpression      { $$ = newBinaryOperation(OpAdd, $1, $3) }
+  | fieldExpression SUB fieldExpression      { $$ = newBinaryOperation(OpSub, $1, $3) }
+  | fieldExpression MUL fieldExpression      { $$ = newBinaryOperation(OpMult, $1, $3) }
+  | fieldExpression DIV fieldExpression      { $$ = newBinaryOperation(OpDiv, $1, $3) }
+  | fieldExpression MOD fieldExpression      { $$ = newBinaryOperation(OpMod, $1, $3) }
+  | fieldExpression EQ fieldExpression       { $$ = newBinaryOperation(OpEqual, $1, $3) }
+  | fieldExpression NEQ fieldExpression      { $$ = newBinaryOperation(OpNotEqual, $1, $3) }
+  | fieldExpression LT fieldExpression       { $$ = newBinaryOperation(OpLess, $1, $3) }
+  | fieldExpression LTE fieldExpression      { $$ = newBinaryOperation(OpLessEqual, $1, $3) }
+  | fieldExpression GT fieldExpression       { $$ = newBinaryOperation(OpGreater, $1, $3) }
+  | fieldExpression GTE fieldExpression      { $$ = newBinaryOperation(OpGreaterEqual, $1, $3) }
+  | fieldExpression RE fieldExpression       { $$ = newBinaryOperation(OpRegex, $1, $3) }
+  | fieldExpression NRE fieldExpression      { $$ = newBinaryOperation(OpNotRegex, $1, $3) }
+  | fieldExpression POW fieldExpression      { $$ = newBinaryOperation(OpPower, $1, $3) }
+  | fieldExpression AND fieldExpression      { $$ = newBinaryOperation(OpAnd, $1, $3) }
+  | fieldExpression OR fieldExpression       { $$ = newBinaryOperation(OpOr, $1, $3) }
+  | SUB fieldExpression                      { $$ = newUnaryOperation(OpSub, $2) }
+  | NOT fieldExpression                      { $$ = newUnaryOperation(OpNot, $2) }
   | static                                   { $$ = $1 }
   | intrinsicField                           { $$ = $1 }
   | attributeField                           { $$ = $1 }
@@ -242,24 +242,24 @@ static:
   | FALSE         { $$ = newStaticBool(false)         }
   | NIL           { $$ = newStaticNil()               }
   | DURATION      { $$ = newStaticDuration($1)        }
-  | STATUS_OK     { $$ = newStaticStatus(statusOk)    }
-  | STATUS_ERROR  { $$ = newStaticStatus(statusError) }
-  | STATUS_UNSET  { $$ = newStaticStatus(statusUnset) }
+  | STATUS_OK     { $$ = newStaticStatus(StatusOk)    }
+  | STATUS_ERROR  { $$ = newStaticStatus(StatusError) }
+  | STATUS_UNSET  { $$ = newStaticStatus(StatusUnset) }
   ;
 
 intrinsicField:
-    IDURATION      { $$ = newIntrinsic(intrinsicDuration)   }
-  | CHILDCOUNT     { $$ = newIntrinsic(intrinsicChildCount) }
-  | NAME           { $$ = newIntrinsic(intrinsicName)       }
-  | STATUS         { $$ = newIntrinsic(intrinsicStatus)     }
-  | PARENT         { $$ = newIntrinsic(intrinsicParent)     }
+    IDURATION      { $$ = newIntrinsic(IntrinsicDuration)   }
+  | CHILDCOUNT     { $$ = newIntrinsic(IntrinsicChildCount) }
+  | NAME           { $$ = newIntrinsic(IntrinsicName)       }
+  | STATUS         { $$ = newIntrinsic(IntrinsicStatus)     }
+  | PARENT         { $$ = newIntrinsic(IntrinsicParent)     }
   ;
 
 attributeField:
     DOT IDENTIFIER END_ATTRIBUTE                      { $$ = newAttribute($2)                                      }
-  | RESOURCE_DOT IDENTIFIER END_ATTRIBUTE             { $$ = newScopedAttribute(attributeScopeResource, false, $2) }
-  | SPAN_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = newScopedAttribute(attributeScopeSpan, false, $2)     }
-  | PARENT_DOT IDENTIFIER END_ATTRIBUTE               { $$ = newScopedAttribute(attributeScopeNone, true, $2)      }
-  | PARENT_DOT RESOURCE_DOT IDENTIFIER END_ATTRIBUTE  { $$ = newScopedAttribute(attributeScopeResource, true, $3)  }
-  | PARENT_DOT SPAN_DOT IDENTIFIER END_ATTRIBUTE      { $$ = newScopedAttribute(attributeScopeSpan, true, $3)      }
+  | RESOURCE_DOT IDENTIFIER END_ATTRIBUTE             { $$ = newScopedAttribute(AttributeScopeResource, false, $2) }
+  | SPAN_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = newScopedAttribute(AttributeScopeSpan, false, $2)     }
+  | PARENT_DOT IDENTIFIER END_ATTRIBUTE               { $$ = newScopedAttribute(AttributeScopeNone, true, $2)      }
+  | PARENT_DOT RESOURCE_DOT IDENTIFIER END_ATTRIBUTE  { $$ = newScopedAttribute(AttributeScopeResource, true, $3)  }
+  | PARENT_DOT SPAN_DOT IDENTIFIER END_ATTRIBUTE      { $$ = newScopedAttribute(AttributeScopeSpan, true, $3)      }
   ;

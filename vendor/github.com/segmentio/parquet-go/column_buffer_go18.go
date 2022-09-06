@@ -315,9 +315,17 @@ func writeRowsFuncOfStruct(t reflect.Type, schema *Schema, path columnPath) writ
 	}
 
 	return func(buffers []ColumnBuffer, rows sparse.Array, levels columnLevels) error {
-		for _, column := range columns {
-			if err := column.writeRows(buffers, rows.Offset(column.offset), levels); err != nil {
-				return err
+		if rows.Len() == 0 {
+			for _, column := range columns {
+				if err := column.writeRows(buffers, rows, levels); err != nil {
+					return err
+				}
+			}
+		} else {
+			for _, column := range columns {
+				if err := column.writeRows(buffers, rows.Offset(column.offset), levels); err != nil {
+					return err
+				}
 			}
 		}
 		return nil

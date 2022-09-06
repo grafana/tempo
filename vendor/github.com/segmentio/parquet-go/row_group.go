@@ -252,30 +252,42 @@ func NewRowGroupRowReader(rowGroup RowGroup) Rows {
 
 type rowGroupRows struct {
 	rowGroup RowGroup
-	columns  []columnChunkReader
-	seek     int64
+	buffers  []Value
+	readers  []asyncPages
+	columns  []columnChunkRows
 	inited   bool
 	closed   bool
 	done     chan<- struct{}
 }
 
+type columnChunkRows struct {
+	rows   int64
+	offset int32
+	length int32
+	page   Page
+	values ValueReader
+}
+
+const columnBufferSize = defaultValueBufferSize
+
+func (r *rowGroupRows) buffer(i int) []Value {
+	j := (i + 0) * columnBufferSize
+	k := (i + 1) * columnBufferSize
+	return r.buffers[j:k:k]
+}
+
 func (r *rowGroupRows) init() {
-	const columnBufferSize = defaultValueBufferSize
 	columns := r.rowGroup.ColumnChunks()
-	readers := make([]asyncPages, len(columns))
-	buffer := make([]Value, columnBufferSize*len(columns))
-	r.columns = make([]columnChunkReader, len(columns))
+
+	r.buffers = make([]Value, len(columns)*columnBufferSize)
+	r.readers = make([]asyncPages, len(columns))
+	r.columns = make([]columnChunkRows, len(columns))
 
 	done := make(chan struct{})
 	r.done = done
 
 	for i, column := range columns {
-		reader := &readers[i]
-		reader.init(column.Pages(), done)
-
-		r.columns[i].buffer = buffer[:0:columnBufferSize]
-		r.columns[i].reader = reader
-		buffer = buffer[columnBufferSize:]
+		r.readers[i].init(column.Pages(), done)
 	}
 
 	r.inited = true
@@ -285,14 +297,28 @@ func (r *rowGroupRows) init() {
 	runtime.SetFinalizer(r, func(r *rowGroupRows) { r.Close() })
 }
 
-func (r *rowGroupRows) Reset() {
+func (r *rowGroupRows) clear() {
 	for i := range r.columns {
+		unref(r.columns[i].page)
+	}
+
+	for i := range r.columns {
+		r.columns[i] = columnChunkRows{}
+	}
+
+	for i := range r.buffers {
+		r.buffers[i] = Value{}
+	}
+}
+
+func (r *rowGroupRows) Reset() {
+	for i := range r.readers {
 		// Ignore errors because we are resetting the reader, if the error
 		// persists we will see it on the next read, and otherwise we can
 		// read back from the beginning.
-		r.columns[i].seekToRow(0)
+		r.readers[i].SeekToRow(0)
 	}
-	r.seek = 0
+	r.clear()
 }
 
 func (r *rowGroupRows) Close() error {
@@ -303,112 +329,110 @@ func (r *rowGroupRows) Close() error {
 		r.done = nil
 	}
 
-	for i := range r.columns {
-		if err := r.columns[i].close(); err != nil {
+	for i := range r.readers {
+		if err := r.readers[i].Close(); err != nil {
 			lastErr = err
 		}
 	}
 
+	r.clear()
 	r.inited = true
 	r.closed = true
 	return lastErr
 }
 
-func (r *rowGroupRows) Schema() *Schema {
-	return r.rowGroup.Schema()
-}
-
 func (r *rowGroupRows) SeekToRow(rowIndex int64) error {
+	var lastErr error
+
 	if r.closed {
 		return io.ErrClosedPipe
 	}
 
-	for i := range r.columns {
-		if err := r.columns[i].seekToRow(rowIndex); err != nil {
-			return err
+	if !r.inited {
+		r.init()
+	}
+
+	for i := range r.readers {
+		if err := r.readers[i].SeekToRow(rowIndex); err != nil {
+			lastErr = err
 		}
 	}
 
-	r.seek = rowIndex
-	return nil
+	r.clear()
+	return lastErr
 }
 
 func (r *rowGroupRows) ReadRows(rows []Row) (int, error) {
-	if !r.inited {
-		r.init()
-		if r.seek > 0 {
-			if err := r.SeekToRow(r.seek); err != nil {
-				return 0, err
-			}
-		}
-	}
-
 	if r.closed {
 		return 0, io.EOF
+	}
+
+	if !r.inited {
+		r.init()
+	}
+
+	// Limit the number of rows that we read to the smallest number of rows
+	// remaining in the current page of each column. This is necessary because
+	// the pointers exposed to the returned rows need to remain valid until the
+	// next call to ReadRows, SeekToRow, Reset, or Close. If we release one of
+	// the columns' page, the rows that were already read during the ReadRows
+	// call would be invalidated, and might reference memory locations that have
+	// been reused due to pooling of page buffers.
+	numRows := int64(len(rows))
+
+	for i := range r.columns {
+		c := &r.columns[i]
+		// When all rows of the current page of a column have been consumed we
+		// have to read the next page. This will effectively invalidate all
+		// pointers of values previously held in the page, which is valid if
+		// the application respects the RowReader interface and does not retain
+		// parquet values without cloning them first.
+		for c.rows == 0 {
+			var err error
+			clearValues(r.buffer(i))
+
+			c.offset = 0
+			c.length = 0
+			c.values = nil
+			unref(c.page)
+
+			c.page, err = r.readers[i].ReadPage()
+			if err != nil {
+				if err != io.EOF {
+					return 0, err
+				}
+				break
+			}
+
+			c.rows = c.page.NumRows()
+			c.values = c.page.Values()
+		}
+
+		if c.rows < numRows {
+			numRows = c.rows
+		}
 	}
 
 	for i := range rows {
 		rows[i] = rows[i][:0]
 	}
 
-	return r.rowGroup.Schema().readRows(rows, 0, r.columns)
-}
-
-/*
-func (r *rowGroupRows) WriteRowsTo(w RowWriter) (int64, error) {
-	if r.rowGroup == nil {
-		return CopyRows(w, struct{ RowReaderWithSchema }{r})
-	}
-	defer func() { r.rowGroup, r.seek = nil, 0 }()
-	rowGroup := r.rowGroup
-	if r.seek > 0 {
-		columns := rowGroup.ColumnChunks()
-		seekRowGroup := &seekRowGroup{
-			base:    rowGroup,
-			seek:    r.seek,
-			columns: make([]ColumnChunk, len(columns)),
-		}
-		seekColumnChunks := make([]seekColumnChunk, len(columns))
-		for i := range seekColumnChunks {
-			seekColumnChunks[i].base = columns[i]
-			seekColumnChunks[i].seek = r.seek
-			seekRowGroup.columns[i] = &seekColumnChunks[i]
-		}
-		rowGroup = seekRowGroup
+	if numRows == 0 {
+		return 0, io.EOF
 	}
 
-	switch dst := w.(type) {
-	case RowGroupWriter:
-		return dst.WriteRowGroup(rowGroup)
+	n, err := r.Schema().readRows(r, rows[:numRows], 0)
 
-	case PageWriter:
-		for _, column := range rowGroup.ColumnChunks() {
-			_, err := copyPagesAndClose(dst, column.Pages())
-			if err != nil {
-				return 0, err
-			}
-		}
-		return rowGroup.NumRows(), nil
-	}
-
-	return CopyRows(w, struct{ RowReaderWithSchema }{r})
-}
-
-func (r *rowGroupRows) writeRowsTo(w pageAndValueWriter, limit int64) (numRows int64, err error) {
 	for i := range r.columns {
-		n, err := r.columns[i].writeRowsTo(w, limit)
-		if err != nil {
-			return numRows, err
-		}
-		if i == 0 {
-			numRows = n
-		} else if numRows != n {
-			return numRows, fmt.Errorf("column %d wrote %d rows but the previous column(s) wrote %d rows", i, n, numRows)
-		}
+		r.columns[i].rows -= int64(n)
 	}
-	return numRows, nil
+
+	return n, err
 }
-*/
+
+func (r *rowGroupRows) Schema() *Schema {
+	return r.rowGroup.Schema()
+}
 
 type seekRowGroup struct {
 	base    RowGroup

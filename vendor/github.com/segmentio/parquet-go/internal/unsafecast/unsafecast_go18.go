@@ -24,7 +24,7 @@ func AddressOf[T any](data []T) *T {
 
 // AddressOfBytes returns the address of the first byte in data.
 func AddressOfBytes(data []byte) *byte {
-	return AddressOf(data)
+	return *(**byte)(unsafe.Pointer(&data))
 }
 
 // AddressOfString returns the address of the first byte in data.

@@ -473,7 +473,7 @@ storage:
     trace:
 
         # The storage backend to use
-        # Should be one of "gcs", "s3", "azure" or "local"
+        # Should be one of "gcs", "s3", "azure" or "local" (only supported in the monolithic mode)
         # CLI flag -storage.trace.backend
         [backend: <string>]
 

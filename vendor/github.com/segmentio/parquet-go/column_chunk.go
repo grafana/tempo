@@ -1,7 +1,6 @@
 package parquet
 
 import (
-	"errors"
 	"io"
 )
 
@@ -40,169 +39,7 @@ type pageAndValueWriter interface {
 	ValueWriter
 }
 
-type columnChunkReader struct {
-	// These two fields must be configured to initialize the reader.
-	buffer []Value     // buffer holding values read from the pages
-	offset int         // offset of the next value in the buffer
-	reader Pages       // reader of column pages
-	values ValueReader // reader for values from the current page
-	page   Page        // current page
-}
-
-func (r *columnChunkReader) buffered() int {
-	return len(r.buffer) - r.offset
-}
-
-func (r *columnChunkReader) reset() {
-	clearValues(r.buffer)
-	r.buffer = r.buffer[:0]
-	r.offset = 0
-	r.values = nil
-	unref(r.page)
-	r.page = nil
-}
-
-func (r *columnChunkReader) close() (err error) {
-	r.reset()
-	return r.reader.Close()
-}
-
-func (r *columnChunkReader) seekToRow(rowIndex int64) error {
-	// TODO: there are a few optimizations we can make here:
-	// * is the row buffered already? => advance the offset
-	// * is the row in the current page? => seek in values
-	r.reset()
-	return r.reader.SeekToRow(rowIndex)
-}
-
-func (r *columnChunkReader) readValues() error {
-	if r.offset < len(r.buffer) {
-		return nil
-	}
-	if r.values == nil {
-		for {
-			unref(r.page)
-			r.page = nil
-			p, err := r.reader.ReadPage()
-			if err != nil {
-				return err
-			}
-			r.page = p
-			if p.NumValues() > 0 {
-				r.values = p.Values()
-				break
-			}
-		}
-	}
-	n, err := r.values.ReadValues(r.buffer[:cap(r.buffer)])
-	if errors.Is(err, io.EOF) {
-		r.values = nil
-	}
-	if n > 0 {
-		err = nil
-	}
-	r.buffer = r.buffer[:n]
-	r.offset = 0
-	return err
-}
-
-/*
-func (r *columnChunkReader) writeBufferedRowsTo(w pageAndValueWriter, rowCount int64) (numRows int64, err error) {
-	if rowCount == 0 {
-		return 0, nil
-	}
-
-	for {
-		for r.offset < len(r.buffer) {
-			values := r.buffer[r.offset:]
-			// We can only determine that the full row has been consumed if we
-			// have more values in the buffer, and the next value is the start
-			// of a new row. Otherwise, we have to load more values from the
-			// page, which may yield EOF if all values have been consumed, in
-			// which case we know that we have read the full row, and otherwise
-			// we will enter this check again on the next loop iteration.
-			if numRows == rowCount {
-				if values[0].repetitionLevel == 0 {
-					return numRows, nil
-				}
-				values, _ = splitRowValues(values)
-			} else {
-				values = limitRowValues(values, int(rowCount-numRows))
-			}
-
-			n, err := w.WriteValues(values)
-			numRows += int64(countRowsOf(values[:n]))
-			r.offset += n
-			if err != nil {
-				return numRows, err
-			}
-		}
-
-		if err := r.readValuesFromCurrentPage(); err != nil {
-			if err == io.EOF {
-				err = nil
-			}
-			return numRows, err
-		}
-	}
-}
-
-func (r *columnChunkReader) writeRowsTo(w pageAndValueWriter, limit int64) (numRows int64, err error) {
-	for numRows < limit {
-		if r.values != nil {
-			n, err := r.writeBufferedRowsTo(w, numRows-limit)
-			numRows += n
-			if err != nil || numRows == limit {
-				return numRows, err
-			}
-		}
-
-		r.buffer = r.buffer[:0]
-		r.offset = 0
-
-		for numRows < limit {
-			p, err := r.reader.ReadPage()
-			if err != nil {
-				return numRows, err
-			}
-
-			pageRows := int64(p.NumRows())
-			// When the page is fully contained in the remaining range of rows
-			// that we intend to copy, we can use an optimized page copy rather
-			// than writing rows one at a time.
-			//
-			// Data pages v1 do not expose the number of rows available, which
-			// means we cannot take the optimized page copy path in those cases.
-			if pageRows == 0 || int64(pageRows) > limit {
-				r.values = p.Values()
-				err := r.readValuesFromCurrentPage()
-				if err == nil {
-					// More values have been buffered, break out of the inner loop
-					// to go back to the beginning of the outer loop and write
-					// buffered values to the output.
-					break
-				}
-				if errors.Is(err, io.EOF) {
-					// The page contained no values? Unclear if this is valid but
-					// we can handle it by reading the next page.
-					r.values = nil
-					continue
-				}
-				return numRows, err
-			}
-
-			if _, err := w.WritePage(p); err != nil {
-				return numRows, err
-			}
-
-			numRows += pageRows
-		}
-	}
-	return numRows, nil
-}
-*/
-
-type readRowsFunc func([]Row, byte, []columnChunkReader) (int, error)
+type readRowsFunc func(*rowGroupRows, []Row, byte) (int, error)
 
 func readRowsFuncOf(node Node, columnIndex int, repetitionDepth byte) (int, readRowsFunc) {
 	var read readRowsFunc
@@ -226,7 +63,7 @@ func readRowsFuncOf(node Node, columnIndex int, repetitionDepth byte) (int, read
 
 //go:noinline
 func readRowsFuncOfRepeated(read readRowsFunc, repetitionDepth byte) readRowsFunc {
-	return func(rows []Row, repetitionLevel byte, columns []columnChunkReader) (int, error) {
+	return func(r *rowGroupRows, rows []Row, repetitionLevel byte) (int, error) {
 		for i := range rows {
 			// Repeated columns have variable number of values, we must process
 			// them one row at a time because we cannot predict how many values
@@ -235,7 +72,7 @@ func readRowsFuncOfRepeated(read readRowsFunc, repetitionDepth byte) readRowsFun
 
 			// The first pass looks for values marking the beginning of a row by
 			// having a repetition level equal to the current level.
-			n, err := read(row, repetitionLevel, columns)
+			n, err := read(r, row, repetitionLevel)
 			if err != nil {
 				// The error here may likely be io.EOF, the read function may
 				// also have successfully read a row, which is indicated by a
@@ -262,7 +99,7 @@ func readRowsFuncOfRepeated(read readRowsFunc, repetitionDepth byte) readRowsFun
 			// repeated values until we get the indication that we consumed
 			// them all (the read function returns zero and no errors).
 			for {
-				n, err := read(row, repetitionDepth, columns)
+				n, err := read(r, row, repetitionDepth)
 				if err != nil {
 					return i + 1, err
 				}
@@ -280,7 +117,7 @@ func readRowsFuncOfGroup(node Node, columnIndex int, repetitionDepth byte) (int,
 	fields := node.Fields()
 
 	if len(fields) == 0 {
-		return columnIndex, func(_ []Row, _ byte, _ []columnChunkReader) (int, error) {
+		return columnIndex, func(*rowGroupRows, []Row, byte) (int, error) {
 			return 0, io.EOF
 		}
 	}
@@ -298,10 +135,10 @@ func readRowsFuncOfGroup(node Node, columnIndex int, repetitionDepth byte) (int,
 		columnIndex, group[i] = readRowsFuncOf(fields[i], columnIndex, repetitionDepth)
 	}
 
-	return columnIndex, func(rows []Row, repetitionLevel byte, columns []columnChunkReader) (int, error) {
+	return columnIndex, func(r *rowGroupRows, rows []Row, repetitionLevel byte) (int, error) {
 		// When reading a group, we use the first column as an indicator of how
 		// may rows can be read during this call.
-		n, err := group[0](rows, repetitionLevel, columns)
+		n, err := group[0](r, rows, repetitionLevel)
 
 		if n > 0 {
 			// Read values for all rows that the group is able to consume.
@@ -310,8 +147,8 @@ func readRowsFuncOfGroup(node Node, columnIndex int, repetitionDepth byte) (int,
 			// be more to read in other columns, therefore we must always read
 			// all columns and cannot stop on the first error.
 			for _, read := range group[1:] {
-				_, err2 := read(rows[:n], repetitionLevel, columns)
-				if err2 != nil && !errors.Is(err2, io.EOF) {
+				_, err2 := read(r, rows[:n], repetitionLevel)
+				if err2 != nil && err2 != io.EOF {
 					return 0, err2
 				}
 			}
@@ -326,46 +163,53 @@ func readRowsFuncOfLeaf(columnIndex int, repetitionDepth byte) (int, readRowsFun
 	var read readRowsFunc
 
 	if repetitionDepth == 0 {
-		read = func(rows []Row, _ byte, columns []columnChunkReader) (int, error) {
+		read = func(r *rowGroupRows, rows []Row, _ byte) (int, error) {
 			// When the repetition depth is zero, we know that there is exactly
 			// one value per row for this column, and therefore we can consume
 			// as many values as there are rows to fill.
-			col := &columns[columnIndex]
+			col := &r.columns[columnIndex]
+			buf := r.buffer(columnIndex)
 
-			for n := 0; n < len(rows); {
-				if col.offset < len(col.buffer) {
-					rows[n] = append(rows[n], col.buffer[col.offset])
-					n++
-					col.offset++
-					continue
+			for i := range rows {
+				if col.offset == col.length {
+					n, err := col.values.ReadValues(buf)
+					col.offset = 0
+					col.length = int32(n)
+					if n == 0 && err != nil {
+						return 0, err
+					}
 				}
-				if err := col.readValues(); err != nil {
-					return n, err
-				}
+
+				rows[i] = append(rows[i], buf[col.offset])
+				col.offset++
 			}
 
 			return len(rows), nil
 		}
 	} else {
-		read = func(rows []Row, repetitionLevel byte, columns []columnChunkReader) (int, error) {
+		read = func(r *rowGroupRows, rows []Row, repetitionLevel byte) (int, error) {
 			// When the repetition depth is not zero, we know that we will be
 			// called with a single row as input. We attempt to read at most one
 			// value of a single row and return to the caller.
-			col := &columns[columnIndex]
+			col := &r.columns[columnIndex]
+			buf := r.buffer(columnIndex)
 
-			for {
-				if col.offset < len(col.buffer) {
-					if col.buffer[col.offset].repetitionLevel != repetitionLevel {
-						return 0, nil
-					}
-					rows[0] = append(rows[0], col.buffer[col.offset])
-					col.offset++
-					return 1, nil
-				}
-				if err := col.readValues(); err != nil {
+			if col.offset == col.length {
+				n, err := col.values.ReadValues(buf)
+				col.offset = 0
+				col.length = int32(n)
+				if n == 0 && err != nil {
 					return 0, err
 				}
 			}
+
+			if buf[col.offset].repetitionLevel != repetitionLevel {
+				return 0, nil
+			}
+
+			rows[0] = append(rows[0], buf[col.offset])
+			col.offset++
+			return 1, nil
 		}
 	}
 
