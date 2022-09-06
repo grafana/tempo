@@ -257,3 +257,19 @@ See backend options above.
 ```bash
 tempo-cli search blocks http.post GET 2021-09-21T00:00:00 2021-09-21T00:05:00 single-tenant --backend=gcs --bucket=tempo-trace-data
 ```
+
+## Parquet convert command
+Converts a parquet file from its existing schema to the one currently in the repo. This utility command is useful when
+attempting to determine the impact of changing compression or encoding of columns.
+
+```bash
+tempo-cli parquet convert <in file> <out file>
+
+Arguments:
+- `in file` Filename of an existing parquet file containing Tempo trace data
+- `out file` File to write to. (Existing file is overwritten.)
+
+**Example:**
+```bash
+tempo-cli parquet convert data.parquet out.parquet
+```
