@@ -471,7 +471,7 @@ Tempo is designed for object storage more than local storage.
 
 At Grafana Labs, we have run Tempo with SSDs when using local storage. Hard drives have not been tested. 
 
-How much storage space you need can be estimated by considering the ingested byes and retention. For example, ingested bytes per day *times* retention days = stored bytes.
+How much storage space you need can be estimated by considering the ingested bytes and retention. For example, ingested bytes per day *times* retention days = stored bytes.
 
 You can not use both local and object storage in the same Tempo deployment.
 
