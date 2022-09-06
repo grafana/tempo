@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -108,7 +109,6 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 }
 
 func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, pf *parquet.File, rgs []parquet.RowGroup) (pq.Iterator, parquetSearchMetrics) {
-
 	makeIter := func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
 		index, _ := pq.GetColumnIndexByPath(pf, name)
 		if index == -1 {
@@ -260,7 +260,7 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 	}
 }
 
-func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup) *tempopb.SearchResponse {
+func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup) (*tempopb.SearchResponse, error) {
 
 	// Search happens in 2 phases for an optimization.
 	// Phase 1 is iterate all columns involved in the request.
@@ -268,24 +268,30 @@ func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.Searc
 	// is to load the display-related columns.
 
 	// Find matches
-	matchingRows := searchRaw(ctx, pf, req, rgs)
+	matchingRows, err := searchRaw(ctx, pf, req, rgs)
+	if err != nil {
+		return nil, err
+	}
 	if len(matchingRows) == 0 {
-		return &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}
+		return &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, nil
 	}
 
 	// We have some results, now load the display columns
-	results := rawToResults(ctx, pf, rgs, matchingRows)
+	results, err := rawToResults(ctx, pf, rgs, matchingRows)
+	if err != nil {
+		return nil, err
+	}
 
 	return &tempopb.SearchResponse{
 		Traces:  results,
 		Metrics: &tempopb.SearchMetrics{},
-	}
+	}, nil
 }
 
-func searchRaw(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup) []pq.RowNumber {
+func searchRaw(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup) ([]pq.RowNumber, error) {
 	iter, _ := makePipelineWithRowGroups(ctx, req, pf, rgs)
 	if iter == nil {
-		panic("make pipeline failed")
+		return nil, errors.New("make pipeline returned a nil iterator")
 	}
 	defer iter.Close()
 
@@ -302,10 +308,10 @@ func searchRaw(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest
 		}
 	}
 
-	return matchingRows
+	return matchingRows, nil
 }
 
-func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup, rowNumbers []pq.RowNumber) []*tempopb.TraceSearchMetadata {
+func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup, rowNumbers []pq.RowNumber) ([]*tempopb.TraceSearchMetadata, error) {
 	makeIter := func(name string) pq.Iterator {
 		index, _ := pq.GetColumnIndexByPath(pf, name)
 		if index == -1 {
@@ -343,7 +349,7 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 		results = append(results, result)
 	}
 
-	return results
+	return results, nil
 }
 
 type parquetSearchMetrics struct {
