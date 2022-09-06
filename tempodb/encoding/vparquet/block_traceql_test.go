@@ -121,6 +121,54 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			StartTimeUnixNanos: uint64(300 * time.Second),
 			EndTimeUnixNanos:   uint64(400 * time.Second),
 		},
+		{
+			// Matches some conditions but not all
+			// Mix of span-level columns
+			AllConditions: true,
+			Conditions: []traceql.Condition{
+				parse(t, `{span.foo = "baz"}`),                   // no match
+				parse(t, `{span.`+LabelHTTPStatusCode+` > 100}`), // match
+				parse(t, `{duration = 100s}`),                    // match
+			},
+		},
+		{
+			// Matches some conditions but not all
+			// Only span generic attr lookups
+			AllConditions: true,
+			Conditions: []traceql.Condition{
+				parse(t, `{span.foo = "baz"}`), // no match
+				parse(t, `{span.bar = 123}`),   // match
+			},
+		},
+		{
+			// Matches some conditions but not all
+			// Mix of span and resource columns
+			AllConditions: true,
+			Conditions: []traceql.Condition{
+				parse(t, `{resource.cluster = "cluster"}`),     // match
+				parse(t, `{resource.namespace = "namespace"}`), // match
+				parse(t, `{span.foo = "baz"}`),                 // no match
+			},
+		},
+		{
+			// Matches some conditions but not all
+			// Mix of resource columns
+			AllConditions: true,
+			Conditions: []traceql.Condition{
+				parse(t, `{resource.cluster = "notcluster"}`),  // no match
+				parse(t, `{resource.namespace = "namespace"}`), // match
+				parse(t, `{resource.foo = "abc"}`),             // match
+			},
+		},
+		{
+			// Matches some conditions but not all
+			// Only resource generic attr lookups
+			AllConditions: true,
+			Conditions: []traceql.Condition{
+				parse(t, `{resource.foo = "abc"}`), // match
+				parse(t, `{resource.bar = 123}`),   // no match
+			},
+		},
 	}
 
 	for _, req := range searchesThatDontMatch {

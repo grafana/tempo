@@ -17,6 +17,14 @@ type FetchSpansRequest struct {
 	StartTimeUnixNanos uint64
 	EndTimeUnixNanos   uint64
 	Conditions         []Condition
+
+	// Hints
+
+	// By default the storage layer fetches spans meeting any of the criteria.
+	// This hint is for common cases like { x && y && z } where the storage layer
+	// can make extra optimizations by returning only spansets that meet
+	// all criteria.
+	AllConditions bool
 }
 
 type Span struct {
@@ -52,7 +60,8 @@ func MustExtractCondition(query string) Condition {
 }
 
 // ExtractCondition from the first spanset filter in the traceql query.
-// For testing purposes.
+// I.e. given a query { .foo=`bar`} it will extract the condition attr
+// foo EQ str(bar). For testing purposes.
 func ExtractCondition(query string) (cond Condition, err error) {
 	ast, err := Parse(query)
 	if err != nil {

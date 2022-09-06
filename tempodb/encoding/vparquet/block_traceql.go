@@ -247,6 +247,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File)
 
 	// Categorize conditions into span-level or resource-level
 	var (
+		mingledConditions  bool
 		spanConditions     []traceql.Condition
 		resourceConditions []traceql.Condition
 	)
@@ -263,6 +264,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File)
 		switch scope {
 
 		case traceql.AttributeScopeNone:
+			mingledConditions = true
 			spanConditions = append(spanConditions, cond)
 			resourceConditions = append(resourceConditions, cond)
 			continue
@@ -298,6 +300,8 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File)
 	// However once we add a resource condition: { span.a=1 || resource.b=2 }, now the span
 	// filtering must return all spans, even if no spans have a=1, because they might be
 	// matched upstream to a resource.
+	// TODO - After introducing AllConditions it seems like some of this logic overlaps.
+	//        Determine if it can be generalized or simplified.
 	var (
 		// If there are only span conditions, then don't return a span upstream
 		// unless it matches at least 1 span-level condition.
@@ -310,14 +314,19 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File)
 		// Don't return the final spanset upstream unless it matched at least 1 condition
 		// anywhere, except in the case of the empty query: {}
 		batchRequireAtLeastOneMatchOverall = len(req.Conditions) > 0
+
+		// Optimization for queries like {resource.x... && span.y ...}
+		// Requires no mingled scopes like .foo=x, which could be satisfied
+		// one either resource or span.
+		allConditions = req.AllConditions && !mingledConditions
 	)
 
-	spanIter, err := createSpanIterator(makeIter, spanConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, spanRequireAtLeastOneMatch)
+	spanIter, err := createSpanIterator(makeIter, spanConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, spanRequireAtLeastOneMatch, allConditions)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span iterator")
 	}
 
-	resourceIter, err := createResourceIterator(makeIter, spanIter, resourceConditions, batchRequireAtLeastOneMatch, batchRequireAtLeastOneMatchOverall)
+	resourceIter, err := createResourceIterator(makeIter, spanIter, resourceConditions, batchRequireAtLeastOneMatch, batchRequireAtLeastOneMatchOverall, allConditions)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating resource iterator")
 	}
@@ -332,16 +341,13 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File)
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
-func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, start, end uint64, requireAtLeastOneMatch bool) (parquetquery.Iterator, error) {
+func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, start, end uint64, requireAtLeastOneMatch, allConditions bool) (parquetquery.Iterator, error) {
 
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
 		iters             []parquetquery.Iterator
 		genericConditions []traceql.Condition
-		durationFilter    = false
-		durationMin       = uint64(math.MaxUint64) // Initially reversed to exclude all
-		durationMax       = uint64(0)              // Initially reversed to exclude all
 	)
 
 	addPredicate := func(columnPath string, p parquetquery.Predicate) {
@@ -425,11 +431,22 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 	required = append(required, makeIter(columnPathSpanStartTime, startFilter, columnPathSpanStartTime))
 	required = append(required, makeIter(columnPathSpanEndTime, endFilter, columnPathSpanEndTime))
 
+	minCount := 0
+	if requireAtLeastOneMatch {
+		minCount = 1
+	}
+	if allConditions {
+		minCount = len(conditions)
+	}
 	spanCol := &spanCollector{
-		requireAtLeastOneMatch,
-		durationFilter,
-		durationMin,
-		durationMax,
+		minCount,
+	}
+
+	// This is an optimization for when all of the span conditions must be met.
+	// We simply move all iterators into the required list.
+	if allConditions {
+		required = append(required, iters...)
+		iters = nil
 	}
 
 	// This is an optimization for cases when only span conditions are
@@ -450,7 +467,7 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
 // one batch each. It builds on top of the span iterator, and turns the groups of spans and resource-level values into
 // spansets.  Spansets are returned that match any of the given conditions.
-func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, requireAtLeastOneMatchOverall bool) (parquetquery.Iterator, error) {
+func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, requireAtLeastOneMatchOverall, allConditions bool) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
@@ -496,13 +513,27 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 		iters = append(iters, attrIter)
 	}
 
+	minCount := 0
+	if requireAtLeastOneMatch {
+		minCount = 1
+	}
+	if allConditions {
+		minCount = len(conditions)
+	}
 	batchCol := &batchCollector{
-		requireAtLeastOneMatch,
 		requireAtLeastOneMatchOverall,
+		minCount,
 	}
 
 	required := []parquetquery.Iterator{
 		spanIterator,
+	}
+
+	// This is an optimization for when all of the resource conditions must be met.
+	// We simply move all iterators into the required list.
+	if allConditions {
+		required = append(required, iters...)
+		iters = nil
 	}
 
 	// This is an optimization for cases when only resource conditions are
@@ -748,10 +779,7 @@ func createAttributeIterator(makeIter makeIterFunc, conditions []traceql.Conditi
 
 // This turns groups of span values into Span objects
 type spanCollector struct {
-	requireAtLeastOneMatch bool
-
-	duration                 bool
-	durationMin, durationMax uint64
+	minAttributes int
 }
 
 var _ parquetquery.GroupPredicate = (*spanCollector)(nil)
@@ -791,31 +819,14 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
-	// TODO - We don't have a dedicated span duration column (oops)
-	// so for now we calculate it from the much larger start and end columns
-	// Introduce a dedicated column for efficiency
-	if c.duration {
-		dur := span.EndtimeUnixNanos - span.StartTimeUnixNanos
-		if dur < c.durationMin || dur > c.durationMax {
-			return false
-		}
-		// This satisfies subsequent logic that checks to see if the span
-		// ever matched anything.  TODO: Find a more efficient way to do
-		// this since duration is already present in the span data (start/end times)
-		// We need to flag that this span matched "something"
-		span.Attributes[traceql.IntrinsicDuration.String()] = dur
-	}
-
-	if c.requireAtLeastOneMatch {
-		matchFound := false
+	if c.minAttributes > 0 {
+		count := 0
 		for _, v := range span.Attributes {
 			if v != nil {
-				matchFound = true
-				break
+				count++
 			}
 		}
-
-		if !matchFound {
+		if count < c.minAttributes {
 			return false
 		}
 	}
@@ -830,8 +841,8 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 // batchCollector receives rows of matching resource-level
 // This turns groups of batch values and Spans into SpanSets
 type batchCollector struct {
-	requireAtLeastOneMatch        bool
 	requireAtLeastOneMatchOverall bool
+	minAttributes                 int
 }
 
 var _ parquetquery.GroupPredicate = (*batchCollector)(nil)
@@ -872,8 +883,10 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
-	if c.requireAtLeastOneMatch && len(resAttrs) == 0 {
-		return false
+	if c.minAttributes > 0 {
+		if len(resAttrs) < c.minAttributes {
+			return false
+		}
 	}
 
 	// Copy resource-level attributes to the individual spans now
@@ -898,7 +911,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		Spans: make([]traceql.Span, 0, len(spans)),
 	}
 
-	// Copy over only spans that matched something
+	// Copy over only spans that met minimum criteria
 	if c.requireAtLeastOneMatchOverall {
 		for _, span := range spans {
 			if len(span.Attributes) > 0 {
