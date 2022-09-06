@@ -259,7 +259,7 @@ tempo-cli search blocks http.post GET 2021-09-21T00:00:00 2021-09-21T00:05:00 si
 ```
 
 ## Parquet convert command
-Converts a parquet file from its existing schema to the one currently in the repo. This utility command is useful when
+Converts a parquet file from its existing schema to the one currently in the repository. This utility command is useful when
 attempting to determine the impact of changing compression or encoding of columns.
 
 ```bash
