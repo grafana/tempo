@@ -198,8 +198,7 @@ func printKVPairs(kvp kvPairs) {
 }
 
 // attempts to calculate the "value" that storing a given label would provide by. currently (number of times appeared)^2 / cardinality
-//
-//	this is not researched and could definitely be improved
+// this is not researched and could definitely be improved
 func relativeValue(v values) float64 {
 	return (float64(v.count) * float64(v.count)) / float64(len(v.all))
 }

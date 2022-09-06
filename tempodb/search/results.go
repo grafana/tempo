@@ -66,9 +66,8 @@ func (sr *Results) Results() <-chan *tempopb.TraceSearchMetadata {
 
 // Close signals to all workers to quit, when max results is received and no more work is needed.
 // Called by the initiator of the search in a defer statement like:
-//
-//	sr := NewSearchResults()
-//	defer sr.Close()
+// sr := NewSearchResults()
+// defer sr.Close()
 func (sr *Results) Close() {
 	// Only once
 	if sr.quit.CAS(false, true) {
