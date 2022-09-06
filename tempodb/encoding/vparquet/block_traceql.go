@@ -42,6 +42,7 @@ const (
 	columnPathSpanName           = "rs.ils.Spans.Name"
 	columnPathSpanStartTime      = "rs.ils.Spans.StartUnixNanos"
 	columnPathSpanEndTime        = "rs.ils.Spans.EndUnixNanos"
+	columnPathSpanDuration       = "rs.ils.Spans.DurationNanos"
 	columnPathSpanAttrKey        = "rs.ils.Spans.Attrs.Key"
 	columnPathSpanAttrString     = "rs.ils.Spans.Attrs.Value"
 	columnPathSpanAttrInt        = "rs.ils.Spans.Attrs.ValueInt"
@@ -362,33 +363,12 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 			continue
 
 		case traceql.IntrinsicDuration:
-			if cond.Operands[0].Type != traceql.TypeDuration {
-				return nil, fmt.Errorf("operand %v is not duration", cond.Operands[0])
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
 			}
-			durationFilter = true
-			v := uint64(cond.Operands[0].D.Nanoseconds())
-			// This is kind of hacky. Merge all duration filters onto the min/max range
-			switch cond.Op {
-			case traceql.OpEqual:
-				if v < durationMin {
-					durationMin = v
-				}
-				if v > durationMax {
-					durationMax = v
-				}
-			case traceql.OpGreater:
-				durationMax = uint64(math.MaxUint64)
-				if v < durationMin {
-					durationMin = v
-				}
-			case traceql.OpLess:
-				durationMin = 0
-				if v > durationMax {
-					durationMax = v
-				}
-			default:
-				return nil, fmt.Errorf("operator %v not supported for duration", cond.Op)
-			}
+			addPredicate(columnPathSpanDuration, pred)
+			columnSelectAs[columnPathSpanDuration] = cond.Attribute.Name
 			continue
 		}
 
@@ -605,13 +585,17 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 		return nil, nil
 	}
 
-	// Ensure operand is int
-	if operands[0].Type != traceql.TypeInt {
-		return nil, fmt.Errorf("operand is not int: %+v", operands[0])
+	var i int64
+	switch operands[0].Type {
+	case traceql.TypeInt:
+		i = int64(operands[0].N)
+	case traceql.TypeDuration:
+		i = int64(operands[0].D.Nanoseconds())
+	default:
+		return nil, fmt.Errorf("operand is not int or duration: %+v", operands[0])
 	}
 
-	// Defaults
-	i := int64(operands[0].N)
+	//i := int64(operands[0].N)
 	min := int64(math.MinInt64)
 	max := int64(math.MaxInt64)
 

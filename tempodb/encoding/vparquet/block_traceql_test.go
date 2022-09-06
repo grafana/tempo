@@ -364,6 +364,7 @@ func fullyPopulatedTestTrace() *Trace {
 								Name:           "hello",
 								StartUnixNanos: uint64(100 * time.Second),
 								EndUnixNanos:   uint64(200 * time.Second),
+								DurationNanos:  uint64(100 * time.Second),
 								HttpMethod:     strPtr("get"),
 								HttpUrl:        strPtr("url/hello/world"),
 								HttpStatusCode: intPtr(500),
