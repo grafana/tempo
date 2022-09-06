@@ -298,7 +298,10 @@ func searchRaw(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest
 	// Collect matches, row numbers only.
 	var matchingRows []pq.RowNumber
 	for {
-		match := iter.Next()
+		match, err := iter.Next()
+		if err != nil {
+			return nil, errors.Wrap(err, "searchRaw next failed")
+		}
 		if match == nil {
 			break
 		}
@@ -333,7 +336,10 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 	defer iter2.Close()
 
 	for {
-		match := iter2.Next()
+		match, err := iter2.Next()
+		if err != nil {
+			return nil, errors.Wrap(err, "rawToResults next failed")
+		}
 		if match == nil {
 			break
 		}
@@ -369,24 +375,24 @@ type rowNumberIterator struct {
 
 var _ pq.Iterator = (*rowNumberIterator)(nil)
 
-func (r *rowNumberIterator) Next() *pq.IteratorResult {
+func (r *rowNumberIterator) Next() (*pq.IteratorResult, error) {
 	if len(r.rowNumbers) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	res := &pq.IteratorResult{RowNumber: r.rowNumbers[0]}
 	r.rowNumbers = r.rowNumbers[1:]
-	return res
+	return res, nil
 }
 
-func (r *rowNumberIterator) SeekTo(to pq.RowNumber, definitionLevel int) *pq.IteratorResult {
+func (r *rowNumberIterator) SeekTo(to pq.RowNumber, definitionLevel int) (*pq.IteratorResult, error) {
 	var at *pq.IteratorResult
 
-	for at = r.Next(); r != nil && pq.CompareRowNumbers(definitionLevel, at.RowNumber, to) < 0; {
-		at = r.Next()
+	for at, _ = r.Next(); r != nil && pq.CompareRowNumbers(definitionLevel, at.RowNumber, to) < 0; {
+		at, _ = r.Next()
 	}
 
-	return at
+	return at, nil
 }
 
 func (r *rowNumberIterator) Close() {}
