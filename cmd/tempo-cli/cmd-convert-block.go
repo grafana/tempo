@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/grafana/tempo/tempodb/encoding/vparquet"
@@ -41,7 +42,10 @@ func (cmd *convertParquet) Run() error {
 	}
 
 	// copy a rowgroup at a time
-	for _, rg := range pf.RowGroups() {
+	rgs := pf.RowGroups()
+	fmt.Println("Total Rowgroups: ", len(rgs))
+	for i, rg := range rgs {
+		fmt.Println("Converting ", i+1)
 		rg = parquet.ConvertRowGroup(rg, conversion)
 
 		_, err = writer.WriteRowGroup(rg)
