@@ -64,8 +64,10 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 		rgs = rgs[opts.StartPage : opts.StartPage+opts.TotalPages]
 	}
 
-	// TODO: error handling
-	results := searchParquetFile(derivedCtx, pf, req, rgs)
+	results, err := searchParquetFile(derivedCtx, pf, req, rgs)
+	if err != nil {
+		return nil, err
+	}
 	results.Metrics.InspectedBlocks++
 	results.Metrics.InspectedBytes += rr.TotalBytesRead.Load()
 

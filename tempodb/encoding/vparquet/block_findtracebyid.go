@@ -42,7 +42,6 @@ func (rt *RowTracker) findTraceByID(idx int, traceID []byte) (int, error) {
 
 	bf := traceIDColumnChunk.BloomFilter()
 	if bf != nil {
-		// todo: better error handling?
 		exists, err := bf.Check(parquet.ValueOf(traceID))
 		if err != nil {
 			return NotFound, fmt.Errorf("error checking bloom filter: %w", err)
@@ -95,9 +94,8 @@ func (rt *RowTracker) findTraceByID(idx int, traceID []byte) (int, error) {
 			if err == io.EOF {
 				break
 			}
-			// todo: better error handling
 			if err != nil {
-				break
+				return NotFound, err
 			}
 
 			rowMatch += int64(x)
