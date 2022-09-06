@@ -12,6 +12,7 @@
 * [ENHANCEMENT] Add PodDisruptionBudget to ingesters in jsonnet [#1691](https://github.com/grafana/tempo/pull/1691) (@joe-elliott)
 * [ENHANCEMENT] Add span-level duration column [#1706](https://github.com/grafana/tempo/pull/1706) (@mdisibio)
 * [BUGFIX] Honor caching and buffering settings when finding traces by id [#1697](https://github.com/grafana/tempo/pull/1697) (@joe-elliott)
+* [BUGFIX] Correctly propagate errors from the iterator layer up through the queriers [#1723](https://github.com/grafana/tempo/pull/1723) (@joe-elliott)
 
 ## v1.5.0 / 2022-08-17
 
