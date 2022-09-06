@@ -9,7 +9,7 @@ import (
 )
 
 type convertParquet struct {
-	In  string `arg:"" help:"The input parqruet file to read from"`
+	In  string `arg:"" help:"The input parquet file to read from"`
 	Out string `arg:"" help:"The output parquet file to write to"`
 }
 
