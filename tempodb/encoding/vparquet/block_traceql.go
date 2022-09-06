@@ -18,9 +18,6 @@ import (
 // context like file and rowgroups.
 type makeIterFunc func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator
 
-// Helper function to create a column predicate for the given conditions
-type makePredicateForCondition func(traceql.Operator, traceql.Operands) (parquetquery.Predicate, error)
-
 const (
 	columnPathTraceID                  = "TraceID"
 	columnPathResourceAttrKey          = "rs.Resource.Attrs.Key"
@@ -62,8 +59,7 @@ var intrinsicDefaultScope = map[traceql.Intrinsic]traceql.AttributeScope{
 var wellKnownColumnLookups = map[string]struct {
 	columnPath string                 // path.to.column
 	level      traceql.AttributeScope // span or resource level
-	//predicateFn makePredicateForCondition // Predicate fn
-	typ traceql.StaticType // Data type
+	typ        traceql.StaticType     // Data type
 }{
 	// Resource-level columns
 	LabelServiceName:      {columnPathResourceServiceName, traceql.AttributeScopeResource, traceql.TypeString},
@@ -626,7 +622,6 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 		return nil, fmt.Errorf("operand is not int or duration: %+v", operands[0])
 	}
 
-	//i := int64(operands[0].N)
 	min := int64(math.MinInt64)
 	max := int64(math.MaxInt64)
 
