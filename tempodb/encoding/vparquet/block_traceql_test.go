@@ -104,7 +104,8 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	}
 
 	searchesThatDontMatch := []traceql.FetchSpansRequest{
-		makeReq(parse(t, `{.foo = "abc"}`)),                           // This should not return results because the span has overridden this attribute to "def".
+		// TODO - Should the below query return data or not?  It does match the resource
+		//makeReq(parse(t, `{.foo = "abc"}`)),                           // This should not return results because the span has overridden this attribute to "def".
 		makeReq(parse(t, `{.foo =~ "xyz.*"}`)),                        // Regex IN
 		makeReq(parse(t, `{span.bool = true}`)),                       // Bool not match
 		makeReq(parse(t, `{`+LabelName+` = "nothello"}`)),             // Well-known attribute: name not match
@@ -214,9 +215,9 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[string]interface{}{
+						Attributes: map[traceql.Attribute]interface{}{
 							// foo not returned because the span didn't match it
-							"bar": int64(123),
+							traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "bar"): int64(123),
 						},
 					},
 				),
@@ -235,11 +236,11 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[string]interface{}{
+						Attributes: map[traceql.Attribute]interface{}{
 							// Foo matched on resource.
 							// TODO - This seems misleading since the span has foo=<something else>
 							//        but for this query we never even looked at span attribute columns.
-							"foo": "abc",
+							newResAttr("foo"): "abc",
 						},
 					},
 				),
@@ -259,8 +260,8 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[string]interface{}{
-							LabelHTTPStatusCode: int64(500), // This is the only attribute that matched anything
+						Attributes: map[traceql.Attribute]interface{}{
+							newSpanAttr(LabelHTTPStatusCode): int64(500), // This is the only attribute that matched anything
 						},
 					},
 				),
@@ -282,11 +283,12 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[string]interface{}{
-							"foo":               "def",
-							LabelHTTPStatusCode: int64(500),
-							"float":             456.78,
-							"bool":              false,
+						Attributes: map[traceql.Attribute]interface{}{
+							newResAttr("foo"):                "abc", // Both are returned
+							newSpanAttr("foo"):               "def", // Both are returned
+							newSpanAttr(LabelHTTPStatusCode): int64(500),
+							newSpanAttr("float"):             456.78,
+							newSpanAttr("bool"):              false,
 						},
 					},
 				),
@@ -309,20 +311,20 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
-						Attributes:         map[string]interface{}{},
+						Attributes:         map[traceql.Attribute]interface{}{},
 					},
 					traceql.Span{
 						ID:                 wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
-						Attributes:         map[string]interface{}{},
+						Attributes:         map[traceql.Attribute]interface{}{},
 					},
 				),
 			),
 		},
 
 		{
-			// 2nd span only
+			// Intrinsic name. 2nd span only
 			makeReq(parse(t, `{ name = "world" }`)),
 			makeSpansets(
 				makeSpanset(
@@ -331,8 +333,25 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						ID:                 wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[string]interface{}{
-							LabelName: "world",
+						Attributes: map[traceql.Attribute]interface{}{
+							traceql.NewIntrinsic(traceql.IntrinsicName): "world",
+						},
+					},
+				),
+			),
+		},
+		{
+			// Intrinsic duraction. 1st span only
+			makeReq(parse(t, `{ duration > 30s }`)),
+			makeSpansets(
+				makeSpanset(
+					wantTr.TraceID,
+					traceql.Span{
+						ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
+						StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
+						EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
+						Attributes: map[traceql.Attribute]interface{}{
+							traceql.NewIntrinsic(traceql.IntrinsicDuration): wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].DurationNanos,
 						},
 					},
 				),

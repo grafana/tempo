@@ -31,7 +31,7 @@ type Span struct {
 	ID                 []byte
 	StartTimeUnixNanos uint64
 	EndtimeUnixNanos   uint64
-	Attributes         map[string]interface{}
+	Attributes         map[Attribute]interface{}
 }
 
 type Spanset struct {
@@ -51,6 +51,10 @@ type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
 }
 
+// MustExtractCondition from the first spanset filter in the traceql query.
+// I.e. given a query { .foo=`bar`} it will extract the condition attr
+// foo EQ str(bar). Panics if the query fails to parse or contains a
+// different structure. For testing purposes.
 func MustExtractCondition(query string) Condition {
 	c, err := ExtractCondition(query)
 	if err != nil {

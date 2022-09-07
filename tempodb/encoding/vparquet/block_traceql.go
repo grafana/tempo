@@ -361,7 +361,7 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 				return nil, err
 			}
 			addPredicate(columnPathSpanName, pred)
-			columnSelectAs[columnPathSpanName] = cond.Attribute.String()
+			columnSelectAs[columnPathSpanName] = columnPathSpanName
 			continue
 
 		case traceql.IntrinsicDuration:
@@ -370,7 +370,7 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 				return nil, err
 			}
 			addPredicate(columnPathSpanDuration, pred)
-			columnSelectAs[columnPathSpanDuration] = cond.Attribute.Name
+			columnSelectAs[columnPathSpanDuration] = columnPathSpanDuration
 			continue
 		}
 
@@ -782,11 +782,11 @@ var _ parquetquery.GroupPredicate = (*spanCollector)(nil)
 func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	span := &traceql.Span{
-		Attributes: make(map[string]interface{}),
+		Attributes: make(map[traceql.Attribute]interface{}),
 	}
 
 	for _, e := range res.OtherEntries {
-		span.Attributes[e.Key] = e.Value
+		span.Attributes[newSpanAttr(e.Key)] = e.Value
 	}
 
 	// Merge all individual columns into the span
@@ -798,18 +798,22 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			span.StartTimeUnixNanos = kv.Value.Uint64()
 		case columnPathSpanEndTime:
 			span.EndtimeUnixNanos = kv.Value.Uint64()
+		case columnPathSpanName:
+			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicName)] = kv.Value.String()
+		case columnPathSpanDuration:
+			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = kv.Value.Uint64()
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?
 			switch kv.Value.Kind() {
 			case parquet.Boolean:
-				span.Attributes[kv.Key] = kv.Value.Boolean()
+				span.Attributes[newSpanAttr(kv.Key)] = kv.Value.Boolean()
 			case parquet.Int32, parquet.Int64:
-				span.Attributes[kv.Key] = kv.Value.Int64()
+				span.Attributes[newSpanAttr(kv.Key)] = kv.Value.Int64()
 			case parquet.Float:
-				span.Attributes[kv.Key] = kv.Value.Float()
+				span.Attributes[newSpanAttr(kv.Key)] = kv.Value.Float()
 			case parquet.ByteArray:
-				span.Attributes[kv.Key] = kv.Value.String()
+				span.Attributes[newSpanAttr(kv.Key)] = kv.Value.String()
 			}
 		}
 	}
@@ -850,7 +854,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// todo is merge the resource-level attributes onto the spans
 	// and filter out spans that didn't match anything.
 
-	resAttrs := make(map[string]interface{})
+	resAttrs := make(map[traceql.Attribute]interface{})
 	spans := make([]traceql.Span, 0, len(res.OtherEntries))
 
 	for _, kv := range res.OtherEntries {
@@ -860,7 +864,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 
 		// Attributes show up here
-		resAttrs[kv.Key] = kv.Value
+		resAttrs[newResAttr(kv.Key)] = kv.Value
 	}
 
 	// Throw out batches without any spans
@@ -872,9 +876,9 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	for _, e := range res.Entries {
 		switch e.Value.Kind() {
 		case parquet.Int64:
-			resAttrs[e.Key] = e.Value.Int64()
+			resAttrs[newResAttr(e.Key)] = e.Value.Int64()
 		case parquet.ByteArray:
-			resAttrs[e.Key] = e.Value.String()
+			resAttrs[newResAttr(e.Key)] = e.Value.String()
 		}
 	}
 
@@ -999,4 +1003,12 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	res.AppendOtherValue(key, val)
 
 	return true
+}
+
+func newSpanAttr(name string) traceql.Attribute {
+	return traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, name)
+}
+
+func newResAttr(name string) traceql.Attribute {
+	return traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, name)
 }
