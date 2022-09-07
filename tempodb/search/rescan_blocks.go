@@ -1,12 +1,12 @@
 package search
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/go-kit/log/level"
-
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/util/log"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
@@ -29,8 +29,7 @@ func RescanBlocks(walPath string) ([]*StreamingSearchBlock, error) {
 		info, err := f.Info()
 
 		if err != nil {
-			level.Warn(log.Logger).Log("msg", "failed to file info", "err", err)
-			return nil, nil
+			return nil, fmt.Errorf("failed to file info %s, %w", f.Name(), err)
 		}
 
 		if info.IsDir() {
