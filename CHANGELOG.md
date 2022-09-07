@@ -13,6 +13,7 @@
 * [ENHANCEMENT] Add span-level duration column [#1706](https://github.com/grafana/tempo/pull/1706) (@mdisibio)
 * [ENHANCEMENT] Add cli command an existing file to tempodb's current parquet schema. [#1706](https://github.com/grafana/tempo/pull/1707) (@joe-elliott)
 * [BUGFIX] Honor caching and buffering settings when finding traces by id [#1697](https://github.com/grafana/tempo/pull/1697) (@joe-elliott)
+* [BUGFIX] Correctly propagate errors from the iterator layer up through the queriers [#1723](https://github.com/grafana/tempo/pull/1723) (@joe-elliott)
 
 ## v1.5.0 / 2022-08-17
 

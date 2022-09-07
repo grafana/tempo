@@ -3,12 +3,14 @@ package parquetquery
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"math"
 	"sync"
 	"sync/atomic"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/pkg/errors"
 	pq "github.com/segmentio/parquet-go"
 )
 
@@ -169,10 +171,10 @@ func (r *IteratorResult) Columns(buffer [][]pq.Value, names ...string) [][]pq.Va
 // iterator - Every iterator follows this interface and can be composed.
 type Iterator interface {
 	// Next returns nil when done
-	Next() *IteratorResult
+	Next() (*IteratorResult, error)
 
 	// Like Next but skips over results until reading >= the given location
-	SeekTo(t RowNumber, definitionLevel int) *IteratorResult
+	SeekTo(t RowNumber, definitionLevel int) (*IteratorResult, error)
 
 	Close()
 }
@@ -240,8 +242,9 @@ type ColumnIterator struct {
 	quit chan struct{}
 	ch   chan *columnIteratorBuffer
 
-	curr  *columnIteratorBuffer
-	currN int
+	curr    *columnIteratorBuffer
+	currN   int
+	currErr atomic.Value
 }
 
 var _ Iterator = (*ColumnIterator)(nil)
@@ -302,6 +305,11 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 	}
 
 	for _, rg := range c.rgs {
+		// bail out if we errored somewhere
+		if c.currErr.Load() != nil {
+			break
+		}
+
 		col := rg.ColumnChunks()[c.col]
 
 		if checkSkip(rg.NumRows()) {
@@ -321,7 +329,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 			pgs := col.Pages()
 			defer func() {
 				if err := pgs.Close(); err != nil {
-					span.LogKV("closing error", err)
+					c.storeErr("column iterator pages close", err)
 				}
 			}()
 			for {
@@ -333,6 +341,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 					break
 				}
 				if err != nil {
+					c.storeErr("column iterator read page", err)
 					return
 				}
 
@@ -395,7 +404,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 						break
 					}
 					if err != nil {
-						// todo: bubble up?
+						c.storeErr("column iterator read values", err)
 						return
 					}
 				}
@@ -406,23 +415,31 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 
 // Next returns the next matching value from the iterator.
 // Returns nil when finished.
-func (c *ColumnIterator) Next() *IteratorResult {
-	t, v := c.next()
+func (c *ColumnIterator) Next() (*IteratorResult, error) {
+	t, v, err := c.next()
+	if err != nil {
+		return nil, err
+	}
 	if t.Valid() {
-		return c.makeResult(t, v)
+		return c.makeResult(t, v), nil
 	}
 
-	return nil
+	return nil, nil
 }
 
-func (c *ColumnIterator) next() (RowNumber, pq.Value) {
+func (c *ColumnIterator) next() (RowNumber, pq.Value, error) {
+	err := c.currErr.Load()
+	if err != nil {
+		return EmptyRowNumber(), pq.Value{}, err.(error)
+	}
+
 	// Consume current buffer until exhausted
 	// then read another one from the channel.
 	if c.curr != nil {
 		for c.currN++; c.currN < len(c.curr.rowNumbers); {
 			t := c.curr.rowNumbers[c.currN]
 			if t.Valid() {
-				return t, c.curr.values[c.currN]
+				return t, c.curr.values[c.currN], nil
 			}
 		}
 
@@ -435,18 +452,19 @@ func (c *ColumnIterator) next() (RowNumber, pq.Value) {
 		// Got next buffer, guaranteed to have at least 1 element
 		c.curr = v
 		c.currN = 0
-		return c.curr.rowNumbers[0], c.curr.values[0]
+		return c.curr.rowNumbers[0], c.curr.values[0], nil
 	}
 
 	// Failed to read from the channel, means iterator is exhausted.
-	return EmptyRowNumber(), pq.Value{}
+	return EmptyRowNumber(), pq.Value{}, nil
 }
 
 // SeekTo moves this iterator to the next result that is greater than
 // or equal to the given row number (and based on the given definition level)
-func (c *ColumnIterator) SeekTo(to RowNumber, d int) *IteratorResult {
+func (c *ColumnIterator) SeekTo(to RowNumber, d int) (*IteratorResult, error) {
 	var at RowNumber
 	var v pq.Value
+	var err error
 
 	// Because iteration happens in the background, we signal the row
 	// to skip to, and then read until we are at the right spot. The
@@ -454,15 +472,18 @@ func (c *ColumnIterator) SeekTo(to RowNumber, d int) *IteratorResult {
 	// already further ahead, and there may already be older data
 	// in the buffer.
 	c.seekTo.Store(to)
-	for at, v = c.next(); at.Valid() && CompareRowNumbers(d, at, to) < 0; {
-		at, v = c.next()
+	for at, v, err = c.next(); at.Valid() && CompareRowNumbers(d, at, to) < 0 && err == nil; {
+		at, v, err = c.next()
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	if at.Valid() {
-		return c.makeResult(at, v)
+		return c.makeResult(at, v), nil
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (c *ColumnIterator) makeResult(t RowNumber, v pq.Value) *IteratorResult {
@@ -476,6 +497,10 @@ func (c *ColumnIterator) makeResult(t RowNumber, v pq.Value) *IteratorResult {
 
 func (c *ColumnIterator) Close() {
 	close(c.quit)
+}
+
+func (c *ColumnIterator) storeErr(msg string, err error) {
+	c.currErr.Store(fmt.Errorf("[%s] %s %w", c.colName, msg, err))
 }
 
 // JoinIterator joins two or more iterators for matches at the given definition level.
@@ -500,7 +525,7 @@ func NewJoinIterator(definitionLevel int, iters []Iterator, pred GroupPredicate)
 	return &j
 }
 
-func (j *JoinIterator) Next() *IteratorResult {
+func (j *JoinIterator) Next() (*IteratorResult, error) {
 	// Here is the algorithm for joins:  On each pass of the iterators
 	// we remember which ones are pointing at the earliest rows. If all
 	// are the lowest (and therefore pointing at the same thing) then
@@ -514,11 +539,14 @@ func (j *JoinIterator) Next() *IteratorResult {
 		lowestIters := make([]int, 0, len(j.iters))
 
 		for iterNum := range j.iters {
-			res := j.peek(iterNum)
+			res, err := j.peek(iterNum)
+			if err != nil {
+				return nil, errors.Wrap(err, "join iterator peek failed")
+			}
 
 			if res == nil {
 				// Iterator exhausted, no more joins possible
-				return nil
+				return nil, nil
 			}
 
 			c := CompareRowNumbers(j.definitionLevel, res.RowNumber, lowestRowNumber)
@@ -543,47 +571,67 @@ func (j *JoinIterator) Next() *IteratorResult {
 		// All iterators pointing at same row?
 		if len(lowestIters) == len(j.iters) {
 			// Get the data
-			result := j.collect(lowestRowNumber)
+			result, err := j.collect(lowestRowNumber)
+			if err != nil {
+				return nil, errors.Wrap(err, "join iterator collect failed")
+			}
 
 			// Keep group?
 			if j.pred == nil || j.pred.KeepGroup(result) {
 				// Yes
-				return result
+				return result, nil
 			}
 		}
 
 		// Skip all iterators to the highest row seen, it's impossible
 		// to find matches before that.
-		j.seekAll(highestRowNumber, j.definitionLevel)
-	}
-}
-
-func (j *JoinIterator) SeekTo(t RowNumber, d int) *IteratorResult {
-	j.seekAll(t, d)
-	return j.Next()
-}
-
-func (j *JoinIterator) seekAll(t RowNumber, d int) {
-	t = TruncateRowNumber(d, t)
-	for iterNum, iter := range j.iters {
-		if j.peeks[iterNum] == nil || CompareRowNumbers(d, j.peeks[iterNum].RowNumber, t) == -1 {
-			columnIteratorResultPoolPut(j.peeks[iterNum])
-			j.peeks[iterNum] = iter.SeekTo(t, d)
+		err := j.seekAll(highestRowNumber, j.definitionLevel)
+		if err != nil {
+			return nil, errors.Wrap(err, "join iterator seekAll failed")
 		}
 	}
 }
 
-func (j *JoinIterator) peek(iterNum int) *IteratorResult {
-	if j.peeks[iterNum] == nil {
-		j.peeks[iterNum] = j.iters[iterNum].Next()
+func (j *JoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
+	err := j.seekAll(t, d)
+	if err != nil {
+		return nil, errors.Wrap(err, "join iterator seekAll failed")
 	}
-	return j.peeks[iterNum]
+	return j.Next()
+}
+
+func (j *JoinIterator) seekAll(t RowNumber, d int) error {
+	var err error
+	t = TruncateRowNumber(d, t)
+	for iterNum, iter := range j.iters {
+		if j.peeks[iterNum] == nil || CompareRowNumbers(d, j.peeks[iterNum].RowNumber, t) == -1 {
+			columnIteratorResultPoolPut(j.peeks[iterNum])
+			j.peeks[iterNum], err = iter.SeekTo(t, d)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (j *JoinIterator) peek(iterNum int) (*IteratorResult, error) {
+	var err error
+	if j.peeks[iterNum] == nil {
+		j.peeks[iterNum], err = j.iters[iterNum].Next()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return j.peeks[iterNum], nil
 }
 
 // Collect data from the given iterators until they point at
 // the next row (according to the configured definition level)
 // or are exhausted.
-func (j *JoinIterator) collect(rowNumber RowNumber) *IteratorResult {
+func (j *JoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error) {
+	var err error
+
 	result := columnIteratorResultPoolGet()
 	result.RowNumber = rowNumber
 
@@ -594,10 +642,13 @@ func (j *JoinIterator) collect(rowNumber RowNumber) *IteratorResult {
 
 			columnIteratorResultPoolPut(j.peeks[i])
 
-			j.peeks[i] = j.iters[i].Next()
+			j.peeks[i], err = j.iters[i].Next()
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
-	return result
+	return result, nil
 }
 
 func (j *JoinIterator) Close() {
@@ -628,7 +679,7 @@ func NewUnionIterator(definitionLevel int, iters []Iterator, pred GroupPredicate
 	return &j
 }
 
-func (u *UnionIterator) Next() *IteratorResult {
+func (u *UnionIterator) Next() (*IteratorResult, error) {
 	// Here is the algorithm for unions:  On each pass of the iterators
 	// we remember which ones are pointing at the earliest same row. The
 	// lowest iterators are then collected and a result is produced. Keep
@@ -638,7 +689,10 @@ func (u *UnionIterator) Next() *IteratorResult {
 		lowestIters := make([]int, 0, len(u.iters))
 
 		for iterNum := range u.iters {
-			rn := u.peek(iterNum)
+			rn, err := u.peek(iterNum)
+			if err != nil {
+				return nil, errors.Wrap(err, "union iterator peek failed")
+			}
 
 			// If this iterator is exhausted go to the next one
 			if rn == nil {
@@ -660,7 +714,10 @@ func (u *UnionIterator) Next() *IteratorResult {
 		}
 
 		// Consume lowest iterators
-		result := u.collect(lowestIters, lowestRowNumber)
+		result, err := u.collect(lowestIters, lowestRowNumber)
+		if err != nil {
+			return nil, errors.Wrap(err, "union iterator collect failed")
+		}
 
 		// After each pass it is guaranteed to have found something
 		// from at least one iterator, or all are exhausted
@@ -669,35 +726,45 @@ func (u *UnionIterator) Next() *IteratorResult {
 				continue
 			}
 
-			return result
+			return result, nil
 		}
 
 		// All exhausted
-		return nil
+		return nil, nil
 	}
 }
 
-func (u *UnionIterator) SeekTo(t RowNumber, d int) *IteratorResult {
+func (u *UnionIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
+	var err error
 	t = TruncateRowNumber(d, t)
 	for iterNum, iter := range u.iters {
 		if p := u.peeks[iterNum]; p == nil || CompareRowNumbers(d, p.RowNumber, t) == -1 {
-			u.peeks[iterNum] = iter.SeekTo(t, d)
+			u.peeks[iterNum], err = iter.SeekTo(t, d)
+			if err != nil {
+				return nil, errors.Wrap(err, "union iterator seek to failed")
+			}
 		}
 	}
 	return u.Next()
 }
 
-func (u *UnionIterator) peek(iterNum int) *IteratorResult {
+func (u *UnionIterator) peek(iterNum int) (*IteratorResult, error) {
+	var err error
 	if u.peeks[iterNum] == nil {
-		u.peeks[iterNum] = u.iters[iterNum].Next()
+		u.peeks[iterNum], err = u.iters[iterNum].Next()
+		if err != nil {
+			return nil, err
+		}
 	}
-	return u.peeks[iterNum]
+	return u.peeks[iterNum], err
 }
 
 // Collect data from the given iterators until they point at
 // the next row (according to the configured definition level)
 // or are exhausted.
-func (u *UnionIterator) collect(iterNums []int, rowNumber RowNumber) *IteratorResult {
+func (u *UnionIterator) collect(iterNums []int, rowNumber RowNumber) (*IteratorResult, error) {
+	var err error
+
 	result := columnIteratorResultPoolGet()
 	result.RowNumber = rowNumber
 
@@ -708,11 +775,14 @@ func (u *UnionIterator) collect(iterNums []int, rowNumber RowNumber) *IteratorRe
 
 			columnIteratorResultPoolPut(u.peeks[iterNum])
 
-			u.peeks[iterNum] = u.iters[iterNum].Next()
+			u.peeks[iterNum], err = u.iters[iterNum].Next()
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	return result
+	return result, err
 }
 
 func (u *UnionIterator) Close() {
