@@ -101,8 +101,9 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			}
 			if sum > c.opts.MaxBytesPerTrace {
 				// Trace too large to compact
-				for _, discardedRow := range rows[1:] {
-					c.opts.SpansDiscarded(countSpans(sch, discardedRow))
+				for i := 1; i < len(rows); i++ {
+					c.opts.SpansDiscarded(countSpans(sch, rows[i]))
+					pool.Put(rows[i])
 				}
 				return rows[0], nil
 			}
@@ -159,9 +160,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		// Flush existing block data if the next trace can't fit
-		// Here we repurpose FlushSizeBytes as number of raw column values.
-		// This is a fairly close approximation.
-		if currentBlock.CurrentBufferedValues() > 0 && currentBlock.CurrentBufferedValues()+len(lowestObject) > int(c.opts.FlushSizeBytes) {
+		if currentBlock.EstimatedBufferedBytes() > 0 && currentBlock.EstimatedBufferedBytes()+estimateProtoSize(lowestObject) > c.opts.BlockConfig.RowGroupSizeBytes {
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
@@ -178,7 +177,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		// Flush again if block is already full.
-		if currentBlock.CurrentBufferedValues() > int(c.opts.FlushSizeBytes) {
+		if currentBlock.EstimatedBufferedBytes() > c.opts.BlockConfig.RowGroupSizeBytes {
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
@@ -220,7 +219,7 @@ func (c *Compactor) appendBlock(ctx context.Context, block *streamingBlock, l lo
 
 	var (
 		objs            = block.CurrentBufferedObjects()
-		vals            = block.CurrentBufferedValues()
+		vals            = block.EstimatedBufferedBytes()
 		compactionLevel = int(block.meta.CompactionLevel - 1)
 	)
 

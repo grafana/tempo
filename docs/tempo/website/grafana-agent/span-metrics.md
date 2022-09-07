@@ -31,4 +31,4 @@ For a deep look into span metrics, visit [this section]({{< relref "../metrics-g
 
 ## Example
 
-<p align="center"><img src="../../server_side_metrics/span-metrics-example.png" alt="Span metrics overview"></p>
+<p align="center"><img src="../../metrics-generator/span-metrics-example.png" alt="Span metrics overview"></p>

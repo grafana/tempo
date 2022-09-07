@@ -77,6 +77,9 @@ func nullIndexFuncOf(t reflect.Type) nullIndexFunc {
 	case reflect.Slice:
 		return nullIndexSlice
 
+	case reflect.Map:
+		return nullIndexPointer
+
 	case reflect.Array:
 		if t.Elem().Kind() == reflect.Uint8 {
 			switch size := t.Len(); size {

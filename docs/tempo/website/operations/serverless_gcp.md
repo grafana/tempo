@@ -1,6 +1,9 @@
 ---
 title: Backend search - serverless GCP setup
 weight: 10
+alias:
+- /docs/tempo/latest/operations/backend_search/serverless_gcp/
+- /docs/tempo/latest/operations/serverless_gcp/
 ---
 
 # Google Cloud Run for serverless backend search

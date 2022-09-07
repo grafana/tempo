@@ -5,8 +5,6 @@ weight: 9
 
 # Backend search
 
-<span style="background-color:#f3f973;">Search is an experimental feature.</span>
-
 Backend search is not yet mature. It can therefore be operationally more complex.
 The defaults do not yet support Tempo well.
 

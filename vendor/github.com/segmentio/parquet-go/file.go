@@ -14,9 +14,8 @@ import (
 )
 
 const (
-	defaultDictBufferSize  = 8192
-	defaultReadBufferSize  = 4096
-	defaultLevelBufferSize = 1024
+	defaultDictBufferSize = 8192
+	defaultReadBufferSize = 4096
 )
 
 // File represents a parquet file. The layout of a Parquet file can be found
@@ -31,6 +30,7 @@ type File struct {
 	columnIndexes []format.ColumnIndex
 	offsetIndexes []format.OffsetIndex
 	rowGroups     []RowGroup
+	config        *FileConfig
 }
 
 // OpenFile opens a parquet file and reads the content between offset 0 and the given
@@ -41,11 +41,11 @@ type File struct {
 // a file does not validate that the pages have valid checksums.
 func OpenFile(r io.ReaderAt, size int64, options ...FileOption) (*File, error) {
 	b := make([]byte, 8)
-	f := &File{reader: r, size: size}
 	c, err := NewFileConfig(options...)
 	if err != nil {
 		return nil, err
 	}
+	f := &File{reader: r, size: size, config: c}
 
 	if _, err := r.ReadAt(b[:4], 0); err != nil {
 		return nil, fmt.Errorf("reading magic header of parquet file: %w", err)
@@ -452,9 +452,10 @@ func (c *fileColumnChunk) NumValues() int64 {
 }
 
 type filePages struct {
-	chunk   *fileColumnChunk
-	rbuf    *bufio.Reader
-	section io.SectionReader
+	chunk    *fileColumnChunk
+	rbuf     *bufio.Reader
+	rbufpool *sync.Pool
+	section  io.SectionReader
 
 	protocol thrift.CompactProtocol
 	decoder  thrift.Decoder
@@ -465,12 +466,15 @@ type filePages struct {
 	index      int
 	skip       int64
 	dictionary Dictionary
+
+	bufferSize int
 }
 
 func (f *filePages) init(c *fileColumnChunk) {
 	f.chunk = c
 	f.baseOffset = c.chunk.MetaData.DataPageOffset
 	f.dataOffset = f.baseOffset
+	f.bufferSize = c.file.config.ReadBufferSize
 
 	if c.chunk.MetaData.DictionaryPageOffset != 0 {
 		f.baseOffset = c.chunk.MetaData.DictionaryPageOffset
@@ -478,7 +482,7 @@ func (f *filePages) init(c *fileColumnChunk) {
 	}
 
 	f.section = *io.NewSectionReader(c.file, f.baseOffset, c.chunk.MetaData.TotalCompressedSize)
-	f.rbuf = getBufioReader(&f.section)
+	f.rbuf, f.rbufpool = getBufioReader(&f.section, f.bufferSize)
 	f.decoder.Reset(f.protocol.NewReader(f.rbuf))
 }
 
@@ -545,8 +549,8 @@ func (f *filePages) ReadPage() (Page, error) {
 
 func (f *filePages) readDictionary() error {
 	chunk := io.NewSectionReader(f.chunk.file, f.baseOffset, f.chunk.chunk.MetaData.TotalCompressedSize)
-	rbuf := getBufioReader(chunk)
-	defer putBufioReader(rbuf)
+	rbuf, pool := getBufioReader(chunk, f.bufferSize)
+	defer putBufioReader(rbuf, pool)
 
 	decoder := thrift.NewDecoder(f.protocol.NewReader(rbuf))
 	header := new(format.PageHeader)
@@ -680,7 +684,7 @@ func (f *filePages) SeekToRow(rowIndex int64) (err error) {
 }
 
 func (f *filePages) Close() error {
-	putBufioReader(f.rbuf)
+	putBufioReader(f.rbuf, f.rbufpool)
 	f.chunk = nil
 	f.section = io.SectionReader{}
 	f.rbuf = nil
@@ -697,23 +701,40 @@ func (f *filePages) columnPath() columnPath {
 	return columnPath(f.chunk.column.Path())
 }
 
+type putBufioReaderFunc func()
+
 var (
-	bufioReaderPool sync.Pool
+	bufioReaderPoolLock sync.Mutex
+	bufioReaderPool     = map[int]*sync.Pool{}
 )
 
-func getBufioReader(r io.Reader) *bufio.Reader {
-	rbuf, _ := bufioReaderPool.Get().(*bufio.Reader)
+func getBufioReader(r io.Reader, bufferSize int) (*bufio.Reader, *sync.Pool) {
+	pool := getBufioReaderPool(bufferSize)
+	rbuf, _ := pool.Get().(*bufio.Reader)
 	if rbuf == nil {
-		rbuf = bufio.NewReaderSize(r, defaultReadBufferSize)
+		rbuf = bufio.NewReaderSize(r, bufferSize)
 	} else {
 		rbuf.Reset(r)
 	}
-	return rbuf
+	return rbuf, pool
 }
 
-func putBufioReader(rbuf *bufio.Reader) {
-	if rbuf != nil {
+func putBufioReader(rbuf *bufio.Reader, pool *sync.Pool) {
+	if rbuf != nil && pool != nil {
 		rbuf.Reset(nil)
-		bufioReaderPool.Put(rbuf)
+		pool.Put(rbuf)
 	}
+}
+
+func getBufioReaderPool(size int) *sync.Pool {
+	bufioReaderPoolLock.Lock()
+	defer bufioReaderPoolLock.Unlock()
+
+	if pool := bufioReaderPool[size]; pool != nil {
+		return pool
+	}
+
+	pool := &sync.Pool{}
+	bufioReaderPool[size] = pool
+	return pool
 }
