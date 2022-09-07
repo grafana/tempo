@@ -248,18 +248,18 @@ static:
   ;
 
 intrinsicField:
-    IDURATION      { $$ = newIntrinsic(IntrinsicDuration)   }
-  | CHILDCOUNT     { $$ = newIntrinsic(IntrinsicChildCount) }
-  | NAME           { $$ = newIntrinsic(IntrinsicName)       }
-  | STATUS         { $$ = newIntrinsic(IntrinsicStatus)     }
-  | PARENT         { $$ = newIntrinsic(IntrinsicParent)     }
+    IDURATION      { $$ = NewIntrinsic(IntrinsicDuration)   }
+  | CHILDCOUNT     { $$ = NewIntrinsic(IntrinsicChildCount) }
+  | NAME           { $$ = NewIntrinsic(IntrinsicName)       }
+  | STATUS         { $$ = NewIntrinsic(IntrinsicStatus)     }
+  | PARENT         { $$ = NewIntrinsic(IntrinsicParent)     }
   ;
 
 attributeField:
-    DOT IDENTIFIER END_ATTRIBUTE                      { $$ = newAttribute($2)                                      }
-  | RESOURCE_DOT IDENTIFIER END_ATTRIBUTE             { $$ = newScopedAttribute(AttributeScopeResource, false, $2) }
-  | SPAN_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = newScopedAttribute(AttributeScopeSpan, false, $2)     }
-  | PARENT_DOT IDENTIFIER END_ATTRIBUTE               { $$ = newScopedAttribute(AttributeScopeNone, true, $2)      }
-  | PARENT_DOT RESOURCE_DOT IDENTIFIER END_ATTRIBUTE  { $$ = newScopedAttribute(AttributeScopeResource, true, $3)  }
-  | PARENT_DOT SPAN_DOT IDENTIFIER END_ATTRIBUTE      { $$ = newScopedAttribute(AttributeScopeSpan, true, $3)      }
+    DOT IDENTIFIER END_ATTRIBUTE                      { $$ = NewAttribute($2)                                      }
+  | RESOURCE_DOT IDENTIFIER END_ATTRIBUTE             { $$ = NewScopedAttribute(AttributeScopeResource, false, $2) }
+  | SPAN_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = NewScopedAttribute(AttributeScopeSpan, false, $2)     }
+  | PARENT_DOT IDENTIFIER END_ATTRIBUTE               { $$ = NewScopedAttribute(AttributeScopeNone, true, $2)      }
+  | PARENT_DOT RESOURCE_DOT IDENTIFIER END_ATTRIBUTE  { $$ = NewScopedAttribute(AttributeScopeResource, true, $3)  }
+  | PARENT_DOT SPAN_DOT IDENTIFIER END_ATTRIBUTE      { $$ = NewScopedAttribute(AttributeScopeSpan, true, $3)      }
   ;

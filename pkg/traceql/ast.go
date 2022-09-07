@@ -362,8 +362,8 @@ type Attribute struct {
 	Intrinsic Intrinsic
 }
 
-// newAttribute creates a new attribute with the given identifier string.
-func newAttribute(att string) Attribute {
+// NewAttribute creates a new attribute with the given identifier string.
+func NewAttribute(att string) Attribute {
 	return Attribute{
 		Scope:     AttributeScopeNone,
 		Parent:    false,
@@ -396,9 +396,9 @@ func (Attribute) referencesSpan() bool {
 	return true
 }
 
-// newScopedAttribute creates a new scopedattribute with the given identifier string.
+// NewScopedAttribute creates a new scopedattribute with the given identifier string.
 //  this handles parent, span, and resource scopes.
-func newScopedAttribute(scope AttributeScope, parent bool, att string) Attribute {
+func NewScopedAttribute(scope AttributeScope, parent bool, att string) Attribute {
 	intrinsic := IntrinsicNone
 	// if we are explicitly passed a resource or span scopes then we shouldn't parse for intrinsic
 	if scope != AttributeScopeResource && scope != AttributeScopeSpan {
@@ -413,7 +413,7 @@ func newScopedAttribute(scope AttributeScope, parent bool, att string) Attribute
 	}
 }
 
-func newIntrinsic(n Intrinsic) Attribute {
+func NewIntrinsic(n Intrinsic) Attribute {
 	return Attribute{
 		Scope:     AttributeScopeNone,
 		Parent:    false,
