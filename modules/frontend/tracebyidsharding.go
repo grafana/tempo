@@ -150,6 +150,10 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, overallError
 	}
 
+	if totalFailedBlocks > 0 {
+		_ = level.Warn(s.logger).Log("msg", "some blocks failed. returning success due to tolerate_failed_blocks", "failed", totalFailedBlocks, "tolerate_failed_blocks", s.maxFailedBlocks)
+	}
+
 	overallTrace, _ := combiner.Result()
 	if overallTrace == nil || statusCode != http.StatusOK {
 		// translate non-404s into 500s. if, for instance, we get a 400 back from an internal component

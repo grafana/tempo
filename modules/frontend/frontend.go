@@ -142,10 +142,6 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 					return nil, err
 				}
 
-				if responseObject.Metrics.FailedBlocks > 0 {
-					resp.StatusCode = http.StatusPartialContent
-				}
-
 				if marshallingFormat == api.HeaderAcceptJSON {
 					var jsonTrace bytes.Buffer
 					marshaller := &jsonpb.Marshaler{}
