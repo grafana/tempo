@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
@@ -782,11 +783,11 @@ var _ parquetquery.GroupPredicate = (*spanCollector)(nil)
 func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	span := &traceql.Span{
-		Attributes: make(map[traceql.Attribute]interface{}),
+		Attributes: make(map[traceql.Attribute]traceql.Static),
 	}
 
 	for _, e := range res.OtherEntries {
-		span.Attributes[newSpanAttr(e.Key)] = e.Value
+		span.Attributes[newSpanAttr(e.Key)] = e.Value.(traceql.Static)
 	}
 
 	// Merge all individual columns into the span
@@ -799,21 +800,21 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case columnPathSpanEndTime:
 			span.EndtimeUnixNanos = kv.Value.Uint64()
 		case columnPathSpanName:
-			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicName)] = kv.Value.String()
+			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicName)] = traceql.NewStaticString(kv.Value.String())
 		case columnPathSpanDuration:
-			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = kv.Value.Uint64()
+			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(kv.Value.Uint64()))
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?
 			switch kv.Value.Kind() {
 			case parquet.Boolean:
-				span.Attributes[newSpanAttr(kv.Key)] = kv.Value.Boolean()
+				span.Attributes[newSpanAttr(kv.Key)] = traceql.NewStaticBool(kv.Value.Boolean())
 			case parquet.Int32, parquet.Int64:
-				span.Attributes[newSpanAttr(kv.Key)] = kv.Value.Int64()
+				span.Attributes[newSpanAttr(kv.Key)] = traceql.NewStaticInt(int(kv.Value.Int64()))
 			case parquet.Float:
-				span.Attributes[newSpanAttr(kv.Key)] = kv.Value.Float()
+				span.Attributes[newSpanAttr(kv.Key)] = traceql.NewStaticFloat(kv.Value.Double())
 			case parquet.ByteArray:
-				span.Attributes[newSpanAttr(kv.Key)] = kv.Value.String()
+				span.Attributes[newSpanAttr(kv.Key)] = traceql.NewStaticString(kv.Value.String())
 			}
 		}
 	}
@@ -821,7 +822,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	if c.minAttributes > 0 {
 		count := 0
 		for _, v := range span.Attributes {
-			if v != nil {
+			if v.Type != traceql.TypeNil {
 				count++
 			}
 		}
@@ -854,7 +855,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// todo is merge the resource-level attributes onto the spans
 	// and filter out spans that didn't match anything.
 
-	resAttrs := make(map[traceql.Attribute]interface{})
+	resAttrs := make(map[traceql.Attribute]traceql.Static)
 	spans := make([]traceql.Span, 0, len(res.OtherEntries))
 
 	for _, kv := range res.OtherEntries {
@@ -864,7 +865,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 
 		// Attributes show up here
-		resAttrs[newResAttr(kv.Key)] = kv.Value
+		resAttrs[newResAttr(kv.Key)] = kv.Value.(traceql.Static)
 	}
 
 	// Throw out batches without any spans
@@ -876,9 +877,9 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	for _, e := range res.Entries {
 		switch e.Value.Kind() {
 		case parquet.Int64:
-			resAttrs[newResAttr(e.Key)] = e.Value.Int64()
+			resAttrs[newResAttr(e.Key)] = traceql.NewStaticInt(int(e.Value.Int64()))
 		case parquet.ByteArray:
-			resAttrs[newResAttr(e.Key)] = e.Value.String()
+			resAttrs[newResAttr(e.Key)] = traceql.NewStaticString(e.Value.String())
 		}
 	}
 
@@ -900,7 +901,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// Remove unmatched attributes
 	for _, span := range spans {
 		for k, v := range span.Attributes {
-			if v == nil {
+			if v.Type == traceql.TypeNil {
 				delete(span.Attributes, k)
 			}
 		}
@@ -975,7 +976,7 @@ var _ parquetquery.GroupPredicate = (*attributeCollector)(nil)
 func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	var key string
-	var val interface{}
+	var val traceql.Static
 
 	for _, e := range res.Entries {
 		// Ignore nulls, this leaves val as the remaining found value,
@@ -988,13 +989,13 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case "key":
 			key = e.Value.String()
 		case "string":
-			val = e.Value.String()
+			val = traceql.NewStaticString(e.Value.String())
 		case "int":
-			val = e.Value.Int64()
+			val = traceql.NewStaticInt(int(e.Value.Int64()))
 		case "float":
-			val = e.Value.Double()
+			val = traceql.NewStaticFloat(e.Value.Double())
 		case "bool":
-			val = e.Value.Boolean()
+			val = traceql.NewStaticBool(e.Value.Boolean())
 		}
 	}
 

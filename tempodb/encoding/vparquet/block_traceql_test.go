@@ -215,9 +215,9 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[traceql.Attribute]interface{}{
+						Attributes: map[traceql.Attribute]traceql.Static{
 							// foo not returned because the span didn't match it
-							traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "bar"): int64(123),
+							traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "bar"): traceql.NewStaticInt(123),
 						},
 					},
 				),
@@ -236,11 +236,11 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[traceql.Attribute]interface{}{
+						Attributes: map[traceql.Attribute]traceql.Static{
 							// Foo matched on resource.
 							// TODO - This seems misleading since the span has foo=<something else>
 							//        but for this query we never even looked at span attribute columns.
-							newResAttr("foo"): "abc",
+							newResAttr("foo"): traceql.NewStaticString("abc"),
 						},
 					},
 				),
@@ -260,8 +260,8 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[traceql.Attribute]interface{}{
-							newSpanAttr(LabelHTTPStatusCode): int64(500), // This is the only attribute that matched anything
+						Attributes: map[traceql.Attribute]traceql.Static{
+							newSpanAttr(LabelHTTPStatusCode): traceql.NewStaticInt(500), // This is the only attribute that matched anything
 						},
 					},
 				),
@@ -283,12 +283,12 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[traceql.Attribute]interface{}{
-							newResAttr("foo"):                "abc", // Both are returned
-							newSpanAttr("foo"):               "def", // Both are returned
-							newSpanAttr(LabelHTTPStatusCode): int64(500),
-							newSpanAttr("float"):             456.78,
-							newSpanAttr("bool"):              false,
+						Attributes: map[traceql.Attribute]traceql.Static{
+							newResAttr("foo"):                traceql.NewStaticString("abc"), // Both are returned
+							newSpanAttr("foo"):               traceql.NewStaticString("def"), // Both are returned
+							newSpanAttr(LabelHTTPStatusCode): traceql.NewStaticInt(500),
+							newSpanAttr("float"):             traceql.NewStaticFloat(456.78),
+							newSpanAttr("bool"):              traceql.NewStaticBool(false),
 						},
 					},
 				),
@@ -311,13 +311,13 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
-						Attributes:         map[traceql.Attribute]interface{}{},
+						Attributes:         map[traceql.Attribute]traceql.Static{},
 					},
 					traceql.Span{
 						ID:                 wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
-						Attributes:         map[traceql.Attribute]interface{}{},
+						Attributes:         map[traceql.Attribute]traceql.Static{},
 					},
 				),
 			),
@@ -333,8 +333,8 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						ID:                 wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[1].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[traceql.Attribute]interface{}{
-							traceql.NewIntrinsic(traceql.IntrinsicName): "world",
+						Attributes: map[traceql.Attribute]traceql.Static{
+							traceql.NewIntrinsic(traceql.IntrinsicName): traceql.NewStaticString("world"),
 						},
 					},
 				),
@@ -350,8 +350,8 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						ID:                 wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[traceql.Attribute]interface{}{
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].DurationNanos,
+						Attributes: map[traceql.Attribute]traceql.Static{
+							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(time.Duration(wantTr.ResourceSpans[0].InstrumentationLibrarySpans[0].Spans[0].DurationNanos)),
 						},
 					},
 				),

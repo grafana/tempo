@@ -31,7 +31,7 @@ type Span struct {
 	ID                 []byte
 	StartTimeUnixNanos uint64
 	EndtimeUnixNanos   uint64
-	Attributes         map[Attribute]interface{}
+	Attributes         map[Attribute]Static
 }
 
 type Spanset struct {
