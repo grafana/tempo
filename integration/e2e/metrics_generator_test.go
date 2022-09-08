@@ -103,7 +103,7 @@ func TestMetricsGenerator(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	//also send one with old timestamp
+	//also send one with 5 minutes old timestamp
 	err = c.EmitBatch(context.Background(), &thrift.Batch{
 		Process: &thrift.Process{ServiceName: "app"},
 		Spans: []*thrift.Span{
@@ -113,7 +113,7 @@ func TestMetricsGenerator(t *testing.T) {
 				SpanId:        r.Int63(),
 				ParentSpanId:  parentSpanID,
 				OperationName: "app-handle",
-				StartTime:     time.Now().Add(-50 * time.Minute).UnixMicro(),
+				StartTime:     time.Now().UnixMicro(),
 				Duration:      int64(1 * time.Second / time.Microsecond),
 				Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
 			},
@@ -201,7 +201,7 @@ func TestMetricsGenerator(t *testing.T) {
 
 	// Verify metrics
 	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(4), "tempo_metrics_generator_spans_received_total"))
-	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(2), "tempo_metrics_generator_discarded_spans_total"))
+	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(2), "tempo_metrics_generator_spans_discarded_total"))
 	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_active_series"))
 	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(1000), "tempo_metrics_generator_registry_max_active_series"))
 	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_series_added_total"))
