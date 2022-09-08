@@ -235,16 +235,16 @@ fieldExpression:
 // Statics
 // **********************
 static:
-    STRING        { $$ = newStaticString($1)          }
-  | INTEGER       { $$ = newStaticInt($1)             }
-  | FLOAT         { $$ = newStaticFloat($1)           }
-  | TRUE          { $$ = newStaticBool(true)          }
-  | FALSE         { $$ = newStaticBool(false)         }
-  | NIL           { $$ = newStaticNil()               }
-  | DURATION      { $$ = newStaticDuration($1)        }
-  | STATUS_OK     { $$ = newStaticStatus(StatusOk)    }
-  | STATUS_ERROR  { $$ = newStaticStatus(StatusError) }
-  | STATUS_UNSET  { $$ = newStaticStatus(StatusUnset) }
+    STRING        { $$ = NewStaticString($1)          }
+  | INTEGER       { $$ = NewStaticInt($1)             }
+  | FLOAT         { $$ = NewStaticFloat($1)           }
+  | TRUE          { $$ = NewStaticBool(true)          }
+  | FALSE         { $$ = NewStaticBool(false)         }
+  | NIL           { $$ = NewStaticNil()               }
+  | DURATION      { $$ = NewStaticDuration($1)        }
+  | STATUS_OK     { $$ = NewStaticStatus(StatusOk)    }
+  | STATUS_ERROR  { $$ = NewStaticStatus(StatusError) }
+  | STATUS_UNSET  { $$ = NewStaticStatus(StatusUnset) }
   ;
 
 intrinsicField:

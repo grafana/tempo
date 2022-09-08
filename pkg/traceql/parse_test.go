@@ -236,7 +236,7 @@ func TestPipelines(t *testing.T) {
 			in: "{ .a } | count() > 1",
 			expected: newPipeline(
 				newSpansetFilter(NewAttribute("a")),
-				newScalarFilter(OpGreater, newAggregate(aggregateCount, nil), newStaticInt(1)),
+				newScalarFilter(OpGreater, newAggregate(aggregateCount, nil), NewStaticInt(1)),
 			),
 		},
 		{
@@ -245,7 +245,7 @@ func TestPipelines(t *testing.T) {
 				newSpansetFilter(NewAttribute("a")),
 				newGroupOperation(NewAttribute("namespace")),
 				newCoalesceOperation(),
-				newScalarFilter(OpEqual, newAggregate(aggregateAvg, NewIntrinsic(IntrinsicDuration)), newStaticDuration(time.Second)),
+				newScalarFilter(OpEqual, newAggregate(aggregateAvg, NewIntrinsic(IntrinsicDuration)), NewStaticDuration(time.Second)),
 			),
 		},
 	}
@@ -323,36 +323,36 @@ func TestSpansetExpressionPrecedence(t *testing.T) {
 		{
 			in: "{ true } && { false } >> { `a` }",
 			expected: newSpansetOperation(OpSpansetAnd,
-				newSpansetFilter(newStaticBool(true)),
-				newSpansetOperation(OpSpansetDescendant, newSpansetFilter(newStaticBool(false)), newSpansetFilter(newStaticString("a"))),
+				newSpansetFilter(NewStaticBool(true)),
+				newSpansetOperation(OpSpansetDescendant, newSpansetFilter(NewStaticBool(false)), newSpansetFilter(NewStaticString("a"))),
 			),
 		},
 		{
 			in: "{ true } >> { false } && { `a` }",
 			expected: newSpansetOperation(OpSpansetAnd,
-				newSpansetOperation(OpSpansetDescendant, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false))),
-				newSpansetFilter(newStaticString("a")),
+				newSpansetOperation(OpSpansetDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))),
+				newSpansetFilter(NewStaticString("a")),
 			),
 		},
 		{
 			in: "({ true } >> { false }) && { `a` }",
 			expected: newSpansetOperation(OpSpansetAnd,
-				newSpansetOperation(OpSpansetDescendant, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false))),
-				newSpansetFilter(newStaticString("a")),
+				newSpansetOperation(OpSpansetDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))),
+				newSpansetFilter(NewStaticString("a")),
 			),
 		},
 		{
 			in: "{ true } >> { false } ~ { `a` }",
 			expected: newSpansetOperation(OpSpansetSibling,
-				newSpansetOperation(OpSpansetDescendant, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false))),
-				newSpansetFilter(newStaticString("a")),
+				newSpansetOperation(OpSpansetDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))),
+				newSpansetFilter(NewStaticString("a")),
 			),
 		},
 		{
 			in: "{ true } ~ { false } >> { `a` }",
 			expected: newSpansetOperation(OpSpansetDescendant,
-				newSpansetOperation(OpSpansetSibling, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false))),
-				newSpansetFilter(newStaticString("a")),
+				newSpansetOperation(OpSpansetSibling, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false))),
+				newSpansetFilter(NewStaticString("a")),
 			),
 		},
 	}
@@ -372,13 +372,13 @@ func TestSpansetExpressionOperators(t *testing.T) {
 		in       string
 		expected SpansetOperation
 	}{
-		{in: "{ true } && { false }", expected: newSpansetOperation(OpSpansetAnd, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false)))},
-		{in: "{ true } > { false }", expected: newSpansetOperation(OpSpansetChild, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false)))},
-		{in: "{ true } >> { false }", expected: newSpansetOperation(OpSpansetDescendant, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false)))},
-		{in: "{ true } || { false }", expected: newSpansetOperation(OpSpansetUnion, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false)))},
-		{in: "{ true } ~ { false }", expected: newSpansetOperation(OpSpansetSibling, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false)))},
+		{in: "{ true } && { false }", expected: newSpansetOperation(OpSpansetAnd, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } > { false }", expected: newSpansetOperation(OpSpansetChild, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } >> { false }", expected: newSpansetOperation(OpSpansetDescendant, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } || { false }", expected: newSpansetOperation(OpSpansetUnion, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
+		{in: "{ true } ~ { false }", expected: newSpansetOperation(OpSpansetSibling, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
 		// this test was added to highlight the one shift/reduce conflict in the grammar. this could also be parsed as two spanset pipelines &&ed together.
-		{in: "({ true }) && ({ false })", expected: newSpansetOperation(OpSpansetAnd, newSpansetFilter(newStaticBool(true)), newSpansetFilter(newStaticBool(false)))},
+		{in: "({ true }) && ({ false })", expected: newSpansetOperation(OpSpansetAnd, newSpansetFilter(NewStaticBool(true)), newSpansetFilter(NewStaticBool(false)))},
 	}
 
 	for _, tc := range tests {
@@ -453,11 +453,11 @@ func TestScalarExpressionOperators(t *testing.T) {
 		in       string
 		expected ScalarFilter
 	}{
-		{in: "count() > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateCount, nil), newStaticInt(1))},
-		{in: "max(.a) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateMax, NewAttribute("a")), newStaticInt(1))},
-		{in: "min(1) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateMin, newStaticInt(1)), newStaticInt(1))},
-		{in: "sum(true) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateSum, newStaticBool(true)), newStaticInt(1))},
-		{in: "avg(`c`) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateAvg, newStaticString("c")), newStaticInt(1))},
+		{in: "count() > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateCount, nil), NewStaticInt(1))},
+		{in: "max(.a) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateMax, NewAttribute("a")), NewStaticInt(1))},
+		{in: "min(1) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateMin, NewStaticInt(1)), NewStaticInt(1))},
+		{in: "sum(true) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateSum, NewStaticBool(true)), NewStaticInt(1))},
+		{in: "avg(`c`) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateAvg, NewStaticString("c")), NewStaticInt(1))},
 	}
 
 	for _, tc := range tests {
@@ -614,24 +614,24 @@ func TestSpansetFilterStatics(t *testing.T) {
 		in       string
 		expected FieldExpression
 	}{
-		{in: "{ true }", expected: newStaticBool(true)},
-		{in: "{ false }", expected: newStaticBool(false)},
-		{in: `{ "true" }`, expected: newStaticString("true")},
-		{in: `{ "true\"" }`, expected: newStaticString("true\"")},
-		{in: "{ `foo` }", expected: newStaticString("foo")},
+		{in: "{ true }", expected: NewStaticBool(true)},
+		{in: "{ false }", expected: NewStaticBool(false)},
+		{in: `{ "true" }`, expected: NewStaticString("true")},
+		{in: `{ "true\"" }`, expected: NewStaticString("true\"")},
+		{in: "{ `foo` }", expected: NewStaticString("foo")},
 		{in: "{ .foo }", expected: NewAttribute("foo")},
 		{in: "{ duration }", expected: NewIntrinsic(IntrinsicDuration)},
 		{in: "{ childCount }", expected: NewIntrinsic(IntrinsicChildCount)},
 		{in: "{ name }", expected: NewIntrinsic(IntrinsicName)},
 		{in: "{ parent }", expected: NewIntrinsic(IntrinsicParent)},
 		{in: "{ status }", expected: NewIntrinsic(IntrinsicStatus)},
-		{in: "{ 4321 }", expected: newStaticInt(4321)},
-		{in: "{ 1.234 }", expected: newStaticFloat(1.234)},
-		{in: "{ nil }", expected: newStaticNil()},
-		{in: "{ 3h }", expected: newStaticDuration(3 * time.Hour)},
-		{in: "{ error }", expected: newStaticStatus(StatusError)},
-		{in: "{ ok }", expected: newStaticStatus(StatusOk)},
-		{in: "{ unset }", expected: newStaticStatus(StatusUnset)},
+		{in: "{ 4321 }", expected: NewStaticInt(4321)},
+		{in: "{ 1.234 }", expected: NewStaticFloat(1.234)},
+		{in: "{ nil }", expected: NewStaticNil()},
+		{in: "{ 3h }", expected: NewStaticDuration(3 * time.Hour)},
+		{in: "{ error }", expected: NewStaticStatus(StatusError)},
+		{in: "{ ok }", expected: NewStaticStatus(StatusOk)},
+		{in: "{ unset }", expected: NewStaticStatus(StatusUnset)},
 	}
 
 	for _, tc := range tests {

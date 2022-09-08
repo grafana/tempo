@@ -303,48 +303,48 @@ func (s Static) impliedType() StaticType {
 	return s.Type
 }
 
-func newStaticInt(n int) Static {
+func NewStaticInt(n int) Static {
 	return Static{
 		Type: TypeInt,
 		N:    n,
 	}
 }
 
-func newStaticFloat(f float64) Static {
+func NewStaticFloat(f float64) Static {
 	return Static{
 		Type: TypeFloat,
 		F:    f,
 	}
 }
 
-func newStaticString(s string) Static {
+func NewStaticString(s string) Static {
 	return Static{
 		Type: TypeString,
 		S:    s,
 	}
 }
 
-func newStaticBool(b bool) Static {
+func NewStaticBool(b bool) Static {
 	return Static{
 		Type: TypeBoolean,
 		B:    b,
 	}
 }
 
-func newStaticNil() Static {
+func NewStaticNil() Static {
 	return Static{
 		Type: TypeNil,
 	}
 }
 
-func newStaticDuration(d time.Duration) Static {
+func NewStaticDuration(d time.Duration) Static {
 	return Static{
 		Type: TypeDuration,
 		D:    d,
 	}
 }
 
-func newStaticStatus(s Status) Static {
+func NewStaticStatus(s Status) Static {
 	return Static{
 		Type:   TypeStatus,
 		Status: s,

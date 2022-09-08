@@ -1201,61 +1201,61 @@ yydefault:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:238
 		{
-			yyVAL.static = newStaticString(yyDollar[1].staticStr)
+			yyVAL.static = NewStaticString(yyDollar[1].staticStr)
 		}
 	case 85:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:239
 		{
-			yyVAL.static = newStaticInt(yyDollar[1].staticInt)
+			yyVAL.static = NewStaticInt(yyDollar[1].staticInt)
 		}
 	case 86:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:240
 		{
-			yyVAL.static = newStaticFloat(yyDollar[1].staticFloat)
+			yyVAL.static = NewStaticFloat(yyDollar[1].staticFloat)
 		}
 	case 87:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:241
 		{
-			yyVAL.static = newStaticBool(true)
+			yyVAL.static = NewStaticBool(true)
 		}
 	case 88:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:242
 		{
-			yyVAL.static = newStaticBool(false)
+			yyVAL.static = NewStaticBool(false)
 		}
 	case 89:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:243
 		{
-			yyVAL.static = newStaticNil()
+			yyVAL.static = NewStaticNil()
 		}
 	case 90:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:244
 		{
-			yyVAL.static = newStaticDuration(yyDollar[1].staticDuration)
+			yyVAL.static = NewStaticDuration(yyDollar[1].staticDuration)
 		}
 	case 91:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:245
 		{
-			yyVAL.static = newStaticStatus(StatusOk)
+			yyVAL.static = NewStaticStatus(StatusOk)
 		}
 	case 92:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:246
 		{
-			yyVAL.static = newStaticStatus(StatusError)
+			yyVAL.static = NewStaticStatus(StatusError)
 		}
 	case 93:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:247
 		{
-			yyVAL.static = newStaticStatus(StatusUnset)
+			yyVAL.static = NewStaticStatus(StatusUnset)
 		}
 	case 94:
 		yyDollar = yyS[yypt-1 : yypt+1]
