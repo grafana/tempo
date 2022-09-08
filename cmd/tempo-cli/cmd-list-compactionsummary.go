@@ -68,6 +68,7 @@ func displayCompactionSummary(results []blockStats) {
 
 		var newest time.Time
 		var oldest time.Time
+
 		for _, r := range resultsByLevel[l] {
 			sizeSum += r.Size
 			countSum += r.TotalObjects

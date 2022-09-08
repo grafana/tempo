@@ -291,7 +291,6 @@ func (c *Compactor) OnRingInstanceStopping(lifecycler *ring.BasicLifecycler) {}
 func (c *Compactor) OnRingInstanceHeartbeat(lifecycler *ring.BasicLifecycler, ringDesc *ring.Desc, instanceDesc *ring.InstanceDesc) {
 }
 
-//
 func countSpans(dataEncoding string, objs ...[]byte) int {
 	decoder, err := model.NewObjectDecoder(dataEncoding)
 	if err != nil {

@@ -39,7 +39,7 @@ func (h *dataHeader) marshalHeader(b []byte) error {
 }
 
 // indexHeader implements a pageHeader that has index fields
-//   checksum - 64 bit xxhash
+// checksum - 64 bit xxhash
 type indexHeader struct {
 	checksum uint64
 }

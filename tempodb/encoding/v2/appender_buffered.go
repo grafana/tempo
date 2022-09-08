@@ -25,7 +25,7 @@ type bufferedAppender struct {
 }
 
 // NewBufferedAppender returns an bufferedAppender.  This appender builds a writes to
-//  the provided writer and also builds a downsampled records slice.
+// the provided writer and also builds a downsampled records slice.
 func NewBufferedAppender(writer common.DataWriter, indexDownsample int, totalObjectsEstimate int) (Appender, error) {
 	return &bufferedAppender{
 		writer:               writer,
@@ -35,7 +35,7 @@ func NewBufferedAppender(writer common.DataWriter, indexDownsample int, totalObj
 }
 
 // Append appends the id/object to the writer.  Note that the caller is giving up ownership of the two byte arrays backing the slices.
-//   Copies should be made and passed in if this is a problem
+// Copies should be made and passed in if this is a problem
 func (a *bufferedAppender) Append(id common.ID, b []byte) error {
 	bytesWritten, err := a.writer.Write(id, b)
 	if err != nil {

@@ -23,8 +23,8 @@ type dataReader struct {
 }
 
 // constDataHeader is a singleton data header.  the data header is
-//  stateless b/c there are no fields.  to very minorly reduce allocations all
-//  data should just use this.
+// stateless b/c there are no fields.  to very minorly reduce allocations all
+// data should just use this.
 var constDataHeader = &dataHeader{}
 
 // NewDataReader constructs a v2 DataReader that handles paged...reading
