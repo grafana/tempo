@@ -82,7 +82,6 @@ type Span struct {
 	TraceState             string      `parquet:",snappy"`
 	StartUnixNanos         uint64      `parquet:",delta"`
 	EndUnixNanos           uint64      `parquet:",delta"`
-	DurationNanos          uint64      `parquet:",delta"`
 	StatusCode             int         `parquet:",delta"`
 	StatusMessage          string      `parquet:",snappy"`
 	Attrs                  []Attribute `parquet:""`
@@ -266,7 +265,6 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 					StatusMessage:          s.Status.Message,
 					StartUnixNanos:         s.StartTimeUnixNano,
 					EndUnixNanos:           s.EndTimeUnixNano,
-					DurationNanos:          s.EndTimeUnixNano - s.StartTimeUnixNano,
 					Attrs:                  make([]Attribute, 0, len(s.Attributes)),
 					DroppedAttributesCount: int32(s.DroppedAttributesCount),
 					Events:                 events,
