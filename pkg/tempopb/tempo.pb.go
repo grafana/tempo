@@ -195,6 +195,7 @@ func (m *TraceByIDMetrics) GetFailedBlocks() uint32 {
 
 // SearchRequest takes no block parameters and implies a "recent traces" search
 type SearchRequest struct {
+	// TraceQL query
 	Query string `protobuf:"bytes,1,opt,name=Query,proto3" json:"Query,omitempty"`
 	// case insensitive partial match
 	Tags          map[string]string `protobuf:"bytes,2,rep,name=Tags,proto3" json:"Tags" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
