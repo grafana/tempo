@@ -167,6 +167,7 @@ func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.
 // searchLocalBlocks starts a search task for every local block. Must be called under lock.
 func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchRequest, sr *search.Results) {
 	for _, e := range i.completeBlocks {
+		// todo: remove support for v2 search and then this check can be removed.
 		if e.BlockMeta().Version == v2.Encoding {
 			level.Warn(log.Logger).Log("msg", "local block search not supported on v2 blocks")
 			continue
