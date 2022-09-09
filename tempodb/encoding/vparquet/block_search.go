@@ -265,7 +265,11 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 			continue
 		}
 
-		traceIters = append(traceIters, makeIter(column, pq.NewSubstringPredicate(v), ""))
+		if k == LabelRootServiceName || k == LabelRootSpanName {
+			traceIters = append(traceIters, makeIter(column, pq.NewSubstringPredicate(v), ""))
+		} else {
+			resourceIters = append(resourceIters, makeIter(column, pq.NewSubstringPredicate(v), ""))
+		}
 	}
 
 	// Generic attribute conditions?
