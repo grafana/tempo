@@ -18,7 +18,7 @@ func TestSubstringPredicate(t *testing.T) {
 		keptChunks: 1,
 		keptPages:  1,
 		keptValues: 2,
-		writeData: func(w *parquet.Writer) {
+		writeData: func(w *parquet.Writer) { //nolint:all
 			type String struct {
 				S string `parquet:",dict"`
 			}
@@ -34,7 +34,7 @@ func TestSubstringPredicate(t *testing.T) {
 		keptChunks: 1,
 		keptPages:  0,
 		keptValues: 0,
-		writeData: func(w *parquet.Writer) {
+		writeData: func(w *parquet.Writer) { //nolint:all
 			type dictString struct {
 				S string `parquet:",dict"`
 			}
@@ -46,7 +46,7 @@ func TestSubstringPredicate(t *testing.T) {
 }
 
 type predicateTestCase struct {
-	writeData  func(w *parquet.Writer)
+	writeData  func(w *parquet.Writer) //nolint:all
 	keptChunks int
 	keptPages  int
 	keptValues int

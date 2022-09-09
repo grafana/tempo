@@ -1,13 +1,12 @@
 package search
 
 import (
-	"io/ioutil"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/go-kit/log/level"
-
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/util/log"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
@@ -18,7 +17,7 @@ import (
 // todo: copied from wal.RescanBlocks(), see if we can reduce duplication?
 func RescanBlocks(walPath string) ([]*StreamingSearchBlock, error) {
 	searchFilepath := filepath.Join(walPath, "search")
-	files, err := ioutil.ReadDir(searchFilepath)
+	files, err := os.ReadDir(searchFilepath)
 	if err != nil {
 		// this might happen if search is not enabled, dont err here
 		level.Warn(log.Logger).Log("msg", "failed to open search wal directory", "err", err)
@@ -27,41 +26,47 @@ func RescanBlocks(walPath string) ([]*StreamingSearchBlock, error) {
 
 	blocks := make([]*StreamingSearchBlock, 0, len(files))
 	for _, f := range files {
-		if f.IsDir() {
+		info, err := f.Info()
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to file info %s, %w", f.Name(), err)
+		}
+
+		if info.IsDir() {
 			continue
 		}
 		start := time.Now()
-		level.Info(log.Logger).Log("msg", "beginning replay", "file", f.Name(), "size", f.Size())
+		level.Info(log.Logger).Log("msg", "beginning replay", "file", info.Name(), "size", info.Size())
 
 		// pass the path to search subdirectory and filename
-		// here f.Name() does not have full path
-		b, warning, err := newStreamingSearchBlockFromWALReplay(searchFilepath, f.Name())
+		// here info.Name() does not have full path
+		b, warning, err := newStreamingSearchBlockFromWALReplay(searchFilepath, info.Name())
 
 		remove := false
 		if err != nil {
 			// wal replay failed, clear and warn
-			level.Warn(log.Logger).Log("msg", "failed to replay block. removing.", "file", f.Name(), "err", err)
+			level.Warn(log.Logger).Log("msg", "failed to replay block. removing.", "file", info.Name(), "err", err)
 			remove = true
 		}
 
 		if b != nil && b.appender.Length() == 0 {
-			level.Warn(log.Logger).Log("msg", "empty wal file. ignoring.", "file", f.Name(), "err", err)
+			level.Warn(log.Logger).Log("msg", "empty wal file. ignoring.", "file", info.Name(), "err", err)
 			remove = true
 		}
 
 		if warning != nil {
-			level.Warn(log.Logger).Log("msg", "received warning while replaying block. partial replay likely.", "file", f.Name(), "warning", warning, "records", b.appender.Length())
+			level.Warn(log.Logger).Log("msg", "received warning while replaying block. partial replay likely.", "file", info.Name(), "warning", warning, "records", b.appender.Length())
 		}
 
 		if remove {
-			err = os.Remove(filepath.Join(searchFilepath, f.Name()))
+			err = os.Remove(filepath.Join(searchFilepath, info.Name()))
 			if err != nil {
 				return nil, err
 			}
 			continue
 		}
 
-		level.Info(log.Logger).Log("msg", "replay complete", "file", f.Name(), "duration", time.Since(start))
+		level.Info(log.Logger).Log("msg", "replay complete", "file", info.Name(), "duration", time.Since(start))
 
 		blocks = append(blocks, b)
 	}

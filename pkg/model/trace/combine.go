@@ -19,9 +19,9 @@ func newHash() hash.Hash64 {
 }
 
 // tokenForID returns a token for use in a hash map given a span id and span kind
-//  buffer must be a 4 byte slice and is reused for writing the span kind to the hashing function
-//  kind is used along with the actual id b/c in zipkin traces span id is not guaranteed to be unique
-//  as it is shared between client and server spans.
+// buffer must be a 4 byte slice and is reused for writing the span kind to the hashing function
+// kind is used along with the actual id b/c in zipkin traces span id is not guaranteed to be unique
+// as it is shared between client and server spans.
 func tokenForID(h hash.Hash64, buffer []byte, kind int32, b []byte) token {
 	binary.LittleEndian.PutUint32(buffer, uint32(kind))
 

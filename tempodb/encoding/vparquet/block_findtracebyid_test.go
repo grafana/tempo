@@ -92,8 +92,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 
 	// Now find and verify all test traces
 	for _, tr := range traces {
-		wantProto, err := parquetTraceToTempopbTrace(tr)
-		require.NoError(t, err)
+		wantProto := parquetTraceToTempopbTrace(tr)
 
 		gotProto, err := b.FindTraceByID(ctx, tr.TraceID, common.SearchOptions{})
 		require.NoError(t, err)

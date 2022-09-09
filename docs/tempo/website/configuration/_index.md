@@ -297,7 +297,6 @@ query_frontend:
 
     # number of block queries that are tolerated to error before considering the entire query as failed
     # numbers greater than 0 make possible for a read to return partial results
-    # partial results are indicated with HTTP status code 206
     # (default: 0)
     [tolerate_failed_blocks: <int>]
 

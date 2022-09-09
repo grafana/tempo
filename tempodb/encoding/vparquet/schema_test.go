@@ -147,8 +147,7 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 	}
 
 	parquetTrace := traceToParquet(traceIDA, expectedTrace)
-	actualTrace, err := parquetTraceToTempopbTrace(&parquetTrace)
-	assert.NoError(t, err)
+	actualTrace := parquetTraceToTempopbTrace(&parquetTrace)
 	assert.Equal(t, expectedTrace, actualTrace)
 }
 

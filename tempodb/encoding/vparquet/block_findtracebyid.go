@@ -232,7 +232,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	span.LogFields(log.Message("read trace"))
 
 	// convert to proto trace and return
-	return parquetTraceToTempopbTrace(tr)
+	return parquetTraceToTempopbTrace(tr), nil
 }
 
 /*func dumpParquetRow(sch parquet.Schema, row parquet.Row) {
