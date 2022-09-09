@@ -120,7 +120,7 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 	if tagsFound {
 		// tags and traceQL API are mutually exclusive
 		if queryFound {
-			return nil, fmt.Errorf("invalid request: can't specify traceQL query and tags")
+			return nil, fmt.Errorf("invalid request: can't specify tags and q in the same query")
 		}
 
 		decoder := logfmt.NewDecoder(strings.NewReader(encodedTags))
