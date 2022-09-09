@@ -166,8 +166,7 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 }
 
 // TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
-//
-//	partial results if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
+// partial results if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
 func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Limits{
 		MaxBytesPerTagValuesQuery: 10,
@@ -193,9 +192,8 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 }
 
 // writes traces to the given instance along with search data. returns
-//
-//	ids expected to be returned from a tag search and strings expected to
-//	be returned from a tag value search
+// ids expected to be returned from a tag search and strings expected to
+// be returned from a tag value search
 func writeTracesWithSearchData(t *testing.T, i *instance, tagKey string, tagValue string, postFixValue bool) ([][]byte, []string) {
 	// This matches the encoding for live traces, since
 	// we are pushing to the instance directly it must match.

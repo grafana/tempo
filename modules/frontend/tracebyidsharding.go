@@ -13,7 +13,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/proto"  //nolint:all //deprecated 
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model/trace"
@@ -148,6 +148,10 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	if overallError != nil {
 		return nil, overallError
+	}
+
+	if totalFailedBlocks > 0 {
+		_ = level.Warn(s.logger).Log("msg", "some blocks failed. returning success due to tolerate_failed_blocks", "failed", totalFailedBlocks, "tolerate_failed_blocks", s.maxFailedBlocks)
 	}
 
 	overallTrace, _ := combiner.Result()

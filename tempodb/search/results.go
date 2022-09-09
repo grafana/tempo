@@ -59,15 +59,15 @@ func (sr *Results) Quit() bool {
 
 // Results returns the results channel. Channel is closed when the search is complete.
 // Can be iterated by range like:
-//   for res := range sr.Results()
+// for res := range sr.Results()
 func (sr *Results) Results() <-chan *tempopb.TraceSearchMetadata {
 	return sr.resultsCh
 }
 
 // Close signals to all workers to quit, when max results is received and no more work is needed.
 // Called by the initiator of the search in a defer statement like:
-//     sr := NewSearchResults()
-//     defer sr.Close()
+// sr := NewSearchResults()
+// defer sr.Close()
 func (sr *Results) Close() {
 	// Only once
 	if sr.quit.CAS(false, true) {
@@ -79,9 +79,9 @@ func (sr *Results) Close() {
 
 // StartWorker indicates another sender will be using the results channel. Must be followed
 // with a call to FinishWorker which is usually deferred in a goroutine:
-//   sr.StartWorker()
-//   go func() {
-//      defer sr.FinishWorker()
+// sr.StartWorker()
+// go func() {
+// defer sr.FinishWorker()
 func (sr *Results) StartWorker() {
 	sr.wg.Add(1)
 }
