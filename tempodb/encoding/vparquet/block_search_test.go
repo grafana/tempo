@@ -223,17 +223,21 @@ func TestBackendBlockSearchTags(t *testing.T) {
 	traces, attrs := makeTraces()
 	block := makeBackendBlockWithTraces(t, traces)
 
+	foundAttrs := map[string]struct{}{}
+
 	cb := func(s string) {
-		_, exists := attrs[s]
-		require.True(t, exists, s)
-		delete(attrs, s)
+		foundAttrs[s] = struct{}{}
 	}
 
 	ctx := context.Background()
 	err := block.SearchTags(ctx, cb, defaultSearchOptions())
 	require.NoError(t, err)
 
-	require.Empty(t, attrs)
+	// test that all attrs are in found attrs
+	for k := range attrs {
+		_, ok := foundAttrs[k]
+		require.True(t, ok)
+	}
 }
 
 func TestBackendBlockSearchTagValues(t *testing.T) {
