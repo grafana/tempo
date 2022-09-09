@@ -121,7 +121,7 @@ func TestMetricsGenerator(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	//also send one with timestamp 10 days in the future 
+	//also send one with timestamp 10 days in the future
 	err = c.EmitBatch(context.Background(), &thrift.Batch{
 		Process: &thrift.Process{ServiceName: "app"},
 		Spans: []*thrift.Span{

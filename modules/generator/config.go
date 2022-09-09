@@ -2,11 +2,12 @@ package generator
 
 import (
 	"flag"
+	"time"
+
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
-	"time"
 )
 
 const (

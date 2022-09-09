@@ -52,7 +52,7 @@ var (
 	}, []string{"tenant", "reason"})
 )
 
-const reason_outside_time_range_slack = "outside_metrics_ingestion_slack"
+const reasonOutsideTimeRangeSlack = "outside_metrics_ingestion_slack"
 
 type instance struct {
 	cfg *Config
@@ -294,11 +294,11 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 func (i *instance) updatePushMetrics(bytesIngested int, spanCount int, expiredSpanCount int) {
 	metricBytesIngested.WithLabelValues(i.instanceID).Add(float64(bytesIngested))
 	metricSpansIngested.WithLabelValues(i.instanceID).Add(float64(spanCount))
-	metricSpansDiscarded.WithLabelValues(i.instanceID, reason_outside_time_range_slack).Add(float64(expiredSpanCount))
+	metricSpansDiscarded.WithLabelValues(i.instanceID, reasonOutsideTimeRangeSlack).Add(float64(expiredSpanCount))
 }
 
 // shutdown stops the instance and flushes any remaining data. After shutdown
-// is called pushSpans should not be called anymore. 
+// is called pushSpans should not be called anymore.
 func (i *instance) shutdown() {
 	close(i.shutdownCh)
 
