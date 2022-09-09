@@ -42,15 +42,15 @@ message TraceByIDMetrics {
 
 // SearchRequest takes no block parameters and implies a "recent traces" search
 message SearchRequest {
-  // TraceQL query
-  string Query = 1;
   // case insensitive partial match
-  map<string, string> Tags = 2 [(gogoproto.nullable) = false];
-  uint32 MinDurationMs = 3;
-  uint32 MaxDurationMs = 4;
-  uint32 Limit = 5;
-  uint32 start = 6;
-  uint32 end = 7;
+  map<string, string> Tags = 1 [(gogoproto.nullable) = false];
+  uint32 MinDurationMs = 2;
+  uint32 MaxDurationMs = 3;
+  uint32 Limit = 4;
+  uint32 start = 5;
+  uint32 end = 6;
+  // TraceQL query
+  string Query = 8;
 }
 
 // SearchBlockRequest takes SearchRequest parameters as well as all information necessary
