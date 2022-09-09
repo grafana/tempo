@@ -100,7 +100,7 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		{
 			name:     "traceql query and tags",
 			urlQuery: "q=" + url.QueryEscape(`{ .foo="bar" }`) + "&tags=" + url.QueryEscape("service.name=foo"),
-			err:      "invalid request: can't specify traceQL query and tags",
+			err:      "invalid request: can't specify tags and q in the same query",
 		},
 		{
 			name:     "tags and limit",
