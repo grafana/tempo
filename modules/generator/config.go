@@ -34,8 +34,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Processor.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Registry.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Storage.RegisterFlagsAndApplyDefaults(prefix, f)
-	// setting default for max span age before discarding to 2m
-	cfg.MetricsIngestionSlack = 30 * time.Minutes
+	// setting default for max span age before discarding to 30s
+	cfg.MetricsIngestionSlack = 30 * time.Second
 }
 
 type ProcessorConfig struct {

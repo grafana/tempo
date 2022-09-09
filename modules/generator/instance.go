@@ -307,7 +307,7 @@ func (i *instance) updatePushMetrics(bytesIngested int, spanCount int, expiredSp
 }
 
 // shutdown stops the instance and flushes any remaining data. After shutdown
-// is called pushSpans should not be called anymore.
+// is called pushSpans should not be called anymore. 
 func (i *instance) shutdown() {
 	close(i.shutdownCh)
 

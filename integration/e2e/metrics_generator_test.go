@@ -113,7 +113,7 @@ func TestMetricsGenerator(t *testing.T) {
 				SpanId:        r.Int63(),
 				ParentSpanId:  parentSpanID,
 				OperationName: "app-handle",
-				StartTime:     time.Now().UnixMicro(),
+				StartTime:     time.Now().Add(-5 * time.Minute).UnixMicro(),
 				Duration:      int64(1 * time.Second / time.Microsecond),
 				Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
 			},
