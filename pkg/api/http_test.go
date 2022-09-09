@@ -7,10 +7,11 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/grafana/tempo/cmd/tempo-query/tempo"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/cmd/tempo-query/tempo"
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 // For licensing reasons these strings exist in two packages. This test exists to make sure they don't
@@ -83,8 +84,27 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			err:      "invalid maxDuration: time: unknown unit \"msec\" in duration \"1msec\"",
 		},
 		{
+			name:     "traceql query",
+			urlQuery: "q=" + url.QueryEscape(`{ .foo="bar" }`),
+			expected: &tempopb.SearchRequest{
+				Query: `{ .foo="bar" }`,
+				Tags:  map[string]string{},
+				Limit: defaultLimit,
+			},
+		},
+		{
+			name:     "invalid traceql query",
+			urlQuery: "q=" + url.QueryEscape(`{ .foo="bar" `),
+			err:      "invalid query: parse error at line 1, col 14: syntax error: unexpected $end",
+		},
+		{
+			name:     "traceql query and tags",
+			urlQuery: "q=" + url.QueryEscape(`{ .foo="bar" }`) + "&tags=" + url.QueryEscape("service.name=foo"),
+			err:      "invalid request: can't specify traceQL query and tags",
+		},
+		{
 			name:     "tags and limit",
-			urlQuery: "service.name=foo&tags=limit%3Dfive&limit=5&query=1%2B1%3D2",
+			urlQuery: "tags=" + url.QueryEscape("limit=five") + "&limit=5",
 			expected: &tempopb.SearchRequest{
 				Tags: map[string]string{
 					"limit": "five",
@@ -94,12 +114,12 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		},
 		{
 			name:     "tags query parameter with duplicate tag",
-			urlQuery: "tags=service.name%3Dfoo%20service.name%3Dbar",
+			urlQuery: "tags=" + url.QueryEscape("service.name=foo service.name=bar"),
 			err:      "invalid tags: tag service.name has been set twice",
 		},
 		{
 			name:     "top-level tags with conflicting query parameter tags",
-			urlQuery: "service.name=bar&tags=service.name%3Dfoo",
+			urlQuery: "service.name=bar&tags=" + url.QueryEscape("service.name=foo"),
 			expected: &tempopb.SearchRequest{
 				Tags: map[string]string{
 					"service.name": "foo",
@@ -109,7 +129,7 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		},
 		{
 			name:     "start and end both set",
-			urlQuery: "tags=service.name%3Dfoo&start=10&end=20",
+			urlQuery: "tags=" + url.QueryEscape("service.name=foo") + "&start=10&end=20",
 			expected: &tempopb.SearchRequest{
 				Tags: map[string]string{
 					"service.name": "foo",
@@ -121,7 +141,7 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		},
 		{
 			name:     "end before start",
-			urlQuery: "tags=service.name%3Dfoo&start=20&end=10",
+			urlQuery: "tags=" + url.QueryEscape("service.name=foo") + "&start=20&end=10",
 			err:      "http parameter start must be before end. received start=20 end=10",
 		},
 		{
