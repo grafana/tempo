@@ -6,13 +6,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
+	"github.com/golang/protobuf/proto"  //nolint:all //ProtoReflect
 	"github.com/gorilla/mux"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
+
+	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 const (
@@ -118,6 +119,10 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if len(req.Query) > 0 {
+			http.Error(w, "traceQL queries are not yet supported", http.StatusNotImplemented)
+		}
+
 		span.SetTag("SearchRequest", req.String())
 
 		resp, err = q.SearchRecent(ctx, req)
@@ -130,6 +135,10 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
+		}
+
+		if len(req.SearchReq.Query) > 0 {
+			http.Error(w, "traceQL queries are not yet supported", http.StatusNotImplemented)
 		}
 
 		span.SetTag("SearchRequestBlock", req.String())

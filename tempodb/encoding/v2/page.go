@@ -20,10 +20,10 @@ type page struct {
 }
 
 /*
-  |                 -- totalLength --                          |
-  |             |            | -- headerLength -- |            |
-  |   32 bits   |   16 bits  |                    |            |
-  | totalLength | header len | header fields      | page bytes |
+|                 -- totalLength --                          |
+|             |            | -- headerLength -- |            |
+|   32 bits   |   16 bits  |                    |            |
+| totalLength | header len | header fields      | page bytes |
 */
 func unmarshalPageFromBytes(b []byte, header pageHeader) (*page, error) {
 	totalHeaderSize := baseHeaderSize + header.headerLength()
@@ -146,7 +146,7 @@ func marshalPageToWriter(b []byte, w io.Writer, header pageHeader) (int, error) 
 }
 
 // marshalHeaderToPage marshals the header only to the passed in page and then returns
-//  the rest of the page slice for the caller to finish
+// the rest of the page slice for the caller to finish
 func marshalHeaderToPage(page []byte, header pageHeader) ([]byte, error) {
 	var headerLength uint16
 	var totalLength uint32

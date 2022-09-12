@@ -325,7 +325,7 @@ func (r *rowPool) Put(row parquet.Row) {
 	for i := range row {
 		row[i] = parquet.Value{}
 	}
-	r.pool.Put(row[:0])
+	r.pool.Put(row[:0]) //nolint:all //SA6002
 }
 
 // estimateProtoSize estimates the byte-length of the corresponding

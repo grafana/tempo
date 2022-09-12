@@ -6,12 +6,17 @@
 * [CHANGE] Increase default values for `server.grpc_server_max_recv_msg_size` and `server.grpc_server_max_send_msg_size` from 4MB to 16MB [#1688](https://github.com/grafana/tempo/pull/1688) (@mapno)
 * [CHANGE] **BREAKING CHANGE** Use storage.trace.block.row_group_size_bytes to cut rows during compaction instead of
   compactor.compaction.flush_size_bytes. [#1696](https://github.com/grafana/tempo/pull/1696) (@joe-elliott)
+* [CHANGE] Return 200 instead of 206 when blocks failed is < tolerate_failed_blocks. [#1725](https://github.com/grafana/tempo/pull/1725) (@joe-elliott)
+* [CHANGE] Update Go to 1.19 [#1665](https://github.com/grafana/tempo/pull/1665) (@ie-pham)
 * [ENHANCEMENT] cache: expose username and sentinel_username redis configuration options for ACL-based Redis Auth support [#1708](https://github.com/grafana/tempo/pull/1708) (@jsievenpiper)
 * [ENHANCEMENT] metrics-generator: expose span size as a metric [#1662](https://github.com/grafana/tempo/pull/1662) (@ie-pham)
 * [ENHANCEMENT] Set Max Idle connections to 100 for Azure, should reduce DNS errors in Azure [#1632](https://github.com/grafana/tempo/pull/1632) (@electron0zero)
 * [ENHANCEMENT] Add PodDisruptionBudget to ingesters in jsonnet [#1691](https://github.com/grafana/tempo/pull/1691) (@joe-elliott)
-* [ENHANCEMENT] Add span-level duration column [#1706](https://github.com/grafana/tempo/pull/1706) (@mdisibio)
+* [ENHANCEMENT] Add cli command an existing file to tempodb's current parquet schema. [#1706](https://github.com/grafana/tempo/pull/1707) (@joe-elliott)
+* [ENHANCEMENT] Add query parameter to search API for traceQL queries [#1729](https://github.com/grafana/tempo/pull/1729) (@kvrhdn)
+* [ENHANCEMENT] metrics-generator: filter out older spans before metrics are aggregated [#1612](https://github.com/grafana/tempo/pull/1612) (@ie-pham)
 * [BUGFIX] Honor caching and buffering settings when finding traces by id [#1697](https://github.com/grafana/tempo/pull/1697) (@joe-elliott)
+* [BUGFIX] Correctly propagate errors from the iterator layer up through the queriers [#1723](https://github.com/grafana/tempo/pull/1723) (@joe-elliott)
 
 ## v1.5.0 / 2022-08-17
 

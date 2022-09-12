@@ -26,9 +26,9 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		},
 		// Intrinsics
 		makeReq(parse(t, `{`+LabelName+` = "hello"}`)),
-		makeReq(parse(t, `{`+LabelDuration+` = 100s}`)),
-		makeReq(parse(t, `{`+LabelDuration+` >  99s}`)),
-		makeReq(parse(t, `{`+LabelDuration+` < 101s}`)),
+		//makeReq(parse(t, `{`+LabelDuration+` = 100s}`)),
+		//makeReq(parse(t, `{`+LabelDuration+` >  99s}`)),
+		//makeReq(parse(t, `{`+LabelDuration+` < 101s}`)),
 		// Resource well-known attributes
 		makeReq(parse(t, `{.`+LabelServiceName+` = "spanservicename"}`)), // Overridden at span
 		makeReq(parse(t, `{.`+LabelCluster+` = "cluster"}`)),
@@ -129,7 +129,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			Conditions: []traceql.Condition{
 				parse(t, `{span.foo = "baz"}`),                   // no match
 				parse(t, `{span.`+LabelHTTPStatusCode+` > 100}`), // match
-				parse(t, `{duration = 100s}`),                    // match
+				parse(t, `{name = "hello"}`),                     // match
 			},
 		},
 		{
@@ -340,7 +340,7 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 				),
 			),
 		},
-		{
+		/*{
 			// Intrinsic duraction. 1st span only
 			makeReq(parse(t, `{ duration > 30s }`)),
 			makeSpansets(
@@ -356,7 +356,7 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 					},
 				),
 			),
-		},
+		},*/
 	}
 
 	for _, tc := range testCases {
@@ -431,7 +431,7 @@ func fullyPopulatedTestTrace() *Trace {
 								Name:           "hello",
 								StartUnixNanos: uint64(100 * time.Second),
 								EndUnixNanos:   uint64(200 * time.Second),
-								DurationNanos:  uint64(100 * time.Second),
+								//DurationNanos:  uint64(100 * time.Second),
 								HttpMethod:     strPtr("get"),
 								HttpUrl:        strPtr("url/hello/world"),
 								HttpStatusCode: intPtr(500),

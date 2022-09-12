@@ -40,7 +40,7 @@ func (f *ExclusiveQueues) Enqueue(op Op) error {
 }
 
 // Dequeue removes the next op from the requested queue.  After dequeueing the calling
-//  process either needs to call ClearKey or Requeue
+// process either needs to call ClearKey or Requeue
 func (f *ExclusiveQueues) Dequeue(q int) Op {
 	return f.queues[q].Dequeue()
 }

@@ -161,7 +161,10 @@ var _ traceql.SpansetIterator = (*spansetIterator)(nil)
 
 func (i *spansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
 
-	res := i.iter.Next()
+	res, err := i.iter.Next()
+	if err != nil {
+		return nil, err
+	}
 	if res == nil {
 		return nil, nil
 	}

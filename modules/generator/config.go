@@ -2,6 +2,7 @@ package generator
 
 import (
 	"flag"
+	"time"
 
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
@@ -23,6 +24,9 @@ type Config struct {
 	Processor ProcessorConfig `yaml:"processor"`
 	Registry  registry.Config `yaml:"registry"`
 	Storage   storage.Config  `yaml:"storage"`
+	// MetricsIngestionSlack is the max amount of time passed since a span's start time
+	// for the span to be considered in metrics generation
+	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -31,6 +35,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Processor.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Registry.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Storage.RegisterFlagsAndApplyDefaults(prefix, f)
+	// setting default for max span age before discarding to 30s
+	cfg.MetricsIngestionSlack = 30 * time.Second
 }
 
 type ProcessorConfig struct {
