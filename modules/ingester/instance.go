@@ -105,8 +105,10 @@ type instance struct {
 	completingBlocks []*wal.AppendBlock
 	completeBlocks   []*wal.LocalBlock
 
-	searchHeadBlock    *searchStreamingBlockEntry
-	searchAppendBlocks map[*wal.AppendBlock]*searchStreamingBlockEntry
+	useFlatbufferSearch  bool
+	searchHeadBlock      *searchStreamingBlockEntry
+	searchAppendBlocks   map[*wal.AppendBlock]*searchStreamingBlockEntry
+	searchCompleteBlocks map[*wal.LocalBlock]*searchLocalBlockEntry
 
 	lastBlockCut time.Time
 
@@ -128,11 +130,18 @@ type searchStreamingBlockEntry struct {
 	mtx sync.RWMutex
 }
 
-func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
+type searchLocalBlockEntry struct {
+	b   *search.BackendSearchBlock
+	mtx sync.RWMutex
+}
+
+func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend, useFlatbufferSearch bool) (*instance, error) {
 	i := &instance{
-		traces:             map[uint32]*liveTrace{},
-		largeTraces:        map[uint32]int{},
-		searchAppendBlocks: map[*wal.AppendBlock]*searchStreamingBlockEntry{},
+		traces:               map[uint32]*liveTrace{},
+		largeTraces:          map[uint32]int{},
+		searchAppendBlocks:   map[*wal.AppendBlock]*searchStreamingBlockEntry{},
+		searchCompleteBlocks: map[*wal.LocalBlock]*searchLocalBlockEntry{},
+		useFlatbufferSearch:  useFlatbufferSearch,
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
@@ -297,9 +306,37 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	if err != nil {
 		return errors.Wrap(err, "error creating ingester block")
 	}
+
 	i.blocksMtx.Lock()
 	i.completeBlocks = append(i.completeBlocks, ingesterBlock)
 	i.blocksMtx.Unlock()
+
+	// only build flatbuffer search structures if we are configured to
+	if !i.useFlatbufferSearch {
+		return nil
+	}
+
+	// Search data (optional)
+	i.blocksMtx.RLock()
+	oldSearch := i.searchAppendBlocks[completingBlock]
+	i.blocksMtx.RUnlock()
+
+	var newSearch *search.BackendSearchBlock
+	if oldSearch != nil {
+		newSearch, err = i.writer.CompleteSearchBlockWithBackend(oldSearch.b, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID, i.localReader, i.localWriter)
+		if err != nil {
+			return err
+		}
+	}
+
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
+
+	if newSearch != nil {
+		i.searchCompleteBlocks[ingesterBlock] = &searchLocalBlockEntry{
+			b: newSearch,
+		}
+	}
 
 	return nil
 }
@@ -361,6 +398,13 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 
 		if flushedTime.Add(completeBlockTimeout).Before(time.Now()) {
 			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
+
+			searchEntry := i.searchCompleteBlocks[b]
+			if searchEntry != nil {
+				searchEntry.mtx.Lock()
+				defer searchEntry.mtx.Unlock()
+				delete(i.searchCompleteBlocks, b)
+			}
 
 			err = i.local.ClearBlock(b.BlockMeta().BlockID, i.instanceID)
 			if err == nil {
@@ -611,8 +655,11 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*wal.LocalBlock
 
 		rediscoveredBlocks = append(rediscoveredBlocks, ib)
 
+		sb := search.OpenBackendSearchBlock(b.BlockMeta().BlockID, b.BlockMeta().TenantID, i.localReader)
+
 		i.blocksMtx.Lock()
 		i.completeBlocks = append(i.completeBlocks, ib)
+		i.searchCompleteBlocks[ib] = &searchLocalBlockEntry{b: sb}
 		i.blocksMtx.Unlock()
 
 		level.Info(log.Logger).Log("msg", "reloaded local block", "tenantID", i.instanceID, "block", id.String(), "flushed", ib.FlushedTime())

@@ -25,6 +25,7 @@ type Config struct {
 	MaxBlockBytes        uint64        `yaml:"max_block_bytes"`
 	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout"`
 	OverrideRingKey      string        `yaml:"override_ring_key"`
+	UseFlatbufferSearch  bool          `yaml:"use_flatbuffer_search"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -38,6 +39,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.ConcurrentFlushes = 16
 	cfg.FlushCheckPeriod = 10 * time.Second
 	cfg.FlushOpTimeout = 5 * time.Minute
+	cfg.UseFlatbufferSearch = false
 
 	f.DurationVar(&cfg.MaxTraceIdle, prefix+".trace-idle-period", 10*time.Second, "Duration after which to consider a trace complete if no spans have been received")
 	f.DurationVar(&cfg.MaxBlockDuration, prefix+".max-block-duration", time.Hour, "Maximum duration which the head block can be appended to before cutting it.")

@@ -283,7 +283,7 @@ func (i *Ingester) getOrCreateInstance(instanceID string) (*instance, error) {
 	inst, ok = i.instances[instanceID]
 	if !ok {
 		var err error
-		inst, err = newInstance(instanceID, i.limiter, i.store, i.local)
+		inst, err = newInstance(instanceID, i.limiter, i.store, i.local, i.cfg.UseFlatbufferSearch)
 		if err != nil {
 			return nil, err
 		}

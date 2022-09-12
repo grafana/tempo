@@ -34,7 +34,7 @@ func TestInstanceSearch(t *testing.T) {
 	tempDir := t.TempDir()
 
 	ingester, _, _ := defaultIngester(t, tempDir)
-	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local, false)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	var tagKey = "foo"
@@ -119,7 +119,7 @@ func TestInstanceSearchTags(t *testing.T) {
 	tempDir := t.TempDir()
 
 	ingester, _, _ := defaultIngester(t, tempDir)
-	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local, false)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	// add dummy search data
@@ -177,7 +177,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	tempDir := t.TempDir()
 
 	ingester, _, _ := defaultIngester(t, tempDir)
-	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local, false)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	var tagKey = "foo"
@@ -246,7 +246,7 @@ func TestInstanceSearchNoData(t *testing.T) {
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
 	ingester, _, _ := defaultIngester(t, t.TempDir())
-	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local, false)
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	var req = &tempopb.SearchRequest{
@@ -264,7 +264,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
 	ingester, _, _ := defaultIngester(t, t.TempDir())
-	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local, false)
 	require.NoError(t, err)
 
 	// This matches the encoding for live traces, since
@@ -372,7 +372,7 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
 	ingester, _, _ := defaultIngester(t, t.TempDir())
-	i, err := newInstance("fake", limiter, ingester.store, ingester.local)
+	i, err := newInstance("fake", limiter, ingester.store, ingester.local, false)
 	require.NoError(t, err)
 
 	// This matches the encoding for live traces, since

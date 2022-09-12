@@ -4,10 +4,9 @@
 * [CHANGE] Make DNS address fully qualified to reduce DNS lookups in Kubernetes [#1687](https://github.com/grafana/tempo/pull/1687) (@electron0zero)
 * [CHANGE] Improve parquet compaction memory profile when dropping spans [#1692](https://github.com/grafana/tempo/pull/1692) (@joe-elliott)
 * [CHANGE] Increase default values for `server.grpc_server_max_recv_msg_size` and `server.grpc_server_max_send_msg_size` from 4MB to 16MB [#1688](https://github.com/grafana/tempo/pull/1688) (@mapno)
-* [CHANGE] Use Parquet for local block search, tag search and tag value search instead of flatbuffers.
-  - Makes Parquet the default encoding.
-  - *BREAKING CHANGE* Local search for traces, tags and tag values no longer works with v2 blocks. It is recommended to manually 
-  clean out the search folder to remove no longer used files. By default these files are located at `/var/tempo/wal/search`.
+* [CHANGE] Use Parquet for local block search, tag search and tag value search instead of flatbuffers. A configuration value 
+  (`ingester.use_flatbuffer_search`) is provided to continue using flatbuffers.
+  - **BREAKING CHANGE** Makes Parquet the default encoding.
 * [CHANGE] **BREAKING CHANGE** Use storage.trace.block.row_group_size_bytes to cut rows during compaction instead of
   compactor.compaction.flush_size_bytes. [#1696](https://github.com/grafana/tempo/pull/1696) (@joe-elliott)
 * [CHANGE] Return 200 instead of 206 when blocks failed is < tolerate_failed_blocks. [#1725](https://github.com/grafana/tempo/pull/1725) (@joe-elliott)

@@ -44,7 +44,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 	i.searchWAL(ctx, p, sr)
-	i.searchLocalBlocks(ctx, req, sr)
+	i.searchLocalBlocks(ctx, req, p, sr)
 
 	sr.AllWorkersStarted()
 
@@ -165,8 +165,37 @@ func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.
 }
 
 // searchLocalBlocks starts a search task for every local block. Must be called under lock.
-func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchRequest, sr *search.Results) {
+func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchRequest, p search.Pipeline, sr *search.Results) {
+	// first check the searchCompleteBlocks map. if there is an entry for a block here we want to search it first
+	for _, e := range i.searchCompleteBlocks {
+		sr.StartWorker()
+		go func(e *searchLocalBlockEntry) {
+			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.fb.searchLocalBlocks")
+			defer span.Finish()
+
+			defer sr.FinishWorker()
+
+			e.mtx.RLock()
+			defer e.mtx.RUnlock()
+
+			span.LogFields(ot_log.Event("local block entry mtx acquired"))
+			span.SetTag("blockID", e.b.BlockID().String())
+
+			err := e.b.Search(ctx, p, sr)
+			if err != nil {
+				level.Error(log.Logger).Log("msg", "error searching local block", "blockID", e.b.BlockID().String(), "err", err)
+			}
+		}(e)
+	}
+
+	// next check all complete blocks to see if they were not searched, if they weren't then attempt to search them
 	for _, e := range i.completeBlocks {
+		_, ok := i.searchCompleteBlocks[e]
+		if ok {
+			// no need to search this block, we already did above
+			continue
+		}
+
 		// todo: remove support for v2 search and then this check can be removed.
 		if e.BlockMeta().Version == v2.Encoding {
 			level.Warn(log.Logger).Log("msg", "local block search not supported on v2 blocks")
@@ -224,7 +253,7 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 		return nil, err
 	}
 
-	// wal
+	// wal + search blocks
 	if !distinctValues.Exceeded() {
 		err = i.visitSearchableBlocks(ctx, func(block search.SearchableBlock) error {
 			return block.Tags(ctx, distinctValues.Collect)
@@ -287,7 +316,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 		return nil, err
 	}
 
-	// wal
+	// wal + search blocks
 	if !distinctValues.Exceeded() {
 		err = i.visitSearchableBlocks(ctx, func(block search.SearchableBlock) error {
 			return block.TagValues(ctx, tagName, distinctValues.Collect)
@@ -350,7 +379,12 @@ func (i *instance) visitSearchableBlocks(ctx context.Context, visitFn func(block
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
-	return i.visitSearchableBlocksWAL(ctx, visitFn)
+	err := i.visitSearchableBlocksWAL(ctx, visitFn)
+	if err != nil {
+		return err
+	}
+
+	return i.visitSearchableBlocksLocalBlocks(ctx, visitFn)
 }
 
 // visitSearchableBlocksWAL visits every WAL block. Must be called under lock.
@@ -374,6 +408,30 @@ func (i *instance) visitSearchableBlocksWAL(ctx context.Context, visitFn func(bl
 	}
 
 	for _, b := range i.searchAppendBlocks {
+		err := visitUnderLock(b)
+		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// visitSearchableBlocksWAL visits every local block. Must be called under lock.
+func (i *instance) visitSearchableBlocksLocalBlocks(ctx context.Context, visitFn func(block search.SearchableBlock) error) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "instance.visitSearchableBlocksLocalBlocks")
+	defer span.Finish()
+
+	visitUnderLock := func(entry *searchLocalBlockEntry) error {
+		entry.mtx.RLock()
+		defer entry.mtx.RUnlock()
+
+		return visitFn(entry.b)
+	}
+
+	for _, b := range i.searchCompleteBlocks {
 		err := visitUnderLock(b)
 		if err != nil {
 			return err
