@@ -42,9 +42,9 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	// deadlocking with other activity (ingest, flushing), caused by releasing
 	// and then attempting to retake the lock.
 	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
 	i.searchWAL(ctx, p, sr)
 	i.searchLocalBlocks(ctx, req, p, sr)
+	i.blocksMtx.RUnlock()
 
 	sr.AllWorkersStarted()
 
@@ -268,6 +268,12 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 		i.blocksMtx.RLock()
 		defer i.blocksMtx.RUnlock()
 		for _, b := range i.completeBlocks {
+			_, ok := i.searchCompleteBlocks[b]
+			if ok {
+				// no need to search this block, we already did above
+				continue
+			}
+
 			err = b.SearchTags(ctx, distinctValues.Collect, common.SearchOptions{})
 			if err == common.ErrUnsupported {
 				level.Warn(log.Logger).Log("msg", "block does not support tag search", "blockID", b.BlockMeta().BlockID)
@@ -331,6 +337,12 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 		i.blocksMtx.RLock()
 		defer i.blocksMtx.RUnlock()
 		for _, b := range i.completeBlocks {
+			_, ok := i.searchCompleteBlocks[b]
+			if ok {
+				// no need to search this block, we already did above
+				continue
+			}
+
 			err = b.SearchTagValues(ctx, tagName, distinctValues.Collect, common.SearchOptions{})
 			if err == common.ErrUnsupported {
 				level.Warn(log.Logger).Log("msg", "block does not support tag value search", "blockID", b.BlockMeta().BlockID)
