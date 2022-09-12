@@ -136,6 +136,8 @@ func TestForwarder_shutdown(t *testing.T) {
 		assert.Equal(t, 0, len(f.queueManagers[tenantID].reqChan))
 	}()
 
+	time.Sleep(time.Second)
+
 	for i := 0; i < 100; i++ {
 		f.SendTraces(context.Background(), tenantID, keys, rebatchedTraces)
 	}

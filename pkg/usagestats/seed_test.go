@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -70,6 +71,8 @@ func Test_Memberlist(t *testing.T) {
 	// create a first memberlist to get a valid listening port.
 	initMKV := createMemberlist(t, 0, -1)
 
+	var wg sync.WaitGroup
+	wg.Add(10)
 	for i := 0; i < 10; i++ {
 		go func(i int) {
 			leader, err := NewReporter(Config{
@@ -86,9 +89,11 @@ func Test_Memberlist(t *testing.T) {
 			require.NoError(t, err)
 			leader.init(context.Background())
 			result <- leader.cluster
+			wg.Done()
 		}(i)
 	}
 
+	wg.Wait()
 	var UID []string
 	for i := 0; i < 10; i++ {
 		cluster := <-result
