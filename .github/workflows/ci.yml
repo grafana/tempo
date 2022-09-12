@@ -42,6 +42,37 @@ jobs:
       - name: Test
         run: make test-with-cover
 
+  unit-tests-2:
+    name: Test packages 2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go 1.19
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Test
+        run: make test-with-cover
+    
+
+  unit-tests-3:
+    name: Test packages 3
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go 1.19
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Test
+        run: make test-with-cover
+
   integration-tests:
     name: Test integration e2e suite
     runs-on: ubuntu-latest
