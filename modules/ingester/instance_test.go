@@ -7,24 +7,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/wal"
 )
 
 const testTenantID = "fake"
@@ -38,16 +30,11 @@ func (m *ringCountMock) HealthyInstancesCount() int {
 }
 
 func TestInstance(t *testing.T) {
-	limits, err := overrides.NewOverrides(overrides.Limits{})
-	require.NoError(t, err, "unexpected error creating limits")
-	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
-
-	ingester, _, _ := defaultIngester(t, t.TempDir())
 	request := makeRequest([]byte{})
 
-	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, false)
-	require.NoError(t, err, "unexpected error creating new instance")
-	err = i.PushBytesRequest(context.Background(), request)
+	i, ingester := defaultInstance(t)
+
+	err := i.PushBytesRequest(context.Background(), request)
 	require.NoError(t, err)
 	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
@@ -85,13 +72,7 @@ func TestInstance(t *testing.T) {
 }
 
 func TestInstanceFind(t *testing.T) {
-	limits, err := overrides.NewOverrides(overrides.Limits{})
-	require.NoError(t, err, "unexpected error creating limits")
-	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
-
-	ingester, _, _ := defaultIngester(t, t.TempDir())
-	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, false)
-	require.NoError(t, err, "unexpected error creating new instance")
+	i, ingester := defaultInstance(t)
 
 	numTraces := 10
 	ids := [][]byte{}
@@ -115,7 +96,7 @@ func TestInstanceFind(t *testing.T) {
 
 	queryAll(t, i, ids, traces)
 
-	err = i.CutCompleteTraces(0, true)
+	err := i.CutCompleteTraces(0, true)
 	require.NoError(t, err)
 	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
@@ -163,15 +144,7 @@ func queryAll(t *testing.T, i *instance, ids [][]byte, traces []*tempopb.Trace) 
 }
 
 func TestInstanceDoesNotRace(t *testing.T) {
-	limits, err := overrides.NewOverrides(overrides.Limits{})
-	require.NoError(t, err, "unexpected error creating limits")
-	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
-
-	ingester, _, _ := defaultIngester(t, t.TempDir())
-
-	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, false)
-	require.NoError(t, err, "unexpected error creating new instance")
-
+	i, ingester := defaultInstance(t)
 	end := make(chan struct{})
 
 	concurrent := func(f func()) {
@@ -186,7 +159,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	}
 	go concurrent(func() {
 		request := makeRequest([]byte{})
-		err = i.PushBytesRequest(context.Background(), request)
+		err := i.PushBytesRequest(context.Background(), request)
 		require.NoError(t, err, "error pushing traces")
 	})
 
@@ -322,8 +295,6 @@ func TestInstanceLimits(t *testing.T) {
 }
 
 func TestInstanceCutCompleteTraces(t *testing.T) {
-	tempDir := t.TempDir()
-
 	id := make([]byte, 16)
 	rand.Read(id)
 	pastTrace := &liveTrace{
@@ -377,7 +348,7 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			instance := defaultInstance(t, tempDir)
+			instance, _ := defaultInstance(t)
 
 			for _, trace := range tc.input {
 				fp := instance.tokenForTraceID(trace.traceID)
@@ -402,8 +373,6 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 }
 
 func TestInstanceCutBlockIfReady(t *testing.T) {
-	tempDir := t.TempDir()
-
 	tt := []struct {
 		name               string
 		maxBlockLifetime   time.Duration
@@ -443,7 +412,7 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			instance := defaultInstance(t, tempDir)
+			instance, _ := defaultInstance(t)
 
 			for i := 0; i < tc.pushCount; i++ {
 				request := makeRequest([]byte{})
@@ -484,15 +453,7 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 }
 
 func TestInstanceMetrics(t *testing.T) {
-	limits, err := overrides.NewOverrides(overrides.Limits{})
-	require.NoError(t, err, "unexpected error creating limits")
-	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
-
-	ingester, _, _ := defaultIngester(t, t.TempDir())
-
-	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, false)
-	require.NoError(t, err, "unexpected error creating new instance")
-
+	i, _ := defaultInstance(t)
 	cutAndVerify := func(v int) {
 		err := i.CutCompleteTraces(0, true)
 		require.NoError(t, err)
@@ -508,11 +469,10 @@ func TestInstanceMetrics(t *testing.T) {
 	count := 100
 	for j := 0; j < count; j++ {
 		request := makeRequest([]byte{})
-		err = i.PushBytesRequest(context.Background(), request)
+		err := i.PushBytesRequest(context.Background(), request)
 		require.NoError(t, err)
 	}
 	cutAndVerify(count)
-
 	cutAndVerify(0)
 }
 
@@ -593,46 +553,27 @@ func TestSortByteSlices(t *testing.T) {
 	assert.Equal(t, traceBytes, traceBytes2)
 }
 
-func defaultInstance(t require.TestingT, tmpDir string) *instance {
+func defaultInstance(t testing.TB) (*instance, *Ingester) {
+	instance, ingester, _ := defaultInstanceWithFlatBufferSearch(t, false)
+	return instance, ingester
+}
+
+func defaultInstanceWithFlatBufferSearch(t testing.TB, fbSearch bool) (*instance, *Ingester, string) {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
 	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	l, err := local.NewBackend(&local.Config{
-		Path: tmpDir + "/blocks",
-	})
-	require.NoError(t, err)
+	tmpDir := t.TempDir()
 
-	s, err := storage.NewStore(storage.Config{
-		Trace: tempodb.Config{
-			Backend: "local",
-			Local: &local.Config{
-				Path: tmpDir,
-			},
-			Block: &common.BlockConfig{
-				IndexDownsampleBytes: 2,
-				BloomFP:              0.01,
-				BloomShardSizeBytes:  100_000,
-				Version:              encoding.DefaultEncoding().Version(),
-				Encoding:             backend.EncLZ4_1M,
-				IndexPageSizeBytes:   1000,
-			},
-			WAL: &wal.Config{
-				Filepath:       tmpDir,
-				SearchEncoding: backend.EncNone,
-			},
-		},
-	}, log.NewNopLogger())
-	require.NoError(t, err, "unexpected error creating store")
-
-	instance, err := newInstance(testTenantID, limiter, s, l, false)
+	ingester, _, _ := defaultIngester(t, tmpDir)
+	instance, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, fbSearch)
 	require.NoError(t, err, "unexpected error creating new instance")
 
-	return instance
+	return instance, ingester, tmpDir
 }
 
 func BenchmarkInstancePush(b *testing.B) {
-	instance := defaultInstance(b, b.TempDir())
+	instance, _ := defaultInstance(b)
 	request := makeRequest([]byte{})
 
 	b.ResetTimer()
@@ -645,7 +586,7 @@ func BenchmarkInstancePush(b *testing.B) {
 }
 
 func BenchmarkInstancePushExistingTrace(b *testing.B) {
-	instance := defaultInstance(b, b.TempDir())
+	instance, _ := defaultInstance(b)
 	request := makeRequest([]byte{})
 
 	b.ResetTimer()
@@ -656,7 +597,7 @@ func BenchmarkInstancePushExistingTrace(b *testing.B) {
 }
 
 func BenchmarkInstanceFindTraceByID(b *testing.B) {
-	instance := defaultInstance(b, b.TempDir())
+	instance, _ := defaultInstance(b)
 	traceID := []byte{1, 2, 3, 4, 5, 6, 7, 8}
 	request := makeRequest(traceID)
 	err := instance.PushBytesRequest(context.Background(), request)
