@@ -331,10 +331,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File)
 		return nil, errors.Wrap(err, "creating resource iterator")
 	}
 
-	traceIter, err := createTraceIterator(makeIter, resourceIter)
-	if err != nil {
-		return nil, errors.Wrap(err, "creating trace iterator")
-	}
+	traceIter := createTraceIterator(makeIter, resourceIter)
 
 	return &spansetIterator{traceIter}, nil
 }
@@ -552,7 +549,7 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 		required, iters, batchCol), nil
 }
 
-func createTraceIterator(makeIter makeIterFunc, resourceIter parquetquery.Iterator) (parquetquery.Iterator, error) {
+func createTraceIterator(makeIter makeIterFunc, resourceIter parquetquery.Iterator) parquetquery.Iterator {
 	traceIters := []parquetquery.Iterator{
 		resourceIter,
 		// Add static columns that are always return
@@ -562,7 +559,7 @@ func createTraceIterator(makeIter makeIterFunc, resourceIter parquetquery.Iterat
 	// Final trace iterator
 	// Join iterator means it requires matching resources to have been found
 	// TraceCollor adds trace-level data to the spansets
-	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, &traceCollector{}), nil
+	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, &traceCollector{})
 }
 
 func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
