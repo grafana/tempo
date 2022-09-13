@@ -344,7 +344,7 @@ query_frontend:
     # Trace by ID lookup configuration
     trace_by_id:
 
-        # If set to a non-zero value a second request will be issued at the provided duration.
+        # If set to a non-zero value, a second request will be issued at the provided duration.
         # Recommended to be set to p99 of search requests to reduce long tail latency.
         [hedge_requests_at: <duration> | default = 5s ]
 
