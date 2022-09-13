@@ -345,7 +345,7 @@ query_frontend:
     trace_by_id:
 
         # If set to a non-zero value, a second request will be issued at the provided duration.
-        # Recommended to be set to p99 of search requests to reduce long tail latency.
+        # Recommended to be set to p99 of search requests to reduce long-tail latency.
         [hedge_requests_at: <duration> | default = 5s ]
 
         # The maximum number of requests to execute when hedging.
