@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all
-	"github.com/golang/protobuf/proto" //nolint:all
+	"github.com/golang/protobuf/proto"  //nolint:all
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/klauspost/compress/gzhttp"
