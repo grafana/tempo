@@ -20,9 +20,8 @@ import (
 )
 
 type Config struct {
-	FrontendAddress  string        `yaml:"frontend_address"`
-	SchedulerAddress string        `yaml:"scheduler_address"`
-	DNSLookupPeriod  time.Duration `yaml:"dns_lookup_duration"`
+	FrontendAddress string        `yaml:"frontend_address"`
+	DNSLookupPeriod time.Duration `yaml:"dns_lookup_duration"`
 
 	Parallelism           int  `yaml:"parallelism"`
 	MatchMaxConcurrency   bool `yaml:"match_max_concurrent"`
@@ -34,7 +33,6 @@ type Config struct {
 }
 
 func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
-	f.StringVar(&cfg.SchedulerAddress, "querier.scheduler-address", "", "Hostname (and port) of scheduler that querier will periodically resolve, connect to and receive queries from. Only one of -querier.frontend-address or -querier.scheduler-address can be set. If neither is set, queries are only received via HTTP endpoint.")
 	f.StringVar(&cfg.FrontendAddress, "querier.frontend-address", "", "Address of query frontend service, in host:port format. If -querier.scheduler-address is set as well, querier will use scheduler instead. Only one of -querier.frontend-address or -querier.scheduler-address can be set. If neither is set, queries are only received via HTTP endpoint.")
 
 	f.DurationVar(&cfg.DNSLookupPeriod, "querier.dns-lookup-period", 10*time.Second, "How often to query DNS for query-frontend or query-scheduler address.")
@@ -47,8 +45,8 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 }
 
 func (cfg *Config) Validate(log log.Logger) error {
-	if cfg.FrontendAddress != "" && cfg.SchedulerAddress != "" {
-		return errors.New("frontend address and scheduler address are mutually exclusive, please use only one")
+	if cfg.FrontendAddress != "" {
+		return errors.New("starting querier worker without frontend address is not supported")
 	}
 	return cfg.GRPCClientConfig.Validate(log)
 }
@@ -102,22 +100,10 @@ func NewQuerierWorker(cfg Config, handler RequestHandler, log log.Logger, reg pr
 	var servs []services.Service
 	var address string
 
-	switch {
-	case cfg.SchedulerAddress != "":
-		level.Info(log).Log("msg", "Starting querier worker connected to query-scheduler", "scheduler", cfg.SchedulerAddress)
+	level.Info(log).Log("msg", "Starting querier worker connected to query-frontend", "frontend", cfg.FrontendAddress)
 
-		address = cfg.SchedulerAddress
-		processor, servs = newSchedulerProcessor(cfg, handler, log, reg)
-
-	case cfg.FrontendAddress != "":
-		level.Info(log).Log("msg", "Starting querier worker connected to query-frontend", "frontend", cfg.FrontendAddress)
-
-		address = cfg.FrontendAddress
-		processor = newFrontendProcessor(cfg, handler, log)
-
-	default:
-		return nil, errors.New("no query-scheduler or query-frontend address")
-	}
+	address = cfg.FrontendAddress
+	processor = newFrontendProcessor(cfg, handler, log)
 
 	return newQuerierWorkerWithProcessor(cfg, log, processor, address, servs)
 }
