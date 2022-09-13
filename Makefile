@@ -184,7 +184,6 @@ gen-proto:
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto,./pkg/tempopb/)
 	$(call PROTO_GEN,pkg/tempopb/tempo.proto,./)
 	$(call PROTO_GEN_WITH_VENDOR,modules/frontend/v1/frontendv1pb/frontend.proto,./)
-	$(call PROTO_GEN_WITH_VENDOR,pkg/scheduler/schedulerpb/scheduler.proto,./)
 
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
