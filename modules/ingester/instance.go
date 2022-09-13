@@ -105,6 +105,7 @@ type instance struct {
 	completingBlocks []*wal.AppendBlock
 	completeBlocks   []*wal.LocalBlock
 
+	useFlatbufferSearch  bool
 	searchHeadBlock      *searchStreamingBlockEntry
 	searchAppendBlocks   map[*wal.AppendBlock]*searchStreamingBlockEntry
 	searchCompleteBlocks map[*wal.LocalBlock]*searchLocalBlockEntry
@@ -134,12 +135,13 @@ type searchLocalBlockEntry struct {
 	mtx sync.RWMutex
 }
 
-func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend, useFlatbufferSearch bool) (*instance, error) {
 	i := &instance{
 		traces:               map[uint32]*liveTrace{},
 		largeTraces:          map[uint32]int{},
 		searchAppendBlocks:   map[*wal.AppendBlock]*searchStreamingBlockEntry{},
 		searchCompleteBlocks: map[*wal.LocalBlock]*searchLocalBlockEntry{},
+		useFlatbufferSearch:  useFlatbufferSearch,
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
@@ -280,7 +282,6 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 // CompleteBlock moves a completingBlock to a completeBlock. The new completeBlock has the same ID.
 func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
-
 	var completingBlock *wal.AppendBlock
 	for _, iterBlock := range i.completingBlocks {
 		if iterBlock.BlockID() == blockID {
@@ -306,6 +307,15 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 		return errors.Wrap(err, "error creating ingester block")
 	}
 
+	i.blocksMtx.Lock()
+	i.completeBlocks = append(i.completeBlocks, ingesterBlock)
+	i.blocksMtx.Unlock()
+
+	// only build flatbuffer search structures if we are configured to
+	if !i.useFlatbufferSearch {
+		return nil
+	}
+
 	// Search data (optional)
 	i.blocksMtx.RLock()
 	oldSearch := i.searchAppendBlocks[completingBlock]
@@ -327,7 +337,6 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 			b: newSearch,
 		}
 	}
-	i.completeBlocks = append(i.completeBlocks, ingesterBlock)
 
 	return nil
 }

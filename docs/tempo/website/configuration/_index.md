@@ -186,6 +186,12 @@ ingester:
     # duration to keep blocks in the ingester after they have been flushed
     # (default: 15m)
     [ complete_block_timeout: <duration>]
+
+    # If true then flatbuffer search metadata files are created and used in the ingester for search, 
+    # search tags and search tag values. If false then the blocks themselves are used for search in the ingesters. 
+    # Warning: v2 blocks do not support ingester search without this enabled.
+    # (default: false)
+    [ use_flatbuffer_search: <bool> ]
 ```
 
 ## Metrics-generator

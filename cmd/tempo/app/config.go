@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/server"
 )
@@ -155,6 +156,16 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnStorageTraceBackendLocal)
 	}
 
+	// flatbuffers are configured but we're not using v2
+	if c.Ingester.UseFlatbufferSearch && c.StorageConfig.Trace.Block.Version != v2.VersionString {
+		warnings = append(warnings, warnFlatBuffersNotNecessary)
+	}
+
+	// we're using v2 but flatbuffers are not configured
+	if !c.Ingester.UseFlatbufferSearch && c.StorageConfig.Trace.Block.Version == v2.VersionString {
+		warnings = append(warnings, warnIngesterSearchWillNotWork)
+	}
+
 	return warnings
 }
 
@@ -223,5 +234,13 @@ var (
 	}
 	warnStorageTraceBackendLocal = ConfigWarning{
 		Message: "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.",
+	}
+	warnFlatBuffersNotNecessary = ConfigWarning{
+		Message: "Flatbuffers enabled with a block type that supports search.",
+		Explain: "The configured block type supports local search in the ingester. Flatbuffers are not necessary and will consume extra resources.",
+	}
+	warnIngesterSearchWillNotWork = ConfigWarning{
+		Message: "Flatbuffers disabled with a block type that does not support search",
+		Explain: "Flatbuffers are disabled but the configured block type does not support ingester search. This can be ignored if only trace by id lookup is desired.",
 	}
 )

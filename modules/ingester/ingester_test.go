@@ -37,7 +37,7 @@ import (
 func TestPushQueryAllEncodings(t *testing.T) {
 	for _, e := range model.AllEncodings {
 		t.Run(e, func(t *testing.T) {
-			var push func(*testing.T, *Ingester, *v1.ResourceSpans, []byte)
+			var push func(testing.TB, *Ingester, *v1.ResourceSpans, []byte)
 
 			switch e {
 			case model_v1.Encoding:
@@ -310,7 +310,7 @@ func TestFlush(t *testing.T) {
 	}
 }
 
-func defaultIngesterModule(t *testing.T, tmpDir string) *Ingester {
+func defaultIngesterModule(t testing.TB, tmpDir string) *Ingester {
 	ingesterConfig := defaultIngesterTestConfig()
 	limits, err := overrides.NewOverrides(defaultLimitsTestConfig())
 	require.NoError(t, err, "unexpected error creating overrides")
@@ -346,11 +346,11 @@ func defaultIngesterModule(t *testing.T, tmpDir string) *Ingester {
 	return ingester
 }
 
-func defaultIngester(t *testing.T, tmpDir string) (*Ingester, []*tempopb.Trace, [][]byte) {
+func defaultIngester(t testing.TB, tmpDir string) (*Ingester, []*tempopb.Trace, [][]byte) {
 	return defaultIngesterWithPush(t, tmpDir, pushBatchV2)
 }
 
-func defaultIngesterWithPush(t *testing.T, tmpDir string, push func(*testing.T, *Ingester, *v1.ResourceSpans, []byte)) (*Ingester, []*tempopb.Trace, [][]byte) {
+func defaultIngesterWithPush(t testing.TB, tmpDir string, push func(testing.TB, *Ingester, *v1.ResourceSpans, []byte)) (*Ingester, []*tempopb.Trace, [][]byte) {
 	ingester := defaultIngesterModule(t, tmpDir)
 
 	// make some fake traceIDs/requests
@@ -407,7 +407,7 @@ func defaultLimitsTestConfig() overrides.Limits {
 	return limits
 }
 
-func pushBatchV2(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
+func pushBatchV2(t testing.TB, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 	ctx := user.InjectOrgID(context.Background(), "test")
 	batchDecoder := model.MustNewSegmentDecoder(model_v2.Encoding)
 
@@ -433,7 +433,7 @@ func pushBatchV2(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) 
 	require.NoError(t, err)
 }
 
-func pushBatchV1(t *testing.T, i *Ingester, batch *v1.ResourceSpans, id []byte) {
+func pushBatchV1(t testing.TB, i *Ingester, batch *v1.ResourceSpans, id []byte) {
 	ctx := user.InjectOrgID(context.Background(), "test")
 
 	batchDecoder := model.MustNewSegmentDecoder(model_v1.Encoding)

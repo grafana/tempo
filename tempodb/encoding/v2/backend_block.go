@@ -156,7 +156,6 @@ func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID, _ common
 }
 
 func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opt common.SearchOptions) (resp *tempopb.SearchResponse, err error) {
-
 	decoder, err := model.NewObjectDecoder(b.meta.DataEncoding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create NewDecoder: %w", err)
@@ -205,6 +204,14 @@ func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	}
 
 	return resp, nil
+}
+
+func (b *BackendBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
+	return common.ErrUnsupported
+}
+
+func (b *BackendBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
+	return common.ErrUnsupported
 }
 
 func search(decoder model.ObjectDecoder, maxBytes int, id common.ID, obj []byte, req *tempopb.SearchRequest, resp *tempopb.SearchResponse) error {

@@ -52,7 +52,7 @@ func FromVersion(v string) (VersionedEncoding, error) {
 
 // DefaultEncoding for newly written blocks.
 func DefaultEncoding() VersionedEncoding {
-	return v2.Encoding{}
+	return vparquet.Encoding{}
 }
 
 // allEncodings returns all encodings
