@@ -91,10 +91,15 @@ func TestForwarder_pushesQueued(t *testing.T) {
 		assert.Equal(t, 0, len(f.queueManagers[tenantID].reqChan))
 	}()
 
+	wg := sync.WaitGroup{}
+	wg.Add(11)
 	// 10 pushes are buffered, 1 is picked up by the worker
 	for i := 0; i < 11; i++ {
 		f.SendTraces(context.Background(), tenantID, keys, rebatchedTraces)
+		wg.Done()
 	}
+
+	wg.Wait()
 
 	// queue is full with 10 items
 	assert.Equal(t, 10, len(f.queueManagers[tenantID].reqChan))
@@ -135,8 +140,6 @@ func TestForwarder_shutdown(t *testing.T) {
 		require.NoError(t, f.stop(nil))
 		assert.Equal(t, 0, len(f.queueManagers[tenantID].reqChan))
 	}()
-
-	time.Sleep(time.Second)
 
 	for i := 0; i < 100; i++ {
 		f.SendTraces(context.Background(), tenantID, keys, rebatchedTraces)
