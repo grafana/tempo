@@ -19,6 +19,10 @@ ingester:
   trace_idle_period: 1s
   max_block_duration: 10m
 
+query_frontend:
+  trace_by_id:
+    hedge_requests_at: 0
+
 storage:
   trace:
     blocklist_poll: 2s
