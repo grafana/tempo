@@ -95,7 +95,12 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 		// - the Deduper dedupes Span IDs for Zipkin support
 		// - the ShardingWare shards queries by splitting the block ID space
 		// - the RetryWare retries requests that have failed (error or http status 500)
-		rt := NewRoundTripper(next, newDeduper(logger), newTraceByIDSharder(cfg.QueryShards, cfg.TolerateFailedBlocks, logger), newHedgedRequestWare(cfg.TraceByID.HedgeRequestsAt, cfg.TraceByID.HedgeRequestsUpTo))
+		rt := NewRoundTripper(
+			next,
+			newDeduper(logger),
+			newTraceByIDSharder(cfg.QueryShards, cfg.TolerateFailedBlocks, logger),
+			newHedgedRequestWare(cfg.TraceByID.Hedging),
+		)
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// validate traceID

@@ -23,12 +23,12 @@ var (
 	)
 )
 
-func newHedgedRequestWare(hedgeRequestsAt time.Duration, hedgeRequestsUpTo int) Middleware {
+func newHedgedRequestWare(cfg HedgingConfig) Middleware {
 	return MiddlewareFunc(func(r http.RoundTripper) http.RoundTripper {
-		if hedgeRequestsAt == 0 || hedgeRequestsUpTo == 0 {
+		if cfg.HedgeRequestsAt == 0 || cfg.HedgeRequestsUpTo == 0 {
 			return r
 		}
-		ret, stats, err := hedgedhttp.NewRoundTripperAndStats(hedgeRequestsAt, hedgeRequestsUpTo, r)
+		ret, stats, err := hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, cfg.HedgeRequestsUpTo, r)
 		if err != nil {
 			panic(err)
 		}

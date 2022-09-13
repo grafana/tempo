@@ -31,9 +31,13 @@ type SearchConfig struct {
 	Sharder SearchSharderConfig `yaml:",inline"`
 }
 
+type HedgingConfig struct {
+	HedgeRequestsAt   time.Duration `yaml:"hedge_requests_at"`
+	HedgeRequestsUpTo int           `yaml:"hedge_requests_up_to"`
+}
+
 type TraceByIDConfig struct {
-	HedgeRequestsAt   time.Duration `yaml:"hedge_requests_at,omitempty"`
-	HedgeRequestsUpTo int           `yaml:"hedge_requests_up_to,omitempty"`
+	Hedging HedgingConfig `yaml:",inline"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
@@ -52,8 +56,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 		},
 	}
 	cfg.TraceByID = TraceByIDConfig{
-		HedgeRequestsAt:   3 * time.Second,
-		HedgeRequestsUpTo: 3,
+		Hedging: HedgingConfig{
+			HedgeRequestsAt:   5 * time.Second,
+			HedgeRequestsUpTo: 3,
+		},
 	}
 }
 

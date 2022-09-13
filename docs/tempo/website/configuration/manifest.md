@@ -16,7 +16,7 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/tmp
 
 ## Complete configuration
 
-> **Note**: This manifest was generated on 2022-03-29.
+> **Note**: This manifest was generated on 2022-09-13.
 
 ```yaml
 target: all
@@ -46,8 +46,8 @@ server:
   http_server_read_timeout: 30s
   http_server_write_timeout: 30s
   http_server_idle_timeout: 2m0s
-  grpc_server_max_recv_msg_size: 4194304
-  grpc_server_max_send_msg_size: 4194304
+  grpc_server_max_recv_msg_size: 16777216
+  grpc_server_max_send_msg_size: 16777216
   grpc_server_max_concurrent_streams: 100
   grpc_server_max_connection_idle: 2562047h47m16.854775807s
   grpc_server_max_connection_age: 2562047h47m16.854775807s
@@ -61,6 +61,7 @@ server:
   log_source_ips_enabled: false
   log_source_ips_header: ""
   log_source_ips_regex: ""
+  log_request_at_info_level_enabled: false
   http_path_prefix: ""
 distributor:
   ring:
@@ -74,6 +75,7 @@ distributor:
         consistent_reads: false
         watch_rate_limit: 1
         watch_burst_size: 1
+        cas_retry_delay: 1s
       etcd:
         endpoints: []
         dial_timeout: 10s
@@ -101,8 +103,7 @@ distributor:
     instance_addr: ""
   receivers: {}
   override_ring_key: distributor
-  log_received_spans:
-    enabled: false
+  log_received_traces: false
   extend_writes: true
   search_tags_deny_list: []
 ingester_client:
@@ -184,6 +185,7 @@ querier:
       tls_ca_path: ""
       tls_server_name: ""
       tls_insecure_skip_verify: false
+  query_relevant_ingesters: false
 query_frontend:
   log_queries_longer_than: 0s
   max_body_size: 0
@@ -224,6 +226,9 @@ query_frontend:
     max_duration: 1h1m0s
     query_backend_after: 15m0s
     query_ingesters_until: 1h0m0s
+  trace_by_id:
+    hedge_requests_at: 5s
+    hedge_requests_up_to: 3
 compactor:
   ring:
     kvstore:
@@ -236,6 +241,7 @@ compactor:
         consistent_reads: false
         watch_rate_limit: 1
         watch_burst_size: 1
+        cas_retry_delay: 1s
       etcd:
         endpoints: []
         dial_timeout: 10s
@@ -266,7 +272,7 @@ compactor:
     wait_active_instance_timeout: 10m0s
   compaction:
     chunk_size_bytes: 5242880
-    flush_size_bytes: 31457280
+    flush_size_bytes: 20971520
     compaction_window: 1h0m0s
     max_compaction_objects: 6000000
     max_block_bytes: 107374182400
@@ -290,6 +296,7 @@ ingester:
           consistent_reads: false
           watch_rate_limit: 1
           watch_burst_size: 1
+          cas_retry_delay: 1s
         etcd:
           endpoints: []
           dial_timeout: 10s
@@ -313,16 +320,12 @@ ingester:
       excluded_zones: ""
     num_tokens: 128
     heartbeat_period: 5s
+    heartbeat_timeout: 1m0s
     observe_period: 0s
     join_after: 0s
     min_ready_duration: 15s
     interface_names:
-      - wlp2s0
-      - docker0
-      - br-f163873defd4
-      - br-f56e9de73d01
-      - br-16536cce4aa3
-      - br-3bc02eb7efdd
+      - en0
     final_sleep: 0s
     tokens_file_path: ""
     availability_zone: ""
@@ -351,6 +354,7 @@ metrics_generator:
         consistent_reads: false
         watch_rate_limit: 1
         watch_burst_size: 1
+        cas_retry_delay: 1s
       etcd:
         endpoints: []
         dial_timeout: 10s
@@ -404,6 +408,8 @@ metrics_generator:
         - 1.024
         - 2.048
         - 4.096
+        - 8.192
+        - 16.384
       dimensions: []
   registry:
     collection_interval: 15s
@@ -419,6 +425,7 @@ metrics_generator:
       max_wal_time: 14400000
       no_lockfile: false
     remote_write_flush_deadline: 1m0s
+  metrics_ingestion_time_range_slack: 30s
 storage:
   trace:
     pool:
@@ -436,17 +443,26 @@ storage:
       index_page_size_bytes: 256000
       bloom_filter_false_positive: 0.01
       bloom_filter_shard_size_bytes: 102400
+      version: v2
       encoding: zstd
       search_encoding: snappy
       search_page_size_bytes: 1048576
+      row_group_size_bytes: 30000000
     search:
       chunk_size_bytes: 1000000
       prefetch_trace_count: 1000
+      read_buffer_count: 8
+      read_buffer_size_bytes: 4194304
+      cache_control:
+        footer: false
+        column_index: false
+        offset_index: false
     blocklist_poll: 5m0s
     blocklist_poll_concurrency: 50
     blocklist_poll_fallback: true
     blocklist_poll_tenant_index_builders: 2
     blocklist_poll_stale_tenant_index: 0s
+    blocklist_poll_jitter_ms: 0
     backend: local
     local:
       path: /tmp/tempo/traces
@@ -466,14 +482,20 @@ storage:
       access_key: ""
       secret_key: ""
       insecure: false
+      insecure_skip_verify: false
       part_size: 0
       hedge_requests_at: 0s
       hedge_requests_up_to: 2
       signature_v2: false
       forcepathstyle: false
+      tags: {}
+      storage_class: ""
+      metadata: {}
     azure:
       storage-account-name: ""
       storage-account-key: ""
+      use-managed-identity: false
+      user-assigned-id: ""
       container-name: ""
       endpoint-suffix: blob.core.windows.net
       max-buffers: 4
@@ -503,6 +525,10 @@ overrides:
   metrics_generator_disable_collection: false
   metrics_generator_forwarder_queue_size: 0
   metrics_generator_forwarder_workers: 0
+  metrics_generator_processor_service_graphs_histogram_buckets: []
+  metrics_generator_processor_service_graphs_dimensions: []
+  metrics_generator_processor_span_metrics_histogram_buckets: []
+  metrics_generator_processor_span_metrics_dimensions: []
   block_retention: 0s
   max_bytes_per_tag_values_query: 5000000
   max_search_duration: 0s
@@ -522,18 +548,20 @@ memberlist:
   compression_enabled: false
   advertise_addr: ""
   advertise_port: 7946
+  cluster_label: ""
+  cluster_label_verification_disabled: false
   join_members: []
   min_join_backoff: 1s
   max_join_backoff: 1m0s
   max_join_retries: 10
-  abort_if_cluster_join_fails: true
+  abort_if_cluster_join_fails: false
   rejoin_interval: 0s
   left_ingesters_timeout: 5m0s
-  leave_timeout: 5s
+  leave_timeout: 20s
   message_history_buffer_bytes: 0
   bind_addr: []
   bind_port: 7946
-  packet_dial_timeout: 5s
+  packet_dial_timeout: 2s
   packet_write_timeout: 5s
   tls_enabled: false
   tls_cert_path: ""
@@ -541,4 +569,10 @@ memberlist:
   tls_ca_path: ""
   tls_server_name: ""
   tls_insecure_skip_verify: false
+usage_report:
+  reporting_enabled: true
+  backoff:
+    min_period: 100ms
+    max_period: 10s
+    max_retries: 0
 ```
