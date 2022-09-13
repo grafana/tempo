@@ -41,6 +41,7 @@ type TraceByIDConfig struct {
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
+	cfg.Config.MaxOutstandingPerTenant = 100
 	cfg.MaxRetries = 2
 	cfg.QueryShards = 20
 	cfg.TolerateFailedBlocks = 0
