@@ -46,9 +46,9 @@ const (
 	columnPathSpanAttrInt        = "rs.ils.Spans.Attrs.ValueInt"
 	columnPathSpanAttrDouble     = "rs.ils.Spans.Attrs.ValueDouble"
 	columnPathSpanAttrBool       = "rs.ils.Spans.Attrs.ValueBool"
-	columnPathSpanHttpStatusCode = "rs.ils.Spans.HttpStatusCode"
-	columnPathSpanHttpMethod     = "rs.ils.Spans.HttpMethod"
-	columnPathSpanHttpUrl        = "rs.ils.Spans.HttpUrl"
+	columnPathSpanHTTPStatusCode = "rs.ils.Spans.HttpStatusCode"
+	columnPathSpanHTTPMethod     = "rs.ils.Spans.HttpMethod"
+	columnPathSpanHTTPURL        = "rs.ils.Spans.HttpUrl"
 )
 
 var intrinsicDefaultScope = map[traceql.Intrinsic]traceql.AttributeScope{
@@ -74,9 +74,9 @@ var wellKnownColumnLookups = map[string]struct {
 	LabelK8sContainerName: {columnPathResourceK8sContainerName, traceql.AttributeScopeResource, traceql.TypeString},
 
 	// Span-level columns
-	LabelHTTPStatusCode: {columnPathSpanHttpStatusCode, traceql.AttributeScopeSpan, traceql.TypeInt},
-	LabelHTTPMethod:     {columnPathSpanHttpMethod, traceql.AttributeScopeSpan, traceql.TypeString},
-	LabelHTTPUrl:        {columnPathSpanHttpUrl, traceql.AttributeScopeSpan, traceql.TypeString},
+	LabelHTTPStatusCode: {columnPathSpanHTTPStatusCode, traceql.AttributeScopeSpan, traceql.TypeInt},
+	LabelHTTPMethod:     {columnPathSpanHTTPMethod, traceql.AttributeScopeSpan, traceql.TypeString},
+	LabelHTTPUrl:        {columnPathSpanHTTPURL, traceql.AttributeScopeSpan, traceql.TypeString},
 }
 
 // Fetch spansets from the block for the given TraceQL FetchSpansRequest. The request is checked for
@@ -621,7 +621,7 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 	case traceql.TypeInt:
 		i = int64(operands[0].N)
 	case traceql.TypeDuration:
-		i = int64(operands[0].D.Nanoseconds())
+		i = operands[0].D.Nanoseconds()
 	default:
 		return nil, fmt.Errorf("operand is not int or duration: %+v", operands[0])
 	}

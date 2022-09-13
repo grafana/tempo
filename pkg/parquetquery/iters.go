@@ -756,12 +756,19 @@ func (j *LeftJoinIterator) Next() (*IteratorResult, error) {
 
 		// Skip all iterators to the highest row seen, it's impossible
 		// to find matches before that.
-		j.seekAll(highestRowNumber, j.definitionLevel)
+		err := j.seekAll(highestRowNumber, j.definitionLevel)
+		if err != nil {
+			return nil, err
+		}
 	}
 }
 
 func (j *LeftJoinIterator) SeekTo(t RowNumber, d int) (*IteratorResult, error) {
-	j.seekAll(t, d)
+	err := j.seekAll(t, d)
+	if err != nil {
+		return nil, err
+	}
+
 	return j.Next()
 }
 
