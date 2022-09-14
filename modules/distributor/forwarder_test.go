@@ -92,9 +92,9 @@ func TestForwarder_pushesQueued(t *testing.T) {
 	}()
 
 	wg := sync.WaitGroup{}
-	wg.Add(11)
 	// 10 pushes are buffered, 1 is picked up by the worker
 	for i := 0; i < 11; i++ {
+		wg.Add(1)
 		f.SendTraces(context.Background(), tenantID, keys, rebatchedTraces)
 		wg.Done()
 	}
