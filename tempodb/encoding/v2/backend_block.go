@@ -53,7 +53,7 @@ func (b *BackendBlock) find(ctx context.Context, id common.ID) ([]byte, error) {
 	nameBloom := common.BloomName(shardKey)
 	bloomBytes, err := b.reader.Read(ctx, nameBloom, blockID, tenantID, true)
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving bloom (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+		return nil, fmt.Errorf("error retrieving bloom %s (%s, %s): %w", nameBloom, b.meta.TenantID, b.meta.BlockID, err)
 	}
 
 	filter := &willf_bloom.BloomFilter{}

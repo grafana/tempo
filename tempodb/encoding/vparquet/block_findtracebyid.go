@@ -147,7 +147,7 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 
 	bloomBytes, err := b.r.Read(derivedCtx, nameBloom, b.meta.BlockID, b.meta.TenantID, true)
 	if err != nil {
-		return false, fmt.Errorf("error retrieving bloom (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+		return false, fmt.Errorf("error retrieving bloom %s (%s, %s): %w", nameBloom, b.meta.TenantID, b.meta.BlockID, err)
 	}
 
 	filter := &bloom.BloomFilter{}
