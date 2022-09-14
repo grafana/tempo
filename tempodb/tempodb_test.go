@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/proto" //nolint:all
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -592,7 +592,7 @@ func TestCompleteBlock(t *testing.T) {
 	require.NoError(t, err, "unexpected error completing block")
 
 	for i, id := range ids {
-		found, err := complete.FindTraceByID(context.TODO(), id)
+		found, err := complete.FindTraceByID(context.TODO(), id, common.SearchOptions{})
 		require.NoError(t, err)
 		require.True(t, proto.Equal(found, reqs[i]))
 	}

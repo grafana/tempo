@@ -105,6 +105,7 @@ type instance struct {
 	completingBlocks []*wal.AppendBlock
 	completeBlocks   []*wal.LocalBlock
 
+	useFlatbufferSearch  bool
 	searchHeadBlock      *searchStreamingBlockEntry
 	searchAppendBlocks   map[*wal.AppendBlock]*searchStreamingBlockEntry
 	searchCompleteBlocks map[*wal.LocalBlock]*searchLocalBlockEntry
@@ -134,12 +135,13 @@ type searchLocalBlockEntry struct {
 	mtx sync.RWMutex
 }
 
-func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend, useFlatbufferSearch bool) (*instance, error) {
 	i := &instance{
 		traces:               map[uint32]*liveTrace{},
 		traceSizes:           map[uint32]uint32{},
 		searchAppendBlocks:   map[*wal.AppendBlock]*searchStreamingBlockEntry{},
 		searchCompleteBlocks: map[*wal.LocalBlock]*searchLocalBlockEntry{},
+		useFlatbufferSearch:  useFlatbufferSearch,
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
@@ -287,7 +289,6 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 // CompleteBlock moves a completingBlock to a completeBlock. The new completeBlock has the same ID.
 func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
-
 	var completingBlock *wal.AppendBlock
 	for _, iterBlock := range i.completingBlocks {
 		if iterBlock.BlockID() == blockID {
@@ -313,6 +314,15 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 		return errors.Wrap(err, "error creating ingester block")
 	}
 
+	i.blocksMtx.Lock()
+	i.completeBlocks = append(i.completeBlocks, ingesterBlock)
+	i.blocksMtx.Unlock()
+
+	// only build flatbuffer search structures if we are configured to
+	if !i.useFlatbufferSearch {
+		return nil
+	}
+
 	// Search data (optional)
 	i.blocksMtx.RLock()
 	oldSearch := i.searchAppendBlocks[completingBlock]
@@ -334,7 +344,6 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 			b: newSearch,
 		}
 	}
-	i.completeBlocks = append(i.completeBlocks, ingesterBlock)
 
 	return nil
 }
@@ -459,7 +468,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	combiner := trace.NewCombiner()
 	combiner.Consume(completeTrace)
 	for _, c := range i.completeBlocks {
-		found, err := c.FindTraceByID(ctx, id)
+		found, err := c.FindTraceByID(ctx, id, common.SearchOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.FindTraceByID failed: %w", err)
 		}
@@ -487,7 +496,8 @@ func (i *instance) AddCompletingBlock(b *wal.AppendBlock, s *search.StreamingSea
 }
 
 // getOrCreateTrace will return a new trace object for the given request
-//  It must be called under the i.tracesMtx lock
+//
+//	It must be called under the i.tracesMtx lock
 func (i *instance) getOrCreateTrace(traceID []byte) *liveTrace {
 	fp := i.tokenForTraceID(traceID)
 	trace, ok := i.traces[fp]

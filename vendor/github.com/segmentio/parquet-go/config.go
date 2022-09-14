@@ -28,10 +28,10 @@ const (
 //		SkipPageIndex:    true,
 //		SkipBloomFilters: true,
 //	})
-//
 type FileConfig struct {
 	SkipPageIndex    bool
 	SkipBloomFilters bool
+	ReadBufferSize   int
 }
 
 // DefaultFileConfig returns a new FileConfig value initialized with the
@@ -40,6 +40,7 @@ func DefaultFileConfig() *FileConfig {
 	return &FileConfig{
 		SkipPageIndex:    DefaultSkipPageIndex,
 		SkipBloomFilters: DefaultSkipBloomFilters,
+		ReadBufferSize:   defaultReadBufferSize,
 	}
 }
 
@@ -82,7 +83,6 @@ func (c *FileConfig) Validate() error {
 //	reader := parquet.NewReader(output, schema, &parquet.ReaderConfig{
 //		// ...
 //	})
-//
 type ReaderConfig struct {
 	Schema *Schema
 }
@@ -131,7 +131,6 @@ func (c *ReaderConfig) Validate() error {
 //	writer := parquet.NewWriter(output, schema, &parquet.WriterConfig{
 //		CreatedBy: "my test program",
 //	})
-//
 type WriterConfig struct {
 	CreatedBy            string
 	ColumnPageBuffers    PageBufferPool
@@ -225,7 +224,6 @@ func (c *WriterConfig) Validate() error {
 //	buffer := parquet.NewBuffer(&parquet.RowGroupConfig{
 //		ColumnBufferCapacity: 10_000,
 //	})
-//
 type RowGroupConfig struct {
 	ColumnBufferCapacity int
 	SortingColumns       []SortingColumn
@@ -315,6 +313,16 @@ func SkipPageIndex(skip bool) FileOption {
 // Defaults to false.
 func SkipBloomFilters(skip bool) FileOption {
 	return fileOption(func(config *FileConfig) { config.SkipBloomFilters = skip })
+}
+
+// ReadBufferSize is a file configuration option which controls the default
+// buffer sizes for reads made to the provided io.Reader. The default of 4096
+// is appropriate for disk based access but if your reader is backed by something
+// like network storage it can be advantageous to increase this value.
+//
+// Defaults to 4096.
+func ReadBufferSize(sz int) FileOption {
+	return fileOption(func(config *FileConfig) { config.ReadBufferSize = sz })
 }
 
 // PageBufferSize configures the size of column page buffers on parquet writers.

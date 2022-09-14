@@ -103,6 +103,42 @@ func TestMetricsGenerator(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	//also send one with 5 minutes old timestamp
+	err = c.EmitBatch(context.Background(), &thrift.Batch{
+		Process: &thrift.Process{ServiceName: "app"},
+		Spans: []*thrift.Span{
+			{
+				TraceIdLow:    traceIDLow,
+				TraceIdHigh:   traceIDHigh,
+				SpanId:        r.Int63(),
+				ParentSpanId:  parentSpanID,
+				OperationName: "app-handle",
+				StartTime:     time.Now().Add(-5 * time.Minute).UnixMicro(),
+				Duration:      int64(1 * time.Second / time.Microsecond),
+				Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	//also send one with timestamp 10 days in the future
+	err = c.EmitBatch(context.Background(), &thrift.Batch{
+		Process: &thrift.Process{ServiceName: "app"},
+		Spans: []*thrift.Span{
+			{
+				TraceIdLow:    traceIDLow,
+				TraceIdHigh:   traceIDHigh,
+				SpanId:        r.Int63(),
+				ParentSpanId:  parentSpanID,
+				OperationName: "app-handle",
+				StartTime:     time.Now().Add(10 * 24 * time.Hour).UnixMicro(),
+				Duration:      int64(1 * time.Second / time.Microsecond),
+				Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	// Fetch metrics from Prometheus once they are received
 	var metricFamilies map[string]*io_prometheus_client.MetricFamily
 	for {
@@ -147,6 +183,7 @@ func TestMetricsGenerator(t *testing.T) {
 	// Span metrics
 	lbls = []string{"service", "lb", "span_name", "lb-get", "span_kind", "SPAN_KIND_CLIENT", "status_code", "STATUS_CODE_UNSET"}
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
+	assert.NotEqual(t, 0, sumValues(metricFamilies, "traces_spanmetrics_size_total", lbls))
 	assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "1")))
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "2")))
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "+Inf")))
@@ -155,6 +192,7 @@ func TestMetricsGenerator(t *testing.T) {
 
 	lbls = []string{"service", "app", "span_name", "app-handle", "span_kind", "SPAN_KIND_SERVER", "status_code", "STATUS_CODE_UNSET"}
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
+	assert.NotEqual(t, 0, sumValues(metricFamilies, "traces_spanmetrics_size_total", lbls))
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "1")))
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "2")))
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "+Inf")))
@@ -162,11 +200,11 @@ func TestMetricsGenerator(t *testing.T) {
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_sum", lbls))
 
 	// Verify metrics
-	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(2), "tempo_metrics_generator_spans_received_total"))
-
-	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(23), "tempo_metrics_generator_registry_active_series"))
+	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(4), "tempo_metrics_generator_spans_received_total"))
+	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(2), "tempo_metrics_generator_spans_discarded_total"))
+	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_active_series"))
 	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(1000), "tempo_metrics_generator_registry_max_active_series"))
-	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(23), "tempo_metrics_generator_registry_series_added_total"))
+	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_series_added_total"))
 }
 
 func newPrometheus() *e2e.HTTPService {

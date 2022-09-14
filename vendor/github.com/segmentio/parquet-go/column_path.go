@@ -1,6 +1,8 @@
 package parquet
 
-import "strings"
+import (
+	"strings"
+)
 
 type columnPath []string
 

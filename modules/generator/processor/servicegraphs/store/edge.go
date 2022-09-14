@@ -6,8 +6,8 @@ type ConnectionType string
 
 const (
 	Unknown         ConnectionType = ""
-	MessagingSystem                = "messaging_system"
-	Database                       = "database"
+	MessagingSystem ConnectionType = "messaging_system"
+	Database        ConnectionType = "database"
 )
 
 // Edge is an Edge between two nodes in the graph

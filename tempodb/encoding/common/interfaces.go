@@ -11,11 +11,15 @@ import (
 )
 
 type Finder interface {
-	FindTraceByID(ctx context.Context, id ID) (*tempopb.Trace, error)
+	FindTraceByID(ctx context.Context, id ID, opts SearchOptions) (*tempopb.Trace, error)
 }
+
+type TagCallback func(t string)
 
 type Searcher interface {
 	Search(ctx context.Context, req *tempopb.SearchRequest, opts SearchOptions) (*tempopb.SearchResponse, error)
+	SearchTags(ctx context.Context, cb TagCallback, opts SearchOptions) error
+	SearchTagValues(ctx context.Context, tag string, cb TagCallback, opts SearchOptions) error
 }
 
 type CacheControl struct {
@@ -43,6 +47,7 @@ type CompactionOptions struct {
 	ChunkSizeBytes     uint32
 	FlushSizeBytes     uint32
 	IteratorBufferSize int // How many traces to prefetch async.
+	MaxBytesPerTrace   int
 	OutputBlocks       uint8
 	BlockConfig        BlockConfig
 	Combiner           model.ObjectCombiner
@@ -50,6 +55,7 @@ type CompactionOptions struct {
 	ObjectsCombined func(compactionLevel, objects int)
 	ObjectsWritten  func(compactionLevel, objects int)
 	BytesWritten    func(compactionLevel, bytes int)
+	SpansDiscarded  func(spans int)
 }
 
 type Iterator interface {

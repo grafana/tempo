@@ -32,7 +32,6 @@ import (
 )
 
 type mockSharder struct {
-	combinerCallCount int
 }
 
 func (m *mockSharder) Owns(hash string) bool {
@@ -40,9 +39,10 @@ func (m *mockSharder) Owns(hash string) bool {
 }
 
 func (m *mockSharder) Combine(dataEncoding string, tenantID string, objs ...[]byte) ([]byte, bool, error) {
-	m.combinerCallCount++
 	return model.StaticCombiner.Combine(dataEncoding, objs...)
 }
+
+func (m *mockSharder) RecordDiscardedSpans(count int, tenantID string) {}
 
 type mockCombiner struct {
 }
@@ -56,11 +56,16 @@ type mockJobSharder struct{}
 func (m *mockJobSharder) Owns(_ string) bool { return true }
 
 type mockOverrides struct {
-	blockRetention time.Duration
+	blockRetention   time.Duration
+	maxBytesPerTrace int
 }
 
 func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
 	return m.blockRetention
+}
+
+func (m *mockOverrides) MaxBytesPerTraceForTenant(_ string) int {
+	return m.maxBytesPerTrace
 }
 
 func TestCompactionRoundtrip(t *testing.T) {
@@ -499,59 +504,6 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.Greater(t, bytesEnd, bytesStart) // calculating the exact bytes requires knowledge of the bytes as written in the blocks.  just make sure it goes up
 }
 
-func TestCompactionUsesCombiner(t *testing.T) {
-	tempDir := t.TempDir()
-
-	r, w, c, err := New(&Config{
-		Backend: "local",
-		Pool: &pool.Config{
-			MaxWorkers: 10,
-			QueueDepth: 100,
-		},
-		Local: &local.Config{
-			Path: path.Join(tempDir, "traces"),
-		},
-		Block: &common.BlockConfig{
-			IndexDownsampleBytes: 11,
-			BloomFP:              .01,
-			BloomShardSizeBytes:  100_000,
-			Version:              encoding.DefaultEncoding().Version(),
-			Encoding:             backend.EncNone,
-			IndexPageSizeBytes:   1000,
-		},
-		WAL: &wal.Config{
-			Filepath: path.Join(tempDir, "wal"),
-		},
-		BlocklistPoll: 0,
-	}, log.NewNopLogger())
-	assert.NoError(t, err)
-
-	sharder := &mockSharder{}
-
-	c.EnableCompaction(&CompactorConfig{
-		ChunkSizeBytes:          10,
-		MaxCompactionRange:      24 * time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
-	}, sharder, &mockOverrides{})
-
-	r.EnablePolling(&mockJobSharder{})
-
-	// Cut x blocks with y records each
-	blockCount := 5
-	recordCount := 7
-	cutTestBlocks(t, w, testTenantID, blockCount, recordCount)
-
-	rw := r.(*readerWriter)
-	rw.pollBlocklist()
-
-	// compact everything
-	err = rw.compact(rw.blocklist.Metas(testTenantID), testTenantID)
-	assert.NoError(t, err)
-
-	require.Equal(t, blockCount*recordCount, sharder.combinerCallCount)
-}
-
 func TestCompactionIteratesThroughTenants(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -787,7 +739,7 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 		IteratorBufferSize: DefaultIteratorBufferSize,
 	}, &mockSharder{}, &mockOverrides{})
 
-	traceCount := 10_000
+	traceCount := 20_000
 	blockCount := 8
 
 	// Cut input blocks

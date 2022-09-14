@@ -2,6 +2,7 @@ package vparquet
 
 import (
 	"context"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -70,7 +72,23 @@ func TestBackendBlockSearch(t *testing.T) {
 		},
 	}
 
-	b := makeBackendBlockWithTrace(t, wantTr)
+	// make a bunch of traces and include our wantTr above
+	total := 1000
+	insertAt := rand.Intn(total)
+	allTraces := make([]*Trace, 0, total)
+	for i := 0; i < total; i++ {
+		if i == insertAt {
+			allTraces = append(allTraces, wantTr)
+			continue
+		}
+
+		id := test.ValidTraceID(nil)
+		pbTrace := test.MakeTrace(10, id)
+		pqTrace := traceToParquet(id, pbTrace)
+		allTraces = append(allTraces, &pqTrace)
+	}
+
+	b := makeBackendBlockWithTraces(t, allTraces)
 	ctx := context.TODO()
 
 	// Helper function to make a tag search
@@ -122,7 +140,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		makeReq(LabelHTTPMethod, "get"),
 		makeReq(LabelHTTPUrl, "hello"),
 		makeReq(LabelHTTPStatusCode, "500"),
-		makeReq(StatusCodeTag, StatusCodeError),
+		makeReq(LabelStatusCode, StatusCodeError),
 
 		// Span attributes
 		makeReq("foo", "bar"),
@@ -145,11 +163,23 @@ func TestBackendBlockSearch(t *testing.T) {
 		RootServiceName:   wantTr.RootServiceName,
 		RootTraceName:     wantTr.RootSpanName,
 	}
+
+	findInResults := func(id string, res []*tempopb.TraceSearchMetadata) *tempopb.TraceSearchMetadata {
+		for _, r := range res {
+			if r.TraceID == id {
+				return r
+			}
+		}
+		return nil
+	}
+
 	for _, req := range searchesThatMatch {
 		res, err := b.Search(ctx, req, defaultSearchOptions())
 		require.NoError(t, err)
-		require.Equal(t, 1, len(res.Traces), req)
-		require.Equal(t, expected, res.Traces[0], "search request:", req)
+
+		meta := findInResults(expected.TraceID, res.Traces)
+		require.NotNil(t, meta, "search request:", req)
+		require.Equal(t, expected, meta, "search request:", req)
 	}
 
 	// Excludes
@@ -176,7 +206,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		makeReq(LabelHTTPMethod, "post"),
 		makeReq(LabelHTTPUrl, "asdf"),
 		makeReq(LabelHTTPStatusCode, "200"),
-		makeReq(StatusCodeTag, StatusCodeOK),
+		makeReq(LabelStatusCode, StatusCodeOK),
 
 		// Span attributes
 		makeReq("foo", "baz"),
@@ -184,12 +214,51 @@ func TestBackendBlockSearch(t *testing.T) {
 	for _, req := range searchesThatDontMatch {
 		res, err := b.Search(ctx, req, defaultSearchOptions())
 		require.NoError(t, err)
-		require.Empty(t, res.Traces, "search request:", req)
+		meta := findInResults(expected.TraceID, res.Traces)
+		require.Nil(t, meta, req)
 	}
 }
 
-func makeBackendBlockWithTrace(t *testing.T, tr *Trace) *backendBlock {
+func TestBackendBlockSearchTags(t *testing.T) {
+	traces, attrs := makeTraces()
+	block := makeBackendBlockWithTraces(t, traces)
 
+	foundAttrs := map[string]struct{}{}
+
+	cb := func(s string) {
+		foundAttrs[s] = struct{}{}
+	}
+
+	ctx := context.Background()
+	err := block.SearchTags(ctx, cb, defaultSearchOptions())
+	require.NoError(t, err)
+
+	// test that all attrs are in found attrs
+	for k := range attrs {
+		_, ok := foundAttrs[k]
+		require.True(t, ok)
+	}
+}
+
+func TestBackendBlockSearchTagValues(t *testing.T) {
+	traces, attrs := makeTraces()
+	block := makeBackendBlockWithTraces(t, traces)
+
+	ctx := context.Background()
+	for tag, val := range attrs {
+		wasCalled := false
+		cb := func(s string) {
+			wasCalled = true
+			assert.Equal(t, val, s, tag)
+		}
+
+		err := block.SearchTagValues(ctx, tag, cb, defaultSearchOptions())
+		require.NoError(t, err)
+		require.True(t, wasCalled, tag)
+	}
+}
+
+func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: t.TempDir(),
 	})
@@ -209,7 +278,13 @@ func makeBackendBlockWithTrace(t *testing.T, tr *Trace) *backendBlock {
 
 	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
-	require.NoError(t, s.Add(tr, 0, 0))
+	for i, tr := range trs {
+		s.Add(tr, 0, 0)
+		if i%100 == 0 {
+			_, err := s.Flush()
+			require.NoError(t, err)
+		}
+	}
 
 	_, err = s.Complete()
 	require.NoError(t, err)
@@ -225,4 +300,94 @@ func defaultSearchOptions() common.SearchOptions {
 		ReadBufferCount: 8,
 		ReadBufferSize:  4 * 1024 * 1024,
 	}
+}
+
+func makeTraces() ([]*Trace, map[string]string) {
+	traces := []*Trace{}
+	attrVals := make(map[string]string)
+
+	ptr := func(s string) *string { return &s }
+
+	attrVals[LabelCluster] = "cluster"
+	attrVals[LabelServiceName] = "servicename"
+	attrVals[LabelRootServiceName] = "rootsvc"
+	attrVals[LabelNamespace] = "ns"
+	attrVals[LabelPod] = "pod"
+	attrVals[LabelContainer] = "con"
+	attrVals[LabelK8sClusterName] = "kclust"
+	attrVals[LabelK8sNamespaceName] = "kns"
+	attrVals[LabelK8sPodName] = "kpod"
+	attrVals[LabelK8sContainerName] = "k8scon"
+
+	attrVals[LabelName] = "span"
+	attrVals[LabelRootSpanName] = "rootspan"
+	attrVals[LabelHTTPMethod] = "method"
+	attrVals[LabelHTTPUrl] = "url"
+	attrVals[LabelHTTPStatusCode] = "404"
+	attrVals[LabelStatusCode] = "2"
+
+	for i := 0; i < 10; i++ {
+		tr := &Trace{
+			RootServiceName: "rootsvc",
+			RootSpanName:    "rootspan",
+		}
+
+		for j := 0; j < 3; j++ {
+			key := test.RandomString()
+			val := test.RandomString()
+			attrVals[key] = val
+
+			rs := ResourceSpans{
+				Resource: Resource{
+					ServiceName:      "servicename",
+					Cluster:          ptr("cluster"),
+					Namespace:        ptr("ns"),
+					Pod:              ptr("pod"),
+					Container:        ptr("con"),
+					K8sClusterName:   ptr("kclust"),
+					K8sNamespaceName: ptr("kns"),
+					K8sPodName:       ptr("kpod"),
+					K8sContainerName: ptr("k8scon"),
+					Attrs: []Attribute{
+						{
+							Key:   key,
+							Value: &val,
+						},
+					},
+				},
+				InstrumentationLibrarySpans: []ILS{
+					{},
+				},
+			}
+			tr.ResourceSpans = append(tr.ResourceSpans, rs)
+
+			for k := 0; k < 10; k++ {
+				key := test.RandomString()
+				val := test.RandomString()
+				attrVals[key] = val
+
+				sts := int64(404)
+				span := Span{
+					Name:           "span",
+					HttpMethod:     ptr("method"),
+					HttpUrl:        ptr("url"),
+					HttpStatusCode: &sts,
+					StatusCode:     2,
+					Attrs: []Attribute{
+						{
+							Key:   key,
+							Value: &val,
+						},
+					},
+				}
+
+				rs.InstrumentationLibrarySpans[0].Spans = append(rs.InstrumentationLibrarySpans[0].Spans, span)
+			}
+
+		}
+
+		traces = append(traces, tr)
+	}
+
+	return traces, attrVals
 }

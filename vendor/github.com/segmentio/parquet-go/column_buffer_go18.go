@@ -19,9 +19,8 @@ import (
 //
 // - rows is the array of Go values to write to the column buffers.
 //
-// - levels is used to track the column index, repetition and definition levels
-//   of values when writing optional or repeated columns.
-//
+//   - levels is used to track the column index, repetition and definition levels
+//     of values when writing optional or repeated columns.
 type writeRowsFunc func(columns []ColumnBuffer, rows sparse.Array, levels columnLevels) error
 
 // writeRowsFuncOf generates a writeRowsFunc function for the given Go type and
@@ -235,6 +234,15 @@ func writeRowsFuncOfSlice(t reflect.Type, schema *Schema, path columnPath) write
 	elemType := t.Elem()
 	elemSize := uintptr(elemType.Size())
 	writeRows := writeRowsFuncOf(elemType, schema, path)
+
+	// When the element is a pointer type, the writeRows function will be an
+	// instance returned by writeRowsFuncOfPointer, which handles incrementing
+	// the definition level if the pointer value is not nil.
+	definitionLevelIncrement := byte(0)
+	if elemType.Kind() != reflect.Ptr {
+		definitionLevelIncrement = 1
+	}
+
 	return func(columns []ColumnBuffer, rows sparse.Array, levels columnLevels) error {
 		if rows.Len() == 0 {
 			return writeRows(columns, rows, levels)
@@ -250,7 +258,7 @@ func writeRowsFuncOfSlice(t reflect.Type, schema *Schema, path columnPath) write
 			elemLevels := levels
 			if a.Len() > 0 {
 				b = a.Slice(0, 1)
-				elemLevels.definitionLevel++
+				elemLevels.definitionLevel += definitionLevelIncrement
 			}
 
 			if err := writeRows(columns, b, elemLevels); err != nil {
@@ -307,9 +315,17 @@ func writeRowsFuncOfStruct(t reflect.Type, schema *Schema, path columnPath) writ
 	}
 
 	return func(buffers []ColumnBuffer, rows sparse.Array, levels columnLevels) error {
-		for _, column := range columns {
-			if err := column.writeRows(buffers, rows.Offset(column.offset), levels); err != nil {
-				return err
+		if rows.Len() == 0 {
+			for _, column := range columns {
+				if err := column.writeRows(buffers, rows, levels); err != nil {
+					return err
+				}
+			}
+		} else {
+			for _, column := range columns {
+				if err := column.writeRows(buffers, rows.Offset(column.offset), levels); err != nil {
+					return err
+				}
 			}
 		}
 		return nil

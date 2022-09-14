@@ -1,5 +1,8 @@
 ---
 title: Backend search - serverless AWS setup
+alias: 
+- /docs/tempo/latest/operations/backend_search/serverless_aws/
+- /docs/tempo/latest/operations/serverless_aws/
 weight: 11
 ---
 

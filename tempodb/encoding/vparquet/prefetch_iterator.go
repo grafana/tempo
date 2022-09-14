@@ -9,6 +9,7 @@ import (
 	"go.uber.org/atomic"
 )
 
+// nolint: unused, deadcode
 type prefetchIter struct {
 	iter      RawIterator
 	resultsCh chan fetchEntry
@@ -23,6 +24,7 @@ type fetchEntry struct {
 
 var _ RawIterator = (*prefetchIter)(nil)
 
+// nolint: unused, deadcode
 func newPrefetchIterator(ctx context.Context, iter RawIterator, bufferSize int) *prefetchIter {
 	p := &prefetchIter{
 		iter:      iter,
@@ -35,6 +37,7 @@ func newPrefetchIterator(ctx context.Context, iter RawIterator, bufferSize int) 
 	return p
 }
 
+// nolint: unused, deadcode
 func (p *prefetchIter) prefetchLoop(ctx context.Context) {
 	defer close(p.resultsCh)
 	defer p.iter.Close()

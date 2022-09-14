@@ -13,11 +13,11 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader, error) {
+func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader, error) { //nolint:all //deprecated
 	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
 
-	// 32 MB memory buffering
-	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 64)
+	// 128 MB memory buffering
+	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 2*1024*1024, 64)
 
 	pf, err := parquet.OpenFile(br, int64(b.meta.Size))
 	if err != nil {
@@ -53,7 +53,7 @@ func (b *backendBlock) RawIterator(ctx context.Context, pool *rowPool) (*rawIter
 
 type blockIterator struct {
 	blockID string
-	r       *parquet.Reader
+	r       *parquet.Reader //nolint:all //deprecated
 }
 
 func (i *blockIterator) Next(context.Context) (*Trace, error) {
@@ -74,7 +74,7 @@ func (i *blockIterator) Close() {
 
 type rawIterator struct {
 	blockID      string
-	r            *parquet.Reader
+	r            *parquet.Reader //nolint:all //deprecated
 	traceIDIndex int
 	pool         *rowPool
 }

@@ -2,13 +2,14 @@ package util
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/jsonpb" //nolint:all
+	"github.com/golang/protobuf/proto"  //nolint:all
+
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/klauspost/compress/gzhttp"
 )
@@ -67,14 +68,14 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 	}()
 
 	if resp.StatusCode >= 400 && resp.StatusCode <= 599 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return resp, fmt.Errorf("GET request to %s failed with response: %d body: %s", req.URL.String(), resp.StatusCode, string(body))
 	}
 
 	unmarshaller := &jsonpb.Unmarshaler{}
 	err = unmarshaller.Unmarshal(resp.Body, m)
 	if err != nil {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return resp, fmt.Errorf("error decoding %T json, err: %v  body: %s", m, err, string(body))
 	}
 

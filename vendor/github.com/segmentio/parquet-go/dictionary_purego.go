@@ -39,7 +39,7 @@ func (d *doubleDictionary) lookup(indexes []int32, rows sparse.Array) {
 func (d *byteArrayDictionary) lookupString(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	for i, j := range indexes {
-		v := d.index(j)
+		v := d.index(int(j))
 		*(*string)(rows.Index(i)) = *(*string)(unsafe.Pointer(&v))
 	}
 }

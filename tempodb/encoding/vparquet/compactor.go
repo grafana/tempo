@@ -20,7 +20,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-func NewCompactor(opts common.CompactionOptions) common.Compactor {
+func NewCompactor(opts common.CompactionOptions) *Compactor {
 	return &Compactor{opts: opts}
 }
 
@@ -36,8 +36,9 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		minBlockStart   time.Time
 		maxBlockEnd     time.Time
 		bookmarks       = make([]*bookmark, 0, len(inputs))
-		pool            = newRowPool(100_000)
-		prefetchSize    = c.opts.IteratorBufferSize / (len(inputs) + 1) // 1 for each input plus multiblock iterator
+		// MaxBytesPerTrace is the largest trace that can be expected, and assumes 1 byte per value on average (same as flushing).
+		// Divide by 4 to presumably require 2 slice allocations if we ever see a trace this large
+		pool = newRowPool(c.opts.MaxBytesPerTrace / 4)
 	)
 	for _, blockMeta := range inputs {
 		totalRecords += blockMeta.TotalObjects
@@ -63,8 +64,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			return nil, err
 		}
 
-		// wrap bookmark with a prefetch iterator
-		bookmarks = append(bookmarks, newBookmark(newPrefetchIterator(derivedCtx, iter, prefetchSize)))
+		bookmarks = append(bookmarks, newBookmark(iter))
 	}
 
 	var (
@@ -80,6 +80,33 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		if len(rows) == 1 {
 			return rows[0], nil
+		}
+
+		isEqual := true
+		for i := 1; i < len(rows) && isEqual; i++ {
+			isEqual = rows[0].Equal(rows[i])
+		}
+		if isEqual {
+			for i := 1; i < len(rows); i++ {
+				pool.Put(rows[i])
+			}
+			return rows[0], nil
+		}
+
+		// Total
+		if c.opts.MaxBytesPerTrace > 0 {
+			sum := 0
+			for _, row := range rows {
+				sum += estimateProtoSize(row)
+			}
+			if sum > c.opts.MaxBytesPerTrace {
+				// Trace too large to compact
+				for i := 1; i < len(rows); i++ {
+					c.opts.SpansDiscarded(countSpans(sch, rows[i]))
+					pool.Put(rows[i])
+				}
+				return rows[0], nil
+			}
 		}
 
 		// Time to combine.
@@ -100,7 +127,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	}
 
 	var (
-		m               = newPrefetchIterator(ctx, newMultiblockIterator(bookmarks, combine), prefetchSize)
+		m               = newMultiblockIterator(bookmarks, combine)
 		recordsPerBlock = (totalRecords / int(c.opts.OutputBlocks))
 		currentBlock    *streamingBlock
 	)
@@ -133,9 +160,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		// Flush existing block data if the next trace can't fit
-		// Here we repurpose FlushSizeBytes as number of raw column values.
-		// This is a fairly close approximation.
-		if currentBlock.CurrentBufferedValues()+len(lowestObject) > int(c.opts.FlushSizeBytes) {
+		if currentBlock.EstimatedBufferedBytes() > 0 && currentBlock.EstimatedBufferedBytes()+estimateProtoSize(lowestObject) > c.opts.BlockConfig.RowGroupSizeBytes {
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
@@ -150,6 +175,16 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		if err != nil {
 			return nil, err
 		}
+
+		// Flush again if block is already full.
+		if currentBlock.EstimatedBufferedBytes() > c.opts.BlockConfig.RowGroupSizeBytes {
+			runtime.GC()
+			err = c.appendBlock(ctx, currentBlock, l)
+			if err != nil {
+				return nil, errors.Wrap(err, "error writing partial block")
+			}
+		}
+
 		pool.Put(lowestObject)
 
 		// ship block to backend if done
@@ -184,7 +219,7 @@ func (c *Compactor) appendBlock(ctx context.Context, block *streamingBlock, l lo
 
 	var (
 		objs            = block.CurrentBufferedObjects()
-		vals            = block.CurrentBufferedValues()
+		vals            = block.EstimatedBufferedBytes()
 		compactionLevel = int(block.meta.CompactionLevel - 1)
 	)
 
@@ -257,6 +292,7 @@ func (b *bookmark) done(ctx context.Context) bool {
 }
 
 func (b *bookmark) clear() {
+	b.currentID = nil
 	b.currentObject = nil
 }
 
@@ -265,16 +301,14 @@ func (b *bookmark) close() {
 }
 
 type rowPool struct {
-	pool    sync.Pool
-	maxSize int
+	pool sync.Pool
 }
 
-func newRowPool(maxRowSize int) *rowPool {
+func newRowPool(defaultRowSize int) *rowPool {
 	return &rowPool{
-		maxSize: maxRowSize,
 		pool: sync.Pool{
 			New: func() any {
-				return make(parquet.Row, 0, maxRowSize)
+				return make(parquet.Row, 0, defaultRowSize)
 			},
 		},
 	}
@@ -285,15 +319,51 @@ func (r *rowPool) Get() parquet.Row {
 }
 
 func (r *rowPool) Put(row parquet.Row) {
-	if len(row) > r.maxSize {
-		return
-	}
-
 	// Clear before putting into the pool.
 	// This is important so that pool entries don't hang
 	// onto the underlying buffers.
 	for i := range row {
 		row[i] = parquet.Value{}
 	}
-	r.pool.Put(row[:0])
+	r.pool.Put(row[:0]) //nolint:all //SA6002
+}
+
+// estimateProtoSize estimates the byte-length of the corresponding
+// trace in tempopb.Trace format. This method is unreasonably effective.
+// Testing on real blocks shows 90-98% accuracy.
+func estimateProtoSize(row parquet.Row) (size int) {
+	for _, v := range row {
+		size++ // Field identifier
+
+		switch v.Kind() {
+		case parquet.ByteArray:
+			size += len(v.ByteArray())
+
+		case parquet.FixedLenByteArray:
+			size += len(v.ByteArray())
+
+		default:
+			// All other types (ints, bools) approach 1 byte per value
+			size++
+		}
+	}
+	return
+}
+
+// countSpans counts the number of spans in the given trace in deconstructed
+// parquet row format. It simply counts the number of values for span ID, which
+// is always present.
+func countSpans(schema *parquet.Schema, row parquet.Row) (spans int) {
+	spanID, found := schema.Lookup("rs", "ils", "Spans", "ID")
+	if !found {
+		return 0
+	}
+
+	for _, v := range row {
+		if v.Column() == spanID.ColumnIndex {
+			spans++
+		}
+	}
+
+	return
 }

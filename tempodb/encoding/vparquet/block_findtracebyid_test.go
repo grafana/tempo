@@ -79,7 +79,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	// Write test data, occasionally flushing (cutting new row group)
 	rowGroupSize := 5
 	for _, tr := range traces {
-		require.NoError(t, s.Add(tr, 0, 0))
+		s.Add(tr, 0, 0)
 		if s.CurrentBufferedObjects() >= rowGroupSize {
 			_, err = s.Flush()
 			require.NoError(t, err)
@@ -92,10 +92,9 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 
 	// Now find and verify all test traces
 	for _, tr := range traces {
-		wantProto, err := parquetTraceToTempopbTrace(tr)
-		require.NoError(t, err)
+		wantProto := parquetTraceToTempopbTrace(tr)
 
-		gotProto, err := b.FindTraceByID(ctx, tr.TraceID)
+		gotProto, err := b.FindTraceByID(ctx, tr.TraceID, common.SearchOptions{})
 		require.NoError(t, err)
 
 		require.Equal(t, wantProto, gotProto)
@@ -134,7 +133,7 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 		// fmt.Println(tr)
 		// fmt.Println("going to search for traceID", util.TraceIDToHexString(tr.TraceID))
 
-		protoTr, err := b.FindTraceByID(ctx, tr.TraceID)
+		protoTr, err := b.FindTraceByID(ctx, tr.TraceID, common.SearchOptions{})
 		require.NoError(t, err)
 		require.NotNil(t, protoTr)
 	}

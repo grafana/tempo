@@ -35,6 +35,10 @@ func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.Contain
 	}
 
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
+	// Default MaxIdleConnsPerHost is 2, increase that to reduce connection turnover
+	customTransport.MaxIdleConnsPerHost = 100
+	// set total max idle connections to a high number
+	customTransport.MaxIdleConns = 100
 
 	// add instrumentation
 	transport := instrumentation.NewTransport(customTransport)

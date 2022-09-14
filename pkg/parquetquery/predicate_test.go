@@ -18,7 +18,7 @@ func TestSubstringPredicate(t *testing.T) {
 		keptChunks: 1,
 		keptPages:  1,
 		keptValues: 2,
-		writeData: func(w *parquet.Writer) {
+		writeData: func(w *parquet.Writer) { //nolint:all
 			type String struct {
 				S string `parquet:",dict"`
 			}
@@ -34,7 +34,7 @@ func TestSubstringPredicate(t *testing.T) {
 		keptChunks: 1,
 		keptPages:  0,
 		keptValues: 0,
-		writeData: func(w *parquet.Writer) {
+		writeData: func(w *parquet.Writer) { //nolint:all
 			type dictString struct {
 				S string `parquet:",dict"`
 			}
@@ -46,7 +46,7 @@ func TestSubstringPredicate(t *testing.T) {
 }
 
 type predicateTestCase struct {
-	writeData  func(w *parquet.Writer)
+	writeData  func(w *parquet.Writer) //nolint:all
 	keptChunks int
 	keptPages  int
 	keptValues int
@@ -69,7 +69,12 @@ func testPredicate(t *testing.T, tc predicateTestCase) {
 	p := InstrumentedPredicate{pred: tc.predicate}
 
 	i := NewColumnIterator(context.TODO(), r.RowGroups(), 0, "test", 100, &p, "")
-	for i.Next() != nil {
+	for {
+		res, err := i.Next()
+		require.NoError(t, err)
+		if res == nil {
+			break
+		}
 	}
 
 	require.Equal(t, tc.keptChunks, int(p.KeptColumnChunks.Load()), "keptChunks")

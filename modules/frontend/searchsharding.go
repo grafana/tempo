@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb" //nolint:all deprecated
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
@@ -157,12 +157,12 @@ func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchS
 }
 
 // Roundtrip implements http.RoundTripper
-//  execute up to concurrentRequests simultaneously where each request scans ~targetMBsPerRequest
-//  until limit results are found
-//  keeping things simple. current query params are only:
-//    limit=<number>
-//    start=<unix epoch seconds>
-//    end=<unix epoch seconds>
+// execute up to concurrentRequests simultaneously where each request scans ~targetMBsPerRequest
+// until limit results are found
+// keeping things simple. current query params are only:
+// limit=<number>
+// start=<unix epoch seconds>
+// end=<unix epoch seconds>
 func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	searchReq, err := api.ParseSearchRequest(r)
 	if err != nil {

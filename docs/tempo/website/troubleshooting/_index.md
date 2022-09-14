@@ -5,7 +5,10 @@ weight: 700
 
 # Troubleshooting
 
-This section helps with day zero operational issues that may come up when getting started with Tempo. The documents walk you through debugging each part of the ingestion and query pipeline to drill down and diagnose issues.
+This section helps with day zero operational issues that may come up when getting started with Tempo.
+The documents walk you through debugging each part of the ingestion and query pipeline to diagnose issues.
+
+In addition, the [Tempo runbook](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/runbook.md) can help with remediating operational issues.
 
 ## Sending traces
 
@@ -18,3 +21,4 @@ This section helps with day zero operational issues that may come up when gettin
 - [Error message "Too many jobs in the queue"]({{< relref "too-many-jobs-in-queue/" >}})
 - [Queries fail with 500 and "error using pageFinder"]({{< relref "bad-blocks/" >}})
 - [I can search traces, but there are no service name or span name values available]({{< relref "search-tag" >}})
+- [Error message "response larger than the max (<number> vs <limit>)]({{< relref "response-too-large/" >}})

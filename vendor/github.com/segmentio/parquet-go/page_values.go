@@ -16,12 +16,13 @@ type optionalPageValues struct {
 
 func (r *optionalPageValues) ReadValues(values []Value) (n int, err error) {
 	maxDefinitionLevel := r.page.maxDefinitionLevel
+	definitionLevels := r.page.definitionLevels
 	columnIndex := ^int16(r.page.Column())
 
-	for n < len(values) && r.offset < len(r.page.definitionLevels) {
-		for n < len(values) && r.offset < len(r.page.definitionLevels) && r.page.definitionLevels[r.offset] != maxDefinitionLevel {
+	for n < len(values) && r.offset < len(definitionLevels) {
+		for n < len(values) && r.offset < len(definitionLevels) && definitionLevels[r.offset] != maxDefinitionLevel {
 			values[n] = Value{
-				definitionLevel: r.page.definitionLevels[r.offset],
+				definitionLevel: definitionLevels[r.offset],
 				columnIndex:     columnIndex,
 			}
 			r.offset++
@@ -30,7 +31,7 @@ func (r *optionalPageValues) ReadValues(values []Value) (n int, err error) {
 
 		i := n
 		j := r.offset
-		for i < len(values) && j < len(r.page.definitionLevels) && r.page.definitionLevels[j] == maxDefinitionLevel {
+		for i < len(values) && j < len(definitionLevels) && definitionLevels[j] == maxDefinitionLevel {
 			i++
 			j++
 		}
@@ -49,7 +50,7 @@ func (r *optionalPageValues) ReadValues(values []Value) (n int, err error) {
 		}
 	}
 
-	if r.offset == len(r.page.definitionLevels) {
+	if r.offset == len(definitionLevels) {
 		err = io.EOF
 	}
 	return n, err
@@ -63,13 +64,15 @@ type repeatedPageValues struct {
 
 func (r *repeatedPageValues) ReadValues(values []Value) (n int, err error) {
 	maxDefinitionLevel := r.page.maxDefinitionLevel
+	definitionLevels := r.page.definitionLevels
+	repetitionLevels := r.page.repetitionLevels
 	columnIndex := ^int16(r.page.Column())
 
-	for n < len(values) && r.offset < len(r.page.definitionLevels) {
-		for n < len(values) && r.offset < len(r.page.definitionLevels) && r.page.definitionLevels[r.offset] != maxDefinitionLevel {
+	for n < len(values) && r.offset < len(definitionLevels) {
+		for n < len(values) && r.offset < len(definitionLevels) && definitionLevels[r.offset] != maxDefinitionLevel {
 			values[n] = Value{
-				repetitionLevel: r.page.repetitionLevels[r.offset],
-				definitionLevel: r.page.definitionLevels[r.offset],
+				repetitionLevel: repetitionLevels[r.offset],
+				definitionLevel: definitionLevels[r.offset],
 				columnIndex:     columnIndex,
 			}
 			r.offset++
@@ -78,14 +81,14 @@ func (r *repeatedPageValues) ReadValues(values []Value) (n int, err error) {
 
 		i := n
 		j := r.offset
-		for i < len(values) && j < len(r.page.definitionLevels) && r.page.definitionLevels[j] == maxDefinitionLevel {
+		for i < len(values) && j < len(definitionLevels) && definitionLevels[j] == maxDefinitionLevel {
 			i++
 			j++
 		}
 
 		if n < i {
 			for j, err = r.values.ReadValues(values[n:i]); j > 0; j-- {
-				values[n].repetitionLevel = r.page.repetitionLevels[r.offset]
+				values[n].repetitionLevel = repetitionLevels[r.offset]
 				values[n].definitionLevel = maxDefinitionLevel
 				r.offset++
 				n++
@@ -97,7 +100,7 @@ func (r *repeatedPageValues) ReadValues(values []Value) (n int, err error) {
 		}
 	}
 
-	if r.offset == len(r.page.definitionLevels) {
+	if r.offset == len(definitionLevels) {
 		err = io.EOF
 	}
 	return n, err
@@ -307,8 +310,9 @@ func (r *byteArrayPageValues) ReadByteArrays(values []byte) (int, error) {
 }
 
 func (r *byteArrayPageValues) readByteArrays(values []byte) (c, n int, err error) {
-	for r.offset < len(r.page.values) {
-		b := r.page.valueAt(uint32(r.offset))
+	numValues := r.page.len()
+	for r.offset < numValues {
+		b := r.page.index(r.offset)
 		k := plain.ByteArrayLengthSize + len(b)
 		if k > (len(values) - n) {
 			break
@@ -316,11 +320,10 @@ func (r *byteArrayPageValues) readByteArrays(values []byte) (c, n int, err error
 		plain.PutByteArrayLength(values[n:], len(b))
 		n += plain.ByteArrayLengthSize
 		n += copy(values[n:], b)
-		r.offset += plain.ByteArrayLengthSize
-		r.offset += len(b)
+		r.offset++
 		c++
 	}
-	if r.offset == len(r.page.values) {
+	if r.offset == numValues {
 		err = io.EOF
 	} else if n == 0 && len(values) > 0 {
 		err = io.ErrShortBuffer
@@ -329,14 +332,13 @@ func (r *byteArrayPageValues) readByteArrays(values []byte) (c, n int, err error
 }
 
 func (r *byteArrayPageValues) ReadValues(values []Value) (n int, err error) {
-	for n < len(values) && r.offset < len(r.page.values) {
-		value := r.page.valueAt(uint32(r.offset))
-		values[n] = r.page.makeValueBytes(copyBytes(value))
-		r.offset += plain.ByteArrayLengthSize
-		r.offset += len(value)
+	numValues := r.page.len()
+	for n < len(values) && r.offset < numValues {
+		values[n] = r.page.makeValueBytes(r.page.index(r.offset))
+		r.offset++
 		n++
 	}
-	if r.offset == len(r.page.values) {
+	if r.offset == numValues {
 		err = io.EOF
 	}
 	return n, err
@@ -369,7 +371,7 @@ func (r *fixedLenByteArrayPageValues) ReadFixedLenByteArrays(values []byte) (n i
 
 func (r *fixedLenByteArrayPageValues) ReadValues(values []Value) (n int, err error) {
 	for n < len(values) && r.offset < len(r.page.data) {
-		values[n] = r.page.makeValueBytes(copyBytes(r.page.data[r.offset : r.offset+r.page.size]))
+		values[n] = r.page.makeValueBytes(r.page.data[r.offset : r.offset+r.page.size])
 		r.offset += r.page.size
 		n++
 	}

@@ -35,6 +35,10 @@ minio + metrics + load + tempo {
         },
       },
     },
+    metrics_generator+: {
+      ephemeral_storage_limit_size: '2Gi',
+      ephemeral_storage_request_size: '1Gi',
+    },
     memcached+: {
       replicas: 1,
     },

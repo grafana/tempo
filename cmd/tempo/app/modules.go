@@ -216,9 +216,9 @@ func (t *App) initQuerier() (services.Service, error) {
 }
 
 func (t *App) initQueryFrontend() (services.Service, error) {
-	// cortexTripper is a bridge between http and httpgrpc. it does the job of passing data to the cortex
-	// frontend code
-	cortexTripper, v1, _, err := frontend.InitFrontend(t.cfg.Frontend.Config, frontend.CortexNoQuerierLimits{}, 0, log.Logger, prometheus.DefaultRegisterer)
+	// cortexTripper is a bridge between http and httpgrpc.
+	// It does the job of passing data to the cortex frontend code.
+	cortexTripper, v1, err := frontend.InitFrontend(t.cfg.Frontend.Config, frontend.CortexNoQuerierLimits{}, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, err
 	}
@@ -391,7 +391,7 @@ func (t *App) setupModuleManager() error {
 		Compactor:            {Store, Server, Overrides, MemberlistKV, UsageReport},
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor},
 		ScalableSingleBinary: {SingleBinary},
-		UsageReport:          {MemberlistKV, Store},
+		UsageReport:          {MemberlistKV},
 	}
 
 	if t.cfg.MetricsGeneratorEnabled {

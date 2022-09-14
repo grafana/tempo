@@ -1,8 +1,11 @@
 package vparquet
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/dustin/go-humanize"
+	"github.com/segmentio/parquet-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -10,6 +13,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util/test"
 )
 
 func TestProtoParquetRoundTrip(t *testing.T) {
@@ -143,18 +147,140 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 	}
 
 	parquetTrace := traceToParquet(traceIDA, expectedTrace)
-	actualTrace, err := parquetTraceToTempopbTrace(&parquetTrace)
-	assert.NoError(t, err)
+	actualTrace := parquetTraceToTempopbTrace(&parquetTrace)
 	assert.Equal(t, expectedTrace, actualTrace)
 }
 
 func TestProtoToParquetEmptyTrace(t *testing.T) {
 
 	want := Trace{
-		TraceID: make([]byte, 16),
+		TraceID:       make([]byte, 16),
+		ResourceSpans: []ResourceSpans{},
 	}
 
 	got := traceToParquet(nil, &tempopb.Trace{})
 
 	require.Equal(t, want, got)
+}
+
+func BenchmarkProtoToParquet(b *testing.B) {
+
+	batchCount := 100
+	spanCounts := []int{
+		100, 1000,
+		10000,
+	}
+
+	for _, spanCount := range spanCounts {
+		b.Run("SpanCount:"+humanize.SI(float64(batchCount*spanCount), ""), func(b *testing.B) {
+
+			id := test.ValidTraceID(nil)
+			tr := test.MakeTraceWithSpanCount(batchCount, spanCount, id)
+
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				traceToParquet(id, tr)
+			}
+		})
+	}
+}
+
+func BenchmarkEventToParquet(b *testing.B) {
+	e := &v1_trace.Span_Event{
+		TimeUnixNano: 1000,
+		Name:         "blerg",
+		Attributes: []*v1.KeyValue{
+			// String
+			{Key: "s", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "s2"}}},
+
+			// Int
+			{Key: "i", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
+
+			// Double
+			{Key: "d", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 123.456}}},
+
+			// Bool
+			{Key: "b", Value: &v1.AnyValue{Value: &v1.AnyValue_BoolValue{BoolValue: true}}},
+
+			// KVList
+			{Key: "kv", Value: &v1.AnyValue{Value: &v1.AnyValue_KvlistValue{KvlistValue: &v1.KeyValueList{Values: []*v1.KeyValue{
+				{Key: "s2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "s3"}}},
+				{Key: "i2", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 789}}},
+			}}}}},
+
+			// Array
+			{Key: "a", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{
+				{Value: &v1.AnyValue_StringValue{StringValue: "s4"}},
+				{Value: &v1.AnyValue_IntValue{IntValue: 101112}},
+			}}}}},
+		},
+	}
+
+	for i := 0; i < b.N; i++ {
+		eventToParquet(e)
+	}
+}
+
+func BenchmarkDeconstruct(b *testing.B) {
+
+	batchCount := 100
+	spanCounts := []int{
+		100, 1000,
+		10000,
+	}
+
+	poolSizes := []int{
+		100_000,
+		30_000_000,
+	}
+
+	for _, spanCount := range spanCounts {
+		for _, poolSize := range poolSizes {
+			ss := humanize.SI(float64(batchCount*spanCount), "")
+			ps := humanize.SI(float64(poolSize), "")
+			b.Run(fmt.Sprintf("SpanCount%v/Pool%v", ss, ps), func(b *testing.B) {
+
+				id := test.ValidTraceID(nil)
+				tr := traceToParquet(id, test.MakeTraceWithSpanCount(batchCount, spanCount, id))
+				sch := parquet.SchemaOf(tr)
+
+				b.ResetTimer()
+
+				pool := newRowPool(poolSize)
+
+				for i := 0; i < b.N; i++ {
+					r2 := sch.Deconstruct(pool.Get(), tr)
+					pool.Put(r2)
+				}
+			})
+		}
+	}
+}
+
+func TestParquetRowSizeEstimate(t *testing.T) {
+
+	batchCount := 100
+	spanCounts := []int{
+		100, 1000,
+		//10000, this crashes in GitHub
+	}
+
+	for _, spanCount := range spanCounts {
+		ss := humanize.SI(float64(batchCount*spanCount), "")
+		t.Run(fmt.Sprintf("SpanCount%v", ss), func(t *testing.T) {
+
+			id := test.ValidTraceID(nil)
+			tr := test.MakeTraceWithSpanCount(batchCount, spanCount, id)
+			proto, _ := tr.Marshal()
+			fmt.Println("Size of proto is:", len(proto))
+
+			parq := traceToParquet(id, tr)
+			sch := parquet.SchemaOf(parq)
+			row := sch.Deconstruct(nil, parq)
+
+			fmt.Println("Size of parquet row is:", estimateProtoSize(row))
+			fmt.Println("Size of parquet is:", estimateTraceSize(&parq))
+		})
+	}
 }

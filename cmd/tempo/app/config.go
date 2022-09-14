@@ -2,9 +2,9 @@ package app
 
 import (
 	"flag"
+	"fmt"
 	"time"
 
-	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv/memberlist"
 	"github.com/grafana/tempo/modules/compactor"
@@ -19,8 +19,8 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/server"
 )
@@ -72,6 +72,10 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	flagext.DefaultValues(&c.Server)
 	c.Server.LogLevel.RegisterFlags(f)
 
+	// Increase max message size to 16MB
+	c.Server.GPRCServerMaxRecvMsgSize = 16 * 1024 * 1024
+	c.Server.GRPCServerMaxSendMsgSize = 16 * 1024 * 1024
+
 	// The following GRPC server settings are added to address this issue - https://github.com/grafana/tempo/issues/493
 	// The settings prevent the grpc server from sending a GOAWAY message if a client sends heartbeat messages
 	// too frequently (due to lack of real traffic).
@@ -117,43 +121,52 @@ func (c *Config) MultitenancyIsEnabled() bool {
 	return c.MultitenancyEnabled || c.AuthEnabled
 }
 
-// CheckConfig checks if config values are suspect.
-func (c *Config) CheckConfig() {
+// CheckConfig checks if config values are suspect and returns a bundled list of warnings and explanation.
+func (c *Config) CheckConfig() []ConfigWarning {
+	var warnings []ConfigWarning
 	if c.Target == MetricsGenerator && !c.MetricsGeneratorEnabled {
-		level.Warn(log.Logger).Log("msg", "target == metrics-generator but metrics_generator_enabled != true",
-			"explain", "The metrics-generator will only receive data if metrics_generator_enabled is set to true globally")
+		warnings = append(warnings, warnMetricsGenerator)
 	}
 
 	if c.Ingester.CompleteBlockTimeout < c.StorageConfig.Trace.BlocklistPoll {
-		level.Warn(log.Logger).Log("msg", "ingester.complete_block_timeout < storage.trace.blocklist_poll",
-			"explain", "You may receive 404s between the time the ingesters have flushed a trace and the querier is aware of the new block")
+		warnings = append(warnings, warnCompleteBlockTimeout)
 	}
 
 	if c.Compactor.Compactor.BlockRetention < c.StorageConfig.Trace.BlocklistPoll {
-		level.Warn(log.Logger).Log("msg", "compactor.compaction.compacted_block_timeout < storage.trace.blocklist_poll",
-			"explain", "Queriers and Compactors may attempt to read a block that no longer exists")
+		warnings = append(warnings, warnBlockRetention)
 	}
 
 	if c.Compactor.Compactor.RetentionConcurrency == 0 {
-		level.Warn(log.Logger).Log("msg", "c.Compactor.Compactor.RetentionConcurrency must be greater than zero. Using default.", "default", tempodb.DefaultRetentionConcurrency)
+		warnings = append(warnings, warnRetentionConcurrency)
 	}
 
 	if c.StorageConfig.Trace.Backend == "s3" && c.Compactor.Compactor.FlushSizeBytes < 5242880 {
-		level.Warn(log.Logger).Log("msg", "c.Compactor.Compactor.FlushSizeBytes < 5242880",
-			"explain", "Compaction flush size should be 5MB or higher for S3 backend")
+		warnings = append(warnings, warnStorageTraceBackendS3)
 	}
 
 	if c.StorageConfig.Trace.BlocklistPollConcurrency == 0 {
-		level.Warn(log.Logger).Log("msg", "c.StorageConfig.Trace.BlocklistPollConcurrency must be greater than zero. Using default.", "default", tempodb.DefaultBlocklistPollConcurrency)
+		warnings = append(warnings, warnBlocklistPollConcurrency)
 	}
 
 	if c.Distributor.LogReceivedTraces {
-		level.Warn(log.Logger).Log("msg", "c.Distributor.LogReceivedTraces is deprecated. The new flag is c.Distributor.log_received_spans.enabled")
+		warnings = append(warnings, warnLogReceivedTraces)
 	}
 
 	if c.StorageConfig.Trace.Backend == "local" && c.Target != SingleBinary {
-		level.Warn(log.Logger).Log("msg", "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.")
+		warnings = append(warnings, warnStorageTraceBackendLocal)
 	}
+
+	// flatbuffers are configured but we're not using v2
+	if c.Ingester.UseFlatbufferSearch && c.StorageConfig.Trace.Block.Version != v2.VersionString {
+		warnings = append(warnings, warnFlatBuffersNotNecessary)
+	}
+
+	// we're using v2 but flatbuffers are not configured
+	if !c.Ingester.UseFlatbufferSearch && c.StorageConfig.Trace.Block.Version == v2.VersionString {
+		warnings = append(warnings, warnIngesterSearchWillNotWork)
+	}
+
+	return warnings
 }
 
 func (c *Config) Describe(ch chan<- *prometheus.Desc) {
@@ -184,3 +197,50 @@ func (c *Config) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(metricConfigFeatDesc, prometheus.GaugeValue, float64(value), label)
 	}
 }
+
+// ConfigWarning bundles message and explanation strings in one structure.
+type ConfigWarning struct {
+	Message string
+	Explain string
+}
+
+var (
+	warnMetricsGenerator = ConfigWarning{
+		Message: "target == metrics-generator but metrics_generator_enabled != true",
+		Explain: "The metrics-generator will only receive data if metrics_generator_enabled is set to true globally",
+	}
+	warnCompleteBlockTimeout = ConfigWarning{
+		Message: "ingester.complete_block_timeout < storage.trace.blocklist_poll",
+		Explain: "You may receive 404s between the time the ingesters have flushed a trace and the querier is aware of the new block",
+	}
+	warnBlockRetention = ConfigWarning{
+		Message: "compactor.compaction.compacted_block_timeout < storage.trace.blocklist_poll",
+		Explain: "Queriers and Compactors may attempt to read a block that no longer exists",
+	}
+	warnRetentionConcurrency = ConfigWarning{
+		Message: "c.Compactor.Compactor.RetentionConcurrency must be greater than zero. Using default.",
+		Explain: fmt.Sprintf("default=%d", tempodb.DefaultRetentionConcurrency),
+	}
+	warnStorageTraceBackendS3 = ConfigWarning{
+		Message: "c.Compactor.Compactor.FlushSizeBytes < 5242880",
+		Explain: "Compaction flush size should be 5MB or higher for S3 backend",
+	}
+	warnBlocklistPollConcurrency = ConfigWarning{
+		Message: "c.StorageConfig.Trace.BlocklistPollConcurrency must be greater than zero. Using default.",
+		Explain: fmt.Sprintf("default=%d", tempodb.DefaultBlocklistPollConcurrency),
+	}
+	warnLogReceivedTraces = ConfigWarning{
+		Message: "c.Distributor.LogReceivedTraces is deprecated. The new flag is c.Distributor.log_received_spans.enabled",
+	}
+	warnStorageTraceBackendLocal = ConfigWarning{
+		Message: "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.",
+	}
+	warnFlatBuffersNotNecessary = ConfigWarning{
+		Message: "Flatbuffers enabled with a block type that supports search.",
+		Explain: "The configured block type supports local search in the ingester. Flatbuffers are not necessary and will consume extra resources.",
+	}
+	warnIngesterSearchWillNotWork = ConfigWarning{
+		Message: "Flatbuffers disabled with a block type that does not support search",
+		Explain: "Flatbuffers are disabled but the configured block type does not support ingester search. This can be ignored if only trace by id lookup is desired.",
+	}
+)

@@ -94,7 +94,16 @@ func main() {
 	ballast := make([]byte, *ballastMBs*1024*1024)
 
 	// Warn the user for suspect configurations
-	config.CheckConfig()
+	if warnings := config.CheckConfig(); len(warnings) != 0 {
+		level.Warn(log.Logger).Log("-- CONFIGURATION WARNINGS --")
+		for _, w := range warnings {
+			output := []any{"msg", w.Message}
+			if w.Explain != "" {
+				output = append(output, "explain", w.Explain)
+			}
+			level.Warn(log.Logger).Log(output...)
+		}
+	}
 
 	// Start Tempo
 	t, err := app.New(*config)

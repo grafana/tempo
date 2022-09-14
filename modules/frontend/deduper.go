@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/go-kit/log"
-	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/proto" //nolint:all //deprecated
 	"github.com/opentracing/opentracing-go"
 
 	"github.com/grafana/tempo/pkg/tempopb"

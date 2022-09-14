@@ -1,6 +1,8 @@
 ---
 title: Configuration
 weight: 200
+alias:
+- /docs/tempo/latest/configuration/
 ---
 
 # Configuration
@@ -20,7 +22,7 @@ This document explains the configuration options for Tempo as well as the detail
   - [search](#search)
   - [usage-report](#usage-report)
 
-#### Use environment variables in the configuration
+## Use environment variables in the configuration
 
 You can use environment variable references in the configuration file to set values that need to be configurable during deployment using `--config.expand-env` option.
 To do this, use:
@@ -29,7 +31,7 @@ To do this, use:
 ${VAR}
 ```
 
-Where VAR is the name of the environment variable.
+Where `VAR` is the name of the environment variable.
 
 Each variable reference is replaced at startup by the value of the environment variable.
 The replacement is case-sensitive and occurs before the YAML file is parsed.
@@ -41,11 +43,12 @@ To specify a default value, use:
 ${VAR:-default_value}
 ```
 
-where default_value is the value to use if the environment variable is undefined.
+where `default_value` is the value to use if the environment variable is undefined.
 
-You can find more about other supported syntax [here](https://github.com/drone/envsubst/blob/master/readme.md)
+You can find more about other supported syntax [here](https://github.com/drone/envsubst/blob/master/readme.md).
 
 ## Server
+
 Tempo uses the Weaveworks/common server. For more information on configuration options, see [here](https://github.com/weaveworks/common/blob/master/server/server.go#L54).
 
 ```yaml
@@ -93,6 +96,7 @@ server:
 ```
 
 ## Distributor
+
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/distributor/config.go).
 
 Distributors receive spans and forward them to the appropriate ingesters.
@@ -146,6 +150,7 @@ distributor:
 ```
 
 ## Ingester
+
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/ingester/config.go).
 
 The ingester is responsible for batching up traces and pushing them to [TempoDB](#storage).
@@ -181,6 +186,12 @@ ingester:
     # duration to keep blocks in the ingester after they have been flushed
     # (default: 15m)
     [ complete_block_timeout: <duration>]
+
+    # If true then flatbuffer search metadata files are created and used in the ingester for search, 
+    # search tags and search tag values. If false then the blocks themselves are used for search in the ingesters. 
+    # Warning: v2 blocks do not support ingester search without this enabled.
+    # (default: false)
+    [ use_flatbuffer_search: <bool> ]
 ```
 
 ## Metrics-generator
@@ -270,9 +281,15 @@ metrics_generator:
         # https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
         remote_write:
             [- <Prometheus remote write config>]
+
+    # This option only allows spans with start time that occur within the configured duration to be
+    # considered in metrics generation
+    # This is to filter out spans that are outdated
+    [ingestion_time_range_slack: <duration> | default = 30s]
 ```
 
 ## Query-frontend
+
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/frontend/config.go).
 
 The Query Frontend is responsible for sharding incoming requests for faster processing in parallel (by the queriers).
@@ -291,7 +308,6 @@ query_frontend:
 
     # number of block queries that are tolerated to error before considering the entire query as failed
     # numbers greater than 0 make possible for a read to return partial results
-    # partial results are indicated with HTTP status code 206
     # (default: 0)
     [tolerate_failed_blocks: <int>]
 
@@ -333,6 +349,7 @@ query_frontend:
 ```
 
 ## Querier
+
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/querier/config.go).
 
 The Querier is responsible for querying the backends/cache for the traceID.
@@ -395,6 +412,7 @@ It also queries compacted blocks that fall within the (2 * BlocklistPoll) range 
 is defined in the storage section below.
 
 ## Compactor
+
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/compactor/config.go).
 
 Compactors stream blocks from the storage backend, combine them and write them back.  Values shown below are the defaults.
@@ -450,14 +468,32 @@ compactor:
 ```
 
 ## Storage
+
+Tempo supports Amazon S3, GCS, Azure, and local file system for storage. In addition, you can use Memcached or Redis for increased query performance.
+
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/tempodb/config.go).
 
-The storage block is used to configure TempoDB. It supports S3, GCS, Azure, local file system, and optionally can use Memcached or Redis for increased query performance.
+### Local storage recommendations
 
-The following example shows common options.  For further platform-specific information refer to the following:
+While you can use local storage, object storage is recommended for production workloads.
+A local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk.
+Tempo is designed for object storage more than local storage.
+
+At Grafana Labs, we have run Tempo with SSDs when using local storage. Hard drives have not been tested. 
+
+How much storage space you need can be estimated by considering the ingested bytes and retention. For example, ingested bytes per day *times* retention days = stored bytes.
+
+You can not use both local and object storage in the same Tempo deployment.
+
+### Storage block configuration example
+
+The storage block is used to configure TempoDB.
+The following example shows common options. For further platform-specific information, refer to the following:
+
 * [GCS]({{< relref "gcs/" >}})
 * [S3]({{< relref "s3/" >}})
 * [Azure]({{< relref "azure/" >}})
+* [Parquet]({{< relref "parquet/" >}})
 
 ```yaml
 # Storage configuration for traces
@@ -466,7 +502,7 @@ storage:
     trace:
 
         # The storage backend to use
-        # Should be one of "gcs", "s3", "azure" or "local"
+        # Should be one of "gcs", "s3", "azure" or "local" (only supported in the monolithic mode)
         # CLI flag -storage.trace.backend
         [backend: <string>]
 
@@ -870,6 +906,7 @@ storage:
 ```
 
 ## Memberlist
+
 [Memberlist](https://github.com/hashicorp/memberlist) is the default mechanism for all of the Tempo pieces to coordinate with each other.
 
 ```yaml
@@ -959,11 +996,15 @@ memberlist:
 Tempo provides an overrides module for users to set global or per-tenant override settings.
 
 ### Ingestion limits
-The default limits in Tempo may not be sufficient in high-volume tracing environments. Errors including `RATE_LIMITED`/`TRACE_TOO_LARGE`/`LIVE_TRACES_EXCEEDED` occur when these limits are exceeded. See below for how to override these limits globally or per tenant.
+
+The default limits in Tempo may not be sufficient in high-volume tracing environments.
+Errors including `RATE_LIMITED`/`TRACE_TOO_LARGE`/`LIVE_TRACES_EXCEEDED` occur when these limits are exceeded.
+See below for how to override these limits globally or per tenant.
 
 #### Standard overrides
+
 You can create an `overrides` section to configure new ingestion limits that applies to all tenants of the cluster.
-A snippet of a config.yaml file showing how the overrides section is [here](https://github.com/grafana/tempo/blob/a000a0d461221f439f585e7ed55575e7f51a0acd/integration/bench/config.yaml#L39-L40).
+A snippet of a `config.yaml` file showing how the overrides section is [here](https://github.com/grafana/tempo/blob/a000a0d461221f439f585e7ed55575e7f51a0acd/integration/bench/config.yaml#L39-L40).
 
 ```yaml
 # Overrides configuration block
@@ -1079,7 +1120,11 @@ overrides:
 
 #### Tenant-specific overrides
 
-You can set tenant-specific overrides settings in a separate file and point `per_tenant_override_config` to it. This overrides file is dynamically loaded. It can be changed at runtime and reloaded by Tempo without restarting the application. These override settings can be set per tenant.
+You can set tenant-specific overrides settings in a separate file and point `per_tenant_override_config` to it.
+This overrides file is dynamically loaded.
+It can be changed at runtime and reloaded by Tempo without restarting the application.
+These override settings can be set per tenant.
+
 ```yaml
 # /conf/tempo.yaml
 # Overrides configuration block
@@ -1107,11 +1152,15 @@ overrides:
 
 #### Override strategies
 
-The trace limits specified by the various parameters are, by default, applied as per-distributor limits. For example, a `max_traces_per_user` setting of 10000 means that each distributor within the cluster has a limit of 10000 traces per user. This is known as a `local` strategy in that the specified trace limits are local to each distributor.
+The trace limits specified by the various parameters are, by default, applied as per-distributor limits.
+For example, a `max_traces_per_user` setting of 10000 means that each distributor within the cluster has a limit of 10000 traces per user.
+This is known as a `local` strategy in that the specified trace limits are local to each distributor.
 
 A setting that applies at a local level is quite helpful in ensuring that each distributor independently can process traces up to the limit without affecting the tracing limits on other distributors.
 
-However, as a cluster grows quite large, this can lead to quite a large quantity of traces. An alternative strategy may be to set a `global` trace limit that establishes a total budget of all traces across all distributors in the cluster. The global limit is averaged across all distributors by using the distributor ring.
+However, as a cluster grows quite large, this can lead to quite a large quantity of traces.
+An alternative strategy may be to set a `global` trace limit that establishes a total budget of all traces across all distributors in the cluster.
+The global limit is averaged across all distributors by using the distributor ring.
 
 ```yaml
 # /conf/tempo.yaml
@@ -1148,13 +1197,25 @@ Additional search-related settings are available in the [distributor](#distribut
 
 ## Usage-report
 
-By default, Tempo will report anonymous usage data about the shape of a
-deployment to Grafana Labs. This data is used to determine how common the
-deployment of certain features are, if a feature flag has been enabled,
-replication factor or compression levels, etc.
+By default, Tempo will report anonymous usage data about the shape of a deployment to Grafana Labs. 
+This data is used to determine how common the deployment of certain features are, if a feature flag has been enabled,
+and which replication factor or compression levels are used.
 
-Reporting is controlled by a configuration option. You can disable the
-automatic reporting of this generic information using the following
+By providing information on how people use Tempo, usage reporting helps the Tempo team decide where to focus their development and documentation efforts. No private information is collected, and all reports are completely anonymous.
+
+Reporting is controlled by a configuration option.
+
+The following configuration values are used: 
+
+- Receivers enabled
+- Frontend concurrency and version
+- Storage cache, backend, wal and block encodings
+- Ring replication factor, and `kvstore` 
+- Features toggles enabled
+
+No performance data is collected. 
+
+You can disable the automatic reporting of this generic information using the following
 configuration:
 
 ```yaml

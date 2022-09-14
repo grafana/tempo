@@ -239,9 +239,17 @@ func (c *Compactor) Combine(dataEncoding string, tenantID string, objs ...[]byte
 	return objs[0], wasCombined, nil
 }
 
+func (c *Compactor) RecordDiscardedSpans(count int, tenantID string) {
+	overrides.RecordDiscardedSpans(count, reasonCompactorDiscardedSpans, tenantID)
+}
+
 // BlockRetentionForTenant implements CompactorOverrides
 func (c *Compactor) BlockRetentionForTenant(tenantID string) time.Duration {
 	return c.overrides.BlockRetention(tenantID)
+}
+
+func (c *Compactor) MaxBytesPerTraceForTenant(tenantID string) int {
+	return c.overrides.MaxBytesPerTrace(tenantID)
 }
 
 func (c *Compactor) isSharded() bool {
@@ -283,7 +291,6 @@ func (c *Compactor) OnRingInstanceStopping(lifecycler *ring.BasicLifecycler) {}
 func (c *Compactor) OnRingInstanceHeartbeat(lifecycler *ring.BasicLifecycler, ringDesc *ring.Desc, instanceDesc *ring.InstanceDesc) {
 }
 
-//
 func countSpans(dataEncoding string, objs ...[]byte) int {
 	decoder, err := model.NewObjectDecoder(dataEncoding)
 	if err != nil {

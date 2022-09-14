@@ -8,8 +8,7 @@
 // casting a [][16]byte to a []byte in order to use functions of the standard
 // bytes package on the slices.
 //
-//		With great power comes great responsibility.
-//
+//	With great power comes great responsibility.
 package unsafecast
 
 import (
@@ -25,7 +24,7 @@ func AddressOf[T any](data []T) *T {
 
 // AddressOfBytes returns the address of the first byte in data.
 func AddressOfBytes(data []byte) *byte {
-	return AddressOf(data)
+	return *(**byte)(unsafe.Pointer(&data))
 }
 
 // AddressOfString returns the address of the first byte in data.

@@ -122,73 +122,31 @@ done:
     MOVB R12, ok+72(FP)
     RET
 
-// func decodeByteArrayAVX2(dst, src []byte, prefix, suffix []int32) int
-TEXT ·decodeByteArrayAVX2(SB), NOSPLIT, $0-104
-    MOVQ dst_base+0(FP), AX
-    MOVQ src_base+24(FP), BX
-    MOVQ prefix_base+48(FP), CX
-    MOVQ suffix_base+72(FP), DX
-    MOVQ suffix_len+80(FP), DI
+// func decodeByteArrayOffsets(offsets []uint32, prefix, suffix []int32)
+TEXT ·decodeByteArrayOffsets(SB), NOSPLIT, $0-72
+    MOVQ offsets_base+0(FP), AX
+    MOVQ prefix_base+24(FP), BX
+    MOVQ suffix_base+48(FP), CX
+    MOVQ suffix_len+56(FP), DX
 
-    ADDQ $4, AX
     XORQ SI, SI
-    XORQ R8, R8
-    XORQ R9, R9
-    MOVQ AX, R10 // last value
-
+    XORQ R10, R10
     JMP test
 loop:
-    MOVLQZX (CX)(SI*4), R8 // prefix length
-    MOVLQZX (DX)(SI*4), R9 // suffix length
-    MOVQ R8, R11
-    ADDQ R9, R11
-    MOVL R11, -4(AX)
-prefix:
-    VMOVDQU (R10), X0
-    VMOVDQU X0, (AX)
-    CMPQ R8, $16
-    JA copyPrefix
-suffix:
-    VMOVDQU (BX), X1
-    VMOVDQU X1, (AX)(R8*1)
-    CMPQ R9, $16
-    JA copySuffix
-next:
-    MOVQ AX, R10
-    LEAQ 4(AX)(R11*1), AX
-    LEAQ 0(BX)(R9*1), BX
+    MOVL (BX)(SI*4), R8
+    MOVL (CX)(SI*4), R9
+    MOVL R10, (AX)(SI*4)
+    ADDL R8, R10
+    ADDL R9, R10
     INCQ SI
 test:
-    CMPQ SI, DI
+    CMPQ SI, DX
     JNE loop
-    MOVQ dst_base+0(FP), BX
-    SUBQ BX, AX
-    SUBQ $4, AX
-    MOVQ AX, ret+96(FP)
-    VZEROUPPER
+    MOVL R10, (AX)(SI*4)
     RET
-copyPrefix:
-    MOVQ $16, R12
-copyPrefixLoop:
-    VMOVDQU (R10)(R12*1), Y0
-    VMOVDQU Y0, (AX)(R12*1)
-    ADDQ $32, R12
-    CMPQ R12, R8
-    JB copyPrefixLoop
-    JMP suffix
-copySuffix:
-    MOVQ $16, R12
-    LEAQ (AX)(R8*1), R13
-copySuffixLoop:
-    VMOVDQU (BX)(R12*1), Y1
-    VMOVDQU Y1, (R13)(R12*1)
-    ADDQ $32, R12
-    CMPQ R12, R9
-    JB copySuffixLoop
-    JMP next
 
-// func decodeFixedLenByteArrayAVX2(dst, src []byte, prefix, suffix []int32) int
-TEXT ·decodeFixedLenByteArrayAVX2(SB), NOSPLIT, $0-104
+// func decodeByteArrayAVX2(dst, src []byte, prefix, suffix []int32) int
+TEXT ·decodeByteArrayAVX2(SB), NOSPLIT, $0-104
     MOVQ dst_base+0(FP), AX
     MOVQ src_base+24(FP), BX
     MOVQ prefix_base+48(FP), CX
@@ -248,8 +206,8 @@ copySuffixLoop:
     JB copySuffixLoop
     JMP next
 
-// func decodeFixedLenByteArrayAVX2x128bits(dst, src []byte, prefix, suffix []int32) int
-TEXT ·decodeFixedLenByteArrayAVX2x128bits(SB), NOSPLIT, $0-104
+// func decodeByteArrayAVX2x128bits(dst, src []byte, prefix, suffix []int32) int
+TEXT ·decodeByteArrayAVX2x128bits(SB), NOSPLIT, $0-104
     MOVQ dst_base+0(FP), AX
     MOVQ src_base+24(FP), BX
     MOVQ prefix_base+48(FP), CX

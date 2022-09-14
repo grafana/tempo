@@ -10,7 +10,6 @@ package parquet
 //		Descending: true,
 //		NullsFirst: true,
 //	})
-//
 type SortConfig struct {
 	MaxRepetitionLevel int
 	MaxDefinitionLevel int

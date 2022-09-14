@@ -70,3 +70,13 @@ func gather128(dst [][16]byte, src Uint128Array) int {
 
 	return n
 }
+
+func gatherString(dst []string, src StringArray) int {
+	n := min(len(dst), src.Len())
+
+	for i := range dst[:n] {
+		dst[i] = src.Index(i)
+	}
+
+	return n
+}

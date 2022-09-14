@@ -19,9 +19,9 @@ func newHash() hash.Hash64 {
 }
 
 // tokenForID returns a token for use in a hash map given a span id and span kind
-//  buffer must be a 4 byte slice and is reused for writing the span kind to the hashing function
-//  kind is used along with the actual id b/c in zipkin traces span id is not guaranteed to be unique
-//  as it is shared between client and server spans.
+// buffer must be a 4 byte slice and is reused for writing the span kind to the hashing function
+// kind is used along with the actual id b/c in zipkin traces span id is not guaranteed to be unique
+// as it is shared between client and server spans.
 func tokenForID(h hash.Hash64, buffer []byte, kind int32, b []byte) token {
 	binary.LittleEndian.PutUint32(buffer, uint32(kind))
 
@@ -157,33 +157,33 @@ func SortTrace(t *Trace) {
 	for _, b := range t.ResourceSpans {
 		for _, ils := range b.InstrumentationLibrarySpans {
 			sort.Slice(ils.Spans, func(i, j int) bool {
-				return compareSpans(ils.Spans[i], ils.Spans[j])
+				return compareSpans(&ils.Spans[i], &ils.Spans[j])
 			})
 		}
 		sort.Slice(b.InstrumentationLibrarySpans, func(i, j int) bool {
-			return compareIls(b.InstrumentationLibrarySpans[i], b.InstrumentationLibrarySpans[j])
+			return compareIls(&b.InstrumentationLibrarySpans[i], &b.InstrumentationLibrarySpans[j])
 		})
 	}
 	sort.Slice(t.ResourceSpans, func(i, j int) bool {
-		return compareBatches(t.ResourceSpans[i], t.ResourceSpans[j])
+		return compareBatches(&t.ResourceSpans[i], &t.ResourceSpans[j])
 	})
 }
 
-func compareBatches(a, b ResourceSpans) bool {
+func compareBatches(a, b *ResourceSpans) bool {
 	if len(a.InstrumentationLibrarySpans) > 0 && len(b.InstrumentationLibrarySpans) > 0 {
-		return compareIls(a.InstrumentationLibrarySpans[0], b.InstrumentationLibrarySpans[0])
+		return compareIls(&a.InstrumentationLibrarySpans[0], &b.InstrumentationLibrarySpans[0])
 	}
 	return false
 }
 
-func compareIls(a, b ILS) bool {
+func compareIls(a, b *ILS) bool {
 	if len(a.Spans) > 0 && len(b.Spans) > 0 {
-		return compareSpans(a.Spans[0], b.Spans[0])
+		return compareSpans(&a.Spans[0], &b.Spans[0])
 	}
 	return false
 }
 
-func compareSpans(a, b Span) bool {
+func compareSpans(a, b *Span) bool {
 	// Sort by start time, then id
 	if a.StartUnixNanos == b.StartUnixNanos {
 		return bytes.Compare(a.ID, b.ID) == -1

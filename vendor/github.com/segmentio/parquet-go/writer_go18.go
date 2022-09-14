@@ -12,29 +12,29 @@ import (
 //
 // Using this type over Writer has multiple advantages:
 //
-// - By leveraging type information, the Go compiler can provide greater
-//   guarantees that the code is correct. For example, the parquet.Writer.Write
-//   method accepts an argument of type interface{}, which delays type checking
-//   until runtime. The parquet.GenericWriter[T].Write method ensures at
-//   compile time that the values it receives will be of type T, reducing the
-//   risk of introducing errors.
+//   - By leveraging type information, the Go compiler can provide greater
+//     guarantees that the code is correct. For example, the parquet.Writer.Write
+//     method accepts an argument of type interface{}, which delays type checking
+//     until runtime. The parquet.GenericWriter[T].Write method ensures at
+//     compile time that the values it receives will be of type T, reducing the
+//     risk of introducing errors.
 //
-// - Since type information is known at compile time, the implementation of
-//   parquet.GenericWriter[T] can make safe assumptions, removing the need for
-//   runtime validation of how the parameters are passed to its methods.
-//   Optimizations relying on type information are more effective, some of the
-//   writer's state can be precomputed at initialization, which was not possible
-//   with parquet.Writer.
+//   - Since type information is known at compile time, the implementation of
+//     parquet.GenericWriter[T] can make safe assumptions, removing the need for
+//     runtime validation of how the parameters are passed to its methods.
+//     Optimizations relying on type information are more effective, some of the
+//     writer's state can be precomputed at initialization, which was not possible
+//     with parquet.Writer.
 //
-// - The parquet.GenericWriter[T].Write method uses a data-oriented design,
-//   accepting an slice of T instead of a single value, creating more
-//   opportunities to amortize the runtime cost of abstractions.
-//   This optimization is not available for parquet.Writer because its Write
-//   method's argument would be of type []interface{}, which would require
-//   conversions back and forth from concrete types to empty interfaces (since
-//   a []T cannot be interpreted as []interface{} in Go), would make the API
-//   more difficult to use and waste compute resources in the type conversions,
-//   defeating the purpose of the optimization in the first place.
+//   - The parquet.GenericWriter[T].Write method uses a data-oriented design,
+//     accepting an slice of T instead of a single value, creating more
+//     opportunities to amortize the runtime cost of abstractions.
+//     This optimization is not available for parquet.Writer because its Write
+//     method's argument would be of type []interface{}, which would require
+//     conversions back and forth from concrete types to empty interfaces (since
+//     a []T cannot be interpreted as []interface{} in Go), would make the API
+//     more difficult to use and waste compute resources in the type conversions,
+//     defeating the purpose of the optimization in the first place.
 //
 // Note that this type is only available when compiling with Go 1.18 or later.
 type GenericWriter[T any] struct {
@@ -70,9 +70,11 @@ func NewGenericWriter[T any](output io.Writer, options ...WriterOption) *Generic
 		panic(err)
 	}
 
+	schema := config.Schema
 	t := typeOf[T]()
-	schema := schemaOf(dereference(t))
-	if config.Schema == nil {
+
+	if schema == nil && t != nil {
+		schema = schemaOf(dereference(t))
 		config.Schema = schema
 	}
 
@@ -90,6 +92,9 @@ func NewGenericWriter[T any](output io.Writer, options ...WriterOption) *Generic
 type writeFunc[T any] func(*GenericWriter[T], []T) (int, error)
 
 func writeFuncOf[T any](t reflect.Type, schema *Schema) writeFunc[T] {
+	if t == nil {
+		return (*GenericWriter[T]).writeAny
+	}
 	switch t.Kind() {
 	case reflect.Interface, reflect.Map:
 		return (*GenericWriter[T]).writeRows
@@ -187,6 +192,16 @@ func (w *GenericWriter[T]) writeRows(rows []T) (int, error) {
 	}
 
 	return w.base.WriteRows(w.base.rowbuf)
+}
+
+func (w *GenericWriter[T]) writeAny(rows []T) (n int, err error) {
+	for i := range rows {
+		if err = w.base.Write(rows[i]); err != nil {
+			return n, err
+		}
+		n++
+	}
+	return n, nil
 }
 
 var (

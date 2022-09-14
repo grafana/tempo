@@ -2,6 +2,8 @@ package parquet
 
 import (
 	"sort"
+	"sync"
+	"sync/atomic"
 )
 
 // Buffer represents an in-memory group of parquet rows.
@@ -36,7 +38,6 @@ type Buffer struct {
 //		buffer := parquet.NewBuffer(config)
 //		...
 //	}
-//
 func NewBuffer(options ...RowGroupOption) *Buffer {
 	config, err := NewRowGroupConfig(options...)
 	if err != nil {
@@ -67,7 +68,11 @@ func (buf *Buffer) configure(schema *Schema) {
 		encoding := encodingOf(leaf.node)
 
 		if isDictionaryEncoding(encoding) {
-			dictBuffer := make([]byte, 0, columnType.EstimateSize(bufferCap))
+			estimatedDictBufferSize := columnType.EstimateSize(bufferCap)
+			dictBuffer := columnType.NewValues(
+				make([]byte, 0, estimatedDictBufferSize),
+				nil,
+			)
 			dictionary = columnType.NewDictionary(columnIndex, 0, dictBuffer)
 			columnType = dictionary.Type()
 		}
@@ -278,3 +283,132 @@ var (
 	_ PageWriter  = (*bufferWriter)(nil)
 	_ ValueWriter = (*bufferWriter)(nil)
 )
+
+type buffer struct {
+	data []byte
+	refc uintptr
+	pool *bufferPool
+}
+
+func newBuffer(data []byte) *buffer {
+	return &buffer{data: data, refc: 1}
+}
+
+func (b *buffer) ref() {
+	atomic.AddUintptr(&b.refc, +1)
+}
+
+func (b *buffer) unref() {
+	if atomic.AddUintptr(&b.refc, ^uintptr(0)) == 0 {
+		if b.pool != nil {
+			b.pool.put(b)
+		}
+	}
+}
+
+func (b *buffer) reset() {
+	b.data = b.data[:0]
+}
+
+func (b *buffer) resize(size int) {
+	if cap(b.data) < size {
+		const pageSize = 4096
+		minSize := 2 * cap(b.data)
+		bufferSize := ((size + (pageSize - 1)) / pageSize) * pageSize
+		if bufferSize < minSize {
+			bufferSize = minSize
+		}
+		b.data = make([]byte, size, bufferSize)
+	} else {
+		b.data = b.data[:size]
+	}
+}
+
+func (b *buffer) clone() (clone *buffer) {
+	if b.pool != nil {
+		clone = b.pool.get()
+	} else {
+		clone = &buffer{refc: 1}
+	}
+	clone.data = append(clone.data, b.data...)
+	return clone
+}
+
+type bufferPool struct {
+	pool sync.Pool
+}
+
+func (p *bufferPool) get() *buffer {
+	b, _ := p.pool.Get().(*buffer)
+	if b == nil {
+		b = &buffer{pool: p}
+	} else {
+		b.reset()
+	}
+	b.ref()
+	return b
+}
+
+func (p *bufferPool) put(b *buffer) {
+	if b.pool != p {
+		panic("BUG: buffer returned to a different pool than the one it was allocated from")
+	}
+	p.pool.Put(b)
+}
+
+var (
+	levelsBufferPool           bufferPool
+	compressedPageBufferPool   bufferPool
+	uncompressedPageBufferPool bufferPool
+	pageOffsetsBufferPool      bufferPool
+	pageValuesBufferPool       [8]bufferPool
+)
+
+type bufferedPage struct {
+	Page
+	values           *buffer
+	offsets          *buffer
+	repetitionLevels *buffer
+	definitionLevels *buffer
+}
+
+func (p *bufferedPage) Slice(i, j int64) Page {
+	bufferRef(p.values)
+	bufferRef(p.offsets)
+	bufferRef(p.definitionLevels)
+	bufferRef(p.repetitionLevels)
+
+	return &bufferedPage{
+		values:           p.values,
+		offsets:          p.offsets,
+		definitionLevels: p.definitionLevels,
+		repetitionLevels: p.repetitionLevels,
+		Page:             p.Page.Slice(i, j),
+	}
+}
+
+func unref(page Page) {
+	if p, _ := page.(*bufferedPage); p != nil {
+		bufferUnref(p.values)
+		bufferUnref(p.offsets)
+		bufferUnref(p.definitionLevels)
+		bufferUnref(p.repetitionLevels)
+
+		p.values = nil
+		p.offsets = nil
+		p.definitionLevels = nil
+		p.repetitionLevels = nil
+	}
+}
+
+func bufferRef(buf *buffer) {
+	if buf != nil {
+		buf.ref()
+	}
+}
+
+func bufferUnref(buf *buffer) {
+	if buf != nil {
+		buf.unref()
+	}
+}
