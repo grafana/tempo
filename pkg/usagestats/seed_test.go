@@ -73,8 +73,8 @@ func Test_Memberlist(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
-		wg.Add(1)
 		go func(i int) {
+			wg.Add(1)
 			leader, err := NewReporter(Config{
 				Leader:  true,
 				Enabled: true,
