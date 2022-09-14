@@ -42,7 +42,12 @@ type QueryFrontend struct {
 func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store storage.Store, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
 	level.Info(logger).Log("msg", "creating middleware in query frontend")
 
-	if cfg.QueryShards < minQueryShards || cfg.QueryShards > maxQueryShards {
+	if cfg.QueryShards != 0 {
+		cfg.TraceByID.QueryShards = cfg.QueryShards
+		level.Warn(logger).Log("msg", "query_shards is deprecated, use trace_by_id.query_shards instead")
+	}
+
+	if cfg.TraceByID.QueryShards < minQueryShards || cfg.TraceByID.QueryShards > maxQueryShards {
 		return nil, fmt.Errorf("frontend query shards should be between %d and %d (both inclusive)", minQueryShards, maxQueryShards)
 	}
 
@@ -98,7 +103,7 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 		rt := NewRoundTripper(
 			next,
 			newDeduper(logger),
-			newTraceByIDSharder(cfg.QueryShards, cfg.TolerateFailedBlocks, logger),
+			newTraceByIDSharder(cfg.TraceByID.QueryShards, cfg.TolerateFailedBlocks, logger),
 			newHedgedRequestWare(cfg.TraceByID.Hedging),
 		)
 

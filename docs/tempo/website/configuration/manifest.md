@@ -227,8 +227,8 @@ query_frontend:
     query_backend_after: 15m0s
     query_ingesters_until: 1h0m0s
   trace_by_id:
-    hedge_requests_at: 5s
-    hedge_requests_up_to: 3
+    hedge_requests_at: 2s
+    hedge_requests_up_to: 2
 compactor:
   ring:
     kvstore:

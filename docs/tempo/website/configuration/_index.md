@@ -346,11 +346,11 @@ query_frontend:
 
         # If set to a non-zero value, a second request will be issued at the provided duration.
         # Recommended to be set to p99 of search requests to reduce long-tail latency.
-        [hedge_requests_at: <duration> | default = 5s ]
+        [hedge_requests_at: <duration> | default = 2s ]
 
         # The maximum number of requests to execute when hedging.
         # Requires hedge_requests_at to be set. Must be greater than 0.
-        [hedge_requests_up_to: <int> | default = 3 ]
+        [hedge_requests_up_to: <int> | default = 2 ]
 ```
 
 ## Querier

@@ -19,16 +19,23 @@ var (
 )
 
 type Config struct {
-	Config               v1.Config       `yaml:",inline"`
-	MaxRetries           int             `yaml:"max_retries,omitempty"`
-	QueryShards          int             `yaml:"query_shards,omitempty"`
-	TolerateFailedBlocks int             `yaml:"tolerate_failed_blocks,omitempty"`
-	Search               SearchConfig    `yaml:"search"`
-	TraceByID            TraceByIDConfig `yaml:"trace_by_id"`
+	Config               v1.Config    `yaml:",inline"`
+	MaxRetries           int          `yaml:"max_retries,omitempty"`
+	TolerateFailedBlocks int          `yaml:"tolerate_failed_blocks,omitempty"`
+	Search               SearchConfig `yaml:"search"`
+	// Deprecated: Use TraceByID.QueryShards instead.
+	// TODO: Remove QueryShards with Tempo v2
+	QueryShards int             `yaml:"query_shards,omitempty"`
+	TraceByID   TraceByIDConfig `yaml:"trace_by_id"`
 }
 
 type SearchConfig struct {
 	Sharder SearchSharderConfig `yaml:",inline"`
+}
+
+type TraceByIDConfig struct {
+	QueryShards int           `yaml:"query_shards,omitempty"`
+	Hedging     HedgingConfig `yaml:",inline"`
 }
 
 type HedgingConfig struct {
@@ -36,14 +43,9 @@ type HedgingConfig struct {
 	HedgeRequestsUpTo int           `yaml:"hedge_requests_up_to"`
 }
 
-type TraceByIDConfig struct {
-	Hedging HedgingConfig `yaml:",inline"`
-}
-
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Config.MaxOutstandingPerTenant = 100
 	cfg.MaxRetries = 2
-	cfg.QueryShards = 20
 	cfg.TolerateFailedBlocks = 0
 	cfg.Search = SearchConfig{
 		Sharder: SearchSharderConfig{
@@ -57,9 +59,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 		},
 	}
 	cfg.TraceByID = TraceByIDConfig{
+		QueryShards: 20,
 		Hedging: HedgingConfig{
-			HedgeRequestsAt:   5 * time.Second,
-			HedgeRequestsUpTo: 3,
+			HedgeRequestsAt:   2 * time.Second,
+			HedgeRequestsUpTo: 2,
 		},
 	}
 }
