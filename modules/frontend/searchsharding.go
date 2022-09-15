@@ -90,6 +90,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// sub context to cancel in-progress sub requests
 	subCtx, subCancel := context.WithCancel(ctx)
+	defer subCancel()
 
 	// calculate and enforce max search duration
 	maxDuration := s.maxDuration(tenantID)
@@ -147,20 +148,18 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	// that goroutine will act as watchdog, and cancel the work as early as possible??
 	// as a side-note: it can keep hammering the lock so maybe not a good idea??
 
-	// TODO: add a metric for planned vs executed requests??
-	// loop over all requests, and execute them all (if we need to)
+	executedReqs := 0
 	for _, req := range reqs {
 		// if shouldQuit is true, terminate and abandon requests
 		if overallResponse.shouldQuit() {
-			_ = level.Info(s.logger).Log("msg", "exit early, and abandon remaining requests")
-			span.SetTag("exit-early", true)
 			// cancel currently running goroutines
 			subCancel()
 			break
 		}
 
-		// when we hit capacity of boundedwaitgroup, wg.Add will block
+		// When we hit capacity of boundedwaitgroup, wg.Add will block
 		wg.Add(1)
+		executedReqs++
 
 		go func(innerR *http.Request) {
 			defer wg.Done()
@@ -206,7 +205,6 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	// wait for all goroutines running in wg to finish or cancelled
-	_ = level.Info(s.logger).Log("msg", "request finished or exited early")
 	wg.Wait()
 
 	// all goroutines have finished, we can safely access searchResults fields directly now
@@ -216,6 +214,9 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span.SetTag("inspectedTraces", overallResponse.resultsMetrics.InspectedTraces)
 	span.SetTag("skippedTraces", overallResponse.resultsMetrics.SkippedTraces)
 	span.SetTag("totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
+
+	// set total executed request count
+	span.SetTag("executed-request-count", executedReqs)
 
 	if overallResponse.err != nil {
 		return nil, overallResponse.err
