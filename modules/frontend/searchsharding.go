@@ -147,6 +147,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	// that goroutine will act as watchdog, and cancel the work as early as possible??
 	// as a side-note: it can keep hammering the lock so maybe not a good idea??
 
+	// TODO: add a metric for planned vs executed requests??
 	// loop over all requests, and execute them all (if we need to)
 	for _, req := range reqs {
 		// if shouldQuit is true, terminate and abandon requests
@@ -161,28 +162,8 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		// when we hit capacity of boundedwaitgroup, wg.Add will block
 		wg.Add(1)
 
-		// check if we should create a goroutine or not
-		// It is possible that shouldQuit() became true when we were blocked at wg.Add()
-		if overallResponse.shouldQuit() {
-			_ = level.Info(s.logger).Log("msg", "exiting before we create goroutine")
-			span.SetTag("exit-early", true)
-			// cancel currently running goroutines
-			subCancel()
-			break
-		}
-
 		go func(innerR *http.Request) {
 			defer wg.Done()
-			// cancel pending requests before we mark it done
-			defer func() {
-				if overallResponse.shouldQuit() {
-					// tell running goroutines to abandon work.
-					_ = level.Info(s.logger).Log("msg", "exiting early", "url", innerR.RequestURI)
-					span.SetTag("exit-early", true)
-					// cancel currently running goroutines
-					subCancel()
-				}
-			}()
 
 			resp, err := s.next.RoundTrip(innerR)
 			if err != nil {
@@ -191,6 +172,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 			}
 
 			if overallResponse.shouldQuit() {
+				subCancel() // exit early
 				return
 			}
 
@@ -204,6 +186,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 				}
 				statusMsg := fmt.Sprintf("upstream: (%d) %s", statusCode, string(bytesMsg))
 				overallResponse.setStatus(statusCode, statusMsg)
+				subCancel() // exit early
 				return
 			}
 
@@ -213,6 +196,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 			if err != nil {
 				_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
 				overallResponse.setError(err)
+				subCancel() // exit early
 				return
 			}
 
