@@ -293,7 +293,7 @@ func (b *backendBlock) FindTraceByID2(ctx context.Context, traceID common.ID, op
 
 		// Read first value from the row group
 		rgs := pf.RowGroups()
-		iter := parquetquery.NewColumnIterator(ctx, rgs[rgIdx:rgIdx+1], colIndex, "", 1, nil, "id")
+		iter := parquetquery.NewColumnIterator(derivedCtx, rgs[rgIdx:rgIdx+1], colIndex, "", 1, nil, "id")
 		defer iter.Close()
 
 		res, err := iter.Next()
@@ -367,7 +367,7 @@ func (b *backendBlock) FindTraceByID2(ctx context.Context, traceID common.ID, op
 	}
 
 	// Now iterate the matching row group
-	iter := parquetquery.NewColumnIterator(ctx, pf.RowGroups()[rowGroup:rowGroup+1], colIndex, "", 1000, parquetquery.NewStringInPredicate([]string{string(traceID)}), "")
+	iter := parquetquery.NewColumnIterator(derivedCtx, pf.RowGroups()[rowGroup:rowGroup+1], colIndex, "", 1000, parquetquery.NewStringInPredicate([]string{string(traceID)}), "")
 	defer iter.Close()
 
 	res, err := iter.Next()
