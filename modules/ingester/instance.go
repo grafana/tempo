@@ -95,10 +95,10 @@ var (
 )
 
 type instance struct {
-	tracesMtx   sync.Mutex
-	traces      map[uint32]*liveTrace
-	largeTraces map[uint32]int // maxBytes that trace exceeded
-	traceCount  atomic.Int32
+	tracesMtx  sync.Mutex
+	traces     map[uint32]*liveTrace
+	traceSizes map[uint32]uint32
+	traceCount atomic.Int32
 
 	blocksMtx        sync.RWMutex
 	headBlock        *wal.AppendBlock
@@ -138,7 +138,7 @@ type searchLocalBlockEntry struct {
 func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend, useFlatbufferSearch bool) (*instance, error) {
 	i := &instance{
 		traces:               map[uint32]*liveTrace{},
-		largeTraces:          map[uint32]int{},
+		traceSizes:           map[uint32]uint32{},
 		searchAppendBlocks:   map[*wal.AppendBlock]*searchStreamingBlockEntry{},
 		searchCompleteBlocks: map[*wal.LocalBlock]*searchLocalBlockEntry{},
 		useFlatbufferSearch:  useFlatbufferSearch,
@@ -200,21 +200,31 @@ func (i *instance) push(ctx context.Context, id, traceBytes, searchData []byte) 
 	defer i.tracesMtx.Unlock()
 
 	tkn := i.tokenForTraceID(id)
+	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
 
-	if maxBytes, ok := i.largeTraces[tkn]; ok {
-		return status.Errorf(codes.FailedPrecondition, (newTraceTooLargeError(id, i.instanceID, maxBytes, len(traceBytes)).Error()))
-	}
-
-	trace := i.getOrCreateTrace(id)
-	err := trace.Push(ctx, i.instanceID, traceBytes, searchData)
-	if err != nil {
-		if e, ok := err.(*traceTooLargeError); ok {
-			i.largeTraces[tkn] = trace.maxBytes
-			return status.Errorf(codes.FailedPrecondition, e.Error())
+	if maxBytes > 0 {
+		prevSize := int(i.traceSizes[tkn])
+		reqSize := len(traceBytes)
+		if prevSize+reqSize > maxBytes {
+			return status.Errorf(codes.FailedPrecondition, (newTraceTooLargeError(id, i.instanceID, maxBytes, reqSize).Error()))
 		}
 	}
 
-	return err
+	trace := i.getOrCreateTrace(id, tkn, maxBytes)
+
+	err := trace.Push(ctx, i.instanceID, traceBytes, searchData)
+	if err != nil {
+		if e, ok := err.(*traceTooLargeError); ok {
+			return status.Errorf(codes.FailedPrecondition, e.Error())
+		}
+		return err
+	}
+
+	if maxBytes > 0 {
+		i.traceSizes[tkn] += uint32(len(traceBytes))
+	}
+
+	return nil
 }
 
 func (i *instance) measureReceivedBytes(traceBytes []byte, searchData []byte) {
@@ -491,14 +501,12 @@ func (i *instance) AddCompletingBlock(b *wal.AppendBlock, s *search.StreamingSea
 // getOrCreateTrace will return a new trace object for the given request
 //
 //	It must be called under the i.tracesMtx lock
-func (i *instance) getOrCreateTrace(traceID []byte) *liveTrace {
-	fp := i.tokenForTraceID(traceID)
+func (i *instance) getOrCreateTrace(traceID []byte, fp uint32, maxBytes int) *liveTrace {
 	trace, ok := i.traces[fp]
 	if ok {
 		return trace
 	}
 
-	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
 	maxSearchBytes := i.limiter.limits.MaxSearchBytesPerTrace(i.instanceID)
 	trace = newTrace(traceID, maxBytes, maxSearchBytes)
 	i.traces[fp] = trace
@@ -518,9 +526,9 @@ func (i *instance) tokenForTraceID(id []byte) uint32 {
 // resetHeadBlock() should be called under lock
 func (i *instance) resetHeadBlock() error {
 
-	// Clear large traces when cutting block
+	// Reset trace sizes when cutting block
 	i.tracesMtx.Lock()
-	i.largeTraces = map[uint32]int{}
+	i.traceSizes = make(map[uint32]uint32, len(i.traceSizes))
 	i.tracesMtx.Unlock()
 
 	oldHeadBlock := i.headBlock

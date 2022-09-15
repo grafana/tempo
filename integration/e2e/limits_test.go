@@ -31,11 +31,14 @@ func TestLimits(t *testing.T) {
 
 	// should fail b/c the trace is too large. each batch should be ~70 bytes
 	batch := makeThriftBatchWithSpanCount(2)
-	require.Error(t, c.EmitBatch(context.Background(), batch))
+	require.Error(t, c.EmitBatch(context.Background(), batch), "max trace size")
+
+	// push a trace
+	require.NoError(t, c.EmitBatch(context.Background(), makeThriftBatchWithSpanCount(1)))
 
 	// should fail b/c this will be too many traces
 	batch = makeThriftBatch()
-	require.Error(t, c.EmitBatch(context.Background(), batch))
+	require.Error(t, c.EmitBatch(context.Background(), batch), "too many traces")
 
 	// should fail b/c due to ingestion rate limit
 	batch = makeThriftBatchWithSpanCount(10)
