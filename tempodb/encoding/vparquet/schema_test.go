@@ -147,8 +147,7 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 	}
 
 	parquetTrace := traceToParquet(traceIDA, expectedTrace)
-	actualTrace, err := parquetTraceToTempopbTrace(&parquetTrace)
-	assert.NoError(t, err)
+	actualTrace := parquetTraceToTempopbTrace(&parquetTrace)
 	assert.Equal(t, expectedTrace, actualTrace)
 }
 
@@ -280,8 +279,8 @@ func TestParquetRowSizeEstimate(t *testing.T) {
 			sch := parquet.SchemaOf(parq)
 			row := sch.Deconstruct(nil, parq)
 
-			fmt.Println("Size of parquet is:", estimateProtoSize(row))
-			fmt.Println("Span count of parquet is:", countSpans(sch, row))
+			fmt.Println("Size of parquet row is:", estimateProtoSize(row))
+			fmt.Println("Size of parquet is:", estimateTraceSize(&parq))
 		})
 	}
 }

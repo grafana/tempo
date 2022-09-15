@@ -22,7 +22,7 @@ This document explains the configuration options for Tempo as well as the detail
   - [search](#search)
   - [usage-report](#usage-report)
 
-#### Use environment variables in the configuration
+## Use environment variables in the configuration
 
 You can use environment variable references in the configuration file to set values that need to be configurable during deployment using `--config.expand-env` option.
 To do this, use:
@@ -186,6 +186,12 @@ ingester:
     # duration to keep blocks in the ingester after they have been flushed
     # (default: 15m)
     [ complete_block_timeout: <duration>]
+
+    # If true then flatbuffer search metadata files are created and used in the ingester for search, 
+    # search tags and search tag values. If false then the blocks themselves are used for search in the ingesters. 
+    # Warning: v2 blocks do not support ingester search without this enabled.
+    # (default: false)
+    [ use_flatbuffer_search: <bool> ]
 ```
 
 ## Metrics-generator
@@ -275,6 +281,11 @@ metrics_generator:
         # https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
         remote_write:
             [- <Prometheus remote write config>]
+
+    # This option only allows spans with start time that occur within the configured duration to be
+    # considered in metrics generation
+    # This is to filter out spans that are outdated
+    [ingestion_time_range_slack: <duration> | default = 30s]
 ```
 
 ## Query-frontend
@@ -297,7 +308,6 @@ query_frontend:
 
     # number of block queries that are tolerated to error before considering the entire query as failed
     # numbers greater than 0 make possible for a read to return partial results
-    # partial results are indicated with HTTP status code 206
     # (default: 0)
     [tolerate_failed_blocks: <int>]
 
@@ -336,9 +346,21 @@ query_frontend:
 
         # (default: 1h)
         [query_ingesters_until: <duration>]
+
+    # Trace by ID lookup configuration
+    trace_by_id:
+
+        # If set to a non-zero value, a second request will be issued at the provided duration.
+        # Recommended to be set to p99 of search requests to reduce long-tail latency.
+        [hedge_requests_at: <duration> | default = 2s ]
+
+        # The maximum number of requests to execute when hedging.
+        # Requires hedge_requests_at to be set. Must be greater than 0.
+        [hedge_requests_up_to: <int> | default = 2 ]
 ```
 
 ## Querier
+
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/querier/config.go).
 
 The Querier is responsible for querying the backends/cache for the traceID.
@@ -401,6 +423,7 @@ It also queries compacted blocks that fall within the (2 * BlocklistPoll) range 
 is defined in the storage section below.
 
 ## Compactor
+
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/modules/compactor/config.go).
 
 Compactors stream blocks from the storage backend, combine them and write them back.  Values shown below are the defaults.
@@ -456,11 +479,28 @@ compactor:
 ```
 
 ## Storage
+
+Tempo supports Amazon S3, GCS, Azure, and local file system for storage. In addition, you can use Memcached or Redis for increased query performance.
+
 For more information on configuration options, see [here](https://github.com/grafana/tempo/blob/main/tempodb/config.go).
 
-The storage block is used to configure TempoDB. It supports S3, GCS, Azure, local file system, and optionally can use Memcached or Redis for increased query performance.
+### Local storage recommendations
 
-The following example shows common options.  For further platform-specific information refer to the following:
+While you can use local storage, object storage is recommended for production workloads.
+A local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk.
+Tempo is designed for object storage more than local storage.
+
+At Grafana Labs, we have run Tempo with SSDs when using local storage. Hard drives have not been tested. 
+
+How much storage space you need can be estimated by considering the ingested bytes and retention. For example, ingested bytes per day *times* retention days = stored bytes.
+
+You can not use both local and object storage in the same Tempo deployment.
+
+### Storage block configuration example
+
+The storage block is used to configure TempoDB.
+The following example shows common options. For further platform-specific information, refer to the following:
+
 * [GCS]({{< relref "gcs/" >}})
 * [S3]({{< relref "s3/" >}})
 * [Azure]({{< relref "azure/" >}})
@@ -473,7 +513,7 @@ storage:
     trace:
 
         # The storage backend to use
-        # Should be one of "gcs", "s3", "azure" or "local"
+        # Should be one of "gcs", "s3", "azure" or "local" (only supported in the monolithic mode)
         # CLI flag -storage.trace.backend
         [backend: <string>]
 

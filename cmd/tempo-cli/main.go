@@ -71,6 +71,10 @@ var cli struct {
 		Blocks   searchBlocksCmd   `cmd:"" help:"search for a key value pair directly from backend blocks"`
 		OneBlock searchOneBlockCmd `cmd:"" help:"search for a key value pair from exactly one backend block"`
 	} `cmd:""`
+
+	Parquet struct {
+		Convert convertParquet `cmd:"" help:"convert from an existing file to tempodb parquet schema"`
+	} `cmd:""`
 }
 
 func main() {

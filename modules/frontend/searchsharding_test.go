@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -14,7 +13,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/jsonpb" //nolint:all deprecated
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
@@ -699,7 +698,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 func testBadRequest(t *testing.T, resp *http.Response, err error, expectedBody string) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	assert.Nil(t, err)
-	buff, err := ioutil.ReadAll(resp.Body)
+	buff, err := io.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedBody, string(buff))
 }

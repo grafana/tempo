@@ -12,7 +12,6 @@ import (
 	"github.com/segmentio/parquet-go"
 	"github.com/willf/bloom"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -36,17 +35,19 @@ type RowTracker struct {
 
 // Scanning for a traceID within a rowGroup. Parameters are the rowgroup number and traceID to be searched.
 // Includes logic to look through bloom filters and page bounds as it goes through the rowgroup.
-func (rt *RowTracker) findTraceByID(idx int, traceID []byte) int {
+func (rt *RowTracker) findTraceByID(idx int, traceID []byte) (int, error) {
 	rgIdx := rt.rgs[idx]
 	rowMatch := int64(rt.startRowNum[idx])
 	traceIDColumnChunk := rgIdx.ColumnChunks()[rt.colIndex]
 
 	bf := traceIDColumnChunk.BloomFilter()
 	if bf != nil {
-		// todo: better error handling?
-		exists, _ := bf.Check(parquet.ValueOf(traceID))
+		exists, err := bf.Check(parquet.ValueOf(traceID))
+		if err != nil {
+			return NotFound, fmt.Errorf("error checking bloom filter: %w", err)
+		}
 		if !exists {
-			return NotFound
+			return NotFound, nil
 		}
 	}
 
@@ -55,10 +56,10 @@ func (rt *RowTracker) findTraceByID(idx int, traceID []byte) int {
 	min := traceIDColumnChunk.ColumnIndex().MinValue(0).Bytes()
 	max := traceIDColumnChunk.ColumnIndex().MaxValue(numPages - 1).Bytes()
 	if bytes.Compare(traceID, min) < 0 {
-		return SearchPrevious
+		return SearchPrevious, nil
 	}
 	if bytes.Compare(max, traceID) < 0 {
-		return SearchNext
+		return SearchNext, nil
 	}
 
 	pages := traceIDColumnChunk.Pages()
@@ -71,7 +72,7 @@ func (rt *RowTracker) findTraceByID(idx int, traceID []byte) int {
 
 		if min, max, ok := pg.Bounds(); ok {
 			if bytes.Compare(traceID, min.Bytes()) < 0 {
-				return SearchPrevious
+				return SearchPrevious, nil
 			}
 			if bytes.Compare(max.Bytes(), traceID) < 0 {
 				rowMatch += pg.NumRows()
@@ -85,7 +86,7 @@ func (rt *RowTracker) findTraceByID(idx int, traceID []byte) int {
 			for y := 0; y < x; y++ {
 				if bytes.Equal(buffer[y].Bytes(), traceID) {
 					rowMatch += int64(y)
-					return int(rowMatch)
+					return int(rowMatch), nil
 				}
 			}
 
@@ -93,9 +94,8 @@ func (rt *RowTracker) findTraceByID(idx int, traceID []byte) int {
 			if err == io.EOF {
 				break
 			}
-			// todo: better error handling
 			if err != nil {
-				break
+				return NotFound, err
 			}
 
 			rowMatch += int64(x)
@@ -103,18 +103,21 @@ func (rt *RowTracker) findTraceByID(idx int, traceID []byte) int {
 	}
 
 	// did not find the trace
-	return NotFound
+	return NotFound, nil
 }
 
 // Simple binary search algorithm over the parquet rowgroups to efficiently
 // search for traceID in the block (works only because rows are sorted by traceID)
-func (rt *RowTracker) binarySearch(span opentracing.Span, start int, end int, traceID []byte) int {
+func (rt *RowTracker) binarySearch(span opentracing.Span, start int, end int, traceID []byte) (int, error) {
 	if start > end {
-		return -1
+		return -1, nil
 	}
 
 	// check mid point
-	midResult := rt.findTraceByID((start+end)/2, traceID)
+	midResult, err := rt.findTraceByID((start+end)/2, traceID)
+	if err != nil {
+		return NotFound, err
+	}
 	span.LogFields(
 		log.Message("checked mid result"),
 		log.Int("start", start),
@@ -127,7 +130,7 @@ func (rt *RowTracker) binarySearch(span opentracing.Span, start int, end int, tr
 		return rt.binarySearch(span, ((start+end)/2)+1, end, traceID)
 	}
 
-	return midResult
+	return midResult, nil
 }
 
 func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, err error) {
@@ -144,7 +147,7 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 
 	bloomBytes, err := b.r.Read(derivedCtx, nameBloom, b.meta.BlockID, b.meta.TenantID, true)
 	if err != nil {
-		return false, fmt.Errorf("error retrieving bloom (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+		return false, fmt.Errorf("error retrieving bloom %s (%s, %s): %w", nameBloom, b.meta.TenantID, b.meta.BlockID, err)
 	}
 
 	filter := &bloom.BloomFilter{}
@@ -173,26 +176,17 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		return nil, nil
 	}
 
-	// todo: combine with open logic from the other search functions
-	var readerAt io.ReaderAt
-	rr := NewBackendReaderAt(derivedCtx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
-	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
-
-	readerAt = rr
-	if opts.ReadBufferCount > 0 {
-		br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
-
-		or := newParquetOptimizedReaderAt(br, rr, int64(b.meta.Size), b.meta.FooterSize, opts.CacheControl)
-		readerAt = or
-	}
-
-	pf, err := parquet.OpenFile(readerAt, int64(b.meta.Size))
+	pf, rr, err := b.openForSearch(derivedCtx, opts)
 	if err != nil {
-		return nil, errors.Wrap(err, "error opening file in FindTraceByID")
+		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
+	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
 	// traceID column index
 	colIndex, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
+	if colIndex == -1 {
+		return nil, fmt.Errorf("unable to get index for column: %s", TraceIDColumnName)
+	}
 
 	numRowGroups := len(pf.RowGroups())
 	rt := &RowTracker{
@@ -210,7 +204,10 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	}
 
 	// find row number of matching traceID
-	rowMatch := rt.binarySearch(span, 0, numRowGroups-1, traceID)
+	rowMatch, err := rt.binarySearch(span, 0, numRowGroups-1, traceID)
+	if err != nil {
+		return nil, errors.Wrap(err, "binary search")
+	}
 
 	// traceID not found in this block
 	if rowMatch < 0 {
@@ -235,7 +232,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	span.LogFields(log.Message("read trace"))
 
 	// convert to proto trace and return
-	return parquetTraceToTempopbTrace(tr)
+	return parquetTraceToTempopbTrace(tr), nil
 }
 
 /*func dumpParquetRow(sch parquet.Schema, row parquet.Row) {

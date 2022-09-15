@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type element interface {
+type Element interface {
 	fmt.Stringer
 	validate() error
 }
@@ -15,17 +15,17 @@ type typedExpression interface {
 }
 
 type RootExpr struct {
-	p Pipeline
+	Pipeline Pipeline
 }
 
-func newRootExpr(e element) *RootExpr {
+func newRootExpr(e Element) *RootExpr {
 	p, ok := e.(Pipeline)
 	if !ok {
 		p = newPipeline(e)
 	}
 
 	return &RootExpr{
-		p: p,
+		Pipeline: p,
 	}
 }
 
@@ -34,7 +34,7 @@ func newRootExpr(e element) *RootExpr {
 // **********************
 
 type Pipeline struct {
-	p []element
+	Elements []Element
 }
 
 // nolint: revive
@@ -43,38 +43,38 @@ func (Pipeline) __scalarExpression() {}
 // nolint: revive
 func (Pipeline) __spansetExpression() {}
 
-func newPipeline(i ...element) Pipeline {
+func newPipeline(i ...Element) Pipeline {
 	return Pipeline{
-		p: i,
+		Elements: i,
 	}
 }
 
-func (p Pipeline) addItem(i element) Pipeline {
-	p.p = append(p.p, i)
+func (p Pipeline) addItem(i Element) Pipeline {
+	p.Elements = append(p.Elements, i)
 	return p
 }
 
 func (p Pipeline) impliedType() StaticType {
-	if len(p.p) == 0 {
-		return typeSpanset
+	if len(p.Elements) == 0 {
+		return TypeSpanset
 	}
 
-	finalItem := p.p[len(p.p)-1]
+	finalItem := p.Elements[len(p.Elements)-1]
 	aggregate, ok := finalItem.(Aggregate)
 	if ok {
 		return aggregate.impliedType()
 	}
 
-	return typeSpanset
+	return TypeSpanset
 }
 
 type GroupOperation struct {
-	e FieldExpression
+	Expression FieldExpression
 }
 
 func newGroupOperation(e FieldExpression) GroupOperation {
 	return GroupOperation{
-		e: e,
+		Expression: e,
 	}
 }
 
@@ -89,22 +89,22 @@ func newCoalesceOperation() CoalesceOperation {
 // Scalars
 // **********************
 type ScalarExpression interface {
-	element
+	Element
 	typedExpression
 	__scalarExpression()
 }
 
 type ScalarOperation struct {
-	op  Operator
-	lhs ScalarExpression
-	rhs ScalarExpression
+	Op  Operator
+	LHS ScalarExpression
+	RHS ScalarExpression
 }
 
 func newScalarOperation(op Operator, lhs ScalarExpression, rhs ScalarExpression) ScalarOperation {
 	return ScalarOperation{
-		op:  op,
-		lhs: lhs,
-		rhs: rhs,
+		Op:  op,
+		LHS: lhs,
+		RHS: rhs,
 	}
 }
 
@@ -112,18 +112,18 @@ func newScalarOperation(op Operator, lhs ScalarExpression, rhs ScalarExpression)
 func (ScalarOperation) __scalarExpression() {}
 
 func (o ScalarOperation) impliedType() StaticType {
-	if o.op.isBoolean() {
-		return typeBoolean
+	if o.Op.isBoolean() {
+		return TypeBoolean
 	}
 
 	// remaining operators will be based on the operands
 	// opAdd, opSub, opDiv, opMod, opMult
-	t := o.lhs.impliedType()
-	if t != typeAttribute {
+	t := o.LHS.impliedType()
+	if t != TypeAttribute {
 		return t
 	}
 
-	return o.rhs.impliedType()
+	return o.RHS.impliedType()
 }
 
 type Aggregate struct {
@@ -143,7 +143,7 @@ func (Aggregate) __scalarExpression() {}
 
 func (a Aggregate) impliedType() StaticType {
 	if a.agg == aggregateCount || a.e == nil {
-		return typeInt
+		return TypeInt
 	}
 
 	return a.e.impliedType()
@@ -153,21 +153,21 @@ func (a Aggregate) impliedType() StaticType {
 // Spansets
 // **********************
 type SpansetExpression interface {
-	element
+	Element
 	__spansetExpression()
 }
 
 type SpansetOperation struct {
-	op  Operator
-	lhs SpansetExpression
-	rhs SpansetExpression
+	Op  Operator
+	LHS SpansetExpression
+	RHS SpansetExpression
 }
 
 func newSpansetOperation(op Operator, lhs SpansetExpression, rhs SpansetExpression) SpansetOperation {
 	return SpansetOperation{
-		op:  op,
-		lhs: lhs,
-		rhs: rhs,
+		Op:  op,
+		LHS: lhs,
+		RHS: rhs,
 	}
 }
 
@@ -175,12 +175,12 @@ func newSpansetOperation(op Operator, lhs SpansetExpression, rhs SpansetExpressi
 func (SpansetOperation) __spansetExpression() {}
 
 type SpansetFilter struct {
-	e FieldExpression
+	Expression FieldExpression
 }
 
 func newSpansetFilter(e FieldExpression) SpansetFilter {
 	return SpansetFilter{
-		e: e,
+		Expression: e,
 	}
 }
 
@@ -208,7 +208,7 @@ func (ScalarFilter) __spansetExpression() {}
 // Expressions
 // **********************
 type FieldExpression interface {
-	element
+	Element
 	typedExpression
 
 	// referencesSpan returns true if this field expression has any attributes or intrinsics. i.e. it references the span itself
@@ -217,16 +217,16 @@ type FieldExpression interface {
 }
 
 type BinaryOperation struct {
-	op  Operator
-	lhs FieldExpression
-	rhs FieldExpression
+	Op  Operator
+	LHS FieldExpression
+	RHS FieldExpression
 }
 
 func newBinaryOperation(op Operator, lhs FieldExpression, rhs FieldExpression) BinaryOperation {
 	return BinaryOperation{
-		op:  op,
-		lhs: lhs,
-		rhs: rhs,
+		Op:  op,
+		LHS: lhs,
+		RHS: rhs,
 	}
 }
 
@@ -234,33 +234,33 @@ func newBinaryOperation(op Operator, lhs FieldExpression, rhs FieldExpression) B
 func (BinaryOperation) __fieldExpression() {}
 
 func (o BinaryOperation) impliedType() StaticType {
-	if o.op.isBoolean() {
-		return typeBoolean
+	if o.Op.isBoolean() {
+		return TypeBoolean
 	}
 
 	// remaining operators will be based on the operands
 	// opAdd, opSub, opDiv, opMod, opMult
-	t := o.lhs.impliedType()
-	if t != typeAttribute {
+	t := o.LHS.impliedType()
+	if t != TypeAttribute {
 		return t
 	}
 
-	return o.rhs.impliedType()
+	return o.RHS.impliedType()
 }
 
 func (o BinaryOperation) referencesSpan() bool {
-	return o.lhs.referencesSpan() || o.rhs.referencesSpan()
+	return o.LHS.referencesSpan() || o.RHS.referencesSpan()
 }
 
 type UnaryOperation struct {
-	op Operator
-	e  FieldExpression
+	Op         Operator
+	Expression FieldExpression
 }
 
 func newUnaryOperation(op Operator, e FieldExpression) UnaryOperation {
 	return UnaryOperation{
-		op: op,
-		e:  e,
+		Op:         op,
+		Expression: e,
 	}
 }
 
@@ -269,24 +269,24 @@ func (UnaryOperation) __fieldExpression() {}
 
 func (o UnaryOperation) impliedType() StaticType {
 	// both operators (opPower and opNot) will just be based on the operand type
-	return o.e.impliedType()
+	return o.Expression.impliedType()
 }
 
 func (o UnaryOperation) referencesSpan() bool {
-	return o.e.referencesSpan()
+	return o.Expression.referencesSpan()
 }
 
 // **********************
 // Statics
 // **********************
 type Static struct {
-	staticType StaticType
-	n          int
-	f          float64
-	s          string
-	b          bool
-	d          time.Duration
-	status     Status
+	Type   StaticType
+	N      int
+	F      float64
+	S      string
+	B      bool
+	D      time.Duration
+	Status Status
 }
 
 // nolint: revive
@@ -300,54 +300,54 @@ func (Static) referencesSpan() bool {
 }
 
 func (s Static) impliedType() StaticType {
-	return s.staticType
+	return s.Type
 }
 
 func newStaticInt(n int) Static {
 	return Static{
-		staticType: typeInt,
-		n:          n,
+		Type: TypeInt,
+		N:    n,
 	}
 }
 
 func newStaticFloat(f float64) Static {
 	return Static{
-		staticType: typeFloat,
-		f:          f,
+		Type: TypeFloat,
+		F:    f,
 	}
 }
 
 func newStaticString(s string) Static {
 	return Static{
-		staticType: typeString,
-		s:          s,
+		Type: TypeString,
+		S:    s,
 	}
 }
 
 func newStaticBool(b bool) Static {
 	return Static{
-		staticType: typeBoolean,
-		b:          b,
+		Type: TypeBoolean,
+		B:    b,
 	}
 }
 
 func newStaticNil() Static {
 	return Static{
-		staticType: typeNil,
+		Type: TypeNil,
 	}
 }
 
 func newStaticDuration(d time.Duration) Static {
 	return Static{
-		staticType: typeDuration,
-		d:          d,
+		Type: TypeDuration,
+		D:    d,
 	}
 }
 
 func newStaticStatus(s Status) Static {
 	return Static{
-		staticType: typeStatus,
-		status:     s,
+		Type:   TypeStatus,
+		Status: s,
 	}
 }
 
@@ -356,22 +356,19 @@ func newStaticStatus(s Status) Static {
 // **********************
 
 type Attribute struct {
-	scope     AttributeScope
-	parent    bool
-	name      string
-	intrinsic Intrinsic
+	Scope     AttributeScope
+	Parent    bool
+	Name      string
+	Intrinsic Intrinsic
 }
 
-// newAttribute creates a new attribute with the given identifier string. If the identifier
-//  string matches an intrinsic use that.
+// newAttribute creates a new attribute with the given identifier string.
 func newAttribute(att string) Attribute {
-	intrinsic := intrinsicFromString(att)
-
 	return Attribute{
-		scope:     attributeScopeNone,
-		parent:    false,
-		name:      att,
-		intrinsic: intrinsic,
+		Scope:     AttributeScopeNone,
+		Parent:    false,
+		Name:      att,
+		Intrinsic: IntrinsicNone,
 	}
 }
 
@@ -379,20 +376,20 @@ func newAttribute(att string) Attribute {
 func (Attribute) __fieldExpression() {}
 
 func (a Attribute) impliedType() StaticType {
-	switch a.intrinsic {
-	case intrinsicDuration:
-		return typeDuration
-	case intrinsicChildCount:
-		return typeInt
-	case intrinsicName:
-		return typeString
-	case intrinsicStatus:
-		return typeStatus
-	case intrinsicParent:
-		return typeNil
+	switch a.Intrinsic {
+	case IntrinsicDuration:
+		return TypeDuration
+	case IntrinsicChildCount:
+		return TypeInt
+	case IntrinsicName:
+		return TypeString
+	case IntrinsicStatus:
+		return TypeStatus
+	case IntrinsicParent:
+		return TypeNil
 	}
 
-	return typeAttribute
+	return TypeAttribute
 }
 
 func (Attribute) referencesSpan() bool {
@@ -400,27 +397,27 @@ func (Attribute) referencesSpan() bool {
 }
 
 // newScopedAttribute creates a new scopedattribute with the given identifier string.
-//  this handles parent, span, and resource scopes.
+// this handles parent, span, and resource scopes.
 func newScopedAttribute(scope AttributeScope, parent bool, att string) Attribute {
-	intrinsic := intrinsicNone
+	intrinsic := IntrinsicNone
 	// if we are explicitly passed a resource or span scopes then we shouldn't parse for intrinsic
-	if scope != attributeScopeResource && scope != attributeScopeSpan {
+	if scope != AttributeScopeResource && scope != AttributeScopeSpan {
 		intrinsic = intrinsicFromString(att)
 	}
 
 	return Attribute{
-		scope:     scope,
-		parent:    parent,
-		name:      att,
-		intrinsic: intrinsic,
+		Scope:     scope,
+		Parent:    parent,
+		Name:      att,
+		Intrinsic: intrinsic,
 	}
 }
 
 func newIntrinsic(n Intrinsic) Attribute {
 	return Attribute{
-		scope:     attributeScopeNone,
-		parent:    false,
-		name:      n.String(),
-		intrinsic: n,
+		Scope:     AttributeScopeNone,
+		Parent:    false,
+		Name:      n.String(),
+		Intrinsic: n,
 	}
 }

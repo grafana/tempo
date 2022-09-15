@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -139,7 +140,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		makeReq(LabelHTTPMethod, "get"),
 		makeReq(LabelHTTPUrl, "hello"),
 		makeReq(LabelHTTPStatusCode, "500"),
-		makeReq(StatusCodeTag, StatusCodeError),
+		makeReq(LabelStatusCode, StatusCodeError),
 
 		// Span attributes
 		makeReq("foo", "bar"),
@@ -205,7 +206,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		makeReq(LabelHTTPMethod, "post"),
 		makeReq(LabelHTTPUrl, "asdf"),
 		makeReq(LabelHTTPStatusCode, "200"),
-		makeReq(StatusCodeTag, StatusCodeOK),
+		makeReq(LabelStatusCode, StatusCodeOK),
 
 		// Span attributes
 		makeReq("foo", "baz"),
@@ -218,8 +219,46 @@ func TestBackendBlockSearch(t *testing.T) {
 	}
 }
 
-func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
+func TestBackendBlockSearchTags(t *testing.T) {
+	traces, attrs := makeTraces()
+	block := makeBackendBlockWithTraces(t, traces)
 
+	foundAttrs := map[string]struct{}{}
+
+	cb := func(s string) {
+		foundAttrs[s] = struct{}{}
+	}
+
+	ctx := context.Background()
+	err := block.SearchTags(ctx, cb, defaultSearchOptions())
+	require.NoError(t, err)
+
+	// test that all attrs are in found attrs
+	for k := range attrs {
+		_, ok := foundAttrs[k]
+		require.True(t, ok)
+	}
+}
+
+func TestBackendBlockSearchTagValues(t *testing.T) {
+	traces, attrs := makeTraces()
+	block := makeBackendBlockWithTraces(t, traces)
+
+	ctx := context.Background()
+	for tag, val := range attrs {
+		wasCalled := false
+		cb := func(s string) {
+			wasCalled = true
+			assert.Equal(t, val, s, tag)
+		}
+
+		err := block.SearchTagValues(ctx, tag, cb, defaultSearchOptions())
+		require.NoError(t, err)
+		require.True(t, wasCalled, tag)
+	}
+}
+
+func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: t.TempDir(),
 	})
@@ -240,7 +279,7 @@ func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
 	for i, tr := range trs {
-		require.NoError(t, s.Add(tr, 0, 0))
+		s.Add(tr, 0, 0)
 		if i%100 == 0 {
 			_, err := s.Flush()
 			require.NoError(t, err)
@@ -261,4 +300,94 @@ func defaultSearchOptions() common.SearchOptions {
 		ReadBufferCount: 8,
 		ReadBufferSize:  4 * 1024 * 1024,
 	}
+}
+
+func makeTraces() ([]*Trace, map[string]string) {
+	traces := []*Trace{}
+	attrVals := make(map[string]string)
+
+	ptr := func(s string) *string { return &s }
+
+	attrVals[LabelCluster] = "cluster"
+	attrVals[LabelServiceName] = "servicename"
+	attrVals[LabelRootServiceName] = "rootsvc"
+	attrVals[LabelNamespace] = "ns"
+	attrVals[LabelPod] = "pod"
+	attrVals[LabelContainer] = "con"
+	attrVals[LabelK8sClusterName] = "kclust"
+	attrVals[LabelK8sNamespaceName] = "kns"
+	attrVals[LabelK8sPodName] = "kpod"
+	attrVals[LabelK8sContainerName] = "k8scon"
+
+	attrVals[LabelName] = "span"
+	attrVals[LabelRootSpanName] = "rootspan"
+	attrVals[LabelHTTPMethod] = "method"
+	attrVals[LabelHTTPUrl] = "url"
+	attrVals[LabelHTTPStatusCode] = "404"
+	attrVals[LabelStatusCode] = "2"
+
+	for i := 0; i < 10; i++ {
+		tr := &Trace{
+			RootServiceName: "rootsvc",
+			RootSpanName:    "rootspan",
+		}
+
+		for j := 0; j < 3; j++ {
+			key := test.RandomString()
+			val := test.RandomString()
+			attrVals[key] = val
+
+			rs := ResourceSpans{
+				Resource: Resource{
+					ServiceName:      "servicename",
+					Cluster:          ptr("cluster"),
+					Namespace:        ptr("ns"),
+					Pod:              ptr("pod"),
+					Container:        ptr("con"),
+					K8sClusterName:   ptr("kclust"),
+					K8sNamespaceName: ptr("kns"),
+					K8sPodName:       ptr("kpod"),
+					K8sContainerName: ptr("k8scon"),
+					Attrs: []Attribute{
+						{
+							Key:   key,
+							Value: &val,
+						},
+					},
+				},
+				InstrumentationLibrarySpans: []ILS{
+					{},
+				},
+			}
+			tr.ResourceSpans = append(tr.ResourceSpans, rs)
+
+			for k := 0; k < 10; k++ {
+				key := test.RandomString()
+				val := test.RandomString()
+				attrVals[key] = val
+
+				sts := int64(404)
+				span := Span{
+					Name:           "span",
+					HttpMethod:     ptr("method"),
+					HttpUrl:        ptr("url"),
+					HttpStatusCode: &sts,
+					StatusCode:     2,
+					Attrs: []Attribute{
+						{
+							Key:   key,
+							Value: &val,
+						},
+					},
+				}
+
+				rs.InstrumentationLibrarySpans[0].Spans = append(rs.InstrumentationLibrarySpans[0].Spans, span)
+			}
+
+		}
+
+		traces = append(traces, tr)
+	}
+
+	return traces, attrVals
 }
