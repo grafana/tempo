@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -27,102 +25,6 @@ const (
 	defaultTargetBytesPerRequest = 10 * 1024 * 1024
 	defaultConcurrentRequests    = 50
 )
-
-// searchResponse is a threadsafe struct used to aggregate the responses from all downstream
-// queriers
-type searchResponse struct {
-	err        error
-	statusCode int
-	statusMsg  string
-	ctx        context.Context
-
-	resultsMap     map[string]*tempopb.TraceSearchMetadata
-	resultsMetrics *tempopb.SearchMetrics
-
-	limit int
-	mtx   sync.Mutex
-}
-
-func newSearchResponse(ctx context.Context, limit int) *searchResponse {
-	return &searchResponse{
-		ctx:            ctx,
-		statusCode:     http.StatusOK,
-		limit:          limit,
-		resultsMetrics: &tempopb.SearchMetrics{},
-		resultsMap:     map[string]*tempopb.TraceSearchMetadata{},
-	}
-}
-
-func (r *searchResponse) setStatus(statusCode int, statusMsg string) {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	r.statusCode = statusCode
-	r.statusMsg = statusMsg
-}
-
-func (r *searchResponse) setError(err error) {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	r.err = err
-}
-
-func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	for _, t := range res.Traces {
-		// todo: determine a better way to combine?
-		if _, ok := r.resultsMap[t.TraceID]; !ok {
-			r.resultsMap[t.TraceID] = t
-		}
-	}
-
-	// purposefully ignoring InspectedBlocks as that value is set by the sharder
-	r.resultsMetrics.InspectedBytes += res.Metrics.InspectedBytes
-	r.resultsMetrics.InspectedTraces += res.Metrics.InspectedTraces
-	r.resultsMetrics.SkippedBlocks += res.Metrics.SkippedBlocks
-	r.resultsMetrics.SkippedTraces += res.Metrics.SkippedTraces
-}
-
-func (r *searchResponse) shouldQuit() bool {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	if r.err != nil {
-		return true
-	}
-	if r.ctx.Err() != nil {
-		return true
-	}
-	if r.statusCode/100 != 2 {
-		return true
-	}
-	if len(r.resultsMap) > r.limit {
-		return true
-	}
-
-	return false
-}
-
-func (r *searchResponse) result() *tempopb.SearchResponse {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	res := &tempopb.SearchResponse{
-		Metrics: r.resultsMetrics,
-	}
-
-	for _, t := range r.resultsMap {
-		res.Traces = append(res.Traces, t)
-	}
-	sort.Slice(res.Traces, func(i, j int) bool {
-		return res.Traces[i].StartTimeUnixNano > res.Traces[j].StartTimeUnixNano
-	})
-
-	return res
-}
 
 type searchSharder struct {
 	next      http.RoundTripper
@@ -186,6 +88,9 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardSearch")
 	defer span.Finish()
 
+	// sub context to cancel in-progress sub requests
+	subCtx, subCancel := context.WithCancel(ctx)
+
 	// calculate and enforce max search duration
 	maxDuration := s.maxDuration(tenantID)
 	if maxDuration != 0 && time.Duration(searchReq.End-searchReq.Start)*time.Second > maxDuration {
@@ -195,26 +100,31 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		}, nil
 	}
 
-	ingesterReq, err := s.ingesterRequest(ctx, tenantID, r, *searchReq)
+	// build request to search ingester based on query_ingesters_until config and time range
+	// pass subCtx in requests so we can cancel and exit early
+	ingesterReq, err := s.ingesterRequest(subCtx, tenantID, r, *searchReq)
 	if err != nil {
 		return nil, err
 	}
 
+	// calculate duration (start and end) to search the backend blocks
 	start, end := s.backendRange(searchReq)
 
+	// get block metadata of blocks in start, end duration
 	blocks := s.blockMetas(int64(start), int64(end), tenantID)
 	span.SetTag("block-count", len(blocks))
 
 	var reqs []*http.Request
 	// add backend requests if we need them
 	if start != end {
-		reqs, err = s.backendRequests(ctx, tenantID, r, blocks)
+		// pass subCtx in requests so we can cancel and exit early
+		reqs, err = s.backendRequests(subCtx, tenantID, r, blocks)
 		if err != nil {
 			return nil, err
 		}
 	}
-	// add ingester request if we have one. it's important to add the ingeste request to
-	// the beginning of the slice so it is prioritized over the possibly enormous
+	// add ingester request if we have one. it's important to add the ingester request to
+	// the beginning of the slice so that it is prioritized over the possibly enormous
 	// number of backend requests
 	if ingesterReq != nil {
 		reqs = append([]*http.Request{ingesterReq}, reqs...)
@@ -232,18 +142,47 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	overallResponse.resultsMetrics.TotalBlockBytes = totalBlockBytes
 
+	// TODO: maybe it's better to loop on overallResponse.shouldQuit()
+	// in a goroutine and call subCancel() to exit early??
+	// that goroutine will act as watchdog, and cancel the work as early as possible??
+	// as a side-note: it can keep hammering the lock so maybe not a good idea??
+
+	// loop over all requests, and execute them all (if we need to)
 	for _, req := range reqs {
+		// if shouldQuit is true, terminate and abandon requests
 		if overallResponse.shouldQuit() {
+			_ = level.Info(s.logger).Log("msg", "exit early, and abandon remaining requests")
+			span.SetTag("exit-early", true)
+			// cancel currently running goroutines
+			subCancel()
 			break
 		}
 
+		// when we hit capacity of boundedwaitgroup, wg.Add will block
 		wg.Add(1)
+
+		// check if we should create a goroutine or not
+		// It is possible that shouldQuit() became true when we were blocked at wg.Add()
+		if overallResponse.shouldQuit() {
+			_ = level.Info(s.logger).Log("msg", "exiting before we create goroutine")
+			span.SetTag("exit-early", true)
+			// cancel currently running goroutines
+			subCancel()
+			break
+		}
+
 		go func(innerR *http.Request) {
 			defer wg.Done()
-
-			if overallResponse.shouldQuit() {
-				return
-			}
+			// cancel pending requests before we mark it done
+			defer func() {
+				if overallResponse.shouldQuit() {
+					// tell running goroutines to abandon work.
+					_ = level.Info(s.logger).Log("msg", "exiting early", "url", innerR.RequestURI)
+					span.SetTag("exit-early", true)
+					// cancel currently running goroutines
+					subCancel()
+				}
+			}()
 
 			resp, err := s.next.RoundTrip(innerR)
 			if err != nil {
@@ -257,9 +196,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			// if the status code is anything but happy, save the error and pass it down the line
 			if resp.StatusCode != http.StatusOK {
-				// todo: if we cancel the parent context here will it shortcircuit the other queries and fail fast? for search sharding we will also
-				// have concurrentQueries-1 in flight when the limit is reached. if we cancel after the limit is hit can we recoup all those resources
-				// faster?
+				// we will cancel pending goroutines in defer
 				statusCode := resp.StatusCode
 				bytesMsg, err := io.ReadAll(resp.Body)
 				if err != nil {
@@ -283,12 +220,17 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 			overallResponse.addResponse(results)
 		}(req)
 	}
+
+	// wait for all goroutines running in wg to finish or cancelled
+	_ = level.Info(s.logger).Log("msg", "request finished or exited early")
 	wg.Wait()
 
 	// all goroutines have finished, we can safely access searchResults fields directly now
 	span.SetTag("inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks)
+	span.SetTag("skippedBlocks", overallResponse.resultsMetrics.SkippedBlocks)
 	span.SetTag("inspectedBytes", overallResponse.resultsMetrics.InspectedBytes)
 	span.SetTag("inspectedTraces", overallResponse.resultsMetrics.InspectedTraces)
+	span.SetTag("skippedTraces", overallResponse.resultsMetrics.SkippedTraces)
 	span.SetTag("totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
 
 	if overallResponse.err != nil {
@@ -459,6 +401,7 @@ func adjustLimit(limit, defaultLimit, maxLimit uint32) uint32 {
 	return limit
 }
 
+// maxDuration returns the max search duration allowed for this tenant.
 func (s *searchSharder) maxDuration(tenantID string) time.Duration {
 	// check overrides first, if no overrides then grab from our config
 	maxDuration := s.overrides.MaxSearchDuration(tenantID)
