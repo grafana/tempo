@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/tempo/pkg/parquetquery"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -283,11 +284,11 @@ func (b *backendBlock) FindTraceByID2(ctx context.Context, traceID common.ID, op
 	rowGroupMaxs := make([]common.ID, numRowGroups)
 	rowGroupMaxs[numRowGroups-1] = b.meta.MaxID // This is actually inclusive and the logic is special for the last row group below
 
-	getRowGroupMin := func(rgIdx int) common.ID {
+	getRowGroupMin := func(rgIdx int) (common.ID, error) {
 		min := rowGroupMins[rgIdx]
 		if len(min) > 0 {
 			// Already loaded
-			return min
+			return min, nil
 		}
 
 		// Read first value from the row group
@@ -297,50 +298,68 @@ func (b *backendBlock) FindTraceByID2(ctx context.Context, traceID common.ID, op
 
 		res, err := iter.Next()
 		if err != nil {
-			panic("failed to read 1 value for row group min")
+			//panic(err)
+			return nil, err
 		}
 		if res == nil {
-			panic("failed to read 1 value from row group")
+			//panic(fmt.Sprintf("failed to read 1 value from row group: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), b.meta.BlockID, rgIdx))
+			return nil, fmt.Errorf("failed to read 1 value from row group: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), b.meta.BlockID, rgIdx)
 		}
 
 		min = res.ToMap()["id"][0].ByteArray()
 		rowGroupMins[rgIdx] = min
 
-		return min
+		return min, nil
 	}
 
-	getRowGroupMax := func(rgIdx int) common.ID {
+	getRowGroupMax := func(rgIdx int) (common.ID, error) {
 		max := rowGroupMaxs[rgIdx]
 		if len(max) > 0 {
 			// Already loaded
-			return max
+			return max, nil
 		}
 
 		// Read the min of the next row group is the best we can do
-		max = getRowGroupMin(rgIdx + 1)
-		rowGroupMaxs[rgIdx] = max
-		return max
-	}
-
-	rowGroup := binarySearch(numRowGroups, func(rgIdx int) int {
-		min := getRowGroupMin(rgIdx)
-		if check := bytes.Compare(traceID, min); check <= 0 {
-			// Trace is before or in this group
-			return check
+		max, err := getRowGroupMin(rgIdx + 1)
+		if err != nil {
+			return nil, err
 		}
 
-		max := getRowGroupMax(rgIdx)
+		rowGroupMaxs[rgIdx] = max
+		return max, nil
+	}
+
+	rowGroup, err := binarySearch(numRowGroups, func(rgIdx int) (int, error) {
+		min, err := getRowGroupMin(rgIdx)
+		if err != nil {
+			return 0, err
+		}
+
+		if check := bytes.Compare(traceID, min); check <= 0 {
+			// Trace is before or in this group
+			return check, nil
+		}
+
+		max, err := getRowGroupMax(rgIdx)
+		if err != nil {
+			return 0, err
+		}
+
 		// This is actually the min of the next group, so check is exclusive not inclusive like min
 		// Except for the last group, it is inclusive
 		check := bytes.Compare(traceID, max)
 		if check > 0 || (check == 0 && rgIdx < (numRowGroups-1)) {
 			// Trace is after this group
-			return 1
+			return 1, nil
 		}
 
 		// Must be in this group
-		return 0
+		return 0, nil
 	})
+
+	if err != nil {
+		return nil, errors.Wrap(err, "error binary searching row groups")
+	}
 
 	if rowGroup == -1 {
 		// Not within the bounds of any row group
@@ -392,15 +411,19 @@ func (b *backendBlock) FindTraceByID2(ctx context.Context, traceID common.ID, op
 // binarySearch that finds exact matching entry. Returns non-zero index when found, or -1 when not found
 // Inspired by sort.Search but makes uses of tri-state comparator to eliminate the last comparison when
 // we want to find exact match, not insertion point.
-func binarySearch(n int, compare func(int) int) int {
+func binarySearch(n int, compare func(int) (int, error)) (int, error) {
 	i, j := 0, n
 	for i < j {
 		h := int(uint(i+j) >> 1) // avoid overflow when computing h
+		c, err := compare(h)
+		if err != nil {
+			return -1, err
+		}
 		// i ≤ h < j
-		switch compare(h) {
+		switch c {
 		case 0:
 			// Found exact match
-			return h
+			return h, nil
 		case -1:
 			j = h
 		case 1:
@@ -409,7 +432,7 @@ func binarySearch(n int, compare func(int) int) int {
 	}
 
 	// No match
-	return -1
+	return -1, nil
 }
 
 /*func dumpParquetRow(sch parquet.Schema, row parquet.Row) {
