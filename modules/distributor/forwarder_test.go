@@ -101,7 +101,7 @@ func TestForwarder_pushesQueued(t *testing.T) {
 
 	wg.Wait()
 	time.Sleep(time.Second)
-	
+
 	// queue is full with 10 items
 	assert.Equal(t, 10, len(f.queueManagers[tenantID].reqChan))
 }
