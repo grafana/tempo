@@ -637,7 +637,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 				require.NoError(t, err)
 
 				// We don't need to check on this metric
-				//actualResp.Metrics.TotalBlockBytes = 0
+				// actualResp.Metrics.TotalBlockBytes = 0
 
 				assert.Equal(t, tc.expectedResponse, actualResp)
 			}

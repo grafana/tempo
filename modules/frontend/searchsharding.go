@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -153,6 +154,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		// if shouldQuit is true, terminate and abandon requests
 		if overallResponse.shouldQuit() {
 			// cancel currently running goroutines
+			_ = level.Info(s.logger).Log("quitting early")
 			subCancel()
 			break
 		}
@@ -166,12 +168,16 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			resp, err := s.next.RoundTrip(innerR)
 			if err != nil {
+				// exit early if error was context cancelled.
+				if errors.Is(err, context.Canceled) {
+					return
+				}
+
 				_ = level.Error(s.logger).Log("msg", "error executing sharded query", "url", innerR.RequestURI, "err", err)
 				overallResponse.setError(err)
 			}
 
 			if overallResponse.shouldQuit() {
-				subCancel() // exit early
 				return
 			}
 
@@ -185,7 +191,6 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 				}
 				statusMsg := fmt.Sprintf("upstream: (%d) %s", statusCode, string(bytesMsg))
 				overallResponse.setStatus(statusCode, statusMsg)
-				subCancel() // exit early
 				return
 			}
 
@@ -195,7 +200,6 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 			if err != nil {
 				_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
 				overallResponse.setError(err)
-				subCancel() // exit early
 				return
 			}
 
@@ -206,6 +210,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// wait for all goroutines running in wg to finish or cancelled
 	wg.Wait()
+	_ = level.Info(s.logger).Log(fmt.Sprintf("search requests total: %d, executed: %d", len(reqs), executedReqs))
 
 	// all goroutines have finished, we can safely access searchResults fields directly now
 	span.SetTag("inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks)
