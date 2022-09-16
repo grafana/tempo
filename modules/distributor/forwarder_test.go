@@ -3,6 +3,7 @@ package distributor
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -91,18 +92,16 @@ func TestForwarder_pushesQueued(t *testing.T) {
 		assert.Equal(t, 0, len(f.queueManagers[tenantID].reqChan))
 	}()
 
-	wg := sync.WaitGroup{}
 	// 10 pushes are buffered, 1 is picked up by the worker
-	for i := 0; i < 11; i++ {
-		wg.Add(1)
+
+	for i := 0; i < 10; i++ {
 		f.SendTraces(context.Background(), tenantID, keys, rebatchedTraces)
-		wg.Done()
+		fmt.Println("sent trace #: ", i + 1)
+		fmt.Println("Length: ", len(f.queueManagers[tenantID].reqChan))
 	}
 
-	wg.Wait()
-
 	// queue is full with 10 items
-	assert.Equal(t, 10, len(f.queueManagers[tenantID].reqChan))
+	assert.Equal(t, 11, len(f.queueManagers[tenantID].reqChan))
 }
 
 func TestForwarder_shutdown(t *testing.T) {
