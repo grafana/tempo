@@ -298,11 +298,9 @@ func (b *backendBlock) FindTraceByID2(ctx context.Context, traceID common.ID, op
 
 		res, err := iter.Next()
 		if err != nil {
-			//panic(err)
 			return nil, err
 		}
 		if res == nil {
-			//panic(fmt.Sprintf("failed to read 1 value from row group: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), b.meta.BlockID, rgIdx))
 			return nil, fmt.Errorf("failed to read 1 value from row group: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), b.meta.BlockID, rgIdx)
 		}
 
@@ -389,7 +387,7 @@ func (b *backendBlock) FindTraceByID2(ctx context.Context, traceID common.ID, op
 
 	// seek to row and read
 	r := parquet.NewReader(pf)
-	err = r.SeekToRow(int64(rowMatch))
+	err = r.SeekToRow(rowMatch)
 	if err != nil {
 		return nil, errors.Wrap(err, "seek to row")
 	}
