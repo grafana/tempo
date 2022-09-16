@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
@@ -26,114 +25,6 @@ const (
 
 	TraceIDColumnName = "TraceID"
 )
-
-type RowTracker struct {
-	rgs         []parquet.RowGroup
-	startRowNum []int
-
-	// traceID column index
-	colIndex int
-}
-
-// Scanning for a traceID within a rowGroup. Parameters are the rowgroup number and traceID to be searched.
-// Includes logic to look through bloom filters and page bounds as it goes through the rowgroup.
-func (rt *RowTracker) findTraceByID(idx int, traceID []byte) (int, error) {
-	rgIdx := rt.rgs[idx]
-	rowMatch := int64(rt.startRowNum[idx])
-	traceIDColumnChunk := rgIdx.ColumnChunks()[rt.colIndex]
-
-	bf := traceIDColumnChunk.BloomFilter()
-	if bf != nil {
-		exists, err := bf.Check(parquet.ValueOf(traceID))
-		if err != nil {
-			return NotFound, fmt.Errorf("error checking bloom filter: %w", err)
-		}
-		if !exists {
-			return NotFound, nil
-		}
-	}
-
-	// get row group bounds
-	numPages := traceIDColumnChunk.ColumnIndex().NumPages()
-	min := traceIDColumnChunk.ColumnIndex().MinValue(0).Bytes()
-	max := traceIDColumnChunk.ColumnIndex().MaxValue(numPages - 1).Bytes()
-	if bytes.Compare(traceID, min) < 0 {
-		return SearchPrevious, nil
-	}
-	if bytes.Compare(max, traceID) < 0 {
-		return SearchNext, nil
-	}
-
-	pages := traceIDColumnChunk.Pages()
-	buffer := make([]parquet.Value, 10000)
-	for {
-		pg, err := pages.ReadPage()
-		if pg == nil || err == io.EOF {
-			break
-		}
-
-		if min, max, ok := pg.Bounds(); ok {
-			if bytes.Compare(traceID, min.Bytes()) < 0 {
-				return SearchPrevious, nil
-			}
-			if bytes.Compare(max.Bytes(), traceID) < 0 {
-				rowMatch += pg.NumRows()
-				continue
-			}
-		}
-
-		vr := pg.Values()
-		for {
-			x, err := vr.ReadValues(buffer)
-			for y := 0; y < x; y++ {
-				if bytes.Equal(buffer[y].Bytes(), traceID) {
-					rowMatch += int64(y)
-					return int(rowMatch), nil
-				}
-			}
-
-			// check for EOF after processing any returned data
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return NotFound, err
-			}
-
-			rowMatch += int64(x)
-		}
-	}
-
-	// did not find the trace
-	return NotFound, nil
-}
-
-// Simple binary search algorithm over the parquet rowgroups to efficiently
-// search for traceID in the block (works only because rows are sorted by traceID)
-func (rt *RowTracker) binarySearch(span opentracing.Span, start int, end int, traceID []byte) (int, error) {
-	if start > end {
-		return -1, nil
-	}
-
-	// check mid point
-	midResult, err := rt.findTraceByID((start+end)/2, traceID)
-	if err != nil {
-		return NotFound, err
-	}
-	span.LogFields(
-		log.Message("checked mid result"),
-		log.Int("start", start),
-		log.Int("end", end),
-		log.Int("midResult", midResult),
-	)
-	if midResult == SearchPrevious {
-		return rt.binarySearch(span, start, ((start+end)/2)-1, traceID)
-	} else if midResult < 0 {
-		return rt.binarySearch(span, ((start+end)/2)+1, end, traceID)
-	}
-
-	return midResult, nil
-}
 
 func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, err error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.checkBloom",
@@ -162,89 +53,6 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 }
 
 func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.Trace, err error) {
-	return b.FindTraceByID2(ctx, traceID, opts)
-}
-
-func (b *backendBlock) FindTraceByID1(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.Trace, err error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.FindTraceByID",
-		opentracing.Tags{
-			"blockID":   b.meta.BlockID,
-			"tenantID":  b.meta.TenantID,
-			"blockSize": b.meta.Size,
-		})
-	defer span.Finish()
-
-	found, err := b.checkBloom(derivedCtx, traceID)
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return nil, nil
-	}
-
-	pf, rr, err := b.openForSearch(derivedCtx, opts)
-	if err != nil {
-		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
-	}
-	defer func() {
-		span.SetTag("inspectedBytes", rr.TotalBytesRead.Load())
-		//fmt.Println("read bytes:", rr.TotalBytesRead.Load())
-	}()
-
-	// traceID column index
-	colIndex, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
-	if colIndex == -1 {
-		return nil, fmt.Errorf("unable to get index for column: %s", TraceIDColumnName)
-	}
-
-	numRowGroups := len(pf.RowGroups())
-	rt := &RowTracker{
-		rgs:         make([]parquet.RowGroup, 0, numRowGroups),
-		startRowNum: make([]int, 0, numRowGroups),
-
-		colIndex: colIndex,
-	}
-
-	rowCount := 0
-	for rgi := 0; rgi < numRowGroups; rgi++ {
-		rt.rgs = append(rt.rgs, pf.RowGroups()[rgi])
-		rt.startRowNum = append(rt.startRowNum, rowCount)
-		rowCount += int(pf.RowGroups()[rgi].NumRows())
-	}
-
-	// find row number of matching traceID
-	rowMatch, err := rt.binarySearch(span, 0, numRowGroups-1, traceID)
-	if err != nil {
-		return nil, errors.Wrap(err, "binary search")
-	}
-
-	// traceID not found in this block
-	if rowMatch < 0 {
-		return nil, nil
-	}
-
-	// seek to row and read
-	r := parquet.NewReader(pf)
-	err = r.SeekToRow(int64(rowMatch))
-	if err != nil {
-		return nil, errors.Wrap(err, "seek to row")
-	}
-
-	span.LogFields(log.Message("seeked to row"), log.Int("row", rowMatch))
-
-	tr := new(Trace)
-	err = r.Read(tr)
-	if err != nil {
-		return nil, errors.Wrap(err, "error reading row from backend")
-	}
-
-	span.LogFields(log.Message("read trace"))
-
-	// convert to proto trace and return
-	return parquetTraceToTempopbTrace(tr), nil
-}
-
-func (b *backendBlock) FindTraceByID2(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.Trace, err error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.FindTraceByID",
 		opentracing.Tags{
 			"blockID":   b.meta.BlockID,
@@ -279,10 +87,9 @@ func (b *backendBlock) FindTraceByID2(ctx context.Context, traceID common.ID, op
 	numRowGroups := len(pf.RowGroups())
 
 	// Cache of row group bounds
-	rowGroupMins := make([]common.ID, numRowGroups)
+	rowGroupMins := make([]common.ID, numRowGroups+1)
 	rowGroupMins[0] = b.meta.MinID
-	rowGroupMaxs := make([]common.ID, numRowGroups)
-	rowGroupMaxs[numRowGroups-1] = b.meta.MaxID // This is actually inclusive and the logic is special for the last row group below
+	rowGroupMins[numRowGroups] = b.meta.MaxID // This is actually inclusive and the logic is special for the last row group below
 
 	getRowGroupMin := func(rgIdx int) (common.ID, error) {
 		min := rowGroupMins[rgIdx]
@@ -301,6 +108,9 @@ func (b *backendBlock) FindTraceByID2(ctx context.Context, traceID common.ID, op
 			return nil, err
 		}
 		if res == nil {
+			// This shouldn't happen as row groups are never empty, however have seen this in practice
+			// and it means there must be an error condition or some other situation that is not
+			// handled as expected.
 			return nil, fmt.Errorf("failed to read 1 value from row group: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), b.meta.BlockID, rgIdx)
 		}
 
@@ -308,23 +118,6 @@ func (b *backendBlock) FindTraceByID2(ctx context.Context, traceID common.ID, op
 		rowGroupMins[rgIdx] = min
 
 		return min, nil
-	}
-
-	getRowGroupMax := func(rgIdx int) (common.ID, error) {
-		max := rowGroupMaxs[rgIdx]
-		if len(max) > 0 {
-			// Already loaded
-			return max, nil
-		}
-
-		// Read the min of the next row group is the best we can do
-		max, err := getRowGroupMin(rgIdx + 1)
-		if err != nil {
-			return nil, err
-		}
-
-		rowGroupMaxs[rgIdx] = max
-		return max, nil
 	}
 
 	rowGroup, err := binarySearch(numRowGroups, func(rgIdx int) (int, error) {
@@ -338,7 +131,7 @@ func (b *backendBlock) FindTraceByID2(ctx context.Context, traceID common.ID, op
 			return check, nil
 		}
 
-		max, err := getRowGroupMax(rgIdx)
+		max, err := getRowGroupMin(rgIdx + 1)
 		if err != nil {
 			return 0, err
 		}
