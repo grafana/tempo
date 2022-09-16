@@ -94,14 +94,15 @@ func TestForwarder_pushesQueued(t *testing.T) {
 
 	// 10 pushes are buffered, 1 is picked up by the worker
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 11; i++ {
 		f.SendTraces(context.Background(), tenantID, keys, rebatchedTraces)
 		fmt.Println("sent trace #: ", i + 1)
 		fmt.Println("Length: ", len(f.queueManagers[tenantID].reqChan))
 	}
 
 	// queue is full with 10 items
-	assert.Equal(t, 11, len(f.queueManagers[tenantID].reqChan))
+	fmt.Println("Length after all sent: ", len(f.queueManagers[tenantID].reqChan))
+	assert.Equal(t, 10, len(f.queueManagers[tenantID].reqChan))
 }
 
 func TestForwarder_shutdown(t *testing.T) {
