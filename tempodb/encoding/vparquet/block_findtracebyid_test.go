@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -144,8 +143,8 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 func BenchmarkFindTraceByID(b *testing.B) {
 	ctx := context.TODO()
 	tenantID := "1"
-	//blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
-	blockID := uuid.MustParse("1a2d50d7-f10e-41f0-850d-158b19ead23d")
+	blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
+	//blockID := uuid.MustParse("1a2d50d7-f10e-41f0-850d-158b19ead23d")
 
 	r, _, _, err := local.New(&local.Config{
 		Path: path.Join("/Users/marty/src/tmp/"),
@@ -157,14 +156,16 @@ func BenchmarkFindTraceByID(b *testing.B) {
 	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
 	require.NoError(b, err)
 
-	// traceID := meta.minID
-	traceID, err := util.HexStringToTraceID("1a029f7ace79c7f2")
-	require.NoError(b, err)
+	traceID := meta.MinID
+	//traceID, err := util.HexStringToTraceID("1a029f7ace79c7f2")
+	//require.NoError(b, err)
 
 	block := newBackendBlock(meta, rr)
 
+	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
-		tr, err := block.FindTraceByID2(ctx, traceID, defaultSearchOptions())
+		tr, err := block.FindTraceByID(ctx, traceID, defaultSearchOptions())
 		require.NoError(b, err)
 		require.NotNil(b, tr)
 	}
