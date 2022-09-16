@@ -279,7 +279,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 		}
 	}()
 
-	span, ctx2 := opentracing.StartSpanFromContext(ctx, "columnIterator.iterate", opentracing.Tags{
+	span, _ := opentracing.StartSpanFromContext(ctx, "columnIterator.iterate", opentracing.Tags{
 		"columnIndex": c.col,
 		"column":      c.colName,
 	})
@@ -339,9 +339,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 				}
 			}()
 			for {
-				span2, _ := opentracing.StartSpanFromContext(ctx2, "columnIterator.iterate.ReadPage")
 				pg, err := pgs.ReadPage()
-				span2.Finish()
 
 				if pg == nil || err == io.EOF {
 					break
