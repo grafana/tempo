@@ -72,8 +72,8 @@ func Test_Memberlist(t *testing.T) {
 	initMKV := createMemberlist(t, 0, -1)
 
 	var wg sync.WaitGroup
+	wg.Add(10)
 	for i := 0; i < 10; i++ {
-		wg.Add(1)
 		go func(i int) {
 			leader, err := NewReporter(Config{
 				Leader:  true,
