@@ -102,7 +102,7 @@ func TestForwarder_pushesQueued(t *testing.T) {
 
 	// queue is full with 10 items
 	fmt.Println("Length after all sent: ", len(f.queueManagers[tenantID].reqChan))
-	assert.Equal(t, 10, len(f.queueManagers[tenantID].reqChan))
+	assert.Equal(t, 11, len(f.queueManagers[tenantID].reqChan))
 }
 
 func TestForwarder_shutdown(t *testing.T) {
