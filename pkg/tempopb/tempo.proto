@@ -49,6 +49,8 @@ message SearchRequest {
   uint32 Limit = 4;
   uint32 start = 5;
   uint32 end = 6;
+  // TraceQL query
+  string Query = 8;
 }
 
 // SearchBlockRequest takes SearchRequest parameters as well as all information necessary

@@ -3,7 +3,7 @@ package vparquet
 import (
 	"bytes"
 
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
@@ -13,7 +13,6 @@ import (
 )
 
 // Label names for conversion b/n Proto <> Parquet
-
 const (
 	LabelRootSpanName    = "root.name"
 	LabelRootServiceName = "root.service.name"
@@ -29,20 +28,47 @@ const (
 	LabelK8sPodName       = "k8s.pod.name"
 	LabelK8sContainerName = "k8s.container.name"
 
+	LabelName           = "name"
 	LabelHTTPMethod     = "http.method"
 	LabelHTTPUrl        = "http.url"
 	LabelHTTPStatusCode = "http.status_code"
+	LabelStatusCode     = "status.code"
 )
 
 // These definition levels match the schema below
+const (
+	DefinitionLevelTrace                = 0
+	DefinitionLevelResourceSpans        = 1
+	DefinitionLevelResourceAttrs        = 2
+	DefinitionLevelResourceSpansILSSpan = 3
 
-const DefinitionLevelTrace = 0
-const DefinitionLevelResourceSpans = 1
-const DefinitionLevelResourceAttrs = 2
-const DefinitionLevelResourceSpansILSSpan = 3
+	FieldResourceAttrKey = "rs.Resource.Attrs.Key"
+	FieldResourceAttrVal = "rs.Resource.Attrs.Value"
+	FieldSpanAttrKey     = "rs.ils.Spans.Attrs.Key"
+	FieldSpanAttrVal     = "rs.ils.Spans.Attrs.Value"
+)
 
 var (
 	jsonMarshaler = new(jsonpb.Marshaler)
+
+	labelMappings = map[string]string{
+		LabelRootSpanName:     "RootSpanName",
+		LabelRootServiceName:  "RootServiceName",
+		LabelServiceName:      "rs.Resource.ServiceName",
+		LabelCluster:          "rs.Resource.Cluster",
+		LabelNamespace:        "rs.Resource.Namespace",
+		LabelPod:              "rs.Resource.Pod",
+		LabelContainer:        "rs.Resource.Container",
+		LabelK8sClusterName:   "rs.Resource.K8sClusterName",
+		LabelK8sNamespaceName: "rs.Resource.K8sNamespaceName",
+		LabelK8sPodName:       "rs.Resource.K8sPodName",
+		LabelK8sContainerName: "rs.Resource.K8sContainerName",
+		LabelName:             "rs.ils.Spans.Name",
+		LabelHTTPMethod:       "rs.ils.Spans.HttpMethod",
+		LabelHTTPUrl:          "rs.ils.Spans.HttpUrl",
+		LabelHTTPStatusCode:   "rs.ils.Spans.HttpStatusCode",
+		LabelStatusCode:       "rs.ils.Spans.StatusCode",
+	}
 )
 
 type Attribute struct {
@@ -82,7 +108,6 @@ type Span struct {
 	TraceState             string      `parquet:",snappy"`
 	StartUnixNanos         uint64      `parquet:",delta"`
 	EndUnixNanos           uint64      `parquet:",delta"`
-	DurationNanos          uint64      `parquet:",delta"`
 	StatusCode             int         `parquet:",delta"`
 	StatusMessage          string      `parquet:",snappy"`
 	Attrs                  []Attribute `parquet:""`
@@ -266,7 +291,6 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 					StatusMessage:          s.Status.Message,
 					StartUnixNanos:         s.StartTimeUnixNano,
 					EndUnixNanos:           s.EndTimeUnixNano,
-					DurationNanos:          s.EndTimeUnixNano - s.StartTimeUnixNano,
 					Attrs:                  make([]Attribute, 0, len(s.Attributes)),
 					DroppedAttributesCount: int32(s.DroppedAttributesCount),
 					Events:                 events,
@@ -276,13 +300,13 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 				for _, a := range s.Attributes {
 					switch a.Key {
 
-					case "http.method":
+					case LabelHTTPMethod:
 						m := a.Value.GetStringValue()
 						ss.HttpMethod = &m
-					case "http.url":
+					case LabelHTTPUrl:
 						m := a.Value.GetStringValue()
 						ss.HttpUrl = &m
-					case "http.status_code":
+					case LabelHTTPStatusCode:
 						m := a.Value.GetIntValue()
 						ss.HttpStatusCode = &m
 					default:
@@ -308,7 +332,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 		ot.RootSpanName = rootSpan.Name
 
 		for _, a := range rootBatch.Resource.Attributes {
-			if a.Key == "service.name" {
+			if a.Key == LabelServiceName {
 				ot.RootServiceName = a.Value.GetStringValue()
 				break
 			}
@@ -417,7 +441,7 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 	return protoEvents
 }
 
-func parquetTraceToTempopbTrace(parquetTrace *Trace) (*tempopb.Trace, error) {
+func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 
 	protoTrace := &tempopb.Trace{}
 	protoTrace.Batches = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
@@ -536,5 +560,5 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) (*tempopb.Trace, error) {
 		protoTrace.Batches = append(protoTrace.Batches, protoBatch)
 	}
 
-	return protoTrace, nil
+	return protoTrace
 }

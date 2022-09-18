@@ -12,7 +12,9 @@ import (
 	"github.com/go-logfmt/logfmt"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -21,6 +23,7 @@ import (
 const (
 	URLParamTraceID = "traceID"
 	// search
+	urlParamQuery       = "q"
 	urlParamTags        = "tags"
 	urlParamMinDuration = "minDuration"
 	urlParamMaxDuration = "maxDuration"
@@ -104,26 +107,22 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		req.End = uint32(end)
 	}
 
-	encodedTags, tagsFound := extractQueryParam(r, urlParamTags)
-
-	// if we have don't have tags and we don't see start or end treat this like an old style search
-	// if we have no tags but we DO have start/end we have to treat this like a range search with no
-	// tags specified.
-	if !tagsFound && req.Start == 0 && req.End == 0 {
-		// Passing tags as individual query parameters is not supported anymore, clients should use the tags
-		// query parameter instead. We still parse these tags since the initial Grafana implementation uses this.
-		// As Grafana gets updated and/or versions using this get old we can remove this section.
-		for k, v := range r.URL.Query() {
-			// Skip reserved keywords
-			if k == urlParamTags || k == urlParamMinDuration || k == urlParamMaxDuration || k == urlParamLimit {
-				continue
-			}
-
-			if len(v) > 0 && v[0] != "" {
-				req.Tags[k] = v[0]
-			}
+	query, queryFound := extractQueryParam(r, urlParamQuery)
+	if queryFound {
+		_, err := traceql.Parse(query)
+		if err != nil {
+			return nil, fmt.Errorf("invalid query: %w", err)
 		}
-	} else {
+		req.Query = query
+	}
+
+	encodedTags, tagsFound := extractQueryParam(r, urlParamTags)
+	if tagsFound {
+		// tags and traceQL API are mutually exclusive
+		if queryFound {
+			return nil, fmt.Errorf("invalid request: can't specify tags and q in the same query")
+		}
+
 		decoder := logfmt.NewDecoder(strings.NewReader(encodedTags))
 
 		for decoder.ScanRecord() {
@@ -141,6 +140,25 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 				return nil, fmt.Errorf("invalid tags: %s at pos %d", syntaxErr.Msg, syntaxErr.Pos)
 			}
 			return nil, fmt.Errorf("invalid tags: %w", err)
+		}
+	}
+
+	// if we don't have a query or tags, and we don't see start or end treat this like an old style search
+	// if we have no tags but we DO have start/end we have to treat this like a range search with no
+	// tags specified.
+	if !queryFound && !tagsFound && req.Start == 0 && req.End == 0 {
+		// Passing tags as individual query parameters is not supported anymore, clients should use the tags
+		// query parameter instead. We still parse these tags since the initial Grafana implementation uses this.
+		// As Grafana gets updated and/or versions using this get old we can remove this section.
+		for k, v := range r.URL.Query() {
+			// Skip reserved keywords
+			if k == urlParamQuery || k == urlParamTags || k == urlParamMinDuration || k == urlParamMaxDuration || k == urlParamLimit {
+				continue
+			}
+
+			if len(v) > 0 && v[0] != "" {
+				req.Tags[k] = v[0]
+			}
 		}
 	}
 
@@ -311,6 +329,10 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 		q.Set(urlParamMinDuration, strconv.FormatUint(uint64(searchReq.MinDurationMs), 10)+"ms")
 	}
 
+	if len(searchReq.Query) > 0 {
+		q.Set(urlParamQuery, searchReq.Query)
+	}
+
 	if len(searchReq.Tags) > 0 {
 		builder := &strings.Builder{}
 		encoder := logfmt.NewEncoder(builder)
@@ -362,7 +384,7 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 }
 
 // AddServerlessParams takes an already existing http.Request and adds maxBytes
-//  to it
+// to it
 func AddServerlessParams(req *http.Request, maxBytes int) *http.Request {
 	if req == nil {
 		req = &http.Request{
@@ -378,7 +400,7 @@ func AddServerlessParams(req *http.Request, maxBytes int) *http.Request {
 }
 
 // ExtractServerlessParams extracts params for the serverless functions from
-//  an http.Request
+// an http.Request
 func ExtractServerlessParams(req *http.Request) (int, error) {
 	s, exists := extractQueryParam(req, urlParamMaxBytes)
 	if !exists {

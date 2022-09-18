@@ -3,6 +3,7 @@ package vparquet
 import (
 	"bytes"
 	"context"
+	"path"
 	"sort"
 	"testing"
 
@@ -92,8 +93,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 
 	// Now find and verify all test traces
 	for _, tr := range traces {
-		wantProto, err := parquetTraceToTempopbTrace(tr)
-		require.NoError(t, err)
+		wantProto := parquetTraceToTempopbTrace(tr)
 
 		gotProto, err := b.FindTraceByID(ctx, tr.TraceID, common.SearchOptions{})
 		require.NoError(t, err)
@@ -137,5 +137,36 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 		protoTr, err := b.FindTraceByID(ctx, tr.TraceID, common.SearchOptions{})
 		require.NoError(t, err)
 		require.NotNil(t, protoTr)
+	}
+}
+
+func BenchmarkFindTraceByID(b *testing.B) {
+	ctx := context.TODO()
+	tenantID := "1"
+	blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
+	//blockID := uuid.MustParse("1a2d50d7-f10e-41f0-850d-158b19ead23d")
+
+	r, _, _, err := local.New(&local.Config{
+		Path: path.Join("/Users/marty/src/tmp/"),
+	})
+	require.NoError(b, err)
+
+	rr := backend.NewReader(r)
+
+	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
+	require.NoError(b, err)
+
+	traceID := meta.MinID
+	//traceID, err := util.HexStringToTraceID("1a029f7ace79c7f2")
+	//require.NoError(b, err)
+
+	block := newBackendBlock(meta, rr)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		tr, err := block.FindTraceByID(ctx, traceID, defaultSearchOptions())
+		require.NoError(b, err)
+		require.NotNil(b, tr)
 	}
 }
