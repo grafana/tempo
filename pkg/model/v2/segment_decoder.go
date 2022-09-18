@@ -12,8 +12,8 @@ import (
 
 // SegmentDecoder maintains the relationship between distributor -> ingester
 // Segment format:
-//  | uint32 | uint32 | variable length          |
-//  | start  | end    | marshalled tempopb.Trace |
+// | uint32 | uint32 | variable length          |
+// | start  | end    | marshalled tempopb.Trace |
 // start and end are unix epoch seconds
 type SegmentDecoder struct {
 }

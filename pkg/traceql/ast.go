@@ -397,7 +397,7 @@ func (Attribute) referencesSpan() bool {
 }
 
 // newScopedAttribute creates a new scopedattribute with the given identifier string.
-//  this handles parent, span, and resource scopes.
+// this handles parent, span, and resource scopes.
 func newScopedAttribute(scope AttributeScope, parent bool, att string) Attribute {
 	intrinsic := IntrinsicNone
 	// if we are explicitly passed a resource or span scopes then we shouldn't parse for intrinsic

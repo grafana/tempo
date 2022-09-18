@@ -11,7 +11,7 @@ GOPATH := $(shell go env GOPATH)
 GORELEASER := $(GOPATH)/bin/goreleaser
 
 # Build Images
-DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.2.1
+DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.14.0
 FLATBUFFERS_IMAGE ?= neomantra/flatbuffers
 LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.21.0
 DOCS_IMAGE ?= grafana/docs-base:latest
@@ -184,7 +184,6 @@ gen-proto:
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto,./pkg/tempopb/)
 	$(call PROTO_GEN,pkg/tempopb/tempo.proto,./)
 	$(call PROTO_GEN_WITH_VENDOR,modules/frontend/v1/frontendv1pb/frontend.proto,./)
-	$(call PROTO_GEN_WITH_VENDOR,modules/frontend/v2/frontendv2pb/frontend.proto,./)
 
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 

@@ -12,10 +12,10 @@ import (
 // creates the segments using PrepareForWrite which can then be consumed and organized by traceid in the ingester.
 //
 // The ingester then holds these in memory until either:
-//  - The trace id is queried. In this case it uses PrepareForRead to turn the segments into a tempopb.Trace for
-//    return on the query path.
-//  - It needs to push them into tempodb. For this it uses ToObject() to create a single byte slice from the
-//    segments that is then completely handled by an ObjectDecoder of the same version
+//   - The trace id is queried. In this case it uses PrepareForRead to turn the segments into a tempopb.Trace for
+//     return on the query path.
+//   - It needs to push them into tempodb. For this it uses ToObject() to create a single byte slice from the
+//     segments that is then completely handled by an ObjectDecoder of the same version
 type SegmentDecoder interface {
 	// PrepareForWrite takes a trace pointer and returns a record prepared for writing to an ingester
 	PrepareForWrite(trace *tempopb.Trace, start uint32, end uint32) ([]byte, error)
