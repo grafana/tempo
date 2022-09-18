@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -166,12 +165,7 @@ func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File,
 	}
 
 	// blockID, tenantID, version, encoding (compression), dataEncoding
-	var filename string
-	if runtime.GOOS == "windows" {
-		filename = fmt.Sprintf("%v#%v#%v#%v#%v", blockid, tenantid, walFileVersion, w.c.SearchEncoding, "")
-	} else {
-		filename = fmt.Sprintf("%v:%v:%v:%v:%v", blockid, tenantid, walFileVersion, w.c.SearchEncoding, "")
-	}
+	filename := fmt.Sprintf("%v+%v+%v+%v+%v", blockid, tenantid, walFileVersion, w.c.SearchEncoding, "")
 	file, err := os.OpenFile(filepath.Join(p, filename), os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return nil, backend.EncNone, err
@@ -181,12 +175,14 @@ func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File,
 }
 
 // ParseFilename returns (blockID, tenant, version, encoding, dataEncoding, error).
-// Example: "00000000-0000-0000-0000-000000000000:1:v2:snappy:v1"
+// Example: "00000000-0000-0000-0000-000000000000+1+v2+snappy+v1"
+// Example with old separator: "00000000-0000-0000-0000-000000000000:1:v2:snappy:v1"
 func ParseFilename(filename string) (uuid.UUID, string, string, backend.Encoding, string, error) {
 	var splits []string
-	if runtime.GOOS == "windows" {
-		splits = strings.Split(filename, "#")
+	if strings.Contains(filename, "+") {
+		splits = strings.Split(filename, "+")
 	} else {
+		// backward-compatibility with the old separator
 		splits = strings.Split(filename, ":")
 	}
 

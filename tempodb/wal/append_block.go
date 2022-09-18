@@ -2,11 +2,11 @@ package wal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -35,7 +35,7 @@ type AppendBlock struct {
 }
 
 func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (*AppendBlock, error) {
-	if strings.ContainsRune(dataEncoding, ':') ||
+	if strings.ContainsRune(dataEncoding, ':') || strings.ContainsRune(dataEncoding, '+') ||
 		len([]rune(dataEncoding)) > maxDataEncodingLength {
 		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
 	}
@@ -206,27 +206,29 @@ func (a *AppendBlock) Clear() error {
 }
 
 func (a *AppendBlock) fullFilename() string {
-	if a.meta.Version == "v0" {
-		if runtime.GOOS == "windows" {
-			return filepath.Join(a.filepath, fmt.Sprintf("%v#%v", a.meta.BlockID, a.meta.TenantID))
-		} else {
-			return filepath.Join(a.filepath, fmt.Sprintf("%v:%v", a.meta.BlockID, a.meta.TenantID))
+	filename := a.fullFilenameSeparator("+")
+	_, e1 := os.Stat(filename)
+	if errors.Is(e1, os.ErrNotExist) {
+		filenameWithOldSeparator := a.fullFilenameSeparator(":")
+		_, e2 := os.Stat(filenameWithOldSeparator)
+		if !errors.Is(e2, os.ErrNotExist) {
+			filename = filenameWithOldSeparator
 		}
+	}
+
+	return filename
+}
+
+func (a *AppendBlock) fullFilenameSeparator(separator string) string {
+	if a.meta.Version == "v0" {
+		return filepath.Join(a.filepath, fmt.Sprintf("%v%v%v", a.meta.BlockID, separator, a.meta.TenantID))
 	}
 
 	var filename string
 	if a.meta.DataEncoding == "" {
-		if runtime.GOOS == "windows" {
-			filename = fmt.Sprintf("%v#%v#%v#%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding)
-		} else {
-			filename = fmt.Sprintf("%v:%v:%v:%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding)
-		}
+		filename = fmt.Sprintf("%v%v%v%v%v%v%v", a.meta.BlockID, separator, a.meta.TenantID, separator, a.meta.Version, separator, a.meta.Encoding)
 	} else {
-		if runtime.GOOS == "windows" {
-			filename = fmt.Sprintf("%v#%v#%v#%v#%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding, a.meta.DataEncoding)
-		} else {
-			filename = fmt.Sprintf("%v:%v:%v:%v:%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding, a.meta.DataEncoding)
-		}
+		filename = fmt.Sprintf("%v%v%v%v%v%v%v%v%v", a.meta.BlockID, separator, a.meta.TenantID, separator, a.meta.Version, separator, a.meta.Encoding, separator, a.meta.DataEncoding)
 	}
 
 	return filepath.Join(a.filepath, filename)
