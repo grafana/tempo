@@ -316,6 +316,11 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return nil, nil, nil
 	}
 
+	opts := common.SearchOptions{}
+	if rw.cfg != nil && rw.cfg.Search != nil {
+		rw.cfg.Search.ApplyToOptions(&opts)
+	}
+
 	curTime := time.Now()
 	partialTraces, funcErrs, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) (interface{}, error) {
 		meta := payload.(*backend.BlockMeta)
@@ -325,7 +330,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 			return nil, errors.Wrap(err, fmt.Sprintf("error opening block for reading, blockID: %s", meta.BlockID.String()))
 		}
 
-		foundObject, err := block.FindTraceByID(ctx, id)
+		foundObject, err := block.FindTraceByID(ctx, id, opts)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("error finding trace by id, blockID: %s", meta.BlockID.String()))
 		}
@@ -390,7 +395,8 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 }
 
 // EnablePolling activates the polling loop. Pass nil if this component
-//  should never be a tenant index builder.
+//
+//	should never be a tenant index builder.
 func (rw *readerWriter) EnablePolling(sharder blocklist.JobSharder) {
 	if sharder == nil {
 		sharder = blocklist.OwnsNothingSharder

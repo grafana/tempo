@@ -55,6 +55,9 @@ func (a array) slice(i, j int) array {
 }
 
 func (a array) offset(off uintptr) array {
+	if a.ptr == nil {
+		panic("offset of nil array")
+	}
 	return array{
 		ptr: unsafe.Add(a.ptr, off),
 		len: a.len,

@@ -16,7 +16,7 @@ type optionalPageValues struct {
 
 func (r *optionalPageValues) ReadValues(values []Value) (n int, err error) {
 	maxDefinitionLevel := r.page.maxDefinitionLevel
-	definitionLevels := r.page.definitionLevels.data()
+	definitionLevels := r.page.definitionLevels
 	columnIndex := ^int16(r.page.Column())
 
 	for n < len(values) && r.offset < len(definitionLevels) {
@@ -64,8 +64,8 @@ type repeatedPageValues struct {
 
 func (r *repeatedPageValues) ReadValues(values []Value) (n int, err error) {
 	maxDefinitionLevel := r.page.maxDefinitionLevel
-	definitionLevels := r.page.definitionLevels.data()
-	repetitionLevels := r.page.repetitionLevels.data()
+	definitionLevels := r.page.definitionLevels
+	repetitionLevels := r.page.repetitionLevels
 	columnIndex := ^int16(r.page.Column())
 
 	for n < len(values) && r.offset < len(definitionLevels) {
@@ -334,8 +334,7 @@ func (r *byteArrayPageValues) readByteArrays(values []byte) (c, n int, err error
 func (r *byteArrayPageValues) ReadValues(values []Value) (n int, err error) {
 	numValues := r.page.len()
 	for n < len(values) && r.offset < numValues {
-		value := r.page.index(r.offset)
-		values[n] = r.page.makeValueBytes(copyBytes(value))
+		values[n] = r.page.makeValueBytes(r.page.index(r.offset))
 		r.offset++
 		n++
 	}
@@ -372,7 +371,7 @@ func (r *fixedLenByteArrayPageValues) ReadFixedLenByteArrays(values []byte) (n i
 
 func (r *fixedLenByteArrayPageValues) ReadValues(values []Value) (n int, err error) {
 	for n < len(values) && r.offset < len(r.page.data) {
-		values[n] = r.page.makeValueBytes(copyBytes(r.page.data[r.offset : r.offset+r.page.size]))
+		values[n] = r.page.makeValueBytes(r.page.data[r.offset : r.offset+r.page.size])
 		r.offset += r.page.size
 		n++
 	}

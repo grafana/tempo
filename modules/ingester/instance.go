@@ -452,7 +452,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	combiner := trace.NewCombiner()
 	combiner.Consume(completeTrace)
 	for _, c := range i.completeBlocks {
-		found, err := c.FindTraceByID(ctx, id)
+		found, err := c.FindTraceByID(ctx, id, common.SearchOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.FindTraceByID failed: %w", err)
 		}
@@ -480,7 +480,8 @@ func (i *instance) AddCompletingBlock(b *wal.AppendBlock, s *search.StreamingSea
 }
 
 // getOrCreateTrace will return a new trace object for the given request
-//  It must be called under the i.tracesMtx lock
+//
+//	It must be called under the i.tracesMtx lock
 func (i *instance) getOrCreateTrace(traceID []byte) *liveTrace {
 	fp := i.tokenForTraceID(traceID)
 	trace, ok := i.traces[fp]

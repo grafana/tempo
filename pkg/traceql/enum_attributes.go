@@ -5,18 +5,18 @@ import "fmt"
 type AttributeScope int
 
 const (
-	attributeScopeNone AttributeScope = iota
-	attributeScopeResource
-	attributeScopeSpan
+	AttributeScopeNone AttributeScope = iota
+	AttributeScopeResource
+	AttributeScopeSpan
 )
 
 func (s AttributeScope) String() string {
 	switch s {
-	case attributeScopeNone:
+	case AttributeScopeNone:
 		return "none"
-	case attributeScopeSpan:
+	case AttributeScopeSpan:
 		return "span"
-	case attributeScopeResource:
+	case AttributeScopeResource:
 		return "resource"
 	}
 
@@ -26,27 +26,27 @@ func (s AttributeScope) String() string {
 type Intrinsic int
 
 const (
-	intrinsicNone Intrinsic = iota
-	intrinsicDuration
-	intrinsicChildCount
-	intrinsicName
-	intrinsicStatus
-	intrinsicParent
+	IntrinsicNone Intrinsic = iota
+	IntrinsicDuration
+	IntrinsicChildCount
+	IntrinsicName
+	IntrinsicStatus
+	IntrinsicParent
 )
 
 func (i Intrinsic) String() string {
 	switch i {
-	case intrinsicNone:
+	case IntrinsicNone:
 		return "none"
-	case intrinsicDuration:
+	case IntrinsicDuration:
 		return "duration"
-	case intrinsicName:
+	case IntrinsicName:
 		return "name"
-	case intrinsicStatus:
+	case IntrinsicStatus:
 		return "status"
-	case intrinsicChildCount:
+	case IntrinsicChildCount:
 		return "childCount"
-	case intrinsicParent:
+	case IntrinsicParent:
 		return "parent"
 	}
 
@@ -57,16 +57,16 @@ func (i Intrinsic) String() string {
 func intrinsicFromString(s string) Intrinsic {
 	switch s {
 	case "duration":
-		return intrinsicDuration
+		return IntrinsicDuration
 	case "name":
-		return intrinsicName
+		return IntrinsicName
 	case "status":
-		return intrinsicStatus
+		return IntrinsicStatus
 	case "childCount":
-		return intrinsicChildCount
+		return IntrinsicChildCount
 	case "parent":
-		return intrinsicParent
+		return IntrinsicParent
 	}
 
-	return intrinsicNone
+	return IntrinsicNone
 }
