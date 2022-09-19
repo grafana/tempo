@@ -135,7 +135,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// execute requests
 	wg := boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
-	overallResponse := newSearchResponse(ctx, int(searchReq.Limit))
+	overallResponse := newSearchResponse(ctx, int(searchReq.Limit), subCancel)
 	overallResponse.resultsMetrics.InspectedBlocks = uint32(len(blocks))
 
 	totalBlockBytes := uint64(0)
@@ -144,18 +144,10 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	overallResponse.resultsMetrics.TotalBlockBytes = totalBlockBytes
 
-	// TODO: maybe it's better to loop on overallResponse.shouldQuit()
-	// in a goroutine and call subCancel() to exit early??
-	// that goroutine will act as watchdog, and cancel the work as early as possible??
-	// as a side-note: it can keep hammering the lock so maybe not a good idea??
-
 	executedReqs := 0
 	for _, req := range reqs {
 		// if shouldQuit is true, terminate and abandon requests
 		if overallResponse.shouldQuit() {
-			// cancel currently running goroutines
-			_ = level.Info(s.logger).Log("quitting early")
-			subCancel()
 			break
 		}
 
@@ -168,17 +160,15 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			resp, err := s.next.RoundTrip(innerR)
 			if err != nil {
-				// exit early if error was context cancelled.
+				// context cancelled error happens when we exit early.
+				// bail, and don't log and don't set this error.
 				if errors.Is(err, context.Canceled) {
+					_ = level.Debug(s.logger).Log("msg", "exiting early from sharded query", "url", innerR.RequestURI, "err", err)
 					return
 				}
 
 				_ = level.Error(s.logger).Log("msg", "error executing sharded query", "url", innerR.RequestURI, "err", err)
 				overallResponse.setError(err)
-			}
-
-			if overallResponse.shouldQuit() {
-				return
 			}
 
 			// if the status code is anything but happy, save the error and pass it down the line

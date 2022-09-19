@@ -48,37 +48,39 @@ func (m *mockReader) Shutdown()                                  {}
 func TestSearchResponseShouldQuit(t *testing.T) {
 	ctx := context.Background()
 
+	cancelFunc := func() {}
+
 	// brand new response should not quit
-	sr := newSearchResponse(ctx, 10)
+	sr := newSearchResponse(ctx, 10, cancelFunc)
 	assert.False(t, sr.shouldQuit())
 
 	// errored response should quit
-	sr = newSearchResponse(ctx, 10)
+	sr = newSearchResponse(ctx, 10, cancelFunc)
 	sr.setError(errors.New("blerg"))
 	assert.True(t, sr.shouldQuit())
 
 	// happy status code should not quit
-	sr = newSearchResponse(ctx, 10)
+	sr = newSearchResponse(ctx, 10, cancelFunc)
 	sr.setStatus(200, "")
 	assert.False(t, sr.shouldQuit())
 
 	// sad status code should quit
-	sr = newSearchResponse(ctx, 10)
+	sr = newSearchResponse(ctx, 10, cancelFunc)
 	sr.setStatus(400, "")
 	assert.True(t, sr.shouldQuit())
 
-	sr = newSearchResponse(ctx, 10)
+	sr = newSearchResponse(ctx, 10, cancelFunc)
 	sr.setStatus(500, "")
 	assert.True(t, sr.shouldQuit())
 
 	// cancelled context should quit
 	cancellableContext, cancel := context.WithCancel(ctx)
-	sr = newSearchResponse(cancellableContext, 10)
+	sr = newSearchResponse(cancellableContext, 10, cancelFunc)
 	cancel()
 	assert.True(t, sr.shouldQuit())
 
 	// limit reached should quit
-	sr = newSearchResponse(ctx, 2)
+	sr = newSearchResponse(ctx, 2, cancelFunc)
 	sr.addResponse(&tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
