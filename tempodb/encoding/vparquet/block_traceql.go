@@ -17,7 +17,7 @@ import (
 
 // Helper function to create an iterator, that abstracts away
 // context like file and rowgroups.
-type makeIterFunc func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator
+type makeIterFn func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator
 
 const (
 	columnPathTraceID                  = "TraceID"
@@ -338,7 +338,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File)
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
-func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, start, end uint64, requireAtLeastOneMatch, allConditions bool) (parquetquery.Iterator, error) {
+func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, start, end uint64, requireAtLeastOneMatch, allConditions bool) (parquetquery.Iterator, error) {
 
 	var (
 		columnSelectAs    = map[string]string{}
@@ -464,7 +464,7 @@ func createSpanIterator(makeIter makeIterFunc, conditions []traceql.Condition, s
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
 // one batch each. It builds on top of the span iterator, and turns the groups of spans and resource-level values into
 // spansets.  Spansets are returned that match any of the given conditions.
-func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, requireAtLeastOneMatchOverall, allConditions bool) (parquetquery.Iterator, error) {
+func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, requireAtLeastOneMatchOverall, allConditions bool) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
@@ -549,7 +549,7 @@ func createResourceIterator(makeIter makeIterFunc, spanIterator parquetquery.Ite
 		required, iters, batchCol), nil
 }
 
-func createTraceIterator(makeIter makeIterFunc, resourceIter parquetquery.Iterator) parquetquery.Iterator {
+func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator) parquetquery.Iterator {
 	traceIters := []parquetquery.Iterator{
 		resourceIter,
 		// Add static columns that are always return
@@ -690,7 +690,7 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 	}
 }
 
-func createAttributeIterator(makeIter makeIterFunc, conditions []traceql.Condition,
+func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition,
 	definitionLevel int,
 	keyPath, strPath, intPath, floatPath, boolPath string,
 ) (parquetquery.Iterator, error) {

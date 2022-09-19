@@ -186,6 +186,12 @@ ingester:
     # duration to keep blocks in the ingester after they have been flushed
     # (default: 15m)
     [ complete_block_timeout: <duration>]
+
+    # If true then flatbuffer search metadata files are created and used in the ingester for search, 
+    # search tags and search tag values. If false then the blocks themselves are used for search in the ingesters. 
+    # Warning: v2 blocks do not support ingester search without this enabled.
+    # (default: false)
+    [ use_flatbuffer_search: <bool> ]
 ```
 
 ## Metrics-generator
@@ -340,6 +346,17 @@ query_frontend:
 
         # (default: 1h)
         [query_ingesters_until: <duration>]
+
+    # Trace by ID lookup configuration
+    trace_by_id:
+
+        # If set to a non-zero value, a second request will be issued at the provided duration.
+        # Recommended to be set to p99 of search requests to reduce long-tail latency.
+        [hedge_requests_at: <duration> | default = 2s ]
+
+        # The maximum number of requests to execute when hedging.
+        # Requires hedge_requests_at to be set. Must be greater than 0.
+        [hedge_requests_up_to: <int> | default = 2 ]
 ```
 
 ## Querier
