@@ -10,9 +10,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 // Helper function to create an iterator, that abstracts away
@@ -89,14 +89,10 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest)
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "conditions invalid")
 	}
 
-	rr := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
-
-	// 32 MB memory buffering
-	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size), 512*1024, 64)
-
-	pf, err := parquet.OpenFile(br, int64(b.meta.Size))
+	// TODO - route global search options here
+	pf, _, err := b.openForSearch(ctx, common.SearchOptions{}, parquet.SkipPageIndex(true))
 	if err != nil {
-		return traceql.FetchSpansResponse{}, errors.Wrap(err, "opening parquet file")
+		return traceql.FetchSpansResponse{}, err
 	}
 
 	iter, err := fetch(ctx, req, pf)
@@ -284,14 +280,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File)
 
 	// For now we iterate all row groups in the file
 	// TODO: Add sharding params to the traceql request?
-	makeIter := func(name string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator {
-		index, _ := parquetquery.GetColumnIndexByPath(pf, name)
-		if index == -1 {
-			// TODO - don't panic, error instead
-			panic("column not found in parquet file:" + name)
-		}
-		return parquetquery.NewColumnIterator(ctx, pf.RowGroups(), index, name, 1000, predicate, selectAs)
-	}
+	makeIter := makeIterFunc(ctx, pf.RowGroups(), pf)
 
 	// Global state
 	// Span-filtering behavior changes depending on the resource-filtering in effect,
