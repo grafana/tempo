@@ -3,7 +3,6 @@ package distributor
 import (
 	"context"
 	"flag"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -61,9 +60,13 @@ func TestForwarder(t *testing.T) {
 	assert.Equal(t, 0, len(f.queueManagers[tenantID].reqChan))
 }
 
-func TestForwarder_pushesQueued(t *testing.T) {
+func TestForwarder_QueueSizeConfig(t *testing.T) {
+	// this test sends more traces than the configured queue size
+	// and asserts that the queue size is equal or less than the configured size
+
+	queueSize := 10
 	oCfg := overrides.Limits{
-		MetricsGeneratorForwarderQueueSize: 10,
+		MetricsGeneratorForwarderQueueSize: queueSize,
 		MetricsGeneratorForwarderWorkers:   1,
 	}
 	oCfg.RegisterFlags(&flag.FlagSet{})
@@ -92,17 +95,13 @@ func TestForwarder_pushesQueued(t *testing.T) {
 		assert.Equal(t, 0, len(f.queueManagers[tenantID].reqChan))
 	}()
 
-	// 10 pushes are buffered, 1 is picked up by the worker
-
-	for i := 0; i < 11; i++ {
+	// sending more traces than queue size
+	for i := 0; i < queueSize+2; i++ {
 		f.SendTraces(context.Background(), tenantID, keys, rebatchedTraces)
-		fmt.Println("sent trace #: ", i + 1)
-		fmt.Println("Length: ", len(f.queueManagers[tenantID].reqChan))
 	}
 
-	// queue is full with 10 items
-	fmt.Println("Length after all sent: ", len(f.queueManagers[tenantID].reqChan))
-	assert.Equal(t, 11, len(f.queueManagers[tenantID].reqChan))
+	// queue length is less or equal to the configured queue size
+	assert.LessOrEqual(t, len(f.queueManagers[tenantID].reqChan), queueSize)
 }
 
 func TestForwarder_shutdown(t *testing.T) {
