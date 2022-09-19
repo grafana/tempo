@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/golang/protobuf/proto" //nolint:all
+	"github.com/go-kit/log" //nolint:all
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -100,8 +100,10 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 
 	blockID := uuid.New()
 
-	block, err := wal.NewBlock(blockID, testTenantID, "")
+	block, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
+
+	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	objects := 1000
 	objs := make([][]byte, 0, objects)
@@ -111,11 +113,16 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		rand.Read(id)
 		obj := test.MakeTrace(rand.Int()%10, id)
 		ids = append(ids, id)
-		bObj, err := proto.Marshal(obj)
-		require.NoError(t, err)
-		objs = append(objs, bObj)
 
-		err = block.Append(id, bObj, 0, 0)
+		b1, err := enc.PrepareForWrite(obj, 0, 0)
+		require.NoError(t, err)
+
+		b2, err := enc.ToObject([][]byte{b1})
+		require.NoError(t, err)
+
+		objs = append(objs, b2)
+
+		err = block.Append(id, b2, 0, 0)
 		require.NoError(t, err, "unexpected error writing req")
 	}
 
