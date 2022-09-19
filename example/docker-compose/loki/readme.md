@@ -15,7 +15,7 @@ docker-compose up -d
 ```
 
 At this point, the following containers should be spun up -  
-If your docker-compose shows column "Name" like "loki-loki-1", you'd better modify the "container_name" correspondingly in step 3's query words.
+Note: if docker-compose shows a column "Name" like "loki-loki-1", you will need to modify the "container_name" correspondingly in step 3.
 
 ```console
 docker-compose ps
