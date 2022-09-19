@@ -88,7 +88,7 @@ func TestDB(t *testing.T) {
 		writeTraceToWal(t, head, dec, ids[i], reqs[i], 0, 0)
 	}
 
-	_, err = w.CompleteBlock(head, &mockCombiner{})
+	_, err = w.CompleteBlock(context.Background(), head)
 	assert.NoError(t, err)
 
 	// poll
@@ -125,7 +125,7 @@ func TestBlockSharding(t *testing.T) {
 	writeTraceToWal(t, head, dec, id, req, 0, 0)
 
 	// write block to backend
-	_, err = w.CompleteBlock(head, &mockCombiner{})
+	_, err = w.CompleteBlock(context.Background(), head)
 	assert.NoError(t, err)
 
 	// poll
@@ -181,7 +181,7 @@ func TestBlockCleanup(t *testing.T) {
 	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
 	assert.NoError(t, err)
 
-	_, err = w.CompleteBlock(head, &mockCombiner{})
+	_, err = w.CompleteBlock(context.Background(), head)
 	assert.NoError(t, err)
 
 	rw := r.(*readerWriter)
@@ -522,7 +522,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 		ids = append(ids, id)
 	}
 
-	complete, err := w.CompleteBlock(head, &mockCombiner{})
+	complete, err := w.CompleteBlock(context.Background(), head)
 	require.NoError(t, err)
 
 	blockID := complete.BlockMeta().BlockID.String()
@@ -588,7 +588,7 @@ func TestCompleteBlock(t *testing.T) {
 		ids = append(ids, id)
 	}
 
-	complete, err := w.CompleteBlock(block, &mockCombiner{})
+	complete, err := w.CompleteBlock(context.Background(), block)
 	require.NoError(t, err, "unexpected error completing block")
 
 	for i, id := range ids {
@@ -649,7 +649,7 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 	req := test.MakeTrace(10, id)
 	writeTraceToWal(t, block, dec, id, req, uint32(oneHourAgo), uint32(oneHour))
 
-	complete, err := w.CompleteBlock(block, &mockCombiner{})
+	complete, err := w.CompleteBlock(context.Background(), block)
 	require.NoError(t, err, "unexpected error completing block")
 
 	// Verify the block time was constrained to the slack time.
@@ -775,7 +775,7 @@ func BenchmarkCompleteBlock(b *testing.B) {
 
 	// Complete it
 	for i := 0; i < b.N; i++ {
-		_, err := w.CompleteBlock(blk, model.StaticCombiner)
+		_, err := w.CompleteBlock(context.Background(), blk)
 		require.NoError(b, err)
 	}
 }

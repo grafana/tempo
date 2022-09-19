@@ -142,7 +142,9 @@ func (a *v2AppendBlock) Meta() *backend.BlockMeta {
 	return a.meta
 }
 
-func (a *v2AppendBlock) Iterator(combiner model.ObjectCombiner) (common.Iterator, error) {
+func (a *v2AppendBlock) Iterator() (common.Iterator, error) {
+	combiner := model.StaticCombiner
+
 	if a.appendFile != nil {
 		err := a.appendFile.Close()
 		if err != nil {
@@ -171,7 +173,9 @@ func (a *v2AppendBlock) Iterator(combiner model.ObjectCombiner) (common.Iterator
 	return iterator, nil
 }
 
-func (a *v2AppendBlock) Find(id common.ID, combiner model.ObjectCombiner) ([]byte, error) {
+func (a *v2AppendBlock) Find(id common.ID) ([]byte, error) {
+	combiner := model.StaticCombiner
+
 	records := a.appender.RecordsForID(id)
 	file, err := a.file()
 	if err != nil {

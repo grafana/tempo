@@ -23,21 +23,6 @@ const (
 	testTenantID = "fake"
 )
 
-type mockCombiner struct {
-}
-
-func (m *mockCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
-	if len(objs) != 2 {
-		return nil, false, nil
-	}
-
-	if len(objs[0]) > len(objs[1]) {
-		return objs[0], true, nil
-	}
-
-	return objs[1], true, nil
-}
-
 func TestCompletedDirIsRemoved(t *testing.T) {
 	// Create /completed/testfile and verify it is removed.
 	tempDir := t.TempDir()
@@ -135,7 +120,7 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	}
 
 	for i, id := range ids {
-		obj, err := block.Find(id, &mockCombiner{})
+		obj, err := block.Find(id)
 		require.NoError(t, err)
 		require.Equal(t, objs[i], obj)
 	}
@@ -146,13 +131,13 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
-	iterator, err := blocks[0].Iterator(&mockCombiner{})
+	iterator, err := blocks[0].Iterator()
 	require.NoError(t, err)
 	defer iterator.Close()
 
 	// append block find
 	for i, id := range ids {
-		obj, err := blocks[0].Find(id, &mockCombiner{})
+		obj, err := blocks[0].Find(id)
 		require.NoError(t, err)
 		require.Equal(t, objs[i], obj)
 	}
@@ -347,7 +332,6 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 		ids = append(ids, id)
 		objs = append(objs, obj)
 	}
-	mockCombiner := &mockCombiner{}
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -368,7 +352,7 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 
 		// find
 		for _, id := range ids {
-			_, err := block.Find(id, mockCombiner)
+			_, err := block.Find(id)
 			require.NoError(b, err)
 		}
 
