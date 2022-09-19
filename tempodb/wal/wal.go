@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/go-kit/log"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	versioned_encoding "github.com/grafana/tempo/tempodb/encoding"
 )
 
 const reasonOutsideIngestionSlack = "outside_ingestion_time_slack"
@@ -97,13 +95,13 @@ func New(c *Config) (*WAL, error) {
 }
 
 // RescanBlocks returns a slice of append blocks from the wal folder
-func (w *WAL) RescanBlocks(fn RangeFunc, additionalStartSlack time.Duration, log log.Logger) ([]*AppendBlock, error) {
+func (w *WAL) RescanBlocks(fn RangeFunc, additionalStartSlack time.Duration, log log.Logger) ([]AppendBlock, error) {
 	files, err := os.ReadDir(w.c.Filepath)
 	if err != nil {
 		return nil, err
 	}
 
-	blocks := make([]*AppendBlock, 0, len(files))
+	blocks := make([]AppendBlock, 0, len(files))
 	for _, f := range files {
 		if f.IsDir() {
 			continue
@@ -125,13 +123,13 @@ func (w *WAL) RescanBlocks(fn RangeFunc, additionalStartSlack time.Duration, log
 			remove = true
 		}
 
-		if b != nil && b.appender.Length() == 0 {
+		if b != nil && b.Length() == 0 {
 			level.Warn(log).Log("msg", "empty wal file. ignoring.", "file", f.Name(), "err", err)
 			remove = true
 		}
 
 		if warning != nil {
-			level.Warn(log).Log("msg", "received warning while replaying block. partial replay likely.", "file", f.Name(), "warning", warning, "records", b.appender.Length())
+			level.Warn(log).Log("msg", "received warning while replaying block. partial replay likely.", "file", f.Name(), "warning", warning, "length", b.DataLength())
 		}
 
 		if remove {
@@ -150,7 +148,7 @@ func (w *WAL) RescanBlocks(fn RangeFunc, additionalStartSlack time.Duration, log
 	return blocks, nil
 }
 
-func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (*AppendBlock, error) {
+func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (AppendBlock, error) {
 	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.IngestionSlack)
 }
 
@@ -172,50 +170,6 @@ func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File,
 	}
 
 	return file, w.c.SearchEncoding, nil
-}
-
-// ParseFilename returns (blockID, tenant, version, encoding, dataEncoding, error).
-// Example: "00000000-0000-0000-0000-000000000000:1:v2:snappy:v1"
-func ParseFilename(filename string) (uuid.UUID, string, string, backend.Encoding, string, error) {
-	splits := strings.Split(filename, ":")
-
-	if len(splits) != 4 && len(splits) != 5 {
-		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. unexpected number of segments", filename)
-	}
-
-	// first segment is blockID
-	id, err := uuid.Parse(splits[0])
-	if err != nil {
-		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing uuid: %w", filename, err)
-	}
-
-	// second segment is tenant
-	tenant := splits[1]
-	if len(tenant) == 0 {
-		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. missing fields", filename)
-	}
-
-	// third segment is version
-	version := splits[2]
-	_, err = versioned_encoding.FromVersion(version)
-	if err != nil {
-		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing version: %w", filename, err)
-	}
-
-	// fourth is encoding
-	encodingString := splits[3]
-	encoding, err := backend.ParseEncoding(encodingString)
-	if err != nil {
-		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing encoding: %w", filename, err)
-	}
-
-	// fifth is dataEncoding
-	dataEncoding := ""
-	if len(splits) == 5 {
-		dataEncoding = splits[4]
-	}
-
-	return id, tenant, version, encoding, dataEncoding, nil
 }
 
 func (w *WAL) GetFilepath() string {

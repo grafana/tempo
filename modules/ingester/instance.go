@@ -101,13 +101,13 @@ type instance struct {
 	traceCount atomic.Int32
 
 	blocksMtx        sync.RWMutex
-	headBlock        *wal.AppendBlock
-	completingBlocks []*wal.AppendBlock
+	headBlock        wal.AppendBlock
+	completingBlocks []wal.AppendBlock
 	completeBlocks   []*wal.LocalBlock
 
 	useFlatbufferSearch  bool
 	searchHeadBlock      *searchStreamingBlockEntry
-	searchAppendBlocks   map[*wal.AppendBlock]*searchStreamingBlockEntry
+	searchAppendBlocks   map[string]*searchStreamingBlockEntry // maps append block uuid string -> *searchStreamingBlockEntry
 	searchCompleteBlocks map[*wal.LocalBlock]*searchLocalBlockEntry
 
 	lastBlockCut time.Time
@@ -139,7 +139,7 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 	i := &instance{
 		traces:               map[uint32]*liveTrace{},
 		traceSizes:           map[uint32]uint32{},
-		searchAppendBlocks:   map[*wal.AppendBlock]*searchStreamingBlockEntry{},
+		searchAppendBlocks:   map[string]*searchStreamingBlockEntry{},
 		searchCompleteBlocks: map[*wal.LocalBlock]*searchLocalBlockEntry{},
 		useFlatbufferSearch:  useFlatbufferSearch,
 
@@ -292,7 +292,7 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 // CompleteBlock moves a completingBlock to a completeBlock. The new completeBlock has the same ID.
 func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
-	var completingBlock *wal.AppendBlock
+	var completingBlock wal.AppendBlock
 	for _, iterBlock := range i.completingBlocks {
 		if iterBlock.BlockID() == blockID {
 			completingBlock = iterBlock
@@ -328,7 +328,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 
 	// Search data (optional)
 	i.blocksMtx.RLock()
-	oldSearch := i.searchAppendBlocks[completingBlock]
+	oldSearch := i.searchAppendBlocks[completingBlock.BlockID().String()]
 	i.blocksMtx.RUnlock()
 
 	var newSearch *search.BackendSearchBlock
@@ -355,7 +355,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	var completingBlock *wal.AppendBlock
+	var completingBlock wal.AppendBlock
 	for j, iterBlock := range i.completingBlocks {
 		if iterBlock.BlockID() == blockID {
 			completingBlock = iterBlock
@@ -365,13 +365,15 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 	}
 
 	if completingBlock != nil {
-		entry := i.searchAppendBlocks[completingBlock]
+		uuid := completingBlock.BlockID().String()
+
+		entry := i.searchAppendBlocks[uuid]
 		if entry != nil {
 			// Take write lock to ensure no searches are reading.
 			entry.mtx.Lock()
 			defer entry.mtx.Unlock()
 			_ = entry.b.Clear()
-			delete(i.searchAppendBlocks, completingBlock)
+			delete(i.searchAppendBlocks, uuid)
 		}
 
 		return completingBlock.Clear()
@@ -485,7 +487,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 // AddCompletingBlock adds an AppendBlock directly to the slice of completing blocks.
 // This is used during wal replay. It is expected that calling code will add the appropriate
 // jobs to the queue to eventually flush these.
-func (i *instance) AddCompletingBlock(b *wal.AppendBlock, s *search.StreamingSearchBlock) {
+func (i *instance) AddCompletingBlock(b wal.AppendBlock, s *search.StreamingSearchBlock) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
@@ -495,7 +497,7 @@ func (i *instance) AddCompletingBlock(b *wal.AppendBlock, s *search.StreamingSea
 	if s == nil {
 		return
 	}
-	i.searchAppendBlocks[b] = &searchStreamingBlockEntry{b: s}
+	i.searchAppendBlocks[b.BlockID().String()] = &searchStreamingBlockEntry{b: s}
 }
 
 // getOrCreateTrace will return a new trace object for the given request
@@ -552,7 +554,7 @@ func (i *instance) resetHeadBlock() error {
 		return err
 	}
 	if i.searchHeadBlock != nil {
-		i.searchAppendBlocks[oldHeadBlock] = i.searchHeadBlock
+		i.searchAppendBlocks[oldHeadBlock.BlockID().String()] = i.searchHeadBlock
 	}
 	i.searchHeadBlock = &searchStreamingBlockEntry{
 		b: b,

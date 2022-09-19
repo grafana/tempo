@@ -7,20 +7,16 @@ import (
 	"math/rand"
 	"os"
 	"path"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/proto" //nolint:all
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 const (
@@ -42,58 +38,8 @@ func (m *mockCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, boo
 	return objs[1], true, nil
 }
 
-func TestAppend(t *testing.T) {
-	wal, err := New(&Config{
-		Filepath: t.TempDir(),
-	})
-	require.NoError(t, err, "unexpected error creating temp wal")
-
-	blockID := uuid.New()
-
-	block, err := wal.NewBlock(blockID, testTenantID, "")
-	require.NoError(t, err, "unexpected error creating block")
-
-	numMsgs := 100
-	reqs := make([]*tempopb.Trace, 0, numMsgs)
-	for i := 0; i < numMsgs; i++ {
-		req := test.MakeTrace(rand.Int()%1000, []byte{0x01})
-		reqs = append(reqs, req)
-		bReq, err := proto.Marshal(req)
-		require.NoError(t, err)
-		err = block.Append([]byte{0x01}, bReq, 0, 0)
-		require.NoError(t, err, "unexpected error writing req")
-	}
-
-	records := block.appender.Records()
-	file, err := block.file()
-	require.NoError(t, err)
-
-	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(file), backend.EncNone)
-	require.NoError(t, err)
-	iterator := v2.NewRecordIterator(records, dataReader, v2.NewObjectReaderWriter())
-	defer iterator.Close()
-	i := 0
-
-	for {
-		_, bytesObject, err := iterator.Next(context.Background())
-		if err == io.EOF {
-			break
-		}
-		require.NoError(t, err)
-
-		req := &tempopb.Trace{}
-		err = proto.Unmarshal(bytesObject, req)
-		require.NoError(t, err)
-
-		require.True(t, proto.Equal(req, reqs[i]))
-		i++
-	}
-	require.Equal(t, numMsgs, i)
-}
-
 func TestCompletedDirIsRemoved(t *testing.T) {
 	// Create /completed/testfile and verify it is removed.
-
 	tempDir := t.TempDir()
 
 	err := os.MkdirAll(path.Join(tempDir, completedDir), os.ModePerm)
@@ -109,60 +55,6 @@ func TestCompletedDirIsRemoved(t *testing.T) {
 
 	_, err = os.Stat(path.Join(tempDir, completedDir))
 	require.Error(t, err, "completedDir should not exist")
-}
-
-func TestErrorConditions(t *testing.T) {
-	tempDir := t.TempDir()
-
-	wal, err := New(&Config{
-		Filepath: tempDir,
-		Encoding: backend.EncGZIP,
-	})
-	require.NoError(t, err, "unexpected error creating temp wal")
-
-	blockID := uuid.New()
-
-	// create partially corrupt block
-	block, err := wal.NewBlock(blockID, testTenantID, "")
-	require.NoError(t, err, "unexpected error creating block")
-
-	objects := 10
-	for i := 0; i < objects; i++ {
-		id := make([]byte, 16)
-		rand.Read(id)
-		obj := test.MakeTrace(rand.Int()%10, id)
-		bObj, err := proto.Marshal(obj)
-		require.NoError(t, err)
-
-		err = block.Append(id, bObj, 0, 0)
-		require.NoError(t, err, "unexpected error writing req")
-	}
-	appendFile, err := os.OpenFile(block.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-	require.NoError(t, err)
-	_, err = appendFile.Write([]byte{0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01})
-	require.NoError(t, err)
-	err = appendFile.Close()
-	require.NoError(t, err)
-
-	// create unparseable filename
-	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"), []byte{}, 0644)
-	require.NoError(t, err)
-
-	// create empty block
-	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"), []byte{}, 0644)
-	require.NoError(t, err)
-
-	blocks, err := wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
-		return 0, 0, nil
-	}, 0, log.NewNopLogger())
-	require.NoError(t, err, "unexpected error getting blocks")
-	require.Len(t, blocks, 1)
-
-	require.Equal(t, objects, blocks[0].appender.Length())
-
-	// confirm block has been removed
-	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:gzip"))
-	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
 }
 
 func TestAppendBlockStartEnd(t *testing.T) {
@@ -189,8 +81,8 @@ func TestAppendBlockStartEnd(t *testing.T) {
 		require.NoError(t, err, "unexpected error writing req")
 	}
 
-	require.Equal(t, blockStart, uint32(block.meta.StartTime.Unix()))
-	require.Equal(t, blockEnd, uint32(block.meta.EndTime.Unix()))
+	require.Equal(t, blockStart, uint32(block.Meta().StartTime.Unix()))
+	require.Equal(t, blockEnd, uint32(block.Meta().EndTime.Unix()))
 
 	// rescan the block and make sure that start/end times are correct
 	blockStart = uint32(time.Now().Add(-time.Hour).Unix())
@@ -202,47 +94,8 @@ func TestAppendBlockStartEnd(t *testing.T) {
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
-	require.Equal(t, blockStart, uint32(blocks[0].meta.StartTime.Unix()))
-	require.Equal(t, blockEnd, uint32(blocks[0].meta.EndTime.Unix()))
-}
-
-func TestAdjustTimeRangeForSlack(t *testing.T) {
-	a := &AppendBlock{
-		meta: &backend.BlockMeta{
-			TenantID: "test",
-		},
-		ingestionSlack: 2 * time.Minute,
-	}
-
-	// test happy path
-	start := uint32(time.Now().Unix())
-	end := uint32(time.Now().Unix())
-	actualStart, actualEnd := a.adjustTimeRangeForSlack(start, end, 0)
-	assert.Equal(t, start, actualStart)
-	assert.Equal(t, end, actualEnd)
-
-	// test start out of range
-	now := uint32(time.Now().Unix())
-	start = uint32(time.Now().Add(-time.Hour).Unix())
-	end = uint32(time.Now().Unix())
-	actualStart, actualEnd = a.adjustTimeRangeForSlack(start, end, 0)
-	assert.Equal(t, now, actualStart)
-	assert.Equal(t, end, actualEnd)
-
-	// test end out of range
-	now = uint32(time.Now().Unix())
-	start = uint32(time.Now().Unix())
-	end = uint32(time.Now().Add(time.Hour).Unix())
-	actualStart, actualEnd = a.adjustTimeRangeForSlack(start, end, 0)
-	assert.Equal(t, start, actualStart)
-	assert.Equal(t, now, actualEnd)
-
-	// test additional start slack honored
-	start = uint32(time.Now().Add(-time.Hour).Unix())
-	end = uint32(time.Now().Unix())
-	actualStart, actualEnd = a.adjustTimeRangeForSlack(start, end, time.Hour)
-	assert.Equal(t, start, actualStart)
-	assert.Equal(t, end, actualEnd)
+	require.Equal(t, blockStart, uint32(blocks[0].Meta().StartTime.Unix()))
+	require.Equal(t, blockEnd, uint32(blocks[0].Meta().EndTime.Unix()))
 }
 
 func TestAppendReplayFind(t *testing.T) {
@@ -286,14 +139,6 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		require.NoError(t, err)
 		require.Equal(t, objs[i], obj)
 	}
-
-	// write garbage data at the end to confirm a partial block will load
-	appendFile, err := os.OpenFile(block.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-	require.NoError(t, err)
-	_, err = appendFile.Write([]byte{0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01})
-	require.NoError(t, err)
-	err = appendFile.Close()
-	require.NoError(t, err)
 
 	blocks, err := wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
 		return 0, 0, nil

@@ -1,0 +1,304 @@
+package wal
+
+import (
+	"context"
+	"fmt"
+	"math"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/tempodb/backend"
+	versioned_encoding "github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+)
+
+const maxDataEncodingLength = 32
+
+// v2AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
+// in the order it was received and an in memory sorted index.
+type v2AppendBlock struct {
+	meta           *backend.BlockMeta
+	ingestionSlack time.Duration
+
+	appendFile *os.File
+	appender   v2.Appender
+
+	filepath string
+	readFile *os.File
+	once     sync.Once
+}
+
+func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (AppendBlock, error) {
+	if strings.ContainsRune(dataEncoding, ':') ||
+		len([]rune(dataEncoding)) > maxDataEncodingLength {
+		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
+	}
+
+	h := &v2AppendBlock{
+		meta:           backend.NewBlockMeta(tenantID, id, v2.VersionString, e, dataEncoding),
+		filepath:       filepath,
+		ingestionSlack: ingestionSlack,
+	}
+
+	name := h.fullFilename()
+
+	f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return nil, err
+	}
+	h.appendFile = f
+
+	dataWriter, err := v2.NewDataWriter(f, e)
+	if err != nil {
+		return nil, err
+	}
+
+	h.appender = v2.NewAppender(dataWriter)
+
+	return h, nil
+}
+
+// newAppendBlockFromFile returns an AppendBlock that can not be appended to, but can
+// be completed. It can return a warning or a fatal error
+func newAppendBlockFromFile(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration, fn RangeFunc) (AppendBlock, error, error) {
+	var warning error
+	blockID, tenantID, version, e, dataEncoding, err := ParseFilename(filename)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parsing wal filename: %w", err)
+	}
+
+	b := &v2AppendBlock{
+		meta:           backend.NewBlockMeta(tenantID, blockID, version, e, dataEncoding),
+		filepath:       path,
+		ingestionSlack: ingestionSlack,
+	}
+
+	// replay file to extract records
+	f, err := b.file()
+	if err != nil {
+		return nil, nil, fmt.Errorf("accessing file: %w", err)
+	}
+
+	blockStart := uint32(math.MaxUint32)
+	blockEnd := uint32(0)
+
+	records, warning, err := ReplayWALAndGetRecords(f, e, func(bytes []byte) error {
+		start, end, err := fn(bytes, dataEncoding)
+		if err != nil {
+			return err
+		}
+		start, end = b.adjustTimeRangeForSlack(start, end, additionalStartSlack)
+		if start < blockStart {
+			blockStart = start
+		}
+		if end > blockEnd {
+			blockEnd = end
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	b.appender = v2.NewRecordAppender(records)
+	b.meta.TotalObjects = b.appender.Length()
+	b.meta.StartTime = time.Unix(int64(blockStart), 0)
+	b.meta.EndTime = time.Unix(int64(blockEnd), 0)
+
+	return b, warning, nil
+}
+
+// Append adds an id and object to this wal block. start/end should indicate the time range
+// associated with the past object. They are unix epoch seconds.
+func (a *v2AppendBlock) Append(id common.ID, b []byte, start, end uint32) error {
+	err := a.appender.Append(id, b)
+	if err != nil {
+		return err
+	}
+	start, end = a.adjustTimeRangeForSlack(start, end, 0)
+	a.meta.ObjectAdded(id, start, end)
+	return nil
+}
+
+func (a *v2AppendBlock) BlockID() uuid.UUID {
+	return a.meta.BlockID
+}
+
+func (a *v2AppendBlock) DataLength() uint64 {
+	return a.appender.DataLength()
+}
+
+func (a *v2AppendBlock) Length() int {
+	return a.appender.Length()
+}
+
+func (a *v2AppendBlock) Meta() *backend.BlockMeta {
+	return a.meta
+}
+
+func (a *v2AppendBlock) Iterator(combiner model.ObjectCombiner) (common.Iterator, error) {
+	if a.appendFile != nil {
+		err := a.appendFile.Close()
+		if err != nil {
+			return nil, err
+		}
+		a.appendFile = nil
+	}
+
+	records := a.appender.Records()
+	readFile, err := a.file()
+	if err != nil {
+		return nil, err
+	}
+
+	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(readFile), a.meta.Encoding)
+	if err != nil {
+		return nil, err
+	}
+
+	iterator := v2.NewRecordIterator(records, dataReader, v2.NewObjectReaderWriter())
+	iterator, err = v2.NewDedupingIterator(iterator, combiner, a.meta.DataEncoding)
+	if err != nil {
+		return nil, err
+	}
+
+	return iterator, nil
+}
+
+func (a *v2AppendBlock) Find(id common.ID, combiner model.ObjectCombiner) ([]byte, error) {
+	records := a.appender.RecordsForID(id)
+	file, err := a.file()
+	if err != nil {
+		return nil, err
+	}
+	if len(records) == 0 {
+		return nil, nil
+	}
+
+	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(file), a.meta.Encoding)
+	if err != nil {
+		return nil, err
+	}
+	defer dataReader.Close()
+	finder := v2.NewPagedFinder(common.Records(records), dataReader, combiner, v2.NewObjectReaderWriter(), a.meta.DataEncoding)
+
+	return finder.Find(context.Background(), id)
+}
+
+func (a *v2AppendBlock) Clear() error {
+	if a.readFile != nil {
+		_ = a.readFile.Close()
+		a.readFile = nil
+	}
+
+	if a.appendFile != nil {
+		_ = a.appendFile.Close()
+		a.appendFile = nil
+	}
+
+	// ignore error, it's important to remove the file above all else
+	_ = a.appender.Complete()
+
+	name := a.fullFilename()
+	return os.Remove(name)
+}
+
+func (a *v2AppendBlock) fullFilename() string {
+	if a.meta.Version == "v0" {
+		return filepath.Join(a.filepath, fmt.Sprintf("%v:%v", a.meta.BlockID, a.meta.TenantID))
+	}
+
+	var filename string
+	if a.meta.DataEncoding == "" {
+		filename = fmt.Sprintf("%v:%v:%v:%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding)
+	} else {
+		filename = fmt.Sprintf("%v:%v:%v:%v:%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding, a.meta.DataEncoding)
+	}
+
+	return filepath.Join(a.filepath, filename)
+}
+
+func (a *v2AppendBlock) file() (*os.File, error) {
+	var err error
+	a.once.Do(func() {
+		if a.readFile == nil {
+			name := a.fullFilename()
+
+			a.readFile, err = os.OpenFile(name, os.O_RDONLY, 0644)
+		}
+	})
+
+	return a.readFile, err
+}
+
+func (a *v2AppendBlock) adjustTimeRangeForSlack(start uint32, end uint32, additionalStartSlack time.Duration) (uint32, uint32) {
+	now := time.Now()
+	startOfRange := uint32(now.Add(-a.ingestionSlack).Add(-additionalStartSlack).Unix())
+	endOfRange := uint32(now.Add(a.ingestionSlack).Unix())
+
+	warn := false
+	if start < startOfRange {
+		warn = true
+		start = uint32(now.Unix())
+	}
+	if end > endOfRange {
+		warn = true
+		end = uint32(now.Unix())
+	}
+
+	if warn {
+		metricWarnings.WithLabelValues(a.meta.TenantID, reasonOutsideIngestionSlack).Inc()
+	}
+
+	return start, end
+}
+
+// ParseFilename returns (blockID, tenant, version, encoding, dataEncoding, error).
+// Example: "00000000-0000-0000-0000-000000000000:1:v2:snappy:v1"
+func ParseFilename(filename string) (uuid.UUID, string, string, backend.Encoding, string, error) {
+	splits := strings.Split(filename, ":")
+
+	if len(splits) != 4 && len(splits) != 5 {
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. unexpected number of segments", filename)
+	}
+
+	// first segment is blockID
+	id, err := uuid.Parse(splits[0])
+	if err != nil {
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing uuid: %w", filename, err)
+	}
+
+	// second segment is tenant
+	tenant := splits[1]
+	if len(tenant) == 0 {
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. missing fields", filename)
+	}
+
+	// third segment is version
+	version := splits[2]
+	_, err = versioned_encoding.FromVersion(version)
+	if err != nil {
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing version: %w", filename, err)
+	}
+
+	// fourth is encoding
+	encodingString := splits[3]
+	encoding, err := backend.ParseEncoding(encodingString)
+	if err != nil {
+		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing encoding: %w", filename, err)
+	}
+
+	// fifth is dataEncoding
+	dataEncoding := ""
+	if len(splits) == 5 {
+		dataEncoding = splits[4]
+	}
+
+	return id, tenant, version, encoding, dataEncoding, nil
+}
