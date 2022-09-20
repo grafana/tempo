@@ -169,11 +169,11 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 				_ = level.Error(s.logger).Log("msg", "error executing sharded query", "url", innerR.RequestURI, "err", err)
 				overallResponse.setError(err)
+				return
 			}
 
 			// if the status code is anything but happy, save the error and pass it down the line
 			if resp.StatusCode != http.StatusOK {
-				// we will cancel pending goroutines in defer
 				statusCode := resp.StatusCode
 				bytesMsg, err := io.ReadAll(resp.Body)
 				if err != nil {
@@ -200,6 +200,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// wait for all goroutines running in wg to finish or cancelled
 	wg.Wait()
+	fmt.Println("---- group wait", time.Now(), r.URL.RawQuery)
 	_ = level.Info(s.logger).Log(fmt.Sprintf("search requests total: %d, executed: %d", len(reqs), executedReqs))
 
 	// all goroutines have finished, we can safely access searchResults fields directly now

@@ -554,6 +554,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			response1:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
 			err2:           errors.New("booo"),
 			expectedStatus: 500,
+			expectedError:  errors.New("booo"),
 		},
 		{
 			name:          "err+500",
