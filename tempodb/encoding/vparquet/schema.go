@@ -37,10 +37,11 @@ const (
 
 // These definition levels match the schema below
 const (
-	DefinitionLevelTrace                = 0
-	DefinitionLevelResourceSpans        = 1
-	DefinitionLevelResourceAttrs        = 2
-	DefinitionLevelResourceSpansILSSpan = 3
+	DefinitionLevelTrace                     = 0
+	DefinitionLevelResourceSpans             = 1
+	DefinitionLevelResourceAttrs             = 2
+	DefinitionLevelResourceSpansILSSpan      = 3
+	DefinitionLevelResourceSpansILSSpanAttrs = 4
 
 	FieldResourceAttrKey = "rs.Resource.Attrs.Key"
 	FieldResourceAttrVal = "rs.Resource.Attrs.Value"

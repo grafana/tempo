@@ -3,6 +3,7 @@ package v2
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -11,6 +12,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -234,4 +236,8 @@ func search(decoder model.ObjectDecoder, maxBytes int, id common.ID, obj []byte,
 	}
 
 	return nil
+}
+
+func (b *BackendBlock) Fetch(context.Context, traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+	return traceql.FetchSpansResponse{}, errors.New("Unsupported")
 }
