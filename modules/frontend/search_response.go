@@ -2,11 +2,9 @@ package frontend
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -48,7 +46,6 @@ func (r *searchResponse) setStatus(statusCode int, statusMsg string) {
 	if r.internalShouldQuit() {
 		// cancel currently running requests, and bail
 		r.cancelFunc()
-		fmt.Println("---- setStatus cancel", time.Now())
 	}
 }
 
@@ -61,7 +58,6 @@ func (r *searchResponse) setError(err error) {
 	if r.internalShouldQuit() {
 		// cancel currently running requests, and bail
 		r.cancelFunc()
-		fmt.Println("---- setError cancel", time.Now())
 	}
 }
 
@@ -82,12 +78,9 @@ func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
 	r.resultsMetrics.SkippedBlocks += res.Metrics.SkippedBlocks
 	r.resultsMetrics.SkippedTraces += res.Metrics.SkippedTraces
 
-	fmt.Println("---- add resp", time.Now())
-
 	if r.internalShouldQuit() {
 		// cancel currently running requests, and bail
 		r.cancelFunc()
-		fmt.Println("---- add resp cancel", time.Now())
 	}
 }
 
@@ -100,7 +93,6 @@ func (r *searchResponse) shouldQuit() bool {
 	if quit {
 		// cancel currently running requests, and bail
 		r.cancelFunc()
-		fmt.Println("---- shouldQuit cancel", time.Now())
 	}
 
 	return quit
