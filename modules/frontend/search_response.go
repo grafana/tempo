@@ -17,9 +17,10 @@ type searchResponse struct {
 	statusMsg  string
 	ctx        context.Context
 
-	resultsMap     map[string]*tempopb.TraceSearchMetadata
-	resultsMetrics *tempopb.SearchMetrics
-	cancelFunc     context.CancelFunc
+	resultsMap       map[string]*tempopb.TraceSearchMetadata
+	resultsMetrics   *tempopb.SearchMetrics
+	cancelFunc       context.CancelFunc
+	finishedRequests int
 
 	limit int
 	mtx   sync.Mutex
@@ -27,12 +28,13 @@ type searchResponse struct {
 
 func newSearchResponse(ctx context.Context, limit int, cancelFunc context.CancelFunc) *searchResponse {
 	return &searchResponse{
-		ctx:            ctx,
-		statusCode:     http.StatusOK,
-		limit:          limit,
-		cancelFunc:     cancelFunc,
-		resultsMetrics: &tempopb.SearchMetrics{},
-		resultsMap:     map[string]*tempopb.TraceSearchMetadata{},
+		ctx:              ctx,
+		statusCode:       http.StatusOK,
+		limit:            limit,
+		cancelFunc:       cancelFunc,
+		resultsMetrics:   &tempopb.SearchMetrics{},
+		finishedRequests: 0,
+		resultsMap:       map[string]*tempopb.TraceSearchMetadata{},
 	}
 }
 
@@ -77,6 +79,9 @@ func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
 	r.resultsMetrics.InspectedTraces += res.Metrics.InspectedTraces
 	r.resultsMetrics.SkippedBlocks += res.Metrics.SkippedBlocks
 	r.resultsMetrics.SkippedTraces += res.Metrics.SkippedTraces
+
+	// count this request as finished
+	r.finishedRequests++
 
 	if r.internalShouldQuit() {
 		// cancel currently running requests, and bail
