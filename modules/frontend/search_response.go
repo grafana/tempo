@@ -117,12 +117,6 @@ func (r *searchResponse) internalShouldQuit() bool {
 	return false
 }
 
-// make a internalShouldQuit
-// call it in each state change (setError, setStatus, addResponse)
-// cancel if we need to cancel??
-// handle context cancelled errors in setError
-//
-
 func (r *searchResponse) result() *tempopb.SearchResponse {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()

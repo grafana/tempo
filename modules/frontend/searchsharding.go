@@ -144,7 +144,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	overallResponse.resultsMetrics.TotalBlockBytes = totalBlockBytes
 
-	executedReqs := 0
+	// executedReqs := 0
 	for _, req := range reqs {
 		// if shouldQuit is true, terminate and abandon requests
 		if overallResponse.shouldQuit() {
@@ -153,7 +153,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 		// When we hit capacity of boundedwaitgroup, wg.Add will block
 		wg.Add(1)
-		executedReqs++
+		// executedReqs++
 
 		go func(innerR *http.Request) {
 			defer wg.Done()
@@ -200,7 +200,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// wait for all goroutines running in wg to finish or cancelled
 	wg.Wait()
-	_ = level.Info(s.logger).Log(fmt.Sprintf("search requests total: %d, executed: %d", len(reqs), executedReqs))
+	// _ = level.Info(s.logger).Log(fmt.Sprintf("search requests total: %d, executed: %d", len(reqs), executedReqs))
 
 	// all goroutines have finished, we can safely access searchResults fields directly now
 	span.SetTag("inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks)
@@ -211,7 +211,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span.SetTag("totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
 
 	// set total executed request count
-	span.SetTag("executed-request-count", executedReqs)
+	// span.SetTag("executed-request-count", executedReqs)
 
 	if overallResponse.err != nil {
 		return nil, overallResponse.err
