@@ -17,7 +17,6 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/search"
-	"github.com/grafana/tempo/tempodb/wal"
 )
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
@@ -203,7 +202,7 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 		}
 
 		sr.StartWorker()
-		go func(e *wal.LocalBlock) {
+		go func(e *LocalBlock) {
 			defer sr.FinishWorker()
 
 			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchLocalBlocks")

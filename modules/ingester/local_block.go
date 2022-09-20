@@ -1,4 +1,4 @@
-package wal
+package ingester
 
 import (
 	"context"
@@ -18,7 +18,7 @@ const nameFlushed = "flushed"
 
 // LocalBlock is a block stored in a local storage.  It can be searched and flushed to a remote backend, and
 // permanently tracks the flushed time with a special file in the block
-type LocalBlock struct {
+type LocalBlock struct { // jpe internal
 	common.BackendBlock
 	reader backend.Reader
 	writer backend.Writer
@@ -28,6 +28,7 @@ type LocalBlock struct {
 
 var _ common.Finder = (*LocalBlock)(nil)
 
+// jpe interanlize
 func NewLocalBlock(ctx context.Context, existingBlock common.BackendBlock, l *local.Backend) (*LocalBlock, error) {
 
 	c := &LocalBlock{

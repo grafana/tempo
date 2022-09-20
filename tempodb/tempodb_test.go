@@ -722,7 +722,7 @@ func TestShouldCache(t *testing.T) {
 	}
 }
 
-func writeTraceToWal(t require.TestingT, b wal.AppendBlock, dec model.SegmentDecoder, id common.ID, tr *tempopb.Trace, start, end uint32) {
+func writeTraceToWal(t require.TestingT, b common.AppendBlock, dec model.SegmentDecoder, id common.ID, tr *tempopb.Trace, start, end uint32) {
 	b1, err := dec.PrepareForWrite(tr, 0, 0)
 	require.NoError(t, err)
 

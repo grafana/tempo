@@ -1,4 +1,4 @@
-package wal
+package v2
 
 import (
 	"context"
@@ -13,9 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/backend"
-	versioned_encoding "github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 const maxDataEncodingLength = 32
@@ -27,21 +25,21 @@ type v2AppendBlock struct {
 	ingestionSlack time.Duration
 
 	appendFile *os.File
-	appender   v2.Appender
+	appender   Appender // jpe internal?
 
 	filepath string
 	readFile *os.File
 	once     sync.Once
 }
 
-func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (AppendBlock, error) {
+func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.AppendBlock, error) {
 	if strings.ContainsRune(dataEncoding, ':') ||
 		len([]rune(dataEncoding)) > maxDataEncodingLength {
 		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
 	}
 
 	h := &v2AppendBlock{
-		meta:           backend.NewBlockMeta(tenantID, id, v2.VersionString, e, dataEncoding),
+		meta:           backend.NewBlockMeta(tenantID, id, VersionString, e, dataEncoding),
 		filepath:       filepath,
 		ingestionSlack: ingestionSlack,
 	}
@@ -54,21 +52,21 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 	}
 	h.appendFile = f
 
-	dataWriter, err := v2.NewDataWriter(f, e)
+	dataWriter, err := NewDataWriter(f, e) // jpe internal
 	if err != nil {
 		return nil, err
 	}
 
-	h.appender = v2.NewAppender(dataWriter)
+	h.appender = NewAppender(dataWriter) // jpe internal
 
 	return h, nil
 }
 
 // newAppendBlockFromFile returns an AppendBlock that can not be appended to, but can
 // be completed. It can return a warning or a fatal error
-func newAppendBlockFromFile(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration, fn RangeFunc) (AppendBlock, error, error) {
+func newAppendBlockFromFile(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration, fn common.RangeFunc) (common.AppendBlock, error, error) {
 	var warning error
-	blockID, tenantID, version, e, dataEncoding, err := ParseFilename(filename)
+	blockID, tenantID, version, e, dataEncoding, err := ParseFilename(filename) // jpe ?
 	if err != nil {
 		return nil, nil, fmt.Errorf("parsing wal filename: %w", err)
 	}
@@ -106,7 +104,7 @@ func newAppendBlockFromFile(filename string, path string, ingestionSlack time.Du
 		return nil, nil, err
 	}
 
-	b.appender = v2.NewRecordAppender(records)
+	b.appender = NewRecordAppender(records) // jpe
 	b.meta.TotalObjects = b.appender.Length()
 	b.meta.StartTime = time.Unix(int64(blockStart), 0)
 	b.meta.EndTime = time.Unix(int64(blockEnd), 0)
@@ -159,13 +157,13 @@ func (a *v2AppendBlock) Iterator() (common.Iterator, error) {
 		return nil, err
 	}
 
-	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(readFile), a.meta.Encoding)
+	dataReader, err := NewDataReader(backend.NewContextReaderWithAllReader(readFile), a.meta.Encoding) // jpe
 	if err != nil {
 		return nil, err
 	}
 
-	iterator := v2.NewRecordIterator(records, dataReader, v2.NewObjectReaderWriter())
-	iterator, err = v2.NewDedupingIterator(iterator, combiner, a.meta.DataEncoding)
+	iterator := NewRecordIterator(records, dataReader, NewObjectReaderWriter())  // jpe
+	iterator, err = NewDedupingIterator(iterator, combiner, a.meta.DataEncoding) // jpe
 	if err != nil {
 		return nil, err
 	}
@@ -185,12 +183,12 @@ func (a *v2AppendBlock) Find(id common.ID) ([]byte, error) {
 		return nil, nil
 	}
 
-	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(file), a.meta.Encoding)
+	dataReader, err := NewDataReader(backend.NewContextReaderWithAllReader(file), a.meta.Encoding) //jpe
 	if err != nil {
 		return nil, err
 	}
 	defer dataReader.Close()
-	finder := v2.NewPagedFinder(common.Records(records), dataReader, combiner, v2.NewObjectReaderWriter(), a.meta.DataEncoding)
+	finder := NewPagedFinder(common.Records(records), dataReader, combiner, NewObjectReaderWriter(), a.meta.DataEncoding) // jpe
 
 	return finder.Find(context.Background(), id)
 }
@@ -257,7 +255,7 @@ func (a *v2AppendBlock) adjustTimeRangeForSlack(start uint32, end uint32, additi
 	}
 
 	if warn {
-		metricWarnings.WithLabelValues(a.meta.TenantID, reasonOutsideIngestionSlack).Inc()
+		// metricWarnings.WithLabelValues(a.meta.TenantID, reasonOutsideIngestionSlack).Inc() // jpe whatdo?
 	}
 
 	return start, end
@@ -286,8 +284,7 @@ func ParseFilename(filename string) (uuid.UUID, string, string, backend.Encoding
 
 	// third segment is version
 	version := splits[2]
-	_, err = versioned_encoding.FromVersion(version)
-	if err != nil {
+	if version != VersionString {
 		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing version: %w", filename, err)
 	}
 

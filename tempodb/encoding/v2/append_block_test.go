@@ -1,21 +1,16 @@
-package wal
+package v2
 
 import (
-	"context"
-	"io"
 	"math/rand"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -163,19 +158,58 @@ func TestAdjustTimeRangeForSlack(t *testing.T) {
 	assert.Equal(t, end, actualEnd)
 }
 
-func TestErrorConditions(t *testing.T) {
-	tempDir := t.TempDir()
+func TestAppend(t *testing.T) {
+	blockID := uuid.New()
+	block, err := newAppendBlock(blockID, testTenantID, t.TempDir(), backend.EncSnappy, "v2", 0)
+	require.NoError(t, err, "unexpected error creating block")
 
-	wal, err := New(&Config{
-		Filepath: tempDir,
-		Encoding: backend.EncGZIP,
-	})
-	require.NoError(t, err, "unexpected error creating temp wal")
+	//v2block := block.(*v2AppendBlock)
 
+	numMsgs := 100
+	reqs := make([]*tempopb.Trace, 0, numMsgs)
+	for i := 0; i < numMsgs; i++ {
+		req := test.MakeTrace(rand.Int()%1000, []byte{0x01})
+		reqs = append(reqs, req)
+		bReq, err := proto.Marshal(req)
+		require.NoError(t, err)
+		err = block.Append([]byte{0x01}, bReq, 0, 0)
+		require.NoError(t, err, "unexpected error writing req")
+	}
+
+	// jpe - bad test - use iterator from block
+	// records := v2block.appender.Records()
+	// file, err := v2block.file()
+	// require.NoError(t, err)
+
+	// dataReader, err := NewDataReader(backend.NewContextReaderWithAllReader(file), backend.EncNone) // jpe internal?
+	// require.NoError(t, err)
+	// iterator := NewRecordIterator(records, dataReader, NewObjectReaderWriter()) // jpe internal?
+	// defer iterator.Close()
+	// i := 0
+
+	// for {
+	// 	_, bytesObject, err := iterator.Next(context.Background())
+	// 	if err == io.EOF {
+	// 		break
+	// 	}
+	// 	require.NoError(t, err)
+
+	// 	req := &tempopb.Trace{}
+	// 	err = proto.Unmarshal(bytesObject, req)
+	// 	require.NoError(t, err)
+
+	// 	require.True(t, proto.Equal(req, reqs[i]))
+	// 	i++
+	// }
+	// require.Equal(t, numMsgs, i)
+}
+
+func TestPartialBlock(t *testing.T) {
+	// jpe combine with above test
 	blockID := uuid.New()
 
 	// create partially corrupt block
-	block, err := wal.NewBlock(blockID, testTenantID, "")
+	block, err := newAppendBlock(blockID, testTenantID, t.TempDir(), backend.EncSnappy, "v2", 0)
 	require.NoError(t, err, "unexpected error creating block")
 
 	objects := 10
@@ -197,73 +231,132 @@ func TestErrorConditions(t *testing.T) {
 	require.NoError(t, err)
 	err = appendFile.Close()
 	require.NoError(t, err)
-
-	// create unparseable filename
-	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"), []byte{}, 0644)
-	require.NoError(t, err)
-
-	// create empty block
-	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"), []byte{}, 0644)
-	require.NoError(t, err)
-
-	blocks, err := wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
-		return 0, 0, nil
-	}, 0, log.NewNopLogger())
-	require.NoError(t, err, "unexpected error getting blocks")
-	require.Len(t, blocks, 1)
-
-	// confirm block has been removed
-	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:gzip"))
-	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
 }
 
-func TestAppend(t *testing.T) {
-	wal, err := New(&Config{
-		Filepath: t.TempDir(),
-	})
-	require.NoError(t, err, "unexpected error creating temp wal")
-
-	blockID := uuid.New()
-
-	block, err := wal.NewBlock(blockID, testTenantID, "")
-	require.NoError(t, err, "unexpected error creating block")
-
-	v2block := block.(*v2AppendBlock)
-
-	numMsgs := 100
-	reqs := make([]*tempopb.Trace, 0, numMsgs)
-	for i := 0; i < numMsgs; i++ {
-		req := test.MakeTrace(rand.Int()%1000, []byte{0x01})
-		reqs = append(reqs, req)
-		bReq, err := proto.Marshal(req)
-		require.NoError(t, err)
-		err = block.Append([]byte{0x01}, bReq, 0, 0)
-		require.NoError(t, err, "unexpected error writing req")
+func TestParseFilename(t *testing.T) {
+	tests := []struct {
+		name                 string
+		filename             string
+		expectUUID           uuid.UUID
+		expectTenant         string
+		expectedVersion      string
+		expectedEncoding     backend.Encoding
+		expectedDataEncoding string
+		expectError          bool
+	}{
+		{
+			name:                 "version, enc snappy and dataencoding",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy:dataencoding",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncSnappy,
+			expectedDataEncoding: "dataencoding",
+		},
+		{
+			name:                 "version, enc none and dataencoding",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:none:dataencoding",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncNone,
+			expectedDataEncoding: "dataencoding",
+		},
+		{
+			name:                 "empty dataencoding",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncSnappy,
+			expectedDataEncoding: "",
+		},
+		{
+			name:                 "empty dataencoding with semicolon",
+			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy:",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncSnappy,
+			expectedDataEncoding: "",
+		},
+		{
+			name:        "path fails",
+			filename:    "/blerg/123e4567-e89b-12d3-a456-426614174000:foo",
+			expectError: true,
+		},
+		{
+			name:        "no :",
+			filename:    "123e4567-e89b-12d3-a456-426614174000",
+			expectError: true,
+		},
+		{
+			name:        "empty string",
+			filename:    "",
+			expectError: true,
+		},
+		{
+			name:        "bad uuid",
+			filename:    "123e4:foo",
+			expectError: true,
+		},
+		{
+			name:        "no tenant",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:",
+			expectError: true,
+		},
+		{
+			name:        "no version",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:test::none",
+			expectError: true,
+		},
+		{
+			name:        "wrong splits - 6",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:test:test:test:test:test",
+			expectError: true,
+		},
+		{
+			name:        "wrong splits - 3",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:test:test",
+			expectError: true,
+		},
+		{
+			name:        "wrong splits - 1",
+			filename:    "123e4567-e89b-12d3-a456-426614174000",
+			expectError: true,
+		},
+		{
+			name:        "bad encoding",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:test:v1:asdf",
+			expectError: true,
+		},
+		{
+			name:        "ez-mode old format",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:foo",
+			expectError: true,
+		},
+		{
+			name:        "deprecated version",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:foo:v1:snappy",
+			expectError: true,
+		},
 	}
 
-	records := v2block.appender.Records()
-	file, err := v2block.file()
-	require.NoError(t, err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actualUUID, actualTenant, actualVersion, actualEncoding, actualDataEncoding, err := ParseFilename(tc.filename)
 
-	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(file), backend.EncNone)
-	require.NoError(t, err)
-	iterator := v2.NewRecordIterator(records, dataReader, v2.NewObjectReaderWriter())
-	defer iterator.Close()
-	i := 0
+			if tc.expectError {
+				require.Error(t, err)
+				return
+			}
 
-	for {
-		_, bytesObject, err := iterator.Next(context.Background())
-		if err == io.EOF {
-			break
-		}
-		require.NoError(t, err)
-
-		req := &tempopb.Trace{}
-		err = proto.Unmarshal(bytesObject, req)
-		require.NoError(t, err)
-
-		require.True(t, proto.Equal(req, reqs[i]))
-		i++
+			require.NoError(t, err)
+			require.Equal(t, tc.expectUUID, actualUUID)
+			require.Equal(t, tc.expectTenant, actualTenant)
+			require.Equal(t, tc.expectedEncoding, actualEncoding)
+			require.Equal(t, tc.expectedVersion, actualVersion)
+			require.Equal(t, tc.expectedDataEncoding, actualDataEncoding)
+		})
 	}
-	require.Equal(t, numMsgs, i)
 }

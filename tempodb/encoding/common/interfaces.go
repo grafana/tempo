@@ -61,6 +61,7 @@ type CompactionOptions struct {
 	SpansDiscarded  func(spans int)
 }
 
+// jpe change to iterate through *tempopb.Trace
 type Iterator interface {
 	// Next returns the next trace and optionally the start and stop times
 	// for the trace that may have been adjusted.

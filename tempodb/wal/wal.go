@@ -14,6 +14,8 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 const reasonOutsideIngestionSlack = "outside_ingestion_time_slack"
@@ -25,10 +27,6 @@ var (
 		Help:      "The total number of warnings per tenant with reason.",
 	}, []string{"tenant", "reason"})
 )
-
-// extracts a time range from an object. start/end times returned are unix epoch
-// seconds
-type RangeFunc func(obj []byte, dataEncoding string) (uint32, uint32, error)
 
 const (
 	completedDir = "completed"
@@ -95,13 +93,18 @@ func New(c *Config) (*WAL, error) {
 }
 
 // RescanBlocks returns a slice of append blocks from the wal folder
-func (w *WAL) RescanBlocks(fn RangeFunc, additionalStartSlack time.Duration, log log.Logger) ([]AppendBlock, error) {
+func (w *WAL) RescanBlocks(fn common.RangeFunc, additionalStartSlack time.Duration, log log.Logger) ([]common.AppendBlock, error) {
 	files, err := os.ReadDir(w.c.Filepath)
 	if err != nil {
 		return nil, err
 	}
 
-	blocks := make([]AppendBlock, 0, len(files))
+	v, err := encoding.FromVersion("v2") // jpe
+	if err != nil {
+		return nil, fmt.Errorf("from version v2 failed %w", err)
+	}
+
+	blocks := make([]common.AppendBlock, 0, len(files))
 	for _, f := range files {
 		if f.IsDir() {
 			continue
@@ -114,7 +117,7 @@ func (w *WAL) RescanBlocks(fn RangeFunc, additionalStartSlack time.Duration, log
 		}
 
 		level.Info(log).Log("msg", "beginning replay", "file", f.Name(), "size", fileInfo.Size())
-		b, warning, err := newAppendBlockFromFile(f.Name(), w.c.Filepath, w.c.IngestionSlack, additionalStartSlack, fn)
+		b, warning, err := v.OpenAppendBlock(f.Name(), w.c.Filepath, w.c.IngestionSlack, additionalStartSlack, fn)
 
 		remove := false
 		if err != nil {
@@ -148,8 +151,12 @@ func (w *WAL) RescanBlocks(fn RangeFunc, additionalStartSlack time.Duration, log
 	return blocks, nil
 }
 
-func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (AppendBlock, error) {
-	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.IngestionSlack)
+func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (common.AppendBlock, error) {
+	v, err := encoding.FromVersion("v2") // jpe
+	if err != nil {
+		return nil, fmt.Errorf("from version v2 failed %w", err)
+	}
+	return v.CreateAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.IngestionSlack)
 }
 
 func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File, backend.Encoding, error) {

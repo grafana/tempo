@@ -68,8 +68,8 @@ var (
 
 type Writer interface {
 	WriteBlock(ctx context.Context, block WriteableBlock) error
-	CompleteBlock(ctx context.Context, block wal.AppendBlock) (common.BackendBlock, error)
-	CompleteBlockWithBackend(ctx context.Context, block wal.AppendBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error)
+	CompleteBlock(ctx context.Context, block common.AppendBlock) (common.BackendBlock, error)
+	CompleteBlockWithBackend(ctx context.Context, block common.AppendBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error)
 	CompleteSearchBlockWithBackend(block *search.StreamingSearchBlock, blockID uuid.UUID, tenantID string, r backend.Reader, w backend.Writer) (*search.BackendSearchBlock, error)
 	WAL() *wal.WAL
 }
@@ -203,13 +203,13 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c WriteableBlock) error 
 }
 
 // CompleteBlock iterates the given WAL block and flushes it to the TempoDB backend.
-func (rw *readerWriter) CompleteBlock(ctx context.Context, block wal.AppendBlock) (common.BackendBlock, error) {
+func (rw *readerWriter) CompleteBlock(ctx context.Context, block common.AppendBlock) (common.BackendBlock, error) {
 	return rw.CompleteBlockWithBackend(ctx, block, rw.r, rw.w)
 }
 
 // CompleteBlock iterates the given WAL block but flushes it to the given backend instead of the default TempoDB backend. The
 // new block will have the same ID as the input block.
-func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block wal.AppendBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error) {
+func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block common.AppendBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error) {
 
 	// The destination block format:
 	vers, err := encoding.FromVersion(rw.cfg.Block.Version)

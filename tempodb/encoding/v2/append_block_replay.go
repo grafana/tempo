@@ -1,4 +1,4 @@
-package wal
+package v2
 
 import (
 	"bytes"
@@ -8,12 +8,11 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 // ReplayWALAndGetRecords replays a WAL file that could contain either traces or searchdata
 func ReplayWALAndGetRecords(file *os.File, enc backend.Encoding, handleObj func([]byte) error) ([]common.Record, error, error) {
-	dataReader, err := v2.NewDataReader(backend.NewContextReaderWithAllReader(file), enc)
+	dataReader, err := NewDataReader(backend.NewContextReaderWithAllReader(file), enc)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -23,7 +22,7 @@ func ReplayWALAndGetRecords(file *os.File, enc backend.Encoding, handleObj func(
 	var warning error
 	var pageLen uint32
 	var id []byte
-	objectReader := v2.NewObjectReaderWriter()
+	objectReader := NewObjectReaderWriter()
 	currentOffset := uint64(0)
 	for {
 		buffer, pageLen, err = dataReader.NextPage(buffer)

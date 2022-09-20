@@ -3,7 +3,9 @@ package encoding
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -36,6 +38,12 @@ type VersionedEncoding interface {
 
 	// CopyBlock from one backend to another.
 	CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error
+
+	// OpenAppendBlock opens an existing appendable block
+	OpenAppendBlock(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration, fn common.RangeFunc) (common.AppendBlock, error, error) // jpe garbage params
+
+	// CreateAppendBlock creates a new appendable block
+	CreateAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.AppendBlock, error) // jpe garbage params
 }
 
 // FromVersion returns a versioned encoding for the provided string

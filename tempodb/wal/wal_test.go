@@ -179,132 +179,25 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	require.NoError(t, err)
 }
 
-func TestParseFilename(t *testing.T) {
-	tests := []struct {
-		name                 string
-		filename             string
-		expectUUID           uuid.UUID
-		expectTenant         string
-		expectedVersion      string
-		expectedEncoding     backend.Encoding
-		expectedDataEncoding string
-		expectError          bool
-	}{
-		{
-			name:                 "version, enc snappy and dataencoding",
-			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy:dataencoding",
-			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
-			expectTenant:         "foo",
-			expectedVersion:      "v2",
-			expectedEncoding:     backend.EncSnappy,
-			expectedDataEncoding: "dataencoding",
-		},
-		{
-			name:                 "version, enc none and dataencoding",
-			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:none:dataencoding",
-			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
-			expectTenant:         "foo",
-			expectedVersion:      "v2",
-			expectedEncoding:     backend.EncNone,
-			expectedDataEncoding: "dataencoding",
-		},
-		{
-			name:                 "empty dataencoding",
-			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy",
-			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
-			expectTenant:         "foo",
-			expectedVersion:      "v2",
-			expectedEncoding:     backend.EncSnappy,
-			expectedDataEncoding: "",
-		},
-		{
-			name:                 "empty dataencoding with semicolon",
-			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy:",
-			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
-			expectTenant:         "foo",
-			expectedVersion:      "v2",
-			expectedEncoding:     backend.EncSnappy,
-			expectedDataEncoding: "",
-		},
-		{
-			name:        "path fails",
-			filename:    "/blerg/123e4567-e89b-12d3-a456-426614174000:foo",
-			expectError: true,
-		},
-		{
-			name:        "no :",
-			filename:    "123e4567-e89b-12d3-a456-426614174000",
-			expectError: true,
-		},
-		{
-			name:        "empty string",
-			filename:    "",
-			expectError: true,
-		},
-		{
-			name:        "bad uuid",
-			filename:    "123e4:foo",
-			expectError: true,
-		},
-		{
-			name:        "no tenant",
-			filename:    "123e4567-e89b-12d3-a456-426614174000:",
-			expectError: true,
-		},
-		{
-			name:        "no version",
-			filename:    "123e4567-e89b-12d3-a456-426614174000:test::none",
-			expectError: true,
-		},
-		{
-			name:        "wrong splits - 6",
-			filename:    "123e4567-e89b-12d3-a456-426614174000:test:test:test:test:test",
-			expectError: true,
-		},
-		{
-			name:        "wrong splits - 3",
-			filename:    "123e4567-e89b-12d3-a456-426614174000:test:test",
-			expectError: true,
-		},
-		{
-			name:        "wrong splits - 1",
-			filename:    "123e4567-e89b-12d3-a456-426614174000",
-			expectError: true,
-		},
-		{
-			name:        "bad encoding",
-			filename:    "123e4567-e89b-12d3-a456-426614174000:test:v1:asdf",
-			expectError: true,
-		},
-		{
-			name:        "ez-mode old format",
-			filename:    "123e4567-e89b-12d3-a456-426614174000:foo",
-			expectError: true,
-		},
-		{
-			name:        "deprecated version",
-			filename:    "123e4567-e89b-12d3-a456-426614174000:foo:v1:snappy",
-			expectError: true,
-		},
-	}
+func TestInvalidFiles(t *testing.T) { // jpe - make this something
+	// create unparseable filename
+	// err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"), []byte{}, 0644)
+	// require.NoError(t, err)
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			actualUUID, actualTenant, actualVersion, actualEncoding, actualDataEncoding, err := ParseFilename(tc.filename)
+	// // create empty block
+	// err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"), []byte{}, 0644)
+	// require.NoError(t, err)
 
-			if tc.expectError {
-				require.Error(t, err)
-				return
-			}
+	// blocks, err := wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
+	// 	return 0, 0, nil
+	// }, 0, log.NewNopLogger())
+	// require.NoError(t, err, "unexpected error getting blocks")
+	// require.Len(t, blocks, 1)
 
-			require.NoError(t, err)
-			require.Equal(t, tc.expectUUID, actualUUID)
-			require.Equal(t, tc.expectTenant, actualTenant)
-			require.Equal(t, tc.expectedEncoding, actualEncoding)
-			require.Equal(t, tc.expectedVersion, actualVersion)
-			require.Equal(t, tc.expectedDataEncoding, actualDataEncoding)
-		})
-	}
+	// // confirm block has been removed
+	// require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:gzip"))
+	// require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
+
 }
 
 func BenchmarkWALNone(b *testing.B) {
