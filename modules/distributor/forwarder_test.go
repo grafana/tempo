@@ -137,7 +137,9 @@ func TestForwarder_shutdown(t *testing.T) {
 			close(signalCh)
 		}()
 		require.NoError(t, f.stop(nil))
+		f.mutex.Lock()
 		assert.Equal(t, 0, len(f.queueManagers[tenantID].reqChan))
+		f.mutex.Unlock()
 	}()
 
 	for i := 0; i < 100; i++ {
@@ -190,7 +192,9 @@ func TestForwarder_overrides(t *testing.T) {
 	defer func() {
 		close(signalCh)
 		require.NoError(t, f.stop(nil))
+		f.mutex.Lock()
 		assert.Equal(t, 0, len(f.queueManagers[tenantID].reqChan))
+		f.mutex.Unlock()
 	}()
 
 	wg.Add(1)
