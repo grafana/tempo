@@ -465,43 +465,40 @@ func searchStandardTagValues(ctx context.Context, tag string, pf *parquet.File, 
 
 	keyPred := pq.NewStringInPredicate([]string{tag})
 
-	iter := pq.NewJoinIterator(DefinitionLevelResourceAttrs, []pq.Iterator{
-		makeIter(FieldResourceAttrKey, keyPred, "keys"),
-		makeIter(FieldResourceAttrVal, nil, "values"),
-	}, nil)
-	for {
-		match, err := iter.Next()
-		if err != nil {
-			return errors.Wrap(err, "iter.Next on failed on resource lookup")
-		}
-		if match == nil {
-			break
-		}
-		m := match.ToMap()
-		for _, s := range m["values"] {
-			cb(s.String())
-		}
+	err := searchKeyValues(DefinitionLevelResourceAttrs, FieldResourceAttrKey, FieldResourceAttrVal, makeIter, keyPred, cb)
+	if err != nil {
+		return errors.Wrap(err, "search resource key values")
 	}
-	iter.Close()
 
-	iter = pq.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, []pq.Iterator{
-		makeIter(FieldSpanAttrKey, keyPred, "keys"),
-		makeIter(FieldSpanAttrVal, nil, "values"),
+	err = searchKeyValues(DefinitionLevelResourceSpansILSSpan, FieldSpanAttrKey, FieldSpanAttrVal, makeIter, keyPred, cb)
+	if err != nil {
+		return errors.Wrap(err, "search span key values")
+	}
+
+	return nil
+}
+
+func searchKeyValues(definitionLevel int, keyPath, valuePath string, makeIter makeIterFn, keyPred pq.Predicate, cb common.TagCallback) error {
+
+	iter := pq.NewJoinIterator(definitionLevel, []pq.Iterator{
+		makeIter(keyPath, keyPred, ""),
+		makeIter(valuePath, nil, "values"),
 	}, nil)
+	defer iter.Close()
+
 	for {
 		match, err := iter.Next()
 		if err != nil {
-			return errors.Wrap(err, "iter.Next on failed on span lookup")
+			return err
 		}
 		if match == nil {
 			break
 		}
-		m := match.ToMap()
-		for _, s := range m["values"] {
-			cb(s.String())
+		for _, e := range match.Entries {
+			// We know that "values" is the only data selected above.
+			cb(e.Value.String())
 		}
 	}
-	iter.Close()
 
 	return nil
 }
