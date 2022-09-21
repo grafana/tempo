@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/decoder"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -33,7 +34,7 @@ type v2AppendBlock struct {
 	once     sync.Once
 }
 
-func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.AppendBlock, error) {
+func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
 	if strings.ContainsRune(dataEncoding, ':') ||
 		len([]rune(dataEncoding)) > maxDataEncodingLength {
 		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
@@ -65,7 +66,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 
 // newAppendBlockFromFile returns an AppendBlock that can not be appended to, but can
 // be completed. It can return a warning or a fatal error
-func newAppendBlockFromFile(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration, fn common.RangeFunc) (common.AppendBlock, error, error) {
+func newAppendBlockFromFile(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration) (common.WALBlock, error, error) {
 	var warning error
 	blockID, tenantID, version, e, dataEncoding, err := ParseFilename(filename) // jpe - have this owned by the calling method? instead of parsing in here? pass in a meta?
 	if err != nil {
@@ -87,11 +88,22 @@ func newAppendBlockFromFile(filename string, path string, ingestionSlack time.Du
 	blockStart := uint32(math.MaxUint32)
 	blockEnd := uint32(0)
 
+	dec, err := model.NewObjectDecoder(dataEncoding)
+	if err != nil {
+		return nil, nil, fmt.Errorf("creating object decoder: %w", err)
+	}
+
 	records, warning, err := ReplayWALAndGetRecords(f, e, func(bytes []byte) error {
-		start, end, err := fn(bytes, dataEncoding)
+		start, end, err := dec.FastRange(bytes)
+		if err == decoder.ErrUnsupported {
+			now := uint32(time.Now().Unix())
+			start = now
+			end = now
+		}
 		if err != nil {
 			return err
 		}
+
 		start, end = b.adjustTimeRangeForSlack(start, end, additionalStartSlack)
 		if start < blockStart {
 			blockStart = start

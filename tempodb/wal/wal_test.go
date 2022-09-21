@@ -53,31 +53,29 @@ func TestAppendBlockStartEnd(t *testing.T) {
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	block, err := wal.NewBlock(blockID, testTenantID, "")
+	block, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 
 	// create a new block and confirm start/end times are correct
-	blockStart := uint32(time.Now().Unix())
+	blockStart := uint32(time.Now().Add(-time.Minute).Unix())
 	blockEnd := uint32(time.Now().Add(time.Minute).Unix())
 
 	for i := 0; i < 10; i++ {
-		bytes := make([]byte, 16)
-		rand.Read(bytes)
+		id := make([]byte, 16)
+		rand.Read(id)
 
-		err = block.Append(bytes, bytes, blockStart, blockEnd)
+		tr := test.MakeTrace(10, id)
+		b, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(tr, blockStart, blockEnd)
+
+		err = block.Append(id, b, blockStart, blockEnd)
 		require.NoError(t, err, "unexpected error writing req")
 	}
 
 	require.Equal(t, blockStart, uint32(block.Meta().StartTime.Unix()))
 	require.Equal(t, blockEnd, uint32(block.Meta().EndTime.Unix()))
 
-	// rescan the block and make sure that start/end times are correct
-	blockStart = uint32(time.Now().Add(-time.Hour).Unix())
-	blockEnd = uint32(time.Now().Unix())
-
-	blocks, err := wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
-		return blockStart, blockEnd, nil
-	}, time.Hour, log.NewNopLogger())
+	// rescan the block and make sure the start/end times are the same
+	blocks, err := wal.RescanBlocks(time.Hour, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
@@ -135,9 +133,7 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	// 	require.Equal(t, objs[i], obj)
 	// }
 
-	blocks, err := wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
-		return 0, 0, nil
-	}, 0, log.NewNopLogger())
+	blocks, err := wal.RescanBlocks(0, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
@@ -193,7 +189,11 @@ func TestInvalidFiles(t *testing.T) {
 
 	// create one valid block
 	block, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
-	block.Append([]byte("id"), []byte("obj"), 0, 0)
+	id := make([]byte, 16)
+	rand.Read(id)
+	tr := test.MakeTrace(10, id)
+	b, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(tr, 0, 0)
+	block.Append(id, b, 0, 0)
 
 	// create unparseable filename
 	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"), []byte{}, 0644)
@@ -203,9 +203,7 @@ func TestInvalidFiles(t *testing.T) {
 	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"), []byte{}, 0644)
 	require.NoError(t, err)
 
-	blocks, err := wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
-		return 0, 0, nil
-	}, 0, log.NewNopLogger())
+	blocks, err := wal.RescanBlocks(0, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1) // this is our 1 valid block from above
 
@@ -271,9 +269,7 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 		}
 
 		// replay
-		_, err = wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
-			return 0, 0, nil
-		}, 0, log.NewNopLogger())
+		_, err = wal.RescanBlocks(0, log.NewNopLogger())
 		require.NoError(b, err)
 	}
 }

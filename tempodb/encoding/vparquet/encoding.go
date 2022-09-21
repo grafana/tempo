@@ -34,12 +34,12 @@ func (v Encoding) CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta
 	return CreateBlock(ctx, cfg, meta, i, dec, r, to)
 }
 
-// OpenAppendBlock opens an existing appendable block
-func (v Encoding) OpenAppendBlock(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration, fn common.RangeFunc) (common.AppendBlock, error, error) {
+// OpenWALBlock opens an existing appendable block
+func (v Encoding) OpenWALBlock(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration) (common.WALBlock, error, error) {
 	panic("unsupported")
 }
 
-// CreateAppendBlock creates a new appendable block
-func (v Encoding) CreateAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.AppendBlock, error) {
+// CreateWALBlock creates a new appendable block
+func (v Encoding) CreateWALBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
 	panic("unsupported")
 }

@@ -100,8 +100,8 @@ type instance struct {
 	traceCount atomic.Int32
 
 	blocksMtx        sync.RWMutex
-	headBlock        common.AppendBlock
-	completingBlocks []common.AppendBlock
+	headBlock        common.WALBlock
+	completingBlocks []common.WALBlock
 	completeBlocks   []*localBlock
 
 	useFlatbufferSearch  bool
@@ -291,7 +291,7 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 // CompleteBlock moves a completingBlock to a completeBlock. The new completeBlock has the same ID.
 func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
-	var completingBlock common.AppendBlock
+	var completingBlock common.WALBlock
 	for _, iterBlock := range i.completingBlocks {
 		if iterBlock.BlockID() == blockID {
 			completingBlock = iterBlock
@@ -354,7 +354,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	var completingBlock common.AppendBlock
+	var completingBlock common.WALBlock
 	for j, iterBlock := range i.completingBlocks {
 		if iterBlock.BlockID() == blockID {
 			completingBlock = iterBlock
@@ -486,7 +486,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 // AddCompletingBlock adds an AppendBlock directly to the slice of completing blocks.
 // This is used during wal replay. It is expected that calling code will add the appropriate
 // jobs to the queue to eventually flush these.
-func (i *instance) AddCompletingBlock(b common.AppendBlock, s *search.StreamingSearchBlock) {
+func (i *instance) AddCompletingBlock(b common.WALBlock, s *search.StreamingSearchBlock) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 

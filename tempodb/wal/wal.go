@@ -94,7 +94,7 @@ func New(c *Config) (*WAL, error) {
 }
 
 // RescanBlocks returns a slice of append blocks from the wal folder
-func (w *WAL) RescanBlocks(fn common.RangeFunc, additionalStartSlack time.Duration, log log.Logger) ([]common.AppendBlock, error) {
+func (w *WAL) RescanBlocks(additionalStartSlack time.Duration, log log.Logger) ([]common.WALBlock, error) {
 	files, err := os.ReadDir(w.c.Filepath)
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func (w *WAL) RescanBlocks(fn common.RangeFunc, additionalStartSlack time.Durati
 		return nil, fmt.Errorf("from version v2 failed %w", err)
 	}
 
-	blocks := make([]common.AppendBlock, 0, len(files))
+	blocks := make([]common.WALBlock, 0, len(files))
 	for _, f := range files {
 		if f.IsDir() {
 			continue
@@ -119,7 +119,7 @@ func (w *WAL) RescanBlocks(fn common.RangeFunc, additionalStartSlack time.Durati
 		}
 
 		level.Info(log).Log("msg", "beginning replay", "file", f.Name(), "size", fileInfo.Size())
-		b, warning, err := v.OpenAppendBlock(f.Name(), w.c.Filepath, w.c.IngestionSlack, additionalStartSlack, fn)
+		b, warning, err := v.OpenWALBlock(f.Name(), w.c.Filepath, w.c.IngestionSlack, additionalStartSlack)
 
 		remove := false
 		if err != nil {
@@ -153,13 +153,13 @@ func (w *WAL) RescanBlocks(fn common.RangeFunc, additionalStartSlack time.Durati
 	return blocks, nil
 }
 
-func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (common.AppendBlock, error) {
+func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (common.WALBlock, error) {
 	// todo: take version string and use here
 	v, err := encoding.FromVersion(v2.VersionString)
 	if err != nil {
 		return nil, fmt.Errorf("from version v2 failed %w", err)
 	}
-	return v.CreateAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.IngestionSlack)
+	return v.CreateWALBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.IngestionSlack)
 }
 
 func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File, backend.Encoding, error) {
