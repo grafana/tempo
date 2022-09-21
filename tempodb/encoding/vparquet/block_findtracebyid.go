@@ -98,25 +98,22 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 			return min, nil
 		}
 
-		// Read first value from the row group
-		rgs := pf.RowGroups()
-		iter := parquetquery.NewColumnIterator(derivedCtx, rgs[rgIdx:rgIdx+1], colIndex, "", 1, nil, "id")
-		defer iter.Close()
+		// Read bounds from the first page
+		pages := pf.RowGroups()[rgIdx].ColumnChunks()[colIndex].Pages()
+		defer pages.Close()
 
-		res, err := iter.Next()
+		page, err := pages.ReadPage()
 		if err != nil {
 			return nil, err
 		}
-		if res == nil {
-			// This shouldn't happen as row groups are never empty, however have seen this in practice
-			// and it means there must be an error condition or some other situation that is not
-			// handled as expected.
-			return nil, fmt.Errorf("failed to read 1 value from row group: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), b.meta.BlockID, rgIdx)
+		minV, _, ok := page.Bounds()
+		if !ok {
+			// This shouldn't happen as row groups are never empty.
+			return nil, fmt.Errorf("failed to read page bounds row group: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), b.meta.BlockID, rgIdx)
 		}
 
-		min = res.ToMap()["id"][0].ByteArray()
+		min = minV.ByteArray()
 		rowGroupMins[rgIdx] = min
-
 		return min, nil
 	}
 
