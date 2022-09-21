@@ -152,47 +152,61 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 		// search all special attributes
 		for idx, lbl := range specialAttrIdxs {
 			cc := rg.ColumnChunks()[idx]
-			pgs := cc.Pages()
-			for {
-				pg, err := pgs.ReadPage()
-				if err == io.EOF || pg == nil {
-					break
-				}
-				if err != nil {
-					return err
-				}
+			err = func() error {
+				pgs := cc.Pages()
+				defer pgs.Close()
+				for {
+					pg, err := pgs.ReadPage()
+					if err == io.EOF || pg == nil {
+						break
+					}
+					if err != nil {
+						return err
+					}
 
-				// if a special attribute has any non-null values, include it
-				if pg.NumNulls() < pg.NumValues() {
-					cb(lbl)
-					delete(specialAttrIdxs, idx) // remove from map so we won't search again
-					break
+					// if a special attribute has any non-null values, include it
+					if pg.NumNulls() < pg.NumValues() {
+						cb(lbl)
+						delete(specialAttrIdxs, idx) // remove from map so we won't search again
+						break
+					}
 				}
+				return nil
+			}()
+			if err != nil {
+				return err
 			}
 		}
 
 		// search other attributes
 		for _, idx := range standardAttrIdxs {
 			cc := rg.ColumnChunks()[idx]
-			pgs := cc.Pages()
-			for {
-				pg, err := pgs.ReadPage()
-				if err == io.EOF || pg == nil {
-					break
-				}
-				if err != nil {
-					return err
-				}
+			err = func() error {
+				pgs := cc.Pages()
+				defer pgs.Close()
+				for {
+					pg, err := pgs.ReadPage()
+					if err == io.EOF || pg == nil {
+						break
+					}
+					if err != nil {
+						return err
+					}
 
-				dict := pg.Dictionary()
-				if dict == nil {
-					continue
-				}
+					dict := pg.Dictionary()
+					if dict == nil {
+						continue
+					}
 
-				for i := 0; i < dict.Len(); i++ {
-					s := string(dict.Index(int32(i)).ByteArray())
-					cb(s)
+					for i := 0; i < dict.Len(); i++ {
+						s := string(dict.Index(int32(i)).ByteArray())
+						cb(s)
+					}
 				}
+				return nil
+			}()
+			if err != nil {
+				return err
 			}
 		}
 	}
