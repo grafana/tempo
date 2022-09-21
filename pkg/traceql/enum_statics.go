@@ -5,13 +5,13 @@ import "fmt"
 type StaticType int
 
 const (
-	TypeSpanset   StaticType = iota // type used by spanset pipelines
-	TypeAttribute                   // a special constant that indicates the type is determined at query time by the attribute
+	TypeNil       StaticType = iota
+	TypeSpanset              // type used by spanset pipelines
+	TypeAttribute            // a special constant that indicates the type is determined at query time by the attribute
 	TypeInt
 	TypeFloat
 	TypeString
 	TypeBoolean
-	TypeNil
 	TypeDuration
 	TypeStatus
 )

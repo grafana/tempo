@@ -2,6 +2,7 @@ package parquetquery
 
 import (
 	"bytes"
+	"regexp"
 	"strings"
 
 	pq "github.com/segmentio/parquet-go"
@@ -17,6 +18,7 @@ type Predicate interface {
 }
 
 // StringInPredicate checks for any of the given strings.
+// Case sensitive exact byte matching
 type StringInPredicate struct {
 	ss [][]byte
 }
@@ -77,6 +79,86 @@ func (p *StringInPredicate) KeepPage(page pq.Page) bool {
 					// At least 1 string present in this page
 					return true
 				}
+			}
+		}
+
+		return false
+	}
+
+	return true
+}
+
+// RegexInPredicate checks for match against any of the given regexs.
+// Memoized and resets on each row group.
+type RegexInPredicate struct {
+	regs    []*regexp.Regexp
+	matches map[string]bool
+}
+
+var _ Predicate = (*RegexInPredicate)(nil)
+
+func NewRegexInPredicate(regs []string) (*RegexInPredicate, error) {
+	p := &RegexInPredicate{
+		regs: make([]*regexp.Regexp, 0, len(regs)),
+	}
+	for _, reg := range regs {
+		r, err := regexp.Compile(reg)
+		if err != nil {
+			return nil, err
+		}
+		p.regs = append(p.regs, r)
+	}
+	return p, nil
+}
+
+func (p *RegexInPredicate) keep(v *pq.Value) bool {
+	if v.Kind() < 0 {
+		// Null
+		return false
+	}
+
+	s := v.String()
+	if matched, ok := p.matches[s]; ok {
+		return matched
+	}
+
+	matched := false
+	for _, r := range p.regs {
+		if r.MatchString(s) {
+			matched = true
+			break
+		}
+	}
+
+	p.matches[s] = matched
+	return matched
+}
+
+func (p *RegexInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
+	// Reset match cache on each row group change
+	p.matches = make(map[string]bool, len(p.matches))
+
+	// Can we do any filtering here?
+	return true
+}
+
+func (p *RegexInPredicate) KeepValue(v pq.Value) bool {
+	return p.keep(&v)
+}
+
+func (p *RegexInPredicate) KeepPage(page pq.Page) bool {
+
+	// If a dictionary column then ensure at least one matching
+	// value exists in the dictionary
+	dict := page.Dictionary()
+	if dict != nil && dict.Len() > 0 {
+		len := dict.Len()
+
+		for i := 0; i < len; i++ {
+			dictionaryEntry := dict.Index(int32(i))
+			if p.keep(&dictionaryEntry) {
+				// At least 1 dictionary entry matches
+				return true
 			}
 		}
 
@@ -177,6 +259,123 @@ func (p *IntBetweenPredicate) KeepPage(page pq.Page) bool {
 		return p.max >= min.Int64() && p.min <= max.Int64()
 	}
 	return true
+}
+
+type FloatBetweenPredicate struct {
+	min, max float64
+}
+
+var _ Predicate = (*FloatBetweenPredicate)(nil)
+
+func NewFloatBetweenPredicate(min, max float64) *FloatBetweenPredicate {
+	return &FloatBetweenPredicate{min, max}
+}
+
+func (p *FloatBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+
+	if ci := c.ColumnIndex(); ci != nil {
+		for i := 0; i < ci.NumPages(); i++ {
+			min := ci.MinValue(i).Double()
+			max := ci.MaxValue(i).Double()
+			if p.max >= min && p.min <= max {
+				return true
+			}
+		}
+		return false
+	}
+
+	return true
+}
+
+func (p *FloatBetweenPredicate) KeepValue(v pq.Value) bool {
+	vv := v.Double()
+	return p.min <= vv && vv <= p.max
+}
+
+func (p *FloatBetweenPredicate) KeepPage(page pq.Page) bool {
+	if min, max, ok := page.Bounds(); ok {
+		return p.max >= min.Double() && p.min <= max.Double()
+	}
+	return true
+}
+
+// BoolPredicate checks for bools equal to the value
+type BoolPredicate struct {
+	b bool
+}
+
+var _ Predicate = (*BoolPredicate)(nil)
+
+func NewBoolPredicate(b bool) *BoolPredicate {
+	return &BoolPredicate{b}
+}
+
+func (p *BoolPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+	// Can we do anything here?
+	return true
+}
+
+func (p *BoolPredicate) KeepPage(page pq.Page) bool {
+	// Can we do anything here?
+	return true
+}
+
+func (p *BoolPredicate) KeepValue(v pq.Value) bool {
+	return p.b == v.Boolean()
+}
+
+type OrPredicate struct {
+	preds []Predicate
+}
+
+var _ Predicate = (*OrPredicate)(nil)
+
+func NewOrPredicate(preds ...Predicate) *OrPredicate {
+	return &OrPredicate{
+		preds: preds,
+	}
+}
+
+func (p *OrPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+	for _, p := range p.preds {
+		if p == nil {
+			// Nil means all values are returned
+			return true
+		}
+		if p.KeepColumnChunk(c) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (p *OrPredicate) KeepPage(page pq.Page) bool {
+	for _, p := range p.preds {
+		if p == nil {
+			// Nil means all values are returned
+			return true
+		}
+		if p.KeepPage(page) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (p *OrPredicate) KeepValue(v pq.Value) bool {
+	for _, p := range p.preds {
+		if p == nil {
+			// Nil means all values are returned
+			return true
+		}
+		if p.KeepValue(v) {
+			return true
+		}
+	}
+
+	return false
 }
 
 type InstrumentedPredicate struct {

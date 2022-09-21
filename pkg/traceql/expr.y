@@ -235,31 +235,31 @@ fieldExpression:
 // Statics
 // **********************
 static:
-    STRING        { $$ = newStaticString($1)          }
-  | INTEGER       { $$ = newStaticInt($1)             }
-  | FLOAT         { $$ = newStaticFloat($1)           }
-  | TRUE          { $$ = newStaticBool(true)          }
-  | FALSE         { $$ = newStaticBool(false)         }
-  | NIL           { $$ = newStaticNil()               }
-  | DURATION      { $$ = newStaticDuration($1)        }
-  | STATUS_OK     { $$ = newStaticStatus(StatusOk)    }
-  | STATUS_ERROR  { $$ = newStaticStatus(StatusError) }
-  | STATUS_UNSET  { $$ = newStaticStatus(StatusUnset) }
+    STRING        { $$ = NewStaticString($1)          }
+  | INTEGER       { $$ = NewStaticInt($1)             }
+  | FLOAT         { $$ = NewStaticFloat($1)           }
+  | TRUE          { $$ = NewStaticBool(true)          }
+  | FALSE         { $$ = NewStaticBool(false)         }
+  | NIL           { $$ = NewStaticNil()               }
+  | DURATION      { $$ = NewStaticDuration($1)        }
+  | STATUS_OK     { $$ = NewStaticStatus(StatusOk)    }
+  | STATUS_ERROR  { $$ = NewStaticStatus(StatusError) }
+  | STATUS_UNSET  { $$ = NewStaticStatus(StatusUnset) }
   ;
 
 intrinsicField:
-    IDURATION      { $$ = newIntrinsic(IntrinsicDuration)   }
-  | CHILDCOUNT     { $$ = newIntrinsic(IntrinsicChildCount) }
-  | NAME           { $$ = newIntrinsic(IntrinsicName)       }
-  | STATUS         { $$ = newIntrinsic(IntrinsicStatus)     }
-  | PARENT         { $$ = newIntrinsic(IntrinsicParent)     }
+    IDURATION      { $$ = NewIntrinsic(IntrinsicDuration)   }
+  | CHILDCOUNT     { $$ = NewIntrinsic(IntrinsicChildCount) }
+  | NAME           { $$ = NewIntrinsic(IntrinsicName)       }
+  | STATUS         { $$ = NewIntrinsic(IntrinsicStatus)     }
+  | PARENT         { $$ = NewIntrinsic(IntrinsicParent)     }
   ;
 
 attributeField:
-    DOT IDENTIFIER END_ATTRIBUTE                      { $$ = newAttribute($2)                                      }
-  | RESOURCE_DOT IDENTIFIER END_ATTRIBUTE             { $$ = newScopedAttribute(AttributeScopeResource, false, $2) }
-  | SPAN_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = newScopedAttribute(AttributeScopeSpan, false, $2)     }
-  | PARENT_DOT IDENTIFIER END_ATTRIBUTE               { $$ = newScopedAttribute(AttributeScopeNone, true, $2)      }
-  | PARENT_DOT RESOURCE_DOT IDENTIFIER END_ATTRIBUTE  { $$ = newScopedAttribute(AttributeScopeResource, true, $3)  }
-  | PARENT_DOT SPAN_DOT IDENTIFIER END_ATTRIBUTE      { $$ = newScopedAttribute(AttributeScopeSpan, true, $3)      }
+    DOT IDENTIFIER END_ATTRIBUTE                      { $$ = NewAttribute($2)                                      }
+  | RESOURCE_DOT IDENTIFIER END_ATTRIBUTE             { $$ = NewScopedAttribute(AttributeScopeResource, false, $2) }
+  | SPAN_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = NewScopedAttribute(AttributeScopeSpan, false, $2)     }
+  | PARENT_DOT IDENTIFIER END_ATTRIBUTE               { $$ = NewScopedAttribute(AttributeScopeNone, true, $2)      }
+  | PARENT_DOT RESOURCE_DOT IDENTIFIER END_ATTRIBUTE  { $$ = NewScopedAttribute(AttributeScopeResource, true, $3)  }
+  | PARENT_DOT SPAN_DOT IDENTIFIER END_ATTRIBUTE      { $$ = NewScopedAttribute(AttributeScopeSpan, true, $3)      }
   ;

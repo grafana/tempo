@@ -22,6 +22,9 @@ import (
 
 // These are reserved search parameters
 const (
+	LabelDuration = "duration"
+
+	StatusCodeTag   = "status.code"
 	StatusCodeUnset = "unset"
 	StatusCodeOK    = "ok"
 	StatusCodeError = "error"

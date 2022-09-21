@@ -45,75 +45,6 @@ func (m *mockReader) Search(ctx context.Context, meta *backend.BlockMeta, req *t
 func (m *mockReader) EnablePolling(sharder blocklist.JobSharder) {}
 func (m *mockReader) Shutdown()                                  {}
 
-func TestSearchResponseShouldQuit(t *testing.T) {
-	ctx := context.Background()
-
-	// brand new response should not quit
-	sr := newSearchResponse(ctx, 10)
-	assert.False(t, sr.shouldQuit())
-
-	// errored response should quit
-	sr = newSearchResponse(ctx, 10)
-	sr.setError(errors.New("blerg"))
-	assert.True(t, sr.shouldQuit())
-
-	// happy status code should not quit
-	sr = newSearchResponse(ctx, 10)
-	sr.setStatus(200, "")
-	assert.False(t, sr.shouldQuit())
-
-	// sad status code should quit
-	sr = newSearchResponse(ctx, 10)
-	sr.setStatus(400, "")
-	assert.True(t, sr.shouldQuit())
-
-	sr = newSearchResponse(ctx, 10)
-	sr.setStatus(500, "")
-	assert.True(t, sr.shouldQuit())
-
-	// cancelled context should quit
-	cancellableContext, cancel := context.WithCancel(ctx)
-	sr = newSearchResponse(cancellableContext, 10)
-	cancel()
-	assert.True(t, sr.shouldQuit())
-
-	// limit reached should quit
-	sr = newSearchResponse(ctx, 2)
-	sr.addResponse(&tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{
-			{
-				TraceID: "samething",
-			},
-		},
-		Metrics: &tempopb.SearchMetrics{},
-	})
-	assert.False(t, sr.shouldQuit())
-	sr.addResponse(&tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{
-			{
-				TraceID: "samething",
-			},
-			{
-				TraceID: "samething",
-			},
-		},
-		Metrics: &tempopb.SearchMetrics{},
-	})
-	assert.False(t, sr.shouldQuit())
-	sr.addResponse(&tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{
-			{
-				TraceID: "otherthing",
-			},
-			{
-				TraceID: "thingthatsdifferent",
-			},
-		},
-		Metrics: &tempopb.SearchMetrics{},
-	})
-	assert.True(t, sr.shouldQuit())
-}
-
 func TestBackendRequests(t *testing.T) {
 	tests := []struct {
 		targetBytesPerRequest int
@@ -552,6 +483,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			response1:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
 			err2:           errors.New("booo"),
 			expectedStatus: 500,
+			expectedError:  errors.New("booo"),
 		},
 		{
 			name:          "err+500",
@@ -637,7 +569,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 				require.NoError(t, err)
 
 				// We don't need to check on this metric
-				//actualResp.Metrics.TotalBlockBytes = 0
+				// actualResp.Metrics.TotalBlockBytes = 0
 
 				assert.Equal(t, tc.expectedResponse, actualResp)
 			}

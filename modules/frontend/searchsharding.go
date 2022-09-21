@@ -2,12 +2,11 @@ package frontend
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -27,102 +26,6 @@ const (
 	defaultTargetBytesPerRequest = 10 * 1024 * 1024
 	defaultConcurrentRequests    = 50
 )
-
-// searchResponse is a threadsafe struct used to aggregate the responses from all downstream
-// queriers
-type searchResponse struct {
-	err        error
-	statusCode int
-	statusMsg  string
-	ctx        context.Context
-
-	resultsMap     map[string]*tempopb.TraceSearchMetadata
-	resultsMetrics *tempopb.SearchMetrics
-
-	limit int
-	mtx   sync.Mutex
-}
-
-func newSearchResponse(ctx context.Context, limit int) *searchResponse {
-	return &searchResponse{
-		ctx:            ctx,
-		statusCode:     http.StatusOK,
-		limit:          limit,
-		resultsMetrics: &tempopb.SearchMetrics{},
-		resultsMap:     map[string]*tempopb.TraceSearchMetadata{},
-	}
-}
-
-func (r *searchResponse) setStatus(statusCode int, statusMsg string) {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	r.statusCode = statusCode
-	r.statusMsg = statusMsg
-}
-
-func (r *searchResponse) setError(err error) {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	r.err = err
-}
-
-func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	for _, t := range res.Traces {
-		// todo: determine a better way to combine?
-		if _, ok := r.resultsMap[t.TraceID]; !ok {
-			r.resultsMap[t.TraceID] = t
-		}
-	}
-
-	// purposefully ignoring InspectedBlocks as that value is set by the sharder
-	r.resultsMetrics.InspectedBytes += res.Metrics.InspectedBytes
-	r.resultsMetrics.InspectedTraces += res.Metrics.InspectedTraces
-	r.resultsMetrics.SkippedBlocks += res.Metrics.SkippedBlocks
-	r.resultsMetrics.SkippedTraces += res.Metrics.SkippedTraces
-}
-
-func (r *searchResponse) shouldQuit() bool {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	if r.err != nil {
-		return true
-	}
-	if r.ctx.Err() != nil {
-		return true
-	}
-	if r.statusCode/100 != 2 {
-		return true
-	}
-	if len(r.resultsMap) > r.limit {
-		return true
-	}
-
-	return false
-}
-
-func (r *searchResponse) result() *tempopb.SearchResponse {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
-	res := &tempopb.SearchResponse{
-		Metrics: r.resultsMetrics,
-	}
-
-	for _, t := range r.resultsMap {
-		res.Traces = append(res.Traces, t)
-	}
-	sort.Slice(res.Traces, func(i, j int) bool {
-		return res.Traces[i].StartTimeUnixNano > res.Traces[j].StartTimeUnixNano
-	})
-
-	return res
-}
 
 type searchSharder struct {
 	next      http.RoundTripper
@@ -186,6 +89,10 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardSearch")
 	defer span.Finish()
 
+	// sub context to cancel in-progress sub requests
+	subCtx, subCancel := context.WithCancel(ctx)
+	defer subCancel()
+
 	// calculate and enforce max search duration
 	maxDuration := s.maxDuration(tenantID)
 	if maxDuration != 0 && time.Duration(searchReq.End-searchReq.Start)*time.Second > maxDuration {
@@ -195,26 +102,31 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		}, nil
 	}
 
-	ingesterReq, err := s.ingesterRequest(ctx, tenantID, r, *searchReq)
+	// build request to search ingester based on query_ingesters_until config and time range
+	// pass subCtx in requests so we can cancel and exit early
+	ingesterReq, err := s.ingesterRequest(subCtx, tenantID, r, *searchReq)
 	if err != nil {
 		return nil, err
 	}
 
+	// calculate duration (start and end) to search the backend blocks
 	start, end := s.backendRange(searchReq)
 
+	// get block metadata of blocks in start, end duration
 	blocks := s.blockMetas(int64(start), int64(end), tenantID)
 	span.SetTag("block-count", len(blocks))
 
 	var reqs []*http.Request
 	// add backend requests if we need them
 	if start != end {
-		reqs, err = s.backendRequests(ctx, tenantID, r, blocks)
+		// pass subCtx in requests so we can cancel and exit early
+		reqs, err = s.backendRequests(subCtx, tenantID, r, blocks)
 		if err != nil {
 			return nil, err
 		}
 	}
-	// add ingester request if we have one. it's important to add the ingeste request to
-	// the beginning of the slice so it is prioritized over the possibly enormous
+	// add ingester request if we have one. it's important to add the ingester request to
+	// the beginning of the slice so that it is prioritized over the possibly enormous
 	// number of backend requests
 	if ingesterReq != nil {
 		reqs = append([]*http.Request{ingesterReq}, reqs...)
@@ -223,7 +135,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// execute requests
 	wg := boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
-	overallResponse := newSearchResponse(ctx, int(searchReq.Limit))
+	overallResponse := newSearchResponse(ctx, int(searchReq.Limit), subCancel)
 	overallResponse.resultsMetrics.InspectedBlocks = uint32(len(blocks))
 
 	totalBlockBytes := uint64(0)
@@ -232,34 +144,36 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	overallResponse.resultsMetrics.TotalBlockBytes = totalBlockBytes
 
+	startedReqs := 0
 	for _, req := range reqs {
+		// if shouldQuit is true, terminate and abandon requests
 		if overallResponse.shouldQuit() {
 			break
 		}
 
+		// When we hit capacity of boundedwaitgroup, wg.Add will block
 		wg.Add(1)
+		startedReqs++
+
 		go func(innerR *http.Request) {
 			defer wg.Done()
 
-			if overallResponse.shouldQuit() {
-				return
-			}
-
 			resp, err := s.next.RoundTrip(innerR)
 			if err != nil {
+				// context cancelled error happens when we exit early.
+				// bail, and don't log and don't set this error.
+				if errors.Is(err, context.Canceled) {
+					_ = level.Debug(s.logger).Log("msg", "exiting early from sharded query", "url", innerR.RequestURI, "err", err)
+					return
+				}
+
 				_ = level.Error(s.logger).Log("msg", "error executing sharded query", "url", innerR.RequestURI, "err", err)
 				overallResponse.setError(err)
-			}
-
-			if overallResponse.shouldQuit() {
 				return
 			}
 
 			// if the status code is anything but happy, save the error and pass it down the line
 			if resp.StatusCode != http.StatusOK {
-				// todo: if we cancel the parent context here will it shortcircuit the other queries and fail fast? for search sharding we will also
-				// have concurrentQueries-1 in flight when the limit is reached. if we cancel after the limit is hit can we recoup all those resources
-				// faster?
 				statusCode := resp.StatusCode
 				bytesMsg, err := io.ReadAll(resp.Body)
 				if err != nil {
@@ -283,12 +197,22 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 			overallResponse.addResponse(results)
 		}(req)
 	}
+
+	// wait for all goroutines running in wg to finish or cancelled
 	wg.Wait()
+
+	// print out request metrics
+	cancelledReqs := startedReqs - overallResponse.finishedRequests
+	_ = level.Info(s.logger).Log(fmt.Sprintf(
+		"sharded search request stats, raw_query: %s, total: %d, started: %d, finished: %d, cancelled: %d",
+		r.URL.RawQuery, len(reqs), startedReqs, overallResponse.finishedRequests, cancelledReqs))
 
 	// all goroutines have finished, we can safely access searchResults fields directly now
 	span.SetTag("inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks)
+	span.SetTag("skippedBlocks", overallResponse.resultsMetrics.SkippedBlocks)
 	span.SetTag("inspectedBytes", overallResponse.resultsMetrics.InspectedBytes)
 	span.SetTag("inspectedTraces", overallResponse.resultsMetrics.InspectedTraces)
+	span.SetTag("skippedTraces", overallResponse.resultsMetrics.SkippedTraces)
 	span.SetTag("totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
 
 	if overallResponse.err != nil {
@@ -459,6 +383,7 @@ func adjustLimit(limit, defaultLimit, maxLimit uint32) uint32 {
 	return limit
 }
 
+// maxDuration returns the max search duration allowed for this tenant.
 func (s *searchSharder) maxDuration(tenantID string) time.Duration {
 	// check overrides first, if no overrides then grab from our config
 	maxDuration := s.overrides.MaxSearchDuration(tenantID)
