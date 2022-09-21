@@ -68,7 +68,7 @@ func NewReporter(config Config, kvConfig kv.Config, reader backend.RawReader, wr
 }
 
 func (rep *Reporter) initLeader(ctx context.Context) *ClusterSeed {
-	kvClient, err := kv.NewClient(rep.kvConfig, JSONCodec, nil, rep.logger)
+	kvClient, err := kv.NewClient(rep.kvConfig, &JSONCodec, nil, rep.logger)
 	if err != nil {
 		level.Info(rep.logger).Log("msg", "failed to create kv client", "err", err)
 		return nil

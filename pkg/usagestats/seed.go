@@ -2,6 +2,7 @@ package usagestats
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
@@ -66,11 +67,13 @@ func (c *ClusterSeed) Clone() memberlist.Mergeable {
 
 var JSONCodec = jsonCodec{}
 
-type jsonCodec struct{}
+type jsonCodec struct {
+	mutex sync.Mutex
+}
 
 // todo we need to use the default codec for the rest of the code
 // currently crashing because the in-memory kvstore use a singleton.
-func (jsonCodec) Decode(data []byte) (interface{}, error) {
+func (j *jsonCodec) Decode(data []byte) (interface{}, error) {
 	var seed ClusterSeed
 	if err := jsoniter.ConfigFastest.Unmarshal(data, &seed); err != nil {
 		return nil, err
@@ -78,7 +81,9 @@ func (jsonCodec) Decode(data []byte) (interface{}, error) {
 	return &seed, nil
 }
 
-func (jsonCodec) Encode(obj interface{}) ([]byte, error) {
+func (j *jsonCodec) Encode(obj interface{}) ([]byte, error) {
+	j.mutex.Lock()
+	defer j.mutex.Unlock()
 	return jsoniter.ConfigFastest.Marshal(obj)
 }
-func (jsonCodec) CodecID() string { return "usagestats.jsonCodec" }
+func (j *jsonCodec) CodecID() string { return "usagestats.jsonCodec" }
