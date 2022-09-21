@@ -1,6 +1,9 @@
 package v2
 
 import (
+	"context"
+	"encoding/binary"
+	"io"
 	"math/rand"
 	"os"
 	"testing"
@@ -8,6 +11,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -158,79 +162,66 @@ func TestAdjustTimeRangeForSlack(t *testing.T) {
 	assert.Equal(t, end, actualEnd)
 }
 
-func TestAppend(t *testing.T) {
+func TestPartialBlock(t *testing.T) {
 	blockID := uuid.New()
 	block, err := newAppendBlock(blockID, testTenantID, t.TempDir(), backend.EncSnappy, "v2", 0)
 	require.NoError(t, err, "unexpected error creating block")
 
-	//v2block := block.(*v2AppendBlock)
+	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
+	dec := model.MustNewObjectDecoder(model.CurrentEncoding)
 
 	numMsgs := 100
 	reqs := make([]*tempopb.Trace, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
-		req := test.MakeTrace(rand.Int()%1000, []byte{0x01})
+		id := make([]byte, 4)
+		binary.LittleEndian.PutUint32(id, uint32(i)) // using i for the id b/c the iterator below requires a sorted ascending list of ids
+
+		id = test.ValidTraceID(id)
+		req := test.MakeTrace(rand.Intn(10), id)
 		reqs = append(reqs, req)
-		bReq, err := proto.Marshal(req)
-		require.NoError(t, err)
-		err = block.Append([]byte{0x01}, bReq, 0, 0)
-		require.NoError(t, err, "unexpected error writing req")
-	}
 
-	// jpe - bad test - use iterator from block
-	// records := v2block.appender.Records()
-	// file, err := v2block.file()
-	// require.NoError(t, err)
-
-	// dataReader, err := NewDataReader(backend.NewContextReaderWithAllReader(file), backend.EncNone) // jpe internal?
-	// require.NoError(t, err)
-	// iterator := NewRecordIterator(records, dataReader, NewObjectReaderWriter()) // jpe internal?
-	// defer iterator.Close()
-	// i := 0
-
-	// for {
-	// 	_, bytesObject, err := iterator.Next(context.Background())
-	// 	if err == io.EOF {
-	// 		break
-	// 	}
-	// 	require.NoError(t, err)
-
-	// 	req := &tempopb.Trace{}
-	// 	err = proto.Unmarshal(bytesObject, req)
-	// 	require.NoError(t, err)
-
-	// 	require.True(t, proto.Equal(req, reqs[i]))
-	// 	i++
-	// }
-	// require.Equal(t, numMsgs, i)
-}
-
-func TestPartialBlock(t *testing.T) {
-	// jpe combine with above test
-	blockID := uuid.New()
-
-	// create partially corrupt block
-	block, err := newAppendBlock(blockID, testTenantID, t.TempDir(), backend.EncSnappy, "v2", 0)
-	require.NoError(t, err, "unexpected error creating block")
-
-	objects := 10
-	for i := 0; i < objects; i++ {
-		id := make([]byte, 16)
-		rand.Read(id)
-		obj := test.MakeTrace(rand.Int()%10, id)
-		bObj, err := proto.Marshal(obj)
+		b1, err := enc.PrepareForWrite(req, 0, 0)
 		require.NoError(t, err)
 
-		err = block.Append(id, bObj, 0, 0)
-		require.NoError(t, err, "unexpected error writing req")
+		b2, err := enc.ToObject([][]byte{b1})
+		require.NoError(t, err)
+
+		err = block.Append(id, b2, 0, 0)
+		require.NoError(t, err)
 	}
+
+	// append garbage data
 	v2Block := block.(*v2AppendBlock)
+	garbo := make([]byte, 100)
+	_, err = rand.Read(garbo)
+	require.NoError(t, err)
 
 	appendFile, err := os.OpenFile(v2Block.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	require.NoError(t, err)
-	_, err = appendFile.Write([]byte{0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01})
+	_, err = appendFile.Write(garbo)
 	require.NoError(t, err)
 	err = appendFile.Close()
 	require.NoError(t, err)
+
+	// confirm all objects are still read
+	i := 0
+	iterator, err := block.Iterator()
+	require.NoError(t, err)
+	for {
+		_, bytesObject, err := iterator.Next(context.Background())
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+
+		req, err := dec.PrepareForRead(bytesObject)
+		require.NoError(t, err)
+
+		require.True(t, proto.Equal(req, reqs[i]))
+		i++
+	}
+	require.Equal(t, numMsgs, i)
+
 }
 
 func TestParseFilename(t *testing.T) {

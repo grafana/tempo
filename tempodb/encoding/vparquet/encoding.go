@@ -36,10 +36,10 @@ func (v Encoding) CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta
 
 // OpenAppendBlock opens an existing appendable block
 func (v Encoding) OpenAppendBlock(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration, fn common.RangeFunc) (common.AppendBlock, error, error) {
-	panic("jpe")
+	panic("unsupported")
 }
 
 // CreateAppendBlock creates a new appendable block
 func (v Encoding) CreateAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.AppendBlock, error) {
-	panic("jpe")
+	panic("unsupported")
 }

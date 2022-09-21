@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -179,25 +180,35 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	require.NoError(t, err)
 }
 
-func TestInvalidFiles(t *testing.T) { // jpe - make this something
+func TestInvalidFiles(t *testing.T) {
+	tempDir := t.TempDir()
+	wal, err := New(&Config{
+		Filepath: tempDir,
+		Encoding: backend.EncGZIP,
+	})
+	require.NoError(t, err, "unexpected error creating temp wal")
+
+	// create one valid block
+	block, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
+	block.Append([]byte("id"), []byte("obj"), 0, 0)
+
 	// create unparseable filename
-	// err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"), []byte{}, 0644)
-	// require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"), []byte{}, 0644)
+	require.NoError(t, err)
 
-	// // create empty block
-	// err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"), []byte{}, 0644)
-	// require.NoError(t, err)
+	// create empty block
+	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"), []byte{}, 0644)
+	require.NoError(t, err)
 
-	// blocks, err := wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
-	// 	return 0, 0, nil
-	// }, 0, log.NewNopLogger())
-	// require.NoError(t, err, "unexpected error getting blocks")
-	// require.Len(t, blocks, 1)
+	blocks, err := wal.RescanBlocks(func([]byte, string) (uint32, uint32, error) {
+		return 0, 0, nil
+	}, 0, log.NewNopLogger())
+	require.NoError(t, err, "unexpected error getting blocks")
+	require.Len(t, blocks, 1) // this is our 1 valid block from above
 
-	// // confirm block has been removed
-	// require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:gzip"))
-	// require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
-
+	// confirm invalid blocks have been cleaned up
+	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"))
+	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
 }
 
 func BenchmarkWALNone(b *testing.B) {
