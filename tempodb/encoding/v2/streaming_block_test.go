@@ -191,7 +191,7 @@ func testStreamingBlockToBackendBlock(t *testing.T, cfg *common.BlockConfig) {
 	require.NoError(t, err, "error getting iterator")
 	i := 0
 	for {
-		id, obj, err := iterator.Next(context.Background())
+		id, obj, err := iterator.NextBytes(context.Background())
 		if id == nil {
 			break
 		}
@@ -260,7 +260,7 @@ func streamingBlock(t *testing.T, cfg *common.BlockConfig, w backend.Writer) (*S
 
 	ctx := context.Background()
 	for {
-		id, data, err := iter.Next(ctx)
+		id, data, err := iter.NextBytes(ctx)
 		if err != io.EOF {
 			require.NoError(t, err)
 		}
@@ -382,7 +382,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 
 	ctx := context.Background()
 	for {
-		id, data, err := iter.Next(ctx)
+		id, data, err := iter.NextBytes(ctx)
 		if err != io.EOF {
 			require.NoError(b, err)
 		}

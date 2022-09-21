@@ -128,7 +128,7 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 			return nil
 		}
 
-		_, obj, err := iter.Next(ctx)
+		_, obj, err := iter.NextBytes(ctx)
 		if err == io.EOF {
 			break
 		}
@@ -156,7 +156,7 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 	return nil
 }
 
-func (s *StreamingSearchBlock) Iterator() (common.Iterator, error) {
+func (s *StreamingSearchBlock) Iterator() (v2.BytesIterator, error) {
 	iter := &streamingSearchBlockIterator{
 		records:     s.appender.Records(),
 		file:        s.file,
@@ -187,9 +187,9 @@ type streamingSearchBlockIterator struct {
 	pagesBuffer [][]byte
 }
 
-var _ common.Iterator = (*streamingSearchBlockIterator)(nil)
+var _ v2.BytesIterator = (*streamingSearchBlockIterator)(nil)
 
-func (s *streamingSearchBlockIterator) Next(ctx context.Context) (common.ID, []byte, error) {
+func (s *streamingSearchBlockIterator) NextBytes(ctx context.Context) (common.ID, []byte, error) {
 	if s.currentIndex >= len(s.records) {
 		return nil, nil, io.EOF
 	}

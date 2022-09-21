@@ -7,6 +7,11 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+type BytesIterator interface {
+	NextBytes(ctx context.Context) (common.ID, []byte, error)
+	Close()
+}
+
 type iterator struct {
 	reader io.Reader
 	o      common.ObjectReaderWriter
@@ -14,14 +19,14 @@ type iterator struct {
 
 // NewIterator returns the most basic iterator.  It iterates over
 // raw objects.
-func NewIterator(reader io.Reader, o common.ObjectReaderWriter) common.Iterator {
+func NewIterator(reader io.Reader, o common.ObjectReaderWriter) BytesIterator {
 	return &iterator{
 		reader: reader,
 		o:      o,
 	}
 }
 
-func (i *iterator) Next(_ context.Context) (common.ID, []byte, error) {
+func (i *iterator) NextBytes(_ context.Context) (common.ID, []byte, error) {
 	return i.o.UnmarshalObjectFromReader(i.reader)
 }
 

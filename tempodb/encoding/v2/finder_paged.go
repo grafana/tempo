@@ -95,7 +95,7 @@ func (f *PagedFinder) findOne(ctx context.Context, id common.ID, record common.R
 	}
 
 	for {
-		foundID, b, err := iter.Next(ctx)
+		foundID, b, err := iter.NextBytes(ctx)
 		if err == io.EOF {
 			break
 		}

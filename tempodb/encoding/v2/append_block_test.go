@@ -205,10 +205,11 @@ func TestPartialBlock(t *testing.T) {
 
 	// confirm all objects are still read
 	i := 0
-	iterator, err := block.Iterator()
+	iter, err := block.Iterator()
+	bytesIter := iter.(BytesIterator)
 	require.NoError(t, err)
 	for {
-		_, bytesObject, err := iterator.Next(context.Background())
+		_, bytesObject, err := bytesIter.NextBytes(context.Background())
 		if err == io.EOF {
 			break
 		}

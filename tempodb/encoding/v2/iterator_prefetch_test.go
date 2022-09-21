@@ -55,7 +55,7 @@ func TestPrefetchIterates(t *testing.T) {
 
 		count := 0
 		for {
-			id, obj, err := prefetchIter.Next(context.TODO())
+			id, obj, err := prefetchIter.NextBytes(context.TODO())
 			if err == io.EOF {
 				break
 			}
@@ -96,7 +96,7 @@ func TestPrefetchPrefetches(t *testing.T) {
 	prefetchIter := NewPrefetchIterator(ctx, iter, 3)
 	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, int32(4), iter.i.Load()) // prefetch only the buffer. this happens to be 1 more than the passed buffer. maybe one day we will "correct" that
-	_, _, _ = prefetchIter.Next(ctx)
+	_, _, _ = prefetchIter.NextBytes(ctx)
 	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, int32(5), iter.i.Load()) // get all
 }

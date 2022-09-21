@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -140,6 +141,7 @@ func (a *v2AppendBlock) Meta() *backend.BlockMeta {
 	return a.meta
 }
 
+// Iterator returns a common.Iterator that is secretly also a bytesIterator for use internally - jpe
 func (a *v2AppendBlock) Iterator() (common.Iterator, error) {
 	combiner := model.StaticCombiner
 
@@ -168,7 +170,15 @@ func (a *v2AppendBlock) Iterator() (common.Iterator, error) {
 		return nil, err
 	}
 
-	return iterator, nil
+	dec, err := model.NewObjectDecoder(a.meta.DataEncoding)
+	if err != nil {
+		return nil, fmt.Errorf("creating object decoder: %w", err)
+	}
+
+	return &commonIterator{
+		iter: iterator,
+		dec:  dec,
+	}, nil
 }
 
 func (a *v2AppendBlock) Find(id common.ID) ([]byte, error) {
@@ -302,4 +312,37 @@ func ParseFilename(filename string) (uuid.UUID, string, string, backend.Encoding
 	}
 
 	return id, tenant, version, encoding, dataEncoding, nil
+}
+
+// jpe test
+var _ BytesIterator = (*commonIterator)(nil)
+var _ common.Iterator = (*commonIterator)(nil)
+
+// commonIterator implements both BytesIterator and common.Iterator. it is returned from the AppendFile and is meant
+// to be passed to a CreateBlock
+type commonIterator struct {
+	iter BytesIterator
+	dec  model.ObjectDecoder
+}
+
+func (i *commonIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, error) {
+	id, obj, err := i.iter.NextBytes(ctx)
+	if err != nil || obj == nil {
+		return id, nil, err
+	}
+
+	tr, err := i.dec.PrepareForRead(obj)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return id, tr, nil
+}
+
+func (i *commonIterator) NextBytes(ctx context.Context) (common.ID, []byte, error) {
+	return i.iter.NextBytes(ctx)
+}
+
+func (i *commonIterator) Close() {
+	i.iter.Close()
 }

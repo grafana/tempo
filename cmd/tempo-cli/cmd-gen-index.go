@@ -53,7 +53,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 		var iterErr error
 		for {
 			var id common.ID
-			id, _, iterErr = iter.Next(context.TODO())
+			id, _, iterErr = iter.NextBytes(context.TODO())
 			if iterErr != nil {
 				break
 			}

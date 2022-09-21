@@ -51,7 +51,7 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, rw backend.Writer, block
 	// Copy records into the appender
 	for {
 		// Read
-		id, data, err := iter.Next(ctx)
+		id, data, err := iter.NextBytes(ctx)
 		if err != nil && err != io.EOF {
 			return errors.Wrap(err, "error iterating")
 		}

@@ -16,7 +16,7 @@ import (
 
 var testLogger log.Logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
 
-var _ common.Iterator = (*testIterator)(nil)
+var _ BytesIterator = (*testIterator)(nil)
 
 // testIterator iterates over in-memory contents. Doesn't require tempodb or a block
 type testIterator struct {
@@ -32,7 +32,7 @@ func (i *testIterator) Add(id common.ID, data []byte, err error) {
 	i.errors = append(i.errors, err)
 }
 
-func (i *testIterator) Next(context.Context) (common.ID, []byte, error) {
+func (i *testIterator) NextBytes(context.Context) (common.ID, []byte, error) {
 	idx := int(i.i.Load())
 
 	if idx == len(i.ids) {
@@ -86,12 +86,12 @@ func TestMultiblockSorts(t *testing.T) {
 	iterOdds.Add([]byte{3}, []byte{3}, nil)
 	iterOdds.Add([]byte{5}, []byte{5}, nil)
 
-	iter := NewMultiblockIterator(context.TODO(), []common.Iterator{iterEvens, iterOdds}, 10, &mockCombiner{}, "", testLogger)
+	iter := NewMultiblockIterator(context.TODO(), []BytesIterator{iterEvens, iterOdds}, 10, &mockCombiner{}, "", testLogger)
 
 	count := 0
 	lastID := -1
 	for {
-		id, _, err := iter.Next(context.TODO())
+		id, _, err := iter.NextBytes(context.TODO())
 		if err == io.EOF {
 			break
 		}
@@ -137,7 +137,7 @@ func TestMultiblockIteratorCanBeCancelled(t *testing.T) {
 			ctx, cancel := context.WithCancel(ctx)
 
 			// Create iterator and cancel/close it after 100ms
-			iter := NewMultiblockIterator(ctx, []common.Iterator{inner}, recordCount/2, &mockCombiner{}, "", testLogger)
+			iter := NewMultiblockIterator(ctx, []BytesIterator{inner}, recordCount/2, &mockCombiner{}, "", testLogger)
 			time.Sleep(100 * time.Millisecond)
 			if tc.close {
 				iter.Close()
@@ -149,7 +149,7 @@ func TestMultiblockIteratorCanBeCancelled(t *testing.T) {
 			// Exhaust iterator and verify fewer than recordcount records are received.
 			count := 0
 			for {
-				_, _, err := iter.Next(context.TODO())
+				_, _, err := iter.NextBytes(context.TODO())
 				if err != nil {
 					break
 				}
@@ -165,7 +165,7 @@ func TestMultiblockIteratorCanBeCancelled(t *testing.T) {
 func TestMultiblockIteratorCanBeCancelledMultipleTimes(t *testing.T) {
 	inner := &testIterator{}
 
-	iter := NewMultiblockIterator(context.TODO(), []common.Iterator{inner}, 1, &mockCombiner{}, "", testLogger)
+	iter := NewMultiblockIterator(context.TODO(), []BytesIterator{inner}, 1, &mockCombiner{}, "", testLogger)
 
 	iter.Close()
 	iter.Close()
@@ -183,12 +183,12 @@ func TestMultiblockIteratorPropogatesErrors(t *testing.T) {
 	inner2.Add([]byte{2}, []byte{2}, nil)
 	inner2.Add([]byte{3}, []byte{3}, nil)
 
-	iter := NewMultiblockIterator(ctx, []common.Iterator{inner, inner2}, 10, &mockCombiner{}, "", testLogger)
+	iter := NewMultiblockIterator(ctx, []BytesIterator{inner, inner2}, 10, &mockCombiner{}, "", testLogger)
 
-	_, _, err := iter.Next(ctx)
+	_, _, err := iter.NextBytes(ctx)
 	require.NoError(t, err)
 
-	_, _, err = iter.Next(ctx)
+	_, _, err = iter.NextBytes(ctx)
 
 	require.Equal(t, io.ErrClosedPipe, err)
 }
@@ -219,9 +219,9 @@ func TestMultiblockIteratorSkipsEmptyObjects(t *testing.T) {
 		{nil, nil, io.EOF},
 	}
 
-	iter := NewMultiblockIterator(ctx, []common.Iterator{inner}, 10, &mockCombiner{}, "", testLogger)
+	iter := NewMultiblockIterator(ctx, []BytesIterator{inner}, 10, &mockCombiner{}, "", testLogger)
 	for i := 0; i < len(expected); i++ {
-		id, obj, err := iter.Next(ctx)
+		id, obj, err := iter.NextBytes(ctx)
 		require.Equal(t, expected[i].err, err)
 		require.Equal(t, expected[i].id, id)
 		require.Equal(t, expected[i].obj, obj)

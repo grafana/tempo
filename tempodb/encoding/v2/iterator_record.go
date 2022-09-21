@@ -15,14 +15,14 @@ type recordIterator struct {
 	objectRW common.ObjectReaderWriter
 	dataR    common.DataReader
 
-	currentIterator common.Iterator
+	currentIterator BytesIterator
 
 	buffer []byte
 }
 
 // newRecordIterator returns a recordIterator.  This iterator is used for iterating through
 // a series of objects by reading them one at a time from Records.
-func newRecordIterator(r []common.Record, dataR common.DataReader, objectRW common.ObjectReaderWriter) common.Iterator {
+func newRecordIterator(r []common.Record, dataR common.DataReader, objectRW common.ObjectReaderWriter) BytesIterator {
 	return &recordIterator{
 		records:  r,
 		objectRW: objectRW,
@@ -30,9 +30,9 @@ func newRecordIterator(r []common.Record, dataR common.DataReader, objectRW comm
 	}
 }
 
-func (i *recordIterator) Next(ctx context.Context) (common.ID, []byte, error) {
+func (i *recordIterator) NextBytes(ctx context.Context) (common.ID, []byte, error) {
 	if i.currentIterator != nil {
-		id, object, err := i.currentIterator.Next(ctx)
+		id, object, err := i.currentIterator.NextBytes(ctx)
 		if err != nil && err != io.EOF {
 			return nil, nil, err
 		}
@@ -57,7 +57,7 @@ func (i *recordIterator) Next(ctx context.Context) (common.ID, []byte, error) {
 		i.currentIterator = NewIterator(bytes.NewReader(buff), i.objectRW)
 		i.records = i.records[1:]
 
-		return i.currentIterator.Next(ctx)
+		return i.currentIterator.NextBytes(ctx)
 	}
 
 	// done

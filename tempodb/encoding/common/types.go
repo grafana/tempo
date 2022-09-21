@@ -18,6 +18,8 @@ type Record struct {
 	Length uint32
 }
 
+// jpe - how much of this can go into v2?
+
 // DataReader returns a slice of pages in the encoding/v0 format referenced by
 // the slice of *Records passed in.  The length of the returned slice is guaranteed
 // to be equal to the length of the provided records unless error is non nil.
