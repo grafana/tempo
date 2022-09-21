@@ -72,9 +72,9 @@ func Test_Memberlist(t *testing.T) {
 	initMKV := createMemberlist(t, 0, -1)
 
 	var wg sync.WaitGroup
-	wg.Add(10)
 	for i := 0; i < 10; i++ {
-		go func(i int) {
+		wg.Add(1)
+		go func(j int) {
 			leader, err := NewReporter(Config{
 				Leader:  true,
 				Enabled: true,
@@ -82,7 +82,7 @@ func Test_Memberlist(t *testing.T) {
 				Store: "memberlist",
 				StoreConfig: kv.StoreConfig{
 					MemberlistKV: func() (*memberlist.KV, error) {
-						return createMemberlist(t, initMKV.GetListeningPort(), i), nil
+						return createMemberlist(t, initMKV.GetListeningPort(), j), nil
 					},
 				},
 			}, objectClient, objectClient, log.NewLogfmtLogger(os.Stdout), nil)
@@ -94,6 +94,7 @@ func Test_Memberlist(t *testing.T) {
 	}
 
 	wg.Wait()
+
 	var UID []string
 	for i := 0; i < 10; i++ {
 		cluster := <-result
