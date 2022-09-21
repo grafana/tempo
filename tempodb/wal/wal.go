@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 const reasonOutsideIngestionSlack = "outside_ingestion_time_slack"
@@ -99,7 +100,8 @@ func (w *WAL) RescanBlocks(fn common.RangeFunc, additionalStartSlack time.Durati
 		return nil, err
 	}
 
-	v, err := encoding.FromVersion("v2") // jpe
+	// todo: rescan blocks will need to detect if this is a vParquet or v2 wal file and choose the appropriate encoding
+	v, err := encoding.FromVersion(v2.VersionString)
 	if err != nil {
 		return nil, fmt.Errorf("from version v2 failed %w", err)
 	}
@@ -152,7 +154,8 @@ func (w *WAL) RescanBlocks(fn common.RangeFunc, additionalStartSlack time.Durati
 }
 
 func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (common.AppendBlock, error) {
-	v, err := encoding.FromVersion("v2") // jpe
+	// todo: take version string and use here
+	v, err := encoding.FromVersion(v2.VersionString)
 	if err != nil {
 		return nil, fmt.Errorf("from version v2 failed %w", err)
 	}

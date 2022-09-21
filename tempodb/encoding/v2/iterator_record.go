@@ -20,9 +20,9 @@ type recordIterator struct {
 	buffer []byte
 }
 
-// NewRecordIterator returns a recordIterator.  This iterator is used for iterating through
+// newRecordIterator returns a recordIterator.  This iterator is used for iterating through
 // a series of objects by reading them one at a time from Records.
-func NewRecordIterator(r []common.Record, dataR common.DataReader, objectRW common.ObjectReaderWriter) common.Iterator {
+func newRecordIterator(r []common.Record, dataR common.DataReader, objectRW common.ObjectReaderWriter) common.Iterator {
 	return &recordIterator{
 		records:  r,
 		objectRW: objectRW,

@@ -25,7 +25,7 @@ type v2AppendBlock struct {
 	ingestionSlack time.Duration
 
 	appendFile *os.File
-	appender   Appender // jpe internal?
+	appender   Appender
 
 	filepath string
 	readFile *os.File
@@ -52,12 +52,12 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 	}
 	h.appendFile = f
 
-	dataWriter, err := NewDataWriter(f, e) // jpe internal
+	dataWriter, err := NewDataWriter(f, e)
 	if err != nil {
 		return nil, err
 	}
 
-	h.appender = NewAppender(dataWriter) // jpe internal
+	h.appender = NewAppender(dataWriter)
 
 	return h, nil
 }
@@ -66,7 +66,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 // be completed. It can return a warning or a fatal error
 func newAppendBlockFromFile(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration, fn common.RangeFunc) (common.AppendBlock, error, error) {
 	var warning error
-	blockID, tenantID, version, e, dataEncoding, err := ParseFilename(filename) // jpe ?
+	blockID, tenantID, version, e, dataEncoding, err := ParseFilename(filename) // jpe - have this owned by the calling method? instead of parsing in here? pass in a meta?
 	if err != nil {
 		return nil, nil, fmt.Errorf("parsing wal filename: %w", err)
 	}
@@ -104,7 +104,7 @@ func newAppendBlockFromFile(filename string, path string, ingestionSlack time.Du
 		return nil, nil, err
 	}
 
-	b.appender = NewRecordAppender(records) // jpe
+	b.appender = NewRecordAppender(records)
 	b.meta.TotalObjects = b.appender.Length()
 	b.meta.StartTime = time.Unix(int64(blockStart), 0)
 	b.meta.EndTime = time.Unix(int64(blockEnd), 0)
@@ -157,13 +157,13 @@ func (a *v2AppendBlock) Iterator() (common.Iterator, error) {
 		return nil, err
 	}
 
-	dataReader, err := NewDataReader(backend.NewContextReaderWithAllReader(readFile), a.meta.Encoding) // jpe
+	dataReader, err := NewDataReader(backend.NewContextReaderWithAllReader(readFile), a.meta.Encoding)
 	if err != nil {
 		return nil, err
 	}
 
-	iterator := NewRecordIterator(records, dataReader, NewObjectReaderWriter())  // jpe
-	iterator, err = NewDedupingIterator(iterator, combiner, a.meta.DataEncoding) // jpe
+	iterator := newRecordIterator(records, dataReader, NewObjectReaderWriter())
+	iterator, err = NewDedupingIterator(iterator, combiner, a.meta.DataEncoding)
 	if err != nil {
 		return nil, err
 	}
@@ -183,12 +183,12 @@ func (a *v2AppendBlock) Find(id common.ID) ([]byte, error) {
 		return nil, nil
 	}
 
-	dataReader, err := NewDataReader(backend.NewContextReaderWithAllReader(file), a.meta.Encoding) //jpe
+	dataReader, err := NewDataReader(backend.NewContextReaderWithAllReader(file), a.meta.Encoding)
 	if err != nil {
 		return nil, err
 	}
 	defer dataReader.Close()
-	finder := NewPagedFinder(common.Records(records), dataReader, combiner, NewObjectReaderWriter(), a.meta.DataEncoding) // jpe
+	finder := newPagedFinder(common.Records(records), dataReader, combiner, NewObjectReaderWriter(), a.meta.DataEncoding)
 
 	return finder.Find(context.Background(), id)
 }

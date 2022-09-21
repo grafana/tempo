@@ -102,12 +102,12 @@ type instance struct {
 	blocksMtx        sync.RWMutex
 	headBlock        common.AppendBlock
 	completingBlocks []common.AppendBlock
-	completeBlocks   []*LocalBlock
+	completeBlocks   []*localBlock
 
 	useFlatbufferSearch  bool
 	searchHeadBlock      *searchStreamingBlockEntry
 	searchAppendBlocks   map[string]*searchStreamingBlockEntry // maps append block uuid string -> *searchStreamingBlockEntry
-	searchCompleteBlocks map[*LocalBlock]*searchLocalBlockEntry
+	searchCompleteBlocks map[*localBlock]*searchLocalBlockEntry
 
 	lastBlockCut time.Time
 
@@ -139,7 +139,7 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 		traces:               map[uint32]*liveTrace{},
 		traceSizes:           map[uint32]uint32{},
 		searchAppendBlocks:   map[string]*searchStreamingBlockEntry{},
-		searchCompleteBlocks: map[*LocalBlock]*searchLocalBlockEntry{},
+		searchCompleteBlocks: map[*localBlock]*searchLocalBlockEntry{},
 		useFlatbufferSearch:  useFlatbufferSearch,
 
 		instanceID:         instanceID,
@@ -311,7 +311,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 		return errors.Wrap(err, "error completing wal block with local backend")
 	}
 
-	ingesterBlock, err := NewLocalBlock(ctx, backendBlock, i.local)
+	ingesterBlock, err := newLocalBlock(ctx, backendBlock, i.local)
 	if err != nil {
 		return errors.Wrap(err, "error creating ingester block")
 	}
@@ -382,7 +382,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 }
 
 // GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend.
-func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *LocalBlock {
+func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *localBlock {
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
@@ -605,7 +605,7 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]
 	return nil
 }
 
-func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*LocalBlock, error) {
+func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*localBlock, error) {
 	ids, err := i.localReader.Blocks(ctx, i.instanceID)
 	if err != nil {
 		return nil, err
@@ -622,7 +622,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*LocalBlock, er
 		return false
 	}
 
-	var rediscoveredBlocks []*LocalBlock
+	var rediscoveredBlocks []*localBlock
 
 	for _, id := range ids {
 
@@ -657,7 +657,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*LocalBlock, er
 			return nil, err
 		}
 
-		ib, err := NewLocalBlock(ctx, b, i.local)
+		ib, err := newLocalBlock(ctx, b, i.local)
 		if err != nil {
 			return nil, err
 		}

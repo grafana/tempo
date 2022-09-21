@@ -19,10 +19,10 @@ type PagedFinder struct {
 	dataEncoding string
 }
 
-// NewPagedFinder returns a paged. This finder is used for searching
+// newPagedFinder returns a paged. This finder is used for searching
 // a set of records and returning an object. If a set of consecutive records has
 // matching ids they will be combined using the ObjectCombiner.
-func NewPagedFinder(index common.IndexReader, r common.DataReader, combiner model.ObjectCombiner, objectRW common.ObjectReaderWriter, dataEncoding string) *PagedFinder {
+func newPagedFinder(index common.IndexReader, r common.DataReader, combiner model.ObjectCombiner, objectRW common.ObjectReaderWriter, dataEncoding string) *PagedFinder {
 	return &PagedFinder{
 		r:            r,
 		index:        index,

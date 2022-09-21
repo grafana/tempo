@@ -202,7 +202,7 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 		}
 
 		sr.StartWorker()
-		go func(e *LocalBlock) {
+		go func(e *localBlock) {
 			defer sr.FinishWorker()
 
 			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchLocalBlocks")

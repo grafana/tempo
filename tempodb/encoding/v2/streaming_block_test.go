@@ -249,7 +249,7 @@ func streamingBlock(t *testing.T, cfg *common.BlockConfig, w backend.Writer) (*S
 	// calc expected records
 	dataReader, err := NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(buffer.Bytes())), backend.EncNone)
 	require.NoError(t, err)
-	iter := NewRecordIterator(appender.Records(),
+	iter := newRecordIterator(appender.Records(),
 		dataReader,
 		NewObjectReaderWriter())
 
