@@ -219,7 +219,7 @@ github.com/go-kit/kit/metrics
 github.com/go-kit/kit/metrics/expvar
 github.com/go-kit/kit/metrics/generic
 github.com/go-kit/kit/metrics/internal/lv
-# github.com/go-kit/log v0.2.0
+# github.com/go-kit/log v0.2.1
 ## explicit; go 1.17
 github.com/go-kit/log
 github.com/go-kit/log/level
@@ -762,8 +762,8 @@ github.com/prometheus/common/version
 # github.com/prometheus/common/sigv4 v0.1.0
 ## explicit; go 1.15
 github.com/prometheus/common/sigv4
-# github.com/prometheus/exporter-toolkit v0.7.1
-## explicit; go 1.14
+# github.com/prometheus/exporter-toolkit v0.7.2-0.20220901134540-2434b08435da
+## explicit; go 1.17
 github.com/prometheus/exporter-toolkit/web
 # github.com/prometheus/procfs v0.8.0
 ## explicit; go 1.17
@@ -958,7 +958,7 @@ github.com/uber/jaeger-lib/metrics/expvar
 github.com/uber/jaeger-lib/metrics/go-kit
 github.com/uber/jaeger-lib/metrics/go-kit/expvar
 github.com/uber/jaeger-lib/metrics/prometheus
-# github.com/weaveworks/common v0.0.0-20220706100410-67d27ed40fae
+# github.com/weaveworks/common v0.0.0-20220916164235-da3fde973eec
 ## explicit; go 1.14
 github.com/weaveworks/common/errors
 github.com/weaveworks/common/grpc
@@ -1303,7 +1303,7 @@ google.golang.org/genproto/googleapis/type/expr
 google.golang.org/genproto/googleapis/type/fraction
 google.golang.org/genproto/googleapis/type/month
 google.golang.org/genproto/protobuf/field_mask
-# google.golang.org/grpc v1.47.0 => google.golang.org/grpc v1.45.0
+# google.golang.org/grpc v1.47.0
 ## explicit; go 1.14
 google.golang.org/grpc
 google.golang.org/grpc/attributes
@@ -1315,6 +1315,7 @@ google.golang.org/grpc/balancer/grpclb/grpc_lb_v1
 google.golang.org/grpc/balancer/grpclb/state
 google.golang.org/grpc/balancer/roundrobin
 google.golang.org/grpc/binarylog/grpc_binarylog_v1
+google.golang.org/grpc/channelz
 google.golang.org/grpc/codes
 google.golang.org/grpc/connectivity
 google.golang.org/grpc/credentials
@@ -1336,6 +1337,7 @@ google.golang.org/grpc/health
 google.golang.org/grpc/health/grpc_health_v1
 google.golang.org/grpc/internal
 google.golang.org/grpc/internal/backoff
+google.golang.org/grpc/internal/balancer/gracefulswitch
 google.golang.org/grpc/internal/balancerload
 google.golang.org/grpc/internal/binarylog
 google.golang.org/grpc/internal/buffer
@@ -1348,6 +1350,7 @@ google.golang.org/grpc/internal/grpcrand
 google.golang.org/grpc/internal/grpcsync
 google.golang.org/grpc/internal/grpcutil
 google.golang.org/grpc/internal/metadata
+google.golang.org/grpc/internal/pretty
 google.golang.org/grpc/internal/resolver
 google.golang.org/grpc/internal/resolver/dns
 google.golang.org/grpc/internal/resolver/passthrough
@@ -1422,4 +1425,3 @@ gopkg.in/yaml.v3
 # go.opentelemetry.io/otel/bridge/opentracing => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348
 # go.opentelemetry.io/collector => github.com/grafana/opentelemetry-collector v0.4.1-0.20220315084747-b05fe1477960
 # github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
-# google.golang.org/grpc => google.golang.org/grpc v1.45.0
