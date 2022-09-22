@@ -14,8 +14,9 @@ import (
 
 // a Stream is a list of entries, lowest ID (oldest) first, and all "groups".
 type streamKey struct {
-	entries []StreamEntry
-	groups  map[string]*streamGroup
+	entries         []StreamEntry
+	groups          map[string]*streamGroup
+	lastAllocatedID string
 }
 
 // a StreamEntry is an entry in a stream. The ID is always of the form
@@ -30,10 +31,11 @@ type streamGroup struct {
 	stream    *streamKey
 	lastID    string
 	pending   []pendingEntry
-	consumers map[string]consumer
+	consumers map[string]*consumer
 }
 
 type consumer struct {
+	numPendingEntries int
 	// TODO: "last seen" timestamp
 }
 
@@ -53,14 +55,20 @@ func newStreamKey() *streamKey {
 func (s *streamKey) generateID(now time.Time) string {
 	ts := uint64(now.UnixNano()) / 1_000_000
 
-	lastID := s.lastID()
-
 	next := fmt.Sprintf("%d-%d", ts, 0)
-	if streamCmp(lastID, next) == -1 {
-		return next
+	if s.lastAllocatedID != "" && streamCmp(s.lastAllocatedID, next) >= 0 {
+		last, _ := parseStreamID(s.lastAllocatedID)
+		next = fmt.Sprintf("%d-%d", last[0], last[1]+1)
 	}
-	last, _ := parseStreamID(lastID)
-	return fmt.Sprintf("%d-%d", last[0], last[1]+1)
+
+	lastID := s.lastID()
+	if streamCmp(lastID, next) >= 0 {
+		last, _ := parseStreamID(lastID)
+		next = fmt.Sprintf("%d-%d", last[0], last[1]+1)
+	}
+
+	s.lastAllocatedID = next
+	return next
 }
 
 func (s *streamKey) lastID() string {
@@ -196,7 +204,7 @@ func (s *streamKey) createGroup(group, id string) error {
 	s.groups[group] = &streamGroup{
 		stream:    s,
 		lastID:    id,
-		consumers: map[string]consumer{},
+		consumers: map[string]*consumer{},
 	}
 	return nil
 }
@@ -272,16 +280,39 @@ func (g *streamGroup) readGroup(
 		}
 
 		if !noack {
+			shouldAppend := len(g.pending) == 0
 			for _, msg := range msgs {
-				g.pending = append(g.pending, pendingEntry{
+				if !shouldAppend {
+					shouldAppend = streamCmp(msg.ID, g.pending[len(g.pending)-1].id) == 1
+				}
+
+				var entry *pendingEntry
+				if shouldAppend {
+					g.pending = append(g.pending, pendingEntry{})
+					entry = &g.pending[len(g.pending)-1]
+				} else {
+					var pos int
+					pos, entry = g.searchPending(msg.ID)
+					if entry == nil {
+						g.pending = append(g.pending[:pos+1], g.pending[pos:]...)
+						entry = &g.pending[pos]
+					} else {
+						g.consumers[entry.consumer].numPendingEntries--
+					}
+				}
+
+				*entry = pendingEntry{
 					id:            msg.ID,
 					consumer:      consumerID,
 					deliveryCount: 1,
 					lastDelivery:  now,
-				})
+				}
 			}
 		}
-		g.consumers[consumerID] = consumer{}
+		if _, ok := g.consumers[consumerID]; !ok {
+			g.consumers[consumerID] = &consumer{}
+		}
+		g.consumers[consumerID].numPendingEntries += len(msgs)
 		g.lastID = msgs[len(msgs)-1].ID
 		return msgs
 	}
@@ -307,6 +338,16 @@ func (g *streamGroup) readGroup(
 	return res
 }
 
+func (g *streamGroup) searchPending(id string) (int, *pendingEntry) {
+	pos := sort.Search(len(g.pending), func(i int) bool {
+		return streamCmp(id, g.pending[i].id) <= 0
+	})
+	if pos >= len(g.pending) || g.pending[pos].id != id {
+		return pos, nil
+	}
+	return pos, &g.pending[pos]
+}
+
 func (g *streamGroup) ack(ids []string) (int, error) {
 	count := 0
 	for _, id := range ids {
@@ -314,12 +355,13 @@ func (g *streamGroup) ack(ids []string) (int, error) {
 			return 0, errors.New(msgInvalidStreamID)
 		}
 
-		pos := sort.Search(len(g.pending), func(i int) bool {
-			return streamCmp(id, g.pending[i].id) <= 0
-		})
-		if len(g.pending) <= pos || g.pending[pos].id != id {
+		pos, entry := g.searchPending(id)
+		if entry == nil {
 			continue
 		}
+
+		consumer := g.consumers[entry.consumer]
+		consumer.numPendingEntries--
 
 		g.pending = append(g.pending[:pos], g.pending[pos+1:]...)
 		count++
@@ -363,9 +405,10 @@ func (g *streamGroup) pendingCount(consumer string) int {
 }
 
 func (g *streamGroup) copy() *streamGroup {
-	cns := map[string]consumer{}
+	cns := map[string]*consumer{}
 	for k, v := range g.consumers {
-		cns[k] = v
+		c := *v
+		cns[k] = &c
 	}
 	return &streamGroup{
 		// don't copy stream
