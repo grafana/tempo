@@ -20,10 +20,12 @@ import (
 	"github.com/weaveworks/common/logging"
 	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/service"
 
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/otel/metric"
@@ -74,6 +76,18 @@ func (r *receiversShim) Capabilities() consumer.Capabilities {
 	return consumer.Capabilities{MutatesData: false}
 }
 
+type mapProvider struct {
+	raw map[string]interface{}
+}
+
+func (m *mapProvider) Retrieve(context.Context, string, confmap.WatcherFunc) (confmap.Retrieved, error) {
+	return confmap.NewRetrieved(m.raw, []confmap.RetrievedOption{}...)
+}
+
+func (m *mapProvider) Scheme() string { return "mock" }
+
+func (m *mapProvider) Shutdown(context.Context) error { return nil }
+
 func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Middleware, logLevel logging.Level) (services.Service, error) {
 	shim := &receiversShim{
 		pusher: pusher,
@@ -115,11 +129,36 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 		}
 	}
 
-	p := confmap.NewFromStringMap(map[string]interface{}{
-		"receivers": receiverCfg,
+	receivers := make([]string, 0, len(receiverCfg))
+	for k := range receiverCfg {
+		receivers = append(receivers, k)
+	}
+	fmt.Println("receivers", receivers)
+
+	pro, err := service.NewConfigProvider(service.ConfigProviderSettings{
+		Locations: []string{"mock:/"},
+		MapProviders: map[string]confmap.Provider{"mock": &mapProvider{raw: map[string]interface{}{
+			"receivers": receiverCfg,
+			"exporters": map[string]interface{}{
+				"nop": map[string]interface{}{},
+			},
+			"service": map[string]interface{}{
+				"pipelines": map[string]interface{}{
+					"traces": map[string]interface{}{
+						"exporters": []string{"nop"},
+						"receivers": receivers,
+					},
+				},
+			},
+		}}},
 	})
-	cfgs, err := NewConfigUnmarshaler().Unmarshal(p, component.Factories{
+	if err != nil {
+		return nil, err
+	}
+
+	conf, err := pro.Get(context.Background(), component.Factories{
 		Receivers: receiverFactories,
+		Exporters: map[config.Type]component.ExporterFactory{"nop": componenttest.NewNopExporterFactory()},
 	})
 	if err != nil {
 		return nil, err
@@ -133,7 +172,7 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 		MeterProvider:  metric.NewNoopMeterProvider(),
 	}}
 
-	for componentID, cfg := range cfgs.Receivers {
+	for componentID, cfg := range conf.Receivers {
 		factoryBase := receiverFactories[componentID.Type()]
 		if factoryBase == nil {
 			return nil, fmt.Errorf("receiver factory not found for type: %s", componentID.Type())

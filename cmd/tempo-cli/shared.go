@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
+// nolint:all
 type unifiedBlockMeta struct {
 	backend.BlockMeta
 	backend.CompactedBlockMeta

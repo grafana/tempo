@@ -258,35 +258,35 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 	return nil, nil
 }
 
-func migrateJaegerEnvironmentVariables() {
-	// // jaeger-tracing-go: https://github.com/jaegertracing/jaeger-client-go#environment-variables
-	// // opentelemetry-go: https://github.com/open-telemetry/opentelemetry-go/tree/main/exporters/jaeger#environment-variables
-	// jaegerToOtel := map[string]string{
-	// 	"JAEGER_AGENT_HOST": "OTEL_EXPORTER_JAEGER_AGENT_HOST",
-	// 	"JAEGER_AGENT_PORT": "OTEL_EXPORTER_JAEGER_AGENT_PORT",
-	// 	"JAEGER_ENDPOINT":   "OTEL_EXPORTER_JAEGER_ENDPOINT",
-	// 	"JAEGER_USER":       "OTEL_EXPORTER_JAEGER_USER",
-	// 	"JAEGER_PASSWORD":   "OTEL_EXPORTER_JAEGER_PASSWORD",
-	// 	"JAEGER_TAGS":       "OTEL_RESOURCE_ATTRIBUTES",
-	// }
-	// for jaegerKey, otelKey := range jaegerToOtel {
-	// 	value, jaegerOk := os.LookupEnv(jaegerKey)
-	// 	_, otelOk := os.LookupEnv(otelKey)
-	//
-	// 	if jaegerOk && !otelOk {
-	// 		level.Warn(log.Logger).Log("msg", "migrating Jaeger environment variable, consider using native OpenTelemetry variables", "jaeger", jaegerKey, "otel", otelKey)
-	// 		_ = os.Setenv(otelKey, value)
-	// 	}
-	// }
-	//
-	// if _, ok := os.LookupEnv("JAEGER_SAMPLER_TYPE"); ok {
-	// 	level.Warn(log.Logger).Log("msg", "JAEGER_SAMPLER_TYPE is not supported with the OpenTelemetry tracer, no sampling will be performed")
-	// }
-}
+// func migrateJaegerEnvironmentVariables() {
+// // jaeger-tracing-go: https://github.com/jaegertracing/jaeger-client-go#environment-variables
+// // opentelemetry-go: https://github.com/open-telemetry/opentelemetry-go/tree/main/exporters/jaeger#environment-variables
+// jaegerToOtel := map[string]string{
+// 	"JAEGER_AGENT_HOST": "OTEL_EXPORTER_JAEGER_AGENT_HOST",
+// 	"JAEGER_AGENT_PORT": "OTEL_EXPORTER_JAEGER_AGENT_PORT",
+// 	"JAEGER_ENDPOINT":   "OTEL_EXPORTER_JAEGER_ENDPOINT",
+// 	"JAEGER_USER":       "OTEL_EXPORTER_JAEGER_USER",
+// 	"JAEGER_PASSWORD":   "OTEL_EXPORTER_JAEGER_PASSWORD",
+// 	"JAEGER_TAGS":       "OTEL_RESOURCE_ATTRIBUTES",
+// }
+// for jaegerKey, otelKey := range jaegerToOtel {
+// 	value, jaegerOk := os.LookupEnv(jaegerKey)
+// 	_, otelOk := os.LookupEnv(otelKey)
+//
+// 	if jaegerOk && !otelOk {
+// 		level.Warn(log.Logger).Log("msg", "migrating Jaeger environment variable, consider using native OpenTelemetry variables", "jaeger", jaegerKey, "otel", otelKey)
+// 		_ = os.Setenv(otelKey, value)
+// 	}
+// }
+//
+// if _, ok := os.LookupEnv("JAEGER_SAMPLER_TYPE"); ok {
+// 	level.Warn(log.Logger).Log("msg", "JAEGER_SAMPLER_TYPE is not supported with the OpenTelemetry tracer, no sampling will be performed")
+// }
+// }
 
-type otelErrorHandlerFunc func(error)
-
-// Handle implements otel.ErrorHandler
-func (f otelErrorHandlerFunc) Handle(err error) {
-	f(err)
-}
+// type otelErrorHandlerFunc func(error)
+//
+// // Handle implements otel.ErrorHandler
+// func (f otelErrorHandlerFunc) Handle(err error) {
+// 	f(err)
+// }

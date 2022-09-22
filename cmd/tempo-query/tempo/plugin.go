@@ -16,6 +16,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/weaveworks/common/user"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/metadata"
 
 	jaeger "github.com/jaegertracing/jaeger/model"
@@ -23,7 +24,6 @@ import (
 	jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
 
 	ot_jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
-	"go.opentelemetry.io/collector/model/otlp"
 )
 
 const (
@@ -89,7 +89,7 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		return nil, fmt.Errorf("%s", body)
 	}
 
-	otTrace, err := otlp.NewProtobufTracesUnmarshaler().UnmarshalTraces(body)
+	otTrace, err := ptrace.NewProtoUnmarshaler().UnmarshalTraces(body)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling body to otlp trace %v: %w", traceID, err)
 	}

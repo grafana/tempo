@@ -10,7 +10,7 @@ import (
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	jaegerTrans "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"github.com/weaveworks/common/user"
-	"go.opentelemetry.io/collector/model/otlp"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -204,7 +204,7 @@ func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 			if err != nil {
 				return err
 			}
-			conv, err := otlp.NewProtobufTracesMarshaler().MarshalTraces(internalTrace)
+			conv, err := ptrace.NewProtoMarshaler().MarshalTraces(internalTrace)
 			if err != nil {
 				return err
 			}
