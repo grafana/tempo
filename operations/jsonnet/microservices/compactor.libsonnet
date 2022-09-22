@@ -28,7 +28,8 @@
     ]) +
     $.util.withResources($._config.compactor.resources) +
     $.util.readinessProbe +
-    (if $._config.variables_expansion then container.withArgsMixin(['--config.expand-env=true']) else {}),
+    (if $._config.variables_expansion then container.withArgsMixin(['--config.expand-env=true']) else {}) +
+    container.withEnvMixin([envVar.new('GOMEMLIMIT', $._config.compactor.resources.limits.memory + 'B')]),
 
   tempo_compactor_deployment:
     deployment.new(target_name,
