@@ -264,9 +264,9 @@ func estimateTraceSize(tr *Trace) (size int) {
 		size += strLen(rs.Resource.K8sPodName)
 		size += 9
 
-		for _, ils := range rs.InstrumentationLibrarySpans {
-			size += len(ils.InstrumentationLibrary.Name)
-			size += len(ils.InstrumentationLibrary.Version)
+		for _, ils := range rs.ScopeSpans {
+			size += len(ils.Scope.Name)
+			size += len(ils.Scope.Version)
 			size += 2
 			for _, s := range ils.Spans {
 				size += 8 + 8 + 8 + 8 + 4 + 4 // start/end/kind/statuscode/dropped events/dropped attrs

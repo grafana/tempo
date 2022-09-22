@@ -8,7 +8,7 @@ import (
 	fmt "fmt"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
-	v1 "go.opentelemetry.io/proto/otlp/trace/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -876,7 +876,8 @@ func (m *PushResponse) XXX_DiscardUnknown() {
 var xxx_messageInfo_PushResponse proto.InternalMessageInfo
 
 // PushBytesRequest pushes slices of traces, ids and searchdata. Traces are encoded using the
-//  current BatchDecoder in ./pkg/model
+//
+//	current BatchDecoder in ./pkg/model
 type PushBytesRequest struct {
 	// pre-marshalled Traces. length must match ids
 	Traces []PreallocBytes `protobuf:"bytes,2,rep,name=traces,proto3,customtype=PreallocBytes" json:"traces"`

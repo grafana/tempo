@@ -22,7 +22,7 @@ func TestSortTrace(t *testing.T) {
 			input: &tempopb.Trace{
 				Batches: []*v1.ResourceSpans{
 					{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						ScopeSpans: []*v1.ScopeSpans{
 							{
 								Spans: []*v1.Span{
 									{
@@ -33,7 +33,7 @@ func TestSortTrace(t *testing.T) {
 						},
 					},
 					{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						ScopeSpans: []*v1.ScopeSpans{
 							{
 								Spans: []*v1.Span{
 									{
@@ -48,7 +48,7 @@ func TestSortTrace(t *testing.T) {
 			expected: &tempopb.Trace{
 				Batches: []*v1.ResourceSpans{
 					{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						ScopeSpans: []*v1.ScopeSpans{
 							{
 								Spans: []*v1.Span{
 									{
@@ -59,7 +59,7 @@ func TestSortTrace(t *testing.T) {
 						},
 					},
 					{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						ScopeSpans: []*v1.ScopeSpans{
 							{
 								Spans: []*v1.Span{
 									{

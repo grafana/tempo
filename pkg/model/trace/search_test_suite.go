@@ -77,7 +77,7 @@ func SearchTestSuite() (
 						stringKV("bat", "Baz"),
 					},
 				},
-				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+				ScopeSpans: []*v1.ScopeSpans{
 					{
 						Spans: []*v1.Span{
 							{
@@ -107,7 +107,7 @@ func SearchTestSuite() (
 						stringKV("service.name", "RootService"),
 					},
 				},
-				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+				ScopeSpans: []*v1.ScopeSpans{
 					{
 						Spans: []*v1.Span{
 							{

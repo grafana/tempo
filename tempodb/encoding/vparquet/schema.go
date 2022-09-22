@@ -122,14 +122,14 @@ type Span struct {
 	HttpStatusCode *int64  `parquet:",snappy,optional"`
 }
 
-type IL struct {
+type Scope struct {
 	Name    string `parquet:",snappy,dict"`
 	Version string `parquet:",snappy,dict"`
 }
 
-type ILS struct {
-	InstrumentationLibrary IL     `parquet:"il"`
-	Spans                  []Span `parquet:""`
+type ScopeSpan struct {
+	Scope Scope  `parquet:"il"`
+	Spans []Span `parquet:""`
 }
 
 type Resource struct {
@@ -150,8 +150,8 @@ type Resource struct {
 }
 
 type ResourceSpans struct {
-	Resource                    Resource `parquet:""`
-	InstrumentationLibrarySpans []ILS    `parquet:"ils"`
+	Resource   Resource    `parquet:""`
+	ScopeSpans []ScopeSpan `parquet:"ils"`
 }
 
 type Trace struct {
@@ -254,13 +254,13 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 			}
 		}
 
-		ob.InstrumentationLibrarySpans = make([]ILS, 0, len(b.InstrumentationLibrarySpans))
-		for _, ils := range b.InstrumentationLibrarySpans {
-			oils := ILS{}
-			if ils.InstrumentationLibrary != nil {
-				oils.InstrumentationLibrary = IL{
-					Name:    ils.InstrumentationLibrary.Name,
-					Version: ils.InstrumentationLibrary.Version,
+		ob.ScopeSpans = make([]ScopeSpan, 0, len(b.ScopeSpans))
+		for _, ils := range b.ScopeSpans {
+			oils := ScopeSpan{}
+			if ils.Scope != nil {
+				oils.Scope = Scope{
+					Name:    ils.Scope.Name,
+					Version: ils.Scope.Version,
 				}
 			}
 
@@ -319,7 +319,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 				oils.Spans = append(oils.Spans, ss)
 			}
 
-			ob.InstrumentationLibrarySpans = append(ob.InstrumentationLibrarySpans, oils)
+			ob.ScopeSpans = append(ob.ScopeSpans, oils)
 		}
 
 		ot.ResourceSpans = append(ot.ResourceSpans, ob)
@@ -489,18 +489,18 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 			}
 		}
 
-		protoBatch.InstrumentationLibrarySpans = make([]*v1_trace.InstrumentationLibrarySpans, 0, len(rs.InstrumentationLibrarySpans))
+		protoBatch.ScopeSpans = make([]*v1_trace.ScopeSpans, 0, len(rs.ScopeSpans))
 
-		for _, ils := range rs.InstrumentationLibrarySpans {
-			protoILS := &v1_trace.InstrumentationLibrarySpans{
-				InstrumentationLibrary: &v1.InstrumentationLibrary{
-					Name:    ils.InstrumentationLibrary.Name,
-					Version: ils.InstrumentationLibrary.Version,
+		for _, span := range rs.ScopeSpans {
+			protoSS := &v1_trace.ScopeSpans{
+				Scope: &v1.InstrumentationScope{
+					Name:    span.Scope.Name,
+					Version: span.Scope.Version,
 				},
 			}
 
-			protoILS.Spans = make([]*v1_trace.Span, 0, len(ils.Spans))
-			for _, span := range ils.Spans {
+			protoSS.Spans = make([]*v1_trace.Span, 0, len(span.Spans))
+			for _, span := range span.Spans {
 
 				protoSpan := &v1_trace.Span{
 					TraceId:           parquetTrace.TraceID,
@@ -553,10 +553,10 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 					})
 				}
 
-				protoILS.Spans = append(protoILS.Spans, protoSpan)
+				protoSS.Spans = append(protoSS.Spans, protoSpan)
 			}
 
-			protoBatch.InstrumentationLibrarySpans = append(protoBatch.InstrumentationLibrarySpans, protoILS)
+			protoBatch.ScopeSpans = append(protoBatch.ScopeSpans, protoSS)
 		}
 		protoTrace.Batches = append(protoTrace.Batches, protoBatch)
 	}

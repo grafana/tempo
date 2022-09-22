@@ -65,7 +65,7 @@ func TestMatches(t *testing.T) {
 						},
 					},
 				},
-				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+				ScopeSpans: []*v1.ScopeSpans{
 					{
 						Spans: []*v1.Span{
 							{
@@ -107,7 +107,7 @@ func TestMatches(t *testing.T) {
 						},
 					},
 				},
-				InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+				ScopeSpans: []*v1.ScopeSpans{
 					{
 						Spans: []*v1.Span{
 							{

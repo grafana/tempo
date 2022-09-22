@@ -271,13 +271,13 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 	expiredSpanCount := 0
 	for _, b := range req.Batches {
 		size += b.Size()
-		for _, ils := range b.InstrumentationLibrarySpans {
-			spanCount += len(ils.Spans)
+		for _, ss := range b.ScopeSpans {
+			spanCount += len(ss.Spans)
 			// filter spans that have end time > max_age and end time more than 5 days in the future
-			newSpansArr := make([]*v1.Span, len(ils.Spans))
+			newSpansArr := make([]*v1.Span, len(ss.Spans))
 			timeNow := time.Now()
 			index := 0
-			for _, span := range ils.Spans {
+			for _, span := range ss.Spans {
 				if span.EndTimeUnixNano >= uint64(timeNow.Add(-i.cfg.MetricsIngestionSlack).UnixNano()) && span.EndTimeUnixNano <= uint64(timeNow.Add(i.cfg.MetricsIngestionSlack).UnixNano()) {
 					newSpansArr[index] = span
 					index++
@@ -285,7 +285,7 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 					expiredSpanCount++
 				}
 			}
-			ils.Spans = newSpansArr[0:index]
+			ss.Spans = newSpansArr[0:index]
 		}
 	}
 	i.updatePushMetrics(size, spanCount, expiredSpanCount)

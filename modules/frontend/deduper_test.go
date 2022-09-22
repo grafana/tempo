@@ -21,7 +21,7 @@ func TestDedupeSpanIDs(t *testing.T) {
 			trace: &tempopb.Trace{
 				Batches: []*v1.ResourceSpans{
 					{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						ScopeSpans: []*v1.ScopeSpans{
 							{
 								Spans: []*v1.Span{
 									{
@@ -44,7 +44,7 @@ func TestDedupeSpanIDs(t *testing.T) {
 			expectedRes: &tempopb.Trace{
 				Batches: []*v1.ResourceSpans{
 					{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						ScopeSpans: []*v1.ScopeSpans{
 							{
 								Spans: []*v1.Span{
 									{
@@ -70,7 +70,7 @@ func TestDedupeSpanIDs(t *testing.T) {
 			trace: &tempopb.Trace{
 				Batches: []*v1.ResourceSpans{
 					{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						ScopeSpans: []*v1.ScopeSpans{
 							{
 								Spans: []*v1.Span{
 									{
@@ -93,7 +93,7 @@ func TestDedupeSpanIDs(t *testing.T) {
 			expectedRes: &tempopb.Trace{
 				Batches: []*v1.ResourceSpans{
 					{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						ScopeSpans: []*v1.ScopeSpans{
 							{
 								Spans: []*v1.Span{
 									{
@@ -120,7 +120,7 @@ func TestDedupeSpanIDs(t *testing.T) {
 			trace: &tempopb.Trace{
 				Batches: []*v1.ResourceSpans{
 					{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						ScopeSpans: []*v1.ScopeSpans{
 							{
 								Spans: []*v1.Span{
 									{
@@ -153,7 +153,7 @@ func TestDedupeSpanIDs(t *testing.T) {
 			expectedRes: &tempopb.Trace{
 				Batches: []*v1.ResourceSpans{
 					{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						ScopeSpans: []*v1.ScopeSpans{
 							{
 								Spans: []*v1.Span{
 									{
