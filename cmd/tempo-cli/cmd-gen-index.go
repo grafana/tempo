@@ -20,7 +20,7 @@ type indexCmd struct {
 	backendOptions
 }
 
-func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]common.Record, error, error) {
+func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]v2.Record, error, error) {
 	var replayError error
 	// replay file to extract records
 	f, err := os.OpenFile(filepath, os.O_RDONLY, 0644)
@@ -35,7 +35,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 	defer dataReader.Close()
 
 	var buffer []byte
-	var records []common.Record
+	var records []v2.Record
 	objectRW := v2.NewObjectReaderWriter()
 	currentOffset := uint64(0)
 	for {
@@ -67,7 +67,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 
 		// make a copy so we don't hold onto the iterator buffer
 		recordID := append([]byte(nil), lastID...)
-		records = append(records, common.Record{
+		records = append(records, v2.Record{
 			ID:     recordID,
 			Start:  currentOffset,
 			Length: pageLen,
@@ -78,7 +78,7 @@ func ReplayBlockAndGetRecords(meta *backend.BlockMeta, filepath string) ([]commo
 	return records, replayError, nil
 }
 
-func VerifyIndex(indexReader common.IndexReader, dataReader common.DataReader) error {
+func VerifyIndex(indexReader v2.IndexReader, dataReader v2.DataReader) error {
 	for i := 0; ; i++ {
 		record, err := indexReader.At(context.TODO(), i)
 		if err != nil {
@@ -90,7 +90,7 @@ func VerifyIndex(indexReader common.IndexReader, dataReader common.DataReader) e
 		}
 
 		// read data file at record position
-		_, _, err = dataReader.Read(context.TODO(), []common.Record{*record}, nil, nil)
+		_, _, err = dataReader.Read(context.TODO(), []v2.Record{*record}, nil, nil)
 		if err != nil {
 			fmt.Println("index/data is corrupt, record/data mismatch")
 			return err

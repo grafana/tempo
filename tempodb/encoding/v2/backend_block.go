@@ -126,7 +126,7 @@ func (b *BackendBlock) partialIterator(chunkSizeBytes uint32, startPage int, tot
 	return newPartialPagedIterator(chunkSizeBytes, reader, dataReader, NewObjectReaderWriter(), startPage, totalPages), nil
 }
 
-func (b *BackendBlock) NewIndexReader() (common.IndexReader, error) {
+func (b *BackendBlock) NewIndexReader() (IndexReader, error) {
 	indexReaderAt := backend.NewContextReader(b.meta, common.NameIndex, b.reader, false)
 	reader, err := NewIndexReader(indexReaderAt, int(b.meta.IndexPageSize), int(b.meta.TotalRecords))
 	if err != nil {

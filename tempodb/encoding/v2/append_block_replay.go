@@ -7,18 +7,17 @@ import (
 	"os"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 // ReplayWALAndGetRecords replays a WAL file that could contain either traces or searchdata
-func ReplayWALAndGetRecords(file *os.File, enc backend.Encoding, handleObj func([]byte) error) ([]common.Record, error, error) {
+func ReplayWALAndGetRecords(file *os.File, enc backend.Encoding, handleObj func([]byte) error) ([]Record, error, error) {
 	dataReader, err := NewDataReader(backend.NewContextReaderWithAllReader(file), enc)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	var buffer []byte
-	var records []common.Record
+	var records []Record
 	var warning error
 	var pageLen uint32
 	var id []byte
@@ -56,7 +55,7 @@ func ReplayWALAndGetRecords(file *os.File, enc backend.Encoding, handleObj func(
 
 		// make a copy so we don't hold onto the iterator buffer
 		recordID := append([]byte(nil), id...)
-		records = append(records, common.Record{
+		records = append(records, Record{
 			ID:     recordID,
 			Start:  currentOffset,
 			Length: pageLen,
@@ -64,7 +63,7 @@ func ReplayWALAndGetRecords(file *os.File, enc backend.Encoding, handleObj func(
 		currentOffset += uint64(pageLen)
 	}
 
-	common.SortRecords(records)
+	SortRecords(records)
 
 	return records, warning, nil
 }

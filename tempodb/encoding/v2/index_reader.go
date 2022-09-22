@@ -15,7 +15,7 @@ import (
 
 type indexReader struct {
 	r        backend.ContextReader
-	recordRW common.RecordReaderWriter
+	recordRW RecordReaderWriter
 
 	pageSizeBytes int
 	totalRecords  int
@@ -26,7 +26,7 @@ type indexReader struct {
 // NewIndexReader returns an index reader for a byte slice of marshalled
 // ordered records.
 // The index has not changed between v0 and v1.
-func NewIndexReader(r backend.ContextReader, pageSizeBytes int, totalRecords int) (common.IndexReader, error) {
+func NewIndexReader(r backend.ContextReader, pageSizeBytes int, totalRecords int) (IndexReader, error) {
 	return &indexReader{
 		r:        r,
 		recordRW: NewRecordReaderWriter(),
@@ -38,8 +38,8 @@ func NewIndexReader(r backend.ContextReader, pageSizeBytes int, totalRecords int
 	}, nil
 }
 
-// At implements common.indexReader
-func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
+// At implements IndexReader
+func (r *indexReader) At(ctx context.Context, i int) (*Record, error) {
 	if i < 0 || i >= r.totalRecords {
 		return nil, nil
 	}
@@ -81,8 +81,8 @@ func (r *indexReader) At(ctx context.Context, i int) (*common.Record, error) {
 	return &record, nil
 }
 
-// Find implements common.indexReader
-func (r *indexReader) Find(ctx context.Context, id common.ID) (*common.Record, int, error) {
+// Find implements IndexReader
+func (r *indexReader) Find(ctx context.Context, id common.ID) (*Record, int, error) {
 	// with a linear distribution of trace ids we can actually do much better than a normal
 	// binary search.  unfortunately there are edge cases which make this perform far worse.
 	// for instance consider a set of trace ids what with 90% 64 bit ids and 10% 128 bit ids.
@@ -102,7 +102,7 @@ func (r *indexReader) Find(ctx context.Context, id common.ID) (*common.Record, i
 		return nil, -1, err
 	}
 
-	var record *common.Record
+	var record *Record
 	if i >= 0 && i < r.totalRecords {
 		record, err = r.At(ctx, i)
 		if err != nil {

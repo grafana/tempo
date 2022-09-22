@@ -179,10 +179,10 @@ func (s *StreamingSearchBlock) Iterator() (v2.BytesIterator, error) {
 
 type streamingSearchBlockIterator struct {
 	currentIndex int
-	records      []common.Record
+	records      []v2.Record
 	file         *os.File
-	dataReader   common.DataReader
-	objectRW     common.ObjectReaderWriter
+	dataReader   v2.DataReader
+	objectRW     v2.ObjectReaderWriter
 
 	pagesBuffer [][]byte
 }
@@ -200,7 +200,7 @@ func (s *streamingSearchBlockIterator) NextBytes(ctx context.Context) (common.ID
 	// This is primarily for DedupingIterator which uses 2 buffers at once.
 	var buffer []byte
 	s.pagesBuffer[0] = make([]byte, currentRecord.Length)
-	pagesBuffer, _, err := s.dataReader.Read(ctx, []common.Record{currentRecord}, s.pagesBuffer, buffer)
+	pagesBuffer, _, err := s.dataReader.Read(ctx, []v2.Record{currentRecord}, s.pagesBuffer, buffer)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -10,9 +10,9 @@ import (
 )
 
 type pagedIterator struct {
-	dataReader  common.DataReader
-	indexReader common.IndexReader
-	objectRW    common.ObjectReaderWriter
+	dataReader  DataReader
+	indexReader IndexReader
+	objectRW    ObjectReaderWriter
 
 	currentIndex int
 	maxIndexPage int
@@ -26,7 +26,7 @@ type pagedIterator struct {
 
 // newPagedIterator returns a backend.Iterator.  This iterator is used to iterate
 // through objects stored in object storage.
-func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader, objectRW common.ObjectReaderWriter) BytesIterator {
+func newPagedIterator(chunkSizeBytes uint32, indexReader IndexReader, dataReader DataReader, objectRW ObjectReaderWriter) BytesIterator {
 	return &pagedIterator{
 		dataReader:     dataReader,
 		indexReader:    indexReader,
@@ -39,7 +39,7 @@ func newPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dat
 
 // newPartialPagedIterator returns a backend.Iterator.  This iterator is used to iterate
 // through a contiguous and limited set of pages in object storage.
-func newPartialPagedIterator(chunkSizeBytes uint32, indexReader common.IndexReader, dataReader common.DataReader, objectRW common.ObjectReaderWriter, startIndexPage int, totalIndexPages int) BytesIterator {
+func newPartialPagedIterator(chunkSizeBytes uint32, indexReader IndexReader, dataReader DataReader, objectRW ObjectReaderWriter, startIndexPage int, totalIndexPages int) BytesIterator {
 	return &pagedIterator{
 		dataReader:     dataReader,
 		indexReader:    indexReader,
@@ -88,7 +88,7 @@ func (i *pagedIterator) NextBytes(ctx context.Context) (common.ID, []byte, error
 
 	// pull next n bytes into objects
 	var length uint32
-	records := make([]common.Record, 0, 5) // 5?  why not?
+	records := make([]Record, 0, 5) // 5?  why not?
 	for currentRecord != nil {
 		// see if we can fit this record in.  we have to get at least one record in
 		if (length+currentRecord.Length > i.chunkSizeBytes || i.currentIndex >= i.maxIndexPage) && len(records) != 0 {

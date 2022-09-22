@@ -14,12 +14,12 @@ type BytesIterator interface {
 
 type iterator struct {
 	reader io.Reader
-	o      common.ObjectReaderWriter
+	o      ObjectReaderWriter
 }
 
 // NewIterator returns the most basic iterator.  It iterates over
 // raw objects.
-func NewIterator(reader io.Reader, o common.ObjectReaderWriter) BytesIterator {
+func NewIterator(reader io.Reader, o ObjectReaderWriter) BytesIterator {
 	return &iterator{
 		reader: reader,
 		o:      o,

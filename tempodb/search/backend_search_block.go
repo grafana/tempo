@@ -9,7 +9,6 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
@@ -172,7 +171,7 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 	var pageBuf []byte
 	var dataBuf []byte
 	var pagesBuf [][]byte
-	indexBuf := []common.Record{{}}
+	indexBuf := []v2.Record{{}}
 	entry := &tempofb.SearchEntry{} // Buffer
 
 	meta, err := ReadSearchBlockMeta(ctx, s.r, s.id, s.tenantID)

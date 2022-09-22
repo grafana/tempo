@@ -228,7 +228,7 @@ func (a *v2AppendBlock) FindTraceByID(ctx context.Context, id common.ID, opts co
 		return nil, err
 	}
 	defer dataReader.Close()
-	finder := newPagedFinder(common.Records(records), dataReader, combiner, NewObjectReaderWriter(), a.meta.DataEncoding)
+	finder := newPagedFinder(Records(records), dataReader, combiner, NewObjectReaderWriter(), a.meta.DataEncoding)
 
 	bytes, err := finder.Find(context.Background(), id)
 	if err != nil {

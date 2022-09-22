@@ -10,10 +10,10 @@ import (
 )
 
 type recordIterator struct {
-	records []common.Record
+	records []Record
 
-	objectRW common.ObjectReaderWriter
-	dataR    common.DataReader
+	objectRW ObjectReaderWriter
+	dataR    DataReader
 
 	currentIterator BytesIterator
 
@@ -22,7 +22,7 @@ type recordIterator struct {
 
 // newRecordIterator returns a recordIterator.  This iterator is used for iterating through
 // a series of objects by reading them one at a time from Records.
-func newRecordIterator(r []common.Record, dataR common.DataReader, objectRW common.ObjectReaderWriter) BytesIterator {
+func newRecordIterator(r []Record, dataR DataReader, objectRW ObjectReaderWriter) BytesIterator {
 	return &recordIterator{
 		records:  r,
 		objectRW: objectRW,
