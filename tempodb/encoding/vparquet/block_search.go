@@ -145,6 +145,10 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 	}
 	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
+	return searchTags(ctx, cb, pf)
+}
+
+func searchTags(ctx context.Context, cb common.TagCallback, pf *parquet.File) error {
 	// find indexes of generic attribute columns
 	resourceKeyIdx, _ := pq.GetColumnIndexByPath(pf, FieldResourceAttrKey)
 	spanKeyIdx, _ := pq.GetColumnIndexByPath(pf, FieldSpanAttrKey)
@@ -262,18 +266,22 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 	}
 	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
+	return searchTagValues(ctx, tag, cb, pf)
+}
+
+func searchTagValues(ctx context.Context, tag string, cb common.TagCallback, pf *parquet.File) error {
 	// labelMappings will indicate whether this is a search for a special or standard
 	// column
 	column := labelMappings[tag]
 	if column == "" {
-		err = searchStandardTagValues(ctx, tag, pf, cb)
+		err := searchStandardTagValues(ctx, tag, pf, cb)
 		if err != nil {
 			return fmt.Errorf("unexpected error searching standard tags: %w", err)
 		}
 		return nil
 	}
 
-	err = searchSpecialTagValues(ctx, column, pf, cb)
+	err := searchSpecialTagValues(ctx, column, pf, cb)
 	if err != nil {
 		return fmt.Errorf("unexpected error searching special tags: %w", err)
 	}

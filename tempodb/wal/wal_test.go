@@ -85,6 +85,10 @@ func TestAppendBlockStartEnd(t *testing.T) {
 	require.Equal(t, blockEnd, uint32(blocks[0].BlockMeta().EndTime.Unix()))
 }
 
+// jpe extend this test to all wal formats
+// - add similar tests for search and spanset fetcher
+// - test with mixed wals
+
 func TestAppendReplayFind(t *testing.T) {
 	for _, e := range backend.SupportedEncoding {
 		t.Run(e.String(), func(t *testing.T) {

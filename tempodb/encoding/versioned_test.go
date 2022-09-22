@@ -14,7 +14,7 @@ func TestFromVersionErrors(t *testing.T) {
 }
 
 func TestAllVersions(t *testing.T) {
-	for _, v := range allEncodings() {
+	for _, v := range AllEncodings() {
 		encoding, err := FromVersion(v.Version())
 
 		require.Equal(t, v.Version(), encoding.Version())

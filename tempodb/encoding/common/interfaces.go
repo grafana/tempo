@@ -77,8 +77,9 @@ type WALBlock interface {
 	BackendBlock
 
 	Append(id ID, b []byte, start, end uint32) error
+	Flush() error
+
 	DataLength() uint64
-	Length() int
 	Iterator() (Iterator, error)
 	Clear() error
 }

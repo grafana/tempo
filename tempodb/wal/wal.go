@@ -88,15 +88,20 @@ func (w *WAL) RescanBlocks(additionalStartSlack time.Duration, log log.Logger) (
 		return nil, err
 	}
 
-	// todo: rescan blocks will need to detect if this is a vParquet or v2 wal file and choose the appropriate encoding
-	v, err := encoding.FromVersion(v2.VersionString)
-	if err != nil {
-		return nil, fmt.Errorf("from version v2 failed %w", err)
-	}
-
+	encodings := encoding.AllEncodings()
 	blocks := make([]common.WALBlock, 0, len(files))
 	for _, f := range files {
-		if f.IsDir() {
+		// find owner
+		var owner encoding.VersionedEncoding
+		for _, e := range encodings {
+			if e.OwnsWALBlock(f) {
+				owner = e
+				break
+			}
+		}
+
+		if owner == nil {
+			level.Warn(log).Log("msg", "unowned file entry ignored during wal replay", "file", f.Name(), "err", err)
 			continue
 		}
 
@@ -107,7 +112,7 @@ func (w *WAL) RescanBlocks(additionalStartSlack time.Duration, log log.Logger) (
 		}
 
 		level.Info(log).Log("msg", "beginning replay", "file", f.Name(), "size", fileInfo.Size())
-		b, warning, err := v.OpenWALBlock(f.Name(), w.c.Filepath, w.c.IngestionSlack, additionalStartSlack)
+		b, warning, err := owner.OpenWALBlock(f.Name(), w.c.Filepath, w.c.IngestionSlack, additionalStartSlack)
 
 		remove := false
 		if err != nil {
@@ -116,7 +121,7 @@ func (w *WAL) RescanBlocks(additionalStartSlack time.Duration, log log.Logger) (
 			remove = true
 		}
 
-		if b != nil && b.Length() == 0 {
+		if b != nil && b.DataLength() == 0 {
 			level.Warn(log).Log("msg", "empty wal file. ignoring.", "file", f.Name(), "err", err)
 			remove = true
 		}
@@ -126,7 +131,7 @@ func (w *WAL) RescanBlocks(additionalStartSlack time.Duration, log log.Logger) (
 		}
 
 		if remove {
-			err = os.Remove(filepath.Join(w.c.Filepath, f.Name()))
+			err = os.RemoveAll(filepath.Join(w.c.Filepath, f.Name())) // jpe: handle vparquet wal folders
 			if err != nil {
 				return nil, err
 			}

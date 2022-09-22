@@ -53,7 +53,12 @@ func (a *recordAppender) Length() int {
 }
 
 func (a *recordAppender) DataLength() uint64 {
-	return 0
+	if len(a.records) == 0 {
+		return 0
+	}
+
+	lastRecord := a.records[len(a.records)-1]
+	return lastRecord.Start + uint64(lastRecord.Length)
 }
 
 func (a *recordAppender) Complete() error {

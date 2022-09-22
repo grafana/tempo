@@ -7,7 +7,6 @@ import (
 	"io"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
 	"github.com/willf/bloom"
@@ -16,6 +15,7 @@ import (
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -76,9 +76,12 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	}
 	defer func() {
 		span.SetTag("inspectedBytes", rr.TotalBytesRead.Load())
-		//fmt.Println("read bytes:", rr.TotalBytesRead.Load())
 	}()
 
+	return findTraceByID(derivedCtx, traceID, b.meta, pf)
+}
+
+func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File) (*tempopb.Trace, error) {
 	// traceID column index
 	colIndex, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
 	if colIndex == -1 {
@@ -90,8 +93,8 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 
 	// Cache of row group bounds
 	rowGroupMins := make([]common.ID, numRowGroups+1)
-	rowGroupMins[0] = b.meta.MinID
-	rowGroupMins[numRowGroups] = b.meta.MaxID // This is actually inclusive and the logic is special for the last row group below
+	rowGroupMins[0] = meta.MinID
+	rowGroupMins[numRowGroups] = meta.MaxID // This is actually inclusive and the logic is special for the last row group below
 
 	// Gets the minimum trace ID within the row group. Since the column is sorted
 	// ascending we just read the first value from the first page.
@@ -161,7 +164,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	}
 
 	// Now iterate the matching row group
-	iter := parquetquery.NewColumnIterator(derivedCtx, pf.RowGroups()[rowGroup:rowGroup+1], colIndex, "", 1000, parquetquery.NewStringInPredicate([]string{string(traceID)}), "")
+	iter := parquetquery.NewColumnIterator(ctx, pf.RowGroups()[rowGroup:rowGroup+1], colIndex, "", 1000, parquetquery.NewStringInPredicate([]string{string(traceID)}), "")
 	defer iter.Close()
 
 	res, err := iter.Next()
@@ -188,15 +191,11 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		return nil, errors.Wrap(err, "seek to row")
 	}
 
-	span.LogFields(log.Message("seeked to row"), log.Int64("row", rowMatch))
-
 	tr := new(Trace)
 	err = r.Read(tr)
 	if err != nil {
 		return nil, errors.Wrap(err, "error reading row from backend")
 	}
-
-	span.LogFields(log.Message("read trace"))
 
 	// convert to proto trace and return
 	return parquetTraceToTempopbTrace(tr), nil

@@ -2,6 +2,7 @@ package v2
 
 import (
 	"context"
+	"io/fs"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,10 +37,14 @@ func (v Encoding) CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta
 
 // OpenWALBlock opens an existing appendable block
 func (v Encoding) OpenWALBlock(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration) (common.WALBlock, error, error) {
-	return newAppendBlockFromFile(filename, path, ingestionSlack, additionalStartSlack)
+	return openWALBlock(filename, path, ingestionSlack, additionalStartSlack)
 }
 
 // CreateWALBlock creates a new appendable block
 func (v Encoding) CreateWALBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
-	return newAppendBlock(id, tenantID, filepath, e, dataEncoding, ingestionSlack)
+	return createWALBlock(id, tenantID, filepath, e, dataEncoding, ingestionSlack)
+}
+
+func (v Encoding) OwnsWALBlock(entry fs.DirEntry) bool {
+	return ownsWALBlock(entry)
 }
