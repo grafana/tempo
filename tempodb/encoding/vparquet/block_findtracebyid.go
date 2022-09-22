@@ -85,12 +85,15 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	}
 
 	numRowGroups := len(pf.RowGroups())
+	buf := make(parquet.Row, 1)
 
 	// Cache of row group bounds
 	rowGroupMins := make([]common.ID, numRowGroups+1)
 	rowGroupMins[0] = b.meta.MinID
 	rowGroupMins[numRowGroups] = b.meta.MaxID // This is actually inclusive and the logic is special for the last row group below
 
+	// Gets the minimum trace ID within the row group. Since the column is sorted
+	// ascending we just read the first value from the first page.
 	getRowGroupMin := func(rgIdx int) (common.ID, error) {
 		min := rowGroupMins[rgIdx]
 		if len(min) > 0 {
@@ -98,7 +101,6 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 			return min, nil
 		}
 
-		// Read bounds from the first page
 		pages := pf.RowGroups()[rgIdx].ColumnChunks()[colIndex].Pages()
 		defer pages.Close()
 
@@ -106,13 +108,16 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		if err != nil {
 			return nil, err
 		}
-		minV, _, ok := page.Bounds()
-		if !ok {
-			// This shouldn't happen as row groups are never empty.
-			return nil, fmt.Errorf("failed to read page bounds row group: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), b.meta.BlockID, rgIdx)
+
+		c, err := page.Values().ReadValues(buf)
+		if err != nil {
+			return nil, err
+		}
+		if c < 1 {
+			return nil, fmt.Errorf("failed to read value from page: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), b.meta.BlockID, rgIdx)
 		}
 
-		min = minV.ByteArray()
+		min = buf[0].ByteArray()
 		rowGroupMins[rgIdx] = min
 		return min, nil
 	}
