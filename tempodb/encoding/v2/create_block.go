@@ -15,7 +15,7 @@ const DefaultFlushSizeBytes int = 30 * 1024 * 1024 // 30 MiB
 
 // jpe take append block?? remove model.ObjectDecoder?
 // jpe needs test
-func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, _ model.ObjectDecoder, to backend.Writer) (*backend.BlockMeta, error) {
+func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, to backend.Writer) (*backend.BlockMeta, error) {
 	defer i.Close()
 
 	newBlock, err := NewStreamingBlock(cfg, meta.BlockID, meta.TenantID, []*backend.BlockMeta{meta}, meta.TotalObjects)

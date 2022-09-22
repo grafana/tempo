@@ -42,7 +42,7 @@ func TestCreateBlockHonorsTraceStartEndTimesFromWalMeta(t *testing.T) {
 	meta.StartTime = time.Unix(300, 0)
 	meta.EndTime = time.Unix(305, 0)
 
-	outMeta, err := CreateBlock(ctx, cfg, meta, iter, nil, r, w) // jpe - passing nil for decoder. do we need this?
+	outMeta, err := CreateBlock(ctx, cfg, meta, iter, r, w)
 	require.NoError(t, err)
 	require.Equal(t, 300, int(outMeta.StartTime.Unix()))
 	require.Equal(t, 305, int(outMeta.EndTime.Unix()))

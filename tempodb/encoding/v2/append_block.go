@@ -14,11 +14,14 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/decoder"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 const maxDataEncodingLength = 32
+
+var _ common.WALBlock = (*v2AppendBlock)(nil)
 
 // v2AppendBlock is a block that is actively used to append new objects to.  It stores all data in the appendFile
 // in the order it was received and an in memory sorted index.
@@ -137,10 +140,6 @@ func (a *v2AppendBlock) Append(id common.ID, b []byte, start, end uint32) error 
 	return nil
 }
 
-func (a *v2AppendBlock) BlockID() uuid.UUID {
-	return a.meta.BlockID
-}
-
 func (a *v2AppendBlock) DataLength() uint64 {
 	return a.appender.DataLength()
 }
@@ -149,7 +148,7 @@ func (a *v2AppendBlock) Length() int {
 	return a.appender.Length()
 }
 
-func (a *v2AppendBlock) Meta() *backend.BlockMeta {
+func (a *v2AppendBlock) BlockMeta() *backend.BlockMeta {
 	return a.meta
 }
 
@@ -193,7 +192,26 @@ func (a *v2AppendBlock) Iterator() (common.Iterator, error) {
 	}, nil
 }
 
-func (a *v2AppendBlock) Find(id common.ID) ([]byte, error) {
+func (a *v2AppendBlock) Clear() error {
+	if a.readFile != nil {
+		_ = a.readFile.Close()
+		a.readFile = nil
+	}
+
+	if a.appendFile != nil {
+		_ = a.appendFile.Close()
+		a.appendFile = nil
+	}
+
+	// ignore error, it's important to remove the file above all else
+	_ = a.appender.Complete()
+
+	name := a.fullFilename()
+	return os.Remove(name)
+}
+
+// Find implements common.Finder
+func (a *v2AppendBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
 	combiner := model.StaticCombiner
 
 	records := a.appender.RecordsForID(id)
@@ -212,25 +230,41 @@ func (a *v2AppendBlock) Find(id common.ID) ([]byte, error) {
 	defer dataReader.Close()
 	finder := newPagedFinder(common.Records(records), dataReader, combiner, NewObjectReaderWriter(), a.meta.DataEncoding)
 
-	return finder.Find(context.Background(), id)
+	bytes, err := finder.Find(context.Background(), id)
+	if err != nil {
+		return nil, err
+	}
+
+	if bytes == nil {
+		return nil, nil
+	}
+
+	dec, err := model.NewObjectDecoder(a.meta.DataEncoding)
+	if err != nil {
+		return nil, err
+	}
+
+	return dec.PrepareForRead(bytes)
 }
 
-func (a *v2AppendBlock) Clear() error {
-	if a.readFile != nil {
-		_ = a.readFile.Close()
-		a.readFile = nil
-	}
+// Search implements common.Searcher
+func (a *v2AppendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
+	return nil, common.ErrUnsupported
+}
 
-	if a.appendFile != nil {
-		_ = a.appendFile.Close()
-		a.appendFile = nil
-	}
+// Search implements common.Searcher
+func (a *v2AppendBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
+	return common.ErrUnsupported
+}
 
-	// ignore error, it's important to remove the file above all else
-	_ = a.appender.Complete()
+// SearchTagValues implements common.Searcher
+func (a *v2AppendBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
+	return common.ErrUnsupported
+}
 
-	name := a.fullFilename()
-	return os.Remove(name)
+// Fetch implements traceql.SpansetFetcher
+func (a *v2AppendBlock) Fetch(context.Context, traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+	return traceql.FetchSpansResponse{}, common.ErrUnsupported
 }
 
 func (a *v2AppendBlock) fullFilename() string {

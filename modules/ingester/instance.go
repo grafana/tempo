@@ -282,7 +282,7 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 			return uuid.Nil, fmt.Errorf("failed to resetHeadBlock: %w", err)
 		}
 
-		return completingBlock.BlockID(), nil
+		return completingBlock.BlockMeta().BlockID, nil
 	}
 
 	return uuid.Nil, nil
@@ -293,7 +293,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
 	var completingBlock common.WALBlock
 	for _, iterBlock := range i.completingBlocks {
-		if iterBlock.BlockID() == blockID {
+		if iterBlock.BlockMeta().BlockID == blockID {
 			completingBlock = iterBlock
 			break
 		}
@@ -327,7 +327,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 
 	// Search data (optional)
 	i.blocksMtx.RLock()
-	oldSearch := i.searchAppendBlocks[completingBlock.BlockID().String()]
+	oldSearch := i.searchAppendBlocks[completingBlock.BlockMeta().BlockID.String()]
 	i.blocksMtx.RUnlock()
 
 	var newSearch *search.BackendSearchBlock
@@ -356,7 +356,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 
 	var completingBlock common.WALBlock
 	for j, iterBlock := range i.completingBlocks {
-		if iterBlock.BlockID() == blockID {
+		if iterBlock.BlockMeta().BlockID == blockID {
 			completingBlock = iterBlock
 			i.completingBlocks = append(i.completingBlocks[:j], i.completingBlocks[j+1:]...)
 			break
@@ -364,7 +364,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 	}
 
 	if completingBlock != nil {
-		uuid := completingBlock.BlockID().String()
+		uuid := completingBlock.BlockMeta().BlockID.String()
 
 		entry := i.searchAppendBlocks[uuid]
 		if entry != nil {
@@ -446,31 +446,26 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
+	combiner := trace.NewCombiner()
+	combiner.Consume(completeTrace)
+
 	// headBlock
-	foundBytes, err := i.headBlock.Find(id)
+	tr, err := i.headBlock.FindTraceByID(ctx, id, common.SearchOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("headBlock.Find failed: %w", err)
+		return nil, fmt.Errorf("headBlock.FindTraceByID failed: %w", err)
 	}
-	completeTrace, err = model.CombineForRead(foundBytes, i.headBlock.Meta().DataEncoding, completeTrace)
-	if err != nil {
-		return nil, fmt.Errorf("headblock unmarshal failed in FindTraceByID: %w", err)
-	}
+	combiner.Consume(tr)
 
 	// completingBlock
 	for _, c := range i.completingBlocks {
-		foundBytes, err = c.Find(id)
+		tr, err = c.FindTraceByID(ctx, id, common.SearchOptions{})
 		if err != nil {
-			return nil, fmt.Errorf("completingBlock.Find failed: %w", err)
+			return nil, fmt.Errorf("completingBlock.FindTraceByID failed: %w", err)
 		}
-		completeTrace, err = model.CombineForRead(foundBytes, c.Meta().DataEncoding, completeTrace)
-		if err != nil {
-			return nil, fmt.Errorf("completingBlocks combine failed in FindTraceByID: %w", err)
-		}
+		combiner.Consume(tr)
 	}
 
 	// completeBlock
-	combiner := trace.NewCombiner()
-	combiner.Consume(completeTrace)
 	for _, c := range i.completeBlocks {
 		found, err := c.FindTraceByID(ctx, id, common.SearchOptions{})
 		if err != nil {
@@ -496,7 +491,7 @@ func (i *instance) AddCompletingBlock(b common.WALBlock, s *search.StreamingSear
 	if s == nil {
 		return
 	}
-	i.searchAppendBlocks[b.BlockID().String()] = &searchStreamingBlockEntry{b: s}
+	i.searchAppendBlocks[b.BlockMeta().BlockID.String()] = &searchStreamingBlockEntry{b: s}
 }
 
 // getOrCreateTrace will return a new trace object for the given request
@@ -543,17 +538,17 @@ func (i *instance) resetHeadBlock() error {
 	i.lastBlockCut = time.Now()
 
 	// Create search data wal file
-	f, enc, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir)
+	f, enc, err := i.writer.WAL().NewFile(i.headBlock.BlockMeta().BlockID, i.instanceID, searchDir)
 	if err != nil {
 		return err
 	}
 
-	b, err := search.NewStreamingSearchBlockForFile(f, i.headBlock.BlockID(), enc)
+	b, err := search.NewStreamingSearchBlockForFile(f, i.headBlock.BlockMeta().BlockID, enc)
 	if err != nil {
 		return err
 	}
 	if i.searchHeadBlock != nil {
-		i.searchAppendBlocks[oldHeadBlock.BlockID().String()] = i.searchHeadBlock
+		i.searchAppendBlocks[oldHeadBlock.BlockMeta().BlockID.String()] = i.searchHeadBlock
 	}
 	i.searchHeadBlock = &searchStreamingBlockEntry{
 		b: b,
@@ -615,7 +610,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*localBlock, er
 		i.blocksMtx.RLock()
 		defer i.blocksMtx.RUnlock()
 		for _, b := range i.completingBlocks {
-			if b.BlockID() == id {
+			if b.BlockMeta().BlockID == id {
 				return true
 			}
 		}

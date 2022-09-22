@@ -16,7 +16,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	pkg_cache "github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -217,14 +216,12 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 		return nil, err
 	}
 
-	dec := model.MustNewObjectDecoder(block.Meta().DataEncoding)
-
 	iter, err := block.Iterator()
 	if err != nil {
 		return nil, err
 	}
 
-	walMeta := block.Meta()
+	walMeta := block.BlockMeta()
 
 	inMeta := &backend.BlockMeta{
 		// From the wal block
@@ -239,7 +236,7 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 		Encoding: rw.cfg.Block.Encoding,
 	}
 
-	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, dec, r, w)
+	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, r, w)
 	if err != nil {
 		return nil, errors.Wrap(err, "error creating block")
 	}

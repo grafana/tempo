@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 const (
@@ -71,16 +72,16 @@ func TestAppendBlockStartEnd(t *testing.T) {
 		require.NoError(t, err, "unexpected error writing req")
 	}
 
-	require.Equal(t, blockStart, uint32(block.Meta().StartTime.Unix()))
-	require.Equal(t, blockEnd, uint32(block.Meta().EndTime.Unix()))
+	require.Equal(t, blockStart, uint32(block.BlockMeta().StartTime.Unix()))
+	require.Equal(t, blockEnd, uint32(block.BlockMeta().EndTime.Unix()))
 
 	// rescan the block and make sure the start/end times are the same
 	blocks, err := wal.RescanBlocks(time.Hour, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
-	require.Equal(t, blockStart, uint32(blocks[0].Meta().StartTime.Unix()))
-	require.Equal(t, blockEnd, uint32(blocks[0].Meta().EndTime.Unix()))
+	require.Equal(t, blockStart, uint32(blocks[0].BlockMeta().StartTime.Unix()))
+	require.Equal(t, blockEnd, uint32(blocks[0].BlockMeta().EndTime.Unix()))
 }
 
 func TestAppendReplayFind(t *testing.T) {
@@ -264,7 +265,7 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 
 		// find
 		for _, id := range ids {
-			_, err := block.Find(id)
+			_, err := block.FindTraceByID(context.Background(), id, common.SearchOptions{})
 			require.NoError(b, err)
 		}
 
