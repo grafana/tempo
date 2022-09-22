@@ -1,9 +1,13 @@
 # Zipkin Exporter
 
+| Status                   |                   |
+| ------------------------ |-------------------|
+| Stability                | [beta]            |
+| Supported pipeline types | trace             |
+| Distributions            | [core], [contrib] |
+
 Exports data to a [Zipkin](https://zipkin.io/) back-end.
 By default, this exporter requires TLS and offers queued retry capabilities.
-
-Supported pipeline types: traces
 
 ## Getting Started
 
@@ -51,3 +55,7 @@ Several helper files are leveraged to provide additional capabilities automatica
 - [HTTP settings](https://github.com/open-telemetry/opentelemetry-collector/blob/main/config/confighttp/README.md)
 - [TLS and mTLS settings](https://github.com/open-telemetry/opentelemetry-collector/blob/main/config/configtls/README.md)
 - [Queuing, retry and timeout settings](https://github.com/open-telemetry/opentelemetry-collector/blob/main/exporter/exporterhelper/README.md)
+
+[beta]:https://github.com/open-telemetry/opentelemetry-collector#beta
+[contrib]:https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol-contrib
+[core]:https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol

@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"contrib.go.opencensus.io/exporter/prometheus"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
@@ -22,12 +21,10 @@ import (
 	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/collector/config/configunmarshaler"
+	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/external/obsreportconfig"
-	"go.opentelemetry.io/collector/model/otlp"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -87,7 +84,7 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 	zapLogger := newLogger(logLevel)
 	views, err := newMetricViews()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create metric views: %w", err)
+		return nil, fmt.Errorf("failed to create metric traceReceiverViews: %w", err)
 	}
 	shim.metricViews = views
 
@@ -118,10 +115,10 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 		}
 	}
 
-	p := config.NewMapFromStringMap(map[string]interface{}{
+	p := confmap.NewFromStringMap(map[string]interface{}{
 		"receivers": receiverCfg,
 	})
-	cfgs, err := configunmarshaler.NewDefault().Unmarshal(p, component.Factories{
+	cfgs, err := NewConfigUnmarshaler().Unmarshal(p, component.Factories{
 		Receivers: receiverFactories,
 	})
 	if err != nil {
@@ -193,7 +190,7 @@ func (r *receiversShim) stopping(_ error) error {
 }
 
 // ConsumeTraces implements consumer.Trace
-func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) error {
+func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "distributor.ConsumeTraces")
 	defer span.Finish()
 
@@ -201,7 +198,7 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) erro
 
 	// Convert to bytes and back. This is unfortunate for efficiency but it works
 	// around the otel-collector internalization of otel-proto which Tempo also uses.
-	convert, err := otlp.NewProtobufTracesMarshaler().MarshalTraces(td)
+	convert, err := ptrace.NewProtoMarshaler().MarshalTraces(td)
 	if err != nil {
 		return err
 	}
@@ -224,22 +221,20 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) erro
 	return err
 }
 
-// implements component.Host
+// ReportFatalError implements component.Host
 func (r *receiversShim) ReportFatalError(err error) {
-	level.Error(log.Logger).Log("msg", "fatal error reported", "err", err)
+	_ = level.Error(log.Logger).Log("msg", "fatal error reported", "err", err)
 }
 
-// implements component.Host
-func (r *receiversShim) GetFactory(kind component.Kind, componentType config.Type) component.Factory {
+// GetFactory implements component.Host
+func (r *receiversShim) GetFactory(component.Kind, config.Type) component.Factory {
 	return nil
 }
 
-// implements component.Host
-func (r *receiversShim) GetExtensions() map[config.ComponentID]component.Extension {
-	return nil
-}
+// GetExtensions implements component.Host
+func (r *receiversShim) GetExtensions() map[config.ComponentID]component.Extension { return nil }
 
-// implements component.Host
+// GetExporters implements component.Host
 func (r *receiversShim) GetExporters() map[config.DataType]map[config.ComponentID]component.Exporter {
 	return nil
 }
@@ -277,24 +272,4 @@ func newLogger(level logging.Level) *zap.Logger {
 	logger.Info("OTel Shim Logger Initialized")
 
 	return logger
-}
-
-func newMetricViews() ([]*view.View, error) {
-	views := obsreportconfig.Configure(configtelemetry.LevelNormal)
-	err := view.Register(views.Views...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to register views: %w", err)
-	}
-
-	pe, err := prometheus.NewExporter(prometheus.Options{
-		Namespace:  "tempo",
-		Registerer: prom_client.DefaultRegisterer,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create prometheus exporter: %w", err)
-	}
-
-	view.RegisterExporter(pe)
-
-	return views.Views, nil
 }

@@ -16,7 +16,7 @@ package zipkinv2 // import "github.com/open-telemetry/opentelemetry-collector-co
 
 import (
 	zipkinreporter "github.com/openzipkin/zipkin-go/reporter"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 type marshaler struct {
@@ -25,7 +25,7 @@ type marshaler struct {
 }
 
 // MarshalTraces to JSON bytes.
-func (j marshaler) MarshalTraces(td pdata.Traces) ([]byte, error) {
+func (j marshaler) MarshalTraces(td ptrace.Traces) ([]byte, error) {
 	spans, err := j.fromTranslator.FromTraces(td)
 	if err != nil {
 		return nil, err

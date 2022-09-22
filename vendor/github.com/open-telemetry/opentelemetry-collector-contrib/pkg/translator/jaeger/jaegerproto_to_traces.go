@@ -16,14 +16,17 @@ package jaeger // import "github.com/open-telemetry/opentelemetry-collector-cont
 
 import (
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
+	"hash/fnv"
 	"reflect"
 	"strconv"
 	"strings"
 
 	"github.com/jaegertracing/jaeger/model"
-	"go.opentelemetry.io/collector/model/pdata"
-	conventions "go.opentelemetry.io/collector/model/semconv/v1.6.1"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/occonventions"
@@ -33,12 +36,13 @@ import (
 var blankJaegerProtoSpan = new(model.Span)
 
 // ProtoToTraces converts multiple Jaeger proto batches to internal traces
-func ProtoToTraces(batches []*model.Batch) (pdata.Traces, error) {
-	traceData := pdata.NewTraces()
+func ProtoToTraces(batches []*model.Batch) (ptrace.Traces, error) {
+	traceData := ptrace.NewTraces()
 	if len(batches) == 0 {
 		return traceData, nil
 	}
 
+	batches = regroup(batches)
 	rss := traceData.ResourceSpans()
 	rss.EnsureCapacity(len(batches))
 
@@ -53,7 +57,76 @@ func ProtoToTraces(batches []*model.Batch) (pdata.Traces, error) {
 	return traceData, nil
 }
 
-func protoBatchToResourceSpans(batch model.Batch, dest pdata.ResourceSpans) {
+func regroup(batches []*model.Batch) []*model.Batch {
+	// Re-group batches
+	// This is needed as there might be a Process within Batch and Span at the same
+	// time, with the span one taking precedence.
+	// As we only have it at one level in OpenTelemetry, ResourceSpans, we split
+	// each batch into potentially multiple other batches, with the sum of their
+	// processes as the key to a map.
+	// Step 1) iterate over the batches
+	// Step 2) for each batch, calculate the batch's process checksum and store
+	// it on a map, with the checksum as the key and the process as the value
+	// Step 3) iterate the spans for a batch: if a given span has its own process,
+	// calculate the checksum for the process and store it on the same map
+	// Step 4) each entry on the map becomes a ResourceSpan
+	registry := map[uint64]*model.Batch{}
+
+	for _, batch := range batches {
+		bb := batchForProcess(registry, batch.Process)
+		for _, span := range batch.Spans {
+			if span.Process == nil {
+				bb.Spans = append(bb.Spans, span)
+			} else {
+				b := batchForProcess(registry, span.Process)
+				b.Spans = append(b.Spans, span)
+			}
+		}
+	}
+
+	result := []*model.Batch{}
+	for _, v := range registry {
+		result = append(result, v)
+	}
+
+	return result
+}
+
+func batchForProcess(registry map[uint64]*model.Batch, p *model.Process) *model.Batch {
+	sum := checksum(p)
+	batch := registry[sum]
+	if batch == nil {
+		batch = &model.Batch{
+			Process: p,
+		}
+		registry[sum] = batch
+	}
+
+	return batch
+}
+
+func checksum(process *model.Process) uint64 {
+	// this will get all the keys and values, plus service name, into this buffer
+	// this is potentially dangerous, as a batch/span with a big enough processes
+	// might cause the collector to allocate this extra big information
+	// for this reason, we hash it as an integer and return it, instead of keeping
+	// all the hashes for all the processes for all batches in memory
+	fnvHash := fnv.New64a()
+
+	if process != nil {
+		// this effectively means that all spans from batches with nil processes
+		// will be grouped together
+		// this should only ever happen in unit tests
+		// this implementation never returns an error according to the Hash interface
+		_ = process.Hash(fnvHash)
+	}
+
+	out := make([]byte, 0, 16)
+	out = fnvHash.Sum(out)
+	return binary.BigEndian.Uint64(out)
+}
+
+func protoBatchToResourceSpans(batch model.Batch, dest ptrace.ResourceSpans) {
 	jSpans := batch.GetSpans()
 
 	jProcessToInternalResource(batch.GetProcess(), dest.Resource())
@@ -63,18 +136,18 @@ func protoBatchToResourceSpans(batch model.Batch, dest pdata.ResourceSpans) {
 	}
 
 	groupByLibrary := jSpansToInternal(jSpans)
-	ilss := dest.InstrumentationLibrarySpans()
+	ilss := dest.ScopeSpans()
 	for library, spans := range groupByLibrary {
 		ils := ilss.AppendEmpty()
 		if library.name != "" {
-			ils.InstrumentationLibrary().SetName(library.name)
-			ils.InstrumentationLibrary().SetVersion(library.version)
+			ils.Scope().SetName(library.name)
+			ils.Scope().SetVersion(library.version)
 		}
 		spans.MoveAndAppendTo(ils.Spans())
 	}
 }
 
-func jProcessToInternalResource(process *model.Process, dest pdata.Resource) {
+func jProcessToInternalResource(process *model.Process, dest pcommon.Resource) {
 	if process == nil || process.ServiceName == tracetranslator.ResourceNoServiceName {
 		return
 	}
@@ -101,27 +174,27 @@ func jProcessToInternalResource(process *model.Process, dest pdata.Resource) {
 }
 
 // translateHostnameAttr translates "hostname" atttribute
-func translateHostnameAttr(attrs pdata.AttributeMap) {
+func translateHostnameAttr(attrs pcommon.Map) {
 	hostname, hostnameFound := attrs.Get("hostname")
 	_, convHostNameFound := attrs.Get(conventions.AttributeHostName)
 	if hostnameFound && !convHostNameFound {
 		attrs.Insert(conventions.AttributeHostName, hostname)
-		attrs.Delete("hostname")
+		attrs.Remove("hostname")
 	}
 }
 
 // translateHostnameAttr translates "jaeger.version" atttribute
-func translateJaegerVersionAttr(attrs pdata.AttributeMap) {
+func translateJaegerVersionAttr(attrs pcommon.Map) {
 	jaegerVersion, jaegerVersionFound := attrs.Get("jaeger.version")
 	_, exporterVersionFound := attrs.Get(occonventions.AttributeExporterVersion)
 	if jaegerVersionFound && !exporterVersionFound {
 		attrs.InsertString(occonventions.AttributeExporterVersion, "Jaeger-"+jaegerVersion.StringVal())
-		attrs.Delete("jaeger.version")
+		attrs.Remove("jaeger.version")
 	}
 }
 
-func jSpansToInternal(spans []*model.Span) map[instrumentationLibrary]pdata.SpanSlice {
-	spansByLibrary := make(map[instrumentationLibrary]pdata.SpanSlice)
+func jSpansToInternal(spans []*model.Span) map[scope]ptrace.SpanSlice {
+	spansByLibrary := make(map[scope]ptrace.SpanSlice)
 
 	for _, span := range spans {
 		if span == nil || reflect.DeepEqual(span, blankJaegerProtoSpan) {
@@ -132,15 +205,15 @@ func jSpansToInternal(spans []*model.Span) map[instrumentationLibrary]pdata.Span
 	return spansByLibrary
 }
 
-type instrumentationLibrary struct {
+type scope struct {
 	name, version string
 }
 
-func jSpanToInternal(span *model.Span, spansByLibrary map[instrumentationLibrary]pdata.SpanSlice) {
-	il := getInstrumentationLibrary(span)
+func jSpanToInternal(span *model.Span, spansByLibrary map[scope]ptrace.SpanSlice) {
+	il := getScope(span)
 	ss, found := spansByLibrary[il]
 	if !found {
-		ss = pdata.NewSpanSlice()
+		ss = ptrace.NewSpanSlice()
 		spansByLibrary[il] = ss
 	}
 
@@ -148,8 +221,8 @@ func jSpanToInternal(span *model.Span, spansByLibrary map[instrumentationLibrary
 	dest.SetTraceID(idutils.UInt64ToTraceID(span.TraceID.High, span.TraceID.Low))
 	dest.SetSpanID(idutils.UInt64ToSpanID(uint64(span.SpanID)))
 	dest.SetName(span.OperationName)
-	dest.SetStartTimestamp(pdata.NewTimestampFromTime(span.StartTime))
-	dest.SetEndTimestamp(pdata.NewTimestampFromTime(span.StartTime.Add(span.Duration)))
+	dest.SetStartTimestamp(pcommon.NewTimestampFromTime(span.StartTime))
+	dest.SetEndTimestamp(pcommon.NewTimestampFromTime(span.StartTime.Add(span.Duration)))
 
 	parentSpanID := span.ParentSpanID()
 	if parentSpanID != model.SpanID(0) {
@@ -162,7 +235,7 @@ func jSpanToInternal(span *model.Span, spansByLibrary map[instrumentationLibrary
 	setInternalSpanStatus(attrs, dest.Status())
 	if spanKindAttr, ok := attrs.Get(tracetranslator.TagSpanKind); ok {
 		dest.SetKind(jSpanKindToInternal(spanKindAttr.StringVal()))
-		attrs.Delete(tracetranslator.TagSpanKind)
+		attrs.Remove(tracetranslator.TagSpanKind)
 	}
 
 	dest.SetTraceState(getTraceStateFromAttrs(attrs))
@@ -176,7 +249,7 @@ func jSpanToInternal(span *model.Span, spansByLibrary map[instrumentationLibrary
 	jReferencesToSpanLinks(span.References, parentSpanID, dest.Links())
 }
 
-func jTagsToInternalAttributes(tags []model.KeyValue, dest pdata.AttributeMap) {
+func jTagsToInternalAttributes(tags []model.KeyValue, dest pcommon.Map) {
 	for _, tag := range tags {
 		switch tag.GetVType() {
 		case model.ValueType_STRING:
@@ -195,15 +268,15 @@ func jTagsToInternalAttributes(tags []model.KeyValue, dest pdata.AttributeMap) {
 	}
 }
 
-func setInternalSpanStatus(attrs pdata.AttributeMap, dest pdata.SpanStatus) {
-	statusCode := pdata.StatusCodeUnset
+func setInternalSpanStatus(attrs pcommon.Map, dest ptrace.SpanStatus) {
+	statusCode := ptrace.StatusCodeUnset
 	statusMessage := ""
 	statusExists := false
 
 	if errorVal, ok := attrs.Get(tracetranslator.TagError); ok {
 		if errorVal.BoolVal() {
-			statusCode = pdata.StatusCodeError
-			attrs.Delete(tracetranslator.TagError)
+			statusCode = ptrace.StatusCodeError
+			attrs.Remove(tracetranslator.TagError)
 			statusExists = true
 
 			if desc, ok := extractStatusDescFromAttr(attrs); ok {
@@ -222,9 +295,9 @@ func setInternalSpanStatus(attrs pdata.AttributeMap, dest pdata.SpanStatus) {
 			statusExists = true
 			switch strings.ToUpper(codeAttr.StringVal()) {
 			case statusOk:
-				statusCode = pdata.StatusCodeOk
+				statusCode = ptrace.StatusCodeOk
 			case statusError:
-				statusCode = pdata.StatusCodeError
+				statusCode = ptrace.StatusCodeError
 			}
 
 			if desc, ok := extractStatusDescFromAttr(attrs); ok {
@@ -234,13 +307,13 @@ func setInternalSpanStatus(attrs pdata.AttributeMap, dest pdata.SpanStatus) {
 		// Regardless of error tag value, remove the otel.status_code tag. The
 		// otel.status_message tag will have already been removed if
 		// statusExists is true.
-		attrs.Delete(conventions.OtelStatusCode)
+		attrs.Remove(conventions.OtelStatusCode)
 	} else if httpCodeAttr, ok := attrs.Get(conventions.AttributeHTTPStatusCode); !statusExists && ok {
 		// Fallback to introspecting if this span represents a failed HTTP
 		// request or response, but again, only do so if the `error` tag was
 		// not set to true and no explicit status was sent.
 		if code, err := getStatusCodeFromHTTPStatusAttr(httpCodeAttr); err == nil {
-			if code != pdata.StatusCodeUnset {
+			if code != ptrace.StatusCodeUnset {
 				statusExists = true
 				statusCode = code
 			}
@@ -261,10 +334,10 @@ func setInternalSpanStatus(attrs pdata.AttributeMap, dest pdata.SpanStatus) {
 // along with true if it is set. Otherwise, an empty string and false are
 // returned. The OTel status description attribute is deleted from attrs in
 // the process.
-func extractStatusDescFromAttr(attrs pdata.AttributeMap) (string, bool) {
+func extractStatusDescFromAttr(attrs pcommon.Map) (string, bool) {
 	if msgAttr, ok := attrs.Get(conventions.OtelStatusDescription); ok {
 		msg := msgAttr.StringVal()
-		attrs.Delete(conventions.OtelStatusDescription)
+		attrs.Remove(conventions.OtelStatusDescription)
 		return msg, true
 	}
 	return "", false
@@ -273,12 +346,12 @@ func extractStatusDescFromAttr(attrs pdata.AttributeMap) (string, bool) {
 // codeFromAttr returns the integer code value from attrVal. An error is
 // returned if the code is not represented by an integer or string value in
 // the attrVal or the value is outside the bounds of an int representation.
-func codeFromAttr(attrVal pdata.AttributeValue) (int64, error) {
+func codeFromAttr(attrVal pcommon.Value) (int64, error) {
 	var val int64
 	switch attrVal.Type() {
-	case pdata.AttributeValueTypeInt:
+	case pcommon.ValueTypeInt:
 		val = attrVal.IntVal()
-	case pdata.AttributeValueTypeString:
+	case pcommon.ValueTypeString:
 		var err error
 		val, err = strconv.ParseInt(attrVal.StringVal(), 10, 0)
 		if err != nil {
@@ -290,32 +363,32 @@ func codeFromAttr(attrVal pdata.AttributeValue) (int64, error) {
 	return val, nil
 }
 
-func getStatusCodeFromHTTPStatusAttr(attrVal pdata.AttributeValue) (pdata.StatusCode, error) {
+func getStatusCodeFromHTTPStatusAttr(attrVal pcommon.Value) (ptrace.StatusCode, error) {
 	statusCode, err := codeFromAttr(attrVal)
 	if err != nil {
-		return pdata.StatusCodeUnset, err
+		return ptrace.StatusCodeUnset, err
 	}
 
 	return tracetranslator.StatusCodeFromHTTP(statusCode), nil
 }
 
-func jSpanKindToInternal(spanKind string) pdata.SpanKind {
+func jSpanKindToInternal(spanKind string) ptrace.SpanKind {
 	switch spanKind {
 	case "client":
-		return pdata.SpanKindClient
+		return ptrace.SpanKindClient
 	case "server":
-		return pdata.SpanKindServer
+		return ptrace.SpanKindServer
 	case "producer":
-		return pdata.SpanKindProducer
+		return ptrace.SpanKindProducer
 	case "consumer":
-		return pdata.SpanKindConsumer
+		return ptrace.SpanKindConsumer
 	case "internal":
-		return pdata.SpanKindInternal
+		return ptrace.SpanKindInternal
 	}
-	return pdata.SpanKindUnspecified
+	return ptrace.SpanKindUnspecified
 }
 
-func jLogsToSpanEvents(logs []model.Log, dest pdata.SpanEventSlice) {
+func jLogsToSpanEvents(logs []model.Log, dest ptrace.SpanEventSlice) {
 	if len(logs) == 0 {
 		return
 	}
@@ -323,14 +396,14 @@ func jLogsToSpanEvents(logs []model.Log, dest pdata.SpanEventSlice) {
 	dest.EnsureCapacity(len(logs))
 
 	for i, log := range logs {
-		var event pdata.SpanEvent
+		var event ptrace.SpanEvent
 		if dest.Len() > i {
 			event = dest.At(i)
 		} else {
 			event = dest.AppendEmpty()
 		}
 
-		event.SetTimestamp(pdata.NewTimestampFromTime(log.Timestamp))
+		event.SetTimestamp(pcommon.NewTimestampFromTime(log.Timestamp))
 		if len(log.Fields) == 0 {
 			continue
 		}
@@ -339,15 +412,15 @@ func jLogsToSpanEvents(logs []model.Log, dest pdata.SpanEventSlice) {
 		attrs.Clear()
 		attrs.EnsureCapacity(len(log.Fields))
 		jTagsToInternalAttributes(log.Fields, attrs)
-		if name, ok := attrs.Get(tracetranslator.TagMessage); ok {
+		if name, ok := attrs.Get(eventNameAttr); ok {
 			event.SetName(name.StringVal())
-			attrs.Delete(tracetranslator.TagMessage)
+			attrs.Remove(eventNameAttr)
 		}
 	}
 }
 
 // jReferencesToSpanLinks sets internal span links based on jaeger span references skipping excludeParentID
-func jReferencesToSpanLinks(refs []model.SpanRef, excludeParentID model.SpanID, dest pdata.SpanLinkSlice) {
+func jReferencesToSpanLinks(refs []model.SpanRef, excludeParentID model.SpanID, dest ptrace.SpanLinkSlice) {
 	if len(refs) == 0 || len(refs) == 1 && refs[0].SpanID == excludeParentID && refs[0].RefType == model.ChildOf {
 		return
 	}
@@ -364,18 +437,18 @@ func jReferencesToSpanLinks(refs []model.SpanRef, excludeParentID model.SpanID, 
 	}
 }
 
-func getTraceStateFromAttrs(attrs pdata.AttributeMap) pdata.TraceState {
-	traceState := pdata.TraceStateEmpty
+func getTraceStateFromAttrs(attrs pcommon.Map) ptrace.TraceState {
+	traceState := ptrace.TraceStateEmpty
 	// TODO Bring this inline with solution for jaegertracing/jaeger-client-java #702 once available
 	if attr, ok := attrs.Get(tracetranslator.TagW3CTraceState); ok {
-		traceState = pdata.TraceState(attr.StringVal())
-		attrs.Delete(tracetranslator.TagW3CTraceState)
+		traceState = ptrace.TraceState(attr.StringVal())
+		attrs.Remove(tracetranslator.TagW3CTraceState)
 	}
 	return traceState
 }
 
-func getInstrumentationLibrary(span *model.Span) instrumentationLibrary {
-	il := instrumentationLibrary{}
+func getScope(span *model.Span) scope {
+	il := scope{}
 	if libraryName, ok := getAndDeleteTag(span, conventions.OtelLibraryName); ok {
 		il.name = libraryName
 		if libraryVersion, ok := getAndDeleteTag(span, conventions.OtelLibraryVersion); ok {

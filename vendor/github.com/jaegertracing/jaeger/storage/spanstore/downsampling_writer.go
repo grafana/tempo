@@ -22,16 +22,13 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/uber/jaeger-lib/metrics"
-
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 const defaultHashSalt = "downsampling-default-salt"
 
-var (
-	traceIDByteSize = (&model.TraceID{}).Size()
-)
+var traceIDByteSize = (&model.TraceID{}).Size()
 
 // hasher includes data we want to put in sync.Pool.
 type hasher struct {

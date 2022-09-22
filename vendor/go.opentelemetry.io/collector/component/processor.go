@@ -17,7 +17,6 @@ package component // import "go.opentelemetry.io/collector/component"
 import (
 	"context"
 
-	"go.opentelemetry.io/collector/component/componenterror"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/consumer"
 )
@@ -101,15 +100,27 @@ type ProcessorFactory interface {
 	) (LogsProcessor, error)
 }
 
-// ProcessorFactoryOption apply changes to ProcessorOptions.
-type ProcessorFactoryOption func(o *processorFactory)
-
 // ProcessorCreateDefaultConfigFunc is the equivalent of ProcessorFactory.CreateDefaultConfig().
 type ProcessorCreateDefaultConfigFunc func() config.Processor
 
 // CreateDefaultConfig implements ProcessorFactory.CreateDefaultConfig().
 func (f ProcessorCreateDefaultConfigFunc) CreateDefaultConfig() config.Processor {
 	return f()
+}
+
+// ProcessorFactoryOption apply changes to ProcessorOptions.
+type ProcessorFactoryOption interface {
+	// applyProcessorFactoryOption applies the option.
+	applyProcessorFactoryOption(o *processorFactory)
+}
+
+var _ ProcessorFactoryOption = (*processorFactoryOptionFunc)(nil)
+
+// processorFactoryOptionFunc is an ProcessorFactoryOption created through a function.
+type processorFactoryOptionFunc func(*processorFactory)
+
+func (f processorFactoryOptionFunc) applyProcessorFactoryOption(o *processorFactory) {
+	f(o)
 }
 
 // CreateTracesProcessorFunc is the equivalent of ProcessorFactory.CreateTracesProcessor().
@@ -122,7 +133,7 @@ func (f CreateTracesProcessorFunc) CreateTracesProcessor(
 	cfg config.Processor,
 	nextConsumer consumer.Traces) (TracesProcessor, error) {
 	if f == nil {
-		return nil, componenterror.ErrDataTypeIsNotSupported
+		return nil, ErrDataTypeIsNotSupported
 	}
 	return f(ctx, set, cfg, nextConsumer)
 }
@@ -138,7 +149,7 @@ func (f CreateMetricsProcessorFunc) CreateMetricsProcessor(
 	nextConsumer consumer.Metrics,
 ) (MetricsProcessor, error) {
 	if f == nil {
-		return nil, componenterror.ErrDataTypeIsNotSupported
+		return nil, ErrDataTypeIsNotSupported
 	}
 	return f(ctx, set, cfg, nextConsumer)
 }
@@ -154,7 +165,7 @@ func (f CreateLogsProcessorFunc) CreateLogsProcessor(
 	nextConsumer consumer.Logs,
 ) (LogsProcessor, error) {
 	if f == nil {
-		return nil, componenterror.ErrDataTypeIsNotSupported
+		return nil, ErrDataTypeIsNotSupported
 	}
 	return f(ctx, set, cfg, nextConsumer)
 }
@@ -167,35 +178,47 @@ type processorFactory struct {
 	CreateLogsProcessorFunc
 }
 
-// WithTracesProcessor overrides the default "error not supported" implementation for CreateTracesProcessor.
-func WithTracesProcessor(createTracesProcessor CreateTracesProcessorFunc) ProcessorFactoryOption {
-	return func(o *processorFactory) {
+// WithTracesProcessor overrides the default "error not supported" implementation for CreateTracesProcessor and the default "undefined" stability level.
+func WithTracesProcessor(createTracesProcessor CreateTracesProcessorFunc, sl StabilityLevel) ProcessorFactoryOption {
+	return processorFactoryOptionFunc(func(o *processorFactory) {
+		o.stability[config.TracesDataType] = sl
 		o.CreateTracesProcessorFunc = createTracesProcessor
-	}
+	})
 }
 
-// WithMetricsProcessor overrides the default "error not supported" implementation for CreateMetricsProcessor.
-func WithMetricsProcessor(createMetricsProcessor CreateMetricsProcessorFunc) ProcessorFactoryOption {
-	return func(o *processorFactory) {
+// Deprecated: [v0.57.0] Use WithTracesProcessor instead.
+var WithTracesProcessorAndStabilityLevel = WithTracesProcessor
+
+// WithMetricsProcessor overrides the default "error not supported" implementation for CreateMetricsProcessor and the default "undefined" stability level.
+func WithMetricsProcessor(createMetricsProcessor CreateMetricsProcessorFunc, sl StabilityLevel) ProcessorFactoryOption {
+	return processorFactoryOptionFunc(func(o *processorFactory) {
+		o.stability[config.MetricsDataType] = sl
 		o.CreateMetricsProcessorFunc = createMetricsProcessor
-	}
+	})
 }
 
-// WithLogsProcessor overrides the default "error not supported" implementation for CreateLogsProcessor.
-func WithLogsProcessor(createLogsProcessor CreateLogsProcessorFunc) ProcessorFactoryOption {
-	return func(o *processorFactory) {
+// Deprecated: [v0.57.0] Use WithMetricsProcessor instead.
+var WithMetricsProcessorAndStabilityLevel = WithMetricsProcessor
+
+// WithLogsProcessor overrides the default "error not supported" implementation for CreateLogsProcessor and the default "undefined" stability level.
+func WithLogsProcessor(createLogsProcessor CreateLogsProcessorFunc, sl StabilityLevel) ProcessorFactoryOption {
+	return processorFactoryOptionFunc(func(o *processorFactory) {
+		o.stability[config.LogsDataType] = sl
 		o.CreateLogsProcessorFunc = createLogsProcessor
-	}
+	})
 }
+
+// Deprecated: [v0.57.0] Use WithLogsProcessor instead.
+var WithLogsProcessorAndStabilityLevel = WithLogsProcessor
 
 // NewProcessorFactory returns a ProcessorFactory.
 func NewProcessorFactory(cfgType config.Type, createDefaultConfig ProcessorCreateDefaultConfigFunc, options ...ProcessorFactoryOption) ProcessorFactory {
 	f := &processorFactory{
-		baseFactory:                      baseFactory{cfgType: cfgType},
+		baseFactory:                      baseFactory{cfgType: cfgType, stability: make(map[config.DataType]StabilityLevel)},
 		ProcessorCreateDefaultConfigFunc: createDefaultConfig,
 	}
 	for _, opt := range options {
-		opt(f)
+		opt.applyProcessorFactoryOption(f)
 	}
 	return f
 }

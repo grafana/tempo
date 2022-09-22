@@ -26,7 +26,8 @@ import (
 // This file implements factory for Zipkin receiver.
 
 const (
-	typeStr = "zipkin"
+	typeStr   = "zipkin"
+	stability = component.StabilityLevelBeta
 
 	defaultBindEndpoint = "0.0.0.0:9411"
 )
@@ -36,7 +37,7 @@ func NewFactory() component.ReceiverFactory {
 	return component.NewReceiverFactory(
 		typeStr,
 		createDefaultConfig,
-		component.WithTracesReceiver(createTracesReceiver),
+		component.WithTracesReceiver(createTracesReceiver, stability),
 	)
 }
 

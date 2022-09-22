@@ -25,7 +25,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/consumer/consumererror"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv2"
 )
@@ -70,11 +70,11 @@ func createZipkinExporter(cfg *Config, settings component.TelemetrySettings) (*z
 
 // start creates the http client
 func (ze *zipkinExporter) start(_ context.Context, host component.Host) (err error) {
-	ze.client, err = ze.clientSettings.ToClient(host.GetExtensions(), ze.settings)
+	ze.client, err = ze.clientSettings.ToClient(host, ze.settings)
 	return
 }
 
-func (ze *zipkinExporter) pushTraces(ctx context.Context, td pdata.Traces) error {
+func (ze *zipkinExporter) pushTraces(ctx context.Context, td ptrace.Traces) error {
 	spans, err := translator.FromTraces(td)
 	if err != nil {
 		return consumererror.NewPermanent(fmt.Errorf("failed to push trace data via Zipkin exporter: %w", err))

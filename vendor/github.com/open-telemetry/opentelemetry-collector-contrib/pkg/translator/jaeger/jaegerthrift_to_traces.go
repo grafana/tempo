@@ -20,8 +20,9 @@ import (
 	"reflect"
 
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
-	"go.opentelemetry.io/collector/model/pdata"
-	conventions "go.opentelemetry.io/collector/model/semconv/v1.6.1"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator"
@@ -29,9 +30,9 @@ import (
 
 var blankJaegerThriftSpan = new(jaeger.Span)
 
-// ThriftToTraces transforms a Thrift trace batch into pdata.Traces.
-func ThriftToTraces(batches *jaeger.Batch) (pdata.Traces, error) {
-	traceData := pdata.NewTraces()
+// ThriftToTraces transforms a Thrift trace batch into ptrace.Traces.
+func ThriftToTraces(batches *jaeger.Batch) (ptrace.Traces, error) {
+	traceData := ptrace.NewTraces()
 	jProcess := batches.GetProcess()
 	jSpans := batches.GetSpans()
 
@@ -46,12 +47,12 @@ func ThriftToTraces(batches *jaeger.Batch) (pdata.Traces, error) {
 		return traceData, nil
 	}
 
-	jThriftSpansToInternal(jSpans, rs.InstrumentationLibrarySpans().AppendEmpty().Spans())
+	jThriftSpansToInternal(jSpans, rs.ScopeSpans().AppendEmpty().Spans())
 
 	return traceData, nil
 }
 
-func jThriftProcessToInternalResource(process *jaeger.Process, dest pdata.Resource) {
+func jThriftProcessToInternalResource(process *jaeger.Process, dest pcommon.Resource) {
 	if process == nil {
 		return
 	}
@@ -77,7 +78,7 @@ func jThriftProcessToInternalResource(process *jaeger.Process, dest pdata.Resour
 	translateJaegerVersionAttr(attrs)
 }
 
-func jThriftSpansToInternal(spans []*jaeger.Span, dest pdata.SpanSlice) {
+func jThriftSpansToInternal(spans []*jaeger.Span, dest ptrace.SpanSlice) {
 	if len(spans) == 0 {
 		return
 	}
@@ -91,7 +92,7 @@ func jThriftSpansToInternal(spans []*jaeger.Span, dest pdata.SpanSlice) {
 	}
 }
 
-func jThriftSpanToInternal(span *jaeger.Span, dest pdata.Span) {
+func jThriftSpanToInternal(span *jaeger.Span, dest ptrace.Span) {
 	dest.SetTraceID(idutils.UInt64ToTraceID(uint64(span.TraceIdHigh), uint64(span.TraceIdLow)))
 	dest.SetSpanID(idutils.UInt64ToSpanID(uint64(span.SpanId)))
 	dest.SetName(span.OperationName)
@@ -109,7 +110,7 @@ func jThriftSpanToInternal(span *jaeger.Span, dest pdata.Span) {
 	setInternalSpanStatus(attrs, dest.Status())
 	if spanKindAttr, ok := attrs.Get(tracetranslator.TagSpanKind); ok {
 		dest.SetKind(jSpanKindToInternal(spanKindAttr.StringVal()))
-		attrs.Delete(tracetranslator.TagSpanKind)
+		attrs.Remove(tracetranslator.TagSpanKind)
 	}
 
 	// drop the attributes slice if all of them were replaced during translation
@@ -122,7 +123,7 @@ func jThriftSpanToInternal(span *jaeger.Span, dest pdata.Span) {
 }
 
 // jThriftTagsToInternalAttributes sets internal span links based on jaeger span references skipping excludeParentID
-func jThriftTagsToInternalAttributes(tags []*jaeger.Tag, dest pdata.AttributeMap) {
+func jThriftTagsToInternalAttributes(tags []*jaeger.Tag, dest pcommon.Map) {
 	for _, tag := range tags {
 		switch tag.GetVType() {
 		case jaeger.TagType_STRING:
@@ -141,7 +142,7 @@ func jThriftTagsToInternalAttributes(tags []*jaeger.Tag, dest pdata.AttributeMap
 	}
 }
 
-func jThriftLogsToSpanEvents(logs []*jaeger.Log, dest pdata.SpanEventSlice) {
+func jThriftLogsToSpanEvents(logs []*jaeger.Log, dest ptrace.SpanEventSlice) {
 	if len(logs) == 0 {
 		return
 	}
@@ -160,14 +161,14 @@ func jThriftLogsToSpanEvents(logs []*jaeger.Log, dest pdata.SpanEventSlice) {
 		attrs.Clear()
 		attrs.EnsureCapacity(len(log.Fields))
 		jThriftTagsToInternalAttributes(log.Fields, attrs)
-		if name, ok := attrs.Get(tracetranslator.TagMessage); ok {
+		if name, ok := attrs.Get(eventNameAttr); ok {
 			event.SetName(name.StringVal())
-			attrs.Delete(tracetranslator.TagMessage)
+			attrs.Remove(eventNameAttr)
 		}
 	}
 }
 
-func jThriftReferencesToSpanLinks(refs []*jaeger.SpanRef, excludeParentID int64, dest pdata.SpanLinkSlice) {
+func jThriftReferencesToSpanLinks(refs []*jaeger.SpanRef, excludeParentID int64, dest ptrace.SpanLinkSlice) {
 	if len(refs) == 0 || len(refs) == 1 && refs[0].SpanId == excludeParentID && refs[0].RefType == jaeger.SpanRefType_CHILD_OF {
 		return
 	}
@@ -184,7 +185,7 @@ func jThriftReferencesToSpanLinks(refs []*jaeger.SpanRef, excludeParentID int64,
 	}
 }
 
-// microsecondsToUnixNano converts epoch microseconds to pdata.Timestamp
-func microsecondsToUnixNano(ms int64) pdata.Timestamp {
-	return pdata.Timestamp(uint64(ms) * 1000)
+// microsecondsToUnixNano converts epoch microseconds to pcommon.Timestamp
+func microsecondsToUnixNano(ms int64) pcommon.Timestamp {
+	return pcommon.Timestamp(uint64(ms) * 1000)
 }

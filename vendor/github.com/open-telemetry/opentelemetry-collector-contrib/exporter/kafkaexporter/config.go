@@ -77,6 +77,16 @@ type Producer struct {
 	//   1 -> WaitForLocal. waits for only the local commit to succeed before responding ( default )
 	//   -1 -> WaitForAll. waits for all in-sync replicas to commit before responding.
 	RequiredAcks sarama.RequiredAcks `mapstructure:"required_acks"`
+
+	// Compression Codec used to produce messages
+	// https://pkg.go.dev/github.com/Shopify/sarama@v1.30.0#CompressionCodec
+	// The options are: 'none', 'gzip', 'snappy', 'lz4', and 'zstd'
+	Compression string `mapstructure:"compression"`
+
+	// The maximum number of messages the producer will send in a single
+	// broker request. Defaults to 0 for unlimited. Similar to
+	// `queue.buffering.max.messages` in the JVM producer.
+	FlushMaxMessages int `mapstructure:"flush_max_messages"`
 }
 
 // MetadataRetry defines retry configuration for Metadata.
@@ -96,5 +106,28 @@ func (cfg *Config) Validate() error {
 	if cfg.Producer.RequiredAcks < -1 || cfg.Producer.RequiredAcks > 1 {
 		return fmt.Errorf("producer.required_acks has to be between -1 and 1. configured value %v", cfg.Producer.RequiredAcks)
 	}
+
+	_, err := saramaProducerCompressionCodec(cfg.Producer.Compression)
+	if err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func saramaProducerCompressionCodec(compression string) (sarama.CompressionCodec, error) {
+	switch compression {
+	case "none":
+		return sarama.CompressionNone, nil
+	case "gzip":
+		return sarama.CompressionGZIP, nil
+	case "snappy":
+		return sarama.CompressionSnappy, nil
+	case "lz4":
+		return sarama.CompressionLZ4, nil
+	case "zstd":
+		return sarama.CompressionZSTD, nil
+	default:
+		return sarama.CompressionNone, fmt.Errorf("producer.compression should be one of 'none', 'gzip', 'snappy', 'lz4', or 'zstd'. configured value %v", compression)
+	}
 }

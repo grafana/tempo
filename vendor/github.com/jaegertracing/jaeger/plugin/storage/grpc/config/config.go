@@ -34,6 +34,8 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
 
+var pluginHealthCheckInterval = time.Second * 60
+
 // Configuration describes the options to customize the storage behavior.
 type Configuration struct {
 	PluginBinary            string `yaml:"binary" mapstructure:"binary"`
@@ -42,6 +44,10 @@ type Configuration struct {
 	RemoteServerAddr        string `yaml:"server" mapstructure:"server"`
 	RemoteTLS               tlscfg.Options
 	RemoteConnectTimeout    time.Duration `yaml:"connection-timeout" mapstructure:"connection-timeout"`
+
+	pluginHealthCheck     *time.Ticker
+	pluginHealthCheckDone chan bool
+	pluginRPCClient       plugin.ClientProtocol
 }
 
 // ClientPluginServices defines services plugin can expose and its capabilities
@@ -59,13 +65,18 @@ type PluginBuilder interface {
 // Build instantiates a PluginServices
 func (c *Configuration) Build(logger *zap.Logger) (*ClientPluginServices, error) {
 	if c.PluginBinary != "" {
-		return c.buildPlugin()
+		return c.buildPlugin(logger)
 	} else {
 		return c.buildRemote(logger)
 	}
 }
 
 func (c *Configuration) Close() error {
+	if c.pluginHealthCheck != nil {
+		c.pluginHealthCheck.Stop()
+		c.pluginHealthCheckDone <- true
+	}
+
 	return c.RemoteTLS.Close()
 }
 
@@ -103,7 +114,7 @@ func (c *Configuration) buildRemote(logger *zap.Logger) (*ClientPluginServices, 
 	}, nil
 }
 
-func (c *Configuration) buildPlugin() (*ClientPluginServices, error) {
+func (c *Configuration) buildPlugin(logger *zap.Logger) (*ClientPluginServices, error) {
 	// #nosec G204
 	cmd := exec.Command(c.PluginBinary, "--config", c.PluginConfigurationFile)
 
@@ -148,17 +159,48 @@ func (c *Configuration) buildPlugin() (*ClientPluginServices, error) {
 		return nil, fmt.Errorf("unable to cast %T to shared.ArchiveStoragePlugin for plugin \"%s\"",
 			raw, shared.StoragePluginIdentifier)
 	}
+	streamingSpanWriterPlugin, ok := raw.(shared.StreamingSpanWriterPlugin)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast %T to shared.StreamingSpanWriterPlugin for plugin \"%s\"",
+			raw, shared.StoragePluginIdentifier)
+	}
 	capabilities, ok := raw.(shared.PluginCapabilities)
 	if !ok {
 		return nil, fmt.Errorf("unable to cast %T to shared.PluginCapabilities for plugin \"%s\"",
 			raw, shared.StoragePluginIdentifier)
 	}
 
+	if err := c.startPluginHealthCheck(rpcClient, logger); err != nil {
+		return nil, fmt.Errorf("initial plugin health check failed: %w", err)
+	}
+
 	return &ClientPluginServices{
 		PluginServices: shared.PluginServices{
-			Store:        storagePlugin,
-			ArchiveStore: archiveStoragePlugin,
+			Store:               storagePlugin,
+			ArchiveStore:        archiveStoragePlugin,
+			StreamingSpanWriter: streamingSpanWriterPlugin,
 		},
 		Capabilities: capabilities,
 	}, nil
+}
+
+func (c *Configuration) startPluginHealthCheck(rpcClient plugin.ClientProtocol, logger *zap.Logger) error {
+	c.pluginRPCClient = rpcClient
+	c.pluginHealthCheckDone = make(chan bool)
+	c.pluginHealthCheck = time.NewTicker(pluginHealthCheckInterval)
+
+	go func() {
+		for {
+			select {
+			case <-c.pluginHealthCheckDone:
+				return
+			case <-c.pluginHealthCheck.C:
+				if err := c.pluginRPCClient.Ping(); err != nil {
+					logger.Fatal("plugin health check failed", zap.Error(err))
+				}
+			}
+		}
+	}()
+
+	return c.pluginRPCClient.Ping()
 }

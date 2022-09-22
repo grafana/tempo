@@ -19,7 +19,7 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	jaegerproto "github.com/jaegertracing/jaeger/model"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 )
@@ -29,11 +29,11 @@ type jaegerProtoSpanUnmarshaler struct {
 
 var _ TracesUnmarshaler = (*jaegerProtoSpanUnmarshaler)(nil)
 
-func (j jaegerProtoSpanUnmarshaler) Unmarshal(bytes []byte) (pdata.Traces, error) {
+func (j jaegerProtoSpanUnmarshaler) Unmarshal(bytes []byte) (ptrace.Traces, error) {
 	span := &jaegerproto.Span{}
 	err := span.Unmarshal(bytes)
 	if err != nil {
-		return pdata.NewTraces(), err
+		return ptrace.NewTraces(), err
 	}
 	return jaegerSpanToTraces(span)
 }
@@ -47,11 +47,11 @@ type jaegerJSONSpanUnmarshaler struct {
 
 var _ TracesUnmarshaler = (*jaegerJSONSpanUnmarshaler)(nil)
 
-func (j jaegerJSONSpanUnmarshaler) Unmarshal(data []byte) (pdata.Traces, error) {
+func (j jaegerJSONSpanUnmarshaler) Unmarshal(data []byte) (ptrace.Traces, error) {
 	span := &jaegerproto.Span{}
 	err := jsonpb.Unmarshal(bytes.NewReader(data), span)
 	if err != nil {
-		return pdata.NewTraces(), err
+		return ptrace.NewTraces(), err
 	}
 	return jaegerSpanToTraces(span)
 }
@@ -60,7 +60,7 @@ func (j jaegerJSONSpanUnmarshaler) Encoding() string {
 	return "jaeger_json"
 }
 
-func jaegerSpanToTraces(span *jaegerproto.Span) (pdata.Traces, error) {
+func jaegerSpanToTraces(span *jaegerproto.Span) (ptrace.Traces, error) {
 	batch := jaegerproto.Batch{
 		Spans:   []*jaegerproto.Span{span},
 		Process: span.Process,

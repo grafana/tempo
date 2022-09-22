@@ -15,65 +15,67 @@
 package kafkareceiver // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 
 import (
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/plog"
+	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 type pdataLogsUnmarshaler struct {
-	pdata.LogsUnmarshaler
+	plog.Unmarshaler
 	encoding string
 }
 
-func (p pdataLogsUnmarshaler) Unmarshal(buf []byte) (pdata.Logs, error) {
-	return p.LogsUnmarshaler.UnmarshalLogs(buf)
+func (p pdataLogsUnmarshaler) Unmarshal(buf []byte) (plog.Logs, error) {
+	return p.Unmarshaler.UnmarshalLogs(buf)
 }
 
 func (p pdataLogsUnmarshaler) Encoding() string {
 	return p.encoding
 }
 
-func newPdataLogsUnmarshaler(unmarshaler pdata.LogsUnmarshaler, encoding string) LogsUnmarshaler {
+func newPdataLogsUnmarshaler(unmarshaler plog.Unmarshaler, encoding string) LogsUnmarshaler {
 	return pdataLogsUnmarshaler{
-		LogsUnmarshaler: unmarshaler,
-		encoding:        encoding,
+		Unmarshaler: unmarshaler,
+		encoding:    encoding,
 	}
 }
 
 type pdataTracesUnmarshaler struct {
-	pdata.TracesUnmarshaler
+	ptrace.Unmarshaler
 	encoding string
 }
 
-func (p pdataTracesUnmarshaler) Unmarshal(buf []byte) (pdata.Traces, error) {
-	return p.TracesUnmarshaler.UnmarshalTraces(buf)
+func (p pdataTracesUnmarshaler) Unmarshal(buf []byte) (ptrace.Traces, error) {
+	return p.Unmarshaler.UnmarshalTraces(buf)
 }
 
 func (p pdataTracesUnmarshaler) Encoding() string {
 	return p.encoding
 }
 
-func newPdataTracesUnmarshaler(unmarshaler pdata.TracesUnmarshaler, encoding string) TracesUnmarshaler {
+func newPdataTracesUnmarshaler(unmarshaler ptrace.Unmarshaler, encoding string) TracesUnmarshaler {
 	return pdataTracesUnmarshaler{
-		TracesUnmarshaler: unmarshaler,
-		encoding:          encoding,
+		Unmarshaler: unmarshaler,
+		encoding:    encoding,
 	}
 }
 
 type pdataMetricsUnmarshaler struct {
-	pdata.MetricsUnmarshaler
+	pmetric.Unmarshaler
 	encoding string
 }
 
-func (p pdataMetricsUnmarshaler) Unmarshal(buf []byte) (pdata.Metrics, error) {
-	return p.MetricsUnmarshaler.UnmarshalMetrics(buf)
+func (p pdataMetricsUnmarshaler) Unmarshal(buf []byte) (pmetric.Metrics, error) {
+	return p.Unmarshaler.UnmarshalMetrics(buf)
 }
 
 func (p pdataMetricsUnmarshaler) Encoding() string {
 	return p.encoding
 }
 
-func newPdataMetricsUnmarshaler(unmarshaler pdata.MetricsUnmarshaler, encoding string) MetricsUnmarshaler {
+func newPdataMetricsUnmarshaler(unmarshaler pmetric.Unmarshaler, encoding string) MetricsUnmarshaler {
 	return pdataMetricsUnmarshaler{
-		MetricsUnmarshaler: unmarshaler,
-		encoding:           encoding,
+		Unmarshaler: unmarshaler,
+		encoding:    encoding,
 	}
 }

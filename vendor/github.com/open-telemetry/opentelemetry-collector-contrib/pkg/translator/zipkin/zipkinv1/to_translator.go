@@ -15,13 +15,13 @@
 package zipkinv1 // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv1"
 
 import (
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	internaldata "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus"
 )
 
-func toTraces(ocTraces []traceData) (pdata.Traces, error) {
-	td := pdata.NewTraces()
+func toTraces(ocTraces []traceData) (ptrace.Traces, error) {
+	td := ptrace.NewTraces()
 
 	for _, trace := range ocTraces {
 		tmp := internaldata.OCToTraces(trace.Node, trace.Resource, trace.Spans)
