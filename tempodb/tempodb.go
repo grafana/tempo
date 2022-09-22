@@ -220,6 +220,7 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 	if err != nil {
 		return nil, err
 	}
+	defer iter.Close()
 
 	walMeta := block.BlockMeta()
 
