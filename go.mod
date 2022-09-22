@@ -264,11 +264,6 @@ replace (
 // Can be removed when https://github.com/open-telemetry/opentelemetry-go/pull/2141 is merged
 replace go.opentelemetry.io/otel/bridge/opentracing => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348
 
-//// Replacing for an internal fork that exposes internal folders
-//// Some funtionalities of the collector have been made internal and it's more difficult to build and configure pipelines in the newer versions.
-//// This is a temporary solution while a new configuration design is discussed for the collector (ref: https://github.com/open-telemetry/opentelemetry-collector/issues/3482).
-//replace go.opentelemetry.io/collector => github.com/grafana/opentelemetry-collector v0.4.1-0.20220315084747-b05fe1477960
-
 // Replace memberlist with our fork which includes some fixes that haven't been
 // merged upstream yet:
 // - https://github.com/hashicorp/memberlist/pull/260
