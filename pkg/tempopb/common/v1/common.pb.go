@@ -6,11 +6,10 @@ package v1
 import (
 	encoding_binary "encoding/binary"
 	fmt "fmt"
+	proto "github.com/gogo/protobuf/proto"
 	io "io"
 	math "math"
 	math_bits "math/bits"
-
-	proto "github.com/gogo/protobuf/proto"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -454,7 +453,7 @@ func init() {
 	proto.RegisterType((*ArrayValue)(nil), "tempopb.common.v1.ArrayValue")
 	proto.RegisterType((*KeyValueList)(nil), "tempopb.common.v1.KeyValueList")
 	proto.RegisterType((*KeyValue)(nil), "tempopb.common.v1.KeyValue")
-	proto.RegisterType((*InstrumentationLibrary)(nil), "tempopb.common.v1.Scope")
+	proto.RegisterType((*InstrumentationLibrary)(nil), "tempopb.common.v1.InstrumentationLibrary")
 	proto.RegisterType((*InstrumentationScope)(nil), "tempopb.common.v1.InstrumentationScope")
 }
 
@@ -1558,10 +1557,10 @@ func (m *InstrumentationLibrary) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Scope: wiretype end group for non-group")
+			return fmt.Errorf("proto: InstrumentationLibrary: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Scope: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: InstrumentationLibrary: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:

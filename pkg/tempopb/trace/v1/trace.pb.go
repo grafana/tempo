@@ -6,13 +6,12 @@ package v1
 import (
 	encoding_binary "encoding/binary"
 	fmt "fmt"
-	io "io"
-	math "math"
-	math_bits "math/bits"
-
 	proto "github.com/gogo/protobuf/proto"
 	v11 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	io "io"
+	math "math"
+	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -2168,7 +2167,7 @@ func (m *InstrumentationLibrarySpans) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Scope", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field InstrumentationLibrary", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {

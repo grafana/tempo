@@ -320,6 +320,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		blockID, _ := i.CutBlockIfReady(0, 0, true)
 		if blockID != uuid.Nil {
 			err := i.CompleteBlock(blockID)
+			fmt.Println("complete block", blockID, err)
 			require.NoError(t, err)
 			err = i.ClearCompletingBlock(blockID)
 			require.NoError(t, err)
@@ -577,7 +578,7 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 
 	for j := 0; j < 2; j++ {
 		go concurrent(func() {
-			//time.Sleep(1 * time.Millisecond)
+			// time.Sleep(1 * time.Millisecond)
 			var req = &tempopb.SearchRequest{
 				Tags: map[string]string{search.SecretExhaustiveSearchTag: "!"},
 			}
