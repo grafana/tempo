@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
@@ -110,7 +111,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		}
 
 		c, err := page.Values().ReadValues(buf)
-		if err != nil {
+		if err != nil && err != io.EOF {
 			return nil, err
 		}
 		if c < 1 {
