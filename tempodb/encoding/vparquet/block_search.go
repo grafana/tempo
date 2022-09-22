@@ -37,8 +37,14 @@ var StatusCodeMapping = map[string]int{
 }
 
 // openForSearch consolidates all the logic regarding opening a parquet file in object storage
-func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions, o ...parquet.FileOption) (*parquet.File, *BackendReaderAt, error) {
+func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions) (*parquet.File, *BackendReaderAt, error) {
 	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
+
+	// no searches currently require bloom filters or the page index. so just add them statically
+	o := []parquet.FileOption{
+		parquet.SkipBloomFilters(true),
+		parquet.SkipPageIndex(true),
+	}
 
 	// backend reader
 	readerAt := io.ReaderAt(backendReaderAt)
@@ -78,7 +84,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 		})
 	defer span.Finish()
 
-	pf, rr, err := b.openForSearch(derivedCtx, opts, parquet.SkipPageIndex(true))
+	pf, rr, err := b.openForSearch(derivedCtx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}

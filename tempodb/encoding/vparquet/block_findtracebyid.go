@@ -69,7 +69,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		return nil, nil
 	}
 
-	pf, rr, err := b.openForSearch(derivedCtx, opts, parquet.SkipPageIndex(true))
+	pf, rr, err := b.openForSearch(derivedCtx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
