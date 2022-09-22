@@ -67,6 +67,7 @@ func TestAppendBlockStartEnd(t *testing.T) {
 
 		tr := test.MakeTrace(10, id)
 		b, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(tr, blockStart, blockEnd)
+		require.NoError(t, err, "unexpected error writing req")
 
 		err = block.Append(id, b, blockStart, blockEnd)
 		require.NoError(t, err, "unexpected error writing req")
@@ -189,11 +190,15 @@ func TestInvalidFiles(t *testing.T) {
 
 	// create one valid block
 	block, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
+	require.NoError(t, err)
+
 	id := make([]byte, 16)
 	rand.Read(id)
 	tr := test.MakeTrace(10, id)
 	b, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(tr, 0, 0)
-	block.Append(id, b, 0, 0)
+	require.NoError(t, err)
+	err = block.Append(id, b, 0, 0)
+	require.NoError(t, err)
 
 	// create unparseable filename
 	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"), []byte{}, 0644)

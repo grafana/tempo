@@ -311,10 +311,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 		return errors.Wrap(err, "error completing wal block with local backend")
 	}
 
-	ingesterBlock, err := newLocalBlock(ctx, backendBlock, i.local)
-	if err != nil {
-		return errors.Wrap(err, "error creating ingester block")
-	}
+	ingesterBlock := newLocalBlock(ctx, backendBlock, i.local)
 
 	i.blocksMtx.Lock()
 	i.completeBlocks = append(i.completeBlocks, ingesterBlock)
@@ -652,11 +649,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*localBlock, er
 			return nil, err
 		}
 
-		ib, err := newLocalBlock(ctx, b, i.local)
-		if err != nil {
-			return nil, err
-		}
-
+		ib := newLocalBlock(ctx, b, i.local)
 		rediscoveredBlocks = append(rediscoveredBlocks, ib)
 
 		sb := search.OpenBackendSearchBlock(b.BlockMeta().BlockID, b.BlockMeta().TenantID, i.localReader)

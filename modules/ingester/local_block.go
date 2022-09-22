@@ -29,7 +29,7 @@ type localBlock struct {
 var _ common.Finder = (*localBlock)(nil)
 
 // newLocalBlock creates a local block
-func newLocalBlock(ctx context.Context, existingBlock common.BackendBlock, l *local.Backend) (*localBlock, error) {
+func newLocalBlock(ctx context.Context, existingBlock common.BackendBlock, l *local.Backend) *localBlock {
 
 	c := &localBlock{
 		BackendBlock: existingBlock,
@@ -46,7 +46,7 @@ func newLocalBlock(ctx context.Context, existingBlock common.BackendBlock, l *lo
 		}
 	}
 
-	return c, nil
+	return c
 }
 
 func (c *localBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
