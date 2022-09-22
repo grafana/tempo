@@ -291,7 +291,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.MemberlistKV.MetricsNamespace = metricsNamespace
 	t.cfg.MemberlistKV.Codecs = []codec.Codec{
 		ring.GetCodec(),
-		&usagestats.JSONCodec,
+		usagestats.JSONCodec,
 	}
 
 	dnsProviderReg := prometheus.WrapRegistererWithPrefix(

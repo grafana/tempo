@@ -43,7 +43,7 @@ func createMemberlist(t *testing.T, port, memberID int) *memberlist.KV {
 	cfg.GossipNodes = 3
 	cfg.PushPullInterval = 5 * time.Second
 	cfg.NodeName = fmt.Sprintf("Member-%d", memberID)
-	cfg.Codecs = []codec.Codec{&JSONCodec}
+	cfg.Codecs = []codec.Codec{JSONCodec}
 
 	mkv := memberlist.NewKV(cfg, log.NewNopLogger(), &dnsProviderMock{}, nil)
 	require.NoError(t, services.StartAndAwaitRunning(context.Background(), mkv))

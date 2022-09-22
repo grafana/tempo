@@ -116,7 +116,7 @@ func Test_LeaderElectionWithBrokenSeedFile(t *testing.T) {
 	for _, uid := range UID {
 		require.Equal(t, first, uid)
 	}
-	kvClient, err := kv.NewClient(kv.Config{Store: "inmemory"}, &JSONCodec, nil, log.NewLogfmtLogger(os.Stdout))
+	kvClient, err := kv.NewClient(kv.Config{Store: "inmemory"}, JSONCodec, nil, log.NewLogfmtLogger(os.Stdout))
 	require.NoError(t, err)
 	// verify that the ID found is also correctly stored in the kv store and not overridden by another leader.
 	data, err := kvClient.Get(context.Background(), seedKey)
