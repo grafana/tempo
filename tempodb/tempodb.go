@@ -16,7 +16,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	pkg_cache "github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -68,8 +67,8 @@ var (
 
 type Writer interface {
 	WriteBlock(ctx context.Context, block WriteableBlock) error
-	CompleteBlock(block *wal.AppendBlock, combiner model.ObjectCombiner) (common.BackendBlock, error)
-	CompleteBlockWithBackend(ctx context.Context, block *wal.AppendBlock, combiner model.ObjectCombiner, r backend.Reader, w backend.Writer) (common.BackendBlock, error)
+	CompleteBlock(ctx context.Context, block common.WALBlock) (common.BackendBlock, error)
+	CompleteBlockWithBackend(ctx context.Context, block common.WALBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error)
 	CompleteSearchBlockWithBackend(block *search.StreamingSearchBlock, blockID uuid.UUID, tenantID string, r backend.Reader, w backend.Writer) (*search.BackendSearchBlock, error)
 	WAL() *wal.WAL
 }
@@ -203,13 +202,13 @@ func (rw *readerWriter) WriteBlock(ctx context.Context, c WriteableBlock) error 
 }
 
 // CompleteBlock iterates the given WAL block and flushes it to the TempoDB backend.
-func (rw *readerWriter) CompleteBlock(block *wal.AppendBlock, combiner model.ObjectCombiner) (common.BackendBlock, error) {
-	return rw.CompleteBlockWithBackend(context.TODO(), block, combiner, rw.r, rw.w)
+func (rw *readerWriter) CompleteBlock(ctx context.Context, block common.WALBlock) (common.BackendBlock, error) {
+	return rw.CompleteBlockWithBackend(ctx, block, rw.r, rw.w)
 }
 
 // CompleteBlock iterates the given WAL block but flushes it to the given backend instead of the default TempoDB backend. The
 // new block will have the same ID as the input block.
-func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal.AppendBlock, combiner model.ObjectCombiner, r backend.Reader, w backend.Writer) (common.BackendBlock, error) {
+func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block common.WALBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error) {
 
 	// The destination block format:
 	vers, err := encoding.FromVersion(rw.cfg.Block.Version)
@@ -217,14 +216,13 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal
 		return nil, err
 	}
 
-	dec := model.MustNewObjectDecoder(block.Meta().DataEncoding)
-
-	iter, err := block.Iterator(combiner)
+	iter, err := block.Iterator()
 	if err != nil {
 		return nil, err
 	}
+	defer iter.Close()
 
-	walMeta := block.Meta()
+	walMeta := block.BlockMeta()
 
 	inMeta := &backend.BlockMeta{
 		// From the wal block
@@ -239,7 +237,7 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block *wal
 		Encoding: rw.cfg.Block.Encoding,
 	}
 
-	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, dec, r, w)
+	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, r, w)
 	if err != nil {
 		return nil, errors.Wrap(err, "error creating block")
 	}

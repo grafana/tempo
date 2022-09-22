@@ -16,7 +16,7 @@ type mockIterator struct {
 	objs [][]byte
 }
 
-func (i *mockIterator) Next(context.Context) (common.ID, []byte, error) {
+func (i *mockIterator) NextBytes(context.Context) (common.ID, []byte, error) {
 	if len(i.ids) == 0 {
 		return nil, nil, io.EOF
 	}
@@ -44,7 +44,7 @@ func TestEmptyNestedIterator(t *testing.T) {
 	r := bytes.NewReader([]byte{})
 	i := NewIterator(r, NewObjectReaderWriter())
 
-	id, obj, err := i.Next(context.Background())
+	id, obj, err := i.NextBytes(context.Background())
 	assert.Nil(t, id)
 	assert.Nil(t, obj)
 	assert.Equal(t, io.EOF, err)
@@ -111,7 +111,7 @@ func TestDedupingIterator(t *testing.T) {
 		var actualObjs [][]byte
 
 		for {
-			id, obj, err := iter.Next(context.Background())
+			id, obj, err := iter.NextBytes(context.Background())
 			if err == io.EOF {
 				break
 			}

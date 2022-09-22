@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
@@ -47,8 +46,8 @@ func (cmd *listIndexCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	var minRecord *common.Record
-	var maxRecord *common.Record
+	var minRecord *v2.Record
+	var maxRecord *v2.Record
 	count := 0
 
 	for i := 0; ; i++ {

@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/pkg/errors"
@@ -35,18 +34,13 @@ func (b *backendWriter) Close() error {
 	return b.w.CloseAppend(b.ctx, b.tracker)
 }
 
-func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, dec model.ObjectDecoder, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
+func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
 	s := newStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
 
 	for {
-		id, obj, err := i.Next(ctx)
-		if err == io.EOF {
+		id, tr, err := i.Next(ctx)
+		if err == io.EOF || tr == nil {
 			break
-		}
-
-		tr, err := dec.PrepareForRead(obj)
-		if err != nil {
-			return nil, err
 		}
 
 		// Copy ID to allow it to escape the iterator.

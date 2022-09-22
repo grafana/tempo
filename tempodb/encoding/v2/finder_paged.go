@@ -12,17 +12,17 @@ import (
 )
 
 type PagedFinder struct {
-	r            common.DataReader
-	index        common.IndexReader
+	r            DataReader
+	index        IndexReader
 	combiner     model.ObjectCombiner
-	objectRW     common.ObjectReaderWriter
+	objectRW     ObjectReaderWriter
 	dataEncoding string
 }
 
-// NewPagedFinder returns a paged. This finder is used for searching
+// newPagedFinder returns a paged. This finder is used for searching
 // a set of records and returning an object. If a set of consecutive records has
 // matching ids they will be combined using the ObjectCombiner.
-func NewPagedFinder(index common.IndexReader, r common.DataReader, combiner model.ObjectCombiner, objectRW common.ObjectReaderWriter, dataEncoding string) *PagedFinder {
+func newPagedFinder(index IndexReader, r DataReader, combiner model.ObjectCombiner, objectRW ObjectReaderWriter, dataEncoding string) *PagedFinder {
 	return &PagedFinder{
 		r:            r,
 		index:        index,
@@ -76,8 +76,8 @@ func (f *PagedFinder) Find(ctx context.Context, id common.ID) ([]byte, error) {
 	return bytesFound, nil
 }
 
-func (f *PagedFinder) findOne(ctx context.Context, id common.ID, record common.Record) ([]byte, error) {
-	pages, _, err := f.r.Read(ctx, []common.Record{record}, nil, nil)
+func (f *PagedFinder) findOne(ctx context.Context, id common.ID, record Record) ([]byte, error) {
+	pages, _, err := f.r.Read(ctx, []Record{record}, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (f *PagedFinder) findOne(ctx context.Context, id common.ID, record common.R
 	}
 
 	for {
-		foundID, b, err := iter.Next(ctx)
+		foundID, b, err := iter.NextBytes(ctx)
 		if err == io.EOF {
 			break
 		}

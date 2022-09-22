@@ -11,7 +11,7 @@ import (
 )
 
 type dedupingIterator struct {
-	iter          common.Iterator
+	iter          BytesIterator
 	combiner      model.ObjectCombiner
 	currentID     []byte
 	currentObject []byte
@@ -20,7 +20,7 @@ type dedupingIterator struct {
 
 // NewDedupingIterator returns a dedupingIterator.  This iterator is used to wrap another
 // iterator.  It will dedupe consecutive objects with the same id using the ObjectCombiner.
-func NewDedupingIterator(iter common.Iterator, combiner model.ObjectCombiner, dataEncoding string) (common.Iterator, error) {
+func NewDedupingIterator(iter BytesIterator, combiner model.ObjectCombiner, dataEncoding string) (BytesIterator, error) {
 	i := &dedupingIterator{
 		iter:         iter,
 		combiner:     combiner,
@@ -28,7 +28,7 @@ func NewDedupingIterator(iter common.Iterator, combiner model.ObjectCombiner, da
 	}
 
 	var err error
-	i.currentID, i.currentObject, err = i.iter.Next(context.Background())
+	i.currentID, i.currentObject, err = i.iter.NextBytes(context.Background())
 	if err != nil && err != io.EOF {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ func NewDedupingIterator(iter common.Iterator, combiner model.ObjectCombiner, da
 }
 
 // Next implements Iterator
-func (i *dedupingIterator) Next(ctx context.Context) (common.ID, []byte, error) {
+func (i *dedupingIterator) NextBytes(ctx context.Context) (common.ID, []byte, error) {
 	if i.currentID == nil {
 		return nil, nil, io.EOF
 	}
@@ -46,7 +46,7 @@ func (i *dedupingIterator) Next(ctx context.Context) (common.ID, []byte, error) 
 	currentObjects := [][]byte{i.currentObject}
 
 	for {
-		id, obj, err := i.iter.Next(ctx)
+		id, obj, err := i.iter.NextBytes(ctx)
 		if err != nil && err != io.EOF {
 			return nil, nil, err
 		}

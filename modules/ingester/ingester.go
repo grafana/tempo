@@ -25,7 +25,6 @@ import (
 	"github.com/grafana/tempo/pkg/flushqueues"
 	_ "github.com/grafana/tempo/pkg/gogocodec" // force gogo codec registration
 	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/decoder"
 	v1 "github.com/grafana/tempo/pkg/model/v1"
 	v2 "github.com/grafana/tempo/pkg/model/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -331,22 +330,7 @@ func (i *Ingester) replayWal() error {
 	// of the blocks correctly. as we are scanning traces in the blocks we read their start/end times
 	// and attempt to set start/end times appropriately. we use now - max_block_duration - ingestion_slack
 	// as the minimum acceptable start time for a replayed block.
-	blocks, err := i.store.WAL().RescanBlocks(func(b []byte, dataEncoding string) (uint32, uint32, error) {
-		d, err := model.NewObjectDecoder(dataEncoding)
-		if err != nil {
-			return 0, 0, nil
-		}
-
-		start, end, err := d.FastRange(b)
-		if err == decoder.ErrUnsupported {
-			now := uint32(time.Now().Unix())
-			return now, now, nil
-		}
-		if err != nil {
-			return 0, 0, err
-		}
-		return start, end, nil
-	}, i.cfg.MaxBlockDuration, log.Logger)
+	blocks, err := i.store.WAL().RescanBlocks(i.cfg.MaxBlockDuration, log.Logger)
 	if err != nil {
 		return fmt.Errorf("fatal error replaying wal: %w", err)
 	}
@@ -360,7 +344,7 @@ func (i *Ingester) replayWal() error {
 	for j := len(searchBlocks) - 1; j >= 0; j-- {
 		clear := true
 		for _, tracesBlock := range blocks {
-			if searchBlocks[j].BlockID() == tracesBlock.BlockID() {
+			if searchBlocks[j].BlockID() == tracesBlock.BlockMeta().BlockID {
 				clear = false
 				break
 			}
@@ -376,7 +360,7 @@ func (i *Ingester) replayWal() error {
 	}
 
 	for _, b := range blocks {
-		tenantID := b.Meta().TenantID
+		tenantID := b.BlockMeta().TenantID
 
 		instance, err := i.getOrCreateInstance(tenantID)
 		if err != nil {
@@ -389,14 +373,14 @@ func (i *Ingester) replayWal() error {
 		// deleted (because it was rescanned above). This can happen for reasons
 		// such as a crash or restart. In this situation we err on the side of
 		// caution and replay the wal block.
-		err = instance.local.ClearBlock(b.Meta().BlockID, tenantID)
+		err = instance.local.ClearBlock(b.BlockMeta().BlockID, tenantID)
 		if err != nil {
 			return err
 		}
 
 		var searchWALBlock *search.StreamingSearchBlock
 		for _, s := range searchBlocks {
-			if b.BlockID() == s.BlockID() {
+			if b.BlockMeta().BlockID == s.BlockID() {
 				searchWALBlock = s
 				break
 			}
@@ -406,7 +390,7 @@ func (i *Ingester) replayWal() error {
 		i.enqueue(&flushOp{
 			kind:    opKindComplete,
 			userID:  tenantID,
-			blockID: b.Meta().BlockID,
+			blockID: b.BlockMeta().BlockID,
 		}, i.replayJitter)
 	}
 

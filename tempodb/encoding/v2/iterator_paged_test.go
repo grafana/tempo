@@ -51,7 +51,7 @@ func TestIteratorPaged(t *testing.T) {
 	reader, err := NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(buff.Bytes())), backend.EncNone)
 	require.NoError(t, err)
 
-	iterator := newPagedIterator(chunkSizeBytes, common.Records(appender.Records()), reader, NewObjectReaderWriter())
+	iterator := newPagedIterator(chunkSizeBytes, Records(appender.Records()), reader, NewObjectReaderWriter())
 	assertIterator(t, iterator, ids, objs)
 }
 
@@ -96,22 +96,22 @@ func TestIteratorPartialPaged(t *testing.T) {
 
 	// chunk size is 0, to force every index to be individually retrieved. otherwise the datareader will return errors
 	// due to accessing non-contiguous pages
-	iterator := newPartialPagedIterator(0, common.Records(appender.Records()), reader, NewObjectReaderWriter(), startPage, totalPages)
+	iterator := newPartialPagedIterator(0, Records(appender.Records()), reader, NewObjectReaderWriter(), startPage, totalPages)
 	endPage := startPage + totalPages
 	assertIterator(t, iterator, ids[startPage:endPage], objs[startPage:endPage])
 
 	// start at 0
-	iterator = newPartialPagedIterator(0, common.Records(appender.Records()), reader, NewObjectReaderWriter(), 0, totalPages)
+	iterator = newPartialPagedIterator(0, Records(appender.Records()), reader, NewObjectReaderWriter(), 0, totalPages)
 	assertIterator(t, iterator, ids[:totalPages], objs[:totalPages])
 
 	// go past the end of the slice
-	iterator = newPartialPagedIterator(0, common.Records(appender.Records()), reader, NewObjectReaderWriter(), 950, 100)
+	iterator = newPartialPagedIterator(0, Records(appender.Records()), reader, NewObjectReaderWriter(), 950, 100)
 	assertIterator(t, iterator, ids[950:], objs[950:])
 }
 
-func assertIterator(t *testing.T, iter common.Iterator, ids []common.ID, objs [][]byte) {
+func assertIterator(t *testing.T, iter BytesIterator, ids []common.ID, objs [][]byte) {
 	for {
-		id, obj, err := iter.Next(context.Background())
+		id, obj, err := iter.NextBytes(context.Background())
 		if err == io.EOF {
 			break
 		}

@@ -2,8 +2,9 @@ package vparquet
 
 import (
 	"context"
+	"time"
 
-	"github.com/grafana/tempo/pkg/model"
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -28,6 +29,16 @@ func (v Encoding) CopyBlock(ctx context.Context, meta *backend.BlockMeta, from b
 	return CopyBlock(ctx, meta, from, to)
 }
 
-func (v Encoding) CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, dec model.ObjectDecoder, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
-	return CreateBlock(ctx, cfg, meta, i, dec, r, to)
+func (v Encoding) CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
+	return CreateBlock(ctx, cfg, meta, i, r, to)
+}
+
+// OpenWALBlock opens an existing appendable block
+func (v Encoding) OpenWALBlock(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration) (common.WALBlock, error, error) {
+	panic("unsupported")
+}
+
+// CreateWALBlock creates a new appendable block
+func (v Encoding) CreateWALBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
+	panic("unsupported")
 }

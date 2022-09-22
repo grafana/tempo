@@ -12,15 +12,15 @@ import (
 type Appender interface {
 	Append(common.ID, []byte) error
 	Complete() error
-	Records() []common.Record
-	RecordsForID(common.ID) []common.Record
+	Records() []Record
+	RecordsForID(common.ID) []Record
 	Length() int
 	DataLength() uint64
 }
 
 type appender struct {
-	dataWriter    common.DataWriter
-	records       map[uint64][]common.Record
+	dataWriter    DataWriter
+	records       map[uint64][]Record
 	recordsMtx    sync.RWMutex
 	hash          hash.Hash64
 	currentOffset uint64
@@ -28,10 +28,10 @@ type appender struct {
 
 // NewAppender returns an appender.  This appender simply appends new objects
 // to the provided dataWriter.
-func NewAppender(dataWriter common.DataWriter) Appender {
+func NewAppender(dataWriter DataWriter) Appender {
 	return &appender{
 		dataWriter: dataWriter,
-		records:    map[uint64][]common.Record{},
+		records:    map[uint64][]Record{},
 		hash:       xxhash.New(),
 	}
 }
@@ -60,7 +60,7 @@ func (a *appender) Append(id common.ID, b []byte) error {
 }
 
 func (a *appender) addRecord(hash uint64, id common.ID, bytesWritten int) {
-	new := common.Record{
+	new := Record{
 		ID:     id,
 		Start:  a.currentOffset,
 		Length: uint32(bytesWritten),
@@ -74,19 +74,19 @@ func (a *appender) addRecord(hash uint64, id common.ID, bytesWritten int) {
 	a.records[hash] = records
 }
 
-func (a *appender) Records() []common.Record {
+func (a *appender) Records() []Record {
 	a.recordsMtx.RLock()
-	sliceRecords := make([]common.Record, 0, len(a.records))
+	sliceRecords := make([]Record, 0, len(a.records))
 	for _, r := range a.records {
 		sliceRecords = append(sliceRecords, r...)
 	}
 	a.recordsMtx.RUnlock()
 
-	common.SortRecords(sliceRecords)
+	SortRecords(sliceRecords)
 	return sliceRecords
 }
 
-func (a *appender) RecordsForID(id common.ID) []common.Record {
+func (a *appender) RecordsForID(id common.ID) []Record {
 	hasher := xxhash.New()
 	_, _ = hasher.Write(id)
 	hash := hasher.Sum64()

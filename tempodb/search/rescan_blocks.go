@@ -10,7 +10,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/util/log"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/wal"
 )
 
 // RescanBlocks scans through the search directory in the WAL folder and replays files
@@ -81,13 +80,13 @@ func newStreamingSearchBlockFromWALReplay(searchFilepath, filename string) (*Str
 		return nil, nil, err
 	}
 
-	blockID, _, _, enc, _, err := wal.ParseFilename(filename)
+	blockID, _, _, enc, _, err := v2.ParseFilename(filename)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	blockHeader := tempofb.NewSearchBlockHeaderMutable()
-	records, warning, err := wal.ReplayWALAndGetRecords(f, enc, func(bytes []byte) error {
+	records, warning, err := v2.ReplayWALAndGetRecords(f, enc, func(bytes []byte) error {
 		entry := tempofb.NewSearchEntryFromBytes(bytes)
 		blockHeader.AddEntry(entry)
 		return nil

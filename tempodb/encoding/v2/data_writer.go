@@ -17,12 +17,12 @@ type dataWriter struct {
 	compressedBuffer  *bytes.Buffer
 	compressionWriter io.WriteCloser
 
-	objectRW     common.ObjectReaderWriter
+	objectRW     ObjectReaderWriter
 	objectBuffer *bytes.Buffer
 }
 
 // NewDataWriter creates a paged page writer
-func NewDataWriter(writer io.Writer, encoding backend.Encoding) (common.DataWriter, error) {
+func NewDataWriter(writer io.Writer, encoding backend.Encoding) (DataWriter, error) {
 	pool, err := GetWriterPool(encoding)
 	if err != nil {
 		return nil, err

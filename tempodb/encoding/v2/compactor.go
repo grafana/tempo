@@ -31,7 +31,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	tenantID := inputs[0].TenantID
 	dataEncoding := inputs[0].DataEncoding // blocks chosen for compaction always have the same data encoding
 
-	iters := make([]common.Iterator, 0, len(inputs))
+	iters := make([]BytesIterator, 0, len(inputs))
 
 	// cleanup compaction
 	defer func() {
@@ -80,7 +80,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 	for {
 
-		id, body, err := iter.Next(ctx)
+		id, body, err := iter.NextBytes(ctx)
 		if err == io.EOF {
 			break
 		}

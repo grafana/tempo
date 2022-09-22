@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +23,7 @@ func TestEncodeDecodeRecord(t *testing.T) {
 
 func TestSortRecord(t *testing.T) {
 	numRecords := 10
-	expected := make([]common.Record, 0, numRecords)
+	expected := make([]Record, 0, numRecords)
 
 	for i := 0; i < numRecords; i++ {
 		r, err := makeRecord(t)
@@ -34,7 +33,7 @@ func TestSortRecord(t *testing.T) {
 		expected = append(expected, r)
 	}
 
-	common.SortRecords(expected)
+	SortRecords(expected)
 
 	for i := range expected {
 		if i == 0 {
@@ -48,10 +47,10 @@ func TestSortRecord(t *testing.T) {
 	}
 }
 
-func makeRecord(t *testing.T) (common.Record, error) {
+func makeRecord(t *testing.T) (Record, error) {
 	t.Helper()
 
-	r := common.Record{
+	r := Record{
 		ID:     make([]byte, 16), // 128 bits
 		Start:  0,
 		Length: 0,
@@ -59,7 +58,7 @@ func makeRecord(t *testing.T) (common.Record, error) {
 
 	_, err := rand.Read(r.ID)
 	if err != nil {
-		return common.Record{}, err
+		return Record{}, err
 	}
 
 	return r, nil
