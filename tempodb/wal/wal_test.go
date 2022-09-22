@@ -127,12 +127,12 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		require.NoError(t, err, "unexpected error writing req")
 	}
 
-	// jpe - restore when AppendBlock is a Finder
-	// for i, id := range ids {
-	// 	obj, err := block.Find(id)
-	// 	require.NoError(t, err)
-	// 	require.Equal(t, objs[i], obj)
-	// }
+	ctx := context.Background()
+	for i, id := range ids {
+		obj, err := block.FindTraceByID(ctx, id, common.SearchOptions{})
+		require.NoError(t, err)
+		require.Equal(t, objs[i], obj)
+	}
 
 	blocks, err := wal.RescanBlocks(0, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
@@ -142,17 +142,16 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 	require.NoError(t, err)
 	defer iterator.Close()
 
-	// jpe - restore when AppendBlock is a Finder
 	// append block find
-	// for i, id := range ids {
-	// 	obj, err := blocks[0].Find(id)
-	// 	require.NoError(t, err)
-	// 	require.Equal(t, objs[i], obj)
-	// }
+	for i, id := range ids {
+		obj, err := blocks[0].FindTraceByID(ctx, id, common.SearchOptions{})
+		require.NoError(t, err)
+		require.Equal(t, objs[i], obj)
+	}
 
 	i := 0
 	for {
-		id, obj, err := iterator.Next(context.Background())
+		id, obj, err := iterator.Next(ctx)
 		if err == io.EOF {
 			break
 		} else {

@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/tempo/pkg/model/decoder"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/warnings"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -71,7 +72,7 @@ func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.En
 // be completed. It can return a warning or a fatal error
 func newAppendBlockFromFile(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration) (common.WALBlock, error, error) {
 	var warning error
-	blockID, tenantID, version, e, dataEncoding, err := ParseFilename(filename) // jpe - have this owned by the calling method? instead of parsing in here? pass in a meta?
+	blockID, tenantID, version, e, dataEncoding, err := ParseFilename(filename)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parsing wal filename: %w", err)
 	}
@@ -152,7 +153,7 @@ func (a *v2AppendBlock) BlockMeta() *backend.BlockMeta {
 	return a.meta
 }
 
-// Iterator returns a common.Iterator that is secretly also a bytesIterator for use internally - jpe
+// Iterator returns a common.Iterator that is secretly also a BytesIterator for use internally
 func (a *v2AppendBlock) Iterator() (common.Iterator, error) {
 	combiner := model.StaticCombiner
 
@@ -311,7 +312,7 @@ func (a *v2AppendBlock) adjustTimeRangeForSlack(start uint32, end uint32, additi
 	}
 
 	if warn {
-		// metricWarnings.WithLabelValues(a.meta.TenantID, reasonOutsideIngestionSlack).Inc() // jpe whatdo?
+		warnings.Metric.WithLabelValues(a.meta.TenantID, warnings.ReasonOutsideIngestionSlack).Inc()
 	}
 
 	return start, end
@@ -360,7 +361,6 @@ func ParseFilename(filename string) (uuid.UUID, string, string, backend.Encoding
 	return id, tenant, version, encoding, dataEncoding, nil
 }
 
-// jpe test
 var _ BytesIterator = (*commonIterator)(nil)
 var _ common.Iterator = (*commonIterator)(nil)
 
