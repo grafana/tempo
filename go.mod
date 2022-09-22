@@ -20,7 +20,7 @@ require (
 	github.com/drone/envsubst v1.0.3
 	github.com/dustin/go-humanize v1.0.0
 	github.com/facette/natsort v0.0.0-20181210072756-2cd4dd1e2dcb
-	github.com/go-kit/log v0.2.0
+	github.com/go-kit/log v0.2.1
 	github.com/go-logfmt/logfmt v0.5.1
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-test/deep v1.0.8
@@ -70,7 +70,7 @@ require (
 	github.com/thanos-io/thanos v0.24.0
 	github.com/uber-go/atomic v1.4.0
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
-	github.com/weaveworks/common v0.0.0-20220706100410-67d27ed40fae
+	github.com/weaveworks/common v0.0.0-20220916164235-da3fde973eec
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/collector v0.46.0
@@ -201,7 +201,7 @@ require (
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/common/sigv4 v0.1.0 // indirect
-	github.com/prometheus/exporter-toolkit v0.7.1 // indirect
+	github.com/prometheus/exporter-toolkit v0.7.2-0.20220901134540-2434b08435da // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
@@ -267,7 +267,3 @@ replace go.opentelemetry.io/collector => github.com/grafana/opentelemetry-collec
 // - https://github.com/hashicorp/memberlist/pull/260
 // - https://github.com/grafana/memberlist/pull/3
 replace github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
-
-// Remove grpc override when the following is merged.
-// https://github.com/weaveworks/common/issues/239
-replace google.golang.org/grpc => google.golang.org/grpc v1.45.0
