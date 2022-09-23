@@ -2,10 +2,13 @@ package vparquet
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
+	"path"
 	"testing"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -390,4 +393,38 @@ func makeTraces() ([]*Trace, map[string]string) {
 	}
 
 	return traces, attrVals
+}
+
+func BenchmarkBackendBlockSearch(b *testing.B) {
+	ctx := context.TODO()
+	tenantID := "1"
+	blockID := uuid.MustParse("ad0cc772-5554-48d5-a60e-3a6d2f4e3e50")
+
+	r, _, _, err := local.New(&local.Config{
+		Path: path.Join("/Users/marty/src/tmp/"),
+	})
+	require.NoError(b, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
+	require.NoError(b, err)
+
+	block := newBackendBlock(meta, rr)
+
+	req := &tempopb.SearchRequest{
+		Start: 1663849486,
+		End:   1663935886,
+		Tags: map[string]string{
+			"foo": "bar",
+		},
+		Limit: 20,
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		res, err := block.Search(ctx, req, defaultSearchOptions())
+		require.NoError(b, err)
+		fmt.Println("inspectedBytes:", humanize.Bytes(res.Metrics.InspectedBytes))
+	}
 }
