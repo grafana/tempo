@@ -164,8 +164,9 @@ func (r *IteratorResult) ToMap() map[string][]pq.Value {
 func (r *IteratorResult) Columns(buffer [][]pq.Value, names ...string) [][]pq.Value {
 	if cap(buffer) < len(names) {
 		buffer = make([][]pq.Value, len(names))
+	} else {
+		buffer = buffer[:len(names)]
 	}
-	buffer = buffer[:len(names)]
 	for i := range buffer {
 		buffer[i] = buffer[i][:0]
 	}
@@ -244,13 +245,16 @@ func columnIteratorResultPoolPut(r *IteratorResult) {
 // the optional predicate to each chunk, page, and value.  Results are read by calling
 // Next() until it returns nil.
 type ColumnIterator struct {
-	rgs     []pq.RowGroup
-	col     int
-	colName string
-	filter  *InstrumentedPredicate
-
+	rgs      []pq.RowGroup
+	col      int
+	colName  string
+	filter   *InstrumentedPredicate
 	selectAs string
-	seekTo   atomic.Value
+
+	// Row number to seek to, protected by mutex.
+	// Less allocs than storing in atomic.Value
+	seekToMtx sync.Mutex
+	seekTo    RowNumber
 
 	quit chan struct{}
 	ch   chan *columnIteratorBuffer
@@ -309,18 +313,15 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 	rn := EmptyRowNumber()
 	buffer := make([]pq.Value, readSize)
 
-	checkSkip := func(numRows int64) bool {
-		seekTo := c.seekTo.Load()
-		if seekTo == nil {
-			return false
-		}
-
-		seekToRN := seekTo.(RowNumber)
+	keepSeeking := func(numRows int64) bool {
+		c.seekToMtx.Lock()
+		seekTo := c.seekTo
+		c.seekToMtx.Unlock()
 
 		rnNext := rn
 		rnNext.Skip(numRows)
 
-		return CompareRowNumbers(0, rnNext, seekToRN) == -1
+		return CompareRowNumbers(0, rnNext, seekTo) == -1
 	}
 
 	for _, rg := range c.rgs {
@@ -331,7 +332,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 
 		col := rg.ColumnChunks()[c.col]
 
-		if checkSkip(rg.NumRows()) {
+		if keepSeeking(rg.NumRows()) {
 			// Skip column chunk
 			rn.Skip(rg.NumRows())
 			continue
@@ -362,7 +363,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 					return
 				}
 
-				if checkSkip(pg.NumRows()) {
+				if keepSeeking(pg.NumRows()) {
 					// Skip page
 					rn.Skip(pg.NumRows())
 					continue
@@ -490,7 +491,9 @@ func (c *ColumnIterator) SeekTo(to RowNumber, d int) (*IteratorResult, error) {
 	// seek is best-effort and may have no effect if the iteration
 	// already further ahead, and there may already be older data
 	// in the buffer.
-	c.seekTo.Store(to)
+	c.seekToMtx.Lock()
+	c.seekTo = to
+	c.seekToMtx.Unlock()
 	for at, v, err = c.next(); at.Valid() && CompareRowNumbers(d, at, to) < 0 && err == nil; {
 		at, v, err = c.next()
 	}
@@ -528,6 +531,7 @@ func (c *ColumnIterator) storeErr(msg string, err error) {
 type JoinIterator struct {
 	definitionLevel int
 	iters           []Iterator
+	lowestIters     []int
 	peeks           []*IteratorResult
 	pred            GroupPredicate
 }
@@ -538,6 +542,7 @@ func NewJoinIterator(definitionLevel int, iters []Iterator, pred GroupPredicate)
 	j := JoinIterator{
 		definitionLevel: definitionLevel,
 		iters:           iters,
+		lowestIters:     make([]int, len(iters)),
 		peeks:           make([]*IteratorResult, len(iters)),
 		pred:            pred,
 	}
@@ -555,7 +560,7 @@ func (j *JoinIterator) Next() (*IteratorResult, error) {
 	for {
 		lowestRowNumber := MaxRowNumber()
 		highestRowNumber := EmptyRowNumber()
-		lowestIters := make([]int, 0, len(j.iters))
+		j.lowestIters = j.lowestIters[:0]
 
 		for iterNum := range j.iters {
 			res, err := j.peek(iterNum)
@@ -572,13 +577,13 @@ func (j *JoinIterator) Next() (*IteratorResult, error) {
 			switch c {
 			case -1:
 				// New lowest, reset
-				lowestIters = lowestIters[:0]
+				j.lowestIters = j.lowestIters[:0]
 				lowestRowNumber = res.RowNumber
 				fallthrough
 
 			case 0:
 				// Same, append
-				lowestIters = append(lowestIters, iterNum)
+				j.lowestIters = append(j.lowestIters, iterNum)
 			}
 
 			if CompareRowNumbers(j.definitionLevel, res.RowNumber, highestRowNumber) == 1 {
@@ -588,7 +593,7 @@ func (j *JoinIterator) Next() (*IteratorResult, error) {
 		}
 
 		// All iterators pointing at same row?
-		if len(lowestIters) == len(j.iters) {
+		if len(j.lowestIters) == len(j.iters) {
 			// Get the data
 			result, err := j.collect(lowestRowNumber)
 			if err != nil {
@@ -600,6 +605,9 @@ func (j *JoinIterator) Next() (*IteratorResult, error) {
 				// Yes
 				return result, nil
 			}
+
+			// Result discarded
+			columnIteratorResultPoolPut(result)
 		}
 
 		// Skip all iterators to the highest row seen, it's impossible
@@ -683,6 +691,7 @@ func (j *JoinIterator) Close() {
 type LeftJoinIterator struct {
 	definitionLevel              int
 	required, optional           []Iterator
+	lowestIters                  []int
 	peeksRequired, peeksOptional []*IteratorResult
 	pred                         GroupPredicate
 }
@@ -694,6 +703,7 @@ func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pre
 		definitionLevel: definitionLevel,
 		required:        required,
 		optional:        optional,
+		lowestIters:     make([]int, len(required)),
 		peeksRequired:   make([]*IteratorResult, len(required)),
 		peeksOptional:   make([]*IteratorResult, len(optional)),
 		pred:            pred,
@@ -713,7 +723,7 @@ func (j *LeftJoinIterator) Next() (*IteratorResult, error) {
 	for {
 		lowestRowNumber := MaxRowNumber()
 		highestRowNumber := EmptyRowNumber()
-		lowestIters := make([]int, 0, len(j.required))
+		j.lowestIters = j.lowestIters[:0]
 
 		for iterNum := range j.required {
 			res, err := j.peek(iterNum)
@@ -730,13 +740,13 @@ func (j *LeftJoinIterator) Next() (*IteratorResult, error) {
 			switch c {
 			case -1:
 				// New lowest, reset
-				lowestIters = lowestIters[:0]
+				j.lowestIters = j.lowestIters[:0]
 				lowestRowNumber = res.RowNumber
 				fallthrough
 
 			case 0:
 				// Same, append
-				lowestIters = append(lowestIters, iterNum)
+				j.lowestIters = append(j.lowestIters, iterNum)
 			}
 
 			if CompareRowNumbers(j.definitionLevel, res.RowNumber, highestRowNumber) == 1 {
@@ -746,7 +756,7 @@ func (j *LeftJoinIterator) Next() (*IteratorResult, error) {
 		}
 
 		// All iterators pointing at same row?
-		if len(lowestIters) == len(j.required) {
+		if len(j.lowestIters) == len(j.required) {
 			// Get the data
 			result, err := j.collect(lowestRowNumber)
 			if err != nil {
@@ -758,6 +768,9 @@ func (j *LeftJoinIterator) Next() (*IteratorResult, error) {
 				// Yes
 				return result, nil
 			}
+
+			// Result discarded
+			columnIteratorResultPoolPut(result)
 		}
 
 		// Skip all iterators to the highest row seen, it's impossible
@@ -891,6 +904,7 @@ func (j *LeftJoinIterator) Close() {
 type UnionIterator struct {
 	definitionLevel int
 	iters           []Iterator
+	lowestIters     []int
 	peeks           []*IteratorResult
 	pred            GroupPredicate
 }
@@ -901,6 +915,7 @@ func NewUnionIterator(definitionLevel int, iters []Iterator, pred GroupPredicate
 	j := UnionIterator{
 		definitionLevel: definitionLevel,
 		iters:           iters,
+		lowestIters:     make([]int, len(iters)),
 		peeks:           make([]*IteratorResult, len(iters)),
 		pred:            pred,
 	}
@@ -914,7 +929,7 @@ func (u *UnionIterator) Next() (*IteratorResult, error) {
 	// going until all iterators are exhausted.
 	for {
 		lowestRowNumber := MaxRowNumber()
-		lowestIters := make([]int, 0, len(u.iters))
+		u.lowestIters = u.lowestIters[:0]
 
 		for iterNum := range u.iters {
 			rn, err := u.peek(iterNum)
@@ -931,26 +946,27 @@ func (u *UnionIterator) Next() (*IteratorResult, error) {
 			switch c {
 			case -1:
 				// New lowest
-				lowestIters = lowestIters[:0]
+				u.lowestIters = u.lowestIters[:0]
 				lowestRowNumber = rn.RowNumber
 				fallthrough
 
 			case 0:
 				// Same
-				lowestIters = append(lowestIters, iterNum)
+				u.lowestIters = append(u.lowestIters, iterNum)
 			}
 		}
 
 		// Consume lowest iterators
-		result, err := u.collect(lowestIters, lowestRowNumber)
+		result, err := u.collect(u.lowestIters, lowestRowNumber)
 		if err != nil {
 			return nil, errors.Wrap(err, "union iterator collect failed")
 		}
 
 		// After each pass it is guaranteed to have found something
 		// from at least one iterator, or all are exhausted
-		if len(lowestIters) > 0 {
+		if len(u.lowestIters) > 0 {
 			if u.pred != nil && !u.pred.KeepGroup(result) {
+				columnIteratorResultPoolPut(result)
 				continue
 			}
 

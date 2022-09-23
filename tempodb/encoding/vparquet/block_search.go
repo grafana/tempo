@@ -322,7 +322,7 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 				makeIter(FieldResourceAttrVal, valPred, "values"),
 			}, nil),
 			// This iterator finds all keys/values at the span level
-			pq.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, []pq.Iterator{
+			pq.NewJoinIterator(DefinitionLevelResourceSpansILSSpanAttrs, []pq.Iterator{
 				makeIter(FieldSpanAttrKey, keyPred, "keys"),
 				makeIter(FieldSpanAttrVal, valPred, "values"),
 			}, nil),
