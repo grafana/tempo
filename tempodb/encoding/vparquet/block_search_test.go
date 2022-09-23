@@ -2,13 +2,11 @@ package vparquet
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"path"
 	"testing"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -396,6 +394,14 @@ func makeTraces() ([]*Trace, map[string]string) {
 }
 
 func BenchmarkBackendBlockSearch(b *testing.B) {
+	testCases := []struct {
+		name string
+		tags map[string]string
+	}{
+		{"noMatch", map[string]string{"foo": "bar"}},
+		{"partialMatch", map[string]string{"foo": "bar", "component": "gRPC"}},
+	}
+
 	ctx := context.TODO()
 	tenantID := "1"
 	blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
@@ -411,25 +417,25 @@ func BenchmarkBackendBlockSearch(b *testing.B) {
 
 	block := newBackendBlock(meta, rr)
 
-	req := &tempopb.SearchRequest{
-		Start: 1663849486,
-		End:   1663935886,
-		Tags: map[string]string{
-			"foo":       "bar",
-			"component": "gRPC",
-		},
-		Limit: 20,
-	}
-
 	opts := defaultSearchOptions()
 	opts.StartPage = 10
 	opts.TotalPages = 10
 
-	b.ResetTimer()
+	for _, tc := range testCases {
 
-	for i := 0; i < b.N; i++ {
-		res, err := block.Search(ctx, req, opts)
-		require.NoError(b, err)
-		fmt.Println("inspectedBytes:", humanize.Bytes(res.Metrics.InspectedBytes))
+		req := &tempopb.SearchRequest{
+			Start: 1663849486,
+			End:   1663935886,
+			Tags:  tc.tags,
+			Limit: 20,
+		}
+
+		b.Run(tc.name, func(b *testing.B) {
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, err := block.Search(ctx, req, opts)
+				require.NoError(b, err)
+			}
+		})
 	}
 }
