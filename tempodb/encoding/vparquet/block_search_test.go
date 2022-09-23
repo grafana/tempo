@@ -415,7 +415,8 @@ func BenchmarkBackendBlockSearch(b *testing.B) {
 		Start: 1663849486,
 		End:   1663935886,
 		Tags: map[string]string{
-			"foo": "bar",
+			"foo":       "bar",
+			"component": "gRPC",
 		},
 		Limit: 20,
 	}
