@@ -398,7 +398,7 @@ func makeTraces() ([]*Trace, map[string]string) {
 func BenchmarkBackendBlockSearch(b *testing.B) {
 	ctx := context.TODO()
 	tenantID := "1"
-	blockID := uuid.MustParse("ad0cc772-5554-48d5-a60e-3a6d2f4e3e50")
+	blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
 
 	r, _, _, err := local.New(&local.Config{
 		Path: path.Join("/Users/marty/src/tmp/"),
@@ -420,10 +420,14 @@ func BenchmarkBackendBlockSearch(b *testing.B) {
 		Limit: 20,
 	}
 
+	opts := defaultSearchOptions()
+	opts.StartPage = 10
+	opts.TotalPages = 10
+
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		res, err := block.Search(ctx, req, defaultSearchOptions())
+		res, err := block.Search(ctx, req, opts)
 		require.NoError(b, err)
 		fmt.Println("inspectedBytes:", humanize.Bytes(res.Metrics.InspectedBytes))
 	}
