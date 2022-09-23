@@ -90,7 +90,7 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest)
 	}
 
 	// TODO - route global search options here
-	pf, _, err := b.openForSearch(ctx, common.SearchOptions{}, parquet.SkipPageIndex(true))
+	pf, _, err := b.openForSearch(ctx, common.SearchOptions{})
 	if err != nil {
 		return traceql.FetchSpansResponse{}, err
 	}
