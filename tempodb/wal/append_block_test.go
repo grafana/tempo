@@ -20,7 +20,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v0", backend.EncNone, ""),
 				filepath: "/blerg",
 			},
-			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000:foo",
+			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000+foo",
 		},
 		{
 			name: "ez-mode",
@@ -28,7 +28,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v1", backend.EncNone, ""),
 				filepath: "/blerg",
 			},
-			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000:foo:v1:none",
+			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000+foo+v1+none",
 		},
 		{
 			name: "nopath",
@@ -36,7 +36,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v1", backend.EncNone, ""),
 				filepath: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v1:none",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+v1+none",
 		},
 		{
 			name: "gzip",
@@ -44,7 +44,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncGZIP, ""),
 				filepath: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v2:gzip",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+v2+gzip",
 		},
 		{
 			name: "lz41M",
@@ -52,7 +52,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncLZ4_1M, ""),
 				filepath: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v2:lz4-1M",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+v2+lz4-1M",
 		},
 		{
 			name: "lz4256k",
@@ -60,7 +60,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncLZ4_256k, ""),
 				filepath: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v2:lz4-256k",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+v2+lz4-256k",
 		},
 		{
 			name: "lz4M",
@@ -68,7 +68,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncLZ4_4M, ""),
 				filepath: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v2:lz4",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+v2+lz4",
 		},
 		{
 			name: "lz64k",
@@ -76,7 +76,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncLZ4_64k, ""),
 				filepath: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v2:lz4-64k",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+v2+lz4-64k",
 		},
 		{
 			name: "snappy",
@@ -84,7 +84,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncSnappy, ""),
 				filepath: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+v2+snappy",
 		},
 		{
 			name: "zstd",
@@ -92,7 +92,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncZstd, ""),
 				filepath: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v2:zstd",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+v2+zstd",
 		},
 		{
 			name: "data encoding",
@@ -100,7 +100,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v1", backend.EncNone, "dataencoding"),
 				filepath: "/blerg",
 			},
-			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000:foo:v1:none:dataencoding",
+			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000+foo+v1+none+dataencoding",
 		},
 	}
 
