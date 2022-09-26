@@ -592,7 +592,7 @@ func TestCompleteBlock(t *testing.T) {
 	require.NoError(t, err, "unexpected error completing block")
 
 	for i, id := range ids {
-		found, err := complete.FindTraceByID(context.TODO(), id, common.SearchOptions{})
+		found, err := complete.FindTraceByID(context.TODO(), id, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.True(t, proto.Equal(found, reqs[i]))
 	}

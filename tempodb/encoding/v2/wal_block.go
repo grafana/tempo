@@ -41,7 +41,7 @@ type walBlock struct {
 }
 
 func createWALBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
-	if strings.ContainsRune(dataEncoding, ':') || strings.ContainsRune(dataEncoding, '+') ||		
+	if strings.ContainsRune(dataEncoding, ':') || strings.ContainsRune(dataEncoding, '+') ||
 		len([]rune(dataEncoding)) > maxDataEncodingLength {
 		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
 	}
@@ -276,8 +276,7 @@ func (a *walBlock) Fetch(context.Context, traceql.FetchSpansRequest) (traceql.Fe
 	return traceql.FetchSpansResponse{}, common.ErrUnsupported
 }
 
-<<<<<<< HEAD:tempodb/encoding/v2/append_block.go
-func (a *v2AppendBlock) fullFilename() string {
+func (a *walBlock) fullFilename() string {
 	filename := a.fullFilenameSeparator("+")
 	_, e1 := os.Stat(filename)
 	if errors.Is(e1, os.ErrNotExist) {
@@ -291,10 +290,7 @@ func (a *v2AppendBlock) fullFilename() string {
 	return filename
 }
 
-func (a *v2AppendBlock) fullFilenameSeparator(separator string) string {
-=======
-func (a *walBlock) fullFilename() string {
->>>>>>> 7a164efe4 (vParquet WALBlock):tempodb/encoding/v2/wal_block.go
+func (a *walBlock) fullFilenameSeparator(separator string) string {
 	if a.meta.Version == "v0" {
 		return filepath.Join(a.filepath, fmt.Sprintf("%v%v%v", a.meta.BlockID, separator, a.meta.TenantID))
 	}

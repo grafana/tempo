@@ -8,7 +8,7 @@ import (
 )
 
 func TestApplyToOptions(t *testing.T) {
-	opts := common.SearchOptions{}
+	opts := common.DefaultSearchOptions()
 	cfg := SearchConfig{}
 
 	// test defaults

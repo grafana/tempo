@@ -153,7 +153,6 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 
 	sort.Strings(srv.TagValues)
 	assert.Contains(t, sr.TagNames, tagName)
-	assert.Equal(t, tagName, sr.TagNames[0])
 	assert.Equal(t, expectedTagValues, srv.TagValues)
 }
 

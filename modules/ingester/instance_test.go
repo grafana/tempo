@@ -423,7 +423,7 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 
 			// Defaults
 			if tc.maxBlockBytes == 0 {
-				tc.maxBlockBytes = 1000
+				tc.maxBlockBytes = 10000
 			}
 			if tc.maxBlockLifetime == 0 {
 				tc.maxBlockLifetime = time.Hour
@@ -688,7 +688,7 @@ func makeRequestWithByteLimit(maxBytes int, traceID []byte) *tempopb.PushBytesRe
 	batch := test.MakeBatch(1, traceID)
 
 	for batch.Size() < maxBytes {
-		batch.ScopeSpans[0].Spans = append(batch.ScopeSpans[0].Spans, test.MakeSpan(traceID))
+		batch.ScopeSpans[0].Spans = append(batch.ScopeSpans[0].Spans, test.MakeSpanWithAttributeCount(traceID, 0))
 	}
 
 	return makePushBytesRequest(traceID, batch)

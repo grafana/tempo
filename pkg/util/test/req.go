@@ -1,7 +1,9 @@
 package test
 
 import (
+	"encoding/json"
 	"math/rand"
+	"testing"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -9,23 +11,39 @@ import (
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/stretchr/testify/require"
 )
 
 func MakeSpan(traceID []byte) *v1_trace.Span {
+	return MakeSpanWithAttributeCount(traceID, rand.Int()%10+1)
+}
+
+func MakeSpanWithAttributeCount(traceID []byte, count int) *v1_trace.Span {
+	attributes := make([]*v1_common.KeyValue, 0, count)
+	for i := 0; i < count; i++ {
+		attributes = append(attributes, &v1_common.KeyValue{
+			Key:   RandomString(),
+			Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: RandomString()}},
+		})
+	}
+
 	now := time.Now()
 	s := &v1_trace.Span{
-		Name:    "test",
-		TraceId: traceID,
-		SpanId:  make([]byte, 8),
-		Kind:    v1_trace.Span_SPAN_KIND_CLIENT,
+		Name:         "test",
+		TraceId:      traceID,
+		SpanId:       make([]byte, 8),
+		ParentSpanId: make([]byte, 8),
+		Kind:         v1_trace.Span_SPAN_KIND_CLIENT,
 		Status: &v1_trace.Status{
 			Code:    1,
 			Message: "OK",
 		},
 		StartTimeUnixNano: uint64(now.UnixNano()),
 		EndTimeUnixNano:   uint64(now.Add(time.Second).UnixNano()),
+		Attributes:        attributes,
 	}
 	rand.Read(s.SpanId)
+	rand.Read(s.ParentSpanId)
 	return s
 }
 
@@ -134,4 +152,13 @@ func RandomString() string {
 		s[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(s)
+}
+
+func TracesEqual(t *testing.T, t1 *tempopb.Trace, t2 *tempopb.Trace) {
+	if !proto.Equal(t1, t2) {
+		wantJSON, _ := json.MarshalIndent(t1, "", "  ")
+		gotJSON, _ := json.MarshalIndent(t2, "", "  ")
+
+		require.Equal(t, string(wantJSON), string(gotJSON))
+	}
 }

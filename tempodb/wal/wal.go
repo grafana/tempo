@@ -147,8 +147,11 @@ func (w *WAL) RescanBlocks(additionalStartSlack time.Duration, log log.Logger) (
 }
 
 func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (common.WALBlock, error) {
-	// todo: take version string and use here
-	v, err := encoding.FromVersion(v2.VersionString)
+	return w.newBlock(id, tenantID, dataEncoding, v2.VersionString)
+}
+
+func (w *WAL) newBlock(id uuid.UUID, tenantID string, dataEncoding string, dbEncoding string) (common.WALBlock, error) {
+	v, err := encoding.FromVersion(dbEncoding)
 	if err != nil {
 		return nil, fmt.Errorf("from version v2 failed %w", err)
 	}

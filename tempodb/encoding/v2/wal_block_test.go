@@ -19,6 +19,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Note: Standard wal block functionality (appending, searching, finding, etc.) is tested with all other wal blocks
+//  in /tempodb/wal/wal_test.go
+
 func TestFullFilename(t *testing.T) {
 	tests := []struct {
 		name     string

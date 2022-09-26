@@ -118,7 +118,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 			return nil, err
 		}
 		if c < 1 {
-			return nil, fmt.Errorf("failed to read value from page: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), b.meta.BlockID, rgIdx)
+			return nil, fmt.Errorf("failed to read value from page: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), meta.BlockID, rgIdx)
 		}
 
 		min = buf[0].ByteArray()

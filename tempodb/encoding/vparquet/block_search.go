@@ -172,6 +172,7 @@ func searchTags(ctx context.Context, cb common.TagCallback, pf *parquet.File) er
 	}
 
 	// now search all row groups
+	var err error
 	rgs := pf.RowGroups()
 	for _, rg := range rgs {
 		// search all special attributes

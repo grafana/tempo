@@ -152,8 +152,8 @@ func TestWal(t *testing.T) {
 			TraceID: traceID,
 		})
 		require.NoError(t, err, "unexpected error querying")
-		equal := proto.Equal(traces[i], foundTrace.Trace)
-		require.True(t, equal)
+		trace.SortTrace(foundTrace.Trace)
+		test.TracesEqual(t, traces[i], foundTrace.Trace)
 	}
 
 	// a block that has been replayed should have a flush queue entry to complete it
@@ -173,8 +173,7 @@ func TestWal(t *testing.T) {
 		require.NoError(t, err, "unexpected error querying")
 
 		trace.SortTrace(foundTrace.Trace)
-		equal := proto.Equal(traces[i], foundTrace.Trace)
-		require.True(t, equal)
+		test.TracesEqual(t, traces[i], foundTrace.Trace)
 	}
 }
 
@@ -307,8 +306,8 @@ func TestFlush(t *testing.T) {
 			TraceID: traceID,
 		})
 		require.NoError(t, err, "unexpected error querying")
-		equal := proto.Equal(traces[i], foundTrace.Trace)
-		require.True(t, equal)
+		trace.SortTrace(foundTrace.Trace)
+		test.TracesEqual(t, traces[i], foundTrace.Trace)
 	}
 }
 

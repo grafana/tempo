@@ -175,7 +175,7 @@ func TestBackendBlockSearch(t *testing.T) {
 	}
 
 	for _, req := range searchesThatMatch {
-		res, err := b.Search(ctx, req, defaultSearchOptions())
+		res, err := b.Search(ctx, req, common.DefaultSearchOptions())
 		require.NoError(t, err)
 
 		meta := findInResults(expected.TraceID, res.Traces)
@@ -221,7 +221,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		},
 	}
 	for _, req := range searchesThatDontMatch {
-		res, err := b.Search(ctx, req, defaultSearchOptions())
+		res, err := b.Search(ctx, req, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		meta := findInResults(expected.TraceID, res.Traces)
 		require.Nil(t, meta, req)
@@ -239,7 +239,7 @@ func TestBackendBlockSearchTags(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	err := block.SearchTags(ctx, cb, defaultSearchOptions())
+	err := block.SearchTags(ctx, cb, common.DefaultSearchOptions())
 	require.NoError(t, err)
 
 	// test that all attrs are in found attrs
@@ -261,7 +261,7 @@ func TestBackendBlockSearchTagValues(t *testing.T) {
 			assert.Equal(t, val, s, tag)
 		}
 
-		err := block.SearchTagValues(ctx, tag, cb, defaultSearchOptions())
+		err := block.SearchTagValues(ctx, tag, cb, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.True(t, wasCalled, tag)
 	}
@@ -302,14 +302,6 @@ func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 	b := newBackendBlock(s.meta, r)
 
 	return b
-}
-
-func defaultSearchOptions() common.SearchOptions {
-	return common.SearchOptions{
-		ChunkSizeBytes:  1_000_000,
-		ReadBufferCount: 8,
-		ReadBufferSize:  4 * 1024 * 1024,
-	}
 }
 
 func makeTraces() ([]*Trace, map[string]string) {
@@ -427,7 +419,7 @@ func BenchmarkBackendBlockSearchTraces(b *testing.B) {
 
 	block := newBackendBlock(meta, rr)
 
-	opts := defaultSearchOptions()
+	opts := common.DefaultSearchOptions()
 	opts.StartPage = 10
 	opts.TotalPages = 10
 
@@ -467,7 +459,7 @@ func BenchmarkBackendBlockSearchTags(b *testing.B) {
 	require.NoError(b, err)
 
 	block := newBackendBlock(meta, rr)
-	opts := defaultSearchOptions()
+	opts := common.DefaultSearchOptions()
 	d := util.NewDistinctStringCollector(1_000_000)
 
 	b.ResetTimer()
@@ -498,7 +490,7 @@ func BenchmarkBackendBlockSearchTagValues(b *testing.B) {
 	require.NoError(b, err)
 
 	block := newBackendBlock(meta, rr)
-	opts := defaultSearchOptions()
+	opts := common.DefaultSearchOptions()
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {

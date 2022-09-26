@@ -452,7 +452,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	combiner.Consume(completeTrace)
 
 	// headBlock
-	tr, err := i.headBlock.FindTraceByID(ctx, id, common.SearchOptions{})
+	tr, err := i.headBlock.FindTraceByID(ctx, id, common.DefaultSearchOptions())
 	if err != nil {
 		return nil, fmt.Errorf("headBlock.FindTraceByID failed: %w", err)
 	}
@@ -460,7 +460,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 
 	// completingBlock
 	for _, c := range i.completingBlocks {
-		tr, err = c.FindTraceByID(ctx, id, common.SearchOptions{})
+		tr, err = c.FindTraceByID(ctx, id, common.DefaultSearchOptions())
 		if err != nil {
 			return nil, fmt.Errorf("completingBlock.FindTraceByID failed: %w", err)
 		}
@@ -469,7 +469,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 
 	// completeBlock
 	for _, c := range i.completeBlocks {
-		found, err := c.FindTraceByID(ctx, id, common.SearchOptions{})
+		found, err := c.FindTraceByID(ctx, id, common.DefaultSearchOptions())
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.FindTraceByID failed: %w", err)
 		}

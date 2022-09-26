@@ -17,8 +17,10 @@ import (
 
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -89,24 +91,177 @@ func TestAppendBlockStartEnd(t *testing.T) {
 // - add similar tests for search and spanset fetcher
 // - test with mixed wals
 
-func TestAppendReplayFind(t *testing.T) {
-	for _, e := range backend.SupportedEncoding {
-		t.Run(e.String(), func(t *testing.T) {
-			testAppendReplayFind(t, backend.EncZstd)
+func TestFindByTraceID(t *testing.T) {
+	for _, e := range encoding.AllEncodings() {
+		t.Run(e.Version(), func(t *testing.T) {
+			testFindByTraceID(t, e)
 		})
 	}
 }
 
-func testAppendReplayFind(t *testing.T, e backend.Encoding) {
+func testFindByTraceID(t *testing.T, e encoding.VersionedEncoding) {
+	runWALTest(t, e.Version(), func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
+		// find all traces pushed
+		ctx := context.Background()
+		for i, id := range ids {
+			obj, err := block.FindTraceByID(ctx, id, common.DefaultSearchOptions())
+			require.NoError(t, err)
+
+			require.Equal(t, objs[i], obj)
+		}
+	})
+}
+
+func TestIterator(t *testing.T) {
+	for _, e := range encoding.AllEncodings() {
+		t.Run(e.Version(), func(t *testing.T) {
+			testIterator(t, e)
+		})
+	}
+}
+
+func testIterator(t *testing.T, e encoding.VersionedEncoding) {
+	runWALTest(t, e.Version(), func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
+		ctx := context.Background()
+
+		iterator, err := block.Iterator()
+		require.NoError(t, err)
+		defer iterator.Close()
+
+		i := 0
+		for {
+			id, obj, err := iterator.Next(ctx)
+			if err == io.EOF {
+				break
+			} else {
+				require.NoError(t, err)
+			}
+
+			found := false
+			j := 0
+			for ; j < len(ids); j++ {
+				if bytes.Equal(ids[j], id) {
+					found = true
+					break
+				}
+			}
+
+			require.True(t, found)
+			require.Equal(t, objs[j], obj)
+			require.Equal(t, ids[j], []byte(id))
+			i++
+		}
+
+		require.Equal(t, len(objs), i)
+	})
+}
+
+func TestSearch(t *testing.T) {
+	for _, e := range encoding.AllEncodings() {
+		t.Run(e.Version(), func(t *testing.T) {
+			testSearch(t, e)
+		})
+	}
+}
+
+func testSearch(t *testing.T, e encoding.VersionedEncoding) {
+	findFirstAttribute := func(obj *tempopb.Trace) (string, string) {
+		for _, b := range obj.Batches {
+			for _, s := range b.InstrumentationLibrarySpans {
+				for _, span := range s.Spans {
+					for _, a := range span.Attributes {
+						return a.Key, a.Value.GetStringValue()
+					}
+				}
+			}
+		}
+
+		return "", ""
+	}
+
+	runWALTest(t, e.Version(), func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
+		ctx := context.Background()
+
+		for i, o := range objs {
+			k, v := findFirstAttribute(o)
+			if k == "" || v == "" {
+				continue
+			}
+
+			resp, err := block.Search(ctx, &tempopb.SearchRequest{
+				Tags: map[string]string{
+					k: v,
+				},
+			}, common.DefaultSearchOptions())
+			if err == common.ErrUnsupported {
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, 1, len(resp.Traces))
+			require.Equal(t, util.TraceIDToHexString(ids[i]), resp.Traces[0].TraceID)
+		}
+	})
+}
+
+func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
+	tempDir := t.TempDir()
+	wal, err := New(&Config{
+		Filepath: tempDir,
+		Encoding: backend.EncGZIP,
+	})
+	require.NoError(t, err, "unexpected error creating temp wal")
+
+	// create all valid blocks
+	for _, e := range encoding.AllEncodings() {
+		block, err := wal.newBlock(uuid.New(), testTenantID, model.CurrentEncoding, e.Version())
+		require.NoError(t, err)
+
+		id := make([]byte, 16)
+		rand.Read(id)
+		tr := test.MakeTrace(10, id)
+		b1, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(tr, 0, 0)
+		require.NoError(t, err)
+		b2, err := model.MustNewSegmentDecoder(model.CurrentEncoding).ToObject([][]byte{b1})
+		require.NoError(t, err)
+		err = block.Append(id, b2, 0, 0)
+		require.NoError(t, err)
+		err = block.Flush()
+		require.NoError(t, err)
+	}
+
+	// create unparseable filename
+	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"), []byte{}, 0644)
+	require.NoError(t, err)
+
+	// create empty block
+	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"), []byte{}, 0644)
+	require.NoError(t, err)
+
+	// create unparseable block
+	os.MkdirAll(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e+tenant+vOther"), os.ModePerm)
+
+	blocks, err := wal.RescanBlocks(0, log.NewNopLogger())
+	require.NoError(t, err, "unexpected error getting blocks")
+	require.Len(t, blocks, len(encoding.AllEncodings())) // valid blocks created above
+
+	// empty file should have been removed
+	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
+
+	// unparseable files/folder should have been ignored
+	require.FileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"))
+	require.DirExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e+tenant+vOther"))
+}
+
+func runWALTest(t testing.TB, dbEncoding string, runner func([][]byte, []*tempopb.Trace, common.WALBlock)) {
 	wal, err := New(&Config{
 		Filepath: t.TempDir(),
-		Encoding: e,
+		Encoding: backend.EncNone,
 	})
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
 
-	block, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, dbEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 
 	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -129,61 +284,30 @@ func testAppendReplayFind(t *testing.T, e backend.Encoding) {
 		objs = append(objs, obj)
 
 		err = block.Append(id, b2, 0, 0)
-		require.NoError(t, err, "unexpected error writing req")
-	}
-
-	ctx := context.Background()
-	for i, id := range ids {
-		obj, err := block.FindTraceByID(ctx, id, common.SearchOptions{})
 		require.NoError(t, err)
-		require.Equal(t, objs[i], obj)
-	}
 
+		if i%100 == 0 {
+			err = block.Flush()
+			require.NoError(t, err)
+		}
+	}
+	err = block.Flush()
+	require.NoError(t, err)
+
+	runner(ids, objs, block)
+
+	// rescan blocks
 	blocks, err := wal.RescanBlocks(0, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
-	iterator, err := blocks[0].Iterator()
-	require.NoError(t, err)
-	defer iterator.Close()
+	runner(ids, objs, blocks[0])
 
-	// append block find
-	for i, id := range ids {
-		obj, err := blocks[0].FindTraceByID(ctx, id, common.SearchOptions{})
-		require.NoError(t, err)
-		require.Equal(t, objs[i], obj)
-	}
-
-	i := 0
-	for {
-		id, obj, err := iterator.Next(ctx)
-		if err == io.EOF {
-			break
-		} else {
-			require.NoError(t, err)
-		}
-
-		found := false
-		j := 0
-		for ; j < len(ids); j++ {
-			if bytes.Equal(ids[j], id) {
-				found = true
-				break
-			}
-		}
-
-		require.True(t, found)
-		require.Equal(t, objs[j], obj)
-		require.Equal(t, ids[j], []byte(id))
-		i++
-	}
-
-	require.Equal(t, objects, i)
-
-	err = blocks[0].Clear()
+	err = block.Clear()
 	require.NoError(t, err)
 }
 
+<<<<<<< HEAD
 func TestInvalidFiles(t *testing.T) {
 	tempDir := t.TempDir()
 	wal, err := New(&Config{
@@ -255,30 +379,17 @@ func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
 	}
 	b.ResetTimer()
 
+=======
+// jpe benchmark v2 vs vparquet
+func BenchmarkV2(b *testing.B) {
+>>>>>>> 4f8eb179b (tests)
 	for i := 0; i < b.N; i++ {
-		wal, _ := New(&Config{
-			Filepath: b.TempDir(),
-			Encoding: encoding,
-		})
+		runWALTest(b, "v2", func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {})
+	}
+}
 
-		blockID := uuid.New()
-		block, err := wal.NewBlock(blockID, testTenantID, "")
-		require.NoError(b, err)
-
-		// write
-		for j, obj := range objs {
-			err := block.Append(ids[j], obj, 0, 0)
-			require.NoError(b, err)
-		}
-
-		// find
-		for _, id := range ids {
-			_, err := block.FindTraceByID(context.Background(), id, common.SearchOptions{})
-			require.NoError(b, err)
-		}
-
-		// replay
-		_, err = wal.RescanBlocks(0, log.NewNopLogger())
-		require.NoError(b, err)
+func BenchmarkVParquet(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		runWALTest(b, "vParquet", func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {})
 	}
 }

@@ -97,7 +97,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	for _, tr := range traces {
 		wantProto := parquetTraceToTempopbTrace(tr)
 
-		gotProto, err := b.FindTraceByID(ctx, tr.TraceID, common.SearchOptions{})
+		gotProto, err := b.FindTraceByID(ctx, tr.TraceID, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Equal(t, wantProto, gotProto)
 	}
@@ -137,7 +137,7 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 		err = sch.Reconstruct(tr, row)
 		require.NoError(t, err)
 
-		protoTr, err := b.FindTraceByID(ctx, tr.TraceID, common.SearchOptions{})
+		protoTr, err := b.FindTraceByID(ctx, tr.TraceID, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.NotNil(t, protoTr)
 	}
@@ -168,7 +168,7 @@ func BenchmarkFindTraceByID(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		tr, err := block.FindTraceByID(ctx, traceID, defaultSearchOptions())
+		tr, err := block.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
 		require.NoError(b, err)
 		require.NotNil(b, tr)
 	}

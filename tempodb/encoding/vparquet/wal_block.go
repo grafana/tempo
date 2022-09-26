@@ -22,12 +22,12 @@ import (
 )
 
 // path + filename = folder to create
-//   path/filename/00001
-//   	          /00002
-//                /00003
-//                /00004
+//   path/folder/00001
+//   	        /00002
+//              /00003
+//              /00004
 
-// filename = <blockID>+<tenantID>+vParquet
+// folder = <blockID>+<tenantID>+vParquet
 
 // openWALBlock opens an existing appendable block
 // jpe refuse append to this block? return a different type?
@@ -61,12 +61,13 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, ad
 
 	for _, f := range files {
 		// attempt to load in a parquet.file
-		pf, err := openLocalParquetFile(filepath.Join(dir, f.Name()))
+		pf, sz, err := openLocalParquetFile(filepath.Join(dir, f.Name()))
 		if err != nil {
 			return nil, nil, fmt.Errorf("error opening file: %w", err)
 		}
 
 		b.flushed = append(b.flushed, pf)
+		b.flushedSize += sz
 	}
 
 	// iterate through all files and build meta
@@ -131,7 +132,7 @@ func createWALBlock(id uuid.UUID, tenantID string, filepath string, _ backend.En
 	}
 
 	// build folder
-	err := os.MkdirAll(filepath, os.ModePerm)
+	err := os.MkdirAll(b.walPath(), os.ModePerm)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +167,10 @@ type walBlock struct {
 	current *parquet.GenericBuffer[*Trace]
 	decoder model.ObjectDecoder
 
-	flushed []*parquet.File // jpe prealloc?
+	flushed     []*parquet.File // jpe prealloc?
+	flushedSize int64
+
+	poolTrace *Trace // jpe - concurrency concerns?
 }
 
 func (b *walBlock) BlockMeta() *backend.BlockMeta {
@@ -184,24 +188,28 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 		return fmt.Errorf("error preparing trace for read: %w", err)
 	}
 
-	trp := traceToParquet(id, trace) // jpe find and restore pooling code
+	b.poolTrace = traceToParquet(id, trace, b.poolTrace) // jpe find and restore pooling code
 
 	// jpe adjust time range
 	b.meta.ObjectAdded(id, start, end)
 
 	// add to current
-	b.current.Write([]*Trace{&trp}) // jpe experiment with buffering these differently and writing in batches
+	_, err = b.current.Write([]*Trace{b.poolTrace}) // jpe experiment with buffering these differently and writing in batches
+	if err != nil {
+		return fmt.Errorf("error writing to buffer: %w", err)
+	}
 
 	return nil
 }
 
 func (b *walBlock) Flush() (err error) {
 	nextFile := len(b.flushed) + 1
-	filename := fmt.Sprintf("%10d", nextFile)
+	filename := fmt.Sprintf("%010d", nextFile)
+	filename = filepath.Join(b.walPath(), filename)
 
 	sort.Sort(b.current)
 
-	file, err := os.OpenFile(filepath.Join(b.path, filename), os.O_WRONLY, 0644)
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("error opening file: %w", err)
 	}
@@ -211,27 +219,38 @@ func (b *walBlock) Flush() (err error) {
 	defer writer.Close()
 
 	_, err = writer.WriteRowGroup(b.current)
-	writer.Close()
+	if err != nil {
+		return fmt.Errorf("error writing row group: %w", err)
+	}
+	err = writer.Close()
+	if err != nil {
+		return fmt.Errorf("error closing writer: %w", err)
+	}
+	err = file.Close()
+	if err != nil {
+		return fmt.Errorf("error closing file: %w", err)
+	}
 
 	// cleanup
 	b.current = parquet.NewGenericBuffer[*Trace]() // jpe parquet.ColumnBufferCapacity, need parquet.SortingColumns()?
 
-	pf, err := openLocalParquetFile(filepath.Join(b.path, filename))
+	pf, sz, err := openLocalParquetFile(filename)
 	if err != nil {
-		return fmt.Errorf("error opening parquet file: %w", err)
+		return fmt.Errorf("error opening local file [%s]: %w", filename, err)
 	}
 
 	b.flushed = append(b.flushed, pf)
+	b.flushedSize += sz
 
 	return nil
 }
 
 func (b *walBlock) DataLength() uint64 { // jpe oof, another parquet size question
-	return uint64(b.current.Size()) // jpe performance? needs to take into account size of all flushed files
+	return uint64(b.flushedSize + b.current.Size()) // jpe performance? needs to take into account size of all flushed files
 }
 
 func (b *walBlock) Iterator() (common.Iterator, error) {
-	bookmarks := make([]*bookmark[*Trace], len(b.flushed))
+	bookmarks := make([]*bookmark[*Trace], 0, len(b.flushed))
 	for _, f := range b.flushed {
 		r := parquet.NewGenericReader[*Trace](f)
 		iter := &traceIterator{reader: r}
@@ -255,7 +274,7 @@ func (b *walBlock) Clear() error {
 	// 	f.
 	// }
 
-	return os.RemoveAll(walPath(b.meta))
+	return os.RemoveAll(b.walPath())
 }
 
 func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
@@ -280,7 +299,9 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 }
 
 func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
-	results := &tempopb.SearchResponse{}
+	results := &tempopb.SearchResponse{
+		Metrics: &tempopb.SearchMetrics{},
+	}
 
 	// jpe parrallelize?
 	for i, f := range b.flushed {
@@ -330,8 +351,9 @@ func (b *walBlock) Fetch(context.Context, traceql.FetchSpansRequest) (traceql.Fe
 	return traceql.FetchSpansResponse{}, common.ErrUnsupported
 }
 
-func walPath(meta *backend.BlockMeta) string {
-	return fmt.Sprintf("%s+%s+%s", meta.BlockID, meta.TenantID, VersionString)
+func (b *walBlock) walPath() string {
+	filename := fmt.Sprintf("%s+%s+%s", b.meta.BlockID, b.meta.TenantID, VersionString)
+	return filepath.Join(b.path, filename)
 }
 
 // <blockID>+<tenantID>+vParquet
@@ -412,19 +434,20 @@ func (i *commonIterator) Close() {
 	i.iter.Close()
 }
 
-func openLocalParquetFile(filename string) (*parquet.File, error) {
+func openLocalParquetFile(filename string) (*parquet.File, int64, error) {
 	file, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
-		return nil, fmt.Errorf("error opening file: %w", err)
+		return nil, 0, fmt.Errorf("error opening file: %w", err)
 	}
 	info, err := file.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("error getting file info: %w", err)
+		return nil, 0, fmt.Errorf("error getting file info: %w", err)
 	}
-	pf, err := parquet.OpenFile(file, info.Size())
+	sz := info.Size()
+	pf, err := parquet.OpenFile(file, sz)
 	if err != nil {
-		return nil, fmt.Errorf("error opening parquet file: %w", err)
+		return nil, 0, fmt.Errorf("error opening parquet file: %w", err)
 	}
 
-	return pf, nil
+	return pf, sz, nil
 }
