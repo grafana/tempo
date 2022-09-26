@@ -318,8 +318,12 @@ func (b *Backend) newGetRequest(ctx context.Context, url string, span opentracin
 	}
 
 	if tracer := opentracing.GlobalTracer(); tracer != nil {
+		carrier := make(opentracing.TextMapCarrier, len(req.Header))
+		for k, v := range req.Header {
+			carrier.Set(k, v[0])
+		}
 		// this is not really loggable or anything we can react to.  just ignoring this error
-		_ = tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
+		_ = tracer.Inject(span.Context(), opentracing.TextMap, carrier)
 	}
 
 	// currently Jaeger Query will only propagate bearer token to the grpc backend and no other headers
