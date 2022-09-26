@@ -82,15 +82,16 @@ func (rep *Reporter) initLeader(ctx context.Context) *ClusterSeed {
 			PrometheusVersion: build.GetVersion(),
 			CreatedAt:         time.Now(),
 		}
+		copySeed := seed
 		if err := kvClient.CAS(ctx, seedKey, func(in interface{}) (out interface{}, retry bool, err error) {
 			// The key is already set, so we don't need to do anything
 			if in != nil {
-				if kvSeed, ok := in.(*ClusterSeed); ok && kvSeed != nil && kvSeed.UID != seed.UID {
-					seed = *kvSeed
+				if kvSeed, ok := in.(*ClusterSeed); ok && kvSeed != nil && kvSeed.UID != copySeed.UID {
+					copySeed = *kvSeed
 					return nil, false, nil
 				}
 			}
-			return &seed, true, nil
+			return &copySeed, true, nil
 		}); err != nil {
 			level.Info(rep.logger).Log("msg", "failed to CAS cluster seed key", "err", err)
 			continue
