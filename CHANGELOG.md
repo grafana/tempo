@@ -34,6 +34,8 @@ query_frontend:
 ```
 * [BUGFIX] Honor caching and buffering settings when finding traces by id [#1697](https://github.com/grafana/tempo/pull/1697) (@joe-elliott)
 * [BUGFIX] Correctly propagate errors from the iterator layer up through the queriers [#1723](https://github.com/grafana/tempo/pull/1723) (@joe-elliott)
+* [ENHANCEMENT] Upgrade opentelemetry-proto submodule to v0.18.0 [#1754](https://github.com/grafana/tempo/pull/1754) (@mapno)
+Internal types are updated to use `scope` instead of `instrumentation_library`. This is a breaking change for JSON, but not for Protobuf.
 
 ## v1.5.0 / 2022-08-17
 
