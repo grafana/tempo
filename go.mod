@@ -74,9 +74,9 @@ require (
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/collector v0.57.2
-	go.opentelemetry.io/otel v1.8.0 // indirect
+	go.opentelemetry.io/otel v1.10.0
 	go.opentelemetry.io/otel/metric v0.31.0
-	go.opentelemetry.io/otel/trace v1.8.0
+	go.opentelemetry.io/otel/trace v1.10.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
 	go.uber.org/multierr v1.8.0
@@ -93,6 +93,10 @@ require (
 require (
 	go.opentelemetry.io/collector/model v0.46.0
 	go.opentelemetry.io/collector/pdata v0.57.2
+	go.opentelemetry.io/otel/bridge/opencensus v0.31.0
+	go.opentelemetry.io/otel/bridge/opentracing v1.10.0
+	go.opentelemetry.io/otel/exporters/jaeger v1.10.0
+	go.opentelemetry.io/otel/sdk v1.10.0
 )
 
 require (
@@ -239,7 +243,6 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.33.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.33.0 // indirect
 	go.opentelemetry.io/otel/exporters/prometheus v0.31.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.8.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v0.31.0 // indirect
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
@@ -259,10 +262,6 @@ replace (
 	k8s.io/api => k8s.io/api v0.25.0
 	k8s.io/client-go => k8s.io/client-go v0.25.0
 )
-
-// Fix for injecting and extracting the propagation context
-// Can be removed when https://github.com/open-telemetry/opentelemetry-go/pull/2141 is merged
-replace go.opentelemetry.io/otel/bridge/opentracing => github.com/bboreham/opentelemetry-go/bridge/opentracing v0.13.1-0.20210728105346-81ca3b18d348
 
 // Replace memberlist with our fork which includes some fixes that haven't been
 // merged upstream yet:
