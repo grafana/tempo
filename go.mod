@@ -74,8 +74,14 @@ require (
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/collector v0.57.2
+	go.opentelemetry.io/collector/model v0.46.0
+	go.opentelemetry.io/collector/pdata v0.57.2
 	go.opentelemetry.io/otel v1.10.0
+	go.opentelemetry.io/otel/bridge/opencensus v0.31.0
+	go.opentelemetry.io/otel/bridge/opentracing v1.10.0
+	go.opentelemetry.io/otel/exporters/jaeger v1.10.0
 	go.opentelemetry.io/otel/metric v0.31.0
+	go.opentelemetry.io/otel/sdk v1.10.0
 	go.opentelemetry.io/otel/trace v1.10.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
@@ -88,15 +94,6 @@ require (
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
-)
-
-require (
-	go.opentelemetry.io/collector/model v0.46.0
-	go.opentelemetry.io/collector/pdata v0.57.2
-	go.opentelemetry.io/otel/bridge/opencensus v0.31.0
-	go.opentelemetry.io/otel/bridge/opentracing v1.10.0
-	go.opentelemetry.io/otel/exporters/jaeger v1.10.0
-	go.opentelemetry.io/otel/sdk v1.10.0
 )
 
 require (
