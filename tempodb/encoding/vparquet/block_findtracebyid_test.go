@@ -49,7 +49,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 					Resource: Resource{
 						ServiceName: "s",
 					},
-					InstrumentationLibrarySpans: []ILS{
+					ScopeSpans: []ScopeSpan{
 						{
 							Spans: []Span{
 								{
@@ -144,7 +144,7 @@ func BenchmarkFindTraceByID(b *testing.B) {
 	ctx := context.TODO()
 	tenantID := "1"
 	blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
-	//blockID := uuid.MustParse("1a2d50d7-f10e-41f0-850d-158b19ead23d")
+	// blockID := uuid.MustParse("1a2d50d7-f10e-41f0-850d-158b19ead23d")
 
 	r, _, _, err := local.New(&local.Config{
 		Path: path.Join("/Users/marty/src/tmp/"),
@@ -157,8 +157,8 @@ func BenchmarkFindTraceByID(b *testing.B) {
 	require.NoError(b, err)
 
 	traceID := meta.MinID
-	//traceID, err := util.HexStringToTraceID("1a029f7ace79c7f2")
-	//require.NoError(b, err)
+	// traceID, err := util.HexStringToTraceID("1a029f7ace79c7f2")
+	// require.NoError(b, err)
 
 	block := newBackendBlock(meta, rr)
 

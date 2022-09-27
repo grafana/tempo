@@ -297,7 +297,7 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 	spanCount := 0
 	for _, b := range batches {
 		size += b.Size()
-		for _, ils := range b.InstrumentationLibrarySpans {
+		for _, ils := range b.ScopeSpans {
 			spanCount += len(ils.Spans)
 		}
 	}
@@ -453,9 +453,9 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 	tracesByID := make(map[uint32]*rebatchedTrace, tracesPerBatch)
 
 	for _, b := range batches {
-		spansByILS := make(map[uint32]*v1.InstrumentationLibrarySpans)
+		spansByILS := make(map[uint32]*v1.ScopeSpans)
 
-		for _, ils := range b.InstrumentationLibrarySpans {
+		for _, ils := range b.ScopeSpans {
 			for _, span := range ils.Spans {
 				traceID := span.TraceId
 				if !validation.ValidTraceID(traceID) {
@@ -464,16 +464,16 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 
 				traceKey := util.TokenFor(userID, traceID)
 				ilsKey := traceKey
-				if ils.InstrumentationLibrary != nil {
-					ilsKey = fnv1a.AddString32(ilsKey, ils.InstrumentationLibrary.Name)
-					ilsKey = fnv1a.AddString32(ilsKey, ils.InstrumentationLibrary.Version)
+				if ils.Scope != nil {
+					ilsKey = fnv1a.AddString32(ilsKey, ils.Scope.Name)
+					ilsKey = fnv1a.AddString32(ilsKey, ils.Scope.Version)
 				}
 
 				existingILS, ilsAdded := spansByILS[ilsKey]
 				if !ilsAdded {
-					existingILS = &v1.InstrumentationLibrarySpans{
-						InstrumentationLibrary: ils.InstrumentationLibrary,
-						Spans:                  make([]*v1.Span, 0, spanCount/tracesPerBatch),
+					existingILS = &v1.ScopeSpans{
+						Scope: ils.Scope,
+						Spans: make([]*v1.Span, 0, spanCount/tracesPerBatch),
 					}
 					spansByILS[ilsKey] = existingILS
 				}
@@ -503,8 +503,8 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 				}
 				if !ilsAdded {
 					existingTrace.trace.Batches = append(existingTrace.trace.Batches, &v1.ResourceSpans{
-						Resource:                    b.Resource,
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{existingILS},
+						Resource:   b.Resource,
+						ScopeSpans: []*v1.ScopeSpans{existingILS},
 					})
 				}
 			}
@@ -542,7 +542,7 @@ func recordDiscaredSpans(err error, userID string, spanCount int) {
 
 func logSpans(batches []*v1.ResourceSpans, filterByStatusError bool, logger log.Logger) {
 	for _, b := range batches {
-		for _, ils := range b.InstrumentationLibrarySpans {
+		for _, ils := range b.ScopeSpans {
 			for _, s := range ils.Spans {
 				if filterByStatusError && s.Status.Code != v1.Status_STATUS_CODE_ERROR {
 					continue
@@ -567,7 +567,7 @@ func logSpansInResourceWithAllAttributes(rs *v1.ResourceSpans, filterByStatusErr
 			tempo_util.StringifyAnyValue(a.GetValue()))
 	}
 
-	for _, ils := range rs.InstrumentationLibrarySpans {
+	for _, ils := range rs.ScopeSpans {
 		for _, s := range ils.Spans {
 			if filterByStatusError && s.Status.Code != v1.Status_STATUS_CODE_ERROR {
 				continue

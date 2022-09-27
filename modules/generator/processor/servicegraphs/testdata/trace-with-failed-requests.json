@@ -35,9 +35,9 @@
           }
         ]
       },
-      "instrumentationLibrarySpans": [
+      "scopeSpans": [
         {
-          "instrumentationLibrary": {
+          "scope": {
             "name": "mythical-requester"
           },
           "spans": [
@@ -99,9 +99,9 @@
           }
         ]
       },
-      "instrumentationLibrarySpans": [
+      "scopeSpans": [
         {
-          "instrumentationLibrary": {
+          "scope": {
             "name": "@opentelemetry/instrumentation-net",
             "version": "0.27.1"
           },
@@ -193,9 +193,9 @@
           }
         ]
       },
-      "instrumentationLibrarySpans": [
+      "scopeSpans": [
         {
-          "instrumentationLibrary": {
+          "scope": {
             "name": "@opentelemetry/instrumentation-http",
             "version": "0.27.0"
           },
@@ -349,9 +349,9 @@
           }
         ]
       },
-      "instrumentationLibrarySpans": [
+      "scopeSpans": [
         {
-          "instrumentationLibrary": {
+          "scope": {
             "name": "@opentelemetry/instrumentation-express",
             "version": "0.28.0"
           },
@@ -425,9 +425,9 @@
           }
         ]
       },
-      "instrumentationLibrarySpans": [
+      "scopeSpans": [
         {
-          "instrumentationLibrary": {
+          "scope": {
             "name": "@opentelemetry/instrumentation-express",
             "version": "0.28.0"
           },
@@ -501,9 +501,9 @@
           }
         ]
       },
-      "instrumentationLibrarySpans": [
+      "scopeSpans": [
         {
-          "instrumentationLibrary": {
+          "scope": {
             "name": "@opentelemetry/instrumentation-express",
             "version": "0.28.0"
           },
@@ -577,9 +577,9 @@
           }
         ]
       },
-      "instrumentationLibrarySpans": [
+      "scopeSpans": [
         {
-          "instrumentationLibrary": {
+          "scope": {
             "name": "@opentelemetry/instrumentation-express",
             "version": "0.28.0"
           },
@@ -653,9 +653,9 @@
           }
         ]
       },
-      "instrumentationLibrarySpans": [
+      "scopeSpans": [
         {
-          "instrumentationLibrary": {
+          "scope": {
             "name": "@opentelemetry/instrumentation-pg",
             "version": "0.28.0"
           },
@@ -756,9 +756,9 @@
           }
         ]
       },
-      "instrumentationLibrarySpans": [
+      "scopeSpans": [
         {
-          "instrumentationLibrary": {
+          "scope": {
             "name": "@opentelemetry/instrumentation-http",
             "version": "0.27.0"
           },
@@ -882,9 +882,9 @@
           }
         ]
       },
-      "instrumentationLibrarySpans": [
+      "scopeSpans": [
         {
-          "instrumentationLibrary": {
+          "scope": {
             "name": "@opentelemetry/instrumentation-net",
             "version": "0.27.1"
           },
@@ -976,9 +976,9 @@
           }
         ]
       },
-      "instrumentationLibrarySpans": [
+      "scopeSpans": [
         {
-          "instrumentationLibrary": {
+          "scope": {
             "name": "@opentelemetry/instrumentation-dns",
             "version": "0.27.1"
           },
@@ -1040,9 +1040,9 @@
           }
         ]
       },
-      "instrumentationLibrarySpans": [
+      "scopeSpans": [
         {
-          "instrumentationLibrary": {
+          "scope": {
             "name": "mythical-requester"
           },
           "spans": [
@@ -1097,9 +1097,9 @@
           }
         ]
       },
-      "instrumentationLibrarySpans": [
+      "scopeSpans": [
         {
-          "instrumentationLibrary": {
+          "scope": {
             "name": "mythical-requester"
           },
           "spans": [
@@ -1154,9 +1154,9 @@
           }
         ]
       },
-      "instrumentationLibrarySpans": [
+      "scopeSpans": [
         {
-          "instrumentationLibrary": {
+          "scope": {
             "name": "@opentelemetry/instrumentation-net",
             "version": "0.27.1"
           },
@@ -1248,9 +1248,9 @@
           }
         ]
       },
-      "instrumentationLibrarySpans": [
+      "scopeSpans": [
         {
-          "instrumentationLibrary": {
+          "scope": {
             "name": "@opentelemetry/instrumentation-net",
             "version": "0.27.1"
           },

@@ -65,7 +65,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	batch := test.MakeBatch(10, nil)
 
 	// Add some attributes
-	for _, rs := range batch.InstrumentationLibrarySpans {
+	for _, rs := range batch.ScopeSpans {
 		for _, s := range rs.Spans {
 			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
 				Key:   "foo",

@@ -147,7 +147,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 			continue
 		}
 
-		for _, ils := range rs.InstrumentationLibrarySpans {
+		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
 				connectionType := store.Unknown
 
