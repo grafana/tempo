@@ -76,6 +76,9 @@ func (r *receiversShim) Capabilities() consumer.Capabilities {
 	return consumer.Capabilities{MutatesData: false}
 }
 
+var _ confmap.Provider = (*mapProvider)(nil)
+
+// mapProvider is a confmap.Provider that returns a single confmap.Retrieved instance with a fixed map.
 type mapProvider struct {
 	raw map[string]interface{}
 }
@@ -133,8 +136,9 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 	for k := range receiverCfg {
 		receivers = append(receivers, k)
 	}
-	fmt.Println("receivers", receivers)
 
+	// Creates a config provider with the given config map.
+	// The provider will be used to retrieve the actual config for the pipeline (although we only need the receivers).
 	pro, err := service.NewConfigProvider(service.ConfigProviderSettings{
 		Locations: []string{"mock:/"},
 		MapProviders: map[string]confmap.Provider{"mock": &mapProvider{raw: map[string]interface{}{
@@ -145,7 +149,7 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 			"service": map[string]interface{}{
 				"pipelines": map[string]interface{}{
 					"traces": map[string]interface{}{
-						"exporters": []string{"nop"},
+						"exporters": []string{"nop"}, // nop exporter to avoid errors
 						"receivers": receivers,
 					},
 				},
@@ -156,9 +160,11 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 		return nil, err
 	}
 
+	// Creates the configuration for the pipeline.
+	// We only need the receivers, the rest of the configuration is not used.
 	conf, err := pro.Get(context.Background(), component.Factories{
 		Receivers: receiverFactories,
-		Exporters: map[config.Type]component.ExporterFactory{"nop": componenttest.NewNopExporterFactory()},
+		Exporters: map[config.Type]component.ExporterFactory{"nop": componenttest.NewNopExporterFactory()}, // nop exporter to avoid errors
 	})
 	if err != nil {
 		return nil, err
