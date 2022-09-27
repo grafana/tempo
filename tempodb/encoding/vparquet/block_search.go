@@ -574,7 +574,7 @@ func (r *rowNumberIterator) Next() (*pq.IteratorResult, error) {
 func (r *rowNumberIterator) SeekTo(to pq.RowNumber, definitionLevel int) (*pq.IteratorResult, error) {
 	var at *pq.IteratorResult
 
-	for at, _ = r.Next(); r != nil && pq.CompareRowNumbers(definitionLevel, at.RowNumber, to) < 0; {
+	for at, _ = r.Next(); r != nil && at != nil && pq.CompareRowNumbers(definitionLevel, at.RowNumber, to) < 0; {
 		at, _ = r.Next()
 	}
 
