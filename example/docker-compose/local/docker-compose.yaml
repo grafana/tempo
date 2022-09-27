@@ -15,7 +15,7 @@ services:
       - "9411:9411"   # zipkin
 
   synthetic-load-generator:
-    image: omnition/synthetic-load-generator:1.0.25
+    image: omnition/synthetic-load-generator:1.0.29
     volumes:
       - ../shared/load-generator.json:/etc/load-generator.json
     environment:
@@ -36,7 +36,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:8.1.6
+    image: grafana/grafana:9.1.6
     volumes:
       - ../shared/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
