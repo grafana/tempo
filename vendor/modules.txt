@@ -299,8 +299,6 @@ github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
 github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
-# github.com/google/gofuzz v1.2.0
-## explicit; go 1.12
 # github.com/google/uuid v1.3.0
 ## explicit
 github.com/google/uuid
@@ -353,7 +351,7 @@ github.com/grafana/dskit/tenant
 github.com/grafana/e2e
 github.com/grafana/e2e/db
 github.com/grafana/e2e/images
-# github.com/grafana/regexp v0.0.0-20220202152315-e74e38789280
+# github.com/grafana/regexp v0.0.0-20220304095617-2e8d9baf4ac2
 ## explicit; go 1.17
 github.com/grafana/regexp
 github.com/grafana/regexp/syntax
@@ -782,7 +780,7 @@ github.com/prometheus/exporter-toolkit/web
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
-# github.com/prometheus/prometheus v1.8.2-0.20220228151929-e25a59925555
+# github.com/prometheus/prometheus v1.8.2-0.20220315145411-881111fec433
 ## explicit; go 1.16
 github.com/prometheus/prometheus/config
 github.com/prometheus/prometheus/discovery

@@ -25,10 +25,10 @@ type backendSearchBlockWriter struct {
 	pageBuf  []byte
 	tracker  backend.AppendTracker
 	finalBuf *bytes.Buffer
-	dw       common.DataWriter
+	dw       v2.DataWriter
 }
 
-var _ common.DataWriterGeneric = (*backendSearchBlockWriter)(nil)
+var _ v2.DataWriterGeneric = (*backendSearchBlockWriter)(nil)
 
 func newBackendSearchBlockWriter(blockID uuid.UUID, tenantID string, w backend.Writer, enc backend.Encoding) (*backendSearchBlockWriter, error) {
 	finalBuf := &bytes.Buffer{}

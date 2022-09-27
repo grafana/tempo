@@ -3,8 +3,9 @@ package encoding
 import (
 	"context"
 	"fmt"
+	"time"
 
-	"github.com/grafana/tempo/pkg/model"
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
@@ -32,10 +33,16 @@ type VersionedEncoding interface {
 	// * StartTime
 	// * EndTime
 	// * TotalObjects
-	CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, dec model.ObjectDecoder, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error)
+	CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error)
 
 	// CopyBlock from one backend to another.
 	CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error
+
+	// OpenWALBlock opens an existing appendable block for the WAL
+	OpenWALBlock(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration) (common.WALBlock, error, error)
+
+	// CreateWALBlock creates a new appendable block for the WAL
+	CreateWALBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error)
 }
 
 // FromVersion returns a versioned encoding for the provided string

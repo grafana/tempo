@@ -26,7 +26,7 @@ type multiblockIterator struct {
 	logger       log.Logger
 }
 
-var _ common.Iterator = (*multiblockIterator)(nil)
+var _ BytesIterator = (*multiblockIterator)(nil)
 
 type iteratorResult struct {
 	id     common.ID
@@ -35,7 +35,7 @@ type iteratorResult struct {
 
 // NewMultiblockIterator Creates a new multiblock iterator. Iterates concurrently in a separate goroutine and results are buffered.
 // Traces are deduped and combined using the object combiner.
-func NewMultiblockIterator(ctx context.Context, inputs []common.Iterator, bufferSize int, combiner model.ObjectCombiner, dataEncoding string, logger log.Logger) common.Iterator {
+func NewMultiblockIterator(ctx context.Context, inputs []BytesIterator, bufferSize int, combiner model.ObjectCombiner, dataEncoding string, logger log.Logger) BytesIterator {
 	i := multiblockIterator{
 		combiner:     combiner,
 		dataEncoding: dataEncoding,
@@ -65,7 +65,7 @@ func (i *multiblockIterator) Close() {
 }
 
 // Next returns the next values or error.  Blocking read when data not yet available.
-func (i *multiblockIterator) Next(ctx context.Context) (common.ID, []byte, error) {
+func (i *multiblockIterator) NextBytes(ctx context.Context) (common.ID, []byte, error) {
 	if err := i.err.Load(); err != nil {
 		return nil, nil, err
 	}
@@ -174,14 +174,14 @@ func (i *multiblockIterator) iterate(ctx context.Context) {
 }
 
 type bookmark struct {
-	iter common.Iterator
+	iter BytesIterator
 
 	currentID     []byte
 	currentObject []byte
 	currentErr    error
 }
 
-func newBookmark(iter common.Iterator) *bookmark {
+func newBookmark(iter BytesIterator) *bookmark {
 	return &bookmark{
 		iter: iter,
 	}
@@ -191,7 +191,7 @@ func (b *bookmark) current(ctx context.Context) ([]byte, []byte, error) {
 	// This check is how the bookmark knows to iterate after being cleared,
 	// but it also unintentionally skips empty objects that somehow got in
 	// the block (b.currentObject is empty slice).  Normal usage of the bookmark
-	// is to call done() and then current(). done() calls current() which reads iter.Next()
+	// is to call done() and then current(). done() calls current() which reads iter(.Next)()
 	// and saves empty, it is then iterated again by a direct call to current(),
 	// which interprets the empty object as a cleared state and iterates again.
 	// This is mostly harmless and has been true historically for some time,
@@ -210,7 +210,7 @@ func (b *bookmark) current(ctx context.Context) ([]byte, []byte, error) {
 		return nil, nil, b.currentErr
 	}
 
-	b.currentID, b.currentObject, b.currentErr = b.iter.Next(ctx)
+	b.currentID, b.currentObject, b.currentErr = b.iter.NextBytes(ctx)
 	return b.currentID, b.currentObject, b.currentErr
 }
 

@@ -8,7 +8,6 @@ import (
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/klauspost/compress/zstd"
 )
 
@@ -28,7 +27,7 @@ type dataReader struct {
 var constDataHeader = &dataHeader{}
 
 // NewDataReader constructs a v2 DataReader that handles paged...reading
-func NewDataReader(r backend.ContextReader, encoding backend.Encoding) (common.DataReader, error) {
+func NewDataReader(r backend.ContextReader, encoding backend.Encoding) (DataReader, error) {
 	pool, err := getReaderPool(encoding)
 	if err != nil {
 		return nil, err
@@ -41,8 +40,8 @@ func NewDataReader(r backend.ContextReader, encoding backend.Encoding) (common.D
 	}, nil
 }
 
-// Read implements common.DataReader
-func (r *dataReader) Read(ctx context.Context, records []common.Record, pagesBuffer [][]byte, buffer []byte) ([][]byte, []byte, error) {
+// Read implements DataReader
+func (r *dataReader) Read(ctx context.Context, records []Record, pagesBuffer [][]byte, buffer []byte) ([][]byte, []byte, error) {
 	if len(records) == 0 {
 		return nil, buffer, nil
 	}
@@ -130,7 +129,7 @@ func (r *dataReader) Close() {
 	}
 }
 
-// NextPage implements common.DataReader
+// NextPage implements DataReader
 func (r *dataReader) NextPage(buffer []byte) ([]byte, uint32, error) {
 	reader, err := r.contextReader.Reader()
 	if err != nil {

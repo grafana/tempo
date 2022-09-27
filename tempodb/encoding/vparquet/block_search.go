@@ -37,8 +37,14 @@ var StatusCodeMapping = map[string]int{
 }
 
 // openForSearch consolidates all the logic regarding opening a parquet file in object storage
-func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions, o ...parquet.FileOption) (*parquet.File, *BackendReaderAt, error) {
+func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions) (*parquet.File, *BackendReaderAt, error) {
 	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
+
+	// no searches currently require bloom filters or the page index. so just add them statically
+	o := []parquet.FileOption{
+		parquet.SkipBloomFilters(true),
+		parquet.SkipPageIndex(true),
+	}
 
 	// backend reader
 	readerAt := io.ReaderAt(backendReaderAt)
@@ -78,7 +84,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 		})
 	defer span.Finish()
 
-	pf, rr, err := b.openForSearch(derivedCtx, opts, parquet.SkipPageIndex(true))
+	pf, rr, err := b.openForSearch(derivedCtx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
@@ -152,47 +158,61 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 		// search all special attributes
 		for idx, lbl := range specialAttrIdxs {
 			cc := rg.ColumnChunks()[idx]
-			pgs := cc.Pages()
-			for {
-				pg, err := pgs.ReadPage()
-				if err == io.EOF || pg == nil {
-					break
-				}
-				if err != nil {
-					return err
-				}
+			err = func() error {
+				pgs := cc.Pages()
+				defer pgs.Close()
+				for {
+					pg, err := pgs.ReadPage()
+					if err == io.EOF || pg == nil {
+						break
+					}
+					if err != nil {
+						return err
+					}
 
-				// if a special attribute has any non-null values, include it
-				if pg.NumNulls() < pg.NumValues() {
-					cb(lbl)
-					delete(specialAttrIdxs, idx) // remove from map so we won't search again
-					break
+					// if a special attribute has any non-null values, include it
+					if pg.NumNulls() < pg.NumValues() {
+						cb(lbl)
+						delete(specialAttrIdxs, idx) // remove from map so we won't search again
+						break
+					}
 				}
+				return nil
+			}()
+			if err != nil {
+				return err
 			}
 		}
 
 		// search other attributes
 		for _, idx := range standardAttrIdxs {
 			cc := rg.ColumnChunks()[idx]
-			pgs := cc.Pages()
-			for {
-				pg, err := pgs.ReadPage()
-				if err == io.EOF || pg == nil {
-					break
-				}
-				if err != nil {
-					return err
-				}
+			err = func() error {
+				pgs := cc.Pages()
+				defer pgs.Close()
+				for {
+					pg, err := pgs.ReadPage()
+					if err == io.EOF || pg == nil {
+						break
+					}
+					if err != nil {
+						return err
+					}
 
-				dict := pg.Dictionary()
-				if dict == nil {
-					continue
-				}
+					dict := pg.Dictionary()
+					if dict == nil {
+						continue
+					}
 
-				for i := 0; i < dict.Len(); i++ {
-					s := string(dict.Index(int32(i)).ByteArray())
-					cb(s)
+					for i := 0; i < dict.Len(); i++ {
+						s := string(dict.Index(int32(i)).ByteArray())
+						cb(s)
+					}
 				}
+				return nil
+			}()
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -302,7 +322,7 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 				makeIter(FieldResourceAttrVal, valPred, "values"),
 			}, nil),
 			// This iterator finds all keys/values at the span level
-			pq.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, []pq.Iterator{
+			pq.NewJoinIterator(DefinitionLevelResourceSpansILSSpanAttrs, []pq.Iterator{
 				makeIter(FieldSpanAttrKey, keyPred, "keys"),
 				makeIter(FieldSpanAttrVal, valPred, "values"),
 			}, nil),
@@ -465,43 +485,40 @@ func searchStandardTagValues(ctx context.Context, tag string, pf *parquet.File, 
 
 	keyPred := pq.NewStringInPredicate([]string{tag})
 
-	iter := pq.NewJoinIterator(DefinitionLevelResourceAttrs, []pq.Iterator{
-		makeIter(FieldResourceAttrKey, keyPred, "keys"),
-		makeIter(FieldResourceAttrVal, nil, "values"),
-	}, nil)
-	for {
-		match, err := iter.Next()
-		if err != nil {
-			return errors.Wrap(err, "iter.Next on failed on resource lookup")
-		}
-		if match == nil {
-			break
-		}
-		m := match.ToMap()
-		for _, s := range m["values"] {
-			cb(s.String())
-		}
+	err := searchKeyValues(DefinitionLevelResourceAttrs, FieldResourceAttrKey, FieldResourceAttrVal, makeIter, keyPred, cb)
+	if err != nil {
+		return errors.Wrap(err, "search resource key values")
 	}
-	iter.Close()
 
-	iter = pq.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, []pq.Iterator{
-		makeIter(FieldSpanAttrKey, keyPred, "keys"),
-		makeIter(FieldSpanAttrVal, nil, "values"),
+	err = searchKeyValues(DefinitionLevelResourceSpansILSSpan, FieldSpanAttrKey, FieldSpanAttrVal, makeIter, keyPred, cb)
+	if err != nil {
+		return errors.Wrap(err, "search span key values")
+	}
+
+	return nil
+}
+
+func searchKeyValues(definitionLevel int, keyPath, valuePath string, makeIter makeIterFn, keyPred pq.Predicate, cb common.TagCallback) error {
+
+	iter := pq.NewJoinIterator(definitionLevel, []pq.Iterator{
+		makeIter(keyPath, keyPred, ""),
+		makeIter(valuePath, nil, "values"),
 	}, nil)
+	defer iter.Close()
+
 	for {
 		match, err := iter.Next()
 		if err != nil {
-			return errors.Wrap(err, "iter.Next on failed on span lookup")
+			return err
 		}
 		if match == nil {
 			break
 		}
-		m := match.ToMap()
-		for _, s := range m["values"] {
-			cb(s.String())
+		for _, e := range match.Entries {
+			// We know that "values" is the only data selected above.
+			cb(e.Value.String())
 		}
 	}
-	iter.Close()
 
 	return nil
 }

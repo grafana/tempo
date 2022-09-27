@@ -3,6 +3,7 @@ package vparquet
 import (
 	"context"
 	"math/rand"
+	"path"
 	"testing"
 	"time"
 
@@ -390,4 +391,51 @@ func makeTraces() ([]*Trace, map[string]string) {
 	}
 
 	return traces, attrVals
+}
+
+func BenchmarkBackendBlockSearch(b *testing.B) {
+	testCases := []struct {
+		name string
+		tags map[string]string
+	}{
+		{"noMatch", map[string]string{"foo": "bar"}},
+		{"partialMatch", map[string]string{"foo": "bar", "component": "gRPC"}},
+	}
+
+	ctx := context.TODO()
+	tenantID := "1"
+	blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
+
+	r, _, _, err := local.New(&local.Config{
+		Path: path.Join("/Users/marty/src/tmp/"),
+	})
+	require.NoError(b, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
+	require.NoError(b, err)
+
+	block := newBackendBlock(meta, rr)
+
+	opts := defaultSearchOptions()
+	opts.StartPage = 10
+	opts.TotalPages = 10
+
+	for _, tc := range testCases {
+
+		req := &tempopb.SearchRequest{
+			Start: 1663849486,
+			End:   1663935886,
+			Tags:  tc.tags,
+			Limit: 20,
+		}
+
+		b.Run(tc.name, func(b *testing.B) {
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, err := block.Search(ctx, req, opts)
+				require.NoError(b, err)
+			}
+		})
+	}
 }

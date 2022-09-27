@@ -44,13 +44,6 @@ func (m *mockSharder) Combine(dataEncoding string, tenantID string, objs ...[]by
 
 func (m *mockSharder) RecordDiscardedSpans(count int, tenantID string) {}
 
-type mockCombiner struct {
-}
-
-func (m *mockCombiner) Combine(dataEncoding string, objs ...[]byte) ([]byte, bool, error) {
-	return model.StaticCombiner.Combine(dataEncoding, objs...)
-}
-
 type mockJobSharder struct{}
 
 func (m *mockJobSharder) Owns(_ string) bool { return true }
@@ -141,7 +134,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			allIds = append(allIds, id)
 		}
 
-		_, err = w.CompleteBlock(head, &mockCombiner{})
+		_, err = w.CompleteBlock(context.Background(), head)
 		require.NoError(t, err)
 	}
 
@@ -309,7 +302,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 			}
 		}
 
-		_, err = w.CompleteBlock(head, &mockCombiner{})
+		_, err = w.CompleteBlock(context.Background(), head)
 		require.NoError(t, err)
 	}
 
@@ -657,7 +650,7 @@ func cutTestBlockWithTraces(t testing.TB, w Writer, tenantID string, data []test
 		writeTraceToWal(t, head, dec, d.id, d.t, d.start, d.end)
 	}
 
-	b, err := w.CompleteBlock(head, &mockCombiner{})
+	b, err := w.CompleteBlock(context.Background(), head)
 	require.NoError(t, err)
 
 	return b
@@ -679,7 +672,7 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 			writeTraceToWal(t, head, dec, id, tr, now, now)
 		}
 
-		b, err := w.CompleteBlock(head, &mockCombiner{})
+		b, err := w.CompleteBlock(context.Background(), head)
 		require.NoError(t, err)
 		blocks = append(blocks, b)
 	}

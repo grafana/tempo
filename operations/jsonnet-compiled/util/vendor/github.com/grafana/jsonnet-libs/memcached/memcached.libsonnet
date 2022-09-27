@@ -31,6 +31,8 @@ k {
       std.ceil((self.memory_limit_mb * self.overprovision_factor) + self.memory_request_overhead_mb) * 1024 * 1024,
     memory_limits_bytes::
       std.max(self.memory_limit_mb * 1.5 * 1024 * 1024, self.memory_request_bytes),
+    use_topology_spread:: false,
+    topology_spread_max_skew:: 1,
 
     local container = $.core.v1.container,
     local containerPort = $.core.v1.containerPort,
@@ -56,6 +58,7 @@ k {
       ]),
 
     local statefulSet = $.apps.v1.statefulSet,
+    local topologySpreadConstraints = k.core.v1.topologySpreadConstraint,
 
     statefulSet:
       statefulSet.new(self.name, $._config.memcached_replicas, [
@@ -63,7 +66,17 @@ k {
         self.memcached_exporter,
       ], []) +
       statefulSet.spec.withServiceName(self.name) +
-      $.util.antiAffinity,
+      if self.use_topology_spread then
+        local pod_name = self.name;
+        statefulSet.spec.template.spec.withTopologySpreadConstraints(
+          // Evenly spread pods among available nodes.
+          topologySpreadConstraints.labelSelector.withMatchLabels({ name: pod_name }) +
+          topologySpreadConstraints.withTopologyKey('kubernetes.io/hostname') +
+          topologySpreadConstraints.withWhenUnsatisfiable('ScheduleAnyway') +
+          topologySpreadConstraints.withMaxSkew(self.topology_spread_max_skew),
+        )
+      else
+        $.util.antiAffinity,
 
     local service = $.core.v1.service,
 

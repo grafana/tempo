@@ -1,6 +1,7 @@
 package tempodb
 
 import (
+	"context"
 	"path"
 	"testing"
 	"time"
@@ -58,7 +59,7 @@ func TestRetention(t *testing.T) {
 	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
 	assert.NoError(t, err)
 
-	complete, err := w.CompleteBlock(head, &mockCombiner{})
+	complete, err := w.CompleteBlock(context.Background(), head)
 	assert.NoError(t, err)
 	blockID = complete.BlockMeta().BlockID
 
@@ -119,7 +120,7 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
 	assert.NoError(t, err)
 
-	complete, err := w.CompleteBlock(head, &mockCombiner{})
+	complete, err := w.CompleteBlock(context.Background(), head)
 	assert.NoError(t, err)
 	blockID = complete.BlockMeta().BlockID
 

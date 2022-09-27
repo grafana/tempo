@@ -11,13 +11,13 @@ import (
 // index
 type bufferedAppender struct {
 	// output writer
-	writer common.DataWriter
+	writer DataWriter
 
 	// record keeping
-	records             []common.Record
+	records             []Record
 	totalObjects        int
 	currentOffset       uint64
-	currentRecord       *common.Record
+	currentRecord       *Record
 	currentBytesWritten int
 
 	// config
@@ -26,11 +26,11 @@ type bufferedAppender struct {
 
 // NewBufferedAppender returns an bufferedAppender.  This appender builds a writes to
 // the provided writer and also builds a downsampled records slice.
-func NewBufferedAppender(writer common.DataWriter, indexDownsample int, totalObjectsEstimate int) (Appender, error) {
+func NewBufferedAppender(writer DataWriter, indexDownsample int, totalObjectsEstimate int) (Appender, error) {
 	return &bufferedAppender{
 		writer:               writer,
 		indexDownsampleBytes: indexDownsample,
-		records:              make([]common.Record, 0, totalObjectsEstimate/indexDownsample+1),
+		records:              make([]Record, 0, totalObjectsEstimate/indexDownsample+1),
 	}, nil
 }
 
@@ -43,7 +43,7 @@ func (a *bufferedAppender) Append(id common.ID, b []byte) error {
 	}
 
 	if a.currentRecord == nil {
-		a.currentRecord = &common.Record{
+		a.currentRecord = &Record{
 			Start: a.currentOffset,
 		}
 	}
@@ -62,17 +62,17 @@ func (a *bufferedAppender) Append(id common.ID, b []byte) error {
 }
 
 // Records returns a slice of the current records
-func (a *bufferedAppender) Records() []common.Record {
+func (a *bufferedAppender) Records() []Record {
 	return a.records
 }
 
-func (a *bufferedAppender) RecordsForID(id common.ID) []common.Record {
-	_, i, _ := common.Records(a.records).Find(context.Background(), id)
+func (a *bufferedAppender) RecordsForID(id common.ID) []Record {
+	_, i, _ := Records(a.records).Find(context.Background(), id)
 	if i >= len(a.records) || i < 0 {
 		return nil
 	}
 
-	sliceRecords := make([]common.Record, 0, 1)
+	sliceRecords := make([]Record, 0, 1)
 	for bytes.Equal(a.records[i].ID, id) {
 		sliceRecords = append(sliceRecords, a.records[i])
 

@@ -80,7 +80,7 @@ func testSearchCompleteBlock(t *testing.T, blockVersion string) {
 	require.NoError(t, err, "unexpected error writing req")
 
 	// Complete block
-	block, err := w.CompleteBlock(head, &mockCombiner{})
+	block, err := w.CompleteBlock(context.Background(), head)
 	require.NoError(t, err)
 	meta := block.BlockMeta()
 

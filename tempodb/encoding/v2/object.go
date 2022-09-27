@@ -13,7 +13,7 @@ type object struct {
 
 var staticObject = object{}
 
-func NewObjectReaderWriter() common.ObjectReaderWriter {
+func NewObjectReaderWriter() ObjectReaderWriter {
 	return staticObject
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,7 +12,7 @@ import (
 // with the same id
 func TestCommonRecordsFind(t *testing.T) {
 	id := []byte{0x01}
-	recs := []common.Record{
+	recs := []Record{
 		{
 			ID:    id,
 			Start: 0,
@@ -32,7 +31,7 @@ func TestCommonRecordsFind(t *testing.T) {
 		},
 	}
 
-	rec, i, err := common.Records(recs).Find(context.Background(), id)
+	rec, i, err := Records(recs).Find(context.Background(), id)
 	require.NoError(t, err)
 	assert.Equal(t, uint64(0), rec.Start)
 	assert.Equal(t, 0, i)

@@ -32,7 +32,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/search"
-	"github.com/grafana/tempo/tempodb/wal"
 )
 
 type traceTooLargeError struct {
@@ -101,14 +100,14 @@ type instance struct {
 	traceCount atomic.Int32
 
 	blocksMtx        sync.RWMutex
-	headBlock        *wal.AppendBlock
-	completingBlocks []*wal.AppendBlock
-	completeBlocks   []*wal.LocalBlock
+	headBlock        common.WALBlock
+	completingBlocks []common.WALBlock
+	completeBlocks   []*localBlock
 
 	useFlatbufferSearch  bool
 	searchHeadBlock      *searchStreamingBlockEntry
-	searchAppendBlocks   map[*wal.AppendBlock]*searchStreamingBlockEntry
-	searchCompleteBlocks map[*wal.LocalBlock]*searchLocalBlockEntry
+	searchAppendBlocks   map[string]*searchStreamingBlockEntry // maps append block uuid string -> *searchStreamingBlockEntry
+	searchCompleteBlocks map[*localBlock]*searchLocalBlockEntry
 
 	lastBlockCut time.Time
 
@@ -139,8 +138,8 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 	i := &instance{
 		traces:               map[uint32]*liveTrace{},
 		traceSizes:           map[uint32]uint32{},
-		searchAppendBlocks:   map[*wal.AppendBlock]*searchStreamingBlockEntry{},
-		searchCompleteBlocks: map[*wal.LocalBlock]*searchLocalBlockEntry{},
+		searchAppendBlocks:   map[string]*searchStreamingBlockEntry{},
+		searchCompleteBlocks: map[*localBlock]*searchLocalBlockEntry{},
 		useFlatbufferSearch:  useFlatbufferSearch,
 
 		instanceID:         instanceID,
@@ -283,7 +282,7 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 			return uuid.Nil, fmt.Errorf("failed to resetHeadBlock: %w", err)
 		}
 
-		return completingBlock.BlockID(), nil
+		return completingBlock.BlockMeta().BlockID, nil
 	}
 
 	return uuid.Nil, nil
@@ -292,9 +291,9 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 // CompleteBlock moves a completingBlock to a completeBlock. The new completeBlock has the same ID.
 func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
-	var completingBlock *wal.AppendBlock
+	var completingBlock common.WALBlock
 	for _, iterBlock := range i.completingBlocks {
-		if iterBlock.BlockID() == blockID {
+		if iterBlock.BlockMeta().BlockID == blockID {
 			completingBlock = iterBlock
 			break
 		}
@@ -307,15 +306,12 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 
 	ctx := context.Background()
 
-	backendBlock, err := i.writer.CompleteBlockWithBackend(ctx, completingBlock, model.StaticCombiner, i.localReader, i.localWriter)
+	backendBlock, err := i.writer.CompleteBlockWithBackend(ctx, completingBlock, i.localReader, i.localWriter)
 	if err != nil {
 		return errors.Wrap(err, "error completing wal block with local backend")
 	}
 
-	ingesterBlock, err := wal.NewLocalBlock(ctx, backendBlock, i.local)
-	if err != nil {
-		return errors.Wrap(err, "error creating ingester block")
-	}
+	ingesterBlock := newLocalBlock(ctx, backendBlock, i.local)
 
 	i.blocksMtx.Lock()
 	i.completeBlocks = append(i.completeBlocks, ingesterBlock)
@@ -328,7 +324,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 
 	// Search data (optional)
 	i.blocksMtx.RLock()
-	oldSearch := i.searchAppendBlocks[completingBlock]
+	oldSearch := i.searchAppendBlocks[completingBlock.BlockMeta().BlockID.String()]
 	i.blocksMtx.RUnlock()
 
 	var newSearch *search.BackendSearchBlock
@@ -355,9 +351,9 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
-	var completingBlock *wal.AppendBlock
+	var completingBlock common.WALBlock
 	for j, iterBlock := range i.completingBlocks {
-		if iterBlock.BlockID() == blockID {
+		if iterBlock.BlockMeta().BlockID == blockID {
 			completingBlock = iterBlock
 			i.completingBlocks = append(i.completingBlocks[:j], i.completingBlocks[j+1:]...)
 			break
@@ -365,13 +361,15 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 	}
 
 	if completingBlock != nil {
-		entry := i.searchAppendBlocks[completingBlock]
+		uuid := completingBlock.BlockMeta().BlockID.String()
+
+		entry := i.searchAppendBlocks[uuid]
 		if entry != nil {
 			// Take write lock to ensure no searches are reading.
 			entry.mtx.Lock()
 			defer entry.mtx.Unlock()
 			_ = entry.b.Clear()
-			delete(i.searchAppendBlocks, completingBlock)
+			delete(i.searchAppendBlocks, uuid)
 		}
 
 		return completingBlock.Clear()
@@ -381,7 +379,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 }
 
 // GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend.
-func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *wal.LocalBlock {
+func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *localBlock {
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
@@ -445,31 +443,26 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
+	combiner := trace.NewCombiner()
+	combiner.Consume(completeTrace)
+
 	// headBlock
-	foundBytes, err := i.headBlock.Find(id, model.StaticCombiner)
+	tr, err := i.headBlock.FindTraceByID(ctx, id, common.SearchOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("headBlock.Find failed: %w", err)
+		return nil, fmt.Errorf("headBlock.FindTraceByID failed: %w", err)
 	}
-	completeTrace, err = model.CombineForRead(foundBytes, i.headBlock.Meta().DataEncoding, completeTrace)
-	if err != nil {
-		return nil, fmt.Errorf("headblock unmarshal failed in FindTraceByID: %w", err)
-	}
+	combiner.Consume(tr)
 
 	// completingBlock
 	for _, c := range i.completingBlocks {
-		foundBytes, err = c.Find(id, model.StaticCombiner)
+		tr, err = c.FindTraceByID(ctx, id, common.SearchOptions{})
 		if err != nil {
-			return nil, fmt.Errorf("completingBlock.Find failed: %w", err)
+			return nil, fmt.Errorf("completingBlock.FindTraceByID failed: %w", err)
 		}
-		completeTrace, err = model.CombineForRead(foundBytes, c.Meta().DataEncoding, completeTrace)
-		if err != nil {
-			return nil, fmt.Errorf("completingBlocks combine failed in FindTraceByID: %w", err)
-		}
+		combiner.Consume(tr)
 	}
 
 	// completeBlock
-	combiner := trace.NewCombiner()
-	combiner.Consume(completeTrace)
 	for _, c := range i.completeBlocks {
 		found, err := c.FindTraceByID(ctx, id, common.SearchOptions{})
 		if err != nil {
@@ -485,7 +478,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 // AddCompletingBlock adds an AppendBlock directly to the slice of completing blocks.
 // This is used during wal replay. It is expected that calling code will add the appropriate
 // jobs to the queue to eventually flush these.
-func (i *instance) AddCompletingBlock(b *wal.AppendBlock, s *search.StreamingSearchBlock) {
+func (i *instance) AddCompletingBlock(b common.WALBlock, s *search.StreamingSearchBlock) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
@@ -495,7 +488,7 @@ func (i *instance) AddCompletingBlock(b *wal.AppendBlock, s *search.StreamingSea
 	if s == nil {
 		return
 	}
-	i.searchAppendBlocks[b] = &searchStreamingBlockEntry{b: s}
+	i.searchAppendBlocks[b.BlockMeta().BlockID.String()] = &searchStreamingBlockEntry{b: s}
 }
 
 // getOrCreateTrace will return a new trace object for the given request
@@ -542,17 +535,17 @@ func (i *instance) resetHeadBlock() error {
 	i.lastBlockCut = time.Now()
 
 	// Create search data wal file
-	f, enc, err := i.writer.WAL().NewFile(i.headBlock.BlockID(), i.instanceID, searchDir)
+	f, enc, err := i.writer.WAL().NewFile(i.headBlock.BlockMeta().BlockID, i.instanceID, searchDir)
 	if err != nil {
 		return err
 	}
 
-	b, err := search.NewStreamingSearchBlockForFile(f, i.headBlock.BlockID(), enc)
+	b, err := search.NewStreamingSearchBlockForFile(f, i.headBlock.BlockMeta().BlockID, enc)
 	if err != nil {
 		return err
 	}
 	if i.searchHeadBlock != nil {
-		i.searchAppendBlocks[oldHeadBlock] = i.searchHeadBlock
+		i.searchAppendBlocks[oldHeadBlock.BlockMeta().BlockID.String()] = i.searchHeadBlock
 	}
 	i.searchHeadBlock = &searchStreamingBlockEntry{
 		b: b,
@@ -604,7 +597,7 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]
 	return nil
 }
 
-func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*wal.LocalBlock, error) {
+func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*localBlock, error) {
 	ids, err := i.localReader.Blocks(ctx, i.instanceID)
 	if err != nil {
 		return nil, err
@@ -614,14 +607,14 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*wal.LocalBlock
 		i.blocksMtx.RLock()
 		defer i.blocksMtx.RUnlock()
 		for _, b := range i.completingBlocks {
-			if b.BlockID() == id {
+			if b.BlockMeta().BlockID == id {
 				return true
 			}
 		}
 		return false
 	}
 
-	var rediscoveredBlocks []*wal.LocalBlock
+	var rediscoveredBlocks []*localBlock
 
 	for _, id := range ids {
 
@@ -656,11 +649,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*wal.LocalBlock
 			return nil, err
 		}
 
-		ib, err := wal.NewLocalBlock(ctx, b, i.local)
-		if err != nil {
-			return nil, err
-		}
-
+		ib := newLocalBlock(ctx, b, i.local)
 		rediscoveredBlocks = append(rediscoveredBlocks, ib)
 
 		sb := search.OpenBackendSearchBlock(b.BlockMeta().BlockID, b.BlockMeta().TenantID, i.localReader)

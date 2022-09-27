@@ -62,9 +62,7 @@ type CompactionOptions struct {
 }
 
 type Iterator interface {
-	// Next returns the next trace and optionally the start and stop times
-	// for the trace that may have been adjusted.
-	Next(ctx context.Context) (ID, []byte, error)
+	Next(ctx context.Context) (ID, *tempopb.Trace, error)
 	Close()
 }
 
@@ -73,4 +71,14 @@ type BackendBlock interface {
 	Searcher
 
 	BlockMeta() *backend.BlockMeta
+}
+
+type WALBlock interface {
+	BackendBlock
+
+	Append(id ID, b []byte, start, end uint32) error
+	DataLength() uint64
+	Length() int
+	Iterator() (Iterator, error)
+	Clear() error
 }

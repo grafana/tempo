@@ -10,16 +10,16 @@ import (
 )
 
 type prefetchIterator struct {
-	iter      common.Iterator
+	iter      BytesIterator
 	resultsCh chan iteratorResult
 	quitCh    chan struct{}
 	err       atomic.Error
 }
 
-var _ common.Iterator = (*prefetchIterator)(nil)
+var _ BytesIterator = (*prefetchIterator)(nil)
 
 // NewPrefetchIterator Creates a new multiblock iterator. Iterates concurrently in a separate goroutine and results are buffered.
-func NewPrefetchIterator(ctx context.Context, iter common.Iterator, bufferSize int) common.Iterator {
+func NewPrefetchIterator(ctx context.Context, iter BytesIterator, bufferSize int) BytesIterator {
 	i := prefetchIterator{
 		iter:      iter,
 		resultsCh: make(chan iteratorResult, bufferSize),
@@ -43,7 +43,7 @@ func (i *prefetchIterator) Close() {
 }
 
 // Next returns the next values or error.  Blocking read when data not yet available.
-func (i *prefetchIterator) Next(ctx context.Context) (common.ID, []byte, error) {
+func (i *prefetchIterator) NextBytes(ctx context.Context) (common.ID, []byte, error) {
 	if err := i.err.Load(); err != nil {
 		return nil, nil, err
 	}
@@ -70,7 +70,7 @@ func (i *prefetchIterator) iterate(ctx context.Context) {
 	defer i.iter.Close()
 
 	for {
-		id, obj, err := i.iter.Next(ctx)
+		id, obj, err := i.iter.NextBytes(ctx)
 		if err == io.EOF {
 			return
 		}

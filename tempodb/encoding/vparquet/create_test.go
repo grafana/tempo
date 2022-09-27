@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/model"
-	v2 "github.com/grafana/tempo/pkg/model/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -44,7 +42,7 @@ func TestCreateBlockHonorsTraceStartEndTimesFromWalMeta(t *testing.T) {
 	meta.StartTime = time.Unix(300, 0)
 	meta.EndTime = time.Unix(305, 0)
 
-	outMeta, err := CreateBlock(ctx, cfg, meta, iter, iter.decoder, r, w)
+	outMeta, err := CreateBlock(ctx, cfg, meta, iter, r, w)
 	require.NoError(t, err)
 	require.Equal(t, 300, int(outMeta.StartTime.Unix()))
 	require.Equal(t, 305, int(outMeta.EndTime.Unix()))
@@ -93,27 +91,20 @@ func TestCreateBlockHonorsTraceStartEndTimesFromWalMeta(t *testing.T) {
 // }
 
 type testIterator struct {
-	traces  [][]byte
-	decoder model.ObjectDecoder
-	segment model.SegmentDecoder
+	traces []*tempopb.Trace
 }
 
 var _ common.Iterator = (*testIterator)(nil)
 
 func newTestIterator() *testIterator {
-	return &testIterator{
-		decoder: v2.NewObjectDecoder(),
-		segment: v2.NewSegmentDecoder(),
-	}
+	return &testIterator{}
 }
 
 func (i *testIterator) Add(tr *tempopb.Trace, start, end uint32) {
-	b, _ := i.segment.PrepareForWrite(tr, start, end)
-	b2, _ := i.segment.ToObject([][]byte{b})
-	i.traces = append(i.traces, b2)
+	i.traces = append(i.traces, tr)
 }
 
-func (i *testIterator) Next(ctx context.Context) (common.ID, []byte, error) {
+func (i *testIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, error) {
 	if len(i.traces) == 0 {
 		return nil, nil, io.EOF
 	}
