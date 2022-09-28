@@ -217,6 +217,16 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 	ot.ResourceSpans = extendReuseSlice(len(tr.Batches), ot.ResourceSpans)
 	for ib, b := range tr.Batches {
 		ob := &ot.ResourceSpans[ib]
+		// clear out any existing fields in case they were set on the original
+		ob.Resource.ServiceName = ""
+		ob.Resource.Cluster = nil
+		ob.Resource.Namespace = nil
+		ob.Resource.Pod = nil
+		ob.Resource.Container = nil
+		ob.Resource.K8sClusterName = nil
+		ob.Resource.K8sNamespaceName = nil
+		ob.Resource.K8sPodName = nil
+		ob.Resource.K8sContainerName = nil
 
 		if b.Resource != nil {
 			ob.Resource.Attrs = extendReuseSlice(len(b.Resource.Attributes), ob.Resource.Attrs)
@@ -252,7 +262,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 					ob.Resource.K8sContainerName = &c
 
 				default:
-					// Other attributes put in generic columns (jpe)
+					// Other attributes put in generic columns
 					attrToParquet(a, &ob.Resource.Attrs[attrCount])
 					attrCount++
 				}
@@ -268,6 +278,9 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 					Name:    ils.Scope.Name,
 					Version: ils.Scope.Version,
 				}
+			} else {
+				oils.Scope.Name = ""
+				oils.Scope.Version = ""
 			}
 
 			oils.Spans = extendReuseSlice(len(ils.Spans), oils.Spans)
@@ -294,12 +307,20 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 				ss.ParentSpanID = s.ParentSpanId
 				ss.Name = s.Name
 				ss.Kind = int(s.Kind)
-				ss.StatusCode = int(s.Status.Code)
-				ss.StatusMessage = s.Status.Message
+				if s.Status != nil {
+					ss.StatusCode = int(s.Status.Code)
+					ss.StatusMessage = s.Status.Message
+				} else {
+					ss.StatusCode = 0
+					ss.StatusMessage = ""
+				}
 				ss.StartUnixNanos = s.StartTimeUnixNano
 				ss.EndUnixNanos = s.EndTimeUnixNano
 				ss.DroppedAttributesCount = int32(s.DroppedAttributesCount)
 				ss.DroppedEventsCount = int32(s.DroppedEventsCount)
+				ss.HttpMethod = nil
+				ss.HttpUrl = nil
+				ss.HttpStatusCode = nil
 
 				ss.Attrs = extendReuseSlice(len(s.Attributes), ss.Attrs)
 				attrCount := 0
@@ -323,15 +344,14 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 				}
 				ss.Attrs = ss.Attrs[:attrCount]
 			}
-
-			// jpe is this needed? or is it covered above?
-			// ob.ScopeSpans = append(ob.ScopeSpans, oils)
 		}
 	}
 
 	ot.StartTimeUnixNano = traceStart
 	ot.EndTimeUnixNano = traceEnd
 	ot.DurationNanos = traceEnd - traceStart
+	ot.RootSpanName = ""
+	ot.RootServiceName = ""
 
 	if rootSpan != nil && rootBatch != nil && rootBatch.Resource != nil {
 		ot.RootSpanName = rootSpan.Name
@@ -562,7 +582,6 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 }
 
 func extendReuseSlice[T any](sz int, in []T) []T {
-	// jpe nil out slice to avoid leaking memory
 	if cap(in) >= sz {
 		// slice is large enough
 		return in[:sz]

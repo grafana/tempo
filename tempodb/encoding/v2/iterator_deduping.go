@@ -24,10 +24,13 @@ type dedupingIterator struct {
 // NewDedupingIterator returns a dedupingIterator.  This iterator is used to wrap another
 // iterator.  It will dedupe consecutive objects with the same id using the ObjectCombiner.
 func NewDedupingIterator(iter BytesIterator, combiner model.ObjectCombiner, dataEncoding string) (BytesIterator, error) {
-	// jpe fix this
-	decoder, err := model.NewObjectDecoder(dataEncoding)
-	if err != nil {
-		return nil, err
+	var decoder model.ObjectDecoder
+	var err error
+	if dataEncoding != "" {
+		decoder, err = model.NewObjectDecoder(dataEncoding)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	i := &dedupingIterator{
@@ -86,6 +89,10 @@ func (i *dedupingIterator) NextBytes(ctx context.Context) (common.ID, []byte, er
 
 // Next implements common.Iterator
 func (i *dedupingIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, error) {
+	if i.decoder == nil {
+		return nil, nil, fmt.Errorf("dedupingIterator.Next() called but no decoder set")
+	}
+
 	if i.currentID == nil {
 		return nil, nil, io.EOF
 	}

@@ -1,8 +1,6 @@
 package tempopb
 
-import (
-	"github.com/grafana/tempo/pkg/tempopb/pool"
-)
+import "github.com/grafana/tempo/pkg/tempopb/pool"
 
 var (
 	// buckets: [0.5KiB, 1KiB, 2KiB, 4KiB, 8KiB, 16KiB]
@@ -42,9 +40,4 @@ func ReuseByteSlices(buffs [][]byte) {
 	for _, b := range buffs {
 		bytePool.Put(b[:0])
 	}
-}
-
-// SliceFromBytePool gets a slice from the byte pool
-func SliceFromBytePool(size int) []byte {
-	return bytePool.Get(size)[:size]
 }

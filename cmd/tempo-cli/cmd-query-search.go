@@ -21,41 +21,33 @@ func (cmd *querySearchCmd) Run(_ *globalOptions) error {
 
 	var start, end int64
 
-	// if cmd.Start != "" {
-	// 	startDate, err := time.Parse(time.RFC3339, cmd.Start)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	start = startDate.Unix()
-	// }
-
-	// if cmd.End != "" {
-	// 	endDate, err := time.Parse(time.RFC3339, cmd.End)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	end = endDate.Unix()
-	// }
-
-	for {
-		start = time.Now().Add(-15 * time.Minute).Unix()
-		end = time.Now().Unix()
-
-		var tagValues *tempopb.SearchResponse
-		var err error
-		if start == 0 && end == 0 {
-			tagValues, err = client.Search(cmd.Tags)
-		} else {
-			tagValues, err = client.SearchWithRange(cmd.Tags, start, end)
-		}
-
+	if cmd.Start != "" {
+		startDate, err := time.Parse(time.RFC3339, cmd.Start)
 		if err != nil {
 			return err
 		}
-
-		printAsJSON(tagValues)
-
-		time.Sleep(500 * time.Millisecond)
+		start = startDate.Unix()
 	}
 
+	if cmd.End != "" {
+		endDate, err := time.Parse(time.RFC3339, cmd.End)
+		if err != nil {
+			return err
+		}
+		end = endDate.Unix()
+	}
+
+	var tagValues *tempopb.SearchResponse
+	var err error
+	if start == 0 && end == 0 {
+		tagValues, err = client.Search(cmd.Tags)
+	} else {
+		tagValues, err = client.SearchWithRange(cmd.Tags, start, end)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	return printAsJSON(tagValues)
 }
