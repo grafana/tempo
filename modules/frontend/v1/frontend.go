@@ -21,7 +21,6 @@ import (
 	"github.com/grafana/tempo/modules/querier/stats"
 	"github.com/grafana/tempo/pkg/scheduler/queue"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
 	"github.com/grafana/tempo/pkg/validation"
 )
 
@@ -154,8 +153,12 @@ func (f *Frontend) RoundTripGRPC(ctx context.Context, req *httpgrpc.HTTPRequest)
 	// Propagate trace context in gRPC too - this will be ignored if using HTTP.
 	tracer, span := opentracing.GlobalTracer(), opentracing.SpanFromContext(ctx)
 	if tracer != nil && span != nil {
-		carrier := (*httpgrpcutil.HttpgrpcHeadersCarrier)(req)
-		err := tracer.Inject(span.Context(), opentracing.HTTPHeaders, carrier)
+		// carrier := (*httpgrpcutil.HttpgrpcHeadersCarrier)(req)
+		carrier := make(opentracing.TextMapCarrier, len(req.Headers))
+		for _, header := range req.Headers {
+			carrier.Set(header.Key, header.Values[0])
+		}
+		err := tracer.Inject(span.Context(), opentracing.TextMap, carrier)
 		if err != nil {
 			return nil, err
 		}

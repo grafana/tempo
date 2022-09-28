@@ -26,7 +26,7 @@ import (
 	tracepb "github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1"
 	jaegerzipkin "github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils"
@@ -35,20 +35,20 @@ import (
 type thriftUnmarshaler struct{}
 
 // UnmarshalTraces from Thrift bytes.
-func (t thriftUnmarshaler) UnmarshalTraces(buf []byte) (pdata.Traces, error) {
+func (t thriftUnmarshaler) UnmarshalTraces(buf []byte) (ptrace.Traces, error) {
 	spans, err := jaegerzipkin.DeserializeThrift(buf)
 	if err != nil {
-		return pdata.Traces{}, err
+		return ptrace.Traces{}, err
 	}
 	tds, err := v1ThriftBatchToOCProto(spans)
 	if err != nil {
-		return pdata.Traces{}, err
+		return ptrace.Traces{}, err
 	}
 	return toTraces(tds)
 }
 
 // NewThriftTracesUnmarshaler returns an unmarshaler for Zipkin Thrift.
-func NewThriftTracesUnmarshaler() pdata.TracesUnmarshaler {
+func NewThriftTracesUnmarshaler() ptrace.Unmarshaler {
 	return thriftUnmarshaler{}
 }
 

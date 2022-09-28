@@ -5,19 +5,19 @@ import (
 
 	"github.com/weaveworks/common/user"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
-type ConsumeTracesFunc func(context.Context, pdata.Traces) error
+type ConsumeTracesFunc func(context.Context, ptrace.Traces) error
 
 func (f ConsumeTracesFunc) Capabilities() consumer.Capabilities {
 	return consumer.Capabilities{MutatesData: false}
 }
 
-func (f ConsumeTracesFunc) ConsumeTraces(ctx context.Context, td pdata.Traces) error {
+func (f ConsumeTracesFunc) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
 	return f(ctx, td)
 }
 
@@ -32,17 +32,6 @@ func (tc MiddlewareFunc) Wrap(next consumer.Traces) consumer.Traces {
 	return tc(next)
 }
 
-// Merge produces a middleware that applies multiple middlesware in turn;
-// ie Merge(f,g,h).Wrap(handler) == f.Wrap(g.Wrap(h.Wrap(handler)))
-func Merge(middlesware ...Middleware) Middleware {
-	return MiddlewareFunc(func(next consumer.Traces) consumer.Traces {
-		for i := len(middlesware) - 1; i >= 0; i-- {
-			next = middlesware[i].Wrap(next)
-		}
-		return next
-	})
-}
-
 type fakeTenantMiddleware struct{}
 
 func FakeTenantMiddleware() Middleware {
@@ -50,7 +39,7 @@ func FakeTenantMiddleware() Middleware {
 }
 
 func (m *fakeTenantMiddleware) Wrap(next consumer.Traces) consumer.Traces {
-	return ConsumeTracesFunc(func(ctx context.Context, td pdata.Traces) error {
+	return ConsumeTracesFunc(func(ctx context.Context, td ptrace.Traces) error {
 		ctx = user.InjectOrgID(ctx, util.FakeTenantID)
 		return next.ConsumeTraces(ctx, td)
 	})
@@ -63,7 +52,7 @@ func MultiTenancyMiddleware() Middleware {
 }
 
 func (m *multiTenancyMiddleware) Wrap(next consumer.Traces) consumer.Traces {
-	return ConsumeTracesFunc(func(ctx context.Context, td pdata.Traces) error {
+	return ConsumeTracesFunc(func(ctx context.Context, td ptrace.Traces) error {
 		var err error
 		_, ctx, err = user.ExtractFromGRPCRequest(ctx)
 		if err != nil {

@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"contrib.go.opencensus.io/exporter/prometheus"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
@@ -21,13 +20,13 @@ import (
 	"github.com/weaveworks/common/logging"
 	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configtelemetry"
-	"go.opentelemetry.io/collector/config/configunmarshaler"
+	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/external/obsreportconfig"
-	"go.opentelemetry.io/collector/model/otlp"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/service"
+
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -77,6 +76,21 @@ func (r *receiversShim) Capabilities() consumer.Capabilities {
 	return consumer.Capabilities{MutatesData: false}
 }
 
+var _ confmap.Provider = (*mapProvider)(nil)
+
+// mapProvider is a confmap.Provider that returns a single confmap.Retrieved instance with a fixed map.
+type mapProvider struct {
+	raw map[string]interface{}
+}
+
+func (m *mapProvider) Retrieve(context.Context, string, confmap.WatcherFunc) (confmap.Retrieved, error) {
+	return confmap.NewRetrieved(m.raw, []confmap.RetrievedOption{}...)
+}
+
+func (m *mapProvider) Scheme() string { return "mock" }
+
+func (m *mapProvider) Shutdown(context.Context) error { return nil }
+
 func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Middleware, logLevel logging.Level) (services.Service, error) {
 	shim := &receiversShim{
 		pusher: pusher,
@@ -87,7 +101,7 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 	zapLogger := newLogger(logLevel)
 	views, err := newMetricViews()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create metric views: %w", err)
+		return nil, fmt.Errorf("failed to create metric traceReceiverViews: %w", err)
 	}
 	shim.metricViews = views
 
@@ -118,11 +132,39 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 		}
 	}
 
-	p := config.NewMapFromStringMap(map[string]interface{}{
-		"receivers": receiverCfg,
+	receivers := make([]string, 0, len(receiverCfg))
+	for k := range receiverCfg {
+		receivers = append(receivers, k)
+	}
+
+	// Creates a config provider with the given config map.
+	// The provider will be used to retrieve the actual config for the pipeline (although we only need the receivers).
+	pro, err := service.NewConfigProvider(service.ConfigProviderSettings{
+		Locations: []string{"mock:/"},
+		MapProviders: map[string]confmap.Provider{"mock": &mapProvider{raw: map[string]interface{}{
+			"receivers": receiverCfg,
+			"exporters": map[string]interface{}{
+				"nop": map[string]interface{}{},
+			},
+			"service": map[string]interface{}{
+				"pipelines": map[string]interface{}{
+					"traces": map[string]interface{}{
+						"exporters": []string{"nop"}, // nop exporter to avoid errors
+						"receivers": receivers,
+					},
+				},
+			},
+		}}},
 	})
-	cfgs, err := configunmarshaler.NewDefault().Unmarshal(p, component.Factories{
+	if err != nil {
+		return nil, err
+	}
+
+	// Creates the configuration for the pipeline.
+	// We only need the receivers, the rest of the configuration is not used.
+	conf, err := pro.Get(context.Background(), component.Factories{
 		Receivers: receiverFactories,
+		Exporters: map[config.Type]component.ExporterFactory{"nop": componenttest.NewNopExporterFactory()}, // nop exporter to avoid errors
 	})
 	if err != nil {
 		return nil, err
@@ -136,7 +178,7 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 		MeterProvider:  metric.NewNoopMeterProvider(),
 	}}
 
-	for componentID, cfg := range cfgs.Receivers {
+	for componentID, cfg := range conf.Receivers {
 		factoryBase := receiverFactories[componentID.Type()]
 		if factoryBase == nil {
 			return nil, fmt.Errorf("receiver factory not found for type: %s", componentID.Type())
@@ -193,7 +235,7 @@ func (r *receiversShim) stopping(_ error) error {
 }
 
 // ConsumeTraces implements consumer.Trace
-func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) error {
+func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "distributor.ConsumeTraces")
 	defer span.Finish()
 
@@ -201,7 +243,7 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) erro
 
 	// Convert to bytes and back. This is unfortunate for efficiency but it works
 	// around the otel-collector internalization of otel-proto which Tempo also uses.
-	convert, err := otlp.NewProtobufTracesMarshaler().MarshalTraces(td)
+	convert, err := ptrace.NewProtoMarshaler().MarshalTraces(td)
 	if err != nil {
 		return err
 	}
@@ -224,22 +266,20 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td pdata.Traces) erro
 	return err
 }
 
-// implements component.Host
+// ReportFatalError implements component.Host
 func (r *receiversShim) ReportFatalError(err error) {
-	level.Error(log.Logger).Log("msg", "fatal error reported", "err", err)
+	_ = level.Error(log.Logger).Log("msg", "fatal error reported", "err", err)
 }
 
-// implements component.Host
-func (r *receiversShim) GetFactory(kind component.Kind, componentType config.Type) component.Factory {
+// GetFactory implements component.Host
+func (r *receiversShim) GetFactory(component.Kind, config.Type) component.Factory {
 	return nil
 }
 
-// implements component.Host
-func (r *receiversShim) GetExtensions() map[config.ComponentID]component.Extension {
-	return nil
-}
+// GetExtensions implements component.Host
+func (r *receiversShim) GetExtensions() map[config.ComponentID]component.Extension { return nil }
 
-// implements component.Host
+// GetExporters implements component.Host
 func (r *receiversShim) GetExporters() map[config.DataType]map[config.ComponentID]component.Exporter {
 	return nil
 }
@@ -277,24 +317,4 @@ func newLogger(level logging.Level) *zap.Logger {
 	logger.Info("OTel Shim Logger Initialized")
 
 	return logger
-}
-
-func newMetricViews() ([]*view.View, error) {
-	views := obsreportconfig.Configure(configtelemetry.LevelNormal)
-	err := view.Register(views.Views...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to register views: %w", err)
-	}
-
-	pe, err := prometheus.NewExporter(prometheus.Options{
-		Namespace:  "tempo",
-		Registerer: prom_client.DefaultRegisterer,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create prometheus exporter: %w", err)
-	}
-
-	view.RegisterExporter(pe)
-
-	return views.Views, nil
 }

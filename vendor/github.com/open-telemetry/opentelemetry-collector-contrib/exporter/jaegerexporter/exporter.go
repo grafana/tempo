@@ -28,7 +28,7 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -92,7 +92,7 @@ type stateReporter interface {
 
 func (s *protoGRPCSender) pushTraces(
 	ctx context.Context,
-	td pdata.Traces,
+	td ptrace.Traces,
 ) error {
 
 	batches, err := jaeger.ProtoFromTraces(td)

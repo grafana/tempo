@@ -23,8 +23,9 @@ import (
 	"time"
 
 	zipkinmodel "github.com/openzipkin/zipkin-go/model"
-	"go.opentelemetry.io/collector/model/pdata"
-	conventions "go.opentelemetry.io/collector/model/semconv/v1.6.1"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator"
@@ -45,7 +46,7 @@ type FromTranslator struct{}
 
 // FromTraces translates internal trace data into Zipkin v2 spans.
 // Returns a slice of Zipkin SpanModel's.
-func (t FromTranslator) FromTraces(td pdata.Traces) ([]*zipkinmodel.SpanModel, error) {
+func (t FromTranslator) FromTraces(td ptrace.Traces) ([]*zipkinmodel.SpanModel, error) {
 	resourceSpans := td.ResourceSpans()
 	if resourceSpans.Len() == 0 {
 		return nil, nil
@@ -66,9 +67,9 @@ func (t FromTranslator) FromTraces(td pdata.Traces) ([]*zipkinmodel.SpanModel, e
 	return zSpans, nil
 }
 
-func resourceSpansToZipkinSpans(rs pdata.ResourceSpans, estSpanCount int) ([]*zipkinmodel.SpanModel, error) {
+func resourceSpansToZipkinSpans(rs ptrace.ResourceSpans, estSpanCount int) ([]*zipkinmodel.SpanModel, error) {
 	resource := rs.Resource()
-	ilss := rs.InstrumentationLibrarySpans()
+	ilss := rs.ScopeSpans()
 
 	if resource.Attributes().Len() == 0 && ilss.Len() == 0 {
 		return nil, nil
@@ -79,7 +80,7 @@ func resourceSpansToZipkinSpans(rs pdata.ResourceSpans, estSpanCount int) ([]*zi
 	zSpans := make([]*zipkinmodel.SpanModel, 0, estSpanCount)
 	for i := 0; i < ilss.Len(); i++ {
 		ils := ilss.At(i)
-		extractInstrumentationLibraryTags(ils.InstrumentationLibrary(), zTags)
+		extractScopeTags(ils.Scope(), zTags)
 		spans := ils.Spans()
 		for j := 0; j < spans.Len(); j++ {
 			zSpan, err := spanToZipkinSpan(spans.At(j), localServiceName, zTags)
@@ -93,7 +94,7 @@ func resourceSpansToZipkinSpans(rs pdata.ResourceSpans, estSpanCount int) ([]*zi
 	return zSpans, nil
 }
 
-func extractInstrumentationLibraryTags(il pdata.InstrumentationLibrary, zTags map[string]string) {
+func extractScopeTags(il pcommon.InstrumentationScope, zTags map[string]string) {
 	if ilName := il.Name(); ilName != "" {
 		zTags[conventions.OtelLibraryName] = ilName
 	}
@@ -103,7 +104,7 @@ func extractInstrumentationLibraryTags(il pdata.InstrumentationLibrary, zTags ma
 }
 
 func spanToZipkinSpan(
-	span pdata.Span,
+	span ptrace.Span,
 	localServiceName string,
 	zTags map[string]string,
 ) (*zipkinmodel.SpanModel, error) {
@@ -147,7 +148,7 @@ func spanToZipkinSpan(
 		zs.Duration = time.Duration(span.EndTimestamp() - span.StartTimestamp())
 	}
 	zs.Kind = spanKindToZipkinKind(span.Kind())
-	if span.Kind() == pdata.SpanKindInternal {
+	if span.Kind() == ptrace.SpanKindInternal {
 		tags[tracetranslator.TagSpanKind] = "internal"
 	}
 
@@ -155,16 +156,8 @@ func spanToZipkinSpan(
 	zs.LocalEndpoint = zipkinEndpointFromTags(tags, localServiceName, false, redundantKeys)
 	zs.RemoteEndpoint = zipkinEndpointFromTags(tags, "", true, redundantKeys)
 
-	removeRedundentTags(redundantKeys, tags)
-
-	status := span.Status()
-	tags[conventions.OtelStatusCode] = status.Code().String()
-	if status.Message() != "" {
-		tags[conventions.OtelStatusDescription] = status.Message()
-		if int32(status.Code()) > 0 {
-			zs.Err = fmt.Errorf("%s", status.Message())
-		}
-	}
+	removeRedundantTags(redundantKeys, tags)
+	populateStatus(span.Status(), zs, tags)
 
 	if err := spanEventsToZipkinAnnotations(span.Events(), zs); err != nil {
 		return nil, err
@@ -178,7 +171,31 @@ func spanToZipkinSpan(
 	return zs, nil
 }
 
-func aggregateSpanTags(span pdata.Span, zTags map[string]string) map[string]string {
+func populateStatus(status ptrace.SpanStatus, zs *zipkinmodel.SpanModel, tags map[string]string) {
+	if status.Code() == ptrace.StatusCodeError {
+		tags[tracetranslator.TagError] = "true"
+	} else {
+		// The error tag should only be set if Status is Error. If a boolean version
+		// ({"error":false} or {"error":"false"}) is present, it SHOULD be removed.
+		// Zipkin will treat any span with error sent as failed.
+		delete(tags, tracetranslator.TagError)
+	}
+
+	// Per specs, Span Status MUST be reported as a key-value pair in tags to Zipkin, unless it is UNSET.
+	// In the latter case it MUST NOT be reported.
+	// https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/sdk_exporters/zipkin.md#status
+	if status.Code() == ptrace.StatusCodeUnset {
+		return
+	}
+
+	tags[conventions.OtelStatusCode] = status.Code().String()
+	if status.Message() != "" {
+		tags[conventions.OtelStatusDescription] = status.Message()
+		zs.Err = fmt.Errorf("%s", status.Message())
+	}
+}
+
+func aggregateSpanTags(span ptrace.Span, zTags map[string]string) map[string]string {
 	tags := make(map[string]string)
 	for key, val := range zTags {
 		tags[key] = val
@@ -190,7 +207,7 @@ func aggregateSpanTags(span pdata.Span, zTags map[string]string) map[string]stri
 	return tags
 }
 
-func spanEventsToZipkinAnnotations(events pdata.SpanEventSlice, zs *zipkinmodel.SpanModel) error {
+func spanEventsToZipkinAnnotations(events ptrace.SpanEventSlice, zs *zipkinmodel.SpanModel) error {
 	if events.Len() > 0 {
 		zAnnos := make([]zipkinmodel.Annotation, events.Len())
 		for i := 0; i < events.Len(); i++ {
@@ -217,7 +234,7 @@ func spanEventsToZipkinAnnotations(events pdata.SpanEventSlice, zs *zipkinmodel.
 	return nil
 }
 
-func spanLinksToZipkinTags(links pdata.SpanLinkSlice, zTags map[string]string) error {
+func spanLinksToZipkinTags(links ptrace.SpanLinkSlice, zTags map[string]string) error {
 	for i := 0; i < links.Len(); i++ {
 		link := links.At(i)
 		key := fmt.Sprintf("otlp.link.%d", i)
@@ -231,16 +248,16 @@ func spanLinksToZipkinTags(links pdata.SpanLinkSlice, zTags map[string]string) e
 	return nil
 }
 
-func attributeMapToStringMap(attrMap pdata.AttributeMap) map[string]string {
+func attributeMapToStringMap(attrMap pcommon.Map) map[string]string {
 	rawMap := make(map[string]string)
-	attrMap.Range(func(k string, v pdata.AttributeValue) bool {
+	attrMap.Range(func(k string, v pcommon.Value) bool {
 		rawMap[k] = v.AsString()
 		return true
 	})
 	return rawMap
 }
 
-func removeRedundentTags(redundantKeys map[string]bool, zTags map[string]string) {
+func removeRedundantTags(redundantKeys map[string]bool, zTags map[string]string) {
 	for k, v := range redundantKeys {
 		if v {
 			delete(zTags, k)
@@ -249,7 +266,7 @@ func removeRedundentTags(redundantKeys map[string]bool, zTags map[string]string)
 }
 
 func resourceToZipkinEndpointServiceNameAndAttributeMap(
-	resource pdata.Resource,
+	resource pcommon.Resource,
 ) (serviceName string, zTags map[string]string) {
 	zTags = make(map[string]string)
 	attrs := resource.Attributes()
@@ -257,7 +274,7 @@ func resourceToZipkinEndpointServiceNameAndAttributeMap(
 		return tracetranslator.ResourceNoServiceName, zTags
 	}
 
-	attrs.Range(func(k string, v pdata.AttributeValue) bool {
+	attrs.Range(func(k string, v pcommon.Value) bool {
 		zTags[k] = v.AsString()
 		return true
 	})
@@ -289,15 +306,15 @@ func extractZipkinServiceName(zTags map[string]string) string {
 	return serviceName
 }
 
-func spanKindToZipkinKind(kind pdata.SpanKind) zipkinmodel.Kind {
+func spanKindToZipkinKind(kind ptrace.SpanKind) zipkinmodel.Kind {
 	switch kind {
-	case pdata.SpanKindClient:
+	case ptrace.SpanKindClient:
 		return zipkinmodel.Client
-	case pdata.SpanKindServer:
+	case ptrace.SpanKindServer:
 		return zipkinmodel.Server
-	case pdata.SpanKindProducer:
+	case ptrace.SpanKindProducer:
 		return zipkinmodel.Producer
-	case pdata.SpanKindConsumer:
+	case ptrace.SpanKindConsumer:
 		return zipkinmodel.Consumer
 	default:
 		return zipkinmodel.Undetermined
@@ -364,11 +381,11 @@ func isIPv6Address(ipStr string) bool {
 	return false
 }
 
-func convertTraceID(t pdata.TraceID) zipkinmodel.TraceID {
+func convertTraceID(t pcommon.TraceID) zipkinmodel.TraceID {
 	h, l := idutils.TraceIDToUInt64Pair(t)
 	return zipkinmodel.TraceID{High: h, Low: l}
 }
 
-func convertSpanID(s pdata.SpanID) zipkinmodel.ID {
+func convertSpanID(s pcommon.SpanID) zipkinmodel.ID {
 	return zipkinmodel.ID(idutils.SpanIDToUInt64(s))
 }

@@ -16,11 +16,14 @@ package jaegerreceiver // import "github.com/open-telemetry/opentelemetry-collec
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 	"time"
 
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/confmap"
 )
 
 const (
@@ -93,38 +96,36 @@ func (cfg *Config) Validate() error {
 		return fmt.Errorf("must specify at least one protocol when using the Jaeger receiver")
 	}
 
-	var grpcPort int
 	if cfg.GRPC != nil {
-		var err error
-		if grpcPort, err = extractPortFromEndpoint(cfg.GRPC.NetAddr.Endpoint); err != nil {
-			return fmt.Errorf("unable to extract port for the gRPC endpoint: %w", err)
+		if err := checkPortFromEndpoint(cfg.GRPC.NetAddr.Endpoint); err != nil {
+			return fmt.Errorf("invalid port number for the gRPC endpoint: %w", err)
 		}
 	}
 
 	if cfg.ThriftHTTP != nil {
-		if _, err := extractPortFromEndpoint(cfg.ThriftHTTP.Endpoint); err != nil {
-			return fmt.Errorf("unable to extract port for the Thrift HTTP endpoint: %w", err)
+		if err := checkPortFromEndpoint(cfg.ThriftHTTP.Endpoint); err != nil {
+			return fmt.Errorf("invalid port number for the Thrift HTTP endpoint: %w", err)
 		}
 	}
 
 	if cfg.ThriftBinary != nil {
-		if _, err := extractPortFromEndpoint(cfg.ThriftBinary.Endpoint); err != nil {
-			return fmt.Errorf("unable to extract port for the Thrift UDP Binary endpoint: %w", err)
+		if err := checkPortFromEndpoint(cfg.ThriftBinary.Endpoint); err != nil {
+			return fmt.Errorf("invalid port number for the Thrift UDP Binary endpoint: %w", err)
 		}
 	}
 
 	if cfg.ThriftCompact != nil {
-		if _, err := extractPortFromEndpoint(cfg.ThriftCompact.Endpoint); err != nil {
-			return fmt.Errorf("unable to extract port for the Thrift UDP Compact endpoint: %w", err)
+		if err := checkPortFromEndpoint(cfg.ThriftCompact.Endpoint); err != nil {
+			return fmt.Errorf("invalid port number for the Thrift UDP Compact endpoint: %w", err)
 		}
 	}
 
 	if cfg.RemoteSampling != nil {
-		if _, err := extractPortFromEndpoint(cfg.RemoteSampling.HostEndpoint); err != nil {
-			return fmt.Errorf("unable to extract port for the Remote Sampling endpoint: %w", err)
+		if err := checkPortFromEndpoint(cfg.RemoteSampling.HostEndpoint); err != nil {
+			return fmt.Errorf("invalid port number for the Remote Sampling endpoint: %w", err)
 		}
 
-		if len(cfg.RemoteSampling.StrategyFile) != 0 && grpcPort == 0 {
+		if len(cfg.RemoteSampling.StrategyFile) != 0 && cfg.GRPC == nil {
 			return fmt.Errorf("strategy file requires the gRPC protocol to be enabled")
 		}
 
@@ -137,7 +138,7 @@ func (cfg *Config) Validate() error {
 }
 
 // Unmarshal a config.Parser into the config struct.
-func (cfg *Config) Unmarshal(componentParser *config.Map) error {
+func (cfg *Config) Unmarshal(componentParser *confmap.Conf) error {
 	if componentParser == nil || len(componentParser.AllKeys()) == 0 {
 		return fmt.Errorf("empty config for Jaeger receiver")
 	}
@@ -167,5 +168,22 @@ func (cfg *Config) Unmarshal(componentParser *config.Map) error {
 		cfg.ThriftCompact = nil
 	}
 
+	return nil
+}
+
+// checkPortFromEndpoint checks that the endpoint string contains a port in the format "address:port". If the
+// port number cannot be parsed, returns an error.
+func checkPortFromEndpoint(endpoint string) error {
+	_, portStr, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		return fmt.Errorf("endpoint is not formatted correctly: %w", err)
+	}
+	port, err := strconv.ParseInt(portStr, 10, 0)
+	if err != nil {
+		return fmt.Errorf("endpoint port is not a number: %w", err)
+	}
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("port number must be between 1 and 65535")
+	}
 	return nil
 }

@@ -1,8 +1,12 @@
 # Kafka Receiver
 
-Kafka receiver receives traces, metrics, and logs from Kafka. Message payload encoding is configurable.
+| Status                   |                       |
+| ------------------------ | --------------------- |
+| Stability                | [beta]                |
+| Supported pipeline types | metrics, traces, logs |
+| Distributions            | [contrib]             |
 
-Supported pipeline types: metrics, traces, logs
+Kafka receiver receives traces, metrics, and logs from Kafka. Message payload encoding is configurable.
 
 Note that metrics and logs only support OTLP.
 
@@ -70,3 +74,6 @@ receivers:
   kafka:
     protocol_version: 2.0.0
 ```
+
+[beta]: https://github.com/open-telemetry/opentelemetry-collector#beta
+[contrib]: https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol-contrib

@@ -15,8 +15,9 @@
 package kafkareceiver // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 
 import (
-	"go.opentelemetry.io/collector/model/otlp"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/plog"
+	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv1"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv2"
@@ -25,7 +26,7 @@ import (
 // TracesUnmarshaler deserializes the message body.
 type TracesUnmarshaler interface {
 	// Unmarshal deserializes the message body into traces.
-	Unmarshal([]byte) (pdata.Traces, error)
+	Unmarshal([]byte) (ptrace.Traces, error)
 
 	// Encoding of the serialized messages.
 	Encoding() string
@@ -34,7 +35,7 @@ type TracesUnmarshaler interface {
 // MetricsUnmarshaler deserializes the message body
 type MetricsUnmarshaler interface {
 	// Unmarshal deserializes the message body into traces
-	Unmarshal([]byte) (pdata.Metrics, error)
+	Unmarshal([]byte) (pmetric.Metrics, error)
 
 	// Encoding of the serialized messages
 	Encoding() string
@@ -43,7 +44,7 @@ type MetricsUnmarshaler interface {
 // LogsUnmarshaler deserializes the message body.
 type LogsUnmarshaler interface {
 	// Unmarshal deserializes the message body into traces.
-	Unmarshal([]byte) (pdata.Logs, error)
+	Unmarshal([]byte) (plog.Logs, error)
 
 	// Encoding of the serialized messages.
 	Encoding() string
@@ -51,7 +52,7 @@ type LogsUnmarshaler interface {
 
 // defaultTracesUnmarshalers returns map of supported encodings with TracesUnmarshaler.
 func defaultTracesUnmarshalers() map[string]TracesUnmarshaler {
-	otlpPb := newPdataTracesUnmarshaler(otlp.NewProtobufTracesUnmarshaler(), defaultEncoding)
+	otlpPb := newPdataTracesUnmarshaler(ptrace.NewProtoUnmarshaler(), defaultEncoding)
 	jaegerProto := jaegerProtoSpanUnmarshaler{}
 	jaegerJSON := jaegerJSONSpanUnmarshaler{}
 	zipkinProto := newPdataTracesUnmarshaler(zipkinv2.NewProtobufTracesUnmarshaler(false, false), "zipkin_proto")
@@ -68,14 +69,14 @@ func defaultTracesUnmarshalers() map[string]TracesUnmarshaler {
 }
 
 func defaultMetricsUnmarshalers() map[string]MetricsUnmarshaler {
-	otlpPb := newPdataMetricsUnmarshaler(otlp.NewProtobufMetricsUnmarshaler(), defaultEncoding)
+	otlpPb := newPdataMetricsUnmarshaler(pmetric.NewProtoUnmarshaler(), defaultEncoding)
 	return map[string]MetricsUnmarshaler{
 		otlpPb.Encoding(): otlpPb,
 	}
 }
 
 func defaultLogsUnmarshalers() map[string]LogsUnmarshaler {
-	otlpPb := newPdataLogsUnmarshaler(otlp.NewProtobufLogsUnmarshaler(), defaultEncoding)
+	otlpPb := newPdataLogsUnmarshaler(plog.NewProtoUnmarshaler(), defaultEncoding)
 	return map[string]LogsUnmarshaler{
 		otlpPb.Encoding(): otlpPb,
 	}

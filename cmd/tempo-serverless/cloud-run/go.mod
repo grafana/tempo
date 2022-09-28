@@ -25,7 +25,7 @@ require (
 	github.com/VividCortex/gohistogram v1.0.0 // indirect
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/apache/thrift v0.16.0 // indirect
-	github.com/aws/aws-sdk-go v1.44.45 // indirect
+	github.com/aws/aws-sdk-go v1.44.67 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
@@ -37,7 +37,7 @@ require (
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/facette/natsort v0.0.0-20181210072756-2cd4dd1e2dcb // indirect
-	github.com/felixge/httpsnoop v1.0.2 // indirect
+	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/go-kit/kit v0.12.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
@@ -62,11 +62,11 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
-	github.com/jaegertracing/jaeger v1.31.0 // indirect
+	github.com/jaegertracing/jaeger v1.36.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.15.7 // indirect
+	github.com/klauspost/compress v1.15.9 // indirect
 	github.com/klauspost/cpuid v1.3.1 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/mattn/go-ieproxy v0.0.1 // indirect
@@ -82,8 +82,8 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.46.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.46.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.57.2 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.57.2 // indirect
 	github.com/opentracing-contrib/go-grpc v0.0.0-20210225150812-73cb765af46e // indirect
 	github.com/opentracing-contrib/go-stdlib v1.0.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
@@ -108,11 +108,11 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/afero v1.8.2 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
-	github.com/spf13/cobra v1.3.0 // indirect
+	github.com/spf13/cobra v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.12.0 // indirect
-	github.com/stretchr/testify v1.7.2 // indirect
+	github.com/stretchr/testify v1.8.0 // indirect
 	github.com/subosito/gotenv v1.3.0 // indirect
 	github.com/thanos-io/thanos v0.24.0 // indirect
 	github.com/uber-go/atomic v1.4.0 // indirect
@@ -123,9 +123,10 @@ require (
 	github.com/willf/bitset v1.1.11 // indirect
 	github.com/willf/bloom v2.0.3+incompatible // indirect
 	go.opencensus.io v0.23.0 // indirect
-	go.opentelemetry.io/collector/model v0.46.0 // indirect
-	go.opentelemetry.io/otel v1.4.1 // indirect
-	go.opentelemetry.io/otel/trace v1.4.1 // indirect
+	go.opentelemetry.io/collector/pdata v0.57.2 // indirect
+	go.opentelemetry.io/collector/semconv v0.57.2 // indirect
+	go.opentelemetry.io/otel v1.10.0 // indirect
+	go.opentelemetry.io/otel/trace v1.10.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/goleak v1.1.12 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
@@ -142,7 +143,7 @@ require (
 	google.golang.org/api v0.84.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220616135557-88e70c0c3a90 // indirect
-	google.golang.org/grpc v1.47.0 // indirect
+	google.golang.org/grpc v1.48.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

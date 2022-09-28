@@ -2,7 +2,9 @@ package sarama
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -839,6 +841,14 @@ func (bp *brokerProducer) run() {
 				continue
 			}
 
+			if msg.flags&fin == fin {
+				// New broker producer that was caught up by the retry loop
+				bp.parent.retryMessage(msg, ErrShuttingDown)
+				DebugLogger.Printf("producer/broker/%d state change to [dying-%d] on %s/%d\n",
+					bp.broker.ID(), msg.retries, msg.Topic, msg.Partition)
+				continue
+			}
+
 			if bp.buffer.wouldOverflow(msg) {
 				Logger.Printf("producer/broker/%d maximum request accumulated, waiting for space\n", bp.broker.ID())
 				if err := bp.waitForSpace(msg, false); err != nil {
@@ -1055,15 +1065,16 @@ func (p *asyncProducer) retryBatch(topic string, partition int32, pSet *partitio
 	}
 	bp := p.getBrokerProducer(leader)
 	bp.output <- produceSet
+	p.unrefBrokerProducer(leader, bp)
 }
 
 func (bp *brokerProducer) handleError(sent *produceSet, err error) {
-	switch err.(type) {
-	case PacketEncodingError:
+	var target PacketEncodingError
+	if errors.As(err, &target) {
 		sent.eachPartition(func(topic string, partition int32, pSet *partitionSet) {
 			bp.parent.returnErrors(pSet.msgs, err)
 		})
-	default:
+	} else {
 		Logger.Printf("producer/broker/%d state change to [closing] because %s\n", bp.broker.ID(), err)
 		bp.parent.abandonBrokerConnection(bp.broker)
 		_ = bp.broker.Close()
@@ -1125,13 +1136,30 @@ func (p *asyncProducer) shutdown() {
 	close(p.successes)
 }
 
+func (p *asyncProducer) bumpIdempotentProducerEpoch() {
+	_, epoch := p.txnmgr.getProducerID()
+	if epoch == math.MaxInt16 {
+		Logger.Println("producer/txnmanager epoch exhausted, requesting new producer ID")
+		txnmgr, err := newTransactionManager(p.conf, p.client)
+		if err != nil {
+			Logger.Println(err)
+			return
+		}
+
+		p.txnmgr = txnmgr
+	} else {
+		p.txnmgr.bumpEpoch()
+	}
+}
+
 func (p *asyncProducer) returnError(msg *ProducerMessage, err error) {
 	// We need to reset the producer ID epoch if we set a sequence number on it, because the broker
 	// will never see a message with this number, so we can never continue the sequence.
 	if msg.hasSequence {
 		Logger.Printf("producer/txnmanager rolling over epoch due to publish failure on %s/%d", msg.Topic, msg.Partition)
-		p.txnmgr.bumpEpoch()
+		p.bumpIdempotentProducerEpoch()
 	}
+
 	msg.clear()
 	pErr := &ProducerError{Msg: msg, Err: err}
 	if p.conf.Producer.Return.Errors {

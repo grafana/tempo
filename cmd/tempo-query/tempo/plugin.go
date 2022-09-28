@@ -16,6 +16,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/weaveworks/common/user"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/metadata"
 
 	jaeger "github.com/jaegertracing/jaeger/model"
@@ -23,7 +24,6 @@ import (
 	jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
 
 	ot_jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
-	"go.opentelemetry.io/collector/model/otlp"
 )
 
 const (
@@ -89,7 +89,7 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		return nil, fmt.Errorf("%s", body)
 	}
 
-	otTrace, err := otlp.NewProtobufTracesUnmarshaler().UnmarshalTraces(body)
+	otTrace, err := ptrace.NewProtoUnmarshaler().UnmarshalTraces(body)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling body to otlp trace %v: %w", traceID, err)
 	}
@@ -318,8 +318,12 @@ func (b *Backend) newGetRequest(ctx context.Context, url string, span opentracin
 	}
 
 	if tracer := opentracing.GlobalTracer(); tracer != nil {
+		carrier := make(opentracing.TextMapCarrier, len(req.Header))
+		for k, v := range req.Header {
+			carrier.Set(k, v[0])
+		}
 		// this is not really loggable or anything we can react to.  just ignoring this error
-		_ = tracer.Inject(span.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
+		_ = tracer.Inject(span.Context(), opentracing.TextMap, carrier)
 	}
 
 	// currently Jaeger Query will only propagate bearer token to the grpc backend and no other headers

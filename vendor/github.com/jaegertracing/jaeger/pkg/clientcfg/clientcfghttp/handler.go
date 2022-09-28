@@ -23,17 +23,15 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
-	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	tSampling "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 const mimeTypeApplicationJSON = "application/json"
 
-var (
-	errBadRequest = errors.New("bad request")
-)
+var errBadRequest = errors.New("bad request")
 
 // HTTPHandlerParams contains parameters that must be passed to NewHTTPHandler.
 type HTTPHandlerParams struct {
@@ -99,7 +97,6 @@ func (h *HTTPHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc(prefix+"/baggageRestrictions", func(w http.ResponseWriter, r *http.Request) {
 		h.serveBaggageHTTP(w, r)
 	}).Methods(http.MethodGet)
-
 }
 
 func (h *HTTPHandler) serviceFromRequest(w http.ResponseWriter, r *http.Request) (string, error) {
