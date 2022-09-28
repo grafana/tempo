@@ -7,16 +7,15 @@ weight: 100
 
 # Deploy on Linux
 
-This guide provides a step-by-step process for installing Grafana Enterprise Traces (GET) on Linux.
+This guide provides a step-by-step process for installing Tempo on Linux.
 It assumes you have access to a Linux machine and the permissions required to deploy a service with network and filesystem access.
-At the end of this guide, you will have deployed a single GET instance on a single node.
+At the end of this guide, you will have deployed a single Tempo instance on a single node.
 
 ## Before you begin
 
 To follow this guide, you need:
 
-- A running Grafana Enterprise instance (see [installation instructions](https://grafana.com/docs/grafana/latest/setup-grafana/installation/))
-- A valid GET license with an associated GET cluster name
+- A running Grafana instance (see [installation instructions](https://grafana.com/docs/grafana/latest/setup-grafana/installation/))
 - An Amazon S3 compatible object store
 <!-- - Git and Docker installed to run the TNS app -->
 
@@ -35,10 +34,10 @@ Your Linux system should have at least:
 
 ## Setup an object storage bucket
 
-GET uses object storage as the backend for its trace storage.
+Tempo uses object storage as the backend for its trace storage.
 It also uses object storage for storing various administrative credentials and data related to the state of the system.
 
-GET and Tempo support using the local filesystem as the backend for trace storage as well.
+Tempo support using the local filesystem as the backend for trace storage as well.
 This is not recommended for production deployments and is not supported for storing admin credentials, this guide focuses on setup with an object storage.
 
 This example uses [Amazon S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html) on the AWS `us-east-1` region as your object store.
@@ -51,8 +50,6 @@ You may need to alter the bucket names to be globally unique.
 Consider adding a prefix for your organization to the bucket, for example, `myorg-grafana-traces-admin` and `myorg-grafana-traces-data`, and then replacing the names in the rest of these instructions with those bucket names.
 
 ## Install GET
-
-For more installation options, visit the [GET release page](https://grafana.com/docs/enterprise-traces/latest/downloads/).
 
 For a linux-amd64 installation, run the following commands via the command line interface on your Linux machine.
 You need administrator privileges to do this by running as the `root` user or via `sudo` as a user with permissions to do so.
@@ -114,11 +111,11 @@ Copy the following YAML configuration to a file called `enterprise-traces.yaml`.
 Paste in your S3 credentials for admin_client and the storage backend. If you wish to give your cluster a unique name, add a cluster property with the appropriate name. If you do not add a cluster name this will be taken automatically from the license.
 By default, the `cluster_name` Update the `cluster_name` field with the name of the cluster your license was issued for and paste in your S3 credentials for the `admin_client`.
 
-Refer to the [GET configuration documentation](https://grafana.com/docs/enterprise-traces/latest/config/) for explanations of the available options.
+Refer to the [Tempo configuration documentation]({<< relref "../../configuration" >>}) for explanations of the available options.
 
-In the following configuration, GET options are altered to only listen to the OTLP gRPC and HTTP protocols.
-By default, GET listens for all compatible protocols.
-The extended instructions for installing the TNS application and Grafana Agent to verify that GET is receiving traces relies on the default Jaeger port being available, hence disabling listening on that port in GET for a single Linux node.
+In the following configuration, Tempo options are altered to only listen to the OTLP gRPC and HTTP protocols.
+By default, Tempo listens for all compatible protocols.
+The extended instructions for installing the TNS application and Grafana Agent to verify that Tempo is receiving traces relies on the default Jaeger port being available, hence disabling listening on that port in GET for a single Linux node.
 
 ```yaml
 multitenancy_enabled: true
@@ -239,7 +236,7 @@ ready
 
 This indicates the ingester component is ready to receive trace data.
 
-## Set up the GET plugin
+## Use the CLI to send Tempo data to Grafana
 
 Refer to [Set up the GET plugin for Grafana]({{< relref "../setup-get-plugin-grafana" >}}) to integrate your GET cluster with Grafana and a UI to interact with the Admin API.
 

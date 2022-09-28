@@ -1,28 +1,29 @@
 ---
-title: Set up GET tenants
+title: Set up a Tempo tenant
 weight: 400
 ---
 
-# Set up a tenant in your Grafana Enterprise Traces cluster
+# Set up a tenant in your cluster
 
 Tenants provide a mechanism for log stream isolation.
 Access policies may be set on a per-tenant basis.
 Authorization of requests is based on specified access policies.
 
-These instructions assume that you have the [Grafana Enterprise Traces (GET) plugin]({{< relref "../setup-get-pluing-grafana" >}}) installed.
-Use this plugin to create tenants, access policies, and tokens for your GET cluster.
+<!--These instructions assume that you have the [Grafana Enterprise Traces (GET) plugin]({{< relref "../setup-get-pluing-grafana" >}}) installed.
+Use this plugin to create tenants, access policies, and tokens for your GET cluster. -->
 The steps include:
 
-1. Create a GET tenant.
+1. Create a tenant.
 1. Create an access policy.
 1. Configure remote-write to your tenant.
 1. Set up your tenant as a Grafana data source.
 1. Visualize your data.
 
-## Create a GET tenant
+## Create a Tempo tenant
 
-Once a cluster is running, new tenants may be created.
-To create a GET tenant:
+Once a cluster is running, you can create a new tenants.
+
+To create a tenant:
 
 1. Within Grafana Enterprise, navigate to **Grafana Enterprise Traces** > **Tenants**.
 1. Click on **Create tenant**.

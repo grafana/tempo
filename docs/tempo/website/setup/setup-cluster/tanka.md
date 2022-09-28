@@ -5,7 +5,7 @@ weight: 200
 
 # Deploy on Kubernetes with Tanka
 
-Using this deployment guide, you can deploy Grafana Enterprise Traces (GET) to Kubernetes using a Jsonnet library and [Grafana Tanka](https://tanka.dev) to create a development cluster or sandboxed environment. 
+Using this deployment guide, you can deploy Tempo to Kubernetes using a Jsonnet library and [Grafana Tanka](https://tanka.dev) to create a development cluster or sandboxed environment. 
 This procedure uses MinIO to provide object storage regardless of the Cloud platform or on-premise storage you use. 
 In a production environment, you can use your cloud provider’s object storage service to avoid the operational overhead of running object storage in production.
 
@@ -15,21 +15,20 @@ This demo configuration does not include [metrics-generator](https://grafana.com
 
 ## Before you begin
 
-To deploy GET to Kubernetes with Tanka, you need: 
+To deploy Tempo to Kubernetes with Tanka, you need: 
 
   * A Kubernetes cluster with at least 40 CPUs and 46GB of memory for the default configuration. Small ingest or query volumes could use a far smaller configuration. 
   * `kubectl`
-  * A GET license received from your Grafana account manager or services manager. 
 
 ## Procedure
 
-To set up GET using Kubernetes with Tanka, you need to:
+To set up Tempo using Kubernetes with Tanka, you need to:
 
 1. Configure Kubernetes and install Tanka
 1. Set up the Tanka environment
 1. Install libraries
 1. Deploy MinIO object storage
-1. Deploy GET with the Tanka command
+1. Deploy Tempo with the Tanka command
 
 ### Configure Kubernetes and install Tanka
 
@@ -60,9 +59,9 @@ The first step is to configure Kubernetes and install Tanka.
 
 ### Set up the Tanka environment
 
-Tanka requires the current context for your Kubernetes environment. 
+Tanka requires the current context for your Kubernetes environment.
 
-1. Acquire the current context for your Kubernetes cluster: 
+1. Acquire the current context for your Kubernetes cluster:
    ```bash
    kubectl config current-context
 
@@ -91,7 +90,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
    EOF
    ```
 
-1. Install the GET Jsonnet library and its dependencies.
+1. Install the Tempo Jsonnet library and its dependencies.
 
     ```bash
     jb install github.com/grafana/tempo/operations/jsonnet/enterprise@main
@@ -280,9 +279,9 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
    EOF
    ```
 
-### Deploy GET using Tanka
+### Deploy Tempo using Tanka
 
-1. Deploy GET using the Tanka command:
+1. Deploy Tempo using the Tanka command:
     ```bash
     tk apply environments/enterprise-traces/main.jsonnet
     ```
@@ -294,7 +293,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
       pvc_storage_class: 'standard',
     },
   ```
-1. Retrieve the GET token. This can be achieved at examining the logs for the `tokengen` job:
+1. Retrieve the Tempo token. This can be achieved at examining the logs for the `tokengen` job:
    ```bash
     kubectl --namespace=enterprise-traces logs job.batch/tokengen --container tokengen
     ```

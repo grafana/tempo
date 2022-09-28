@@ -5,24 +5,24 @@ weight: 600
 
 # Cross-tenant querying
 
-GET supports creating access policies that can span multiple tenants.
+Tempo supports creating access policies that can span multiple tenants.
 Viewers in Grafana Enterprise can see data coming from more than one tenant simultaneously.
 
 This page covers the ability to query data from multiple tenants at once.
 
 ## Prerequisites
 
-- A configured Grafana Enterprise Traces cluster. To create a GET cluster,
-  refer to [Set up GET]({{< relref "../setup" >}}).
+- A configured cluster. To create a Tempo cluster,
+  refer to [Set up Tempo]({{< relref "../setup" >}}).
 
 - This guide assumes there are two tenants: `team-engineering` and
   `team-finance`. To create a tenant, refer to [Set up a GET tenant]({{<
-  relref "../set-up-get-tenant" >}}).
+  relref "../set-up-tenant" >}}).
 
 ## Cross-tenant queries
 This section describes cross-tenant queries. 
 
-### Federation frontend
+<!-- ### Federation frontend
 
 Tenant federation is handled by the `federation-frontend` service.
 This service aggregates the data from multiple tenants in a single trace lookup or search query.
@@ -30,6 +30,7 @@ This service aggregates the data from multiple tenants in a single trace lookup 
 The `federation-frontend` runs with tenant federation enabled by default.
 Queries with that contain the header `X-Org-Id` with multiple tenants separated by the `|` character,
 are aggregated across all of specified tenants.
+-->
 
 #### Configuration
 
