@@ -37,6 +37,7 @@ func (b *backendWriter) Close() error {
 func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
 	s := newStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
 
+	trp := &Trace{}
 	for {
 		id, tr, err := i.Next(ctx)
 		if err == io.EOF || tr == nil {
@@ -46,8 +47,8 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		// Copy ID to allow it to escape the iterator.
 		id = append([]byte(nil), id...)
 
-		trp := traceToParquet(id, tr)
-		s.Add(&trp, 0, 0) // start and end time of the wal meta are used.
+		trp = traceToParquet(id, tr, trp)
+		s.Add(trp, 0, 0) // start and end time of the wal meta are used.
 
 		// Here we repurpose RowGroupSizeBytes as number of raw column values.
 		// This is a fairly close approximation.
@@ -109,7 +110,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 }
 
 func (b *streamingBlock) Add(tr *Trace, start, end uint32) {
-	b.bufferedTraces = append(b.bufferedTraces, tr)
+	b.pw.Write([]*Trace{tr})
 	id := tr.TraceID
 
 	b.bloom.Add(id)

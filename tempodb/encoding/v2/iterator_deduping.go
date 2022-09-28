@@ -24,6 +24,7 @@ type dedupingIterator struct {
 // NewDedupingIterator returns a dedupingIterator.  This iterator is used to wrap another
 // iterator.  It will dedupe consecutive objects with the same id using the ObjectCombiner.
 func NewDedupingIterator(iter BytesIterator, combiner model.ObjectCombiner, dataEncoding string) (BytesIterator, error) {
+	// jpe fix this
 	decoder, err := model.NewObjectDecoder(dataEncoding)
 	if err != nil {
 		return nil, err

@@ -171,10 +171,15 @@ type Trace struct {
 	RootSpanName      string `parquet:",dict"`
 }
 
-func attrToParquet(a *v1.KeyValue) Attribute {
-	p := Attribute{
-		Key: a.Key,
-	}
+func attrToParquet(a *v1.KeyValue, p *Attribute) {
+	p.Key = a.Key
+	p.Value = nil
+	p.ValueArray = ""
+	p.ValueBool = nil
+	p.ValueDouble = nil
+	p.ValueInt = nil
+	p.ValueKVList = ""
+
 	switch v := a.GetValue().Value.(type) {
 	case *v1.AnyValue_StringValue:
 		p.Value = &v.StringValue
@@ -193,15 +198,15 @@ func attrToParquet(a *v1.KeyValue) Attribute {
 		_ = jsonMarshaler.Marshal(jsonBytes, a.Value) // deliberately marshalling a.Value because of AnyValue logic
 		p.ValueKVList = jsonBytes.String()
 	}
-	return p
 }
 
-func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
-
-	ot := Trace{
-		TraceIDText: util.TraceIDToHexString(id),
-		TraceID:     util.PadTraceIDTo16Bytes(id),
+func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
+	if ot == nil {
+		ot = &Trace{}
 	}
+
+	ot.TraceIDText = util.TraceIDToHexString(id)
+	ot.TraceID = util.PadTraceIDTo16Bytes(id)
 
 	// Trace-level items
 	traceStart := uint64(0)
@@ -209,14 +214,13 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 	var rootSpan *v1_trace.Span
 	var rootBatch *v1_trace.ResourceSpans
 
-	ot.ResourceSpans = make([]ResourceSpans, 0, len(tr.Batches))
-	for _, b := range tr.Batches {
-		ob := ResourceSpans{
-			Resource: Resource{},
-		}
+	ot.ResourceSpans = extendReuseSlice(len(tr.Batches), ot.ResourceSpans)
+	for ib, b := range tr.Batches {
+		ob := &ot.ResourceSpans[ib]
 
 		if b.Resource != nil {
-			ob.Resource.Attrs = make([]Attribute, 0, len(b.Resource.Attributes))
+			ob.Resource.Attrs = extendReuseSlice(len(b.Resource.Attributes), ob.Resource.Attrs)
+			attrCount := 0
 			for _, a := range b.Resource.Attributes {
 				switch a.Key {
 				case LabelServiceName:
@@ -248,15 +252,17 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 					ob.Resource.K8sContainerName = &c
 
 				default:
-					// Other attributes put in generic columns
-					ob.Resource.Attrs = append(ob.Resource.Attrs, attrToParquet(a))
+					// Other attributes put in generic columns (jpe)
+					attrToParquet(a, &ob.Resource.Attrs[attrCount])
+					attrCount++
 				}
 			}
+			ob.Resource.Attrs = ob.Resource.Attrs[:attrCount]
 		}
 
-		ob.ScopeSpans = make([]ScopeSpan, 0, len(b.ScopeSpans))
-		for _, ils := range b.ScopeSpans {
-			oils := ScopeSpan{}
+		ob.ScopeSpans = extendReuseSlice(len(b.ScopeSpans), ob.ScopeSpans)
+		for iils, ils := range b.ScopeSpans {
+			oils := &ob.ScopeSpans[iils]
 			if ils.Scope != nil {
 				oils.Scope = Scope{
 					Name:    ils.Scope.Name,
@@ -264,8 +270,9 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 				}
 			}
 
-			oils.Spans = make([]Span, 0, len(ils.Spans))
-			for _, s := range ils.Spans {
+			oils.Spans = extendReuseSlice(len(ils.Spans), oils.Spans)
+			for is, s := range ils.Spans {
+				ss := &oils.Spans[is]
 
 				if traceStart == 0 || s.StartTimeUnixNano < traceStart {
 					traceStart = s.StartTimeUnixNano
@@ -278,26 +285,24 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 					rootBatch = b
 				}
 
-				events := make([]Event, 0, len(s.Events))
-				for _, e := range s.Events {
-					events = append(events, eventToParquet(e))
+				ss.Events = extendReuseSlice(len(s.Events), ss.Events)
+				for ie, e := range s.Events {
+					eventToParquet(e, &ss.Events[ie])
 				}
 
-				ss := Span{
-					ID:                     s.SpanId,
-					ParentSpanID:           s.ParentSpanId,
-					Name:                   s.Name,
-					Kind:                   int(s.Kind),
-					StatusCode:             int(s.Status.Code),
-					StatusMessage:          s.Status.Message,
-					StartUnixNanos:         s.StartTimeUnixNano,
-					EndUnixNanos:           s.EndTimeUnixNano,
-					Attrs:                  make([]Attribute, 0, len(s.Attributes)),
-					DroppedAttributesCount: int32(s.DroppedAttributesCount),
-					Events:                 events,
-					DroppedEventsCount:     int32(s.DroppedEventsCount),
-				}
+				ss.ID = s.SpanId
+				ss.ParentSpanID = s.ParentSpanId
+				ss.Name = s.Name
+				ss.Kind = int(s.Kind)
+				ss.StatusCode = int(s.Status.Code)
+				ss.StatusMessage = s.Status.Message
+				ss.StartUnixNanos = s.StartTimeUnixNano
+				ss.EndUnixNanos = s.EndTimeUnixNano
+				ss.DroppedAttributesCount = int32(s.DroppedAttributesCount)
+				ss.DroppedEventsCount = int32(s.DroppedEventsCount)
 
+				ss.Attrs = extendReuseSlice(len(s.Attributes), ss.Attrs)
+				attrCount := 0
 				for _, a := range s.Attributes {
 					switch a.Key {
 
@@ -312,17 +317,16 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 						ss.HttpStatusCode = &m
 					default:
 						// Other attributes put in generic columns
-						ss.Attrs = append(ss.Attrs, attrToParquet(a))
+						attrToParquet(a, &ss.Attrs[attrCount])
+						attrCount++
 					}
 				}
-
-				oils.Spans = append(oils.Spans, ss)
+				ss.Attrs = ss.Attrs[:attrCount]
 			}
 
-			ob.ScopeSpans = append(ob.ScopeSpans, oils)
+			// jpe is this needed? or is it covered above?
+			// ob.ScopeSpans = append(ob.ScopeSpans, oils)
 		}
-
-		ot.ResourceSpans = append(ot.ResourceSpans, ob)
 	}
 
 	ot.StartTimeUnixNano = traceStart
@@ -343,24 +347,17 @@ func traceToParquet(id common.ID, tr *tempopb.Trace) Trace {
 	return ot
 }
 
-func eventToParquet(e *v1_trace.Span_Event) Event {
-	ee := Event{
-		Name:                   e.Name,
-		TimeUnixNano:           e.TimeUnixNano,
-		DroppedAttributesCount: int32(e.DroppedAttributesCount),
+func eventToParquet(e *v1_trace.Span_Event, ee *Event) {
+	ee.Name = e.Name
+	ee.TimeUnixNano = e.TimeUnixNano
+	ee.DroppedAttributesCount = int32(e.DroppedAttributesCount)
+
+	ee.Attrs = extendReuseSlice(len(e.Attributes), ee.Attrs)
+	for i, a := range e.Attributes {
+		ee.Attrs[i].Key = a.Key
+		ee.Attrs[i].Value = extendReuseSlice(a.Value.Size(), ee.Attrs[i].Value)
+		_, _ = a.Value.MarshalToSizedBuffer(ee.Attrs[i].Value)
 	}
-
-	for _, a := range e.Attributes {
-		b := make([]byte, a.Value.Size())
-		_, _ = a.Value.MarshalToSizedBuffer(b)
-
-		ee.Attrs = append(ee.Attrs, EventAttribute{
-			Key:   a.Key,
-			Value: b,
-		})
-	}
-
-	return ee
 }
 
 func parquetToProtoAttrs(parquetAttrs []Attribute) []*v1.KeyValue {
@@ -562,4 +559,14 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 	}
 
 	return protoTrace
+}
+
+func extendReuseSlice[T any](sz int, in []T) []T {
+	// jpe nil out slice to avoid leaking memory
+	if cap(in) >= sz {
+		// slice is large enough
+		return in[:sz]
+	}
+
+	return make([]T, sz)
 }

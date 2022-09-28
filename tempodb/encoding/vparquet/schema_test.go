@@ -2,6 +2,7 @@ package vparquet
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/dustin/go-humanize"
@@ -146,21 +147,46 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 		},
 	}
 
-	parquetTrace := traceToParquet(traceIDA, expectedTrace)
-	actualTrace := parquetTraceToTempopbTrace(&parquetTrace)
+	parquetTrace := traceToParquet(traceIDA, expectedTrace, nil)
+	actualTrace := parquetTraceToTempopbTrace(parquetTrace)
 	assert.Equal(t, expectedTrace, actualTrace)
 }
 
 func TestProtoToParquetEmptyTrace(t *testing.T) {
-
-	want := Trace{
+	want := &Trace{
 		TraceID:       make([]byte, 16),
-		ResourceSpans: []ResourceSpans{},
+		ResourceSpans: nil,
 	}
 
-	got := traceToParquet(nil, &tempopb.Trace{})
+	got := traceToParquet(nil, &tempopb.Trace{}, nil)
 
 	require.Equal(t, want, got)
+}
+
+func TestProtoParquetRando(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		batches := rand.Intn(15)
+		id := test.ValidTraceID(nil)
+		expectedTrace := test.MakeTrace(batches, id)
+
+		parqTr := traceToParquet(id, expectedTrace, nil)
+		actualTrace := parquetTraceToTempopbTrace(parqTr)
+		require.Equal(t, expectedTrace, actualTrace)
+	}
+}
+
+func TestProtoParquetRandoWithPooling(t *testing.T) {
+	reuseTrace := &Trace{}
+
+	for i := 0; i < 100; i++ {
+		batches := rand.Intn(15)
+		id := test.ValidTraceID(nil)
+		expectedTrace := test.MakeTrace(batches, id)
+
+		parqTr := traceToParquet(id, expectedTrace, reuseTrace)
+		actualTrace := parquetTraceToTempopbTrace(parqTr)
+		require.Equal(t, expectedTrace, actualTrace)
+	}
 }
 
 func BenchmarkProtoToParquet(b *testing.B) {
@@ -180,7 +206,7 @@ func BenchmarkProtoToParquet(b *testing.B) {
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				traceToParquet(id, tr)
+				traceToParquet(id, tr, nil)
 			}
 		})
 	}
@@ -217,8 +243,9 @@ func BenchmarkEventToParquet(b *testing.B) {
 		},
 	}
 
+	ee := &Event{}
 	for i := 0; i < b.N; i++ {
-		eventToParquet(e)
+		eventToParquet(e, ee)
 	}
 }
 
@@ -242,7 +269,7 @@ func BenchmarkDeconstruct(b *testing.B) {
 			b.Run(fmt.Sprintf("SpanCount%v/Pool%v", ss, ps), func(b *testing.B) {
 
 				id := test.ValidTraceID(nil)
-				tr := traceToParquet(id, test.MakeTraceWithSpanCount(batchCount, spanCount, id))
+				tr := traceToParquet(id, test.MakeTraceWithSpanCount(batchCount, spanCount, id), nil)
 				sch := parquet.SchemaOf(tr)
 
 				b.ResetTimer()
@@ -275,12 +302,12 @@ func TestParquetRowSizeEstimate(t *testing.T) {
 			proto, _ := tr.Marshal()
 			fmt.Println("Size of proto is:", len(proto))
 
-			parq := traceToParquet(id, tr)
+			parq := traceToParquet(id, tr, nil)
 			sch := parquet.SchemaOf(parq)
 			row := sch.Deconstruct(nil, parq)
 
 			fmt.Println("Size of parquet row is:", estimateProtoSize(row))
-			fmt.Println("Size of parquet is:", estimateTraceSize(&parq))
+			fmt.Println("Size of parquet is:", estimateTraceSize(parq))
 		})
 	}
 }
