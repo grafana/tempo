@@ -7,6 +7,8 @@ import (
 	"io"
 
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -15,19 +17,25 @@ type dedupingIterator struct {
 	combiner      model.ObjectCombiner
 	currentID     []byte
 	currentObject []byte
-	dataEncoding  string
+	dataEncoding  string              // used for .NextBytes()
+	decoder       model.ObjectDecoder // used for .Next()
 }
 
 // NewDedupingIterator returns a dedupingIterator.  This iterator is used to wrap another
 // iterator.  It will dedupe consecutive objects with the same id using the ObjectCombiner.
 func NewDedupingIterator(iter BytesIterator, combiner model.ObjectCombiner, dataEncoding string) (BytesIterator, error) {
+	decoder, err := model.NewObjectDecoder(dataEncoding)
+	if err != nil {
+		return nil, err
+	}
+
 	i := &dedupingIterator{
 		iter:         iter,
 		combiner:     combiner,
 		dataEncoding: dataEncoding,
+		decoder:      decoder,
 	}
 
-	var err error
 	i.currentID, i.currentObject, err = i.iter.NextBytes(context.Background())
 	if err != nil && err != io.EOF {
 		return nil, err
@@ -36,7 +44,7 @@ func NewDedupingIterator(iter BytesIterator, combiner model.ObjectCombiner, data
 	return i, nil
 }
 
-// Next implements Iterator
+// Next implements BytesIterator
 func (i *dedupingIterator) NextBytes(ctx context.Context) (common.ID, []byte, error) {
 	if i.currentID == nil {
 		return nil, nil, io.EOF
@@ -73,6 +81,57 @@ func (i *dedupingIterator) NextBytes(ctx context.Context) (common.ID, []byte, er
 	}
 
 	return dedupedID, dedupedObject, nil
+}
+
+// Next implements common.Iterator
+func (i *dedupingIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, error) {
+	if i.currentID == nil {
+		return nil, nil, io.EOF
+	}
+
+	var dedupedID []byte
+	currentObjects := [][]byte{i.currentObject}
+
+	for {
+		id, obj, err := i.iter.NextBytes(ctx)
+		if err != nil && err != io.EOF {
+			return nil, nil, err
+		}
+
+		if !bytes.Equal(i.currentID, id) {
+			dedupedID = i.currentID
+
+			i.currentID = id
+			i.currentObject = obj
+			break
+		}
+
+		i.currentID = id
+		currentObjects = append(currentObjects, obj)
+	}
+
+	if len(currentObjects) == 1 {
+		tr, err := i.decoder.PrepareForRead(currentObjects[0])
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return dedupedID, tr, nil
+	}
+
+	combiner := trace.NewCombiner()
+	for j, obj := range currentObjects {
+		tr, err := i.decoder.PrepareForRead(obj)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		combiner.ConsumeWithFinal(tr, j == len(currentObjects)-1)
+	}
+
+	tr, _ := combiner.Result()
+
+	return dedupedID, tr, nil
 }
 
 // Close implements Iterator
