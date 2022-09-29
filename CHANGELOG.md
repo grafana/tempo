@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Filter namespace by cluster in tempo dashboards variables [#1771](https://github.com/grafana/tempo/pull/1771) (@electron0zero)
 * [ENHANCEMENT] Exit early from sharded search requests [#1742](https://github.com/grafana/tempo/pull/1742) (@electron0zero)
 * [CHANGE] Identify bloom that could not be retrieved from backend block [#1737](https://github.com/grafana/tempo/pull/1737) (@AlexDHoffer)
 * [CHANGE] tempo: check configuration returns now a list of warnings [#1663](https://github.com/grafana/tempo/pull/1663) (@frzifus)
