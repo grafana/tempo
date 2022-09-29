@@ -8,11 +8,10 @@ scrape_configs:
       - targets: [ 'localhost:9090' ]
   - job_name: 'tempo'
     static_configs:
-      - targets: [
-        'tempo1:3200',
-        'tempo2:3200',
-        'tempo3:3200',
-      ]
+      - targets:
+        - 'tempo1:3200'
+        - 'tempo2:3200'
+        - 'tempo3:3200'
   - job_name: 'vulture'
     static_configs:
       - targets: [ 'vulture:3201' ]

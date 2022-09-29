@@ -3,6 +3,7 @@ apiVersion: 1
 datasources:
 - name: Prometheus
   type: prometheus
+  uid: prometheus
   access: proxy
   orgId: 1
   url: http://prometheus:9090
@@ -11,10 +12,7 @@ datasources:
   version: 1
   editable: false
   jsonData:
-    exemplarTraceIdDestinations:
-      - datasourceUid: tempo
-        name: 'traceID'
-  uid: prometheus
+    httpMethod: GET
 - name: Tempo
   type: tempo
   access: proxy
@@ -25,7 +23,8 @@ datasources:
   version: 1
   editable: false
   apiVersion: 1
+  uid: tempo
   jsonData:
+    httpMethod: GET
     serviceMap:
       datasourceUid: prometheus
-  uid: tempo
