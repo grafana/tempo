@@ -1,7 +1,8 @@
+search_enabled: true
+metrics_generator_enabled: true
+
 server:
   http_listen_port: 3200
-
-search_enabled: true
 
 distributor:
   receivers:                           # this configuration will listen on all ports and protocols that tempo is capable of.
@@ -47,6 +48,17 @@ memberlist:
   - tempo2:7946
   - tempo3:7946
 
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: docker-compose
+  storage:
+    path: /tmp/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+
 storage:
   trace:
     backend: s3                        # backend configuration to use
@@ -73,3 +85,6 @@ storage:
 querier:
   frontend_worker:
     frontend_address: tempo:9095
+
+overrides:
+  metrics_generator_processors: ['service-graphs', 'span-metrics']
