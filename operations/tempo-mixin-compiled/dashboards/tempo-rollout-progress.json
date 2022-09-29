@@ -304,7 +304,7 @@
        },
        {
         "color": "orange",
-        "value": 0.20000000000000001
+        "value": 0.2
        },
        {
         "color": "red",
@@ -548,7 +548,7 @@
        },
        {
         "color": "orange",
-        "value": 0.20000000000000001
+        "value": 0.2
        },
        {
         "color": "red",
@@ -792,7 +792,7 @@
        },
        {
         "color": "red",
-        "value": 0.050000000000000003
+        "value": 0.05
        }
       ]
      },
@@ -1509,7 +1509,7 @@
     "options": [
 
     ],
-    "query": "label_values(tempo_build_info, namespace)",
+    "query": "label_values(tempo_build_info{cluster=~'$cluster'}, namespace)",
     "refresh": 1,
     "regex": "",
     "sort": 2,

@@ -5203,14 +5203,14 @@
           "type": "prometheus",
           "uid": "$ds"
         },
-        "definition": "label_values(tempo_build_info, namespace)",
+        "definition": "label_values(tempo_build_info{cluster=~'$cluster'}, namespace)",
         "hide": 0,
         "includeAll": false,
         "multi": false,
         "name": "namespace",
         "options": [],
         "query": {
-          "query": "label_values(tempo_build_info, namespace)",
+          "query": "label_values(tempo_build_info{cluster=~'$cluster'}, namespace)",
           "refId": "ops-cortex-namespace-Variable-Query"
         },
         "refresh": 1,
