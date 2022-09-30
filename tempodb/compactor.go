@@ -202,9 +202,6 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	compactor := enc.NewCompactor(opts)
 
 	newCompactedBlocks, err := compactor.Compact(ctx, rw.logger, rw.r, rw.getWriterForBlock, blockMetas)
-	if err != nil {
-		return err
-	}
 
 	// mark old blocks compacted so they don't show up in polling
 	markCompacted(rw, tenantID, blockMetas, newCompactedBlocks)
@@ -222,7 +219,7 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	}
 	level.Info(rw.logger).Log(logArgs...)
 
-	return nil
+	return err
 }
 
 func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.BlockMeta, newBlocks []*backend.BlockMeta) {
