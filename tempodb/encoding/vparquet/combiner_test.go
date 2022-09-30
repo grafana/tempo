@@ -49,7 +49,7 @@ func TestCombiner(t *testing.T) {
 						Resource: Resource{
 							ServiceName: "serviceNameA",
 						},
-						InstrumentationLibrarySpans: []ILS{
+						ScopeSpans: []ScopeSpan{
 							{
 								Spans: []Span{
 									{
@@ -70,7 +70,7 @@ func TestCombiner(t *testing.T) {
 						Resource: Resource{
 							ServiceName: "serviceNameB",
 						},
-						InstrumentationLibrarySpans: []ILS{
+						ScopeSpans: []ScopeSpan{
 							{
 								Spans: []Span{
 									{
@@ -93,7 +93,7 @@ func TestCombiner(t *testing.T) {
 						Resource: Resource{
 							ServiceName: "serviceNameA",
 						},
-						InstrumentationLibrarySpans: []ILS{
+						ScopeSpans: []ScopeSpan{
 							{
 								Spans: []Span{
 									{
@@ -108,7 +108,7 @@ func TestCombiner(t *testing.T) {
 						Resource: Resource{
 							ServiceName: "serviceNameB",
 						},
-						InstrumentationLibrarySpans: []ILS{
+						ScopeSpans: []ScopeSpan{
 							{
 								Spans: []Span{
 									{

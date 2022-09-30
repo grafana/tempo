@@ -15,12 +15,12 @@
 package opencensus // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus"
 
 import (
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// timestampAsTimestampPb converts a pdata.Timestamp to a protobuf known type Timestamp.
-func timestampAsTimestampPb(ts pdata.Timestamp) *timestamppb.Timestamp {
+// timestampAsTimestampPb converts a pcommon.Timestamp to a protobuf known type Timestamp.
+func timestampAsTimestampPb(ts pcommon.Timestamp) *timestamppb.Timestamp {
 	if ts == 0 {
 		return nil
 	}

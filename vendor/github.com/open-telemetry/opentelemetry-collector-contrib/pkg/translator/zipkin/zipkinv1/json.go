@@ -25,7 +25,8 @@ import (
 	commonpb "github.com/census-instrumentation/opencensus-proto/gen-go/agent/common/v1"
 	tracepb "github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils"
@@ -54,16 +55,16 @@ type jsonUnmarshaler struct {
 }
 
 // UnmarshalTraces from JSON bytes.
-func (j jsonUnmarshaler) UnmarshalTraces(buf []byte) (pdata.Traces, error) {
+func (j jsonUnmarshaler) UnmarshalTraces(buf []byte) (ptrace.Traces, error) {
 	tds, err := v1JSONBatchToOCProto(buf, j.ParseStringTags)
 	if err != nil {
-		return pdata.Traces{}, err
+		return ptrace.Traces{}, err
 	}
 	return toTraces(tds)
 }
 
 // NewJSONTracesUnmarshaler returns an unmarshaler for Zipkin JSON.
-func NewJSONTracesUnmarshaler(parseStringTags bool) pdata.TracesUnmarshaler {
+func NewJSONTracesUnmarshaler(parseStringTags bool) ptrace.Unmarshaler {
 	return jsonUnmarshaler{ParseStringTags: parseStringTags}
 }
 
@@ -275,13 +276,13 @@ func parseAnnotationValue(value string, parseStringTags bool) *tracepb.Attribute
 
 	if parseStringTags {
 		switch zipkin.DetermineValueType(value) {
-		case pdata.AttributeValueTypeInt:
+		case pcommon.ValueTypeInt:
 			iValue, _ := strconv.ParseInt(value, 10, 64)
 			pbAttrib.Value = &tracepb.AttributeValue_IntValue{IntValue: iValue}
-		case pdata.AttributeValueTypeDouble:
+		case pcommon.ValueTypeDouble:
 			fValue, _ := strconv.ParseFloat(value, 64)
 			pbAttrib.Value = &tracepb.AttributeValue_DoubleValue{DoubleValue: fValue}
-		case pdata.AttributeValueTypeBool:
+		case pcommon.ValueTypeBool:
 			bValue, _ := strconv.ParseBool(value)
 			pbAttrib.Value = &tracepb.AttributeValue_BoolValue{BoolValue: bValue}
 		default:

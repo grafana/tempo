@@ -10,7 +10,7 @@ import (
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	jaegerTrans "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"github.com/weaveworks/common/user"
-	"go.opentelemetry.io/collector/model/otlp"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -204,7 +204,7 @@ func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 			if err != nil {
 				return err
 			}
-			conv, err := otlp.NewProtobufTracesMarshaler().MarshalTraces(internalTrace)
+			conv, err := ptrace.NewProtoMarshaler().MarshalTraces(internalTrace)
 			if err != nil {
 				return err
 			}
@@ -220,7 +220,7 @@ func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 			// for the ParentSpanId, we set to nil here to ensure that the final result
 			// matches the json.Unmarshal value when tempo is queried.
 			for _, b := range t.Batches {
-				for _, l := range b.InstrumentationLibrarySpans {
+				for _, l := range b.ScopeSpans {
 					for _, s := range l.Spans {
 						if len(s.GetParentSpanId()) == 0 {
 							s.ParentSpanId = nil
@@ -259,22 +259,22 @@ func RandomAttrFromTrace(t *tempopb.Trace) *v1common.KeyValue {
 	}
 	iBatch := r.Intn(len(t.Batches))
 
-	if len(t.Batches[iBatch].InstrumentationLibrarySpans) == 0 {
+	if len(t.Batches[iBatch].ScopeSpans) == 0 {
 		return nil
 	}
-	iSpans := r.Intn(len(t.Batches[iBatch].InstrumentationLibrarySpans))
+	iSpans := r.Intn(len(t.Batches[iBatch].ScopeSpans))
 
-	if len(t.Batches[iBatch].InstrumentationLibrarySpans[iSpans].Spans) == 0 {
+	if len(t.Batches[iBatch].ScopeSpans[iSpans].Spans) == 0 {
 		return nil
 	}
-	iSpan := r.Intn(len(t.Batches[iBatch].InstrumentationLibrarySpans[iSpans].Spans))
+	iSpan := r.Intn(len(t.Batches[iBatch].ScopeSpans[iSpans].Spans))
 
-	if len(t.Batches[iBatch].InstrumentationLibrarySpans[iSpans].Spans[iSpan].Attributes) == 0 {
+	if len(t.Batches[iBatch].ScopeSpans[iSpans].Spans[iSpan].Attributes) == 0 {
 		return nil
 	}
-	iAttr := r.Intn(len(t.Batches[iBatch].InstrumentationLibrarySpans[iSpans].Spans[iSpan].Attributes))
+	iAttr := r.Intn(len(t.Batches[iBatch].ScopeSpans[iSpans].Spans[iSpan].Attributes))
 
-	return t.Batches[iBatch].InstrumentationLibrarySpans[iSpans].Spans[iSpan].Attributes[iAttr]
+	return t.Batches[iBatch].ScopeSpans[iSpans].Spans[iSpan].Attributes[iAttr]
 }
 
 func newRand(t time.Time) *rand.Rand {

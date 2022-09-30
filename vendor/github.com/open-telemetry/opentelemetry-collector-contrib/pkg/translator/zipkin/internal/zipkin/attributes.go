@@ -17,7 +17,7 @@ package zipkin // import "github.com/open-telemetry/opentelemetry-collector-cont
 import (
 	"regexp"
 
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
 // These constants are the attribute keys used when translating from zipkin
@@ -28,20 +28,20 @@ const (
 )
 
 var attrValDescriptions = []*attrValDescript{
-	constructAttrValDescript("^$", pdata.AttributeValueTypeEmpty),
-	constructAttrValDescript(`^-?\d+$`, pdata.AttributeValueTypeInt),
-	constructAttrValDescript(`^-?\d+\.\d+$`, pdata.AttributeValueTypeDouble),
-	constructAttrValDescript(`^(true|false)$`, pdata.AttributeValueTypeBool),
-	constructAttrValDescript(`^\{"\w+":.+\}$`, pdata.AttributeValueTypeMap),
-	constructAttrValDescript(`^\[.*\]$`, pdata.AttributeValueTypeArray),
+	constructAttrValDescript("^$", pcommon.ValueTypeEmpty),
+	constructAttrValDescript(`^-?\d+$`, pcommon.ValueTypeInt),
+	constructAttrValDescript(`^-?\d+\.\d+$`, pcommon.ValueTypeDouble),
+	constructAttrValDescript(`^(true|false)$`, pcommon.ValueTypeBool),
+	constructAttrValDescript(`^\{"\w+":.+\}$`, pcommon.ValueTypeMap),
+	constructAttrValDescript(`^\[.*\]$`, pcommon.ValueTypeSlice),
 }
 
 type attrValDescript struct {
 	regex    *regexp.Regexp
-	attrType pdata.AttributeValueType
+	attrType pcommon.ValueType
 }
 
-func constructAttrValDescript(regex string, attrType pdata.AttributeValueType) *attrValDescript {
+func constructAttrValDescript(regex string, attrType pcommon.ValueType) *attrValDescript {
 	regexc := regexp.MustCompile(regex)
 	return &attrValDescript{
 		regex:    regexc,
@@ -50,11 +50,11 @@ func constructAttrValDescript(regex string, attrType pdata.AttributeValueType) *
 }
 
 // DetermineValueType returns the native OTLP attribute type the string translates to.
-func DetermineValueType(value string) pdata.AttributeValueType {
+func DetermineValueType(value string) pcommon.ValueType {
 	for _, desc := range attrValDescriptions {
 		if desc.regex.MatchString(value) {
 			return desc.attrType
 		}
 	}
-	return pdata.AttributeValueTypeString
+	return pcommon.ValueTypeString
 }

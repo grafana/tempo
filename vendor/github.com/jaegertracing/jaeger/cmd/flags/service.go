@@ -24,11 +24,11 @@ import (
 
 	grpcZap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	"github.com/spf13/viper"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics/metricsbuilder"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -37,7 +37,7 @@ type Service struct {
 	// AdminPort is the HTTP port number for admin server.
 	AdminPort int
 
-	// NoStorage indicates that storage type CLI flag is not applicable
+	// NoStorage indicates that storage-type CLI flag is not applicable
 	NoStorage bool
 
 	// Admin is the admin server that hosts the health check and metrics endpoints.
@@ -75,7 +75,7 @@ func (s *Service) AddFlags(flagSet *flag.FlagSet) {
 	} else {
 		AddFlags(flagSet)
 	}
-	pMetrics.AddFlags(flagSet)
+	metricsbuilder.AddFlags(flagSet)
 	s.Admin.AddFlags(flagSet)
 }
 
@@ -104,14 +104,16 @@ func (s *Service) Start(v *viper.Viper) error {
 		return fmt.Errorf("cannot create logger: %w", err)
 	}
 
-	metricsBuilder := new(pMetrics.Builder).InitFromViper(v)
+	metricsBuilder := new(metricsbuilder.Builder).InitFromViper(v)
 	metricsFactory, err := metricsBuilder.CreateMetricsFactory("")
 	if err != nil {
 		return fmt.Errorf("cannot create metrics factory: %w", err)
 	}
 	s.MetricsFactory = metricsFactory
 
-	s.Admin.initFromViper(v, s.Logger)
+	if err = s.Admin.initFromViper(v, s.Logger); err != nil {
+		return fmt.Errorf("cannot initialize admin server: %w", err)
+	}
 	if h := metricsBuilder.Handler(); h != nil {
 		route := metricsBuilder.HTTPRoute
 		s.Logger.Info("Mounting metrics handler on admin server", zap.String("route", route))

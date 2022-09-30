@@ -1,9 +1,15 @@
 # Kafka Exporter
 
-Kafka exporter exports traces to Kafka. This exporter uses a synchronous producer
+| Status                   |                       |
+| ------------------------ |-----------------------|
+| Stability                | [beta]                |
+| Supported pipeline types | traces, logs, metrics |
+| Distributions            | [contrib]             |
+
+Kafka exporter exports logs, metrics, and traces to Kafka. This exporter uses a synchronous producer
 that blocks and does not batch messages, therefore it should be used with batch and queued retry
 processors for higher throughput and resiliency. Message payload encoding is configurable.
- 
+
 The following settings are required:
 - `protocol_version` (no default): Kafka protocol version e.g. 2.0.0
 
@@ -65,6 +71,8 @@ The following settings can be optionally configured:
 - `producer`
   - `max_message_bytes` (default = 1000000) the maximum permitted size of a message in bytes
   - `required_acks` (default = 1) controls when a message is regarded as transmitted.   https://pkg.go.dev/github.com/Shopify/sarama@v1.30.0#RequiredAcks
+  - `compression` (default = 'none') the compression used when producing messages to kafka. The options are: `none`, `gzip`, `snappy`, `lz4`, and `zstd` https://pkg.go.dev/github.com/Shopify/sarama@v1.30.0#CompressionCodec
+  - `flush_max_messages` (default = 0) The maximum number of messages the producer will send in a single broker request.
 
 Example configuration:
 
@@ -75,3 +83,6 @@ exporters:
       - localhost:9092
     protocol_version: 2.0.0
 ```
+
+[beta]:https://github.com/open-telemetry/opentelemetry-collector#beta
+[contrib]:https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol-contrib

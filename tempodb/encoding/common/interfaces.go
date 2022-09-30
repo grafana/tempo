@@ -7,6 +7,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -17,6 +18,8 @@ type Finder interface {
 type TagCallback func(t string)
 
 type Searcher interface {
+	traceql.SpansetFetcher
+
 	Search(ctx context.Context, req *tempopb.SearchRequest, opts SearchOptions) (*tempopb.SearchResponse, error)
 	SearchTags(ctx context.Context, cb TagCallback, opts SearchOptions) error
 	SearchTagValues(ctx context.Context, tag string, cb TagCallback, opts SearchOptions) error
@@ -59,9 +62,7 @@ type CompactionOptions struct {
 }
 
 type Iterator interface {
-	// Next returns the next trace and optionally the start and stop times
-	// for the trace that may have been adjusted.
-	Next(ctx context.Context) (ID, []byte, error)
+	Next(ctx context.Context) (ID, *tempopb.Trace, error)
 	Close()
 }
 
@@ -70,4 +71,14 @@ type BackendBlock interface {
 	Searcher
 
 	BlockMeta() *backend.BlockMeta
+}
+
+type WALBlock interface {
+	BackendBlock
+
+	Append(id ID, b []byte, start, end uint32) error
+	DataLength() uint64
+	Length() int
+	Iterator() (Iterator, error)
+	Clear() error
 }

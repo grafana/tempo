@@ -128,7 +128,7 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 			return nil
 		}
 
-		_, obj, err := iter.Next(ctx)
+		_, obj, err := iter.NextBytes(ctx)
 		if err == io.EOF {
 			break
 		}
@@ -156,7 +156,7 @@ func (s *StreamingSearchBlock) Search(ctx context.Context, p Pipeline, sr *Resul
 	return nil
 }
 
-func (s *StreamingSearchBlock) Iterator() (common.Iterator, error) {
+func (s *StreamingSearchBlock) Iterator() (v2.BytesIterator, error) {
 	iter := &streamingSearchBlockIterator{
 		records:     s.appender.Records(),
 		file:        s.file,
@@ -179,17 +179,17 @@ func (s *StreamingSearchBlock) Iterator() (common.Iterator, error) {
 
 type streamingSearchBlockIterator struct {
 	currentIndex int
-	records      []common.Record
+	records      []v2.Record
 	file         *os.File
-	dataReader   common.DataReader
-	objectRW     common.ObjectReaderWriter
+	dataReader   v2.DataReader
+	objectRW     v2.ObjectReaderWriter
 
 	pagesBuffer [][]byte
 }
 
-var _ common.Iterator = (*streamingSearchBlockIterator)(nil)
+var _ v2.BytesIterator = (*streamingSearchBlockIterator)(nil)
 
-func (s *streamingSearchBlockIterator) Next(ctx context.Context) (common.ID, []byte, error) {
+func (s *streamingSearchBlockIterator) NextBytes(ctx context.Context) (common.ID, []byte, error) {
 	if s.currentIndex >= len(s.records) {
 		return nil, nil, io.EOF
 	}
@@ -200,7 +200,7 @@ func (s *streamingSearchBlockIterator) Next(ctx context.Context) (common.ID, []b
 	// This is primarily for DedupingIterator which uses 2 buffers at once.
 	var buffer []byte
 	s.pagesBuffer[0] = make([]byte, currentRecord.Length)
-	pagesBuffer, _, err := s.dataReader.Read(ctx, []common.Record{currentRecord}, s.pagesBuffer, buffer)
+	pagesBuffer, _, err := s.dataReader.Read(ctx, []v2.Record{currentRecord}, s.pagesBuffer, buffer)
 	if err != nil {
 		return nil, nil, err
 	}

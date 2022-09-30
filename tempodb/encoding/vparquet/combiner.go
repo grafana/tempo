@@ -83,14 +83,14 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 		// map from the small starting size.
 		n := 0
 		for _, b := range c.result.ResourceSpans {
-			for _, ils := range b.InstrumentationLibrarySpans {
+			for _, ils := range b.ScopeSpans {
 				n += len(ils.Spans)
 			}
 		}
 		c.spans = make(map[token]struct{}, n)
 
 		for _, b := range c.result.ResourceSpans {
-			for _, ils := range b.InstrumentationLibrarySpans {
+			for _, ils := range b.ScopeSpans {
 				for _, s := range ils.Spans {
 					c.spans[tokenForID(h, buffer, int32(s.Kind), s.ID)] = struct{}{}
 				}
@@ -101,9 +101,9 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 
 	// loop through every span and copy spans in B that don't exist to A
 	for _, b := range tr.ResourceSpans {
-		notFoundILS := b.InstrumentationLibrarySpans[:0]
+		notFoundILS := b.ScopeSpans[:0]
 
-		for _, ils := range b.InstrumentationLibrarySpans {
+		for _, ils := range b.ScopeSpans {
 			notFoundSpans := ils.Spans[:0]
 			for _, s := range ils.Spans {
 				// if not already encountered, then keep
@@ -129,7 +129,7 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 
 		// if there were some spans not found in A, add everything left in the batch
 		if len(notFoundILS) > 0 {
-			b.InstrumentationLibrarySpans = notFoundILS
+			b.ScopeSpans = notFoundILS
 			c.result.ResourceSpans = append(c.result.ResourceSpans, b)
 		}
 	}
@@ -155,13 +155,13 @@ func (c *Combiner) Result() (*Trace, int) {
 func SortTrace(t *Trace) {
 	// Sort bottom up by span start times
 	for _, b := range t.ResourceSpans {
-		for _, ils := range b.InstrumentationLibrarySpans {
+		for _, ils := range b.ScopeSpans {
 			sort.Slice(ils.Spans, func(i, j int) bool {
 				return compareSpans(&ils.Spans[i], &ils.Spans[j])
 			})
 		}
-		sort.Slice(b.InstrumentationLibrarySpans, func(i, j int) bool {
-			return compareIls(&b.InstrumentationLibrarySpans[i], &b.InstrumentationLibrarySpans[j])
+		sort.Slice(b.ScopeSpans, func(i, j int) bool {
+			return compareIls(&b.ScopeSpans[i], &b.ScopeSpans[j])
 		})
 	}
 	sort.Slice(t.ResourceSpans, func(i, j int) bool {
@@ -170,13 +170,13 @@ func SortTrace(t *Trace) {
 }
 
 func compareBatches(a, b *ResourceSpans) bool {
-	if len(a.InstrumentationLibrarySpans) > 0 && len(b.InstrumentationLibrarySpans) > 0 {
-		return compareIls(&a.InstrumentationLibrarySpans[0], &b.InstrumentationLibrarySpans[0])
+	if len(a.ScopeSpans) > 0 && len(b.ScopeSpans) > 0 {
+		return compareIls(&a.ScopeSpans[0], &b.ScopeSpans[0])
 	}
 	return false
 }
 
-func compareIls(a, b *ILS) bool {
+func compareIls(a, b *ScopeSpan) bool {
 	if len(a.Spans) > 0 && len(b.Spans) > 0 {
 		return compareSpans(&a.Spans[0], &b.Spans[0])
 	}

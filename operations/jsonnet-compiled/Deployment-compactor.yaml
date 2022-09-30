@@ -28,6 +28,9 @@ spec:
         - -target=compactor
         - -config.file=/conf/tempo.yaml
         - -mem-ballast-size-mbs=1024
+        env:
+        - name: GOMEMLIMIT
+          value: 5GiB
         image: grafana/tempo:latest
         imagePullPolicy: IfNotPresent
         name: compactor

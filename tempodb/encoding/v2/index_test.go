@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -66,15 +65,15 @@ func TestIndexHeaderChecksum(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func randomOrderedRecords(t *testing.T, num int) []common.Record {
-	randomRecords := []common.Record{}
+func randomOrderedRecords(t *testing.T, num int) []Record {
+	randomRecords := []Record{}
 
 	for i := 0; i < num; i++ {
 		id := make([]byte, 16)
 		_, err := rand.Read(id)
 		require.NoError(t, err)
 
-		rec := common.Record{
+		rec := Record{
 			Start:  rand.Uint64(),
 			Length: rand.Uint32(),
 			ID:     id,
@@ -83,7 +82,7 @@ func randomOrderedRecords(t *testing.T, num int) []common.Record {
 		randomRecords = append(randomRecords, rec)
 	}
 
-	common.SortRecords(randomRecords)
+	SortRecords(randomRecords)
 
 	return randomRecords
 }

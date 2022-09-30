@@ -52,12 +52,15 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    command: [ "--config.file=/etc/prometheus.yaml" ]
+    command:
+      - --config.file=/etc/prometheus.yaml
+      - --web.enable-remote-write-receiver
+      - --enable-feature=exemplar-storage
     volumes:
       - ./prometheus.yaml:/etc/prometheus.yaml
 
   grafana:
-    image: grafana/grafana:8.1.6
+    image: grafana/grafana:9.1.6
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
@@ -80,7 +83,7 @@ services:
       - 9001:9001
 
   synthetic-load-generator:
-    image: omnition/synthetic-load-generator:1.0.25
+    image: omnition/synthetic-load-generator:1.0.29
     volumes:
       - ../shared/load-generator.json:/etc/load-generator.json
     environment:

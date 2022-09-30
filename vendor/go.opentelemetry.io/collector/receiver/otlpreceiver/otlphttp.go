@@ -22,9 +22,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"go.opentelemetry.io/collector/receiver/otlpreceiver/external/logs"
-	"go.opentelemetry.io/collector/receiver/otlpreceiver/external/metrics"
-	"go.opentelemetry.io/collector/receiver/otlpreceiver/external/trace"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver/internal/logs"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver/internal/metrics"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver/internal/trace"
 )
 
 // Pre-computed status with code=Internal to be used in case of a marshaling error.

@@ -1,9 +1,13 @@
 # OpenCensus Receiver
 
+| Status                   |                          |
+| ------------------------ |--------------------------|
+| Stability                | [beta]                   |
+| Supported pipeline types | traces, metrics          |
+| Distributions            | [core], [contrib]        |
+
 Receives data via gRPC or HTTP using [OpenCensus]( https://opencensus.io/)
 format.
-
-Supported pipeline types: traces, metrics
 
 ## Getting Started
 
@@ -51,3 +55,7 @@ receivers:
     # Origins can have wildcards with *, use * by itself to match any origin.
     - https://*.example.com
 ```
+
+[beta]: https://github.com/open-telemetry/opentelemetry-collector#beta
+[contrib]: https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol-contrib
+[core]: https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol

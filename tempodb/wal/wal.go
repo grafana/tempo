@@ -4,33 +4,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
-	versioned_encoding "github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
-
-const reasonOutsideIngestionSlack = "outside_ingestion_time_slack"
-
-var (
-	metricWarnings = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "warnings_total",
-		Help:      "The total number of warnings per tenant with reason.",
-	}, []string{"tenant", "reason"})
-)
-
-// extracts a time range from an object. start/end times returned are unix epoch
-// seconds
-type RangeFunc func(obj []byte, dataEncoding string) (uint32, uint32, error)
 
 const (
 	completedDir = "completed"
@@ -97,13 +82,19 @@ func New(c *Config) (*WAL, error) {
 }
 
 // RescanBlocks returns a slice of append blocks from the wal folder
-func (w *WAL) RescanBlocks(fn RangeFunc, additionalStartSlack time.Duration, log log.Logger) ([]*AppendBlock, error) {
+func (w *WAL) RescanBlocks(additionalStartSlack time.Duration, log log.Logger) ([]common.WALBlock, error) {
 	files, err := os.ReadDir(w.c.Filepath)
 	if err != nil {
 		return nil, err
 	}
 
-	blocks := make([]*AppendBlock, 0, len(files))
+	// todo: rescan blocks will need to detect if this is a vParquet or v2 wal file and choose the appropriate encoding
+	v, err := encoding.FromVersion(v2.VersionString)
+	if err != nil {
+		return nil, fmt.Errorf("from version v2 failed %w", err)
+	}
+
+	blocks := make([]common.WALBlock, 0, len(files))
 	for _, f := range files {
 		if f.IsDir() {
 			continue
@@ -116,7 +107,7 @@ func (w *WAL) RescanBlocks(fn RangeFunc, additionalStartSlack time.Duration, log
 		}
 
 		level.Info(log).Log("msg", "beginning replay", "file", f.Name(), "size", fileInfo.Size())
-		b, warning, err := newAppendBlockFromFile(f.Name(), w.c.Filepath, w.c.IngestionSlack, additionalStartSlack, fn)
+		b, warning, err := v.OpenWALBlock(f.Name(), w.c.Filepath, w.c.IngestionSlack, additionalStartSlack)
 
 		remove := false
 		if err != nil {
@@ -125,13 +116,13 @@ func (w *WAL) RescanBlocks(fn RangeFunc, additionalStartSlack time.Duration, log
 			remove = true
 		}
 
-		if b != nil && b.appender.Length() == 0 {
+		if b != nil && b.Length() == 0 {
 			level.Warn(log).Log("msg", "empty wal file. ignoring.", "file", f.Name(), "err", err)
 			remove = true
 		}
 
 		if warning != nil {
-			level.Warn(log).Log("msg", "received warning while replaying block. partial replay likely.", "file", f.Name(), "warning", warning, "records", b.appender.Length())
+			level.Warn(log).Log("msg", "received warning while replaying block. partial replay likely.", "file", f.Name(), "warning", warning, "length", b.DataLength())
 		}
 
 		if remove {
@@ -150,8 +141,13 @@ func (w *WAL) RescanBlocks(fn RangeFunc, additionalStartSlack time.Duration, log
 	return blocks, nil
 }
 
-func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (*AppendBlock, error) {
-	return newAppendBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.IngestionSlack)
+func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (common.WALBlock, error) {
+	// todo: take version string and use here
+	v, err := encoding.FromVersion(v2.VersionString)
+	if err != nil {
+		return nil, fmt.Errorf("from version v2 failed %w", err)
+	}
+	return v.CreateWALBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.IngestionSlack)
 }
 
 func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File, backend.Encoding, error) {

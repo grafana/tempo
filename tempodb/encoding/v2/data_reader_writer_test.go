@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -103,7 +102,7 @@ func testNextPage(t require.TestingT, totalObjects int, enc backend.Encoding, id
 }
 
 // nolint:unparam
-func testRead(t require.TestingT, totalObjects int, enc backend.Encoding, ids [][]byte, objs [][]byte, buffer []byte, recs common.Records) {
+func testRead(t require.TestingT, totalObjects int, enc backend.Encoding, ids [][]byte, objs [][]byte, buffer []byte, recs Records) {
 	reader := bytes.NewReader(buffer)
 	r, err := NewDataReader(backend.NewContextReaderWithAllReader(reader), enc)
 	require.NoError(t, err)
@@ -115,7 +114,7 @@ func testRead(t require.TestingT, totalObjects int, enc backend.Encoding, ids []
 	o := NewObjectReaderWriter()
 	i := 0
 	for j := 0; j < len(recs); j++ {
-		pages, tempBuffer, err = r.Read(ctx, []common.Record{recs[j]}, pages, tempBuffer)
+		pages, tempBuffer, err = r.Read(ctx, []Record{recs[j]}, pages, tempBuffer)
 		require.NoError(t, err)
 		require.Len(t, pages, 1)
 
@@ -137,7 +136,7 @@ func testRead(t require.TestingT, totalObjects int, enc backend.Encoding, ids []
 }
 
 // nolint:unparam
-func createTestData(t require.TestingT, totalObjects int, objsPerPage int, enc backend.Encoding) ([][]byte, [][]byte, []byte, common.Records) {
+func createTestData(t require.TestingT, totalObjects int, objsPerPage int, enc backend.Encoding) ([][]byte, [][]byte, []byte, Records) {
 	buffer := &bytes.Buffer{}
 
 	w, err := NewDataWriter(buffer, enc)
@@ -145,7 +144,7 @@ func createTestData(t require.TestingT, totalObjects int, objsPerPage int, enc b
 
 	bytesWritten := 0
 
-	recs := common.Records{}
+	recs := Records{}
 	ids := [][]byte{}
 	objs := [][]byte{}
 	for i := 0; i < totalObjects; i++ {
@@ -167,7 +166,7 @@ func createTestData(t require.TestingT, totalObjects int, objsPerPage int, enc b
 			count, err := w.CutPage()
 			require.NoError(t, err)
 
-			recs = append(recs, common.Record{
+			recs = append(recs, Record{
 				Start:  uint64(bytesWritten),
 				Length: uint32(count),
 			})

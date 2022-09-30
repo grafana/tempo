@@ -15,7 +15,7 @@ services:
         loki-url: 'http://localhost:3100/loki/api/v1/push'
 
   loki:
-    image: grafana/loki:2.3.0
+    image: grafana/loki:2.6.1
     command: [ "-config.file=/etc/loki/local-config.yaml" ]
     ports:
       - "3100:3100"                                   # loki needs to be exposed so it receives logs
@@ -31,7 +31,10 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    command: [ "--config.file=/etc/prometheus.yaml" ]
+    command:
+      - --config.file=/etc/prometheus.yaml
+      - --web.enable-remote-write-receiver
+      - --enable-feature=exemplar-storage
     volumes:
       - ../shared/prometheus.yaml:/etc/prometheus.yaml
     ports:
@@ -42,7 +45,7 @@ services:
         loki-url: 'http://localhost:3100/loki/api/v1/push'
 
   grafana:
-    image: grafana/grafana:8.1.6
+    image: grafana/grafana:9.1.6
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

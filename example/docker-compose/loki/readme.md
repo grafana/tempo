@@ -14,7 +14,8 @@ docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all
 docker-compose up -d
 ```
 
-At this point, the following containers should be spun up -
+At this point, the following containers should be spun up -  
+Note: if docker-compose shows a column "Name" like "loki-loki-1", you will need to modify the "container_name" correspondingly in step 3.
 
 ```console
 docker-compose ps

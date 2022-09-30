@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
-	"go.opentelemetry.io/collector/model/otlp"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -128,7 +128,7 @@ func TestReceivers(t *testing.T) {
 			require.NoError(t, err)
 
 			// unmarshal into otlp proto
-			traces, err := otlp.NewProtobufTracesUnmarshaler().UnmarshalTraces(b)
+			traces, err := ptrace.NewProtoUnmarshaler().UnmarshalTraces(b)
 			require.NoError(t, err)
 			require.NotNil(t, traces)
 

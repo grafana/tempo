@@ -26,8 +26,11 @@ func NewDownstreamRoundTripper(downstreamURL string, transport http.RoundTripper
 func (d downstreamRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 	tracer, span := opentracing.GlobalTracer(), opentracing.SpanFromContext(r.Context())
 	if tracer != nil && span != nil {
-		carrier := opentracing.HTTPHeadersCarrier(r.Header)
-		err := tracer.Inject(span.Context(), opentracing.HTTPHeaders, carrier)
+		carrier := make(opentracing.TextMapCarrier, len(r.Header))
+		for k, v := range r.Header {
+			carrier.Set(k, v[0])
+		}
+		err := tracer.Inject(span.Context(), opentracing.TextMap, carrier)
 		if err != nil {
 			return nil, err
 		}

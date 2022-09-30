@@ -16,15 +16,17 @@ package kafkaexporter // import "github.com/open-telemetry/opentelemetry-collect
 
 import (
 	"github.com/Shopify/sarama"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/plog"
+	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 type pdataLogsMarshaler struct {
-	marshaler pdata.LogsMarshaler
+	marshaler plog.Marshaler
 	encoding  string
 }
 
-func (p pdataLogsMarshaler) Marshal(ld pdata.Logs, topic string) ([]*sarama.ProducerMessage, error) {
+func (p pdataLogsMarshaler) Marshal(ld plog.Logs, topic string) ([]*sarama.ProducerMessage, error) {
 	bts, err := p.marshaler.MarshalLogs(ld)
 	if err != nil {
 		return nil, err
@@ -41,7 +43,7 @@ func (p pdataLogsMarshaler) Encoding() string {
 	return p.encoding
 }
 
-func newPdataLogsMarshaler(marshaler pdata.LogsMarshaler, encoding string) LogsMarshaler {
+func newPdataLogsMarshaler(marshaler plog.Marshaler, encoding string) LogsMarshaler {
 	return pdataLogsMarshaler{
 		marshaler: marshaler,
 		encoding:  encoding,
@@ -49,11 +51,11 @@ func newPdataLogsMarshaler(marshaler pdata.LogsMarshaler, encoding string) LogsM
 }
 
 type pdataMetricsMarshaler struct {
-	marshaler pdata.MetricsMarshaler
+	marshaler pmetric.Marshaler
 	encoding  string
 }
 
-func (p pdataMetricsMarshaler) Marshal(ld pdata.Metrics, topic string) ([]*sarama.ProducerMessage, error) {
+func (p pdataMetricsMarshaler) Marshal(ld pmetric.Metrics, topic string) ([]*sarama.ProducerMessage, error) {
 	bts, err := p.marshaler.MarshalMetrics(ld)
 	if err != nil {
 		return nil, err
@@ -70,7 +72,7 @@ func (p pdataMetricsMarshaler) Encoding() string {
 	return p.encoding
 }
 
-func newPdataMetricsMarshaler(marshaler pdata.MetricsMarshaler, encoding string) MetricsMarshaler {
+func newPdataMetricsMarshaler(marshaler pmetric.Marshaler, encoding string) MetricsMarshaler {
 	return pdataMetricsMarshaler{
 		marshaler: marshaler,
 		encoding:  encoding,
@@ -78,11 +80,11 @@ func newPdataMetricsMarshaler(marshaler pdata.MetricsMarshaler, encoding string)
 }
 
 type pdataTracesMarshaler struct {
-	marshaler pdata.TracesMarshaler
+	marshaler ptrace.Marshaler
 	encoding  string
 }
 
-func (p pdataTracesMarshaler) Marshal(td pdata.Traces, topic string) ([]*sarama.ProducerMessage, error) {
+func (p pdataTracesMarshaler) Marshal(td ptrace.Traces, topic string) ([]*sarama.ProducerMessage, error) {
 	bts, err := p.marshaler.MarshalTraces(td)
 	if err != nil {
 		return nil, err
@@ -99,7 +101,7 @@ func (p pdataTracesMarshaler) Encoding() string {
 	return p.encoding
 }
 
-func newPdataTracesMarshaler(marshaler pdata.TracesMarshaler, encoding string) TracesMarshaler {
+func newPdataTracesMarshaler(marshaler ptrace.Marshaler, encoding string) TracesMarshaler {
 	return pdataTracesMarshaler{
 		marshaler: marshaler,
 		encoding:  encoding,

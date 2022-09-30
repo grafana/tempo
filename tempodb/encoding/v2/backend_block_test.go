@@ -71,7 +71,7 @@ func testLegacyBlock(t *testing.T, ids [][]byte, objs [][]byte, meta *backend.Bl
 	require.NoError(t, err, "error getting iterator")
 	i := 0
 	for {
-		id, obj, err := iterator.Next(context.Background())
+		id, obj, err := iterator.NextBytes(context.Background())
 		if id == nil {
 			break
 		}

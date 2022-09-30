@@ -15,7 +15,7 @@ import (
 	"github.com/go-kit/log"
 	kitlog "github.com/go-kit/log"
 	"github.com/gogo/status"
-	"github.com/golang/protobuf/proto" //nolint: all  //ProtoReflect
+	"github.com/golang/protobuf/proto" // nolint: all  //ProtoReflect
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
@@ -79,7 +79,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			name: "bad trace id",
 			batches: []*v1.ResourceSpans{
 				{
-					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+					ScopeSpans: []*v1.ScopeSpans{
 						{
 							Spans: []*v1.Span{
 								{
@@ -96,7 +96,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			name: "one span",
 			batches: []*v1.ResourceSpans{
 				{
-					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+					ScopeSpans: []*v1.ScopeSpans{
 						{
 							Spans: []*v1.Span{
 								{
@@ -110,7 +110,7 @@ func TestRequestsByTraceID(t *testing.T) {
 				{
 					Batches: []*v1.ResourceSpans{
 						{
-							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							ScopeSpans: []*v1.ScopeSpans{
 								{
 									Spans: []*v1.Span{
 										{
@@ -130,7 +130,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			name: "two traces, one batch",
 			batches: []*v1.ResourceSpans{
 				{
-					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+					ScopeSpans: []*v1.ScopeSpans{
 						{
 							Spans: []*v1.Span{
 								{
@@ -149,7 +149,7 @@ func TestRequestsByTraceID(t *testing.T) {
 				{
 					Batches: []*v1.ResourceSpans{
 						{
-							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							ScopeSpans: []*v1.ScopeSpans{
 								{
 									Spans: []*v1.Span{
 										{
@@ -161,7 +161,7 @@ func TestRequestsByTraceID(t *testing.T) {
 				{
 					Batches: []*v1.ResourceSpans{
 						{
-							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							ScopeSpans: []*v1.ScopeSpans{
 								{
 									Spans: []*v1.Span{
 										{
@@ -185,7 +185,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					Resource: &v1_resource.Resource{
 						DroppedAttributesCount: 3,
 					},
-					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+					ScopeSpans: []*v1.ScopeSpans{
 						{
 							Spans: []*v1.Span{
 								{
@@ -197,7 +197,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					Resource: &v1_resource.Resource{
 						DroppedAttributesCount: 4,
 					},
-					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+					ScopeSpans: []*v1.ScopeSpans{
 						{
 							Spans: []*v1.Span{
 								{
@@ -214,7 +214,7 @@ func TestRequestsByTraceID(t *testing.T) {
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
 							},
-							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							ScopeSpans: []*v1.ScopeSpans{
 								{
 									Spans: []*v1.Span{
 										{
@@ -229,7 +229,7 @@ func TestRequestsByTraceID(t *testing.T) {
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 4,
 							},
-							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							ScopeSpans: []*v1.ScopeSpans{
 								{
 									Spans: []*v1.Span{
 										{
@@ -253,7 +253,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					Resource: &v1_resource.Resource{
 						DroppedAttributesCount: 1,
 					},
-					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+					ScopeSpans: []*v1.ScopeSpans{
 						{
 							Spans: []*v1.Span{
 								{
@@ -275,7 +275,7 @@ func TestRequestsByTraceID(t *testing.T) {
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 1,
 							},
-							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							ScopeSpans: []*v1.ScopeSpans{
 								{
 									Spans: []*v1.Span{
 										{
@@ -290,7 +290,7 @@ func TestRequestsByTraceID(t *testing.T) {
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 1,
 							},
-							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							ScopeSpans: []*v1.ScopeSpans{
 								{
 									Spans: []*v1.Span{
 										{
@@ -311,9 +311,9 @@ func TestRequestsByTraceID(t *testing.T) {
 			name: "ils copied",
 			batches: []*v1.ResourceSpans{
 				{
-					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+					ScopeSpans: []*v1.ScopeSpans{
 						{
-							InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+							Scope: &v1_common.InstrumentationScope{
 								Name: "test",
 							},
 							Spans: []*v1.Span{
@@ -333,9 +333,9 @@ func TestRequestsByTraceID(t *testing.T) {
 				{
 					Batches: []*v1.ResourceSpans{
 						{
-							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							ScopeSpans: []*v1.ScopeSpans{
 								{
-									InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+									Scope: &v1_common.InstrumentationScope{
 										Name: "test",
 									},
 									Spans: []*v1.Span{
@@ -348,9 +348,9 @@ func TestRequestsByTraceID(t *testing.T) {
 				{
 					Batches: []*v1.ResourceSpans{
 						{
-							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							ScopeSpans: []*v1.ScopeSpans{
 								{
-									InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+									Scope: &v1_common.InstrumentationScope{
 										Name: "test",
 									},
 									Spans: []*v1.Span{
@@ -375,9 +375,9 @@ func TestRequestsByTraceID(t *testing.T) {
 					Resource: &v1_resource.Resource{
 						DroppedAttributesCount: 3,
 					},
-					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+					ScopeSpans: []*v1.ScopeSpans{
 						{
-							InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+							Scope: &v1_common.InstrumentationScope{
 								Name: "test",
 							},
 							Spans: []*v1.Span{
@@ -402,9 +402,9 @@ func TestRequestsByTraceID(t *testing.T) {
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
 							},
-							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							ScopeSpans: []*v1.ScopeSpans{
 								{
-									InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+									Scope: &v1_common.InstrumentationScope{
 										Name: "test",
 									},
 									Spans: []*v1.Span{
@@ -435,9 +435,9 @@ func TestRequestsByTraceID(t *testing.T) {
 					Resource: &v1_resource.Resource{
 						DroppedAttributesCount: 3,
 					},
-					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+					ScopeSpans: []*v1.ScopeSpans{
 						{
-							InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+							Scope: &v1_common.InstrumentationScope{
 								Name: "test",
 							},
 							Spans: []*v1.Span{
@@ -463,9 +463,9 @@ func TestRequestsByTraceID(t *testing.T) {
 					Resource: &v1_resource.Resource{
 						DroppedAttributesCount: 4,
 					},
-					InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+					ScopeSpans: []*v1.ScopeSpans{
 						{
-							InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+							Scope: &v1_common.InstrumentationScope{
 								Name: "test2",
 							},
 							Spans: []*v1.Span{
@@ -493,9 +493,9 @@ func TestRequestsByTraceID(t *testing.T) {
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
 							},
-							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							ScopeSpans: []*v1.ScopeSpans{
 								{
-									InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+									Scope: &v1_common.InstrumentationScope{
 										Name: "test",
 									},
 									Spans: []*v1.Span{
@@ -515,9 +515,9 @@ func TestRequestsByTraceID(t *testing.T) {
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 4,
 							},
-							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							ScopeSpans: []*v1.ScopeSpans{
 								{
-									InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+									Scope: &v1_common.InstrumentationScope{
 										Name: "test2",
 									},
 									Spans: []*v1.Span{
@@ -535,9 +535,9 @@ func TestRequestsByTraceID(t *testing.T) {
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
 							},
-							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							ScopeSpans: []*v1.ScopeSpans{
 								{
-									InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+									Scope: &v1_common.InstrumentationScope{
 										Name: "test",
 									},
 									Spans: []*v1.Span{
@@ -551,9 +551,9 @@ func TestRequestsByTraceID(t *testing.T) {
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 4,
 							},
-							InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+							ScopeSpans: []*v1.ScopeSpans{
 								{
-									InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+									Scope: &v1_common.InstrumentationScope{
 										Name: "test2",
 									},
 									Spans: []*v1.Span{
@@ -612,11 +612,11 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 		test.MakeTraceWithSpanCount(batches, spansPer, []byte{0x0C, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}),
 		test.MakeTraceWithSpanCount(batches, spansPer, []byte{0x0D, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}),
 	}
-	ils := make([][]*v1.InstrumentationLibrarySpans, batches)
+	ils := make([][]*v1.ScopeSpans, batches)
 
 	for i := 0; i < batches; i++ {
 		for _, t := range traces {
-			ils[i] = append(ils[i], t.Batches[i].InstrumentationLibrarySpans...)
+			ils[i] = append(ils[i], t.Batches[i].ScopeSpans...)
 		}
 	}
 
@@ -626,7 +626,7 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 		for _, blerg := range ils {
 			_, _, err := requestsByTraceID([]*v1.ResourceSpans{
 				{
-					InstrumentationLibrarySpans: blerg,
+					ScopeSpans: blerg,
 				},
 			}, "test", spansPer*len(traces))
 			require.NoError(b, err)
@@ -677,8 +677,8 @@ func TestLogSpans(t *testing.T) {
 		{
 			LogReceivedSpansEnabled: false,
 			batches: []*v1.ResourceSpans{
-				makeResourceSpans("test", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary(
+				makeResourceSpans("test", []*v1.ScopeSpans{
+					makeScope(
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil)),
 				}),
 			},
@@ -687,8 +687,8 @@ func TestLogSpans(t *testing.T) {
 		{
 			LogReceivedTraces: true,
 			batches: []*v1.ResourceSpans{
-				makeResourceSpans("test", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary(
+				makeResourceSpans("test", []*v1.ScopeSpans{
+					makeScope(
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil)),
 				}),
 			},
@@ -705,15 +705,15 @@ func TestLogSpans(t *testing.T) {
 			LogReceivedSpansEnabled: true,
 			filterByStatusError:     false,
 			batches: []*v1.ResourceSpans{
-				makeResourceSpans("test-service", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary(
+				makeResourceSpans("test-service", []*v1.ScopeSpans{
+					makeScope(
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil),
 						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", nil)),
-					makeInstrumentationLibrary(
+					makeScope(
 						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", nil)),
 				}),
-				makeResourceSpans("test-service2", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary(
+				makeResourceSpans("test-service2", []*v1.ScopeSpans{
+					makeScope(
 						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", nil)),
 				}),
 			},
@@ -748,15 +748,15 @@ func TestLogSpans(t *testing.T) {
 			LogReceivedSpansEnabled: true,
 			filterByStatusError:     true,
 			batches: []*v1.ResourceSpans{
-				makeResourceSpans("test-service", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary(
+				makeResourceSpans("test-service", []*v1.ScopeSpans{
+					makeScope(
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil),
 						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
-					makeInstrumentationLibrary(
+					makeScope(
 						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", nil)),
 				}),
-				makeResourceSpans("test-service2", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary(
+				makeResourceSpans("test-service2", []*v1.ScopeSpans{
+					makeScope(
 						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
 				}),
 			},
@@ -780,18 +780,18 @@ func TestLogSpans(t *testing.T) {
 			filterByStatusError:     true,
 			includeAllAttributes:    true,
 			batches: []*v1.ResourceSpans{
-				makeResourceSpans("test-service", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary(
+				makeResourceSpans("test-service", []*v1.ScopeSpans{
+					makeScope(
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil,
 							makeAttribute("tag1", "value1")),
 						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR},
 							makeAttribute("tag1", "value1"),
 							makeAttribute("tag2", "value2"))),
-					makeInstrumentationLibrary(
+					makeScope(
 						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", nil)),
 				}, makeAttribute("resource_attribute1", "value1")),
-				makeResourceSpans("test-service2", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary(
+				makeResourceSpans("test-service2", []*v1.ScopeSpans{
+					makeScope(
 						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
 				}, makeAttribute("resource_attribute2", "value2")),
 			},
@@ -825,8 +825,8 @@ func TestLogSpans(t *testing.T) {
 			filterByStatusError:     false,
 			includeAllAttributes:    true,
 			batches: []*v1.ResourceSpans{
-				makeResourceSpans("test-service", []*v1.InstrumentationLibrarySpans{
-					makeInstrumentationLibrary(
+				makeResourceSpans("test-service", []*v1.ScopeSpans{
+					makeScope(
 						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil, makeAttribute("tag1", "value1"))),
 				}),
 			},
@@ -923,9 +923,9 @@ func makeSpan(traceID string, spanID string, status *v1.Status, attributes ...*v
 	}
 }
 
-func makeInstrumentationLibrary(spans ...*v1.Span) *v1.InstrumentationLibrarySpans {
-	return &v1.InstrumentationLibrarySpans{
-		InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+func makeScope(spans ...*v1.Span) *v1.ScopeSpans {
+	return &v1.ScopeSpans{
+		Scope: &v1_common.InstrumentationScope{
 			Name:    "super library",
 			Version: "0.0.1",
 		},
@@ -933,7 +933,7 @@ func makeInstrumentationLibrary(spans ...*v1.Span) *v1.InstrumentationLibrarySpa
 	}
 }
 
-func makeResourceSpans(serviceName string, ils []*v1.InstrumentationLibrarySpans, attributes ...*v1_common.KeyValue) *v1.ResourceSpans {
+func makeResourceSpans(serviceName string, ils []*v1.ScopeSpans, attributes ...*v1_common.KeyValue) *v1.ResourceSpans {
 	rs := &v1.ResourceSpans{
 		Resource: &v1_resource.Resource{
 			Attributes: []*v1_common.KeyValue{
@@ -947,7 +947,7 @@ func makeResourceSpans(serviceName string, ils []*v1.InstrumentationLibrarySpans
 				},
 			},
 		},
-		InstrumentationLibrarySpans: ils,
+		ScopeSpans: ils,
 	}
 
 	rs.Resource.Attributes = append(rs.Resource.Attributes, attributes...)

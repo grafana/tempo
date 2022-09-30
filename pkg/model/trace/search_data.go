@@ -31,7 +31,7 @@ func ExtractSearchData(tr *tempopb.Trace, id []byte, extractTag ExtractTagFunc) 
 			}
 		}
 
-		for _, ils := range b.InstrumentationLibrarySpans {
+		for _, ils := range b.ScopeSpans {
 			for _, s := range ils.Spans {
 
 				// Root span

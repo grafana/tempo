@@ -10,13 +10,13 @@ import (
 // index
 type BufferedAppenderGeneric struct {
 	// output writer
-	writer common.DataWriterGeneric
+	writer DataWriterGeneric
 
 	// record keeping
-	records             []common.Record
+	records             []Record
 	totalObjects        int
 	currentOffset       uint64
-	currentRecord       *common.Record
+	currentRecord       *Record
 	currentBytesWritten int
 
 	// config
@@ -25,11 +25,11 @@ type BufferedAppenderGeneric struct {
 
 // NewBufferedAppender returns an bufferedAppender.  This appender builds a writes to
 // the provided writer and also builds a downsampled records slice.
-func NewBufferedAppenderGeneric(writer common.DataWriterGeneric, maxPageSize int) *BufferedAppenderGeneric {
+func NewBufferedAppenderGeneric(writer DataWriterGeneric, maxPageSize int) *BufferedAppenderGeneric {
 	return &BufferedAppenderGeneric{
 		writer:      writer,
 		maxPageSize: maxPageSize,
-		records:     make([]common.Record, 0),
+		records:     make([]Record, 0),
 	}
 }
 
@@ -42,7 +42,7 @@ func (a *BufferedAppenderGeneric) Append(ctx context.Context, id common.ID, i in
 	}
 
 	if a.currentRecord == nil {
-		a.currentRecord = &common.Record{
+		a.currentRecord = &Record{
 			Start: a.currentOffset,
 		}
 	}
@@ -61,7 +61,7 @@ func (a *BufferedAppenderGeneric) Append(ctx context.Context, id common.ID, i in
 }
 
 // Records returns a slice of the current records
-func (a *BufferedAppenderGeneric) Records() []common.Record {
+func (a *BufferedAppenderGeneric) Records() []Record {
 	return a.records
 }
 

@@ -48,9 +48,6 @@ type RetrySettings struct {
 	MaxElapsedTime time.Duration `mapstructure:"max_elapsed_time"`
 }
 
-// Deprecated: [v0.46.0] use NewDefaultRetrySettings instead.
-var DefaultRetrySettings = NewDefaultRetrySettings
-
 // NewDefaultRetrySettings returns the default settings for RetrySettings.
 func NewDefaultRetrySettings() RetrySettings {
 	return RetrySettings{
@@ -150,7 +147,7 @@ func (rs *retrySender) send(req request) error {
 		err := rs.nextSender.send(req)
 		if err != nil {
 			rs.logger.Error(
-				"Exporting failed. Try enabling retry_on_failure config option.",
+				"Exporting failed. Try enabling retry_on_failure config option to retry on retryable errors",
 				zap.Error(err),
 			)
 		}

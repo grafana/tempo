@@ -5,6 +5,7 @@
   local volumeMount = k.core.v1.volumeMount,
   local deployment = k.apps.v1.deployment,
   local volume = k.core.v1.volume,
+  local envVar = k.core.v1.envVar,
 
   local target_name = 'compactor',
   local tempo_config_volume = 'tempo-conf',
@@ -28,7 +29,8 @@
     ]) +
     $.util.withResources($._config.compactor.resources) +
     $.util.readinessProbe +
-    (if $._config.variables_expansion then container.withArgsMixin(['--config.expand-env=true']) else {}),
+    (if $._config.variables_expansion then container.withArgsMixin(['--config.expand-env=true']) else {}) +
+    (if $._config.compactor.resources.limits.memory != null then container.withEnvMixin([envVar.new('GOMEMLIMIT', $._config.compactor.resources.limits.memory + 'B')]) else {}), 
 
   tempo_compactor_deployment:
     deployment.new(target_name,

@@ -28,9 +28,11 @@
       volumeMount.new(tempo_overrides_config_volume, '/overrides'),
     ]) +
     $.util.withResources($._config.metrics_generator.resources) +
+    (if $._config.variables_expansion then container.withEnvMixin($._config.variables_expansion_env_mixin) else {}) +
     container.mixin.resources.withRequestsMixin({ 'ephemeral-storage': $._config.metrics_generator.ephemeral_storage_request_size }) +
     container.mixin.resources.withLimitsMixin({ 'ephemeral-storage': $._config.metrics_generator.ephemeral_storage_limit_size }) +
-    $.util.readinessProbe,
+    $.util.readinessProbe +
+    (if $._config.variables_expansion then container.withArgsMixin(['--config.expand-env=true']) else {}),
 
   tempo_metrics_generator_deployment:
     deployment.new(

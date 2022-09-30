@@ -26,7 +26,9 @@ import (
 )
 
 const (
-	typeStr             = "kafka"
+	typeStr = "kafka"
+	// The stability level of the exporter.
+	stability           = component.StabilityLevelBeta
 	defaultTracesTopic  = "otlp_spans"
 	defaultMetricsTopic = "otlp_metrics"
 	defaultLogsTopic    = "otlp_logs"
@@ -42,6 +44,10 @@ const (
 	defaultProducerMaxMessageBytes = 1000000
 	// default required_acks for the producer
 	defaultProducerRequiredAcks = sarama.WaitForLocal
+	// default from sarama.NewConfig()
+	defaultCompression = "none"
+	// default from sarama.NewConfig()
+	defaultFluxMaxMessages = 0
 )
 
 // FactoryOption applies changes to kafkaExporterFactory.
@@ -69,9 +75,9 @@ func NewFactory(options ...FactoryOption) component.ExporterFactory {
 	return component.NewExporterFactory(
 		typeStr,
 		createDefaultConfig,
-		component.WithTracesExporter(f.createTracesExporter),
-		component.WithMetricsExporter(f.createMetricsExporter),
-		component.WithLogsExporter(f.createLogsExporter),
+		component.WithTracesExporter(f.createTracesExporter, stability),
+		component.WithMetricsExporter(f.createMetricsExporter, stability),
+		component.WithLogsExporter(f.createLogsExporter, stability),
 	)
 }
 
@@ -93,8 +99,10 @@ func createDefaultConfig() config.Exporter {
 			},
 		},
 		Producer: Producer{
-			MaxMessageBytes: defaultProducerMaxMessageBytes,
-			RequiredAcks:    defaultProducerRequiredAcks,
+			MaxMessageBytes:  defaultProducerMaxMessageBytes,
+			RequiredAcks:     defaultProducerRequiredAcks,
+			Compression:      defaultCompression,
+			FlushMaxMessages: defaultFluxMaxMessages,
 		},
 	}
 }
@@ -110,19 +118,19 @@ func (f *kafkaExporterFactory) createTracesExporter(
 	set component.ExporterCreateSettings,
 	cfg config.Exporter,
 ) (component.TracesExporter, error) {
-	oCfg := cfg.(*Config)
+	oCfg := *(cfg.(*Config)) // Clone the config
 	if oCfg.Topic == "" {
 		oCfg.Topic = defaultTracesTopic
 	}
 	if oCfg.Encoding == "otlp_json" {
 		set.Logger.Info("otlp_json is considered experimental and should not be used in a production environment")
 	}
-	exp, err := newTracesExporter(*oCfg, set, f.tracesMarshalers)
+	exp, err := newTracesExporter(oCfg, set, f.tracesMarshalers)
 	if err != nil {
 		return nil, err
 	}
 	return exporterhelper.NewTracesExporter(
-		cfg,
+		&oCfg,
 		set,
 		exp.tracesPusher,
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
@@ -139,19 +147,19 @@ func (f *kafkaExporterFactory) createMetricsExporter(
 	set component.ExporterCreateSettings,
 	cfg config.Exporter,
 ) (component.MetricsExporter, error) {
-	oCfg := cfg.(*Config)
+	oCfg := *(cfg.(*Config)) // Clone the config
 	if oCfg.Topic == "" {
 		oCfg.Topic = defaultMetricsTopic
 	}
 	if oCfg.Encoding == "otlp_json" {
 		set.Logger.Info("otlp_json is considered experimental and should not be used in a production environment")
 	}
-	exp, err := newMetricsExporter(*oCfg, set, f.metricsMarshalers)
+	exp, err := newMetricsExporter(oCfg, set, f.metricsMarshalers)
 	if err != nil {
 		return nil, err
 	}
 	return exporterhelper.NewMetricsExporter(
-		cfg,
+		&oCfg,
 		set,
 		exp.metricsDataPusher,
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
@@ -168,14 +176,14 @@ func (f *kafkaExporterFactory) createLogsExporter(
 	set component.ExporterCreateSettings,
 	cfg config.Exporter,
 ) (component.LogsExporter, error) {
-	oCfg := cfg.(*Config)
+	oCfg := *(cfg.(*Config)) // Clone the config
 	if oCfg.Topic == "" {
 		oCfg.Topic = defaultLogsTopic
 	}
 	if oCfg.Encoding == "otlp_json" {
 		set.Logger.Info("otlp_json is considered experimental and should not be used in a production environment")
 	}
-	exp, err := newLogsExporter(*oCfg, set, f.logsMarshalers)
+	exp, err := newLogsExporter(oCfg, set, f.logsMarshalers)
 	if err != nil {
 		return nil, err
 	}

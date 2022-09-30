@@ -98,7 +98,7 @@ func (s *spanIDDeduper) dedupe() {
 func (s *spanIDDeduper) groupSpansByID() {
 	spansByID := make(map[uint64][]*v1.Span)
 	for _, batch := range s.trace.Batches {
-		for _, ils := range batch.InstrumentationLibrarySpans {
+		for _, ils := range batch.ScopeSpans {
 			for _, span := range ils.Spans {
 				id := binary.BigEndian.Uint64(span.SpanId)
 				if spans, ok := spansByID[id]; ok {
@@ -125,7 +125,7 @@ func (s *spanIDDeduper) isSharedWithClientSpan(spanID uint64) bool {
 func (s *spanIDDeduper) dedupeSpanIDs() {
 	oldToNewSpanIDs := make(map[uint64]uint64)
 	for _, batch := range s.trace.Batches {
-		for _, ils := range batch.InstrumentationLibrarySpans {
+		for _, ils := range batch.ScopeSpans {
 			for _, span := range ils.Spans {
 				id := binary.BigEndian.Uint64(span.SpanId)
 				// only replace span IDs for server-side spans that share the ID with something else
@@ -155,7 +155,7 @@ func (s *spanIDDeduper) swapParentIDs(oldToNewSpanIDs map[uint64]uint64) {
 		return
 	}
 	for _, batch := range s.trace.Batches {
-		for _, ils := range batch.InstrumentationLibrarySpans {
+		for _, ils := range batch.ScopeSpans {
 			for _, span := range ils.Spans {
 				if len(span.GetParentSpanId()) > 0 {
 					parentSpanID := binary.BigEndian.Uint64(span.GetParentSpanId())

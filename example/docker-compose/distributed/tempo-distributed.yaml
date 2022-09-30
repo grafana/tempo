@@ -48,8 +48,12 @@ querier:
     frontend_address: query-frontend:9095
 
 metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: docker-compose
   storage:
-    path: /tmp/tempo/wal
+    path: /tmp/tempo/generator/wal
     remote_write:
       - url: http://prometheus:9090/api/v1/write
         send_exemplars: true

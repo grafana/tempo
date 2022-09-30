@@ -5,7 +5,8 @@ receivers:
 exporters:
   otlp:
     endpoint: tempo:4317
-    insecure: true
+    tls:
+      insecure: true
     headers:
       x-scope-orgid: foo-bar-baz
 service:

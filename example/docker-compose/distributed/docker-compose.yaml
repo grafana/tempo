@@ -2,15 +2,16 @@ version: "3"
 services:
 
   distributor:
-    image: tempo:latest
+    image: grafana/tempo:latest
     command: "-target=distributor -config.file=/etc/tempo.yaml"
+    restart: always
     volumes:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:
       - "3200"   # tempo
 
   ingester-0:
-    image: tempo:latest
+    image: grafana/tempo:latest
     command: "-target=ingester -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
@@ -19,7 +20,7 @@ services:
       - "3200"   # tempo
 
   ingester-1:
-    image: tempo:latest
+    image: grafana/tempo:latest
     command: "-target=ingester -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
@@ -28,7 +29,7 @@ services:
       - "3200"   # tempo
 
   ingester-2:
-    image: tempo:latest
+    image: grafana/tempo:latest
     command: "-target=ingester -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
@@ -37,7 +38,7 @@ services:
       - "3200"   # tempo
 
   query-frontend:
-    image: tempo:latest
+    image: grafana/tempo:latest
     command: "-target=query-frontend -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
@@ -46,7 +47,7 @@ services:
       - "3200:3200"   # tempo
 
   querier:
-    image: tempo:latest
+    image: grafana/tempo:latest
     command: "-target=querier -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
@@ -55,7 +56,7 @@ services:
       - "3200"   # tempo
 
   compactor:
-    image: tempo:latest
+    image: grafana/tempo:latest
     command: "-target=compactor -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
@@ -63,8 +64,8 @@ services:
     ports:
       - "3200"   # tempo
 
-  metrics_generator:
-    image: tempo:latest
+  metrics-generator:
+    image: grafana/tempo:latest
     command: "-target=metrics-generator -config.file=/etc/tempo.yaml"
     restart: always
     volumes:
@@ -85,7 +86,7 @@ services:
       - mkdir -p /data/tempo && minio server /data --console-address ':9001'
 
   synthetic-load-generator:
-    image: omnition/synthetic-load-generator:1.0.25
+    image: omnition/synthetic-load-generator:1.0.29
     volumes:
       - ../shared/load-generator.json:/etc/load-generator.json
     environment:
@@ -104,7 +105,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:8.3.6
+    image: grafana/grafana:9.1.6
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

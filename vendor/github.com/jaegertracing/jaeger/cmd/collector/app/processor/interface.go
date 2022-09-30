@@ -28,6 +28,7 @@ var ErrBusy = errors.New("server busy")
 type SpansOptions struct {
 	SpanFormat       SpanFormat
 	InboundTransport InboundTransport
+	Tenant           string
 }
 
 // SpanProcessor handles model spans
@@ -59,6 +60,8 @@ const (
 	ZipkinSpanFormat SpanFormat = "zipkin"
 	// ProtoSpanFormat is for Jaeger protobuf Spans.
 	ProtoSpanFormat SpanFormat = "proto"
+	// OTLPSpanFormat is for OpenTelemetry OTLP format.
+	OTLPSpanFormat SpanFormat = "otlp"
 	// UnknownSpanFormat is the fallback/catch-all category.
 	UnknownSpanFormat SpanFormat = "unknown"
 )

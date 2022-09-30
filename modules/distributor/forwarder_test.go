@@ -60,9 +60,13 @@ func TestForwarder(t *testing.T) {
 	assert.Equal(t, 0, len(f.queueManagers[tenantID].reqChan))
 }
 
-func TestForwarder_pushesQueued(t *testing.T) {
+func TestForwarder_QueueSizeConfig(t *testing.T) {
+	// this test sends more traces than the configured queue size
+	// and asserts that the queue size is equal or less than the configured size
+
+	queueSize := 10
 	oCfg := overrides.Limits{
-		MetricsGeneratorForwarderQueueSize: 10,
+		MetricsGeneratorForwarderQueueSize: queueSize,
 		MetricsGeneratorForwarderWorkers:   1,
 	}
 	oCfg.RegisterFlags(&flag.FlagSet{})
@@ -91,13 +95,13 @@ func TestForwarder_pushesQueued(t *testing.T) {
 		assert.Equal(t, 0, len(f.queueManagers[tenantID].reqChan))
 	}()
 
-	// 10 pushes are buffered, 1 is picked up by the worker
-	for i := 0; i < 11; i++ {
+	// sending more traces than queue size
+	for i := 0; i < queueSize+2; i++ {
 		f.SendTraces(context.Background(), tenantID, keys, rebatchedTraces)
 	}
 
-	// queue is full with 10 items
-	assert.Equal(t, 10, len(f.queueManagers[tenantID].reqChan))
+	// queue length is less or equal to the configured queue size
+	assert.LessOrEqual(t, len(f.queueManagers[tenantID].reqChan), queueSize)
 }
 
 func TestForwarder_shutdown(t *testing.T) {
@@ -133,7 +137,9 @@ func TestForwarder_shutdown(t *testing.T) {
 			close(signalCh)
 		}()
 		require.NoError(t, f.stop(nil))
+		f.mutex.Lock()
 		assert.Equal(t, 0, len(f.queueManagers[tenantID].reqChan))
+		f.mutex.Unlock()
 	}()
 
 	for i := 0; i < 100; i++ {
@@ -186,7 +192,9 @@ func TestForwarder_overrides(t *testing.T) {
 	defer func() {
 		close(signalCh)
 		require.NoError(t, f.stop(nil))
+		f.mutex.Lock()
 		assert.Equal(t, 0, len(f.queueManagers[tenantID].reqChan))
+		f.mutex.Unlock()
 	}()
 
 	wg.Add(1)

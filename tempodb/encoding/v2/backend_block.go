@@ -3,6 +3,7 @@ package v2
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -11,6 +12,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -80,7 +82,7 @@ func (b *BackendBlock) find(ctx context.Context, id common.ID) ([]byte, error) {
 	defer dataReader.Close()
 
 	// passing nil for objectCombiner here.  this is fine b/c a backend block should never have dupes
-	finder := NewPagedFinder(indexReader, dataReader, nil, NewObjectReaderWriter(), b.meta.DataEncoding)
+	finder := newPagedFinder(indexReader, dataReader, nil, NewObjectReaderWriter(), b.meta.DataEncoding)
 	objectBytes, err := finder.Find(ctx, id)
 
 	if err != nil {
@@ -91,7 +93,7 @@ func (b *BackendBlock) find(ctx context.Context, id common.ID) ([]byte, error) {
 }
 
 // Iterator returns an Iterator that iterates over the objects in the block from the backend
-func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (common.Iterator, error) {
+func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (BytesIterator, error) {
 	// read index
 	ra := backend.NewContextReader(b.meta, common.NameObjects, b.reader, false)
 	dataReader, err := NewDataReader(ra, b.meta.Encoding)
@@ -108,7 +110,7 @@ func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (common.Iterator, error) 
 }
 
 // partialIterator returns an Iterator that iterates over the a subset of pages in the block from the backend
-func (b *BackendBlock) partialIterator(chunkSizeBytes uint32, startPage int, totalPages int) (common.Iterator, error) {
+func (b *BackendBlock) partialIterator(chunkSizeBytes uint32, startPage int, totalPages int) (BytesIterator, error) {
 	// read index
 	ra := backend.NewContextReader(b.meta, common.NameObjects, b.reader, false)
 	dataReader, err := NewDataReader(ra, b.meta.Encoding)
@@ -124,7 +126,7 @@ func (b *BackendBlock) partialIterator(chunkSizeBytes uint32, startPage int, tot
 	return newPartialPagedIterator(chunkSizeBytes, reader, dataReader, NewObjectReaderWriter(), startPage, totalPages), nil
 }
 
-func (b *BackendBlock) NewIndexReader() (common.IndexReader, error) {
+func (b *BackendBlock) NewIndexReader() (IndexReader, error) {
 	indexReaderAt := backend.NewContextReader(b.meta, common.NameIndex, b.reader, false)
 	reader, err := NewIndexReader(indexReaderAt, int(b.meta.IndexPageSize), int(b.meta.TotalRecords))
 	if err != nil {
@@ -162,7 +164,7 @@ func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	}
 
 	// Iterator
-	var iter common.Iterator
+	var iter BytesIterator
 	if opt.TotalPages > 0 {
 		iter, err = b.partialIterator(opt.ChunkSizeBytes, opt.StartPage, opt.TotalPages)
 	} else {
@@ -181,7 +183,7 @@ func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	}
 
 	for {
-		id, obj, err := iter.Next(ctx)
+		id, obj, err := iter.NextBytes(ctx)
 		if err == io.EOF {
 			break
 		}
@@ -234,4 +236,8 @@ func search(decoder model.ObjectDecoder, maxBytes int, id common.ID, obj []byte,
 	}
 
 	return nil
+}
+
+func (b *BackendBlock) Fetch(context.Context, traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+	return traceql.FetchSpansResponse{}, errors.New("Unsupported")
 }

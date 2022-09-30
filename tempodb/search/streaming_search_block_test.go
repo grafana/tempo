@@ -243,7 +243,7 @@ func TestStreamingSearchBlockIteratorDedupes(t *testing.T) {
 
 			var results []common.ID
 			for {
-				id, _, err := iter.Next(context.TODO())
+				id, _, err := iter.NextBytes(context.Background())
 				if err == io.EOF {
 					break
 				}

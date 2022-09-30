@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"sort"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -16,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
 	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -133,7 +131,7 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 		ctx := context.Background()
 		prevID := make([]byte, 16)
 		for {
-			objID, obj, err := iter.Next(ctx)
+			objID, obj, err := iter.NextBytes(ctx)
 			if err == io.EOF {
 				break
 			} else if err != nil {
@@ -206,12 +204,12 @@ func extractKVPairs(t *tempopb.Trace) kvPairs {
 	kvp := kvPairs{}
 	for _, b := range t.Batches {
 		spanCount := 0
-		for _, ils := range b.InstrumentationLibrarySpans {
+		for _, ils := range b.ScopeSpans {
 			for _, s := range ils.Spans {
 				spanCount++
 				for _, a := range s.Attributes {
-					val, yay := stringVal(a.Value)
-					if !yay {
+					val := util.StringifyAnyValue(a.Value)
+					if val == "" {
 						continue
 					}
 					addKey(kvp, a.Key, 1)
@@ -220,8 +218,8 @@ func extractKVPairs(t *tempopb.Trace) kvPairs {
 			}
 		}
 		for _, a := range b.Resource.Attributes {
-			val, yay := stringVal(a.Value)
-			if !yay {
+			val := util.StringifyAnyValue(a.Value)
+			if val == "" {
 				continue
 			}
 			addKey(kvp, a.Key, spanCount)
@@ -252,30 +250,4 @@ func addVal(kvp kvPairs, key string, val string, count int) {
 	stats.count += count
 	v.all[val] = stats
 	kvp[key] = v
-}
-func stringVal(v *v1.AnyValue) (string, bool) {
-	if sVal, ok := v.Value.(*v1.AnyValue_StringValue); ok {
-		return sVal.StringValue, true
-	}
-	if nVal, ok := v.Value.(*v1.AnyValue_IntValue); ok {
-		return strconv.FormatInt(nVal.IntValue, 10), true
-	}
-	if dVal, ok := v.Value.(*v1.AnyValue_DoubleValue); ok {
-		return fmt.Sprintf("%f", dVal.DoubleValue), true
-		// strconv.FormatFloat()
-	}
-	if bVal, ok := v.Value.(*v1.AnyValue_BoolValue); ok {
-		if bVal.BoolValue {
-			return "true", true
-		}
-		return "false", true
-	}
-	// todo? add support for these?
-	// if kVal, ok := v.Value.(*v1.AnyValue_KvlistValue); ok {
-	//  return fmt.Sprintf("kvval %v", kVal.KvlistValue) // better way?
-	// }
-	// if aVal, ok := v.Value.(*v1.AnyValue_ArrayValue); ok {
-	//  return fmt.Sprintf("arrayval %v", aVal.ArrayValue) // better way?
-	// }
-	return "", false
 }

@@ -20,14 +20,20 @@ import (
 	"io"
 
 	"github.com/spf13/viper"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+)
+
+var (
+	_ io.Closer           = (*Factory)(nil)
+	_ plugin.Configurable = (*Factory)(nil)
 )
 
 // Factory implements storage.Factory and creates storage components backed by a storage plugin.
@@ -38,12 +44,11 @@ type Factory struct {
 
 	builder config.PluginBuilder
 
-	store        shared.StoragePlugin
-	archiveStore shared.ArchiveStoragePlugin
-	capabilities shared.PluginCapabilities
+	store               shared.StoragePlugin
+	archiveStore        shared.ArchiveStoragePlugin
+	streamingSpanWriter shared.StreamingSpanWriterPlugin
+	capabilities        shared.PluginCapabilities
 }
-
-var _ io.Closer = (*Factory)(nil)
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
@@ -57,7 +62,9 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper, logger *zap.Logger) {
-	f.options.InitFromViper(v)
+	if err := f.options.InitFromViper(v); err != nil {
+		logger.Fatal("unable to initialize gRPC storage factory", zap.Error(err))
+	}
 	f.builder = &f.options.Configuration
 }
 
@@ -79,6 +86,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.store = services.Store
 	f.archiveStore = services.ArchiveStore
 	f.capabilities = services.Capabilities
+	f.streamingSpanWriter = services.StreamingSpanWriter
 	logger.Info("External plugin storage configuration", zap.Any("configuration", f.options.Configuration))
 	return nil
 }
@@ -90,6 +98,11 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
+	if f.capabilities != nil && f.streamingSpanWriter != nil {
+		if capabilities, err := f.capabilities.Capabilities(); err == nil && capabilities.StreamingSpanWriter {
+			return f.streamingSpanWriter.StreamingSpanWriter(), nil
+		}
+	}
 	return f.store.SpanWriter(), nil
 }
 
