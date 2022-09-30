@@ -28,6 +28,7 @@ Old config will still work but will be removed in a future release. [#1735](http
 * [ENHANCEMENT] metrics-generator: filter out older spans before metrics are aggregated [#1612](https://github.com/grafana/tempo/pull/1612) (@ie-pham)
 * * [ENHANCEMENT] Add hedging to trace by ID lookups created by the frontend. [#1735](https://github.com/grafana/tempo/pull/1735) (@mapno)
     New config options and defaults:
+* [BUGFIX] Mark compacted blocks as compacted after errors within maintanence cycle. [#1772](https://github.com/grafana/tempo/pull/1772) @amitsetty
 ```
 query_frontend:
   trace_by_id:
