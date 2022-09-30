@@ -140,7 +140,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		if err != nil {
-			return nil, errors.Wrap(err, "error iterating input blocks")
+			return newCompactedBlocks, errors.Wrap(err, "error iterating input blocks")
 		}
 
 		// make a new block if necessary
@@ -156,7 +156,6 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 			currentBlock = newStreamingBlock(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriter)
 			currentBlock.meta.CompactionLevel = nextCompactionLevel
-			newCompactedBlocks = append(newCompactedBlocks, currentBlock.meta)
 		}
 
 		// Flush existing block data if the next trace can't fit
@@ -164,7 +163,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
-				return nil, errors.Wrap(err, "error writing partial block")
+				return newCompactedBlocks, errors.Wrap(err, "error writing partial block")
 			}
 		}
 
@@ -173,7 +172,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		// times from the input metas.
 		err = currentBlock.AddRaw(lowestID, lowestObject, 0, 0)
 		if err != nil {
-			return nil, err
+			return newCompactedBlocks, err
 		}
 
 		// Flush again if block is already full.
@@ -181,7 +180,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
-				return nil, errors.Wrap(err, "error writing partial block")
+				return newCompactedBlocks, errors.Wrap(err, "error writing partial block")
 			}
 		}
 
@@ -194,8 +193,9 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			currentBlockPtrCopy.meta.EndTime = maxBlockEnd
 			err := c.finishBlock(ctx, currentBlockPtrCopy, l)
 			if err != nil {
-				return nil, errors.Wrap(err, fmt.Sprintf("error shipping block to backend, blockID %s", currentBlockPtrCopy.meta.BlockID.String()))
+				return newCompactedBlocks, errors.Wrap(err, fmt.Sprintf("error shipping block to backend, blockID %s", currentBlockPtrCopy.meta.BlockID.String()))
 			}
+			newCompactedBlocks = append(newCompactedBlocks, currentBlock.meta)
 			currentBlock = nil
 		}
 	}
@@ -206,8 +206,9 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		currentBlock.meta.EndTime = maxBlockEnd
 		err := c.finishBlock(ctx, currentBlock, l)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("error shipping block to backend, blockID %s", currentBlock.meta.BlockID.String()))
+			return newCompactedBlocks, errors.Wrap(err, fmt.Sprintf("error shipping block to backend, blockID %s", currentBlock.meta.BlockID.String()))
 		}
+		newCompactedBlocks = append(newCompactedBlocks, currentBlock.meta)
 	}
 
 	return newCompactedBlocks, nil
