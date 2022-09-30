@@ -170,57 +170,6 @@ func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File,
 	return file, w.c.SearchEncoding, nil
 }
 
-// ParseFilename returns (blockID, tenant, version, encoding, dataEncoding, error).
-// Example: "00000000-0000-0000-0000-000000000000+1+v2+snappy+v1"
-// Example with old separator: "00000000-0000-0000-0000-000000000000:1:v2:snappy:v1"
-func ParseFilename(filename string) (uuid.UUID, string, string, backend.Encoding, string, error) {
-	var splits []string
-	if strings.Contains(filename, "+") {
-		splits = strings.Split(filename, "+")
-	} else {
-		// backward-compatibility with the old separator
-		splits = strings.Split(filename, ":")
-	}
-
-	if len(splits) != 4 && len(splits) != 5 {
-		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. unexpected number of segments", filename)
-	}
-
-	// first segment is blockID
-	id, err := uuid.Parse(splits[0])
-	if err != nil {
-		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing uuid: %w", filename, err)
-	}
-
-	// second segment is tenant
-	tenant := splits[1]
-	if len(tenant) == 0 {
-		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. missing fields", filename)
-	}
-
-	// third segment is version
-	version := splits[2]
-	_, err = versioned_encoding.FromVersion(version)
-	if err != nil {
-		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing version: %w", filename, err)
-	}
-
-	// fourth is encoding
-	encodingString := splits[3]
-	encoding, err := backend.ParseEncoding(encodingString)
-	if err != nil {
-		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. error parsing encoding: %w", filename, err)
-	}
-
-	// fifth is dataEncoding
-	dataEncoding := ""
-	if len(splits) == 5 {
-		dataEncoding = splits[4]
-	}
-
-	return id, tenant, version, encoding, dataEncoding, nil
-}
-
 func (w *WAL) GetFilepath() string {
 	return w.c.Filepath
 }

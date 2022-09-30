@@ -31,7 +31,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v0", backend.EncNone, ""),
 				filepath: "/blerg",
 			},
-			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000:foo",
+			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000+foo",
 		},
 		{
 			name: "ez-mode",
@@ -39,7 +39,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v1", backend.EncNone, ""),
 				filepath: "/blerg",
 			},
-			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000:foo:v1:none",
+			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000+foo+v1+none",
 		},
 		{
 			name: "nopath",
@@ -47,7 +47,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v1", backend.EncNone, ""),
 				filepath: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v1:none",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+v1+none",
 		},
 		{
 			name: "gzip",
@@ -55,7 +55,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncGZIP, ""),
 				filepath: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v2:gzip",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+v2+gzip",
 		},
 		{
 			name: "lz41M",
@@ -63,7 +63,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncLZ4_1M, ""),
 				filepath: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v2:lz4-1M",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+v2+lz4-1M",
 		},
 		{
 			name: "lz4256k",
@@ -71,7 +71,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncLZ4_256k, ""),
 				filepath: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v2:lz4-256k",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+v2+lz4-256k",
 		},
 		{
 			name: "lz4M",
@@ -79,7 +79,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncLZ4_4M, ""),
 				filepath: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v2:lz4",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+v2+lz4",
 		},
 		{
 			name: "lz64k",
@@ -87,7 +87,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncLZ4_64k, ""),
 				filepath: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v2:lz4-64k",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+v2+lz4-64k",
 		},
 		{
 			name: "snappy",
@@ -95,7 +95,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncSnappy, ""),
 				filepath: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+v2+snappy",
 		},
 		{
 			name: "zstd",
@@ -103,7 +103,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncZstd, ""),
 				filepath: "",
 			},
-			expected: "123e4567-e89b-12d3-a456-426614174000:foo:v2:zstd",
+			expected: "123e4567-e89b-12d3-a456-426614174000+foo+v2+zstd",
 		},
 		{
 			name: "data encoding",
@@ -111,7 +111,7 @@ func TestFullFilename(t *testing.T) {
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v1", backend.EncNone, "dataencoding"),
 				filepath: "/blerg",
 			},
-			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000:foo:v1:none:dataencoding",
+			expected: "/blerg/123e4567-e89b-12d3-a456-426614174000+foo+v1+none+dataencoding",
 		},
 	}
 
@@ -191,7 +191,7 @@ func TestPartialBlock(t *testing.T) {
 	}
 
 	// append garbage data
-	v2Block := block.(*v2AppendBlock)
+	v2Block := block
 	garbo := make([]byte, 100)
 	_, err = rand.Read(garbo)
 	require.NoError(t, err)
@@ -237,7 +237,7 @@ func TestParseFilename(t *testing.T) {
 		expectError          bool
 	}{
 		{
-			name:                 "version, enc snappy and dataencoding",
+			name:                 "version, enc snappy and dataencoding (old separator)",
 			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy:dataencoding",
 			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
 			expectTenant:         "foo",
@@ -246,7 +246,7 @@ func TestParseFilename(t *testing.T) {
 			expectedDataEncoding: "dataencoding",
 		},
 		{
-			name:                 "version, enc none and dataencoding",
+			name:                 "version, enc none and dataencoding (old separator)",
 			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:none:dataencoding",
 			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
 			expectTenant:         "foo",
@@ -255,7 +255,7 @@ func TestParseFilename(t *testing.T) {
 			expectedDataEncoding: "dataencoding",
 		},
 		{
-			name:                 "empty dataencoding",
+			name:                 "empty dataencoding (old separator)",
 			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy",
 			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
 			expectTenant:         "foo",
@@ -264,7 +264,7 @@ func TestParseFilename(t *testing.T) {
 			expectedDataEncoding: "",
 		},
 		{
-			name:                 "empty dataencoding with semicolon",
+			name:                 "empty dataencoding with semicolon (old separator)",
 			filename:             "123e4567-e89b-12d3-a456-426614174000:foo:v2:snappy:",
 			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
 			expectTenant:         "foo",
@@ -273,7 +273,7 @@ func TestParseFilename(t *testing.T) {
 			expectedDataEncoding: "",
 		},
 		{
-			name:        "path fails",
+			name:        "path fails (old separator)",
 			filename:    "/blerg/123e4567-e89b-12d3-a456-426614174000:foo",
 			expectError: true,
 		},
@@ -288,28 +288,114 @@ func TestParseFilename(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:        "bad uuid",
+			name:        "bad uuid (old separator)",
 			filename:    "123e4:foo",
 			expectError: true,
 		},
 		{
-			name:        "no tenant",
+			name:        "no tenant (old separator)",
 			filename:    "123e4567-e89b-12d3-a456-426614174000:",
 			expectError: true,
 		},
 		{
-			name:        "no version",
+			name:        "no version (old separator)",
 			filename:    "123e4567-e89b-12d3-a456-426614174000:test::none",
 			expectError: true,
 		},
 		{
-			name:        "wrong splits - 6",
+			name:        "wrong splits - 6 (old separator)",
 			filename:    "123e4567-e89b-12d3-a456-426614174000:test:test:test:test:test",
 			expectError: true,
 		},
 		{
-			name:        "wrong splits - 3",
+			name:        "wrong splits - 3 (old separator)",
 			filename:    "123e4567-e89b-12d3-a456-426614174000:test:test",
+			expectError: true,
+		},
+		{
+			name:        "wrong splits - 1 (old separator)",
+			filename:    "123e4567-e89b-12d3-a456-426614174000",
+			expectError: true,
+		},
+		{
+			name:        "bad encoding (old separator)",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:test:v1:asdf",
+			expectError: true,
+		},
+		{
+			name:        "ez-mode old format (old separator)",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:foo",
+			expectError: true,
+		},
+		{
+			name:        "deprecated version (old separator)",
+			filename:    "123e4567-e89b-12d3-a456-426614174000:foo:v1:snappy",
+			expectError: true,
+		},
+		{
+			name:                 "version, enc snappy and dataencoding",
+			filename:             "123e4567-e89b-12d3-a456-426614174000+foo+v2+snappy+dataencoding",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncSnappy,
+			expectedDataEncoding: "dataencoding",
+		},
+		{
+			name:                 "version, enc none and dataencoding",
+			filename:             "123e4567-e89b-12d3-a456-426614174000+foo+v2+none+dataencoding",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncNone,
+			expectedDataEncoding: "dataencoding",
+		},
+		{
+			name:                 "empty dataencoding",
+			filename:             "123e4567-e89b-12d3-a456-426614174000+foo+v2+snappy",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncSnappy,
+			expectedDataEncoding: "",
+		},
+		{
+			name:                 "empty dataencoding with plus sign",
+			filename:             "123e4567-e89b-12d3-a456-426614174000+foo+v2+snappy+",
+			expectUUID:           uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+			expectTenant:         "foo",
+			expectedVersion:      "v2",
+			expectedEncoding:     backend.EncSnappy,
+			expectedDataEncoding: "",
+		},
+		{
+			name:        "path fails",
+			filename:    "/blerg/123e4567-e89b-12d3-a456-426614174000+foo",
+			expectError: true,
+		},
+		{
+			name:        "bad uuid",
+			filename:    "123e4+foo",
+			expectError: true,
+		},
+		{
+			name:        "no tenant",
+			filename:    "123e4567-e89b-12d3-a456-426614174000+",
+			expectError: true,
+		},
+		{
+			name:        "no version",
+			filename:    "123e4567-e89b-12d3-a456-426614174000+test++none",
+			expectError: true,
+		},
+		{
+			name:        "wrong splits - 6",
+			filename:    "123e4567-e89b-12d3-a456-426614174000+test+test+test+test+test",
+			expectError: true,
+		},
+		{
+			name:        "wrong splits - 3",
+			filename:    "123e4567-e89b-12d3-a456-426614174000+test+test",
 			expectError: true,
 		},
 		{
@@ -319,17 +405,17 @@ func TestParseFilename(t *testing.T) {
 		},
 		{
 			name:        "bad encoding",
-			filename:    "123e4567-e89b-12d3-a456-426614174000:test:v1:asdf",
+			filename:    "123e4567-e89b-12d3-a456-426614174000+test+v1+asdf",
 			expectError: true,
 		},
 		{
 			name:        "ez-mode old format",
-			filename:    "123e4567-e89b-12d3-a456-426614174000:foo",
+			filename:    "123e4567-e89b-12d3-a456-426614174000+foo",
 			expectError: true,
 		},
 		{
 			name:        "deprecated version",
-			filename:    "123e4567-e89b-12d3-a456-426614174000:foo:v1:snappy",
+			filename:    "123e4567-e89b-12d3-a456-426614174000+foo+v1+snappy",
 			expectError: true,
 		},
 	}
