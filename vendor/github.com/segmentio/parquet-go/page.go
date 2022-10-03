@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"runtime"
 
 	"github.com/segmentio/parquet-go/deprecated"
 	"github.com/segmentio/parquet-go/encoding"
 	"github.com/segmentio/parquet-go/internal/bitpack"
+	"github.com/segmentio/parquet-go/internal/debug"
 )
 
 // Page values represent sequences of parquet values. From the Parquet
@@ -129,7 +129,7 @@ func AsyncPages(pages Pages) Pages {
 	// If the pages object gets garbage collected without Close being called,
 	// this finalizer would ensure that the goroutine is stopped and doesn't
 	// leak.
-	runtime.SetFinalizer(p, func(p *asyncPages) { p.Close() })
+	debug.SetFinalizer(p, func(p *asyncPages) { p.Close() })
 	return p
 }
 
