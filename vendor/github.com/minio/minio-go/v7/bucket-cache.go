@@ -127,8 +127,11 @@ func processBucketLocationResponse(resp *http.Response, bucketName string) (buck
 			// succeed if possible based on their policy.
 			switch errResp.Code {
 			case "NotImplemented":
-				if errResp.Server == "AmazonSnowball" {
+				switch errResp.Server {
+				case "AmazonSnowball":
 					return "snowball", nil
+				case "cloudflare":
+					return "us-east-1", nil
 				}
 			case "AuthorizationHeaderMalformed":
 				fallthrough
@@ -181,6 +184,9 @@ func (c *Client) getBucketLocationRequest(ctx context.Context, bucketName string
 	if h, p, err := net.SplitHostPort(targetURL.Host); err == nil {
 		if targetURL.Scheme == "http" && p == "80" || targetURL.Scheme == "https" && p == "443" {
 			targetURL.Host = h
+			if ip := net.ParseIP(h); ip != nil && ip.To16() != nil {
+				targetURL.Host = "[" + h + "]"
+			}
 		}
 	}
 
@@ -188,7 +194,7 @@ func (c *Client) getBucketLocationRequest(ctx context.Context, bucketName string
 
 	var urlStr string
 
-	//only support Aliyun OSS for virtual hosted path,  compatible  Amazon & Google Endpoint
+	// only support Aliyun OSS for virtual hosted path,  compatible  Amazon & Google Endpoint
 	if isVirtualHost && s3utils.IsAliyunOSSEndpoint(targetURL) {
 		urlStr = c.endpointURL.Scheme + "://" + bucketName + "." + targetURL.Host + "/?location"
 	} else {

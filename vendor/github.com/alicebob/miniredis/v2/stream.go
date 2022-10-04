@@ -14,8 +14,9 @@ import (
 
 // a Stream is a list of entries, lowest ID (oldest) first, and all "groups".
 type streamKey struct {
-	entries []StreamEntry
-	groups  map[string]*streamGroup
+	entries         []StreamEntry
+	groups          map[string]*streamGroup
+	lastAllocatedID string
 }
 
 // a StreamEntry is an entry in a stream. The ID is always of the form
@@ -53,14 +54,20 @@ func newStreamKey() *streamKey {
 func (s *streamKey) generateID(now time.Time) string {
 	ts := uint64(now.UnixNano()) / 1_000_000
 
-	lastID := s.lastID()
-
 	next := fmt.Sprintf("%d-%d", ts, 0)
-	if streamCmp(lastID, next) == -1 {
-		return next
+	if s.lastAllocatedID != "" && streamCmp(s.lastAllocatedID, next) >= 0 {
+		last, _ := parseStreamID(s.lastAllocatedID)
+		next = fmt.Sprintf("%d-%d", last[0], last[1]+1)
 	}
-	last, _ := parseStreamID(lastID)
-	return fmt.Sprintf("%d-%d", last[0], last[1]+1)
+
+	lastID := s.lastID()
+	if streamCmp(lastID, next) >= 0 {
+		last, _ := parseStreamID(lastID)
+		next = fmt.Sprintf("%d-%d", last[0], last[1]+1)
+	}
+
+	s.lastAllocatedID = next
+	return next
 }
 
 func (s *streamKey) lastID() string {

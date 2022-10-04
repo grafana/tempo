@@ -29,6 +29,8 @@ import (
 	"github.com/alicebob/miniredis/v2/server"
 )
 
+var DumpMaxLineLen = 60
+
 type hashKey map[string]string
 type listKey []string
 type setKey map[string]struct{}
@@ -341,12 +343,19 @@ func (m *Miniredis) Server() *server.Server {
 }
 
 // Dump returns a text version of the selected DB, usable for debugging.
+//
+// Dump limits the maximum length of each key:value to "DumpMaxLineLen" characters.
+// To increase that, call something like:
+//
+//	    miniredis.DumpMaxLineLen = 1024
+//      mr, _ = miniredis.Run()
+// 		mr.Dump()
 func (m *Miniredis) Dump() string {
 	m.Lock()
 	defer m.Unlock()
 
 	var (
-		maxLen = 60
+		maxLen = DumpMaxLineLen
 		indent = "   "
 		db     = m.db(m.selectedDB)
 		r      = ""
@@ -359,6 +368,7 @@ func (m *Miniredis) Dump() string {
 			return fmt.Sprintf("%q%s", s, suffix)
 		}
 	)
+
 	for _, k := range db.allKeys() {
 		r += fmt.Sprintf("- %s\n", k)
 		t := db.t(k)

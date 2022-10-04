@@ -40,7 +40,7 @@ const (
 	// ReplicationStatusPending indicates replication is pending
 	ReplicationStatusPending ReplicationStatus = "PENDING"
 	// ReplicationStatusComplete indicates replication completed ok
-	ReplicationStatusComplete ReplicationStatus = "COMPLETE"
+	ReplicationStatusComplete ReplicationStatus = "COMPLETED"
 	// ReplicationStatusFailed indicates replication failed
 	ReplicationStatusFailed ReplicationStatus = "FAILED"
 	// ReplicationStatusReplica indicates object is a replica of a source
@@ -84,6 +84,7 @@ type PutObjectOptions struct {
 	PartSize                uint64
 	LegalHold               LegalHoldStatus
 	SendContentMd5          bool
+	DisableContentSha256    bool
 	DisableMultipart        bool
 	Internal                AdvancedPutOptions
 }
@@ -214,15 +215,23 @@ func (a completedParts) Less(i, j int) bool { return a[i].PartNumber < a[j].Part
 //
 // You must have WRITE permissions on a bucket to create an object.
 //
-//  - For size smaller than 128MiB PutObject automatically does a
-//    single atomic Put operation.
-//  - For size larger than 128MiB PutObject automatically does a
-//    multipart Put operation.
+//  - For size smaller than 16MiB PutObject automatically does a
+//    single atomic PUT operation.
+//
+//  - For size larger than 16MiB PutObject automatically does a
+//    multipart upload operation.
+//
 //  - For size input as -1 PutObject does a multipart Put operation
 //    until input stream reaches EOF. Maximum object size that can
 //    be uploaded through this operation will be 5TiB.
+//
+//    WARNING: Passing down '-1' will use memory and these cannot
+//    be reused for best outcomes for PutObject(), pass the size always.
+//
+// NOTE: Upon errors during upload multipart operation is entirely aborted.
 func (c *Client) PutObject(ctx context.Context, bucketName, objectName string, reader io.Reader, objectSize int64,
-	opts PutObjectOptions) (info UploadInfo, err error) {
+	opts PutObjectOptions,
+) (info UploadInfo, err error) {
 	if objectSize < 0 && opts.DisableMultipart {
 		return UploadInfo{}, errors.New("object size must be provided with disable multipart upload")
 	}
@@ -336,7 +345,10 @@ func (c *Client) putObjectMultipartStreamNoLength(ctx context.Context, bucketNam
 
 		// Proceed to upload the part.
 		objPart, uerr := c.uploadPart(ctx, bucketName, objectName, uploadID, rd, partNumber,
-			md5Base64, "", int64(length), opts.ServerSideEncryption)
+			md5Base64, "", int64(length),
+			opts.ServerSideEncryption,
+			!opts.DisableContentSha256,
+		)
 		if uerr != nil {
 			return UploadInfo{}, uerr
 		}

@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/rs/xid"
@@ -431,7 +432,6 @@ func (c *Config) RemoveRule(opts Options) error {
 	}
 	c.Rules = newRules
 	return nil
-
 }
 
 // Rule - a rule for replication configuration.
@@ -719,10 +719,28 @@ type Metrics struct {
 	FailedCount uint64 `json:"failedReplicationCount"`
 }
 
+// ResyncTargetsInfo provides replication target information to resync replicated data.
 type ResyncTargetsInfo struct {
 	Targets []ResyncTarget `json:"target,omitempty"`
 }
+
+// ResyncTarget provides the replica resources and resetID to initiate resync replication.
 type ResyncTarget struct {
-	Arn     string `json:"arn"`
-	ResetID string `json:"resetid"`
+	Arn       string    `json:"arn"`
+	ResetID   string    `json:"resetid"`
+	StartTime time.Time `json:"startTime,omitempty"`
+	EndTime   time.Time `json:"endTime,omitempty"`
+	// Status of resync operation
+	ResyncStatus string `json:"resyncStatus,omitempty"`
+	// Completed size in bytes
+	ReplicatedSize int64 `json:"completedReplicationSize,omitempty"`
+	// Failed size in bytes
+	FailedSize int64 `json:"failedReplicationSize,omitempty"`
+	// Total number of failed operations
+	FailedCount int64 `json:"failedReplicationCount,omitempty"`
+	// Total number of failed operations
+	ReplicatedCount int64 `json:"replicationCount,omitempty"`
+	// Last bucket/object replicated.
+	Bucket string `json:"bucket,omitempty"`
+	Object string `json:"object,omitempty"`
 }

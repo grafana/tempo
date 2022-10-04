@@ -63,8 +63,8 @@ func (c Core) CopyObject(ctx context.Context, sourceBucket, sourceObject, destBu
 // CopyObjectPart - creates a part in a multipart upload by copying (a
 // part of) an existing object.
 func (c Core) CopyObjectPart(ctx context.Context, srcBucket, srcObject, destBucket, destObject string, uploadID string,
-	partID int, startOffset, length int64, metadata map[string]string) (p CompletePart, err error) {
-
+	partID int, startOffset, length int64, metadata map[string]string,
+) (p CompletePart, err error) {
 	return c.copyObjectPartDo(ctx, srcBucket, srcObject, destBucket, destObject, uploadID,
 		partID, startOffset, length, metadata)
 }
@@ -88,7 +88,8 @@ func (c Core) ListMultipartUploads(ctx context.Context, bucket, prefix, keyMarke
 
 // PutObjectPart - Upload an object part.
 func (c Core) PutObjectPart(ctx context.Context, bucket, object, uploadID string, partID int, data io.Reader, size int64, md5Base64, sha256Hex string, sse encrypt.ServerSide) (ObjectPart, error) {
-	return c.uploadPart(ctx, bucket, object, uploadID, data, partID, md5Base64, sha256Hex, size, sse)
+	streamSha256 := true
+	return c.uploadPart(ctx, bucket, object, uploadID, data, partID, md5Base64, sha256Hex, size, sse, streamSha256)
 }
 
 // ListObjectParts - List uploaded parts of an incomplete upload.x
