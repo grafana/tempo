@@ -74,8 +74,8 @@ require (
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/collector v0.57.2
-	go.opentelemetry.io/collector/model v0.46.0
 	go.opentelemetry.io/collector/pdata v0.57.2
+	go.opentelemetry.io/collector/semconv v0.57.2
 	go.opentelemetry.io/otel v1.10.0
 	go.opentelemetry.io/otel/bridge/opencensus v0.31.0
 	go.opentelemetry.io/otel/bridge/opentracing v1.10.0
@@ -235,7 +235,6 @@ require (
 	go.etcd.io/etcd/api/v3 v3.5.4 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.4 // indirect
 	go.etcd.io/etcd/client/v3 v3.5.4 // indirect
-	go.opentelemetry.io/collector/semconv v0.57.2 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.33.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.33.0 // indirect
 	go.opentelemetry.io/otel/exporters/prometheus v0.31.0 // indirect

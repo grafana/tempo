@@ -14,7 +14,7 @@
 
 // Code generated from semantic convention specification. DO NOT EDIT.
 
-package semconv // import "go.opentelemetry.io/collector/model/semconv/v1.5.0"
+package semconv
 
 // Span attributes used by AWS Lambda (in addition to general `faas` attributes).
 const (
@@ -28,6 +28,24 @@ const (
 	// Examples: 'arn:aws:lambda:us-east-1:123456:function:myfunction:myalias'
 	// Note: This may be different from faas.id if an alias is involved.
 	AttributeAWSLambdaInvokedARN = "aws.lambda.invoked_arn"
+)
+
+// This document defines semantic conventions for the OpenTracing Shim
+const (
+	// Parent-child Reference type
+	//
+	// Type: Enum
+	// Required: No
+	// Stability: stable
+	// Note: The causal relationship between a child Span and a parent Span.
+	AttributeOpentracingRefType = "opentracing.ref_type"
+)
+
+const (
+	// The parent Span depends on the child Span in some capacity
+	AttributeOpentracingRefTypeChildOf = "child_of"
+	// The parent Span does not depend in any way on the result of the child Span
+	AttributeOpentracingRefTypeFollowsFrom = "follows_from"
 )
 
 // This document defines the attributes used to perform database client calls.
@@ -63,16 +81,18 @@ const (
 	// Examples: 'org.postgresql.Driver',
 	// 'com.microsoft.sqlserver.jdbc.SQLServerDriver'
 	AttributeDBJDBCDriverClassname = "db.jdbc.driver_classname"
-	// If no tech-specific attribute is defined, this attribute is used to report the
-	// name of the database being accessed. For commands that switch the database,
-	// this should be set to the target database (even if the command fails).
+	// This attribute is used to report the name of the database being accessed. For
+	// commands that switch the database, this should be set to the target database
+	// (even if the command fails).
 	//
 	// Type: string
-	// Required: Required, if applicable and no more-specific attribute is defined.
+	// Required: Required, if applicable.
 	// Stability: stable
 	// Examples: 'customers', 'main'
 	// Note: In some SQL databases, the database name to be used is called
-	// &quot;schema name&quot;.
+	// &quot;schema name&quot;. In case there are multiple layers that could be
+	// considered for database name (e.g. Oracle instance name and schema name), the
+	// database name to be used is the more specific layer (e.g. Oracle schema name).
 	AttributeDBName = "db.name"
 	// The database statement being executed.
 	//
@@ -211,14 +231,6 @@ const (
 
 // Call-level attributes for Cassandra
 const (
-	// The name of the keyspace being accessed. To be used instead of the generic
-	// db.name attribute.
-	//
-	// Type: string
-	// Required: Always
-	// Stability: stable
-	// Examples: 'mykeyspace'
-	AttributeDBCassandraKeyspace = "db.cassandra.keyspace"
 	// The fetch size used for paging, i.e. how many rows will be returned at once.
 	//
 	// Type: int
@@ -233,7 +245,7 @@ const (
 	// Stability: stable
 	AttributeDBCassandraConsistencyLevel = "db.cassandra.consistency_level"
 	// The name of the primary table that the operation is acting upon, including the
-	// schema name (if applicable).
+	// keyspace name (if applicable).
 	//
 	// Type: string
 	// Required: Recommended if available.
@@ -300,18 +312,6 @@ const (
 	AttributeDBCassandraConsistencyLevelLocalSerial = "local_serial"
 )
 
-// Call-level attributes for Apache HBase
-const (
-	// The HBase namespace being accessed. To be used instead of the generic db.name
-	// attribute.
-	//
-	// Type: string
-	// Required: Always
-	// Stability: stable
-	// Examples: 'default'
-	AttributeDBHBaseNamespace = "db.hbase.namespace"
-)
-
 // Call-level attributes for Redis
 const (
 	// The index of the database being accessed as used in the SELECT command,
@@ -335,10 +335,10 @@ const (
 	AttributeDBMongoDBCollection = "db.mongodb.collection"
 )
 
-// Call-level attrbiutes for SQL databases
+// Call-level attributes for SQL databases
 const (
 	// The name of the primary table that the operation is acting upon, including the
-	// schema name (if applicable).
+	// database name (if applicable).
 	//
 	// Type: string
 	// Required: Recommended if available.
@@ -409,15 +409,19 @@ const (
 
 // This semantic convention describes an instance of a function that runs without provisioning or managing of servers (also known as serverless functions or Function as a Service (FaaS)) with spans.
 const (
-	// Type of the trigger on which the function is executed.
+	// Type of the trigger which caused this function execution.
 	//
 	// Type: Enum
-	// Required: On FaaS instances, faas.trigger MUST be set on incoming invocations.
-	// Clients invoking FaaS instances MUST set `faas.trigger` on outgoing
-	// invocations, if it is known to the client. This is, for example, not the case,
-	// when the transport layer is abstracted in a FaaS client framework without
-	// access to its configuration.
+	// Required: No
 	// Stability: stable
+	// Note: For the server/consumer span on the incoming side,
+	// faas.trigger MUST be set.Clients invoking FaaS instances usually cannot set
+	// faas.trigger,
+	// since they would typically need to look in the payload to determine
+	// the event type. If clients set it, it should be the same as the
+	// trigger that corresponding incoming would have (i.e., this has
+	// nothing to do with the underlying transport used to make the API
+	// call to invoke the lambda, which is often HTTP).
 	AttributeFaaSTrigger = "faas.trigger"
 	// The execution ID of the current function execution.
 	//
@@ -551,12 +555,16 @@ const (
 )
 
 const (
+	// Alibaba Cloud
+	AttributeFaaSInvokedProviderAlibabaCloud = "alibaba_cloud"
 	// Amazon Web Services
 	AttributeFaaSInvokedProviderAWS = "aws"
 	// Microsoft Azure
 	AttributeFaaSInvokedProviderAzure = "azure"
 	// Google Cloud Platform
 	AttributeFaaSInvokedProviderGCP = "gcp"
+	// Tencent Cloud
+	AttributeFaaSInvokedProviderTencentCloud = "tencent_cloud"
 )
 
 // These attributes may be used for any network related operation.
@@ -609,6 +617,51 @@ const (
 	// Stability: stable
 	// Examples: 'localhost'
 	AttributeNetHostName = "net.host.name"
+	// The internet connection type currently being used by the host.
+	//
+	// Type: Enum
+	// Required: No
+	// Stability: stable
+	// Examples: 'wifi'
+	AttributeNetHostConnectionType = "net.host.connection.type"
+	// This describes more details regarding the connection.type. It may be the type
+	// of cell technology connection, but it could be used for describing details
+	// about a wifi connection.
+	//
+	// Type: Enum
+	// Required: No
+	// Stability: stable
+	// Examples: 'LTE'
+	AttributeNetHostConnectionSubtype = "net.host.connection.subtype"
+	// The name of the mobile carrier.
+	//
+	// Type: string
+	// Required: No
+	// Stability: stable
+	// Examples: 'sprint'
+	AttributeNetHostCarrierName = "net.host.carrier.name"
+	// The mobile carrier country code.
+	//
+	// Type: string
+	// Required: No
+	// Stability: stable
+	// Examples: '310'
+	AttributeNetHostCarrierMcc = "net.host.carrier.mcc"
+	// The mobile carrier network code.
+	//
+	// Type: string
+	// Required: No
+	// Stability: stable
+	// Examples: '001'
+	AttributeNetHostCarrierMnc = "net.host.carrier.mnc"
+	// The ISO 3166-1 alpha-2 2-character country code associated with the mobile
+	// carrier network.
+	//
+	// Type: string
+	// Required: No
+	// Stability: stable
+	// Examples: 'DE'
+	AttributeNetHostCarrierIcc = "net.host.carrier.icc"
 )
 
 const (
@@ -626,6 +679,64 @@ const (
 	AttributeNetTransportInProc = "inproc"
 	// Something else (non IP-based)
 	AttributeNetTransportOther = "other"
+)
+
+const (
+	// wifi
+	AttributeNetHostConnectionTypeWifi = "wifi"
+	// wired
+	AttributeNetHostConnectionTypeWired = "wired"
+	// cell
+	AttributeNetHostConnectionTypeCell = "cell"
+	// unavailable
+	AttributeNetHostConnectionTypeUnavailable = "unavailable"
+	// unknown
+	AttributeNetHostConnectionTypeUnknown = "unknown"
+)
+
+const (
+	// GPRS
+	AttributeNetHostConnectionSubtypeGprs = "gprs"
+	// EDGE
+	AttributeNetHostConnectionSubtypeEdge = "edge"
+	// UMTS
+	AttributeNetHostConnectionSubtypeUmts = "umts"
+	// CDMA
+	AttributeNetHostConnectionSubtypeCdma = "cdma"
+	// EVDO Rel. 0
+	AttributeNetHostConnectionSubtypeEvdo0 = "evdo_0"
+	// EVDO Rev. A
+	AttributeNetHostConnectionSubtypeEvdoA = "evdo_a"
+	// CDMA2000 1XRTT
+	AttributeNetHostConnectionSubtypeCdma20001xrtt = "cdma2000_1xrtt"
+	// HSDPA
+	AttributeNetHostConnectionSubtypeHsdpa = "hsdpa"
+	// HSUPA
+	AttributeNetHostConnectionSubtypeHsupa = "hsupa"
+	// HSPA
+	AttributeNetHostConnectionSubtypeHspa = "hspa"
+	// IDEN
+	AttributeNetHostConnectionSubtypeIden = "iden"
+	// EVDO Rev. B
+	AttributeNetHostConnectionSubtypeEvdoB = "evdo_b"
+	// LTE
+	AttributeNetHostConnectionSubtypeLte = "lte"
+	// EHRPD
+	AttributeNetHostConnectionSubtypeEhrpd = "ehrpd"
+	// HSPAP
+	AttributeNetHostConnectionSubtypeHspap = "hspap"
+	// GSM
+	AttributeNetHostConnectionSubtypeGsm = "gsm"
+	// TD-SCDMA
+	AttributeNetHostConnectionSubtypeTdScdma = "td_scdma"
+	// IWLAN
+	AttributeNetHostConnectionSubtypeIwlan = "iwlan"
+	// 5G NR (New Radio)
+	AttributeNetHostConnectionSubtypeNr = "nr"
+	// 5G NRNSA (New Radio Non-Standalone)
+	AttributeNetHostConnectionSubtypeNrnsa = "nrnsa"
+	// LTE CA
+	AttributeNetHostConnectionSubtypeLteCa = "lte_ca"
 )
 
 // Operations that access some remote service.
@@ -753,13 +864,17 @@ const (
 	// Stability: stable
 	// Examples: '/path/12314/?q=ddds#123'
 	AttributeHTTPTarget = "http.target"
-	// The value of the HTTP host header. When the header is empty or not present,
-	// this attribute should be the same.
+	// The value of the HTTP host header. An empty Host header should also be
+	// reported, see note.
 	//
 	// Type: string
 	// Required: No
 	// Stability: stable
 	// Examples: 'www.example.org'
+	// Note: When the header is present but empty the attribute SHOULD be set to the
+	// empty string. Note that this is a valid situation that is expected in certain
+	// cases, according the aforementioned section of RFC 7230. When the header is not
+	// set the attribute MUST NOT be set.
 	AttributeHTTPHost = "http.host"
 	// The URI scheme identifying the used protocol.
 	//
@@ -870,8 +985,16 @@ const (
 	// Required: No
 	// Stability: stable
 	// Examples: '83.164.160.102'
-	// Note: This is not necessarily the same as net.peer.ip, which would identify the
-	// network-level peer, which may be a proxy.
+	// Note: This is not necessarily the same as net.peer.ip, which would
+	// identify the network-level peer, which may be a proxy.This attribute should be
+	// set when a source of information different
+	// from the one used for net.peer.ip, is available even if that other
+	// source just confirms the same value as net.peer.ip.
+	// Rationale: For net.peer.ip, one typically does not know if it
+	// comes from a proxy, reverse proxy, or the actual client. Setting
+	// http.client_ip when it's the same as net.peer.ip means that
+	// one is at least somewhat confident that the address is not that of
+	// the closest proxy.
 	AttributeHTTPClientIP = "http.client_ip"
 )
 
@@ -1082,7 +1205,7 @@ const (
 	// Type: string
 	// Required: Always
 	// Stability: stable
-	// Examples: 'kafka', 'rabbitmq', 'activemq', 'AmazonSQS'
+	// Examples: 'kafka', 'rabbitmq', 'rocketmq', 'activemq', 'AmazonSQS'
 	AttributeMessagingSystem = "messaging.system"
 	// The message destination name. This might be equal to the span name but is
 	// required nevertheless.
@@ -1179,6 +1302,16 @@ const (
 	// Required: No
 	// Stability: stable
 	AttributeMessagingOperation = "messaging.operation"
+	// The identifier for the consumer receiving a message. For Kafka, set it to
+	// {messaging.kafka.consumer_group} - {messaging.kafka.client_id}, if both are
+	// present, or only messaging.kafka.consumer_group. For brokers, such as RabbitMQ
+	// and Artemis, set it to the client_id of the client consuming the message.
+	//
+	// Type: string
+	// Required: No
+	// Stability: stable
+	// Examples: 'mygroup - client-6'
+	AttributeMessagingConsumerID = "messaging.consumer_id"
 )
 
 const (
@@ -1241,6 +1374,77 @@ const (
 	// Required: If missing, it is assumed to be false.
 	// Stability: stable
 	AttributeMessagingKafkaTombstone = "messaging.kafka.tombstone"
+)
+
+// Attributes for Apache RocketMQ
+const (
+	// Namespace of RocketMQ resources, resources in different namespaces are
+	// individual.
+	//
+	// Type: string
+	// Required: Always
+	// Stability: stable
+	// Examples: 'myNamespace'
+	AttributeMessagingRocketmqNamespace = "messaging.rocketmq.namespace"
+	// Name of the RocketMQ producer/consumer group that is handling the message. The
+	// client type is identified by the SpanKind.
+	//
+	// Type: string
+	// Required: Always
+	// Stability: stable
+	// Examples: 'myConsumerGroup'
+	AttributeMessagingRocketmqClientGroup = "messaging.rocketmq.client_group"
+	// The unique identifier for each client.
+	//
+	// Type: string
+	// Required: Always
+	// Stability: stable
+	// Examples: 'myhost@8742@s8083jm'
+	AttributeMessagingRocketmqClientID = "messaging.rocketmq.client_id"
+	// Type of message.
+	//
+	// Type: Enum
+	// Required: No
+	// Stability: stable
+	AttributeMessagingRocketmqMessageType = "messaging.rocketmq.message_type"
+	// The secondary classifier of message besides topic.
+	//
+	// Type: string
+	// Required: No
+	// Stability: stable
+	// Examples: 'tagA'
+	AttributeMessagingRocketmqMessageTag = "messaging.rocketmq.message_tag"
+	// Key(s) of message, another way to mark message besides message id.
+	//
+	// Type: string[]
+	// Required: No
+	// Stability: stable
+	// Examples: 'keyA', 'keyB'
+	AttributeMessagingRocketmqMessageKeys = "messaging.rocketmq.message_keys"
+	// Model of message consumption. This only applies to consumer spans.
+	//
+	// Type: Enum
+	// Required: No
+	// Stability: stable
+	AttributeMessagingRocketmqConsumptionModel = "messaging.rocketmq.consumption_model"
+)
+
+const (
+	// Normal message
+	AttributeMessagingRocketmqMessageTypeNormal = "normal"
+	// FIFO message
+	AttributeMessagingRocketmqMessageTypeFifo = "fifo"
+	// Delay message
+	AttributeMessagingRocketmqMessageTypeDelay = "delay"
+	// Transaction message
+	AttributeMessagingRocketmqMessageTypeTransaction = "transaction"
+)
+
+const (
+	// Clustering consumption model
+	AttributeMessagingRocketmqConsumptionModelClustering = "clustering"
+	// Broadcasting consumption model
+	AttributeMessagingRocketmqConsumptionModelBroadcasting = "broadcasting"
 )
 
 // This document defines semantic conventions for remote procedure calls.
@@ -1364,9 +1568,48 @@ const (
 	AttributeRPCJsonrpcErrorMessage = "rpc.jsonrpc.error_message"
 )
 
+// RPC received/sent message.
+const (
+	// Whether this is a received or sent message.
+	//
+	// Type: Enum
+	// Required: No
+	// Stability: stable
+	AttributeMessageType = "message.type"
+	// MUST be calculated as two different counters starting from 1 one for sent
+	// messages and one for received message.
+	//
+	// Type: int
+	// Required: No
+	// Stability: stable
+	// Note: This way we guarantee that the values will be consistent between
+	// different implementations.
+	AttributeMessageID = "message.id"
+	// Compressed size of the message in bytes.
+	//
+	// Type: int
+	// Required: No
+	// Stability: stable
+	AttributeMessageCompressedSize = "message.compressed_size"
+	// Uncompressed size of the message in bytes.
+	//
+	// Type: int
+	// Required: No
+	// Stability: stable
+	AttributeMessageUncompressedSize = "message.uncompressed_size"
+)
+
+const (
+	// sent
+	AttributeMessageTypeSent = "SENT"
+	// received
+	AttributeMessageTypeReceived = "RECEIVED"
+)
+
 func GetTraceSemanticConventionAttributeNames() []string {
 	return []string{
 		AttributeAWSLambdaInvokedARN,
+		AttributeOpentracingRefType,
 		AttributeDBSystem,
 		AttributeDBConnectionString,
 		AttributeDBUser,
@@ -1375,7 +1618,6 @@ func GetTraceSemanticConventionAttributeNames() []string {
 		AttributeDBStatement,
 		AttributeDBOperation,
 		AttributeDBMSSQLInstanceName,
-		AttributeDBCassandraKeyspace,
 		AttributeDBCassandraPageSize,
 		AttributeDBCassandraConsistencyLevel,
 		AttributeDBCassandraTable,
@@ -1383,7 +1625,6 @@ func GetTraceSemanticConventionAttributeNames() []string {
 		AttributeDBCassandraSpeculativeExecutionCount,
 		AttributeDBCassandraCoordinatorID,
 		AttributeDBCassandraCoordinatorDC,
-		AttributeDBHBaseNamespace,
 		AttributeDBRedisDBIndex,
 		AttributeDBMongoDBCollection,
 		AttributeDBSQLTable,
@@ -1410,6 +1651,12 @@ func GetTraceSemanticConventionAttributeNames() []string {
 		AttributeNetHostIP,
 		AttributeNetHostPort,
 		AttributeNetHostName,
+		AttributeNetHostConnectionType,
+		AttributeNetHostConnectionSubtype,
+		AttributeNetHostCarrierName,
+		AttributeNetHostCarrierMcc,
+		AttributeNetHostCarrierMnc,
+		AttributeNetHostCarrierIcc,
 		AttributePeerService,
 		AttributeEnduserID,
 		AttributeEnduserRole,
@@ -1469,12 +1716,20 @@ func GetTraceSemanticConventionAttributeNames() []string {
 		AttributeMessagingMessagePayloadSizeBytes,
 		AttributeMessagingMessagePayloadCompressedSizeBytes,
 		AttributeMessagingOperation,
+		AttributeMessagingConsumerID,
 		AttributeMessagingRabbitmqRoutingKey,
 		AttributeMessagingKafkaMessageKey,
 		AttributeMessagingKafkaConsumerGroup,
 		AttributeMessagingKafkaClientID,
 		AttributeMessagingKafkaPartition,
 		AttributeMessagingKafkaTombstone,
+		AttributeMessagingRocketmqNamespace,
+		AttributeMessagingRocketmqClientGroup,
+		AttributeMessagingRocketmqClientID,
+		AttributeMessagingRocketmqMessageType,
+		AttributeMessagingRocketmqMessageTag,
+		AttributeMessagingRocketmqMessageKeys,
+		AttributeMessagingRocketmqConsumptionModel,
 		AttributeRPCSystem,
 		AttributeRPCService,
 		AttributeRPCMethod,
@@ -1483,5 +1738,9 @@ func GetTraceSemanticConventionAttributeNames() []string {
 		AttributeRPCJsonrpcRequestID,
 		AttributeRPCJsonrpcErrorCode,
 		AttributeRPCJsonrpcErrorMessage,
+		AttributeMessageType,
+		AttributeMessageID,
+		AttributeMessageCompressedSize,
+		AttributeMessageUncompressedSize,
 	}
 }
