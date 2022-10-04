@@ -1,10 +1,9 @@
 package util
 
 import (
-	semconv "go.opentelemetry.io/collector/model/semconv/v1.5.0"
-
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
+	semconv "go.opentelemetry.io/collector/semconv/v1.9.0"
 )
 
 func FindServiceName(attributes []*v1_common.KeyValue) (string, bool) {
