@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/weaveworks/common/user"
+	"go.opentelemetry.io/collector/client"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -56,8 +57,15 @@ func (m *multiTenancyMiddleware) Wrap(next consumer.Traces) consumer.Traces {
 		var err error
 		_, ctx, err = user.ExtractFromGRPCRequest(ctx)
 		if err != nil {
-			log.Logger.Log("msg", "failed to extract org id", "err", err)
-			return err
+			// Maybe its a HTTP request.
+			info := client.FromContext(ctx)
+			orgIDs := info.Metadata.Get(user.OrgIDHeaderName)
+			if len(orgIDs) != 1 {
+				log.Logger.Log("msg", "failed to extract org id", "err", err)
+				return err
+			}
+
+			ctx = user.InjectOrgID(ctx, orgIDs[0])
 		}
 		return next.ConsumeTraces(ctx, td)
 	})
