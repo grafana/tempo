@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
-	"github.com/golang/protobuf/jsonpb" //nolint:all
-	"github.com/golang/protobuf/proto"  //nolint:all
-
+	"github.com/gogo/protobuf/jsonpb"  //nolint:all
+	"github.com/golang/protobuf/proto" //nolint:all
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/klauspost/compress/gzhttp"
 )
@@ -18,6 +18,10 @@ const (
 	orgIDHeader = "X-Scope-OrgID"
 
 	QueryTraceEndpoint = "/api/traces"
+
+	AcceptHeader        = "Accept"
+	ApplicationProtobuf = "application/protobuf"
+	ApplicationJSON     = "application/json"
 )
 
 // Client is client to the Tempo API.
@@ -59,6 +63,17 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 		req.Header.Set(orgIDHeader, c.OrgID)
 	}
 
+	marshallingFormat := ApplicationJSON
+	if strings.Contains(url, QueryTraceEndpoint) {
+		marshallingFormat = ApplicationProtobuf
+	}
+	req.Header.Set(AcceptHeader, marshallingFormat)
+
+	// // Set 'Accept' header to 'application/protobuf'.
+	// // This is required for the /api/traces endpoint to return a protobuf response.
+	// // JSON lost backwards compatibility with the upgrade to `opentelemetry-proto` v0.18.0.
+	// req.Header.Set("Accept", "application/protobuf")
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error searching tempo for tag %v", err)
@@ -72,11 +87,22 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 		return resp, fmt.Errorf("GET request to %s failed with response: %d body: %s", req.URL.String(), resp.StatusCode, string(body))
 	}
 
-	unmarshaller := &jsonpb.Unmarshaler{}
-	err = unmarshaller.Unmarshal(resp.Body, m)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		body, _ := io.ReadAll(resp.Body)
-		return resp, fmt.Errorf("error decoding %T json, err: %v  body: %s", m, err, string(body))
+		return nil, fmt.Errorf("error reading response body: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	switch marshallingFormat {
+	case ApplicationJSON:
+		if err = jsonpb.UnmarshalString(string(body), m); err != nil {
+			return resp, fmt.Errorf("error decoding %T json, err: %v body: %s", m, err, string(body))
+		}
+	case ApplicationProtobuf:
+
+		if err = proto.Unmarshal(body, m); err != nil {
+			return nil, fmt.Errorf("error decoding %T proto, err: %w body: %s", m, err, string(body))
+		}
 	}
 
 	return resp, nil
