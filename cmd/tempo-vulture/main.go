@@ -430,8 +430,8 @@ func hasMissingSpans(t *tempopb.Trace) bool {
 	linkedSpanIDs := make([][]byte, 0)
 
 	for _, b := range t.Batches {
-		for _, ils := range b.InstrumentationLibrarySpans {
-			for _, s := range ils.Spans {
+		for _, ss := range b.ScopeSpans {
+			for _, s := range ss.Spans {
 				if len(s.ParentSpanId) > 0 {
 					linkedSpanIDs = append(linkedSpanIDs, s.ParentSpanId)
 				}
@@ -444,8 +444,8 @@ func hasMissingSpans(t *tempopb.Trace) bool {
 
 	B:
 		for _, b := range t.Batches {
-			for _, ils := range b.InstrumentationLibrarySpans {
-				for _, s := range ils.Spans {
+			for _, ss := range b.ScopeSpans {
+				for _, s := range ss.Spans {
 					if bytes.Equal(s.SpanId, id) {
 						found = true
 						break B

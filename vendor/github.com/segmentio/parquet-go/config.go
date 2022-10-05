@@ -2,13 +2,14 @@ package parquet
 
 import (
 	"fmt"
+	"runtime/debug"
 	"strings"
+	"sync"
 
 	"github.com/segmentio/parquet-go/compress"
 )
 
 const (
-	DefaultCreatedBy            = "github.com/segmentio/parquet-go"
 	DefaultColumnIndexSizeLimit = 16
 	DefaultColumnBufferCapacity = 16 * 1024
 	DefaultPageBufferSize       = 256 * 1024
@@ -18,6 +19,54 @@ const (
 	DefaultSkipPageIndex        = false
 	DefaultSkipBloomFilters     = false
 )
+
+const (
+	parquetGoModulePath = "github.com/segmentio/parquet-go"
+)
+
+var (
+	defaultCreatedByInfo string
+	defaultCreatedByOnce sync.Once
+)
+
+func defaultCreatedBy() string {
+	defaultCreatedByOnce.Do(func() {
+		createdBy := parquetGoModulePath
+		build, ok := debug.ReadBuildInfo()
+		if ok {
+			for _, mod := range build.Deps {
+				if mod.Replace == nil && mod.Path == parquetGoModulePath {
+					semver, _, buildsha := parseModuleVersion(mod.Version)
+					createdBy = formatCreatedBy(createdBy, semver, buildsha)
+					break
+				}
+			}
+		}
+		defaultCreatedByInfo = createdBy
+	})
+	return defaultCreatedByInfo
+}
+
+func parseModuleVersion(version string) (semver, datetime, buildsha string) {
+	semver, version = splitModuleVersion(version)
+	datetime, version = splitModuleVersion(version)
+	buildsha, _ = splitModuleVersion(version)
+	semver = strings.TrimPrefix(semver, "v")
+	return
+}
+
+func splitModuleVersion(s string) (head, tail string) {
+	if i := strings.IndexByte(s, '-'); i < 0 {
+		head = s
+	} else {
+		head, tail = s[:i], s[i+1:]
+	}
+	return
+}
+
+func formatCreatedBy(application, version, build string) string {
+	return application + " version " + version + "(build " + build + ")"
+}
 
 // The FileConfig type carries configuration options for parquet files.
 //
@@ -150,7 +199,7 @@ type WriterConfig struct {
 // default writer configuration.
 func DefaultWriterConfig() *WriterConfig {
 	return &WriterConfig{
-		CreatedBy:            DefaultCreatedBy,
+		CreatedBy:            defaultCreatedBy(),
 		ColumnPageBuffers:    &defaultPageBufferPool,
 		ColumnIndexSizeLimit: DefaultColumnIndexSizeLimit,
 		PageBufferSize:       DefaultPageBufferSize,
@@ -351,8 +400,15 @@ func WriteBufferSize(size int) WriterOption {
 // CreatedBy creates a configuration option which sets the name of the
 // application that created a parquet file.
 //
-// By default, this information is omitted.
-func CreatedBy(createdBy string) WriterOption {
+// The option formats the "CreatedBy" file metadata according to the convention
+// described by the parquet spec:
+//
+//	"<application> version <version> (build <build>)"
+//
+// By default, the option is set to the parquet-go module name, version, and
+// build hash.
+func CreatedBy(application, version, build string) WriterOption {
+	createdBy := formatCreatedBy(application, version, build)
 	return writerOption(func(config *WriterConfig) { config.CreatedBy = createdBy })
 }
 

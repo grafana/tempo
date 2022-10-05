@@ -3,7 +3,8 @@ package parquet
 import (
 	"fmt"
 	"io"
-	"runtime"
+
+	"github.com/segmentio/parquet-go/internal/debug"
 )
 
 // RowGroup is an interface representing a parquet row group. From the Parquet
@@ -294,7 +295,7 @@ func (r *rowGroupRows) init() {
 	// This finalizer is used to ensure that the goroutines started by calling
 	// init on the underlying page readers will be shutdown in the event that
 	// Close isn't called and the rowGroupRows object is garbage collected.
-	runtime.SetFinalizer(r, func(r *rowGroupRows) { r.Close() })
+	debug.SetFinalizer(r, func(r *rowGroupRows) { r.Close() })
 }
 
 func (r *rowGroupRows) clear() {

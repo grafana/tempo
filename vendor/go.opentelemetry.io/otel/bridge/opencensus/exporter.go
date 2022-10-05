@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"go.opencensus.io/metric/metricdata"
 	"go.opencensus.io/metric/metricexport"
@@ -26,20 +27,20 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/number"
-	"go.opentelemetry.io/otel/metric/sdkapi"
+	"go.opentelemetry.io/otel/metric/instrument"
 	"go.opentelemetry.io/otel/metric/unit"
-	export "go.opentelemetry.io/otel/sdk/export/metric"
-	"go.opentelemetry.io/otel/sdk/export/metric/aggregation"
 	"go.opentelemetry.io/otel/sdk/instrumentation"
+	"go.opentelemetry.io/otel/sdk/metric/export"
+	"go.opentelemetry.io/otel/sdk/metric/export/aggregation"
+	"go.opentelemetry.io/otel/sdk/metric/number"
+	"go.opentelemetry.io/otel/sdk/metric/sdkapi"
 	"go.opentelemetry.io/otel/sdk/resource"
 )
 
-var errConversion = errors.New("Unable to convert from OpenCensus to OpenTelemetry")
+var errConversion = errors.New("unable to convert from OpenCensus to OpenTelemetry")
 
 // NewMetricExporter returns an OpenCensus exporter that exports to an
-// OpenTelemetry exporter
+// OpenTelemetry exporter.
 func NewMetricExporter(base export.Exporter) metricexport.Exporter {
 	return &exporter{base: base}
 }
@@ -50,7 +51,7 @@ type exporter struct {
 	base export.Exporter
 }
 
-// ExportMetrics implements the OpenCensus metric Exporter interface
+// ExportMetrics implements the OpenCensus metric Exporter interface.
 func (e *exporter) ExportMetrics(ctx context.Context, metrics []*metricdata.Metric) error {
 	res := resource.Empty()
 	if len(metrics) != 0 {
@@ -90,23 +91,23 @@ func (d *metricReader) ForEach(_ aggregation.TemporalitySelector, f func(export.
 			if len(ts.Points) == 0 {
 				continue
 			}
-			ls, err := convertLabels(m.Descriptor.LabelKeys, ts.LabelValues)
+			attrs, err := convertAttrs(m.Descriptor.LabelKeys, ts.LabelValues)
 			if err != nil {
 				otel.Handle(err)
 				continue
 			}
-			agg, err := newAggregationFromPoints(ts.Points)
-			if err != nil {
-				otel.Handle(err)
-				continue
-			}
-			if err := f(export.NewRecord(
-				&descriptor,
-				&ls,
-				agg,
-				ts.StartTime,
-				agg.end(),
-			)); err != nil && !errors.Is(err, aggregation.ErrNoData) {
+			err = recordAggregationsFromPoints(
+				ts.Points,
+				func(agg aggregation.Aggregation, end time.Time) error {
+					return f(export.NewRecord(
+						&descriptor,
+						&attrs,
+						agg,
+						ts.StartTime,
+						end,
+					))
+				})
+			if err != nil && !errors.Is(err, aggregation.ErrNoData) {
 				return err
 			}
 		}
@@ -114,39 +115,39 @@ func (d *metricReader) ForEach(_ aggregation.TemporalitySelector, f func(export.
 	return nil
 }
 
-// convertLabels converts from OpenCensus label keys and values to an
-// OpenTelemetry label Set.
-func convertLabels(keys []metricdata.LabelKey, values []metricdata.LabelValue) (attribute.Set, error) {
+// convertAttrs converts from OpenCensus attribute keys and values to an
+// OpenTelemetry attribute Set.
+func convertAttrs(keys []metricdata.LabelKey, values []metricdata.LabelValue) (attribute.Set, error) {
 	if len(keys) != len(values) {
 		return attribute.NewSet(), fmt.Errorf("%w different number of label keys (%d) and values (%d)", errConversion, len(keys), len(values))
 	}
-	labels := []attribute.KeyValue{}
+	attrs := []attribute.KeyValue{}
 	for i, lv := range values {
 		if !lv.Present {
 			continue
 		}
-		labels = append(labels, attribute.KeyValue{
+		attrs = append(attrs, attribute.KeyValue{
 			Key:   attribute.Key(keys[i].Key),
 			Value: attribute.StringValue(lv.Value),
 		})
 	}
-	return attribute.NewSet(labels...), nil
+	return attribute.NewSet(attrs...), nil
 }
 
 // convertResource converts an OpenCensus Resource to an OpenTelemetry Resource
 // Note: the ocresource.Resource Type field is not used.
 func convertResource(res *ocresource.Resource) *resource.Resource {
-	labels := []attribute.KeyValue{}
+	attrs := []attribute.KeyValue{}
 	if res == nil {
 		return nil
 	}
 	for k, v := range res.Labels {
-		labels = append(labels, attribute.KeyValue{Key: attribute.Key(k), Value: attribute.StringValue(v)})
+		attrs = append(attrs, attribute.KeyValue{Key: attribute.Key(k), Value: attribute.StringValue(v)})
 	}
-	return resource.NewSchemaless(labels...)
+	return resource.NewSchemaless(attrs...)
 }
 
-// convertDescriptor converts an OpenCensus Descriptor to an OpenTelemetry Descriptor
+// convertDescriptor converts an OpenCensus Descriptor to an OpenTelemetry Descriptor.
 func convertDescriptor(ocDescriptor metricdata.Descriptor) (sdkapi.Descriptor, error) {
 	var (
 		nkind number.Kind
@@ -169,17 +170,17 @@ func convertDescriptor(ocDescriptor metricdata.Descriptor) (sdkapi.Descriptor, e
 		// Includes TypeGaugeDistribution, TypeCumulativeDistribution, TypeSummary
 		return sdkapi.Descriptor{}, fmt.Errorf("%w; descriptor type: %v", errConversion, ocDescriptor.Type)
 	}
-	opts := []metric.InstrumentOption{
-		metric.WithDescription(ocDescriptor.Description),
+	opts := []instrument.Option{
+		instrument.WithDescription(ocDescriptor.Description),
 	}
 	switch ocDescriptor.Unit {
 	case metricdata.UnitDimensionless:
-		opts = append(opts, metric.WithUnit(unit.Dimensionless))
+		opts = append(opts, instrument.WithUnit(unit.Dimensionless))
 	case metricdata.UnitBytes:
-		opts = append(opts, metric.WithUnit(unit.Bytes))
+		opts = append(opts, instrument.WithUnit(unit.Bytes))
 	case metricdata.UnitMilliseconds:
-		opts = append(opts, metric.WithUnit(unit.Milliseconds))
+		opts = append(opts, instrument.WithUnit(unit.Milliseconds))
 	}
-	cfg := metric.NewInstrumentConfig(opts...)
+	cfg := instrument.NewConfig(opts...)
 	return sdkapi.NewDescriptor(ocDescriptor.Name, ikind, nkind, cfg.Description(), cfg.Unit()), nil
 }

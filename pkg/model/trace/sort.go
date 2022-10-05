@@ -12,13 +12,13 @@ import (
 func SortTrace(t *tempopb.Trace) {
 	// Sort bottom up by span start times
 	for _, b := range t.Batches {
-		for _, ils := range b.InstrumentationLibrarySpans {
+		for _, ils := range b.ScopeSpans {
 			sort.Slice(ils.Spans, func(i, j int) bool {
 				return compareSpans(ils.Spans[i], ils.Spans[j])
 			})
 		}
-		sort.Slice(b.InstrumentationLibrarySpans, func(i, j int) bool {
-			return compareIls(b.InstrumentationLibrarySpans[i], b.InstrumentationLibrarySpans[j])
+		sort.Slice(b.ScopeSpans, func(i, j int) bool {
+			return compareIls(b.ScopeSpans[i], b.ScopeSpans[j])
 		})
 	}
 	sort.Slice(t.Batches, func(i, j int) bool {
@@ -27,13 +27,13 @@ func SortTrace(t *tempopb.Trace) {
 }
 
 func compareBatches(a *v1.ResourceSpans, b *v1.ResourceSpans) bool {
-	if len(a.InstrumentationLibrarySpans) > 0 && len(b.InstrumentationLibrarySpans) > 0 {
-		return compareIls(a.InstrumentationLibrarySpans[0], b.InstrumentationLibrarySpans[0])
+	if len(a.ScopeSpans) > 0 && len(b.ScopeSpans) > 0 {
+		return compareIls(a.ScopeSpans[0], b.ScopeSpans[0])
 	}
 	return false
 }
 
-func compareIls(a *v1.InstrumentationLibrarySpans, b *v1.InstrumentationLibrarySpans) bool {
+func compareIls(a *v1.ScopeSpans, b *v1.ScopeSpans) bool {
 	if len(a.Spans) > 0 && len(b.Spans) > 0 {
 		return compareSpans(a.Spans[0], b.Spans[0])
 	}

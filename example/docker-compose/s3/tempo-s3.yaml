@@ -1,3 +1,6 @@
+search_enabled: true
+metrics_generator_enabled: true
+
 server:
   http_listen_port: 3200
 
@@ -29,6 +32,17 @@ compactor:
     compacted_block_retention: 10m
     flush_size_bytes: 5242880
 
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: docker-compose
+  storage:
+    path: /tmp/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+
 storage:
   trace:
     backend: s3                        # backend configuration to use
@@ -51,3 +65,6 @@ storage:
     pool:
       max_workers: 100                 # worker pool determines the number of parallel requests to the object store backend
       queue_depth: 10000
+
+overrides:
+  metrics_generator_processors: [service-graphs, span-metrics]

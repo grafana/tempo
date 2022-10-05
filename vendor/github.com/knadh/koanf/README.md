@@ -6,11 +6,13 @@
 
 koanf comes with built in support for reading configuration from files, command line flags, and environment variables, and can parse JSON, YAML, TOML, and Hashicorp HCL.
 
-[![Build Status](https://travis-ci.com/knadh/koanf.svg?branch=master)](https://travis-ci.com/knadh/koanf) [![GoDoc](https://godoc.org/github.com/knadh/koanf?status.svg)](https://godoc.org/github.com/knadh/koanf) 
+[![Run Tests](https://github.com/knadh/koanf/actions/workflows/test.yml/badge.svg)](https://github.com/knadh/koanf/actions/workflows/test.yml) [![GoDoc](https://godoc.org/github.com/knadh/koanf?status.svg)](https://godoc.org/github.com/knadh/koanf) 
 
 ### Installation
 
-`go get -u github.com/knadh/koanf`
+```shell
+go get -u github.com/knadh/koanf
+```
 
 ### Contents
 
@@ -30,8 +32,8 @@ koanf comes with built in support for reading configuration from files, command 
 
 ### Concepts
 
-- `koanf.Provider` is a generic interface that provides configuration, for example, from files, environment variables, HTTP sources, or anywhere. The configuration can either be raw bytes that a parser can parse, or it can be a nested map[string]interface{} that can be directly loaded.
-- `koanf.Parser` is a generic interface that takes raw bytes, parses, and returns a nested map[string]interface{} representation. For example, JSON and YAML parsers.
+- `koanf.Provider` is a generic interface that provides configuration, for example, from files, environment variables, HTTP sources, or anywhere. The configuration can either be raw bytes that a parser can parse, or it can be a nested `map[string]interface{}` that can be directly loaded.
+- `koanf.Parser` is a generic interface that takes raw bytes, parses, and returns a nested `map[string]interface{}` representation. For example, JSON and YAML parsers.
 - Once loaded into koanf, configuration are values queried by a delimited key path syntax. eg: `app.server.port`. Any delimiter can be chosen.
 - Configuration from multiple sources can be loaded and merged into a koanf instance, for example, load from a file first and override certain values with flags from the command line.
 
@@ -73,7 +75,9 @@ func main() {
 ### Watching files for changes
 The `koanf.Provider` interface has a `Watch(cb)` method that asks a provider
 to watch for changes and trigger the given callback that can live reload the
-configuration.
+configuration. This is not goroutine safe if there are concurrent `*Get()`
+calls happening on the koanf object while it is doing a `Load()`. Such
+scenarios will need mutex locking.
 
 Currently, `file.Provider` supports this.
 
@@ -583,7 +587,7 @@ For example: merging JSON and YAML will most likely fail because JSON treats int
 
 ### Custom Providers and Parsers
 
-A Provider can provide a nested map[string]interface{} config that can be loaded into koanf with `koanf.Load()` or raw bytes that can be parsed with a Parser (loaded using `koanf.Load()`.
+A Provider can provide a nested `map[string]interface{}` config that can be loaded into koanf with `koanf.Load()` or raw bytes that can be parsed with a Parser (loaded using `koanf.Load()`.
 
 Writing Providers and Parsers are easy. See the bundled implementations in the `providers` and `parses` directory.
 
@@ -729,4 +733,5 @@ koanf is a lightweight alternative to the popular [spf13/viper](https://github.c
 - Imposes arbitrary ordering conventions (eg: flag -> env -> config etc.)
 - `Get()` returns references to slices and maps. Mutations made outside change the underlying values inside the conf map.
 - Does non-idiomatic things such as [throwing away O(1) on flat maps](https://github.com/spf13/viper/blob/3b4aca75714a37276c4b1883630bd98c02498b73/viper.go#L1524).
+- Viper treats keys that contain an empty map (eg: `my_key: {}`) as if they were not set (ie: `IsSet("my_key") == false`).
 - There are a large number of [open issues](https://github.com/spf13/viper/issues).

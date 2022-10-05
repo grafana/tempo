@@ -215,9 +215,9 @@ func Search(mp map[string]interface{}, path []string) interface{} {
 		if len(path) == 1 {
 			return next
 		}
-		switch next.(type) {
+		switch m := next.(type) {
 		case map[string]interface{}:
-			return Search(next.(map[string]interface{}), path[1:])
+			return Search(m, path[1:])
 		default:
 			return nil
 		} //

@@ -26,7 +26,7 @@ func TestHasMissingSpans(t *testing.T) {
 			&tempopb.Trace{
 				Batches: []*v1.ResourceSpans{
 					{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						ScopeSpans: []*v1.ScopeSpans{
 							{
 								Spans: []*v1.Span{
 									{
@@ -44,7 +44,7 @@ func TestHasMissingSpans(t *testing.T) {
 			&tempopb.Trace{
 				Batches: []*v1.ResourceSpans{
 					{
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						ScopeSpans: []*v1.ScopeSpans{
 							{
 								Spans: []*v1.Span{
 									{

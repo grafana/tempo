@@ -1,3 +1,4 @@
+search_enabled: true
 metrics_generator_enabled: true
 
 server:

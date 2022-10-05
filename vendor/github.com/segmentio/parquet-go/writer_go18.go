@@ -78,6 +78,10 @@ func NewGenericWriter[T any](output io.Writer, options ...WriterOption) *Generic
 		config.Schema = schema
 	}
 
+	if config.Schema == nil {
+		panic("generic writer must be instantiated with schema or concrete type.")
+	}
+
 	return &GenericWriter[T]{
 		base: Writer{
 			output: output,

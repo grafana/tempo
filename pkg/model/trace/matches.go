@@ -49,7 +49,7 @@ func MatchesProto(id []byte, trace *tempopb.Trace, req *tempopb.SearchRequest) (
 			matchAttributes(tagsToFind, b.Resource.Attributes)
 		}
 
-		for _, ils := range b.InstrumentationLibrarySpans {
+		for _, ils := range b.ScopeSpans {
 			for _, s := range ils.Spans {
 				if s.StartTimeUnixNano < traceStart {
 					traceStart = s.StartTimeUnixNano

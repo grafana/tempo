@@ -16,7 +16,7 @@ package zipkinv2 // import "github.com/open-telemetry/opentelemetry-collector-co
 
 import (
 	"github.com/openzipkin/zipkin-go/proto/zipkin_proto3"
-	"go.opentelemetry.io/collector/model/pdata"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 type protobufUnmarshaler struct {
@@ -28,24 +28,24 @@ type protobufUnmarshaler struct {
 }
 
 // UnmarshalTraces from protobuf bytes.
-func (p protobufUnmarshaler) UnmarshalTraces(buf []byte) (pdata.Traces, error) {
+func (p protobufUnmarshaler) UnmarshalTraces(buf []byte) (ptrace.Traces, error) {
 	spans, err := zipkin_proto3.ParseSpans(buf, p.debugWasSet)
 	if err != nil {
-		return pdata.Traces{}, err
+		return ptrace.Traces{}, err
 	}
 	return p.toTranslator.ToTraces(spans)
 }
 
-// NewProtobufTracesUnmarshaler returns an pdata.TracesUnmarshaler of protobuf bytes.
-func NewProtobufTracesUnmarshaler(debugWasSet, parseStringTags bool) pdata.TracesUnmarshaler {
+// NewProtobufTracesUnmarshaler returns an ptrace.Unmarshaler of protobuf bytes.
+func NewProtobufTracesUnmarshaler(debugWasSet, parseStringTags bool) ptrace.Unmarshaler {
 	return protobufUnmarshaler{
 		debugWasSet:  debugWasSet,
 		toTranslator: ToTranslator{ParseStringTags: parseStringTags},
 	}
 }
 
-// NewProtobufTracesMarshaler returns a new pdata.TracesMarshaler to protobuf bytes.
-func NewProtobufTracesMarshaler() pdata.TracesMarshaler {
+// NewProtobufTracesMarshaler returns a new ptrace.Marshaler to protobuf bytes.
+func NewProtobufTracesMarshaler() ptrace.Marshaler {
 	return marshaler{
 		serializer: zipkin_proto3.SpanSerializer{},
 	}

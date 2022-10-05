@@ -70,14 +70,14 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (spanCount in
 		// map from the small starting size.
 		n := 0
 		for _, b := range c.result.Batches {
-			for _, ils := range b.InstrumentationLibrarySpans {
+			for _, ils := range b.ScopeSpans {
 				n += len(ils.Spans)
 			}
 		}
 		c.spans = make(map[token]struct{}, n)
 
 		for _, b := range c.result.Batches {
-			for _, ils := range b.InstrumentationLibrarySpans {
+			for _, ils := range b.ScopeSpans {
 				for _, s := range ils.Spans {
 					c.spans[tokenForID(h, buffer, int32(s.Kind), s.SpanId)] = struct{}{}
 				}
@@ -88,9 +88,9 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (spanCount in
 
 	// loop through every span and copy spans in B that don't exist to A
 	for _, b := range tr.Batches {
-		notFoundILS := b.InstrumentationLibrarySpans[:0]
+		notFoundILS := b.ScopeSpans[:0]
 
-		for _, ils := range b.InstrumentationLibrarySpans {
+		for _, ils := range b.ScopeSpans {
 			notFoundSpans := ils.Spans[:0]
 			for _, s := range ils.Spans {
 				// if not already encountered, then keep
@@ -116,7 +116,7 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (spanCount in
 
 		// if there were some spans not found in A, add everything left in the batch
 		if len(notFoundILS) > 0 {
-			b.InstrumentationLibrarySpans = notFoundILS
+			b.ScopeSpans = notFoundILS
 			c.result.Batches = append(c.result.Batches, b)
 		}
 	}

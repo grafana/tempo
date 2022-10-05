@@ -1,7 +1,7 @@
 server:
-  http_listen_port: 12345
+  log_level: debug
 
-tempo:
+traces:
   configs:
   - name: default
     receivers:

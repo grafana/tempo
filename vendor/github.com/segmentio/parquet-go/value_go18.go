@@ -7,7 +7,7 @@ import (
 	"unsafe"
 )
 
-// This function exists for backward compatiblity with the Go 1.17 build which
+// This function exists for backward compatibility with the Go 1.17 build which
 // has a different implementation.
 //
 // TODO: remove when we drop support for Go versions prior to 1.18.

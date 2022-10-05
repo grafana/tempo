@@ -45,22 +45,22 @@ func MakeBatch(spans int, traceID []byte) *v1_trace.ResourceSpans {
 			},
 		},
 	}
-	var ils *v1_trace.InstrumentationLibrarySpans
+	var ss *v1_trace.ScopeSpans
 
 	for i := 0; i < spans; i++ {
-		// occasionally make a new ils
-		if ils == nil || rand.Int()%3 == 0 {
-			ils = &v1_trace.InstrumentationLibrarySpans{
-				InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+		// occasionally make a new ss
+		if ss == nil || rand.Int()%3 == 0 {
+			ss = &v1_trace.ScopeSpans{
+				Scope: &v1_common.InstrumentationScope{
 					Name:    "super library",
 					Version: "0.0.1",
 				},
 			}
 
-			batch.InstrumentationLibrarySpans = append(batch.InstrumentationLibrarySpans, ils)
+			batch.ScopeSpans = append(batch.ScopeSpans, ss)
 		}
 
-		ils.Spans = append(ils.Spans, MakeSpan(traceID))
+		ss.Spans = append(ss.Spans, MakeSpan(traceID))
 	}
 	return batch
 }

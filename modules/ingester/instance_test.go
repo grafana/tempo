@@ -624,7 +624,7 @@ func makeRequestWithByteLimit(maxBytes int, traceID []byte) *tempopb.PushBytesRe
 	batch := test.MakeBatch(1, traceID)
 
 	for batch.Size() < maxBytes {
-		batch.InstrumentationLibrarySpans[0].Spans = append(batch.InstrumentationLibrarySpans[0].Spans, test.MakeSpan(traceID))
+		batch.ScopeSpans[0].Spans = append(batch.ScopeSpans[0].Spans, test.MakeSpan(traceID))
 	}
 
 	return makePushBytesRequest(traceID, batch)

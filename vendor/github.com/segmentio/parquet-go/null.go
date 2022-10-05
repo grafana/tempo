@@ -97,7 +97,7 @@ func nullIndexFuncOf(t reflect.Type) nullIndexFunc {
 		return nullIndexStruct
 	}
 
-	panic("cannot convert Go values of type " + t.String() + " to parquet value")
+	panic("cannot convert Go values of type " + typeNameOf(t) + " to parquet value")
 }
 
 func nullIndexFuncOfByteArray(n int) nullIndexFunc {

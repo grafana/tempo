@@ -1688,7 +1688,7 @@
     "options": [
 
     ],
-    "query": "label_values(tempo_build_info, namespace)",
+    "query": "label_values(tempo_build_info{cluster=~'$cluster'}, namespace)",
     "refresh": 1,
     "regex": "",
     "sort": 2,

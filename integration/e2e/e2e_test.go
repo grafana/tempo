@@ -508,7 +508,7 @@ func equalTraces(a, b *tempopb.Trace) bool {
 func spanCount(a *tempopb.Trace) float64 {
 	count := 0
 	for _, batch := range a.Batches {
-		for _, spans := range batch.InstrumentationLibrarySpans {
+		for _, spans := range batch.ScopeSpans {
 			count += len(spans.Spans)
 		}
 	}

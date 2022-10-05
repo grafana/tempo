@@ -305,7 +305,7 @@ func countSpans(dataEncoding string, objs ...[]byte) int {
 		}
 
 		for _, b := range t.Batches {
-			for _, ilm := range b.InstrumentationLibrarySpans {
+			for _, ilm := range b.ScopeSpans {
 				spans += len(ilm.Spans)
 			}
 		}

@@ -443,18 +443,22 @@ func (ko *Koanf) StringMap(path string) map[string]string {
 		return out
 	}
 
-	mp, ok := o.(map[string]interface{})
-	if !ok {
-		return out
-	}
-	out = make(map[string]string, len(mp))
-	for k, v := range mp {
-		switch s := v.(type) {
-		case string:
-			out[k] = s
-		default:
-			// There's a non string type. Return.
-			return map[string]string{}
+	switch mp := o.(type) {
+	case map[string]string:
+		out = make(map[string]string, len(mp))
+		for k, v := range mp {
+			out[k] = v
+		}
+	case map[string]interface{}:
+		out = make(map[string]string, len(mp))
+		for k, v := range mp {
+			switch s := v.(type) {
+			case string:
+				out[k] = s
+			default:
+				// There's a non string type. Return.
+				return map[string]string{}
+			}
 		}
 	}
 
@@ -483,15 +487,19 @@ func (ko *Koanf) StringsMap(path string) map[string][]string {
 		return out
 	}
 
-	mp, ok := o.(map[string]interface{})
-	if !ok {
-		return out
-	}
-	out = make(map[string][]string, len(mp))
-	for k, v := range mp {
-		switch s := v.(type) {
-		case []interface{}:
-			for _, v := range s {
+	switch mp := o.(type) {
+	case map[string][]string:
+		out = make(map[string][]string, len(mp))
+		for k, v := range mp {
+			out[k] = make([]string, 0, len(v))
+			for _, s := range v {
+				out[k] = append(out[k], s)
+			}
+		}
+	case map[string][]interface{}:
+		out = make(map[string][]string, len(mp))
+		for k, v := range mp {
+			for _, v := range v {
 				switch sv := v.(type) {
 				case string:
 					out[k] = append(out[k], sv)
@@ -499,9 +507,28 @@ func (ko *Koanf) StringsMap(path string) map[string][]string {
 					return map[string][]string{}
 				}
 			}
-		default:
-			// There's a non []interface type. Return.
-			return map[string][]string{}
+		}
+	case map[string]interface{}:
+		out = make(map[string][]string, len(mp))
+		for k, v := range mp {
+			switch s := v.(type) {
+			case []string:
+				for _, v := range s {
+					out[k] = append(out[k], v)
+				}
+			case []interface{}:
+				for _, v := range s {
+					switch sv := v.(type) {
+					case string:
+						out[k] = append(out[k], sv)
+					default:
+						return map[string][]string{}
+					}
+				}
+			default:
+				// There's a non []interface type. Return.
+				return map[string][]string{}
+			}
 		}
 	}
 

@@ -43,9 +43,9 @@ func TestExtractSearchData(t *testing.T) {
 								},
 							},
 						},
-						InstrumentationLibrarySpans: []*v1.InstrumentationLibrarySpans{
+						ScopeSpans: []*v1.ScopeSpans{
 							{
-								InstrumentationLibrary: &v1_common.InstrumentationLibrary{
+								Scope: &v1_common.InstrumentationScope{
 									Name: "test",
 								},
 								Spans: []*v1.Span{

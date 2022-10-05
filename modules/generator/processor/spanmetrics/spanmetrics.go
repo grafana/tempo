@@ -67,7 +67,7 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 		// already extract service name, so we only have to do it once per batch of spans
 		svcName, _ := processor_util.FindServiceName(rs.Resource.Attributes)
 
-		for _, ils := range rs.InstrumentationLibrarySpans {
+		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
 				p.aggregateMetricsForSpan(svcName, rs.Resource, span)
 			}

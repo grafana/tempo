@@ -61,9 +61,9 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 						},
 					},
 				},
-				InstrumentationLibrarySpans: []*v1_trace.InstrumentationLibrarySpans{
+				ScopeSpans: []*v1_trace.ScopeSpans{
 					{
-						InstrumentationLibrary: &v1.InstrumentationLibrary{
+						Scope: &v1.InstrumentationScope{
 							Name: "test",
 						},
 						Spans: []*v1_trace.Span{
@@ -263,7 +263,7 @@ func TestParquetRowSizeEstimate(t *testing.T) {
 	batchCount := 100
 	spanCounts := []int{
 		100, 1000,
-		//10000, this crashes in GitHub
+		// 10000, this crashes in GitHub
 	}
 
 	for _, spanCount := range spanCounts {

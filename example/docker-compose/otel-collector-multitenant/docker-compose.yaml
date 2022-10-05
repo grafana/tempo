@@ -3,7 +3,7 @@ services:
 
   # Generate fake traces...
   synthetic-load-generator:
-    image: omnition/synthetic-load-generator:1.0.25
+    image: omnition/synthetic-load-generator:1.0.29
     volumes:
       - ../shared/load-generator.json:/etc/load-generator.json
     environment:
@@ -12,7 +12,7 @@ services:
 
   # And put them in an OTEL collector pipeline...
   otel-collector:
-    image: otel/opentelemetry-collector:0.32.0
+    image: otel/opentelemetry-collector:0.61.0
     command: [ "--config=/etc/otel-collector.yaml" ]
     volumes:
       - ./otel-collector.multitenant.yaml:/etc/otel-collector.yaml
@@ -33,14 +33,17 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    command: [ "--config.file=/etc/prometheus.yaml" ]
+    command: 
+      - --config.file=/etc/prometheus.yaml
+      - --web.enable-remote-write-receiver
+      - --enable-feature=exemplar-storage
     volumes:
       - ../shared/prometheus.yaml:/etc/prometheus.yaml
     ports:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:8.1.6
+    image: grafana/grafana:9.1.6
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

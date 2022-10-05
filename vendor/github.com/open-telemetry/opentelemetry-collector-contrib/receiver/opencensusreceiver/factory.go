@@ -26,15 +26,18 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent"
 )
 
-const typeStr = "opencensus"
+const (
+	typeStr   = "opencensus"
+	stability = component.StabilityLevelBeta
+)
 
 // NewFactory creates a new OpenCensus receiver factory.
 func NewFactory() component.ReceiverFactory {
 	return component.NewReceiverFactory(
 		typeStr,
 		createDefaultConfig,
-		component.WithTracesReceiver(createTracesReceiver),
-		component.WithMetricsReceiver(createMetricsReceiver))
+		component.WithTracesReceiver(createTracesReceiver, stability),
+		component.WithMetricsReceiver(createMetricsReceiver, stability))
 }
 
 func createDefaultConfig() config.Receiver {

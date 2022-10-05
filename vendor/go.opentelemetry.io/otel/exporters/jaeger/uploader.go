@@ -19,22 +19,21 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
 
-	"go.opentelemetry.io/otel/exporters/jaeger/internal/third_party/thrift/lib/go/thrift"
-
 	gen "go.opentelemetry.io/otel/exporters/jaeger/internal/gen-go/jaeger"
+	"go.opentelemetry.io/otel/exporters/jaeger/internal/third_party/thrift/lib/go/thrift"
 )
 
-// batchUploader send a batch of spans to Jaeger
+// batchUploader send a batch of spans to Jaeger.
 type batchUploader interface {
 	upload(context.Context, *gen.Batch) error
 	shutdown(context.Context) error
 }
 
+// EndpointOption configures a Jaeger endpoint.
 type EndpointOption interface {
 	newBatchUploader() (batchUploader, error)
 }
@@ -56,7 +55,7 @@ func (fn endpointOptionFunc) newBatchUploader() (batchUploader, error) {
 // will be used if neither are provided.
 func WithAgentEndpoint(options ...AgentEndpointOption) EndpointOption {
 	return endpointOptionFunc(func() (batchUploader, error) {
-		cfg := &agentEndpointConfig{
+		cfg := agentEndpointConfig{
 			agentClientUDPParams{
 				AttemptReconnecting: true,
 				Host:                envOr(envAgentHost, "localhost"),
@@ -64,7 +63,7 @@ func WithAgentEndpoint(options ...AgentEndpointOption) EndpointOption {
 			},
 		}
 		for _, opt := range options {
-			opt.apply(cfg)
+			cfg = opt.apply(cfg)
 		}
 
 		client, err := newAgentClientUDP(cfg.agentClientUDPParams)
@@ -76,18 +75,19 @@ func WithAgentEndpoint(options ...AgentEndpointOption) EndpointOption {
 	})
 }
 
+// AgentEndpointOption configures a Jaeger agent endpoint.
 type AgentEndpointOption interface {
-	apply(*agentEndpointConfig)
+	apply(agentEndpointConfig) agentEndpointConfig
 }
 
 type agentEndpointConfig struct {
 	agentClientUDPParams
 }
 
-type agentEndpointOptionFunc func(*agentEndpointConfig)
+type agentEndpointOptionFunc func(agentEndpointConfig) agentEndpointConfig
 
-func (fn agentEndpointOptionFunc) apply(cfg *agentEndpointConfig) {
-	fn(cfg)
+func (fn agentEndpointOptionFunc) apply(cfg agentEndpointConfig) agentEndpointConfig {
+	return fn(cfg)
 }
 
 // WithAgentHost sets a host to be used in the agent client endpoint.
@@ -95,8 +95,9 @@ func (fn agentEndpointOptionFunc) apply(cfg *agentEndpointConfig) {
 // OTEL_EXPORTER_JAEGER_AGENT_HOST environment variable.
 // If this option is not passed and the env var is not set, "localhost" will be used by default.
 func WithAgentHost(host string) AgentEndpointOption {
-	return agentEndpointOptionFunc(func(o *agentEndpointConfig) {
+	return agentEndpointOptionFunc(func(o agentEndpointConfig) agentEndpointConfig {
 		o.Host = host
+		return o
 	})
 }
 
@@ -105,36 +106,41 @@ func WithAgentHost(host string) AgentEndpointOption {
 // OTEL_EXPORTER_JAEGER_AGENT_PORT environment variable.
 // If this option is not passed and the env var is not set, "6831" will be used by default.
 func WithAgentPort(port string) AgentEndpointOption {
-	return agentEndpointOptionFunc(func(o *agentEndpointConfig) {
+	return agentEndpointOptionFunc(func(o agentEndpointConfig) agentEndpointConfig {
 		o.Port = port
+		return o
 	})
 }
 
 // WithLogger sets a logger to be used by agent client.
 func WithLogger(logger *log.Logger) AgentEndpointOption {
-	return agentEndpointOptionFunc(func(o *agentEndpointConfig) {
+	return agentEndpointOptionFunc(func(o agentEndpointConfig) agentEndpointConfig {
 		o.Logger = logger
+		return o
 	})
 }
 
 // WithDisableAttemptReconnecting sets option to disable reconnecting udp client.
 func WithDisableAttemptReconnecting() AgentEndpointOption {
-	return agentEndpointOptionFunc(func(o *agentEndpointConfig) {
+	return agentEndpointOptionFunc(func(o agentEndpointConfig) agentEndpointConfig {
 		o.AttemptReconnecting = false
+		return o
 	})
 }
 
 // WithAttemptReconnectingInterval sets the interval between attempts to re resolve agent endpoint.
 func WithAttemptReconnectingInterval(interval time.Duration) AgentEndpointOption {
-	return agentEndpointOptionFunc(func(o *agentEndpointConfig) {
+	return agentEndpointOptionFunc(func(o agentEndpointConfig) agentEndpointConfig {
 		o.AttemptReconnectInterval = interval
+		return o
 	})
 }
 
 // WithMaxPacketSize sets the maximum UDP packet size for transport to the Jaeger agent.
 func WithMaxPacketSize(size int) AgentEndpointOption {
-	return agentEndpointOptionFunc(func(o *agentEndpointConfig) {
+	return agentEndpointOptionFunc(func(o agentEndpointConfig) agentEndpointConfig {
 		o.MaxPacketSize = size
+		return o
 	})
 }
 
@@ -150,7 +156,7 @@ func WithMaxPacketSize(size int) AgentEndpointOption {
 // If neither values are provided for the username or the password, they will not be set since there is no default.
 func WithCollectorEndpoint(options ...CollectorEndpointOption) EndpointOption {
 	return endpointOptionFunc(func() (batchUploader, error) {
-		cfg := &collectorEndpointConfig{
+		cfg := collectorEndpointConfig{
 			endpoint:   envOr(envEndpoint, "http://localhost:14268/api/traces"),
 			username:   envOr(envUser, ""),
 			password:   envOr(envPassword, ""),
@@ -158,7 +164,7 @@ func WithCollectorEndpoint(options ...CollectorEndpointOption) EndpointOption {
 		}
 
 		for _, opt := range options {
-			opt.apply(cfg)
+			cfg = opt.apply(cfg)
 		}
 
 		return &collectorUploader{
@@ -170,8 +176,9 @@ func WithCollectorEndpoint(options ...CollectorEndpointOption) EndpointOption {
 	})
 }
 
+// CollectorEndpointOption configures a Jaeger collector endpoint.
 type CollectorEndpointOption interface {
-	apply(*collectorEndpointConfig)
+	apply(collectorEndpointConfig) collectorEndpointConfig
 }
 
 type collectorEndpointConfig struct {
@@ -188,10 +195,10 @@ type collectorEndpointConfig struct {
 	httpClient *http.Client
 }
 
-type collectorEndpointOptionFunc func(*collectorEndpointConfig)
+type collectorEndpointOptionFunc func(collectorEndpointConfig) collectorEndpointConfig
 
-func (fn collectorEndpointOptionFunc) apply(cfg *collectorEndpointConfig) {
-	fn(cfg)
+func (fn collectorEndpointOptionFunc) apply(cfg collectorEndpointConfig) collectorEndpointConfig {
+	return fn(cfg)
 }
 
 // WithEndpoint is the URL for the Jaeger collector that spans are sent to.
@@ -200,8 +207,9 @@ func (fn collectorEndpointOptionFunc) apply(cfg *collectorEndpointConfig) {
 // If this option is not passed and the environment variable is not set,
 // "http://localhost:14268/api/traces" will be used by default.
 func WithEndpoint(endpoint string) CollectorEndpointOption {
-	return collectorEndpointOptionFunc(func(o *collectorEndpointConfig) {
+	return collectorEndpointOptionFunc(func(o collectorEndpointConfig) collectorEndpointConfig {
 		o.endpoint = endpoint
+		return o
 	})
 }
 
@@ -210,8 +218,9 @@ func WithEndpoint(endpoint string) CollectorEndpointOption {
 // OTEL_EXPORTER_JAEGER_USER environment variable.
 // If this option is not passed and the environment variable is not set, no username will be set.
 func WithUsername(username string) CollectorEndpointOption {
-	return collectorEndpointOptionFunc(func(o *collectorEndpointConfig) {
+	return collectorEndpointOptionFunc(func(o collectorEndpointConfig) collectorEndpointConfig {
 		o.username = username
+		return o
 	})
 }
 
@@ -220,15 +229,17 @@ func WithUsername(username string) CollectorEndpointOption {
 // OTEL_EXPORTER_JAEGER_PASSWORD environment variable.
 // If this option is not passed and the environment variable is not set, no password will be set.
 func WithPassword(password string) CollectorEndpointOption {
-	return collectorEndpointOptionFunc(func(o *collectorEndpointConfig) {
+	return collectorEndpointOptionFunc(func(o collectorEndpointConfig) collectorEndpointConfig {
 		o.password = password
+		return o
 	})
 }
 
 // WithHTTPClient sets the http client to be used to make request to the collector endpoint.
 func WithHTTPClient(client *http.Client) CollectorEndpointOption {
-	return collectorEndpointOptionFunc(func(o *collectorEndpointConfig) {
+	return collectorEndpointOptionFunc(func(o collectorEndpointConfig) collectorEndpointConfig {
 		o.httpClient = client
+		return o
 	})
 }
 
@@ -296,8 +307,10 @@ func (c *collectorUploader) upload(ctx context.Context, batch *gen.Batch) error 
 		return err
 	}
 
-	_, _ = io.Copy(ioutil.Discard, resp.Body)
-	resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	if err = resp.Body.Close(); err != nil {
+		return err
+	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("failed to upload traces; HTTP status code: %d", resp.StatusCode)

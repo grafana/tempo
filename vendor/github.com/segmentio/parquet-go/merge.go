@@ -120,7 +120,12 @@ func (r *mergedRowGroupRows) ReadRows(rows []Row) (n int, err error) {
 				r.err = err
 				return n, err
 			}
+			c := r.cursors[0]
 			heap.Pop(r)
+			if err := c.close(); err != nil {
+				r.err = err
+				return n, err
+			}
 		} else {
 			heap.Fix(r, 0)
 		}

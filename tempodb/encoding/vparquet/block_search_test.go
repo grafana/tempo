@@ -51,7 +51,7 @@ func TestBackendBlockSearch(t *testing.T) {
 						{Key: "bat", Value: strPtr("baz")},
 					},
 				},
-				InstrumentationLibrarySpans: []ILS{
+				ScopeSpans: []ScopeSpan{
 					{
 						Spans: []Span{
 							{
@@ -356,7 +356,7 @@ func makeTraces() ([]*Trace, map[string]string) {
 						},
 					},
 				},
-				InstrumentationLibrarySpans: []ILS{
+				ScopeSpans: []ScopeSpan{
 					{},
 				},
 			}
@@ -382,7 +382,7 @@ func makeTraces() ([]*Trace, map[string]string) {
 					},
 				}
 
-				rs.InstrumentationLibrarySpans[0].Spans = append(rs.InstrumentationLibrarySpans[0].Spans, span)
+				rs.ScopeSpans[0].Spans = append(rs.ScopeSpans[0].Spans, span)
 			}
 
 		}
