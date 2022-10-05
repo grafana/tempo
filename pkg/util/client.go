@@ -19,9 +19,9 @@ const (
 
 	QueryTraceEndpoint = "/api/traces"
 
-	AcceptHeader        = "Accept"
-	ApplicationProtobuf = "application/protobuf"
-	ApplicationJSON     = "application/json"
+	acceptHeader        = "Accept"
+	applicationProtobuf = "application/protobuf"
+	applicationJSON     = "application/json"
 )
 
 // Client is client to the Tempo API.
@@ -63,14 +63,14 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 		req.Header.Set(orgIDHeader, c.OrgID)
 	}
 
-	marshallingFormat := ApplicationJSON
+	marshallingFormat := applicationJSON
 	if strings.Contains(url, QueryTraceEndpoint) {
-		marshallingFormat = ApplicationProtobuf
+		marshallingFormat = applicationProtobuf
 	}
 	// Set 'Accept' header to 'application/protobuf'.
 	// This is required for the /api/traces endpoint to return a protobuf response.
 	// JSON lost backwards compatibility with the upgrade to `opentelemetry-proto` v0.18.0.
-	req.Header.Set(AcceptHeader, marshallingFormat)
+	req.Header.Set(acceptHeader, marshallingFormat)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -92,11 +92,11 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	switch marshallingFormat {
-	case ApplicationJSON:
+	case applicationJSON:
 		if err = jsonpb.UnmarshalString(string(body), m); err != nil {
 			return resp, fmt.Errorf("error decoding %T json, err: %v body: %s", m, err, string(body))
 		}
-	case ApplicationProtobuf:
+	case applicationProtobuf:
 
 		if err = proto.Unmarshal(body, m); err != nil {
 			return nil, fmt.Errorf("error decoding %T proto, err: %w body: %s", m, err, string(body))
