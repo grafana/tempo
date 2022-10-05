@@ -7,7 +7,7 @@
 * [CHANGE] Make DNS address fully qualified to reduce DNS lookups in Kubernetes [#1687](https://github.com/grafana/tempo/pull/1687) (@electron0zero)
 * [CHANGE] Improve parquet compaction memory profile when dropping spans [#1692](https://github.com/grafana/tempo/pull/1692) (@joe-elliott)
 * [CHANGE] Increase default values for `server.grpc_server_max_recv_msg_size` and `server.grpc_server_max_send_msg_size` from 4MB to 16MB [#1688](https://github.com/grafana/tempo/pull/1688) (@mapno)
-* [CHANGE] Use Parquet for local block search, tag search and tag value search instead of flatbuffers. A configuration value 
+* [CHANGE] Use Parquet for local block search, tag search and tag value search instead of flatbuffers. A configuration value
   (`ingester.use_flatbuffer_search`) is provided to continue using flatbuffers.
   - **BREAKING CHANGE** Makes Parquet the default encoding.
 * [CHANGE] **BREAKING CHANGE** Use storage.trace.block.row_group_size_bytes to cut rows during compaction instead of
@@ -35,6 +35,7 @@ query_frontend:
     hedge_requests_up_to: 3
 ```
 * [ENHACEMENT] Update OTel collector to v0.57.2 [#1757](https://github.com/grafana/tempo/pull/1757) (@mapno)
+* [ENHANCEMENT] Vulture now has improved distribution of the random traces it searches. [#1763](https://github.com/grafana/tempo/pull/1763) (@rfratto)
 * [BUGFIX] Honor caching and buffering settings when finding traces by id [#1697](https://github.com/grafana/tempo/pull/1697) (@joe-elliott)
 * [BUGFIX] Correctly propagate errors from the iterator layer up through the queriers [#1723](https://github.com/grafana/tempo/pull/1723) (@joe-elliott)
 * [ENHANCEMENT] Upgrade opentelemetry-proto submodule to v0.18.0 [#1754](https://github.com/grafana/tempo/pull/1754) (@mapno)
