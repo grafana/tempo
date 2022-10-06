@@ -249,7 +249,8 @@ metrics_generator:
 
             # Additional dimensions to add to the metrics along with the default dimensions
             # (service, span_name, span_kind and span_status). Dimensions are searched for in the
-            # resource and span attributes and are added to the metrics if present.
+            # resource and span attributes as well as `status.message`. Listed dimensions are 
+            # added to the metrics if present.
             [dimensions: <list of string>]
 
     # Registry configuration

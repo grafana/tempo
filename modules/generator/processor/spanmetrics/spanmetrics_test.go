@@ -56,7 +56,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
-	cfg.Dimensions = []string{"foo", "bar", "does-not-exist"}
+	cfg.Dimensions = []string{"status.message", "foo", "bar", "does-not-exist"}
 
 	p := New(cfg, testRegistry)
 	defer p.Shutdown(context.Background())
@@ -67,6 +67,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	// Add some attributes
 	for _, rs := range batch.ScopeSpans {
 		for _, s := range rs.Spans {
+			s.Status.Message = "OK"
 			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
 				Key:   "foo",
 				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "foo-value"}},
@@ -87,6 +88,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 		"span_name":      "test",
 		"span_kind":      "SPAN_KIND_CLIENT",
 		"status_code":    "STATUS_CODE_OK",
+		"status_message": "OK",
 		"foo":            "foo-value",
 		"bar":            "bar-value",
 		"does_not_exist": "",
