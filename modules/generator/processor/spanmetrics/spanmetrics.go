@@ -82,7 +82,13 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 	labelValues = append(labelValues, svcName, span.GetName(), span.GetKind().String(), span.GetStatus().GetCode().String())
 
 	for _, d := range p.Cfg.Dimensions {
-		value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
+		var value string
+		switch d {
+		case "status.message", "status_message":
+			value = span.Status.GetMessage()
+		default:
+			value, _ = processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
+		}
 		labelValues = append(labelValues, value)
 	}
 
