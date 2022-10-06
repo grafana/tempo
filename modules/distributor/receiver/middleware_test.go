@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
+	"go.opentelemetry.io/collector/client"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/metadata"
@@ -54,7 +55,7 @@ func TestFakeTenantMiddleware(t *testing.T) {
 func TestMultiTenancyMiddleware(t *testing.T) {
 	m := MultiTenancyMiddleware()
 
-	t.Run("injects org id", func(t *testing.T) {
+	t.Run("injects org id grpc", func(t *testing.T) {
 		tenantID := "test-tenant-id"
 
 		consumer := newAssertingConsumer(t, func(t *testing.T, ctx context.Context) {
@@ -67,6 +68,25 @@ func TestMultiTenancyMiddleware(t *testing.T) {
 			context.Background(),
 			metadata.Pairs("X-Scope-OrgID", tenantID),
 		)
+		require.NoError(t, m.Wrap(consumer).ConsumeTraces(ctx, ptrace.Traces{}))
+	})
+
+	t.Run("injects org id http", func(t *testing.T) {
+		tenantID := "test-tenant-id"
+
+		consumer := newAssertingConsumer(t, func(t *testing.T, ctx context.Context) {
+			orgID, err := user.ExtractOrgID(ctx)
+			require.NoError(t, err)
+			require.Equal(t, orgID, tenantID)
+		})
+
+		info := client.Info{
+			Metadata: client.NewMetadata(map[string][]string{
+				"x-scope-OrgID": {tenantID},
+			}),
+		}
+
+		ctx := client.NewContext(context.Background(), info)
 		require.NoError(t, m.Wrap(consumer).ConsumeTraces(ctx, ptrace.Traces{}))
 	})
 

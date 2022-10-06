@@ -184,6 +184,32 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 			return nil, fmt.Errorf("receiver factory not found for type: %s", componentID.Type())
 		}
 
+		// Make sure that the headers are added to context. Required for Authentication.
+		switch componentID.Type() {
+		case "otlp":
+			otlpRecvCfg := cfg.(*otlpreceiver.Config)
+
+			if otlpRecvCfg.HTTP != nil {
+				otlpRecvCfg.HTTP.IncludeMetadata = true
+				cfg = otlpRecvCfg
+			}
+
+		case "zipkin":
+			zipkinRecvCfg := cfg.(*zipkinreceiver.Config)
+
+			zipkinRecvCfg.HTTPServerSettings.IncludeMetadata = true
+			cfg = zipkinRecvCfg
+
+		case "jaeger":
+			jaegerRecvCfg := cfg.(*jaegerreceiver.Config)
+
+			if jaegerRecvCfg.ThriftHTTP != nil {
+				jaegerRecvCfg.ThriftHTTP.IncludeMetadata = true
+			}
+
+			cfg = jaegerRecvCfg
+		}
+
 		receiver, err := factoryBase.CreateTracesReceiver(ctx, params, cfg, middleware.Wrap(shim))
 		if err != nil {
 			return nil, err
