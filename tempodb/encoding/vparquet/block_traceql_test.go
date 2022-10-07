@@ -8,14 +8,14 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBackendBlockSearchTraceQL(t *testing.T) {
-
-	wantTr := fullyPopulatedTestTrace()
+	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	searchesThatMatch := []traceql.FetchSpansRequest{
 		{}, // Empty request
@@ -183,9 +183,9 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 }
 
 func TestBackendBlockSearchTraceQLResults(t *testing.T) {
-	wantTr := fullyPopulatedTestTrace()
+	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	// Helper functions to make requests
 
@@ -392,7 +392,7 @@ func parse(t *testing.T, q string) traceql.Condition {
 	return cond
 }
 
-func fullyPopulatedTestTrace() *Trace {
+func fullyPopulatedTestTrace(id common.ID) *Trace {
 	// Helper functions to make pointers
 	strPtr := func(s string) *string { return &s }
 	intPtr := func(i int64) *int64 { return &i }
@@ -400,7 +400,7 @@ func fullyPopulatedTestTrace() *Trace {
 	boolPtr := func(b bool) *bool { return &b }
 
 	return &Trace{
-		TraceID:           test.ValidTraceID(nil),
+		TraceID:           test.ValidTraceID(id),
 		StartTimeUnixNano: uint64(1000 * time.Second),
 		EndTimeUnixNano:   uint64(2000 * time.Second),
 		DurationNanos:     uint64((100 * time.Millisecond).Nanoseconds()),
@@ -432,11 +432,16 @@ func fullyPopulatedTestTrace() *Trace {
 								StartUnixNanos: uint64(100 * time.Second),
 								EndUnixNanos:   uint64(200 * time.Second),
 								// DurationNanos:  uint64(100 * time.Second),
-								HttpMethod:     strPtr("get"),
-								HttpUrl:        strPtr("url/hello/world"),
-								HttpStatusCode: intPtr(500),
-								ParentSpanID:   []byte{},
-								StatusCode:     int(v1.Status_STATUS_CODE_ERROR),
+								HttpMethod:             strPtr("get"),
+								HttpUrl:                strPtr("url/hello/world"),
+								HttpStatusCode:         intPtr(500),
+								ParentSpanID:           []byte{},
+								StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
+								StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
+								TraceState:             "tracestate",
+								Kind:                   int(v1.Span_SPAN_KIND_CLIENT),
+								DroppedAttributesCount: 42,
+								DroppedEventsCount:     43,
 								Attrs: []Attribute{
 									{Key: "foo", Value: strPtr("def")},
 									{Key: "bar", ValueInt: intPtr(123)},
@@ -447,6 +452,13 @@ func fullyPopulatedTestTrace() *Trace {
 									{Key: LabelName, Value: strPtr("Bob")},                    // Conflicts with intrinsic but still looked up by .name
 									{Key: LabelServiceName, Value: strPtr("spanservicename")}, // Overrides resource-level dedicated column
 									{Key: LabelHTTPStatusCode, Value: strPtr("500ouch")},      // Different type than dedicated column
+								},
+								Events: []Event{
+									{TimeUnixNano: 1, Name: "e1", Attrs: []EventAttribute{
+										{Key: "foo", Value: []byte("fake proto encoded data. i hope this never matters")},
+										{Key: "bar", Value: []byte("fake proto encoded data. i hope this never matters")},
+									}},
+									{TimeUnixNano: 2, Name: "e2", Attrs: []EventAttribute{}},
 								},
 							},
 						},

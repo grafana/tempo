@@ -3,7 +3,6 @@ package vparquet
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 	"time"
 
 	"testing"
@@ -56,7 +55,6 @@ func benchmarkCompactor(b *testing.B, traceCount, batchCount, spanCount int) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		fmt.Println(b.N)
 		c := NewCompactor(common.CompactionOptions{
 			BlockConfig:      *cfg,
 			OutputBlocks:     1,
@@ -125,9 +123,10 @@ func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig,
 		binary.LittleEndian.PutUint64(id, uint64(i))
 
 		tr := test.MakeTraceWithSpanCount(batchCount, spanCount, id)
-		trp := traceToParquet(id, tr)
+		trp := traceToParquet(id, tr, nil)
 
-		sb.Add(&trp, 0, 0)
+		err := sb.Add(trp, 0, 0)
+		require.NoError(t, err)
 		if sb.EstimatedBufferedBytes() > 20_000_000 {
 			_, err := sb.Flush()
 			require.NoError(t, err)

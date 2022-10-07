@@ -151,17 +151,17 @@ func BenchmarkCombine(b *testing.B) {
 	for _, spanCount := range spanCounts {
 		b.Run("SpanCount:"+humanize.SI(float64(batchCount*spanCount), ""), func(b *testing.B) {
 			id1 := test.ValidTraceID(nil)
-			tr1 := traceToParquet(id1, test.MakeTraceWithSpanCount(batchCount, spanCount, id1))
+			tr1 := traceToParquet(id1, test.MakeTraceWithSpanCount(batchCount, spanCount, id1), nil)
 
 			id2 := test.ValidTraceID(nil)
-			tr2 := traceToParquet(id2, test.MakeTraceWithSpanCount(batchCount, spanCount, id2))
+			tr2 := traceToParquet(id2, test.MakeTraceWithSpanCount(batchCount, spanCount, id2), nil)
 
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
 				c := NewCombiner()
-				c.ConsumeWithFinal(&tr1, false)
-				c.ConsumeWithFinal(&tr2, true)
+				c.ConsumeWithFinal(tr1, false)
+				c.ConsumeWithFinal(tr2, true)
 				c.Result()
 			}
 		})
@@ -179,12 +179,12 @@ func BenchmarkSortTrace(b *testing.B) {
 		b.Run("SpanCount:"+humanize.SI(float64(batchCount*spanCount), ""), func(b *testing.B) {
 
 			id := test.ValidTraceID(nil)
-			tr := traceToParquet(id, test.MakeTraceWithSpanCount(batchCount, spanCount, id))
+			tr := traceToParquet(id, test.MakeTraceWithSpanCount(batchCount, spanCount, id), nil)
 
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				SortTrace(&tr)
+				SortTrace(tr)
 			}
 		})
 	}
