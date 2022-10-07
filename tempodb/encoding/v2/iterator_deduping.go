@@ -50,29 +50,9 @@ func NewDedupingIterator(iter BytesIterator, combiner model.ObjectCombiner, data
 
 // Next implements BytesIterator
 func (i *dedupingIterator) NextBytes(ctx context.Context) (common.ID, []byte, error) {
-	if i.currentID == nil {
-		return nil, nil, io.EOF
-	}
-
-	var dedupedID []byte
-	currentObjects := [][]byte{i.currentObject}
-
-	for {
-		id, obj, err := i.iter.NextBytes(ctx)
-		if err != nil && err != io.EOF {
-			return nil, nil, err
-		}
-
-		if !bytes.Equal(i.currentID, id) {
-			dedupedID = i.currentID
-
-			i.currentID = id
-			i.currentObject = obj
-			break
-		}
-
-		i.currentID = id
-		currentObjects = append(currentObjects, obj)
+	dedupedID, currentObjects, err := i.next(ctx)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	if len(currentObjects) == 1 {
@@ -93,29 +73,9 @@ func (i *dedupingIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace,
 		return nil, nil, fmt.Errorf("dedupingIterator.Next() called but no decoder set")
 	}
 
-	if i.currentID == nil {
-		return nil, nil, io.EOF
-	}
-
-	var dedupedID []byte
-	currentObjects := [][]byte{i.currentObject}
-
-	for {
-		id, obj, err := i.iter.NextBytes(ctx)
-		if err != nil && err != io.EOF {
-			return nil, nil, err
-		}
-
-		if !bytes.Equal(i.currentID, id) {
-			dedupedID = i.currentID
-
-			i.currentID = id
-			i.currentObject = obj
-			break
-		}
-
-		i.currentID = id
-		currentObjects = append(currentObjects, obj)
+	dedupedID, currentObjects, err := i.next(ctx)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	if len(currentObjects) == 1 {
@@ -140,6 +100,35 @@ func (i *dedupingIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace,
 	tr, _ := combiner.Result()
 
 	return dedupedID, tr, nil
+}
+
+func (i *dedupingIterator) next(ctx context.Context) (common.ID, [][]byte, error) {
+	if i.currentID == nil {
+		return nil, nil, io.EOF
+	}
+
+	var dedupedID []byte
+	currentObjects := [][]byte{i.currentObject}
+
+	for {
+		id, obj, err := i.iter.NextBytes(ctx)
+		if err != nil && err != io.EOF {
+			return nil, nil, err
+		}
+
+		if !bytes.Equal(i.currentID, id) {
+			dedupedID = i.currentID
+
+			i.currentID = id
+			i.currentObject = obj
+			break
+		}
+
+		i.currentID = id
+		currentObjects = append(currentObjects, obj)
+	}
+
+	return dedupedID, currentObjects, nil
 }
 
 // Close implements Iterator
