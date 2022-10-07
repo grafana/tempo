@@ -232,36 +232,35 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 			ob.Resource.Attrs = extendReuseSlice(len(b.Resource.Attributes), ob.Resource.Attrs)
 			attrCount := 0
 			for _, a := range b.Resource.Attributes {
-				switch a.Key {
-				case LabelServiceName:
-					ob.Resource.ServiceName = a.Value.GetStringValue()
-				case LabelCluster:
-					c := a.Value.GetStringValue()
-					ob.Resource.Cluster = &c
-				case LabelNamespace:
-					n := a.Value.GetStringValue()
-					ob.Resource.Namespace = &n
-				case LabelPod:
-					p := a.Value.GetStringValue()
-					ob.Resource.Pod = &p
-				case LabelContainer:
-					c := a.Value.GetStringValue()
-					ob.Resource.Container = &c
+				strVal, ok := a.Value.Value.(*v1.AnyValue_StringValue)
+				special := ok
+				if ok {
+					switch a.Key {
+					case LabelServiceName:
+						ob.Resource.ServiceName = strVal.StringValue
+					case LabelCluster:
+						ob.Resource.Cluster = &strVal.StringValue
+					case LabelNamespace:
+						ob.Resource.Namespace = &strVal.StringValue
+					case LabelPod:
+						ob.Resource.Pod = &strVal.StringValue
+					case LabelContainer:
+						ob.Resource.Container = &strVal.StringValue
 
-				case LabelK8sClusterName:
-					c := a.Value.GetStringValue()
-					ob.Resource.K8sClusterName = &c
-				case LabelK8sNamespaceName:
-					n := a.Value.GetStringValue()
-					ob.Resource.K8sNamespaceName = &n
-				case LabelK8sPodName:
-					p := a.Value.GetStringValue()
-					ob.Resource.K8sPodName = &p
-				case LabelK8sContainerName:
-					c := a.Value.GetStringValue()
-					ob.Resource.K8sContainerName = &c
+					case LabelK8sClusterName:
+						ob.Resource.K8sClusterName = &strVal.StringValue
+					case LabelK8sNamespaceName:
+						ob.Resource.K8sNamespaceName = &strVal.StringValue
+					case LabelK8sPodName:
+						ob.Resource.K8sPodName = &strVal.StringValue
+					case LabelK8sContainerName:
+						ob.Resource.K8sContainerName = &strVal.StringValue
+					default:
+						special = false
+					}
+				}
 
-				default:
+				if !special {
 					// Other attributes put in generic columns
 					attrToParquet(a, &ob.Resource.Attrs[attrCount])
 					attrCount++
@@ -307,6 +306,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 				ss.ParentSpanID = s.ParentSpanId
 				ss.Name = s.Name
 				ss.Kind = int(s.Kind)
+				ss.TraceState = s.TraceState
 				if s.Status != nil {
 					ss.StatusCode = int(s.Status.Code)
 					ss.StatusMessage = s.Status.Message
@@ -325,18 +325,30 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 				ss.Attrs = extendReuseSlice(len(s.Attributes), ss.Attrs)
 				attrCount := 0
 				for _, a := range s.Attributes {
-					switch a.Key {
+					special := false
 
+					switch a.Key {
 					case LabelHTTPMethod:
-						m := a.Value.GetStringValue()
-						ss.HttpMethod = &m
+						strVal, ok := a.Value.Value.(*v1.AnyValue_StringValue)
+						if ok {
+							ss.HttpMethod = &strVal.StringValue
+							special = true
+						}
 					case LabelHTTPUrl:
-						m := a.Value.GetStringValue()
-						ss.HttpUrl = &m
+						strVal, ok := a.Value.Value.(*v1.AnyValue_StringValue)
+						if ok {
+							ss.HttpUrl = &strVal.StringValue
+							special = true
+						}
 					case LabelHTTPStatusCode:
-						m := a.Value.GetIntValue()
-						ss.HttpStatusCode = &m
-					default:
+						intVal, ok := a.Value.Value.(*v1.AnyValue_IntValue)
+						if ok {
+							ss.HttpStatusCode = &intVal.IntValue
+							special = true
+						}
+					}
+
+					if !special {
 						// Other attributes put in generic columns
 						attrToParquet(a, &ss.Attrs[attrCount])
 						attrCount++
