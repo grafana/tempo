@@ -679,7 +679,7 @@ func TestLogSpans(t *testing.T) {
 			batches: []*v1.ResourceSpans{
 				makeResourceSpans("test", []*v1.ScopeSpans{
 					makeScope(
-						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil)),
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span", nil)),
 				}),
 			},
 			expectedLogsSpan: []logSpan{},
@@ -689,7 +689,7 @@ func TestLogSpans(t *testing.T) {
 			batches: []*v1.ResourceSpans{
 				makeResourceSpans("test", []*v1.ScopeSpans{
 					makeScope(
-						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil)),
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span", nil)),
 				}),
 			},
 			expectedLogsSpan: []logSpan{
@@ -707,14 +707,14 @@ func TestLogSpans(t *testing.T) {
 			batches: []*v1.ResourceSpans{
 				makeResourceSpans("test-service", []*v1.ScopeSpans{
 					makeScope(
-						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil),
-						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", nil)),
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil),
+						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", "Test Span2", nil)),
 					makeScope(
-						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", nil)),
+						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil)),
 				}),
 				makeResourceSpans("test-service2", []*v1.ScopeSpans{
 					makeScope(
-						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", nil)),
+						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", nil)),
 				}),
 			},
 			expectedLogsSpan: []logSpan{
@@ -750,14 +750,14 @@ func TestLogSpans(t *testing.T) {
 			batches: []*v1.ResourceSpans{
 				makeResourceSpans("test-service", []*v1.ScopeSpans{
 					makeScope(
-						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil),
-						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil),
+						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", "Test Span2", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
 					makeScope(
-						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", nil)),
+						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil)),
 				}),
 				makeResourceSpans("test-service2", []*v1.ScopeSpans{
 					makeScope(
-						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
+						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
 				}),
 			},
 			expectedLogsSpan: []logSpan{
@@ -782,21 +782,22 @@ func TestLogSpans(t *testing.T) {
 			batches: []*v1.ResourceSpans{
 				makeResourceSpans("test-service", []*v1.ScopeSpans{
 					makeScope(
-						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil,
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil,
 							makeAttribute("tag1", "value1")),
-						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR},
+						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", "Test Span2", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR},
 							makeAttribute("tag1", "value1"),
 							makeAttribute("tag2", "value2"))),
 					makeScope(
-						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", nil)),
+						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil)),
 				}, makeAttribute("resource_attribute1", "value1")),
 				makeResourceSpans("test-service2", []*v1.ScopeSpans{
 					makeScope(
-						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
+						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
 				}, makeAttribute("resource_attribute2", "value2")),
 			},
 			expectedLogsSpan: []logSpan{
 				{
+					Name:               "Test Span2",
 					Msg:                "received",
 					Level:              "info",
 					TraceID:            "e3210a2b38097332d1fe43083ea93d29",
@@ -809,6 +810,7 @@ func TestLogSpans(t *testing.T) {
 					ResourceAttribute1: "value1",
 				},
 				{
+					Name:               "Test Span",
 					Msg:                "received",
 					Level:              "info",
 					TraceID:            "b1c792dea27d511c145df8402bdd793a",
@@ -827,11 +829,12 @@ func TestLogSpans(t *testing.T) {
 			batches: []*v1.ResourceSpans{
 				makeResourceSpans("test-service", []*v1.ScopeSpans{
 					makeScope(
-						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", nil, makeAttribute("tag1", "value1"))),
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span", nil, makeAttribute("tag1", "value1"))),
 				}),
 			},
 			expectedLogsSpan: []logSpan{
 				{
+					Name:            "Test Span",
 					Msg:             "received",
 					Level:           "info",
 					TraceID:         "0a0102030405060708090a0b0c0d0e0f",
@@ -884,6 +887,7 @@ type logSpan struct {
 	Level              string `json:"level"`
 	TraceID            string `json:"traceid"`
 	SpanID             string `json:"spanid"`
+	Name               string `json:"span_name"`
 	SpanStatus         string `json:"span_status,omitempty"`
 	SpanKind           string `json:"span_kind,omitempty"`
 	SpanServiceName    string `json:"span_service_name,omitempty"`
@@ -900,7 +904,7 @@ func makeAttribute(key string, value string) *v1_common.KeyValue {
 	}
 }
 
-func makeSpan(traceID string, spanID string, status *v1.Status, attributes ...*v1_common.KeyValue) *v1.Span {
+func makeSpan(traceID string, spanID string, name string, status *v1.Status, attributes ...*v1_common.KeyValue) *v1.Span {
 	if status == nil {
 		status = &v1.Status{Code: v1.Status_STATUS_CODE_OK}
 	}
@@ -915,6 +919,7 @@ func makeSpan(traceID string, spanID string, status *v1.Status, attributes ...*v
 	}
 
 	return &v1.Span{
+		Name:       name,
 		TraceId:    traceIDBytes,
 		SpanId:     spanIDBytes,
 		Status:     status,
