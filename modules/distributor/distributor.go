@@ -589,6 +589,7 @@ func logSpanWithAllAttributes(s *v1.Span, logger log.Logger) {
 	latencySeconds := float64(s.GetEndTimeUnixNano()-s.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 	logger = log.With(
 		logger,
+		"span_name", s.Name,
 		"span_duration_seconds", latencySeconds,
 		"span_kind", s.GetKind().String(),
 		"span_status", s.GetStatus().GetCode().String())
