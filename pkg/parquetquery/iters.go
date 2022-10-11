@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 
@@ -292,7 +293,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("recovered from panic in column iteration", r, c.colName)
+			fmt.Println("recovered from panic in column iteration", r, c.colName, "\n", string(debug.Stack()))
 		}
 	}()
 
