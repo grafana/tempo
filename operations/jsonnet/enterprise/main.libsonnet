@@ -140,65 +140,65 @@ tempo {
 
   // tokengen target
   tokengen: {}
-    + (if $._config.create_tokengen_job then {
-    local tokengen_args = {
-      target: 'tokengen',
-      'config.file': '/conf/tempo.yaml',
-      'tokengen.token-file': '/shared/admin-token',
-    },
-    local tokengen_container =
-      container.new('tokengen', $._images.tempo)
-      + container.withArgs(util.mapToFlags(tokengen_args))
-      + container.withVolumeMounts([
-        { mountPath: '/conf', name: $.tempo_config_map.metadata.name },
-        { mountPath: '/shared', name: 'shared' },
-      ])
-      + container.resources.withLimits({ memory: '4Gi' })
-      + container.resources.withRequests({ cpu: '500m', memory: '500Mi' }),
-    local tokengen_create_secret_container =
-      container.new('create-secret', $._images.kubectl)
-      + container.withCommand([
-        '/bin/bash',
-        '-euc',
-        'kubectl create secret generic get-admin-token --from-file=token=/shared/admin-token --from-literal=grafana-token="$(base64 <(echo :$(cat /shared/admin-token)))"',
-      ])
-      + container.withVolumeMounts([{ mountPath: '/shared', name: 'shared' }]),
-    tokengen_job:
-      job.new('tokengen')
-      + job.spec.withCompletions(1)
-      + job.spec.withParallelism(1)
-      + job.spec.template.spec.withContainers([tokengen_create_secret_container])
-      + job.spec.template.spec.withInitContainers([tokengen_container])
-      + job.spec.template.spec.withRestartPolicy('OnFailure')
-      + job.spec.template.spec.withServiceAccount('tokengen')
-      + job.spec.template.spec.withServiceAccountName('tokengen')
-      + job.spec.template.spec.withVolumes([
-        { name: $.tempo_config_map.metadata.name, configMap: { name: $.tempo_config_map.metadata.name } },
-        { name: 'shared', emptyDir: {} },
-      ])
-      + util.withNonRootSecurityContext(uid=10001),
-    tokengen_service_account:
-      serviceAccount.new('tokengen'),
-    tokengen_cluster_role:
-      clusterRole.new('tokengen')
-      + clusterRole.withRules([
-        policyRule.withApiGroups([''])
-        + policyRule.withResources(['secrets'])
-        + policyRule.withVerbs(['create']),
-      ]),
-    tokengen_cluster_role_binding:
-      clusterRoleBinding.new()
-      + clusterRoleBinding.metadata.withName('tokengen')
-      + clusterRoleBinding.roleRef.withApiGroup('rbac.authorization.k8s.io')
-      + clusterRoleBinding.roleRef.withKind('ClusterRole')
-      + clusterRoleBinding.roleRef.withName('tokengen')
-      + clusterRoleBinding.withSubjects([
-        subject.new()
-        + subject.withName('tokengen')
-        + subject.withKind('ServiceAccount')
-        + { namespace: $._config.namespace },
-      ]),
-    } else {}),
+            + (if $._config.create_tokengen_job then {
+                 local tokengen_args = {
+                   target: 'tokengen',
+                   'config.file': '/conf/tempo.yaml',
+                   'tokengen.token-file': '/shared/admin-token',
+                 },
+                 local tokengen_container =
+                   container.new('tokengen', $._images.tempo)
+                   + container.withArgs(util.mapToFlags(tokengen_args))
+                   + container.withVolumeMounts([
+                     { mountPath: '/conf', name: $.tempo_config_map.metadata.name },
+                     { mountPath: '/shared', name: 'shared' },
+                   ])
+                   + container.resources.withLimits({ memory: '4Gi' })
+                   + container.resources.withRequests({ cpu: '500m', memory: '500Mi' }),
+                 local tokengen_create_secret_container =
+                   container.new('create-secret', $._images.kubectl)
+                   + container.withCommand([
+                     '/bin/bash',
+                     '-euc',
+                     'kubectl create secret generic get-admin-token --from-file=token=/shared/admin-token --from-literal=grafana-token="$(base64 <(echo :$(cat /shared/admin-token)))"',
+                   ])
+                   + container.withVolumeMounts([{ mountPath: '/shared', name: 'shared' }]),
+                 tokengen_job:
+                   job.new('tokengen')
+                   + job.spec.withCompletions(1)
+                   + job.spec.withParallelism(1)
+                   + job.spec.template.spec.withContainers([tokengen_create_secret_container])
+                   + job.spec.template.spec.withInitContainers([tokengen_container])
+                   + job.spec.template.spec.withRestartPolicy('OnFailure')
+                   + job.spec.template.spec.withServiceAccount('tokengen')
+                   + job.spec.template.spec.withServiceAccountName('tokengen')
+                   + job.spec.template.spec.withVolumes([
+                     { name: $.tempo_config_map.metadata.name, configMap: { name: $.tempo_config_map.metadata.name } },
+                     { name: 'shared', emptyDir: {} },
+                   ])
+                   + util.withNonRootSecurityContext(uid=10001),
+                 tokengen_service_account:
+                   serviceAccount.new('tokengen'),
+                 tokengen_cluster_role:
+                   clusterRole.new('tokengen')
+                   + clusterRole.withRules([
+                     policyRule.withApiGroups([''])
+                     + policyRule.withResources(['secrets'])
+                     + policyRule.withVerbs(['create']),
+                   ]),
+                 tokengen_cluster_role_binding:
+                   clusterRoleBinding.new()
+                   + clusterRoleBinding.metadata.withName('tokengen')
+                   + clusterRoleBinding.roleRef.withApiGroup('rbac.authorization.k8s.io')
+                   + clusterRoleBinding.roleRef.withKind('ClusterRole')
+                   + clusterRoleBinding.roleRef.withName('tokengen')
+                   + clusterRoleBinding.withSubjects([
+                     subject.new()
+                     + subject.withName('tokengen')
+                     + subject.withKind('ServiceAccount')
+                     + { namespace: $._config.namespace },
+                   ]),
+               } else {}),
 
   // upstream configuration overrides
 
