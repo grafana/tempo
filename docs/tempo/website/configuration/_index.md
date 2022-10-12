@@ -248,9 +248,8 @@ metrics_generator:
             [histogram_buckets: <list of float> | default = 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.02, 2.05, 4.10]
 
             # Additional dimensions to add to the metrics along with the default dimensions
-            # (service, span_name, span_kind and span_status). Dimensions are searched for in the
-            # resource and span attributes as well as `status.message`. Listed dimensions are 
-            # added to the metrics if present.
+            # (service, span_name, span_kind, status_code, and status_message). Dimensions are searched 
+            # for in the resource and span attributes and are added to the metrics if present.
             [dimensions: <list of string>]
 
     # Registry configuration
