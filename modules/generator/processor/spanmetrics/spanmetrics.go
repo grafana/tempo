@@ -22,6 +22,10 @@ const (
 	metricSizeTotal       = "traces_spanmetrics_size_total"
 )
 
+var (
+	intrinsicDimensions = []string{"service", "span_name", "span_kind", "status_code", "status_message"}
+)
+
 type Processor struct {
 	Cfg Config
 
@@ -34,9 +38,10 @@ type Processor struct {
 }
 
 func New(cfg Config, registry registry.Registry) gen.Processor {
-	labels := []string{"service", "span_name", "span_kind", "status_code", "status_message"}
+	labels := make([]string, 0, len(intrinsicDimensions)+len(cfg.Dimensions))
+	labels = append(labels, intrinsicDimensions...)
 	for _, d := range cfg.Dimensions {
-		labels = append(labels, strutil.SanitizeLabelName(d))
+		labels = append(labels, sanitizeLabelNameWithCollisions(d))
 	}
 
 	return &Processor{
@@ -97,4 +102,16 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 	p.spanMetricsCallsTotal.Inc(registryLabelValues, 1)
 	p.spanMetricsSizeTotal.Inc(registryLabelValues, float64(span.Size()))
 	p.spanMetricsDurationSeconds.ObserveWithExemplar(registryLabelValues, latencySeconds, tempo_util.TraceIDToHexString(span.TraceId))
+}
+
+func sanitizeLabelNameWithCollisions(name string) string {
+	sanitized := strutil.SanitizeLabelName(name)
+
+	for _, dim := range intrinsicDimensions {
+		if sanitized == dim {
+			return "__" + sanitized
+		}
+	}
+
+	return sanitized
 }
