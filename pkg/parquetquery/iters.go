@@ -290,12 +290,6 @@ func NewColumnIterator(ctx context.Context, rgs []pq.RowGroup, column int, colum
 func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 	defer close(c.ch)
 
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("recovered from panic in column iteration", r, c.colName)
-		}
-	}()
-
 	span, _ := opentracing.StartSpanFromContext(ctx, "columnIterator.iterate", opentracing.Tags{
 		"columnIndex": c.col,
 		"column":      c.colName,
