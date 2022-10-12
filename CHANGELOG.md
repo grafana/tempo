@@ -1,5 +1,24 @@
 ## main / unreleased
+* [FEATURE] Add generic forwarder and implement otlpgrpc forwarder [#1775](https://github.com/grafana/tempo/pull/1775) (@Blinkuu)
+    New config options and example configuration:
+```
+# config.yaml
+distributor:
+  forwarders:
+    - name: "otel-forwarder"
+      backend: "otlpgrpc"
+      otlpgrpc:
+        endpoints: ['otelcol:4317']
+        tls:
+          insecure: true
 
+# overrides.yaml
+overrides:
+  "example-tenant-1":
+    forwarders: ['otel-forwarder']
+  "example-tenant-2":
+    forwarders: ['otel-forwarder']
+```
 * [ENHANCEMENT] Refactor queueManager into generic queue.Queue [#1796](https://github.com/grafana/tempo/pull/1796) (@Blinkuu)
   - **BREAKING CHANGE** Rename `tempo_distributor_forwarder_queue_length` metric to `tempo_distributor_queue_length`. New metric has two custom labels: `name` and  `tenant`.
   - Deprecated `tempo_distributor_forwarder_pushes_total` metric in favor of `tempo_distributor_queue_pushes_total`.
