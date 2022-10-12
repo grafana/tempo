@@ -19,7 +19,7 @@ out these pieces, it may look something like this:
 
 ## 1. Instrumentation
 
-#### Instrumentation SDKs
+### Instrumentation SDKs
 
 The first building block to a functioning distributed tracing visualization pipeline
 is client instrumentation, which is the process of adding instrumentation points in the application that
@@ -32,7 +32,7 @@ in most commonly used programming languages and you should pick one according to
 * [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
 * [OpenTelemetry](https://opentelemetry.io/docs/concepts/instrumenting/)
 
-#### OpenTelemetry Auto Instrumentation
+### OpenTelemetry Auto Instrumentation
 
 Some languages have support for auto-instrumentation. These libraries capture telemetry
 information from a client application with minimal manual instrumentation of the codebase.

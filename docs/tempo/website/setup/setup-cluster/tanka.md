@@ -5,11 +5,19 @@ weight: 200
 
 # Deploy on Kubernetes with Tanka
 
-Using this deployment guide, you can deploy Tempo to Kubernetes using a Jsonnet library and [Grafana Tanka](https://tanka.dev) to create a development cluster or sandboxed environment.
+Using this deployment guide, you can deploy Tempo to Kubernetes using a Jsonnet library and [Grafana Tanka](https://tanka.dev) to create a development cluster or sand-boxed environment.
 This procedure uses MinIO to provide object storage regardless of the Cloud platform or on-premise storage you use.
 In a production environment, you can use your cloud provider’s object storage service to avoid the operational overhead of running object storage in production.
 
-This demo configuration does not include [metrics-generator](https://grafana.com/docs/tempo/next/configuration/#metrics-generator).
+This demo configuration includes [metrics-generator](https://grafana.com/docs/tempo/next/configuration/#metrics-generator).
+
+To set up Tempo using Kubernetes with Tanka, you need to:
+
+1. Configure Kubernetes and install Tanka
+1. Set up the Tanka environment
+1. Install libraries
+1. Deploy MinIO object storage and configure metrics-generator
+1. Deploy Tempo with the Tanka command
 
 >**Note**: This configuration is not suitable for a production environment but can provide a useful way to learn about Tempo.
 
@@ -20,17 +28,8 @@ To deploy Tempo to Kubernetes with Tanka, you need:
   * A Kubernetes cluster with at least 40 CPUs and 46GB of memory for the default configuration. Small ingest or query volumes could use a far smaller configuration.
   * `kubectl`
 
-## Procedure
 
-To set up Tempo using Kubernetes with Tanka, you need to:
-
-1. Configure Kubernetes and install Tanka
-1. Set up the Tanka environment
-1. Install libraries
-1. Deploy MinIO object storage
-1. Deploy Tempo with the Tanka command
-
-### Configure Kubernetes and install Tanka
+## Configure Kubernetes and install Tanka
 
 The first step is to configure Kubernetes and install Tanka.
 
@@ -51,7 +50,7 @@ The first step is to configure Kubernetes and install Tanka.
 
 1. Install `jsonnet-bundler`; refer to the [`jsonnet-bundler` README](https://github.com/jsonnet-bundler/jsonnet-bundler/#install).
 
-### Set up the Tanka environment
+## Set up the Tanka environment
 
 Tanka requires the current context for your Kubernetes environment.
 
@@ -70,7 +69,7 @@ Tanka requires the current context for your Kubernetes environment.
     --server-from-context=$(kubectl config current-context)
    ```
 
-### Install libraries
+## Install libraries
 
 Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
 
@@ -97,7 +96,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
     jb install github.com/grafana/jsonnet-libs/memcached@master
     ```
 
-### Deploy MinIO object storage
+## Deploy MinIO object storage
 
 [MinIO](https://min.io) is an open source Amazon S3-compatible object storage service that is freely available and easy to run on Kubernetes.
 
@@ -207,9 +206,9 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
           kubectl port-forward --namespace tempo service/minio 9001:9001
           ```
      1. Navigate to the MinIO admin bash using your browser: `https://localhost:9001`. The sign-in credentials are username `minio` and password `minio123`.
-     2. Verify that the Buckets page lists `tempo-data`.
+     1. Verify that the Buckets page lists `tempo-data`.
 
-2. Configure the Tempo cluster using the MinIO object storage by replacing the contents of the `environments/tempo/main.jsonnet` file with the following configuration:
+1. Configure the Tempo cluster using the MinIO object storage by updating the contents of the `environments/tempo/main.jsonnet` file by running the following command:
 
    ```bash
    cat <<EOF > environments/tempo/main.jsonnet
@@ -308,7 +307,11 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
    EOF
    ```
 
-Note that we've enabled metrics generation in the above configuration, but we haven't actually specified anywhere to send the generated metrics data. If you'd like to remote write these metrics onto a Prometheus compatible instance (such as Grafana Cloud Metrics or a Mimir instance), you'll need to include the following configuration block in the `metrics_generator` section above (this assumes basic auth is required, if not then remove the `basic_auth` section):
+### Enable metrics-generator
+
+The above configuration enables metrics generation, but we haven't actually specified anywhere to send the generated metrics data.
+If you'd like to remote write these metrics onto a Prometheus compatible instance (such as Grafana Cloud Metrics or a Mimir instance), you'll need to include the following configuration block in the `metrics_generator` section above (this assumes basic auth is required, if not then remove the `basic_auth` section):
+
 ```json
    storage+: {
        remote_write: {
@@ -322,25 +325,28 @@ Note that we've enabled metrics generation in the above configuration, but we ha
    },
 ```
 
-### Deploy Tempo using Tanka
+## Deploy Tempo using Tanka
 
 1. Deploy Tempo using the Tanka command:
     ```bash
     tk apply environments/tempo/main.jsonnet
     ```
 
-> **Note**: If the ingesters don’t start after deploying GET with the Tanka command, this may be related to the storage class selected for the Write Ahead Logs. If this is the case, add an appropriate storage class to the ingester configuration. For example, to add a standard instead of fast storage class, add the following to the `config` (not `tempo_config`) section in the previous step:
+> **Note**: If the ingesters don’t start after deploying Tempo with the Tanka command, this may be related to the storage class selected for the Write Ahead Logs. If this is the case, add an appropriate storage class to the ingester configuration. For example, to add a standard instead of fast storage class, add the following to the `config` (not `tempo_config`) section in the previous step:
 >
   ```bash
     ingester+: {
       pvc_storage_class: 'standard',
     },
   ```
+
 ## Next steps
-The Tempo instance will now accept any configured trace protocol (OTLP, Jaeger, etc.) via the distributor service at `distributor.tempo.svc.cluster.local` on the relevant ports:
+
+The Tempo instance will now accept the two configured trace protocols (OTLP gRPC and Jaeger gRPC) via the distributor service at `distributor.tempo.svc.cluster.local` on the relevant ports:
+
 * OTLP gRPC: `4317`
 * Jaeger gRPC: `14250`
 
 You can query Tempo using the `query-frontend.tempo.svc.cluster.local` service on port `3200` for Tempo queries or port `16686` or `16687` for Jaeger type queries.
 
-Now you've a Tempo cluster, it's worth getting some test data into it.
+Now you have a Tempo cluster, it's worth getting some test data into it.
