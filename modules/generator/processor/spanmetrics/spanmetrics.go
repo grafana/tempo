@@ -84,6 +84,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 	latencySeconds := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 
 	labelValues := make([]string, 0, 4+len(p.Cfg.Dimensions))
+	// important: the order of labelValues must correspond to the order of labels / intrinsicDimensions
 	labelValues = append(
 		labelValues,
 		svcName,
