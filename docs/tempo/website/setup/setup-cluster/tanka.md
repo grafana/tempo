@@ -285,8 +285,10 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
                },
            },
            metrics_generator+: {
-               span_metrics: {},
-               service_graphs: {},
+               processor: {
+                   span_metrics: null,
+                   service_graphs: null,
+               },
 
                registry+: {
                    external_labels: {
@@ -313,16 +315,18 @@ The above configuration enables metrics generation, but we haven't actually spec
 If you'd like to remote write these metrics onto a Prometheus compatible instance (such as Grafana Cloud Metrics or a Mimir instance), you'll need to include the following configuration block in the `metrics_generator` section above (this assumes basic auth is required, if not then remove the `basic_auth` section):
 
 ```json
-   storage+: {
-       remote_write: {
-           url: 'https://<urlForPrometheusCompatibleStore>/api/v1/write',
-           send_exemplars: true,
-           basic_auth: {
-               username: '<username>',
-               password: '<password>',
-           },
-       },
-   },
+storage+: {
+    remote_write: [
+        {
+            url: 'https://<urlForPrometheusCompatibleStore>/api/v1/write',
+            send_exemplars: true,
+            basic_auth: {
+                username: '<username>',
+                password: '<password>',
+            },
+        }
+    ],
+},
 ```
 
 ## Deploy Tempo using Tanka
