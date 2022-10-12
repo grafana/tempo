@@ -848,12 +848,11 @@ github.com/segmentio/encoding/thrift
 # github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
 ## explicit
 github.com/segmentio/fasthash/fnv1a
-# github.com/segmentio/parquet-go v0.0.0-20221003204439-948ea8c65f19 => ../../joe-elliott/parquet-go
+# github.com/segmentio/parquet-go v0.0.0-20221003204439-948ea8c65f19
 ## explicit; go 1.19
 github.com/segmentio/parquet-go
 github.com/segmentio/parquet-go/bloom
 github.com/segmentio/parquet-go/bloom/xxhash
-github.com/segmentio/parquet-go/bufio
 github.com/segmentio/parquet-go/compress
 github.com/segmentio/parquet-go/compress/brotli
 github.com/segmentio/parquet-go/compress/gzip
@@ -1490,4 +1489,3 @@ gopkg.in/yaml.v3
 # k8s.io/api => k8s.io/api v0.25.0
 # k8s.io/client-go => k8s.io/client-go v0.25.0
 # github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
-# github.com/segmentio/parquet-go => ../../joe-elliott/parquet-go
