@@ -42,6 +42,7 @@ ifeq ($(UNAME), Darwin)
 endif
 
 FILES_TO_FMT=$(shell find . -type d \( -path ./vendor -o -path ./opentelemetry-proto -o -path ./vendor-fix \) -prune -o -name '*.go' -not -name "*.pb.go" -not -name '*.y.go' -print)
+FILES_TO_JSONNETFMT=$(shell find ./operations/jsonnet ./operations/tempo-mixin -type f \( -name '*.libsonnet' -o -name '*.jsonnet' \) -not -path "*/vendor/*" -print)
 
 ### Build
 
@@ -101,6 +102,10 @@ test-bench: docker-tempo
 fmt:
 	@gofmt -s -w $(FILES_TO_FMT)
 	@goimports -w $(FILES_TO_FMT)
+
+.PHONY: jsonnetfmt
+jsonnetfmt:
+	@jsonnetfmt -i $(FILES_TO_JSONNETFMT)
 
 .PHONY: lint
 lint:
