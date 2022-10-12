@@ -131,7 +131,7 @@ type Distributor struct {
 	generatorClientCfg      generator_client.Config
 	generatorsRing          ring.ReadRing
 	generatorsPool          *ring_client.Pool
-	generatorForwarder      *forwarder
+	generatorForwarder      *generatorForwarder
 
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
@@ -223,7 +223,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 		subservices = append(subservices, d.generatorsPool)
 
-		d.generatorForwarder = newForwarder(d.sendToGenerators, o)
+		d.generatorForwarder = newGeneratorForwarder(logger, reg, d.sendToGenerators, o)
 		subservices = append(subservices, d.generatorForwarder)
 	}
 
