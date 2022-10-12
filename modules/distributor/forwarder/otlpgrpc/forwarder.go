@@ -1,0 +1,174 @@
+package otlpgrpc
+
+import (
+	"context"
+	"fmt"
+	"sync"
+
+	"github.com/go-kit/log"
+	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
+	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
+	"github.com/opentracing/opentracing-go"
+	"github.com/pkg/errors"
+	"github.com/weaveworks/common/middleware"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
+	"go.uber.org/multierr"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/grafana/tempo/pkg/tempopb"
+)
+
+type Forwarder struct {
+	cfg         Config
+	logger      log.Logger
+	connections map[string]*grpc.ClientConn
+	clients     map[string]ptraceotlp.Client
+	initialized bool
+	mu          *sync.RWMutex
+}
+
+func NewForwarder(cfg Config, logger log.Logger) (*Forwarder, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("failed to validate config: %w", err)
+	}
+
+	return &Forwarder{
+		cfg:         cfg,
+		logger:      logger,
+		connections: make(map[string]*grpc.ClientConn),
+		clients:     make(map[string]ptraceotlp.Client),
+		initialized: false,
+		mu:          &sync.RWMutex{},
+	}, nil
+}
+
+// Dial creates client connections and clients based on config.
+// Dial is expected to be called only once.
+func (f *Forwarder) Dial(ctx context.Context, opts ...grpc.DialOption) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.initialized {
+		return errors.New("already initialized")
+	}
+
+	connections := make(map[string]*grpc.ClientConn)
+	clients := make(map[string]ptraceotlp.Client, len(f.cfg.Endpoints))
+	for _, endpoint := range f.cfg.Endpoints {
+		client, conn, err := f.newTraceOTLPGRPCClientAndConn(ctx, endpoint, f.cfg.TLS, opts...)
+		if err != nil {
+			return fmt.Errorf("failed to create new trace otlp grpc client: %w", err)
+		}
+
+		connections[endpoint] = conn
+		clients[endpoint] = client
+	}
+
+	f.connections = connections
+	f.clients = clients
+	f.initialized = true
+
+	return nil
+}
+
+func (f *Forwarder) ForwardBatches(ctx context.Context, trace tempopb.Trace) error {
+	// tempopb.Trace is wire-compatible with OTLP, so we convert to bytes, and back.
+	m, err := trace.Marshal()
+	if err != nil {
+		return fmt.Errorf("failed to marshal otlp: %v", err)
+	}
+
+	traces, err := ptrace.NewProtoUnmarshaler().UnmarshalTraces(m)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal traces: %w", err)
+	}
+	req := ptraceotlp.NewRequestFromTraces(traces)
+
+	awaitErrs := make(chan error, len(f.clients))
+	wg := sync.WaitGroup{}
+	f.mu.RLock()
+	for _, client := range f.clients {
+		wg.Add(1)
+		go func(client ptraceotlp.Client) {
+			defer wg.Done()
+			awaitErrs <- f.exportTracesUsingClient(ctx, client, req)
+		}(client)
+	}
+	f.mu.RUnlock()
+	wg.Wait()
+	close(awaitErrs)
+
+	var errs []error
+	for err := range awaitErrs {
+		errs = append(errs, err)
+	}
+
+	return multierr.Combine(errs...)
+}
+
+func (f *Forwarder) Shutdown(_ context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	var errs []error
+	for endpoint, conn := range f.connections {
+		if err := conn.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close grpc connection for endpoint=%s: %w", endpoint, err))
+		}
+
+		delete(f.connections, endpoint)
+	}
+
+	return multierr.Combine(errs...)
+}
+
+func (f *Forwarder) exportTracesUsingClient(ctx context.Context, client ptraceotlp.Client, req ptraceotlp.Request) error {
+	if _, err := client.Export(ctx, req); err != nil {
+		return fmt.Errorf("failed to export traces: %w", err)
+	}
+
+	return nil
+}
+
+func (f *Forwarder) newTraceOTLPGRPCClientAndConn(ctx context.Context, endpoint string, cfg TLSConfig, opts ...grpc.DialOption) (ptraceotlp.Client, *grpc.ClientConn, error) {
+	var creds credentials.TransportCredentials
+	if cfg.Insecure {
+		creds = insecure.NewCredentials()
+	} else {
+		var err error
+		creds, err = credentials.NewClientTLSFromFile(cfg.CertFile, "")
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create new server tls from file: %w", err)
+		}
+	}
+
+	unaryClientInterceptor, streamClientInterceptor := instrumentation()
+
+	opts = append(
+		opts,
+		grpc.WithBlock(),
+		grpc.WithTransportCredentials(creds),
+		grpc.WithUnaryInterceptor(grpcmw.ChainUnaryClient(unaryClientInterceptor...)),
+		grpc.WithStreamInterceptor(grpcmw.ChainStreamClient(streamClientInterceptor...)),
+	)
+
+	grpcClientConn, err := grpc.DialContext(ctx, endpoint, opts...)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return ptraceotlp.NewClient(grpcClientConn), grpcClientConn, nil
+}
+
+func instrumentation() ([]grpc.UnaryClientInterceptor, []grpc.StreamClientInterceptor) {
+	return []grpc.UnaryClientInterceptor{
+			otgrpc.OpenTracingClientInterceptor(opentracing.GlobalTracer()),
+			middleware.ClientUserHeaderInterceptor,
+		}, []grpc.StreamClientInterceptor{
+			otgrpc.OpenTracingStreamClientInterceptor(opentracing.GlobalTracer()),
+			middleware.StreamClientUserHeaderInterceptor,
+		}
+}

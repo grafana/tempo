@@ -16,17 +16,17 @@ import (
 	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
 	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/prometheus/util/strutil"
-	"github.com/segmentio/fasthash/fnv1a"
-
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/prometheus/util/strutil"
+	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/weaveworks/common/logging"
 	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/grafana/tempo/modules/distributor/forwarder"
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
@@ -133,6 +133,9 @@ type Distributor struct {
 	generatorsPool          *ring_client.Pool
 	generatorForwarder      *generatorForwarder
 
+	// Generic Forwarder
+	forwardersManager *forwarder.Manager
+
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
 
@@ -226,6 +229,14 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		d.generatorForwarder = newGeneratorForwarder(logger, reg, d.sendToGenerators, o)
 		subservices = append(subservices, d.generatorForwarder)
 	}
+
+	forwardersManager, err := forwarder.NewManager(d.cfg.Forwarders, logger, reg, o)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create forwarders manager: %w", err)
+	}
+
+	d.forwardersManager = forwardersManager
+	subservices = append(subservices, d.forwardersManager)
 
 	cfgReceivers := cfg.Receivers
 	if len(cfgReceivers) == 0 {
@@ -349,6 +360,12 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 
 	if d.metricsGeneratorEnabled && len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
 		d.generatorForwarder.SendTraces(ctx, userID, keys, rebatchedTraces)
+	}
+
+	if len(d.cfg.Forwarders) > 0 && len(d.overrides.Forwarders(userID)) > 0 {
+		if err := d.forwardersManager.ForTenant(userID).ForwardBatches(ctx, tempopb.Trace{Batches: batches}); err != nil {
+			_ = level.Warn(d.logger).Log("msg", "failed to forward batches for tenant=%s: %w", userID, err)
+		}
 	}
 
 	return nil, nil // PushRequest is ignored, so no reason to create one
