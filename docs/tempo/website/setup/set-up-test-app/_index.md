@@ -10,7 +10,7 @@ Once you've setup a Grafana Tempo cluster instance, it's useful to be able to wr
 
 You'll need:
 
-* Grafana Enterprise 9.0.0 or higher
+* Grafana 9.0.0 or higher
 * Microservice deployments require the Tempo querier URL, for example: `http://query-frontend.tempo.svc.cluster.local:3200`
 
 Refer to [Deploy Grafana Enterprise on Kubernetes](https://grafana.com/docs/grafana/latest/setup-grafana/installation/kubernetes/#deploy-grafana-on-kubernetes) if you are using Kubernetes. Otherwise, refer to [Install Grafana](https://grafana.com/docs/grafana/latest/installation/) for more information.
@@ -21,52 +21,58 @@ To enable writes to your cluster, add a remote-write configuration snippet to th
 If you do not have an existing traces collector, refer to [Set up with Grafana Agent](https://grafana.com/docs/agent/latest/set-up/).
 For Kubernetes, refer to the [Grafana Agent Traces Kubernetes quick start guide](https://grafana.com/docs/grafana-cloud/kubernetes-monitoring/agent-k8s/k8s_agent_traces/).
 
-An example agent configuration that opens many trace receivers would be (note that the remote write is onto the Tempo cluster using OTLP gRPC):
+An example agent Kubernetes ConfigMap configuration that opens many trace receivers would be (note that the remote write is onto the Tempo cluster using OTLP gRPC):
 
 ```yaml
-traces:
-    configs:
-      - batch:
-            send_batch_size: 1000
-            timeout: 5s
-        name: default
-        receivers:
-            jaeger:
-                protocols:
-                    grpc: null
-                    thrift_binary: null
-                    thrift_compact: null
-                    thrift_http: null
-            opencensus: null
-            otlp:
-                protocols:
-                    grpc: null
-                    http: null
-            zipkin: null
-        remote_write:
-          - endpoint: <tempoDistributorServiceEndpoint>
-            insecure: true  # only add this if TLS is not required
-        scrape_configs:
-          - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-            job_name: kubernetes-pods
-            kubernetes_sd_configs:
-              - role: pod
-            relabel_configs:
-              - action: replace
-                source_labels:
-                  - __meta_kubernetes_namespace
-                target_label: namespace
-              - action: replace
-                source_labels:
-                  - __meta_kubernetes_pod_name
-                target_label: pod
-              - action: replace
-                source_labels:
-                  - __meta_kubernetes_pod_container_name
-                target_label: container
-            tls_config:
-                ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-                insecure_skip_verify: false
+kind: ConfigMap
+metadata:
+  name: grafana-agent-traces
+apiVersion: v1
+data:
+  agent.yaml: |
+    traces:
+        configs:
+          - batch:
+                send_batch_size: 1000
+                timeout: 5s
+            name: default
+            receivers:
+                jaeger:
+                    protocols:
+                        grpc: null
+                        thrift_binary: null
+                        thrift_compact: null
+                        thrift_http: null
+                opencensus: null
+                otlp:
+                    protocols:
+                        grpc: null
+                        http: null
+                zipkin: null
+            remote_write:
+              - endpoint: <tempoDistributorServiceEndpoint>
+                insecure: true  # only add this if TLS is not required
+            scrape_configs:
+              - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+                job_name: kubernetes-pods
+                kubernetes_sd_configs:
+                  - role: pod
+                relabel_configs:
+                  - action: replace
+                    source_labels:
+                      - __meta_kubernetes_namespace
+                    target_label: namespace
+                  - action: replace
+                    source_labels:
+                      - __meta_kubernetes_pod_name
+                    target_label: pod
+                  - action: replace
+                    source_labels:
+                      - __meta_kubernetes_pod_container_name
+                    target_label: container
+                tls_config:
+                    ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                    insecure_skip_verify: false
 ```
 
 If you have followed the [Tanka Tempo installation example]({{< relref "../setup/tanka.md" >}}), then the `endpoint` value would be:
@@ -75,13 +81,19 @@ If you have followed the [Tanka Tempo installation example]({{< relref "../setup
 distributor.tempo.svc.cluster.local:4317
 ```
 
+Apply the ConfigMap with:
+```bash
+kubectl apply --namespace default -f agent.yaml
+```
+And then deploy the Grafana Agent using the instructions from one the relevant instructions above.
+
 ## Create a Grafana Tempo data source
 
 To allow Grafana to read traces from Tempo, you must create a Tempo data source.
 
 1. Navigate to **Configuration ≫ Data Sources**.
 
-2. Click on **Add new data source**.
+2. Click on **Add data source**.
 
 3. Select **Tempo**.
 
@@ -116,13 +128,13 @@ You can use The New Stack (TNS) application to test GET data.
 1. Change to the new directory: `cd <targetDir>`, .
 1. In each of the `-dep.yaml` manifests, alter the `JAEGER_AGENT_HOST` to the Grafana Agent location. For example, based on the above Grafana Agent install:
    ```yaml
-    	Env:
-    	- name: JAEGER_AGENT_HOST
-  	  value: grafana-agent-traces.default.svc.cluster.local
+   env:
+   - name: JAEGER_AGENT_HOST
+     value: grafana-agent-traces.default.svc.cluster.local
    ```
 1. Deploy the TNS application. It will deploy into the default namespace.
    ```bash
-	   kubectl apply -f app-svc.yaml,db-svc.yaml,loadgen-svc.yaml,app-dep.yaml,db-dep.yaml,loadgen-dep.yaml
+	 kubectl apply -f app-svc.yaml,db-svc.yaml,loadgen-svc.yaml,app-dep.yaml,db-dep.yaml,loadgen-dep.yaml
    ```
 1. Once the application is running, look at the logs for one of the pods (such as the App pod) and find a relevant trace ID. For example:
    ```bash
@@ -135,8 +147,8 @@ You can use The New Stack (TNS) application to test GET data.
     level=info msg="HTTP client success" status=200 url=http://db duration=1.381894ms traceID=7b0e0526f5958549
     level=debug traceID=7b0e0526f5958549 msg="GET / (200) 2.105263ms"
    ```
-1. Go to Grafana Enterprise and select the **Explore** menu item.
-1. Select the **GET data source** from the list of data sources.
-1. Copy the trace ID into the **Trace ID** edit field.
-1. Select **Run query**.
-1. The trace will be displayed in the traces **Explore** panel.
+2. Go to Grafana and select the **Explore** menu item.
+3. Select the **Tempo data source** from the list of data sources.
+4. Copy the trace ID into the **Trace ID** edit field.
+5. Select **Run query**.
+6. The trace will be displayed in the traces **Explore** panel.
