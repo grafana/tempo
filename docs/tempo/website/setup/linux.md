@@ -270,7 +270,7 @@ To set up the TNS app:
     docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions
    ```
 
-1. Deploy the TNS application. We’re only starting particular components as we only want to run the TNS application instead of all of the other Grafana components (that will clash with the components we’ve already installed, including Grafana Enterprise Traces).
+1. Deploy the TNS application. We’re only starting particular components as we only want to run the TNS application instead of all of the other Grafana components (that will clash with the components we’ve already installed, including Tempo).
 
    ```bash
 	   docker compose up loadgen app db
@@ -290,7 +290,7 @@ To set up the TNS app:
    docker-compose-app-1  | level=debug traceID=628e8a4418b81409 msg="GET / (200) 2.163996ms"
    ```
 
-1. Go to Grafana Enterprise and select the **Explore** menu item.
+1. Go to Grafana and select the **Explore** menu item.
 1. Select the **GET data source** from the list of data sources.
 1. Copy the trace ID into the **Trace ID** edit field.
 1. Select **Run query**. 

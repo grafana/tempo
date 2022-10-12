@@ -1,9 +1,9 @@
 ---
-title: Set up a GET cluster
-weight: 300
+title: Set up a Tempo cluster
+weight: 150
 ---
 
-# Set up Tempo
+# Set up a Tempo cluster
 
 Tempo is available as a pre-compiled binary, a Docker image, and as common OS-specific packaging.
 
