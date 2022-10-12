@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"runtime/debug"
 	"sync"
 	"sync/atomic"
 
@@ -290,12 +289,6 @@ func NewColumnIterator(ctx context.Context, rgs []pq.RowGroup, column int, colum
 
 func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 	defer close(c.ch)
-
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("recovered from panic in column iteration", r, c.colName, "\n", string(debug.Stack()))
-		}
-	}()
 
 	span, _ := opentracing.StartSpanFromContext(ctx, "columnIterator.iterate", opentracing.Tags{
 		"columnIndex": c.col,
