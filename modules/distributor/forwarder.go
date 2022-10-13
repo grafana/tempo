@@ -119,25 +119,7 @@ func (f *generatorForwarder) getOrCreateQueue(tenantID string) *queue.Queue[*req
 	defer f.mutex.Unlock()
 
 	queueSize, workerCount := f.getQueueConfig(tenantID)
-
-	processFunc := func(ctx context.Context, data *request) error {
-		return f.forwardFunc(ctx, data.tenantID, data.keys, data.traces)
-	}
-
-	newQueue := queue.New(
-		queue.Config{
-			Name:        "metrics-generator",
-			TenantID:    tenantID,
-			Size:        queueSize,
-			WorkerCount: workerCount,
-		},
-		f.logger,
-		f.reg,
-		processFunc,
-	)
-	newQueue.StartWorkers()
-
-	f.queues[tenantID] = newQueue
+	f.queues[tenantID] = f.createQueueAndStartWorkers(tenantID, queueSize, workerCount)
 
 	return f.queues[tenantID]
 }
@@ -203,25 +185,7 @@ func (f *generatorForwarder) watchOverrides() {
 			// Synchronously update queue managers
 			for _, q := range queuesToAdd {
 				_ = level.Info(f.logger).Log("msg", "Updating queue manager", "tenant", q.tenantID)
-
-				processFunc := func(ctx context.Context, data *request) error {
-					return f.forwardFunc(ctx, data.tenantID, data.keys, data.traces)
-				}
-
-				newQueue := queue.New(
-					queue.Config{
-						Name:        "metrics-generator",
-						TenantID:    q.tenantID,
-						Size:        q.queueSize,
-						WorkerCount: q.workerCount,
-					},
-					f.logger,
-					f.reg,
-					processFunc,
-				)
-				newQueue.StartWorkers()
-
-				f.queues[q.tenantID] = newQueue
+				f.queues[q.tenantID] = f.createQueueAndStartWorkers(q.tenantID, q.queueSize, q.workerCount)
 			}
 
 			f.mutex.Unlock()
@@ -252,4 +216,25 @@ func (f *generatorForwarder) stop(_ error) error {
 		}
 	}
 	return multierr.Combine(errs...)
+}
+
+func (f *generatorForwarder) processFunc(ctx context.Context, data *request) error {
+	return f.forwardFunc(ctx, data.tenantID, data.keys, data.traces)
+}
+
+func (f *generatorForwarder) createQueueAndStartWorkers(tenantID string, size, workerCount int) *queue.Queue[*request] {
+	q := queue.New(
+		queue.Config{
+			Name:        "metrics-generator",
+			TenantID:    tenantID,
+			Size:        size,
+			WorkerCount: workerCount,
+		},
+		f.logger,
+		f.reg,
+		f.processFunc,
+	)
+	q.StartWorkers()
+
+	return q
 }
