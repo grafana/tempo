@@ -126,11 +126,6 @@ func (m *Queue[T]) StartWorkers() {
 	}
 }
 
-// Name returns queue name.
-func (m *Queue[T]) Name() string {
-	return m.name
-}
-
 // TenantID returns the tenant id.
 func (m *Queue[T]) TenantID() string {
 	return m.tenantID
