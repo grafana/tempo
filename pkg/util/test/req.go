@@ -19,7 +19,8 @@ func MakeSpan(traceID []byte) *v1_trace.Span {
 		SpanId:  make([]byte, 8),
 		Kind:    v1_trace.Span_SPAN_KIND_CLIENT,
 		Status: &v1_trace.Status{
-			Code: 1,
+			Code:    1,
+			Message: "OK",
 		},
 		StartTimeUnixNano: uint64(now.UnixNano()),
 		EndTimeUnixNano:   uint64(now.Add(time.Second).UnixNano()),

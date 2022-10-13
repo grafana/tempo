@@ -35,10 +35,11 @@ func TestSpanMetrics(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
-		"service":     "test-service",
-		"span_name":   "test",
-		"span_kind":   "SPAN_KIND_CLIENT",
-		"status_code": "STATUS_CODE_OK",
+		"service":        "test-service",
+		"span_name":      "test",
+		"span_kind":      "SPAN_KIND_CLIENT",
+		"status_code":    "STATUS_CODE_OK",
+		"status_message": "OK",
 	})
 
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
@@ -56,7 +57,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
-	cfg.Dimensions = []string{"status.message", "foo", "bar", "does-not-exist"}
+	cfg.Dimensions = []string{"foo", "bar", "does-not-exist"}
 
 	p := New(cfg, testRegistry)
 	defer p.Shutdown(context.Background())
@@ -67,7 +68,6 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	// Add some attributes
 	for _, rs := range batch.ScopeSpans {
 		for _, s := range rs.Spans {
-			s.Status.Message = "OK"
 			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
 				Key:   "foo",
 				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "foo-value"}},
@@ -92,6 +92,54 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 		"foo":            "foo-value",
 		"bar":            "bar-value",
 		"does_not_exist": "",
+	})
+
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 0.5)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 1)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
+}
+
+func TestSpanMetrics_collisions(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.HistogramBuckets = []float64{0.5, 1}
+	cfg.Dimensions = []string{"span.kind", "status_message"}
+
+	p := New(cfg, testRegistry)
+	defer p.Shutdown(context.Background())
+
+	batch := test.MakeBatch(10, nil)
+	for _, rs := range batch.ScopeSpans {
+		for _, s := range rs.Spans {
+			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+				Key:   "span.kind",
+				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "colliding_kind"}},
+			})
+			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+				Key:   "status_message",
+				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "colliding_message"}},
+			})
+		}
+	}
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	fmt.Println(testRegistry)
+
+	lbls := labels.FromMap(map[string]string{
+		"service":          "test-service",
+		"span_name":        "test",
+		"span_kind":        "SPAN_KIND_CLIENT",
+		"status_code":      "STATUS_CODE_OK",
+		"status_message":   "OK",
+		"__span_kind":      "colliding_kind",
+		"__status_message": "colliding_message",
 	})
 
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
