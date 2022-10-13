@@ -302,7 +302,7 @@ func (l *queueList) update(forwarderNames []string, forwarderNameToForwarder map
 		}
 
 		processFunc := func(ctx context.Context, data tempopb.Trace) {
-			if err := forwarder.ForwardBatches; err != nil {
+			if err := forwarder.ForwardBatches(ctx, data); err != nil {
 				_ = level.Warn(l.logger).Log("msg", "failed to forward batches", "forwarderName", addedForwarderName, "tenantID", l.tenantID, "err", err)
 			}
 		}
