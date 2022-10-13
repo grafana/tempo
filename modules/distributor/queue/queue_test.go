@@ -49,7 +49,7 @@ func getCounterValue(metric *prometheus.CounterVec) float64 {
 func TestNew_ReturnsNotNilAndSetsCorrectFieldsFromConfig(t *testing.T) {
 	// Given
 	cfg := Config{Name: "testName", TenantID: "testTenantID", Size: 123, WorkerCount: 321}
-	processFunc := func(context.Context, int) error { return nil }
+	processFunc := func(context.Context, int) {}
 	logger := log.NewNopLogger()
 	reg := prometheus.NewPedanticRegistry()
 
@@ -70,10 +70,9 @@ func TestQueue_Push_ReturnsNoErrorAndWorkersInvokeProcessFuncCorrectNumberOfTime
 	wg := sync.WaitGroup{}
 	size := 10
 	workerCount := 3
-	processFunc := func(context.Context, any) error {
+	processFunc := func(context.Context, any) {
 		defer wg.Done()
 		count.Inc()
-		return nil
 	}
 	q := newStartedQueue(t, size, workerCount, processFunc)
 
@@ -94,7 +93,7 @@ func TestQueue_Push_ReturnsNoErrorWhenPushingLessItemsThanSizeWithStoppedWorkers
 	// Given
 	size := 10
 	workerCount := 3
-	processFunc := func(context.Context, any) error { return nil }
+	processFunc := func(context.Context, any) {}
 	q := newQueue(t, size, workerCount, processFunc)
 
 	// When
@@ -112,7 +111,7 @@ func TestQueue_Push_ReturnsErrorWhenPushingItemsToShutdownQueue(t *testing.T) {
 	// Given
 	size := 10
 	workerCount := 3
-	processFunc := func(context.Context, any) error { return nil }
+	processFunc := func(context.Context, any) {}
 	q := newStartedQueue(t, size, workerCount, processFunc)
 	require.NoError(t, q.Shutdown(context.Background()))
 
@@ -132,10 +131,9 @@ func TestQueue_Push_QueueGetsProperlyDrainedOnShutdown(t *testing.T) {
 	wg := sync.WaitGroup{}
 	size := 10
 	workerCount := 3
-	processFunc := func(context.Context, any) error {
+	processFunc := func(context.Context, any) {
 		defer wg.Done()
 		count.Inc()
-		return nil
 	}
 	q := newQueue(t, size, workerCount, processFunc)
 
@@ -159,7 +157,7 @@ func TestQueue_Push_ReturnsErrorWhenPushingItemsWithCancelledContext(t *testing.
 	// Given
 	size := 10
 	workerCount := 3
-	processFunc := func(context.Context, any) error { return nil }
+	processFunc := func(context.Context, any) {}
 	q := newStartedQueue(t, size, workerCount, processFunc)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -178,7 +176,7 @@ func TestQueue_Push_ReturnsErrorWhenPushingItemsToFullQueueWithStoppedWorkers(t 
 	// Given
 	size := 10
 	workerCount := 3
-	processFunc := func(context.Context, any) error { return nil }
+	processFunc := func(context.Context, any) {}
 	q := newQueue(t, size, workerCount, processFunc)
 
 	// When
@@ -192,50 +190,6 @@ func TestQueue_Push_ReturnsErrorWhenPushingItemsToFullQueueWithStoppedWorkers(t 
 	require.Equal(t, size, len(q.reqChan))
 	require.Equal(t, float64(size+1), getCounterValue(q.pushesTotalMetrics))
 	require.Equal(t, float64(1), getCounterValue(q.pushesFailuresTotalMetrics))
-}
-
-func TestQueue_Name_ReturnsCorrectValue(t *testing.T) {
-	// Given
-	q := newQueue[int](t, 1, 1, nil)
-
-	// When
-	got := q.Name()
-
-	// Then
-	require.Equal(t, "testName", got)
-}
-
-func TestQueue_TenantID_ReturnsCorrectValue(t *testing.T) {
-	// Given
-	q := newQueue[int](t, 1, 1, nil)
-
-	// When
-	got := q.TenantID()
-
-	// Then
-	require.Equal(t, "testTenantID", got)
-}
-
-func TestQueue_Size_ReturnsCorrectValue(t *testing.T) {
-	// Given
-	q := newQueue[int](t, 1337, 1, nil)
-
-	// When
-	got := q.Size()
-
-	// Then
-	require.Equal(t, 1337, got)
-}
-
-func TestQueue_WorkerCount_ReturnsCorrectValue(t *testing.T) {
-	// Given
-	q := newQueue[int](t, 1, 1337, nil)
-
-	// When
-	got := q.WorkerCount()
-
-	// Then
-	require.Equal(t, 1337, got)
 }
 
 func TestQueue_ShouldUpdate_ReturnsTrueWhenWorkerCountDiffersFromOriginalValue(t *testing.T) {
