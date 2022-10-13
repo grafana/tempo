@@ -35,7 +35,6 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
 )
@@ -427,7 +426,7 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 
 		c, err := d.generatorsPool.GetClientFor(generator.Addr)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get client for generator")
 		}
 
 		_, err = c.(tempopb.MetricsGeneratorClient).PushSpans(localCtx, &req)
@@ -435,7 +434,7 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 		if err != nil {
 			metricGeneratorPushesFailures.WithLabelValues(generator.Addr).Inc()
 		}
-		return err
+		return errors.Wrap(err, "failed to push spans to generator")
 	}, func() {})
 
 	return err
@@ -462,7 +461,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 					return nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit")
 				}
 
-				traceKey := util.TokenFor(userID, traceID)
+				traceKey := tempo_util.TokenFor(userID, traceID)
 				ilsKey := traceKey
 				if ils.Scope != nil {
 					ilsKey = fnv1a.AddString32(ilsKey, ils.Scope.Name)
