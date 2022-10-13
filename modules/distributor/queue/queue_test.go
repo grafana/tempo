@@ -25,6 +25,11 @@ func newQueue[T any](t *testing.T, size, workerCount int, processFunc ProcessFun
 		defer cancel()
 
 		require.NoError(t, q.Shutdown(ctx))
+
+		// Metrics are defined on package-level, we need to reset them each time.
+		pushesTotalMetrics.Reset()
+		pushesFailuresTotalMetric.Reset()
+		lengthMetric.Reset()
 	})
 
 	return q
