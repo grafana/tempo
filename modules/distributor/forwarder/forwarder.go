@@ -3,6 +3,7 @@ package forwarder
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-kit/log"
 	"go.uber.org/multierr"
@@ -42,7 +43,9 @@ func New(cfg Config, logger log.Logger) (Forwarder, error) {
 			return nil, fmt.Errorf("failed to create new otlpgrpc forwarder: %w", err)
 		}
 
-		if err := f.Dial(context.Background()); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := f.Dial(ctx); err != nil {
 			return nil, fmt.Errorf("failed to dial: %w", err)
 		}
 
