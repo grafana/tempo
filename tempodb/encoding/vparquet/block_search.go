@@ -276,7 +276,7 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 		if k == LabelHTTPStatusCode {
 			if i, err := strconv.Atoi(v); err == nil {
 				resourceIters = append(resourceIters, makeIter(column, pq.NewIntBetweenPredicate(int64(i), int64(i)), ""))
-				break
+				continue
 			}
 			// Non-numeric string field
 			otherAttrConditions[k] = v

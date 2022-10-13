@@ -211,6 +211,14 @@ func TestBackendBlockSearch(t *testing.T) {
 
 		// Span attributes
 		makeReq("foo", "baz"),
+
+		// Multiple
+		{
+			Tags: map[string]string{
+				"http.status_code": "500",
+				"service.name":     "asdf",
+			},
+		},
 	}
 	for _, req := range searchesThatDontMatch {
 		res, err := b.Search(ctx, req, defaultSearchOptions())
