@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log"
@@ -11,7 +12,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/weaveworks/common/user"
-	"go.uber.org/atomic"
 )
 
 type ProcessFunc[T any] func(ctx context.Context, data T)
@@ -85,7 +85,7 @@ func New[T any](cfg Config, logger log.Logger, reg prometheus.Registerer, fn Pro
 		pushesTotalMetrics:         pushesTotalMetrics,
 		pushesFailuresTotalMetrics: pushesFailuresTotalMetric,
 		lengthMetric:               lengthMetric,
-		readOnly:                   atomic.NewBool(false),
+		readOnly:                   &atomic.Bool{},
 	}
 }
 
@@ -153,7 +153,7 @@ func (m *Queue[T]) ShouldUpdate(size, workerCount int) bool {
 
 func (m *Queue[T]) Shutdown(ctx context.Context) error {
 	// Call to stopWorkers only once
-	if m.readOnly.CAS(false, true) {
+	if m.readOnly.CompareAndSwap(false, true) {
 		return m.stopWorkers(ctx)
 	}
 
