@@ -14,11 +14,7 @@ import (
 	"go.uber.org/atomic"
 )
 
-type request[T any] struct {
-	data T
-}
-
-type ProcessFunc[T any] func(ctx context.Context, data T) error
+type ProcessFunc[T any] func(ctx context.Context, data T)
 
 // Queue represents a single tenant's queue.
 type Queue[T any] struct {
@@ -31,7 +27,7 @@ type Queue[T any] struct {
 	tenantID       string
 	workerCount    int
 	size           int
-	reqChan        chan *request[T]
+	reqChan        chan T
 	fn             ProcessFunc[T]
 	workersCloseCh chan struct{}
 
@@ -83,7 +79,7 @@ func New[T any](cfg Config, logger log.Logger, reg prometheus.Registerer, fn Pro
 		tenantID:                   cfg.TenantID,
 		workerCount:                cfg.WorkerCount,
 		size:                       cfg.Size,
-		reqChan:                    make(chan *request[T], cfg.Size),
+		reqChan:                    make(chan T, cfg.Size),
 		fn:                         fn,
 		workersCloseCh:             make(chan struct{}),
 		pushesTotalMetrics:         pushesTotalMetrics,
@@ -102,10 +98,6 @@ func (m *Queue[T]) Push(ctx context.Context, data T) error {
 
 	m.pushesTotalMetrics.WithLabelValues(m.name, m.tenantID).Inc()
 
-	req := &request[T]{
-		data: data,
-	}
-
 	select {
 	case <-ctx.Done():
 		m.pushesFailuresTotalMetrics.WithLabelValues(m.name, m.tenantID).Inc()
@@ -114,7 +106,7 @@ func (m *Queue[T]) Push(ctx context.Context, data T) error {
 	}
 
 	select {
-	case m.reqChan <- req:
+	case m.reqChan <- data:
 		m.lengthMetric.WithLabelValues(m.name, m.tenantID).Inc()
 		return nil
 	default:
@@ -194,15 +186,13 @@ func (m *Queue[T]) worker() {
 	}
 }
 
-func (m *Queue[T]) forwardRequest(req *request[T]) {
+func (m *Queue[T]) forwardRequest(req T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	ctx = user.InjectOrgID(ctx, m.tenantID)
 
-	if err := m.fn(ctx, req.data); err != nil {
-		_ = level.Error(m.logger).Log("msg", "pushing with forwarder failed", "err", err)
-	}
+	m.fn(ctx, req)
 }
 
 func (m *Queue[T]) stopWorkers(ctx context.Context) error {
