@@ -8,10 +8,30 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
+)
+
+var (
+	pushesTotalMetrics = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "distributor",
+		Name:      "queue_pushes_total",
+		Help:      "Total number of successful requests queued up for a tenant to the generatorForwarder",
+	}, []string{"name", "tenant"})
+	pushesFailuresTotalMetric = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "distributor",
+		Name:      "queue_pushes_failures_total",
+		Help:      "Total number of failed pushes to the queue for a tenant to the generatorForwarder",
+	}, []string{"name", "tenant"})
+	lengthMetric = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Subsystem: "distributor",
+		Name:      "queue_length",
+		Help:      "Number of queued requests for a tenant",
+	}, []string{"name", "tenant"})
 )
 
 type ProcessFunc[T any] func(ctx context.Context, data T)
@@ -38,41 +58,7 @@ type Queue[T any] struct {
 	readOnly *atomic.Bool
 }
 
-func New[T any](cfg Config, logger log.Logger, reg prometheus.Registerer, fn ProcessFunc[T]) *Queue[T] {
-	pushesTotalMetrics := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Subsystem: "distributor",
-		Name:      "queue_pushes_total",
-		Help:      "Total number of successful requests queued up for a tenant to the generatorForwarder",
-	}, []string{"name", "tenant"})
-	pushesFailuresTotalMetric := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Subsystem: "distributor",
-		Name:      "queue_pushes_failures_total",
-		Help:      "Total number of failed pushes to the queue for a tenant to the generatorForwarder",
-	}, []string{"name", "tenant"})
-	lengthMetric := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempo",
-		Subsystem: "distributor",
-		Name:      "queue_length",
-		Help:      "Number of queued requests for a tenant",
-	}, []string{"name", "tenant"})
-
-	var alreadyRegisteredErr prometheus.AlreadyRegisteredError
-	err := reg.Register(pushesTotalMetrics)
-	if err != nil && !errors.As(err, &alreadyRegisteredErr) {
-		_ = level.Warn(logger).Log("msg", "failed to register queue_pushes_total metric", "err", err)
-	}
-	err = reg.Register(pushesFailuresTotalMetric)
-	if err != nil && !errors.As(err, &alreadyRegisteredErr) {
-		_ = level.Warn(logger).Log("msg", "failed to register queue_pushes_failures_total metric", "err", err)
-	}
-
-	err = reg.Register(lengthMetric)
-	if err != nil && !errors.As(err, &alreadyRegisteredErr) {
-		_ = level.Warn(logger).Log("msg", "failed to register queue_length metric", "err", err)
-	}
-
+func New[T any](cfg Config, logger log.Logger, _ prometheus.Registerer, fn ProcessFunc[T]) *Queue[T] {
 	return &Queue[T]{
 		logger:                     logger,
 		name:                       cfg.Name,
