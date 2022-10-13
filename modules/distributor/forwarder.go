@@ -218,8 +218,10 @@ func (f *generatorForwarder) stop(_ error) error {
 	return multierr.Combine(errs...)
 }
 
-func (f *generatorForwarder) processFunc(ctx context.Context, data *request) error {
-	return f.forwardFunc(ctx, data.tenantID, data.keys, data.traces)
+func (f *generatorForwarder) processFunc(ctx context.Context, data *request) {
+	if err := f.forwardFunc(ctx, data.tenantID, data.keys, data.traces); err != nil {
+		_ = level.Warn(f.logger).Log("msg", "failed to forward request to metrics generator", "err", err)
+	}
 }
 
 func (f *generatorForwarder) createQueueAndStartWorkers(tenantID string, size, workerCount int) *queue.Queue[*request] {
