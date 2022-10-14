@@ -12,9 +12,8 @@ There are a few components that must be configured in order to get a
 working distributed tracing visualization.
 
 This document discusses the four major pieces necessary to build out a tracing system:
-Instrumentation, Pipeline, Backend and Visualization.
-If one were to build a diagram laying
-out these pieces, it may look something like this:
+Instrumentation, pipeline, backend, and visualization.
+The following diagram illustrates a tracing system configuration:
 
 <p align="center"><img src="getting-started.png" alt="Tracing Overview"></p>
 
@@ -35,7 +34,7 @@ in most commonly used programming languages and you should pick one according to
 * [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
 * [OpenTelemetry](https://opentelemetry.io/docs/concepts/instrumenting/)
 
-### OpenTelemetry Auto Instrumentation
+### OpenTelemetry automatic instrumentation
 
 Some languages have support for auto-instrumentation. These libraries capture telemetry
 information from a client application with minimal manual instrumentation of the codebase.

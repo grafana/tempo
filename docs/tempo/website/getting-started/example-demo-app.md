@@ -8,12 +8,13 @@ weight: 200
 
 # Example setups
 
-These examples show various deployment and [configuration]({{< relref "../configuration" >}}) options.
-They include trace generators so an existing application is not necessary to get started experimenting with Tempo. 
+The following examples show various deployment and configuration options using trace generators so you can get started experimenting with Tempo without an existing application.
 
-Refer to [Set up a Tempo cluster]({{< relref "../setup">}}) for instructions on setting up basic Tempo clusters and testing data.
+For more information on Tempo setup and configuration see: 
+* [Set up a Tempo cluster]({{< relref "../setup">}})
+* [Tempo configuration]({{< relref "../configuration" >}}) 
 
-If you are interested in instrumentation, check out these [examples]({{< relref "./instrumentation" >}}).
+If you are interested in instrumentation, see [Tempo instrumentation]({{< relref "../instrumentation" >}}).
 
 > **Note:** You can use [Grafana Cloud](https://grafana.com/products/cloud/features/#cloud-dashboards-grafana) to avoid installing, maintaining, and scaling your own instance of Grafana Tempo. The free forever plan includes 50GB of free traces. [Create an account to get started](https://grafana.com/auth/sign-up/create-user?pg=docs-tempo&plcmt=in-text).
 
@@ -29,10 +30,10 @@ Check the above link for all kinds of examples including:
 
 ## Tanka
 
-The Jsonnet based [example](https://github.com/grafana/tempo/tree/main/example/tk) shows a complete microservice based deployment.
+To view an example of a complete microservice-based deployment, see this [Jsonnet based example](https://github.com/grafana/tempo/tree/main/example/tk) shows a complete microservice based deployment.
 There are monolithic mode and microservices examples.
 
-Refer to [Deploy on Kubernetes with Tanka]({{< relref "../setup/tanka" >}}) for instructions on setting up a Tempo cluster. 
+To learn how to set up a Tempo cluster, see [Deploy on Kubernetes with Tanka]({{< relref "../setup/tanka" >}}).
 
 ## Helm
 

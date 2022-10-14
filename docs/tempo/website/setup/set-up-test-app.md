@@ -79,7 +79,7 @@ data:
                     insecure_skip_verify: false
 ```
 
-If you have followed the [Tanka Tempo installation example]({{< relref "../setup/tanka.md" >}}), then the `endpoint` value would be:
+If you have followed the [Tanka Tempo installation example]({{< relref "../setup/tanka" >}}), then the `endpoint` value would be:
 
 ```bash
 distributor.tempo.svc.cluster.local:4317
@@ -91,7 +91,7 @@ Apply the ConfigMap with:
 kubectl apply --namespace default -f agent.yaml
 ```
 
-Deploy the Grafana Agent using the instructions from one the relevant instructions above.
+Deploy Grafana Agent using the instructions from the relevant instructions above.
 
 ## Create a Grafana Tempo data source
 
@@ -134,7 +134,7 @@ You can use The New Stack (TNS) application to test Tempo data.
       cp tns/production/k8s-yamls/* <targetDir>
     ```
 
-1. Change to the new directory: `cd <targetDir>`, .
+1. Change to the new directory: `cd <targetDir>` .
 1. In each of the `-dep.yaml` manifests, alter the `JAEGER_AGENT_HOST` to the Grafana Agent location. For example, based on the above Grafana Agent install:
    ```yaml
    env:
@@ -160,4 +160,4 @@ You can use The New Stack (TNS) application to test Tempo data.
 1. Select the **Tempo data source** from the list of data sources.
 1. Copy the trace ID into the **Trace ID** edit field.
 1. Select **Run query**.
-1. The trace is displayed in the traces **Explore** panel.
+1. Confirm that the trace is displayed in the traces **Explore** panel.
