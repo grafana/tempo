@@ -47,10 +47,8 @@
     deployment.mixin.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_compactor_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
-    ]),  
+    ]),
 
-
-   
   tempo_compactor_service:
     k.util.serviceFor($.tempo_compactor_deployment),
 }
