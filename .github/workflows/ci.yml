@@ -19,6 +19,13 @@ jobs:
         with:
           go-version: 1.19
 
+      - name: Install jsonnetfmt and goimports
+        run: |
+          curl -fSL -o jsonnet.tar.gz https://github.com/google/jsonnet/releases/download/v0.17.0/jsonnet-bin-v0.17.0-linux.tar.gz
+          tar -xvf jsonnet.tar.gz -C /usr/local/bin/
+          chmod a+x /usr/local/bin/jsonnetfmt
+          go install golang.org/x/tools/cmd/goimports@v0.1.12
+
       - name: Check out code
         uses: actions/checkout@v3
 
@@ -26,6 +33,12 @@ jobs:
         uses: golangci/golangci-lint-action@v3
         with:
           version: v1.49.0
+
+      - name: check-fmt
+        run: make check-fmt
+
+      - name: check-jsonnetfmt
+        run: make check-jsonnetfmt
 
   unit-tests:
     name: Test packages
