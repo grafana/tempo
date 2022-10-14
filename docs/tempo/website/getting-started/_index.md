@@ -20,7 +20,7 @@ out these pieces, it may look something like this:
 
 > **Note:** You can use [Grafana Cloud](https://grafana.com/products/cloud/features/#cloud-dashboards-grafana) to avoid installing, maintaining, and scaling your own instance of Grafana Tempo. The free forever plan includes 50GB of free traces. [Create an account to get started](https://grafana.com/auth/sign-up/create-user?pg=docs-tempo&plcmt=in-text).
 
-## 1. Instrumentation
+## Instrumentation
 
 ### Instrumentation SDKs
 
@@ -47,7 +47,7 @@ information from a client application with minimal manual instrumentation of the
 > Note: Check out our [instrumentation references]({{< relref "./instrumentation" >}}) to learn how to instrument your
 > favourite language for distributed tracing.
 
-## 2. Pipeline (Grafana Agent)
+## Pipeline (Grafana Agent)
 
 Once your application is instrumented for tracing, the next step is to send these traces
 to a backend for storage and visualization. It is common to build a tracing pipeline that
@@ -66,7 +66,7 @@ refer to [this blog post](https://grafana.com/blog/2020/11/17/tracing-with-the-g
 > Refer to [this blog post](https://grafana.com/blog/2021/04/13/how-to-send-traces-to-grafana-clouds-tempo-service-with-opentelemetry-collector/)
 > to see how the OpenTelemetry Collector can be used with Grafana Cloud Tempo.
 
-## 3. Backend (Tempo)
+## Backend (Tempo)
 
 Grafana Tempo is an easy-to-use and high-scale distributed tracing backend used to store and query traces. The purpose of
 the tracing backend is to store and retrieve traces on demand.
@@ -79,7 +79,7 @@ Getting started with Tempo is easy.
 > **Note:** The Grafana Agent is already set up to use Tempo. Refer to the [configuration](https://grafana.com/docs/agent/latest/configuration/traces-config/) and [example](https://github.com/grafana/agent/blob/main/example/docker-compose/agent/config/agent.yaml) for details.
 
 
-## 4. Visualization (Grafana)
+## Visualization (Grafana)
 
 Grafana has a built in Tempo datasource that can be used to query Tempo and visualize traces.
 For more information refer to the [Tempo data source](https://grafana.com/docs/grafana/latest/datasources/tempo/), and the [Tempo in Grafana]({{< relref "./tempo-in-grafana/" >}}) topics.
