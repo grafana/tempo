@@ -98,14 +98,20 @@ test-all: test-with-cover test-e2e test-e2e-serverless
 test-bench: docker-tempo
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/bench
 
-.PHONY: fmt
+.PHONY: fmt check-fmt
 fmt:
 	@gofmt -s -w $(FILES_TO_FMT)
 	@goimports -w $(FILES_TO_FMT)
 
-.PHONY: jsonnetfmt
+check-fmt: fmt
+	@git diff --exit-code -- $(FILES_TO_FMT)
+
+.PHONY: jsonnetfmt check-jsonnetfmt
 jsonnetfmt:
 	@jsonnetfmt -i $(FILES_TO_JSONNETFMT)
+
+check-jsonnetfmt: jsonnetfmt
+	@git diff --exit-code -- $(FILES_TO_JSONNETFMT)
 
 .PHONY: lint
 lint:
