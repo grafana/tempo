@@ -29,16 +29,17 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v3
 
-      - name: Lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: v1.49.0
-
       - name: check-fmt
         run: make check-fmt
 
       - name: check-jsonnetfmt
         run: make check-jsonnetfmt
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.49.0
+
 
   unit-tests:
     name: Test packages
