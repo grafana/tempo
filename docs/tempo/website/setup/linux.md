@@ -1,9 +1,12 @@
 ---
 title: Deploy on Linux
 menuTitle: Deploy on Linux
-description: Learn how to deploy GET on Linux
+description: Learn how to deploy Tempo on Linux
 weight: 100
+draft: true
 ---
+
+<!-- This page was migrated from GET and needs to have the repo and file locations updated for Tempo. -->
 
 # Deploy on Linux
 
@@ -37,7 +40,7 @@ Your Linux system should have at least:
 Tempo uses object storage as the backend for its trace storage.
 It also uses object storage for storing various administrative credentials and data related to the state of the system.
 
-Tempo support using the local filesystem as the backend for trace storage as well.
+Tempo supports using the local filesystem as the backend for trace storage as well.
 This is not recommended for production deployments and is not supported for storing admin credentials, this guide focuses on setup with an object storage.
 
 This example uses [Amazon S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html) on the AWS `us-east-1` region as your object store.
@@ -49,7 +52,7 @@ You may need to alter the bucket names to be globally unique.
 
 Consider adding a prefix for your organization to the bucket, for example, `myorg-grafana-traces-admin` and `myorg-grafana-traces-data`, and then replacing the names in the rest of these instructions with those bucket names.
 
-## Install GET
+## Install Tempo
 
 For a linux-amd64 installation, run the following commands via the command line interface on your Linux machine.
 You need administrator privileges to do this by running as the `root` user or via `sudo` as a user with permissions to do so.
@@ -104,7 +107,7 @@ You need administrator privileges to do this by running as the `root` user or vi
    systemctl enable enterprise-traces.service
    ```
 
-## Create a GET configuration file
+## Create a Tempo configuration file
 
 Copy the following YAML configuration to a file called `enterprise-traces.yaml`.
 
@@ -115,7 +118,7 @@ Refer to the [Tempo configuration documentation]({<< relref "../../configuration
 
 In the following configuration, Tempo options are altered to only listen to the OTLP gRPC and HTTP protocols.
 By default, Tempo listens for all compatible protocols.
-The extended instructions for installing the TNS application and Grafana Agent to verify that Tempo is receiving traces relies on the default Jaeger port being available, hence disabling listening on that port in GET for a single Linux node.
+The extended instructions for installing the TNS application and Grafana Agent to verify that Tempo is receiving traces relies on the default Jaeger port being available, hence disabling listening on that port in Tempo for a single Linux node.
 
 ```yaml
 multitenancy_enabled: true
@@ -170,18 +173,16 @@ admin_client:
     type: s3
 ```
 
-## Move the configuration file and license to the proper directory
+## Move the configuration file to the proper directory
 
-The enterprise-traces.yaml and license.jwt files need to be moved: 
+The `enterprise-traces.yaml` file need to be moved: 
 
 - `enterprise-traces.yaml` should be copied to `/etc/enterprise-traces/enterprise-traces.yaml`
-- `license.jwt` should be copied to `/etc/enterprise-traces/license.jwt`
 
-Copy the configuration and the license files to all nodes in the GET cluster:
+Copy the configuration file to all nodes in the Tempo cluster:
 
 ```bash
 cp enterprise-traces.yaml /etc/enterprise-traces/enterprise-traces.yaml
-cp license.jwt /etc/enterprise-traces/license.jwt
 ```
 
 ## Generate an admin token
@@ -197,7 +198,7 @@ cp license.jwt /etc/enterprise-traces/license.jwt
    # Token created:  YWRtaW4tcG9saWN5LWJvb3RzdHJhcC10b2tlbjo8Ujc1IzQyfXBfMjd7fDIwMDRdYVxgeXw=
    ```
 
-1. After you enter your password, the system outputs a new token. Save this token somewhere secure for future API calls and to enable the GET plugin.
+1. After you enter your password, the system outputs a new token. Save this token somewhere secure for future API calls and to enable the Tempo plugin.
 
    ```bash
    Password:
@@ -238,7 +239,7 @@ This indicates the ingester component is ready to receive trace data.
 
 ## Use the CLI to send Tempo data to Grafana
 
-Refer to [Set up the GET plugin for Grafana]({{< relref "../setup-get-plugin-grafana" >}}) to integrate your GET cluster with Grafana and a UI to interact with the Admin API.
+Refer to [Set up the Tempo plugin for Grafana]({{< relref "../setup-get-plugin-grafana" >}}) to integrate your Tempo cluster with Grafana and a UI to interact with the Admin API.
 
 <!-- This section is commented out until some issues with the TNS install (dealing with ports) are addressed. >
 ## Test your configuration using the TNS application
@@ -291,7 +292,7 @@ To set up the TNS app:
    ```
 
 1. Go to Grafana and select the **Explore** menu item.
-1. Select the **GET data source** from the list of data sources.
+1. Select the **Tempo data source** from the list of data sources.
 1. Copy the trace ID into the **Trace ID** edit field.
 1. Select **Run query**. 
 1. The trace will be displayed in the traces **Explore** panel.

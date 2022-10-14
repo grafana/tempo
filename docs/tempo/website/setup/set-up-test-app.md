@@ -1,11 +1,14 @@
 ---
-title: Set up a test application for Tempo cluster
+title: Set up a test app for a Tempo cluster
+menuTitle: Set up a test application for a Tempo cluster
+description: Learn how to set up a test app for your Tempo cluster and visualize data.
 weight: 400
 ---
 
-# Set up a test application for Tempo cluster
+# Set up a test application for a Tempo cluster
 
-Once you've setup a Grafana Tempo cluster instance, it's useful to be able to write some traces to it and then query the traces from within Grafana.
+Once you've set up a Grafana Tempo cluster, you need to write some traces to it and then query the traces from within Grafana.
+
 ## Before you begin
 
 You'll need:
@@ -13,7 +16,8 @@ You'll need:
 * Grafana 9.0.0 or higher
 * Microservice deployments require the Tempo querier URL, for example: `http://query-frontend.tempo.svc.cluster.local:3200`
 
-Refer to [Deploy Grafana Enterprise on Kubernetes](https://grafana.com/docs/grafana/latest/setup-grafana/installation/kubernetes/#deploy-grafana-on-kubernetes) if you are using Kubernetes. Otherwise, refer to [Install Grafana](https://grafana.com/docs/grafana/latest/installation/) for more information.
+Refer to [Deploy Grafana on Kubernetes](https://grafana.com/docs/grafana/latest/setup-grafana/installation/kubernetes/#deploy-grafana-on-kubernetes) if you are using Kubernetes.
+Otherwise, refer to [Install Grafana](https://grafana.com/docs/grafana/latest/installation/) for more information.
 
 ## Set up remote-write to your Tempo cluster
 
@@ -21,7 +25,7 @@ To enable writes to your cluster, add a remote-write configuration snippet to th
 If you do not have an existing traces collector, refer to [Set up with Grafana Agent](https://grafana.com/docs/agent/latest/set-up/).
 For Kubernetes, refer to the [Grafana Agent Traces Kubernetes quick start guide](https://grafana.com/docs/grafana-cloud/kubernetes-monitoring/agent-k8s/k8s_agent_traces/).
 
-An example agent Kubernetes ConfigMap configuration that opens many trace receivers would be (note that the remote write is onto the Tempo cluster using OTLP gRPC):
+The example agent Kubernetes ConfigMap configuration below opens many trace receivers (note that the remote write is onto the Tempo cluster using OTLP gRPC):
 
 ```yaml
 kind: ConfigMap
@@ -82,10 +86,12 @@ distributor.tempo.svc.cluster.local:4317
 ```
 
 Apply the ConfigMap with:
+
 ```bash
 kubectl apply --namespace default -f agent.yaml
 ```
-And then deploy the Grafana Agent using the instructions from one the relevant instructions above.
+
+Deploy the Grafana Agent using the instructions from one the relevant instructions above.
 
 ## Create a Grafana Tempo data source
 
@@ -97,7 +103,7 @@ To allow Grafana to read traces from Tempo, you must create a Tempo data source.
 
 3. Select **Tempo**.
 
-4. Set the URL to `http://<tempo-host>:<http_listen_port>/`, filling in the path to your gateway and the configured HTTP API prefix. If you have followed the [Tanka Tempo installation example]({{< relref "../setup/tanka.md" >}}) guide, this will be: `http://query-frontend.tempo.svc.cluster.local:3200/`
+4. Set the URL to `http://<tempo-host>:<http_listen_port>/`, filling in the path to your gateway and the configured HTTP API prefix. If you have followed the [Tanka Tempo installation example]({{< relref "../setup/tanka.md" >}}), this will be: `http://query-frontend.tempo.svc.cluster.local:3200/`
 
 5. Click **Save & Test**.
 
@@ -111,20 +117,23 @@ Upgrade your Grafana to 8.2.2 or later to get the [fix for the error message](ht
 ## Visualize your data
 
 Once you have created a data source, you can visualize your traces in the **Grafana Explore** page.
+For more information, refer to [Tempo in Grafana]({{< relref "../getting-started/tempo-in-grafana" >}}).
 
 ### Test your configuration using the TNS application
 
-You can use The New Stack (TNS) application to test GET data.
+You can use The New Stack (TNS) application to test Tempo data.
 
 1. Create a new directory to store the TNS manifests.
-1. Navigate to https://github.com/grafana/tns/tree/main/production/k8s-yamls to get the Kubernetes manifests for the TNS application.
+1. Navigate to `https://github.com/grafana/tns/tree/main/production/k8s-yamls` to get the Kubernetes manifests for the TNS application.
 1. Clone the repository using commands similar to the ones below (where `<targetDir>` is the directory you used to store the manifests):
+
     ```bash
       mkdir ~/tmp
       cd ~/tmp
       git clone git+ssh://github.com/grafana/tns
       cp tns/production/k8s-yamls/* <targetDir>
     ```
+
 1. Change to the new directory: `cd <targetDir>`, .
 1. In each of the `-dep.yaml` manifests, alter the `JAEGER_AGENT_HOST` to the Grafana Agent location. For example, based on the above Grafana Agent install:
    ```yaml
@@ -147,8 +156,8 @@ You can use The New Stack (TNS) application to test GET data.
     level=info msg="HTTP client success" status=200 url=http://db duration=1.381894ms traceID=7b0e0526f5958549
     level=debug traceID=7b0e0526f5958549 msg="GET / (200) 2.105263ms"
    ```
-2. Go to Grafana and select the **Explore** menu item.
-3. Select the **Tempo data source** from the list of data sources.
-4. Copy the trace ID into the **Trace ID** edit field.
-5. Select **Run query**.
-6. The trace will be displayed in the traces **Explore** panel.
+1. Go to Grafana and select the **Explore** menu item.
+1. Select the **Tempo data source** from the list of data sources.
+1. Copy the trace ID into the **Trace ID** edit field.
+1. Select **Run query**.
+1. The trace is displayed in the traces **Explore** panel.
