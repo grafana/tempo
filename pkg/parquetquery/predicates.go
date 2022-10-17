@@ -261,6 +261,92 @@ func (p *IntBetweenPredicate) KeepPage(page pq.Page) bool {
 	return true
 }
 
+// Generic predicate with callbacks to evalulate data of type T
+// Fn evalulates a single data point and is required. Optionally,
+// a RangeFn can evalulate a min/max range and is used to
+// skip column chunks and pages when RangeFn is supplied and
+// the column chunk or page also include bounds metadata.
+type GenericPredicate[T any] struct {
+	fn      func(T) bool
+	rangeFn func(min, max T) bool
+	extract func(pq.Value) T
+}
+
+func NewGenericPredicate[T any](fn func(T) bool, rangeFn func(T, T) bool, extract func(pq.Value) T) *GenericPredicate[T] {
+	return &GenericPredicate[T]{fn, rangeFn, extract}
+}
+
+func (p *GenericPredicate[T]) KeepColumnChunk(c pq.ColumnChunk) bool {
+	if p.rangeFn == nil {
+		return true
+	}
+
+	if ci := c.ColumnIndex(); ci != nil {
+		for i := 0; i < ci.NumPages(); i++ {
+			min := p.extract(ci.MinValue(i))
+			max := p.extract(ci.MaxValue(i))
+			if p.rangeFn(min, max) {
+				return true
+			}
+		}
+		return false
+	}
+
+	return true
+}
+
+func (p *GenericPredicate[T]) KeepPage(page pq.Page) bool {
+
+	if p.rangeFn != nil {
+		if min, max, ok := page.Bounds(); ok {
+			return p.rangeFn(p.extract(min), p.extract(max))
+		}
+	}
+
+	// If a dictionary column then ensure at least one matching
+	// value exists in the dictionary
+	dict := page.Dictionary()
+	if dict != nil && dict.Len() > 0 {
+		len := dict.Len()
+		for i := 0; i < len; i++ {
+			if p.KeepValue(dict.Index(int32(i))) {
+				return true
+			}
+		}
+
+		// No values matched
+		return false
+	}
+
+	return true
+}
+
+func (p *GenericPredicate[T]) KeepValue(v pq.Value) bool {
+	return p.fn(p.extract(v))
+}
+
+func NewIntPredicate(fn func(int64) bool, rangeFn func(int64, int64) bool) Predicate {
+	return NewGenericPredicate(
+		fn, rangeFn,
+		func(v pq.Value) int64 { return v.Int64() },
+	)
+}
+
+func NewFloatPredicate(fn func(float64) bool, rangeFn func(float64, float64) bool) Predicate {
+	return NewGenericPredicate(
+		fn, rangeFn,
+		func(v pq.Value) float64 { return v.Double() },
+	)
+}
+
+func NewBoolPredicate(b bool) Predicate {
+	return NewGenericPredicate(
+		func(v bool) bool { return v == b },
+		nil,
+		func(v pq.Value) bool { return v.Boolean() },
+	)
+}
+
 type FloatBetweenPredicate struct {
 	min, max float64
 }
@@ -297,31 +383,6 @@ func (p *FloatBetweenPredicate) KeepPage(page pq.Page) bool {
 		return p.max >= min.Double() && p.min <= max.Double()
 	}
 	return true
-}
-
-// BoolPredicate checks for bools equal to the value
-type BoolPredicate struct {
-	b bool
-}
-
-var _ Predicate = (*BoolPredicate)(nil)
-
-func NewBoolPredicate(b bool) *BoolPredicate {
-	return &BoolPredicate{b}
-}
-
-func (p *BoolPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
-	// Can we do anything here?
-	return true
-}
-
-func (p *BoolPredicate) KeepPage(page pq.Page) bool {
-	// Can we do anything here?
-	return true
-}
-
-func (p *BoolPredicate) KeepValue(v pq.Value) bool {
-	return p.b == v.Boolean()
 }
 
 type OrPredicate struct {

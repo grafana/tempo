@@ -116,7 +116,10 @@ func checkConditions(conditions []traceql.Condition) error {
 				return fmt.Errorf("operanion none must have 0 arguments. condition: %+v", cond)
 			}
 
-		case traceql.OpEqual, traceql.OpGreater, traceql.OpLess, traceql.OpRegex:
+		case traceql.OpEqual, traceql.OpNotEqual,
+			traceql.OpGreater, traceql.OpGreaterEqual,
+			traceql.OpLess, traceql.OpLessEqual,
+			traceql.OpRegex:
 			if opCount != 1 {
 				return fmt.Errorf("operation %v must have exactly 1 argument. condition: %+v", cond.Op, cond)
 			}
@@ -575,21 +578,33 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 		return nil, nil
 	}
 
-	vals := make([]string, 0, len(operands))
-
 	for _, op := range operands {
 		if op.Type != traceql.TypeString {
 			return nil, fmt.Errorf("operand is not string: %+v", op)
 		}
-		vals = append(vals, op.S)
 	}
+
+	s := operands[0].S
 
 	switch op {
 	case traceql.OpEqual:
-		return parquetquery.NewStringInPredicate(vals), nil
+		return parquetquery.NewStringInPredicate([]string{s}), nil
+
+	case traceql.OpNotEqual:
+		return parquetquery.NewGenericPredicate(
+			func(v string) bool {
+				return v != s
+			},
+			func(min, max string) bool {
+				return min != s || max != s
+			},
+			func(v parquet.Value) string {
+				return v.String()
+			},
+		), nil
 
 	case traceql.OpRegex:
-		return parquetquery.NewRegexInPredicate(vals)
+		return parquetquery.NewRegexInPredicate([]string{s})
 
 	default:
 		return nil, fmt.Errorf("operand not supported for strings: %+v", op)
@@ -612,22 +627,33 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 		return nil, fmt.Errorf("operand is not int or duration: %+v", operands[0])
 	}
 
-	min := int64(math.MinInt64)
-	max := int64(math.MaxInt64)
+	var fn func(v int64) bool
+	var rangeFn func(min, max int64) bool
 
 	switch op {
 	case traceql.OpEqual:
-		min = i
-		max = i
+		fn = func(v int64) bool { return v == i }
+		rangeFn = func(min, max int64) bool { return min <= i && i <= max }
+	case traceql.OpNotEqual:
+		fn = func(v int64) bool { return v != i }
+		rangeFn = func(min, max int64) bool { return min != i || max != i }
 	case traceql.OpGreater:
-		min = i + 1
+		fn = func(v int64) bool { return v > i }
+		rangeFn = func(min, max int64) bool { return max > i }
+	case traceql.OpGreaterEqual:
+		fn = func(v int64) bool { return v >= i }
+		rangeFn = func(min, max int64) bool { return max >= i }
 	case traceql.OpLess:
-		max = i - 1
+		fn = func(v int64) bool { return v < i }
+		rangeFn = func(min, max int64) bool { return min < i }
+	case traceql.OpLessEqual:
+		fn = func(v int64) bool { return v <= i }
+		rangeFn = func(min, max int64) bool { return min <= i }
 	default:
 		return nil, fmt.Errorf("operand not supported for integers: %+v", op)
 	}
 
-	return parquetquery.NewIntBetweenPredicate(min, max), nil
+	return parquetquery.NewIntPredicate(fn, rangeFn), nil
 }
 
 func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
@@ -640,24 +666,35 @@ func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parqu
 		return nil, fmt.Errorf("operand is not float: %+v", operands[0])
 	}
 
-	// Defaults
 	i := operands[0].F
-	min := math.Inf(-1)
-	max := math.Inf(1)
+
+	var fn func(v float64) bool
+	var rangeFn func(min, max float64) bool
 
 	switch op {
 	case traceql.OpEqual:
-		min = i
-		max = i
+		fn = func(v float64) bool { return v == i }
+		rangeFn = func(min, max float64) bool { return min <= i && i <= max }
+	case traceql.OpNotEqual:
+		fn = func(v float64) bool { return v != i }
+		rangeFn = func(min, max float64) bool { return min != i || max != i }
 	case traceql.OpGreater:
-		min = math.Nextafter(i, max)
+		fn = func(v float64) bool { return v > i }
+		rangeFn = func(min, max float64) bool { return max > i }
+	case traceql.OpGreaterEqual:
+		fn = func(v float64) bool { return v >= i }
+		rangeFn = func(min, max float64) bool { return max >= i }
 	case traceql.OpLess:
-		max = math.Nextafter(i, min)
+		fn = func(v float64) bool { return v < i }
+		rangeFn = func(min, max float64) bool { return min < i }
+	case traceql.OpLessEqual:
+		fn = func(v float64) bool { return v <= i }
+		rangeFn = func(min, max float64) bool { return min <= i }
 	default:
 		return nil, fmt.Errorf("operand not supported for floats: %+v", op)
 	}
 
-	return parquetquery.NewFloatBetweenPredicate(min, max), nil
+	return parquetquery.NewFloatPredicate(fn, rangeFn), nil
 }
 
 func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
@@ -673,6 +710,9 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 	switch op {
 	case traceql.OpEqual:
 		return parquetquery.NewBoolPredicate(operands[0].B), nil
+
+	case traceql.OpNotEqual:
+		return parquetquery.NewBoolPredicate(!operands[0].B), nil
 
 	default:
 		return nil, fmt.Errorf("operand not supported for booleans: %+v", op)

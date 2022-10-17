@@ -56,10 +56,22 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		makeReq(parse(t, `{span.`+LabelHTTPMethod+` = "get"}`)),
 		makeReq(parse(t, `{span.`+LabelHTTPUrl+` = "url/hello/world"}`)),
 		// Basic data types and operations
+		makeReq(parse(t, `{.float = 456.78}`)),      // Float ==
+		makeReq(parse(t, `{.float != 456.79}`)),     // Float !=
 		makeReq(parse(t, `{.float > 456.7}`)),       // Float >
+		makeReq(parse(t, `{.float >= 456.78}`)),     // Float >=
 		makeReq(parse(t, `{.float < 456.781}`)),     // Float <
-		makeReq(parse(t, `{.bool = false}`)),        // Bool
-		makeReq(parse(t, `{.foo =~ "d.*"}`)),        // Regex
+		makeReq(parse(t, `{.bool = false}`)),        // Bool ==
+		makeReq(parse(t, `{.bool != true}`)),        // Bool !=
+		makeReq(parse(t, `{.bar = 123}`)),           // Int ==
+		makeReq(parse(t, `{.bar != 124}`)),          // Int !=
+		makeReq(parse(t, `{.bar > 122}`)),           // Int >
+		makeReq(parse(t, `{.bar >= 123}`)),          // Int >=
+		makeReq(parse(t, `{.bar < 124}`)),           // Int <
+		makeReq(parse(t, `{.bar <= 123}`)),          // Int <=
+		makeReq(parse(t, `{.foo = "def"}`)),         // String ==
+		makeReq(parse(t, `{.foo != "deg"}`)),        // String !=
+		makeReq(parse(t, `{.foo =~ "d.*"}`)),        // String Regex
 		makeReq(parse(t, `{resource.foo = "abc"}`)), // Resource-level only
 		makeReq(parse(t, `{span.foo = "def"}`)),     // Span-level only
 		makeReq(parse(t, `{.foo}`)),                 // Projection only
