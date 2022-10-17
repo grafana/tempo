@@ -6,11 +6,13 @@ import (
 	"sort"
 
 	"github.com/go-kit/log/level"
-	v2 "github.com/grafana/tempo/pkg/model/v2"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/weaveworks/common/user"
+
+	"github.com/grafana/tempo/pkg/api"
+	v2 "github.com/grafana/tempo/pkg/model/v2"
+	"github.com/grafana/tempo/pkg/util"
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -28,6 +30,14 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	// if limit is not set, use a safe default
 	if maxResults == 0 {
 		maxResults = 20
+	}
+
+	if api.IsTraceQLQuery(req) {
+		// TODO actually implement recent traceQL search
+		return &tempopb.SearchResponse{
+			Traces:  nil,
+			Metrics: &tempopb.SearchMetrics{},
+		}, nil
 	}
 
 	p := search.NewSearchPipeline(req)
