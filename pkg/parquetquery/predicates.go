@@ -267,25 +267,27 @@ func (p *IntBetweenPredicate) KeepPage(page pq.Page) bool {
 // skip column chunks and pages when RangeFn is supplied and
 // the column chunk or page also include bounds metadata.
 type GenericPredicate[T any] struct {
-	fn      func(T) bool
-	rangeFn func(min, max T) bool
-	extract func(pq.Value) T
+	Fn      func(T) bool
+	RangeFn func(min, max T) bool
+	Extract func(pq.Value) T
 }
+
+var _ Predicate = (*GenericPredicate[int64])(nil)
 
 func NewGenericPredicate[T any](fn func(T) bool, rangeFn func(T, T) bool, extract func(pq.Value) T) *GenericPredicate[T] {
 	return &GenericPredicate[T]{fn, rangeFn, extract}
 }
 
 func (p *GenericPredicate[T]) KeepColumnChunk(c pq.ColumnChunk) bool {
-	if p.rangeFn == nil {
+	if p.RangeFn == nil {
 		return true
 	}
 
 	if ci := c.ColumnIndex(); ci != nil {
 		for i := 0; i < ci.NumPages(); i++ {
-			min := p.extract(ci.MinValue(i))
-			max := p.extract(ci.MaxValue(i))
-			if p.rangeFn(min, max) {
+			min := p.Extract(ci.MinValue(i))
+			max := p.Extract(ci.MaxValue(i))
+			if p.RangeFn(min, max) {
 				return true
 			}
 		}
@@ -297,9 +299,9 @@ func (p *GenericPredicate[T]) KeepColumnChunk(c pq.ColumnChunk) bool {
 
 func (p *GenericPredicate[T]) KeepPage(page pq.Page) bool {
 
-	if p.rangeFn != nil {
+	if p.RangeFn != nil {
 		if min, max, ok := page.Bounds(); ok {
-			return p.rangeFn(p.extract(min), p.extract(max))
+			return p.RangeFn(p.Extract(min), p.Extract(max))
 		}
 	}
 
@@ -322,24 +324,24 @@ func (p *GenericPredicate[T]) KeepPage(page pq.Page) bool {
 }
 
 func (p *GenericPredicate[T]) KeepValue(v pq.Value) bool {
-	return p.fn(p.extract(v))
+	return p.Fn(p.Extract(v))
 }
 
-func NewIntPredicate(fn func(int64) bool, rangeFn func(int64, int64) bool) Predicate {
+func NewIntPredicate(fn func(int64) bool, rangeFn func(int64, int64) bool) *GenericPredicate[int64] {
 	return NewGenericPredicate(
 		fn, rangeFn,
 		func(v pq.Value) int64 { return v.Int64() },
 	)
 }
 
-func NewFloatPredicate(fn func(float64) bool, rangeFn func(float64, float64) bool) Predicate {
+func NewFloatPredicate(fn func(float64) bool, rangeFn func(float64, float64) bool) *GenericPredicate[float64] {
 	return NewGenericPredicate(
 		fn, rangeFn,
 		func(v pq.Value) float64 { return v.Double() },
 	)
 }
 
-func NewBoolPredicate(b bool) Predicate {
+func NewBoolPredicate(b bool) *GenericPredicate[bool] {
 	return NewGenericPredicate(
 		func(v bool) bool { return v == b },
 		nil,

@@ -36,11 +36,11 @@ const (
 	columnPathResourceK8sPodName       = "rs.Resource.K8sPodName"
 	columnPathResourceK8sContainerName = "rs.Resource.K8sContainerName"
 
-	columnPathSpanID             = "rs.ils.Spans.ID"
-	columnPathSpanName           = "rs.ils.Spans.Name"
-	columnPathSpanStartTime      = "rs.ils.Spans.StartUnixNanos"
-	columnPathSpanEndTime        = "rs.ils.Spans.EndUnixNanos"
-	columnPathSpanDuration       = "rs.ils.Spans.DurationNanos"
+	columnPathSpanID        = "rs.ils.Spans.ID"
+	columnPathSpanName      = "rs.ils.Spans.Name"
+	columnPathSpanStartTime = "rs.ils.Spans.StartUnixNanos"
+	columnPathSpanEndTime   = "rs.ils.Spans.EndUnixNanos"
+	//columnPathSpanDuration       = "rs.ils.Spans.DurationNanos"
 	columnPathSpanAttrKey        = "rs.ils.Spans.Attrs.Key"
 	columnPathSpanAttrString     = "rs.ils.Spans.Attrs.Value"
 	columnPathSpanAttrInt        = "rs.ils.Spans.Attrs.ValueInt"
@@ -333,10 +333,11 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File)
 func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, start, end uint64, requireAtLeastOneMatch, allConditions bool) (parquetquery.Iterator, error) {
 
 	var (
-		columnSelectAs    = map[string]string{}
-		columnPredicates  = map[string][]parquetquery.Predicate{}
-		iters             []parquetquery.Iterator
-		genericConditions []traceql.Condition
+		columnSelectAs     = map[string]string{}
+		columnPredicates   = map[string][]parquetquery.Predicate{}
+		iters              []parquetquery.Iterator
+		genericConditions  []traceql.Condition
+		durationPredicates []*parquetquery.GenericPredicate[int64]
 	)
 
 	addPredicate := func(columnPath string, p parquetquery.Predicate) {
@@ -362,8 +363,9 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 			if err != nil {
 				return nil, err
 			}
-			addPredicate(columnPathSpanDuration, pred)
-			columnSelectAs[columnPathSpanDuration] = columnPathSpanDuration
+			//addPredicate(columnPathSpanDuration, pred)
+			//columnSelectAs[columnPathSpanDuration] = columnPathSpanDuration
+			durationPredicates = append(durationPredicates, pred)
 			continue
 		}
 
@@ -429,6 +431,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 	}
 	spanCol := &spanCollector{
 		minCount,
+		durationPredicates,
 	}
 
 	// This is an optimization for when all of the span conditions must be met.
@@ -612,7 +615,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 
 }
 
-func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
+func createIntPredicate(op traceql.Operator, operands traceql.Operands) (*parquetquery.GenericPredicate[int64], error) {
 	if op == traceql.OpNone {
 		return nil, nil
 	}
@@ -804,7 +807,8 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 
 // This turns groups of span values into Span objects
 type spanCollector struct {
-	minAttributes int
+	minAttributes   int
+	durationFilters []*parquetquery.GenericPredicate[int64]
 }
 
 var _ parquetquery.GroupPredicate = (*spanCollector)(nil)
@@ -830,8 +834,8 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			span.EndtimeUnixNanos = kv.Value.Uint64()
 		case columnPathSpanName:
 			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicName)] = traceql.NewStaticString(kv.Value.String())
-		case columnPathSpanDuration:
-			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(kv.Value.Uint64()))
+		//case columnPathSpanDuration:
+		//	span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(kv.Value.Uint64()))
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?
@@ -846,6 +850,23 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 				span.Attributes[newSpanAttr(kv.Key)] = traceql.NewStaticString(kv.Value.String())
 			}
 		}
+	}
+
+	if len(c.durationFilters) > 0 {
+		duration := span.EndtimeUnixNanos - span.StartTimeUnixNanos
+		durationPass := false
+		for _, f := range c.durationFilters {
+			if f.Fn(int64(duration)) {
+				durationPass = true
+				break
+			}
+		}
+
+		if !durationPass {
+			return false
+		}
+
+		span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(duration))
 	}
 
 	if c.minAttributes > 0 {
