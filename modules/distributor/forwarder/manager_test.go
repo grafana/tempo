@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/go-kit/log"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
@@ -63,10 +62,10 @@ func (m *mockChannelledInterceptorForwarder) Shutdown(ctx context.Context) error
 	return m.next.Shutdown(ctx)
 }
 
-func newManagerWithForwarders(t *testing.T, forwarderNameToForwarder map[string]Forwarder, logger log.Logger, reg prometheus.Registerer, o Overrides) *Manager {
+func newManagerWithForwarders(t *testing.T, forwarderNameToForwarder map[string]Forwarder, logger log.Logger, o Overrides) *Manager {
 	t.Helper()
 
-	manager, err := NewManager(ConfigList{}, logger, reg, o)
+	manager, err := NewManager(ConfigList{}, logger, o)
 	require.NoError(t, err)
 	manager.forwarderNameToForwarder = forwarderNameToForwarder
 
@@ -82,11 +81,10 @@ func TestNewManager_ReturnsNoErrorAndNonNilManagerWithValidConfigList(t *testing
 	// Given
 	cfgs := ConfigList{}
 	logger := log.NewNopLogger()
-	reg := prometheus.NewPedanticRegistry()
 	o := &mockWorkingOverrides{}
 
 	// When
-	got, err := NewManager(cfgs, logger, reg, o)
+	got, err := NewManager(cfgs, logger, o)
 
 	// Then
 	require.NoError(t, err)
@@ -99,11 +97,10 @@ func TestNewManager_ReturnsErrorAndNilManagerWithInvalidConfigList(t *testing.T)
 		Config{Backend: "unknown"},
 	}
 	logger := log.NewNopLogger()
-	reg := prometheus.NewPedanticRegistry()
 	o := &mockWorkingOverrides{}
 
 	// When
-	got, err := NewManager(cfgs, logger, reg, o)
+	got, err := NewManager(cfgs, logger, o)
 
 	// Then
 	require.Error(t, err)
@@ -113,7 +110,6 @@ func TestNewManager_ReturnsErrorAndNilManagerWithInvalidConfigList(t *testing.T)
 func TestManager_ForTenant_ReturnsSingleForwarderWhenSingleForwarderForTenantConfigured(t *testing.T) {
 	// Given
 	logger := log.NewNopLogger()
-	reg := prometheus.NewPedanticRegistry()
 	o := &mockWorkingOverrides{
 		tenantIDs: []string{"testTenantID"},
 		tenantIDToForwarders: map[string][]string{
@@ -123,7 +119,7 @@ func TestManager_ForTenant_ReturnsSingleForwarderWhenSingleForwarderForTenantCon
 	forwarderNameToForwarder := map[string]Forwarder{
 		"testForwarder": &mockWorkingForwarder{},
 	}
-	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, reg, o)
+	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, o)
 
 	// When
 	forwarderList := manager.ForTenant("testTenantID")
@@ -135,7 +131,6 @@ func TestManager_ForTenant_ReturnsSingleForwarderWhenSingleForwarderForTenantCon
 func TestManager_ForTenant_ReturnsTwoForwardersWhenTwoForwarderForTenantConfigured(t *testing.T) {
 	// Given
 	logger := log.NewNopLogger()
-	reg := prometheus.NewPedanticRegistry()
 	o := &mockWorkingOverrides{
 		tenantIDs: []string{"testTenantID"},
 		tenantIDToForwarders: map[string][]string{
@@ -146,7 +141,7 @@ func TestManager_ForTenant_ReturnsTwoForwardersWhenTwoForwarderForTenantConfigur
 		"testForwarder1": &mockWorkingForwarder{},
 		"testForwarder2": &mockWorkingForwarder{},
 	}
-	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, reg, o)
+	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, o)
 
 	// When
 	forwarderList := manager.ForTenant("testTenantID")
@@ -158,7 +153,6 @@ func TestManager_ForTenant_ReturnsTwoForwardersWhenTwoForwarderForTenantConfigur
 func TestManager_ForTenant_ReturnsEmptySliceWhenNoForwardersForTenantConfigured(t *testing.T) {
 	// Given
 	logger := log.NewNopLogger()
-	reg := prometheus.NewPedanticRegistry()
 	o := &mockWorkingOverrides{
 		tenantIDs:            []string{"testTenantID"},
 		tenantIDToForwarders: map[string][]string{},
@@ -167,7 +161,7 @@ func TestManager_ForTenant_ReturnsEmptySliceWhenNoForwardersForTenantConfigured(
 		"testForwarder1": &mockWorkingForwarder{},
 		"testForwarder2": &mockWorkingForwarder{},
 	}
-	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, reg, o)
+	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, o)
 
 	// When
 	forwarderList := manager.ForTenant("testTenantID")
@@ -179,7 +173,6 @@ func TestManager_ForTenant_ReturnsEmptySliceWhenNoForwardersForTenantConfigured(
 func TestManager_ForTenant_ReturnsEmptySliceWhenTenantNotConfigured(t *testing.T) {
 	// Given
 	logger := log.NewNopLogger()
-	reg := prometheus.NewPedanticRegistry()
 	o := &mockWorkingOverrides{
 		tenantIDs:            []string{},
 		tenantIDToForwarders: map[string][]string{},
@@ -188,7 +181,7 @@ func TestManager_ForTenant_ReturnsEmptySliceWhenTenantNotConfigured(t *testing.T
 		"testForwarder1": &mockWorkingForwarder{},
 		"testForwarder2": &mockWorkingForwarder{},
 	}
-	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, reg, o)
+	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, o)
 
 	// When
 	forwarderList := manager.ForTenant("testTenantID")
@@ -200,7 +193,6 @@ func TestManager_ForTenant_ReturnsEmptySliceWhenTenantNotConfigured(t *testing.T
 func TestManager_ForTenant_List_ForwardBatches_ReturnsNoErrorAndCorrectlyForwardsBatchesToSingleForwarder(t *testing.T) {
 	// Given
 	logger := log.NewNopLogger()
-	reg := prometheus.NewPedanticRegistry()
 	o := &mockWorkingOverrides{
 		tenantIDs: []string{"testTenantID"},
 		tenantIDToForwarders: map[string][]string{
@@ -224,7 +216,7 @@ func TestManager_ForTenant_List_ForwardBatches_ReturnsNoErrorAndCorrectlyForward
 			},
 		},
 	}
-	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, reg, o)
+	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, o)
 
 	// When
 	err := manager.ForTenant("testTenantID").ForwardBatches(context.Background(), trace)
@@ -237,7 +229,6 @@ func TestManager_ForTenant_List_ForwardBatches_ReturnsNoErrorAndCorrectlyForward
 func TestManager_ForTenant_List_ForwardBatches_ReturnsNoErrorAndCorrectlyForwardsBatchesToMultipleForwarders(t *testing.T) {
 	// Given
 	logger := log.NewNopLogger()
-	reg := prometheus.NewPedanticRegistry()
 	o := &mockWorkingOverrides{
 		tenantIDs: []string{"testTenantID"},
 		tenantIDToForwarders: map[string][]string{
@@ -266,7 +257,7 @@ func TestManager_ForTenant_List_ForwardBatches_ReturnsNoErrorAndCorrectlyForward
 			},
 		},
 	}
-	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, reg, o)
+	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, o)
 
 	// When
 	err := manager.ForTenant("testTenantID").ForwardBatches(context.Background(), trace)
@@ -282,7 +273,6 @@ func TestManager_ForTenant_List_ForwardBatches_ReturnsNoErrorAndCorrectlyForward
 
 	// Given
 	logger := log.NewNopLogger()
-	reg := prometheus.NewPedanticRegistry()
 	o := &mockWorkingOverrides{
 		tenantIDs: []string{"testTenantID"},
 		tenantIDToForwarders: map[string][]string{
@@ -324,7 +314,7 @@ func TestManager_ForTenant_List_ForwardBatches_ReturnsNoErrorAndCorrectlyForward
 			},
 		},
 	}
-	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, reg, o)
+	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, o)
 
 	// When
 	err := manager.ForTenant("testTenantID").ForwardBatches(context.Background(), trace1)
@@ -355,7 +345,6 @@ func TestManager_ForTenant_List_ForwardBatches_ReturnsNoErrorAndCorrectlyForward
 
 	// Given
 	logger := log.NewNopLogger()
-	reg := prometheus.NewPedanticRegistry()
 	o := &mockWorkingOverrides{
 		tenantIDs: []string{"testTenantID"},
 		tenantIDToForwarders: map[string][]string{
@@ -397,7 +386,7 @@ func TestManager_ForTenant_List_ForwardBatches_ReturnsNoErrorAndCorrectlyForward
 			},
 		},
 	}
-	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, reg, o)
+	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, o)
 
 	// When
 	err := manager.ForTenant("testTenantID").ForwardBatches(context.Background(), trace1)
@@ -427,7 +416,6 @@ func TestManager_ForTenant_List_ForwardBatches_ReturnsNoErrorAndCorrectlyForward
 func TestManager_ForTenant_List_ForwardBatches_ReturnsNoErrorAndCorrectlyForwardsBatchesToMultipleForwardersForMultipleTenants(t *testing.T) {
 	// Given
 	logger := log.NewNopLogger()
-	reg := prometheus.NewPedanticRegistry()
 	o := &mockWorkingOverrides{
 		tenantIDs: []string{"testTenantID1", "testTenantID2"},
 		tenantIDToForwarders: map[string][]string{
@@ -457,7 +445,7 @@ func TestManager_ForTenant_List_ForwardBatches_ReturnsNoErrorAndCorrectlyForward
 			},
 		},
 	}
-	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, reg, o)
+	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, o)
 
 	// When
 	err := manager.ForTenant("testTenantID1").ForwardBatches(context.Background(), trace)
@@ -481,7 +469,6 @@ func TestManager_ForTenant_List_ForwardBatches_ReturnsNoErrorAndCorrectlyForward
 
 	// Given
 	logger := log.NewNopLogger()
-	reg := prometheus.NewPedanticRegistry()
 	o := &mockWorkingOverrides{
 		tenantIDs:            []string{},
 		tenantIDToForwarders: map[string][]string{},
@@ -508,7 +495,7 @@ func TestManager_ForTenant_List_ForwardBatches_ReturnsNoErrorAndCorrectlyForward
 			},
 		},
 	}
-	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, reg, o)
+	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, o)
 
 	// When
 	forwarderList := manager.ForTenant("testTenantID")
@@ -543,7 +530,6 @@ func TestManager_ForTenant_List_ForwardBatches_ReturnsNoErrorAndCorrectlyDoesNot
 
 	// Given
 	logger := log.NewNopLogger()
-	reg := prometheus.NewPedanticRegistry()
 	o := &mockWorkingOverrides{
 		tenantIDs: []string{"testTenantID"},
 		tenantIDToForwarders: map[string][]string{
@@ -572,7 +558,7 @@ func TestManager_ForTenant_List_ForwardBatches_ReturnsNoErrorAndCorrectlyDoesNot
 			},
 		},
 	}
-	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, reg, o)
+	manager := newManagerWithForwarders(t, forwarderNameToForwarder, logger, o)
 
 	// When
 	forwarderList := manager.ForTenant("testTenantID")

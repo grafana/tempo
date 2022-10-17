@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -37,7 +36,6 @@ func TestForwarder(t *testing.T) {
 	wg := sync.WaitGroup{}
 	f := newGeneratorForwarder(
 		log.NewNopLogger(),
-		prometheus.NewPedanticRegistry(),
 		func(ctx context.Context, userID string, k []uint32, traces []*rebatchedTrace) error {
 			assert.Equal(t, tenantID, userID)
 			assert.Equal(t, keys, k)
@@ -79,7 +77,6 @@ func TestForwarder_shutdown(t *testing.T) {
 	signalCh := make(chan struct{})
 	f := newGeneratorForwarder(
 		log.NewNopLogger(),
-		prometheus.NewPedanticRegistry(),
 		func(ctx context.Context, userID string, k []uint32, traces []*rebatchedTrace) error {
 			<-signalCh
 

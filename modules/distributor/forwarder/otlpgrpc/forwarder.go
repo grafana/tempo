@@ -87,24 +87,14 @@ func (f *Forwarder) ForwardBatches(ctx context.Context, trace tempopb.Trace) err
 	}
 	req := ptraceotlp.NewRequestFromTraces(traces)
 
-	awaitErrs := make(chan error, len(f.clients))
-	wg := sync.WaitGroup{}
+	var errs []error
 	f.mu.RLock()
 	for _, client := range f.clients {
-		wg.Add(1)
-		go func(client ptraceotlp.Client) {
-			defer wg.Done()
-			awaitErrs <- f.exportTracesUsingClient(ctx, client, req)
-		}(client)
+		if err := f.exportTracesUsingClient(ctx, client, req); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	f.mu.RUnlock()
-	wg.Wait()
-	close(awaitErrs)
-
-	var errs []error
-	for err := range awaitErrs {
-		errs = append(errs, err)
-	}
 
 	return multierr.Combine(errs...)
 }

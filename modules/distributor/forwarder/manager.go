@@ -9,7 +9,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/multierr"
 	"golang.org/x/exp/constraints"
 
@@ -30,7 +29,6 @@ type Overrides interface {
 type Manager struct {
 	services.Service
 	logger    log.Logger
-	reg       prometheus.Registerer
 	overrides Overrides
 
 	// forwarderNameToForwarder is static throughout lifecycle of the manager and read-only
@@ -40,7 +38,7 @@ type Manager struct {
 	tenantToQueueListMu *sync.RWMutex
 }
 
-func NewManager(cfgs ConfigList, logger log.Logger, reg prometheus.Registerer, overrides Overrides) (*Manager, error) {
+func NewManager(cfgs ConfigList, logger log.Logger, overrides Overrides) (*Manager, error) {
 	if err := cfgs.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate config list: %w", err)
 	}
@@ -57,7 +55,6 @@ func NewManager(cfgs ConfigList, logger log.Logger, reg prometheus.Registerer, o
 
 	m := &Manager{
 		logger:                   logger,
-		reg:                      reg,
 		overrides:                overrides,
 		forwarderNameToForwarder: forwarderNameToForwarder,
 		tenantToQueueList:        make(map[string]*queueList),
@@ -86,7 +83,7 @@ func (m *Manager) start(_ context.Context) error {
 }
 
 func (m *Manager) run(ctx context.Context) error {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -183,7 +180,7 @@ func (m *Manager) removeQueueListForTenantUnderLock(tenantID string) {
 func (m *Manager) updateQueueListForTenantUnderLock(tenantID string, forwarderNames []string) {
 	queueList, found := m.tenantToQueueList[tenantID]
 	if !found {
-		queueList = newQueueList(m.logger, m.reg, tenantID)
+		queueList = newQueueList(m.logger, tenantID)
 		m.tenantToQueueList[tenantID] = queueList
 	}
 
@@ -211,17 +208,17 @@ func (m *Manager) shutdown() error {
 		if err := ql.shutdown(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("failed to shutdown queuelist for tenantID=%s: %w", tenantID, err))
 		}
-
-		delete(m.tenantToQueueList, tenantID)
 	}
+
+	m.tenantToQueueList = make(map[string]*queueList)
 
 	for forwarderName, forwarder := range m.forwarderNameToForwarder {
 		if err := forwarder.Shutdown(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("failed to shutdown forwarder with name=%s: %w", forwarderName, err))
 		}
-
-		delete(m.forwarderNameToForwarder, forwarderName)
 	}
+
+	m.forwarderNameToForwarder = make(map[string]Forwarder)
 
 	return multierr.Combine(errs...)
 }
@@ -233,16 +230,14 @@ type queueListDiff[T any] struct {
 
 type queueList struct {
 	logger               log.Logger
-	reg                  prometheus.Registerer
 	tenantID             string
 	forwarderNameToQueue map[string]*queue.Queue[tempopb.Trace]
 	mu                   *sync.RWMutex
 }
 
-func newQueueList(logger log.Logger, reg prometheus.Registerer, tenantID string) *queueList {
+func newQueueList(logger log.Logger, tenantID string) *queueList {
 	return &queueList{
 		logger:               logger,
-		reg:                  reg,
 		tenantID:             tenantID,
 		forwarderNameToQueue: make(map[string]*queue.Queue[tempopb.Trace]),
 		mu:                   &sync.RWMutex{},
@@ -306,7 +301,7 @@ func (l *queueList) update(forwarderNames []string, forwarderNameToForwarder map
 				_ = level.Warn(l.logger).Log("msg", "failed to forward batches", "forwarderName", addedForwarderName, "tenantID", l.tenantID, "err", err)
 			}
 		}
-		newQueue := queue.New(queueCfg, l.logger, l.reg, processFunc)
+		newQueue := queue.New(queueCfg, l.logger, processFunc)
 		newQueue.StartWorkers()
 		l.forwarderNameToQueue[addedForwarderName] = newQueue
 	}

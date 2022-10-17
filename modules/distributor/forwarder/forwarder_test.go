@@ -77,3 +77,17 @@ func TestList_ForwardBatches_ReturnsErrorAndCallsForwardBatchesOnAllUnderlyingFo
 	require.Equal(t, 1, forwarder2.forwardBatchesCount)
 	require.Equal(t, 1, forwarder3.forwardBatchesCount)
 }
+
+func TestList_ForwardBatches_DoesNotPanicWhenNil(t *testing.T) {
+	// Given
+	list := List(nil)
+
+	// When
+	panicFunc := func() {
+		err := list.ForwardBatches(context.Background(), tempopb.Trace{})
+		require.NoError(t, err)
+	}
+
+	// Then
+	require.NotPanics(t, panicFunc)
+}

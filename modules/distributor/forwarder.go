@@ -47,7 +47,6 @@ type generatorForwarder struct {
 	services.Service
 
 	logger log.Logger
-	reg    prometheus.Registerer
 
 	// per-tenant queues
 	queues map[string]*queue.Queue[*request]
@@ -60,10 +59,9 @@ type generatorForwarder struct {
 	shutdown          chan interface{}
 }
 
-func newGeneratorForwarder(logger log.Logger, reg prometheus.Registerer, fn forwardFunc, o *overrides.Overrides) *generatorForwarder {
+func newGeneratorForwarder(logger log.Logger, fn forwardFunc, o *overrides.Overrides) *generatorForwarder {
 	rf := &generatorForwarder{
 		logger:            logger,
-		reg:               reg,
 		queues:            make(map[string]*queue.Queue[*request]),
 		mutex:             sync.RWMutex{},
 		forwardFunc:       fn,
@@ -233,7 +231,6 @@ func (f *generatorForwarder) createQueueAndStartWorkers(tenantID string, size, w
 			WorkerCount: workerCount,
 		},
 		f.logger,
-		f.reg,
 		f.processFunc,
 	)
 	q.StartWorkers()

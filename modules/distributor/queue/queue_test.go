@@ -17,8 +17,7 @@ func newQueue[T any](t *testing.T, size, workerCount int, processFunc ProcessFun
 	cfg := Config{Name: "testName", TenantID: "testTenantID", Size: size, WorkerCount: workerCount}
 
 	logger := log.NewNopLogger()
-	reg := prometheus.NewPedanticRegistry()
-	q := New(cfg, logger, reg, processFunc)
+	q := New(cfg, logger, processFunc)
 
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -56,10 +55,9 @@ func TestNew_ReturnsNotNilAndSetsCorrectFieldsFromConfig(t *testing.T) {
 	cfg := Config{Name: "testName", TenantID: "testTenantID", Size: 123, WorkerCount: 321}
 	processFunc := func(context.Context, int) {}
 	logger := log.NewNopLogger()
-	reg := prometheus.NewPedanticRegistry()
 
 	// When
-	got := New(cfg, logger, reg, processFunc)
+	got := New(cfg, logger, processFunc)
 
 	// Then
 	require.NotNil(t, got)
