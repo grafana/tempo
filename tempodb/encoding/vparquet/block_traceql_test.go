@@ -31,6 +31,9 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		makeReq(parse(t, `{`+LabelDuration+` >= 100s}`)),
 		makeReq(parse(t, `{`+LabelDuration+` <  101s}`)),
 		makeReq(parse(t, `{`+LabelDuration+` <= 100s}`)),
+		makeReq(parse(t, `{`+LabelDuration+` <= 100s}`)),
+		makeReq(parse(t, `{`+LabelStatus+` = error}`)),
+		makeReq(parse(t, `{`+LabelStatus+` = 2}`)),
 		// Resource well-known attributes
 		makeReq(parse(t, `{.`+LabelServiceName+` = "spanservicename"}`)), // Overridden at span
 		makeReq(parse(t, `{.`+LabelCluster+` = "cluster"}`)),
@@ -123,7 +126,8 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		makeReq(parse(t, `{.foo =~ "xyz.*"}`)),                        // Regex IN
 		makeReq(parse(t, `{span.bool = true}`)),                       // Bool not match
 		makeReq(parse(t, `{`+LabelDuration+` >  100s}`)),              // Intrinsic: duration
-		makeReq(parse(t, `{`+LabelName+` = "nothello"}`)),             // Well-known attribute: name not match
+		makeReq(parse(t, `{`+LabelStatus+` = ok}`)),                   // Intrinsic: status
+		makeReq(parse(t, `{`+LabelName+` = "nothello"}`)),             // Intrinsic: name
 		makeReq(parse(t, `{.`+LabelServiceName+` = "notmyservice"}`)), // Well-known attribute: service.name not match
 		makeReq(parse(t, `{.`+LabelHTTPStatusCode+` = 200}`)),         // Well-known attribute: http.status_code not match
 		makeReq(parse(t, `{.`+LabelHTTPStatusCode+` > 600}`)),         // Well-known attribute: http.status_code not match
@@ -339,8 +343,11 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 		},
 
 		{
-			// Intrinsic name. 2nd span only
-			makeReq(parse(t, `{ name = "world" }`)),
+			// Intrinsics. 2nd span only
+			makeReq(
+				parse(t, `{ name = "world" }`),
+				parse(t, `{ status = unset }`),
+			),
 			makeSpansets(
 				makeSpanset(
 					wantTr.TraceID,
@@ -349,7 +356,8 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						StartTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
 						Attributes: map[traceql.Attribute]traceql.Static{
-							traceql.NewIntrinsic(traceql.IntrinsicName): traceql.NewStaticString("world"),
+							traceql.NewIntrinsic(traceql.IntrinsicName):   traceql.NewStaticString("world"),
+							traceql.NewIntrinsic(traceql.IntrinsicStatus): traceql.NewStaticStatus(traceql.StatusUnset),
 						},
 					},
 				),

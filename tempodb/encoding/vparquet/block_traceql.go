@@ -11,6 +11,7 @@ import (
 	"github.com/segmentio/parquet-go"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -41,6 +42,7 @@ const (
 	columnPathSpanStartTime = "rs.ils.Spans.StartUnixNanos"
 	columnPathSpanEndTime   = "rs.ils.Spans.EndUnixNanos"
 	//columnPathSpanDuration       = "rs.ils.Spans.DurationNanos"
+	columnPathSpanStatusCode     = "rs.ils.Spans.StatusCode"
 	columnPathSpanAttrKey        = "rs.ils.Spans.Attrs.Key"
 	columnPathSpanAttrString     = "rs.ils.Spans.Attrs.Value"
 	columnPathSpanAttrInt        = "rs.ils.Spans.Attrs.ValueInt"
@@ -54,6 +56,7 @@ const (
 var intrinsicDefaultScope = map[traceql.Intrinsic]traceql.AttributeScope{
 	traceql.IntrinsicName:     traceql.AttributeScopeSpan,
 	traceql.IntrinsicDuration: traceql.AttributeScopeSpan,
+	traceql.IntrinsicStatus:   traceql.AttributeScopeSpan,
 }
 
 // Lookup table of all well-known attributes with dedicated columns
@@ -367,6 +370,15 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 			//columnSelectAs[columnPathSpanDuration] = columnPathSpanDuration
 			durationPredicates = append(durationPredicates, pred)
 			continue
+
+		case traceql.IntrinsicStatus:
+			pred, err := createStatusPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanStatusCode, pred)
+			columnSelectAs[columnPathSpanStatusCode] = columnPathSpanStatusCode
+			continue
 		}
 
 		// Well-known attribute?
@@ -659,6 +671,50 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (*parque
 	return parquetquery.NewIntPredicate(fn, rangeFn), nil
 }
 
+func createStatusPredicate(op traceql.Operator, operands traceql.Operands) (*parquetquery.GenericPredicate[int64], error) {
+	if op == traceql.OpNone {
+		return nil, nil
+	}
+
+	var i int64
+	switch operands[0].Type {
+	case traceql.TypeInt:
+		i = int64(operands[0].N)
+	case traceql.TypeStatus:
+		i = int64(StatusCodeMapping[operands[0].Status.String()])
+	default:
+		return nil, fmt.Errorf("operand is not int or status: %+v", operands[0])
+	}
+
+	var fn func(v int64) bool
+	var rangeFn func(min, max int64) bool
+
+	switch op {
+	case traceql.OpEqual:
+		fn = func(v int64) bool { return v == i }
+		rangeFn = func(min, max int64) bool { return min <= i && i <= max }
+	case traceql.OpNotEqual:
+		fn = func(v int64) bool { return v != i }
+		rangeFn = func(min, max int64) bool { return min != i || max != i }
+	case traceql.OpGreater:
+		fn = func(v int64) bool { return v > i }
+		rangeFn = func(min, max int64) bool { return max > i }
+	case traceql.OpGreaterEqual:
+		fn = func(v int64) bool { return v >= i }
+		rangeFn = func(min, max int64) bool { return max >= i }
+	case traceql.OpLess:
+		fn = func(v int64) bool { return v < i }
+		rangeFn = func(min, max int64) bool { return min < i }
+	case traceql.OpLessEqual:
+		fn = func(v int64) bool { return v <= i }
+		rangeFn = func(min, max int64) bool { return min <= i }
+	default:
+		return nil, fmt.Errorf("operand not supported for integers: %+v", op)
+	}
+
+	return parquetquery.NewIntPredicate(fn, rangeFn), nil
+}
+
 func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
@@ -836,6 +892,21 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicName)] = traceql.NewStaticString(kv.Value.String())
 		//case columnPathSpanDuration:
 		//	span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(kv.Value.Uint64()))
+		case columnPathSpanStatusCode:
+			// Map OTLP status code back to TraceQL enum.
+			// For other values, use the raw integer.
+			var status traceql.Status
+			switch kv.Value.Uint64() {
+			case uint64(v1.Status_STATUS_CODE_UNSET):
+				status = traceql.StatusUnset
+			case uint64(v1.Status_STATUS_CODE_OK):
+				status = traceql.StatusOk
+			case uint64(v1.Status_STATUS_CODE_ERROR):
+				status = traceql.StatusError
+			default:
+				status = traceql.Status(kv.Value.Uint64())
+			}
+			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicStatus)] = traceql.NewStaticStatus(traceql.Status(status))
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?
