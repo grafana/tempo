@@ -67,12 +67,15 @@ func NewManager(cfgs ConfigList, logger log.Logger, overrides Overrides) (*Manag
 }
 
 func (m *Manager) ForTenant(tenantID string) List {
-	list, found := m.getQueueList(tenantID)
+	m.tenantToQueueListMu.RLock()
+	defer m.tenantToQueueListMu.RUnlock()
+
+	queueList, found := m.tenantToQueueList[tenantID]
 	if !found {
 		return nil
 	}
 
-	return list.copy()
+	return queueList.copy()
 }
 
 func (m *Manager) start(_ context.Context) error {
@@ -185,15 +188,6 @@ func (m *Manager) updateQueueListForTenantUnderLock(tenantID string, forwarderNa
 	}
 
 	queueList.update(forwarderNames, m.forwarderNameToForwarder)
-}
-
-func (m *Manager) getQueueList(tenantID string) (*queueList, bool) {
-	m.tenantToQueueListMu.RLock()
-	defer m.tenantToQueueListMu.RUnlock()
-
-	queueList, found := m.tenantToQueueList[tenantID]
-
-	return queueList, found
 }
 
 func (m *Manager) shutdown() error {
