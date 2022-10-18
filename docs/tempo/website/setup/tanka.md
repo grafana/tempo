@@ -210,7 +210,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
 
 1. Configure the Tempo cluster using the MinIO object storage by updating the contents of the `environments/tempo/main.jsonnet` file by running the following command:
 
-   ```bash
+   ```jsonnet
    cat <<EOF > environments/tempo/main.jsonnet
    // The jsonnet file used to generate the Kubernetes manifests.
    local tempo = import 'microservices/tempo.libsonnet';

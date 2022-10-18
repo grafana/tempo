@@ -38,10 +38,10 @@ Your Linux system should have at least:
 ## Set up an object storage bucket
 
 Tempo uses object storage as the backend for its trace storage.
-It also uses object storage for storing various administrative credentials and data related to the state of the system.
+It also uses object storage for storing various data related to the state of the system.
 
 Tempo supports using the local filesystem as the backend for trace storage as well.
-This is not recommended for production deployments and is not supported for storing admin credentials, this guide focuses on setup with an object storage.
+This is not recommended for production deployments. This guide focuses on setup with an object storage.
 
 This example uses [Amazon S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html) on the AWS `us-east-1` region as your object store.
 If you plan on using a different region or object storage service, update the storage fields in the configuration file below. Currently, the supported object storage backends are AWS S3, other S3-compliant object stores, and Google Cloud’s GCS.

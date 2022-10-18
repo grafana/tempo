@@ -58,7 +58,7 @@ To enable writes to your cluster:
                     zipkin: null
                 remote_write:
                   - endpoint: <tempoDistributorServiceEndpoint>
-                    insecure: true  # only add this if TLS is not required
+                    insecure: true  # only add this if TLS is not used
                 scrape_configs:
                   - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
                     job_name: kubernetes-pods
