@@ -3,6 +3,7 @@ package distributor
 import (
 	"testing"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/dskit/limiter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -12,6 +13,7 @@ import (
 )
 
 func TestIngestionRateStrategy(t *testing.T) {
+	logger := log.NewNopLogger()
 	tests := map[string]struct {
 		limits        overrides.Limits
 		ring          ReadLifecycler
@@ -51,7 +53,7 @@ func TestIngestionRateStrategy(t *testing.T) {
 			var strategy limiter.RateLimiterStrategy
 
 			// Init limits overrides
-			o, err := overrides.NewOverrides(testData.limits)
+			o, err := overrides.NewOverrides(testData.limits, logger)
 			require.NoError(t, err)
 
 			// Instance the strategy

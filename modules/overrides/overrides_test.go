@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
@@ -16,6 +17,7 @@ import (
 )
 
 func TestOverrides(t *testing.T) {
+	logger := log.NewNopLogger()
 
 	tests := []struct {
 		name                        string
@@ -125,7 +127,7 @@ func TestOverrides(t *testing.T) {
 			}
 
 			prometheus.DefaultRegisterer = prometheus.NewRegistry() // have to overwrite the registry or test panics with multiple metric reg
-			overrides, err := NewOverrides(tt.limits)
+			overrides, err := NewOverrides(tt.limits, logger)
 			require.NoError(t, err)
 			err = services.StartAndAwaitRunning(context.TODO(), overrides)
 			require.NoError(t, err)

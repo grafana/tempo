@@ -313,8 +313,9 @@ func TestFlush(t *testing.T) {
 }
 
 func defaultIngesterModule(t testing.TB, tmpDir string) *Ingester {
+	logger := log.NewNopLogger()
 	ingesterConfig := defaultIngesterTestConfig()
-	limits, err := overrides.NewOverrides(defaultLimitsTestConfig())
+	limits, err := overrides.NewOverrides(defaultLimitsTestConfig(), logger)
 	require.NoError(t, err, "unexpected error creating overrides")
 
 	s, err := storage.NewStore(storage.Config{
@@ -338,7 +339,7 @@ func defaultIngesterModule(t testing.TB, tmpDir string) *Ingester {
 	}, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error store")
 
-	ingester, err := New(ingesterConfig, s, limits, prometheus.NewPedanticRegistry())
+	ingester, err := New(ingesterConfig, s, limits, prometheus.NewPedanticRegistry(), logger)
 	require.NoError(t, err, "unexpected error creating ingester")
 	ingester.replayJitter = false
 

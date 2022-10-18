@@ -20,6 +20,7 @@ import (
 const tenantID = "tenant-id"
 
 func TestForwarder(t *testing.T) {
+	logger := log.NewNopLogger()
 	oCfg := overrides.Limits{}
 	oCfg.RegisterFlags(&flag.FlagSet{})
 
@@ -30,13 +31,13 @@ func TestForwarder(t *testing.T) {
 	keys, rebatchedTraces, err := requestsByTraceID([]*v1.ResourceSpans{b}, tenantID, 10)
 	require.NoError(t, err)
 
-	o, err := overrides.NewOverrides(oCfg)
+	o, err := overrides.NewOverrides(oCfg, logger)
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
 	f := newGeneratorForwarder(
 		log.NewNopLogger(),
-		func(ctx context.Context, userID string, k []uint32, traces []*rebatchedTrace) error {
+		func(_ context.Context, userID string, k []uint32, traces []*rebatchedTrace) error {
 			assert.Equal(t, tenantID, userID)
 			assert.Equal(t, keys, k)
 			assert.Equal(t, rebatchedTraces, traces)
@@ -60,6 +61,7 @@ func TestForwarder(t *testing.T) {
 }
 
 func TestForwarder_shutdown(t *testing.T) {
+	logger := log.NewNopLogger()
 	oCfg := overrides.Limits{}
 	oCfg.RegisterFlags(&flag.FlagSet{})
 	oCfg.MetricsGeneratorForwarderQueueSize = 200
@@ -71,13 +73,13 @@ func TestForwarder_shutdown(t *testing.T) {
 	keys, rebatchedTraces, err := requestsByTraceID([]*v1.ResourceSpans{b}, tenantID, 10)
 	require.NoError(t, err)
 
-	o, err := overrides.NewOverrides(oCfg)
+	o, err := overrides.NewOverrides(oCfg, logger)
 	require.NoError(t, err)
 
 	signalCh := make(chan struct{})
 	f := newGeneratorForwarder(
 		log.NewNopLogger(),
-		func(ctx context.Context, userID string, k []uint32, traces []*rebatchedTrace) error {
+		func(_ context.Context, userID string, k []uint32, traces []*rebatchedTrace) error {
 			<-signalCh
 
 			assert.Equal(t, tenantID, userID)

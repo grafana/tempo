@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -160,11 +161,13 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 // TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
 // partial results if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
 func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
+	logger := log.NewNopLogger()
+
 	for _, b := range []bool{true, false} {
 		t.Run(fmt.Sprintf("flatbufferSearch:%t", b), func(t *testing.T) {
 			limits, err := overrides.NewOverrides(overrides.Limits{
 				MaxBytesPerTagValuesQuery: 10,
-			})
+			}, logger)
 			assert.NoError(t, err, "unexpected error creating limits")
 			limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
@@ -254,7 +257,8 @@ func TestInstanceSearchNoData(t *testing.T) {
 }
 
 func TestInstanceSearchDoesNotRace(t *testing.T) {
-	limits, err := overrides.NewOverrides(overrides.Limits{})
+	logger := log.NewNopLogger()
+	limits, err := overrides.NewOverrides(overrides.Limits{}, logger)
 	require.NoError(t, err)
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 

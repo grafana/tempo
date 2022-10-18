@@ -354,6 +354,7 @@ func TestBackendRange(t *testing.T) {
 }
 
 func TestSearchSharderRoundTrip(t *testing.T) {
+	logger := log.NewNopLogger()
 	tests := []struct {
 		name             string
 		status1          int
@@ -535,7 +536,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 				}, nil
 			})
 
-			o, err := overrides.NewOverrides(overrides.Limits{})
+			o, err := overrides.NewOverrides(overrides.Limits{}, logger)
 			require.NoError(t, err)
 
 			sharder := newSearchSharder(&mockReader{
@@ -586,11 +587,12 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 }
 
 func TestSearchSharderRoundTripBadRequest(t *testing.T) {
+	logger := log.NewNopLogger()
 	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		return nil, nil
 	})
 
-	o, err := overrides.NewOverrides(overrides.Limits{})
+	o, err := overrides.NewOverrides(overrides.Limits{}, logger)
 	require.NoError(t, err)
 
 	sharder := newSearchSharder(&mockReader{}, o, SearchSharderConfig{
@@ -619,7 +621,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	// test max duration error with overrides
 	o, err = overrides.NewOverrides(overrides.Limits{
 		MaxSearchDuration: model.Duration(time.Minute),
-	})
+	}, logger)
 	require.NoError(t, err)
 
 	sharder = newSearchSharder(&mockReader{}, o, SearchSharderConfig{
@@ -651,8 +653,8 @@ func TestAdjustLimit(t *testing.T) {
 }
 
 func TestMaxDuration(t *testing.T) {
-	//
-	o, err := overrides.NewOverrides(overrides.Limits{})
+	logger := log.NewNopLogger()
+	o, err := overrides.NewOverrides(overrides.Limits{}, logger)
 	require.NoError(t, err)
 	sharder := searchSharder{
 		cfg: SearchSharderConfig{
@@ -665,7 +667,7 @@ func TestMaxDuration(t *testing.T) {
 
 	o, err = overrides.NewOverrides(overrides.Limits{
 		MaxSearchDuration: model.Duration(10 * time.Minute),
-	})
+	}, logger)
 	require.NoError(t, err)
 	sharder = searchSharder{
 		cfg: SearchSharderConfig{

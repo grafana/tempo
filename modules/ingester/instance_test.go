@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -199,10 +200,11 @@ func TestInstanceDoesNotRace(t *testing.T) {
 }
 
 func TestInstanceLimits(t *testing.T) {
+	logger := log.NewNopLogger()
 	limits, err := overrides.NewOverrides(overrides.Limits{
 		MaxBytesPerTrace:      1000,
 		MaxLocalTracesPerUser: 4,
-	})
+	}, logger)
 	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
@@ -478,6 +480,7 @@ func TestInstanceMetrics(t *testing.T) {
 }
 
 func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
+	logger := log.NewNopLogger()
 	ctx := context.Background()
 	maxTraceBytes := 100
 	id := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
@@ -486,7 +489,7 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 
 	limits, err := overrides.NewOverrides(overrides.Limits{
 		MaxBytesPerTrace: maxTraceBytes,
-	})
+	}, logger)
 	require.NoError(t, err)
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
@@ -560,7 +563,8 @@ func defaultInstance(t testing.TB) (*instance, *Ingester) {
 }
 
 func defaultInstanceWithFlatBufferSearch(t testing.TB, fbSearch bool) (*instance, *Ingester, string) {
-	limits, err := overrides.NewOverrides(overrides.Limits{})
+	logger := log.NewNopLogger()
+	limits, err := overrides.NewOverrides(overrides.Limits{}, logger)
 	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 

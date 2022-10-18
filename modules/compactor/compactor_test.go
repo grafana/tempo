@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
@@ -15,9 +16,10 @@ import (
 )
 
 func TestCombineLimitsNotHit(t *testing.T) {
+	logger := log.NewNopLogger()
 	o, err := overrides.NewOverrides(overrides.Limits{
 		MaxBytesPerTrace: math.MaxInt,
-	})
+	}, logger)
 	require.NoError(t, err)
 
 	c := &Compactor{
@@ -45,9 +47,10 @@ func TestCombineLimitsNotHit(t *testing.T) {
 }
 
 func TestCombineLimitsHit(t *testing.T) {
+	logger := log.NewNopLogger()
 	o, err := overrides.NewOverrides(overrides.Limits{
 		MaxBytesPerTrace: 1,
-	})
+	}, logger)
 	require.NoError(t, err)
 
 	c := &Compactor{
@@ -75,9 +78,10 @@ func TestCombineLimitsHit(t *testing.T) {
 }
 
 func TestCombineDoesntEnforceZero(t *testing.T) {
+	logger := log.NewNopLogger()
 	o, err := overrides.NewOverrides(overrides.Limits{
 		MaxBytesPerTrace: 0,
-	})
+	}, logger)
 	require.NoError(t, err)
 
 	c := &Compactor{

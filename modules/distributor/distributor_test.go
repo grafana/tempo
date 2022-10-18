@@ -988,7 +988,7 @@ func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client, logger l
 	)
 	flagext.DefaultValues(&clientConfig)
 
-	overrides, err := overrides.NewOverrides(*limits)
+	overrides, err := overrides.NewOverrides(*limits, logger)
 	require.NoError(t, err)
 
 	// Mock the ingesters ring

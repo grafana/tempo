@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -16,6 +17,7 @@ import (
 )
 
 func TestQuerierUsesSearchExternalEndpoint(t *testing.T) {
+	logger := log.NewNopLogger()
 	numExternalRequests := atomic.NewInt32(0)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -63,10 +65,10 @@ func TestQuerierUsesSearchExternalEndpoint(t *testing.T) {
 	for _, tc := range tests {
 		numExternalRequests.Store(0)
 
-		o, err := overrides.NewOverrides(overrides.Limits{})
+		o, err := overrides.NewOverrides(overrides.Limits{}, logger)
 		require.NoError(t, err)
 
-		q, err := New(tc.cfg, client.Config{}, nil, nil, o)
+		q, err := New(tc.cfg, client.Config{}, nil, nil, o, logger)
 		require.NoError(t, err)
 
 		for i := 0; i < tc.queriesToExecute; i++ {
