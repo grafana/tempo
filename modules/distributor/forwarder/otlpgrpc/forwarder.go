@@ -89,9 +89,9 @@ func (f *Forwarder) ForwardBatches(ctx context.Context, trace tempopb.Trace) err
 
 	var errs []error
 	f.mu.RLock()
-	for _, client := range f.clients {
-		if err := f.exportTracesUsingClient(ctx, client, req); err != nil {
-			errs = append(errs, err)
+	for endpoint, client := range f.clients {
+		if _, err := client.Export(ctx, req); err != nil {
+			errs = append(errs, fmt.Errorf("failed to export trace to endpoint=%s: %w", endpoint, err))
 		}
 	}
 	f.mu.RUnlock()
@@ -113,14 +113,6 @@ func (f *Forwarder) Shutdown(_ context.Context) error {
 	}
 
 	return multierr.Combine(errs...)
-}
-
-func (f *Forwarder) exportTracesUsingClient(ctx context.Context, client ptraceotlp.Client, req ptraceotlp.Request) error {
-	if _, err := client.Export(ctx, req); err != nil {
-		return fmt.Errorf("failed to export traces: %w", err)
-	}
-
-	return nil
 }
 
 func (f *Forwarder) newTraceOTLPGRPCClientAndConn(ctx context.Context, endpoint string, cfg TLSConfig, opts ...grpc.DialOption) (ptraceotlp.Client, *grpc.ClientConn, error) {
