@@ -19,11 +19,11 @@ You'll need:
 Refer to [Deploy Grafana on Kubernetes](https://grafana.com/docs/grafana/latest/setup-grafana/installation/kubernetes/#deploy-grafana-on-kubernetes) if you are using Kubernetes.
 Otherwise, refer to [Install Grafana](https://grafana.com/docs/grafana/latest/installation/) for more information.
 
-## Set up remote-write to your Tempo cluster
+## Set up `remote_write` to your Tempo cluster
 
 To enable writes to your cluster:
 
-1. Add a remote-write configuration snippet to the configuration file of an existing Grafana Agent.
+1. Add a `remote_write` configuration snippet to the configuration file of an existing Grafana Agent.
 
    If you do not have an existing traces collector, refer to [Set up with Grafana Agent](https://grafana.com/docs/agent/latest/set-up/).
    For Kubernetes, refer to the [Grafana Agent Traces Kubernetes quick start guide](https://grafana.com/docs/grafana-cloud/kubernetes-monitoring/agent-k8s/k8s_agent_traces/).

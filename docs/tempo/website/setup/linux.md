@@ -22,7 +22,7 @@ To follow this guide, you need:
 - An Amazon S3 compatible object store
 <!-- - Git and Docker installed to run the TNS app -->
 
-### System prerequisites
+### System requirements
 
 This configuration is an example you can use as a starting point.
 You may need to have more resources for your system than the minimum specifications listed below.
@@ -35,7 +35,7 @@ Your Linux system should have at least:
 - 4 CPUs
 - 16 GB of memory
 
-## Setup an object storage bucket
+## Set up an object storage bucket
 
 Tempo uses object storage as the backend for its trace storage.
 It also uses object storage for storing various administrative credentials and data related to the state of the system.
