@@ -147,9 +147,11 @@ func (m *Manager) updateTenantToForwarderList(tenantToForwarderNames map[string]
 	for tenantID, ql := range m.tenantToQueueList {
 		forwarderNames, found := tenantToForwarderNames[tenantID]
 		if !found {
-			if err := ql.shutdown(context.Background()); err != nil {
-				_ = level.Warn(m.logger).Log("msg", "failed to shutdown queue list", "tenantID", tenantID)
-			}
+			go func(queueList *queueList) {
+				if err := queueList.shutdown(context.Background()); err != nil {
+					_ = level.Warn(m.logger).Log("msg", "failed to shutdown queue list", "tenantID", tenantID)
+				}
+			}(ql)
 
 			delete(m.tenantToQueueList, tenantID)
 
@@ -157,9 +159,11 @@ func (m *Manager) updateTenantToForwarderList(tenantToForwarderNames map[string]
 		}
 
 		if ql.shouldUpdate(forwarderNames) {
-			if err := ql.shutdown(context.Background()); err != nil {
-				_ = level.Warn(m.logger).Log("msg", "failed to shutdown queue list", "tenantID", tenantID)
-			}
+			go func(queueList *queueList) {
+				if err := queueList.shutdown(context.Background()); err != nil {
+					_ = level.Warn(m.logger).Log("msg", "failed to shutdown queue list", "tenantID", tenantID)
+				}
+			}(ql)
 
 			delete(m.tenantToQueueList, tenantID)
 
