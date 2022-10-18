@@ -366,8 +366,6 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 			if err != nil {
 				return nil, err
 			}
-			//addPredicate(columnPathSpanDuration, pred)
-			//columnSelectAs[columnPathSpanDuration] = columnPathSpanDuration
 			durationPredicates = append(durationPredicates, pred)
 			continue
 
