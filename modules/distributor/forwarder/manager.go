@@ -11,7 +11,6 @@ import (
 	"github.com/grafana/dskit/services"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/multierr"
-	"golang.org/x/exp/constraints"
 
 	"github.com/grafana/tempo/modules/distributor/queue"
 )
@@ -70,12 +69,12 @@ func (m *Manager) ForTenant(tenantID string) List {
 	m.tenantToQueueListMu.RLock()
 	defer m.tenantToQueueListMu.RUnlock()
 
-	queueList, found := m.tenantToQueueList[tenantID]
+	ql, found := m.tenantToQueueList[tenantID]
 	if !found {
 		return nil
 	}
 
-	return queueList.copy()
+	return ql.list
 }
 
 func (m *Manager) start(_ context.Context) error {
@@ -137,57 +136,40 @@ func (m *Manager) updateTenantToForwarderList(tenantToForwarderNames map[string]
 	m.tenantToQueueListMu.Lock()
 	defer m.tenantToQueueListMu.Unlock()
 
-	oldTenantIDs := make([]string, 0, len(m.tenantToQueueList))
-	for oldTenantID := range m.tenantToQueueList {
-		oldTenantIDs = append(oldTenantIDs, oldTenantID)
+	queueListsToAdd := make(map[string]*queueList)
+
+	for tenantID, forwarderNames := range tenantToForwarderNames {
+		if _, found := m.tenantToQueueList[tenantID]; !found {
+			queueListsToAdd[tenantID] = newQueueList(m.logger, tenantID, forwarderNames, m.forwarderNameToForwarder)
+		}
 	}
 
-	newTenantIDs := make([]string, 0, len(tenantToForwarderNames))
-	for newTenantID := range tenantToForwarderNames {
-		newTenantIDs = append(newTenantIDs, newTenantID)
+	for tenantID, ql := range m.tenantToQueueList {
+		forwarderNames, found := tenantToForwarderNames[tenantID]
+		if !found {
+			if err := ql.shutdown(context.Background()); err != nil {
+				_ = level.Warn(m.logger).Log("msg", "failed to shutdown queue list", "tenantID", tenantID)
+			}
+
+			delete(m.tenantToQueueList, tenantID)
+
+			continue
+		}
+
+		if ql.shouldUpdate(forwarderNames) {
+			if err := ql.shutdown(context.Background()); err != nil {
+				_ = level.Warn(m.logger).Log("msg", "failed to shutdown queue list", "tenantID", tenantID)
+			}
+
+			delete(m.tenantToQueueList, tenantID)
+
+			queueListsToAdd[tenantID] = newQueueList(m.logger, tenantID, forwarderNames, m.forwarderNameToForwarder)
+		}
 	}
 
-	diff := diff(oldTenantIDs, newTenantIDs)
-
-	for _, removedTenantID := range diff.removed {
-		m.removeQueueListForTenantUnderLock(removedTenantID)
+	for tenantID, ql := range queueListsToAdd {
+		m.tenantToQueueList[tenantID] = ql
 	}
-
-	for _, addedTenantID := range diff.added {
-		m.updateQueueListForTenantUnderLock(addedTenantID, tenantToForwarderNames[addedTenantID])
-	}
-
-	// Go through all tenants and try to update them.
-	// If forwarder names for particular tenant changed, this will update them.
-	// If names didn't change, this is a noop.
-	for tenantID := range m.tenantToQueueList {
-		m.updateQueueListForTenantUnderLock(tenantID, tenantToForwarderNames[tenantID])
-	}
-}
-
-func (m *Manager) removeQueueListForTenantUnderLock(tenantID string) {
-	ql, found := m.tenantToQueueList[tenantID]
-	if !found {
-		_ = level.Warn(m.logger).Log("msg", "queue list not found", "tenantID", tenantID)
-		return
-	}
-
-	if err := ql.shutdown(context.TODO()); err != nil {
-		_ = level.Warn(m.logger).Log("msg", "failed to shutdown queue list", "tenantID", tenantID)
-	}
-
-	delete(m.tenantToQueueList, tenantID)
-}
-
-// updateQueueListForTenantUnderLock should only be called under tenantToQueueListMu write lock.
-func (m *Manager) updateQueueListForTenantUnderLock(tenantID string, forwarderNames []string) {
-	queueList, found := m.tenantToQueueList[tenantID]
-	if !found {
-		queueList = newQueueList(m.logger, tenantID)
-		m.tenantToQueueList[tenantID] = queueList
-	}
-
-	queueList.update(forwarderNames, m.forwarderNameToForwarder)
 }
 
 func (m *Manager) shutdown() error {
@@ -217,94 +199,64 @@ func (m *Manager) shutdown() error {
 	return multierr.Combine(errs...)
 }
 
-type queueListDiff[T any] struct {
-	added   []T
-	removed []T
-}
-
 type queueList struct {
 	logger               log.Logger
 	tenantID             string
 	forwarderNameToQueue map[string]*queue.Queue[ptrace.Traces]
-	mu                   *sync.RWMutex
+	list                 List
 }
 
-func newQueueList(logger log.Logger, tenantID string) *queueList {
-	return &queueList{
-		logger:               logger,
-		tenantID:             tenantID,
-		forwarderNameToQueue: make(map[string]*queue.Queue[ptrace.Traces]),
-		mu:                   &sync.RWMutex{},
-	}
-}
-
-func (l *queueList) copy() List {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-
-	result := make(List, 0, len(l.forwarderNameToQueue))
-	for _, q := range l.forwarderNameToQueue {
-		result = append(result, &queueAdapter{queue: q})
-	}
-
-	return result
-}
-
-func (l *queueList) update(forwarderNames []string, forwarderNameToForwarder map[string]Forwarder) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	oldForwarderNames := make([]string, 0, len(l.forwarderNameToQueue))
-	for oldForwarderName := range l.forwarderNameToQueue {
-		oldForwarderNames = append(oldForwarderNames, oldForwarderName)
-	}
-
-	diff := diff(oldForwarderNames, forwarderNames)
-
-	for _, removedForwarderName := range diff.removed {
-		q, found := l.forwarderNameToQueue[removedForwarderName]
+func newQueueList(logger log.Logger, tenantID string, forwarderNames []string, forwarderNameToForwarder map[string]Forwarder) *queueList {
+	forwarderNameToQueue := make(map[string]*queue.Queue[ptrace.Traces], len(forwarderNames))
+	list := make(List, 0, len(forwarderNames))
+	for _, forwarderName := range forwarderNames {
+		forwarder, found := forwarderNameToForwarder[forwarderName]
 		if !found {
-			_ = level.Warn(l.logger).Log("msg", "queue not found", "removedForwarderName", removedForwarderName)
-			continue
-		}
-
-		// TODO: Consider making shutdown asynchronous not to block here
-		if err := q.Shutdown(context.TODO()); err != nil {
-			_ = level.Warn(l.logger).Log("msg", "failed to shutdown queue", "removedForwarderName", removedForwarderName, "tenantID", l.tenantID)
-		}
-
-		delete(l.forwarderNameToQueue, removedForwarderName)
-	}
-
-	for _, addedForwarderName := range diff.added {
-		forwarder, found := forwarderNameToForwarder[addedForwarderName]
-		if !found {
-			_ = level.Warn(l.logger).Log("msg", "failed to find forwarder by name", "addedForwarderName", addedForwarderName, "tenantID", l.tenantID)
+			_ = level.Warn(logger).Log("msg", "failed to find forwarder by name", "forwarderName", forwarderName, "tenantID", tenantID)
 			continue
 		}
 
 		queueCfg := queue.Config{
-			Name:        addedForwarderName,
-			TenantID:    l.tenantID,
+			Name:        forwarderName,
+			TenantID:    tenantID,
 			Size:        defaultQueueSize,
 			WorkerCount: defaultWorkerCount,
 		}
 
 		processFunc := func(ctx context.Context, traces ptrace.Traces) {
 			if err := forwarder.ForwardTraces(ctx, traces); err != nil {
-				_ = level.Warn(l.logger).Log("msg", "failed to forward batches", "forwarderName", addedForwarderName, "tenantID", l.tenantID, "err", err)
+				_ = level.Warn(logger).Log("msg", "failed to forward batches", "forwarderName", forwarderName, "tenantID", tenantID, "err", err)
 			}
 		}
-		newQueue := queue.New(queueCfg, l.logger, processFunc)
+		newQueue := queue.New(queueCfg, logger, processFunc)
 		newQueue.StartWorkers()
-		l.forwarderNameToQueue[addedForwarderName] = newQueue
+		forwarderNameToQueue[forwarderName] = newQueue
+		list = append(list, queueAdapter{queue: newQueue})
+	}
+
+	return &queueList{
+		logger:               logger,
+		tenantID:             tenantID,
+		forwarderNameToQueue: forwarderNameToQueue,
+		list:                 list,
 	}
 }
 
-func (l *queueList) shutdown(ctx context.Context) error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+func (l *queueList) shouldUpdate(forwarderNames []string) bool {
+	if len(forwarderNames) != len(l.forwarderNameToQueue) {
+		return true
+	}
 
+	for _, forwarderName := range forwarderNames {
+		if _, found := l.forwarderNameToQueue[forwarderName]; !found {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (l *queueList) shutdown(ctx context.Context) error {
 	var errs []error
 	for forwarderName, q := range l.forwarderNameToQueue {
 		if err := q.Shutdown(ctx); err != nil {
@@ -321,39 +273,11 @@ type queueAdapter struct {
 	queue *queue.Queue[ptrace.Traces]
 }
 
-func (a *queueAdapter) ForwardTraces(ctx context.Context, traces ptrace.Traces) error {
+func (a queueAdapter) ForwardTraces(ctx context.Context, traces ptrace.Traces) error {
 	return a.queue.Push(ctx, traces)
 }
 
 // Shutdown does nothing. Queue lifecycle is handled by queueList.
-func (a *queueAdapter) Shutdown(_ context.Context) error {
+func (a queueAdapter) Shutdown(_ context.Context) error {
 	return nil
-}
-
-// diff returns the difference between two lists.
-func diff[T constraints.Ordered](oldList, newList []T) queueListDiff[T] {
-	newSet := make(map[T]struct{}, len(newList))
-	for _, n := range newList {
-		newSet[n] = struct{}{}
-	}
-
-	oldSet := make(map[T]struct{}, len(oldList))
-	for _, o := range oldList {
-		oldSet[o] = struct{}{}
-	}
-
-	diff := queueListDiff[T]{}
-	for _, o := range oldList {
-		if _, found := newSet[o]; !found {
-			diff.removed = append(diff.removed, o)
-		}
-	}
-
-	for _, n := range newList {
-		if _, found := oldSet[n]; !found {
-			diff.added = append(diff.added, n)
-		}
-	}
-
-	return diff
 }
