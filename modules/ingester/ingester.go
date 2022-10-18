@@ -8,6 +8,7 @@ import (
 
 	"github.com/grafana/tempo/tempodb/search"
 
+	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/ring"
@@ -28,7 +29,6 @@ import (
 	v1 "github.com/grafana/tempo/pkg/model/v1"
 	v2 "github.com/grafana/tempo/pkg/model/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -69,16 +69,19 @@ type Ingester struct {
 	limiter *Limiter
 
 	subservicesWatcher *services.FailureWatcher
+
+	logger log.Logger
 }
 
 // New makes a new Ingester.
-func New(cfg Config, store storage.Store, limits *overrides.Overrides, reg prometheus.Registerer) (*Ingester, error) {
+func New(cfg Config, store storage.Store, limits *overrides.Overrides, reg prometheus.Registerer, logger log.Logger) (*Ingester, error) {
 	i := &Ingester{
 		cfg:          cfg,
 		instances:    map[string]*instance{},
 		store:        store,
 		flushQueues:  flushqueues.New(cfg.ConcurrentFlushes, metricFlushQueueLength),
 		replayJitter: true,
+		logger:       log.With(logger, "component", "ingester"),
 	}
 
 	i.local = store.WAL().LocalBackend()
@@ -88,7 +91,7 @@ func New(cfg Config, store storage.Store, limits *overrides.Overrides, reg prome
 		go i.flushLoop(j)
 	}
 
-	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", cfg.OverrideRingKey, true, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
+	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", cfg.OverrideRingKey, true, logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed: %w", err)
 	}
@@ -163,7 +166,7 @@ func (i *Ingester) markUnavailable() {
 	if i.lifecycler != nil {
 		// Next initiate our graceful exit from the ring.
 		if err := services.StopAndAwaitTerminated(context.Background(), i.lifecycler); err != nil {
-			level.Warn(log.Logger).Log("msg", "failed to stop ingester lifecycler", "err", err)
+			level.Warn(i.logger).Log("msg", "failed to stop ingester lifecycler", "err", err)
 		}
 	}
 
@@ -324,13 +327,13 @@ func (i *Ingester) TransferOut(ctx context.Context) error {
 }
 
 func (i *Ingester) replayWal() error {
-	level.Info(log.Logger).Log("msg", "beginning wal replay")
+	level.Info(i.logger).Log("msg", "beginning wal replay")
 
 	// pass i.cfg.MaxBlockDuration into RescanBlocks to make an attempt to set the start time
 	// of the blocks correctly. as we are scanning traces in the blocks we read their start/end times
 	// and attempt to set start/end times appropriately. we use now - max_block_duration - ingestion_slack
 	// as the minimum acceptable start time for a replayed block.
-	blocks, err := i.store.WAL().RescanBlocks(i.cfg.MaxBlockDuration, log.Logger)
+	blocks, err := i.store.WAL().RescanBlocks(i.cfg.MaxBlockDuration, i.logger)
 	if err != nil {
 		return fmt.Errorf("fatal error replaying wal: %w", err)
 	}
@@ -353,7 +356,7 @@ func (i *Ingester) replayWal() error {
 		if clear {
 			err := searchBlocks[j].Clear()
 			if err != nil { // just log the error
-				level.Warn(log.Logger).Log("msg", "error clearing search WAL file", "blockID", searchBlocks[j].BlockID, "err", err)
+				level.Warn(i.logger).Log("msg", "error clearing search WAL file", "blockID", searchBlocks[j].BlockID, "err", err)
 			}
 			searchBlocks = append(searchBlocks[:j], searchBlocks[j+1:]...)
 		}
@@ -394,7 +397,7 @@ func (i *Ingester) replayWal() error {
 		}, i.replayJitter)
 	}
 
-	level.Info(log.Logger).Log("msg", "wal replay complete")
+	level.Info(i.logger).Log("msg", "wal replay complete")
 
 	return nil
 }
@@ -408,7 +411,7 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 		return errors.Wrap(err, "getting local tenants")
 	}
 
-	level.Info(log.Logger).Log("msg", "reloading local blocks", "tenants", len(tenants))
+	level.Info(i.logger).Log("msg", "reloading local blocks", "tenants", len(tenants))
 
 	for _, t := range tenants {
 		inst, err := i.getOrCreateInstance(t)

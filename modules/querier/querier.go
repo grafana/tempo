@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cristalhq/hedgedhttp"
+	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
@@ -37,7 +38,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -81,6 +81,8 @@ type Querier struct {
 
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
+
+	logger log.Logger
 }
 
 type responseFromIngesters struct {
@@ -89,9 +91,8 @@ type responseFromIngesters struct {
 }
 
 // New makes a new Querier.
-func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store storage.Store, limits *overrides.Overrides) (*Querier, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store storage.Store, limits *overrides.Overrides, logger log.Logger) (*Querier, error) {
 	// TODO should we somehow refuse traceQL queries if backend encoding is not parquet?
-
 	factory := func(addr string) (ring_client.PoolClient, error) {
 		return ingester_client.New(addr, clientCfg)
 	}
@@ -104,12 +105,13 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 			ring_client.NewRingServiceDiscovery(ring),
 			factory,
 			metricIngesterClients,
-			log.Logger),
+			logger),
 		engine:           traceql.NewEngine(),
 		store:            store,
 		limits:           limits,
 		searchPreferSelf: semaphore.NewWeighted(int64(cfg.Search.PreferSelf)),
 		searchClient:     http.DefaultClient,
+		logger:           log.With(logger, "component", "querier"),
 	}
 
 	//
@@ -132,7 +134,7 @@ func (q *Querier) CreateAndRegisterWorker(handler http.Handler) error {
 	worker, err := worker.NewQuerierWorker(
 		q.cfg.Worker,
 		httpgrpc_server.NewServer(handler),
-		log.Logger,
+		q.logger,
 		nil,
 	)
 	if err != nil {
@@ -248,7 +250,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 		if blockErrs != nil {
 			failedBlocks = len(blockErrs)
-			_ = level.Warn(log.Logger).Log("msg", fmt.Sprintf("failed to query %d blocks", failedBlocks), "blockErrs", multierr.Combine(blockErrs...))
+			_ = level.Warn(q.logger).Log("msg", fmt.Sprintf("failed to query %d blocks", failedBlocks), "blockErrs", multierr.Combine(blockErrs...))
 		}
 
 		span.LogFields(
@@ -350,7 +352,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	}
 
 	if distinctValues.Exceeded() {
-		level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
+		level.Warn(q.logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
 	}
 
 	resp := &tempopb.SearchTagsResponse{
@@ -392,7 +394,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	}
 
 	if distinctValues.Exceeded() {
-		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
+		level.Warn(q.logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
 	}
 
 	resp := &tempopb.SearchTagValuesResponse{

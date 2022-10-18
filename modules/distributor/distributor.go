@@ -209,7 +209,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		globalTagsToDrop:        tagsToDrop,
 		overrides:               o,
 		traceEncoder:            model.MustNewSegmentDecoder(model.CurrentEncoding),
-		logger:                  logger,
+		logger:                  log.With(logger, "component", "distributor"),
 	}
 
 	if metricsGeneratorEnabled {

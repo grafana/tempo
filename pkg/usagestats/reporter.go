@@ -56,7 +56,7 @@ func NewReporter(config Config, kvConfig kv.Config, reader backend.RawReader, wr
 		return nil, nil
 	}
 	r := &Reporter{
-		logger:   logger,
+		logger:   log.With(logger, "component", "usage-reporter"),
 		reader:   reader,
 		writer:   writer,
 		conf:     config,

@@ -80,7 +80,7 @@ func (i *Ingester) Flush() {
 	for _, instance := range instances {
 		err := instance.CutCompleteTraces(0, true)
 		if err != nil {
-			level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to cut complete traces on shutdown", "err", err)
+			level.Error(log.WithUserID(instance.instanceID, i.logger)).Log("msg", "failed to cut complete traces on shutdown", "err", err)
 		}
 	}
 }
@@ -90,7 +90,7 @@ func (i *Ingester) Flush() {
 // * Flush all blocks to backend
 func (i *Ingester) ShutdownHandler(w http.ResponseWriter, _ *http.Request) {
 	go func() {
-		level.Info(log.Logger).Log("msg", "shutdown handler called")
+		level.Info(i.logger).Log("msg", "shutdown handler called")
 
 		// lifecycler should exit the ring on shutdown
 		i.lifecycler.SetUnregisterOnShutdown(true)
@@ -108,7 +108,7 @@ func (i *Ingester) ShutdownHandler(w http.ResponseWriter, _ *http.Request) {
 		// stop ingester service
 		_ = services.StopAndAwaitTerminated(context.Background(), i)
 
-		level.Info(log.Logger).Log("msg", "shutdown handler complete")
+		level.Info(i.logger).Log("msg", "shutdown handler complete")
 	}()
 
 	_, _ = w.Write([]byte("shutdown job acknowledged"))
@@ -153,19 +153,19 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	// cut traces internally
 	err := instance.CutCompleteTraces(i.cfg.MaxTraceIdle, immediate)
 	if err != nil {
-		level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to cut traces", "err", err)
+		level.Error(log.WithUserID(instance.instanceID, i.logger)).Log("msg", "failed to cut traces", "err", err)
 		return
 	}
 
 	// see if it's ready to cut a block
 	blockID, err := instance.CutBlockIfReady(i.cfg.MaxBlockDuration, i.cfg.MaxBlockBytes, immediate)
 	if err != nil {
-		level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to cut block", "err", err)
+		level.Error(log.WithUserID(instance.instanceID, i.logger)).Log("msg", "failed to cut block", "err", err)
 		return
 	}
 
 	if blockID != uuid.Nil {
-		level.Info(log.Logger).Log("msg", "head block cut. enqueueing flush op", "userid", instance.instanceID, "block", blockID)
+		level.Info(i.logger).Log("msg", "head block cut. enqueueing flush op", "userid", instance.instanceID, "block", blockID)
 		// jitter to help when flushing many instances at the same time
 		// no jitter if immediate (initiated via /flush handler for example)
 		i.enqueue(&flushOp{
@@ -178,13 +178,13 @@ func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
 	// dump any blocks that have been flushed for awhile
 	err = instance.ClearFlushedBlocks(i.cfg.CompleteBlockTimeout)
 	if err != nil {
-		level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to complete block", "err", err)
+		level.Error(log.WithUserID(instance.instanceID, i.logger)).Log("msg", "failed to complete block", "err", err)
 	}
 }
 
 func (i *Ingester) flushLoop(j int) {
 	defer func() {
-		level.Debug(log.Logger).Log("msg", "Ingester.flushLoop() exited")
+		level.Debug(i.logger).Log("msg", "Ingester.flushLoop() exited")
 		i.flushQueuesDone.Done()
 	}()
 
@@ -206,7 +206,7 @@ func (i *Ingester) flushLoop(j int) {
 		}
 
 		if err != nil {
-			handleFailedOp(op, err)
+			i.handleFailedOp(op, err)
 		}
 
 		if retry {
@@ -217,8 +217,8 @@ func (i *Ingester) flushLoop(j int) {
 	}
 }
 
-func handleFailedOp(op *flushOp, err error) {
-	level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "error performing op in flushQueue",
+func (i *Ingester) handleFailedOp(op *flushOp, err error) {
+	level.Error(log.WithUserID(op.userID, i.logger)).Log("msg", "error performing op in flushQueue",
 		"op", op.kind, "block", op.blockID.String(), "attempts", op.attempts, "err", err)
 	metricFailedFlushes.Inc()
 
@@ -227,8 +227,8 @@ func handleFailedOp(op *flushOp, err error) {
 	}
 }
 
-func handleAbandonedOp(op *flushOp) {
-	level.Info(log.WithUserID(op.userID, log.Logger)).Log("msg", "Abandoning op in flush queue because ingester is shutting down",
+func (i *Ingester) handleAbandonedOp(op *flushOp) {
+	level.Info(log.WithUserID(op.userID, i.logger)).Log("msg", "Abandoning op in flush queue because ingester is shutting down",
 		"op", op.kind, "block", op.blockID.String(), "attempts", op.attempts)
 }
 
@@ -236,24 +236,24 @@ func (i *Ingester) handleComplete(op *flushOp) (retry bool, err error) {
 	// No point in proceeding if shutdown has been initiated since
 	// we won't be able to queue up the next flush op
 	if i.flushQueues.IsStopped() {
-		handleAbandonedOp(op)
+		i.handleAbandonedOp(op)
 		return false, nil
 	}
 
 	start := time.Now()
-	level.Info(log.Logger).Log("msg", "completing block", "userid", op.userID, "blockID", op.blockID)
+	level.Info(i.logger).Log("msg", "completing block", "userid", op.userID, "blockID", op.blockID)
 	instance, err := i.getOrCreateInstance(op.userID)
 	if err != nil {
 		return false, err
 	}
 
 	err = instance.CompleteBlock(op.blockID)
-	level.Info(log.Logger).Log("msg", "block completed", "userid", op.userID, "blockID", op.blockID, "duration", time.Since(start))
+	level.Info(i.logger).Log("msg", "block completed", "userid", op.userID, "blockID", op.blockID, "duration", time.Since(start))
 	if err != nil {
-		handleFailedOp(op, err)
+		i.handleFailedOp(op, err)
 
 		if op.attempts >= maxCompleteAttempts {
-			level.Error(log.WithUserID(op.userID, log.Logger)).Log("msg", "Block exceeded max completion errors. Deleting. POSSIBLE DATA LOSS",
+			level.Error(log.WithUserID(op.userID, i.logger)).Log("msg", "Block exceeded max completion errors. Deleting. POSSIBLE DATA LOSS",
 				"userID", op.userID, "attempts", op.attempts, "block", op.blockID.String())
 
 			// Delete WAL and move on
@@ -297,7 +297,7 @@ func withSpan(logger gklog.Logger, sp ot.Span) gklog.Logger {
 func (i *Ingester) handleFlush(ctx context.Context, userID string, blockID uuid.UUID) (retry bool, err error) {
 	sp, ctx := ot.StartSpanFromContext(ctx, "flush", ot.Tag{Key: "organization", Value: userID}, ot.Tag{Key: "blockID", Value: blockID.String()})
 	defer sp.Finish()
-	withSpan(level.Info(log.Logger), sp).Log("msg", "flushing block", "userid", userID, "block", blockID.String())
+	withSpan(level.Info(i.logger), sp).Log("msg", "flushing block", "userid", userID, "block", blockID.String())
 
 	instance, err := i.getOrCreateInstance(userID)
 	if err != nil {
@@ -345,13 +345,13 @@ func (i *Ingester) enqueue(op *flushOp, jitter bool) {
 
 		// Check if shutdown initiated
 		if i.flushQueues.IsStopped() {
-			handleAbandonedOp(op)
+			i.handleAbandonedOp(op)
 			return
 		}
 
 		err := i.flushQueues.Enqueue(op)
 		if err != nil {
-			handleFailedOp(op, err)
+			i.handleFailedOp(op, err)
 		}
 	}()
 }
@@ -375,7 +375,7 @@ func (i *Ingester) requeue(op *flushOp) {
 
 		// Check if shutdown initiated
 		if i.flushQueues.IsStopped() {
-			handleAbandonedOp(op)
+			i.handleAbandonedOp(op)
 			return
 		}
 
@@ -383,7 +383,7 @@ func (i *Ingester) requeue(op *flushOp) {
 
 		err := i.flushQueues.Requeue(op)
 		if err != nil {
-			handleFailedOp(op, err)
+			i.handleFailedOp(op, err)
 		}
 	}()
 }

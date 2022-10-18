@@ -6,6 +6,7 @@ import (
 	"hash/fnv"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
@@ -16,7 +17,6 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/util/log"
 )
 
 const (
@@ -50,10 +50,12 @@ type Compactor struct {
 
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
+
+	logger log.Logger
 }
 
 // New makes a new Compactor.
-func New(cfg Config, store storage.Store, overrides *overrides.Overrides, reg prometheus.Registerer) (*Compactor, error) {
+func New(cfg Config, store storage.Store, overrides *overrides.Overrides, reg prometheus.Registerer, logger log.Logger) (*Compactor, error) {
 	c := &Compactor{
 		cfg:       &cfg,
 		store:     store,
@@ -67,27 +69,27 @@ func New(cfg Config, store storage.Store, overrides *overrides.Overrides, reg pr
 			cfg.ShardingRing.KVStore,
 			ring.GetCodec(),
 			kv.RegistererWithKVName(reg, compactorRingKey+"-lifecycler"),
-			log.Logger,
+			logger,
 		)
 		if err != nil {
 			return nil, err
 		}
 
 		delegate := ring.BasicLifecyclerDelegate(c)
-		delegate = ring.NewLeaveOnStoppingDelegate(delegate, log.Logger)
-		delegate = ring.NewAutoForgetDelegate(ringAutoForgetUnhealthyPeriods*cfg.ShardingRing.HeartbeatTimeout, delegate, log.Logger)
+		delegate = ring.NewLeaveOnStoppingDelegate(delegate, logger)
+		delegate = ring.NewAutoForgetDelegate(ringAutoForgetUnhealthyPeriods*cfg.ShardingRing.HeartbeatTimeout, delegate, logger)
 
-		bcfg, err := toBasicLifecyclerConfig(cfg.ShardingRing, log.Logger)
+		bcfg, err := toBasicLifecyclerConfig(cfg.ShardingRing, logger)
 		if err != nil {
 			return nil, err
 		}
 
-		c.ringLifecycler, err = ring.NewBasicLifecycler(bcfg, compactorRingKey, cfg.OverrideRingKey, lifecyclerStore, delegate, log.Logger, reg)
+		c.ringLifecycler, err = ring.NewBasicLifecycler(bcfg, compactorRingKey, cfg.OverrideRingKey, lifecyclerStore, delegate, logger, reg)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring lifecycler")
 		}
 
-		c.Ring, err = ring.New(c.cfg.ShardingRing.ToLifecyclerConfig().RingConfig, compactorRingKey, cfg.OverrideRingKey, log.Logger, reg)
+		c.Ring, err = ring.New(c.cfg.ShardingRing.ToLifecyclerConfig().RingConfig, compactorRingKey, cfg.OverrideRingKey, logger, reg)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize compactor ring")
 		}
@@ -108,7 +110,7 @@ func (c *Compactor) starting(ctx context.Context) (err error) {
 		}
 
 		if stopErr := services.StopManagerAndAwaitStopped(context.Background(), c.subservices); stopErr != nil {
-			level.Error(log.Logger).Log("msg", "failed to gracefully stop compactor dependencies", "err", stopErr)
+			level.Error(c.logger).Log("msg", "failed to gracefully stop compactor dependencies", "err", stopErr)
 		}
 	}()
 
@@ -126,13 +128,13 @@ func (c *Compactor) starting(ctx context.Context) (err error) {
 		}
 
 		// Wait until the ring client detected this instance in the ACTIVE state.
-		level.Info(log.Logger).Log("msg", "waiting until compactor is ACTIVE in the ring")
+		level.Info(c.logger).Log("msg", "waiting until compactor is ACTIVE in the ring")
 		ctxWithTimeout, cancel := context.WithTimeout(ctx, c.cfg.ShardingRing.WaitActiveInstanceTimeout)
 		defer cancel()
 		if err := ring.WaitInstanceState(ctxWithTimeout, c.Ring, c.ringLifecycler.GetInstanceID(), ring.ACTIVE); err != nil {
 			return err
 		}
-		level.Info(log.Logger).Log("msg", "compactor is ACTIVE in the ring")
+		level.Info(c.logger).Log("msg", "compactor is ACTIVE in the ring")
 
 		// In the event of a cluster cold start we may end up in a situation where each new compactor
 		// instance starts at a slightly different time and thus each one starts with a different state
@@ -141,11 +143,11 @@ func (c *Compactor) starting(ctx context.Context) (err error) {
 			minWaiting := c.cfg.ShardingRing.WaitStabilityMinDuration
 			maxWaiting := c.cfg.ShardingRing.WaitStabilityMaxDuration
 
-			level.Info(log.Logger).Log("msg", "waiting until compactor ring topology is stable", "min_waiting", minWaiting.String(), "max_waiting", maxWaiting.String())
+			level.Info(c.logger).Log("msg", "waiting until compactor ring topology is stable", "min_waiting", minWaiting.String(), "max_waiting", maxWaiting.String())
 			if err := ring.WaitRingStability(ctx, c.Ring, ringOp, minWaiting, maxWaiting); err != nil {
-				level.Warn(log.Logger).Log("msg", "compactor ring topology is not stable after the max waiting time, proceeding anyway")
+				level.Warn(c.logger).Log("msg", "compactor ring topology is not stable after the max waiting time, proceeding anyway")
 			} else {
-				level.Info(log.Logger).Log("msg", "compactor ring topology is stable")
+				level.Info(c.logger).Log("msg", "compactor ring topology is stable")
 			}
 		}
 	}
@@ -157,7 +159,7 @@ func (c *Compactor) starting(ctx context.Context) (err error) {
 }
 
 func (c *Compactor) running(ctx context.Context) error {
-	level.Info(log.Logger).Log("msg", "enabling compaction")
+	level.Info(c.logger).Log("msg", "enabling compaction")
 	c.store.EnableCompaction(&c.cfg.Compactor, c, c)
 
 	if c.subservices != nil {
@@ -189,7 +191,7 @@ func (c *Compactor) Owns(hash string) bool {
 		return true
 	}
 
-	level.Debug(log.Logger).Log("msg", "checking hash", "hash", hash)
+	level.Debug(c.logger).Log("msg", "checking hash", "hash", hash)
 
 	hasher := fnv.New32a()
 	_, _ = hasher.Write([]byte(hash))
@@ -197,18 +199,18 @@ func (c *Compactor) Owns(hash string) bool {
 
 	rs, err := c.Ring.Get(hash32, ringOp, []ring.InstanceDesc{}, nil, nil)
 	if err != nil {
-		level.Error(log.Logger).Log("msg", "failed to get ring", "err", err)
+		level.Error(c.logger).Log("msg", "failed to get ring", "err", err)
 		return false
 	}
 
 	if len(rs.Instances) != 1 {
-		level.Error(log.Logger).Log("msg", "unexpected number of compactors in the shard (expected 1, got %d)", len(rs.Instances))
+		level.Error(c.logger).Log("msg", "unexpected number of compactors in the shard (expected 1, got %d)", len(rs.Instances))
 		return false
 	}
 
 	ringAddr := c.ringLifecycler.GetInstanceAddr()
 
-	level.Debug(log.Logger).Log("msg", "checking addresses", "owning_addr", rs.Instances[0].Addr, "this_addr", ringAddr)
+	level.Debug(c.logger).Log("msg", "checking addresses", "owning_addr", rs.Instances[0].Addr, "this_addr", ringAddr)
 
 	return rs.Instances[0].Addr == ringAddr
 }

@@ -30,7 +30,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util/log"
-	util_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
@@ -112,7 +111,7 @@ func (t *App) initGeneratorRing() (services.Service, error) {
 }
 
 func (t *App) initOverrides() (services.Service, error) {
-	overrides, err := overrides.NewOverrides(t.cfg.LimitsConfig)
+	overrides, err := overrides.NewOverrides(t.cfg.LimitsConfig, log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create overrides %w", err)
 	}
@@ -144,7 +143,7 @@ func (t *App) initDistributor() (services.Service, error) {
 
 func (t *App) initIngester() (services.Service, error) {
 	t.cfg.Ingester.LifecyclerConfig.ListenPort = t.cfg.Server.GRPCListenPort
-	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.overrides, prometheus.DefaultRegisterer)
+	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.overrides, prometheus.DefaultRegisterer, log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ingester: %w", err)
 	}
@@ -188,7 +187,7 @@ func (t *App) initQuerier() (services.Service, error) {
 	}
 
 	// todo: make ingester client a module instead of passing config everywhere
-	querier, err := querier.New(t.cfg.Querier, t.cfg.IngesterClient, t.ring, t.store, t.overrides)
+	querier, err := querier.New(t.cfg.Querier, t.cfg.IngesterClient, t.ring, t.store, t.overrides, log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create querier %w", err)
 	}
@@ -262,7 +261,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 }
 
 func (t *App) initCompactor() (services.Service, error) {
-	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.overrides, prometheus.DefaultRegisterer)
+	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.overrides, prometheus.DefaultRegisterer, log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compactor %w", err)
 	}
@@ -348,9 +347,9 @@ func (t *App) initUsageReport() (services.Service, error) {
 		return nil, fmt.Errorf("failed to initialize usage report: %w", err)
 	}
 
-	ur, err := usagestats.NewReporter(t.cfg.UsageReport, t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore, reader, writer, util_log.Logger, prometheus.DefaultRegisterer)
+	ur, err := usagestats.NewReporter(t.cfg.UsageReport, t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore, reader, writer, log.Logger, prometheus.DefaultRegisterer)
 	if err != nil {
-		level.Info(util_log.Logger).Log("msg", "failed to initialize usage report", "err", err)
+		level.Info(log.Logger).Log("msg", "failed to initialize usage report", "err", err)
 		return nil, nil
 	}
 	t.usageReport = ur

@@ -31,7 +31,8 @@ type Store interface {
 type store struct {
 	services.Service
 
-	cfg Config
+	cfg    Config
+	logger log.Logger
 
 	tempodb.Reader
 	tempodb.Writer
@@ -58,6 +59,7 @@ func NewStore(cfg Config, logger log.Logger) (Store, error) {
 		Reader:    r,
 		Writer:    w,
 		Compactor: c,
+		logger:    log.With(logger, "component", "store"),
 	}
 
 	s.Service = services.NewIdleService(s.starting, s.stopping)

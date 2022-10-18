@@ -51,7 +51,7 @@ type Frontend struct {
 	services.Service
 
 	cfg    Config
-	log    log.Logger
+	logger log.Logger
 	limits Limits
 
 	requestQueue *queue.RequestQueue
@@ -79,10 +79,10 @@ type request struct {
 }
 
 // New creates a new frontend. Frontend implements service, and must be started and stopped.
-func New(cfg Config, limits Limits, log log.Logger, registerer prometheus.Registerer) (*Frontend, error) {
+func New(cfg Config, limits Limits, logger log.Logger, registerer prometheus.Registerer) (*Frontend, error) {
 	f := &Frontend{
 		cfg:    cfg,
-		log:    log,
+		logger: log.With(logger, "component", "query-frontend", "version", "v1"),
 		limits: limits,
 		queueLength: promauto.With(registerer).NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cortex_query_frontend_queue_length",
@@ -290,7 +290,7 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 }
 
 func (f *Frontend) NotifyClientShutdown(_ context.Context, req *frontendv1pb.NotifyClientShutdownRequest) (*frontendv1pb.NotifyClientShutdownResponse, error) {
-	level.Info(f.log).Log("msg", "received shutdown notification from querier", "querier", req.GetClientID())
+	level.Info(f.logger).Log("msg", "received shutdown notification from querier", "querier", req.GetClientID())
 	f.requestQueue.NotifyQuerierShutdown(req.GetClientID())
 
 	return &frontendv1pb.NotifyClientShutdownResponse{}, nil
@@ -352,6 +352,6 @@ func (f *Frontend) CheckReady(_ context.Context) error {
 	}
 
 	msg := fmt.Sprintf("not ready: number of queriers connected to query-frontend is %d", int64(connectedClients))
-	level.Info(f.log).Log("msg", msg)
+	level.Info(f.logger).Log("msg", msg)
 	return errors.New(msg)
 }

@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
 )
 
 const wildcardTenant = "*"
@@ -71,13 +71,15 @@ type Overrides struct {
 	// Manager for subservices
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
+
+	logger log.Logger
 }
 
 // NewOverrides makes a new Overrides.
 // We store the supplied limits in a global variable to ensure per-tenant limits
 // are defaulted to those values.  As such, the last call to NewOverrides will
 // become the new global defaults.
-func NewOverrides(defaults Limits) (*Overrides, error) {
+func NewOverrides(defaults Limits, logger log.Logger) (*Overrides, error) {
 	var manager *runtimeconfig.Manager
 	subservices := []services.Service(nil)
 
@@ -87,7 +89,7 @@ func NewOverrides(defaults Limits) (*Overrides, error) {
 			ReloadPeriod: time.Duration(defaults.PerTenantOverridePeriod),
 			Loader:       loadPerTenantOverrides,
 		}
-		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer), log.Logger)
+		runtimeCfgMgr, err := runtimeconfig.New(runtimeCfg, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer), logger)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create runtime config manager %w", err)
 		}
@@ -98,6 +100,7 @@ func NewOverrides(defaults Limits) (*Overrides, error) {
 	o := &Overrides{
 		runtimeConfigMgr: manager,
 		defaultLimits:    &defaults,
+		logger:           log.With(logger, "component", "overrides"),
 	}
 
 	if len(subservices) > 0 {

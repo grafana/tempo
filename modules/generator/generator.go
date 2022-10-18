@@ -73,7 +73,7 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		instances: map[string]*instance{},
 
 		reg:    reg,
-		logger: logger,
+		logger: log.With(logger, "component", "metrics-generator"),
 	}
 
 	// Lifecycler and ring
