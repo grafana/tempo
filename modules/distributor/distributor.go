@@ -23,6 +23,7 @@ import (
 	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/weaveworks/common/logging"
 	"github.com/weaveworks/common/user"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
@@ -284,10 +285,27 @@ func (d *Distributor) stopping(_ error) error {
 	return services.StopManagerAndAwaitStopped(context.Background(), d.subservices)
 }
 
-// PushBatches pushes a batch of traces
-func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpans) (*tempopb.PushResponse, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "distributor.PushBatches")
+// PushTraces pushes a batch of traces
+func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "distributor.PushTraces")
 	defer span.Finish()
+
+	// Convert to bytes and back. This is unfortunate for efficiency, but it works
+	// around the otel-collector internalization of otel-proto which Tempo also uses.
+	convert, err := ptrace.NewProtoMarshaler().MarshalTraces(traces)
+	if err != nil {
+		return nil, err
+	}
+
+	// tempopb.Trace is wire-compatible with ExportTraceServiceRequest
+	// used by ToOtlpProtoBytes
+	trace := tempopb.Trace{}
+	err = trace.Unmarshal(convert)
+	if err != nil {
+		return nil, err
+	}
+
+	batches := trace.Batches
 
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
@@ -363,7 +381,7 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 	}
 
 	if len(d.cfg.Forwarders) > 0 && len(d.overrides.Forwarders(userID)) > 0 {
-		if err := d.forwardersManager.ForTenant(userID).ForwardBatches(ctx, tempopb.Trace{Batches: batches}); err != nil {
+		if err := d.forwardersManager.ForTenant(userID).ForwardTraces(ctx, traces); err != nil {
 			_ = level.Warn(d.logger).Log("msg", "failed to forward batches for tenant=%s: %w", userID, err)
 		}
 	}

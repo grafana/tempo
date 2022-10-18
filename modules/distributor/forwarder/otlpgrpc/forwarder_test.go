@@ -13,9 +13,6 @@ import (
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
-
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
 type mockWorkingPTraceOTLPServer struct{}
@@ -244,7 +241,7 @@ func Test_Forwarder_Dial_ReturnsErrorWhenCalledSecondTime(t *testing.T) {
 	require.Error(t, err)
 }
 
-func Test_Forwarder_ForwardBatches_ReturnsNoErrorAndSentTracesMatchReceivedTraces(t *testing.T) {
+func Test_Forwarder_ForwardTraces_ReturnsNoErrorAndSentTracesMatchReceivedTraces(t *testing.T) {
 	// Given
 	cfg := Config{
 		Endpoints: []string{"test:1234"},
@@ -257,28 +254,19 @@ func Test_Forwarder_ForwardBatches_ReturnsNoErrorAndSentTracesMatchReceivedTrace
 	d := newContextDialer(l)
 	err := f.Dial(context.Background(), grpc.WithContextDialer(d), grpc.WithBlock())
 	require.NoError(t, err)
-	trace := tempopb.Trace{
-		Batches: []*v1.ResourceSpans{
-			{
-				SchemaUrl: "testURL",
-			},
-		},
-	}
+	traces := ptrace.NewTraces()
+	traces.ResourceSpans().AppendEmpty().SetSchemaUrl("testURL")
 	ctx := user.InjectOrgID(context.Background(), "123")
 
 	// When
-	err = f.ForwardBatches(ctx, trace)
+	err = f.ForwardTraces(ctx, traces)
 
 	// Then
-	require.NoError(t, err)
-	m, err := trace.Marshal()
-	require.NoError(t, err)
-	traces, err := ptrace.NewProtoUnmarshaler().UnmarshalTraces(m)
 	require.NoError(t, err)
 	require.Equal(t, traces, srv.req.Traces())
 }
 
-func Test_Forwarder_ForwardBatches_ReturnsErrorWithNoOrgIDInContext(t *testing.T) {
+func Test_Forwarder_ForwardTraces_ReturnsErrorWithNoOrgIDInContext(t *testing.T) {
 	// Given
 	cfg := Config{
 		Endpoints: []string{"test:1234"},
@@ -291,16 +279,11 @@ func Test_Forwarder_ForwardBatches_ReturnsErrorWithNoOrgIDInContext(t *testing.T
 	d := newContextDialer(l)
 	err := f.Dial(context.Background(), grpc.WithContextDialer(d), grpc.WithBlock())
 	require.NoError(t, err)
-	trace := tempopb.Trace{
-		Batches: []*v1.ResourceSpans{
-			{
-				SchemaUrl: "testURL",
-			},
-		},
-	}
+	traces := ptrace.NewTraces()
+	traces.ResourceSpans().AppendEmpty().SetSchemaUrl("testURL")
 
 	// When
-	err = f.ForwardBatches(context.Background(), trace)
+	err = f.ForwardTraces(context.Background(), traces)
 
 	// Then
 	require.Error(t, err)

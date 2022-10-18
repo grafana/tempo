@@ -6,24 +6,24 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/multierr"
 
 	"github.com/grafana/tempo/modules/distributor/forwarder/otlpgrpc"
-	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 type Forwarder interface {
-	ForwardBatches(ctx context.Context, trace tempopb.Trace) error
+	ForwardTraces(ctx context.Context, traces ptrace.Traces) error
 	Shutdown(ctx context.Context) error
 }
 
 type List []Forwarder
 
-func (l List) ForwardBatches(ctx context.Context, trace tempopb.Trace) error {
+func (l List) ForwardTraces(ctx context.Context, traces ptrace.Traces) error {
 	var errs []error
 
 	for _, forwarder := range l {
-		if err := forwarder.ForwardBatches(ctx, trace); err != nil {
+		if err := forwarder.ForwardTraces(ctx, traces); err != nil {
 			errs = append(errs, err)
 		}
 	}

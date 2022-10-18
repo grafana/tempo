@@ -17,8 +17,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-
-	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 type Forwarder struct {
@@ -74,17 +72,7 @@ func (f *Forwarder) Dial(ctx context.Context, opts ...grpc.DialOption) error {
 	return nil
 }
 
-func (f *Forwarder) ForwardBatches(ctx context.Context, trace tempopb.Trace) error {
-	// tempopb.Trace is wire-compatible with OTLP, so we convert to bytes, and back.
-	m, err := trace.Marshal()
-	if err != nil {
-		return fmt.Errorf("failed to marshal otlp: %v", err)
-	}
-
-	traces, err := ptrace.NewProtoUnmarshaler().UnmarshalTraces(m)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal traces: %w", err)
-	}
+func (f *Forwarder) ForwardTraces(ctx context.Context, traces ptrace.Traces) error {
 	req := ptraceotlp.NewRequestFromTraces(traces)
 
 	var errs []error

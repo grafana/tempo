@@ -9,11 +9,11 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/multierr"
 	"golang.org/x/exp/constraints"
 
 	"github.com/grafana/tempo/modules/distributor/queue"
-	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 const (
@@ -231,7 +231,7 @@ type queueListDiff[T any] struct {
 type queueList struct {
 	logger               log.Logger
 	tenantID             string
-	forwarderNameToQueue map[string]*queue.Queue[tempopb.Trace]
+	forwarderNameToQueue map[string]*queue.Queue[ptrace.Traces]
 	mu                   *sync.RWMutex
 }
 
@@ -239,7 +239,7 @@ func newQueueList(logger log.Logger, tenantID string) *queueList {
 	return &queueList{
 		logger:               logger,
 		tenantID:             tenantID,
-		forwarderNameToQueue: make(map[string]*queue.Queue[tempopb.Trace]),
+		forwarderNameToQueue: make(map[string]*queue.Queue[ptrace.Traces]),
 		mu:                   &sync.RWMutex{},
 	}
 }
@@ -296,8 +296,8 @@ func (l *queueList) update(forwarderNames []string, forwarderNameToForwarder map
 			WorkerCount: defaultWorkerCount,
 		}
 
-		processFunc := func(ctx context.Context, data tempopb.Trace) {
-			if err := forwarder.ForwardBatches(ctx, data); err != nil {
+		processFunc := func(ctx context.Context, traces ptrace.Traces) {
+			if err := forwarder.ForwardTraces(ctx, traces); err != nil {
 				_ = level.Warn(l.logger).Log("msg", "failed to forward batches", "forwarderName", addedForwarderName, "tenantID", l.tenantID, "err", err)
 			}
 		}
@@ -324,11 +324,11 @@ func (l *queueList) shutdown(ctx context.Context) error {
 }
 
 type queueAdapter struct {
-	queue *queue.Queue[tempopb.Trace]
+	queue *queue.Queue[ptrace.Traces]
 }
 
-func (a *queueAdapter) ForwardBatches(ctx context.Context, trace tempopb.Trace) error {
-	return a.queue.Push(ctx, trace)
+func (a *queueAdapter) ForwardTraces(ctx context.Context, traces ptrace.Traces) error {
+	return a.queue.Push(ctx, traces)
 }
 
 // Shutdown does nothing. Queue lifecycle is handled by queueList.
