@@ -21,77 +21,80 @@ Otherwise, refer to [Install Grafana](https://grafana.com/docs/grafana/latest/in
 
 ## Set up remote-write to your Tempo cluster
 
-To enable writes to your cluster, add a remote-write configuration snippet to the configuration file of an existing Grafana Agent.
-If you do not have an existing traces collector, refer to [Set up with Grafana Agent](https://grafana.com/docs/agent/latest/set-up/).
-For Kubernetes, refer to the [Grafana Agent Traces Kubernetes quick start guide](https://grafana.com/docs/grafana-cloud/kubernetes-monitoring/agent-k8s/k8s_agent_traces/).
+To enable writes to your cluster:
 
-The example agent Kubernetes ConfigMap configuration below opens many trace receivers (note that the remote write is onto the Tempo cluster using OTLP gRPC):
+1. Add a remote-write configuration snippet to the configuration file of an existing Grafana Agent.
 
-```yaml
-kind: ConfigMap
-metadata:
-  name: grafana-agent-traces
-apiVersion: v1
-data:
-  agent.yaml: |
-    traces:
-        configs:
-          - batch:
-                send_batch_size: 1000
-                timeout: 5s
-            name: default
-            receivers:
-                jaeger:
-                    protocols:
-                        grpc: null
-                        thrift_binary: null
-                        thrift_compact: null
-                        thrift_http: null
-                opencensus: null
-                otlp:
-                    protocols:
-                        grpc: null
-                        http: null
-                zipkin: null
-            remote_write:
-              - endpoint: <tempoDistributorServiceEndpoint>
-                insecure: true  # only add this if TLS is not required
-            scrape_configs:
-              - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-                job_name: kubernetes-pods
-                kubernetes_sd_configs:
-                  - role: pod
-                relabel_configs:
-                  - action: replace
-                    source_labels:
-                      - __meta_kubernetes_namespace
-                    target_label: namespace
-                  - action: replace
-                    source_labels:
-                      - __meta_kubernetes_pod_name
-                    target_label: pod
-                  - action: replace
-                    source_labels:
-                      - __meta_kubernetes_pod_container_name
-                    target_label: container
-                tls_config:
-                    ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-                    insecure_skip_verify: false
-```
+   If you do not have an existing traces collector, refer to [Set up with Grafana Agent](https://grafana.com/docs/agent/latest/set-up/).
+   For Kubernetes, refer to the [Grafana Agent Traces Kubernetes quick start guide](https://grafana.com/docs/grafana-cloud/kubernetes-monitoring/agent-k8s/k8s_agent_traces/).
 
-If you have followed the [Tanka Tempo installation example]({{< relref "../setup/tanka" >}}), then the `endpoint` value would be:
+   The example agent Kubernetes ConfigMap configuration below opens many trace receivers (note that the remote write is onto the Tempo cluster using OTLP gRPC):
 
-```bash
-distributor.tempo.svc.cluster.local:4317
-```
+    ```yaml
+    kind: ConfigMap
+    metadata:
+      name: grafana-agent-traces
+    apiVersion: v1
+    data:
+      agent.yaml: |
+        traces:
+            configs:
+              - batch:
+                    send_batch_size: 1000
+                    timeout: 5s
+                name: default
+                receivers:
+                    jaeger:
+                        protocols:
+                            grpc: null
+                            thrift_binary: null
+                            thrift_compact: null
+                            thrift_http: null
+                    opencensus: null
+                    otlp:
+                        protocols:
+                            grpc: null
+                            http: null
+                    zipkin: null
+                remote_write:
+                  - endpoint: <tempoDistributorServiceEndpoint>
+                    insecure: true  # only add this if TLS is not required
+                scrape_configs:
+                  - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+                    job_name: kubernetes-pods
+                    kubernetes_sd_configs:
+                      - role: pod
+                    relabel_configs:
+                      - action: replace
+                        source_labels:
+                          - __meta_kubernetes_namespace
+                        target_label: namespace
+                      - action: replace
+                        source_labels:
+                          - __meta_kubernetes_pod_name
+                        target_label: pod
+                      - action: replace
+                        source_labels:
+                          - __meta_kubernetes_pod_container_name
+                        target_label: container
+                    tls_config:
+                        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                        insecure_skip_verify: false
+    ```
 
-Apply the ConfigMap with:
+    If you have followed the [Tanka Tempo installation example]({{< relref "../setup/tanka" >}}), then the `endpoint` value would be:
 
-```bash
-kubectl apply --namespace default -f agent.yaml
-```
+    ```bash
+    distributor.tempo.svc.cluster.local:4317
+    ```
 
-Deploy Grafana Agent using the instructions from the relevant instructions above.
+1. Apply the ConfigMap with:
+
+    ```bash
+    kubectl apply --namespace default -f agent.yaml
+    ```
+
+1. Deploy Grafana Agent using the procedures from the relevant instructions above.
 
 ## Create a Grafana Tempo data source
 
@@ -99,20 +102,21 @@ To allow Grafana to read traces from Tempo, you must create a Tempo data source.
 
 1. Navigate to **Configuration ≫ Data Sources**.
 
-2. Click on **Add data source**.
+1. Click on **Add data source**.
 
-3. Select **Tempo**.
+1. Select **Tempo**.
 
-4. Set the URL to `http://<tempo-host>:<http_listen_port>/`, filling in the path to your gateway and the configured HTTP API prefix. If you have followed the [Tanka Tempo installation example]({{< relref "../setup/tanka.md" >}}), this will be: `http://query-frontend.tempo.svc.cluster.local:3200/`
+1. Set the URL to `http://<TEMPO-HOST>:<HTTP-LISTEN-PORT>/`, filling in the path to your gateway and the configured HTTP API prefix. If you have followed the [Tanka Tempo installation example]({{< relref "../setup/tanka.md" >}}), this will be: `http://query-frontend.tempo.svc.cluster.local:3200/`
 
-5. Click **Save & Test**.
+1. Click **Save & Test**.
 
 You should see a message that says `Data source is working`.
 
 If you see an error that says `Data source is not working: failed to get trace with id: 0`, check your Grafana version.
+
 If your Grafana version is < 8.2.2, this is a bug in Grafana itself and the error can be ignored.
 The underlying data source will still work as expected.
-Upgrade your Grafana to 8.2.2 or later to get the [fix for the error message](https://github.com/grafana/grafana/pull/38018).
+To fix the error, [upgrade your Grafana to 8.2.2 or later](https://github.com/grafana/grafana/pull/38018).
 
 ## Visualize your data
 

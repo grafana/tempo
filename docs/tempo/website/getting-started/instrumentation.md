@@ -1,13 +1,16 @@
 ---
 title: Instrumentation references
+menuTitle: Instrumentation references
 aliases:
 - /docs/tempo/latest/guides/instrumentation/
 weight: 100
 ---
 
-# References to use when instrumenting your applications 
 
-Check out these resources for help instrumenting tracing with your favorite languages.  Most of these guides include complete end to end examples with Grafana, Loki, and Tempo. 
+# Instrumentation references
+
+Check out these resources for help instrumenting tracing with your favorite languages.
+Most of these guides include complete end-to-end examples with Grafana, Loki, and Tempo.
 
 ## OpenTelemetry
 

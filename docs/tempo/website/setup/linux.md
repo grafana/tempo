@@ -114,7 +114,7 @@ Copy the following YAML configuration to a file called `enterprise-traces.yaml`.
 Paste in your S3 credentials for admin_client and the storage backend. If you wish to give your cluster a unique name, add a cluster property with the appropriate name. If you do not add a cluster name this will be taken automatically from the license.
 By default, the `cluster_name` Update the `cluster_name` field with the name of the cluster your license was issued for and paste in your S3 credentials for the `admin_client`.
 
-Refer to the [Tempo configuration documentation]({<< relref "../../configuration" >>}) for explanations of the available options.
+Refer to the [Tempo configuration documentation]({<< relref "../configuration" >>}) for explanations of the available options.
 
 In the following configuration, Tempo options are altered to only listen to the OTLP gRPC and HTTP protocols.
 By default, Tempo listens for all compatible protocols.
@@ -122,11 +122,6 @@ The extended instructions for installing the TNS application and Grafana Agent t
 
 ```yaml
 multitenancy_enabled: true
-auth:
-  type: enterprise
-
-license:
-  path: /etc/enterprise-traces/license.jwt
 
 http_api_prefix: /tempo
 
@@ -159,18 +154,6 @@ storage:
         wal:
           path: /var/lib/enterprise-traces/wal
 
-admin_api:
-  leader_election:
-    enabled: false
-
-admin_client:
-  storage:
-    s3:
-      endpoint: s3.us-east-1.amazonaws.com
-      bucket_name: grafana-traces-admin
-      access_key_id: # TODO: insert your key id
-      secret_access_key: # TODO: insert your secret key
-    type: s3
 ```
 
 ## Move the configuration file to the proper directory
@@ -211,12 +194,12 @@ cp enterprise-traces.yaml /etc/enterprise-traces/enterprise-traces.yaml
    export API_TOKEN=YourTokenHere12345
    ```
 
-## Start the enterprise-traces service
+## Start the tempo service
 
 Use `systemctl` to start the service:
 
 ```bash
-systemctl start enterprise-traces.service
+systemctl start tempo.service
 ```
 
 You can replace `start` with `stop` to stop the service.
@@ -239,7 +222,13 @@ This indicates the ingester component is ready to receive trace data.
 
 ## Use the CLI to send Tempo data to Grafana
 
+<!-- Need info here --=>
+
+You can also [set up a test app]({{< relref "set-up-test-app">}}) to verfiy that traces are received and visualized. 
+
+<!-- Does not apply to Tempo 
 Refer to [Set up the Tempo plugin for Grafana]({{< relref "../setup-get-plugin-grafana" >}}) to integrate your Tempo cluster with Grafana and a UI to interact with the Admin API.
+-->
 
 <!-- This section is commented out until some issues with the TNS install (dealing with ports) are addressed. >
 ## Test your configuration using the TNS application

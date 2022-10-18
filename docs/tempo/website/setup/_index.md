@@ -9,11 +9,19 @@ weight: 150
 
 Tempo is available as a pre-compiled binary, a Docker image, and as common OS-specific packaging.
 
+No matter which option you choose, setting up your Tempo cluster involves: 
+
+. Naming your cluster
+. Deploying your cluster
+. Testing your cluster
+
+This page highlights these steps; more detailed instructions are available on the procedures for deploying clusters.
+
 > **Note:** You can use [Grafana Cloud](https://grafana.com/products/cloud/features/#cloud-traces) to avoid installing, maintaining, and scaling your own instance of Tempo. The free forever plan includes 50GB of free traces. [Create an account to get started](https://grafana.com/auth/sign-up/create-user?pg=docs-enterprise-traces&plcmt=in-text).
 
-## Choose a name for your cluster
+## Name your cluster
 
-No matter which deployment method you choose, you will need to decide what to call your Tempo cluster.
+No matter which deployment method you choose, you need to decide what to call your Tempo cluster.
 A cluster name must meet the following criteria:
 
 - is 3 to 63 characters long
@@ -30,5 +38,5 @@ Choose a method to deploy your Tempo cluster:
 
 ## Test your cluster
 
-Once your cluster is deployed, you can test your cluster by visualizizing the traces data with a simple TNS app. 
+Once your cluster is deployed, you can test your cluster by visualizing the traces data with a simple TNS app. 
 Refer to [Set up a test application for Tempo cluster]({{< relref "set-up-test-app" >}}) for instructions.

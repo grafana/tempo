@@ -11,7 +11,7 @@ This guide details how to setup multi-tenancy.
 If you're interested in setting up multi-tenancy, please consult the [multi-tenant example](https://github.com/grafana/tempo/tree/main/example/docker-compose/otel-collector-multitenant)
 in the repo. This example uses the following settings to achieve multi-tenancy in Tempo.
 
-1 Configure the OTEL Collector to attach the X-Scope-OrgID header on push:
+Configure the OTEL Collector to attach the X-Scope-OrgID header on push:
 ```
 exporters:
   otlp:
