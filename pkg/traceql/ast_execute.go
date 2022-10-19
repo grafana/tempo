@@ -33,7 +33,16 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 		return NewStaticNil(), err
 	}
 
-	// TODO validate types are valid similar to validate()
+	// Ensure the resolved types are still valid
+	lhsT := lhs.impliedType()
+	rhsT := rhs.impliedType()
+	if !lhsT.isMatchingOperand(rhsT) {
+		return NewStaticNil(), fmt.Errorf("binary operations must operate on the same type: %s", o.String())
+	}
+
+	if !o.Op.binaryTypesValid(lhsT, rhsT) {
+		return NewStaticNil(), fmt.Errorf("illegal operation for the given types: %s", o.String())
+	}
 
 	switch o.Op {
 	// TODO implement arithmetics

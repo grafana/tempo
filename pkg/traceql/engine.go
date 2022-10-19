@@ -153,13 +153,11 @@ func (e *Engine) validateSpanSet(spanSetFilter *SpansetFilter, spanSet *Spanset)
 
 func (e *Engine) asTraceSearchMetadata(spanset *Spanset) (*tempopb.TraceSearchMetadata, error) {
 	metadata := &tempopb.TraceSearchMetadata{
-		TraceID:         util.TraceIDToHexString(spanset.TraceID),
-		RootServiceName: spanset.RootServiceName,
-		RootTraceName:   spanset.RootSpanName,
-		// TODO grab StartTimeUnixNano from Spanset
-		StartTimeUnixNano: 0,
-		// TODO grab durationMs from Spanset
-		DurationMs: 0,
+		TraceID:           util.TraceIDToHexString(spanset.TraceID),
+		RootServiceName:   spanset.RootServiceName,
+		RootTraceName:     spanset.RootSpanName,
+		StartTimeUnixNano: spanset.StartTimeUnixNanos,
+		DurationMs:        uint32(spanset.DurationNanos / 1_000_000),
 		SpanSet: &tempopb.SpanSet{
 			Matched: uint32(len(spanset.Spans)),
 		},
@@ -169,7 +167,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) (*tempopb.TraceSearchMe
 		tempopbSpan := &tempopb.Span{
 			SpanID:            util.TraceIDToHexString(span.ID),
 			StartTimeUnixNano: span.StartTimeUnixNanos,
-			DurationMs:        toDurationMs(span.StartTimeUnixNanos, span.EndtimeUnixNanos),
+			DurationNanos:     span.EndtimeUnixNanos - span.StartTimeUnixNanos,
 			Attributes:        nil,
 		}
 
@@ -189,7 +187,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) (*tempopb.TraceSearchMe
 
 		metadata.SpanSet.Spans = append(metadata.SpanSet.Spans, tempopbSpan)
 
-		if len(metadata.SpanSet.Spans) == e.spansPerSpanSet {
+		if e.spansPerSpanSet != 0 && len(metadata.SpanSet.Spans) == e.spansPerSpanSet {
 			break
 		}
 	}
@@ -199,10 +197,6 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) (*tempopb.TraceSearchMe
 
 func unixMilliToNano(ts uint32) uint64 {
 	return uint64(ts) * 1000
-}
-
-func toDurationMs(startTimeNanos, endTimeNanos uint64) uint32 {
-	return uint32((endTimeNanos - startTimeNanos) / 1000_000)
 }
 
 func asAnyValue(static Static) (*common_v1.AnyValue, error) {

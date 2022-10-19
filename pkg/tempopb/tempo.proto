@@ -92,7 +92,7 @@ message SpanSet {
 message Span {
   string spanID = 1;
   uint64 startTimeUnixNano = 2;
-  uint32 durationMs = 3;
+  uint64 durationNanos = 3;
   repeated tempopb.common.v1.KeyValue attributes = 4;
 }
 

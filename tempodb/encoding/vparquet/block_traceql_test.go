@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBackendBlockSearchTraceQL(t *testing.T) {
@@ -212,8 +213,15 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 		return sets
 	}
 
-	makeSpanset := func(traceID []byte, spans ...traceql.Span) traceql.Spanset {
-		return traceql.Spanset{TraceID: traceID, Spans: spans}
+	makeSpanset := func(traceID []byte, rootSpanName, rootServiceName string, startTimeUnixNano, durationNanos uint64, spans ...traceql.Span) traceql.Spanset {
+		return traceql.Spanset{
+			TraceID:            traceID,
+			RootSpanName:       rootSpanName,
+			RootServiceName:    rootServiceName,
+			StartTimeUnixNanos: startTimeUnixNano,
+			DurationNanos:      durationNanos,
+			Spans:              spans,
+		}
 	}
 
 	testCases := []struct {
@@ -230,6 +238,10 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 			makeSpansets(
 				makeSpanset(
 					wantTr.TraceID,
+					wantTr.RootSpanName,
+					wantTr.RootServiceName,
+					wantTr.StartTimeUnixNano,
+					wantTr.DurationNanos,
 					traceql.Span{
 						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
@@ -251,6 +263,10 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 			makeSpansets(
 				makeSpanset(
 					wantTr.TraceID,
+					wantTr.RootSpanName,
+					wantTr.RootServiceName,
+					wantTr.StartTimeUnixNano,
+					wantTr.DurationNanos,
 					traceql.Span{
 						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
@@ -275,6 +291,10 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 			makeSpansets(
 				makeSpanset(
 					wantTr.TraceID,
+					wantTr.RootSpanName,
+					wantTr.RootServiceName,
+					wantTr.StartTimeUnixNano,
+					wantTr.DurationNanos,
 					traceql.Span{
 						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
@@ -298,6 +318,10 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 			makeSpansets(
 				makeSpanset(
 					wantTr.TraceID,
+					wantTr.RootSpanName,
+					wantTr.RootServiceName,
+					wantTr.StartTimeUnixNano,
+					wantTr.DurationNanos,
 					traceql.Span{
 						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
@@ -326,6 +350,10 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 			makeSpansets(
 				makeSpanset(
 					wantTr.TraceID,
+					wantTr.RootSpanName,
+					wantTr.RootServiceName,
+					wantTr.StartTimeUnixNano,
+					wantTr.DurationNanos,
 					traceql.Span{
 						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
@@ -351,6 +379,10 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 			makeSpansets(
 				makeSpanset(
 					wantTr.TraceID,
+					wantTr.RootSpanName,
+					wantTr.RootServiceName,
+					wantTr.StartTimeUnixNano,
+					wantTr.DurationNanos,
 					traceql.Span{
 						ID:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
@@ -369,6 +401,10 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 			makeSpansets(
 				makeSpanset(
 					wantTr.TraceID,
+					wantTr.RootSpanName,
+					wantTr.RootServiceName,
+					wantTr.StartTimeUnixNano,
+					wantTr.DurationNanos,
 					traceql.Span{
 						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,

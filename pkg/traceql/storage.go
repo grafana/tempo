@@ -39,11 +39,12 @@ type Span struct {
 }
 
 type Spanset struct {
-	TraceID []byte
-	// TODO add StartTimeUnixNanos, EndTimeUnixNanos
-	RootSpanName    string
-	RootServiceName string
-	Spans           []Span
+	TraceID            []byte
+	RootSpanName       string
+	RootServiceName    string
+	StartTimeUnixNanos uint64
+	DurationNanos      uint64
+	Spans              []Span
 }
 
 type SpansetIterator interface {

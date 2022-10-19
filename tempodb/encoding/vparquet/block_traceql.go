@@ -21,9 +21,9 @@ import (
 type makeIterFn func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator
 
 const (
-	columnPathTraceID = "TraceID"
-	// TODO
-	// columnPathTraceDuration            = "TraceDuration"
+	columnPathTraceID                  = "TraceID"
+	columnPathStartTimeUnixNano        = "StartTimeUnixNano"
+	columnPathDurationNanos            = "DurationNanos"
 	columnPathRootSpanName             = "RootSpanName"
 	columnPathRootServiceName          = "RootServiceName"
 	columnPathResourceAttrKey          = "rs.Resource.Attrs.Key"
@@ -563,8 +563,8 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 		resourceIter,
 		// Add static columns that are always return
 		makeIter(columnPathTraceID, nil, columnPathTraceID),
-		// TODO
-		// makeIter(columnPathTraceDuration, nil, columnPathTraceDuration),
+		makeIter(columnPathStartTimeUnixNano, nil, columnPathStartTimeUnixNano),
+		makeIter(columnPathDurationNanos, nil, columnPathDurationNanos),
 		makeIter(columnPathRootSpanName, nil, columnPathRootSpanName),
 		makeIter(columnPathRootServiceName, nil, columnPathRootServiceName),
 	}
@@ -1076,7 +1076,10 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		switch e.Key {
 		case columnPathTraceID:
 			finalSpanset.TraceID = e.Value.ByteArray()
-		// TODO inject StartTimeUnixNanos, EndTimeUnixNanos
+		case columnPathStartTimeUnixNano:
+			finalSpanset.StartTimeUnixNanos = e.Value.Uint64()
+		case columnPathDurationNanos:
+			finalSpanset.DurationNanos = e.Value.Uint64()
 		case columnPathRootSpanName:
 			finalSpanset.RootSpanName = e.Value.String()
 		case columnPathRootServiceName:

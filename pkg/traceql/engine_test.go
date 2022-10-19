@@ -88,7 +88,7 @@ func TestEngine_Execute(t *testing.T) {
 					{
 						SpanID:            "2",
 						StartTimeUnixNano: uint64(now.UnixNano()),
-						DurationMs:        100,
+						DurationNanos:     100_000_000,
 						Attributes: []*v1.KeyValue{
 							{
 								Key: "foo",
@@ -125,9 +125,11 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 	spanID2 := traceID[8:]
 
 	spanSet := &Spanset{
-		TraceID:         traceID,
-		RootServiceName: "my-service",
-		RootSpanName:    "HTTP GET",
+		TraceID:            traceID,
+		RootServiceName:    "my-service",
+		RootSpanName:       "HTTP GET",
+		StartTimeUnixNanos: 1000,
+		DurationNanos:      uint64(time.Second.Nanoseconds()),
 		Spans: []Span{
 			{
 				ID:                 spanID1,
@@ -160,15 +162,15 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 		TraceID:           util.TraceIDToHexString(traceID),
 		RootServiceName:   "my-service",
 		RootTraceName:     "HTTP GET",
-		StartTimeUnixNano: 0,
-		DurationMs:        0,
+		StartTimeUnixNano: 1000,
+		DurationMs:        uint32(time.Second.Milliseconds()),
 		SpanSet: &tempopb.SpanSet{
 			Matched: 2,
 			Spans: []*tempopb.Span{
 				{
 					SpanID:            util.TraceIDToHexString(spanID1),
 					StartTimeUnixNano: uint64(now.UnixNano()),
-					DurationMs:        10_000,
+					DurationNanos:     10_000_000_000,
 					Attributes: []*v1.KeyValue{
 						{
 							Key: "cluster",
@@ -223,7 +225,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 				{
 					SpanID:            util.TraceIDToHexString(spanID2),
 					StartTimeUnixNano: uint64(now.Add(2 * time.Second).UnixNano()),
-					DurationMs:        18_000,
+					DurationNanos:     18_000_000_000,
 					Attributes:        nil,
 				},
 			},

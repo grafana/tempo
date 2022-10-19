@@ -307,7 +307,15 @@ func (s Static) impliedType() StaticType {
 }
 
 func (s Static) Equals(other Static) bool {
-	return s.Type == other.Type && s.N == other.N && s.F == other.F && s.S == other.S && s.B == other.B && s.D == other.D && s.Status == other.Status
+	eitherIsTypeStatus := (s.Type == TypeStatus && other.Type == TypeInt) || (other.Type == TypeStatus && s.Type == TypeInt)
+	if !eitherIsTypeStatus {
+		return s == other
+	}
+	if s.Type == TypeStatus {
+		return s.Status == Status(other.N)
+	} else {
+		return Status(s.N) == other.Status
+	}
 }
 
 func (s Static) asFloat() float64 {
