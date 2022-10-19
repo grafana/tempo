@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/logging"
 	"github.com/weaveworks/common/user"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -48,6 +49,20 @@ const (
 var (
 	ctx = user.InjectOrgID(context.Background(), "test")
 )
+
+func batchesToTraces(t *testing.T, batches []*v1.ResourceSpans) ptrace.Traces {
+	t.Helper()
+
+	trace := tempopb.Trace{Batches: batches}
+
+	m, err := trace.Marshal()
+	require.NoError(t, err)
+
+	traces, err := ptrace.NewProtoUnmarshaler().UnmarshalTraces(m)
+	require.NoError(t, err)
+
+	return traces
+}
 
 func TestRequestsByTraceID(t *testing.T) {
 	traceIDA := []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
@@ -657,7 +672,8 @@ func TestDistributor(t *testing.T) {
 			d := prepare(t, limits, nil, nil)
 
 			b := test.MakeBatch(tc.lines, []byte{})
-			response, err := d.PushBatches(ctx, []*v1.ResourceSpans{b})
+			traces := batchesToTraces(t, []*v1.ResourceSpans{b})
+			response, err := d.PushTraces(ctx, traces)
 
 			assert.True(t, proto.Equal(tc.expectedResponse, response))
 			assert.Equal(t, tc.expectedError, err)
@@ -862,7 +878,8 @@ func TestLogSpans(t *testing.T) {
 				IncludeAllAttributes: tc.includeAllAttributes,
 			}
 
-			_, err := d.PushBatches(ctx, tc.batches)
+			traces := batchesToTraces(t, tc.batches)
+			_, err := d.PushTraces(ctx, traces)
 			if err != nil {
 				t.Fatal(err)
 			}

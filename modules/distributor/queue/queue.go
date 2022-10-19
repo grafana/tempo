@@ -58,7 +58,7 @@ type Queue[T any] struct {
 	readOnly *atomic.Bool
 }
 
-func New[T any](cfg Config, logger log.Logger, _ prometheus.Registerer, fn ProcessFunc[T]) *Queue[T] {
+func New[T any](cfg Config, logger log.Logger, fn ProcessFunc[T]) *Queue[T] {
 	return &Queue[T]{
 		logger:                     logger,
 		name:                       cfg.Name,

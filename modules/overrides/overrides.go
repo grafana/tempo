@@ -213,6 +213,20 @@ func (o *Overrides) WriteStatusRuntimeConfig(w io.Writer, r *http.Request) error
 	return nil
 }
 
+func (o *Overrides) TenantIDs() []string {
+	tenantOverrides := o.tenantOverrides()
+	if tenantOverrides == nil {
+		return nil
+	}
+
+	result := make([]string, 0, len(tenantOverrides.TenantLimits))
+	for userID := range tenantOverrides.TenantLimits {
+		result = append(result, userID)
+	}
+
+	return result
+}
+
 // IngestionRateStrategy returns whether the ingestion rate limit should be individually applied
 // to each distributor instance (local) or evenly shared across the cluster (global).
 func (o *Overrides) IngestionRateStrategy() string {
@@ -241,6 +255,11 @@ func (o *Overrides) MaxBytesPerTrace(userID string) int {
 // MaxSearchBytesPerTrace returns the maximum size of search data for trace (in bytes) allowed for a user.
 func (o *Overrides) MaxSearchBytesPerTrace(userID string) int {
 	return o.getOverridesForUser(userID).MaxSearchBytesPerTrace
+}
+
+// Forwarders returns the list of forwarder IDs for a user.
+func (o *Overrides) Forwarders(userID string) []string {
+	return o.getOverridesForUser(userID).Forwarders
 }
 
 // MaxBytesPerTagValuesQuery returns the maximum size of a response to a tag-values query allowed for a user.
