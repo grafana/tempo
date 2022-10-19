@@ -1,6 +1,7 @@
 package parquet
 
 import (
+	"math/bits"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -219,7 +220,7 @@ func (buf *Buffer) WriteRows(rows []Row) (int, error) {
 
 	for columnIndex, values := range buf.colbuf {
 		if _, err := buf.columns[columnIndex].WriteValues(values); err != nil {
-			// TOOD: an error at this stage will leave the buffer in an invalid
+			// TODO: an error at this stage will leave the buffer in an invalid
 			// state since the row was partially written. Applications are not
 			// expected to continue using the buffer after getting an error,
 			// maybe we can enforce it?
@@ -306,45 +307,47 @@ func (b *buffer) unref() {
 	}
 }
 
-func (b *buffer) reset() {
-	b.data = b.data[:0]
-}
-
-func (b *buffer) resize(size int) {
-	if cap(b.data) < size {
-		const pageSize = 4096
-		minSize := 2 * cap(b.data)
-		bufferSize := ((size + (pageSize - 1)) / pageSize) * pageSize
-		if bufferSize < minSize {
-			bufferSize = minSize
-		}
-		b.data = make([]byte, size, bufferSize)
-	} else {
-		b.data = b.data[:size]
-	}
-}
-
-func (b *buffer) clone() (clone *buffer) {
-	if b.pool != nil {
-		clone = b.pool.get()
-	} else {
-		clone = &buffer{refc: 1}
-	}
-	clone.data = append(clone.data, b.data...)
-	return clone
-}
+// bufferPool holds a slice of sync.pools used for levelled buffering.
+// the table below shows the pools used for different buffer sizes when both getting
+// and putting a buffer. when allocating a new buffer from a given pool we always choose the
+// min of the put range to guarantee that all gets will have an adequately sized buffer.
+//
+// [pool] : <get range>  : <put range>  : <alloc size>
+// [0]    : 0    -> 1023 : 1024 -> 2047 : 1024
+// [1]    : 1024 -> 2047 : 2048 -> 4095 : 2048
+// [2]    : 2048 -> 4095 : 4096 -> 8191 : 4096
+// ...
+const numPoolBuckets = 16
+const basePoolIncrement = 1024
 
 type bufferPool struct {
-	pool sync.Pool
+	pool [numPoolBuckets]sync.Pool
 }
 
-func (p *bufferPool) get() *buffer {
-	b, _ := p.pool.Get().(*buffer)
+// get returns a buffer from the levelled buffer pool. sz is used to choose the appropriate pool
+func (p *bufferPool) get(sz int) *buffer {
+	i := levelledPoolIndex(sz)
+	b, _ := p.pool[i].Get().(*buffer)
 	if b == nil {
-		b = &buffer{pool: p}
-	} else {
-		b.reset()
+		// align size to the pool
+		poolSize := basePoolIncrement << i
+		if sz > poolSize { // this can occur when the buffer requested is larger than the largest pool
+			poolSize = sz
+		}
+		b = &buffer{
+			data: make([]byte, 0, poolSize),
+			pool: p,
+		}
 	}
+	// if the buffer comes from the largest pool it may not be big enough
+	if cap(b.data) < sz {
+		p.pool[i].Put(b)
+		b = &buffer{
+			data: make([]byte, 0, sz),
+			pool: p,
+		}
+	}
+	b.data = b.data[:sz]
 	b.ref()
 	return b
 }
@@ -353,7 +356,27 @@ func (p *bufferPool) put(b *buffer) {
 	if b.pool != p {
 		panic("BUG: buffer returned to a different pool than the one it was allocated from")
 	}
-	p.pool.Put(b)
+	// if this slice is somehow less then our min pool size, just drop it
+	sz := cap(b.data)
+	if sz < basePoolIncrement {
+		return
+	}
+	i := levelledPoolIndex(sz / 2) // divide by 2 to put the buffer in the level below so it will always be large enough
+	p.pool[i].Put(b)
+}
+
+// levelledPoolIndex returns the index of the pool to use for a buffer of size sz. it never returns
+// an index that will panic
+func levelledPoolIndex(sz int) int {
+	i := sz / basePoolIncrement
+	i = 32 - bits.LeadingZeros32(uint32(i)) // log2
+	if i >= numPoolBuckets {
+		i = numPoolBuckets - 1
+	}
+	if i < 0 {
+		i = 0
+	}
+	return i
 }
 
 var (

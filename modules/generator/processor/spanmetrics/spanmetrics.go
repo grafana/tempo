@@ -22,6 +22,10 @@ const (
 	metricSizeTotal       = "traces_spanmetrics_size_total"
 )
 
+var (
+	intrinsicDimensions = []string{"service", "span_name", "span_kind", "status_code", "status_message"}
+)
+
 type Processor struct {
 	Cfg Config
 
@@ -34,9 +38,10 @@ type Processor struct {
 }
 
 func New(cfg Config, registry registry.Registry) gen.Processor {
-	labels := []string{"service", "span_name", "span_kind", "status_code"}
+	labels := make([]string, 0, len(intrinsicDimensions)+len(cfg.Dimensions))
+	labels = append(labels, intrinsicDimensions...)
 	for _, d := range cfg.Dimensions {
-		labels = append(labels, strutil.SanitizeLabelName(d))
+		labels = append(labels, sanitizeLabelNameWithCollisions(d))
 	}
 
 	return &Processor{
@@ -79,7 +84,14 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 	latencySeconds := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 
 	labelValues := make([]string, 0, 4+len(p.Cfg.Dimensions))
-	labelValues = append(labelValues, svcName, span.GetName(), span.GetKind().String(), span.GetStatus().GetCode().String())
+	// important: the order of labelValues must correspond to the order of labels / intrinsicDimensions
+	labelValues = append(
+		labelValues,
+		svcName,
+		span.GetName(),
+		span.GetKind().String(),
+		span.GetStatus().GetCode().String(),
+		span.GetStatus().GetMessage())
 
 	for _, d := range p.Cfg.Dimensions {
 		value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
@@ -91,4 +103,16 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 	p.spanMetricsCallsTotal.Inc(registryLabelValues, 1)
 	p.spanMetricsSizeTotal.Inc(registryLabelValues, float64(span.Size()))
 	p.spanMetricsDurationSeconds.ObserveWithExemplar(registryLabelValues, latencySeconds, tempo_util.TraceIDToHexString(span.TraceId))
+}
+
+func sanitizeLabelNameWithCollisions(name string) string {
+	sanitized := strutil.SanitizeLabelName(name)
+
+	for _, dim := range intrinsicDimensions {
+		if sanitized == dim {
+			return "__" + sanitized
+		}
+	}
+
+	return sanitized
 }

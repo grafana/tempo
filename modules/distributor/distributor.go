@@ -16,17 +16,18 @@ import (
 	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
 	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/prometheus/util/strutil"
-	"github.com/segmentio/fasthash/fnv1a"
-
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/prometheus/util/strutil"
+	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/weaveworks/common/logging"
 	"github.com/weaveworks/common/user"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/grafana/tempo/modules/distributor/forwarder"
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
@@ -35,7 +36,6 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
 )
@@ -131,7 +131,10 @@ type Distributor struct {
 	generatorClientCfg      generator_client.Config
 	generatorsRing          ring.ReadRing
 	generatorsPool          *ring_client.Pool
-	generatorForwarder      *forwarder
+	generatorForwarder      *generatorForwarder
+
+	// Generic Forwarder
+	forwardersManager *forwarder.Manager
 
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
@@ -223,9 +226,17 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 		subservices = append(subservices, d.generatorsPool)
 
-		d.generatorForwarder = newForwarder(d.sendToGenerators, o)
+		d.generatorForwarder = newGeneratorForwarder(logger, d.sendToGenerators, o)
 		subservices = append(subservices, d.generatorForwarder)
 	}
+
+	forwardersManager, err := forwarder.NewManager(d.cfg.Forwarders, logger, o)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create forwarders manager: %w", err)
+	}
+
+	d.forwardersManager = forwardersManager
+	subservices = append(subservices, d.forwardersManager)
 
 	cfgReceivers := cfg.Receivers
 	if len(cfgReceivers) == 0 {
@@ -273,10 +284,27 @@ func (d *Distributor) stopping(_ error) error {
 	return services.StopManagerAndAwaitStopped(context.Background(), d.subservices)
 }
 
-// PushBatches pushes a batch of traces
-func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpans) (*tempopb.PushResponse, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "distributor.PushBatches")
+// PushTraces pushes a batch of traces
+func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "distributor.PushTraces")
 	defer span.Finish()
+
+	// Convert to bytes and back. This is unfortunate for efficiency, but it works
+	// around the otel-collector internalization of otel-proto which Tempo also uses.
+	convert, err := ptrace.NewProtoMarshaler().MarshalTraces(traces)
+	if err != nil {
+		return nil, err
+	}
+
+	// tempopb.Trace is wire-compatible with ExportTraceServiceRequest
+	// used by ToOtlpProtoBytes
+	trace := tempopb.Trace{}
+	err = trace.Unmarshal(convert)
+	if err != nil {
+		return nil, err
+	}
+
+	batches := trace.Batches
 
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
@@ -349,6 +377,12 @@ func (d *Distributor) PushBatches(ctx context.Context, batches []*v1.ResourceSpa
 
 	if d.metricsGeneratorEnabled && len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
 		d.generatorForwarder.SendTraces(ctx, userID, keys, rebatchedTraces)
+	}
+
+	if len(d.cfg.Forwarders) > 0 && len(d.overrides.Forwarders(userID)) > 0 {
+		if err := d.forwardersManager.ForTenant(userID).ForwardTraces(ctx, traces); err != nil {
+			_ = level.Warn(d.logger).Log("msg", "failed to forward batches for tenant=%s: %w", userID, err)
+		}
 	}
 
 	return nil, nil // PushRequest is ignored, so no reason to create one
@@ -427,7 +461,7 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 
 		c, err := d.generatorsPool.GetClientFor(generator.Addr)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get client for generator")
 		}
 
 		_, err = c.(tempopb.MetricsGeneratorClient).PushSpans(localCtx, &req)
@@ -435,7 +469,7 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 		if err != nil {
 			metricGeneratorPushesFailures.WithLabelValues(generator.Addr).Inc()
 		}
-		return err
+		return errors.Wrap(err, "failed to push spans to generator")
 	}, func() {})
 
 	return err
@@ -462,7 +496,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 					return nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit")
 				}
 
-				traceKey := util.TokenFor(userID, traceID)
+				traceKey := tempo_util.TokenFor(userID, traceID)
 				ilsKey := traceKey
 				if ils.Scope != nil {
 					ilsKey = fnv1a.AddString32(ilsKey, ils.Scope.Name)
@@ -589,6 +623,7 @@ func logSpanWithAllAttributes(s *v1.Span, logger log.Logger) {
 	latencySeconds := float64(s.GetEndTimeUnixNano()-s.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 	logger = log.With(
 		logger,
+		"span_name", s.Name,
 		"span_duration_seconds", latencySeconds,
 		"span_kind", s.GetKind().String(),
 		"span_status", s.GetStatus().GetCode().String())

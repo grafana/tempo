@@ -85,8 +85,8 @@ func TestBackendBlockSearch(t *testing.T) {
 
 		id := test.ValidTraceID(nil)
 		pbTrace := test.MakeTrace(10, id)
-		pqTrace := traceToParquet(id, pbTrace)
-		allTraces = append(allTraces, &pqTrace)
+		pqTrace := traceToParquet(id, pbTrace, nil)
+		allTraces = append(allTraces, pqTrace)
 	}
 
 	b := makeBackendBlockWithTraces(t, allTraces)
@@ -211,6 +211,14 @@ func TestBackendBlockSearch(t *testing.T) {
 
 		// Span attributes
 		makeReq("foo", "baz"),
+
+		// Multiple
+		{
+			Tags: map[string]string{
+				"http.status_code": "500",
+				"service.name":     "asdf",
+			},
+		},
 	}
 	for _, req := range searchesThatDontMatch {
 		res, err := b.Search(ctx, req, defaultSearchOptions())
@@ -280,7 +288,8 @@ func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
 	for i, tr := range trs {
-		s.Add(tr, 0, 0)
+		err = s.Add(tr, 0, 0)
+		require.NoError(t, err)
 		if i%100 == 0 {
 			_, err := s.Flush()
 			require.NoError(t, err)

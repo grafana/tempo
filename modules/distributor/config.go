@@ -6,6 +6,8 @@ import (
 
 	"github.com/grafana/dskit/flagext"
 	ring_client "github.com/grafana/dskit/ring/client"
+
+	"github.com/grafana/tempo/modules/distributor/forwarder"
 	"github.com/grafana/tempo/pkg/util"
 )
 
@@ -34,6 +36,8 @@ type Config struct {
 	OverrideRingKey   string                 `yaml:"override_ring_key"`
 	LogReceivedTraces bool                   `yaml:"log_received_traces"` // Deprecated
 	LogReceivedSpans  LogReceivedSpansConfig `yaml:"log_received_spans,omitempty"`
+
+	Forwarders forwarder.ConfigList `yaml:"forwarders"`
 
 	// disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
 	//  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica

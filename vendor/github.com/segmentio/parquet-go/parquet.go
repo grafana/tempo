@@ -7,6 +7,8 @@
 // Or see the Parquet documentation: https://parquet.apache.org/docs/
 package parquet
 
+import "reflect"
+
 func atLeastOne(size int) int {
 	return atLeast(size, 1)
 }
@@ -30,4 +32,13 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func typeNameOf(t reflect.Type) string {
+	s1 := t.String()
+	s2 := t.Kind().String()
+	if s1 == s2 {
+		return s1
+	}
+	return s1 + " (" + s2 + ")"
 }

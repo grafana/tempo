@@ -67,7 +67,7 @@ func writeRowsFuncOf(t reflect.Type, schema *Schema, path columnPath) writeRowsF
 		return writeRowsFuncOfMap(t, schema, path)
 	}
 
-	panic("cannot convert Go values of type " + t.String() + " to parquet value")
+	panic("cannot convert Go values of type " + typeNameOf(t) + " to parquet value")
 }
 
 func writeRowsFuncOfRequired(t reflect.Type, schema *Schema, path columnPath) writeRowsFunc {
