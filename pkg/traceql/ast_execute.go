@@ -115,19 +115,23 @@ func (s Static) execute(span Span) (Static, error) {
 }
 
 func (a Attribute) execute(span Span) (Static, error) {
-	if a.Scope == AttributeScopeSpan || a.Scope == AttributeScopeNone {
+	static, ok := span.Attributes[a]
+	if ok {
+		return static, nil
+	}
+
+	if a.Scope == AttributeScopeNone {
 		for attribute, static := range span.Attributes {
 			if a.Name == attribute.Name && attribute.Scope == AttributeScopeSpan {
 				return static, nil
 			}
 		}
-	}
-	if a.Scope == AttributeScopeResource || a.Scope == AttributeScopeNone {
 		for attribute, static := range span.Attributes {
-			if a.Name == attribute.Name && attribute.Scope != AttributeScopeSpan {
+			if a.Name == attribute.Name {
 				return static, nil
 			}
 		}
 	}
+
 	return NewStaticNil(), nil
 }
