@@ -54,7 +54,7 @@ become more critical the larger and more robust your tracing system is.
 The Grafana Agent is a service that is deployed close to the application, either on the same node or
 within the same cluster (in Kubernetes) to quickly offload traces from the application and forward them to
 a storage backend.
-The Grafana Agent also abstracts features like trace batching and backend routing away from the client.
+The Grafana Agent also abstracts features like trace batching to a remote trace backend store, including retries on write failures.
 
 To learn more about the Grafana Agent and how to set it up for tracing with Tempo,
 refer to [this blog post](https://grafana.com/blog/2020/11/17/tracing-with-the-grafana-cloud-agent-and-grafana-tempo/).

@@ -26,7 +26,7 @@ To set up Tempo using Kubernetes with Tanka, you need to:
 To deploy Tempo to Kubernetes with Tanka, you need:
 
   * A Kubernetes cluster with at least 40 CPUs and 46GB of memory for the default configuration. Small ingest or query volumes could use a far smaller configuration.
-  * `kubectl`
+  * `kubectl`  (version depends upon the API version of Kubernetes in your cluster)
 
 
 ## Configure Kubernetes and install Tanka

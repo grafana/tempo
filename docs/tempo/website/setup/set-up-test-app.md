@@ -114,9 +114,7 @@ You should see a message that says `Data source is working`.
 
 If you see an error that says `Data source is not working: failed to get trace with id: 0`, check your Grafana version.
 
-If your Grafana version is < 8.2.2, this is a bug in Grafana itself and the error can be ignored.
-The underlying data source will still work as expected.
-To fix the error, [upgrade your Grafana to 8.2.2 or later](https://github.com/grafana/grafana/pull/38018).
+To fix the error, [upgrade your Grafana to 9.0 or later](https://grafana.com/docs/grafana/latest/setup-grafana/upgrade-grafana/).
 
 ## Visualize your data
 
