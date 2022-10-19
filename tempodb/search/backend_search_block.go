@@ -2,17 +2,19 @@ package search
 
 import (
 	"context"
-	"io"
-
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
-
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/tempodb/backend"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+	"github.com/pkg/errors"
+	"io"
 )
 
-const defaultBackendSearchBlockPageSize = 2 * 1024 * 1024
+const (
+	defaultBackendSearchBlockPageSize = 2 * 1024 * 1024
+	searchIndexName                   = "search-index"
+	searchHeaderName                  = "search-header"
+)
 
 type BackendSearchBlock struct {
 	id       uuid.UUID
@@ -98,14 +100,14 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, rw backend.Writer, block
 	if err != nil {
 		return err
 	}
-	err = rw.Write(ctx, "search-index", blockID, tenantID, indexBytes, true)
+	err = rw.Write(ctx, searchIndexName, blockID, tenantID, indexBytes, true)
 	if err != nil {
 		return err
 	}
 
 	// Write header
 	hb := header.ToBytes()
-	err = rw.Write(ctx, "search-header", blockID, tenantID, hb, true)
+	err = rw.Write(ctx, searchHeaderName, blockID, tenantID, hb, true)
 	if err != nil {
 		return err
 	}
@@ -190,7 +192,7 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 
 	// Read header
 	// Verify something in the block matches by checking the header
-	hb, err := s.r.Read(ctx, "search-header", s.id, s.tenantID, true)
+	hb, err := s.r.Read(ctx, searchHeaderName, s.id, s.tenantID, true)
 	if err != nil {
 		return err
 	}
@@ -208,7 +210,7 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 
 	// Read index
 	bmeta := backend.NewBlockMeta(s.tenantID, s.id, meta.Version, meta.Encoding, "")
-	cr := backend.NewContextReader(bmeta, "search-index", s.r, false)
+	cr := backend.NewContextReader(bmeta, searchIndexName, s.r, false)
 
 	ir, err := v2.NewIndexReader(cr, int(meta.IndexPageSize), int(meta.IndexRecords))
 	if err != nil {
@@ -279,7 +281,7 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 }
 
 func (s *BackendSearchBlock) readSearchHeader(ctx context.Context) (*tempofb.SearchBlockHeader, error) {
-	hb, err := s.r.Read(ctx, "search-header", s.id, s.tenantID, true)
+	hb, err := s.r.Read(ctx, searchHeaderName, s.id, s.tenantID, true)
 	if err != nil {
 		return nil, err
 	}
