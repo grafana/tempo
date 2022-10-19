@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,7 +55,9 @@ func newBackendSearchBlockWithTraces(t testing.TB, traceCount int, enc backend.E
 	err = NewBackendSearchBlock(b1, backend.NewWriter(l), blockID, testTenantID, enc, pageSizeBytes)
 	require.NoError(t, err)
 
-	b2 := OpenBackendSearchBlock(blockID, testTenantID, backend.NewReader(l))
+	b2, err := OpenBackendSearchBlock(blockID, testTenantID, backend.NewReader(l))
+	require.NoError(t, err)
+
 	return b2
 }
 
@@ -85,7 +89,8 @@ func TestBackendSearchBlockSearch(t *testing.T) {
 			err = NewBackendSearchBlock(b1, backend.NewWriter(l), blockID, testTenantID, enc, 0)
 			require.NoError(t, err)
 
-			b2 := OpenBackendSearchBlock(blockID, testTenantID, backend.NewReader(l))
+			b2, err := OpenBackendSearchBlock(blockID, testTenantID, backend.NewReader(l))
+			require.NoError(t, err)
 
 			// Perform test suite
 
@@ -171,6 +176,22 @@ func TestBackendSearchBlockFinalSize(t *testing.T) {
 
 		}
 	}
+}
+
+func TestBackendSearchBlockSearchNotSupported(t *testing.T) {
+	blockID := uuid.New()
+	tmpDir := t.TempDir()
+	l, err := local.NewBackend(&local.Config{
+		Path: tmpDir,
+	})
+	require.NoError(t, err)
+
+	err = os.MkdirAll(filepath.Join(tmpDir, testTenantID, blockID.String()), 0755)
+	require.NoError(t, err)
+
+	_, err = OpenBackendSearchBlock(blockID, testTenantID, backend.NewReader(l))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrSearchNotSupported)
 }
 
 func BenchmarkBackendSearchBlockSearch(b *testing.B) {

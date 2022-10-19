@@ -256,8 +256,7 @@ func (rw *readerWriter) CompleteSearchBlockWithBackend(block *search.StreamingSe
 		return nil, err
 	}
 
-	b := search.OpenBackendSearchBlock(blockID, tenantID, r)
-	return b, nil
+	return search.OpenBackendSearchBlock(blockID, tenantID, r)
 }
 
 func (rw *readerWriter) WAL() *wal.WAL {

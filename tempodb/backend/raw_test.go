@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // todo: add tests that check the appropriate keypath is passed
@@ -98,6 +99,60 @@ func TestReader(t *testing.T) {
 	idx, err = r.TenantIndex(ctx, "test")
 	assert.NoError(t, err)
 	assert.True(t, cmp.Equal(expectedIdx, idx))
+}
+
+func TestReader_Has(t *testing.T) {
+	var (
+		blockID  = uuid.New()
+		tenantID = "test-tenant"
+	)
+
+	tests := []struct {
+		listFn func() ([]string, error)
+		name   string
+		res    bool
+		err    error
+	}{
+		{
+			listFn: func() ([]string, error) { return nil, assert.AnError },
+			err:    assert.AnError,
+		},
+		{
+			listFn: func() ([]string, error) { return []string{"one"}, nil },
+			name:   "four",
+		},
+		{
+			listFn: func() ([]string, error) { return []string{"one", "two", "three"}, nil },
+			name:   "tWo",
+		},
+		{
+			listFn: func() ([]string, error) { return []string{"one", "two", "three"}, nil },
+			name:   "three",
+			res:    true,
+		},
+		{
+			listFn: func() ([]string, error) { return []string{"one", "two", "three"}, nil },
+			name:   "two",
+			res:    true,
+		},
+	}
+
+	m := &MockRawReader{}
+	r := NewReader(m)
+	for _, tt := range tests {
+		m.ListFn = func(ctx context.Context, keypath KeyPath) ([]string, error) {
+			assert.Equal(t, keypath, KeyPath{tenantID, blockID.String()})
+			return tt.listFn()
+		}
+
+		res, err := r.Has(context.Background(), tt.name, blockID, tenantID)
+		if tt.err == nil {
+			require.NoError(t, err)
+			assert.Equal(t, tt.res, res)
+		} else {
+			assert.EqualError(t, err, tt.err.Error())
+		}
+	}
 }
 
 func TestKeyPathForBlock(t *testing.T) {

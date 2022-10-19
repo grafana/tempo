@@ -36,6 +36,8 @@ type Writer interface {
 
 // Reader is a collection of methods to read data from tempodb backends
 type Reader interface {
+	// Has determines whether a block contains an object with a given name.
+	Has(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (bool, error)
 	// Read is for reading entire objects from the backend. There will be an attempt to retrieve this
 	// from cache if shouldCache is true.
 	Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) ([]byte, error)

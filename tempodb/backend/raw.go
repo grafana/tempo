@@ -113,6 +113,19 @@ func NewReader(r RawReader) Reader {
 	}
 }
 
+func (r *reader) Has(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (bool, error) {
+	objects, err := r.r.List(ctx, KeyPathForBlock(blockID, tenantID))
+	if err != nil {
+		return false, err
+	}
+	for _, o := range objects {
+		if o == name {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (r *reader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) ([]byte, error) {
 	objReader, size, err := r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), shouldCache)
 	if err != nil {
