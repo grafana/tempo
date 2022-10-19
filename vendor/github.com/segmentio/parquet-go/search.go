@@ -36,17 +36,25 @@ func CompareNullsLast(cmp func(Value, Value) int) func(Value, Value) int {
 	}
 }
 
-// Search is like Find, but uses the default ordering of the given type.
+// Search is like Find, but uses the default ordering of the given type. Search
+// and Find are scoped to a given ColumnChunk and find the pages within a
+// ColumnChunk which might contain the result.  See Find for more details.
 func Search(index ColumnIndex, value Value, typ Type) int {
 	return Find(index, value, CompareNullsLast(typ.Compare))
 }
 
-// Find uses the column index passed as argument to find the page that the
-// given value is expected to be found in.
+// Find uses the ColumnIndex passed as argument to find the page in a column
+// chunk (determined by the given ColumnIndex) that the given value is expected
+// to be found in.
 //
 // The function returns the index of the first page that might contain the
 // value. If the function determines that the value does not exist in the
 // index, NumPages is returned.
+//
+// If you want to search the entire parquet file, you must iterate over the
+// RowGroups and search each one individually, if there are multiple in the
+// file. If you call writer.Flush before closing the file, then you will have
+// multiple RowGroups to iterate over, otherwise Flush is called once on Close.
 //
 // The comparison function passed as last argument is used to determine the
 // relative order of values. This should generally be the Compare method of
