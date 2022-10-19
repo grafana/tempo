@@ -119,7 +119,6 @@ func (f *Forwarder) newTraceOTLPGRPCClientAndConn(ctx context.Context, endpoint 
 
 	opts = append(
 		opts,
-		grpc.WithBlock(),
 		grpc.WithTransportCredentials(creds),
 		grpc.WithUnaryInterceptor(grpcmw.ChainUnaryClient(unaryClientInterceptor...)),
 		grpc.WithStreamInterceptor(grpcmw.ChainStreamClient(streamClientInterceptor...)),
