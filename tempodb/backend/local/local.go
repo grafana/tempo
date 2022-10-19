@@ -104,17 +104,14 @@ func (rw *Backend) CloseAppend(ctx context.Context, tracker backend.AppendTracke
 // List implements backend.Reader
 func (rw *Backend) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
 	path := rw.rootPath(keypath)
-	folders, err := os.ReadDir(path)
+	dirEntries, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
 	}
 
-	objects := make([]string, 0, len(folders))
-	for _, f := range folders {
-		if !f.IsDir() {
-			continue
-		}
-		objects = append(objects, f.Name())
+	objects := make([]string, 0, len(dirEntries))
+	for _, d := range dirEntries {
+		objects = append(objects, d.Name())
 	}
 
 	return objects, nil
