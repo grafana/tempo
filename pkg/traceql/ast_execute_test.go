@@ -83,6 +83,45 @@ func TestSpansetFilter_matches(t *testing.T) {
 			},
 			matches: true,
 		},
+		{
+			query: `{ .foo = "scope_span" }`,
+			span: Span{
+				Attributes: map[Attribute]Static{
+					NewScopedAttribute(AttributeScopeSpan, false, "foo"):     NewStaticString("scope_span"),
+					NewScopedAttribute(AttributeScopeResource, false, "foo"): NewStaticString("scope_resource"),
+				},
+			},
+			matches: true,
+		},
+		{
+			query: `{ .foo = "scope_resource" }`,
+			span: Span{
+				Attributes: map[Attribute]Static{
+					NewScopedAttribute(AttributeScopeResource, false, "foo"): NewStaticString("scope_resource"),
+				},
+			},
+			matches: true,
+		},
+		{
+			query: `{ span.foo = "scope_span" }`,
+			span: Span{
+				Attributes: map[Attribute]Static{
+					NewScopedAttribute(AttributeScopeSpan, false, "foo"):     NewStaticString("scope_span"),
+					NewScopedAttribute(AttributeScopeResource, false, "foo"): NewStaticString("scope_resource"),
+				},
+			},
+			matches: true,
+		},
+		{
+			query: `{ resource.foo = "scope_resource" }`,
+			span: Span{
+				Attributes: map[Attribute]Static{
+					NewScopedAttribute(AttributeScopeSpan, false, "foo"):     NewStaticString("scope_span"),
+					NewScopedAttribute(AttributeScopeResource, false, "foo"): NewStaticString("scope_resource"),
+				},
+			},
+			matches: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
