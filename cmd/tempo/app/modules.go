@@ -63,9 +63,9 @@ func (t *App) initServer() (services.Service, error) {
 
 	prometheus.MustRegister(&t.cfg)
 
-	DisableSignalHandling(&t.cfg.Server)
+	DisableSignalHandling(t.cfg.Server)
 
-	server, err := server.New(t.cfg.Server)
+	server, err := server.New(*t.cfg.Server)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create server %w", err)
 	}

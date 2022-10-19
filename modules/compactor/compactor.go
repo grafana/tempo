@@ -64,7 +64,7 @@ func New(cfg Config, store storage.Store, overrides *overrides.Overrides, reg pr
 		reg = prometheus.WrapRegistererWithPrefix("cortex_", reg)
 
 		lifecyclerStore, err := kv.NewClient(
-			cfg.ShardingRing.KVStore,
+			*cfg.ShardingRing.KVStore,
 			ring.GetCodec(),
 			kv.RegistererWithKVName(reg, compactorRingKey+"-lifecycler"),
 			log.Logger,

@@ -15,7 +15,7 @@ import (
 )
 
 type RingConfig struct {
-	KVStore          kv.Config     `yaml:"kvstore"`
+	KVStore          *kv.Config    `yaml:"kvstore"`
 	HeartbeatPeriod  time.Duration `yaml:"heartbeat_period"`
 	HeartbeatTimeout time.Duration `yaml:"heartbeat_timeout"`
 
@@ -28,6 +28,9 @@ type RingConfig struct {
 }
 
 func (cfg *RingConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	if cfg.KVStore == nil {
+		cfg.KVStore = &kv.Config{}
+	}
 	cfg.KVStore.RegisterFlagsWithPrefix(prefix, "collectors/", f)
 	cfg.KVStore.Store = "memberlist"
 
@@ -47,7 +50,7 @@ func (cfg *RingConfig) ToRingConfig() ring.Config {
 	rc := ring.Config{}
 	flagext.DefaultValues(&rc)
 
-	rc.KVStore = cfg.KVStore
+	rc.KVStore = *cfg.KVStore
 	rc.HeartbeatTimeout = cfg.HeartbeatTimeout
 	rc.ReplicationFactor = 1
 	rc.SubringCacheDisabled = true

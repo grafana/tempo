@@ -46,7 +46,7 @@ func testSearchCompleteBlock(t *testing.T, blockVersion string) {
 			Filepath:       path.Join(tempDir, "wal"),
 			IngestionSlack: time.Since(time.Time{}),
 		},
-		Search: &SearchConfig{
+		Search: SearchConfig{
 			ChunkSizeBytes:      1_000_000,
 			ReadBufferCount:     8,
 			ReadBufferSizeBytes: 4 * 1024 * 1024,

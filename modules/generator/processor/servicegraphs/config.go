@@ -13,20 +13,20 @@ const (
 
 type Config struct {
 	// Wait is the value to wait for an edge to be completed
-	Wait time.Duration `yaml:"wait"`
+	Wait time.Duration `yaml:"wait,omitempty"`
 	// MaxItems is the amount of edges that will be stored in the storeMap
-	MaxItems int `yaml:"max_items"`
+	MaxItems int `yaml:"max_items,omitempty"`
 
 	// Workers is the amount of workers that will be used to process the edges
-	Workers int `yaml:"workers"`
+	Workers int `yaml:"workers,omitempty"`
 
 	// Buckets for latency histogram in seconds.
-	HistogramBuckets []float64 `yaml:"histogram_buckets"`
+	HistogramBuckets []float64 `yaml:"histogram_buckets,omitempty"`
 
 	// Additional dimensions (labels) to be added to the metric along with the default ones.
 	// If client and server spans have the same attribute, behaviour is undetermined
 	// (either value could get used)
-	Dimensions []string `yaml:"dimensions"`
+	Dimensions []string `yaml:"dimensions,omitempty"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {

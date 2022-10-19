@@ -13,19 +13,19 @@ import (
 type Config struct {
 	Search SearchConfig `yaml:"search"`
 
-	TraceLookupQueryTimeout time.Duration `yaml:"query_timeout"`
+	TraceLookupQueryTimeout time.Duration `yaml:"query_timeout,omitempty"`
 	ExtraQueryDelay         time.Duration `yaml:"extra_query_delay,omitempty"`
-	MaxConcurrentQueries    int           `yaml:"max_concurrent_queries"`
-	Worker                  worker.Config `yaml:"frontend_worker"`
-	QueryRelevantIngesters  bool          `yaml:"query_relevant_ingesters"`
+	MaxConcurrentQueries    int           `yaml:"max_concurrent_queries,omitempty"`
+	Worker                  worker.Config `yaml:"frontend_worker,omitempty"`
+	QueryRelevantIngesters  bool          `yaml:"query_relevant_ingesters,omitempty"`
 }
 
 type SearchConfig struct {
-	QueryTimeout      time.Duration `yaml:"query_timeout"`
-	PreferSelf        int           `yaml:"prefer_self"`
-	ExternalEndpoints []string      `yaml:"external_endpoints"`
-	HedgeRequestsAt   time.Duration `yaml:"external_hedge_requests_at"`
-	HedgeRequestsUpTo int           `yaml:"external_hedge_requests_up_to"`
+	QueryTimeout      time.Duration `yaml:"query_timeout,omitempty"`
+	PreferSelf        int           `yaml:"prefer_self,omitempty"`
+	ExternalEndpoints []string      `yaml:"external_endpoints,omitempty"`
+	HedgeRequestsAt   time.Duration `yaml:"external_hedge_requests_at,omitempty"`
+	HedgeRequestsUpTo int           `yaml:"external_hedge_requests_up_to,omitempty"`
 }
 
 // RegisterFlagsAndApplyDefaults register flags.

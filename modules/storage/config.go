@@ -21,12 +21,11 @@ import (
 
 // Config is the Tempo storage configuration
 type Config struct {
-	Trace tempodb.Config `yaml:"trace"`
+	Trace tempodb.Config `yaml:"trace,omitempty"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-
 	cfg.Trace.BlocklistPollFallback = true
 	cfg.Trace.BlocklistPollConcurrency = tempodb.DefaultBlocklistPollConcurrency
 	cfg.Trace.BlocklistPollTenantIndexBuilders = tempodb.DefaultTenantIndexBuilders
@@ -40,7 +39,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Trace.WAL.SearchEncoding = backend.EncNone
 	cfg.Trace.WAL.IngestionSlack = 2 * time.Minute
 
-	cfg.Trace.Search = &tempodb.SearchConfig{}
+	cfg.Trace.Search = tempodb.SearchConfig{}
 	cfg.Trace.Search.ChunkSizeBytes = tempodb.DefaultSearchChunkSizeBytes
 	cfg.Trace.Search.PrefetchTraceCount = tempodb.DefaultPrefetchTraceCount
 	cfg.Trace.Search.ReadBufferCount = tempodb.DefaultReadBufferCount

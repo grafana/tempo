@@ -78,7 +78,7 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 
 	// Lifecycler and ring
 	ringStore, err := kv.NewClient(
-		cfg.Ring.KVStore,
+		*cfg.Ring.KVStore,
 		ring.GetCodec(),
 		kv.RegistererWithKVName(prometheus.WrapRegistererWithPrefix("cortex_", reg), "metrics-generator"),
 		g.logger,

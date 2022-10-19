@@ -39,9 +39,9 @@ type searchSharder struct {
 type SearchSharderConfig struct {
 	ConcurrentRequests    int           `yaml:"concurrent_jobs,omitempty"`
 	TargetBytesPerRequest int           `yaml:"target_bytes_per_job,omitempty"`
-	DefaultLimit          uint32        `yaml:"default_result_limit"`
-	MaxLimit              uint32        `yaml:"max_result_limit"`
-	MaxDuration           time.Duration `yaml:"max_duration"`
+	DefaultLimit          uint32        `yaml:"default_result_limit,omitempty"`
+	MaxLimit              uint32        `yaml:"max_result_limit,omitempty"`
+	MaxDuration           time.Duration `yaml:"max_duration,omitempty"`
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
 	QueryIngestersUntil   time.Duration `yaml:"query_ingesters_until,omitempty"`
 }

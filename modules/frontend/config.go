@@ -22,11 +22,11 @@ type Config struct {
 	Config               v1.Config    `yaml:",inline"`
 	MaxRetries           int          `yaml:"max_retries,omitempty"`
 	TolerateFailedBlocks int          `yaml:"tolerate_failed_blocks,omitempty"`
-	Search               SearchConfig `yaml:"search"`
+	Search               SearchConfig `yaml:"search,omitempty"`
 	// Deprecated: Use TraceByID.QueryShards instead.
 	// TODO: Remove QueryShards with Tempo v2
-	QueryShards int             `yaml:"query_shards,omitempty"`
-	TraceByID   TraceByIDConfig `yaml:"trace_by_id"`
+	QueryShards int              `yaml:"query_shards,omitempty"`
+	TraceByID   *TraceByIDConfig `yaml:"trace_by_id,omitempty"`
 }
 
 type SearchConfig struct {
@@ -39,8 +39,8 @@ type TraceByIDConfig struct {
 }
 
 type HedgingConfig struct {
-	HedgeRequestsAt   time.Duration `yaml:"hedge_requests_at"`
-	HedgeRequestsUpTo int           `yaml:"hedge_requests_up_to"`
+	HedgeRequestsAt   time.Duration `yaml:"hedge_requests_at,omitempty"`
+	HedgeRequestsUpTo int           `yaml:"hedge_requests_up_to,omitempty"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
@@ -58,7 +58,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		},
 	}
-	cfg.TraceByID = TraceByIDConfig{
+	cfg.TraceByID = &TraceByIDConfig{
 		QueryShards: 20,
 		Hedging: HedgingConfig{
 			HedgeRequestsAt:   2 * time.Second,

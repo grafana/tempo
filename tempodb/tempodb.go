@@ -315,7 +315,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	}
 
 	opts := common.SearchOptions{}
-	if rw.cfg != nil && rw.cfg.Search != nil {
+	if rw.cfg != nil {
 		rw.cfg.Search.ApplyToOptions(&opts)
 	}
 

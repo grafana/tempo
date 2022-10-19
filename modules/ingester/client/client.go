@@ -21,7 +21,7 @@ import (
 type Config struct {
 	PoolConfig       ring_client.PoolConfig `yaml:"pool_config,omitempty"`
 	RemoteTimeout    time.Duration          `yaml:"remote_timeout,omitempty"`
-	GRPCClientConfig grpcclient.Config      `yaml:"grpc_client_config"`
+	GRPCClientConfig grpcclient.Config      `yaml:"grpc_client_config,omitempty"`
 }
 
 type Client struct {

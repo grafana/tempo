@@ -70,7 +70,7 @@ func main() {
 		level.Error(log.Logger).Log("msg", "invalid log level")
 		os.Exit(1)
 	}
-	log.InitLogger(&config.Server)
+	log.InitLogger(config.Server)
 
 	// Init tracer
 	var shutdownTracer func()

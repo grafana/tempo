@@ -991,6 +991,7 @@ func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client, logger l
 
 	distributorConfig.DistributorRing.HeartbeatPeriod = 100 * time.Millisecond
 	distributorConfig.DistributorRing.InstanceID = strconv.Itoa(rand.Int())
+	distributorConfig.DistributorRing.KVStore = &kv.Config{}
 	distributorConfig.DistributorRing.KVStore.Mock = kvStore
 	distributorConfig.DistributorRing.InstanceInterfaceNames = []string{"eth0", "en0", "lo0"}
 	distributorConfig.factory = func(addr string) (ring_client.PoolClient, error) {

@@ -88,7 +88,7 @@ func New(cfg Config, store storage.Store, limits *overrides.Overrides, reg prome
 		go i.flushLoop(j)
 	}
 
-	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", cfg.OverrideRingKey, true, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
+	lc, err := ring.NewLifecycler(*cfg.LifecyclerConfig, i, "ingester", cfg.OverrideRingKey, true, log.Logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed: %w", err)
 	}

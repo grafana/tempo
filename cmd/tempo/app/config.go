@@ -31,11 +31,11 @@ type Config struct {
 	AuthEnabled             bool   `yaml:"auth_enabled,omitempty"`
 	MultitenancyEnabled     bool   `yaml:"multitenancy_enabled,omitempty"`
 	SearchEnabled           bool   `yaml:"search_enabled,omitempty"`
-	MetricsGeneratorEnabled bool   `yaml:"metrics_generator_enabled"`
-	HTTPAPIPrefix           string `yaml:"http_api_prefix"`
+	MetricsGeneratorEnabled bool   `yaml:"metrics_generator_enabled,omitempty"`
+	HTTPAPIPrefix           string `yaml:"http_api_prefix,omitempty"`
 	UseOTelTracer           bool   `yaml:"use_otel_tracer,omitempty"`
 
-	Server          server.Config           `yaml:"server,omitempty"`
+	Server          *server.Config          `yaml:"server,omitempty"`
 	Distributor     distributor.Config      `yaml:"distributor,omitempty"`
 	IngesterClient  ingester_client.Config  `yaml:"ingester_client,omitempty"`
 	GeneratorClient generator_client.Config `yaml:"metrics_generator_client,omitempty"`
@@ -51,7 +51,9 @@ type Config struct {
 }
 
 func newDefaultConfig() *Config {
-	defaultConfig := &Config{}
+	defaultConfig := &Config{
+		Server: &server.Config{},
+	}
 	defaultFS := flag.NewFlagSet("", flag.PanicOnError)
 	defaultConfig.RegisterFlagsAndApplyDefaults("", defaultFS)
 	return defaultConfig
@@ -69,7 +71,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.BoolVar(&c.UseOTelTracer, "use-otel-tracer", false, "Set to true to replace the OpenTracing tracer with the OpenTelemetry tracer")
 
 	// Server settings
-	flagext.DefaultValues(&c.Server)
+	flagext.DefaultValues(c.Server)
 	c.Server.LogLevel.RegisterFlags(f)
 
 	// Increase max message size to 16MB

@@ -19,9 +19,9 @@ import (
 
 // Config for a generator client.
 type Config struct {
-	PoolConfig       ring_client.PoolConfig `yaml:"pool_config,omitempty"`
-	RemoteTimeout    time.Duration          `yaml:"remote_timeout,omitempty"`
-	GRPCClientConfig grpcclient.Config      `yaml:"grpc_client_config"`
+	PoolConfig       *ring_client.PoolConfig `yaml:"pool_config,omitempty"`
+	RemoteTimeout    time.Duration           `yaml:"remote_timeout,omitempty"`
+	GRPCClientConfig *grpcclient.Config      `yaml:"grpc_client_config,omitempty"`
 }
 
 type Client struct {
@@ -32,7 +32,14 @@ type Client struct {
 
 // RegisterFlags registers flags.
 func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
+	if cfg.GRPCClientConfig == nil {
+		cfg.GRPCClientConfig = &grpcclient.Config{}
+	}
 	cfg.GRPCClientConfig.RegisterFlagsWithPrefix("generator.client", f)
+
+	if cfg.PoolConfig == nil {
+		cfg.PoolConfig = &ring_client.PoolConfig{}
+	}
 
 	f.DurationVar(&cfg.PoolConfig.HealthCheckTimeout, "generator.client.healthcheck-timeout", 1*time.Second, "Timeout for healthcheck rpcs.")
 	f.DurationVar(&cfg.PoolConfig.CheckInterval, "generator.client.healthcheck-interval", 15*time.Second, "Interval to healthcheck generators")

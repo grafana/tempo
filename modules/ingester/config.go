@@ -15,23 +15,26 @@ import (
 
 // Config for an ingester.
 type Config struct {
-	LifecyclerConfig ring.LifecyclerConfig `yaml:"lifecycler,omitempty"`
+	LifecyclerConfig *ring.LifecyclerConfig `yaml:"lifecycler,omitempty"`
 
-	ConcurrentFlushes    int           `yaml:"concurrent_flushes"`
-	FlushCheckPeriod     time.Duration `yaml:"flush_check_period"`
-	FlushOpTimeout       time.Duration `yaml:"flush_op_timeout"`
-	MaxTraceIdle         time.Duration `yaml:"trace_idle_period"`
-	MaxBlockDuration     time.Duration `yaml:"max_block_duration"`
-	MaxBlockBytes        uint64        `yaml:"max_block_bytes"`
-	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout"`
-	OverrideRingKey      string        `yaml:"override_ring_key"`
-	UseFlatbufferSearch  bool          `yaml:"use_flatbuffer_search"`
+	ConcurrentFlushes    int           `yaml:"concurrent_flushes,omitempty"`
+	FlushCheckPeriod     time.Duration `yaml:"flush_check_period,omitempty"`
+	FlushOpTimeout       time.Duration `yaml:"flush_op_timeout,omitempty"`
+	MaxTraceIdle         time.Duration `yaml:"trace_idle_period,omitempty"`
+	MaxBlockDuration     time.Duration `yaml:"max_block_duration,omitempty"`
+	MaxBlockBytes        uint64        `yaml:"max_block_bytes,omitempty"`
+	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout,omitempty"`
+	OverrideRingKey      string        `yaml:"override_ring_key,omitempty"`
+	UseFlatbufferSearch  bool          `yaml:"use_flatbuffer_search,omitempty"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	// apply generic defaults and then overlay tempo default
-	flagext.DefaultValues(&cfg.LifecyclerConfig)
+	if cfg.LifecyclerConfig == nil {
+		cfg.LifecyclerConfig = &ring.LifecyclerConfig{}
+	}
+	flagext.DefaultValues(cfg.LifecyclerConfig)
 	cfg.LifecyclerConfig.RingConfig.KVStore.Store = "memberlist"
 	cfg.LifecyclerConfig.RingConfig.ReplicationFactor = 1
 	cfg.LifecyclerConfig.RingConfig.HeartbeatTimeout = 5 * time.Minute
@@ -51,7 +54,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		level.Error(log.Logger).Log("msg", "failed to get hostname", "err", err)
 		os.Exit(1)
 	}
-	f.StringVar(&cfg.LifecyclerConfig.ID, prefix+".lifecycler.ID", hostname, "ID to register in the ring.")
+	if cfg.LifecyclerConfig != nil {
+		f.StringVar(&cfg.LifecyclerConfig.ID, prefix+".lifecycler.ID", hostname, "ID to register in the ring.")
+	}
 
 	cfg.OverrideRingKey = ingesterRingKey
 }

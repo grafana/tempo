@@ -18,15 +18,15 @@ import (
 // is used to strip down the config to the minimum, and avoid confusion
 // to the user.
 type RingConfig struct {
-	KVStore          kv.Config     `yaml:"kvstore"`
-	HeartbeatPeriod  time.Duration `yaml:"heartbeat_period"`
-	HeartbeatTimeout time.Duration `yaml:"heartbeat_timeout"`
+	KVStore          *kv.Config    `yaml:"kvstore,omitempty"`
+	HeartbeatPeriod  time.Duration `yaml:"heartbeat_period,omitempty"`
+	HeartbeatTimeout time.Duration `yaml:"heartbeat_timeout,omitempty"`
 
 	// Instance details
-	InstanceID             string   `yaml:"instance_id" doc:"hidden"`
-	InstanceInterfaceNames []string `yaml:"instance_interface_names"`
-	InstancePort           int      `yaml:"instance_port" doc:"hidden"`
-	InstanceAddr           string   `yaml:"instance_addr" doc:"hidden"`
+	InstanceID             string   `yaml:"instance_id,omitempty" doc:"hidden"`
+	InstanceInterfaceNames []string `yaml:"instance_interface_names,omitempty"`
+	InstancePort           int      `yaml:"instance_port,omitempty" doc:"hidden"`
+	InstanceAddr           string   `yaml:"instance_addr,omitempty" doc:"hidden"`
 
 	// Injected internally
 	ListenPort int `yaml:"-"`
@@ -40,6 +40,9 @@ func (cfg *RingConfig) RegisterFlags(f *flag.FlagSet) {
 		os.Exit(1)
 	}
 
+	if cfg.KVStore == nil {
+		cfg.KVStore = &kv.Config{}
+	}
 	// Ring flags
 	cfg.KVStore.RegisterFlagsWithPrefix("distributor.ring.", "collectors/", f)
 	f.DurationVar(&cfg.HeartbeatPeriod, "distributor.ring.heartbeat-period", 5*time.Second, "Period at which to heartbeat to the ring. 0 = disabled.")
@@ -65,7 +68,7 @@ func (cfg *RingConfig) ToLifecyclerConfig() ring.LifecyclerConfig {
 	flagext.DefaultValues(&rc)
 
 	// Configure ring
-	rc.KVStore = cfg.KVStore
+	rc.KVStore = *cfg.KVStore
 	rc.HeartbeatTimeout = cfg.HeartbeatTimeout
 	rc.ReplicationFactor = 1
 

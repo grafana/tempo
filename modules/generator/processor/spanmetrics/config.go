@@ -12,10 +12,10 @@ const (
 
 type Config struct {
 	// Buckets for latency histogram in seconds.
-	HistogramBuckets []float64 `yaml:"histogram_buckets"`
+	HistogramBuckets []float64 `yaml:"histogram_buckets,omitempty"`
 	// Additional dimensions (labels) to be added to the metric,
 	// along with the default ones (service, span_name, span_kind and span_status).
-	Dimensions []string `yaml:"dimensions"`
+	Dimensions []string `yaml:"dimensions,omitempty"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {

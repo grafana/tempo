@@ -20,13 +20,13 @@ const (
 
 // Config for a generator.
 type Config struct {
-	Ring      RingConfig      `yaml:"ring"`
-	Processor ProcessorConfig `yaml:"processor"`
-	Registry  registry.Config `yaml:"registry"`
-	Storage   storage.Config  `yaml:"storage"`
+	Ring      RingConfig      `yaml:"ring,omitempty"`
+	Processor ProcessorConfig `yaml:"processor,omitempty"`
+	Registry  registry.Config `yaml:"registry,omitempty"`
+	Storage   storage.Config  `yaml:"storage,omitempty"`
 	// MetricsIngestionSlack is the max amount of time passed since a span's start time
 	// for the span to be considered in metrics generation
-	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
+	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack,omitempty"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -40,8 +40,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 type ProcessorConfig struct {
-	ServiceGraphs servicegraphs.Config `yaml:"service_graphs"`
-	SpanMetrics   spanmetrics.Config   `yaml:"span_metrics"`
+	ServiceGraphs servicegraphs.Config `yaml:"service_graphs,omitempty"`
+	SpanMetrics   spanmetrics.Config   `yaml:"span_metrics,omitempty"`
 }
 
 func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {

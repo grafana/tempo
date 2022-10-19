@@ -45,45 +45,45 @@ var (
 // limits via flags, or per-user limits via yaml config.
 type Limits struct {
 	// Distributor enforced limits.
-	IngestionRateStrategy   string    `yaml:"ingestion_rate_strategy" json:"ingestion_rate_strategy"`
-	IngestionRateLimitBytes int       `yaml:"ingestion_rate_limit_bytes" json:"ingestion_rate_limit_bytes"`
-	IngestionBurstSizeBytes int       `yaml:"ingestion_burst_size_bytes" json:"ingestion_burst_size_bytes"`
-	SearchTagsAllowList     ListToMap `yaml:"search_tags_allow_list" json:"search_tags_allow_list"`
+	IngestionRateStrategy   string    `yaml:"ingestion_rate_strategy,omitempty" json:"ingestion_rate_strategy,omitempty"`
+	IngestionRateLimitBytes int       `yaml:"ingestion_rate_limit_bytes,omitempty" json:"ingestion_rate_limit_bytes,omitempty"`
+	IngestionBurstSizeBytes int       `yaml:"ingestion_burst_size_bytes,omitempty" json:"ingestion_burst_size_bytes,omitempty"`
+	SearchTagsAllowList     ListToMap `yaml:"search_tags_allow_list,omitempty" json:"search_tags_allow_list,omitempty"`
 
 	// Ingester enforced limits.
-	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user" json:"max_traces_per_user"`
-	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user" json:"max_global_traces_per_user"`
-	MaxSearchBytesPerTrace int `yaml:"max_search_bytes_per_trace" json:"max_search_bytes_per_trace"`
+	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user,omitempty" json:"max_traces_per_user"`
+	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user,omitempty" json:"max_global_traces_per_user"`
+	MaxSearchBytesPerTrace int `yaml:"max_search_bytes_per_trace,omitempty" json:"max_search_bytes_per_trace"`
 
 	// Metrics-generator config
-	MetricsGeneratorRingSize                               int           `yaml:"metrics_generator_ring_size" json:"metrics_generator_ring_size"`
-	MetricsGeneratorProcessors                             ListToMap     `yaml:"metrics_generator_processors" json:"metrics_generator_processors"`
-	MetricsGeneratorMaxActiveSeries                        uint32        `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
-	MetricsGeneratorCollectionInterval                     time.Duration `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
-	MetricsGeneratorDisableCollection                      bool          `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
-	MetricsGeneratorForwarderQueueSize                     int           `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
-	MetricsGeneratorForwarderWorkers                       int           `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
-	MetricsGeneratorProcessorServiceGraphsHistogramBuckets []float64     `yaml:"metrics_generator_processor_service_graphs_histogram_buckets" json:"metrics_generator_processor_service_graphs_histogram_buckets"`
-	MetricsGeneratorProcessorServiceGraphsDimensions       []string      `yaml:"metrics_generator_processor_service_graphs_dimensions" json:"metrics_generator_processor_service_graphs_dimensions"`
-	MetricsGeneratorProcessorSpanMetricsHistogramBuckets   []float64     `yaml:"metrics_generator_processor_span_metrics_histogram_buckets" json:"metrics_generator_processor_span_metrics_histogram_buckets"`
-	MetricsGeneratorProcessorSpanMetricsDimensions         []string      `yaml:"metrics_generator_processor_span_metrics_dimensions" json:"metrics_generator_processor_span_metrics_dimensions"`
+	MetricsGeneratorRingSize                               int           `yaml:"metrics_generator_ring_size,omitempty" json:"metrics_generator_ring_size,omitempty"`
+	MetricsGeneratorProcessors                             ListToMap     `yaml:"metrics_generator_processors,omitempty" json:"metrics_generator_processors,omitempty"`
+	MetricsGeneratorMaxActiveSeries                        uint32        `yaml:"metrics_generator_max_active_series,omitempty" json:"metrics_generator_max_active_series,omitempty"`
+	MetricsGeneratorCollectionInterval                     time.Duration `yaml:"metrics_generator_collection_interval,omitempty" json:"metrics_generator_collection_interval,omitempty"`
+	MetricsGeneratorDisableCollection                      bool          `yaml:"metrics_generator_disable_collection,omitempty" json:"metrics_generator_disable_collection,omitempty"`
+	MetricsGeneratorForwarderQueueSize                     int           `yaml:"metrics_generator_forwarder_queue_size,omitempty" json:"metrics_generator_forwarder_queue_size,omitempty"`
+	MetricsGeneratorForwarderWorkers                       int           `yaml:"metrics_generator_forwarder_workers,omitempty" json:"metrics_generator_forwarder_workers,omitempty"`
+	MetricsGeneratorProcessorServiceGraphsHistogramBuckets []float64     `yaml:"metrics_generator_processor_service_graphs_histogram_buckets,omitempty" json:"metrics_generator_processor_service_graphs_histogram_buckets,omitempty"`
+	MetricsGeneratorProcessorServiceGraphsDimensions       []string      `yaml:"metrics_generator_processor_service_graphs_dimensions,omitempty" json:"metrics_generator_processor_service_graphs_dimensions,omitempty"`
+	MetricsGeneratorProcessorSpanMetricsHistogramBuckets   []float64     `yaml:"metrics_generator_processor_span_metrics_histogram_buckets,omitempty" json:"metrics_generator_processor_span_metrics_histogram_buckets,omitempty"`
+	MetricsGeneratorProcessorSpanMetricsDimensions         []string      `yaml:"metrics_generator_processor_span_metrics_dimensions,omitempty" json:"metrics_generator_processor_span_metrics_dimensions,omitempty"`
 
 	// Compactor enforced limits.
-	BlockRetention model.Duration `yaml:"block_retention" json:"block_retention"`
+	BlockRetention model.Duration `yaml:"block_retention,omitempty" json:"block_retention,omitempty"`
 
 	// Querier and Ingester enforced limits.
-	MaxBytesPerTagValuesQuery int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
+	MaxBytesPerTagValuesQuery int `yaml:"max_bytes_per_tag_values_query,omitempty" json:"max_bytes_per_tag_values_query,omitempty"`
 
 	// QueryFrontend enforced limits
-	MaxSearchDuration model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
+	MaxSearchDuration model.Duration `yaml:"max_search_duration,omitempty" json:"max_search_duration,omitempty"`
 
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search) and Serverless (Search). It
 	//  is not used when doing a trace by id lookup.
-	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
+	MaxBytesPerTrace int `yaml:"max_bytes_per_trace,omitempty" json:"max_bytes_per_trace,omitempty"`
 
 	// Configuration for overrides, convenient if it goes here.
-	PerTenantOverrideConfig string         `yaml:"per_tenant_override_config" json:"per_tenant_override_config"`
-	PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period" json:"per_tenant_override_period"`
+	PerTenantOverrideConfig string         `yaml:"per_tenant_override_config,omitempty" json:"per_tenant_override_config,omitempty"`
+	PerTenantOverridePeriod model.Duration `yaml:"per_tenant_override_period,omitempty" json:"per_tenant_override_period,omitempty"`
 }
 
 // RegisterFlags adds the flags required to config this to the given FlagSet

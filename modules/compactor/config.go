@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/flagext"
+	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
@@ -14,8 +15,8 @@ import (
 
 type Config struct {
 	ShardingRing    RingConfig              `yaml:"ring,omitempty"`
-	Compactor       tempodb.CompactorConfig `yaml:"compaction"`
-	OverrideRingKey string                  `yaml:"override_ring_key"`
+	Compactor       tempodb.CompactorConfig `yaml:"compaction,omitempty"`
+	OverrideRingKey string                  `yaml:"override_ring_key,omitempty"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -29,8 +30,11 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		MaxTimePerTenant:        tempodb.DefaultMaxTimePerTenant,
 		CompactionCycle:         tempodb.DefaultCompactionCycle,
 	}
-
+	if cfg.ShardingRing.KVStore == nil {
+		cfg.ShardingRing.KVStore = &kv.Config{}
+	}
 	flagext.DefaultValues(&cfg.ShardingRing)
+
 	cfg.ShardingRing.KVStore.Store = "" // by default compactor is not sharded
 
 	f.DurationVar(&cfg.Compactor.BlockRetention, util.PrefixConfig(prefix, "compaction.block-retention"), 14*24*time.Hour, "Duration to keep blocks/traces.")

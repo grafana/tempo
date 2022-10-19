@@ -381,9 +381,11 @@ func defaultIngesterWithPush(t testing.TB, tmpDir string, push func(testing.TB, 
 }
 
 func defaultIngesterTestConfig() Config {
-	cfg := Config{}
+	cfg := Config{
+		LifecyclerConfig: &ring.LifecyclerConfig{},
+	}
 
-	flagext.DefaultValues(&cfg.LifecyclerConfig)
+	flagext.DefaultValues(cfg.LifecyclerConfig)
 	mockStore, _ := consul.NewInMemoryClient(
 		ring.GetCodec(),
 		log.NewNopLogger(),

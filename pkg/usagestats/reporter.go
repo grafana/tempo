@@ -73,8 +73,11 @@ func (rep *Reporter) initLeader(ctx context.Context) *ClusterSeed {
 		level.Warn(rep.logger).Log("msg", "failed to create kv client", "err", err)
 		return nil
 	}
+	if rep.conf.Backoff == nil {
+		rep.conf.Backoff = &backoff.Config{}
+	}
 	// Try to become leader via the kv client
-	backoff := backoff.New(ctx, rep.conf.Backoff)
+	backoff := backoff.New(ctx, *rep.conf.Backoff)
 	for backoff.Ongoing() {
 		// create a new cluster seed
 		seed := ClusterSeed{
@@ -170,8 +173,11 @@ func (rep *Reporter) init(ctx context.Context) {
 // fetchSeed fetches the cluster seed from the object store and try until it succeeds.
 // continueFn allow you to decide if we should continue retrying. Nil means always retry
 func (rep *Reporter) fetchSeed(ctx context.Context, continueFn func(err error) bool) (*ClusterSeed, error) {
+	if rep.conf.Backoff == nil {
+		rep.conf.Backoff = &backoff.Config{}
+	}
 	var (
-		backoff    = backoff.New(ctx, rep.conf.Backoff)
+		backoff    = backoff.New(ctx, *rep.conf.Backoff)
 		readingErr = 0
 	)
 	for backoff.Ongoing() {

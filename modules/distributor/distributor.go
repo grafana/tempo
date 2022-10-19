@@ -211,7 +211,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 	if metricsGeneratorEnabled {
 		d.generatorsPool = ring_client.NewPool(
 			"distributor_metrics_generator_pool",
-			generatorClientCfg.PoolConfig,
+			*generatorClientCfg.PoolConfig,
 			ring_client.NewRingServiceDiscovery(generatorsRing),
 			func(addr string) (ring_client.PoolClient, error) {
 				return generator_client.New(addr, generatorClientCfg)

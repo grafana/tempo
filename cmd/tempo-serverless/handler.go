@@ -154,7 +154,7 @@ func loadBackend() (backend.Reader, *tempodb.Config, error) {
 
 func loadConfig() (*tempodb.Config, error) {
 	defaultConfig := &tempodb.Config{
-		Search: &tempodb.SearchConfig{
+		Search: tempodb.SearchConfig{
 			ChunkSizeBytes:     tempodb.DefaultSearchChunkSizeBytes,
 			PrefetchTraceCount: tempodb.DefaultPrefetchTraceCount,
 		},
@@ -176,8 +176,14 @@ func loadConfig() (*tempodb.Config, error) {
 	}
 
 	v.AutomaticEnv()
+
 	v.SetEnvPrefix(envConfigPrefix)
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+	err = bindEnvs(v, defaultConfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to bind env vars from config")
+
+	}
 
 	cfg := &tempodb.Config{}
 	err = v.Unmarshal(cfg, setTagName, setDecodeHooks)

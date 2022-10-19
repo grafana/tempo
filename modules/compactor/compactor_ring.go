@@ -18,24 +18,24 @@ import (
 // is used to strip down the config to the minimum, and avoid confusion
 // to the user.
 type RingConfig struct {
-	KVStore          kv.Config     `yaml:"kvstore"`
-	HeartbeatPeriod  time.Duration `yaml:"heartbeat_period"`
-	HeartbeatTimeout time.Duration `yaml:"heartbeat_timeout"`
+	KVStore          *kv.Config    `yaml:"kvstore,omitempty"`
+	HeartbeatPeriod  time.Duration `yaml:"heartbeat_period,omitempty"`
+	HeartbeatTimeout time.Duration `yaml:"heartbeat_timeout,omitempty"`
 
 	// Wait ring stability.
-	WaitStabilityMinDuration time.Duration `yaml:"wait_stability_min_duration"`
-	WaitStabilityMaxDuration time.Duration `yaml:"wait_stability_max_duration"`
+	WaitStabilityMinDuration time.Duration `yaml:"wait_stability_min_duration,omitempty"`
+	WaitStabilityMaxDuration time.Duration `yaml:"wait_stability_max_duration,omitempty"`
 
 	// Instance details
-	InstanceID             string   `yaml:"instance_id" doc:"hidden"`
-	InstanceInterfaceNames []string `yaml:"instance_interface_names"`
-	InstancePort           int      `yaml:"instance_port" doc:"hidden"`
-	InstanceAddr           string   `yaml:"instance_addr" doc:"hidden"`
+	InstanceID             string   `yaml:"instance_id,omitempty" doc:"hidden"`
+	InstanceInterfaceNames []string `yaml:"instance_interface_names,omitempty"`
+	InstancePort           int      `yaml:"instance_port,omitempty" doc:"hidden"`
+	InstanceAddr           string   `yaml:"instance_addr,omitempty" doc:"hidden"`
 
 	// Injected internally
 	ListenPort int `yaml:"-"`
 
-	WaitActiveInstanceTimeout time.Duration `yaml:"wait_active_instance_timeout"`
+	WaitActiveInstanceTimeout time.Duration `yaml:"wait_active_instance_timeout,omitempty"`
 
 	ObservePeriod time.Duration `yaml:"-"`
 }
@@ -80,7 +80,7 @@ func (cfg *RingConfig) ToLifecyclerConfig() ring.LifecyclerConfig {
 	flagext.DefaultValues(&rc)
 
 	// Configure ring
-	rc.KVStore = cfg.KVStore
+	rc.KVStore = *cfg.KVStore
 	rc.HeartbeatTimeout = cfg.HeartbeatTimeout
 	rc.ReplicationFactor = 1
 
