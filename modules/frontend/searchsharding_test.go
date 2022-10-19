@@ -15,16 +15,18 @@ import (
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/jsonpb" //nolint:all deprecated
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/blocklist"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
+
+	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/blocklist"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
 // implements tempodb.Reader interface
@@ -39,9 +41,15 @@ func (m *mockReader) Find(ctx context.Context, tenantID string, id common.ID, bl
 func (m *mockReader) BlockMetas(tenantID string) []*backend.BlockMeta {
 	return m.metas
 }
+
 func (m *mockReader) Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
 	return nil, nil
 }
+
+func (m *mockReader) Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+	return traceql.FetchSpansResponse{}, nil
+}
+
 func (m *mockReader) EnablePolling(sharder blocklist.JobSharder) {}
 func (m *mockReader) Shutdown()                                  {}
 
