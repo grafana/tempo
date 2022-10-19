@@ -12,11 +12,21 @@ const (
 	// MaxColumnIndex is the maximum column index supported by this package.
 	MaxColumnIndex = math.MaxInt16
 
-	// MaxRepetitionLevel is the maximum repetition level supported by this package.
+	// MaxRepetitionLevel is the maximum repetition level supported by this
+	// package.
 	MaxRepetitionLevel = math.MaxUint8
 
-	// MaxDefinitionLevel is the maximum definition level supported by this package.
+	// MaxDefinitionLevel is the maximum definition level supported by this
+	// package.
 	MaxDefinitionLevel = math.MaxUint8
+
+	// MaxRowGroups is the maximum number of row groups which can be contained
+	// in a single parquet file.
+	//
+	// This limit is enforced by the use of 16 bits signed integers in the file
+	// metadata footer of parquet files. It is part of the parquet specification
+	// and therefore cannot be changed.
+	MaxRowGroups = math.MaxInt16
 )
 
 func makeRepetitionLevel(i int) byte {

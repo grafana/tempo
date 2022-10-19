@@ -49,6 +49,10 @@ var (
 	// ErrUnexpectedDefinitionLevels is an error returned when attempting to
 	// decode definition levels into a page which is part of a required column.
 	ErrUnexpectedDefinitionLevels = errors.New("unexpected definition levels")
+
+	// ErrTooManyRowGroups is returned when attempting to generate a parquet
+	// file with more than MaxRowGroups row groups.
+	ErrTooManyRowGroups = errors.New("the limit of 65535 row groups has been reached")
 )
 
 type errno int
