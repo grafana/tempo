@@ -115,8 +115,8 @@ spansetPipeline:
     spansetExpression                          { $$ = newPipeline($1) }
   | scalarFilter                               { $$ = newPipeline($1) }
   | groupOperation                             { $$ = newPipeline($1) }
-  | spansetPipeline PIPE scalarFilter          { $$ = $1.addItem($3)  }
   | spansetPipeline PIPE spansetExpression     { $$ = $1.addItem($3)  }
+  | spansetPipeline PIPE scalarFilter          { $$ = $1.addItem($3)  }
   | spansetPipeline PIPE groupOperation        { $$ = $1.addItem($3)  }
   | spansetPipeline PIPE coalesceOperation     { $$ = $1.addItem($3)  }
   ;
@@ -180,7 +180,7 @@ wrappedScalarPipeline:
   ;
 
 scalarPipeline:
-    spansetPipeline PIPE scalarExpression      { $$ = $1.addItem($3)  }
+    spansetPipeline PIPE aggregate      { $$ = $1.addItem($3)  }
   ;
 
 scalarExpression: // shares the same operators as scalarPipelineExpression. split out for readability
