@@ -95,7 +95,6 @@ type MockReader struct {
 	R             []byte // read
 	Range         []byte // ReadRange
 	ReadFn        func(name string, blockID uuid.UUID, tenantID string) ([]byte, error)
-	HasFn         func(name string, blockID uuid.UUID, tenantID string) (bool, error)
 }
 
 func (m *MockReader) Tenants(ctx context.Context) ([]string, error) {
@@ -114,14 +113,6 @@ func (m *MockReader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID 
 	}
 
 	return m.M, nil
-}
-
-func (m *MockReader) Has(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (bool, error) {
-	if m.HasFn != nil {
-		return m.HasFn(name, blockID, tenantID)
-	}
-
-	return true, nil
 }
 
 func (m *MockReader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) ([]byte, error) {

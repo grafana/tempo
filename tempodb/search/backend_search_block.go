@@ -305,5 +305,13 @@ func (s *BackendSearchBlock) readSearchHeader(ctx context.Context) (*tempofb.Sea
 }
 
 func (s *BackendSearchBlock) isSearchSupported(ctx context.Context) (bool, error) {
-	return s.r.Has(ctx, searchHeaderName, s.id, s.tenantID)
+	buffer := make([]byte, 1)
+	err := s.r.ReadRange(ctx, searchHeaderName, s.id, s.tenantID, 0, buffer, false)
+	if err != nil {
+		if errors.Is(err, backend.ErrDoesNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
