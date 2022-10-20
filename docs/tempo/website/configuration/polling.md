@@ -48,7 +48,7 @@ ingester:
 The compactor `compacted_block_retention` is used to keep a block in the backend for a given period of time
 after it has been compacted and the data is no longer needed. This allows queriers with a stale blocklist to access
 these blocks successfully until they complete their polling cycles and have up to date blocklists. Like the 
-`complete_block_timeout` this should be at a minimum 2x the configurated `blocklist_poll` duration.
+`complete_block_timeout`, this should be at a minimum 2x the configured `blocklist_poll` duration.
 
 ```
 compactor:
