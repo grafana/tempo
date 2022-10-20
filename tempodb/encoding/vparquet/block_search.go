@@ -171,10 +171,10 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 					}
 
 					stop := func(page parquet.Page) bool {
-						defer parquet.Release(pg)
+						defer parquet.Release(page)
 
 						// if a special attribute has any non-null values, include it
-						if pg.NumNulls() < pg.NumValues() {
+						if page.NumNulls() < page.NumValues() {
 							cb(lbl)
 							delete(specialAttrIdxs, idx) // remove from map so we won't search again
 							return true
@@ -208,9 +208,9 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 					}
 
 					func(page parquet.Page) {
-						defer parquet.Release(pg)
+						defer parquet.Release(page)
 
-						dict := pg.Dictionary()
+						dict := page.Dictionary()
 						if dict == nil {
 							return
 						}
