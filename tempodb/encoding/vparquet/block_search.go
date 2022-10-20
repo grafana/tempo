@@ -38,6 +38,13 @@ var StatusCodeMapping = map[string]int{
 
 // openForSearch consolidates all the logic regarding opening a parquet file in object storage
 func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions) (*parquet.File, *BackendReaderAt, error) {
+	b.openMtx.Lock()
+	defer b.openMtx.Unlock()
+
+	if b.pf != nil && b.readerAt != nil {
+		return b.pf, b.readerAt, nil
+	}
+
 	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
 
 	// no searches currently require bloom filters or the page index. so just add them statically
@@ -71,6 +78,9 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	span, _ := opentracing.StartSpanFromContext(ctx, "parquet.OpenFile")
 	defer span.Finish()
 	pf, err := parquet.OpenFile(readerAt, int64(b.meta.Size), o...)
+
+	b.pf = pf
+	b.readerAt = backendReaderAt
 
 	return pf, backendReaderAt, err
 }
