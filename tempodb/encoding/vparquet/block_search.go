@@ -79,8 +79,10 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	defer span.Finish()
 	pf, err := parquet.OpenFile(readerAt, int64(b.meta.Size), o...)
 
-	b.pf = pf
-	b.readerAt = backendReaderAt
+	if err == nil {
+		b.pf = pf
+		b.readerAt = backendReaderAt
+	}
 
 	return pf, backendReaderAt, err
 }
