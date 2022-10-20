@@ -20,7 +20,6 @@ Due to this behavior, a given compactor or querier will often have an out of dat
 During normal operation, it will stale by at most 2x the configured `blocklist_poll`. 
 
 >**Note**: For details about configuring polling, see [polling configuration]({{< relref "../configuration/polling" >}}).
-for more information.
 
 ## Monitoring
 
