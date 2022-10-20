@@ -60,11 +60,9 @@ func (o BinaryOperation) extractConditions(request *FetchSpansRequest) {
 func (o UnaryOperation) extractConditions(request *FetchSpansRequest) {
 	// TODO when Op is Not we should just either negate all inner Operands or just fetch the columns with OpNone
 	o.Expression.extractConditions(request)
-	return
 }
 
 func (s Static) extractConditions(request *FetchSpansRequest) {
-	return
 }
 
 func (a Attribute) extractConditions(request *FetchSpansRequest) {
@@ -73,5 +71,4 @@ func (a Attribute) extractConditions(request *FetchSpansRequest) {
 		Op:        OpNone,
 		Operands:  nil,
 	})
-	return
 }

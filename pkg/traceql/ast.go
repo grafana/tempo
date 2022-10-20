@@ -313,9 +313,8 @@ func (s Static) Equals(other Static) bool {
 	}
 	if s.Type == TypeStatus {
 		return s.Status == Status(other.N)
-	} else {
-		return Status(s.N) == other.Status
 	}
+	return Status(s.N) == other.Status
 }
 
 func (s Static) asFloat() float64 {

@@ -461,14 +461,14 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		})
 
 		return q.engine.Execute(ctx, req.SearchReq, fetcher)
-	} else {
-		opts := common.SearchOptions{}
-		opts.StartPage = int(req.StartPage)
-		opts.TotalPages = int(req.PagesToSearch)
-		opts.MaxBytes = q.limits.MaxBytesPerTrace(tenantID)
-
-		return q.store.Search(ctx, meta, req.SearchReq, opts)
 	}
+
+	opts := common.SearchOptions{}
+	opts.StartPage = int(req.StartPage)
+	opts.TotalPages = int(req.PagesToSearch)
+	opts.MaxBytes = q.limits.MaxBytesPerTrace(tenantID)
+
+	return q.store.Search(ctx, meta, req.SearchReq, opts)
 }
 
 type spansetFetcher struct {
