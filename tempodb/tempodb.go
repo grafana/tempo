@@ -17,6 +17,7 @@ import (
 
 	pkg_cache "github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
@@ -78,6 +79,7 @@ type IterateObjectCallback func(id common.ID, obj []byte) bool
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64) ([]*tempopb.Trace, []error, error)
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
+	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(sharder blocklist.JobSharder)
 
@@ -361,6 +363,18 @@ func (rw *readerWriter) Search(ctx context.Context, meta *backend.BlockMeta, req
 
 	rw.cfg.Search.ApplyToOptions(&opts)
 	return block.Search(ctx, req, opts)
+}
+
+func (rw *readerWriter) Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+	block, err := encoding.OpenBlock(meta, rw.r)
+	if err != nil {
+		return traceql.FetchSpansResponse{}, err
+	}
+
+	// TODO options?
+	// rw.cfg.Search.ApplyToOptions(&opts)
+
+	return block.Fetch(ctx, req)
 }
 
 func (rw *readerWriter) Shutdown() {

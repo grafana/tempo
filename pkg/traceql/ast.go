@@ -248,6 +248,9 @@ type FieldExpression interface {
 	// referencesSpan returns true if this field expression has any attributes or intrinsics. i.e. it references the span itself
 	referencesSpan() bool
 	__fieldExpression()
+
+	extractConditions(request *FetchSpansRequest)
+	execute(span Span) (Static, error)
 }
 
 type BinaryOperation struct {
@@ -335,6 +338,30 @@ func (Static) referencesSpan() bool {
 
 func (s Static) impliedType() StaticType {
 	return s.Type
+}
+
+func (s Static) Equals(other Static) bool {
+	eitherIsTypeStatus := (s.Type == TypeStatus && other.Type == TypeInt) || (other.Type == TypeStatus && s.Type == TypeInt)
+	if !eitherIsTypeStatus {
+		return s == other
+	}
+	if s.Type == TypeStatus {
+		return s.Status == Status(other.N)
+	}
+	return Status(s.N) == other.Status
+}
+
+func (s Static) asFloat() float64 {
+	switch s.Type {
+	case TypeInt:
+		return float64(s.N)
+	case TypeFloat:
+		return s.F
+	case TypeDuration:
+		return float64(s.D.Nanoseconds())
+	default:
+		panic(fmt.Sprintf("called asfloat on non-numeric Static (type = %v)", s.Type))
+	}
 }
 
 func NewStaticInt(n int) Static {

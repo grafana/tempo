@@ -27,6 +27,10 @@ type FetchSpansRequest struct {
 	AllConditions bool
 }
 
+func (f *FetchSpansRequest) appendCondition(c ...Condition) {
+	f.Conditions = append(f.Conditions, c...)
+}
+
 type Span struct {
 	ID                 []byte
 	StartTimeUnixNanos uint64
@@ -35,8 +39,12 @@ type Span struct {
 }
 
 type Spanset struct {
-	TraceID []byte
-	Spans   []Span
+	TraceID            []byte
+	RootSpanName       string
+	RootServiceName    string
+	StartTimeUnixNanos uint64
+	DurationNanos      uint64
+	Spans              []Span
 }
 
 type SpansetIterator interface {

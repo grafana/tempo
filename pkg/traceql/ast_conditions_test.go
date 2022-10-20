@@ -1,0 +1,111 @@
+package traceql
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestSpansetFilter_extractConditions(t *testing.T) {
+	tests := []struct {
+		query         string
+		conditions    []Condition
+		allConditions bool
+	}{
+		{
+			query: `{ .foo = "bar" && "bzz" = .fzz }`,
+			conditions: []Condition{
+				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				newCondition(NewAttribute("fzz"), OpEqual, NewStaticString("bzz")),
+			},
+			allConditions: true,
+		},
+		{
+			query: `{ .foo = "bar" || "bzz" = .fzz }`,
+			conditions: []Condition{
+				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				newCondition(NewAttribute("fzz"), OpEqual, NewStaticString("bzz")),
+			},
+			allConditions: false,
+		},
+		{
+			query:         `{ "foo" = "bar" }`,
+			conditions:    []Condition{},
+			allConditions: true,
+		},
+		{
+			query: `{ .foo = .bar }`,
+			conditions: []Condition{
+				newCondition(NewAttribute("foo"), OpNone),
+				newCondition(NewAttribute("bar"), OpNone),
+			},
+			allConditions: true,
+		},
+		{
+			query: `{ (.foo = "bar") = true }`,
+			conditions: []Condition{
+				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+			},
+			allConditions: true,
+		},
+		{
+			query: `{ true = (.foo = "bar") }`,
+			conditions: []Condition{
+				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+			},
+			allConditions: true,
+		},
+		{
+			query: `{ (.foo = "bar") = .bar }`,
+			conditions: []Condition{
+				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				newCondition(NewAttribute("bar"), OpNone),
+			},
+			allConditions: true,
+		},
+		{
+			query: `{ .bar = (.foo = "bar") }`,
+			conditions: []Condition{
+				newCondition(NewAttribute("bar"), OpNone),
+				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+			},
+			allConditions: true,
+		},
+		// TODO we need a smarter engine to handle this - we can either negate OpEqual or just fetch .fzz
+		// {
+		// 	query: `{ (.foo = "bar") = !(.fzz = "bzz") }`,
+		// 	conditions: []Condition{
+		// 		newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+		// 		newCondition(NewAttribute("fzz"), OpNotEqual, NewStaticString("bzz")),
+		// 	},
+		// 	allConditions: true,
+		// },
+		{
+			query: `{ (.foo = "bar") = !.bar }`,
+			conditions: []Condition{
+				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				newCondition(NewAttribute("bar"), OpNone),
+			},
+			allConditions: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			expr, err := Parse(tt.query)
+			require.NoError(t, err)
+
+			spansetFilter := expr.Pipeline.Elements[0].(SpansetFilter)
+
+			req := &FetchSpansRequest{
+				Conditions:    []Condition{},
+				AllConditions: true,
+			}
+			spansetFilter.extractConditions(req)
+
+			assert.Equal(t, tt.conditions, req.Conditions)
+			assert.Equal(t, tt.allConditions, req.AllConditions, "FetchSpansRequest.AllConditions")
+		})
+	}
+
+}
