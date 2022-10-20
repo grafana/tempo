@@ -10,6 +10,11 @@ type Element interface {
 	validate() error
 }
 
+type pipelineElement interface {
+	Element
+	evaluate([]Spanset) ([]Spanset, error)
+}
+
 type typedExpression interface {
 	impliedType() StaticType
 }
@@ -18,7 +23,7 @@ type RootExpr struct {
 	Pipeline Pipeline
 }
 
-func newRootExpr(e Element) *RootExpr {
+func newRootExpr(e pipelineElement) *RootExpr {
 	p, ok := e.(Pipeline)
 	if !ok {
 		p = newPipeline(e)
@@ -34,7 +39,7 @@ func newRootExpr(e Element) *RootExpr {
 // **********************
 
 type Pipeline struct {
-	Elements []Element
+	Elements []pipelineElement
 }
 
 // nolint: revive
@@ -43,13 +48,13 @@ func (Pipeline) __scalarExpression() {}
 // nolint: revive
 func (Pipeline) __spansetExpression() {}
 
-func newPipeline(i ...Element) Pipeline {
+func newPipeline(i ...pipelineElement) Pipeline {
 	return Pipeline{
 		Elements: i,
 	}
 }
 
-func (p Pipeline) addItem(i Element) Pipeline {
+func (p Pipeline) addItem(i pipelineElement) Pipeline {
 	p.Elements = append(p.Elements, i)
 	return p
 }
@@ -68,6 +73,10 @@ func (p Pipeline) impliedType() StaticType {
 	return TypeSpanset
 }
 
+func (Pipeline) evaluate(ss []Spanset) ([]Spanset, error) {
+	return ss, nil
+}
+
 type GroupOperation struct {
 	Expression FieldExpression
 }
@@ -78,6 +87,10 @@ func newGroupOperation(e FieldExpression) GroupOperation {
 	}
 }
 
+func (GroupOperation) evaluate(ss []Spanset) ([]Spanset, error) {
+	return ss, nil
+}
+
 type CoalesceOperation struct {
 }
 
@@ -85,10 +98,15 @@ func newCoalesceOperation() CoalesceOperation {
 	return CoalesceOperation{}
 }
 
+func (CoalesceOperation) evaluate(ss []Spanset) ([]Spanset, error) {
+	return ss, nil
+}
+
 // **********************
 // Scalars
 // **********************
 type ScalarExpression interface {
+	//pipelineElement
 	Element
 	typedExpression
 	__scalarExpression()
@@ -149,11 +167,15 @@ func (a Aggregate) impliedType() StaticType {
 	return a.e.impliedType()
 }
 
+func (Aggregate) evaluate(ss []Spanset) ([]Spanset, error) {
+	return ss, nil
+}
+
 // **********************
 // Spansets
 // **********************
 type SpansetExpression interface {
-	Element
+	pipelineElement
 	__spansetExpression()
 }
 
@@ -174,6 +196,10 @@ func newSpansetOperation(op Operator, lhs SpansetExpression, rhs SpansetExpressi
 // nolint: revive
 func (SpansetOperation) __spansetExpression() {}
 
+func (SpansetOperation) evaluate(ss []Spanset) ([]Spanset, error) {
+	return ss, nil
+}
+
 type SpansetFilter struct {
 	Expression FieldExpression
 }
@@ -186,6 +212,10 @@ func newSpansetFilter(e FieldExpression) SpansetFilter {
 
 // nolint: revive
 func (SpansetFilter) __spansetExpression() {}
+
+func (SpansetFilter) evaluate(ss []Spanset) ([]Spanset, error) {
+	return ss, nil
+}
 
 type ScalarFilter struct {
 	op  Operator
@@ -203,6 +233,10 @@ func newScalarFilter(op Operator, lhs ScalarExpression, rhs ScalarExpression) Sc
 
 // nolint: revive
 func (ScalarFilter) __spansetExpression() {}
+
+func (ScalarFilter) evaluate(ss []Spanset) ([]Spanset, error) {
+	return ss, nil
+}
 
 // **********************
 // Expressions
@@ -421,3 +455,11 @@ func NewIntrinsic(n Intrinsic) Attribute {
 		Intrinsic: n,
 	}
 }
+
+var _ pipelineElement = (*Pipeline)(nil)
+var _ pipelineElement = (*Aggregate)(nil)
+var _ pipelineElement = (*SpansetOperation)(nil)
+var _ pipelineElement = (*SpansetFilter)(nil)
+var _ pipelineElement = (*CoalesceOperation)(nil)
+var _ pipelineElement = (*ScalarFilter)(nil)
+var _ pipelineElement = (*GroupOperation)(nil)
