@@ -6,7 +6,7 @@
     http_api_prefix: '',
     namespace: '.*',
     jobs: {
-      gateway: 'cortex-gw',
+      gateway: 'cortex-gw(-internal)?',
       query_frontend: 'query-frontend',
       querier: 'querier',
       ingester: 'ingester',
