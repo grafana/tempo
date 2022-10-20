@@ -1,13 +1,14 @@
 ---
-title: "Tempo CLI"
-description: "Guide to using tempo-cli"
+title: Tempo CLI
+description: Guide to using tempo-cli
 keywords: ["tempo", "cli", "tempo-cli", "command line interface"]
 weight: 7
 ---
 
 # Tempo CLI
 
-Tempo CLI is a separate executable that contains utility functions related to the tempo software.  Although it is not required for a working installation, Tempo CLI can be helpful for deeper analysis or for troubleshooting.
+Tempo CLI is a separate executable that contains utility functions related to the tempo software.
+Although it is not required for a working installation, Tempo CLI can be helpful for deeper analysis or for troubleshooting.
 
 ## Tempo CLI command syntax
 
