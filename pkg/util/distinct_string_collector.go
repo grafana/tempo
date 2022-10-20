@@ -1,6 +1,9 @@
 package util
 
-import "sort"
+import (
+	"sort"
+	"strings"
+)
 
 type DistinctStringCollector struct {
 	values   map[string]struct{}
@@ -33,6 +36,9 @@ func (d *DistinctStringCollector) Collect(s string) {
 		// No
 		return
 	}
+
+	// Clone instead of referencing original
+	s = strings.Clone(s)
 
 	d.values[s] = struct{}{}
 	d.currLen += len(s)

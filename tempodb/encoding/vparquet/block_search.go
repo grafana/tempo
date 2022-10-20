@@ -216,7 +216,7 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 						}
 
 						for i := 0; i < dict.Len(); i++ {
-							s := string(dict.Index(int32(i)).ByteArray())
+							s := dict.Index(int32(i)).String()
 							cb(s)
 						}
 					}(pg)
@@ -615,7 +615,7 @@ func (r *reportValuesPredicate) KeepColumnChunk(cc parquet.ColumnChunk) bool {
 func (r *reportValuesPredicate) KeepPage(pg parquet.Page) bool {
 	if dict := pg.Dictionary(); dict != nil {
 		for i := 0; i < dict.Len(); i++ {
-			s := string(dict.Index(int32(i)).ByteArray())
+			s := dict.Index(int32(i)).String()
 			r.cb(s)
 		}
 
