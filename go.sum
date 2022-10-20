@@ -2013,8 +2013,6 @@ github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e h1:uO75wNGioszj
 github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e/go.mod h1:tm/wZFQ8e24NYaBGIlnO2WGCAi67re4HHuOm0sftE/M=
 github.com/segmentio/kafka-go v0.1.0/go.mod h1:X6itGqS9L4jDletMsxZ7Dz+JFWxM6JHfPOCvTvk+EJo=
 github.com/segmentio/kafka-go v0.2.0/go.mod h1:X6itGqS9L4jDletMsxZ7Dz+JFWxM6JHfPOCvTvk+EJo=
-github.com/segmentio/parquet-go v0.0.0-20221018184815-acc0bae1e2e0 h1:axivglUNPCwihjp/2V7tMX95SuqEiYoRrm63RSEM9k4=
-github.com/segmentio/parquet-go v0.0.0-20221018184815-acc0bae1e2e0/go.mod h1:SclLlCfB7c7CH0YerV+OtYmZExyK5rhVOd6UT90erVw=
 github.com/segmentio/parquet-go v0.0.0-20221019213850-8b6e2b21a101 h1:EAHbI5CHJtFCjcn06YK7ACGfd8RcuGo9Cr0Z2MdgM6c=
 github.com/segmentio/parquet-go v0.0.0-20221019213850-8b6e2b21a101/go.mod h1:SclLlCfB7c7CH0YerV+OtYmZExyK5rhVOd6UT90erVw=
 github.com/sercand/kuberesolver v2.1.0+incompatible/go.mod h1:lWF3GL0xptCB/vCiJPl/ZshwPsX/n4Y7u0CW9E7aQIQ=
