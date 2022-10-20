@@ -213,7 +213,6 @@ func columnIteratorPoolGet(capacity, len int) *columnIteratorBuffer {
 }
 
 func columnIteratorPoolPut(b *columnIteratorBuffer) {
-	b.values = b.values[:cap(b.values)]
 	for i := range b.values {
 		b.values[i] = pq.Value{}
 	}
@@ -357,70 +356,80 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 					return
 				}
 
-				if keepSeeking(pg.NumRows()) {
-					// Skip page
-					rn.Skip(pg.NumRows())
-					continue
-				}
+				stop := func(pg pq.Page) (stop bool) {
+					defer pq.Release(pg)
 
-				if c.filter != nil {
-					if !c.filter.KeepPage(pg) {
+					if keepSeeking(pg.NumRows()) {
 						// Skip page
 						rn.Skip(pg.NumRows())
-						continue
-					}
-				}
-
-				vr := pg.Values()
-				for {
-					count, err := vr.ReadValues(buffer)
-					if count > 0 {
-
-						// Assign row numbers, filter values, and collect the results.
-						newBuffer := columnIteratorPoolGet(readSize, 0)
-
-						for i := 0; i < count; i++ {
-
-							v := buffer[i]
-
-							// We have to do this for all values (even if the
-							// value is excluded by the predicate)
-							rn.Next(v.RepetitionLevel(), v.DefinitionLevel())
-
-							if c.filter != nil {
-								if !c.filter.KeepValue(v) {
-									continue
-								}
-							}
-
-							newBuffer.rowNumbers = append(newBuffer.rowNumbers, rn)
-							newBuffer.values = append(newBuffer.values, v)
-						}
-
-						if len(newBuffer.rowNumbers) > 0 {
-							select {
-							case c.ch <- newBuffer:
-							case <-c.quit:
-								return
-							case <-ctx.Done():
-								return
-							}
-						} else {
-							// All values excluded, we go ahead and immediately
-							// return the buffer to the pool.
-							columnIteratorPoolPut(newBuffer)
-						}
-					}
-
-					// Error checks MUST occur after processing any returned data
-					// following io.Reader behavior.
-					if err == io.EOF {
-						break
-					}
-					if err != nil {
-						c.storeErr("column iterator read values", err)
 						return
 					}
+
+					if c.filter != nil {
+						if !c.filter.KeepPage(pg) {
+							// Skip page
+							rn.Skip(pg.NumRows())
+							return
+						}
+					}
+
+					vr := pg.Values()
+					for {
+						count, err := vr.ReadValues(buffer)
+						if count > 0 {
+
+							// Assign row numbers, filter values, and collect the results.
+							newBuffer := columnIteratorPoolGet(readSize, 0)
+
+							for i := 0; i < count; i++ {
+
+								v := buffer[i]
+
+								// We have to do this for all values (even if the
+								// value is excluded by the predicate)
+								rn.Next(v.RepetitionLevel(), v.DefinitionLevel())
+
+								if c.filter != nil {
+									if !c.filter.KeepValue(v) {
+										continue
+									}
+								}
+
+								newBuffer.rowNumbers = append(newBuffer.rowNumbers, rn)
+								newBuffer.values = append(newBuffer.values, v.Clone()) // We clone values so they don't reference the page
+							}
+
+							if len(newBuffer.rowNumbers) > 0 {
+								select {
+								case c.ch <- newBuffer:
+								case <-c.quit:
+									columnIteratorPoolPut(newBuffer)
+									return true
+								case <-ctx.Done():
+									columnIteratorPoolPut(newBuffer)
+									return true
+								}
+							} else {
+								// All values excluded, we go ahead and immediately
+								// return the buffer to the pool.
+								columnIteratorPoolPut(newBuffer)
+							}
+						}
+
+						// Error checks MUST occur after processing any returned data
+						// following io.Reader behavior.
+						if err == io.EOF {
+							break
+						}
+						if err != nil {
+							c.storeErr("column iterator read values", err)
+							return true
+						}
+					}
+					return
+				}(pg)
+				if stop {
+					break
 				}
 			}
 		}(col)
@@ -513,6 +522,10 @@ func (c *ColumnIterator) makeResult(t RowNumber, v pq.Value) *IteratorResult {
 
 func (c *ColumnIterator) Close() {
 	close(c.quit)
+	if c.curr != nil {
+		columnIteratorPoolPut(c.curr)
+		c.curr = nil
+	}
 }
 
 func (c *ColumnIterator) storeErr(msg string, err error) {
@@ -1070,6 +1083,11 @@ func (a *KeyValueGroupPredicate) KeepGroup(group *IteratorResult) bool {
 		// Missing data or unsatisfiable condition
 		return false
 	}
+
+	/*fmt.Println("Inspecting group:")
+	for i := 0; i < len(keys); i++ {
+		fmt.Printf("%d: %s = %s \n", i, keys[i].String(), vals[i].String())
+	}*/
 
 	for i := 0; i < len(a.keys); i++ {
 		k := a.keys[i]
