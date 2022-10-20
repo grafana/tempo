@@ -36,11 +36,14 @@ var StatusCodeMapping = map[string]int{
 	StatusCodeError: int(v1.Status_STATUS_CODE_ERROR),
 }
 
-// openForSearch consolidates all the logic regarding opening a parquet file in object storage
+// openForSearch consolidates all the logic for opening a parquet file
 func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions) (*parquet.File, *BackendReaderAt, error) {
 	b.openMtx.Lock()
 	defer b.openMtx.Unlock()
 
+	// if this is parquet file is repeatedly used for search/searchtags/findtracebyid/etc then this is a nice
+	// performance improvement. this does not happen currently for full backend search, but does happen
+	// if this is a complete block held on disk by the ingester
 	if b.pf != nil && b.readerAt != nil {
 		return b.pf, b.readerAt, nil
 	}
