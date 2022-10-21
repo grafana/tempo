@@ -196,10 +196,6 @@ func newSpansetOperation(op Operator, lhs SpansetExpression, rhs SpansetExpressi
 // nolint: revive
 func (SpansetOperation) __spansetExpression() {}
 
-func (SpansetOperation) evaluate(ss []Spanset) ([]Spanset, error) {
-	return ss, nil
-}
-
 type SpansetFilter struct {
 	Expression FieldExpression
 }
