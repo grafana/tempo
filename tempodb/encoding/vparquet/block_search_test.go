@@ -402,13 +402,14 @@ func makeTraces() ([]*Trace, map[string]string) {
 	return traces, attrVals
 }
 
-func BenchmarkBackendBlockSearch(b *testing.B) {
+func BenchmarkBackendBlockSearchTraces(b *testing.B) {
 	testCases := []struct {
 		name string
 		tags map[string]string
 	}{
 		{"noMatch", map[string]string{"foo": "bar"}},
 		{"partialMatch", map[string]string{"foo": "bar", "component": "gRPC"}},
+		{"service.name", map[string]string{"service.name": "a"}},
 	}
 
 	ctx := context.TODO()
@@ -433,16 +434,78 @@ func BenchmarkBackendBlockSearch(b *testing.B) {
 	for _, tc := range testCases {
 
 		req := &tempopb.SearchRequest{
-			Start: 1663849486,
-			End:   1663935886,
 			Tags:  tc.tags,
 			Limit: 20,
 		}
 
 		b.Run(tc.name, func(b *testing.B) {
 			b.ResetTimer()
+			bytesRead := 0
 			for i := 0; i < b.N; i++ {
-				_, err := block.Search(ctx, req, opts)
+				resp, err := block.Search(ctx, req, opts)
+				require.NoError(b, err)
+				bytesRead += int(resp.Metrics.InspectedBytes)
+			}
+			b.SetBytes(int64(bytesRead) / int64(b.N))
+			b.ReportMetric(float64(bytesRead)/float64(b.N), "bytes/op")
+		})
+	}
+}
+
+func BenchmarkBackendBlockSearchTags(b *testing.B) {
+	ctx := context.TODO()
+	tenantID := "1"
+	blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
+
+	r, _, _, err := local.New(&local.Config{
+		Path: path.Join("/Users/marty/src/tmp/"),
+	})
+	require.NoError(b, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
+	require.NoError(b, err)
+
+	block := newBackendBlock(meta, rr)
+	opts := defaultSearchOptions()
+	d := util.NewDistinctStringCollector(1_000_000)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		err := block.SearchTags(ctx, d.Collect, opts)
+		require.NoError(b, err)
+	}
+}
+
+func BenchmarkBackendBlockSearchTagValues(b *testing.B) {
+	testCases := []string{
+		"foo",
+		"http.url",
+	}
+
+	ctx := context.TODO()
+	tenantID := "1"
+	blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
+
+	r, _, _, err := local.New(&local.Config{
+		Path: path.Join("/Users/marty/src/tmp/"),
+	})
+	require.NoError(b, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
+	require.NoError(b, err)
+
+	block := newBackendBlock(meta, rr)
+	opts := defaultSearchOptions()
+
+	for _, tc := range testCases {
+		b.Run(tc, func(b *testing.B) {
+			d := util.NewDistinctStringCollector(1_000_000)
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				err := block.SearchTagValues(ctx, tc, d.Collect, opts)
 				require.NoError(b, err)
 			}
 		})

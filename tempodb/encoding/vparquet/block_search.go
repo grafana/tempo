@@ -170,10 +170,18 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 						return err
 					}
 
-					// if a special attribute has any non-null values, include it
-					if pg.NumNulls() < pg.NumValues() {
-						cb(lbl)
-						delete(specialAttrIdxs, idx) // remove from map so we won't search again
+					stop := func(page parquet.Page) bool {
+						defer parquet.Release(page)
+
+						// if a special attribute has any non-null values, include it
+						if page.NumNulls() < page.NumValues() {
+							cb(lbl)
+							delete(specialAttrIdxs, idx) // remove from map so we won't search again
+							return true
+						}
+						return false
+					}(pg)
+					if stop {
 						break
 					}
 				}
@@ -199,15 +207,19 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 						return err
 					}
 
-					dict := pg.Dictionary()
-					if dict == nil {
-						continue
-					}
+					func(page parquet.Page) {
+						defer parquet.Release(page)
 
-					for i := 0; i < dict.Len(); i++ {
-						s := string(dict.Index(int32(i)).ByteArray())
-						cb(s)
-					}
+						dict := page.Dictionary()
+						if dict == nil {
+							return
+						}
+
+						for i := 0; i < dict.Len(); i++ {
+							s := dict.Index(int32(i)).String()
+							cb(s)
+						}
+					}(pg)
 				}
 				return nil
 			}()
@@ -490,7 +502,7 @@ func searchStandardTagValues(ctx context.Context, tag string, pf *parquet.File, 
 		return errors.Wrap(err, "search resource key values")
 	}
 
-	err = searchKeyValues(DefinitionLevelResourceSpansILSSpan, FieldSpanAttrKey, FieldSpanAttrVal, makeIter, keyPred, cb)
+	err = searchKeyValues(DefinitionLevelResourceSpansILSSpanAttrs, FieldSpanAttrKey, FieldSpanAttrVal, makeIter, keyPred, cb)
 	if err != nil {
 		return errors.Wrap(err, "search span key values")
 	}
@@ -603,7 +615,7 @@ func (r *reportValuesPredicate) KeepColumnChunk(cc parquet.ColumnChunk) bool {
 func (r *reportValuesPredicate) KeepPage(pg parquet.Page) bool {
 	if dict := pg.Dictionary(); dict != nil {
 		for i := 0; i < dict.Len(); i++ {
-			s := string(dict.Index(int32(i)).ByteArray())
+			s := dict.Index(int32(i)).String()
 			r.cb(s)
 		}
 

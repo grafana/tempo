@@ -300,7 +300,7 @@ func (r *rowGroupRows) init() {
 
 func (r *rowGroupRows) clear() {
 	for i := range r.columns {
-		unref(r.columns[i].page)
+		Release(r.columns[i].page)
 	}
 
 	for i := range r.columns {
@@ -395,7 +395,7 @@ func (r *rowGroupRows) ReadRows(rows []Row) (int, error) {
 			c.offset = 0
 			c.length = 0
 			c.values = nil
-			unref(c.page)
+			Release(c.page)
 
 			c.page, err = r.readers[i].ReadPage()
 			if err != nil {
