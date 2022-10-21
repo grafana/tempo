@@ -213,8 +213,42 @@ func newSpansetFilter(e FieldExpression) SpansetFilter {
 // nolint: revive
 func (SpansetFilter) __spansetExpression() {}
 
-func (SpansetFilter) evaluate(ss []Spanset) ([]Spanset, error) {
-	return ss, nil
+func (f SpansetFilter) evaluate(input []Spanset) ([]Spanset, error) {
+	var output []Spanset
+
+	for _, ss := range input {
+		if len(ss.Spans) == 0 {
+			continue
+		}
+
+		var matchingSpans []Span
+		for _, s := range ss.Spans {
+			result, err := f.Expression.execute(s)
+			if err != nil {
+				return nil, err
+			}
+
+			if result.Type != TypeBoolean {
+				continue
+			}
+
+			if !result.B {
+				continue
+			}
+
+			matchingSpans = append(matchingSpans, s)
+		}
+
+		if len(matchingSpans) == 0 {
+			continue
+		}
+
+		matchingSpanset := ss
+		matchingSpanset.Spans = matchingSpans
+		output = append(output, matchingSpanset)
+	}
+
+	return output, nil
 }
 
 type ScalarFilter struct {
