@@ -73,8 +73,21 @@ func (p Pipeline) impliedType() StaticType {
 	return TypeSpanset
 }
 
-func (Pipeline) evaluate(ss []Spanset) ([]Spanset, error) {
-	return ss, nil
+func (p Pipeline) evaluate(input []Spanset) (result []Spanset, err error) {
+	result = input
+
+	for _, element := range p.Elements {
+		result, err = element.evaluate(result)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(result) == 0 {
+			return []Spanset{}, nil
+		}
+	}
+
+	return result, nil
 }
 
 type GroupOperation struct {
