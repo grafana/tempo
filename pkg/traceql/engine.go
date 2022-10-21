@@ -25,16 +25,12 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.Execute")
 	defer span.Finish()
 
-	// TODO this engine implementation assumes each query will contain exactly and at most one SpansetFilter, these queries
-	//  can be processed in a single pass. When we deal with more complicated queries we will probably have to do multiple
-	//  passes and this implementation will become a subcomponent of that.
-
-	spanSetFilter, err := e.parseQueryAndExtractSpanSetFilter(searchReq)
+	rootExpr, err := e.parseQuery(searchReq)
 	if err != nil {
 		return nil, err
 	}
 
-	fetchSpansRequest := e.createFetchSpansRequest(searchReq, spanSetFilter)
+	fetchSpansRequest := e.createFetchSpansRequest(searchReq, rootExpr.Pipeline)
 
 	span.SetTag("fetchSpansRequest", fetchSpansRequest)
 
@@ -50,6 +46,7 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
+iter:
 	for {
 		spanSet, err := iterator.Next(ctx)
 		if err != nil {
@@ -61,59 +58,50 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 			break
 		}
 
-		span.LogKV("msg", "iterator.Next", "rootSpanName", spanSet.RootSpanName, "rootServiceName", spanSet.RootServiceName, "spans", len(spanSet.Spans))
-
-		spanSet = e.validateSpanSet(spanSetFilter, spanSet)
-		if spanSet == nil {
+		ss, err := rootExpr.Pipeline.evaluate([]Spanset{*spanSet})
+		if err != nil {
+			span.LogKV("msg", "pipeline.evaluate", "err", err)
 			continue
 		}
 
-		span.LogKV("msg", "validateSpanSet", "spans", len(spanSet.Spans))
-
-		traceSearchMetadata, err := e.asTraceSearchMetadata(spanSet)
-		if err != nil {
-			return nil, err
+		if len(ss) == 0 {
+			continue
 		}
-		res.Traces = append(res.Traces, traceSearchMetadata)
 
-		if len(res.Traces) == int(searchReq.Limit) {
-			break
+		for _, spanSet := range ss {
+			traceSearchMetadata, err := e.asTraceSearchMetadata(spanSet)
+			if err != nil {
+				return nil, err
+			}
+			res.Traces = append(res.Traces, traceSearchMetadata)
+
+			if len(res.Traces) == int(searchReq.Limit) {
+				break iter
+			}
 		}
 	}
 
-	span.SetTag("traces_found", len(res.Traces))
+	span.SetTag("spansets found", len(res.Traces))
 
 	return res, nil
 }
 
-func (e *Engine) parseQueryAndExtractSpanSetFilter(searchReq *tempopb.SearchRequest) (*SpansetFilter, error) {
-	// Parse TraceQL query
+func (e *Engine) parseQuery(searchReq *tempopb.SearchRequest) (*RootExpr, error) {
 	ast, err := Parse(searchReq.Query)
 	if err != nil {
 		// TODO parsing "{}" returns an error, this is a hacky solution but will fail on other valid queries like "{ }"
 		if searchReq.Query == "{}" {
-			return &SpansetFilter{Expression: NewStaticBool(true)}, nil
+			return &RootExpr{Pipeline: Pipeline{[]pipelineElement{}}}, nil
 		}
 		return nil, err
 	}
 
-	if len(ast.Pipeline.Elements) != 1 {
-		return nil, fmt.Errorf("queries with multiple pipeline elements aren't supported yet")
-	}
-
-	element := ast.Pipeline.Elements[0]
-
-	spanSetFilter, ok := element.(SpansetFilter)
-	if !ok {
-		return nil, fmt.Errorf("queries with %T are not supported yet", element)
-	}
-
-	return &spanSetFilter, err
+	return ast, nil
 }
 
 // createFetchSpansRequest will flatten the SpansetFilter in simple conditions the storage layer
 // can work with.
-func (e *Engine) createFetchSpansRequest(searchReq *tempopb.SearchRequest, spanSetFilter *SpansetFilter) FetchSpansRequest {
+func (e *Engine) createFetchSpansRequest(searchReq *tempopb.SearchRequest, pipeline Pipeline) FetchSpansRequest {
 	// TODO handle SearchRequest.MinDurationMs and MaxDurationMs, this refers to the trace level duration which is not the same as the intrinsic duration
 
 	req := FetchSpansRequest{
@@ -122,7 +110,8 @@ func (e *Engine) createFetchSpansRequest(searchReq *tempopb.SearchRequest, spanS
 		Conditions:         nil,
 		AllConditions:      true,
 	}
-	spanSetFilter.extractConditions(&req)
+
+	pipeline.extractConditions(&req)
 	return req
 }
 
@@ -151,7 +140,7 @@ func (e *Engine) validateSpanSet(spanSetFilter *SpansetFilter, spanSet *Spanset)
 	return newSpanSet
 }
 
-func (e *Engine) asTraceSearchMetadata(spanset *Spanset) (*tempopb.TraceSearchMetadata, error) {
+func (e *Engine) asTraceSearchMetadata(spanset Spanset) (*tempopb.TraceSearchMetadata, error) {
 	metadata := &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(spanset.TraceID),
 		RootServiceName:   spanset.RootServiceName,

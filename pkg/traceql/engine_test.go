@@ -139,7 +139,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 	spanID1 := traceID[:8]
 	spanID2 := traceID[8:]
 
-	spanSet := &Spanset{
+	spanSet := Spanset{
 		TraceID:            traceID,
 		RootServiceName:    "my-service",
 		RootSpanName:       "HTTP GET",
