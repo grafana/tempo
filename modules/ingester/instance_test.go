@@ -596,12 +596,22 @@ func BenchmarkInstancePushExistingTrace(b *testing.B) {
 	}
 }
 
-func BenchmarkInstanceFindTraceByID(b *testing.B) {
+func BenchmarkInstanceFindTraceByIDFromCompleteBlock(b *testing.B) {
 	instance, _ := defaultInstance(b)
-	traceID := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	traceID := test.ValidTraceID([]byte{1, 2, 3, 4, 5, 6, 7, 8})
 	request := makeRequest(traceID)
 	err := instance.PushBytesRequest(context.Background(), request)
 	require.NoError(b, err)
+
+	// force the trace to be in a complete block
+	err = instance.CutCompleteTraces(0, true)
+	require.NoError(b, err)
+	id, err := instance.CutBlockIfReady(0, 0, true)
+	require.NoError(b, err)
+	err = instance.CompleteBlock(id)
+	require.NoError(b, err)
+
+	require.Equal(b, 1, len(instance.completeBlocks))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
