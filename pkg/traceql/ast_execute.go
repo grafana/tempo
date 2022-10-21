@@ -37,11 +37,11 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 	lhsT := lhs.impliedType()
 	rhsT := rhs.impliedType()
 	if !lhsT.isMatchingOperand(rhsT) {
-		return NewStaticNil(), fmt.Errorf("binary operations must operate on the same type: %s", o.String())
+		return NewStaticBool(false), nil
 	}
 
 	if !o.Op.binaryTypesValid(lhsT, rhsT) {
-		return NewStaticNil(), fmt.Errorf("illegal operation for the given types: %s", o.String())
+		return NewStaticBool(false), nil
 	}
 
 	switch o.Op {

@@ -35,13 +35,14 @@ func TestSpansetFilter_matches(t *testing.T) {
 			matches: true,
 		},
 		{
+			// Missing attribute
 			query: `{ .foo = "bar" }`,
 			span: Span{
 				Attributes: map[Attribute]Static{
 					NewAttribute("fzz"): NewStaticString("bar"),
 				},
 			},
-			err: true,
+			matches: false,
 		},
 		{
 			query: `{ .foo = .bar }`,
@@ -51,9 +52,10 @@ func TestSpansetFilter_matches(t *testing.T) {
 					NewAttribute("bar"): NewStaticInt(5),
 				},
 			},
-			err: true,
+			matches: false,
 		},
 		{
+			// Types don't match with operator
 			query: `{ .foo =~ .bar }`,
 			span: Span{
 				Attributes: map[Attribute]Static{
@@ -61,7 +63,7 @@ func TestSpansetFilter_matches(t *testing.T) {
 					NewAttribute("bar"): NewStaticInt(5),
 				},
 			},
-			err: true,
+			matches: false,
 		},
 		{
 			query: `{ .field1 =~ "hello w.*" && .field2 !~ "bye b.*" }`,
