@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/weaveworks/common/user"
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
@@ -618,6 +619,59 @@ func BenchmarkInstanceFindTraceByIDFromCompleteBlock(b *testing.B) {
 		trace, err := instance.FindTraceByID(context.Background(), traceID)
 		require.NotNil(b, trace)
 		require.NoError(b, err)
+	}
+}
+
+func BenchmarkInstanceSearchCompleteFB(b *testing.B) {
+	benchmarkInstanceSearch(b, true)
+}
+func BenchmarkInstanceSearchCompleteParquet(b *testing.B) {
+	benchmarkInstanceSearch(b, false)
+}
+func TestInstanceSearchCompleteFB(t *testing.T) {
+	benchmarkInstanceSearch(t, true)
+}
+func TestInstanceSearchCompleteParquet(t *testing.T) {
+	benchmarkInstanceSearch(t, false)
+}
+func benchmarkInstanceSearch(b testing.TB, fb bool) {
+	instance, _, _ := defaultInstanceWithFlatBufferSearch(b, fb)
+	for i := 0; i < 1000; i++ {
+		request := makeRequest(nil)
+		err := instance.PushBytesRequest(context.Background(), request)
+		require.NoError(b, err)
+
+		if i%100 == 0 {
+			err := instance.CutCompleteTraces(0, true)
+			require.NoError(b, err)
+		}
+	}
+
+	// force the traces to be in a complete block
+	id, err := instance.CutBlockIfReady(0, 0, true)
+	require.NoError(b, err)
+	err = instance.CompleteBlock(id)
+	require.NoError(b, err)
+
+	require.Equal(b, 1, len(instance.completeBlocks))
+
+	ctx := context.Background()
+	ctx = user.InjectOrgID(ctx, testTenantID)
+
+	if rt, ok := b.(*testing.B); ok {
+		rt.ResetTimer()
+		for i := 0; i < rt.N; i++ {
+			resp, err := instance.SearchTags(ctx)
+			require.NoError(b, err)
+			require.NotNil(b, resp)
+		}
+		return
+	}
+
+	for i := 0; i < 100; i++ {
+		resp, err := instance.SearchTags(ctx)
+		require.NoError(b, err)
+		require.NotNil(b, resp)
 	}
 }
 
