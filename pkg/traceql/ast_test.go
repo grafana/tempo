@@ -50,6 +50,55 @@ func TestStatic_Equals(t *testing.T) {
 	}
 }
 
+func TestPipelineEvaluate(t *testing.T) {
+	testCases := []struct {
+		query  string
+		input  []Spanset
+		output []Spanset
+	}{
+		{
+			"{ true } | { true } | { true }",
+			[]Spanset{
+				{Spans: []Span{{}}},
+			},
+			[]Spanset{
+				{Spans: []Span{{}}},
+			},
+		},
+		{
+			"{ true } | { false } | { true }",
+			[]Spanset{
+				{Spans: []Span{{}}},
+			},
+			[]Spanset{},
+		},
+		{
+			"{ .foo1 = `a` } | { .foo2 = `b` }",
+			[]Spanset{
+				{Spans: []Span{
+					// First span should be dropped here
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a")}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a"), NewAttribute("foo2"): NewStaticString("b")}},
+				}},
+			},
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a"), NewAttribute("foo2"): NewStaticString("b")}}}},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.query, func(t *testing.T) {
+			ast, err := Parse(tc.query)
+			require.NoError(t, err)
+
+			actual, err := ast.Pipeline.evaluate(tc.input)
+			require.NoError(t, err)
+			require.Equal(t, tc.output, actual)
+		})
+	}
+}
+
 func TestSpansetFilterEvaluate(t *testing.T) {
 	testCases := []struct {
 		query  string
