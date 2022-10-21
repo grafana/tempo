@@ -9,6 +9,53 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
+func appendSpans(buffer []Span, input []Spanset) []Span {
+	for _, i := range input {
+		buffer = append(buffer, i.Spans...)
+	}
+	return buffer
+}
+
+func (o SpansetOperation) evaluate(input []Spanset) (output []Spanset, err error) {
+
+	for i := range input {
+		curr := input[i : i+1]
+
+		lhs, err := o.LHS.evaluate(curr)
+		if err != nil {
+			return nil, err
+		}
+
+		rhs, err := o.RHS.evaluate(curr)
+		if err != nil {
+			return nil, err
+		}
+
+		switch o.Op {
+		case OpSpansetAnd:
+			if len(lhs) > 0 && len(rhs) > 0 {
+				matchingSpanset := input[i]
+				matchingSpanset.Spans = appendSpans(nil, lhs)
+				matchingSpanset.Spans = appendSpans(matchingSpanset.Spans, rhs)
+				output = append(output, matchingSpanset)
+			}
+
+		case OpSpansetUnion:
+			if len(lhs) > 0 || len(rhs) > 0 {
+				matchingSpanset := input[i]
+				matchingSpanset.Spans = appendSpans(nil, lhs)
+				matchingSpanset.Spans = appendSpans(matchingSpanset.Spans, rhs)
+				output = append(output, matchingSpanset)
+			}
+
+		default:
+			return nil, fmt.Errorf("spanset operation (%v) not supported", o.Op)
+		}
+	}
+
+	return output, nil
+}
+
 func (f SpansetFilter) matches(span Span) (bool, error) {
 	static, err := f.Expression.execute(span)
 	if err != nil {

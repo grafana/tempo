@@ -143,3 +143,68 @@ func TestSpansetFilter_matches(t *testing.T) {
 	}
 
 }
+
+func TestSpansetOperationEvaluate(t *testing.T) {
+	testCases := []struct {
+		query  string
+		input  []Spanset
+		output []Spanset
+	}{
+		{
+			"{ .foo = `a` } && { .foo = `b` }",
+			[]Spanset{
+				{Spans: []Span{
+					// This spanset will be kept because it satisfies both conditions
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				}},
+				{Spans: []Span{
+					// This spanset will be dropped
+					{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				}},
+			},
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				}},
+			},
+		},
+		{
+			"{ .foo = `a` } || { .foo = `b` }",
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				}},
+				{Spans: []Span{
+					// Second span will be dropped
+					{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					{ID: []byte{4}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("c")}},
+				}},
+			},
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				}},
+				{Spans: []Span{
+					{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				}},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.query, func(t *testing.T) {
+			ast, err := Parse(tc.query)
+			require.NoError(t, err)
+
+			filt := ast.Pipeline.Elements[0].(SpansetOperation)
+
+			actual, err := filt.evaluate(tc.input)
+			require.NoError(t, err)
+			require.Equal(t, tc.output, actual)
+		})
+	}
+}
