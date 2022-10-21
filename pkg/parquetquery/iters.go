@@ -294,12 +294,12 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 		"column":      c.colName,
 	})
 	defer func() {
-		span.SetTag("inspectedColumnChunks", c.filter.InspectedColumnChunks.Load())
-		span.SetTag("inspectedPages", c.filter.InspectedPages.Load())
-		span.SetTag("inspectedValues", c.filter.InspectedValues.Load())
-		span.SetTag("keptColumnChunks", c.filter.KeptColumnChunks.Load())
-		span.SetTag("keptPages", c.filter.KeptPages.Load())
-		span.SetTag("keptValues", c.filter.KeptValues.Load())
+		span.SetTag("inspectedColumnChunks", c.filter.InspectedColumnChunks)
+		span.SetTag("inspectedPages", c.filter.InspectedPages)
+		span.SetTag("inspectedValues", c.filter.InspectedValues)
+		span.SetTag("keptColumnChunks", c.filter.KeptColumnChunks)
+		span.SetTag("keptPages", c.filter.KeptPages)
+		span.SetTag("keptValues", c.filter.KeptValues)
 		span.Finish()
 	}()
 
