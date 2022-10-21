@@ -113,6 +113,21 @@ func TestEngine_Execute(t *testing.T) {
 			},
 		},
 	}
+
+	// Sort attributes for consistent equality checks
+	// This is needed because they are internally stored in maps
+	sort := func(mm []*tempopb.TraceSearchMetadata) {
+		for _, m := range mm {
+			for _, s := range m.SpanSet.Spans {
+				sort.Slice(s.Attributes, func(i, j int) bool {
+					return s.Attributes[i].Key < s.Attributes[j].Key
+				})
+			}
+		}
+	}
+	sort(expectedTraceSearchMetadata)
+	sort(response.Traces)
+
 	assert.Equal(t, expectedTraceSearchMetadata, response.Traces)
 }
 
