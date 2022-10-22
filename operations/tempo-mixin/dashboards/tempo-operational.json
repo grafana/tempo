@@ -1489,7 +1489,7 @@
           "pluginVersion": "9.0.0-d373beebpre",
           "targets": [
             {
-              "expr": "sum(rate(tempo_request_duration_seconds_count{route=~\".*api_traces_traceid\", cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw(-internal)?\"}[$__rate_interval])) by (status_code)",
+              "expr": "sum(rate(tempo_request_duration_seconds_count{route=~\".*api_traces_traceid\", cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\"}[$__rate_interval])) by (status_code)",
               "hide": false,
               "interval": "",
               "legendFormat": "{{status_code}}",
@@ -1574,19 +1574,19 @@
           "pluginVersion": "9.0.0-d373beebpre",
           "targets": [
             {
-              "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw(-internal)?\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
+              "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
               "interval": "",
               "legendFormat": ".99",
               "refId": "A"
             },
             {
-              "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw(-internal)?\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
+              "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
               "interval": "",
               "legendFormat": ".9",
               "refId": "B"
             },
             {
-              "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw(-internal)?\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
+              "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
               "interval": "",
               "legendFormat": ".5",
               "refId": "C"
@@ -1671,7 +1671,7 @@
           "targets": [
             {
               "exemplar": true,
-              "expr": "sum(rate(tempo_request_duration_seconds_count{route=~\".*api_search.*\", cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw(-internal)?\"}[$__rate_interval])) by (status_code)",
+              "expr": "sum(rate(tempo_request_duration_seconds_count{route=~\".*api_search.*\", cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\"}[$__rate_interval])) by (status_code)",
               "hide": false,
               "interval": "",
               "legendFormat": "{{status_code}}",
@@ -1758,7 +1758,7 @@
           "targets": [
             {
               "exemplar": true,
-              "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw(-internal)?\", route=~\".*api_search.*\"}[$__rate_interval])) by (le))",
+              "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\".*api_search.*\"}[$__rate_interval])) by (le))",
               "interval": "",
               "legendFormat": ".99",
               "refId": "A",
@@ -1766,7 +1766,7 @@
             },
             {
               "exemplar": true,
-              "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw(-internal)?\", route=~\".*api_search.*\"}[$__rate_interval])) by (le))",
+              "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\".*api_search.*\"}[$__rate_interval])) by (le))",
               "hide": false,
               "interval": "",
               "legendFormat": ".9",
@@ -1775,7 +1775,7 @@
             },
             {
               "exemplar": true,
-              "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw(-internal)?\", route=~\".*api_search.*\"}[$__rate_interval])) by (le))",
+              "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\".*api_search.*\"}[$__rate_interval])) by (le))",
               "hide": false,
               "interval": "",
               "legendFormat": ".5",
@@ -3526,7 +3526,7 @@
           "pluginVersion": "9.0.0-d452322apre",
           "targets": [
             {
-              "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (status_code)",
+              "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (status_code)",
               "interval": "",
               "legendFormat": "{{status_code}}",
               "refId": "A"
@@ -3702,19 +3702,19 @@
           "pluginVersion": "9.0.0-d452322apre",
           "targets": [
             {
-              "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
+              "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
               "interval": "",
               "legendFormat": ".99",
               "refId": "A"
             },
             {
-              "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
+              "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
               "interval": "",
               "legendFormat": ".9",
               "refId": "B"
             },
             {
-              "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
+              "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
               "interval": "",
               "legendFormat": ".5",
               "refId": "C"
