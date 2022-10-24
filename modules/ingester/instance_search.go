@@ -223,7 +223,10 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 			span.LogFields(ot_log.Event("local block entry mtx acquired"))
 			span.SetTag("blockID", blockID)
 
-			resp, err := e.Search(ctx, req, common.SearchOptions{})
+			resp, err := e.Search(ctx, req, common.SearchOptions{
+				ReadBufferCount: 32,
+				ReadBufferSize:  1024 * 1024,
+			})
 			if err != nil {
 				level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "err", err)
 				return
@@ -283,7 +286,10 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 				continue
 			}
 
-			err = b.SearchTags(ctx, distinctValues.Collect, common.SearchOptions{})
+			err = b.SearchTags(ctx, distinctValues.Collect, common.SearchOptions{
+				ReadBufferCount: 32,
+				ReadBufferSize:  1024 * 1024,
+			})
 			if err == common.ErrUnsupported {
 				level.Warn(log.Logger).Log("msg", "block does not support tag search", "blockID", b.BlockMeta().BlockID)
 				continue
@@ -352,7 +358,10 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 				continue
 			}
 
-			err = b.SearchTagValues(ctx, tagName, distinctValues.Collect, common.SearchOptions{})
+			err = b.SearchTagValues(ctx, tagName, distinctValues.Collect, common.SearchOptions{
+				ReadBufferCount: 32,
+				ReadBufferSize:  1024 * 1024,
+			})
 			if err == common.ErrUnsupported {
 				level.Warn(log.Logger).Log("msg", "block does not support tag value search", "blockID", b.BlockMeta().BlockID)
 				continue

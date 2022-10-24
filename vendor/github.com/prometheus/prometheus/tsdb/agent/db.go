@@ -31,6 +31,7 @@ import (
 
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/metadata"
 	"github.com/prometheus/prometheus/model/timestamp"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/storage/remote"
@@ -39,7 +40,7 @@ import (
 	tsdb_errors "github.com/prometheus/prometheus/tsdb/errors"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"github.com/prometheus/prometheus/tsdb/tsdbutil"
-	"github.com/prometheus/prometheus/tsdb/wal"
+	"github.com/prometheus/prometheus/tsdb/wlog"
 )
 
 var ErrUnsupported = errors.New("unsupported operation with WAL-only storage")
@@ -79,7 +80,7 @@ type Options struct {
 // millisecond-precision timestamps.
 func DefaultOptions() *Options {
 	return &Options{
-		WALSegmentSize:    wal.DefaultSegmentSize,
+		WALSegmentSize:    wlog.DefaultSegmentSize,
 		WALCompression:    false,
 		StripeSize:        tsdb.DefaultStripeSize,
 		TruncateFrequency: DefaultTruncateFrequency,
@@ -218,7 +219,7 @@ type DB struct {
 	opts   *Options
 	rs     *remote.Storage
 
-	wal    *wal.WAL
+	wal    *wlog.WL
 	locker *tsdbutil.DirLocker
 
 	appenderPool sync.Pool
@@ -253,7 +254,7 @@ func Open(l log.Logger, reg prometheus.Registerer, rs *remote.Storage, dir strin
 	// remote_write expects WAL to be stored in a "wal" subdirectory of the main storage.
 	dir = filepath.Join(dir, "wal")
 
-	w, err := wal.NewSize(l, reg, dir, opts.WALSegmentSize, opts.WALCompression)
+	w, err := wlog.NewSize(l, reg, dir, opts.WALSegmentSize, opts.WALCompression)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating WAL")
 	}
@@ -305,7 +306,7 @@ func validateOptions(opts *Options) *Options {
 		opts = DefaultOptions()
 	}
 	if opts.WALSegmentSize <= 0 {
-		opts.WALSegmentSize = wal.DefaultSegmentSize
+		opts.WALSegmentSize = wlog.DefaultSegmentSize
 	}
 
 	// Revert Stripesize to DefaultStripsize if Stripsize is either 0 or not a power of 2.
@@ -316,13 +317,16 @@ func validateOptions(opts *Options) *Options {
 		opts.TruncateFrequency = DefaultTruncateFrequency
 	}
 	if opts.MinWALTime <= 0 {
-		opts.MinWALTime = 0
+		opts.MinWALTime = DefaultMinWALTime
 	}
 	if opts.MaxWALTime <= 0 {
 		opts.MaxWALTime = DefaultMaxWALTime
 	}
+	if opts.MinWALTime > opts.MaxWALTime {
+		opts.MaxWALTime = opts.MinWALTime
+	}
 
-	if t := int64(opts.TruncateFrequency * time.Hour / time.Millisecond); opts.MaxWALTime < t {
+	if t := int64(opts.TruncateFrequency / time.Millisecond); opts.MaxWALTime < t {
 		opts.MaxWALTime = t
 	}
 	return opts
@@ -332,7 +336,7 @@ func (db *DB) replayWAL() error {
 	level.Info(db.logger).Log("msg", "replaying WAL, this may take a while", "dir", db.wal.Dir())
 	start := time.Now()
 
-	dir, startFrom, err := wal.LastCheckpoint(db.wal.Dir())
+	dir, startFrom, err := wlog.LastCheckpoint(db.wal.Dir())
 	if err != nil && err != record.ErrNotFound {
 		return errors.Wrap(err, "find last checkpoint")
 	}
@@ -340,7 +344,7 @@ func (db *DB) replayWAL() error {
 	multiRef := map[chunks.HeadSeriesRef]chunks.HeadSeriesRef{}
 
 	if err == nil {
-		sr, err := wal.NewSegmentsReader(dir)
+		sr, err := wlog.NewSegmentsReader(dir)
 		if err != nil {
 			return errors.Wrap(err, "open checkpoint")
 		}
@@ -352,7 +356,7 @@ func (db *DB) replayWAL() error {
 
 		// A corrupted checkpoint is a hard error for now and requires user
 		// intervention. There's likely little data that can be recovered anyway.
-		if err := db.loadWAL(wal.NewReader(sr), multiRef); err != nil {
+		if err := db.loadWAL(wlog.NewReader(sr), multiRef); err != nil {
 			return errors.Wrap(err, "backfill checkpoint")
 		}
 		startFrom++
@@ -360,20 +364,20 @@ func (db *DB) replayWAL() error {
 	}
 
 	// Find the last segment.
-	_, last, err := wal.Segments(db.wal.Dir())
+	_, last, err := wlog.Segments(db.wal.Dir())
 	if err != nil {
 		return errors.Wrap(err, "finding WAL segments")
 	}
 
 	// Backfil segments from the most recent checkpoint onwards.
 	for i := startFrom; i <= last; i++ {
-		seg, err := wal.OpenReadSegment(wal.SegmentName(db.wal.Dir(), i))
+		seg, err := wlog.OpenReadSegment(wlog.SegmentName(db.wal.Dir(), i))
 		if err != nil {
 			return errors.Wrap(err, fmt.Sprintf("open WAL segment: %d", i))
 		}
 
-		sr := wal.NewSegmentBufReader(seg)
-		err = db.loadWAL(wal.NewReader(sr), multiRef)
+		sr := wlog.NewSegmentBufReader(seg)
+		err = db.loadWAL(wlog.NewReader(sr), multiRef)
 		if err := sr.Close(); err != nil {
 			level.Warn(db.logger).Log("msg", "error while closing the wal segments reader", "err", err)
 		}
@@ -389,10 +393,10 @@ func (db *DB) replayWAL() error {
 	return nil
 }
 
-func (db *DB) loadWAL(r *wal.Reader, multiRef map[chunks.HeadSeriesRef]chunks.HeadSeriesRef) (err error) {
+func (db *DB) loadWAL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.HeadSeriesRef) (err error) {
 	var (
 		dec     record.Decoder
-		lastRef chunks.HeadSeriesRef
+		lastRef = chunks.HeadSeriesRef(db.nextRef.Load())
 
 		decoded    = make(chan interface{}, 10)
 		errCh      = make(chan error, 1)
@@ -410,6 +414,7 @@ func (db *DB) loadWAL(r *wal.Reader, multiRef map[chunks.HeadSeriesRef]chunks.He
 
 	go func() {
 		defer close(decoded)
+		var err error
 		for r.Next() {
 			rec := r.Record()
 			switch dec.Type(rec) {
@@ -417,7 +422,7 @@ func (db *DB) loadWAL(r *wal.Reader, multiRef map[chunks.HeadSeriesRef]chunks.He
 				series := seriesPool.Get().([]record.RefSeries)[:0]
 				series, err = dec.Series(rec, series)
 				if err != nil {
-					errCh <- &wal.CorruptionErr{
+					errCh <- &wlog.CorruptionErr{
 						Err:     errors.Wrap(err, "decode series"),
 						Segment: r.Segment(),
 						Offset:  r.Offset(),
@@ -429,7 +434,7 @@ func (db *DB) loadWAL(r *wal.Reader, multiRef map[chunks.HeadSeriesRef]chunks.He
 				samples := samplesPool.Get().([]record.RefSample)[:0]
 				samples, err = dec.Samples(rec, samples)
 				if err != nil {
-					errCh <- &wal.CorruptionErr{
+					errCh <- &wlog.CorruptionErr{
 						Err:     errors.Wrap(err, "decode samples"),
 						Segment: r.Segment(),
 						Offset:  r.Offset(),
@@ -439,9 +444,11 @@ func (db *DB) loadWAL(r *wal.Reader, multiRef map[chunks.HeadSeriesRef]chunks.He
 				decoded <- samples
 			case record.Tombstones, record.Exemplars:
 				// We don't care about tombstones or exemplars during replay.
+				// TODO: If decide to decode exemplars, we should make sure to prepopulate
+				// stripeSeries.exemplars in the next block by using setLatestExemplar.
 				continue
 			default:
-				errCh <- &wal.CorruptionErr{
+				errCh <- &wlog.CorruptionErr{
 					Err:     errors.Errorf("invalid record type %v", dec.Type(rec)),
 					Segment: r.Segment(),
 					Offset:  r.Offset(),
@@ -556,15 +563,14 @@ func (db *DB) truncate(mint int64) error {
 	db.gc(mint)
 	level.Info(db.logger).Log("msg", "series GC completed", "duration", time.Since(start))
 
-	first, last, err := wal.Segments(db.wal.Dir())
+	first, last, err := wlog.Segments(db.wal.Dir())
 	if err != nil {
 		return errors.Wrap(err, "get segment range")
 	}
 
 	// Start a new segment so low ingestion volume instances don't have more WAL
 	// than needed.
-	err = db.wal.NextSegment()
-	if err != nil {
+	if _, err := db.wal.NextSegment(); err != nil {
 		return errors.Wrap(err, "next segment")
 	}
 
@@ -591,9 +597,9 @@ func (db *DB) truncate(mint int64) error {
 
 	db.metrics.checkpointCreationTotal.Inc()
 
-	if _, err = wal.Checkpoint(db.logger, db.wal, first, last, keep, mint); err != nil {
+	if _, err = wlog.Checkpoint(db.logger, db.wal, first, last, keep, mint); err != nil {
 		db.metrics.checkpointCreationFail.Inc()
-		if _, ok := errors.Cause(err).(*wal.CorruptionErr); ok {
+		if _, ok := errors.Cause(err).(*wlog.CorruptionErr); ok {
 			db.metrics.walCorruptionsTotal.Inc()
 		}
 		return errors.Wrap(err, "create checkpoint")
@@ -615,7 +621,7 @@ func (db *DB) truncate(mint int64) error {
 	db.metrics.checkpointDeleteTotal.Inc()
 	db.metrics.numWALSeriesPendingDeletion.Set(float64(len(db.deleted)))
 
-	if err := wal.DeleteCheckpoints(db.wal.Dir(), last); err != nil {
+	if err := wlog.DeleteCheckpoints(db.wal.Dir(), last); err != nil {
 		// Leftover old checkpoints do not cause problems down the line beyond
 		// occupying disk space. They will just be ignored since a newer checkpoint
 		// exists.
@@ -635,7 +641,7 @@ func (db *DB) gc(mint int64) {
 	deleted := db.series.GC(mint)
 	db.metrics.numActiveSeries.Sub(float64(len(deleted)))
 
-	_, last, _ := wal.Segments(db.wal.Dir())
+	_, last, _ := wlog.Segments(db.wal.Dir())
 
 	// We want to keep series records for any newly deleted series
 	// until we've passed the last recorded segment. This prevents
@@ -788,6 +794,16 @@ func (a *appender) AppendExemplar(ref storage.SeriesRef, l labels.Labels, e exem
 		}
 	}
 
+	// Check for duplicate vs last stored exemplar for this series, and discard those.
+	// Otherwise, record the current exemplar as the latest.
+	// Prometheus' TSDB returns 0 when encountering duplicates, so we do the same here.
+	prevExemplar := a.series.GetLatestExemplar(s.ref)
+	if prevExemplar != nil && prevExemplar.Equals(e) {
+		// Duplicate, don't return an error but don't accept the exemplar.
+		return 0, nil
+	}
+	a.series.SetLatestExemplar(s.ref, &e)
+
 	a.pendingExamplars = append(a.pendingExamplars, record.RefExemplar{
 		Ref:    s.ref,
 		T:      e.Ts,
@@ -795,7 +811,13 @@ func (a *appender) AppendExemplar(ref storage.SeriesRef, l labels.Labels, e exem
 		Labels: e.Labels,
 	})
 
+	a.metrics.totalAppendedExemplars.Inc()
 	return storage.SeriesRef(s.ref), nil
+}
+
+func (a *appender) UpdateMetadata(ref storage.SeriesRef, l labels.Labels, m metadata.Metadata) (storage.SeriesRef, error) {
+	// TODO: Wire metadata in the Agent's appender.
+	return 0, nil
 }
 
 // Commit submits the collected samples and purges the batch.
