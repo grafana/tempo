@@ -141,6 +141,7 @@ type ScalarExpression interface {
 	Element
 	typedExpression
 	__scalarExpression()
+	extractConditions(request *FetchSpansRequest)
 }
 
 type ScalarOperation struct {
@@ -175,6 +176,12 @@ func (o ScalarOperation) impliedType() StaticType {
 	return o.RHS.impliedType()
 }
 
+func (o ScalarOperation) extractConditions(request *FetchSpansRequest) {
+	o.LHS.extractConditions(request)
+	o.RHS.extractConditions(request)
+	request.AllConditions = false
+}
+
 type Aggregate struct {
 	op AggregateOp
 	e  FieldExpression
@@ -199,7 +206,9 @@ func (a Aggregate) impliedType() StaticType {
 }
 
 func (a Aggregate) extractConditions(request *FetchSpansRequest) {
-	// TODO just fetch all columns?
+	if a.e != nil {
+		a.e.extractConditions(request)
+	}
 }
 
 // **********************
@@ -302,7 +311,8 @@ func newScalarFilter(op Operator, lhs ScalarExpression, rhs ScalarExpression) Sc
 func (ScalarFilter) __spansetExpression() {}
 
 func (f ScalarFilter) extractConditions(request *FetchSpansRequest) {
-	// TODO just fetch all columns?
+	f.lhs.extractConditions(request)
+	f.rhs.extractConditions(request)
 }
 
 // **********************
