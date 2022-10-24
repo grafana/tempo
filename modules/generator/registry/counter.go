@@ -126,7 +126,7 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 			lb.Set(name, s.labelValues[i])
 		}
 
-		_, err = appender.Append(0, lb.Labels(), timeMs, s.value.Load())
+		_, err = appender.Append(0, lb.Labels(nil), timeMs, s.value.Load())
 		if err != nil {
 			return
 		}
