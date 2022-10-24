@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
 )
 
@@ -277,6 +278,7 @@ func (b *walBlock) Clear() error {
 	return os.RemoveAll(b.walPath())
 }
 
+// jpe what to do with common.SearchOptions?
 func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
 	trs := make([]*tempopb.Trace, 0)
 
@@ -324,7 +326,7 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 }
 
 func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
-	// jpe parrallelize?
+	// jpe parallelize?
 	for i, f := range b.flushed {
 		err := searchTags(ctx, cb, f)
 		if err != nil {
@@ -336,7 +338,7 @@ func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts c
 }
 
 func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
-	// jpe parrallelize?
+	// jpe parallelize?
 	for i, f := range b.flushed {
 		err := searchTagValues(ctx, tag, cb, f)
 		if err != nil {
@@ -347,8 +349,28 @@ func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.Ta
 	return nil
 }
 
-func (b *walBlock) Fetch(context.Context, traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-	return traceql.FetchSpansResponse{}, common.ErrUnsupported
+func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+	// todo: this same method is called in backendBlock.Fetch. is there anyway to share this?
+	err := checkConditions(req.Conditions)
+	if err != nil {
+		return traceql.FetchSpansResponse{}, errors.Wrap(err, "conditions invalid")
+	}
+
+	iters := make([]*spansetIterator, 0, len(b.flushed))
+	for _, f := range b.flushed {
+		iter, err := fetch(ctx, req, f)
+		if err != nil {
+			return traceql.FetchSpansResponse{}, errors.Wrap(err, "creating fetch iter")
+		}
+		iters = append(iters, iter)
+	}
+
+	// combine iters?
+	return traceql.FetchSpansResponse{
+		Results: &mergeSpansetIterator{
+			iters: iters,
+		},
+	}, nil
 }
 
 func (b *walBlock) walPath() string {

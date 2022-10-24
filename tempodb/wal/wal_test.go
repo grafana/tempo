@@ -3,6 +3,7 @@ package wal
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"math/rand"
 	"os"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -87,10 +89,7 @@ func TestAppendBlockStartEnd(t *testing.T) {
 	require.Equal(t, blockEnd, uint32(blocks[0].BlockMeta().EndTime.Unix()))
 }
 
-// jpe extend this test to all wal formats
-// - add similar tests for search and spanset fetcher
-// - test with mixed wals
-
+// jpe any other wal functionality to test like this?
 func TestFindByTraceID(t *testing.T) {
 	for _, e := range encoding.AllEncodings() {
 		t.Run(e.Version(), func(t *testing.T) {
@@ -165,33 +164,19 @@ func TestSearch(t *testing.T) {
 }
 
 func testSearch(t *testing.T, e encoding.VersionedEncoding) {
-	findFirstAttribute := func(obj *tempopb.Trace) (string, string) {
-		for _, b := range obj.Batches {
-			for _, s := range b.InstrumentationLibrarySpans {
-				for _, span := range s.Spans {
-					for _, a := range span.Attributes {
-						return a.Key, a.Value.GetStringValue()
-					}
-				}
-			}
-		}
-
-		return "", ""
-	}
-
 	runWALTest(t, e.Version(), func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
 		ctx := context.Background()
 
 		for i, o := range objs {
 			k, v := findFirstAttribute(o)
-			if k == "" || v == "" {
-				continue
-			}
+			require.NotEmpty(t, k)
+			require.NotEmpty(t, v)
 
 			resp, err := block.Search(ctx, &tempopb.SearchRequest{
 				Tags: map[string]string{
 					k: v,
 				},
+				Limit: 10,
 			}, common.DefaultSearchOptions())
 			if err == common.ErrUnsupported {
 				return
@@ -201,6 +186,63 @@ func testSearch(t *testing.T, e encoding.VersionedEncoding) {
 			require.Equal(t, util.TraceIDToHexString(ids[i]), resp.Traces[0].TraceID)
 		}
 	})
+}
+
+func TestFetch(t *testing.T) {
+	for _, e := range encoding.AllEncodings() {
+		t.Run(e.Version(), func(t *testing.T) {
+			testFetch(t, e)
+		})
+	}
+}
+
+func testFetch(t *testing.T, e encoding.VersionedEncoding) {
+	runWALTest(t, e.Version(), func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
+		ctx := context.Background()
+
+		for i, o := range objs {
+			k, v := findFirstAttribute(o)
+			require.NotEmpty(t, k)
+			require.NotEmpty(t, v)
+
+			query := fmt.Sprintf("{ .%s = \"%s\" }", k, v)
+			condition := traceql.MustExtractCondition(query)
+			resp, err := block.Fetch(ctx, traceql.FetchSpansRequest{
+				Conditions: []traceql.Condition{condition},
+			})
+			// not all blocks support fetch
+			if err == common.ErrUnsupported {
+				return
+			}
+			require.NoError(t, err)
+
+			// grab the first result and make sure it's the expected id
+			ss, err := resp.Results.Next(ctx)
+			require.NoError(t, err)
+
+			expectedID := ids[i]
+			require.Equal(t, ss.TraceID, expectedID)
+
+			// confirm no more matches
+			ss, err = resp.Results.Next(ctx)
+			require.NoError(t, err)
+			require.Nil(t, ss)
+		}
+	})
+}
+
+func findFirstAttribute(obj *tempopb.Trace) (string, string) {
+	for _, b := range obj.Batches {
+		for _, s := range b.ScopeSpans {
+			for _, span := range s.Spans {
+				for _, a := range span.Attributes {
+					return a.Key, a.Value.GetStringValue()
+				}
+			}
+		}
+	}
+
+	return "", ""
 }
 
 func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
@@ -266,7 +308,7 @@ func runWALTest(t testing.TB, dbEncoding string, runner func([][]byte, []*tempop
 
 	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
-	objects := 1000
+	objects := 250 // jpe this takes forever :(. i'd like to do 1k but it's too slow
 	objs := make([]*tempopb.Trace, 0, objects)
 	ids := make([][]byte, 0, objects)
 	for i := 0; i < objects; i++ {
@@ -307,82 +349,8 @@ func runWALTest(t testing.TB, dbEncoding string, runner func([][]byte, []*tempop
 	require.NoError(t, err)
 }
 
-<<<<<<< HEAD
-func TestInvalidFiles(t *testing.T) {
-	tempDir := t.TempDir()
-	wal, err := New(&Config{
-		Filepath: tempDir,
-		Encoding: backend.EncGZIP,
-	})
-	require.NoError(t, err, "unexpected error creating temp wal")
-
-	// create one valid block
-	block, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
-	require.NoError(t, err)
-
-	id := make([]byte, 16)
-	rand.Read(id)
-	tr := test.MakeTrace(10, id)
-	b, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(tr, 0, 0)
-	require.NoError(t, err)
-	err = block.Append(id, b, 0, 0)
-	require.NoError(t, err)
-
-	// create unparseable filename
-	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e+tenant+v2+notanencoding"), []byte{}, 0644)
-	require.NoError(t, err)
-
-	// create empty block
-	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e+blerg+v2+gzip"), []byte{}, 0644)
-	require.NoError(t, err)
-
-	blocks, err := wal.RescanBlocks(0, log.NewNopLogger())
-	require.NoError(t, err, "unexpected error getting blocks")
-	require.Len(t, blocks, 1) // this is our 1 valid block from above
-
-	// confirm invalid blocks have been cleaned up
-	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e+tenant+v2+notanencoding"))
-	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e+blerg+v2+gzip"))
-}
-
-func BenchmarkWALNone(b *testing.B) {
-	benchmarkWriteFindReplay(b, backend.EncNone)
-}
-func BenchmarkWALSnappy(b *testing.B) {
-	benchmarkWriteFindReplay(b, backend.EncSnappy)
-}
-func BenchmarkWALLZ4(b *testing.B) {
-	benchmarkWriteFindReplay(b, backend.EncLZ4_1M)
-}
-func BenchmarkWALGZIP(b *testing.B) {
-	benchmarkWriteFindReplay(b, backend.EncGZIP)
-}
-func BenchmarkWALZSTD(b *testing.B) {
-	benchmarkWriteFindReplay(b, backend.EncZstd)
-}
-
-func BenchmarkWALS2(b *testing.B) {
-	benchmarkWriteFindReplay(b, backend.EncS2)
-}
-
-func benchmarkWriteFindReplay(b *testing.B, encoding backend.Encoding) {
-	objects := 1000
-	objs := make([][]byte, 0, objects)
-	ids := make([][]byte, 0, objects)
-	for i := 0; i < objects; i++ {
-		id := make([]byte, 16)
-		rand.Read(id)
-		obj := make([]byte, rand.Intn(100)+1)
-		rand.Read(obj)
-		ids = append(ids, id)
-		objs = append(objs, obj)
-	}
-	b.ResetTimer()
-
-=======
 // jpe benchmark v2 vs vparquet
 func BenchmarkV2(b *testing.B) {
->>>>>>> 4f8eb179b (tests)
 	for i := 0; i < b.N; i++ {
 		runWALTest(b, "v2", func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {})
 	}
