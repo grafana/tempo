@@ -60,6 +60,7 @@ func New(cfg Config, store storage.Store, overrides *overrides.Overrides, reg pr
 		cfg:       &cfg,
 		store:     store,
 		overrides: overrides,
+		logger:    log.With(logger, "component", "compactor"),
 	}
 
 	if c.isSharded() {
