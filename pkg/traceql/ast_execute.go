@@ -56,6 +56,37 @@ func (o SpansetOperation) evaluate(input []Spanset) (output []Spanset, err error
 	return output, nil
 }
 
+func (f ScalarFilter) evaluate(input []Spanset) (output []Spanset, err error) {
+
+	// TODO we solve this gap where pipeline elements and scalar binary
+	// operations meet in a generic. For now we only support well-defined cases.
+
+	switch l := f.lhs.(type) {
+	case Aggregate:
+		switch r := f.rhs.(type) {
+		case Static:
+			input, err = l.evaluate(input)
+			if err != nil {
+				return nil, err
+			}
+
+			for _, ss := range input {
+				if binOp(f.op, ss.Scalar, r) {
+					output = append(output, ss)
+				}
+			}
+
+		default:
+			return nil, fmt.Errorf("scalar filter lhs (%v) not supported", f.lhs)
+		}
+
+	default:
+		return nil, fmt.Errorf("scalar filter lhs (%v) not supported", f.lhs)
+	}
+
+	return output, nil
+}
+
 func (f SpansetFilter) matches(span Span) (bool, error) {
 	static, err := f.Expression.execute(span)
 	if err != nil {
@@ -67,6 +98,40 @@ func (f SpansetFilter) matches(span Span) (bool, error) {
 		return false, fmt.Errorf("result of SpanSetFilter (%v) is %v", f, static.Type)
 	}
 	return static.B, nil
+}
+
+func (a Aggregate) evaluate(input []Spanset) (output []Spanset, err error) {
+
+	for _, ss := range input {
+		switch a.op {
+		case aggregateCount:
+			copy := ss
+			copy.Scalar = NewStaticInt(len(ss.Spans))
+			output = append(output, copy)
+
+		case aggregateAvg:
+			sum := 0.0
+			count := 0
+			for _, s := range ss.Spans {
+				val, err := a.e.execute(s)
+				if err != nil {
+					return nil, err
+				}
+
+				sum += val.asFloat()
+				count++
+			}
+
+			copy := ss
+			copy.Scalar = NewStaticFloat(sum / float64(count))
+			output = append(output, copy)
+
+		default:
+			return nil, fmt.Errorf("aggregate operation (%v) not supported", a.op)
+		}
+	}
+
+	return output, nil
 }
 
 func (o BinaryOperation) execute(span Span) (Static, error) {
@@ -126,6 +191,39 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 	}
 
 	panic("operator " + o.Op.String() + " is not yet implemented")
+}
+
+func binOp(op Operator, lhs, rhs Static) bool {
+	lhsT := lhs.impliedType()
+	rhsT := rhs.impliedType()
+	if !lhsT.isMatchingOperand(rhsT) {
+		return false
+	}
+
+	if !op.binaryTypesValid(lhsT, rhsT) {
+		return false
+	}
+
+	switch op {
+	case OpGreater:
+		return lhs.asFloat() > rhs.asFloat()
+	case OpGreaterEqual:
+		return lhs.asFloat() >= rhs.asFloat()
+	case OpLess:
+		return lhs.asFloat() < rhs.asFloat()
+	case OpLessEqual:
+		return lhs.asFloat() <= rhs.asFloat()
+	case OpEqual:
+		return lhs.Equals(rhs)
+	case OpNotEqual:
+		return !lhs.Equals(rhs)
+	case OpAnd:
+		return lhs.B && rhs.B
+	case OpOr:
+		return lhs.B || rhs.B
+	default:
+		panic("unexpected operator " + op.String())
+	}
 }
 
 func (o UnaryOperation) execute(span Span) (Static, error) {

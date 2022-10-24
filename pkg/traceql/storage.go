@@ -44,6 +44,8 @@ type Spanset struct {
 	RootServiceName    string
 	StartTimeUnixNanos uint64
 	DurationNanos      uint64
+	Attributes         map[Attribute]Static
+	Scalar             Static
 	Spans              []Span
 }
 

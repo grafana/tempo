@@ -176,14 +176,14 @@ func (o ScalarOperation) impliedType() StaticType {
 }
 
 type Aggregate struct {
-	agg AggregateOp
-	e   FieldExpression
+	op AggregateOp
+	e  FieldExpression
 }
 
 func newAggregate(agg AggregateOp, e FieldExpression) Aggregate {
 	return Aggregate{
-		agg: agg,
-		e:   e,
+		op: agg,
+		e:  e,
 	}
 }
 
@@ -191,7 +191,7 @@ func newAggregate(agg AggregateOp, e FieldExpression) Aggregate {
 func (Aggregate) __scalarExpression() {}
 
 func (a Aggregate) impliedType() StaticType {
-	if a.agg == aggregateCount || a.e == nil {
+	if a.op == aggregateCount || a.e == nil {
 		return TypeInt
 	}
 
@@ -200,10 +200,6 @@ func (a Aggregate) impliedType() StaticType {
 
 func (a Aggregate) extractConditions(request *FetchSpansRequest) {
 	// TODO just fetch all columns?
-}
-
-func (Aggregate) evaluate(ss []Spanset) ([]Spanset, error) {
-	return ss, nil
 }
 
 // **********************
@@ -307,10 +303,6 @@ func (ScalarFilter) __spansetExpression() {}
 
 func (f ScalarFilter) extractConditions(request *FetchSpansRequest) {
 	// TODO just fetch all columns?
-}
-
-func (ScalarFilter) evaluate(ss []Spanset) ([]Spanset, error) {
-	return ss, nil
 }
 
 // **********************
