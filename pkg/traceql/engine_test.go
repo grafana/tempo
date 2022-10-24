@@ -170,8 +170,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 
 	e := NewEngine()
 
-	traceSearchMetadata, err := e.asTraceSearchMetadata(spanSet)
-	require.NoError(t, err)
+	traceSearchMetadata := e.asTraceSearchMetadata(spanSet)
 
 	expectedTraceSearchMetadata := &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(traceID),
@@ -285,5 +284,24 @@ func newCondition(attr Attribute, op Operator, operands ...Static) Condition {
 		Attribute: attr,
 		Op:        op,
 		Operands:  operands,
+	}
+}
+
+func TestStatic_AsAnyValue(t *testing.T) {
+	tt := []struct {
+		s        Static
+		expected *v1.AnyValue
+	}{
+		{NewStaticInt(5), &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 5}}},
+		{NewStaticString("foo"), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "foo"}}},
+		{NewStaticFloat(5.0), &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 5.0}}},
+		{NewStaticBool(true), &v1.AnyValue{Value: &v1.AnyValue_BoolValue{BoolValue: true}}},
+		{NewStaticDuration(5 * time.Second), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "5s"}}},
+		{NewStaticStatus(StatusOk), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "ok"}}},
+	}
+	for _, tc := range tt {
+		t.Run(fmt.Sprintf("%v", tc.s), func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.s.asAnyValue())
+		})
 	}
 }

@@ -112,7 +112,7 @@ func newGroupOperation(e FieldExpression) GroupOperation {
 }
 
 func (o GroupOperation) extractConditions(request *FetchSpansRequest) {
-	// TODO just fetch all columns?
+	o.Expression.extractConditions(request)
 }
 
 func (GroupOperation) evaluate(ss []Spanset) ([]Spanset, error) {
