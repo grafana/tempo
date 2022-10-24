@@ -70,7 +70,7 @@ func (sr *Results) Results() <-chan *tempopb.TraceSearchMetadata {
 // defer sr.Close()
 func (sr *Results) Close() {
 	// Only once
-	if sr.quit.CAS(false, true) {
+	if sr.quit.CompareAndSwap(false, true) {
 		// Closing done channel makes all subsequent and blocked calls to AddResult return
 		// quit immediately.
 		close(sr.doneCh)
@@ -91,7 +91,7 @@ func (sr *Results) StartWorker() {
 // call occurs after all calls to StartWorker.
 func (sr *Results) AllWorkersStarted() {
 	// Only once
-	if sr.started.CAS(false, true) {
+	if sr.started.CompareAndSwap(false, true) {
 		// Close results when all workers finished.
 		go func() {
 			sr.wg.Wait()

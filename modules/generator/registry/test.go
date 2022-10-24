@@ -120,5 +120,5 @@ func (t testHistogram) ObserveWithExemplar(values *LabelValues, value float64, t
 func withLe(lbls labels.Labels, le float64) labels.Labels {
 	lb := labels.NewBuilder(lbls)
 	lb.Set(labels.BucketLabel, formatFloat(le))
-	return lb.Labels()
+	return lb.Labels(nil)
 }
