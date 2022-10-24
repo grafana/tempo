@@ -75,6 +75,16 @@ func TestPipelineExtractConditions(t *testing.T) {
 				AllConditions: false,
 			},
 		},
+		{
+			"{ .foo = `a` } | avg(duration) > 20ms",
+			FetchSpansRequest{
+				Conditions: []Condition{
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("a")),
+					newCondition(NewIntrinsic(IntrinsicDuration), OpNone),
+				},
+				AllConditions: false,
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.query, func(t *testing.T) {
