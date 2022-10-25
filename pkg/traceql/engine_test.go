@@ -2,6 +2,7 @@ package traceql
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
