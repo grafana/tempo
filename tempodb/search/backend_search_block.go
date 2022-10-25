@@ -2,17 +2,25 @@ package search
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
-
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/tempodb/backend"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+	"github.com/pkg/errors"
 )
 
-const defaultBackendSearchBlockPageSize = 2 * 1024 * 1024
+const (
+	defaultBackendSearchBlockPageSize = 2 * 1024 * 1024
+	searchIndexName                   = "search-index"
+	searchHeaderName                  = "search-header"
+)
+
+var (
+	ErrSearchNotSupported = fmt.Errorf("flatbuffer search not supported")
+)
 
 type BackendSearchBlock struct {
 	id       uuid.UUID
@@ -98,14 +106,14 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, rw backend.Writer, block
 	if err != nil {
 		return err
 	}
-	err = rw.Write(ctx, "search-index", blockID, tenantID, indexBytes, true)
+	err = rw.Write(ctx, searchIndexName, blockID, tenantID, indexBytes, true)
 	if err != nil {
 		return err
 	}
 
 	// Write header
 	hb := header.ToBytes()
-	err = rw.Write(ctx, "search-header", blockID, tenantID, hb, true)
+	err = rw.Write(ctx, searchHeaderName, blockID, tenantID, hb, true)
 	if err != nil {
 		return err
 	}
@@ -121,12 +129,22 @@ func NewBackendSearchBlock(input *StreamingSearchBlock, rw backend.Writer, block
 }
 
 // OpenBackendSearchBlock opens the search data for an existing block in the given backend.
-func OpenBackendSearchBlock(blockID uuid.UUID, tenantID string, r backend.Reader) *BackendSearchBlock {
-	return &BackendSearchBlock{
+func OpenBackendSearchBlock(blockID uuid.UUID, tenantID string, r backend.Reader) (*BackendSearchBlock, error) {
+	b := &BackendSearchBlock{
 		id:       blockID,
 		tenantID: tenantID,
 		r:        r,
 	}
+
+	supported, err := b.isSearchSupported(context.TODO())
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to open search block")
+	}
+	if !supported {
+		return nil, errors.Wrap(ErrSearchNotSupported, "unable to open search block")
+	}
+
+	return b, nil
 }
 
 // BlockID provides access to the private field id
@@ -190,7 +208,7 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 
 	// Read header
 	// Verify something in the block matches by checking the header
-	hb, err := s.r.Read(ctx, "search-header", s.id, s.tenantID, true)
+	hb, err := s.r.Read(ctx, searchHeaderName, s.id, s.tenantID, true)
 	if err != nil {
 		return err
 	}
@@ -208,7 +226,7 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 
 	// Read index
 	bmeta := backend.NewBlockMeta(s.tenantID, s.id, meta.Version, meta.Encoding, "")
-	cr := backend.NewContextReader(bmeta, "search-index", s.r, false)
+	cr := backend.NewContextReader(bmeta, searchIndexName, s.r, false)
 
 	ir, err := v2.NewIndexReader(cr, int(meta.IndexPageSize), int(meta.IndexRecords))
 	if err != nil {
@@ -279,9 +297,21 @@ func (s *BackendSearchBlock) Search(ctx context.Context, p Pipeline, sr *Results
 }
 
 func (s *BackendSearchBlock) readSearchHeader(ctx context.Context) (*tempofb.SearchBlockHeader, error) {
-	hb, err := s.r.Read(ctx, "search-header", s.id, s.tenantID, true)
+	hb, err := s.r.Read(ctx, searchHeaderName, s.id, s.tenantID, true)
 	if err != nil {
 		return nil, err
 	}
 	return tempofb.GetRootAsSearchBlockHeader(hb, 0), nil
+}
+
+func (s *BackendSearchBlock) isSearchSupported(ctx context.Context) (bool, error) {
+	buffer := make([]byte, 1)
+	err := s.r.ReadRange(ctx, searchHeaderName, s.id, s.tenantID, 0, buffer, false)
+	if err != nil {
+		if errors.Is(err, backend.ErrDoesNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }

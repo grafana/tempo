@@ -10,6 +10,11 @@ type Element interface {
 	validate() error
 }
 
+type pipelineElement interface {
+	Element
+	evaluate([]Spanset) ([]Spanset, error)
+}
+
 type typedExpression interface {
 	impliedType() StaticType
 }
@@ -18,7 +23,7 @@ type RootExpr struct {
 	Pipeline Pipeline
 }
 
-func newRootExpr(e Element) *RootExpr {
+func newRootExpr(e pipelineElement) *RootExpr {
 	p, ok := e.(Pipeline)
 	if !ok {
 		p = newPipeline(e)
@@ -34,7 +39,7 @@ func newRootExpr(e Element) *RootExpr {
 // **********************
 
 type Pipeline struct {
-	Elements []Element
+	Elements []pipelineElement
 }
 
 // nolint: revive
@@ -43,13 +48,13 @@ func (Pipeline) __scalarExpression() {}
 // nolint: revive
 func (Pipeline) __spansetExpression() {}
 
-func newPipeline(i ...Element) Pipeline {
+func newPipeline(i ...pipelineElement) Pipeline {
 	return Pipeline{
 		Elements: i,
 	}
 }
 
-func (p Pipeline) addItem(i Element) Pipeline {
+func (p Pipeline) addItem(i pipelineElement) Pipeline {
 	p.Elements = append(p.Elements, i)
 	return p
 }
@@ -68,6 +73,23 @@ func (p Pipeline) impliedType() StaticType {
 	return TypeSpanset
 }
 
+func (p Pipeline) evaluate(input []Spanset) (result []Spanset, err error) {
+	result = input
+
+	for _, element := range p.Elements {
+		result, err = element.evaluate(result)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(result) == 0 {
+			return []Spanset{}, nil
+		}
+	}
+
+	return result, nil
+}
+
 type GroupOperation struct {
 	Expression FieldExpression
 }
@@ -78,6 +100,10 @@ func newGroupOperation(e FieldExpression) GroupOperation {
 	}
 }
 
+func (GroupOperation) evaluate(ss []Spanset) ([]Spanset, error) {
+	return ss, nil
+}
+
 type CoalesceOperation struct {
 }
 
@@ -85,10 +111,15 @@ func newCoalesceOperation() CoalesceOperation {
 	return CoalesceOperation{}
 }
 
+func (CoalesceOperation) evaluate(ss []Spanset) ([]Spanset, error) {
+	return ss, nil
+}
+
 // **********************
 // Scalars
 // **********************
 type ScalarExpression interface {
+	//pipelineElement
 	Element
 	typedExpression
 	__scalarExpression()
@@ -149,11 +180,15 @@ func (a Aggregate) impliedType() StaticType {
 	return a.e.impliedType()
 }
 
+func (Aggregate) evaluate(ss []Spanset) ([]Spanset, error) {
+	return ss, nil
+}
+
 // **********************
 // Spansets
 // **********************
 type SpansetExpression interface {
-	Element
+	pipelineElement
 	__spansetExpression()
 }
 
@@ -187,6 +222,44 @@ func newSpansetFilter(e FieldExpression) SpansetFilter {
 // nolint: revive
 func (SpansetFilter) __spansetExpression() {}
 
+func (f SpansetFilter) evaluate(input []Spanset) ([]Spanset, error) {
+	var output []Spanset
+
+	for _, ss := range input {
+		if len(ss.Spans) == 0 {
+			continue
+		}
+
+		var matchingSpans []Span
+		for _, s := range ss.Spans {
+			result, err := f.Expression.execute(s)
+			if err != nil {
+				return nil, err
+			}
+
+			if result.Type != TypeBoolean {
+				continue
+			}
+
+			if !result.B {
+				continue
+			}
+
+			matchingSpans = append(matchingSpans, s)
+		}
+
+		if len(matchingSpans) == 0 {
+			continue
+		}
+
+		matchingSpanset := ss
+		matchingSpanset.Spans = matchingSpans
+		output = append(output, matchingSpanset)
+	}
+
+	return output, nil
+}
+
 type ScalarFilter struct {
 	op  Operator
 	lhs ScalarExpression
@@ -204,6 +277,10 @@ func newScalarFilter(op Operator, lhs ScalarExpression, rhs ScalarExpression) Sc
 // nolint: revive
 func (ScalarFilter) __spansetExpression() {}
 
+func (ScalarFilter) evaluate(ss []Spanset) ([]Spanset, error) {
+	return ss, nil
+}
+
 // **********************
 // Expressions
 // **********************
@@ -214,6 +291,9 @@ type FieldExpression interface {
 	// referencesSpan returns true if this field expression has any attributes or intrinsics. i.e. it references the span itself
 	referencesSpan() bool
 	__fieldExpression()
+
+	extractConditions(request *FetchSpansRequest)
+	execute(span Span) (Static, error)
 }
 
 type BinaryOperation struct {
@@ -301,6 +381,30 @@ func (Static) referencesSpan() bool {
 
 func (s Static) impliedType() StaticType {
 	return s.Type
+}
+
+func (s Static) Equals(other Static) bool {
+	eitherIsTypeStatus := (s.Type == TypeStatus && other.Type == TypeInt) || (other.Type == TypeStatus && s.Type == TypeInt)
+	if !eitherIsTypeStatus {
+		return s == other
+	}
+	if s.Type == TypeStatus {
+		return s.Status == Status(other.N)
+	}
+	return Status(s.N) == other.Status
+}
+
+func (s Static) asFloat() float64 {
+	switch s.Type {
+	case TypeInt:
+		return float64(s.N)
+	case TypeFloat:
+		return s.F
+	case TypeDuration:
+		return float64(s.D.Nanoseconds())
+	default:
+		panic(fmt.Sprintf("called asfloat on non-numeric Static (type = %v)", s.Type))
+	}
 }
 
 func NewStaticInt(n int) Static {
@@ -421,3 +525,11 @@ func NewIntrinsic(n Intrinsic) Attribute {
 		Intrinsic: n,
 	}
 }
+
+var _ pipelineElement = (*Pipeline)(nil)
+var _ pipelineElement = (*Aggregate)(nil)
+var _ pipelineElement = (*SpansetOperation)(nil)
+var _ pipelineElement = (*SpansetFilter)(nil)
+var _ pipelineElement = (*CoalesceOperation)(nil)
+var _ pipelineElement = (*ScalarFilter)(nil)
+var _ pipelineElement = (*GroupOperation)(nil)

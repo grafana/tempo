@@ -72,6 +72,7 @@ func (a Aggregate) validate() error {
 }
 
 func (o SpansetOperation) validate() error {
+	// TODO validate operator is a SpanSetOperator
 	if err := o.LHS.validate(); err != nil {
 		return err
 	}

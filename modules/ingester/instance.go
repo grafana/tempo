@@ -652,15 +652,24 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*localBlock, er
 		ib := newLocalBlock(ctx, b, i.local)
 		rediscoveredBlocks = append(rediscoveredBlocks, ib)
 
-		sb := search.OpenBackendSearchBlock(b.BlockMeta().BlockID, b.BlockMeta().TenantID, i.localReader)
+		level.Info(log.Logger).Log("msg", "reloaded local block", "tenantID", i.instanceID, "block", id.String(), "flushed", ib.FlushedTime())
+
+		sb, err := search.OpenBackendSearchBlock(b.BlockMeta().BlockID, b.BlockMeta().TenantID, i.localReader)
+		if err != nil {
+			if errors.Is(err, search.ErrSearchNotSupported) {
+				continue
+			}
+			return nil, err
+		}
 
 		i.blocksMtx.Lock()
-		i.completeBlocks = append(i.completeBlocks, ib)
 		i.searchCompleteBlocks[ib] = &searchLocalBlockEntry{b: sb}
 		i.blocksMtx.Unlock()
-
-		level.Info(log.Logger).Log("msg", "reloaded local block", "tenantID", i.instanceID, "block", id.String(), "flushed", ib.FlushedTime())
 	}
+
+	i.blocksMtx.Lock()
+	i.completeBlocks = append(i.completeBlocks, rediscoveredBlocks...)
+	i.blocksMtx.Unlock()
 
 	return rediscoveredBlocks, nil
 }

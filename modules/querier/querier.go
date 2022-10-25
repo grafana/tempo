@@ -35,6 +35,7 @@ import (
 	"github.com/grafana/tempo/pkg/hedgedmetrics"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
@@ -71,6 +72,7 @@ type Querier struct {
 	cfg    Config
 	ring   ring.ReadRing
 	pool   *ring_client.Pool
+	engine *traceql.Engine
 	store  storage.Store
 	limits *overrides.Overrides
 
@@ -88,6 +90,8 @@ type responseFromIngesters struct {
 
 // New makes a new Querier.
 func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store storage.Store, limits *overrides.Overrides) (*Querier, error) {
+	// TODO should we somehow refuse traceQL queries if backend encoding is not parquet?
+
 	factory := func(addr string) (ring_client.PoolClient, error) {
 		return ingester_client.New(addr, clientCfg)
 	}
@@ -101,6 +105,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ring ring.ReadRing, store
 			factory,
 			metricIngesterClients,
 			log.Logger),
+		engine:           traceql.NewEngine(),
 		store:            store,
 		limits:           limits,
 		searchPreferSelf: semaphore.NewWeighted(int64(cfg.Search.PreferSelf)),
@@ -310,7 +315,7 @@ func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) 
 		return nil, errors.Wrap(err, "error querying ingesters in Querier.Search")
 	}
 
-	return q.postProcessSearchResults(req, responses), nil
+	return q.postProcessIngesterSearchResults(req, responses), nil
 }
 
 func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsResponse, error) {
@@ -449,6 +454,15 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		FooterSize:    req.FooterSize,
 	}
 
+	if api.IsTraceQLQuery(req.SearchReq) {
+		fetcher := newSpansetFetcher(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			// TODO pass in SearchOptions
+			return q.store.Fetch(ctx, meta, req)
+		})
+
+		return q.engine.Execute(ctx, req.SearchReq, fetcher)
+	}
+
 	opts := common.SearchOptions{}
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
@@ -457,7 +471,19 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 	return q.store.Search(ctx, meta, req.SearchReq, opts)
 }
 
-func (q *Querier) postProcessSearchResults(req *tempopb.SearchRequest, rr []responseFromIngesters) *tempopb.SearchResponse {
+type spansetFetcher struct {
+	f func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error)
+}
+
+func newSpansetFetcher(f func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error)) traceql.SpansetFetcher {
+	return spansetFetcher{f}
+}
+
+func (s spansetFetcher) Fetch(ctx context.Context, request traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+	return s.f(ctx, request)
+}
+
+func (q *Querier) postProcessIngesterSearchResults(req *tempopb.SearchRequest, rr []responseFromIngesters) *tempopb.SearchResponse {
 	response := &tempopb.SearchResponse{
 		Metrics: &tempopb.SearchMetrics{},
 	}

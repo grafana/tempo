@@ -10,12 +10,12 @@ Caching is mainly used to improve query performance by storing bloom filters of 
 Tempo uses an external cache to improve query performance.
 The supported implementations are [Memcached](https://memcached.org/) and [Redis](https://redis.io/). 
 
-### Memcached
+## Memcached
 
 Memcached is one of the cache implementations supported by Tempo.
 It is used by default in the Tanka and Helm examples, see [Deploying Tempo]({{< relref "deployment/" >}}).
 
-#### Connection limit
+### Connection limit
 
 As a cluster grows in size, the number of instances of Tempo connecting to the cache servers also increases.
 By default, Memcached has a connection limit of 1024. If this limit is surpassed new connections are refused.
@@ -47,7 +47,7 @@ Too many open connections
 
 When using the [memcached_exporter](https://github.com/prometheus/memcached_exporter), the number of open connections can be observed at `memcached_current_connections`. 
 
-### Cache size control
+## Cache size control
 
 Tempo querier accesses bloom filters of all blocks while searching for a trace. This essentially mandates the size
 of cache to be at-least the total size of the bloom filters (the working set) . However, in larger deployments, the

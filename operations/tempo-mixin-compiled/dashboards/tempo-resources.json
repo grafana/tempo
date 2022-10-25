@@ -70,7 +70,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"cortex-gw\"}[$__interval]))",
+       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"cortex-gw(-internal)?\"}[$__interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -79,7 +79,7 @@
        "step": 10
       },
       {
-       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"cortex-gw\"} / container_spec_cpu_period{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"cortex-gw\"})",
+       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"cortex-gw(-internal)?\"} / container_spec_cpu_period{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"cortex-gw(-internal)?\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -170,7 +170,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"cortex-gw\"})",
+       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"cortex-gw(-internal)?\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -179,7 +179,7 @@
        "step": 10
       },
       {
-       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"cortex-gw\"} > 0)",
+       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=\"cortex-gw(-internal)?\"} > 0)",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -266,7 +266,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw\"})",
+       "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,

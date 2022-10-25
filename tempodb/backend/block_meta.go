@@ -18,8 +18,8 @@ type BlockMeta struct {
 	BlockID         uuid.UUID `json:"blockID"`         // Unique block id
 	MinID           []byte    `json:"minID"`           // Minimum object id stored in this block
 	MaxID           []byte    `json:"maxID"`           // Maximum object id stored in this block
-	TenantID        string    `json:"tenantID"`        // ID of tehant to which this block belongs
-	StartTime       time.Time `json:"startTime"`       // Roughly matches when the first obj was written to this block. Used to determine block age for different purposes (cacheing, etc)
+	TenantID        string    `json:"tenantID"`        // ID of tenant to which this block belongs
+	StartTime       time.Time `json:"startTime"`       // Roughly matches when the first obj was written to this block. Used to determine block age for different purposes (caching, etc)
 	EndTime         time.Time `json:"endTime"`         // Currently mostly meaningless but roughly matches to the time the last obj was written to this block
 	TotalObjects    int       `json:"totalObjects"`    // Total objects in this block
 	Size            uint64    `json:"size"`            // Total size in bytes of the data object

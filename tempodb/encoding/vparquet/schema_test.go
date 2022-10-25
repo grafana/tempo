@@ -2,6 +2,7 @@ package vparquet
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/dustin/go-humanize"
@@ -17,127 +18,75 @@ import (
 )
 
 func TestProtoParquetRoundTrip(t *testing.T) {
-
 	// This test round trips a proto trace and checks that the transformation works as expected
 	// Proto -> Parquet -> Proto
 
 	traceIDA := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+	expectedTrace := parquetTraceToTempopbTrace(fullyPopulatedTestTrace(traceIDA))
 
-	expectedTrace := &tempopb.Trace{
+	parquetTrace := traceToParquet(traceIDA, expectedTrace, nil)
+	actualTrace := parquetTraceToTempopbTrace(parquetTrace)
+	assert.Equal(t, expectedTrace, actualTrace)
+}
+
+func TestProtoToParquetEmptyTrace(t *testing.T) {
+	want := &Trace{
+		TraceID:       make([]byte, 16),
+		ResourceSpans: nil,
+	}
+
+	got := traceToParquet(nil, &tempopb.Trace{}, nil)
+	require.Equal(t, want, got)
+}
+
+func TestProtoParquetRando(t *testing.T) {
+	trp := &Trace{}
+	for i := 0; i < 100; i++ {
+		batches := rand.Intn(15)
+		id := test.ValidTraceID(nil)
+		expectedTrace := test.MakeTrace(batches, id)
+
+		parqTr := traceToParquet(id, expectedTrace, trp)
+		actualTrace := parquetTraceToTempopbTrace(parqTr)
+		require.Equal(t, expectedTrace, actualTrace)
+	}
+}
+
+func TestFieldsAreCleared(t *testing.T) {
+	traceID := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+	complexTrace := parquetTraceToTempopbTrace(fullyPopulatedTestTrace(traceID))
+	simpleTrace := &tempopb.Trace{
 		Batches: []*v1_trace.ResourceSpans{
 			{
 				Resource: &v1_resource.Resource{
 					Attributes: []*v1.KeyValue{
-						{
-							Key: "rs.string.key",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_StringValue{StringValue: "foo"},
-							},
-						},
-						{
-							Key: "rs.int.key",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_IntValue{IntValue: 1},
-							},
-						},
-						{
-							Key: "rs.bool.key",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_BoolValue{BoolValue: true},
-							},
-						},
-						{
-							Key: "rs.kv.key",
-							Value: &v1.AnyValue{Value: &v1.AnyValue_KvlistValue{KvlistValue: &v1.KeyValueList{Values: []*v1.KeyValue{
-								{Key: "s2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "s3"}}},
-								{Key: "i2", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 789}}},
-							}}}},
-						},
-						{ // special column
-							Key: "service.name",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_StringValue{StringValue: "bar"},
-							},
-						},
+						{Key: "i", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
 					},
 				},
 				ScopeSpans: []*v1_trace.ScopeSpans{
 					{
-						Scope: &v1.InstrumentationScope{
-							Name: "test",
-						},
+						Scope: &v1.InstrumentationScope{},
 						Spans: []*v1_trace.Span{
 							{
-								TraceId: traceIDA,
-								SpanId:  []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
-								Name:    "firstSpan",
-								Kind:    v1_trace.Span_SPAN_KIND_CLIENT,
-								Status: &v1_trace.Status{
-									Code: v1_trace.Status_STATUS_CODE_OK,
-								},
+								TraceId: traceID,
+								Status:  &v1_trace.Status{},
 								Attributes: []*v1.KeyValue{
 									{
-										Key: "span.int.key",
+										Key: "a",
 										Value: &v1.AnyValue{
-											Value: &v1.AnyValue_IntValue{IntValue: 100},
-										},
-									},
-									{
-										Key: "span.bool.key",
-										Value: &v1.AnyValue{
-											Value: &v1.AnyValue_BoolValue{BoolValue: true},
-										},
-									},
-									{ // special column
-										Key: "http.url",
-										Value: &v1.AnyValue{
-											Value: &v1.AnyValue_StringValue{StringValue: "https://grafana.com"},
+											Value: &v1.AnyValue_StringValue{StringValue: "b"},
 										},
 									},
 								},
 								Events: []*v1_trace.Span_Event{
 									{
-										// Basic fields
-										TimeUnixNano:           123,
-										Name:                   "456",
-										DroppedAttributesCount: 789,
-
 										// An attribute of every type
 										Attributes: []*v1.KeyValue{
 											// String
-											{Key: "s", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "s2"}}},
-
-											// Int
 											{Key: "i", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
-
-											// Double
-											{Key: "d", Value: &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 123.456}}},
-
-											// Bool
-											{Key: "b", Value: &v1.AnyValue{Value: &v1.AnyValue_BoolValue{BoolValue: true}}},
-
-											// KVList
-											{Key: "kv", Value: &v1.AnyValue{Value: &v1.AnyValue_KvlistValue{KvlistValue: &v1.KeyValueList{Values: []*v1.KeyValue{
-												{Key: "s2", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "s3"}}},
-												{Key: "i2", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 789}}},
-											}}}}},
-
-											// Array
-											{Key: "a", Value: &v1.AnyValue{Value: &v1.AnyValue_ArrayValue{ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{
-												{Value: &v1.AnyValue_StringValue{StringValue: "s4"}},
-												{Value: &v1.AnyValue_IntValue{IntValue: 101112}},
-											}}}}},
 										},
 									},
 								},
-							},
-							{
-								TraceId: traceIDA,
-								Name:    "secondSpan",
-								Status: &v1_trace.Status{
-									Code: v1_trace.Status_STATUS_CODE_ERROR,
-								},
-								ParentSpanId: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
 							},
 						},
 					},
@@ -146,25 +95,16 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 		},
 	}
 
-	parquetTrace := traceToParquet(traceIDA, expectedTrace)
-	actualTrace := parquetTraceToTempopbTrace(&parquetTrace)
-	assert.Equal(t, expectedTrace, actualTrace)
-}
-
-func TestProtoToParquetEmptyTrace(t *testing.T) {
-
-	want := Trace{
-		TraceID:       make([]byte, 16),
-		ResourceSpans: []ResourceSpans{},
-	}
-
-	got := traceToParquet(nil, &tempopb.Trace{})
-
-	require.Equal(t, want, got)
+	// first convert a trace that sets all fields and then convert
+	// a minimal trace to make sure nothing bleeds through
+	tr := &Trace{}
+	_ = traceToParquet(traceID, complexTrace, tr)
+	parqTr := traceToParquet(traceID, simpleTrace, tr)
+	actualTrace := parquetTraceToTempopbTrace(parqTr)
+	require.Equal(t, simpleTrace, actualTrace)
 }
 
 func BenchmarkProtoToParquet(b *testing.B) {
-
 	batchCount := 100
 	spanCounts := []int{
 		100, 1000,
@@ -180,7 +120,7 @@ func BenchmarkProtoToParquet(b *testing.B) {
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				traceToParquet(id, tr)
+				_ = traceToParquet(id, tr, nil)
 			}
 		})
 	}
@@ -217,8 +157,9 @@ func BenchmarkEventToParquet(b *testing.B) {
 		},
 	}
 
+	ee := &Event{}
 	for i := 0; i < b.N; i++ {
-		eventToParquet(e)
+		eventToParquet(e, ee)
 	}
 }
 
@@ -242,7 +183,7 @@ func BenchmarkDeconstruct(b *testing.B) {
 			b.Run(fmt.Sprintf("SpanCount%v/Pool%v", ss, ps), func(b *testing.B) {
 
 				id := test.ValidTraceID(nil)
-				tr := traceToParquet(id, test.MakeTraceWithSpanCount(batchCount, spanCount, id))
+				tr := traceToParquet(id, test.MakeTraceWithSpanCount(batchCount, spanCount, id), nil)
 				sch := parquet.SchemaOf(tr)
 
 				b.ResetTimer()
@@ -275,12 +216,12 @@ func TestParquetRowSizeEstimate(t *testing.T) {
 			proto, _ := tr.Marshal()
 			fmt.Println("Size of proto is:", len(proto))
 
-			parq := traceToParquet(id, tr)
+			parq := traceToParquet(id, tr, nil)
 			sch := parquet.SchemaOf(parq)
 			row := sch.Deconstruct(nil, parq)
 
 			fmt.Println("Size of parquet row is:", estimateProtoSize(row))
-			fmt.Println("Size of parquet is:", estimateTraceSize(&parq))
+			fmt.Println("Size of parquet is:", estimateTraceSize(parq))
 		})
 	}
 }

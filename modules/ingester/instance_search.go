@@ -6,11 +6,13 @@ import (
 	"sort"
 
 	"github.com/go-kit/log/level"
-	v2 "github.com/grafana/tempo/pkg/model/v2"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/weaveworks/common/user"
+
+	"github.com/grafana/tempo/pkg/api"
+	v2 "github.com/grafana/tempo/pkg/model/v2"
+	"github.com/grafana/tempo/pkg/util"
 
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -28,6 +30,14 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	// if limit is not set, use a safe default
 	if maxResults == 0 {
 		maxResults = 20
+	}
+
+	if api.IsTraceQLQuery(req) {
+		// TODO actually implement recent traceQL search
+		return &tempopb.SearchResponse{
+			Traces:  nil,
+			Metrics: &tempopb.SearchMetrics{},
+		}, nil
 	}
 
 	p := search.NewSearchPipeline(req)
@@ -213,7 +223,10 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 			span.LogFields(ot_log.Event("local block entry mtx acquired"))
 			span.SetTag("blockID", blockID)
 
-			resp, err := e.Search(ctx, req, common.SearchOptions{})
+			resp, err := e.Search(ctx, req, common.SearchOptions{
+				ReadBufferCount: 32,
+				ReadBufferSize:  1024 * 1024,
+			})
 			if err != nil {
 				level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "err", err)
 				return
@@ -273,7 +286,10 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 				continue
 			}
 
-			err = b.SearchTags(ctx, distinctValues.Collect, common.SearchOptions{})
+			err = b.SearchTags(ctx, distinctValues.Collect, common.SearchOptions{
+				ReadBufferCount: 32,
+				ReadBufferSize:  1024 * 1024,
+			})
 			if err == common.ErrUnsupported {
 				level.Warn(log.Logger).Log("msg", "block does not support tag search", "blockID", b.BlockMeta().BlockID)
 				continue
@@ -342,7 +358,10 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 				continue
 			}
 
-			err = b.SearchTagValues(ctx, tagName, distinctValues.Collect, common.SearchOptions{})
+			err = b.SearchTagValues(ctx, tagName, distinctValues.Collect, common.SearchOptions{
+				ReadBufferCount: 32,
+				ReadBufferSize:  1024 * 1024,
+			})
 			if err == common.ErrUnsupported {
 				level.Warn(log.Logger).Log("msg", "block does not support tag value search", "blockID", b.BlockMeta().BlockID)
 				continue

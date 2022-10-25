@@ -7,7 +7,7 @@ import "golang.org/x/sys/cpu"
 var (
 	hasAVX2 = cpu.X86.HasAVX2
 	// These use AVX-512 instructions in the countByte algorithm relies
-	// operations that are avilable in the AVX512BW extension:
+	// operations that are available in the AVX512BW extension:
 	// * VPCMPUB
 	// * KMOVQ
 	//

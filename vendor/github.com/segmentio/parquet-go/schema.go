@@ -221,7 +221,7 @@ func (s *Schema) GoType() reflect.Type { return s.root.GoType() }
 // parquet schema.
 func (s *Schema) Deconstruct(row Row, value interface{}) Row {
 	v := reflect.ValueOf(value)
-	for v.Kind() == reflect.Ptr {
+	for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
 		if v.IsNil() {
 			v = reflect.Value{}
 			break
@@ -405,7 +405,7 @@ func (s *structNode) Fields() []Field {
 // reflect.Value if one of the fields was a nil pointer instead of panicking.
 func fieldByIndex(v reflect.Value, index []int) reflect.Value {
 	for _, i := range index {
-		if v = v.Field(i); v.Kind() == reflect.Ptr {
+		if v = v.Field(i); v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
 			if v.IsNil() {
 				v = reflect.Value{}
 				break
@@ -844,6 +844,13 @@ func makeNodeOf(t reflect.Type, name string, tag []string) Node {
 
 	if list {
 		node = List(node)
+	}
+
+	if node.Repeated() && !list {
+		elemKind := node.GoType().Elem().Kind()
+		if elemKind == reflect.Slice {
+			panic("unhandled nested slice on parquet schema without list tag")
+		}
 	}
 
 	if optional {

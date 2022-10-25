@@ -1,6 +1,7 @@
 package azure
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -62,4 +63,49 @@ func TestGetStorageAccountKeyNotSet(t *testing.T) {
 
 	actual := getStorageAccountKey(&cfg)
 	assert.Equal(t, "", actual)
+}
+
+func TestGetContainerURL(t *testing.T) {
+	cfg := Config{
+		StorageAccountName: "devstoreaccount1",
+		StorageAccountKey:  flagext.SecretWithValue("dGVzdAo="),
+		ContainerName:      "traces",
+	}
+
+	tests := []struct {
+		name        string
+		endpoint    string
+		expectedURL string
+	}{
+		{
+			name:        "localhost",
+			endpoint:    "localhost:10000",
+			expectedURL: "http://localhost:10000/devstoreaccount1/traces",
+		},
+		{
+			name:        "Azure China",
+			endpoint:    "blob.core.chinacloudapi.cn",
+			expectedURL: "https://devstoreaccount1.blob.core.chinacloudapi.cn/traces",
+		},
+		{
+			name:        "Azure US Government",
+			endpoint:    "blob.core.usgovcloudapi.net",
+			expectedURL: "https://devstoreaccount1.blob.core.usgovcloudapi.net/traces",
+		},
+		{
+			name:        "Azure German",
+			endpoint:    "blob.core.cloudapi.de",
+			expectedURL: "https://devstoreaccount1.blob.core.cloudapi.de/traces",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg.Endpoint = tc.endpoint
+
+			url, err := GetContainerURL(context.Background(), &cfg, false)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectedURL, url.String())
+		})
+	}
 }
