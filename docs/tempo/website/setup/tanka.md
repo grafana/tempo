@@ -318,7 +318,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
 
 ### Optional: Enable metrics-generator
 
-[Metrics generation](https://grafana.com/docs/tempo/next/configuration/#metrics-generator) is enabled in the above configuration, but where to send the generated metrics data hasn't been specified yet.
+In the preceding configuration, [metrics generation](https://grafana.com/docs/tempo/next/configuration/#metrics-generator) is enabled. However, you still need to specify where to send the generated metrics data.
 If you'd like to remote write these metrics onto a Prometheus compatible instance (such as Grafana Cloud metrics or a Mimir instance), you'll need to include the configuration block below in the `metrics_generator` section of the `tempo_config` block above (this assumes basic auth is required, if not then remove the `basic_auth` section). 
 You can find the details for your Grafana Cloud metrics instance for your Grafana Cloud account by using the [Cloud Portal](https://grafana.com/docs/grafana-cloud/account-management/cloud-portal/).
 
