@@ -298,6 +298,7 @@ func TestStatic_AsAnyValue(t *testing.T) {
 		{NewStaticBool(true), &v1.AnyValue{Value: &v1.AnyValue_BoolValue{BoolValue: true}}},
 		{NewStaticDuration(5 * time.Second), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "5s"}}},
 		{NewStaticStatus(StatusOk), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "ok"}}},
+		{NewStaticNil(), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "nil"}}},
 	}
 	for _, tc := range tt {
 		t.Run(fmt.Sprintf("%v", tc.s), func(t *testing.T) {

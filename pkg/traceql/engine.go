@@ -46,6 +46,8 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
+	spansetsEvaluated := 0
+
 iter:
 	for {
 		spanSet, err := iterator.Next(ctx)
@@ -60,9 +62,10 @@ iter:
 
 		ss, err := rootExpr.Pipeline.evaluate([]Spanset{*spanSet})
 		if err != nil {
-			span.LogKV("msg", "pipeline.evaluate", "err", err)
+			span.LogKV("msg", "pipeline.evaluate", "pipeline", rootExpr.Pipeline, "err", err)
 			continue
 		}
+		spansetsEvaluated++
 
 		if len(ss) == 0 {
 			continue
@@ -77,6 +80,7 @@ iter:
 		}
 	}
 
+	span.SetTag("spansets_evaluated", spansetsEvaluated)
 	span.SetTag("spansets_found", len(res.Traces))
 
 	return res, nil
@@ -192,6 +196,12 @@ func (s Static) asAnyValue() *common_v1.AnyValue {
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_StringValue{
 				StringValue: s.Status.String(),
+			},
+		}
+	case TypeNil:
+		return &common_v1.AnyValue{
+			Value: &common_v1.AnyValue_StringValue{
+				StringValue: "nil",
 			},
 		}
 	default:
