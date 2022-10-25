@@ -11,6 +11,7 @@ import (
 	"github.com/segmentio/parquet-go"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -21,6 +22,10 @@ type makeIterFn func(columnName string, predicate parquetquery.Predicate, select
 
 const (
 	columnPathTraceID                  = "TraceID"
+	columnPathStartTimeUnixNano        = "StartTimeUnixNano"
+	columnPathDurationNanos            = "DurationNanos"
+	columnPathRootSpanName             = "RootSpanName"
+	columnPathRootServiceName          = "RootServiceName"
 	columnPathResourceAttrKey          = "rs.Resource.Attrs.Key"
 	columnPathResourceAttrString       = "rs.Resource.Attrs.Value"
 	columnPathResourceAttrInt          = "rs.Resource.Attrs.ValueInt"
@@ -36,11 +41,12 @@ const (
 	columnPathResourceK8sPodName       = "rs.Resource.K8sPodName"
 	columnPathResourceK8sContainerName = "rs.Resource.K8sContainerName"
 
-	columnPathSpanID             = "rs.ils.Spans.ID"
-	columnPathSpanName           = "rs.ils.Spans.Name"
-	columnPathSpanStartTime      = "rs.ils.Spans.StartUnixNanos"
-	columnPathSpanEndTime        = "rs.ils.Spans.EndUnixNanos"
-	columnPathSpanDuration       = "rs.ils.Spans.DurationNanos"
+	columnPathSpanID        = "rs.ils.Spans.ID"
+	columnPathSpanName      = "rs.ils.Spans.Name"
+	columnPathSpanStartTime = "rs.ils.Spans.StartUnixNanos"
+	columnPathSpanEndTime   = "rs.ils.Spans.EndUnixNanos"
+	//columnPathSpanDuration       = "rs.ils.Spans.DurationNanos"
+	columnPathSpanStatusCode     = "rs.ils.Spans.StatusCode"
 	columnPathSpanAttrKey        = "rs.ils.Spans.Attrs.Key"
 	columnPathSpanAttrString     = "rs.ils.Spans.Attrs.Value"
 	columnPathSpanAttrInt        = "rs.ils.Spans.Attrs.ValueInt"
@@ -54,6 +60,7 @@ const (
 var intrinsicDefaultScope = map[traceql.Intrinsic]traceql.AttributeScope{
 	traceql.IntrinsicName:     traceql.AttributeScopeSpan,
 	traceql.IntrinsicDuration: traceql.AttributeScopeSpan,
+	traceql.IntrinsicStatus:   traceql.AttributeScopeSpan,
 }
 
 // Lookup table of all well-known attributes with dedicated columns
@@ -116,7 +123,10 @@ func checkConditions(conditions []traceql.Condition) error {
 				return fmt.Errorf("operanion none must have 0 arguments. condition: %+v", cond)
 			}
 
-		case traceql.OpEqual, traceql.OpGreater, traceql.OpLess, traceql.OpRegex:
+		case traceql.OpEqual, traceql.OpNotEqual,
+			traceql.OpGreater, traceql.OpGreaterEqual,
+			traceql.OpLess, traceql.OpLessEqual,
+			traceql.OpRegex:
 			if opCount != 1 {
 				return fmt.Errorf("operation %v must have exactly 1 argument. condition: %+v", cond.Op, cond)
 			}
@@ -330,10 +340,11 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File)
 func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, start, end uint64, requireAtLeastOneMatch, allConditions bool) (parquetquery.Iterator, error) {
 
 	var (
-		columnSelectAs    = map[string]string{}
-		columnPredicates  = map[string][]parquetquery.Predicate{}
-		iters             []parquetquery.Iterator
-		genericConditions []traceql.Condition
+		columnSelectAs     = map[string]string{}
+		columnPredicates   = map[string][]parquetquery.Predicate{}
+		iters              []parquetquery.Iterator
+		genericConditions  []traceql.Condition
+		durationPredicates []*parquetquery.GenericPredicate[int64]
 	)
 
 	addPredicate := func(columnPath string, p parquetquery.Predicate) {
@@ -359,8 +370,16 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 			if err != nil {
 				return nil, err
 			}
-			addPredicate(columnPathSpanDuration, pred)
-			columnSelectAs[columnPathSpanDuration] = columnPathSpanDuration
+			durationPredicates = append(durationPredicates, pred)
+			continue
+
+		case traceql.IntrinsicStatus:
+			pred, err := createStatusPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanStatusCode, pred)
+			columnSelectAs[columnPathSpanStatusCode] = columnPathSpanStatusCode
 			continue
 		}
 
@@ -426,6 +445,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 	}
 	spanCol := &spanCollector{
 		minCount,
+		durationPredicates,
 	}
 
 	// This is an optimization for when all of the span conditions must be met.
@@ -543,6 +563,10 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 		resourceIter,
 		// Add static columns that are always return
 		makeIter(columnPathTraceID, nil, columnPathTraceID),
+		makeIter(columnPathStartTimeUnixNano, nil, columnPathStartTimeUnixNano),
+		makeIter(columnPathDurationNanos, nil, columnPathDurationNanos),
+		makeIter(columnPathRootSpanName, nil, columnPathRootSpanName),
+		makeIter(columnPathRootServiceName, nil, columnPathRootServiceName),
 	}
 
 	// Final trace iterator
@@ -575,21 +599,33 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 		return nil, nil
 	}
 
-	vals := make([]string, 0, len(operands))
-
 	for _, op := range operands {
 		if op.Type != traceql.TypeString {
 			return nil, fmt.Errorf("operand is not string: %+v", op)
 		}
-		vals = append(vals, op.S)
 	}
+
+	s := operands[0].S
 
 	switch op {
 	case traceql.OpEqual:
-		return parquetquery.NewStringInPredicate(vals), nil
+		return parquetquery.NewStringInPredicate([]string{s}), nil
+
+	case traceql.OpNotEqual:
+		return parquetquery.NewGenericPredicate(
+			func(v string) bool {
+				return v != s
+			},
+			func(min, max string) bool {
+				return min != s || max != s
+			},
+			func(v parquet.Value) string {
+				return v.String()
+			},
+		), nil
 
 	case traceql.OpRegex:
-		return parquetquery.NewRegexInPredicate(vals)
+		return parquetquery.NewRegexInPredicate([]string{s})
 
 	default:
 		return nil, fmt.Errorf("operand not supported for strings: %+v", op)
@@ -597,7 +633,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 
 }
 
-func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
+func createIntPredicate(op traceql.Operator, operands traceql.Operands) (*parquetquery.GenericPredicate[int64], error) {
 	if op == traceql.OpNone {
 		return nil, nil
 	}
@@ -612,22 +648,77 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 		return nil, fmt.Errorf("operand is not int or duration: %+v", operands[0])
 	}
 
-	min := int64(math.MinInt64)
-	max := int64(math.MaxInt64)
+	var fn func(v int64) bool
+	var rangeFn func(min, max int64) bool
 
 	switch op {
 	case traceql.OpEqual:
-		min = i
-		max = i
+		fn = func(v int64) bool { return v == i }
+		rangeFn = func(min, max int64) bool { return min <= i && i <= max }
+	case traceql.OpNotEqual:
+		fn = func(v int64) bool { return v != i }
+		rangeFn = func(min, max int64) bool { return min != i || max != i }
 	case traceql.OpGreater:
-		min = i + 1
+		fn = func(v int64) bool { return v > i }
+		rangeFn = func(min, max int64) bool { return max > i }
+	case traceql.OpGreaterEqual:
+		fn = func(v int64) bool { return v >= i }
+		rangeFn = func(min, max int64) bool { return max >= i }
 	case traceql.OpLess:
-		max = i - 1
+		fn = func(v int64) bool { return v < i }
+		rangeFn = func(min, max int64) bool { return min < i }
+	case traceql.OpLessEqual:
+		fn = func(v int64) bool { return v <= i }
+		rangeFn = func(min, max int64) bool { return min <= i }
 	default:
 		return nil, fmt.Errorf("operand not supported for integers: %+v", op)
 	}
 
-	return parquetquery.NewIntBetweenPredicate(min, max), nil
+	return parquetquery.NewIntPredicate(fn, rangeFn), nil
+}
+
+func createStatusPredicate(op traceql.Operator, operands traceql.Operands) (*parquetquery.GenericPredicate[int64], error) {
+	if op == traceql.OpNone {
+		return nil, nil
+	}
+
+	var i int64
+	switch operands[0].Type {
+	case traceql.TypeInt:
+		i = int64(operands[0].N)
+	case traceql.TypeStatus:
+		i = int64(StatusCodeMapping[operands[0].Status.String()])
+	default:
+		return nil, fmt.Errorf("operand is not int or status: %+v", operands[0])
+	}
+
+	var fn func(v int64) bool
+	var rangeFn func(min, max int64) bool
+
+	switch op {
+	case traceql.OpEqual:
+		fn = func(v int64) bool { return v == i }
+		rangeFn = func(min, max int64) bool { return min <= i && i <= max }
+	case traceql.OpNotEqual:
+		fn = func(v int64) bool { return v != i }
+		rangeFn = func(min, max int64) bool { return min != i || max != i }
+	case traceql.OpGreater:
+		fn = func(v int64) bool { return v > i }
+		rangeFn = func(min, max int64) bool { return max > i }
+	case traceql.OpGreaterEqual:
+		fn = func(v int64) bool { return v >= i }
+		rangeFn = func(min, max int64) bool { return max >= i }
+	case traceql.OpLess:
+		fn = func(v int64) bool { return v < i }
+		rangeFn = func(min, max int64) bool { return min < i }
+	case traceql.OpLessEqual:
+		fn = func(v int64) bool { return v <= i }
+		rangeFn = func(min, max int64) bool { return min <= i }
+	default:
+		return nil, fmt.Errorf("operand not supported for integers: %+v", op)
+	}
+
+	return parquetquery.NewIntPredicate(fn, rangeFn), nil
 }
 
 func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
@@ -640,24 +731,35 @@ func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parqu
 		return nil, fmt.Errorf("operand is not float: %+v", operands[0])
 	}
 
-	// Defaults
 	i := operands[0].F
-	min := math.Inf(-1)
-	max := math.Inf(1)
+
+	var fn func(v float64) bool
+	var rangeFn func(min, max float64) bool
 
 	switch op {
 	case traceql.OpEqual:
-		min = i
-		max = i
+		fn = func(v float64) bool { return v == i }
+		rangeFn = func(min, max float64) bool { return min <= i && i <= max }
+	case traceql.OpNotEqual:
+		fn = func(v float64) bool { return v != i }
+		rangeFn = func(min, max float64) bool { return min != i || max != i }
 	case traceql.OpGreater:
-		min = math.Nextafter(i, max)
+		fn = func(v float64) bool { return v > i }
+		rangeFn = func(min, max float64) bool { return max > i }
+	case traceql.OpGreaterEqual:
+		fn = func(v float64) bool { return v >= i }
+		rangeFn = func(min, max float64) bool { return max >= i }
 	case traceql.OpLess:
-		max = math.Nextafter(i, min)
+		fn = func(v float64) bool { return v < i }
+		rangeFn = func(min, max float64) bool { return min < i }
+	case traceql.OpLessEqual:
+		fn = func(v float64) bool { return v <= i }
+		rangeFn = func(min, max float64) bool { return min <= i }
 	default:
 		return nil, fmt.Errorf("operand not supported for floats: %+v", op)
 	}
 
-	return parquetquery.NewFloatBetweenPredicate(min, max), nil
+	return parquetquery.NewFloatPredicate(fn, rangeFn), nil
 }
 
 func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
@@ -673,6 +775,9 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 	switch op {
 	case traceql.OpEqual:
 		return parquetquery.NewBoolPredicate(operands[0].B), nil
+
+	case traceql.OpNotEqual:
+		return parquetquery.NewBoolPredicate(!operands[0].B), nil
 
 	default:
 		return nil, fmt.Errorf("operand not supported for booleans: %+v", op)
@@ -764,7 +869,8 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 
 // This turns groups of span values into Span objects
 type spanCollector struct {
-	minAttributes int
+	minAttributes   int
+	durationFilters []*parquetquery.GenericPredicate[int64]
 }
 
 var _ parquetquery.GroupPredicate = (*spanCollector)(nil)
@@ -790,8 +896,23 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			span.EndtimeUnixNanos = kv.Value.Uint64()
 		case columnPathSpanName:
 			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicName)] = traceql.NewStaticString(kv.Value.String())
-		case columnPathSpanDuration:
-			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(kv.Value.Uint64()))
+		//case columnPathSpanDuration:
+		//	span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(kv.Value.Uint64()))
+		case columnPathSpanStatusCode:
+			// Map OTLP status code back to TraceQL enum.
+			// For other values, use the raw integer.
+			var status traceql.Status
+			switch kv.Value.Uint64() {
+			case uint64(v1.Status_STATUS_CODE_UNSET):
+				status = traceql.StatusUnset
+			case uint64(v1.Status_STATUS_CODE_OK):
+				status = traceql.StatusOk
+			case uint64(v1.Status_STATUS_CODE_ERROR):
+				status = traceql.StatusError
+			default:
+				status = traceql.Status(kv.Value.Uint64())
+			}
+			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicStatus)] = traceql.NewStaticStatus(status)
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?
@@ -806,6 +927,23 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 				span.Attributes[newSpanAttr(kv.Key)] = traceql.NewStaticString(kv.Value.String())
 			}
 		}
+	}
+
+	if len(c.durationFilters) > 0 {
+		duration := span.EndtimeUnixNanos - span.StartTimeUnixNanos
+		durationPass := false
+		for _, f := range c.durationFilters {
+			if f.Fn(int64(duration)) {
+				durationPass = true
+				break
+			}
+		}
+
+		if !durationPass {
+			return false
+		}
+
+		span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(duration))
 	}
 
 	if c.minAttributes > 0 {
@@ -938,6 +1076,14 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		switch e.Key {
 		case columnPathTraceID:
 			finalSpanset.TraceID = e.Value.ByteArray()
+		case columnPathStartTimeUnixNano:
+			finalSpanset.StartTimeUnixNanos = e.Value.Uint64()
+		case columnPathDurationNanos:
+			finalSpanset.DurationNanos = e.Value.Uint64()
+		case columnPathRootSpanName:
+			finalSpanset.RootSpanName = e.Value.String()
+		case columnPathRootServiceName:
+			finalSpanset.RootServiceName = e.Value.String()
 		}
 	}
 

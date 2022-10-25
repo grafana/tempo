@@ -41,7 +41,8 @@ ifeq ($(UNAME), Darwin)
     SED_OPTS := ''
 endif
 
-FILES_TO_FMT=$(shell find . -type d \( -path ./vendor -o -path ./opentelemetry-proto -o -path ./vendor-fix \) -prune -o -name '*.go' -not -name "*.pb.go" -print)
+FILES_TO_FMT=$(shell find . -type d \( -path ./vendor -o -path ./opentelemetry-proto -o -path ./vendor-fix \) -prune -o -name '*.go' -not -name "*.pb.go" -not -name '*.y.go' -print)
+FILES_TO_JSONNETFMT=$(shell find ./operations/jsonnet ./operations/tempo-mixin -type f \( -name '*.libsonnet' -o -name '*.jsonnet' \) -not -path "*/vendor/*" -print)
 
 ### Build
 
@@ -97,10 +98,20 @@ test-all: test-with-cover test-e2e test-e2e-serverless
 test-bench: docker-tempo
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/bench
 
-.PHONY: fmt
+.PHONY: fmt check-fmt
 fmt:
 	@gofmt -s -w $(FILES_TO_FMT)
 	@goimports -w $(FILES_TO_FMT)
+
+check-fmt: fmt
+	@git diff --exit-code -- $(FILES_TO_FMT)
+
+.PHONY: jsonnetfmt check-jsonnetfmt
+jsonnetfmt:
+	@jsonnetfmt -i $(FILES_TO_JSONNETFMT)
+
+check-jsonnetfmt: jsonnetfmt
+	@git diff --exit-code -- $(FILES_TO_JSONNETFMT)
 
 .PHONY: lint
 lint:

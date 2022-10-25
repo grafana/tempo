@@ -3,7 +3,6 @@ package vparquet
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 	"io"
 
 	"github.com/google/uuid"
@@ -37,6 +36,7 @@ func (b *backendWriter) Close() error {
 func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
 	s := newStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
 
+	trp := &Trace{}
 	for {
 		id, tr, err := i.Next(ctx)
 		if err == io.EOF || tr == nil {
@@ -46,8 +46,11 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		// Copy ID to allow it to escape the iterator.
 		id = append([]byte(nil), id...)
 
-		trp := traceToParquet(id, tr)
-		s.Add(&trp, 0, 0) // start and end time of the wal meta are used.
+		trp = traceToParquet(id, tr, trp)
+		err = s.Add(trp, 0, 0) // start and end time of the wal meta are used.
+		if err != nil {
+			return nil, err
+		}
 
 		// Here we repurpose RowGroupSizeBytes as number of raw column values.
 		// This is a fairly close approximation.
@@ -77,7 +80,6 @@ type streamingBlock struct {
 	r     backend.Reader
 	to    backend.Writer
 
-	bufferedTraces        []*Trace
 	currentBufferedTraces int
 	currentBufferedBytes  int
 }
@@ -96,26 +98,30 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	pw := parquet.NewGenericWriter[*Trace](bw)
 
 	return &streamingBlock{
-		ctx:            ctx,
-		meta:           newMeta,
-		bloom:          bloom,
-		bw:             bw,
-		pw:             pw,
-		w:              w,
-		r:              r,
-		to:             to,
-		bufferedTraces: make([]*Trace, 0, 1000),
+		ctx:   ctx,
+		meta:  newMeta,
+		bloom: bloom,
+		bw:    bw,
+		pw:    pw,
+		w:     w,
+		r:     r,
+		to:    to,
 	}
 }
 
-func (b *streamingBlock) Add(tr *Trace, start, end uint32) {
-	b.bufferedTraces = append(b.bufferedTraces, tr)
+func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
+	_, err := b.pw.Write([]*Trace{tr})
+	if err != nil {
+		return err
+	}
 	id := tr.TraceID
 
 	b.bloom.Add(id)
 	b.meta.ObjectAdded(id, start, end)
 	b.currentBufferedTraces++
 	b.currentBufferedBytes += estimateTraceSize(tr)
+
+	return nil
 }
 
 func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) error {
@@ -141,11 +147,6 @@ func (b *streamingBlock) CurrentBufferedObjects() int {
 }
 
 func (b *streamingBlock) Flush() (int, error) {
-	// batch write traces
-	if err := b.flushBufferedTraces(); err != nil {
-		return 0, fmt.Errorf("flushing buffered traces: %w", err)
-	}
-
 	// Flush row group
 	err := b.pw.Flush()
 	if err != nil {
@@ -163,11 +164,6 @@ func (b *streamingBlock) Flush() (int, error) {
 }
 
 func (b *streamingBlock) Complete() (int, error) {
-	// batch write traces
-	if err := b.flushBufferedTraces(); err != nil {
-		return 0, fmt.Errorf("flushing buffered traces: %w", err)
-	}
-
 	// Flush final row group
 	b.meta.TotalRecords++
 	err := b.pw.Flush()
@@ -213,23 +209,6 @@ func (b *streamingBlock) Complete() (int, error) {
 	b.meta.BloomShardCount = uint16(b.bloom.GetShardCount())
 
 	return n, writeBlockMeta(b.ctx, b.to, b.meta, b.bloom)
-}
-
-func (b *streamingBlock) flushBufferedTraces() error {
-	// batch write traces
-	if len(b.bufferedTraces) > 0 {
-		_, err := b.pw.Write(b.bufferedTraces)
-		if err != nil {
-			return err
-		}
-		// zero out traces to allow the GC to collect
-		for i := range b.bufferedTraces {
-			b.bufferedTraces[i] = nil
-		}
-		b.bufferedTraces = b.bufferedTraces[:0]
-	}
-
-	return nil
 }
 
 // estimateTraceSize attempts to estimate the size of trace in bytes. This is used to make choose

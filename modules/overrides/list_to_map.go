@@ -15,7 +15,7 @@ var _ json.Unmarshaler = (*ListToMap)(nil)
 
 // MarshalYAML implements the Marshal interface of the yaml pkg.
 func (l ListToMap) MarshalYAML() (interface{}, error) {
-	list := make([]string, 0)
+	list := make([]string, 0, len(l))
 	for k := range l {
 		list = append(list, k)
 	}
@@ -43,7 +43,7 @@ func (l *ListToMap) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // MarshalJSON implements the Marshal interface of the json pkg.
 func (l ListToMap) MarshalJSON() ([]byte, error) {
-	list := make([]string, 0)
+	list := make([]string, 0, len(l))
 	for k := range l {
 		list = append(list, k)
 	}

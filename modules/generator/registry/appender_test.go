@@ -6,6 +6,7 @@ import (
 
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/metadata"
 	"github.com/prometheus/prometheus/storage"
 )
 
@@ -14,24 +15,22 @@ type noopAppender struct{}
 var _ storage.Appendable = (*noopAppender)(nil)
 var _ storage.Appender = (*noopAppender)(nil)
 
-func (n *noopAppender) Appender(ctx context.Context) storage.Appender {
-	return n
-}
+func (n noopAppender) Appender(context.Context) storage.Appender { return n }
 
-func (n noopAppender) Append(ref storage.SeriesRef, l labels.Labels, t int64, v float64) (storage.SeriesRef, error) {
+func (n noopAppender) Append(storage.SeriesRef, labels.Labels, int64, float64) (storage.SeriesRef, error) {
 	return 0, nil
 }
 
-func (n noopAppender) AppendExemplar(ref storage.SeriesRef, l labels.Labels, e exemplar.Exemplar) (storage.SeriesRef, error) {
+func (n noopAppender) AppendExemplar(storage.SeriesRef, labels.Labels, exemplar.Exemplar) (storage.SeriesRef, error) {
 	return 0, nil
 }
 
-func (n noopAppender) Commit() error {
-	return nil
-}
+func (n noopAppender) Commit() error { return nil }
 
-func (n noopAppender) Rollback() error {
-	return nil
+func (n noopAppender) Rollback() error { return nil }
+
+func (n noopAppender) UpdateMetadata(storage.SeriesRef, labels.Labels, metadata.Metadata) (storage.SeriesRef, error) {
+	return 0, nil
 }
 
 type capturingAppender struct {
@@ -96,4 +95,8 @@ func (c *capturingAppender) Commit() error {
 func (c *capturingAppender) Rollback() error {
 	c.isRolledback = true
 	return nil
+}
+
+func (c *capturingAppender) UpdateMetadata(storage.SeriesRef, labels.Labels, metadata.Metadata) (storage.SeriesRef, error) {
+	return 0, nil
 }

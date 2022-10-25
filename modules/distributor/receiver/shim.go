@@ -35,7 +35,6 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util/log"
 )
@@ -59,15 +58,15 @@ var (
 	statReceiverKafka      = usagestats.NewInt("receiver_enabled_kafka")
 )
 
-type BatchPusher interface {
-	PushBatches(ctx context.Context, batches []*v1.ResourceSpans) (*tempopb.PushResponse, error)
+type TracesPusher interface {
+	PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error)
 }
 
 type receiversShim struct {
 	services.Service
 
 	receivers   []component.Receiver
-	pusher      BatchPusher
+	pusher      TracesPusher
 	logger      *log.RateLimitedLogger
 	metricViews []*view.View
 }
@@ -91,7 +90,7 @@ func (m *mapProvider) Scheme() string { return "mock" }
 
 func (m *mapProvider) Shutdown(context.Context) error { return nil }
 
-func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Middleware, logLevel logging.Level) (services.Service, error) {
+func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, logLevel logging.Level) (services.Service, error) {
 	shim := &receiversShim{
 		pusher: pusher,
 		logger: log.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
@@ -184,6 +183,32 @@ func New(receiverCfg map[string]interface{}, pusher BatchPusher, middleware Midd
 			return nil, fmt.Errorf("receiver factory not found for type: %s", componentID.Type())
 		}
 
+		// Make sure that the headers are added to context. Required for Authentication.
+		switch componentID.Type() {
+		case "otlp":
+			otlpRecvCfg := cfg.(*otlpreceiver.Config)
+
+			if otlpRecvCfg.HTTP != nil {
+				otlpRecvCfg.HTTP.IncludeMetadata = true
+				cfg = otlpRecvCfg
+			}
+
+		case "zipkin":
+			zipkinRecvCfg := cfg.(*zipkinreceiver.Config)
+
+			zipkinRecvCfg.HTTPServerSettings.IncludeMetadata = true
+			cfg = zipkinRecvCfg
+
+		case "jaeger":
+			jaegerRecvCfg := cfg.(*jaegerreceiver.Config)
+
+			if jaegerRecvCfg.ThriftHTTP != nil {
+				jaegerRecvCfg.ThriftHTTP.IncludeMetadata = true
+			}
+
+			cfg = jaegerRecvCfg
+		}
+
 		receiver, err := factoryBase.CreateTracesReceiver(ctx, params, cfg, middleware.Wrap(shim))
 		if err != nil {
 			return nil, err
@@ -241,23 +266,8 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 
 	var err error
 
-	// Convert to bytes and back. This is unfortunate for efficiency but it works
-	// around the otel-collector internalization of otel-proto which Tempo also uses.
-	convert, err := ptrace.NewProtoMarshaler().MarshalTraces(td)
-	if err != nil {
-		return err
-	}
-
-	// tempopb.Trace is wire-compatible with ExportTraceServiceRequest
-	// used by ToOtlpProtoBytes
-	trace := tempopb.Trace{}
-	err = trace.Unmarshal(convert)
-	if err != nil {
-		return err
-	}
-
 	start := time.Now()
-	_, err = r.pusher.PushBatches(ctx, trace.Batches)
+	_, err = r.pusher.PushTraces(ctx, td)
 	metricPushDuration.Observe(time.Since(start).Seconds())
 	if err != nil {
 		r.logger.Log("msg", "pusher failed to consume trace data", "err", err)

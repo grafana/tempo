@@ -578,27 +578,35 @@ func reconstructFuncOfRepeated(columnIndex int16, node Node) (int16, reconstruct
 	rowLength := nextColumnIndex - columnIndex
 	return nextColumnIndex, func(value reflect.Value, lvls levels, row Row) (Row, error) {
 		t := value.Type()
-		c := value.Cap()
+		s := value
+		c := 0
 		n := 0
-		if c > 0 {
-			value.Set(value.Slice(0, c))
-		} else {
-			c = 10
-			value.Set(reflect.MakeSlice(t, c, c))
-		}
+		const defaultCapacity = 10
 
 		defer func() {
-			value.Set(value.Slice(0, n))
+			value.Set(s.Slice(0, n))
 		}()
+
+		if t.Kind() == reflect.Interface {
+			var v []interface{}
+			c = defaultCapacity
+			t = reflect.TypeOf(v)
+			s = reflect.MakeSlice(t, c, c)
+		} else if c = s.Cap(); c > 0 {
+			s = s.Slice(0, c)
+		} else {
+			c = defaultCapacity
+			s = reflect.MakeSlice(t, c, c)
+		}
 
 		return reconstructRepeated(columnIndex, rowLength, lvls, row, func(levels levels, row Row) (Row, error) {
 			if n == c {
 				c *= 2
-				newValue := reflect.MakeSlice(t, c, c)
-				reflect.Copy(newValue, value)
-				value.Set(newValue)
+				newSlice := reflect.MakeSlice(t, c, c)
+				reflect.Copy(newSlice, s)
+				s = newSlice
 			}
-			row, err := reconstruct(value.Index(n), levels, row)
+			row, err := reconstruct(s.Index(n), levels, row)
 			n++
 			return row, err
 		})
@@ -692,7 +700,7 @@ func reconstructFuncOfGroup(columnIndex int16, node Node) (int16, reconstructFun
 	return columnIndex, func(value reflect.Value, levels levels, row Row) (Row, error) {
 		var err error
 
-		if value.Kind() == reflect.Interface && value.IsNil() {
+		if value.Kind() == reflect.Interface {
 			value.Set(reflect.MakeMap(reflect.TypeOf((map[string]interface{})(nil))))
 			value = value.Elem()
 		}

@@ -22,7 +22,8 @@ type GenericBuffer[T any] struct {
 // The type parameter T should be a map, struct, or any. Any other types will
 // cause a panic at runtime. Type checking is a lot more effective when the
 // generic parameter is a struct type, using map and interface types is somewhat
-// similar to using a Writer.
+// similar to using a Writer.  If using an interface type for the type parameter,
+// then providing a schema at instantiation is required.
 //
 // If the option list may explicitly declare a schema, it must be compatible
 // with the schema generated from T.
@@ -33,8 +34,12 @@ func NewGenericBuffer[T any](options ...RowGroupOption) *GenericBuffer[T] {
 	}
 
 	t := typeOf[T]()
-	if config.Schema == nil {
+	if config.Schema == nil && t != nil {
 		config.Schema = schemaOf(dereference(t))
+	}
+
+	if config.Schema == nil {
+		panic("generic buffer must be instantiated with schema or concrete type.")
 	}
 
 	buf := &GenericBuffer[T]{
@@ -53,6 +58,9 @@ func typeOf[T any]() reflect.Type {
 type bufferFunc[T any] func(*GenericBuffer[T], []T) (int, error)
 
 func bufferFuncOf[T any](t reflect.Type, schema *Schema) bufferFunc[T] {
+	if t == nil {
+		return (*GenericBuffer[T]).writeRows
+	}
 	switch t.Kind() {
 	case reflect.Interface, reflect.Map:
 		return (*GenericBuffer[T]).writeRows

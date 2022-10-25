@@ -114,6 +114,7 @@ func (m *MockReader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID 
 
 	return m.M, nil
 }
+
 func (m *MockReader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) ([]byte, error) {
 	if m.ReadFn != nil {
 		return m.ReadFn(name, blockID, tenantID)

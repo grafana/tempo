@@ -28,7 +28,7 @@ type Writer interface {
 	WriteBlockMeta(ctx context.Context, meta *BlockMeta) error
 	// Append starts or continues an Append job. Pass nil to AppendTracker to start a job.
 	Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error)
-	// Closes any resources associated with the AppendTracker
+	// CloseAppend closes any resources associated with the AppendTracker
 	CloseAppend(ctx context.Context, tracker AppendTracker) error
 	// WriteTenantIndex writes the two meta slices as a tenant index
 	WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error
@@ -36,7 +36,8 @@ type Writer interface {
 
 // Reader is a collection of methods to read data from tempodb backends
 type Reader interface {
-	// Reader is for reading entire objects from the backend.  There will be an attempt to retrieve this from cache if shouldCache is true.
+	// Read is for reading entire objects from the backend. There will be an attempt to retrieve this
+	// from cache if shouldCache is true.
 	Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, shouldCache bool) ([]byte, error)
 	// StreamReader is for streaming entire objects from the backend.  It is expected this will _not_ be cached.
 	StreamReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error)
@@ -45,7 +46,7 @@ type Reader interface {
 	ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, shouldCache bool) error
 	// Tenants returns a list of all tenants in a backend
 	Tenants(ctx context.Context) ([]string, error)
-	// Blocks returns returns a list of block UUIDs given a tenant
+	// Blocks returns a list of block UUIDs given a tenant
 	Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, error)
 	// BlockMeta returns the blockmeta given a block and tenant id
 	BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)

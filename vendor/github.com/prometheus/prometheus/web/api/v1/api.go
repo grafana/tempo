@@ -23,7 +23,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -37,6 +36,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
+	"golang.org/x/exp/slices"
 
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/model/exemplar"
@@ -52,6 +52,7 @@ import (
 	"github.com/prometheus/prometheus/tsdb"
 	"github.com/prometheus/prometheus/tsdb/index"
 	"github.com/prometheus/prometheus/util/httputil"
+	"github.com/prometheus/prometheus/util/jsonutil"
 	"github.com/prometheus/prometheus/util/stats"
 )
 
@@ -102,6 +103,15 @@ type AlertmanagerRetriever interface {
 type RulesRetriever interface {
 	RuleGroups() []*rules.Group
 	AlertingRules() []*rules.AlertingRule
+}
+
+type StatsRenderer func(context.Context, *stats.Statistics, string) stats.QueryStats
+
+func defaultStatsRenderer(ctx context.Context, s *stats.Statistics, param string) stats.QueryStats {
+	if param != "" {
+		return stats.NewQueryStats(s)
+	}
+	return nil
 }
 
 // PrometheusVersion contains build information about Prometheus.
@@ -157,8 +167,8 @@ type TSDBAdminStats interface {
 // QueryEngine defines the interface for the *promql.Engine, so it can be replaced, wrapped or mocked.
 type QueryEngine interface {
 	SetQueryLogger(l promql.QueryLogger)
-	NewInstantQuery(q storage.Queryable, qs string, ts time.Time) (promql.Query, error)
-	NewRangeQuery(q storage.Queryable, qs string, start, end time.Time, interval time.Duration) (promql.Query, error)
+	NewInstantQuery(q storage.Queryable, opts *promql.QueryOpts, qs string, ts time.Time) (promql.Query, error)
+	NewRangeQuery(q storage.Queryable, opts *promql.QueryOpts, qs string, start, end time.Time, interval time.Duration) (promql.Query, error)
 }
 
 // API can register a set of endpoints in a router and handle
@@ -177,15 +187,16 @@ type API struct {
 	ready                 func(http.HandlerFunc) http.HandlerFunc
 	globalURLOptions      GlobalURLOptions
 
-	db          TSDBAdminStats
-	dbDir       string
-	enableAdmin bool
-	logger      log.Logger
-	CORSOrigin  *regexp.Regexp
-	buildInfo   *PrometheusVersion
-	runtimeInfo func() (RuntimeInfo, error)
-	gatherer    prometheus.Gatherer
-	isAgent     bool
+	db            TSDBAdminStats
+	dbDir         string
+	enableAdmin   bool
+	logger        log.Logger
+	CORSOrigin    *regexp.Regexp
+	buildInfo     *PrometheusVersion
+	runtimeInfo   func() (RuntimeInfo, error)
+	gatherer      prometheus.Gatherer
+	isAgent       bool
+	statsRenderer StatsRenderer
 
 	remoteWriteHandler http.Handler
 	remoteReadHandler  http.Handler
@@ -222,6 +233,7 @@ func NewAPI(
 	buildInfo *PrometheusVersion,
 	gatherer prometheus.Gatherer,
 	registerer prometheus.Registerer,
+	statsRenderer StatsRenderer,
 ) *API {
 	a := &API{
 		QueryEngine:       qe,
@@ -246,8 +258,13 @@ func NewAPI(
 		buildInfo:        buildInfo,
 		gatherer:         gatherer,
 		isAgent:          isAgent,
+		statsRenderer:    defaultStatsRenderer,
 
 		remoteReadHandler: remote.NewReadHandler(logger, registerer, q, configFunc, remoteReadSampleLimit, remoteReadConcurrencyLimit, remoteReadMaxBytesInFrame),
+	}
+
+	if statsRenderer != nil {
+		a.statsRenderer = statsRenderer
 	}
 
 	if ap != nil {
@@ -307,6 +324,9 @@ func (api *API) Register(r *route.Router) {
 	r.Get("/query_exemplars", wrapAgent(api.queryExemplars))
 	r.Post("/query_exemplars", wrapAgent(api.queryExemplars))
 
+	r.Get("/format_query", wrapAgent(api.formatQuery))
+	r.Post("/format_query", wrapAgent(api.formatQuery))
+
 	r.Get("/labels", wrapAgent(api.labelNames))
 	r.Post("/labels", wrapAgent(api.labelNames))
 	r.Get("/label/:name/values", wrapAgent(api.labelValues))
@@ -344,9 +364,9 @@ func (api *API) Register(r *route.Router) {
 }
 
 type queryData struct {
-	ResultType parser.ValueType  `json:"resultType"`
-	Result     parser.Value      `json:"result"`
-	Stats      *stats.QueryStats `json:"stats,omitempty"`
+	ResultType parser.ValueType `json:"resultType"`
+	Result     parser.Value     `json:"result"`
+	Stats      stats.QueryStats `json:"stats,omitempty"`
 }
 
 func invalidParamError(err error, parameter string) apiFuncResult {
@@ -376,7 +396,8 @@ func (api *API) query(r *http.Request) (result apiFuncResult) {
 		defer cancel()
 	}
 
-	qry, err := api.QueryEngine.NewInstantQuery(api.Queryable, r.FormValue("query"), ts)
+	opts := extractQueryOpts(r)
+	qry, err := api.QueryEngine.NewInstantQuery(api.Queryable, opts, r.FormValue("query"), ts)
 	if err != nil {
 		return invalidParamError(err, "query")
 	}
@@ -398,16 +419,32 @@ func (api *API) query(r *http.Request) (result apiFuncResult) {
 	}
 
 	// Optional stats field in response if parameter "stats" is not empty.
-	var qs *stats.QueryStats
-	if r.FormValue("stats") != "" {
-		qs = stats.NewQueryStats(qry.Stats())
+	sr := api.statsRenderer
+	if sr == nil {
+		sr = defaultStatsRenderer
 	}
+	qs := sr(ctx, qry.Stats(), r.FormValue("stats"))
 
 	return apiFuncResult{&queryData{
 		ResultType: res.Value.Type(),
 		Result:     res.Value,
 		Stats:      qs,
 	}, nil, res.Warnings, qry.Close}
+}
+
+func (api *API) formatQuery(r *http.Request) (result apiFuncResult) {
+	expr, err := parser.ParseExpr(r.FormValue("query"))
+	if err != nil {
+		return invalidParamError(err, "query")
+	}
+
+	return apiFuncResult{expr.Pretty(0), nil, nil, nil}
+}
+
+func extractQueryOpts(r *http.Request) *promql.QueryOpts {
+	return &promql.QueryOpts{
+		EnablePerStepStats: r.FormValue("stats") == "all",
+	}
 }
 
 func (api *API) queryRange(r *http.Request) (result apiFuncResult) {
@@ -451,7 +488,8 @@ func (api *API) queryRange(r *http.Request) (result apiFuncResult) {
 		defer cancel()
 	}
 
-	qry, err := api.QueryEngine.NewRangeQuery(api.Queryable, r.FormValue("query"), start, end, step)
+	opts := extractQueryOpts(r)
+	qry, err := api.QueryEngine.NewRangeQuery(api.Queryable, opts, r.FormValue("query"), start, end, step)
 	if err != nil {
 		return apiFuncResult{nil, &apiError{errorBadData, err}, nil, nil}
 	}
@@ -472,10 +510,11 @@ func (api *API) queryRange(r *http.Request) (result apiFuncResult) {
 	}
 
 	// Optional stats field in response if parameter "stats" is not empty.
-	var qs *stats.QueryStats
-	if r.FormValue("stats") != "" {
-		qs = stats.NewQueryStats(qry.Stats())
+	sr := api.statsRenderer
+	if sr == nil {
+		sr = defaultStatsRenderer
 	}
+	qs := sr(ctx, qry.Stats(), r.FormValue("stats"))
 
 	return apiFuncResult{&queryData{
 		ResultType: res.Value.Type(),
@@ -511,12 +550,12 @@ func (api *API) queryExemplars(r *http.Request) apiFuncResult {
 	ctx := r.Context()
 	eq, err := api.ExemplarQueryable.ExemplarQuerier(ctx)
 	if err != nil {
-		return apiFuncResult{nil, &apiError{errorExec, err}, nil, nil}
+		return apiFuncResult{nil, returnAPIError(err), nil, nil}
 	}
 
 	res, err := eq.Select(timestamp.FromTime(start), timestamp.FromTime(end), selectors...)
 	if err != nil {
-		return apiFuncResult{nil, &apiError{errorExec, err}, nil, nil}
+		return apiFuncResult{nil, returnAPIError(err), nil, nil}
 	}
 
 	return apiFuncResult{res, nil, nil, nil}
@@ -527,7 +566,12 @@ func returnAPIError(err error) *apiError {
 		return nil
 	}
 
-	switch errors.Cause(err).(type) {
+	cause := errors.Unwrap(err)
+	if cause == nil {
+		cause = err
+	}
+
+	switch cause.(type) {
 	case promql.ErrQueryCanceled:
 		return &apiError{errorCanceled, err}
 	case promql.ErrQueryTimeout:
@@ -556,7 +600,7 @@ func (api *API) labelNames(r *http.Request) apiFuncResult {
 
 	q, err := api.Queryable.Querier(r.Context(), timestamp.FromTime(start), timestamp.FromTime(end))
 	if err != nil {
-		return apiFuncResult{nil, &apiError{errorExec, err}, nil, nil}
+		return apiFuncResult{nil, returnAPIError(err), nil, nil}
 	}
 	defer q.Close()
 
@@ -570,7 +614,7 @@ func (api *API) labelNames(r *http.Request) apiFuncResult {
 		for _, matchers := range matcherSets {
 			vals, callWarnings, err := q.LabelNames(matchers...)
 			if err != nil {
-				return apiFuncResult{nil, &apiError{errorExec, err}, warnings, nil}
+				return apiFuncResult{nil, returnAPIError(err), warnings, nil}
 			}
 
 			warnings = append(warnings, callWarnings...)
@@ -584,7 +628,7 @@ func (api *API) labelNames(r *http.Request) apiFuncResult {
 		for key := range labelNamesSet {
 			names = append(names, key)
 		}
-		sort.Strings(names)
+		slices.Sort(names)
 	} else {
 		names, warnings, err = q.LabelNames()
 		if err != nil {
@@ -669,7 +713,7 @@ func (api *API) labelValues(r *http.Request) (result apiFuncResult) {
 		}
 	}
 
-	sort.Strings(vals)
+	slices.Sort(vals)
 
 	return apiFuncResult{vals, nil, warnings, closer}
 }
@@ -706,7 +750,7 @@ func (api *API) series(r *http.Request) (result apiFuncResult) {
 
 	q, err := api.Queryable.Querier(r.Context(), timestamp.FromTime(start), timestamp.FromTime(end))
 	if err != nil {
-		return apiFuncResult{nil, &apiError{errorExec, err}, nil, nil}
+		return apiFuncResult{nil, returnAPIError(err), nil, nil}
 	}
 	// From now on, we must only return with a finalizer in the result (to
 	// be called by the caller) or call q.Close ourselves (which is required
@@ -725,15 +769,21 @@ func (api *API) series(r *http.Request) (result apiFuncResult) {
 		End:   timestamp.FromTime(end),
 		Func:  "series", // There is no series function, this token is used for lookups that don't need samples.
 	}
+	var set storage.SeriesSet
 
-	var sets []storage.SeriesSet
-	for _, mset := range matcherSets {
-		// We need to sort this select results to merge (deduplicate) the series sets later.
-		s := q.Select(true, hints, mset...)
-		sets = append(sets, s)
+	if len(matcherSets) > 1 {
+		var sets []storage.SeriesSet
+		for _, mset := range matcherSets {
+			// We need to sort this select results to merge (deduplicate) the series sets later.
+			s := q.Select(true, hints, mset...)
+			sets = append(sets, s)
+		}
+		set = storage.NewMergeSeriesSet(sets, storage.ChainedSeriesMerge)
+	} else {
+		// At this point at least one match exists.
+		set = q.Select(false, hints, matcherSets[0]...)
 	}
 
-	set := storage.NewMergeSeriesSet(sets, storage.ChainedSeriesMerge)
 	metrics := []labels.Labels{}
 	for set.Next() {
 		metrics = append(metrics, set.At().Labels())
@@ -741,7 +791,7 @@ func (api *API) series(r *http.Request) (result apiFuncResult) {
 
 	warnings := set.Warnings()
 	if set.Err() != nil {
-		return apiFuncResult{nil, &apiError{errorExec, set.Err()}, warnings, closer}
+		return apiFuncResult{nil, returnAPIError(set.Err()), warnings, closer}
 	}
 
 	return apiFuncResult{metrics, nil, warnings, closer}
@@ -858,7 +908,7 @@ func (api *API) targets(r *http.Request) apiFuncResult {
 			keys = append(keys, k)
 			n += len(targets[k])
 		}
-		sort.Strings(keys)
+		slices.Sort(keys)
 		return keys, n
 	}
 
@@ -1291,8 +1341,8 @@ func (api *API) serveFlags(_ *http.Request) apiFuncResult {
 	return apiFuncResult{api.flagsMap, nil, nil, nil}
 }
 
-// stat holds the information about individual cardinality.
-type stat struct {
+// TSDBStat holds the information about individual cardinality.
+type TSDBStat struct {
 	Name  string `json:"name"`
 	Value uint64 `json:"value"`
 }
@@ -1306,26 +1356,27 @@ type HeadStats struct {
 	MaxTime       int64  `json:"maxTime"`
 }
 
-// tsdbStatus has information of cardinality statistics from postings.
-type tsdbStatus struct {
-	HeadStats                   HeadStats `json:"headStats"`
-	SeriesCountByMetricName     []stat    `json:"seriesCountByMetricName"`
-	LabelValueCountByLabelName  []stat    `json:"labelValueCountByLabelName"`
-	MemoryInBytesByLabelName    []stat    `json:"memoryInBytesByLabelName"`
-	SeriesCountByLabelValuePair []stat    `json:"seriesCountByLabelValuePair"`
+// TSDBStatus has information of cardinality statistics from postings.
+type TSDBStatus struct {
+	HeadStats                   HeadStats  `json:"headStats"`
+	SeriesCountByMetricName     []TSDBStat `json:"seriesCountByMetricName"`
+	LabelValueCountByLabelName  []TSDBStat `json:"labelValueCountByLabelName"`
+	MemoryInBytesByLabelName    []TSDBStat `json:"memoryInBytesByLabelName"`
+	SeriesCountByLabelValuePair []TSDBStat `json:"seriesCountByLabelValuePair"`
 }
 
-func convertStats(stats []index.Stat) []stat {
-	result := make([]stat, 0, len(stats))
+// TSDBStatsFromIndexStats converts a index.Stat slice to a TSDBStat slice.
+func TSDBStatsFromIndexStats(stats []index.Stat) []TSDBStat {
+	result := make([]TSDBStat, 0, len(stats))
 	for _, item := range stats {
-		item := stat{Name: item.Name, Value: item.Count}
+		item := TSDBStat{Name: item.Name, Value: item.Count}
 		result = append(result, item)
 	}
 	return result
 }
 
 func (api *API) serveTSDBStatus(*http.Request) apiFuncResult {
-	s, err := api.db.Stats("__name__")
+	s, err := api.db.Stats(labels.MetricName)
 	if err != nil {
 		return apiFuncResult{nil, &apiError{errorInternal, err}, nil, nil}
 	}
@@ -1343,7 +1394,7 @@ func (api *API) serveTSDBStatus(*http.Request) apiFuncResult {
 			}
 		}
 	}
-	return apiFuncResult{tsdbStatus{
+	return apiFuncResult{TSDBStatus{
 		HeadStats: HeadStats{
 			NumSeries:     s.NumSeries,
 			ChunkCount:    chunkCount,
@@ -1351,10 +1402,10 @@ func (api *API) serveTSDBStatus(*http.Request) apiFuncResult {
 			MaxTime:       s.MaxTime,
 			NumLabelPairs: s.IndexPostingStats.NumLabelPairs,
 		},
-		SeriesCountByMetricName:     convertStats(s.IndexPostingStats.CardinalityMetricsStats),
-		LabelValueCountByLabelName:  convertStats(s.IndexPostingStats.CardinalityLabelStats),
-		MemoryInBytesByLabelName:    convertStats(s.IndexPostingStats.LabelValueStats),
-		SeriesCountByLabelValuePair: convertStats(s.IndexPostingStats.LabelValuePairsStats),
+		SeriesCountByMetricName:     TSDBStatsFromIndexStats(s.IndexPostingStats.CardinalityMetricsStats),
+		LabelValueCountByLabelName:  TSDBStatsFromIndexStats(s.IndexPostingStats.CardinalityLabelStats),
+		MemoryInBytesByLabelName:    TSDBStatsFromIndexStats(s.IndexPostingStats.LabelValueStats),
+		SeriesCountByLabelValuePair: TSDBStatsFromIndexStats(s.IndexPostingStats.LabelValuePairsStats),
 	}, nil, nil, nil}
 }
 
@@ -1609,9 +1660,9 @@ OUTER:
 func marshalPointJSON(ptr unsafe.Pointer, stream *jsoniter.Stream) {
 	p := *((*promql.Point)(ptr))
 	stream.WriteArrayStart()
-	marshalTimestamp(p.T, stream)
+	jsonutil.MarshalTimestamp(p.T, stream)
 	stream.WriteMore()
-	marshalValue(p.V, stream)
+	jsonutil.MarshalValue(p.V, stream)
 	stream.WriteArrayEnd()
 }
 
@@ -1620,11 +1671,12 @@ func marshalPointJSONIsEmpty(ptr unsafe.Pointer) bool {
 }
 
 // marshalExemplarJSON writes.
-// {
-//    labels: <labels>,
-//    value: "<string>",
-//    timestamp: <float>
-// }
+//
+//	{
+//	   labels: <labels>,
+//	   value: "<string>",
+//	   timestamp: <float>
+//	}
 func marshalExemplarJSON(ptr unsafe.Pointer, stream *jsoniter.Stream) {
 	p := *((*exemplar.Exemplar)(ptr))
 	stream.WriteObjectStart()
@@ -1641,56 +1693,16 @@ func marshalExemplarJSON(ptr unsafe.Pointer, stream *jsoniter.Stream) {
 	// "value" key.
 	stream.WriteMore()
 	stream.WriteObjectField(`value`)
-	marshalValue(p.Value, stream)
+	jsonutil.MarshalValue(p.Value, stream)
 
 	// "timestamp" key.
 	stream.WriteMore()
 	stream.WriteObjectField(`timestamp`)
-	marshalTimestamp(p.Ts, stream)
-	// marshalTimestamp(p.Ts, stream)
+	jsonutil.MarshalTimestamp(p.Ts, stream)
 
 	stream.WriteObjectEnd()
 }
 
 func marshalExemplarJSONEmpty(ptr unsafe.Pointer) bool {
 	return false
-}
-
-func marshalTimestamp(t int64, stream *jsoniter.Stream) {
-	// Write out the timestamp as a float divided by 1000.
-	// This is ~3x faster than converting to a float.
-	if t < 0 {
-		stream.WriteRaw(`-`)
-		t = -t
-	}
-	stream.WriteInt64(t / 1000)
-	fraction := t % 1000
-	if fraction != 0 {
-		stream.WriteRaw(`.`)
-		if fraction < 100 {
-			stream.WriteRaw(`0`)
-		}
-		if fraction < 10 {
-			stream.WriteRaw(`0`)
-		}
-		stream.WriteInt64(fraction)
-	}
-}
-
-func marshalValue(v float64, stream *jsoniter.Stream) {
-	stream.WriteRaw(`"`)
-	// Taken from https://github.com/json-iterator/go/blob/master/stream_float.go#L71 as a workaround
-	// to https://github.com/json-iterator/go/issues/365 (jsoniter, to follow json standard, doesn't allow inf/nan).
-	buf := stream.Buffer()
-	abs := math.Abs(v)
-	fmt := byte('f')
-	// Note: Must use float32 comparisons for underlying float32 value to get precise cutoffs right.
-	if abs != 0 {
-		if abs < 1e-6 || abs >= 1e21 {
-			fmt = 'e'
-		}
-	}
-	buf = strconv.AppendFloat(buf, v, fmt, -1, 64)
-	stream.SetBuffer(buf)
-	stream.WriteRaw(`"`)
 }

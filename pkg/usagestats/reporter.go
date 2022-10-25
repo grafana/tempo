@@ -70,7 +70,7 @@ func NewReporter(config Config, kvConfig kv.Config, reader backend.RawReader, wr
 func (rep *Reporter) initLeader(ctx context.Context) *ClusterSeed {
 	kvClient, err := kv.NewClient(rep.kvConfig, JSONCodec, nil, rep.logger)
 	if err != nil {
-		level.Info(rep.logger).Log("msg", "failed to create kv client", "err", err)
+		level.Warn(rep.logger).Log("msg", "failed to create kv client", "err", err)
 		return nil
 	}
 	// Try to become leader via the kv client
@@ -93,7 +93,7 @@ func (rep *Reporter) initLeader(ctx context.Context) *ClusterSeed {
 			}
 			return &copySeed, true, nil
 		}); err != nil {
-			level.Info(rep.logger).Log("msg", "failed to CAS cluster seed key", "err", err)
+			level.Warn(rep.logger).Log("msg", "failed to CAS cluster seed key", "err", err)
 			continue
 		}
 		// ensure stability of the cluster seed
@@ -109,7 +109,7 @@ func (rep *Reporter) initLeader(ctx context.Context) *ClusterSeed {
 			if err == backend.ErrDoesNotExist || err == backend.ErrBadSeedFile {
 				// we are the leader and we need to save the file.
 				if err := rep.writeSeedFile(ctx, seed); err != nil {
-					level.Info(rep.logger).Log("msg", "failed to CAS cluster seed key", "err", err)
+					level.Warn(rep.logger).Log("msg", "failed to CAS cluster seed key", "err", err)
 					backoff.Wait()
 					continue
 				}

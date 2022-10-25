@@ -11,8 +11,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
+	"github.com/mitchellh/mapstructure"
+	"github.com/pkg/errors"
+	"github.com/spf13/viper"
+	"github.com/weaveworks/common/user"
+	"gopkg.in/yaml.v2"
+
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
@@ -21,11 +28,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/mitchellh/mapstructure"
-	"github.com/pkg/errors"
-	"github.com/spf13/viper"
-	"github.com/weaveworks/common/user"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -97,16 +99,28 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		return nil, httpError("creating backend block", err, http.StatusInternalServerError)
 	}
 
-	opts := common.SearchOptions{
-		StartPage:  int(searchReq.StartPage),
-		TotalPages: int(searchReq.PagesToSearch),
-		MaxBytes:   maxBytes,
-	}
-	cfg.Search.ApplyToOptions(&opts)
+	var resp *tempopb.SearchResponse
 
-	resp, err := block.Search(r.Context(), searchReq.SearchReq, opts)
-	if err != nil {
-		return nil, httpError("searching block", err, http.StatusInternalServerError)
+	if api.IsTraceQLQuery(searchReq.SearchReq) {
+		engine := traceql.NewEngine()
+
+		// TODO pass in SearchOptions
+		resp, err = engine.Execute(r.Context(), searchReq.SearchReq, block)
+		if err != nil {
+			return nil, httpError("searching block", err, http.StatusInternalServerError)
+		}
+	} else {
+		opts := common.SearchOptions{
+			StartPage:  int(searchReq.StartPage),
+			TotalPages: int(searchReq.PagesToSearch),
+			MaxBytes:   maxBytes,
+		}
+		cfg.Search.ApplyToOptions(&opts)
+
+		resp, err = block.Search(r.Context(), searchReq.SearchReq, opts)
+		if err != nil {
+			return nil, httpError("searching block", err, http.StatusInternalServerError)
+		}
 	}
 
 	runtime.GC()

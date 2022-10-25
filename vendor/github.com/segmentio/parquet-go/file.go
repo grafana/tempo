@@ -105,10 +105,13 @@ func OpenFile(r io.ReaderAt, size int64, options ...FileOption) (*File, error) {
 	}
 
 	if !c.SkipBloomFilters {
-		h := format.BloomFilterHeader{}
-		p := thrift.CompactProtocol{}
-		s := io.NewSectionReader(r, 0, size)
-		d := thrift.NewDecoder(p.NewReader(s))
+		section := io.NewSectionReader(r, 0, size)
+		rbuf, rbufpool := getBufioReader(section, c.ReadBufferSize)
+		defer putBufioReader(rbuf, rbufpool)
+
+		header := format.BloomFilterHeader{}
+		compact := thrift.CompactProtocol{}
+		decoder := thrift.NewDecoder(compact.NewReader(rbuf))
 
 		for i := range rowGroups {
 			g := &rowGroups[i]
@@ -117,19 +120,24 @@ func OpenFile(r io.ReaderAt, size int64, options ...FileOption) (*File, error) {
 				c := g.columns[j].(*fileColumnChunk)
 
 				if offset := c.chunk.MetaData.BloomFilterOffset; offset > 0 {
-					s.Seek(offset, io.SeekStart)
-					h = format.BloomFilterHeader{}
-					if err := d.Decode(&h); err != nil {
-						return nil, err
+					section.Seek(offset, io.SeekStart)
+					rbuf.Reset(section)
+
+					header = format.BloomFilterHeader{}
+					if err := decoder.Decode(&header); err != nil {
+						return nil, fmt.Errorf("decoding bloom filter header: %w", err)
 					}
-					offset, _ = s.Seek(0, io.SeekCurrent)
+
+					offset, _ = section.Seek(0, io.SeekCurrent)
+					offset -= int64(rbuf.Buffered())
+
 					if cast, ok := r.(interface{ SetBloomFilterSection(offset, length int64) }); ok {
 						bloomFilterOffset := c.chunk.MetaData.BloomFilterOffset
-						bloomFilterLength := (offset - bloomFilterOffset) + int64(h.NumBytes)
+						bloomFilterLength := (offset - bloomFilterOffset) + int64(header.NumBytes)
 						cast.SetBloomFilterSection(bloomFilterOffset, bloomFilterLength)
 					}
 
-					c.bloomFilter = newBloomFilter(r, offset, &h)
+					c.bloomFilter = newBloomFilter(r, offset, &header)
 				}
 			}
 		}
@@ -559,10 +567,8 @@ func (f *filePages) readDictionary() error {
 		return err
 	}
 
-	page := compressedPageBufferPool.get()
+	page := buffers.get(int(header.CompressedPageSize))
 	defer page.unref()
-
-	page.resize(int(header.CompressedPageSize))
 
 	if _, err := io.ReadFull(rbuf, page.data); err != nil {
 		return err
@@ -611,10 +617,8 @@ func (f *filePages) readDataPageV2(header *format.PageHeader, page *buffer) (Pag
 }
 
 func (f *filePages) readPage(header *format.PageHeader, reader *bufio.Reader) (*buffer, error) {
-	page := compressedPageBufferPool.get()
+	page := buffers.get(int(header.CompressedPageSize))
 	defer page.unref()
-
-	page.resize(int(header.CompressedPageSize))
 
 	if _, err := io.ReadFull(reader, page.data); err != nil {
 		return nil, err
@@ -624,17 +628,7 @@ func (f *filePages) readPage(header *format.PageHeader, reader *bufio.Reader) (*
 		headerChecksum := uint32(header.CRC)
 		bufferChecksum := crc32.ChecksumIEEE(page.data)
 
-		// TODO: checksum validation is disabled until we figure out how the
-		// checksum of TestOpenFile/testdata/delta_length_byte_array.parquet was
-		// computed.
-		//
-		// Note that we still compute the page checksum even if we are not using
-		// to avoid skewing benchmarks.
-		//
-		// https://github.com/apache/parquet-testing/pull/24#issuecomment-1196045050
-		const validateChecksum = false
-
-		if validateChecksum && headerChecksum != bufferChecksum {
+		if headerChecksum != bufferChecksum {
 			// The parquet specs indicate that corruption errors could be
 			// handled gracefully by skipping pages, tho this may not always
 			// be practical. Depending on how the pages are consumed,
@@ -688,6 +682,7 @@ func (f *filePages) Close() error {
 	f.chunk = nil
 	f.section = io.SectionReader{}
 	f.rbuf = nil
+	f.rbufpool = nil
 	f.baseOffset = 0
 	f.dataOffset = 0
 	f.dictOffset = 0

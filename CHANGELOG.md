@@ -1,13 +1,37 @@
 ## main / unreleased
+* [FEATURE] Add generic forwarder and implement otlpgrpc forwarder [#1775](https://github.com/grafana/tempo/pull/1775) (@Blinkuu)
+    New config options and example configuration:
+```
+# config.yaml
+distributor:
+  forwarders:
+    - name: "otel-forwarder"
+      backend: "otlpgrpc"
+      otlpgrpc:
+        endpoints: ['otelcol:4317']
+        tls:
+          insecure: true
 
+# overrides.yaml
+overrides:
+  "example-tenant-1":
+    forwarders: ['otel-forwarder']
+  "example-tenant-2":
+    forwarders: ['otel-forwarder']
+```
+* [ENHANCEMENT] Refactor queueManager into generic queue.Queue [#1796](https://github.com/grafana/tempo/pull/1796) (@Blinkuu)
+  - **BREAKING CHANGE** Rename `tempo_distributor_forwarder_queue_length` metric to `tempo_distributor_queue_length`. New metric has two custom labels: `name` and  `tenant`.
+  - Deprecated `tempo_distributor_forwarder_pushes_total` metric in favor of `tempo_distributor_queue_pushes_total`.
+  - Deprecated `tempo_distributor_forwarder_pushes_failures_total` metric in favor of `tempo_distributor_queue_pushes_failures_total`.
 * [ENHANCEMENT] Filter namespace by cluster in tempo dashboards variables [#1771](https://github.com/grafana/tempo/pull/1771) (@electron0zero)
 * [ENHANCEMENT] Exit early from sharded search requests [#1742](https://github.com/grafana/tempo/pull/1742) (@electron0zero)
+* [ENHANCEMENT] Upgrade prometheus/prometheus to `51a44e6657c3` [#1829](https://github.com/grafana/tempo/pull/1829) (@mapno)
 * [CHANGE] Identify bloom that could not be retrieved from backend block [#1737](https://github.com/grafana/tempo/pull/1737) (@AlexDHoffer)
 * [CHANGE] tempo: check configuration returns now a list of warnings [#1663](https://github.com/grafana/tempo/pull/1663) (@frzifus)
 * [CHANGE] Make DNS address fully qualified to reduce DNS lookups in Kubernetes [#1687](https://github.com/grafana/tempo/pull/1687) (@electron0zero)
 * [CHANGE] Improve parquet compaction memory profile when dropping spans [#1692](https://github.com/grafana/tempo/pull/1692) (@joe-elliott)
 * [CHANGE] Increase default values for `server.grpc_server_max_recv_msg_size` and `server.grpc_server_max_send_msg_size` from 4MB to 16MB [#1688](https://github.com/grafana/tempo/pull/1688) (@mapno)
-* [CHANGE] Use Parquet for local block search, tag search and tag value search instead of flatbuffers. A configuration value 
+* [CHANGE] Use Parquet for local block search, tag search and tag value search instead of flatbuffers. A configuration value
   (`ingester.use_flatbuffer_search`) is provided to continue using flatbuffers.
   - **BREAKING CHANGE** Makes Parquet the default encoding.
 * [CHANGE] **BREAKING CHANGE** Use storage.trace.block.row_group_size_bytes to cut rows during compaction instead of
@@ -18,6 +42,7 @@
 * [CHANGE] Deprecated `query-frontend.query_shards` in favor of `query_frontend.trace_by_id.query_shards`.
 Old config will still work but will be removed in a future release. [#1735](https://github.com/grafana/tempo/pull/1735) (@mapno)
 * [CHANGE] Add GOMEMLIMIT variable to compactor jsonnet and set the value to equal compactor memory limit. [#1758](https://github.com/grafana/tempo/pull/1758/files) (@ie-pham)
+* [CHANGE] Update alpine image version to 3.16. [#1784](https://github.com/grafana/tempo/pull/1784) (@zalegrala)
 * [FEATURE] Add capability to configure the used S3 Storage Class [#1697](https://github.com/grafana/tempo/pull/1714) (@amitsetty)
 * [ENHANCEMENT] cache: expose username and sentinel_username redis configuration options for ACL-based Redis Auth support [#1708](https://github.com/grafana/tempo/pull/1708) (@jsievenpiper)
 * [ENHANCEMENT] metrics-generator: expose span size as a metric [#1662](https://github.com/grafana/tempo/pull/1662) (@ie-pham)
@@ -35,11 +60,19 @@ query_frontend:
     hedge_requests_up_to: 3
 ```
 * [ENHACEMENT] Update OTel collector to v0.57.2 [#1757](https://github.com/grafana/tempo/pull/1757) (@mapno)
-* [BUGFIX] Honor caching and buffering settings when finding traces by id [#1697](https://github.com/grafana/tempo/pull/1697) (@joe-elliott)
-* [BUGFIX] Correctly propagate errors from the iterator layer up through the queriers [#1723](https://github.com/grafana/tempo/pull/1723) (@joe-elliott)
+* [ENHANCEMENT] Vulture now has improved distribution of the random traces it searches. [#1763](https://github.com/grafana/tempo/pull/1763) (@rfratto)
 * [ENHANCEMENT] Upgrade opentelemetry-proto submodule to v0.18.0 [#1754](https://github.com/grafana/tempo/pull/1754) (@mapno)
 Internal types are updated to use `scope` instead of `instrumentation_library`. This is a breaking change in trace by ID queries if JSON is requested.
 * [BUGFIX] New wal file separator '+' for the NTFS filesystem and backward compatibility with the old separator ':' [#1700](https://github.com/grafana/tempo/pull/1700) (@kilian-kier)
+* [ENHANCEMENT] metrics-generator: extract `status_message` field from spans [#1786](https://github.com/grafana/tempo/pull/1786), [#1794](https://github.com/grafana/tempo/pull/1794) (@stoewer)
+* [ENHANCEMENT] metrics-generator: handle collisions between user defined and default dimensions [#1794](https://github.com/grafana/tempo/pull/1794) (@stoewer)
+* [ENHANCEMENT] distributor: Log span names when `distributor.log_received_spans.include_all_attributes` is on [#1790](https://github.com/grafana/tempo/pull/1790) (@suraciii)
+* [BUGFIX] Honor caching and buffering settings when finding traces by id [#1697](https://github.com/grafana/tempo/pull/1697) (@joe-elliott)
+* [BUGFIX] Correctly propagate errors from the iterator layer up through the queriers [#1723](https://github.com/grafana/tempo/pull/1723) (@joe-elliott)
+* [BUGFIX] Make multitenancy work with HTTP [#1781](https://github.com/grafana/tempo/pull/1781) (@gouthamve)
+* [BUGFIX] Fix parquet search bug fix on http.status_code that may cause incorrect results to be returned [#1799](https://github.com/grafana/tempo/pull/1799) (@mdisibio)
+* [BUGFIX] Fix failing SearchTagValues endpoint after startup [#1813](https://github.com/grafana/tempo/pull/1813) (@stoewer)
+
 
 ## v1.5.0 / 2022-08-17
 

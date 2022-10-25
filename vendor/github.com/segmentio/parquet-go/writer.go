@@ -105,6 +105,9 @@ func (w *Writer) Close() error {
 // Flush is called automatically on Close, it is only useful to call explicitly
 // if the application needs to limit the size of row groups or wants to produce
 // multiple row groups per file.
+//
+// If the writer attempts to create more than MaxRowGroups row groups the method
+// returns ErrTooManyRowGroups.
 func (w *Writer) Flush() error {
 	if w.writer != nil {
 		return w.writer.flush()
@@ -540,6 +543,10 @@ func (w *writer) writeRowGroup(rowGroupSchema *Schema, rowGroupSortingColumns []
 	numRows := w.columns[0].totalRowCount()
 	if numRows == 0 {
 		return 0, nil
+	}
+
+	if len(w.rowGroups) == MaxRowGroups {
+		return 0, ErrTooManyRowGroups
 	}
 
 	defer func() {

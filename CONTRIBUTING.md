@@ -116,6 +116,14 @@ make fmt
 
 However, do note that the above command requires the `gofmt` and `goimports` binaries accessible via `$PATH`.
 
+If you have changed any jsonnet or libsonnet files, please run
+
+```
+make jsonnetfmt
+```
+
+This requires `jsonnetfmt` binary in `$PATH`.
+
 ## Documentation
 
 Tempo uses a CI action to sync documentation to the [Grafana website](https://grafana.com/docs/tempo/latest). The CI is

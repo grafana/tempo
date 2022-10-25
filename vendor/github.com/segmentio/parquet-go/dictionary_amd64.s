@@ -799,7 +799,7 @@ TEXT ·dictionaryLookupByteArrayString(SB), NOSPLIT, $0-104
     MOVQ dict_len+8(FP), BX
     DECQ BX // the offsets have the total length as last element
 
-    MOVQ page+24(FP), CX
+    MOVQ page_base+24(FP), CX
 
     MOVQ indexes_base+48(FP), R8
     MOVQ indexes_len+56(FP), R9

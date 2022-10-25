@@ -82,6 +82,8 @@ func main() {
 	startTime := actualStartTime
 	tickerWrite := time.NewTicker(tempoWriteBackoffDuration)
 
+	r := rand.New(rand.NewSource(actualStartTime.Unix()))
+
 	var tickerRead *time.Ticker
 	if tempoReadBackoffDuration > 0 {
 		tickerRead = time.NewTicker(tempoReadBackoffDuration)
@@ -140,7 +142,7 @@ func main() {
 		go func() {
 			for now := range tickerRead.C {
 				var seed time.Time
-				startTime, seed = selectPastTimestamp(startTime, now, interval, tempoRetentionDuration)
+				startTime, seed = selectPastTimestamp(startTime, now, interval, tempoRetentionDuration, r)
 
 				log := logger.With(
 					zap.String("org_id", tempoOrgID),
@@ -173,7 +175,7 @@ func main() {
 	if tickerSearch != nil {
 		go func() {
 			for now := range tickerSearch.C {
-				_, seed := selectPastTimestamp(startTime, now, interval, tempoRetentionDuration)
+				_, seed := selectPastTimestamp(startTime, now, interval, tempoRetentionDuration, r)
 				log := logger.With(
 					zap.String("org_id", tempoOrgID),
 					zap.Int64("seed", seed.Unix()),
@@ -251,7 +253,7 @@ func pushMetrics(metrics traceMetrics) {
 	metricTracesErrors.WithLabelValues("notfound_search_attribute").Add(float64(metrics.notFoundSearchAttribute))
 }
 
-func selectPastTimestamp(start, stop time.Time, interval time.Duration, retention time.Duration) (newStart, ts time.Time) {
+func selectPastTimestamp(start, stop time.Time, interval, retention time.Duration, r *rand.Rand) (newStart, ts time.Time) {
 	oldest := stop.Add(-retention)
 
 	if oldest.After(start) {
@@ -260,7 +262,7 @@ func selectPastTimestamp(start, stop time.Time, interval time.Duration, retentio
 		newStart = start
 	}
 
-	ts = time.Unix(generateRandomInt(newStart.Unix(), stop.Unix(), rand.New(rand.NewSource(start.Unix()))), 0)
+	ts = time.Unix(generateRandomInt(newStart.Unix(), stop.Unix(), r), 0)
 
 	return newStart.Round(interval), ts.Round(interval)
 }
