@@ -171,7 +171,15 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) (*tempopb.TraceSearchMe
 			Attributes:        nil,
 		}
 
+		if name, ok := span.Attributes[NewIntrinsic(IntrinsicName)]; ok {
+			tempopbSpan.Name = name.S
+		}
+
 		for attribute, static := range span.Attributes {
+			if attribute.Name == IntrinsicName.String() || attribute.Name == IntrinsicDuration.String() {
+				continue
+			}
+
 			staticAnyValue, err := asAnyValue(static)
 			if err != nil {
 				return nil, err

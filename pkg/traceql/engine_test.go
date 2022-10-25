@@ -151,6 +151,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 				StartTimeUnixNanos: uint64(now.UnixNano()),
 				EndtimeUnixNanos:   uint64(now.Add(10 * time.Second).UnixNano()),
 				Attributes: map[Attribute]Static{
+					NewIntrinsic(IntrinsicName):     NewStaticString("HTTP GET"),
 					NewIntrinsic(IntrinsicStatus):   NewStaticStatus(StatusOk),
 					NewAttribute("cluster"):         NewStaticString("prod"),
 					NewAttribute("count"):           NewStaticInt(5),
@@ -184,6 +185,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 			Spans: []*tempopb.Span{
 				{
 					SpanID:            util.TraceIDToHexString(spanID1),
+					Name:              "HTTP GET",
 					StartTimeUnixNano: uint64(now.UnixNano()),
 					DurationNanos:     10_000_000_000,
 					Attributes: []*v1.KeyValue{
@@ -208,14 +210,6 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 							Value: &v1.AnyValue{
 								Value: &v1.AnyValue_DoubleValue{
 									DoubleValue: 5.0,
-								},
-							},
-						},
-						{
-							Key: "duration",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_StringValue{
-									StringValue: "10s",
 								},
 							},
 						},
