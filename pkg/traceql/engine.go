@@ -176,7 +176,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) (*tempopb.TraceSearchMe
 		}
 
 		for attribute, static := range span.Attributes {
-			if attribute.Name == IntrinsicName.String() || attribute.Name == IntrinsicDuration.String() {
+			if attribute.Intrinsic == IntrinsicName || attribute.Intrinsic == IntrinsicDuration {
 				continue
 			}
 
