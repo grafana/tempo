@@ -2,6 +2,7 @@ package v2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -38,8 +39,8 @@ type v2AppendBlock struct {
 	once     sync.Once
 }
 
-func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
-	if strings.ContainsRune(dataEncoding, ':') ||
+func newAppendBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (*v2AppendBlock, error) {
+	if strings.ContainsRune(dataEncoding, ':') || strings.ContainsRune(dataEncoding, '+') ||
 		len([]rune(dataEncoding)) > maxDataEncodingLength {
 		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
 	}
@@ -261,15 +262,29 @@ func (a *v2AppendBlock) Fetch(context.Context, traceql.FetchSpansRequest) (trace
 }
 
 func (a *v2AppendBlock) fullFilename() string {
+	filename := a.fullFilenameSeparator("+")
+	_, e1 := os.Stat(filename)
+	if errors.Is(e1, os.ErrNotExist) {
+		filenameWithOldSeparator := a.fullFilenameSeparator(":")
+		_, e2 := os.Stat(filenameWithOldSeparator)
+		if !errors.Is(e2, os.ErrNotExist) {
+			filename = filenameWithOldSeparator
+		}
+	}
+
+	return filename
+}
+
+func (a *v2AppendBlock) fullFilenameSeparator(separator string) string {
 	if a.meta.Version == "v0" {
-		return filepath.Join(a.filepath, fmt.Sprintf("%v:%v", a.meta.BlockID, a.meta.TenantID))
+		return filepath.Join(a.filepath, fmt.Sprintf("%v%v%v", a.meta.BlockID, separator, a.meta.TenantID))
 	}
 
 	var filename string
 	if a.meta.DataEncoding == "" {
-		filename = fmt.Sprintf("%v:%v:%v:%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding)
+		filename = fmt.Sprintf("%v%v%v%v%v%v%v", a.meta.BlockID, separator, a.meta.TenantID, separator, a.meta.Version, separator, a.meta.Encoding)
 	} else {
-		filename = fmt.Sprintf("%v:%v:%v:%v:%v", a.meta.BlockID, a.meta.TenantID, a.meta.Version, a.meta.Encoding, a.meta.DataEncoding)
+		filename = fmt.Sprintf("%v%v%v%v%v%v%v%v%v", a.meta.BlockID, separator, a.meta.TenantID, separator, a.meta.Version, separator, a.meta.Encoding, separator, a.meta.DataEncoding)
 	}
 
 	return filepath.Join(a.filepath, filename)
@@ -311,9 +326,16 @@ func (a *v2AppendBlock) adjustTimeRangeForSlack(start uint32, end uint32, additi
 }
 
 // ParseFilename returns (blockID, tenant, version, encoding, dataEncoding, error).
-// Example: "00000000-0000-0000-0000-000000000000:1:v2:snappy:v1"
+// Example: "00000000-0000-0000-0000-000000000000+1+v2+snappy+v1"
+// Example with old separator: "00000000-0000-0000-0000-000000000000:1:v2:snappy:v1"
 func ParseFilename(filename string) (uuid.UUID, string, string, backend.Encoding, string, error) {
-	splits := strings.Split(filename, ":")
+	var splits []string
+	if strings.Contains(filename, "+") {
+		splits = strings.Split(filename, "+")
+	} else {
+		// backward-compatibility with the old separator
+		splits = strings.Split(filename, ":")
+	}
 
 	if len(splits) != 4 && len(splits) != 5 {
 		return uuid.UUID{}, "", "", backend.EncNone, "", fmt.Errorf("unable to parse %s. unexpected number of segments", filename)
