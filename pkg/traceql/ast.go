@@ -12,6 +12,7 @@ type Element interface {
 
 type pipelineElement interface {
 	Element
+	extractConditions(request *FetchSpansRequest)
 	evaluate([]Spanset) ([]Spanset, error)
 }
 
@@ -73,6 +74,16 @@ func (p Pipeline) impliedType() StaticType {
 	return TypeSpanset
 }
 
+func (p Pipeline) extractConditions(req *FetchSpansRequest) {
+	for _, element := range p.Elements {
+		element.extractConditions(req)
+	}
+	// TODO this needs to be fine-tuned a bit, e.g. { .foo = "bar" } | by(.namespace), AllConditions can still be true
+	if len(p.Elements) > 1 {
+		req.AllConditions = false
+	}
+}
+
 func (p Pipeline) evaluate(input []Spanset) (result []Spanset, err error) {
 	result = input
 
@@ -100,6 +111,10 @@ func newGroupOperation(e FieldExpression) GroupOperation {
 	}
 }
 
+func (o GroupOperation) extractConditions(request *FetchSpansRequest) {
+	o.Expression.extractConditions(request)
+}
+
 func (GroupOperation) evaluate(ss []Spanset) ([]Spanset, error) {
 	return ss, nil
 }
@@ -109,6 +124,9 @@ type CoalesceOperation struct {
 
 func newCoalesceOperation() CoalesceOperation {
 	return CoalesceOperation{}
+}
+
+func (o CoalesceOperation) extractConditions(request *FetchSpansRequest) {
 }
 
 func (CoalesceOperation) evaluate(ss []Spanset) ([]Spanset, error) {
@@ -123,6 +141,8 @@ type ScalarExpression interface {
 	Element
 	typedExpression
 	__scalarExpression()
+
+	extractConditions(request *FetchSpansRequest)
 }
 
 type ScalarOperation struct {
@@ -157,6 +177,12 @@ func (o ScalarOperation) impliedType() StaticType {
 	return o.RHS.impliedType()
 }
 
+func (o ScalarOperation) extractConditions(request *FetchSpansRequest) {
+	o.LHS.extractConditions(request)
+	o.RHS.extractConditions(request)
+	request.AllConditions = false
+}
+
 type Aggregate struct {
 	agg AggregateOp
 	e   FieldExpression
@@ -180,6 +206,12 @@ func (a Aggregate) impliedType() StaticType {
 	return a.e.impliedType()
 }
 
+func (a Aggregate) extractConditions(request *FetchSpansRequest) {
+	if a.e != nil {
+		a.e.extractConditions(request)
+	}
+}
+
 func (Aggregate) evaluate(ss []Spanset) ([]Spanset, error) {
 	return ss, nil
 }
@@ -196,6 +228,12 @@ type SpansetOperation struct {
 	Op  Operator
 	LHS SpansetExpression
 	RHS SpansetExpression
+}
+
+func (o SpansetOperation) extractConditions(request *FetchSpansRequest) {
+	o.LHS.extractConditions(request)
+	o.RHS.extractConditions(request)
+	request.AllConditions = false
 }
 
 func newSpansetOperation(op Operator, lhs SpansetExpression, rhs SpansetExpression) SpansetOperation {
@@ -276,6 +314,12 @@ func newScalarFilter(op Operator, lhs ScalarExpression, rhs ScalarExpression) Sc
 
 // nolint: revive
 func (ScalarFilter) __spansetExpression() {}
+
+func (f ScalarFilter) extractConditions(request *FetchSpansRequest) {
+	f.lhs.extractConditions(request)
+	f.rhs.extractConditions(request)
+	request.AllConditions = false
+}
 
 func (ScalarFilter) evaluate(ss []Spanset) ([]Spanset, error) {
 	return ss, nil
