@@ -201,11 +201,11 @@ func TestInvalidFiles(t *testing.T) {
 	require.NoError(t, err)
 
 	// create unparseable filename
-	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"), []byte{}, 0644)
+	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e+tenant+v2+notanencoding"), []byte{}, 0644)
 	require.NoError(t, err)
 
 	// create empty block
-	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"), []byte{}, 0644)
+	err = os.WriteFile(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e+blerg+v2+gzip"), []byte{}, 0644)
 	require.NoError(t, err)
 
 	blocks, err := wal.RescanBlocks(0, log.NewNopLogger())
@@ -213,8 +213,8 @@ func TestInvalidFiles(t *testing.T) {
 	require.Len(t, blocks, 1) // this is our 1 valid block from above
 
 	// confirm invalid blocks have been cleaned up
-	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:tenant:v2:notanencoding"))
-	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e:blerg:v2:gzip"))
+	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e+tenant+v2+notanencoding"))
+	require.NoFileExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e+blerg+v2+gzip"))
 }
 
 func BenchmarkWALNone(b *testing.B) {

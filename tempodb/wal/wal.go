@@ -161,7 +161,7 @@ func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File,
 	}
 
 	// blockID, tenantID, version, encoding (compression), dataEncoding
-	filename := fmt.Sprintf("%v:%v:%v:%v:%v", blockid, tenantid, walFileVersion, w.c.SearchEncoding, "")
+	filename := fmt.Sprintf("%v+%v+%v+%v+%v", blockid, tenantid, walFileVersion, w.c.SearchEncoding, "")
 	file, err := os.OpenFile(filepath.Join(p, filename), os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return nil, backend.EncNone, err

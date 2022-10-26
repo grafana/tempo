@@ -9,14 +9,13 @@ Using this deployment guide, you can deploy Tempo to Kubernetes using a Jsonnet 
 This procedure uses MinIO to provide object storage regardless of the cloud platform or on-premise storage you use.
 In a production environment, you can use your cloud provider’s object storage service to avoid the operational overhead of running object storage in production.
 
-This demo configuration includes [metrics-generator](https://grafana.com/docs/tempo/next/configuration/#metrics-generator).
-
 To set up Tempo using Kubernetes with Tanka, you need to:
 
 1. Configure Kubernetes and install Tanka
 1. Set up the Tanka environment
 1. Install libraries
-1. Deploy MinIO object storage and configure metrics-generator
+1. Deploy MinIO object storage 
+1. Optional: Enable metrics-generator
 1. Deploy Tempo with the Tanka command
 
 >**Note**: This configuration is not suitable for a production environment but can provide a useful way to learn about Tempo.
@@ -319,7 +318,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
 
 ### Optional: Enable metrics-generator
 
-Metrics generation is enabled in the above configuration, but where to send the generated metrics data hasn't been specified yet. 
+In the preceding configuration, [metrics generation](https://grafana.com/docs/tempo/next/configuration/#metrics-generator) is enabled. However, you still need to specify where to send the generated metrics data.
 If you'd like to remote write these metrics onto a Prometheus compatible instance (such as Grafana Cloud metrics or a Mimir instance), you'll need to include the configuration block below in the `metrics_generator` section of the `tempo_config` block above (this assumes basic auth is required, if not then remove the `basic_auth` section). 
 You can find the details for your Grafana Cloud metrics instance for your Grafana Cloud account by using the [Cloud Portal](https://grafana.com/docs/grafana-cloud/account-management/cloud-portal/).
 

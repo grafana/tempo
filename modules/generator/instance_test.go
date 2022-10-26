@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/metadata"
 	prometheus_storage "github.com/prometheus/prometheus/storage"
 	"github.com/stretchr/testify/assert"
 
@@ -134,30 +135,28 @@ type noopStorage struct{}
 
 var _ storage.Storage = (*noopStorage)(nil)
 
-func (m noopStorage) Appender(ctx context.Context) prometheus_storage.Appender {
+func (m noopStorage) Appender(context.Context) prometheus_storage.Appender {
 	return &noopAppender{}
 }
 
-func (m noopStorage) Close() error {
-	return nil
-}
+func (m noopStorage) Close() error { return nil }
 
 type noopAppender struct{}
 
 var _ prometheus_storage.Appender = (*noopAppender)(nil)
 
-func (n noopAppender) Append(ref prometheus_storage.SeriesRef, l labels.Labels, t int64, v float64) (prometheus_storage.SeriesRef, error) {
+func (n noopAppender) Append(prometheus_storage.SeriesRef, labels.Labels, int64, float64) (prometheus_storage.SeriesRef, error) {
 	return 0, nil
 }
 
-func (n noopAppender) AppendExemplar(ref prometheus_storage.SeriesRef, l labels.Labels, e exemplar.Exemplar) (prometheus_storage.SeriesRef, error) {
+func (n noopAppender) AppendExemplar(prometheus_storage.SeriesRef, labels.Labels, exemplar.Exemplar) (prometheus_storage.SeriesRef, error) {
 	return 0, nil
 }
 
-func (n noopAppender) Commit() error {
-	return nil
-}
+func (n noopAppender) Commit() error { return nil }
 
-func (n noopAppender) Rollback() error {
-	return nil
+func (n noopAppender) Rollback() error { return nil }
+
+func (n noopAppender) UpdateMetadata(prometheus_storage.SeriesRef, labels.Labels, metadata.Metadata) (prometheus_storage.SeriesRef, error) {
+	return 0, nil
 }
