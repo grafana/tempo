@@ -72,6 +72,9 @@ func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
 		if _, ok := r.resultsMap[t.TraceID]; !ok {
 			r.resultsMap[t.TraceID] = t
 		}
+		if len(r.resultsMap) >= r.limit {
+			break
+		}
 	}
 
 	// purposefully ignoring InspectedBlocks as that value is set by the sharder

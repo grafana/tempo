@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -633,6 +634,64 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
 	resp, err = testRT.RoundTrip(req)
 	testBadRequest(t, resp, err, "range specified by start and end exceeds 1m0s. received start=1000 end=1500")
+}
+
+func TestSearchSharderRoundTripLimit(t *testing.T) {
+	// each request will return 2 traces
+	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		response := &tempopb.SearchResponse{
+			Traces: []*tempopb.TraceSearchMetadata{
+				{TraceID: test.RandomString()},
+				{TraceID: test.RandomString()},
+			},
+			Metrics: &tempopb.SearchMetrics{},
+		}
+
+		resString, err := (&jsonpb.Marshaler{}).MarshalToString(response)
+		require.NoError(t, err)
+
+		return &http.Response{
+			Body:       io.NopCloser(strings.NewReader(resString)),
+			StatusCode: 200,
+		}, nil
+	})
+
+	o, err := overrides.NewOverrides(overrides.Limits{})
+	require.NoError(t, err)
+
+	sharder := newSearchSharder(&mockReader{
+		metas: []*backend.BlockMeta{ // one block with 2 records that are each the target bytes per request will force 2 sub queries
+			{
+				StartTime:    time.Unix(1100, 0),
+				EndTime:      time.Unix(1200, 0),
+				Size:         defaultTargetBytesPerRequest * 2,
+				TotalRecords: 2,
+				BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+			},
+		},
+	}, o, SearchSharderConfig{
+		ConcurrentRequests:    2,
+		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+	}, log.NewNopLogger())
+	testRT := NewRoundTripper(next, sharder)
+
+	req := httptest.NewRequest("GET", "/?start=1000&end=1500&limit=3", nil)
+	ctx := req.Context()
+	ctx = user.InjectOrgID(ctx, "blerg")
+	req = req.WithContext(ctx)
+
+	resp, err := testRT.RoundTrip(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+
+	actualResp := &tempopb.SearchResponse{}
+	bytesResp, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
+	require.NoError(t, err)
+
+	assert.Len(t, actualResp.Traces, 3)
 }
 
 func testBadRequest(t *testing.T, resp *http.Response, err error, expectedBody string) {
