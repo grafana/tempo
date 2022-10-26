@@ -32,6 +32,7 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 
 	fetchSpansRequest := e.createFetchSpansRequest(searchReq, rootExpr.Pipeline)
 
+	span.SetTag("pipeline", rootExpr.Pipeline)
 	span.SetTag("fetchSpansRequest", fetchSpansRequest)
 
 	fetchSpansResponse, err := spanSetFetcher.Fetch(ctx, fetchSpansRequest)
@@ -62,8 +63,8 @@ iter:
 
 		ss, err := rootExpr.Pipeline.evaluate([]Spanset{*spanSet})
 		if err != nil {
-			span.LogKV("msg", "pipeline.evaluate", "pipeline", rootExpr.Pipeline, "err", err)
-			continue
+			span.LogKV("msg", "pipeline.evaluate", "err", err)
+			return nil, err
 		}
 		spansetsEvaluated++
 
