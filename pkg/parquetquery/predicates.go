@@ -98,7 +98,8 @@ var _ Predicate = (*RegexInPredicate)(nil)
 
 func NewRegexInPredicate(regs []string) (*RegexInPredicate, error) {
 	p := &RegexInPredicate{
-		regs: make([]*regexp.Regexp, 0, len(regs)),
+		regs:    make([]*regexp.Regexp, 0, len(regs)),
+		matches: make(map[string]bool),
 	}
 	for _, reg := range regs {
 		r, err := regexp.Compile(reg)
