@@ -68,6 +68,12 @@ func (a Aggregate) validate() error {
 		return fmt.Errorf("aggregate field expressions must reference the span: %s", a.String())
 	}
 
+	switch a.op {
+	case aggregateCount, aggregateAvg:
+	default:
+		return fmt.Errorf("aggregate operation (%v) not supported", a.op)
+	}
+
 	return nil
 }
 
