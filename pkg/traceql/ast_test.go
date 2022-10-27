@@ -50,6 +50,56 @@ func TestStatic_Equals(t *testing.T) {
 	}
 }
 
+func TestPipelineExtractConditions(t *testing.T) {
+	testCases := []struct {
+		query   string
+		request FetchSpansRequest
+	}{
+		{
+			"{ .foo1 = `a` } | { .foo2 = `b` }",
+			FetchSpansRequest{
+				Conditions: []Condition{
+					newCondition(NewAttribute("foo1"), OpEqual, NewStaticString("a")),
+					newCondition(NewAttribute("foo2"), OpEqual, NewStaticString("b")),
+				},
+				AllConditions: false,
+			},
+		},
+		{
+			"{ .foo = `a` } | by(.namespace) | count() > 3",
+			FetchSpansRequest{
+				Conditions: []Condition{
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("a")),
+					newCondition(NewAttribute("namespace"), OpNone),
+				},
+				AllConditions: false,
+			},
+		},
+		{
+			"{ .foo = `a` } | avg(duration) > 20ms",
+			FetchSpansRequest{
+				Conditions: []Condition{
+					newCondition(NewAttribute("foo"), OpEqual, NewStaticString("a")),
+					newCondition(NewIntrinsic(IntrinsicDuration), OpNone),
+				},
+				AllConditions: false,
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.query, func(t *testing.T) {
+			ast, err := Parse(tc.query)
+			require.NoError(t, err)
+
+			actualRequest := FetchSpansRequest{
+				AllConditions: true,
+			}
+			ast.Pipeline.extractConditions(&actualRequest)
+			require.Equal(t, tc.request, actualRequest)
+		})
+	}
+}
+
 func TestPipelineEvaluate(t *testing.T) {
 	testCases := []struct {
 		query  string

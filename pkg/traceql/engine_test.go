@@ -2,6 +2,7 @@ package traceql
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
@@ -151,6 +152,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 				StartTimeUnixNanos: uint64(now.UnixNano()),
 				EndtimeUnixNanos:   uint64(now.Add(10 * time.Second).UnixNano()),
 				Attributes: map[Attribute]Static{
+					NewIntrinsic(IntrinsicName):     NewStaticString("HTTP GET"),
 					NewIntrinsic(IntrinsicStatus):   NewStaticStatus(StatusOk),
 					NewAttribute("cluster"):         NewStaticString("prod"),
 					NewAttribute("count"):           NewStaticInt(5),
@@ -170,8 +172,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 
 	e := NewEngine()
 
-	traceSearchMetadata, err := e.asTraceSearchMetadata(spanSet)
-	require.NoError(t, err)
+	traceSearchMetadata := e.asTraceSearchMetadata(spanSet)
 
 	expectedTraceSearchMetadata := &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(traceID),
@@ -184,6 +185,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 			Spans: []*tempopb.Span{
 				{
 					SpanID:            util.TraceIDToHexString(spanID1),
+					Name:              "HTTP GET",
 					StartTimeUnixNano: uint64(now.UnixNano()),
 					DurationNanos:     10_000_000_000,
 					Attributes: []*v1.KeyValue{
@@ -208,14 +210,6 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 							Value: &v1.AnyValue{
 								Value: &v1.AnyValue_DoubleValue{
 									DoubleValue: 5.0,
-								},
-							},
-						},
-						{
-							Key: "duration",
-							Value: &v1.AnyValue{
-								Value: &v1.AnyValue_StringValue{
-									StringValue: "10s",
 								},
 							},
 						},
@@ -285,5 +279,25 @@ func newCondition(attr Attribute, op Operator, operands ...Static) Condition {
 		Attribute: attr,
 		Op:        op,
 		Operands:  operands,
+	}
+}
+
+func TestStatic_AsAnyValue(t *testing.T) {
+	tt := []struct {
+		s        Static
+		expected *v1.AnyValue
+	}{
+		{NewStaticInt(5), &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 5}}},
+		{NewStaticString("foo"), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "foo"}}},
+		{NewStaticFloat(5.0), &v1.AnyValue{Value: &v1.AnyValue_DoubleValue{DoubleValue: 5.0}}},
+		{NewStaticBool(true), &v1.AnyValue{Value: &v1.AnyValue_BoolValue{BoolValue: true}}},
+		{NewStaticDuration(5 * time.Second), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "5s"}}},
+		{NewStaticStatus(StatusOk), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "ok"}}},
+		{NewStaticNil(), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "nil"}}},
+	}
+	for _, tc := range tt {
+		t.Run(fmt.Sprintf("%v", tc.s), func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.s.asAnyValue())
+		})
 	}
 }
