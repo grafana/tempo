@@ -59,8 +59,8 @@ func (o SpansetOperation) evaluate(input []Spanset) (output []Spanset, err error
 func (f ScalarFilter) evaluate(input []Spanset) (output []Spanset, err error) {
 
 	// TODO we solve this gap where pipeline elements and scalar binary
-	// operations meet in a generic. For now we only support well-defined cases.
-
+	// operations meet in a generic way. For now we only support well-defined
+	// case: aggregate binop static
 	switch l := f.lhs.(type) {
 	case Aggregate:
 		switch r := f.rhs.(type) {

@@ -116,6 +116,19 @@ func (f ScalarFilter) validate() error {
 		return fmt.Errorf("illegal operation for the given types: %s", f.String())
 	}
 
+	// Only supported expression types
+	switch f.lhs.(type) {
+	case Aggregate:
+	default:
+		return fmt.Errorf("scalar filter lhs of type (%v) not supported", f.lhs)
+	}
+
+	switch f.rhs.(type) {
+	case Static:
+	default:
+		return fmt.Errorf("scalar filter rhs of type (%v) not supported", f.rhs)
+	}
+
 	return nil
 }
 

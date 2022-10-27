@@ -69,13 +69,10 @@ valid:
   - '{ true } ~ { true }'
   # scalar filters
   - 'avg(.field) > 1'
-  - 'avg(.field) > 1 - 3'         # scalar expressions in scalar filters are currently not allowed. possible future addition
-  - '3 = 2'                     # naked scalar filter, technically allowed
   # pipelines
   - '{ true } | { .a }'
   - '{ true } | count() = 1'
   - '{ true } | avg(duration) = 1h'
-  - '{ true } | count() + count() = 1' 
   - 'count() = 1 | { true }'
   - '{ true } | coalesce()'
   - '{ true } | by(.a)'
@@ -86,19 +83,13 @@ valid:
   - '{ true } | by(.field) | avg(.b) = 2'
   - '{ true } | count() = 1 | { true }'
   # pipeline expressions
-  - '({ true } | count()) + ({ true } | count()) = 1'
-  - '({ true } | count()) - ({ true } | count()) <= 1'
-  - '({ true } | count()) / ({ true } | count()) > ({ true } | count()) / ({ true } | count())'
-  - '({ true } | count()) * ({ true } | count()) < ({ true } | count()) / ({ true } | count())'
   - '({ true } | count() > 1 | { false }) && ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) || ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) >> ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) > ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) ~ ({ true } | count() > 1 | { false })'
   # random
-  - '({ .http.status = 200 } | count()) + ({ name = `foo` } | avg(duration)) = 2'
   - '{ (-(3 / 2) * .test - parent.blerg + .other)^3 = 2 }'
-  - '({ .a } | count()) > ({ .b } | count())'
   
 # parse_fails throw an error when parsing
 parse_fails:
@@ -209,7 +200,7 @@ validate_fails:
   - 'min(1) = "foo"'
   - 'avg(childCount) > "foo"'
   - 'max(duration) < ok'
-  # scalar filters and aggregates not supported yet at this time
+  # aggregates not supported yet at this time
   - 'min(childCount) < 2'
   - 'max(duration) >= 1s'
   - 'min(.field) < max(duration)'
@@ -231,6 +222,16 @@ validate_fails:
   - '{ true } | by(3 * .field - 2) | max(duration) < 1s'
   - 'max(duration) > 3s | { status = error || .http.status = 500 }'
   - '{ .http.status = 200 } | max(.field) - min(.field) > 3'
+  # scalar filter expressions not supported yet at this time
+  - '3 = 2'                     # naked scalar filter, technically allowed
+  - 'avg(.field) > 1 - 3'         # scalar expressions in scalar filters are currently not allowed. possible future addition
+  - '{ true } | count() + count() = 1' 
+  - '({ true } | count()) + ({ true } | count()) = 1'
+  - '({ true } | count()) - ({ true } | count()) <= 1'
+  - '({ true } | count()) / ({ true } | count()) > ({ true } | count()) / ({ true } | count())'
+  - '({ true } | count()) * ({ true } | count()) < ({ true } | count()) / ({ true } | count())'
+  - '({ .http.status = 200 } | count()) + ({ name = `foo` } | avg(duration)) = 2'
+  - '({ .a } | count()) > ({ .b } | count())'
 
 
 # parsed and the ast is dumped to stdout. this is a debugging tool
