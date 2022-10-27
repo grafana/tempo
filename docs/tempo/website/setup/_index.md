@@ -17,8 +17,6 @@ No matter which option you choose, setting up your Tempo cluster involves:
 
 This page highlights these steps; more detailed instructions are available on the procedures for deploying clusters.
 
-> **Note:** You can use [Grafana Cloud](https://grafana.com/products/cloud/features/#cloud-traces) to avoid installing, maintaining, and scaling your own instance of Tempo. The free forever plan includes 50GB of free traces. [Create an account to get started](https://grafana.com/auth/sign-up/create-user?pg=docs-enterprise-traces&plcmt=in-text).
-
 ## Name your cluster
 
 No matter which deployment method you choose, you need to decide what to call your Tempo cluster.
