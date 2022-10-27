@@ -15,8 +15,6 @@ This diagram illustrates a tracing system configuration:
 
 <p align="center"><img src="getting-started.png" alt="Tracing pipeline overview"></p>
 
-> **Note:** You can use [Grafana Cloud](https://grafana.com/products/cloud/features/#cloud-dashboards-grafana) to avoid installing, maintaining, and scaling your own instance of Grafana Tempo. The free forever plan includes 50GB of free traces. [Create an account to get started](https://grafana.com/auth/sign-up/create-user?pg=docs-tempo&plcmt=in-text).
-
 ## Client instrumentation
 
 Client instrumentation (1 in the diagram) is the first building block to a functioning distributed tracing visualization pipeline.
