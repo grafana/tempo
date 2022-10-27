@@ -184,14 +184,14 @@ func (o ScalarOperation) extractConditions(request *FetchSpansRequest) {
 }
 
 type Aggregate struct {
-	agg AggregateOp
-	e   FieldExpression
+	op AggregateOp
+	e  FieldExpression
 }
 
 func newAggregate(agg AggregateOp, e FieldExpression) Aggregate {
 	return Aggregate{
-		agg: agg,
-		e:   e,
+		op: agg,
+		e:  e,
 	}
 }
 
@@ -199,7 +199,7 @@ func newAggregate(agg AggregateOp, e FieldExpression) Aggregate {
 func (Aggregate) __scalarExpression() {}
 
 func (a Aggregate) impliedType() StaticType {
-	if a.agg == aggregateCount || a.e == nil {
+	if a.op == aggregateCount || a.e == nil {
 		return TypeInt
 	}
 
@@ -210,10 +210,6 @@ func (a Aggregate) extractConditions(request *FetchSpansRequest) {
 	if a.e != nil {
 		a.e.extractConditions(request)
 	}
-}
-
-func (Aggregate) evaluate(ss []Spanset) ([]Spanset, error) {
-	return ss, nil
 }
 
 // **********************
@@ -319,10 +315,6 @@ func (f ScalarFilter) extractConditions(request *FetchSpansRequest) {
 	f.lhs.extractConditions(request)
 	f.rhs.extractConditions(request)
 	request.AllConditions = false
-}
-
-func (ScalarFilter) evaluate(ss []Spanset) ([]Spanset, error) {
-	return ss, nil
 }
 
 // **********************

@@ -107,5 +107,43 @@ func TestSpansetFilter_extractConditions(t *testing.T) {
 			assert.Equal(t, tt.allConditions, req.AllConditions, "FetchSpansRequest.AllConditions")
 		})
 	}
+}
 
+func TestScalarFilter_extractConditions(t *testing.T) {
+	tests := []struct {
+		query         string
+		conditions    []Condition
+		allConditions bool
+	}{
+		{
+			query: `{ .foo = "a" } | count() > 10`,
+			conditions: []Condition{
+				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("a")),
+			},
+			allConditions: false,
+		},
+		{
+			query: `{ .foo = "a" } | avg(duration) > 10ms`,
+			conditions: []Condition{
+				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("a")),
+				newCondition(NewIntrinsic(IntrinsicDuration), OpNone),
+			},
+			allConditions: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			expr, err := Parse(tt.query)
+			require.NoError(t, err)
+
+			req := &FetchSpansRequest{
+				Conditions:    []Condition{},
+				AllConditions: true,
+			}
+			expr.Pipeline.extractConditions(req)
+
+			assert.Equal(t, tt.conditions, req.Conditions)
+			assert.Equal(t, tt.allConditions, req.AllConditions, "FetchSpansRequest.AllConditions")
+		})
+	}
 }

@@ -32,10 +32,10 @@ func (o ScalarOperation) String() string {
 
 func (a Aggregate) String() string {
 	if a.e == nil {
-		return a.agg.String() + "()"
+		return a.op.String() + "()"
 	}
 
-	return a.agg.String() + "(" + a.e.String() + ")"
+	return a.op.String() + "(" + a.e.String() + ")"
 }
 
 func (o SpansetOperation) String() string {

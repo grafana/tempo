@@ -68,6 +68,12 @@ func (a Aggregate) validate() error {
 		return fmt.Errorf("aggregate field expressions must reference the span: %s", a.String())
 	}
 
+	switch a.op {
+	case aggregateCount, aggregateAvg:
+	default:
+		return fmt.Errorf("aggregate operation (%v) not supported", a.op)
+	}
+
 	return nil
 }
 
@@ -108,6 +114,19 @@ func (f ScalarFilter) validate() error {
 
 	if !f.op.binaryTypesValid(lhsT, rhsT) {
 		return fmt.Errorf("illegal operation for the given types: %s", f.String())
+	}
+
+	// Only supported expression types
+	switch f.lhs.(type) {
+	case Aggregate:
+	default:
+		return fmt.Errorf("scalar filter lhs of type (%v) not supported", f.lhs)
+	}
+
+	switch f.rhs.(type) {
+	case Static:
+	default:
+		return fmt.Errorf("scalar filter rhs of type (%v) not supported", f.rhs)
 	}
 
 	return nil
