@@ -15,9 +15,6 @@ For more information about Tempo setup and configuration, see:
 * [Tempo configuration]({{< relref "../configuration" >}})
 
 If you are interested in instrumentation, see [Tempo instrumentation]({{< relref "instrumentation" >}}).
-
-> **Note:** You can use [Grafana Cloud](https://grafana.com/products/cloud/features/#cloud-dashboards-grafana) to avoid installing, maintaining, and scaling your own instance of Grafana Tempo. The free forever plan includes 50GB of free traces. [Create an account to get started](https://grafana.com/auth/sign-up/create-user?pg=docs-tempo&plcmt=in-text).
-
 ## Docker Compose
 
 The [docker-compose examples](https://github.com/grafana/tempo/tree/main/example/docker-compose) are simpler and designed to show minimal configuration.
