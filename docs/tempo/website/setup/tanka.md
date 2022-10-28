@@ -337,7 +337,7 @@ storage+: {
 },
 ```
 
->**Note**: Enabling metrics generation and remote writing them to Grafana Cloud Metrics will produce extra active series that could potentially impact your billing. For more information on metrics generation, see [metrics generation](https://grafana.com/docs/tempo/latest/metrics-generator/) in the Tempo documentation.
+>**Note**: Enabling metrics generation and remote writing them to Grafana Cloud Metrics will produce extra active series that could potentially impact your billing. For more information on billing, refer to [Billing and usage](https://grafana.com/docs/grafana-cloud/billing-and-usage/). For more information on metrics generation, refer [Metrics-generator](https://grafana.com/docs/tempo/latest/metrics-generator/) in the Tempo documentation.
 
 ## Deploy Tempo using Tanka
 
