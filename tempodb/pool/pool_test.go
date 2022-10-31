@@ -342,3 +342,40 @@ func TestDataEncodings(t *testing.T) {
 	p.Shutdown()
 	goleak.VerifyNone(t, prePoolOpts)
 }
+
+func TestCancellation(t *testing.T) {
+	prePoolOpts := goleak.IgnoreCurrent()
+	p := NewPool(&Config{
+		MaxWorkers: 1,
+		QueueDepth: 10,
+	})
+	opts := goleak.IgnoreCurrent()
+
+	callCount := 0
+	cancelAfter := 2
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	ret := []byte{0x01, 0x02}
+	fn := func(_ context.Context, _ interface{}) (interface{}, error) {
+		callCount++
+		if callCount >= cancelAfter {
+			cancel()
+		}
+		return ret, nil
+	}
+	payloads := []interface{}{1, 2, 3, 4, 5, 6, 7}
+
+	results, funcErrs, err := p.RunJobs(ctx, payloads, fn)
+	require.Len(t, results, 2)
+	for i := range results {
+		assert.Equal(t, ret, results[i])
+	}
+
+	assert.Nil(t, err)
+	assert.Nil(t, funcErrs)
+	goleak.VerifyNone(t, opts)
+
+	p.Shutdown()
+	goleak.VerifyNone(t, prePoolOpts)
+}
