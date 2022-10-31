@@ -340,7 +340,7 @@ storage+: {
 >**Note**: Enabling metrics generation and remote writing them to Grafana Cloud Metrics will produce extra active series that could potentially impact your billing. For more information on billing, refer to [Billing and usage](https://grafana.com/docs/grafana-cloud/billing-and-usage/). For more information on metrics generation, refer [Metrics-generator](https://grafana.com/docs/tempo/latest/metrics-generator/) in the Tempo documentation.
 
 
-### Optional: Reduce resource requirements in Tanka
+### Optional: Reduce ingester system requirements
 
 If your ingesters won't start due to inadequate resources, you can reduce the CPU and memory requirements by changing the configuration in the `environments/tempo/main.jsonnet` file. Lowering these requirements can impact overall performance. 
 
