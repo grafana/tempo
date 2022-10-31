@@ -60,7 +60,7 @@
 
   tempo_distributor_config:: $.tempo_config {
     distributor+: {
-      receivers: $._config.distributor.receivers,
+      receivers+: $._config.distributor.receivers,
     },
   },
 
