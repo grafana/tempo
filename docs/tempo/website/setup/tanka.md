@@ -339,6 +339,31 @@ storage+: {
 
 >**Note**: Enabling metrics generation and remote writing them to Grafana Cloud Metrics will produce extra active series that could potentially impact your billing. For more information on billing, refer to [Billing and usage](https://grafana.com/docs/grafana-cloud/billing-and-usage/). For more information on metrics generation, refer [Metrics-generator](https://grafana.com/docs/tempo/latest/metrics-generator/) in the Tempo documentation.
 
+
+### Optional: Reduce resource requirements in Tanka
+
+If your ingesters won't start due to inadequate resources, you can reduce the CPU and memory requirements by changing the configuration in the `environments/tempo/main.jsonnet` file. Lowering these requirements can impact overall performance. 
+
+To change the resources requirements, follow these steps: 
+
+1. Open the `environments/tempo/main.jsonnet` file. 
+1. Add this configuration block to the `tempo_config` section: 
+   ```jsonnet
+    tempo_ingester_container+:: {
+    resources+: {
+        limits+: {
+            cpu: '3',
+            memory: '5Gi',
+        },
+        requests+: {
+            memory: '2Gi',
+            cpu: '200m',
+        },
+    },
+   }
+   ````
+
+
 ## Deploy Tempo using Tanka
 
 1. Deploy Tempo using the Tanka command:
