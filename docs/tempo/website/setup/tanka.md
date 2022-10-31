@@ -347,7 +347,7 @@ If your ingesters won't start due to inadequate resources, you can reduce the CP
 To change the resources requirements, follow these steps: 
 
 1. Open the `environments/tempo/main.jsonnet` file. 
-1. Add this configuration block to the `tempo_config` section: 
+1. Add a new configuration block: 
    ```jsonnet
     tempo_ingester_container+:: {
     resources+: {
@@ -362,7 +362,7 @@ To change the resources requirements, follow these steps:
       },
    }
    ````
-
+1. Save the changes to the file. 
 
 ## Deploy Tempo using Tanka
 
