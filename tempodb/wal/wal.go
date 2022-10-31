@@ -159,6 +159,7 @@ func (w *WAL) newBlock(id uuid.UUID, tenantID string, dataEncoding string, dbEnc
 }
 
 func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File, backend.Encoding, error) {
+	// jpe - make this configurable
 	// search WAL pinned to v2 for now
 	walFileVersion := "v2"
 
