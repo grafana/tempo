@@ -359,7 +359,7 @@ To change the resources requirements, follow these steps:
             memory: '2Gi',
             cpu: '200m',
         },
-    },
+      },
    }
    ````
 
