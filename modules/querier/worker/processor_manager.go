@@ -41,7 +41,7 @@ func newProcessorManager(ctx context.Context, p processor, conn *grpc.ClientConn
 }
 
 func (pm *processorManager) stop() {
-	// Notify the remote query-frontend or query-scheduler we're shutting down.
+	// Notify the remote query-frontend we're shutting down.
 	// We use a new context to make sure it's not cancelled.
 	notifyCtx, cancel := context.WithTimeout(context.Background(), notifyShutdownTimeout)
 	defer cancel()

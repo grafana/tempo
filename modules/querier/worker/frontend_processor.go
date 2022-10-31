@@ -8,13 +8,15 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/gogo/status"
 	"github.com/grafana/dskit/backoff"
 	"github.com/weaveworks/common/httpgrpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 
 	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
-	"github.com/grafana/tempo/modules/querier/stats"
 	querier_stats "github.com/grafana/tempo/modules/querier/stats"
+	"github.com/grafana/tempo/pkg/scheduler/queue"
 )
 
 var (
@@ -53,21 +55,57 @@ func (fp *frontendProcessor) notifyShutdown(ctx context.Context, conn *grpc.Clie
 	}
 }
 
-// runOne loops, trying to establish a stream to the frontend to begin request processing.
+// processQueriesOnSingleStream loops, trying to establish a stream to the frontend to begin request processing.
 func (fp *frontendProcessor) processQueriesOnSingleStream(ctx context.Context, conn *grpc.ClientConn, address string) {
+	if ctx.Err() != nil {
+		level.Debug(fp.log).Log("msg", "returning early for context err", "address", address, "context.Err", ctx.Err())
+		return
+	}
+
 	client := frontendv1pb.NewFrontendClient(conn)
+
+	doneErr := func(err error) error {
+		st, ok := status.FromError(err)
+		if !ok {
+			switch err.Error() {
+			case context.Canceled.Error():
+				return nil
+			}
+		}
+
+		switch st.Code() {
+		case codes.Canceled:
+			return nil
+		case codes.Unknown:
+			switch st.Message() {
+			case queue.ErrStopped.Error():
+				return nil
+			}
+
+		default:
+			level.Warn(fp.log).Log("msg", "unhandled status code", "code", st.Code())
+		}
+
+		return err
+	}
 
 	backoff := backoff.New(ctx, processorBackoffConfig)
 	for backoff.Ongoing() {
 		c, err := client.Process(ctx)
 		if err != nil {
-			level.Error(fp.log).Log("msg", "error contacting frontend", "address", address, "err", err)
+			if doneErr(err) != nil {
+				level.Error(fp.log).Log("msg", "error contacting frontend", "address", address, "err", err)
+			}
+
 			backoff.Wait()
 			continue
 		}
 
 		if err := fp.process(c); err != nil {
-			level.Error(fp.log).Log("msg", "error processing requests", "address", address, "err", err)
+			if doneErr(err) != nil {
+				level.Error(fp.log).Log("msg", "error processing requests", "address", address, "err", err)
+			}
+
 			backoff.Wait()
 			continue
 		}
@@ -95,7 +133,7 @@ func (fp *frontendProcessor) process(c frontendv1pb.Frontend_ProcessClient) erro
 			// and cancel the query.  We don't actually handle queries in parallel
 			// here, as we're running in lock step with the server - each Recv is
 			// paired with a Send.
-			go fp.runRequest(ctx, request.HttpRequest, request.StatsEnabled, func(response *httpgrpc.HTTPResponse, stats *stats.Stats) error {
+			go fp.runRequest(ctx, request.HttpRequest, request.StatsEnabled, func(response *httpgrpc.HTTPResponse, stats *querier_stats.Stats) error {
 				return c.Send(&frontendv1pb.ClientToFrontend{
 					HttpResponse: response,
 					Stats:        stats,
@@ -114,7 +152,7 @@ func (fp *frontendProcessor) process(c frontendv1pb.Frontend_ProcessClient) erro
 	}
 }
 
-func (fp *frontendProcessor) runRequest(ctx context.Context, request *httpgrpc.HTTPRequest, statsEnabled bool, sendHTTPResponse func(response *httpgrpc.HTTPResponse, stats *stats.Stats) error) {
+func (fp *frontendProcessor) runRequest(ctx context.Context, request *httpgrpc.HTTPRequest, statsEnabled bool, sendHTTPResponse func(response *httpgrpc.HTTPResponse, stats *querier_stats.Stats) error) {
 	var stats *querier_stats.Stats
 	if statsEnabled {
 		stats, ctx = querier_stats.ContextWithEmptyStats(ctx)

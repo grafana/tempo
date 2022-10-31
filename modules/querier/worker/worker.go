@@ -56,11 +56,10 @@ type RequestHandler interface {
 	Handle(context.Context, *httpgrpc.HTTPRequest) (*httpgrpc.HTTPResponse, error)
 }
 
-// Single processor handles all streaming operations to query-frontend or query-scheduler to fetch queries
-// and process them.
+// Single processor handles all streaming operations to query-frontend to fetch queries and process them.
 type processor interface {
 	// Each invocation of processQueriesOnSingleStream starts new streaming operation to query-frontend
-	// or query-scheduler to fetch queries and execute them.
+	// to fetch queries and execute them.
 	//
 	// This method must react on context being finished, and stop when that happens.
 	//
@@ -96,16 +95,14 @@ func NewQuerierWorker(cfg Config, handler RequestHandler, log log.Logger, reg pr
 		cfg.QuerierID = hostname
 	}
 
-	var processor processor
+	var proc processor
 	var servs []services.Service
-	var address string
+	address := cfg.FrontendAddress
 
-	level.Info(log).Log("msg", "Starting querier worker connected to query-frontend", "frontend", cfg.FrontendAddress)
+	level.Info(log).Log("msg", "starting querier worker connected to query-frontend", "frontend", address)
+	proc = newFrontendProcessor(cfg, handler, log)
 
-	address = cfg.FrontendAddress
-	processor = newFrontendProcessor(cfg, handler, log)
-
-	return newQuerierWorkerWithProcessor(cfg, log, processor, address, servs)
+	return newQuerierWorkerWithProcessor(cfg, log, proc, address, servs)
 }
 
 func newQuerierWorkerWithProcessor(cfg Config, log log.Logger, processor processor, address string, servs []services.Service) (*querierWorker, error) {
