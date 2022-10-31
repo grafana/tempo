@@ -239,7 +239,7 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 	}
 
 	// tracing instrumentation
-	span, ctx := opentracing.StartSpanFromContext(ctx, "ingester.FindTraceByID")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Ingester.FindTraceByID")
 	defer span.Finish()
 
 	instanceID, err := user.ExtractOrgID(ctx)
