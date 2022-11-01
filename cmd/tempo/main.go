@@ -118,8 +118,6 @@ func main() {
 		os.Exit(1)
 	}
 	runtime.KeepAlive(ballast)
-
-	level.Info(log.Logger).Log("msg", "Tempo running")
 }
 
 func loadConfig() (*app.Config, error) {
