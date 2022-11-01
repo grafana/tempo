@@ -68,20 +68,29 @@ type ExporterFactory interface {
 	// tests of any implementation of the Factory interface.
 	CreateDefaultConfig() config.Exporter
 
-	// CreateTracesExporter creates a trace exporter based on this config.
+	// CreateTracesExporter creates a TracesExporter based on this config.
 	// If the exporter type does not support tracing or if the config is not valid,
 	// an error will be returned instead.
 	CreateTracesExporter(ctx context.Context, set ExporterCreateSettings, cfg config.Exporter) (TracesExporter, error)
 
-	// CreateMetricsExporter creates a metrics exporter based on this config.
+	// TracesExporterStability gets the stability level of the TracesExporter.
+	TracesExporterStability() StabilityLevel
+
+	// CreateMetricsExporter creates a MetricsExporter based on this config.
 	// If the exporter type does not support metrics or if the config is not valid,
 	// an error will be returned instead.
 	CreateMetricsExporter(ctx context.Context, set ExporterCreateSettings, cfg config.Exporter) (MetricsExporter, error)
 
-	// CreateLogsExporter creates an exporter based on the config.
+	// MetricsExporterStability gets the stability level of the MetricsExporter.
+	MetricsExporterStability() StabilityLevel
+
+	// CreateLogsExporter creates a LogsExporter based on the config.
 	// If the exporter type does not support logs or if the config is not valid,
 	// an error will be returned instead.
 	CreateLogsExporter(ctx context.Context, set ExporterCreateSettings, cfg config.Exporter) (LogsExporter, error)
+
+	// LogsExporterStability gets the stability level of the LogsExporter.
+	LogsExporterStability() StabilityLevel
 }
 
 // ExporterFactoryOption apply changes to ExporterOptions.
@@ -144,47 +153,53 @@ type exporterFactory struct {
 	baseFactory
 	ExporterCreateDefaultConfigFunc
 	CreateTracesExporterFunc
+	tracesStabilityLevel StabilityLevel
 	CreateMetricsExporterFunc
+	metricsStabilityLevel StabilityLevel
 	CreateLogsExporterFunc
+	logsStabilityLevel StabilityLevel
+}
+
+func (e exporterFactory) TracesExporterStability() StabilityLevel {
+	return e.tracesStabilityLevel
+}
+
+func (e exporterFactory) MetricsExporterStability() StabilityLevel {
+	return e.metricsStabilityLevel
+}
+
+func (e exporterFactory) LogsExporterStability() StabilityLevel {
+	return e.logsStabilityLevel
 }
 
 // WithTracesExporter overrides the default "error not supported" implementation for CreateTracesExporter and the default "undefined" stability level.
 func WithTracesExporter(createTracesExporter CreateTracesExporterFunc, sl StabilityLevel) ExporterFactoryOption {
 	return exporterFactoryOptionFunc(func(o *exporterFactory) {
-		o.stability[config.TracesDataType] = sl
+		o.tracesStabilityLevel = sl
 		o.CreateTracesExporterFunc = createTracesExporter
 	})
 }
 
-// Deprecated: [v0.57.0] Use WithTracesExporter instead.
-var WithTracesExporterAndStabilityLevel = WithTracesExporter
-
 // WithMetricsExporter overrides the default "error not supported" implementation for CreateMetricsExporter and the default "undefined" stability level.
 func WithMetricsExporter(createMetricsExporter CreateMetricsExporterFunc, sl StabilityLevel) ExporterFactoryOption {
 	return exporterFactoryOptionFunc(func(o *exporterFactory) {
-		o.stability[config.MetricsDataType] = sl
+		o.metricsStabilityLevel = sl
 		o.CreateMetricsExporterFunc = createMetricsExporter
 	})
 }
 
-// Deprecated: [v0.57.0] Use WithMetricsExporter instead.
-var WithMetricsExporterAndStabilityLevel = WithMetricsExporter
-
 // WithLogsExporter overrides the default "error not supported" implementation for CreateLogsExporter and the default "undefined" stability level.
 func WithLogsExporter(createLogsExporter CreateLogsExporterFunc, sl StabilityLevel) ExporterFactoryOption {
 	return exporterFactoryOptionFunc(func(o *exporterFactory) {
-		o.stability[config.LogsDataType] = sl
+		o.logsStabilityLevel = sl
 		o.CreateLogsExporterFunc = createLogsExporter
 	})
 }
 
-// Deprecated: [v0.57.0] Use WithLogsExporter instead.
-var WithLogsExporterAndStabilityLevel = WithLogsExporter
-
 // NewExporterFactory returns a ExporterFactory.
 func NewExporterFactory(cfgType config.Type, createDefaultConfig ExporterCreateDefaultConfigFunc, options ...ExporterFactoryOption) ExporterFactory {
 	f := &exporterFactory{
-		baseFactory:                     baseFactory{cfgType: cfgType, stability: make(map[config.DataType]StabilityLevel)},
+		baseFactory:                     baseFactory{cfgType: cfgType},
 		ExporterCreateDefaultConfigFunc: createDefaultConfig,
 	}
 	for _, opt := range options {

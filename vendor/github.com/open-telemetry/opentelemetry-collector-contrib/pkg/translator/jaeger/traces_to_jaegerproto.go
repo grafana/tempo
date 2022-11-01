@@ -199,7 +199,7 @@ func getJaegerProtoSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope
 		tagsCount++
 	}
 
-	traceStateTags, traceStateTagsFound := getTagsFromTraceState(span.TraceState())
+	traceStateTags, traceStateTagsFound := getTagsFromTraceState(span.TraceStateStruct().AsRaw())
 	if traceStateTagsFound {
 		tagsCount += len(traceStateTags)
 	}
@@ -375,14 +375,14 @@ func getTagFromStatusMsg(statusMsg string) (model.KeyValue, bool) {
 	}, true
 }
 
-func getTagsFromTraceState(traceState ptrace.TraceState) ([]model.KeyValue, bool) {
-	keyValues := make([]model.KeyValue, 0)
-	exists := traceState != ptrace.TraceStateEmpty
+func getTagsFromTraceState(traceState string) ([]model.KeyValue, bool) {
+	var keyValues []model.KeyValue
+	exists := traceState != ""
 	if exists {
 		// TODO Bring this inline with solution for jaegertracing/jaeger-client-java #702 once available
 		kv := model.KeyValue{
 			Key:   tracetranslator.TagW3CTraceState,
-			VStr:  string(traceState),
+			VStr:  traceState,
 			VType: model.ValueType_STRING,
 		}
 		keyValues = append(keyValues, kv)
@@ -391,7 +391,7 @@ func getTagsFromTraceState(traceState ptrace.TraceState) ([]model.KeyValue, bool
 }
 
 func getTagsFromInstrumentationLibrary(il pcommon.InstrumentationScope) ([]model.KeyValue, bool) {
-	keyValues := make([]model.KeyValue, 0)
+	var keyValues []model.KeyValue
 	if ilName := il.Name(); ilName != "" {
 		kv := model.KeyValue{
 			Key:   conventions.OtelLibraryName,

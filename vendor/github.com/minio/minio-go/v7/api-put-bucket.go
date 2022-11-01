@@ -26,7 +26,7 @@ import (
 	"github.com/minio/minio-go/v7/pkg/s3utils"
 )
 
-/// Bucket operations
+// Bucket operations
 func (c *Client) makeBucket(ctx context.Context, bucketName string, opts MakeBucketOptions) (err error) {
 	// Validate the input arguments.
 	if err := s3utils.CheckValidBucketNameStrict(bucketName); err != nil {

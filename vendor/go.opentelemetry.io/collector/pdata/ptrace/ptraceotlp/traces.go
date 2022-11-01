@@ -25,6 +25,7 @@ import (
 	otlpcollectortrace "go.opentelemetry.io/collector/pdata/internal/data/protogen/collector/trace/v1"
 	"go.opentelemetry.io/collector/pdata/internal/otlp"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/ptrace/internal/ptracejson"
 )
 
 var jsonMarshaler = &jsonpb.Marshaler{}
@@ -78,8 +79,8 @@ func NewRequest() Request {
 // NewRequestFromTraces returns a Request from ptrace.Traces.
 // Because Request is a wrapper for ptrace.Traces,
 // any changes to the provided Traces struct will be reflected in the Request and vice versa.
-func NewRequestFromTraces(t ptrace.Traces) Request {
-	return Request{orig: internal.TracesToOtlp(t)}
+func NewRequestFromTraces(td ptrace.Traces) Request {
+	return Request{orig: internal.GetOrigTraces(internal.Traces(td))}
 }
 
 // MarshalProto marshals Request into proto bytes.
@@ -92,7 +93,7 @@ func (tr Request) UnmarshalProto(data []byte) error {
 	if err := tr.orig.Unmarshal(data); err != nil {
 		return err
 	}
-	otlp.InstrumentationLibrarySpansToScope(tr.orig.ResourceSpans)
+	otlp.MigrateTraces(tr.orig.ResourceSpans)
 	return nil
 }
 
@@ -107,15 +108,11 @@ func (tr Request) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON unmarshalls Request from JSON bytes.
 func (tr Request) UnmarshalJSON(data []byte) error {
-	if err := jsonUnmarshaler.Unmarshal(bytes.NewReader(data), tr.orig); err != nil {
-		return err
-	}
-	otlp.InstrumentationLibrarySpansToScope(tr.orig.ResourceSpans)
-	return nil
+	return ptracejson.UnmarshalExportTraceServiceRequest(data, tr.orig)
 }
 
 func (tr Request) Traces() ptrace.Traces {
-	return internal.TracesFromOtlp(tr.orig)
+	return ptrace.Traces(internal.NewTraces(tr.orig))
 }
 
 // Client is the client API for OTLP-GRPC Traces service.
@@ -163,7 +160,7 @@ type rawTracesServer struct {
 }
 
 func (s rawTracesServer) Export(ctx context.Context, request *otlpcollectortrace.ExportTraceServiceRequest) (*otlpcollectortrace.ExportTraceServiceResponse, error) {
-	otlp.InstrumentationLibrarySpansToScope(request.ResourceSpans)
+	otlp.MigrateTraces(request.ResourceSpans)
 	rsp, err := s.srv.Export(ctx, Request{orig: request})
 	return rsp.orig, err
 }

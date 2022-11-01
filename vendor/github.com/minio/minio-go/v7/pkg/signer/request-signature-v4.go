@@ -42,25 +42,26 @@ const (
 	ServiceTypeSTS = "sts"
 )
 
-///
-/// Excerpts from @lsegal -
-/// https://github.com/aws/aws-sdk-js/issues/659#issuecomment-120477258.
-///
-///  User-Agent:
-///
-///      This is ignored from signing because signing this causes
-///      problems with generating pre-signed URLs (that are executed
-///      by other agents) or when customers pass requests through
-///      proxies, which may modify the user-agent.
-///
-///
-///  Authorization:
-///
-///      Is skipped for obvious reasons
-///
+//
+// Excerpts from @lsegal -
+// https:/github.com/aws/aws-sdk-js/issues/659#issuecomment-120477258.
+//
+// * User-Agent
+// This is ignored from signing because signing this causes problems with generating pre-signed
+// URLs (that are executed by other agents) or when customers pass requests through proxies, which
+// may modify the user-agent.
+//
+// * Authorization
+// Is skipped for obvious reasons.
+//
+// * Accept-Encoding
+// Some S3 servers like Hitachi Content Platform do not honor this header for signature
+// calculation.
+//
 var v4IgnoredHeaders = map[string]bool{
-	"Authorization": true,
-	"User-Agent":    true,
+	"Accept-Encoding": true,
+	"Authorization":   true,
+	"User-Agent":      true,
 }
 
 // getSigningKey hmac seed to calculate final signature.
@@ -183,7 +184,7 @@ func getSignedHeaders(req http.Request, ignoredHeaders map[string]bool) string {
 //  <SignedHeaders>\n
 //  <HashedPayload>
 func getCanonicalRequest(req http.Request, ignoredHeaders map[string]bool, hashedPayload string) string {
-	req.URL.RawQuery = strings.Replace(req.URL.Query().Encode(), "+", "%20", -1)
+	req.URL.RawQuery = strings.ReplaceAll(req.URL.Query().Encode(), "+", "%20")
 	canonicalRequest := strings.Join([]string{
 		req.Method,
 		s3utils.EncodePath(req.URL.Path),
@@ -199,7 +200,7 @@ func getCanonicalRequest(req http.Request, ignoredHeaders map[string]bool, hashe
 func getStringToSignV4(t time.Time, location, canonicalRequest, serviceType string) string {
 	stringToSign := signV4Algorithm + "\n" + t.Format(iso8601DateFormat) + "\n"
 	stringToSign = stringToSign + getScope(location, t, serviceType) + "\n"
-	stringToSign = stringToSign + hex.EncodeToString(sum256([]byte(canonicalRequest)))
+	stringToSign += hex.EncodeToString(sum256([]byte(canonicalRequest)))
 	return stringToSign
 }
 

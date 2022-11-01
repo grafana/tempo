@@ -281,7 +281,7 @@ func doubleHistogramPointToOC(dps pmetric.HistogramDataPointSlice, labelKeys *la
 	return timeseries
 }
 
-func histogramExplicitBoundsToOC(bounds pcommon.ImmutableFloat64Slice) *ocmetrics.DistributionValue_BucketOptions {
+func histogramExplicitBoundsToOC(bounds pcommon.Float64Slice) *ocmetrics.DistributionValue_BucketOptions {
 	if bounds.Len() == 0 {
 		return nil
 	}
@@ -295,7 +295,7 @@ func histogramExplicitBoundsToOC(bounds pcommon.ImmutableFloat64Slice) *ocmetric
 	}
 }
 
-func histogramBucketsToOC(bcts pcommon.ImmutableUInt64Slice) []*ocmetrics.DistributionValue_Bucket {
+func histogramBucketsToOC(bcts pcommon.UInt64Slice) []*ocmetrics.DistributionValue_Bucket {
 	if bcts.Len() == 0 {
 		return nil
 	}
@@ -357,7 +357,7 @@ func summaryPercentilesToOC(qtls pmetric.ValueAtQuantileSlice) []*ocmetrics.Summ
 	return ocPercentiles
 }
 
-func exemplarsToOC(bounds pcommon.ImmutableFloat64Slice, ocBuckets []*ocmetrics.DistributionValue_Bucket, exemplars pmetric.ExemplarSlice) {
+func exemplarsToOC(bounds pcommon.Float64Slice, ocBuckets []*ocmetrics.DistributionValue_Bucket, exemplars pmetric.ExemplarSlice) {
 	if exemplars.Len() == 0 {
 		return
 	}

@@ -159,30 +159,27 @@ func ocMetricToMetrics(ocMetric *ocmetrics.Metric, metric pmetric.Metric) {
 func descriptorTypeToMetrics(t ocmetrics.MetricDescriptor_Type, metric pmetric.Metric) (pmetric.MetricDataType, pmetric.NumberDataPointValueType) {
 	switch t {
 	case ocmetrics.MetricDescriptor_GAUGE_INT64:
-		metric.SetDataType(pmetric.MetricDataTypeGauge)
+		metric.SetEmptyGauge()
 		return pmetric.MetricDataTypeGauge, pmetric.NumberDataPointValueTypeInt
 	case ocmetrics.MetricDescriptor_GAUGE_DOUBLE:
-		metric.SetDataType(pmetric.MetricDataTypeGauge)
+		metric.SetEmptyGauge()
 		return pmetric.MetricDataTypeGauge, pmetric.NumberDataPointValueTypeDouble
 	case ocmetrics.MetricDescriptor_CUMULATIVE_INT64:
-		metric.SetDataType(pmetric.MetricDataTypeSum)
-		sum := metric.Sum()
+		sum := metric.SetEmptySum()
 		sum.SetIsMonotonic(true)
 		sum.SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
 		return pmetric.MetricDataTypeSum, pmetric.NumberDataPointValueTypeInt
 	case ocmetrics.MetricDescriptor_CUMULATIVE_DOUBLE:
-		metric.SetDataType(pmetric.MetricDataTypeSum)
-		sum := metric.Sum()
+		sum := metric.SetEmptySum()
 		sum.SetIsMonotonic(true)
 		sum.SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
 		return pmetric.MetricDataTypeSum, pmetric.NumberDataPointValueTypeDouble
 	case ocmetrics.MetricDescriptor_CUMULATIVE_DISTRIBUTION:
-		metric.SetDataType(pmetric.MetricDataTypeHistogram)
-		histo := metric.Histogram()
+		histo := metric.SetEmptyHistogram()
 		histo.SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
 		return pmetric.MetricDataTypeHistogram, pmetric.NumberDataPointValueTypeNone
 	case ocmetrics.MetricDescriptor_SUMMARY:
-		metric.SetDataType(pmetric.MetricDataTypeSummary)
+		metric.SetEmptySummary()
 		// no temporality specified for summary metric
 		return pmetric.MetricDataTypeSummary, pmetric.NumberDataPointValueTypeNone
 	}
@@ -221,7 +218,7 @@ func fillAttributesMap(ocLabelsKeys []*ocmetrics.LabelKey, ocLabelValues []*ocme
 		if !ocLabelValues[i].GetHasValue() {
 			continue
 		}
-		attributesMap.InsertString(ocLabelsKeys[i].Key, ocLabelValues[i].Value)
+		attributesMap.PutString(ocLabelsKeys[i].Key, ocLabelValues[i].Value)
 	}
 }
 
@@ -277,8 +274,7 @@ func fillDoubleHistogramDataPoint(ocMetric *ocmetrics.Metric, dps pmetric.Histog
 			dp.SetSum(distributionValue.GetSum())
 			dp.SetCount(uint64(distributionValue.GetCount()))
 			ocHistogramBucketsToMetrics(distributionValue.GetBuckets(), dp)
-			dp.SetExplicitBounds(
-				pcommon.NewImmutableFloat64Slice(distributionValue.GetBucketOptions().GetExplicit().GetBounds()))
+			dp.ExplicitBounds().FromRaw(distributionValue.GetBucketOptions().GetExplicit().GetBounds())
 		}
 	}
 }
@@ -322,7 +318,7 @@ func ocHistogramBucketsToMetrics(ocBuckets []*ocmetrics.DistributionValue_Bucket
 			exemplarToMetrics(ocBuckets[i].GetExemplar(), exemplar)
 		}
 	}
-	dp.SetBucketCounts(pcommon.NewImmutableUInt64Slice(buckets))
+	dp.BucketCounts().FromRaw(buckets)
 }
 
 func ocSummaryPercentilesToMetrics(ocPercentiles []*ocmetrics.SummaryValue_Snapshot_ValueAtPercentile, dp pmetric.SummaryDataPoint) {
@@ -352,7 +348,7 @@ func exemplarToMetrics(ocExemplar *ocmetrics.DistributionValue_Exemplar, exempla
 	filteredAttributes.Clear()
 	filteredAttributes.EnsureCapacity(len(ocAttachments))
 	for k, v := range ocAttachments {
-		filteredAttributes.UpsertString(k, v)
+		filteredAttributes.PutString(k, v)
 	}
 }
 

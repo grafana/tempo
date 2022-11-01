@@ -19,10 +19,10 @@ package service // import "go.opentelemetry.io/collector/service"
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
-	"syscall"
 	"time"
 
 	"go.uber.org/zap"
@@ -95,7 +95,9 @@ func (s *windowsService) start(elog *eventlog.Log, colErrorChannel chan error) e
 	if err := s.flags.Parse(os.Args[1:]); err != nil {
 		return err
 	}
-	featuregate.GetRegistry().Apply(gatesList)
+	if err := featuregate.GetRegistry().Apply(gatesList); err != nil {
+		return err
+	}
 	var err error
 	s.col, err = newWithWindowsEventLogCore(s.settings, s.flags, elog)
 	if err != nil {
@@ -125,8 +127,7 @@ func (s *windowsService) start(elog *eventlog.Log, colErrorChannel chan error) e
 }
 
 func (s *windowsService) stop(colErrorChannel chan error) error {
-	// simulate a SIGTERM signal to terminate the collector server
-	s.col.signalsChannel <- syscall.SIGTERM
+	s.col.Shutdown()
 	// return the response of col.Start
 	return <-colErrorChannel
 }
@@ -143,11 +144,17 @@ func openEventLog(serviceName string) (*eventlog.Log, error) {
 func newWithWindowsEventLogCore(set CollectorSettings, flags *flag.FlagSet, elog *eventlog.Log) (*Collector, error) {
 	if set.ConfigProvider == nil {
 		var err error
-		cfgSet := newDefaultConfigProviderSettings(getConfigFlag(flags))
+
+		configFlags := getConfigFlag(flags)
+		if len(configFlags) == 0 {
+			return nil, errors.New("at least one config flag must be provided")
+		}
+
+		cfgSet := newDefaultConfigProviderSettings(configFlags)
 		// Append the "overwrite properties converter" as the first converter.
-		cfgSet.MapConverters = append(
+		cfgSet.ResolverSettings.Converters = append(
 			[]confmap.Converter{overwritepropertiesconverter.New(getSetFlag(flags))},
-			cfgSet.MapConverters...)
+			cfgSet.ResolverSettings.Converters...)
 		set.ConfigProvider, err = NewConfigProvider(cfgSet)
 		if err != nil {
 			return nil, err

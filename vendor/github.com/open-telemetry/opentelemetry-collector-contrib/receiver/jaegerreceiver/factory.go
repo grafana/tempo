@@ -18,6 +18,7 @@ package jaegerreceiver // import "github.com/open-telemetry/opentelemetry-collec
 
 import (
 	"context"
+	"sync"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config"
@@ -25,6 +26,7 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/consumer"
+	"go.uber.org/zap"
 )
 
 const (
@@ -113,6 +115,8 @@ func createTracesReceiver(
 	}
 
 	if remoteSamplingConfig != nil {
+		logSamplingDeprecation(set.Logger)
+
 		config.RemoteSamplingClientSettings = remoteSamplingConfig.GRPCClientSettings
 		if config.RemoteSamplingClientSettings.Endpoint == "" {
 			config.RemoteSamplingClientSettings.Endpoint = defaultGRPCBindEndpoint
@@ -132,4 +136,14 @@ func createTracesReceiver(
 
 	// Create the receiver.
 	return newJaegerReceiver(rCfg.ID(), &config, nextConsumer, set), nil
+}
+
+var once sync.Once
+
+func logSamplingDeprecation(logger *zap.Logger) {
+	once.Do(func() {
+		logger.Warn(
+			"Jaeger remote sampling support is deprecated and will be removed in release v0.61.0. Use the jaegerremotesampling extension instead.",
+		)
+	})
 }

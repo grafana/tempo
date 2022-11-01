@@ -14,6 +14,15 @@
 
 package pmetric // import "go.opentelemetry.io/collector/pdata/pmetric"
 
+// Deprecated: [v0.60.0] use MarshalSizer.
+type MarshalerSizer = MarshalSizer
+
+// MarshalSizer is the interface that groups the basic Marshal and Size methods
+type MarshalSizer interface {
+	Marshaler
+	Sizer
+}
+
 // Marshaler marshals pmetric.Metrics into bytes.
 type Marshaler interface {
 	// MarshalMetrics the given pmetric.Metrics into bytes.

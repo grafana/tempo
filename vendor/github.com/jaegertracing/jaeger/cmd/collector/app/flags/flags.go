@@ -24,8 +24,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
-	"github.com/jaegertracing/jaeger/pkg/config/tenancy"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -228,11 +228,7 @@ func (opts *GRPCOptions) initFromViper(v *viper.Viper, logger *zap.Logger, cfg s
 	} else {
 		return fmt.Errorf("failed to parse gRPC TLS options: %w", err)
 	}
-	if tenancy, err := tenancy.InitFromViper(v); err == nil {
-		opts.Tenancy = tenancy
-	} else {
-		return fmt.Errorf("failed to parse Tenancy options: %w", err)
-	}
+	opts.Tenancy = tenancy.InitFromViper(v)
 
 	return nil
 }

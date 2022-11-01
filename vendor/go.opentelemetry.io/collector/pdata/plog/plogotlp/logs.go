@@ -25,6 +25,7 @@ import (
 	otlpcollectorlog "go.opentelemetry.io/collector/pdata/internal/data/protogen/collector/logs/v1"
 	"go.opentelemetry.io/collector/pdata/internal/otlp"
 	"go.opentelemetry.io/collector/pdata/plog"
+	"go.opentelemetry.io/collector/pdata/plog/internal/plogjson"
 )
 
 var jsonMarshaler = &jsonpb.Marshaler{}
@@ -78,8 +79,8 @@ func NewRequest() Request {
 // NewRequestFromLogs returns a Request from plog.Logs.
 // Because Request is a wrapper for plog.Logs,
 // any changes to the provided Logs struct will be reflected in the Request and vice versa.
-func NewRequestFromLogs(l plog.Logs) Request {
-	return Request{orig: internal.LogsToOtlp(l)}
+func NewRequestFromLogs(ld plog.Logs) Request {
+	return Request{orig: internal.GetOrigLogs(internal.Logs(ld))}
 }
 
 // MarshalProto marshals Request into proto bytes.
@@ -92,7 +93,7 @@ func (lr Request) UnmarshalProto(data []byte) error {
 	if err := lr.orig.Unmarshal(data); err != nil {
 		return err
 	}
-	otlp.InstrumentationLibraryLogsToScope(lr.orig.ResourceLogs)
+	otlp.MigrateLogs(lr.orig.ResourceLogs)
 	return nil
 }
 
@@ -107,15 +108,11 @@ func (lr Request) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON unmarshalls Request from JSON bytes.
 func (lr Request) UnmarshalJSON(data []byte) error {
-	if err := jsonUnmarshaler.Unmarshal(bytes.NewReader(data), lr.orig); err != nil {
-		return err
-	}
-	otlp.InstrumentationLibraryLogsToScope(lr.orig.ResourceLogs)
-	return nil
+	return plogjson.UnmarshalExportLogsServiceRequest(data, lr.orig)
 }
 
 func (lr Request) Logs() plog.Logs {
-	return internal.LogsFromOtlp(lr.orig)
+	return plog.Logs(internal.NewLogs(lr.orig))
 }
 
 // Client is the client API for OTLP-GRPC Logs service.
@@ -162,7 +159,7 @@ type rawLogsServer struct {
 }
 
 func (s rawLogsServer) Export(ctx context.Context, request *otlpcollectorlog.ExportLogsServiceRequest) (*otlpcollectorlog.ExportLogsServiceResponse, error) {
-	otlp.InstrumentationLibraryLogsToScope(request.ResourceLogs)
+	otlp.MigrateLogs(request.ResourceLogs)
 	rsp, err := s.srv.Export(ctx, Request{orig: request})
 	return rsp.orig, err
 }

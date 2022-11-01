@@ -44,7 +44,8 @@ func NewNopExtensionFactory() component.ExtensionFactory {
 		},
 		func(context.Context, component.ExtensionCreateSettings, config.Extension) (component.Extension, error) {
 			return nopExtensionInstance, nil
-		})
+		},
+		component.StabilityLevelStable)
 }
 
 var nopExtensionInstance = &nopExtension{}

@@ -84,6 +84,12 @@ type UploadInfo struct {
 	// not to be confused with `Expires` HTTP header.
 	Expiration       time.Time
 	ExpirationRuleID string
+
+	// Verified checksum values, if any.
+	ChecksumCRC32  string
+	ChecksumCRC32C string
+	ChecksumSHA1   string
+	ChecksumSHA256 string
 }
 
 // RestoreInfo contains information of the restore operation of an archived object
@@ -135,7 +141,7 @@ type ObjectInfo struct {
 	VersionID      string `xml:"VersionId"`
 
 	// x-amz-replication-status value is either in one of the following states
-	// - COMPLETE
+	// - COMPLETED
 	// - PENDING
 	// - FAILED
 	// - REPLICA (on the destination)
@@ -147,6 +153,12 @@ type ObjectInfo struct {
 	ExpirationRuleID string
 
 	Restore *RestoreInfo
+
+	// Checksum values
+	ChecksumCRC32  string
+	ChecksumCRC32C string
+	ChecksumSHA1   string
+	ChecksumSHA256 string
 
 	// Error
 	Err error `json:"-"`

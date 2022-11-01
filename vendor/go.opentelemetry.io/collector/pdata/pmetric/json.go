@@ -21,46 +21,36 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/internal"
 	otlpmetrics "go.opentelemetry.io/collector/pdata/internal/data/protogen/metrics/v1"
-	"go.opentelemetry.io/collector/pdata/internal/otlp"
+	"go.opentelemetry.io/collector/pdata/pmetric/internal/pmetricjson"
 )
 
 // NewJSONMarshaler returns a model.Marshaler. Marshals to OTLP json bytes.
 func NewJSONMarshaler() Marshaler {
-	return newJSONMarshaler()
+	return &jsonMarshaler{delegate: jsonpb.Marshaler{}}
 }
 
 type jsonMarshaler struct {
 	delegate jsonpb.Marshaler
 }
 
-func newJSONMarshaler() *jsonMarshaler {
-	return &jsonMarshaler{delegate: jsonpb.Marshaler{}}
-}
-
 func (e *jsonMarshaler) MarshalMetrics(md Metrics) ([]byte, error) {
 	buf := bytes.Buffer{}
-	err := e.delegate.Marshal(&buf, internal.MetricsToOtlp(md))
+	pb := internal.MetricsToProto(internal.Metrics(md))
+	err := e.delegate.Marshal(&buf, &pb)
 	return buf.Bytes(), err
 }
 
-type jsonUnmarshaler struct {
-	delegate jsonpb.Unmarshaler
-}
+type jsonUnmarshaler struct{}
 
 // NewJSONUnmarshaler returns a model.Unmarshaler. Unmarshals from OTLP json bytes.
 func NewJSONUnmarshaler() Unmarshaler {
-	return newJSONUnmarshaler()
+	return &jsonUnmarshaler{}
 }
 
-func newJSONUnmarshaler() *jsonUnmarshaler {
-	return &jsonUnmarshaler{delegate: jsonpb.Unmarshaler{}}
-}
-
-func (d *jsonUnmarshaler) UnmarshalMetrics(buf []byte) (Metrics, error) {
-	md := otlpmetrics.MetricsData{}
-	if err := d.delegate.Unmarshal(bytes.NewReader(buf), &md); err != nil {
+func (jsonUnmarshaler) UnmarshalMetrics(buf []byte) (Metrics, error) {
+	var md otlpmetrics.MetricsData
+	if err := pmetricjson.UnmarshalMetricsData(buf, &md); err != nil {
 		return Metrics{}, err
 	}
-	otlp.InstrumentationLibraryMetricsToScope(md.ResourceMetrics)
-	return internal.MetricsFromProto(md), nil
+	return Metrics(internal.MetricsFromProto(md)), nil
 }

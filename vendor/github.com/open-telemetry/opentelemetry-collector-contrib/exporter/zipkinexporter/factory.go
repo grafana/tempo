@@ -62,7 +62,7 @@ func createDefaultConfig() config.Exporter {
 }
 
 func createTracesExporter(
-	_ context.Context,
+	ctx context.Context,
 	set component.ExporterCreateSettings,
 	cfg config.Exporter,
 ) (component.TracesExporter, error) {
@@ -78,8 +78,9 @@ func createTracesExporter(
 		return nil, err
 	}
 	return exporterhelper.NewTracesExporter(
-		zc,
+		ctx,
 		set,
+		cfg,
 		ze.pushTraces,
 		exporterhelper.WithStart(ze.start),
 		// explicitly disable since we rely on http.Client timeout logic.

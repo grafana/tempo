@@ -382,13 +382,13 @@ func (c *tracesConsumerGroupHandler) Setup(session sarama.ConsumerGroupSession) 
 	c.readyCloser.Do(func() {
 		close(c.ready)
 	})
-	statsTags := []tag.Mutator{tag.Insert(tagInstanceName, c.id.Name())}
+	statsTags := []tag.Mutator{tag.Upsert(tagInstanceName, c.id.Name())}
 	_ = stats.RecordWithTags(session.Context(), statsTags, statPartitionStart.M(1))
 	return nil
 }
 
 func (c *tracesConsumerGroupHandler) Cleanup(session sarama.ConsumerGroupSession) error {
-	statsTags := []tag.Mutator{tag.Insert(tagInstanceName, c.id.Name())}
+	statsTags := []tag.Mutator{tag.Upsert(tagInstanceName, c.id.Name())}
 	_ = stats.RecordWithTags(session.Context(), statsTags, statPartitionClose.M(1))
 	return nil
 }
@@ -408,7 +408,7 @@ func (c *tracesConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSe
 		}
 
 		ctx := c.obsrecv.StartTracesOp(session.Context())
-		statsTags := []tag.Mutator{tag.Insert(tagInstanceName, c.id.String())}
+		statsTags := []tag.Mutator{tag.Upsert(tagInstanceName, c.id.String())}
 		_ = stats.RecordWithTags(ctx, statsTags,
 			statMessageCount.M(1),
 			statMessageOffset.M(message.Offset),
@@ -446,13 +446,13 @@ func (c *metricsConsumerGroupHandler) Setup(session sarama.ConsumerGroupSession)
 	c.readyCloser.Do(func() {
 		close(c.ready)
 	})
-	statsTags := []tag.Mutator{tag.Insert(tagInstanceName, c.id.Name())}
+	statsTags := []tag.Mutator{tag.Upsert(tagInstanceName, c.id.Name())}
 	_ = stats.RecordWithTags(session.Context(), statsTags, statPartitionStart.M(1))
 	return nil
 }
 
 func (c *metricsConsumerGroupHandler) Cleanup(session sarama.ConsumerGroupSession) error {
-	statsTags := []tag.Mutator{tag.Insert(tagInstanceName, c.id.Name())}
+	statsTags := []tag.Mutator{tag.Upsert(tagInstanceName, c.id.Name())}
 	_ = stats.RecordWithTags(session.Context(), statsTags, statPartitionClose.M(1))
 	return nil
 }
@@ -473,7 +473,7 @@ func (c *metricsConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupS
 		}
 
 		ctx := c.obsrecv.StartMetricsOp(session.Context())
-		statsTags := []tag.Mutator{tag.Insert(tagInstanceName, c.id.String())}
+		statsTags := []tag.Mutator{tag.Upsert(tagInstanceName, c.id.String())}
 		_ = stats.RecordWithTags(ctx, statsTags,
 			statMessageCount.M(1),
 			statMessageOffset.M(message.Offset),
@@ -513,7 +513,7 @@ func (c *logsConsumerGroupHandler) Setup(session sarama.ConsumerGroupSession) er
 	})
 	_ = stats.RecordWithTags(
 		session.Context(),
-		[]tag.Mutator{tag.Insert(tagInstanceName, c.id.String())},
+		[]tag.Mutator{tag.Upsert(tagInstanceName, c.id.String())},
 		statPartitionStart.M(1))
 	return nil
 }
@@ -521,7 +521,7 @@ func (c *logsConsumerGroupHandler) Setup(session sarama.ConsumerGroupSession) er
 func (c *logsConsumerGroupHandler) Cleanup(session sarama.ConsumerGroupSession) error {
 	_ = stats.RecordWithTags(
 		session.Context(),
-		[]tag.Mutator{tag.Insert(tagInstanceName, c.id.String())},
+		[]tag.Mutator{tag.Upsert(tagInstanceName, c.id.String())},
 		statPartitionClose.M(1))
 	return nil
 }
@@ -543,7 +543,7 @@ func (c *logsConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSess
 		ctx := c.obsrecv.StartLogsOp(session.Context())
 		_ = stats.RecordWithTags(
 			ctx,
-			[]tag.Mutator{tag.Insert(tagInstanceName, c.id.String())},
+			[]tag.Mutator{tag.Upsert(tagInstanceName, c.id.String())},
 			statMessageCount.M(1),
 			statMessageOffset.M(message.Offset),
 			statMessageOffsetLag.M(claim.HighWaterMarkOffset()-message.Offset-1))

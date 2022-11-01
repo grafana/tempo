@@ -19,7 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"html"
-	"io/ioutil"
+	"io"
 	"mime"
 	"net/http"
 	"sync"
@@ -338,7 +338,7 @@ func (jr *jReceiver) buildProcessor(address string, cfg ServerConfigUDP, factory
 }
 
 func (jr *jReceiver) decodeThriftHTTPBody(r *http.Request) (*jaeger.Batch, *httpError) {
-	bodyBytes, err := ioutil.ReadAll(r.Body)
+	bodyBytes, err := io.ReadAll(r.Body)
 	r.Body.Close()
 	if err != nil {
 		return nil, &httpError{

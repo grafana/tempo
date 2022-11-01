@@ -1,6 +1,14 @@
 ## Changelog
 
 
+### v2.22.0
+
+- set miniredis.DumpMaxLineLen to get more Dump() info (thanks @afjoseph)
+- fix invalid resposne of COMMAND (thanks @zsh1995)
+- fix possibility to generate duplicate IDs in XADD (thanks @readams)
+- adds support for XAUTOCLAIM min-idle parameter (thanks @readams)
+
+
 ### v2.21.0
 
 - support for GETEX (thanks @dntj)

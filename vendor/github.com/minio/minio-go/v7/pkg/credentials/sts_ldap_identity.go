@@ -1,6 +1,6 @@
 /*
  * MinIO Go Library for Amazon S3 Compatible Cloud Storage
- * Copyright 2019-2021 MinIO, Inc.
+ * Copyright 2019-2022 MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,13 @@
 package credentials
 
 import (
+	"bytes"
 	"encoding/xml"
-	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -104,27 +106,11 @@ func LDAPIdentityExpiryOpt(d time.Duration) LDAPIdentityOpt {
 	}
 }
 
-func stripPassword(err error) error {
-	urlErr, ok := err.(*url.Error)
-	if ok {
-		u, _ := url.Parse(urlErr.URL)
-		if u == nil {
-			return urlErr
-		}
-		values := u.Query()
-		values.Set("LDAPPassword", "xxxxx")
-		u.RawQuery = values.Encode()
-		urlErr.URL = u.String()
-		return urlErr
-	}
-	return err
-}
-
 // NewLDAPIdentityWithSessionPolicy returns new credentials object that uses
 // LDAP Identity with a specified session policy. The `policy` parameter must be
 // a JSON string specifying the policy document.
 //
-// DEPRECATED: Use the `LDAPIdentityPolicyOpt` with `NewLDAPIdentity` instead.
+// Deprecated: Use the `LDAPIdentityPolicyOpt` with `NewLDAPIdentity` instead.
 func NewLDAPIdentityWithSessionPolicy(stsEndpoint, ldapUsername, ldapPassword, policy string) (*Credentials, error) {
 	return New(&LDAPIdentity{
 		Client:       &http.Client{Transport: http.DefaultTransport},
@@ -155,21 +141,36 @@ func (k *LDAPIdentity) Retrieve() (value Value, err error) {
 		v.Set("DurationSeconds", fmt.Sprintf("%d", int(k.RequestedExpiry.Seconds())))
 	}
 
-	u.RawQuery = v.Encode()
-
-	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
+	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(v.Encode()))
 	if err != nil {
-		return value, stripPassword(err)
+		return value, err
 	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := k.Client.Do(req)
 	if err != nil {
-		return value, stripPassword(err)
+		return value, err
 	}
 
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return value, errors.New(resp.Status)
+		var errResp ErrorResponse
+		buf, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return value, err
+		}
+		_, err = xmlDecodeAndBody(bytes.NewReader(buf), &errResp)
+		if err != nil {
+			var s3Err Error
+			if _, err = xmlDecodeAndBody(bytes.NewReader(buf), &s3Err); err != nil {
+				return value, err
+			}
+			errResp.RequestID = s3Err.RequestID
+			errResp.STSError.Code = s3Err.Code
+			errResp.STSError.Message = s3Err.Message
+		}
+		return value, errResp
 	}
 
 	r := AssumeRoleWithLDAPResponse{}

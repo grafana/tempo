@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
@@ -157,7 +156,8 @@ func (zr *zipkinReceiver) Shutdown(context.Context) error {
 // a compression such as "gzip", "deflate", "zlib", is found, the body will
 // be uncompressed accordingly or return the body untouched if otherwise.
 // Clients such as Zipkin-Java do this behavior e.g.
-//    send "Content-Encoding":"gzip" of the JSON content.
+//
+//	send "Content-Encoding":"gzip" of the JSON content.
 func processBodyIfNecessary(req *http.Request) io.Reader {
 	switch req.Header.Get("Content-Encoding") {
 	default:
@@ -211,7 +211,7 @@ func (zr *zipkinReceiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx = obsrecv.StartTracesOp(ctx)
 
 	pr := processBodyIfNecessary(r)
-	slurp, _ := ioutil.ReadAll(pr)
+	slurp, _ := io.ReadAll(pr)
 	if c, ok := pr.(io.Closer); ok {
 		_ = c.Close()
 	}

@@ -19,6 +19,7 @@ package credentials
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -254,7 +255,10 @@ func getEcsTaskCredentials(client *http.Client, endpoint string, token string) (
 }
 
 func fetchIMDSToken(client *http.Client, endpoint string) (string, error) {
-	req, err := http.NewRequest(http.MethodPut, endpoint+tokenPath, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, endpoint+tokenPath, nil)
 	if err != nil {
 		return "", err
 	}
@@ -285,7 +289,10 @@ func getCredentials(client *http.Client, endpoint string) (ec2RoleCredRespBody, 
 	}
 
 	// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html
-	token, _ := fetchIMDSToken(client, endpoint)
+	token, err := fetchIMDSToken(client, endpoint)
+	if err != nil {
+		return ec2RoleCredRespBody{}, err
+	}
 
 	// http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
 	u, err := getIAMRoleURL(endpoint)

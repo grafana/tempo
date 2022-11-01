@@ -83,21 +83,32 @@ type ExtensionFactory interface {
 
 	// CreateExtension creates an extension based on the given config.
 	CreateExtension(ctx context.Context, set ExtensionCreateSettings, cfg config.Extension) (Extension, error)
+
+	// ExtensionStability gets the stability level of the Extension.
+	ExtensionStability() StabilityLevel
 }
 
 type extensionFactory struct {
 	baseFactory
 	ExtensionCreateDefaultConfigFunc
 	CreateExtensionFunc
+	extensionStability StabilityLevel
 }
 
+func (ef *extensionFactory) ExtensionStability() StabilityLevel {
+	return ef.extensionStability
+}
+
+// NewExtensionFactory returns a new ExtensionFactory  based on this configuration.
 func NewExtensionFactory(
 	cfgType config.Type,
 	createDefaultConfig ExtensionCreateDefaultConfigFunc,
-	createServiceExtension CreateExtensionFunc) ExtensionFactory {
+	createServiceExtension CreateExtensionFunc,
+	sl StabilityLevel) ExtensionFactory {
 	return &extensionFactory{
 		baseFactory:                      baseFactory{cfgType: cfgType},
 		ExtensionCreateDefaultConfigFunc: createDefaultConfig,
 		CreateExtensionFunc:              createServiceExtension,
+		extensionStability:               sl,
 	}
 }

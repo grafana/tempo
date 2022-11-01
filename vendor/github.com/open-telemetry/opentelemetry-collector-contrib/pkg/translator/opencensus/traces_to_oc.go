@@ -81,7 +81,7 @@ func spanToOC(span ptrace.Span) *octrace.Span {
 	return &octrace.Span{
 		TraceId:                 traceIDToOC(span.TraceID()),
 		SpanId:                  spanIDToOC(span.SpanID()),
-		Tracestate:              traceStateToOC(span.TraceState()),
+		Tracestate:              traceStateToOC(span.TraceStateStruct().AsRaw()),
 		ParentSpanId:            spanIDToOC(span.ParentSpanID()),
 		Name:                    stringToTruncatableString(span.Name()),
 		Kind:                    spanKindToOC(span.Kind()),
@@ -198,13 +198,13 @@ func attributesMapToOCSameProcessAsParentSpan(attr pcommon.Map) *wrapperspb.Bool
 }
 
 // OTLP follows the W3C format, e.g. "vendorname1=opaqueValue1,vendorname2=opaqueValue2"
-func traceStateToOC(traceState ptrace.TraceState) *octrace.Span_Tracestate {
+func traceStateToOC(traceState string) *octrace.Span_Tracestate {
 	if traceState == "" {
 		return nil
 	}
 
 	// key-value pairs in the "key1=value1" format
-	pairs := strings.Split(string(traceState), ",")
+	pairs := strings.Split(traceState, ",")
 
 	entries := make([]*octrace.Span_Tracestate_Entry, 0, len(pairs))
 	for _, pair := range pairs {
@@ -336,7 +336,7 @@ func linksToOC(links ptrace.SpanLinkSlice, droppedCount uint32) *octrace.Span_Li
 		ocLink := &octrace.Span_Link{
 			TraceId:    traceIDToOC(link.TraceID()),
 			SpanId:     spanIDToOC(link.SpanID()),
-			Tracestate: traceStateToOC(link.TraceState()),
+			Tracestate: traceStateToOC(link.TraceStateStruct().AsRaw()),
 			Attributes: attributesMapToOCSpanAttributes(link.Attributes(), link.DroppedAttributesCount()),
 		}
 		ocLinks = append(ocLinks, ocLink)
@@ -352,16 +352,14 @@ func traceIDToOC(tid pcommon.TraceID) []byte {
 	if tid.IsEmpty() {
 		return nil
 	}
-	tidBytes := tid.Bytes()
-	return tidBytes[:]
+	return tid[:]
 }
 
 func spanIDToOC(sid pcommon.SpanID) []byte {
 	if sid.IsEmpty() {
 		return nil
 	}
-	sidBytes := sid.Bytes()
-	return sidBytes[:]
+	return sid[:]
 }
 
 func statusToOC(status ptrace.SpanStatus) (*octrace.Status, *octrace.AttributeValue) {
