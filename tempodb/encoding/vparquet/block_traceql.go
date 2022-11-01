@@ -455,12 +455,12 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 		iters = nil
 	}
 
-	// This is an optimization for cases when only span conditions are
-	// present and we require at least one of them to match.  Wrap
-	// up the individual conditions with a union and move it into the
-	// required list.  This skips over static columns like ID that are
-	// omnipresent.
-	if requireAtLeastOneMatch && len(iters) > 0 {
+	// This is an optimization for cases when allConditions is false, and
+	// only span conditions are present, and we require at least one of them to match.
+	// Wrap up the individual conditions with a union and move it into the required list.
+	// This skips over static columns like ID that are omnipresent. This is also only
+	// possible when there isn't a duration filter because it's computed from start/end.
+	if requireAtLeastOneMatch && len(iters) > 0 && len(durationPredicates) == 0 {
 		required = append(required, parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpan, iters, nil))
 		iters = nil
 	}
@@ -929,21 +929,15 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
+	// Save computed duration if any filters present and at least one is passed.
 	if len(c.durationFilters) > 0 {
 		duration := span.EndtimeUnixNanos - span.StartTimeUnixNanos
-		durationPass := false
 		for _, f := range c.durationFilters {
-			if f.Fn(int64(duration)) {
-				durationPass = true
+			if f == nil || f.Fn(int64(duration)) {
+				span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(duration))
 				break
 			}
 		}
-
-		if !durationPass {
-			return false
-		}
-
-		span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(duration))
 	}
 
 	if c.minAttributes > 0 {
