@@ -995,8 +995,8 @@ github.com/uber/jaeger-lib v2.4.1+incompatible h1:td4jdvLcExb4cBISKIpHuGoVXh+dVK
 github.com/uber/jaeger-lib v2.4.1+incompatible/go.mod h1:ComeNDZlWwrWnDv8aPp0Ba6+uUTzImX/AauajbLI56U=
 github.com/urfave/cli/v2 v2.3.0/go.mod h1:LJmUH05zAU44vOAcrfzZQKsZbVcdbOG8rtL3/XcUArI=
 github.com/vultr/govultr/v2 v2.17.2 h1:gej/rwr91Puc/tgh+j33p/BLR16UrIPnSr+AIwYWZQs=
-github.com/weaveworks/common v0.0.0-20220916164235-da3fde973eec h1:nmPElaam7XF9EOkbLM1VC5K2w/3X+qSlAKCBjDhs6Fk=
-github.com/weaveworks/common v0.0.0-20220916164235-da3fde973eec/go.mod h1:3AQDNAObqldt8KtTn6sk6jvXwgi9J6nNgmTFmzQB9x4=
+github.com/weaveworks/common v0.0.0-20220927162600-d0a1a93a15be h1:/Zt20imhU9Fw9UfOI49YsX1DNqFP0JPZqvJH0oAyW8A=
+github.com/weaveworks/common v0.0.0-20220927162600-d0a1a93a15be/go.mod h1:3AQDNAObqldt8KtTn6sk6jvXwgi9J6nNgmTFmzQB9x4=
 github.com/weaveworks/promrus v1.2.0 h1:jOLf6pe6/vss4qGHjXmGz4oDJQA+AOCqEL3FvvZGz7M=
 github.com/weaveworks/promrus v1.2.0/go.mod h1:SaE82+OJ91yqjrE1rsvBWVzNZKcHYFtMUyS1+Ogs/KA=
 github.com/willf/bitset v1.1.11 h1:N7Z7E9UvjW+sGsEl7k/SJrvY2reP1A07MrGuCjIOjRE=
