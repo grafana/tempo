@@ -82,7 +82,7 @@ type mapProvider struct {
 	raw map[string]interface{}
 }
 
-func (m *mapProvider) Retrieve(context.Context, string, confmap.WatcherFunc) (confmap.Retrieved, error) {
+func (m *mapProvider) Retrieve(context.Context, string, confmap.WatcherFunc) (*confmap.Retrieved, error) {
 	return confmap.NewRetrieved(m.raw, []confmap.RetrievedOption{}...)
 }
 
@@ -139,21 +139,24 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 	// Creates a config provider with the given config map.
 	// The provider will be used to retrieve the actual config for the pipeline (although we only need the receivers).
 	pro, err := service.NewConfigProvider(service.ConfigProviderSettings{
-		Locations: []string{"mock:/"},
-		MapProviders: map[string]confmap.Provider{"mock": &mapProvider{raw: map[string]interface{}{
-			"receivers": receiverCfg,
-			"exporters": map[string]interface{}{
-				"nop": map[string]interface{}{},
-			},
-			"service": map[string]interface{}{
-				"pipelines": map[string]interface{}{
-					"traces": map[string]interface{}{
-						"exporters": []string{"nop"}, // nop exporter to avoid errors
-						"receivers": receivers,
+		ResolverSettings: confmap.ResolverSettings{
+
+			URIs: []string{"mock:/"},
+			Providers: map[string]confmap.Provider{"mock": &mapProvider{raw: map[string]interface{}{
+				"receivers": receiverCfg,
+				"exporters": map[string]interface{}{
+					"nop": map[string]interface{}{},
+				},
+				"service": map[string]interface{}{
+					"pipelines": map[string]interface{}{
+						"traces": map[string]interface{}{
+							"exporters": []string{"nop"}, // nop exporter to avoid errors
+							"receivers": receivers,
+						},
 					},
 				},
-			},
-		}}},
+			}}},
+		},
 	})
 	if err != nil {
 		return nil, err
