@@ -259,8 +259,9 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	}
 
 	// jpe need to lock and flush here?
-
-	return nil
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
+	return i.headBlock.Flush()
 }
 
 // CutBlockIfReady cuts a completingBlock from the HeadBlock if ready.
