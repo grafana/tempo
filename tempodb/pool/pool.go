@@ -38,7 +38,6 @@ type result struct {
 
 type job struct {
 	ctx     context.Context
-	cancel  context.CancelFunc
 	payload interface{}
 	fn      JobFunc
 
@@ -99,7 +98,6 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 		wg.Add(1)
 		j := &job{
 			ctx:       ctx,
-			cancel:    cancel,
 			fn:        fn,
 			payload:   payload,
 			wg:        wg,
@@ -126,11 +124,11 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 	// read all from results channel
 	var data []interface{}
 	var funcErrs []error
-	for res := range resultsCh {
-		if res.err != nil {
-			funcErrs = append(funcErrs, res.err)
+	for result := range resultsCh {
+		if result.err != nil {
+			funcErrs = append(funcErrs, result.err)
 		} else {
-			data = append(data, res.data)
+			data = append(data, result.data)
 		}
 	}
 
@@ -175,6 +173,11 @@ func (p *Pool) reportQueueLength() {
 func runJob(job *job) {
 	defer job.wg.Done()
 
+	// bail in case we have been asked to stop
+	if job.ctx.Err() != nil {
+		return
+	}
+
 	// bail in case not all jobs could be enqueued
 	if job.stop.Load() {
 		return
@@ -182,9 +185,6 @@ func runJob(job *job) {
 
 	data, err := job.fn(job.ctx, job.payload)
 	if data != nil || err != nil {
-		// Commenting out job cancellations for now because of a resource leak suspected in the GCS golang client.
-		// Issue logged here: https://github.com/googleapis/google-cloud-go/issues/3018
-		// job.cancel()
 		select {
 		case job.resultsCh <- result{
 			data: data,
