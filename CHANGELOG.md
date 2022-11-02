@@ -26,6 +26,12 @@ overrides:
 * [ENHANCEMENT] Filter namespace by cluster in tempo dashboards variables [#1771](https://github.com/grafana/tempo/pull/1771) (@electron0zero)
 * [ENHANCEMENT] Exit early from sharded search requests [#1742](https://github.com/grafana/tempo/pull/1742) (@electron0zero)
 * [ENHANCEMENT] Upgrade prometheus/prometheus to `51a44e6657c3` [#1829](https://github.com/grafana/tempo/pull/1829) (@mapno)
+* [ENHANCEMENT] Upgrade several dependencies [#1855](https://github.com/grafana/tempo/pull/1855) (@zalegrala)
+  - Update github.com/open-telemetry/opentelemetry-collector-contrib to v0.60.0
+  - Update go.opentelemetry.io/collector to v0.60.0
+  - Update go.opentelemetry.io/otel to v1.11.1
+  - Update github.com/thanos-io/thanos to v0.29.0-rc.0
+  - Update github.com/go-openapi/spec to v0.20.7
 * [CHANGE] Identify bloom that could not be retrieved from backend block [#1737](https://github.com/grafana/tempo/pull/1737) (@AlexDHoffer)
 * [CHANGE] tempo: check configuration returns now a list of warnings [#1663](https://github.com/grafana/tempo/pull/1663) (@frzifus)
 * [CHANGE] Make DNS address fully qualified to reduce DNS lookups in Kubernetes [#1687](https://github.com/grafana/tempo/pull/1687) (@electron0zero)
