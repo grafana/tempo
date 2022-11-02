@@ -14,7 +14,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 const (
@@ -33,7 +32,16 @@ type Config struct {
 	BlocksFilepath    string
 	Encoding          backend.Encoding `yaml:"encoding"`
 	SearchEncoding    backend.Encoding `yaml:"search_encoding"`
+	Version           string           `yaml:"version"`
 	IngestionSlack    time.Duration    `yaml:"ingestion_time_range_slack"`
+}
+
+func ValidateConfig(b *Config) error {
+	if _, err := encoding.FromVersion(b.Version); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func New(c *Config) (*WAL, error) {
@@ -147,13 +155,13 @@ func (w *WAL) RescanBlocks(additionalStartSlack time.Duration, log log.Logger) (
 }
 
 func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (common.WALBlock, error) {
-	return w.newBlock(id, tenantID, dataEncoding, v2.VersionString)
+	return w.newBlock(id, tenantID, dataEncoding, w.c.Version)
 }
 
-func (w *WAL) newBlock(id uuid.UUID, tenantID string, dataEncoding string, dbEncoding string) (common.WALBlock, error) {
-	v, err := encoding.FromVersion(dbEncoding)
+func (w *WAL) newBlock(id uuid.UUID, tenantID string, dataEncoding string, blockVersion string) (common.WALBlock, error) {
+	v, err := encoding.FromVersion(blockVersion)
 	if err != nil {
-		return nil, fmt.Errorf("from version v2 failed %w", err)
+		return nil, err
 	}
 	return v.CreateWALBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.IngestionSlack)
 }

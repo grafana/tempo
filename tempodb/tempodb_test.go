@@ -50,6 +50,7 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration)
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
+			Version:  v2.VersionString,
 		},
 		BlocklistPoll: blocklistPoll,
 	}, log.NewNopLogger())
@@ -627,6 +628,7 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 		WAL: &wal.Config{
 			IngestionSlack: time.Minute,
 			Filepath:       path.Join(tempDir, "wal"),
+			Version:        v2.VersionString,
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -674,6 +676,7 @@ func TestShouldCache(t *testing.T) {
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
+			Version:  v2.VersionString,
 		},
 		BlocklistPoll:           0,
 		CacheMaxBlockAge:        time.Hour,
@@ -752,6 +755,7 @@ func BenchmarkCompleteBlock(b *testing.B) {
 		WAL: &wal.Config{
 			IngestionSlack: time.Minute,
 			Filepath:       path.Join(tempDir, "wal"),
+			Version:        v2.VersionString,
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())

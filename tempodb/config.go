@@ -125,7 +125,12 @@ func validateConfig(cfg *Config) error {
 		return errors.New("block config should be non-nil")
 	}
 
-	err := common.ValidateConfig(cfg.Block)
+	err := wal.ValidateConfig(cfg.WAL)
+	if err != nil {
+		return fmt.Errorf("wal config validation failed: %w", err)
+	}
+
+	err = common.ValidateConfig(cfg.Block)
 	if err != nil {
 		return fmt.Errorf("block config validation failed: %w", err)
 	}
