@@ -261,7 +261,12 @@ func (rep *Reporter) running(ctx context.Context) error {
 			rep.lastReport = next
 			next = next.Add(reportInterval)
 		case <-ctx.Done():
-			return ctx.Err()
+			switch ctx.Err() {
+			case context.Canceled:
+				return nil
+			default:
+				return ctx.Err()
+			}
 		}
 	}
 }
