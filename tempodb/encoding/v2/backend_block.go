@@ -38,7 +38,7 @@ func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (*BackendBlock, 
 // Find searches a block for the ID and returns an object if found.
 func (b *BackendBlock) find(ctx context.Context, id common.ID) ([]byte, error) {
 	var err error
-	span, ctx := opentracing.StartSpanFromContext(ctx, "BackendBlock.Find")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "BackendBlock.find")
 	defer func() {
 		if err != nil {
 			span.SetTag("error", true)
@@ -141,6 +141,9 @@ func (b *BackendBlock) BlockMeta() *backend.BlockMeta {
 }
 
 func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "BackendBlock.FindTraceByID")
+	defer span.Finish()
+
 	obj, err := b.find(ctx, id)
 	if err != nil {
 		return nil, err
@@ -158,6 +161,9 @@ func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID, _ common
 }
 
 func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opt common.SearchOptions) (resp *tempopb.SearchResponse, err error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "BackendBlock.Search")
+	defer span.Finish()
+
 	decoder, err := model.NewObjectDecoder(b.meta.DataEncoding)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create NewDecoder: %w", err)
