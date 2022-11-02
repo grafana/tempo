@@ -109,8 +109,8 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, ad
 			}
 
 			// convert to ms
-			startMS := uint32(start / uint64(time.Millisecond))
-			endMS := uint32((start + duration) / uint64(time.Millisecond))
+			startMS := uint32(start / uint64(time.Second))
+			endMS := uint32((start + duration) / uint64(time.Second))
 
 			// jpe, handle ingestion slack and additional start slack
 			b.meta.ObjectAdded(traceID, startMS, endMS)
@@ -166,6 +166,7 @@ type walBlock struct {
 	path string
 
 	current *parquet.GenericBuffer[*Trace]
+	writer  *parquet.GenericWriter[*Trace]
 	decoder model.ObjectDecoder
 
 	flushed     []*parquet.File // jpe prealloc?
@@ -216,14 +217,17 @@ func (b *walBlock) Flush() (err error) {
 	}
 	defer file.Close()
 
-	writer := parquet.NewGenericWriter[*Trace](file) // jpe options?
-	defer writer.Close()
+	if b.writer == nil {
+		b.writer = parquet.NewGenericWriter[*Trace](file)
+	} else {
+		b.writer.Reset(file)
+	}
 
-	_, err = writer.WriteRowGroup(b.current)
+	_, err = b.writer.WriteRowGroup(b.current)
 	if err != nil {
 		return fmt.Errorf("error writing row group: %w", err)
 	}
-	err = writer.Close()
+	err = b.writer.Close()
 	if err != nil {
 		return fmt.Errorf("error closing writer: %w", err)
 	}
@@ -232,8 +236,7 @@ func (b *walBlock) Flush() (err error) {
 		return fmt.Errorf("error closing file: %w", err)
 	}
 
-	// cleanup
-	b.current = parquet.NewGenericBuffer[*Trace]() // jpe parquet.ColumnBufferCapacity, need parquet.SortingColumns()?
+	b.current.Reset()
 
 	pf, sz, err := openLocalParquetFile(filename)
 	if err != nil {
