@@ -27,6 +27,7 @@ overrides:
 * [ENHANCEMENT] Exit early from sharded search requests [#1742](https://github.com/grafana/tempo/pull/1742) (@electron0zero)
 * [ENHANCEMENT] Upgrade prometheus/prometheus to `51a44e6657c3` [#1829](https://github.com/grafana/tempo/pull/1829) (@mapno)
 * [ENHANCEMENT] Avoid running tempodb pool jobs with a cancelled context [#1852](https://github.com/grafana/tempo/pull/1852) (@zalegrala)
+* [ENHANCEMENT] Add config flag to allow for compactor disablement for debug purposes [#1850](https://github.com/grafana/tempo/pull/1850) (@zalegrala)
 * [CHANGE] Identify bloom that could not be retrieved from backend block [#1737](https://github.com/grafana/tempo/pull/1737) (@AlexDHoffer)
 * [CHANGE] tempo: check configuration returns now a list of warnings [#1663](https://github.com/grafana/tempo/pull/1663) (@frzifus)
 * [CHANGE] Make DNS address fully qualified to reduce DNS lookups in Kubernetes [#1687](https://github.com/grafana/tempo/pull/1687) (@electron0zero)
