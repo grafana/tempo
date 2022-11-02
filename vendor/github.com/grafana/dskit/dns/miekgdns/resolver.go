@@ -1,5 +1,6 @@
-// Copyright (c) The Thanos Authors.
-// Licensed under the Apache License 2.0.
+// Provenance-includes-location: https://github.com/thanos-io/thanos/blob/main/pkg/discovery/dns/miekgdns/resolver.go
+// Provenance-includes-license: Apache-2.0
+// Provenance-includes-copyright: The Thanos Authors.
 
 package miekgdns
 
@@ -49,7 +50,16 @@ func (r *Resolver) LookupSRV(ctx context.Context, service, proto, name string) (
 	return "", addrs, nil
 }
 
-func (r *Resolver) LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error) {
+func (r *Resolver) LookupIPAddr(_ context.Context, host string) ([]net.IPAddr, error) {
+	return r.lookupIPAddr(host, 1, 8)
+}
+
+func (r *Resolver) lookupIPAddr(host string, currIteration, maxIterations int) ([]net.IPAddr, error) {
+	// We want to protect from infinite loops when resolving DNS records recursively.
+	if currIteration > maxIterations {
+		return nil, errors.Errorf("maximum number of recursive iterations reached (%d)", maxIterations)
+	}
+
 	response, err := r.lookupWithSearchPath(host, dns.Type(dns.TypeAAAA))
 	if err != nil || len(response.Answer) == 0 {
 		// Ugly fallback to A lookup.
@@ -66,8 +76,15 @@ func (r *Resolver) LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr,
 			resp = append(resp, net.IPAddr{IP: addr.A})
 		case *dns.AAAA:
 			resp = append(resp, net.IPAddr{IP: addr.AAAA})
+		case *dns.CNAME:
+			// Recursively resolve it.
+			addrs, err := r.lookupIPAddr(addr.Target, currIteration+1, maxIterations)
+			if err != nil {
+				return nil, errors.Wrapf(err, "recursively resolve %s", addr.Target)
+			}
+			resp = append(resp, addrs...)
 		default:
-			return nil, errors.Errorf("invalid A or AAAA response record %s", record)
+			return nil, errors.Errorf("invalid A, AAAA or CNAME response record %s", record)
 		}
 	}
 	return resp, nil

@@ -56,7 +56,7 @@ func (c *Client) newRetryTimer(ctx context.Context, maxRetry int, unit time.Dura
 			jitter = MaxJitter
 		}
 
-		//sleep = random_between(0, min(cap, base * 2 ** attempt))
+		// sleep = random_between(0, min(cap, base * 2 ** attempt))
 		sleep := unit * time.Duration(1<<uint(attempt))
 		if sleep > cap {
 			sleep = cap

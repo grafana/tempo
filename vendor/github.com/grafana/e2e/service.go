@@ -16,9 +16,9 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/backoff"
+	"github.com/grafana/dskit/runutil"
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/expfmt"
-	"github.com/thanos-io/thanos/pkg/runutil"
 )
 
 var (
@@ -195,7 +195,8 @@ func (s *ConcreteService) Endpoint(port int) string {
 		return ""
 	}
 
-	// Do not use "localhost" cause it doesn't work with the AWS DynamoDB client.
+	// Use an IPv4 address instead of "localhost" hostname because our port mapping assumes IPv4
+	// (a port published by a Docker container could be different between IPv4 and IPv6).
 	return fmt.Sprintf("127.0.0.1:%d", localPort)
 }
 
@@ -561,7 +562,9 @@ func (s *HTTPService) Metrics() (_ string, err error) {
 	localPort := s.networkPortsContainerToLocal[s.httpPort]
 
 	// Fetch metrics.
-	res, err := DoGet(fmt.Sprintf("http://localhost:%d/metrics", localPort))
+	// Use an IPv4 address instead of "localhost" hostname because our port mapping assumes IPv4
+	// (a port published by a Docker container could be different between IPv4 and IPv6).
+	res, err := DoGet(fmt.Sprintf("http://127.0.0.1:%d/metrics", localPort))
 	if err != nil {
 		return "", err
 	}
