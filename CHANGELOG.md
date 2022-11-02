@@ -52,6 +52,7 @@ Old config will still work but will be removed in a future release. [#1735](http
   * Replace `github.com/thanos-io/thanos/pkg/discovery/dns` use with `github.com/grafana/dskit/dns`
   * Upgrade `github.com/grafana/dskit`
   * Upgrade `github.com/grafana/e2e`
+  * Upgrade `github.com/minio/minio-go/v7`
 * [FEATURE] Add capability to configure the used S3 Storage Class [#1697](https://github.com/grafana/tempo/pull/1714) (@amitsetty)
 * [ENHANCEMENT] cache: expose username and sentinel_username redis configuration options for ACL-based Redis Auth support [#1708](https://github.com/grafana/tempo/pull/1708) (@jsievenpiper)
 * [ENHANCEMENT] metrics-generator: expose span size as a metric [#1662](https://github.com/grafana/tempo/pull/1662) (@ie-pham)
