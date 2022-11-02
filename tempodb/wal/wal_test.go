@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
@@ -24,6 +25,8 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 )
 
 const (
@@ -50,16 +53,30 @@ func TestCompletedDirIsRemoved(t *testing.T) {
 }
 
 func TestAppendBlockStartEnd(t *testing.T) {
+	encodings := []encoding.VersionedEncoding{
+		v2.Encoding{},
+		// TODO - fix parquet wal block start/end timestamp handling?
+	}
+	for _, e := range encodings {
+		t.Run(e.Version(), func(t *testing.T) {
+			testAppendBlockStartEnd(t, e)
+		})
+	}
+}
+
+func testAppendBlockStartEnd(t *testing.T, e encoding.VersionedEncoding) {
 	wal, err := New(&Config{
 		Filepath:       t.TempDir(),
 		Encoding:       backend.EncNone,
-		IngestionSlack: 2 * time.Minute,
+		IngestionSlack: 3 * time.Minute,
 	})
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
-	block, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, e.Version())
 	require.NoError(t, err, "unexpected error creating block")
+
+	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	// create a new block and confirm start/end times are correct
 	blockStart := uint32(time.Now().Add(-time.Minute).Unix())
@@ -68,14 +85,19 @@ func TestAppendBlockStartEnd(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		id := make([]byte, 16)
 		rand.Read(id)
+		obj := test.MakeTrace(rand.Int()%10+1, id)
 
-		tr := test.MakeTrace(10, id)
-		b, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(tr, blockStart, blockEnd)
-		require.NoError(t, err, "unexpected error writing req")
+		b1, err := enc.PrepareForWrite(obj, blockStart, blockEnd)
+		require.NoError(t, err)
 
-		err = block.Append(id, b, blockStart, blockEnd)
+		b2, err := enc.ToObject([][]byte{b1})
+		require.NoError(t, err)
+
+		err = block.Append(id, b2, blockStart, blockEnd)
 		require.NoError(t, err, "unexpected error writing req")
 	}
+
+	require.NoError(t, block.Flush())
 
 	require.Equal(t, blockStart, uint32(block.BlockMeta().StartTime.Unix()))
 	require.Equal(t, blockEnd, uint32(block.BlockMeta().EndTime.Unix()))
@@ -105,7 +127,6 @@ func testFindByTraceID(t *testing.T, e encoding.VersionedEncoding) {
 		for i, id := range ids {
 			obj, err := block.FindTraceByID(ctx, id, common.DefaultSearchOptions())
 			require.NoError(t, err)
-
 			require.Equal(t, objs[i], obj)
 		}
 	})
@@ -315,6 +336,9 @@ func runWALTest(t testing.TB, dbEncoding string, runner func([][]byte, []*tempop
 		id := make([]byte, 16)
 		rand.Read(id)
 		obj := test.MakeTrace(rand.Int()%10+1, id)
+
+		trace.SortTrace(obj)
+
 		ids = append(ids, id)
 
 		b1, err := enc.PrepareForWrite(obj, 0, 0)
@@ -359,5 +383,62 @@ func BenchmarkV2(b *testing.B) {
 func BenchmarkVParquet(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		runWALTest(b, "vParquet", func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {})
+	}
+}
+
+func BenchmarkAppendFlush(b *testing.B) {
+	encodings := []string{
+		v2.VersionString,
+		vparquet.VersionString,
+	}
+	for _, enc := range encodings {
+		b.Run(enc, func(b *testing.B) {
+			benchmarkAppendFlush(b, enc)
+		})
+	}
+}
+
+func benchmarkAppendFlush(b *testing.B, encoding string) {
+	wal, err := New(&Config{
+		Filepath: b.TempDir(),
+		Encoding: backend.EncNone,
+	})
+	require.NoError(b, err, "unexpected error creating temp wal")
+
+	blockID := uuid.New()
+
+	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, encoding)
+	require.NoError(b, err, "unexpected error creating block")
+
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	objects := 250 // jpe this takes forever :(. i'd like to do 1k but it's too slow
+	objs := make([][]byte, 0, objects)
+	ids := make([][]byte, 0, objects)
+	for i := 0; i < objects; i++ {
+		id := make([]byte, 16)
+		rand.Read(id)
+		obj := test.MakeTrace(rand.Int()%10+1, id)
+		ids = append(ids, id)
+
+		b1, err := dec.PrepareForWrite(obj, 0, 0)
+		require.NoError(b, err)
+
+		b2, err := dec.ToObject([][]byte{b1})
+		require.NoError(b, err)
+
+		objs = append(objs, b2)
+	}
+
+	b.ResetTimer()
+
+	for flush := 0; flush < b.N; flush++ {
+
+		for i := range objs {
+			block.Append(ids[i], objs[i], 0, 0)
+		}
+
+		err = block.Flush()
+		require.NoError(b, err)
 	}
 }
