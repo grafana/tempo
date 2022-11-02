@@ -423,7 +423,7 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
 						Attributes: map[traceql.Attribute]traceql.Static{
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(time.Duration(100 * time.Second)),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(100 * time.Second),
 						},
 					},
 					traceql.Span{
@@ -431,7 +431,7 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						StartTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
 						Attributes: map[traceql.Attribute]traceql.Static{
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(time.Duration(0 * time.Second)),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(0 * time.Second),
 						},
 					},
 				),
