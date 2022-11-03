@@ -350,7 +350,10 @@ To change the resources requirements, follow these steps:
 1. Add a new configuration block: 
    ```jsonnet
     tempo_ingester_container+:: {
-    resources+: {
+       securityContext+: {
+          runAsUser: 0,
+       },
+       resources+: {
         limits+: {
             cpu: '3',
             memory: '5Gi',
@@ -359,8 +362,24 @@ To change the resources requirements, follow these steps:
             memory: '2Gi',
             cpu: '200m',
         },
+     },
+     },
+    },
+      tempo_distributor_container+:: {
+        securityContext+: {
+          runAsUser: 0,
+     },
+        resources+: {
+          limits+: {
+          cpu: '3',
+          memory: '5Gi',
       },
-   }
+        requests+: {
+          memory: '2Gi',
+          cpu: '200m',
+      },
+    },
+  },
    ````
 1. Save the changes to the file. 
 
