@@ -633,7 +633,9 @@ func (c *Column) decodeDataPage(header DataPageHeader, numValues int, repetition
 	pageValues = vbuf.data
 
 	pageKind := pageType.Kind()
-	if pageKind == ByteArray {
+
+	// Page offsets not needed when dictionary-encoded
+	if pageKind == ByteArray && !isDictionaryEncoding(pageEncoding) {
 		obuf = buffers.get(4 * (numValues + 1))
 		defer obuf.unref()
 		pageOffsets = unsafecast.BytesToUint32(obuf.data)

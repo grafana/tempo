@@ -62,7 +62,7 @@ require (
 	github.com/prometheus/prometheus v1.8.2-0.20221021121301-51a44e6657c3
 	github.com/prometheus/statsd_exporter v0.21.0 // indirect
 	github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
-	github.com/segmentio/parquet-go v0.0.0-20221019213850-8b6e2b21a101
+	github.com/segmentio/parquet-go v0.0.0-20221103170249-ef6062d06d9f
 	github.com/sirupsen/logrus v1.8.1
 	github.com/sony/gobreaker v0.4.1
 	github.com/spf13/viper v1.12.0

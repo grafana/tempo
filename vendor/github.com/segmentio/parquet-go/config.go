@@ -2,6 +2,7 @@ package parquet
 
 import (
 	"fmt"
+	"math"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ const (
 	DefaultDataPageStatistics   = false
 	DefaultSkipPageIndex        = false
 	DefaultSkipBloomFilters     = false
+	DefaultMaxRowsPerRowGroup   = math.MaxInt64
 )
 
 const (
@@ -188,6 +190,7 @@ type WriterConfig struct {
 	WriteBufferSize      int
 	DataPageVersion      int
 	DataPageStatistics   bool
+	MaxRowsPerRowGroup   int64
 	KeyValueMetadata     map[string]string
 	Schema               *Schema
 	SortingColumns       []SortingColumn
@@ -206,6 +209,7 @@ func DefaultWriterConfig() *WriterConfig {
 		WriteBufferSize:      DefaultWriteBufferSize,
 		DataPageVersion:      DefaultDataPageVersion,
 		DataPageStatistics:   DefaultDataPageStatistics,
+		MaxRowsPerRowGroup:   DefaultMaxRowsPerRowGroup,
 	}
 }
 
@@ -246,6 +250,7 @@ func (c *WriterConfig) ConfigureWriter(config *WriterConfig) {
 		WriteBufferSize:      coalesceInt(c.WriteBufferSize, config.WriteBufferSize),
 		DataPageVersion:      coalesceInt(c.DataPageVersion, config.DataPageVersion),
 		DataPageStatistics:   config.DataPageStatistics,
+		MaxRowsPerRowGroup:   config.MaxRowsPerRowGroup,
 		KeyValueMetadata:     keyValueMetadata,
 		Schema:               coalesceSchema(c.Schema, config.Schema),
 		SortingColumns:       coalesceSortingColumns(c.SortingColumns, config.SortingColumns),
@@ -370,8 +375,8 @@ func SkipBloomFilters(skip bool) FileOption {
 // like network storage it can be advantageous to increase this value.
 //
 // Defaults to 4096.
-func ReadBufferSize(sz int) FileOption {
-	return fileOption(func(config *FileConfig) { config.ReadBufferSize = sz })
+func ReadBufferSize(size int) FileOption {
+	return fileOption(func(config *FileConfig) { config.ReadBufferSize = size })
 }
 
 // PageBufferSize configures the size of column page buffers on parquet writers.
@@ -395,6 +400,19 @@ func PageBufferSize(size int) WriterOption {
 // Defaults to 32KiB.
 func WriteBufferSize(size int) WriterOption {
 	return writerOption(func(config *WriterConfig) { config.WriteBufferSize = size })
+}
+
+// MaxRowsPerRowGroup configures the maximum number of rows that a writer will
+// produce in each row group.
+//
+// This limit is useful to control size of row groups in both number of rows and
+// byte size. While controlling the byte size of a row group is difficult to
+// achieve with parquet due to column encoding and compression, the number of
+// rows remains a useful proxy.
+//
+// Defaults to unlimited.
+func MaxRowsPerRowGroup(numRows int64) WriterOption {
+	return writerOption(func(config *WriterConfig) { config.MaxRowsPerRowGroup = numRows })
 }
 
 // CreatedBy creates a configuration option which sets the name of the
