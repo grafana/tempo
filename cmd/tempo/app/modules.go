@@ -262,6 +262,10 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 }
 
 func (t *App) initCompactor() (services.Service, error) {
+	if t.cfg.Target == ScalableSingleBinary && t.cfg.Compactor.ShardingRing.KVStore.Store == "" {
+		t.cfg.Compactor.ShardingRing.KVStore.Store = "memberlist"
+	}
+
 	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.overrides, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compactor %w", err)
