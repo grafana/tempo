@@ -3,7 +3,7 @@ title: Instrumentation references
 menuTitle: Instrumentation references
 aliases:
 - /docs/tempo/latest/guides/instrumentation/
-weight: 100
+weight: 200
 ---
 
 

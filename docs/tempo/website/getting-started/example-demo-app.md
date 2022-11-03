@@ -3,7 +3,7 @@ title: Example setups
 aliases:
 - /docs/tempo/latest/getting-started/quickstart-tempo/
 - /docs/tempo/latest/guides/loki-derived-fields/
-weight: 200
+weight: 300
 ---
 
 # Example setups
@@ -11,6 +11,7 @@ weight: 200
 The following examples show various deployment and configuration options using trace generators so you can get started experimenting with Tempo without an existing application.
 
 For more information about Tempo setup and configuration, see:
+
 * [Set up a Tempo cluster]({{< relref "../setup">}})
 * [Tempo configuration]({{< relref "../configuration" >}})
 
@@ -21,9 +22,9 @@ The [docker-compose examples](https://github.com/grafana/tempo/tree/main/example
 
 Some of the examples include:
 
-- Trace discovery with Loki
-- Basic Grafana Agent/OpenTelemetry Setup
-- Various Backends (S3/GCS/Azure)
+* Trace discovery with Loki
+* Basic Grafana Agent/OpenTelemetry Setup
+* Various Backends (S3/GCS/Azure)
 
 This is a great place to get started with Tempo and learn about various trace discovery flows.
 
