@@ -61,7 +61,7 @@ Metric
 : A number, helping operators understand the state of a system, for example, number of active users, error count, average response time, etc. 
 
 Span
-: Represents a specific service of the full trace (payment service, inventory, etc.)
+: Represents a specific service or node of the full trace (payment service, inventory, etc.)
 
 Trace
 : An observed execution path of a request through a distributed system.
