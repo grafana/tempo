@@ -102,8 +102,8 @@ grafana {
   containerCPUUsagePanel(title, containerName)::
     $.panel(title) +
     $.queryPanel([
-      'sum by(pod) (rate(container_cpu_usage_seconds_total{%s,container="%s"}[$__interval]))' % [$.namespaceMatcher(), containerName],
-      'min(container_spec_cpu_quota{%s,container="%s"} / container_spec_cpu_period{%s,container="%s"})' % [$.namespaceMatcher(), containerName, $.namespaceMatcher(), containerName],
+      'sum by(pod) (rate(container_cpu_usage_seconds_total{%s,container=~"%s"}[$__interval]))' % [$.namespaceMatcher(), containerName],
+      'min(container_spec_cpu_quota{%s,container=~"%s"} / container_spec_cpu_period{%s,container=~"%s"})' % [$.namespaceMatcher(), containerName, $.namespaceMatcher(), containerName],
     ], ['{{pod}}', 'limit']) +
     {
       seriesOverrides: [
@@ -118,8 +118,8 @@ grafana {
   containerMemoryWorkingSetPanel(title, containerName)::
     $.panel(title) +
     $.queryPanel([
-      'sum by(pod) (container_memory_working_set_bytes{%s,container="%s"})' % [$.namespaceMatcher(), containerName],
-      'min(container_spec_memory_limit_bytes{%s,container="%s"} > 0)' % [$.namespaceMatcher(), containerName],
+      'sum by(pod) (container_memory_working_set_bytes{%s,container=~"%s"})' % [$.namespaceMatcher(), containerName],
+      'min(container_spec_memory_limit_bytes{%s,container=~"%s"} > 0)' % [$.namespaceMatcher(), containerName],
     ], ['{{pod}}', 'limit']) +
     {
       seriesOverrides: [
