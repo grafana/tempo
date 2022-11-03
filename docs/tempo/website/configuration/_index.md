@@ -435,7 +435,6 @@ compactor:
     # Note: This should only be used in a non-prodution context for debugging purposes.  This will allow blocks to say in the backend for further investigation if desired.
     [disabled: <bool>]
 
-
     ring:
 
         kvstore:
