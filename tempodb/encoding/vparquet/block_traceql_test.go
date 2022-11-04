@@ -101,6 +101,11 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			parse(t, `{.`+LabelHTTPStatusCode+` = 500}`),
 			parse(t, `{.`+LabelHTTPStatusCode+` > 500}`),
 		),
+		makeReq(
+			// Mix of duration with other conditions
+			parse(t, `{`+LabelName+` = "hello"}`),   // Match
+			parse(t, `{`+LabelDuration+` < 100s }`), // No match
+		),
 
 		// Edge cases
 		makeReq(parse(t, `{.name = "Bob"}`)),                             // Almost conflicts with intrinsic but still works
@@ -188,6 +193,14 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			Conditions: []traceql.Condition{
 				parse(t, `{resource.foo = "abc"}`), // match
 				parse(t, `{resource.bar = 123}`),   // no match
+			},
+		},
+		{
+			// Mix of duration with other conditions
+			AllConditions: true,
+			Conditions: []traceql.Condition{
+				parse(t, `{`+LabelName+` = "nothello"}`), // No match
+				parse(t, `{`+LabelDuration+` = 100s }`),  // Match
 			},
 		},
 	}
@@ -395,9 +408,9 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 				),
 			),
 		},
-		/*{
-			// Intrinsic duraction. 1st span only
-			makeReq(parse(t, `{ duration > 30s }`)),
+		{
+			// Intrinsic duration with no filtering
+			traceql.FetchSpansRequest{Conditions: []traceql.Condition{{Attribute: traceql.NewIntrinsic(traceql.IntrinsicDuration)}}},
 			makeSpansets(
 				makeSpanset(
 					wantTr.TraceID,
@@ -410,12 +423,20 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
 						EndtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
 						Attributes: map[traceql.Attribute]traceql.Static{
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(time.Duration(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].DurationNanos)),
+							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(100 * time.Second),
+						},
+					},
+					traceql.Span{
+						ID:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].ID,
+						StartTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
+						EndtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
+						Attributes: map[traceql.Attribute]traceql.Static{
+							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(0 * time.Second),
 						},
 					},
 				),
 			),
-		},*/
+		},
 	}
 
 	for _, tc := range testCases {

@@ -159,7 +159,7 @@ func Test_ReportLoop(t *testing.T) {
 		<-time.After(6*time.Second + (stabilityCheckInterval * time.Duration(stabilityMinimunRequired+1)))
 		cancel()
 	}()
-	require.Equal(t, context.Canceled, r.running(ctx))
+	require.Equal(t, nil, r.running(ctx))
 	require.GreaterOrEqual(t, totalReport, 5)
 	first := clusterIDs[0]
 	for _, uid := range clusterIDs {

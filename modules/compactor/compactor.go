@@ -157,8 +157,10 @@ func (c *Compactor) starting(ctx context.Context) (err error) {
 }
 
 func (c *Compactor) running(ctx context.Context) error {
-	level.Info(log.Logger).Log("msg", "enabling compaction")
-	c.store.EnableCompaction(&c.cfg.Compactor, c, c)
+	if !c.cfg.Disabled {
+		level.Info(log.Logger).Log("msg", "enabling compaction")
+		c.store.EnableCompaction(&c.cfg.Compactor, c, c)
+	}
 
 	if c.subservices != nil {
 		select {

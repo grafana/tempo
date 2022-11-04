@@ -418,12 +418,6 @@ func (p *bufferedPage) Release() {
 	bufferUnref(p.offsets)
 	bufferUnref(p.definitionLevels)
 	bufferUnref(p.repetitionLevels)
-
-	p.Page = nil
-	p.values = nil
-	p.offsets = nil
-	p.definitionLevels = nil
-	p.repetitionLevels = nil
 }
 
 func bufferRef(buf *buffer) {

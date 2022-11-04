@@ -52,7 +52,7 @@ func (e *Encoding) DecodeDouble(dst []float64, src []byte) ([]float64, error) {
 
 func resize(buf []byte, size int) []byte {
 	if cap(buf) < size {
-		buf = make([]byte, size)
+		buf = make([]byte, size, 2*size)
 	} else {
 		buf = buf[:size]
 	}

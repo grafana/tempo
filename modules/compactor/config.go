@@ -13,6 +13,7 @@ import (
 )
 
 type Config struct {
+	Disabled        bool                    `yaml:"disabled,omitempty"`
 	ShardingRing    RingConfig              `yaml:"ring,omitempty"`
 	Compactor       tempodb.CompactorConfig `yaml:"compaction"`
 	OverrideRingKey string                  `yaml:"override_ring_key"`
@@ -37,6 +38,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.IntVar(&cfg.Compactor.MaxCompactionObjects, util.PrefixConfig(prefix, "compaction.max-objects-per-block"), 6000000, "Maximum number of traces in a compacted block.")
 	f.Uint64Var(&cfg.Compactor.MaxBlockBytes, util.PrefixConfig(prefix, "compaction.max-block-bytes"), 100*1024*1024*1024 /* 100GB */, "Maximum size of a compacted block.")
 	f.DurationVar(&cfg.Compactor.MaxCompactionRange, util.PrefixConfig(prefix, "compaction.compaction-window"), time.Hour, "Maximum time window across which to compact blocks.")
+	f.BoolVar(&cfg.Disabled, util.PrefixConfig(prefix, "disabled"), false, "Disable compaction.")
 	cfg.OverrideRingKey = compactorRingKey
 }
 

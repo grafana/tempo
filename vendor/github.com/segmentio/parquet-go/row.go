@@ -739,10 +739,13 @@ func reconstructFuncOfGroup(columnIndex int16, node Node) (int16, reconstructFun
 
 //go:noinline
 func reconstructFuncOfLeaf(columnIndex int16, node Node) (int16, reconstructFunc) {
+	typ := node.Type()
 	return columnIndex + 1, func(value reflect.Value, _ levels, row Row) (Row, error) {
 		if !row.startsWith(columnIndex) {
 			return row, fmt.Errorf("no values found in parquet row for column %d", columnIndex)
 		}
-		return row[1:], assignValue(value, row[0])
+
+		err := typ.AssignValue(value, row[0])
+		return row[1:], err
 	}
 }

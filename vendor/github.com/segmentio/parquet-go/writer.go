@@ -211,9 +211,11 @@ func (w *Writer) ReadRowsFrom(rows RowReader) (written int64, err error) {
 func (w *Writer) Schema() *Schema { return w.schema }
 
 type writer struct {
-	buffer *bufio.Writer
-	writer offsetTrackingWriter
-	values [][]Value
+	buffer  *bufio.Writer
+	writer  offsetTrackingWriter
+	values  [][]Value
+	numRows int64
+	maxRows int64
 
 	createdBy string
 	metadata  []format.KeyValue
@@ -240,6 +242,7 @@ func newWriter(output io.Writer, config *WriterConfig) *writer {
 		w.buffer = bufio.NewWriterSize(output, config.WriteBufferSize)
 		w.writer.Reset(w.buffer)
 	}
+	w.maxRows = config.MaxRowsPerRowGroup
 	w.createdBy = config.CreatedBy
 	w.metadata = make([]format.KeyValue, 0, len(config.KeyValueMetadata))
 	for k, v := range config.KeyValueMetadata {
@@ -550,6 +553,7 @@ func (w *writer) writeRowGroup(rowGroupSchema *Schema, rowGroupSortingColumns []
 	}
 
 	defer func() {
+		w.numRows = 0
 		for _, c := range w.columns {
 			c.reset()
 		}
@@ -653,33 +657,65 @@ func (w *writer) writeRowGroup(rowGroupSchema *Schema, rowGroupSortingColumns []
 }
 
 func (w *writer) WriteRows(rows []Row) (int, error) {
-	defer func() {
-		for i, values := range w.values {
-			clearValues(values)
-			w.values[i] = values[:0]
-		}
-	}()
+	return w.writeRows(len(rows), func(start, end int) (int, error) {
+		defer func() {
+			for i, values := range w.values {
+				clearValues(values)
+				w.values[i] = values[:0]
+			}
+		}()
 
-	// TODO: if an error occurs in this method the writer may be left in an
-	// partially functional state. Applications are not expected to continue
-	// using the writer after getting an error, but maybe we could ensure that
-	// we are preventing further use as well?
-	for _, row := range rows {
-		for _, value := range row {
-			columnIndex := value.Column()
-			w.values[columnIndex] = append(w.values[columnIndex], value)
-		}
-	}
-
-	for i, values := range w.values {
-		if len(values) > 0 {
-			if err := w.columns[i].writeRows(values); err != nil {
-				return 0, err
+		// TODO: if an error occurs in this method the writer may be left in an
+		// partially functional state. Applications are not expected to continue
+		// using the writer after getting an error, but maybe we could ensure that
+		// we are preventing further use as well?
+		for _, row := range rows[start:end] {
+			for _, value := range row {
+				columnIndex := value.Column()
+				w.values[columnIndex] = append(w.values[columnIndex], value)
 			}
 		}
+
+		for i, values := range w.values {
+			if len(values) > 0 {
+				if err := w.columns[i].writeRows(values); err != nil {
+					return 0, err
+				}
+			}
+		}
+
+		return end - start, nil
+	})
+}
+
+func (w *writer) writeRows(numRows int, write func(i, j int) (int, error)) (int, error) {
+	written := 0
+
+	for written < numRows {
+		remain := w.maxRows - w.numRows
+		length := numRows - written
+
+		if remain == 0 {
+			remain = w.maxRows
+
+			if err := w.flush(); err != nil {
+				return written, err
+			}
+		}
+
+		if remain < int64(length) {
+			length = int(remain)
+		}
+
+		n, err := write(written, written+length)
+		written += n
+		w.numRows += int64(n)
+		if err != nil {
+			return written, err
+		}
 	}
 
-	return len(rows), nil
+	return written, nil
 }
 
 // The WriteValues method is intended to work in pair with WritePage to allow

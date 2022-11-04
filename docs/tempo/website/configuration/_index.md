@@ -431,6 +431,10 @@ Compactors stream blocks from the storage backend, combine them and write them b
 ```yaml
 compactor:
 
+    # Optional. Disables backend compaction.  Default is false.
+    # Note: This should only be used in a non-prodution context for debugging purposes.  This will allow blocks to say in the backend for further investigation if desired.
+    [disabled: <bool>]
+
     ring:
 
         kvstore:
@@ -476,6 +480,7 @@ compactor:
         # Optional. The time between compaction cycles. Default is 30s.
         # Note: The default will be used if the value is set to 0.
         [compaction_cycle: <duration>]
+
 ```
 
 ## Storage

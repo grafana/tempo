@@ -14,6 +14,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/gogo/status"
 	"github.com/google/uuid"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -432,6 +433,9 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 }
 
 func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.FindTraceByID")
+	defer span.Finish()
+
 	var err error
 	var completeTrace *tempopb.Trace
 

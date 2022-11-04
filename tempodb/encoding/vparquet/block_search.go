@@ -45,6 +45,8 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	// performance improvement. this does not happen currently for full backend search, but does happen
 	// if this is a complete block held on disk by the ingester
 	if b.pf != nil && b.readerAt != nil {
+		// Reset metrics, is there a better way to do this?
+		b.readerAt.TotalBytesRead.Store(0)
 		return b.pf, b.readerAt, nil
 	}
 

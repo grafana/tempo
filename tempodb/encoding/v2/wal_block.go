@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/tempo/pkg/warnings"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/opentracing/opentracing-go"
 )
 
 const maxDataEncodingLength = 32
@@ -221,6 +222,9 @@ func (a *walBlock) Clear() error {
 
 // Find implements common.Finder
 func (a *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "v2WalBlock.FindTraceByID")
+	defer span.Finish()
+
 	combiner := model.StaticCombiner
 
 	records := a.appender.RecordsForID(id)
