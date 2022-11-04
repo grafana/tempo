@@ -393,12 +393,65 @@ func BenchmarkAppendFlush(b *testing.B) {
 	}
 	for _, enc := range encodings {
 		b.Run(enc, func(b *testing.B) {
-			benchmarkAppendFlush(b, enc)
+			runWALBenchmark(b, enc, b.N, nil)
 		})
 	}
 }
 
-func benchmarkAppendFlush(b *testing.B, encoding string) {
+func BenchmarkFindTraceByID(b *testing.B) {
+	encodings := []string{
+		v2.VersionString,
+		vparquet.VersionString,
+	}
+	for _, enc := range encodings {
+		b.Run(enc, func(b *testing.B) {
+			runWALBenchmark(b, enc, 1, func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
+				// find all traces pushed
+				ctx := context.Background()
+				for i, id := range ids {
+					obj, err := block.FindTraceByID(ctx, id, common.DefaultSearchOptions())
+					require.NoError(b, err)
+					require.Equal(b, objs[i], obj)
+				}
+			})
+		})
+	}
+}
+
+func BenchmarkSearch(b *testing.B) {
+	encodings := []string{
+		v2.VersionString,
+		vparquet.VersionString,
+	}
+	for _, enc := range encodings {
+		b.Run(enc, func(b *testing.B) {
+			runWALBenchmark(b, enc, 1, func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
+				ctx := context.Background()
+
+				for i, o := range objs {
+					k, v := findFirstAttribute(o)
+					require.NotEmpty(b, k)
+					require.NotEmpty(b, v)
+
+					resp, err := block.Search(ctx, &tempopb.SearchRequest{
+						Tags: map[string]string{
+							k: v,
+						},
+						Limit: 10,
+					}, common.DefaultSearchOptions())
+					if err == common.ErrUnsupported {
+						return
+					}
+					require.NoError(b, err)
+					require.Equal(b, 1, len(resp.Traces))
+					require.Equal(b, util.TraceIDToHexString(ids[i]), resp.Traces[0].TraceID)
+				}
+			})
+		})
+	}
+}
+
+func runWALBenchmark(b *testing.B, encoding string, flushCount int, runner func([][]byte, []*tempopb.Trace, common.WALBlock)) {
 	wal, err := New(&Config{
 		Filepath: b.TempDir(),
 		Encoding: backend.EncNone,
@@ -413,13 +466,18 @@ func benchmarkAppendFlush(b *testing.B, encoding string) {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	objects := 250 // jpe this takes forever :(. i'd like to do 1k but it's too slow
+	traces := make([]*tempopb.Trace, 0, objects)
 	objs := make([][]byte, 0, objects)
 	ids := make([][]byte, 0, objects)
 	for i := 0; i < objects; i++ {
 		id := make([]byte, 16)
 		rand.Read(id)
 		obj := test.MakeTrace(rand.Int()%10+1, id)
+
+		trace.SortTrace(obj)
+
 		ids = append(ids, id)
+		traces = append(traces, obj)
 
 		b1, err := dec.PrepareForWrite(obj, 0, 0)
 		require.NoError(b, err)
@@ -432,7 +490,7 @@ func benchmarkAppendFlush(b *testing.B, encoding string) {
 
 	b.ResetTimer()
 
-	for flush := 0; flush < b.N; flush++ {
+	for flush := 0; flush < flushCount; flush++ {
 
 		for i := range objs {
 			block.Append(ids[i], objs[i], 0, 0)
@@ -440,5 +498,11 @@ func benchmarkAppendFlush(b *testing.B, encoding string) {
 
 		err = block.Flush()
 		require.NoError(b, err)
+	}
+
+	if runner != nil {
+		for n := 0; n < b.N; n++ {
+			runner(ids, traces, block)
+		}
 	}
 }
