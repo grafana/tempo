@@ -2,6 +2,7 @@ package vparquet
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -35,7 +36,7 @@ import (
 // jpe combine filename and path?
 func openWALBlock(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration) (common.WALBlock, error, error) { // jpe what returns a warning?
 	dir := filepath.Join(path, filename)
-	blockID, tenantID, version, err := parseName(filename)
+	_, _, version, err := parseName(filename)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -44,12 +45,20 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, ad
 		return nil, nil, fmt.Errorf("mismatched version in vparquet wal: %s, %s, %s", version, path, filename)
 	}
 
+	metaPath := filepath.Join(dir, backend.MetaName)
+	metaBytes, err := os.ReadFile(metaPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error reading wal meta json: %s %w", metaPath, err)
+	}
+
+	meta := &backend.BlockMeta{}
+	err = json.Unmarshal(metaBytes, meta)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error unmarshaling wal meta json: %s %w", metaPath, err)
+	}
+
 	b := &walBlock{
-		meta: &backend.BlockMeta{
-			Version:  VersionString,
-			BlockID:  blockID,
-			TenantID: tenantID,
-		},
+		meta:    meta,
 		path:    path,
 		current: parquet.NewGenericBuffer[*Trace](), // jpe parquet.ColumnBufferCapacity, need parquet.SortingColumns()?
 	}
@@ -61,6 +70,10 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, ad
 	}
 
 	for _, f := range files {
+		if f.Name() == backend.MetaName {
+			continue
+		}
+
 		// attempt to load in a parquet.file
 		pf, sz, err := openLocalParquetFile(filepath.Join(dir, f.Name()))
 		if err != nil {
@@ -205,6 +218,20 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 }
 
 func (b *walBlock) Flush() (err error) {
+
+	// Flush latest meta first
+	// This mainly contains the slack-adjusted start/end times
+	metaBytes, err := json.Marshal(b.BlockMeta())
+	if err != nil {
+		return fmt.Errorf("error marshaling meta json: %w", err)
+	}
+
+	metaPath := filepath.Join(b.walPath(), backend.MetaName)
+	err = os.WriteFile(metaPath, metaBytes, 0600)
+	if err != nil {
+		return fmt.Errorf("error writing meta json: %w", err)
+	}
+
 	nextFile := len(b.flushed) + 1
 	filename := fmt.Sprintf("%010d", nextFile)
 	filename = filepath.Join(b.walPath(), filename)

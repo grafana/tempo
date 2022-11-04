@@ -55,7 +55,7 @@ func TestCompletedDirIsRemoved(t *testing.T) {
 func TestAppendBlockStartEnd(t *testing.T) {
 	encodings := []encoding.VersionedEncoding{
 		v2.Encoding{},
-		// TODO - fix parquet wal block start/end timestamp handling?
+		vparquet.Encoding{},
 	}
 	for _, e := range encodings {
 		t.Run(e.Version(), func(t *testing.T) {
