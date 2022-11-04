@@ -68,7 +68,7 @@ jobs:
           branch: master
           host: github.com
           github_pat: '${{ secrets.GH_BOT_ACCESS_TOKEN }}'
-          source_folder: docs/tempo/website
+          source_folder: docs/sources
           # target is v1.2.x
           target_folder: content/docs/tempo/${{ steps.target.outputs.target }}.x
       
