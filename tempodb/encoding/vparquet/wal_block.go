@@ -1,6 +1,7 @@
 package vparquet
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -22,6 +23,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
 )
+
+var _ common.WALBlock = (*walBlock)(nil)
 
 // path + filename = folder to create
 //   path/folder/00001
@@ -58,9 +61,8 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, ad
 	}
 
 	b := &walBlock{
-		meta:    meta,
-		path:    path,
-		current: parquet.NewGenericBuffer[*Trace](), // jpe parquet.ColumnBufferCapacity, need parquet.SortingColumns()?
+		meta: meta,
+		path: path,
 	}
 
 	// read all files in dir
@@ -141,8 +143,7 @@ func createWALBlock(id uuid.UUID, tenantID string, filepath string, _ backend.En
 			BlockID:  id,
 			TenantID: tenantID,
 		},
-		path:    filepath,
-		current: parquet.NewGenericBuffer[*Trace](), // jpe parquet.ColumnBufferCapacity, need parquet.SortingColumns()?
+		path: filepath,
 	}
 
 	// build folder
@@ -178,14 +179,13 @@ type walBlock struct {
 	meta *backend.BlockMeta
 	path string
 
-	current *parquet.GenericBuffer[*Trace]
+	traces  []*Trace
 	writer  *parquet.GenericWriter[*Trace]
 	decoder model.ObjectDecoder
 
-	flushed     []*parquet.File // jpe prealloc?
-	flushedSize int64
-
-	poolTrace *Trace // jpe - concurrency concerns?
+	flushed       []*parquet.File // jpe prealloc?
+	flushedSize   int64
+	unflushedSize int64
 }
 
 func (b *walBlock) BlockMeta() *backend.BlockMeta {
@@ -203,16 +203,17 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 		return fmt.Errorf("error preparing trace for read: %w", err)
 	}
 
-	b.poolTrace = traceToParquet(id, trace, b.poolTrace) // jpe find and restore pooling code
+	// TODO - pooling?
+	tr := traceToParquet(id, trace, nil)
 
-	// jpe adjust time range
 	b.meta.ObjectAdded(id, start, end)
 
 	// add to current
-	_, err = b.current.Write([]*Trace{b.poolTrace}) // jpe experiment with buffering these differently and writing in batches
-	if err != nil {
-		return fmt.Errorf("error writing to buffer: %w", err)
-	}
+	b.traces = append(b.traces, tr)
+
+	// This is actually the protobuf size but close enough
+	// for this purpose
+	b.unflushedSize += int64(len(buff))
 
 	return nil
 }
@@ -236,7 +237,10 @@ func (b *walBlock) Flush() (err error) {
 	filename := fmt.Sprintf("%010d", nextFile)
 	filename = filepath.Join(b.walPath(), filename)
 
-	sort.Sort(b.current)
+	// Sort currently buffered data by trace ID
+	sort.Slice(b.traces, func(i, j int) bool {
+		return bytes.Compare(b.traces[i].TraceID, b.traces[j].TraceID) == -1
+	})
 
 	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -250,10 +254,11 @@ func (b *walBlock) Flush() (err error) {
 		b.writer.Reset(file)
 	}
 
-	_, err = b.writer.WriteRowGroup(b.current)
+	_, err = b.writer.Write(b.traces)
 	if err != nil {
-		return fmt.Errorf("error writing row group: %w", err)
+		return fmt.Errorf("error writing row: %w", err)
 	}
+
 	err = b.writer.Close()
 	if err != nil {
 		return fmt.Errorf("error closing writer: %w", err)
@@ -263,7 +268,11 @@ func (b *walBlock) Flush() (err error) {
 		return fmt.Errorf("error closing file: %w", err)
 	}
 
-	b.current.Reset()
+	// TODO - return to pool?
+	for i := range b.traces {
+		b.traces[i] = nil
+	}
+	b.traces = b.traces[:0]
 
 	pf, sz, err := openLocalParquetFile(filename)
 	if err != nil {
@@ -272,12 +281,13 @@ func (b *walBlock) Flush() (err error) {
 
 	b.flushed = append(b.flushed, pf)
 	b.flushedSize += sz
+	b.unflushedSize = 0
 
 	return nil
 }
 
 func (b *walBlock) DataLength() uint64 { // jpe oof, another parquet size question
-	return uint64(b.flushedSize + b.current.Size()) // jpe performance? needs to take into account size of all flushed files
+	return uint64(b.flushedSize + b.unflushedSize)
 }
 
 func (b *walBlock) Iterator() (common.Iterator, error) {
@@ -289,7 +299,7 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 		bookmarks = append(bookmarks, newBookmark[*Trace](iter))
 	}
 
-	iter := newMultiblockIterator[*Trace](bookmarks, func(ts []*Trace) (*Trace, error) {
+	iter := newMultiblockIterator(bookmarks, func(ts []*Trace) (*Trace, error) {
 		t := CombineTraces(ts...)
 		return t, nil
 	})
