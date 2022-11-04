@@ -148,22 +148,24 @@ func (w *GenericWriter[T]) Reset(output io.Writer) {
 }
 
 func (w *GenericWriter[T]) Write(rows []T) (int, error) {
-	n, err := w.write(w, rows)
-	if err != nil {
-		return n, err
-	}
+	return w.base.writer.writeRows(len(rows), func(i, j int) (int, error) {
+		n, err := w.write(w, rows[i:j:j])
+		if err != nil {
+			return n, err
+		}
 
-	for _, c := range w.base.writer.columns {
-		c.numValues = int32(c.columnBuffer.NumValues())
+		for _, c := range w.base.writer.columns {
+			c.numValues = int32(c.columnBuffer.NumValues())
 
-		if c.numValues > 0 && c.numValues >= c.maxValues {
-			if err := c.flush(); err != nil {
-				return 0, err
+			if c.numValues > 0 && c.numValues >= c.maxValues {
+				if err := c.flush(); err != nil {
+					return 0, err
+				}
 			}
 		}
-	}
 
-	return n, nil
+		return n, nil
+	})
 }
 
 func (w *GenericWriter[T]) WriteRows(rows []Row) (int, error) {

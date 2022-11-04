@@ -46,7 +46,7 @@ func (e *LengthByteArrayEncoding) DecodeByteArray(dst []byte, src []byte, offset
 	}
 
 	if size := len(length.values) + 1; cap(offsets) < size {
-		offsets = make([]uint32, size)
+		offsets = make([]uint32, size, 2*size)
 	} else {
 		offsets = offsets[:size]
 	}

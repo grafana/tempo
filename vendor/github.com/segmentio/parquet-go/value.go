@@ -383,7 +383,14 @@ func (v Value) Int32() int32 { return int32(v.u64) }
 func (v Value) Int64() int64 { return int64(v.u64) }
 
 // Int96 returns v as a int96, assuming the underlying type is INT96.
-func (v Value) Int96() deprecated.Int96 { return makeInt96(v.ByteArray()) }
+func (v Value) Int96() deprecated.Int96 {
+	var val deprecated.Int96
+	if !v.IsNull() {
+		val = makeInt96(v.ByteArray())
+	}
+
+	return val
+}
 
 // Float returns v as a float32, assuming the underlying type is FLOAT.
 func (v Value) Float() float32 { return math.Float32frombits(uint32(v.u64)) }
@@ -587,124 +594,6 @@ func makeInt96(bits []byte) (i96 deprecated.Int96) {
 		1: binary.LittleEndian.Uint32(bits[4:8]),
 		0: binary.LittleEndian.Uint32(bits[0:4]),
 	}
-}
-
-func assignValue(dst reflect.Value, src Value) error {
-	if src.IsNull() {
-		dst.Set(reflect.Zero(dst.Type()))
-		return nil
-	}
-
-	dstKind := dst.Kind()
-	srcKind := src.Kind()
-
-	var val reflect.Value
-	switch srcKind {
-	case Boolean:
-		v := src.Boolean()
-		switch dstKind {
-		case reflect.Bool:
-			dst.SetBool(v)
-			return nil
-		default:
-			val = reflect.ValueOf(v)
-		}
-
-	case Int32:
-		v := int64(src.Int32())
-		switch dstKind {
-		case reflect.Int8, reflect.Int16, reflect.Int32:
-			dst.SetInt(int64(v))
-			return nil
-		case reflect.Uint8, reflect.Uint16, reflect.Uint32:
-			dst.SetUint(uint64(v))
-			return nil
-		default:
-			val = reflect.ValueOf(v)
-		}
-
-	case Int64:
-		v := src.Int64()
-		switch dstKind {
-		case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int:
-			dst.SetInt(v)
-			return nil
-		case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uint, reflect.Uintptr:
-			dst.SetUint(uint64(v))
-			return nil
-		default:
-			val = reflect.ValueOf(v)
-		}
-
-	case Int96:
-		val = reflect.ValueOf(src.Int96())
-
-	case Float:
-		v := src.Float()
-		switch dstKind {
-		case reflect.Float32, reflect.Float64:
-			dst.SetFloat(float64(v))
-			return nil
-		default:
-			val = reflect.ValueOf(v)
-		}
-
-	case Double:
-		v := src.Double()
-		switch dstKind {
-		case reflect.Float32, reflect.Float64:
-			dst.SetFloat(v)
-			return nil
-		default:
-			val = reflect.ValueOf(v)
-		}
-
-	case ByteArray:
-		v := src.ByteArray()
-		switch dstKind {
-		case reflect.String:
-			dst.SetString(string(v))
-			return nil
-		case reflect.Slice:
-			if dst.Type().Elem().Kind() == reflect.Uint8 {
-				dst.SetBytes(copyBytes(v))
-				return nil
-			}
-		default:
-			val = reflect.ValueOf(string(v))
-		}
-
-	case FixedLenByteArray:
-		v := src.ByteArray()
-		switch dstKind {
-		case reflect.Array:
-			if dst.Type().Elem().Kind() == reflect.Uint8 && dst.Len() == len(v) {
-				// This code could be implemented as a call to reflect.Copy but
-				// it would require creating a reflect.Value from v which causes
-				// the heap allocation to pack the []byte value. To avoid this
-				// overhead we instead convert the reflect.Value holding the
-				// destination array into a byte slice which allows us to use
-				// a more efficient call to copy.
-				d := unsafe.Slice((*byte)(unsafecast.PointerOfValue(dst)), len(v))
-				copy(d, v)
-				return nil
-			}
-		case reflect.Slice:
-			if dst.Type().Elem().Kind() == reflect.Uint8 {
-				dst.SetBytes(copyBytes(v))
-				return nil
-			}
-		default:
-			val = reflect.ValueOf(copyBytes(v))
-		}
-	}
-
-	if val.IsValid() && val.Type().AssignableTo(dst.Type()) {
-		dst.Set(val)
-		return nil
-	}
-
-	return fmt.Errorf("cannot assign parquet value of type %s to go value of type %s", srcKind.String(), dst.Type())
 }
 
 func parseValue(kind Kind, data []byte) (val Value, err error) {

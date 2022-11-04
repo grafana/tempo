@@ -52,7 +52,7 @@ var (
 
 	// ErrTooManyRowGroups is returned when attempting to generate a parquet
 	// file with more than MaxRowGroups row groups.
-	ErrTooManyRowGroups = errors.New("the limit of 65535 row groups has been reached")
+	ErrTooManyRowGroups = errors.New("the limit of 32767 row groups has been reached")
 )
 
 type errno int

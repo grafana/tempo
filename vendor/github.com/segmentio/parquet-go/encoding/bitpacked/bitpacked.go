@@ -44,7 +44,7 @@ func encodeLevels(dst, src []byte, bitWidth uint) ([]byte, error) {
 	c := n + 1
 
 	if cap(dst) < c {
-		dst = make([]byte, c)
+		dst = make([]byte, c, 2*c)
 	} else {
 		dst = dst[:c]
 		for i := range dst {
@@ -80,7 +80,7 @@ func decodeLevels(dst, src []byte, bitWidth uint) ([]byte, error) {
 	}
 
 	if cap(dst) < numValues {
-		dst = make([]byte, numValues)
+		dst = make([]byte, numValues, 2*numValues)
 	} else {
 		dst = dst[:numValues]
 		for i := range dst {

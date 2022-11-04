@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"fmt"
 	"math/bits"
+	"reflect"
 	"time"
+	"unsafe"
 
 	"github.com/segmentio/parquet-go/deprecated"
 	"github.com/segmentio/parquet-go/encoding"
 	"github.com/segmentio/parquet-go/format"
+	"github.com/segmentio/parquet-go/internal/unsafecast"
 )
 
 // Kind is an enumeration type representing the physical types supported by the
@@ -184,6 +187,10 @@ type Type interface {
 	// buffer passed as first argument by dispatching the call to one of the
 	// encoding methods.
 	Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error)
+
+	// Assigns a Parquet value to a Go value. Returns an error if conversion is
+	// not possible.
+	AssignValue(dst reflect.Value, src Value) error
 }
 
 var (
@@ -278,6 +285,18 @@ func (t booleanType) Decode(dst encoding.Values, src []byte, enc encoding.Encodi
 	return encoding.DecodeBoolean(dst, src, enc)
 }
 
+func (t booleanType) AssignValue(dst reflect.Value, src Value) error {
+	v := src.Boolean()
+	switch dst.Kind() {
+	case reflect.Bool:
+		dst.SetBool(v)
+	default:
+		dst.Set(reflect.ValueOf(v))
+	}
+
+	return nil
+}
+
 type int32Type struct{}
 
 func (t int32Type) String() string                           { return "INT32" }
@@ -318,6 +337,20 @@ func (t int32Type) Decode(dst encoding.Values, src []byte, enc encoding.Encoding
 	return encoding.DecodeInt32(dst, src, enc)
 }
 
+func (t int32Type) AssignValue(dst reflect.Value, src Value) error {
+	v := src.Int32()
+	switch dst.Kind() {
+	case reflect.Int8, reflect.Int16, reflect.Int32:
+		dst.SetInt(int64(v))
+	case reflect.Uint8, reflect.Uint16, reflect.Uint32:
+		dst.SetUint(uint64(v))
+	default:
+		dst.Set(reflect.ValueOf(v))
+	}
+
+	return nil
+}
+
 type int64Type struct{}
 
 func (t int64Type) String() string                           { return "INT64" }
@@ -356,6 +389,20 @@ func (t int64Type) Encode(dst []byte, src encoding.Values, enc encoding.Encoding
 
 func (t int64Type) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
 	return encoding.DecodeInt64(dst, src, enc)
+}
+
+func (t int64Type) AssignValue(dst reflect.Value, src Value) error {
+	v := src.Int64()
+	switch dst.Kind() {
+	case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int:
+		dst.SetInt(v)
+	case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uint, reflect.Uintptr:
+		dst.SetUint(uint64(v))
+	default:
+		dst.Set(reflect.ValueOf(v))
+	}
+
+	return nil
 }
 
 type int96Type struct{}
@@ -399,6 +446,12 @@ func (t int96Type) Decode(dst encoding.Values, src []byte, enc encoding.Encoding
 	return encoding.DecodeInt96(dst, src, enc)
 }
 
+func (t int96Type) AssignValue(dst reflect.Value, src Value) error {
+	v := src.Int96()
+	dst.Set(reflect.ValueOf(v))
+	return nil
+}
+
 type floatType struct{}
 
 func (t floatType) String() string                           { return "FLOAT" }
@@ -437,6 +490,18 @@ func (t floatType) Encode(dst []byte, src encoding.Values, enc encoding.Encoding
 
 func (t floatType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
 	return encoding.DecodeFloat(dst, src, enc)
+}
+
+func (t floatType) AssignValue(dst reflect.Value, src Value) error {
+	v := src.Float()
+	switch dst.Kind() {
+	case reflect.Float32, reflect.Float64:
+		dst.SetFloat(float64(v))
+	default:
+		dst.Set(reflect.ValueOf(v))
+	}
+
+	return nil
 }
 
 type doubleType struct{}
@@ -479,6 +544,18 @@ func (t doubleType) Decode(dst encoding.Values, src []byte, enc encoding.Encodin
 	return encoding.DecodeDouble(dst, src, enc)
 }
 
+func (t doubleType) AssignValue(dst reflect.Value, src Value) error {
+	v := src.Double()
+	switch dst.Kind() {
+	case reflect.Float32, reflect.Float64:
+		dst.SetFloat(v)
+	default:
+		dst.Set(reflect.ValueOf(v))
+	}
+
+	return nil
+}
+
 type byteArrayType struct{}
 
 func (t byteArrayType) String() string                           { return "BYTE_ARRAY" }
@@ -517,6 +594,21 @@ func (t byteArrayType) Encode(dst []byte, src encoding.Values, enc encoding.Enco
 
 func (t byteArrayType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
 	return encoding.DecodeByteArray(dst, src, enc)
+}
+
+func (t byteArrayType) AssignValue(dst reflect.Value, src Value) error {
+	v := src.ByteArray()
+	switch dst.Kind() {
+	case reflect.String:
+		dst.SetString(string(v))
+	case reflect.Slice:
+		dst.SetBytes(copyBytes(v))
+	default:
+		val := reflect.ValueOf(string(v))
+		dst.Set(val)
+	}
+
+	return nil
 }
 
 type fixedLenByteArrayType struct{ length int }
@@ -569,6 +661,31 @@ func (t fixedLenByteArrayType) Encode(dst []byte, src encoding.Values, enc encod
 
 func (t fixedLenByteArrayType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
 	return encoding.DecodeFixedLenByteArray(dst, src, enc)
+}
+
+func (t fixedLenByteArrayType) AssignValue(dst reflect.Value, src Value) error {
+	v := src.ByteArray()
+	switch dst.Kind() {
+	case reflect.Array:
+		if dst.Type().Elem().Kind() == reflect.Uint8 && dst.Len() == len(v) {
+			// This code could be implemented as a call to reflect.Copy but
+			// it would require creating a reflect.Value from v which causes
+			// the heap allocation to pack the []byte value. To avoid this
+			// overhead we instead convert the reflect.Value holding the
+			// destination array into a byte slice which allows us to use
+			// a more efficient call to copy.
+			d := unsafe.Slice((*byte)(unsafecast.PointerOfValue(dst)), len(v))
+			copy(d, v)
+			return nil
+		}
+	case reflect.Slice:
+		dst.SetBytes(copyBytes(v))
+		return nil
+	}
+
+	val := reflect.ValueOf(copyBytes(v))
+	dst.Set(val)
+	return nil
 }
 
 // BE128 stands for "big-endian 128 bits". This type is used as a special case
@@ -630,6 +747,10 @@ func (t be128Type) Encode(dst []byte, src encoding.Values, enc encoding.Encoding
 
 func (t be128Type) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
 	return encoding.DecodeFixedLenByteArray(dst, src, enc)
+}
+
+func (t be128Type) AssignValue(dst reflect.Value, src Value) error {
+	return fixedLenByteArrayType{length: 16}.AssignValue(dst, src)
 }
 
 // FixedLenByteArrayType constructs a type for fixed-length values of the given
@@ -838,6 +959,14 @@ func (t *intType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding)
 	}
 }
 
+func (t *intType) AssignValue(dst reflect.Value, src Value) error {
+	if t.BitWidth == 64 {
+		return Int64Type.AssignValue(dst, src)
+	} else {
+		return Int32Type.AssignValue(dst, src)
+	}
+}
+
 // Decimal constructs a leaf node of decimal logical type with the given
 // scale, precision, and underlying type.
 //
@@ -935,6 +1064,10 @@ func (t *stringType) Decode(dst encoding.Values, src []byte, enc encoding.Encodi
 	return encoding.DecodeByteArray(dst, src, enc)
 }
 
+func (t *stringType) AssignValue(dst reflect.Value, src Value) error {
+	return ByteArrayType.AssignValue(dst, src)
+}
+
 // UUID constructs a leaf node of UUID logical type.
 //
 // https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#uuid
@@ -990,6 +1123,10 @@ func (t *uuidType) Encode(dst []byte, src encoding.Values, enc encoding.Encoding
 
 func (t *uuidType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
 	return encoding.DecodeFixedLenByteArray(dst, src, enc)
+}
+
+func (t *uuidType) AssignValue(dst reflect.Value, src Value) error {
+	return fixedLenByteArrayType{length: 16}.AssignValue(dst, src)
 }
 
 // Enum constructs a leaf node with a logical type representing enumerations.
@@ -1055,6 +1192,10 @@ func (t *enumType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding
 	return encoding.DecodeByteArray(dst, src, enc)
 }
 
+func (t *enumType) AssignValue(dst reflect.Value, src Value) error {
+	return ByteArrayType.AssignValue(dst, src)
+}
+
 // JSON constructs a leaf node of JSON logical type.
 //
 // https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#json
@@ -1116,6 +1257,10 @@ func (t *jsonType) Encode(dst []byte, src encoding.Values, enc encoding.Encoding
 
 func (t *jsonType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
 	return encoding.DecodeByteArray(dst, src, enc)
+}
+
+func (t *jsonType) AssignValue(dst reflect.Value, src Value) error {
+	return ByteArrayType.AssignValue(dst, src)
 }
 
 // BSON constructs a leaf node of BSON logical type.
@@ -1181,6 +1326,10 @@ func (t *bsonType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding
 	return encoding.DecodeByteArray(dst, src, enc)
 }
 
+func (t *bsonType) AssignValue(dst reflect.Value, src Value) error {
+	return ByteArrayType.AssignValue(dst, src)
+}
+
 // Date constructs a leaf node of DATE logical type.
 //
 // https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#date
@@ -1238,6 +1387,10 @@ func (t *dateType) Encode(dst []byte, src encoding.Values, enc encoding.Encoding
 
 func (t *dateType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
 	return encoding.DecodeInt32(dst, src, enc)
+}
+
+func (t *dateType) AssignValue(dst reflect.Value, src Value) error {
+	return Int32Type.AssignValue(dst, src)
 }
 
 // TimeUnit represents units of time in the parquet type system.
@@ -1412,6 +1565,14 @@ func (t *timeType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding
 	}
 }
 
+func (t *timeType) AssignValue(dst reflect.Value, src Value) error {
+	if t.useInt32() {
+		return Int32Type.AssignValue(dst, src)
+	} else {
+		return Int64Type.AssignValue(dst, src)
+	}
+}
+
 // Timestamp constructs of leaf node of TIMESTAMP logical type.
 //
 // https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#timestamp
@@ -1478,6 +1639,10 @@ func (t *timestampType) Decode(dst encoding.Values, src []byte, enc encoding.Enc
 	return encoding.DecodeInt64(dst, src, enc)
 }
 
+func (t *timestampType) AssignValue(dst reflect.Value, src Value) error {
+	return Int64Type.AssignValue(dst, src)
+}
+
 // List constructs a node of LIST logical type.
 //
 // https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#lists
@@ -1539,6 +1704,10 @@ func (t *listType) Encode(_ []byte, _ encoding.Values, _ encoding.Encoding) ([]b
 
 func (t *listType) Decode(_ encoding.Values, _ []byte, _ encoding.Encoding) (encoding.Values, error) {
 	panic("cannot decode parquet LIST type")
+}
+
+func (t *listType) AssignValue(reflect.Value, Value) error {
+	panic("cannot assign value to a parquet LIST type")
 }
 
 // Map constructs a node of MAP logical type.
@@ -1609,6 +1778,10 @@ func (t *mapType) Decode(_ encoding.Values, _ []byte, _ encoding.Encoding) (enco
 	panic("cannot decode parquet MAP type")
 }
 
+func (t *mapType) AssignValue(reflect.Value, Value) error {
+	panic("cannot assign value to a parquet MAP type")
+}
+
 type nullType format.NullType
 
 func (t *nullType) String() string { return (*format.NullType)(t).String() }
@@ -1659,6 +1832,10 @@ func (t *nullType) Decode(dst encoding.Values, _ []byte, _ encoding.Encoding) (e
 	return dst, nil
 }
 
+func (t *nullType) AssignValue(reflect.Value, Value) error {
+	return nil
+}
+
 type groupType struct{}
 
 func (groupType) String() string { return "group" }
@@ -1697,6 +1874,10 @@ func (groupType) Encode(_ []byte, _ encoding.Values, _ encoding.Encoding) ([]byt
 
 func (groupType) Decode(_ encoding.Values, _ []byte, _ encoding.Encoding) (encoding.Values, error) {
 	panic("cannot decode parquet group")
+}
+
+func (groupType) AssignValue(reflect.Value, Value) error {
+	panic("cannot assign value to a parquet group")
 }
 
 func (groupType) Length() int { return 0 }
