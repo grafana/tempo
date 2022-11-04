@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,6 +26,22 @@ import (
 )
 
 var _ common.WALBlock = (*walBlock)(nil)
+
+var sharedPool = sync.Pool{}
+
+func getPooledTrace() *Trace {
+	o := sharedPool.Get()
+
+	if o == nil {
+		return &Trace{}
+	}
+
+	return o.(*Trace)
+}
+
+func putPooledTrace(tr *Trace) {
+	sharedPool.Put(tr)
+}
 
 // path + filename = folder to create
 //   path/folder/00001
@@ -203,8 +220,7 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 		return fmt.Errorf("error preparing trace for read: %w", err)
 	}
 
-	// TODO - pooling?
-	tr := traceToParquet(id, trace, nil)
+	tr := traceToParquet(id, trace, getPooledTrace())
 
 	b.meta.ObjectAdded(id, start, end)
 
@@ -268,8 +284,9 @@ func (b *walBlock) Flush() (err error) {
 		return fmt.Errorf("error closing file: %w", err)
 	}
 
-	// TODO - return to pool?
+	// Clear/repool current buffers
 	for i := range b.traces {
+		putPooledTrace(b.traces[i])
 		b.traces[i] = nil
 	}
 	b.traces = b.traces[:0]
