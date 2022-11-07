@@ -62,11 +62,13 @@ For more information, refer to the [APM dashboard documentation]({{< relref "../
 
 ## Metrics from spans
 
-RED metrics can be used to drive service graphs and other ready-to-go visualizations of your span data. RED metrics represent
+RED metrics can be used to drive service graphs and other ready-to-go visualizations of your span data. RED metrics represent:
 
 - Rate, the number of requests per second
 - Errors, the number of those requests that are failing
-- Duration, the amount of time those requests take,
+- Duration, the amount of time those requests take
+
+For more information about RED method, refer to [The RED Method: How to instrument your services](https://grafana.com/blog/2018/08/02/the-red-method-how-to-instrument-your-services/).
 
 Metrics generation is disabled by default.
 
