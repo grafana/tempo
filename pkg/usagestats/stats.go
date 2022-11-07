@@ -46,6 +46,7 @@ type Report struct {
 
 // sendReport sends the report to the stats server
 func sendReport(ctx context.Context, seed *ClusterSeed, interval time.Time) error {
+	// make buildReport func on ??
 	report := buildReport(seed, interval)
 	out, err := jsoniter.MarshalIndent(report, "", " ")
 	if err != nil {
@@ -71,8 +72,19 @@ func sendReport(ctx context.Context, seed *ClusterSeed, interval time.Time) erro
 	return nil
 }
 
-// buildReport builds the report to be sent to the stats server
+// buildReport builds the report to be sent to the stats server,
+// this report includes the cluster seed data.
 func buildReport(seed *ClusterSeed, interval time.Time) Report {
+	report := BuildStats()
+	report.ClusterID = seed.UID
+	report.CreatedAt = seed.CreatedAt
+	report.Interval = interval
+
+	return report
+}
+
+// BuildStats builds the report without cluster seed data
+func BuildStats() Report {
 	var (
 		targetName  string
 		editionName string
@@ -89,10 +101,7 @@ func buildReport(seed *ClusterSeed, interval time.Time) Report {
 	}
 
 	return Report{
-		ClusterID:         seed.UID,
 		PrometheusVersion: build.GetVersion(),
-		CreatedAt:         seed.CreatedAt,
-		Interval:          interval,
 		IntervalPeriod:    reportInterval.Seconds(),
 		Os:                runtime.GOOS,
 		Arch:              runtime.GOARCH,
@@ -167,7 +176,7 @@ func NewFloat(name string) *expvar.Float {
 }
 
 // NewInt returns a new Int stats object.
-// If an Int stats object object with the same name already exists it is returned.
+// If an Int stats object with the same name already exists it is returned.
 func NewInt(name string) *expvar.Int {
 	existing := expvar.Get(statsPrefix + name)
 	if existing != nil {

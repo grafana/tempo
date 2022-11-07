@@ -34,7 +34,7 @@ var (
 	reportInterval      = 4 * time.Hour
 
 	stabilityCheckInterval   = 5 * time.Second
-	stabilityMinimunRequired = 6
+	stabilityMinimumRequired = 6
 )
 
 type Reporter struct {
@@ -149,7 +149,7 @@ func ensureStableKey(ctx context.Context, kvClient kv.Client, logger log.Logger)
 				continue
 			}
 			stableCount++
-			if stableCount > stabilityMinimunRequired {
+			if stableCount > stabilityMinimumRequired {
 				return seed
 			}
 		}
