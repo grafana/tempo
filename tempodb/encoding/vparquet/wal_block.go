@@ -80,6 +80,7 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, ad
 	b := &walBlock{
 		meta: meta,
 		path: path,
+		ids:  common.NewIDMap(),
 	}
 
 	// read all files in dir
@@ -99,14 +100,17 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, ad
 			return nil, nil, fmt.Errorf("error opening file: %w", err)
 		}
 
-		b.flushed = append(b.flushed, pf)
+		b.flushed = append(b.flushed, &walBlockFlush{
+			file: pf,
+			ids:  common.NewIDMap(),
+		})
 		b.flushedSize += sz
 	}
 
 	// iterate through all files and build meta
-	for i, pf := range b.flushed {
+	for i, page := range b.flushed {
 		// retrieve start, end, traceid
-		makeIter := makeIterFunc(context.Background(), pf.RowGroups(), pf)
+		makeIter := makeIterFunc(context.Background(), page.file.RowGroups(), page.file)
 
 		iter := pq.NewJoinIterator(DefinitionLevelTrace, []pq.Iterator{
 			makeIter("TraceID", nil, "TraceID"),
@@ -141,11 +145,13 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, ad
 			}
 
 			// convert to ms
+			// TODO - Unnecessary, we persist overall block timestamps in meta.json now
 			startMS := uint32(start / uint64(time.Second))
 			endMS := uint32((start + duration) / uint64(time.Second))
 
 			// jpe, handle ingestion slack and additional start slack
 			b.meta.ObjectAdded(traceID, startMS, endMS)
+			page.ids.Set(traceID)
 		}
 	}
 
@@ -161,6 +167,7 @@ func createWALBlock(id uuid.UUID, tenantID string, filepath string, _ backend.En
 			TenantID: tenantID,
 		},
 		path: filepath,
+		ids:  common.NewIDMap(),
 	}
 
 	// build folder
@@ -192,17 +199,26 @@ func ownsWALBlock(entry fs.DirEntry) bool {
 	return version == VersionString
 }
 
+type walBlockFlush struct {
+	file *parquet.File
+	ids  *common.IDMap
+}
+
 type walBlock struct {
 	meta *backend.BlockMeta
 	path string
 
-	traces  []*Trace
+	// Unflushed data
+	traces        []*Trace
+	ids           *common.IDMap
+	unflushedSize int64
+
+	// Flushed data
+	flushed     []*walBlockFlush
+	flushedSize int64
+
 	writer  *parquet.GenericWriter[*Trace]
 	decoder model.ObjectDecoder
-
-	flushed       []*parquet.File // jpe prealloc?
-	flushedSize   int64
-	unflushedSize int64
 }
 
 func (b *walBlock) BlockMeta() *backend.BlockMeta {
@@ -226,6 +242,7 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 
 	// add to current
 	b.traces = append(b.traces, tr)
+	b.ids.Set(id)
 
 	// This is actually the protobuf size but close enough
 	// for this purpose
@@ -296,9 +313,13 @@ func (b *walBlock) Flush() (err error) {
 		return fmt.Errorf("error opening local file [%s]: %w", filename, err)
 	}
 
-	b.flushed = append(b.flushed, pf)
+	b.flushed = append(b.flushed, &walBlockFlush{
+		file: pf,
+		ids:  b.ids,
+	})
 	b.flushedSize += sz
 	b.unflushedSize = 0
+	b.ids = common.NewIDMap()
 
 	return nil
 }
@@ -309,8 +330,8 @@ func (b *walBlock) DataLength() uint64 { // jpe oof, another parquet size questi
 
 func (b *walBlock) Iterator() (common.Iterator, error) {
 	bookmarks := make([]*bookmark[*Trace], 0, len(b.flushed))
-	for _, f := range b.flushed {
-		r := parquet.NewGenericReader[*Trace](f)
+	for _, page := range b.flushed {
+		r := parquet.NewGenericReader[*Trace](page.file)
 		iter := &traceIterator{reader: r}
 
 		bookmarks = append(bookmarks, newBookmark[*Trace](iter))
@@ -340,12 +361,14 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 	trs := make([]*tempopb.Trace, 0)
 
 	// jpe do in parrallel? store a map of trace id to flushed file?
-	for i, f := range b.flushed {
-		tr, err := findTraceByID(ctx, id, b.meta, f)
-		if err != nil {
-			return nil, fmt.Errorf("error finding trace by id in block [%s %d]: %w", b.meta.BlockID.String(), i, err)
+	for i, page := range b.flushed {
+		if page.ids.Has(id) {
+			tr, err := findTraceByID(ctx, id, b.meta, page.file)
+			if err != nil {
+				return nil, fmt.Errorf("error finding trace by id in block [%s %d]: %w", b.meta.BlockID.String(), i, err)
+			}
+			trs = append(trs, tr)
 		}
-		trs = append(trs, tr)
 	}
 
 	combiner := trace.NewCombiner()
@@ -363,8 +386,8 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 	}
 
 	// jpe parrallelize?
-	for i, f := range b.flushed {
-		r, err := searchParquetFile(ctx, f, req, f.RowGroups())
+	for i, page := range b.flushed {
+		r, err := searchParquetFile(ctx, page.file, req, page.file.RowGroups())
 		if err != nil {
 			return nil, fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
@@ -384,8 +407,8 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 
 func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
 	// jpe parallelize?
-	for i, f := range b.flushed {
-		err := searchTags(ctx, cb, f)
+	for i, page := range b.flushed {
+		err := searchTags(ctx, cb, page.file)
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
@@ -397,7 +420,7 @@ func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts c
 func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
 	// jpe parallelize?
 	for i, f := range b.flushed {
-		err := searchTagValues(ctx, tag, cb, f)
+		err := searchTagValues(ctx, tag, cb, f.file)
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
@@ -415,7 +438,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest) (tr
 
 	iters := make([]*spansetIterator, 0, len(b.flushed))
 	for _, f := range b.flushed {
-		iter, err := fetch(ctx, req, f)
+		iter, err := fetch(ctx, req, f.file)
 		if err != nil {
 			return traceql.FetchSpansResponse{}, errors.Wrap(err, "creating fetch iter")
 		}

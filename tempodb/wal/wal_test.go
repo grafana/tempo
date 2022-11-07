@@ -406,12 +406,30 @@ func BenchmarkFindTraceByID(b *testing.B) {
 	for _, enc := range encodings {
 		b.Run(enc, func(b *testing.B) {
 			runWALBenchmark(b, enc, 1, func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
-				// find all traces pushed
 				ctx := context.Background()
-				for i, id := range ids {
-					obj, err := block.FindTraceByID(ctx, id, common.DefaultSearchOptions())
+				for i := 0; i < b.N; i++ {
+					j := i % len(ids)
+
+					obj, err := block.FindTraceByID(ctx, ids[j], common.DefaultSearchOptions())
 					require.NoError(b, err)
-					require.Equal(b, objs[i], obj)
+					require.Equal(b, objs[j], obj)
+				}
+			})
+		})
+	}
+}
+
+func BenchmarkFindUnknownTraceID(b *testing.B) {
+	encodings := []string{
+		v2.VersionString,
+		vparquet.VersionString,
+	}
+	for _, enc := range encodings {
+		b.Run(enc, func(b *testing.B) {
+			runWALBenchmark(b, enc, 1, func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
+				for i := 0; i < b.N; i++ {
+					_, err := block.FindTraceByID(context.Background(), common.ID{}, common.DefaultSearchOptions())
+					require.NoError(b, err)
 				}
 			})
 		})
@@ -428,7 +446,10 @@ func BenchmarkSearch(b *testing.B) {
 			runWALBenchmark(b, enc, 1, func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
 				ctx := context.Background()
 
-				for i, o := range objs {
+				for i := 0; i < b.N; i++ {
+					j := i % len(ids)
+					id, o := ids[j], objs[j]
+
 					k, v := findFirstAttribute(o)
 					require.NotEmpty(b, k)
 					require.NotEmpty(b, v)
@@ -444,7 +465,7 @@ func BenchmarkSearch(b *testing.B) {
 					}
 					require.NoError(b, err)
 					require.Equal(b, 1, len(resp.Traces))
-					require.Equal(b, util.TraceIDToHexString(ids[i]), resp.Traces[0].TraceID)
+					require.Equal(b, util.TraceIDToHexString(id), resp.Traces[0].TraceID)
 				}
 			})
 		})
@@ -501,8 +522,6 @@ func runWALBenchmark(b *testing.B, encoding string, flushCount int, runner func(
 	}
 
 	if runner != nil {
-		for n := 0; n < b.N; n++ {
-			runner(ids, traces, block)
-		}
+		runner(ids, traces, block)
 	}
 }
