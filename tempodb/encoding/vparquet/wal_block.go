@@ -229,6 +229,10 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 
 func (b *walBlock) Flush() (err error) {
 
+	if len(b.traces) == 0 {
+		return nil
+	}
+
 	// Flush latest meta first
 	// This mainly contains the slack-adjusted start/end times
 	metaBytes, err := json.Marshal(b.BlockMeta())
@@ -324,11 +328,6 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 }
 
 func (b *walBlock) Clear() error {
-	// jpe close all open files ?
-	// for _, f := range b.flushed {
-	// 	f.
-	// }
-
 	return os.RemoveAll(b.walPath())
 }
 
@@ -336,7 +335,6 @@ func (b *walBlock) Clear() error {
 func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
 	trs := make([]*tempopb.Trace, 0)
 
-	// jpe do in parrallel? store a map of trace id to flushed file?
 	for i, page := range b.flushed {
 		if page.ids.Has(id) {
 			tr, err := findTraceByID(ctx, id, b.meta, page.file)

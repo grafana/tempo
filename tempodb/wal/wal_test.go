@@ -301,7 +301,7 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 	require.NoError(t, err)
 
 	// create unparseable block
-	os.MkdirAll(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e+tenant+vOther"), os.ModePerm)
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e+tenant+vOther"), os.ModePerm))
 
 	blocks, err := wal.RescanBlocks(0, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
@@ -371,19 +371,6 @@ func runWALTest(t testing.TB, dbEncoding string, runner func([][]byte, []*tempop
 
 	err = block.Clear()
 	require.NoError(t, err)
-}
-
-// jpe benchmark v2 vs vparquet
-func BenchmarkV2(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		runWALTest(b, "v2", func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {})
-	}
-}
-
-func BenchmarkVParquet(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		runWALTest(b, "vParquet", func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {})
-	}
 }
 
 func BenchmarkAppendFlush(b *testing.B) {
@@ -514,7 +501,7 @@ func runWALBenchmark(b *testing.B, encoding string, flushCount int, runner func(
 	for flush := 0; flush < flushCount; flush++ {
 
 		for i := range objs {
-			block.Append(ids[i], objs[i], 0, 0)
+			require.NoError(b, block.Append(ids[i], objs[i], 0, 0))
 		}
 
 		err = block.Flush()

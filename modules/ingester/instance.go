@@ -259,7 +259,6 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 		tempopb.ReuseByteSlices(t.batches)
 	}
 
-	// jpe need to lock and flush here?
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 	return i.headBlock.Flush()
@@ -278,13 +277,17 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 	now := time.Now()
 	if i.lastBlockCut.Add(maxBlockLifetime).Before(now) || i.headBlock.DataLength() >= maxBlockBytes || immediate {
 
-		// jpe need to flush here?
+		// Final flush
+		err := i.headBlock.Flush()
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("failed to flush head block: %w", err)
+		}
 
 		completingBlock := i.headBlock
 
 		i.completingBlocks = append(i.completingBlocks, completingBlock)
 
-		err := i.resetHeadBlock()
+		err = i.resetHeadBlock()
 		if err != nil {
 			return uuid.Nil, fmt.Errorf("failed to resetHeadBlock: %w", err)
 		}

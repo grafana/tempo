@@ -374,6 +374,8 @@ func TestInstanceCutCompleteTraces(t *testing.T) {
 }
 
 func TestInstanceCutBlockIfReady(t *testing.T) {
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
 	tt := []struct {
 		name               string
 		maxBlockLifetime   time.Duration
@@ -416,14 +418,16 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 			instance, _ := defaultInstance(t)
 
 			for i := 0; i < tc.pushCount; i++ {
-				request := makeRequest([]byte{})
-				err := instance.PushBytesRequest(context.Background(), request)
+				tr := test.MakeTrace(1, uuid.Nil[:])
+				bytes, err := dec.PrepareForWrite(tr, 0, 0)
+				require.NoError(t, err)
+				err = instance.PushBytes(context.Background(), uuid.Nil[:], bytes, nil)
 				require.NoError(t, err)
 			}
 
 			// Defaults
 			if tc.maxBlockBytes == 0 {
-				tc.maxBlockBytes = 10000
+				tc.maxBlockBytes = 100000
 			}
 			if tc.maxBlockLifetime == 0 {
 				tc.maxBlockLifetime = time.Hour
