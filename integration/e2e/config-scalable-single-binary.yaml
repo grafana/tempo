@@ -7,11 +7,6 @@ distributor:
       protocols:
         grpc:
 
-compactor:
-  ring:
-    kvstore:
-      store: memberlist
-
 ingester:
   lifecycler:
     # address: 127.0.0.1
