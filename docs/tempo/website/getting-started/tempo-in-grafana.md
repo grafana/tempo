@@ -62,9 +62,15 @@ For more information, refer to the [APM dashboard documentation]({{< relref "../
 
 ## Metrics from spans
 
-Requests Error Duration (RED) metrics can be used to drive service graphs and other ready-to-go visualizations of your span data. 
-Metrics generation is disabled by default. 
-Contact Grafana Support to enable metrics generation for your organization.
+RED metrics can be used to drive service graphs and other ready-to-go visualizations of your span data. RED metrics represent
+
+- Rate, the number of requests per second
+- Errors, the number of those requests that are failing
+- Duration, the amount of time those requests take,
+
+Metrics generation is disabled by default.
+
+Refer to [Metrics-generator configuration]({{< relref "../configuration">}}) for information on enabling metrics generation.
 
 <p align="center"><img src="../assets/trace_service_graph.png" alt="Trace service graph"></p>
 
@@ -72,7 +78,7 @@ These metrics exist in your Hosted Metrics instance and can also be easily used 
 
 <p align="center"><img src="../assets/trace_custom_metrics_dash.png" alt="Trace custom metrics dashboard"></p>
 
-Metrics automatically generate exemplars as well which allows easy metrics to trace linking. [Exemplars]({{< relref "exemplars" >}}) are GA in Grafana Cloud so you can also push your own. 
+Metrics automatically generate exemplars as well which allows easy metrics to trace linking. [Exemplars]({{< relref "exemplars" >}}) are GA in Grafana Cloud so you can also push your own.
 
 <p align="center"><img src="../assets/trace_exemplars.png" alt="Trace exemplars"></p>
 
