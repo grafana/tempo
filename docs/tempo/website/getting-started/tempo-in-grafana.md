@@ -19,7 +19,7 @@ Traces can be discovered by searching logs for entries containing trace IDs.  Th
 
 ## Find traces using Tempo search
 
-Search for traces using common dimensions such as time range, duration, span tags, service names, etc. Use the trace view to quickly diagnose errors and high latency events in your system.
+Search for traces using common dimensions such as time range, duration, span tags, service names, etc. Use the trace view to quickly diagnose errors and high-latency events in your system.
 
 Tempo includes the ability to search recent traces held in ingesters.
 Traces can be searched for data originating from a specific service,

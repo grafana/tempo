@@ -16,7 +16,7 @@ A trace represents the whole journey of a request or an action as it moves throu
 
 ## Example of traces
 
-A user on your website enters their email address into a form to sign up for your mailing list. They click **Enter**. This initial transaction has a trace ID which is subsequently associated with every interaction in the chain of processes within a system.
+A user on your website enters their email address into a form to sign up for your mailing list. They click **Enter**. This initial transaction has a trace ID that is subsequently associated with every interaction in the chain of processes within a system.
 
 The user's email address is data that flows through your system. In a cloud computing world, it is possible that clicking that one button causes data to touch multiple nodes across your cluster of microservices.
 
@@ -49,13 +49,13 @@ Metrics, logs, and traces form the three pillars of observability. Metrics provi
 ## Terminology
 
 Data source
-: A basic storage for data such as a database, a flat file, or even live references/measurements from a device. dA file, database, or service that provides data. For example, traces data is imported into Grafana by configuring and enabling a Tempo data source.
+: A basic storage for data such as a database, a flat file, or even live references or measurements from a device. dA file, database, or service that provides data. For example, traces data is imported into Grafana by configuring and enabling a Tempo data source.
 
 Exemplar
 : Any data that serves as a detailed example of one of the observations aggregated into a metric. An exemplar contains the observed value together with an optional timestamp and arbitrary labels, which are typically used to reference a trace.
 
 Log
-: Audit trail of activity used to diagnose problems. Logs can an informational context, such as detailed records of all events during user interactions, for example, when events happen, who used the system, status messages, etc.
+: Audit trail of activity used to diagnose problems. Logs can provide informational context, such as detailed records of all events during user interactions, for example, when events happen, who used the system, status messages, etc.
 
 Metric
 : A number, helping operators understand the state of a system, for example, number of active users, error count, average response time, etc. 
