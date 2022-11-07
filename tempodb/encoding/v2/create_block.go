@@ -14,6 +14,11 @@ import (
 const DefaultFlushSizeBytes int = 30 * 1024 * 1024 // 30 MiB
 
 func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, to backend.Writer) (*backend.BlockMeta, error) {
+	// Default data encoding if needed
+	if meta.DataEncoding == "" {
+		meta.DataEncoding = model.CurrentEncoding
+	}
+
 	newBlock, err := NewStreamingBlock(cfg, meta.BlockID, meta.TenantID, []*backend.BlockMeta{meta}, meta.TotalObjects)
 	if err != nil {
 		return nil, errors.Wrap(err, "error creating streaming block")

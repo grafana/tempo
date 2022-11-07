@@ -737,8 +737,22 @@ func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDec
 }
 
 func BenchmarkCompleteBlock(b *testing.B) {
+	enc := encoding.AllEncodings()
+
+	for _, from := range enc {
+		for _, to := range enc {
+			b.Run(fmt.Sprintf("%s->%s", from.Version(), to.Version()), func(b *testing.B) {
+				benchmarkCompleteBlock(b, from, to)
+			})
+		}
+	}
+}
+
+func benchmarkCompleteBlock(b *testing.B, from, to encoding.VersionedEncoding) {
 	// Create a WAL block with traces
 	traceCount := 10_000
+	flushCount := 1000
+
 	tempDir := b.TempDir()
 	_, w, _, err := New(&Config{
 		Backend: "local",
@@ -751,11 +765,12 @@ func BenchmarkCompleteBlock(b *testing.B) {
 			BloomShardSizeBytes:  100_000,
 			Encoding:             backend.EncNone,
 			IndexPageSizeBytes:   1000,
+			Version:              to.Version(),
 		},
 		WAL: &wal.Config{
 			IngestionSlack: time.Minute,
 			Filepath:       path.Join(tempDir, "wal"),
-			Version:        v2.VersionString,
+			Version:        from.Version(),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -771,6 +786,10 @@ func BenchmarkCompleteBlock(b *testing.B) {
 		id := test.ValidTraceID(nil)
 		req := test.MakeTrace(10, id)
 		writeTraceToWal(b, blk, dec, id, req, 0, 0)
+
+		if i%flushCount == 0 {
+			require.NoError(b, blk.Flush())
+		}
 	}
 
 	fmt.Println("Created wal block")
