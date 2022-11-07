@@ -16,7 +16,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
-	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -109,14 +108,7 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, ad
 
 	// iterate through all files and build meta
 	for i, page := range b.flushed {
-		// retrieve start, end, traceid
-		makeIter := makeIterFunc(context.Background(), page.file.RowGroups(), page.file)
-
-		iter := pq.NewJoinIterator(DefinitionLevelTrace, []pq.Iterator{
-			makeIter("TraceID", nil, "TraceID"),
-			makeIter("StartTimeUnixNano", nil, "StartTimeUnixNano"),
-			makeIter("DurationNanos", nil, "DurationNanos"),
-		}, nil)
+		iter := makeIterFunc(context.Background(), page.file.RowGroups(), page.file)(columnPathTraceID, nil, columnPathTraceID)
 		defer iter.Close()
 
 		for {
@@ -128,30 +120,14 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, ad
 				break
 			}
 
-			// find values
-			var traceID common.ID
-			var start uint64
-			var duration uint64
-
 			for _, e := range match.Entries {
 				switch e.Key {
-				case "TraceID":
-					traceID = e.Value.ByteArray()
-				case "StartTimeUnixNano":
-					start = e.Value.Uint64()
-				case "DurationNanos":
-					duration = e.Value.Uint64()
+				case columnPathTraceID:
+					traceID := e.Value.ByteArray()
+					b.meta.ObjectAdded(traceID, 0, 0)
+					page.ids.Set(traceID)
 				}
 			}
-
-			// convert to ms
-			// TODO - Unnecessary, we persist overall block timestamps in meta.json now
-			startMS := uint32(start / uint64(time.Second))
-			endMS := uint32((start + duration) / uint64(time.Second))
-
-			// jpe, handle ingestion slack and additional start slack
-			b.meta.ObjectAdded(traceID, startMS, endMS)
-			page.ids.Set(traceID)
 		}
 	}
 
