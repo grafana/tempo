@@ -447,7 +447,7 @@ storage:
       encoding: zstd
       search_encoding: snappy
       search_page_size_bytes: 1048576
-      row_group_size_bytes: 30000000
+      row_group_size_bytes: 50000000
     search:
       chunk_size_bytes: 1000000
       prefetch_trace_count: 1000
