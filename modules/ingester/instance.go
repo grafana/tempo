@@ -32,6 +32,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/search"
 )
 
@@ -547,21 +548,23 @@ func (i *instance) resetHeadBlock() error {
 	i.headBlock = newHeadBlock
 	i.lastBlockCut = time.Now()
 
-	// Create search data wal file
-	f, enc, err := i.writer.WAL().NewFile(i.headBlock.BlockMeta().BlockID, i.instanceID, searchDir)
-	if err != nil {
-		return err
-	}
+	// Create search data wal file if needed
+	if i.useFlatbufferSearch || i.headBlock.BlockMeta().Version == v2.VersionString {
+		f, enc, err := i.writer.WAL().NewFile(i.headBlock.BlockMeta().BlockID, i.instanceID, searchDir)
+		if err != nil {
+			return err
+		}
 
-	b, err := search.NewStreamingSearchBlockForFile(f, i.headBlock.BlockMeta().BlockID, enc)
-	if err != nil {
-		return err
-	}
-	if i.searchHeadBlock != nil {
-		i.searchAppendBlocks[oldHeadBlock.BlockMeta().BlockID.String()] = i.searchHeadBlock
-	}
-	i.searchHeadBlock = &searchStreamingBlockEntry{
-		b: b,
+		b, err := search.NewStreamingSearchBlockForFile(f, i.headBlock.BlockMeta().BlockID, enc)
+		if err != nil {
+			return err
+		}
+		if i.searchHeadBlock != nil {
+			i.searchAppendBlocks[oldHeadBlock.BlockMeta().BlockID.String()] = i.searchHeadBlock
+		}
+		i.searchHeadBlock = &searchStreamingBlockEntry{
+			b: b,
+		}
 	}
 	return nil
 }

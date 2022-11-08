@@ -51,7 +51,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	// deadlocking with other activity (ingest, flushing), caused by releasing
 	// and then attempting to retake the lock.
 	i.blocksMtx.RLock()
-	i.searchWAL(ctx, p, sr)
+	i.searchWAL(ctx, req, p, sr)
 	i.searchLocalBlocks(ctx, req, p, sr)
 	i.blocksMtx.RUnlock()
 
@@ -143,7 +143,7 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 }
 
 // searchWAL starts a search task for every WAL block. Must be called under lock.
-func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.Results) {
+func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p search.Pipeline, sr *search.Results) {
 	searchFunc := func(e *searchStreamingBlockEntry) {
 		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchWAL")
 		defer span.Finish()
@@ -162,11 +162,43 @@ func (i *instance) searchWAL(ctx context.Context, p search.Pipeline, sr *search.
 		}
 	}
 
+	searchWalBlock := func(b common.WALBlock) {
+		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchWALBlock", opentracing.Tags{
+			"blockID": b.BlockMeta().BlockID,
+		})
+		defer span.Finish()
+		defer sr.FinishWorker()
+
+		resp, err := b.Search(ctx, req, common.DefaultSearchOptions())
+		if err != nil {
+			level.Error(log.Logger).Log("msg", "error searching wal block", "blockID", b.BlockMeta().BlockID.String(), "err", err)
+			return
+		}
+
+		sr.AddBlockInspected()
+		sr.AddBytesInspected(resp.Metrics.InspectedBytes)
+		for _, r := range resp.Traces {
+			sr.AddResult(ctx, r)
+		}
+	}
+
 	// head block
-	sr.StartWorker()
-	go searchFunc(i.searchHeadBlock)
+	if i.headBlock != nil {
+		sr.StartWorker()
+		go searchWalBlock(i.headBlock)
+	}
+
+	if i.searchHeadBlock != nil {
+		sr.StartWorker()
+		go searchFunc(i.searchHeadBlock)
+	}
 
 	// completing blocks
+	for _, b := range i.completingBlocks {
+		sr.StartWorker()
+		go searchWalBlock(b)
+	}
+
 	for _, e := range i.searchAppendBlocks {
 		sr.StartWorker()
 		go searchFunc(e)
@@ -420,12 +452,14 @@ func (i *instance) visitSearchableBlocksWAL(ctx context.Context, visitFn func(bl
 		return visitFn(entry.b)
 	}
 
-	err := visitUnderLock(i.searchHeadBlock)
-	if err != nil {
-		return err
-	}
-	if err := ctx.Err(); err != nil {
-		return err
+	if i.searchHeadBlock != nil {
+		err := visitUnderLock(i.searchHeadBlock)
+		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 	}
 
 	for _, b := range i.searchAppendBlocks {
