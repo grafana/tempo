@@ -923,7 +923,7 @@ storage:
             # an estimate of the number of bytes per row group when cutting Parquet blocks. lower values will
             #  create larger footers but will be harder to shard when searching. It is difficult to calculate
             #  this field directly and it may vary based on workload. This is roughly a lower bound.
-            [row_group_size_bytes: <int> | default = 50MB]
+            [row_group_size_bytes: <int> | default = 100MB]
 ```
 
 ## Memberlist
