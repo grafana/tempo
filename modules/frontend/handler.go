@@ -61,7 +61,9 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	var statusCode int
-	defer func(status int) { f.queriesPerTenant.WithLabelValues(orgID, strconv.Itoa(statusCode)).Inc() }(statusCode)
+	defer func(status int) {
+		f.queriesPerTenant.WithLabelValues(orgID, strconv.Itoa(statusCode)).Inc()
+	}(statusCode)
 
 	// add orgid to existing spans
 	span := opentracing.SpanFromContext(r.Context())
