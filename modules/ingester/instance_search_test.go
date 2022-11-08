@@ -88,6 +88,9 @@ func TestInstanceSearch(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, sr.Traces, len(ids))
 			checkEqual(t, ids, sr)
+
+			err = ingester.stopping(nil)
+			require.NoError(t, err)
 		})
 	}
 }
