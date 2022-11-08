@@ -65,6 +65,57 @@ func Test_BuildReport(t *testing.T) {
 	t.Log(string(out))
 }
 
+func Test_BuildStats(t *testing.T) {
+	Edition("non-OSS")
+	Edition("OSS")
+	Target("distributor")
+	Target("compactor")
+	NewString("compression").Set("snappy")
+	NewString("compression").Set("lz4")
+	NewInt("compression_ratio").Set(50)
+	NewInt("compression_ratio").Set(100)
+	NewFloat("size_mb").Set(100.1)
+	NewFloat("size_mb").Set(200.1)
+	NewCounter("lines_written").Inc(200)
+	s := NewStatistics("query_throughput")
+	s.Record(25)
+	s = NewStatistics("query_throughput")
+	s.Record(300)
+	s.Record(5)
+	w := NewWordCounter("active_tenants")
+	w.Add("buz")
+	w = NewWordCounter("active_tenants")
+	w.Add("foo")
+	w.Add("bar")
+	w.Add("foo")
+
+	r := BuildStats()
+	require.Equal(t, r.Arch, runtime.GOARCH)
+	require.Equal(t, r.Os, runtime.GOOS)
+	require.Equal(t, r.PrometheusVersion, build.GetVersion())
+	require.Equal(t, r.Edition, "OSS")
+	require.Equal(t, r.Target, "compactor")
+	require.Equal(t, r.Metrics["num_cpu"], runtime.NumCPU())
+	// Don't check num_goroutine because it could have changed since the report was created.
+	require.Equal(t, r.Metrics["compression"], "lz4")
+	require.Equal(t, r.Metrics["compression_ratio"], int64(100))
+	require.Equal(t, r.Metrics["size_mb"], 200.1)
+	require.Equal(t, r.Metrics["lines_written"].(map[string]interface{})["total"], int64(200))
+	require.Equal(t, r.Metrics["query_throughput"].(map[string]interface{})["min"], float64(5))
+	require.Equal(t, r.Metrics["query_throughput"].(map[string]interface{})["max"], float64(300))
+	require.Equal(t, r.Metrics["query_throughput"].(map[string]interface{})["count"], int64(3))
+	require.Equal(t, r.Metrics["query_throughput"].(map[string]interface{})["avg"], float64(25+300+5)/3)
+	require.Equal(t, r.Metrics["active_tenants"], int64(3))
+
+	// check if ClusterID and Seed related attrs are not set.
+	require.Equal(t, r.ClusterID, "")
+	require.Equal(t, r.CreatedAt, time.Time{})
+	require.Equal(t, r.Interval, time.Time{})
+
+	out, _ := jsoniter.MarshalIndent(r, "", " ")
+	t.Log(string(out))
+}
+
 func TestCounter(t *testing.T) {
 	c := NewCounter("test_counter")
 	c.Inc(100)
