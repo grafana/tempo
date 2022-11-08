@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -310,10 +311,11 @@ func (b *walBlock) DataLength() uint64 {
 }
 
 func (b *walBlock) Iterator() (common.Iterator, error) {
+	var pool sync.Pool
 	bookmarks := make([]*bookmark[*Trace], 0, len(b.flushed))
 	for _, page := range b.flushed {
 		r := parquet.NewGenericReader[*Trace](page.file)
-		iter := &traceIterator{reader: r}
+		iter := &traceIterator{reader: r, pool: &pool}
 
 		bookmarks = append(bookmarks, newBookmark[*Trace](iter))
 	}
@@ -325,6 +327,7 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 
 	return &commonIterator{
 		iter: iter,
+		pool: &pool,
 	}, nil
 }
 
@@ -467,16 +470,23 @@ func parseName(filename string) (uuid.UUID, string, string, error) {
 // traceIterator is used to iterate a parquet file and implement iterIterator
 type traceIterator struct {
 	reader *parquet.GenericReader[*Trace]
+	pool   *sync.Pool
 }
 
 func (i *traceIterator) Next(ctx context.Context) (common.ID, *Trace, error) {
-	trs := make([]*Trace, 1) // jpe try batching?
+	var tr *Trace
+	tri := i.pool.Get()
+	if tri != nil {
+		tr = tri.(*Trace)
+	}
+
+	trs := []*Trace{tr}
 	_, err := i.reader.Read(trs)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	tr := trs[0]
+	tr = trs[0]
 	return tr.TraceID, tr, nil
 }
 
@@ -491,12 +501,17 @@ var _ common.Iterator = (*commonIterator)(nil)
 // to be passed to a CreateBlock
 type commonIterator struct {
 	iter *MultiBlockIterator[*Trace]
+	pool *sync.Pool
 }
 
 func (i *commonIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, error) {
 	id, obj, err := i.iter.Next(ctx)
-	if err != nil || obj == nil {
+	if err != nil && err != io.EOF {
 		return nil, nil, err
+	}
+
+	if obj == nil || err == io.EOF {
+		return nil, nil, nil
 	}
 
 	tr := parquetTraceToTempopbTrace(obj)

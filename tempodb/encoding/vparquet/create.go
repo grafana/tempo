@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
+	"sync"
 
 	"github.com/google/uuid"
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -37,10 +38,12 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 	s := newStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
 
 	var next func(context.Context) (common.ID, *Trace, error)
+	var repool *sync.Pool
 	if ii, ok := i.(*commonIterator); ok {
 		// Use interal iterator and avoid translation to/from proto
 		// TODO - Operate on parquet.Row for even better performance
 		next = ii.NextTrace
+		repool = ii.pool
 	} else {
 		// Need to convert from proto->parquet obj
 		trp := &Trace{}
@@ -67,6 +70,10 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		err = s.Add(tr, 0, 0) // start and end time of the wal meta are used.
 		if err != nil {
 			return nil, err
+		}
+
+		if repool != nil {
+			repool.Put(tr)
 		}
 
 		if s.EstimatedBufferedBytes() > cfg.RowGroupSizeBytes {
