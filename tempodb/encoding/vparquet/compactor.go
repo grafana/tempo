@@ -97,7 +97,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		if c.opts.MaxBytesPerTrace > 0 {
 			sum := 0
 			for _, row := range rows {
-				sum += estimateProtoSize(row)
+				sum += esimateMarshalledSizeFromParquetRow(row)
 			}
 			if sum > c.opts.MaxBytesPerTrace {
 				// Trace too large to compact
@@ -160,7 +160,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		// Flush existing block data if the next trace can't fit
-		if currentBlock.EstimatedBufferedBytes() > 0 && currentBlock.EstimatedBufferedBytes()+estimateProtoSize(lowestObject) > c.opts.BlockConfig.RowGroupSizeBytes {
+		if currentBlock.EstimatedBufferedBytes() > 0 && currentBlock.EstimatedBufferedBytes()+esimateMarshalledSizeFromParquetRow(lowestObject) > c.opts.BlockConfig.RowGroupSizeBytes {
 			runtime.GC()
 			err = c.appendBlock(ctx, currentBlock, l)
 			if err != nil {
@@ -328,26 +328,11 @@ func (r *rowPool) Put(row parquet.Row) {
 	r.pool.Put(row[:0]) //nolint:all //SA6002
 }
 
-// estimateProtoSize estimates the byte-length of the corresponding
+// esimateMarshalledSizeFromParquetRow estimates the byte-length of the corresponding
 // trace in tempopb.Trace format. This method is unreasonably effective.
 // Testing on real blocks shows 90-98% accuracy.
-func estimateProtoSize(row parquet.Row) (size int) {
-	for _, v := range row {
-		size++ // Field identifier
-
-		switch v.Kind() {
-		case parquet.ByteArray:
-			size += len(v.ByteArray())
-
-		case parquet.FixedLenByteArray:
-			size += len(v.ByteArray())
-
-		default:
-			// All other types (ints, bools) approach 1 byte per value
-			size++
-		}
-	}
-	return
+func esimateMarshalledSizeFromParquetRow(row parquet.Row) (size int) {
+	return len(row)
 }
 
 // countSpans counts the number of spans in the given trace in deconstructed
