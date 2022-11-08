@@ -238,7 +238,7 @@ func estimateRowSize(t *testing.T, name string) {
 		sch := parquet.SchemaOf(tr)
 		row := sch.Deconstruct(nil, tr)
 
-		totalProtoSize += int64(esimateMarshalledSizeFromParquetRow(row))
+		totalProtoSize += int64(estimateMarshalledSizeFromParquetRow(row))
 		totalTraceSize += int64(estimateMarshalledSizeFromTrace(tr))
 	}
 

@@ -133,7 +133,7 @@ func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) e
 	b.bloom.Add(id)
 	b.meta.ObjectAdded(id, start, end)
 	b.currentBufferedTraces++
-	b.currentBufferedBytes += esimateMarshalledSizeFromParquetRow(row)
+	b.currentBufferedBytes += estimateMarshalledSizeFromParquetRow(row)
 
 	return nil
 }
