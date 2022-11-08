@@ -111,7 +111,6 @@ func testAppendBlockStartEnd(t *testing.T, e encoding.VersionedEncoding) {
 	require.Equal(t, blockEnd, uint32(blocks[0].BlockMeta().EndTime.Unix()))
 }
 
-// jpe any other wal functionality to test like this?
 func TestFindByTraceID(t *testing.T) {
 	for _, e := range encoding.AllEncodings() {
 		t.Run(e.Version(), func(t *testing.T) {
@@ -329,7 +328,7 @@ func runWALTest(t testing.TB, dbEncoding string, runner func([][]byte, []*tempop
 
 	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
-	objects := 250 // jpe this takes forever :(. i'd like to do 1k but it's too slow
+	objects := 250
 	objs := make([]*tempopb.Trace, 0, objects)
 	ids := make([][]byte, 0, objects)
 	for i := 0; i < objects; i++ {
@@ -473,7 +472,7 @@ func runWALBenchmark(b *testing.B, encoding string, flushCount int, runner func(
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
-	objects := 250 // jpe this takes forever :(. i'd like to do 1k but it's too slow
+	objects := 250
 	traces := make([]*tempopb.Trace, 0, objects)
 	objs := make([][]byte, 0, objects)
 	ids := make([][]byte, 0, objects)

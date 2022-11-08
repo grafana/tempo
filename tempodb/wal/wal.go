@@ -167,8 +167,8 @@ func (w *WAL) newBlock(id uuid.UUID, tenantID string, dataEncoding string, block
 }
 
 func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File, backend.Encoding, error) {
-	// jpe - make this configurable
-	// search WAL pinned to v2 for now
+	// This is only used for flatbuffer search.
+	// pinned to v2 because vParquet doesn't need it.
 	walFileVersion := "v2"
 
 	p := filepath.Join(w.c.Filepath, dir)

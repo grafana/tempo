@@ -50,9 +50,8 @@ func putPooledTrace(tr *Trace) {
 
 // folder = <blockID>+<tenantID>+vParquet
 
-// openWALBlock opens an existing appendable block
-// jpe refuse append to this block? return a different type?
-// jpe combine filename and path?
+// openWALBlock opens an existing appendable block.  It is read-only by
+// not assigning a decoder.
 func openWALBlock(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration) (common.WALBlock, error, error) { // jpe what returns a warning?
 	dir := filepath.Join(path, filename)
 	_, _, version, err := parseName(filename)
@@ -221,7 +220,7 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 	b.ids.Set(id)
 
 	// This is actually the protobuf size but close enough
-	// for this purpose
+	// for this purpose and only temporary until next flush.
 	b.unflushedSize += int64(len(buff))
 
 	return nil
@@ -304,7 +303,9 @@ func (b *walBlock) Flush() (err error) {
 	return nil
 }
 
-func (b *walBlock) DataLength() uint64 { // jpe oof, another parquet size question
+// DataLength returns estimated size of WAL files on disk. Used for
+// cutting WAL files by max size.
+func (b *walBlock) DataLength() uint64 {
 	return uint64(b.flushedSize + b.unflushedSize)
 }
 

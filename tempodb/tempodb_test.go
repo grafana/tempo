@@ -766,6 +766,7 @@ func benchmarkCompleteBlock(b *testing.B, from, to encoding.VersionedEncoding) {
 			Encoding:             backend.EncNone,
 			IndexPageSizeBytes:   1000,
 			Version:              to.Version(),
+			RowGroupSizeBytes:    30_000_000,
 		},
 		WAL: &wal.Config{
 			IngestionSlack: time.Minute,

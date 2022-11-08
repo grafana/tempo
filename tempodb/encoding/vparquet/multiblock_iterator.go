@@ -95,14 +95,14 @@ func (m *MultiBlockIterator[T]) done(ctx context.Context) bool {
 }
 
 type bookmark[T iteratable] struct {
-	iter iterIterator[T]
+	iter genericIterator[T]
 
 	currentID     common.ID
 	currentObject T
 	currentErr    error
 }
 
-func newBookmark[T iteratable](iter iterIterator[T]) *bookmark[T] {
+func newBookmark[T iteratable](iter genericIterator[T]) *bookmark[T] {
 	return &bookmark[T]{
 		iter: iter,
 	}
@@ -136,7 +136,7 @@ func (b *bookmark[T]) close() {
 	b.iter.Close()
 }
 
-type iterIterator[T iteratable] interface { // jpe make this name not terrible
+type genericIterator[T iteratable] interface { // jpe make this name not terrible
 	Next(ctx context.Context) (common.ID, T, error)
 	Close()
 }

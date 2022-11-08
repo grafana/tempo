@@ -67,7 +67,7 @@ func DefaultEncoding() VersionedEncoding {
 }
 
 // AllEncodings returns all encodings
-func AllEncodings() []VersionedEncoding { // jpe change tests to use this
+func AllEncodings() []VersionedEncoding {
 	return []VersionedEncoding{
 		v2.Encoding{},
 		vparquet.Encoding{},
