@@ -62,7 +62,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var statusCode int
 	defer func(status int) {
-		f.queriesPerTenant.WithLabelValues(orgID, strconv.Itoa(statusCode)).Inc()
+		f.queriesPerTenant.WithLabelValues(orgID, strconv.Itoa(status)).Inc()
 	}(statusCode)
 
 	// add orgid to existing spans
