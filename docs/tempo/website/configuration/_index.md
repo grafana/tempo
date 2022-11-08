@@ -127,6 +127,41 @@ distributor:
         kafka:
 
     # Optional.
+    # Configures forwarders that asynchronously replicate ingested traces
+    # to specified endpoints. Forwarders work on per-tenant basis, so to
+    # fully enable this feature, overrides configuration must also be updated.
+    #
+    # Note: Forwarders work asynchronously and can fail or decide not to forward
+    # some traces. This feature works in a "best-effort" manner.
+    forwarders:
+
+        # Forwarder name. Must be unique within the list of forwarders. 
+        # This name can be referenced in the overrides configuration to
+        # enable forwarder for a tenant.
+      - name: <string>
+
+        # The forwarder backend to use
+        # Should be "otlpgrpc".
+        backend: <string>
+
+        # otlpgrpc configuration. Will be used only if value of backend is "otlpgrpc".
+        otlpgrpc:
+          
+          # List of otlpgrpc compatible endpoints.
+          endpoints: <list of string>
+          tls:
+
+            # Optional.
+            # Disables TSL if set to true.
+            [insecure: <boolean> | default = false]
+
+            # Optional.
+            # Path to the TLS certificate. This field must be set if insecure = false.
+            [cert_file: <string | default = "">]
+      - (repetition of above...)
+
+
+    # Optional.
     # Enable to log every received trace id to help debug ingestion
     # WARNING: Deprecated. Use log_received_spans instead.
     [log_received_traces: <boolean> | default = false]
@@ -1080,6 +1115,12 @@ overrides:
     # A value of 0 disables the limit.
     [max_bytes_per_tag_values_query: <int> | default = 5000000 (5MB) ]
 
+    # Generic forwarding configuration
+
+    # Per-user configuration of generic forwarder feature. Each forwarder in the list
+    # must refer by name to a forwarder defined in the distributor.forwarders configuration.
+    [forwarders: <list of strings>]
+
     # Metrics-generator configurations
 
     # Per-user configuration of the metrics-generator ring size. If set, the tenant will use a
@@ -1102,7 +1143,7 @@ overrides:
     # overrides settings in the global configuration.
     [metrics_generator_processor_service_graphs_histogram_buckets: <list of float>]
     [metrics_generator_processor_service_graphs_dimensions: <list of string>]
-    [metrics_generator_processor_span_metrics_histogram_buckets: <<list of float>]
+    [metrics_generator_processor_span_metrics_histogram_buckets: <list of float>]
     [metrics_generator_processor_span_metrics_dimensions: <list of string>]
 
     # Maximum number of active series in the registry, per instance of the metrics-generator. A
