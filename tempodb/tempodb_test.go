@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -32,10 +33,12 @@ const (
 	testTenantID2 = "fake2"
 )
 
-func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration) (Reader, Writer, Compactor, string) {
+type testConfigOption func(*Config)
+
+func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration, opts ...testConfigOption) (Reader, Writer, Compactor, string) {
 	tempDir := t.TempDir()
 
-	r, w, c, err := New(&Config{
+	cfg := &Config{
 		Backend: "local",
 		Local: &local.Config{
 			Path: path.Join(tempDir, "traces"),
@@ -53,7 +56,13 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration)
 			Version:  v2.VersionString,
 		},
 		BlocklistPoll: blocklistPoll,
-	}, log.NewNopLogger())
+	}
+
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	r, w, c, err := New(cfg, log.NewNopLogger())
 	require.NoError(t, err)
 	return r, w, c, tempDir
 }
@@ -567,7 +576,21 @@ func TestSearchCompactedBlocks(t *testing.T) {
 }
 
 func TestCompleteBlock(t *testing.T) {
-	_, w, _, _ := testConfig(t, backend.EncLZ4_256k, time.Minute)
+	for _, from := range encoding.AllEncodings() {
+		for _, to := range encoding.AllEncodings() {
+			t.Run(fmt.Sprintf("%s->%s", from.Version(), to.Version()), func(t *testing.T) {
+				testCompleteBlock(t, from.Version(), to.Version())
+			})
+		}
+	}
+}
+
+func testCompleteBlock(t *testing.T, from, to string) {
+
+	_, w, _, _ := testConfig(t, backend.EncLZ4_256k, time.Minute, func(c *Config) {
+		c.WAL.Version = from
+		c.Block.Version = to
+	})
 
 	wal := w.WAL()
 
@@ -583,11 +606,13 @@ func TestCompleteBlock(t *testing.T) {
 	ids := make([][]byte, 0, numMsgs)
 	for i := 0; i < numMsgs; i++ {
 		id := test.ValidTraceID(nil)
-		req := test.MakeTrace(rand.Int()%1000, id)
+		req := test.MakeTrace(rand.Int()%10, id)
+		trace.SortTrace(req)
 		writeTraceToWal(t, block, dec, id, req, 0, 0)
 		reqs = append(reqs, req)
 		ids = append(ids, id)
 	}
+	require.NoError(t, block.Flush())
 
 	complete, err := w.CompleteBlock(context.Background(), block)
 	require.NoError(t, err, "unexpected error completing block")
@@ -595,6 +620,8 @@ func TestCompleteBlock(t *testing.T) {
 	for i, id := range ids {
 		found, err := complete.FindTraceByID(context.TODO(), id, common.DefaultSearchOptions())
 		require.NoError(t, err)
+		require.NotNil(t, found)
+		trace.SortTrace(found)
 		require.True(t, proto.Equal(found, reqs[i]))
 	}
 }

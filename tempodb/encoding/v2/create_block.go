@@ -42,8 +42,13 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			if err != nil || tr == nil {
 				return nil, nil, err
 			}
-			obj, err := dec.PrepareForWrite(tr, 0, 0) // start/end of the blockmeta are used
 
+			traceBytes, err := dec.PrepareForWrite(tr, 0, 0) // start/end of the blockmeta are used
+			if err != nil {
+				return nil, nil, err
+			}
+
+			obj, err := dec.ToObject([][]byte{traceBytes})
 			return id, obj, err
 		}
 	}
