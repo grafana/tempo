@@ -307,7 +307,7 @@ func TestManager_ForTenant_List_ForwardTraces_ReturnsNoErrorAndCorrectlyForwards
 	// Step 2 - Add additional forwarder, simulate "tick" and verify that all three forwarders receive the trace.
 	currentForwardersForTenant := o.tenantIDToForwarders["testTenantID"]
 	o.tenantIDToForwarders["testTenantID"] = append(currentForwardersForTenant, "testForwarder3")
-	manager.handleTick()
+	manager.updateQueueLists()
 
 	// When
 	err = manager.ForTenant("testTenantID").ForwardTraces(context.Background(), traces2)
@@ -370,7 +370,7 @@ func TestManager_ForTenant_List_ForwardTraces_ReturnsNoErrorAndCorrectlyForwards
 	idx := slices.Index(o.tenantIDToForwarders["testTenantID"], "testForwarder2")
 	require.NotEqual(t, -1, idx)
 	slices.Delete(o.tenantIDToForwarders["testTenantID"], idx, idx)
-	manager.handleTick()
+	manager.updateQueueLists()
 
 	// When
 	err = manager.ForTenant("testTenantID").ForwardTraces(context.Background(), traces2)
@@ -471,7 +471,7 @@ func TestManager_ForTenant_List_ForwardTraces_ReturnsNoErrorAndCorrectlyForwards
 	o.tenantIDToForwarders = map[string][]string{
 		"testTenantID": {"testForwarder1", "testForwarder2"},
 	}
-	manager.handleTick()
+	manager.updateQueueLists()
 
 	// When
 	forwarderList = manager.ForTenant("testTenantID")
@@ -527,7 +527,7 @@ func TestManager_ForTenant_List_ForwardTraces_ReturnsNoErrorAndCorrectlyDoesNotF
 	// Step 2 - Remove forwarder from overrides config and verify that the traces are no longer forwarded.
 	o.tenantIDs = []string{}
 	o.tenantIDToForwarders = map[string][]string{}
-	manager.handleTick()
+	manager.updateQueueLists()
 
 	// When
 	forwarderList = manager.ForTenant("testTenantID")
