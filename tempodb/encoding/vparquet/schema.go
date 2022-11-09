@@ -329,7 +329,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 						Links: s.Links,
 					}
 					ss.Links = extendReuseSlice(links.Size(), ss.Links)
-					links.MarshalToSizedBuffer(ss.Links)
+					_, _ = links.MarshalToSizedBuffer(ss.Links)
 				} else {
 					ss.Links = ss.Links[:0] // you can 0 length slice a nil slice
 				}
