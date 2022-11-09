@@ -3,7 +3,7 @@ title: Configure TLS Communication
 weight: 70
 ---
 
-# Configure TLS Communication
+# Configure TLS communication
 
 Tempo can be configured to communicate between the components using Transport Layer Security, or TLS.
 
