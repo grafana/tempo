@@ -50,7 +50,7 @@ grpc_client_config:
   tls_min_version: VersionTLS12
 ```
 
-The above configuration block needs to be set at the following configuration locations.
+The configuration block needs to be set at the following configuration locations.
 
 - `ingester_client.grpc_client_config`
 - `metrics_generator_client.grpc_client_config`
