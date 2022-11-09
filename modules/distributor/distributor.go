@@ -379,10 +379,8 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		d.generatorForwarder.SendTraces(ctx, userID, keys, rebatchedTraces)
 	}
 
-	if len(d.cfg.Forwarders) > 0 && len(d.overrides.Forwarders(userID)) > 0 {
-		if err := d.forwardersManager.ForTenant(userID).ForwardTraces(ctx, traces); err != nil {
-			_ = level.Warn(d.logger).Log("msg", "failed to forward batches for tenant=%s: %w", userID, err)
-		}
+	if err := d.forwardersManager.ForTenant(userID).ForwardTraces(ctx, traces); err != nil {
+		_ = level.Warn(d.logger).Log("msg", "failed to forward batches for tenant=%s: %w", userID, err)
 	}
 
 	return nil, nil // PushRequest is ignored, so no reason to create one

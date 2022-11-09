@@ -66,6 +66,10 @@ func NewManager(cfgs ConfigList, logger log.Logger, overrides Overrides) (*Manag
 }
 
 func (m *Manager) ForTenant(tenantID string) List {
+	if len(m.forwarderNameToForwarder) < 1 || len(m.overrides.Forwarders(tenantID)) < 1 {
+		return nil
+	}
+
 	ql, ok := m.getOrCreateQueueList(tenantID)
 	if !ok {
 		return nil
@@ -84,10 +88,6 @@ func (m *Manager) getOrCreateQueueList(tenantID string) (*queueList, bool) {
 	defer m.tenantToQueueListMu.Unlock()
 
 	forwarderNames := m.overrides.Forwarders(tenantID)
-	if len(forwarderNames) < 1 {
-		return nil, false
-	}
-
 	ql, err := newQueueList(m.logger, tenantID, forwarderNames, m.forwarderNameToForwarder)
 	if err != nil {
 		_ = level.Warn(m.logger).Log("msg", "failed to create queue list", "err", err)
