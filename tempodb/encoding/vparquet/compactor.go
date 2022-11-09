@@ -328,7 +328,7 @@ func (r *rowPool) Put(row parquet.Row) {
 	r.pool.Put(row[:0]) //nolint:all //SA6002
 }
 
-// estimateMarshalledSizeFromParquetRow estimates the byte-length of the corresponding
+// estimateProtoSizeFromParquetRow estimates the byte-length of the corresponding
 // trace in tempopb.Trace format. This method is unreasonably effective.
 // Testing on real blocks shows 90-98% accuracy.
 func estimateProtoSizeFromParquetRow(row parquet.Row) (size int) {
