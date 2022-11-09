@@ -14,7 +14,7 @@ To set up Tempo using Kubernetes with Tanka, you need to:
 1. Configure Kubernetes and install Tanka
 1. Set up the Tanka environment
 1. Install libraries
-1. Deploy MinIO object storage 
+1. Deploy MinIO object storage
 1. Optional: Enable metrics-generator
 1. Deploy Tempo with the Tanka command
 
@@ -319,10 +319,10 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
 ### Optional: Enable metrics-generator
 
 In the preceding configuration, [metrics generation](https://grafana.com/docs/tempo/next/configuration/#metrics-generator) is enabled. However, you still need to specify where to send the generated metrics data.
-If you'd like to remote write these metrics onto a Prometheus compatible instance (such as Grafana Cloud metrics or a Mimir instance), you'll need to include the configuration block below in the `metrics_generator` section of the `tempo_config` block above (this assumes basic auth is required, if not then remove the `basic_auth` section). 
+If you'd like to remote write these metrics onto a Prometheus compatible instance (such as Grafana Cloud metrics or a Mimir instance), you'll need to include the configuration block below in the `metrics_generator` section of the `tempo_config` block above (this assumes basic auth is required, if not then remove the `basic_auth` section).
 You can find the details for your Grafana Cloud metrics instance for your Grafana Cloud account by using the [Cloud Portal](https://grafana.com/docs/grafana-cloud/account-management/cloud-portal/).
 
-```json
+```jsonnet
 storage+: {
     remote_write: [
         {
@@ -342,46 +342,45 @@ storage+: {
 
 ### Optional: Reduce ingester system requirements
 
-If your ingesters won't start due to inadequate resources, you can reduce the CPU and memory requirements by changing the configuration in the `environments/tempo/main.jsonnet` file. Lowering these requirements can impact overall performance. 
+If your ingesters won't start due to inadequate resources, you can reduce the CPU and memory requirements by changing the configuration in the `environments/tempo/main.jsonnet` file. Lowering these requirements can impact overall performance.
 
-To change the resources requirements, follow these steps: 
+To change the resources requirements, follow these steps:
 
-1. Open the `environments/tempo/main.jsonnet` file. 
-1. Add a new configuration block: 
+1. Open the `environments/tempo/main.jsonnet` file.
+1. Add a new configuration block:
    ```jsonnet
-    tempo_ingester_container+:: {
+   tempo_ingester_container+:: {
        securityContext+: {
-          runAsUser: 0,
+           runAsUser: 0,
        },
        resources+: {
-        limits+: {
-            cpu: '3',
-            memory: '5Gi',
-        },
-        requests+: {
-            memory: '2Gi',
-            cpu: '200m',
-        },
-     },
-     },
-    },
-      tempo_distributor_container+:: {
-        securityContext+: {
-          runAsUser: 0,
-     },
-        resources+: {
-          limits+: {
-          cpu: '3',
-          memory: '5Gi',
-      },
-        requests+: {
-          memory: '2Gi',
-          cpu: '200m',
-      },
-    },
-  },
+           limits+: {
+               cpu: '3',
+               memory: '5Gi',
+           },
+           requests+: {
+               cpu: '200m',
+               memory: '2Gi',
+           },
+       },
+   },
+   tempo_distributor_container+:: {
+       securityContext+: {
+           runAsUser: 0,
+       },
+       resources+: {
+           limits+: {
+               cpu: '3',
+               memory: '5Gi',
+           },
+           requests+: {
+               memory: '2Gi',
+               cpu: '200m',
+           },
+       },
+   },
    ````
-1. Save the changes to the file. 
+1. Save the changes to the file.
 
 ## Deploy Tempo using Tanka
 
@@ -407,4 +406,4 @@ The Tempo instance will now accept the two configured trace protocols (OTLP gRPC
 
 You can query Tempo using the `query-frontend.tempo.svc.cluster.local` service on port `3200` for Tempo queries or port `16686` or `16687` for Jaeger type queries.
 
-Now that you've configured a Tempo cluster, you'll need to get data into it. 
+Now that you've configured a Tempo cluster, you'll need to get data into it.
