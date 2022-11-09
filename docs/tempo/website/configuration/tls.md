@@ -9,7 +9,9 @@ Tempo can be configured to communicate between the components using Transport La
 
 >**Note:** The ciphers and TLS version here are for example purposes only. We are not recommending which ciphers or TLS versions for use in production environments.
 
-## Server Configuration
+## Server configuration
+
+This sample TLS server configuration shows supported options. 
 
 ```yaml
 server:
