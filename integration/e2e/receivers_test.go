@@ -124,6 +124,19 @@ func TestReceivers(t *testing.T) {
 			_, err = rand.Read(traceID)
 			require.NoError(t, err)
 			req := test.MakeTrace(20, traceID)
+
+			// zipkin doesn't support events and will 400 if you attempt to push one. just strip
+			// all events from the trace here
+			if tc.name == "zipkin" {
+				for _, b := range req.Batches {
+					for _, ss := range b.ScopeSpans {
+						for _, s := range ss.Spans {
+							s.Events = nil
+						}
+					}
+				}
+			}
+
 			b, err := req.Marshal()
 			require.NoError(t, err)
 

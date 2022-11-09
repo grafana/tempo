@@ -227,7 +227,7 @@ func TestInstanceLimits(t *testing.T) {
 					req: makeRequestWithByteLimit(500, []byte{}),
 				},
 				{
-					req: makeRequestWithByteLimit(900, []byte{}),
+					req: makeRequestWithByteLimit(100, []byte{}),
 				},
 			},
 		},
@@ -242,7 +242,7 @@ func TestInstanceLimits(t *testing.T) {
 					expectsError: true,
 				},
 				{
-					req: makeRequestWithByteLimit(900, []byte{}),
+					req: makeRequestWithByteLimit(600, []byte{}),
 				},
 			},
 		},
@@ -423,7 +423,7 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 
 			// Defaults
 			if tc.maxBlockBytes == 0 {
-				tc.maxBlockBytes = 1000
+				tc.maxBlockBytes = 5000
 			}
 			if tc.maxBlockLifetime == 0 {
 				tc.maxBlockLifetime = time.Hour
