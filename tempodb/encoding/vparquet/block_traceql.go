@@ -190,7 +190,6 @@ type mergeSpansetIterator struct {
 
 var _ traceql.SpansetIterator = (*mergeSpansetIterator)(nil)
 
-// jpe test
 func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
 	if i.cur >= len(i.iters) {
 		return nil, nil
