@@ -72,7 +72,7 @@ memberlist:
 
 Additional receiver configuration can be added to support TLS communication for traces being sent to Tempo. The receiver configuration is pulled in from the Open Telemetry collector, and is [documented upstream here](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/otlpreceiver/config.md#configtls-tlsserversetting).
 
-An example `tls` block might look like the following.
+An example `tls` block might look like the following:
 
 ```yaml
 tls:
