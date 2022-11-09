@@ -203,7 +203,7 @@ func testIterator(t *testing.T, e encoding.VersionedEncoding) {
 		i := 0
 		for {
 			id, obj, err := iterator.Next(ctx)
-			if err == io.EOF {
+			if err == io.EOF || id == nil {
 				break
 			} else {
 				require.NoError(t, err)
