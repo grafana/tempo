@@ -293,7 +293,7 @@ func (q *Querier) forGivenIngesters(ctx context.Context, replicationSet ring.Rep
 
 	doFunc := func(funcCtx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
 		if funcCtx.Err() != nil {
-			_ = level.Warn(log.Logger).Log("funcCtx.Err()", ctx.Err().Error())
+			_ = level.Warn(log.Logger).Log("funcCtx.Err()", funcCtx.Err().Error())
 			return nil, funcCtx.Err()
 		}
 
