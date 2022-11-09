@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/warnings"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/pkg/errors"
@@ -53,7 +54,7 @@ func putPooledTrace(tr *Trace) {
 
 // openWALBlock opens an existing appendable block.  It is read-only by
 // not assigning a decoder.
-func openWALBlock(filename string, path string, ingestionSlack time.Duration, additionalStartSlack time.Duration) (common.WALBlock, error, error) { // jpe what returns a warning?
+func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ time.Duration) (common.WALBlock, error, error) { // jpe what returns a warning?
 	dir := filepath.Join(path, filename)
 	_, _, version, err := parseName(filename)
 	if err != nil {
@@ -77,9 +78,10 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, ad
 	}
 
 	b := &walBlock{
-		meta: meta,
-		path: path,
-		ids:  common.NewIDMap(),
+		meta:           meta,
+		path:           path,
+		ids:            common.NewIDMap(),
+		ingestionSlack: ingestionSlack,
 	}
 
 	// read all files in dir
@@ -142,8 +144,9 @@ func createWALBlock(id uuid.UUID, tenantID string, filepath string, _ backend.En
 			BlockID:  id,
 			TenantID: tenantID,
 		},
-		path: filepath,
-		ids:  common.NewIDMap(),
+		path:           filepath,
+		ids:            common.NewIDMap(),
+		ingestionSlack: ingestionSlack,
 	}
 
 	// build folder
@@ -181,8 +184,9 @@ type walBlockFlush struct {
 }
 
 type walBlock struct {
-	meta *backend.BlockMeta
-	path string
+	meta           *backend.BlockMeta
+	path           string
+	ingestionSlack time.Duration
 
 	// Unflushed data
 	traces        []*Trace
@@ -214,6 +218,8 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 
 	tr := traceToParquet(id, trace, getPooledTrace())
 
+	start, end = b.adjustTimeRangeForSlack(start, end, 0)
+
 	b.meta.ObjectAdded(id, start, end)
 
 	// add to current
@@ -225,6 +231,28 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 	b.unflushedSize += int64(len(buff))
 
 	return nil
+}
+
+func (b *walBlock) adjustTimeRangeForSlack(start uint32, end uint32, additionalStartSlack time.Duration) (uint32, uint32) {
+	now := time.Now()
+	startOfRange := uint32(now.Add(-b.ingestionSlack).Add(-additionalStartSlack).Unix())
+	endOfRange := uint32(now.Add(b.ingestionSlack).Unix())
+
+	warn := false
+	if start < startOfRange {
+		warn = true
+		start = uint32(now.Unix())
+	}
+	if end > endOfRange {
+		warn = true
+		end = uint32(now.Unix())
+	}
+
+	if warn {
+		warnings.Metric.WithLabelValues(b.meta.TenantID, warnings.ReasonOutsideIngestionSlack).Inc()
+	}
+
+	return start, end
 }
 
 func (b *walBlock) Flush() (err error) {

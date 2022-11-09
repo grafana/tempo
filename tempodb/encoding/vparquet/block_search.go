@@ -147,10 +147,10 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 	}
 	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
-	return searchTags(ctx, cb, pf)
+	return searchTags(derivedCtx, cb, pf)
 }
 
-func searchTags(ctx context.Context, cb common.TagCallback, pf *parquet.File) error {
+func searchTags(_ context.Context, cb common.TagCallback, pf *parquet.File) error {
 	// find indexes of generic attribute columns
 	resourceKeyIdx, _ := pq.GetColumnIndexByPath(pf, FieldResourceAttrKey)
 	spanKeyIdx, _ := pq.GetColumnIndexByPath(pf, FieldSpanAttrKey)

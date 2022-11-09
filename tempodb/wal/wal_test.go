@@ -111,6 +111,59 @@ func testAppendBlockStartEnd(t *testing.T, e encoding.VersionedEncoding) {
 	require.Equal(t, blockEnd, uint32(blocks[0].BlockMeta().EndTime.Unix()))
 }
 
+func TestIngestionSlack(t *testing.T) {
+	encodings := []encoding.VersionedEncoding{
+		v2.Encoding{},
+		vparquet.Encoding{},
+	}
+	for _, e := range encodings {
+		t.Run(e.Version(), func(t *testing.T) {
+			testIngestionSlack(t, e)
+		})
+	}
+}
+
+func testIngestionSlack(t *testing.T, e encoding.VersionedEncoding) {
+
+	wal, err := New(&Config{
+		Filepath:       t.TempDir(),
+		Encoding:       backend.EncNone,
+		IngestionSlack: time.Minute,
+	})
+	require.NoError(t, err, "unexpected error creating temp wal")
+
+	blockID := uuid.New()
+	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, e.Version())
+	require.NoError(t, err, "unexpected error creating block")
+
+	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	traceStart := uint32(time.Now().Add(-2 * time.Minute).Unix()) // Outside of range
+	traceEnd := uint32(time.Now().Add(-1 * time.Minute).Unix())   // At end of range
+
+	// Append a trace
+	id := make([]byte, 16)
+	rand.Read(id)
+	obj := test.MakeTrace(rand.Int()%10+1, id)
+
+	b1, err := enc.PrepareForWrite(obj, traceStart, traceEnd)
+	require.NoError(t, err)
+
+	b2, err := enc.ToObject([][]byte{b1})
+	require.NoError(t, err)
+
+	appendTime := time.Now()
+	err = block.Append(id, b2, traceStart, traceEnd)
+	require.NoError(t, err, "unexpected error writing req")
+
+	blockStart := uint32(block.BlockMeta().StartTime.Unix())
+	blockEnd := uint32(block.BlockMeta().EndTime.Unix())
+
+	require.Equal(t, uint32(appendTime.Unix()), blockStart)
+	require.Equal(t, traceEnd, blockEnd)
+	fmt.Println("append", appendTime, "blockStart", block.BlockMeta().StartTime, "traceStart", time.Unix(int64(traceStart), 0))
+}
+
 func TestFindByTraceID(t *testing.T) {
 	for _, e := range encoding.AllEncodings() {
 		t.Run(e.Version(), func(t *testing.T) {
