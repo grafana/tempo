@@ -24,6 +24,35 @@ func MakeSpan(traceID []byte) *v1_trace.Span {
 		},
 		StartTimeUnixNano: uint64(now.UnixNano()),
 		EndTimeUnixNano:   uint64(now.Add(time.Second).UnixNano()),
+		Links: []*v1_trace.Span_Link{
+			{
+				TraceId:    traceID,
+				SpanId:     make([]byte, 8),
+				TraceState: "state",
+				Attributes: []*v1_common.KeyValue{
+					{
+						Key: "linkkey",
+						Value: &v1_common.AnyValue{
+							Value: &v1_common.AnyValue_StringValue{
+								StringValue: "linkvalue",
+							},
+						},
+					},
+				},
+			},
+		},
+		DroppedLinksCount: rand.Uint32(),
+		Attributes: []*v1_common.KeyValue{
+			{
+				Key: "key",
+				Value: &v1_common.AnyValue{
+					Value: &v1_common.AnyValue_StringValue{
+						StringValue: "value",
+					},
+				},
+			},
+		},
+		DroppedAttributesCount: rand.Uint32(),
 	}
 	rand.Read(s.SpanId)
 	return s
