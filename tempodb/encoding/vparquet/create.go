@@ -42,7 +42,8 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		// Use interal iterator and avoid translation to/from proto
 		// TODO - Operate on parquet.Row for even better performance
 		next = ii.NextTrace
-		repool = true
+		// TODO - Figure out what is wrong with pooling and reenable it
+		//repool = true
 	} else {
 		// Need to convert from proto->parquet obj
 		trp := &Trace{}
