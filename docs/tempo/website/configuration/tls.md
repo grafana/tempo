@@ -82,7 +82,7 @@ tls:
   min_version: VersionTLS12
 ```
 
-The above structure can be set on the following receiver configurations.
+The above structure can be set on the following receiver configurations:
 
 - `distributor.receivers.otlp.protocols.grpc.tls`
 - `distributor.receivers.otlp.protocols.http.tls`
