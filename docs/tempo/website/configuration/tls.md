@@ -30,7 +30,7 @@ server:
 
 Valid values for the `client_auth_type` are documented in the standard `crypt/tls` package under `ClientAuthType` [here](https://pkg.go.dev/crypto/tls#ClientAuthType).
 
-## Client Configuration
+## Client configuration
 
 Several components of Tempo need to configure the gRPC clients they use to communicate with other components. For example, when the `querier` contacts the `query-frontend` to request work, the client in use must enable TLS if the server is serving a TLS endpoint.
 
