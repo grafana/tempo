@@ -1,4 +1,5 @@
 ## main / unreleased
+* [FEATURE] Add `/status/usage-stats` endpoint to show usage stats data [#1782](https://github.com/grafana/tempo/pull/1782) (@electron0zero)
 * [FEATURE] Add generic forwarder and implement otlpgrpc forwarder [#1775](https://github.com/grafana/tempo/pull/1775) (@Blinkuu)
     New config options and example configuration:
 ```
