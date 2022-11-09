@@ -14,6 +14,8 @@ weight: 120
 
 A trace represents the whole journey of a request or an action as it moves through all the nodes of a distributed system, especially containerized applications or microservices architectures. Traces let you profile and observe systems, making it easy to discover bottlenecks and interconnection issues.
 
+Traces are composed of one or more spans. A span is a unit of work within a trace that has a start time relative to the beginning of the trace, a duration and an operation name for the unit of work. It usually has a reference to a parent span (unless it is the first span in a trace). It may optionally include key/value attributes that are relevant to the span itself, for example the HTTP method being used by the span, as well as other metadata such as sub-span events or links to other spans.
+
 ## Example of traces
 
 A user on your website enters their email address into a form to sign up for your mailing list. They click **Enter**. This initial transaction has a trace ID that is subsequently associated with every interaction in the chain of processes within a system.
@@ -32,7 +34,7 @@ Finally, the request and response activity ends and a record of that request is 
 
 Setting up tracing adds a label to all of these events. The label is generated when the request is initiated and that same label is applied to every single event as the request and response generate activity across the system.
 
-That label enables one to trace, or follow a request as it flows from node to node, service to microservice to lambda function to wherever it goes in your chaotic, cloud computing system and back again. This is recorded and displayed as spans. Each span is the amount of time between a request and response from a specific service in the request's journey through your system.
+That label enables one to trace, or follow a request as it flows from node to node, service to microservice to lambda function to wherever it goes in your chaotic, cloud computing system and back again. This is recorded and displayed as spans.
 
 Here's an example showing two pages in Grafana Cloud. The first, on the left (1), shows a query using the **Explore** feature. In the query results you can see a **traceID** field that was added to an application. That field contains a **Tempo** label. The second page, on the right (2), uses the same Explore feature to perform a Tempo search using that **traceID** label. It then shows a set of spans as horizontal bars, each bar denoting a different part of the system.
 
@@ -61,7 +63,7 @@ Metric
 : A number, helping operators understand the state of a system, for example, number of active users, error count, average response time, etc. 
 
 Span
-: Represents a specific service or node of the full trace (payment service, inventory, etc.)
+: Represents a unit of work done within a trace.
 
 Trace
 : An observed execution path of a request through a distributed system.
