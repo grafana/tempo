@@ -311,11 +311,10 @@ func (b *walBlock) DataLength() uint64 {
 }
 
 func (b *walBlock) Iterator() (common.Iterator, error) {
-	var pool sync.Pool
 	bookmarks := make([]*bookmark[*Trace], 0, len(b.flushed))
 	for _, page := range b.flushed {
 		r := parquet.NewGenericReader[*Trace](page.file)
-		iter := &traceIterator{reader: r, pool: &pool}
+		iter := &traceIterator{reader: r}
 
 		bookmarks = append(bookmarks, newBookmark[*Trace](iter))
 	}
@@ -327,7 +326,6 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 
 	return &commonIterator{
 		iter: iter,
-		pool: &pool,
 	}, nil
 }
 
@@ -467,26 +465,33 @@ func parseName(filename string) (uuid.UUID, string, string, error) {
 
 // jpe iterators feel like a mess, clean up ?
 
+var tracePool sync.Pool
+
+func tracePoolGet() *Trace {
+	o := tracePool.Get()
+	if o == nil {
+		return &Trace{}
+	}
+
+	return o.(*Trace)
+}
+
+func tracePoolPut(t *Trace) {
+	tracePool.Put(t)
+}
+
 // traceIterator is used to iterate a parquet file and implement iterIterator
 type traceIterator struct {
 	reader *parquet.GenericReader[*Trace]
-	pool   *sync.Pool
 }
 
 func (i *traceIterator) Next(ctx context.Context) (common.ID, *Trace, error) {
-	var tr *Trace
-	tri := i.pool.Get()
-	if tri != nil {
-		tr = tri.(*Trace)
-	}
-
-	trs := []*Trace{tr}
-	_, err := i.reader.Read(trs)
+	tr := tracePoolGet()
+	_, err := i.reader.Read([]*Trace{tr})
 	if err != nil {
 		return nil, nil, err
 	}
 
-	tr = trs[0]
 	return tr.TraceID, tr, nil
 }
 
@@ -501,7 +506,6 @@ var _ common.Iterator = (*commonIterator)(nil)
 // to be passed to a CreateBlock
 type commonIterator struct {
 	iter *MultiBlockIterator[*Trace]
-	pool *sync.Pool
 }
 
 func (i *commonIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, error) {
