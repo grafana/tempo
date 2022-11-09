@@ -331,7 +331,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 					ss.Links = extendReuseSlice(links.Size(), ss.Links)
 					links.MarshalToSizedBuffer(ss.Links)
 				} else {
-					ss.Links = ss.Links[:0] // jpe ?
+					ss.Links = ss.Links[:0] // you can 0 length slice a nil slice
 				}
 				ss.DroppedLinksCount = int32(s.DroppedLinksCount)
 
@@ -567,7 +567,7 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 				// unmarshal links
 				if len(span.Links) > 0 {
 					links := tempopb.LinkSlice{}
-					_ = links.Unmarshal(span.Links) // jpe we just eat this error?
+					_ = links.Unmarshal(span.Links) // todo: bubble these errors up
 					protoSpan.Links = links.Links
 				}
 
