@@ -111,7 +111,7 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.12.0 // indirect
-	github.com/stretchr/testify v1.8.0 // indirect
+	github.com/stretchr/testify v1.8.1 // indirect
 	github.com/subosito/gotenv v1.3.0 // indirect
 	github.com/thanos-io/thanos v0.24.0 // indirect
 	github.com/uber-go/atomic v1.4.0 // indirect
