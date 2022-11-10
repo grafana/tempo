@@ -1,17 +1,17 @@
 ---
 title: Configure TLS Communication
-weight: 70
+weight: 35
 ---
 
 # Configure TLS communication
 
 Tempo can be configured to communicate between the components using Transport Layer Security, or TLS.
 
->**Note:** The ciphers and TLS version here are for example purposes only. We are not recommending which ciphers or TLS versions for use in production environments.
+> **Note:** The ciphers and TLS version here are for example purposes only. We are not recommending which ciphers or TLS versions for use in production environments.
 
 ## Server configuration
 
-This sample TLS server configuration shows supported options. 
+This sample TLS server configuration shows supported options.
 
 ```yaml
 server:
