@@ -34,10 +34,10 @@ storage:
     blocklist_poll: 1s
     backend: azure
     azure:
-      container-name: tempo                    # how to store data in azure
-      endpoint-suffix: tempo_e2e-azurite:10000
-      storage-account-name: "devstoreaccount1"
-      storage-account-key: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
+      container_name: tempo                    # how to store data in azure
+      endpoint_suffix: tempo_e2e-azurite:10000
+      storage_account_name: "devstoreaccount1"
+      storage_account_key: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
     pool:
       max_workers: 10
       queue_depth: 100
