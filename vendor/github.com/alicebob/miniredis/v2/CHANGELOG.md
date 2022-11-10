@@ -1,6 +1,30 @@
 ## Changelog
 
 
+### v2.23.1
+- resolve $ to latest ID in XREAD (thanks @josh-hook)
+- handle disconnect in blocking functions (thanks @jgirtakovskis)
+- fix type conversion bug in redisToLua (thanks Sandy Harvie)
+- BRPOP{LPUSH} timeout can be float since 6.0
+
+
+### v2.23.0
+
+- basic INFO support (thanks @kirill-a-belov)
+- support COUNT in SSCAN (thanks @Abdi-dd)
+- test and support Go 1.19
+- support LPOS (thanks @ianstarz)
+- support XPENDING, XGROUP {CREATECONSUMER,DESTROY,DELCONSUMER}, XINFO {CONSUMERS,GROUPS}, XCLAIM (thanks @sandyharvie)
+
+
+### v2.22.0
+
+- set miniredis.DumpMaxLineLen to get more Dump() info (thanks @afjoseph)
+- fix invalid resposne of COMMAND (thanks @zsh1995)
+- fix possibility to generate duplicate IDs in XADD (thanks @readams)
+- adds support for XAUTOCLAIM min-idle parameter (thanks @readams)
+
+
 ### v2.21.0
 
 - support for GETEX (thanks @dntj)
