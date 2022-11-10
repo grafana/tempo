@@ -279,6 +279,7 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 // ReportFatalError implements component.Host
 func (r *receiversShim) ReportFatalError(err error) {
 	_ = level.Error(log.Logger).Log("msg", "fatal error reported", "err", err)
+	r.StopAsync()
 }
 
 // GetFactory implements component.Host
