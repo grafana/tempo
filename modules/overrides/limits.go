@@ -22,14 +22,15 @@ const (
 	ErrorPrefixRateLimited = "RATE_LIMITED:"
 
 	// metrics
-	MetricMaxLocalTracesPerUser     = "max_local_traces_per_user"
-	MetricMaxGlobalTracesPerUser    = "max_global_traces_per_user"
-	MetricMaxBytesPerTrace          = "max_bytes_per_trace"
-	MetricMaxSearchBytesPerTrace    = "max_search_bytes_per_trace"
-	MetricMaxBytesPerTagValuesQuery = "max_bytes_per_tag_values_query"
-	MetricIngestionRateLimitBytes   = "ingestion_rate_limit_bytes"
-	MetricIngestionBurstSizeBytes   = "ingestion_burst_size_bytes"
-	MetricBlockRetention            = "block_retention"
+	MetricMaxLocalTracesPerUser           = "max_local_traces_per_user"
+	MetricMaxGlobalTracesPerUser          = "max_global_traces_per_user"
+	MetricMaxBytesPerTrace                = "max_bytes_per_trace"
+	MetricMaxSearchBytesPerTrace          = "max_search_bytes_per_trace"
+	MetricMaxBytesPerTagValuesQuery       = "max_bytes_per_tag_values_query"
+	MetricIngestionRateLimitBytes         = "ingestion_rate_limit_bytes"
+	MetricIngestionBurstSizeBytes         = "ingestion_burst_size_bytes"
+	MetricBlockRetention                  = "block_retention"
+	MetricMetricsGeneratorMaxActiveSeries = "metrics_generator_max_active_series"
 )
 
 var (
@@ -123,4 +124,5 @@ func (l *Limits) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.IngestionRateLimitBytes), MetricIngestionRateLimitBytes)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.IngestionBurstSizeBytes), MetricIngestionBurstSizeBytes)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.BlockRetention), MetricBlockRetention)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MetricsGeneratorMaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries)
 }
