@@ -22,6 +22,8 @@ This document explains the configuration options for Tempo as well as the detail
   - [search](#search)
   - [usage-report](#usage-report)
 
+Additionally, you may wish to review [TLS]({{< relref "tls/" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
+
 ## Use environment variables in the configuration
 
 You can use environment variable references in the configuration file to set values that need to be configurable during deployment using `--config.expand-env` option.
