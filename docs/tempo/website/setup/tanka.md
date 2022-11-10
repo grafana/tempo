@@ -309,6 +309,18 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
            },
        },
 
+       tempo_ingester_container+:: {
+         securityContext+: {
+           runAsUser: 0,
+         },
+       },
+
+       tempo_ingester_container+:: {
+         securityContext+: {
+           runAsUser: 0,
+         },
+       },
+
        local statefulSet = $.apps.v1.statefulSet,
        tempo_ingester_statefulset+:
            statefulSet.mixin.spec.withPodManagementPolicy('Parallel'),
@@ -340,19 +352,16 @@ storage+: {
 >**Note**: Enabling metrics generation and remote writing them to Grafana Cloud Metrics will produce extra active series that could potentially impact your billing. For more information on billing, refer to [Billing and usage](https://grafana.com/docs/grafana-cloud/billing-and-usage/). For more information on metrics generation, refer [Metrics-generator](https://grafana.com/docs/tempo/latest/metrics-generator/) in the Tempo documentation.
 
 
-### Optional: Reduce ingester system requirements
+### Optional: Reduce component system requirements
 
-If your ingesters won't start due to inadequate resources, you can reduce the CPU and memory requirements by changing the configuration in the `environments/tempo/main.jsonnet` file. Lowering these requirements can impact overall performance.
+Smaller ingestion and query volumes could allow the use of smaller resources. If you wish to lower the resources allocated to components, then you can do this via a container configuration. For example, to change the CPU and memory resource allocation for the ingesters.
 
 To change the resources requirements, follow these steps:
 
 1. Open the `environments/tempo/main.jsonnet` file.
-1. Add a new configuration block:
+2. Add a new configuration block for the appropriate component (in this case, the ingesters):
    ```jsonnet
    tempo_ingester_container+:: {
-       securityContext+: {
-           runAsUser: 0,
-       },
        resources+: {
            limits+: {
                cpu: '3',
@@ -361,27 +370,13 @@ To change the resources requirements, follow these steps:
            requests+: {
                cpu: '200m',
                memory: '2Gi',
-           },
-       },
-   },
-   tempo_distributor_container+:: {
-       securityContext+: {
-           runAsUser: 0,
-       },
-       resources+: {
-           limits+: {
-               cpu: '3',
-               memory: '5Gi',
-           },
-           requests+: {
-               memory: '2Gi',
-               cpu: '200m',
            },
        },
    },
    ````
-1. Save the changes to the file.
+3. Save the changes to the file.
 
+> **Note**: Lowering these requirements can impact overall performance.
 ## Deploy Tempo using Tanka
 
 1. Deploy Tempo using the Tanka command:
