@@ -19,7 +19,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: 15acd5511dbb9b46b5e58e3fa1059843
+        config_hash: 282a5956d7363ec1a10ec681e5589158
       labels:
         app: querier
         name: querier
