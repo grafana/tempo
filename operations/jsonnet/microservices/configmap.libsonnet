@@ -34,7 +34,7 @@
           bucket: $._config.bucket,
         },
         azure: {
-          'container_name': $._config.bucket,
+          container_name: $._config.bucket,
         },
         pool: {
           queue_depth: 2000,
