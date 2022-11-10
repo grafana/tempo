@@ -21,18 +21,18 @@ jobs:
 
             The next time this stale check runs, the stale label will be
             removed if there is new activity. The issue will be closed after 15
-            days if there is no new activity. Apply keepalive label to exempt this Issue.
+            days if there is no new activity.
 
-            Thank you for your contributions!
+            Please apply keepalive label to exempt this Issue.
           stale-pr-message: >
             This PR has been automatically marked as stale because it has not
             had any activity in the past 60 days.
 
             The next time this stale check runs, the stale label will be
             removed if there is new activity. This pull request will be closed in 15
-            days if there is no new activity. Apply keepalive label to exempt this PR.
+            days if there is no new activity.
 
-            Thank you for your contributions!
+            Please apply keepalive label to exempt this Pull Request.
           stale-issue-label: stale
           stale-pr-label: stale
           exempt-issue-labels: keepalive,dependencies,bug
