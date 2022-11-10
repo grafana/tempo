@@ -7,14 +7,14 @@ import (
 )
 
 type Config struct {
-	StorageAccountName string         `yaml:"storage-account-name"`
-	StorageAccountKey  flagext.Secret `yaml:"storage-account-key"`
-	UseManagedIdentity bool           `yaml:"use-managed-identity"`
-	UserAssignedID     string         `yaml:"user-assigned-id"`
-	ContainerName      string         `yaml:"container-name"`
-	Endpoint           string         `yaml:"endpoint-suffix"`
-	MaxBuffers         int            `yaml:"max-buffers"`
-	BufferSize         int            `yaml:"buffer-size"`
-	HedgeRequestsAt    time.Duration  `yaml:"hedge-requests-at"`
-	HedgeRequestsUpTo  int            `yaml:"hedge-requests-up-to"`
+	StorageAccountName string         `yaml:"storage_account_name"`
+	StorageAccountKey  flagext.Secret `yaml:"storage_account_key"`
+	UseManagedIdentity bool           `yaml:"use_managed_identity"`
+	UserAssignedID     string         `yaml:"user_assigned_id"`
+	ContainerName      string         `yaml:"container_name"`
+	Endpoint           string         `yaml:"endpoint_suffix"`
+	MaxBuffers         int            `yaml:"max_buffers"`
+	BufferSize         int            `yaml:"buffer_size"`
+	HedgeRequestsAt    time.Duration  `yaml:"hedge_requests_at"`
+	HedgeRequestsUpTo  int            `yaml:"hedge_requests_up_to"`
 }

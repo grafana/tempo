@@ -53,10 +53,10 @@ storage:
       path: /tmp/tempo/wal             # where to store the the wal locally
       encoding: snappy                 # wal encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
     azure:
-      container-name: tempo                    # how to store data in azure
-      endpoint-suffix: azurite:10000
-      storage-account-name: "devstoreaccount1" # Default Azurite storage account
-      storage-account-key: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==" # Default azurite sorage key
+      container_name: tempo            # how to store data in azure
+      endpoint_suffix: azurite:10000
+      storage_account_name: "devstoreaccount1" # Default Azurite storage account
+      storage_account_key: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==" # Default azurite sorage key
     pool:
       max_workers: 100                 # worker pool determines the number of parallel requests to the object store backend
       queue_depth: 10000
