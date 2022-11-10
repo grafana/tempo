@@ -1,4 +1,5 @@
 ## main / unreleased
+* [CHANGE] **BREAKING CHANGE** Use snake case on Azure Storage config [#1879](https://github.com/grafana/tempo/issues/1879) (@faustodavid)
 * [ENHANCEMENT] Support global and wildcard overrides in generic forwarder feature [#1871](https://github.com/grafana/tempo/pull/1871) (@Blinkuu)
 * [FEATURE] Add `/status/usage-stats` endpoint to show usage stats data [#1782](https://github.com/grafana/tempo/pull/1782) (@electron0zero)
 * [FEATURE] Add generic forwarder and implement otlpgrpc forwarder [#1775](https://github.com/grafana/tempo/pull/1775) (@Blinkuu)
