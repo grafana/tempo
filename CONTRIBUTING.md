@@ -124,6 +124,16 @@ make jsonnetfmt
 
 This requires `jsonnetfmt` binary in `$PATH`.
 
+### Compiling jsonnet
+
+To compile jsonnet files please run the following command
+
+```
+make jsonnet
+```
+
+This requires `jsonnet`, `jsonnet-bundler` and `tanka` binaries in `$PATH`.
+
 ## Documentation
 
 Tempo uses a CI action to sync documentation to the [Grafana website](https://grafana.com/docs/tempo/latest). The CI is
