@@ -13,6 +13,7 @@ jobs:
       - uses: actions/stale@v6.0.1
         with:
           close-issue-reason: not_planned
+          operations-per-run: 100
           days-before-stale: 60
           days-before-close: 15
           stale-issue-message: >
