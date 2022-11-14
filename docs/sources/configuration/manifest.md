@@ -447,7 +447,7 @@ storage:
       encoding: zstd
       search_encoding: snappy
       search_page_size_bytes: 1048576
-      row_group_size_bytes: 30000000
+      row_group_size_bytes: 100000000
     search:
       chunk_size_bytes: 1000000
       prefetch_trace_count: 1000
@@ -492,16 +492,16 @@ storage:
       storage_class: ""
       metadata: {}
     azure:
-      storage-account-name: ""
-      storage-account-key: ""
-      use-managed-identity: false
-      user-assigned-id: ""
-      container-name: ""
-      endpoint-suffix: blob.core.windows.net
-      max-buffers: 4
-      buffer-size: 3145728
-      hedge-requests-at: 0s
-      hedge-requests-up-to: 2
+      storage_account_name: ""
+      storage_account_key: ""
+      use_managed_identity: false
+      user_assigned_id: ""
+      container_name: ""
+      endpoint_suffix: blob.core.windows.net
+      max_buffers: 4
+      buffer_size: 3145728
+      hedge_requests_at: 0s
+      hedge_requests_up_to: 2
     cache: ""
     cache_min_compaction_level: 0
     cache_max_block_age: 0s

@@ -379,3 +379,9 @@ Displays the override configuration.
 
 Query parameter:
 - `mode = (diff)`: Show the difference between defaults and overrides.
+
+```
+GET /status/usage-stats
+```
+
+Displays anonymous usage stats data that is reported back to Grafana Labs.

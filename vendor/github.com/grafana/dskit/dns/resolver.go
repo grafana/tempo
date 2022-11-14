@@ -1,5 +1,6 @@
-// Copyright (c) The Thanos Authors.
-// Licensed under the Apache License 2.0.
+// Provenance-includes-location: https://github.com/thanos-io/thanos/blob/main/pkg/discovery/provider.go
+// Provenance-includes-license: Apache-2.0
+// Provenance-includes-copyright: The Thanos Authors.
 
 package dns
 
@@ -118,7 +119,7 @@ func (s *dnsSD) Resolve(ctx context.Context, name string, qtype QType) ([]string
 					return nil, errors.Wrapf(err, "lookup IP addresses %q", host)
 				}
 				if len(resIPs) == 0 {
-					level.Error(s.logger).Log("msg", "failed to lookup IP addresses", "host", host, "err", err)
+					level.Error(s.logger).Log("msg", "failed to lookup IP addresses", "srv", host, "a", rec.Target, "err", err)
 				}
 			}
 			for _, resIP := range resIPs {

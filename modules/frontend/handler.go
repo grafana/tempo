@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -59,7 +60,10 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	orgID, _ := user.ExtractOrgID(ctx)
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
-	f.queriesPerTenant.WithLabelValues(orgID).Inc()
+	var statusCode int
+	defer func(status int) {
+		f.queriesPerTenant.WithLabelValues(orgID, strconv.Itoa(status)).Inc()
+	}(statusCode)
 
 	// add orgid to existing spans
 	span := opentracing.SpanFromContext(r.Context())
@@ -69,6 +73,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := f.roundTripper.RoundTrip(r)
 	if err != nil {
+		statusCode = http.StatusInternalServerError
 		err = writeError(w, err)
 		level.Info(f.logger).Log(
 			"tenant", orgID,
@@ -77,13 +82,14 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"url", r.URL.RequestURI(),
 			"duration", time.Since(start).String(),
 			"response_size", 0,
-			"status", http.StatusInternalServerError,
+			"status", statusCode,
 			"err", err.Error(),
 		)
 		return
 	}
 
 	if resp == nil {
+		statusCode = http.StatusInternalServerError
 		err = writeError(w, errors.New(NilResponseError))
 		level.Info(f.logger).Log(
 			"tenant", orgID,
@@ -92,7 +98,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"url", r.URL.RequestURI(),
 			"duration", time.Since(start).String(),
 			"response_size", 0,
-			"status", http.StatusInternalServerError,
+			"status", statusCode,
 			"err", err.Error(),
 		)
 		return
@@ -106,7 +112,6 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// request/response logging
-	var statusCode int
 	var contentLength int64
 	if httpResp, ok := httpgrpc.HTTPResponseFromError(err); ok {
 		statusCode = int(httpResp.Code)

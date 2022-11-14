@@ -22,10 +22,63 @@ func MakeSpan(traceID []byte) *v1_trace.Span {
 			Code:    1,
 			Message: "OK",
 		},
-		StartTimeUnixNano: uint64(now.UnixNano()),
-		EndTimeUnixNano:   uint64(now.Add(time.Second).UnixNano()),
+		StartTimeUnixNano:      uint64(now.UnixNano()),
+		EndTimeUnixNano:        uint64(now.Add(time.Second).UnixNano()),
+		DroppedLinksCount:      rand.Uint32(),
+		DroppedAttributesCount: rand.Uint32(),
 	}
 	rand.Read(s.SpanId)
+
+	// add link
+	if rand.Intn(5) == 0 {
+		s.Links = append(s.Links, &v1_trace.Span_Link{
+			TraceId:    traceID,
+			SpanId:     make([]byte, 8),
+			TraceState: "state",
+			Attributes: []*v1_common.KeyValue{
+				{
+					Key: "linkkey",
+					Value: &v1_common.AnyValue{
+						Value: &v1_common.AnyValue_StringValue{
+							StringValue: "linkvalue",
+						},
+					},
+				},
+			},
+		})
+	}
+
+	// add attr
+	if rand.Intn(2) == 0 {
+		s.Attributes = append(s.Attributes, &v1_common.KeyValue{
+			Key: "key",
+			Value: &v1_common.AnyValue{
+				Value: &v1_common.AnyValue_StringValue{
+					StringValue: "value",
+				},
+			},
+		})
+	}
+
+	// add event
+	if rand.Intn(3) == 0 {
+		s.Events = append(s.Events, &v1_trace.Span_Event{
+			TimeUnixNano:           rand.Uint64(),
+			Name:                   "event",
+			DroppedAttributesCount: rand.Uint32(),
+			Attributes: []*v1_common.KeyValue{
+				{
+					Key: "eventkey",
+					Value: &v1_common.AnyValue{
+						Value: &v1_common.AnyValue_StringValue{
+							StringValue: "eventvalue",
+						},
+					},
+				},
+			},
+		})
+	}
+
 	return s
 }
 

@@ -66,21 +66,49 @@ func NewManager(cfgs ConfigList, logger log.Logger, overrides Overrides) (*Manag
 }
 
 func (m *Manager) ForTenant(tenantID string) List {
-	m.tenantToQueueListMu.RLock()
-	defer m.tenantToQueueListMu.RUnlock()
+	if len(m.forwarderNameToForwarder) < 1 || len(m.overrides.Forwarders(tenantID)) < 1 {
+		return nil
+	}
 
-	ql, found := m.tenantToQueueList[tenantID]
-	if !found {
+	ql, ok := m.getOrCreateQueueList(tenantID)
+	if !ok {
 		return nil
 	}
 
 	return ql.list
 }
 
-func (m *Manager) start(_ context.Context) error {
-	tenantToForwarderNames := m.readOverrides()
-	m.updateTenantToForwarderList(tenantToForwarderNames)
+func (m *Manager) getOrCreateQueueList(tenantID string) (*queueList, bool) {
+	ql, found := m.getQueueList(tenantID)
+	if found {
+		return ql, true
+	}
 
+	m.tenantToQueueListMu.Lock()
+	defer m.tenantToQueueListMu.Unlock()
+
+	forwarderNames := m.overrides.Forwarders(tenantID)
+	ql, err := newQueueList(m.logger, tenantID, forwarderNames, m.forwarderNameToForwarder)
+	if err != nil {
+		_ = level.Warn(m.logger).Log("msg", "failed to create queue list", "err", err)
+
+		return nil, false
+	}
+
+	m.tenantToQueueList[tenantID] = ql
+
+	return ql, true
+}
+
+func (m *Manager) getQueueList(tenantID string) (*queueList, bool) {
+	m.tenantToQueueListMu.RLock()
+	defer m.tenantToQueueListMu.RUnlock()
+
+	ql, found := m.tenantToQueueList[tenantID]
+	return ql, found
+}
+
+func (m *Manager) start(_ context.Context) error {
 	return nil
 }
 
@@ -97,7 +125,7 @@ func (m *Manager) run(ctx context.Context) error {
 
 			return nil
 		case <-ticker.C:
-			m.handleTick()
+			m.updateQueueLists()
 		}
 	}
 }
@@ -110,64 +138,32 @@ func (m *Manager) stop(err error) error {
 	return nil
 }
 
-func (m *Manager) handleTick() {
-	tenantToForwarderNames := m.readOverrides()
-	m.updateTenantToForwarderList(tenantToForwarderNames)
-}
-
-// readOverrides returns a mapping between tenant ID and a
-// list of requested forwarders.
-func (m *Manager) readOverrides() map[string][]string {
-	result := make(map[string][]string)
-
-	for _, tenantID := range m.overrides.TenantIDs() {
-		names := m.overrides.Forwarders(tenantID)
-		if len(names) < 1 {
-			continue
-		}
-
-		result[tenantID] = names
-	}
-
-	return result
-}
-
-func (m *Manager) updateTenantToForwarderList(tenantToForwarderNames map[string][]string) {
+func (m *Manager) updateQueueLists() {
 	m.tenantToQueueListMu.Lock()
 	defer m.tenantToQueueListMu.Unlock()
 
 	queueListsToAdd := make(map[string]*queueList)
-
-	for tenantID, forwarderNames := range tenantToForwarderNames {
-		if _, found := m.tenantToQueueList[tenantID]; !found {
-			queueListsToAdd[tenantID] = newQueueList(m.logger, tenantID, forwarderNames, m.forwarderNameToForwarder)
-		}
-	}
-
 	for tenantID, ql := range m.tenantToQueueList {
-		forwarderNames, found := tenantToForwarderNames[tenantID]
-		if !found {
-			go func(queueList *queueList) {
-				if err := queueList.shutdown(context.Background()); err != nil {
-					_ = level.Warn(m.logger).Log("msg", "failed to shutdown queue list", "tenantID", tenantID)
-				}
-			}(ql)
-
+		forwarderNames := m.overrides.Forwarders(tenantID)
+		if len(forwarderNames) < 1 {
+			go m.shutdownQueueList(tenantID, ql)
 			delete(m.tenantToQueueList, tenantID)
 
 			continue
 		}
 
 		if ql.shouldUpdate(forwarderNames) {
-			go func(queueList *queueList) {
-				if err := queueList.shutdown(context.Background()); err != nil {
-					_ = level.Warn(m.logger).Log("msg", "failed to shutdown queue list", "tenantID", tenantID)
-				}
-			}(ql)
-
+			go m.shutdownQueueList(tenantID, ql)
 			delete(m.tenantToQueueList, tenantID)
 
-			queueListsToAdd[tenantID] = newQueueList(m.logger, tenantID, forwarderNames, m.forwarderNameToForwarder)
+			newQl, err := newQueueList(m.logger, tenantID, forwarderNames, m.forwarderNameToForwarder)
+			if err != nil {
+				_ = level.Warn(m.logger).Log("msg", "failed to create queue list", "err", err)
+
+				continue
+			}
+
+			queueListsToAdd[tenantID] = newQl
 		}
 	}
 
@@ -203,6 +199,12 @@ func (m *Manager) shutdown() error {
 	return multierr.Combine(errs...)
 }
 
+func (m *Manager) shutdownQueueList(tenantID string, ql *queueList) {
+	if err := ql.shutdown(context.Background()); err != nil {
+		_ = level.Warn(m.logger).Log("msg", "failed to shutdown queue list", "tenantID", tenantID)
+	}
+}
+
 type queueList struct {
 	logger               log.Logger
 	tenantID             string
@@ -210,14 +212,13 @@ type queueList struct {
 	list                 List
 }
 
-func newQueueList(logger log.Logger, tenantID string, forwarderNames []string, forwarderNameToForwarder map[string]Forwarder) *queueList {
+func newQueueList(logger log.Logger, tenantID string, forwarderNames []string, forwarderNameToForwarder map[string]Forwarder) (*queueList, error) {
 	forwarderNameToQueue := make(map[string]*queue.Queue[ptrace.Traces], len(forwarderNames))
 	list := make(List, 0, len(forwarderNames))
 	for _, forwarderName := range forwarderNames {
 		forwarder, found := forwarderNameToForwarder[forwarderName]
 		if !found {
-			_ = level.Warn(logger).Log("msg", "failed to find forwarder by name", "forwarderName", forwarderName, "tenantID", tenantID)
-			continue
+			return nil, fmt.Errorf("failed to find forwarder by name: forwarderName=%s, tenantID=%s", forwarderName, tenantID)
 		}
 
 		queueCfg := queue.Config{
@@ -243,7 +244,7 @@ func newQueueList(logger log.Logger, tenantID string, forwarderNames []string, f
 		tenantID:             tenantID,
 		forwarderNameToQueue: forwarderNameToQueue,
 		list:                 list,
-	}
+	}, nil
 }
 
 func (l *queueList) shouldUpdate(forwarderNames []string) bool {

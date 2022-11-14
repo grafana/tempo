@@ -5,25 +5,6 @@
         name: 'tempo_alerts',
         rules: [
           {
-            alert: 'TempoRequestErrors',
-            expr: |||
-              100 * sum(rate(tempo_request_duration_seconds_count{status_code=~"5.."}[1m])) by (%(group_by_job)s, route)
-                /
-              sum(rate(tempo_request_duration_seconds_count[1m])) by (%(group_by_job)s, route)
-                > 10
-            ||| % $._config,
-            'for': '15m',
-            labels: {
-              severity: 'critical',
-            },
-            annotations: {
-              message: |||
-                {{ $labels.job }} {{ $labels.route }} is experiencing {{ printf "%.2f" $value }}% errors.
-              |||,
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoRequestErrors',
-            },
-          },
-          {
             alert: 'TempoRequestLatency',
             expr: |||
               %s_route:tempo_request_duration_seconds:99quantile{route!~"%s"} > %s

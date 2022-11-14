@@ -73,6 +73,7 @@ func TestPushQueryAllEncodings(t *testing.T) {
 					TraceID: traceID,
 				})
 				require.NoError(t, err, "unexpected error querying")
+				trace.SortTrace(foundTrace.Trace)
 				equal := proto.Equal(traces[i], foundTrace.Trace)
 				require.True(t, equal)
 			}
@@ -152,6 +153,7 @@ func TestWal(t *testing.T) {
 			TraceID: traceID,
 		})
 		require.NoError(t, err, "unexpected error querying")
+		trace.SortTrace(foundTrace.Trace)
 		equal := proto.Equal(traces[i], foundTrace.Trace)
 		require.True(t, equal)
 	}
@@ -307,6 +309,7 @@ func TestFlush(t *testing.T) {
 			TraceID: traceID,
 		})
 		require.NoError(t, err, "unexpected error querying")
+		trace.SortTrace(foundTrace.Trace)
 		equal := proto.Equal(traces[i], foundTrace.Trace)
 		require.True(t, equal)
 	}

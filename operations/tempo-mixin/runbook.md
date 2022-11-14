@@ -1,8 +1,7 @@
 # Runbook
 
-This document should help with remediating operational issues in Tempo.
+This document should help with remediation of operational issues in Tempo.
 
-## TempoRequestErrors
 ## TempoRequestLatency
 
 Aside from obvious errors in the logs the only real lever you can pull here is scaling.  Use the Reads or Writes dashboard
