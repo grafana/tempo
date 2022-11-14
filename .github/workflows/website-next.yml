@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'docs/tempo/website/**'
+      - 'docs/sources/**'
 
 jobs:
   # test:

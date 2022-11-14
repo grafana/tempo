@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/tempo/website/logo_and_name.png" alt="Tempo Logo"></p>
+<p align="center"><img src="docs/sources/logo_and_name.png" alt="Tempo Logo"></p>
 <p align="center">
   <a href="https://github.com/grafana/tempo/releases"><img src="https://img.shields.io/github/v/release/grafana/tempo?display_name=tag&sort=semver" alt="Latest Release"/></a>
   <img src="https://img.shields.io/github/license/grafana/tempo" alt="License" />
@@ -14,7 +14,7 @@ Grafana Tempo is an open source, easy-to-use and high-scale distributed tracing 
 
 Tempo is Jaeger, Zipkin, Kafka, OpenCensus and OpenTelemetry compatible.  It ingests batches in any of the mentioned formats, buffers them and then writes them to Azure, GCS, S3 or local disk.  As such it is robust, cheap and easy to operate!
 
-<p align="center"><img src="docs/tempo/website/getting-started/grafana-query.png" alt="Tempo Screenshot"></p>
+<p align="center"><img src="docs/sources/getting-started/grafana-query.png" alt="Tempo Screenshot"></p>
 
 
 ## Getting Started

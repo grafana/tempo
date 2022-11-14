@@ -8,7 +8,7 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
     paths:
-      - 'docs/tempo/website/**'
+      - 'docs/sources/**'
 
 jobs:
   sync:
