@@ -117,7 +117,7 @@ require (
 	github.com/weaveworks/promrus v1.2.0 // indirect
 	github.com/willf/bitset v1.1.11 // indirect
 	github.com/willf/bloom v2.0.3+incompatible // indirect
-	go.opencensus.io v0.23.0 // indirect
+	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector/pdata v0.57.2 // indirect
 	go.opentelemetry.io/collector/semconv v0.57.2 // indirect
 	go.opentelemetry.io/otel v1.10.0 // indirect
