@@ -29,6 +29,8 @@ var (
 type Processor struct {
 	Cfg Config
 
+	registry registry.Registry
+
 	spanMetricsCallsTotal      registry.Counter
 	spanMetricsDurationSeconds registry.Histogram
 	spanMetricsSizeTotal       registry.Counter
@@ -46,6 +48,7 @@ func New(cfg Config, registry registry.Registry) gen.Processor {
 
 	return &Processor{
 		Cfg:                        cfg,
+		registry:                   registry,
 		spanMetricsCallsTotal:      registry.NewCounter(metricCallsTotal, labels),
 		spanMetricsDurationSeconds: registry.NewHistogram(metricDurationSeconds, labels, cfg.HistogramBuckets),
 		spanMetricsSizeTotal:       registry.NewCounter(metricSizeTotal, labels),
@@ -98,7 +101,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 		labelValues = append(labelValues, value)
 	}
 
-	registryLabelValues := registry.NewLabelValues(labelValues)
+	registryLabelValues := p.registry.NewLabelValues(labelValues)
 
 	p.spanMetricsCallsTotal.Inc(registryLabelValues, 1)
 	p.spanMetricsSizeTotal.Inc(registryLabelValues, float64(span.Size()))
