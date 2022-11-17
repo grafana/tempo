@@ -36,13 +36,7 @@ func newLabelValues(values []string) *LabelValues {
 }
 
 func newLabelValuesWithMax(values []string, maxLengthLabelValue int) *LabelValues {
-	if maxLengthLabelValue > 0 {
-		for i, value := range values {
-			if len(value) > maxLengthLabelValue {
-				values[i] = value[:maxLengthLabelValue]
-			}
-		}
-	}
+	truncateLength(values, maxLengthLabelValue)
 	return newLabelValues(values)
 }
 

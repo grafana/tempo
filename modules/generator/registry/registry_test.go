@@ -190,6 +190,32 @@ func TestManagedRegistry_disableCollection(t *testing.T) {
 	assert.Empty(t, appender.exemplars)
 }
 
+func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		MaxLabelNameLength:  8,
+		MaxLabelValueLength: 5,
+	}
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	defer registry.Close()
+
+	counter := registry.NewCounter("counter", []string{"very_lengthy_label"})
+	histogram := registry.NewHistogram("histogram", []string{"another_very_lengthy_label"}, []float64{1.0})
+
+	counter.Inc(registry.NewLabelValues([]string{"very_length_value"}), 1.0)
+	histogram.ObserveWithExemplar(registry.NewLabelValues([]string{"another_very_lengthy_value"}), 1.0, "")
+
+	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "counter", "very_len": "very_", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_count", "another_": "anoth", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_sum", "another_": "anoth", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_bucket", "another_": "anoth", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_bucket", "another_": "anoth", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 0, 1.0),
+	}
+	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
+}
+
 func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender *capturingAppender, expectedSamples []sample) {
 	assert.Equal(t, uint32(len(expectedSamples)), r.activeSeries.Load())
 
