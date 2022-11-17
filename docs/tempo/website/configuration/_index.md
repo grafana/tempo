@@ -302,6 +302,9 @@ metrics_generator:
         # A list of labels that will be added to all generated metrics.
         [external_labels: <map>]
 
+        # The maximum length of label values. Label values exceeding this limit will be truncated.
+        [max_label_value_length: <int> | default = 2048]
+
     # Storage and remote write configuration
     storage:
 

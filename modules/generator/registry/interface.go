@@ -2,6 +2,7 @@ package registry
 
 // Registry is a metrics store.
 type Registry interface {
+	NewLabelValues(values []string) *LabelValues
 	NewCounter(name string, labels []string) Counter
 	NewHistogram(name string, labels []string, buckets []float64) Histogram
 }
@@ -27,11 +28,22 @@ type LabelValues struct {
 	hash   uint64
 }
 
-func NewLabelValues(values []string) *LabelValues {
+func newLabelValues(values []string) *LabelValues {
 	return &LabelValues{
 		values: values,
 		hash:   0,
 	}
+}
+
+func newLabelValuesWithMax(values []string, maxLengthLabelValue int) *LabelValues {
+	if maxLengthLabelValue > 0 {
+		for i, value := range values {
+			if len(value) > maxLengthLabelValue {
+				values[i] = value[:maxLengthLabelValue]
+			}
+		}
+	}
+	return newLabelValues(values)
 }
 
 func (l *LabelValues) getValues() []string {

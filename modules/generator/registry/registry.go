@@ -125,6 +125,10 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 	return r
 }
 
+func (r *ManagedRegistry) NewLabelValues(values []string) *LabelValues {
+	return newLabelValuesWithMax(values, r.cfg.MaxLabelValueLength)
+}
+
 func (r *ManagedRegistry) NewCounter(name string, labels []string) Counter {
 	c := newCounter(name, labels, r.onAddMetricSeries, r.onRemoveMetricSeries)
 	r.registerMetric(c)

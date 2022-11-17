@@ -61,7 +61,7 @@ func TestManagedRegistry_counter(t *testing.T) {
 
 	counter := registry.NewCounter("my_counter", []string{"label"})
 
-	counter.Inc(NewLabelValues([]string{"value-1"}), 1.0)
+	counter.Inc(newLabelValues([]string{"value-1"}), 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
@@ -77,7 +77,7 @@ func TestManagedRegistry_histogram(t *testing.T) {
 
 	histogram := registry.NewHistogram("histogram", []string{"label"}, []float64{1.0, 2.0})
 
-	histogram.ObserveWithExemplar(NewLabelValues([]string{"value-1"}), 1.0, "")
+	histogram.ObserveWithExemplar(newLabelValues([]string{"value-1"}), 1.0, "")
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
@@ -158,9 +158,9 @@ func TestManagedRegistry_maxSeries(t *testing.T) {
 	counter1 := registry.NewCounter("metric_1", []string{"label"})
 	counter2 := registry.NewCounter("metric_2", nil)
 
-	counter1.Inc(NewLabelValues([]string{"value-1"}), 1.0)
+	counter1.Inc(newLabelValues([]string{"value-1"}), 1.0)
 	// these series should be discarded
-	counter1.Inc(NewLabelValues([]string{"value-2"}), 1.0)
+	counter1.Inc(newLabelValues([]string{"value-2"}), 1.0)
 	counter2.Inc(nil, 1.0)
 
 	assert.Equal(t, uint32(1), registry.activeSeries.Load())
