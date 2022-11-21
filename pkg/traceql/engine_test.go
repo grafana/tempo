@@ -282,6 +282,12 @@ func newCondition(attr Attribute, op Operator, operands ...Static) Condition {
 	}
 }
 
+func TestUnixSecToNano(t *testing.T) {
+	now := time.Now()
+	// tolerate delta's up to 1 second
+	assert.InDelta(t, uint64(now.UnixNano()), unixSecToNano(uint32(now.Unix())), float64(time.Second.Nanoseconds()))
+}
+
 func TestStatic_AsAnyValue(t *testing.T) {
 	tt := []struct {
 		s        Static

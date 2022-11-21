@@ -106,8 +106,8 @@ func (e *Engine) createFetchSpansRequest(searchReq *tempopb.SearchRequest, pipel
 	// TODO handle SearchRequest.MinDurationMs and MaxDurationMs, this refers to the trace level duration which is not the same as the intrinsic duration
 
 	req := FetchSpansRequest{
-		StartTimeUnixNanos: unixMilliToNano(searchReq.Start),
-		EndTimeUnixNanos:   unixMilliToNano(searchReq.End),
+		StartTimeUnixNanos: unixSecToNano(searchReq.Start),
+		EndTimeUnixNanos:   unixSecToNano(searchReq.End),
 		Conditions:         nil,
 		AllConditions:      true,
 	}
@@ -165,8 +165,8 @@ func (e *Engine) asTraceSearchMetadata(spanset Spanset) *tempopb.TraceSearchMeta
 	return metadata
 }
 
-func unixMilliToNano(ts uint32) uint64 {
-	return uint64(ts) * 1000
+func unixSecToNano(ts uint32) uint64 {
+	return uint64(ts) * 1_000_000_000
 }
 
 func (s Static) asAnyValue() *common_v1.AnyValue {
