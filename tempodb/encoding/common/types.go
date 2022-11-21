@@ -42,3 +42,7 @@ func (m *IDMap) Has(id ID) bool {
 	_, ok := m.m[m.tokenFor(id)]
 	return ok
 }
+
+func (m *IDMap) Len() int {
+	return len(m.m)
+}

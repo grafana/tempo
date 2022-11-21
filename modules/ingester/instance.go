@@ -241,6 +241,11 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	tracesToCut := i.tracesToCut(cutoff, immediate)
 	segmentDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
+	// Sort by ID
+	sort.Slice(tracesToCut, func(i, j int) bool {
+		return bytes.Compare(tracesToCut[i].traceID, tracesToCut[j].traceID) == -1
+	})
+
 	for _, t := range tracesToCut {
 		// sort batches before cutting to reduce combinations during compaction
 		sortByteSlices(t.batches)

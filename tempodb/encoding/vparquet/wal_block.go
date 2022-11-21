@@ -1,7 +1,6 @@
 package vparquet
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,7 +8,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -27,22 +25,6 @@ import (
 )
 
 var _ common.WALBlock = (*walBlock)(nil)
-
-var sharedPool = sync.Pool{}
-
-func getPooledTrace() *Trace {
-	o := sharedPool.Get()
-
-	if o == nil {
-		return &Trace{}
-	}
-
-	return o.(*Trace)
-}
-
-func putPooledTrace(tr *Trace) {
-	sharedPool.Put(tr)
-}
 
 // path + filename = folder to create
 //   path/folder/00001
@@ -92,6 +74,16 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 
 	for _, f := range files {
 		if f.Name() == backend.MetaName {
+			continue
+		}
+
+		// Ignore 0-byte files which are pages that were
+		// opened but not flushed.
+		i, err := f.Info()
+		if err != nil {
+			return nil, nil, fmt.Errorf("error getting file info: %s %w", f.Name(), err)
+		}
+		if i.Size() == 0 {
 			continue
 		}
 
@@ -161,7 +153,9 @@ func createWALBlock(id uuid.UUID, tenantID string, filepath string, _ backend.En
 	}
 	b.decoder = dec
 
-	return b, nil
+	err = b.openWriter()
+
+	return b, err
 }
 
 func ownsWALBlock(entry fs.DirEntry) bool {
@@ -189,16 +183,16 @@ type walBlock struct {
 	ingestionSlack time.Duration
 
 	// Unflushed data
-	traces        []*Trace
+	buffer        *Trace
 	ids           *common.IDMap
+	file          *os.File
+	writer        *parquet.GenericWriter[*Trace]
+	decoder       model.ObjectDecoder
 	unflushedSize int64
 
 	// Flushed data
 	flushed     []*walBlockFlush
 	flushedSize int64
-
-	writer  *parquet.GenericWriter[*Trace]
-	decoder model.ObjectDecoder
 }
 
 func (b *walBlock) BlockMeta() *backend.BlockMeta {
@@ -216,14 +210,17 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 		return fmt.Errorf("error preparing trace for read: %w", err)
 	}
 
-	tr := traceToParquet(id, trace, getPooledTrace())
+	b.buffer = traceToParquet(id, trace, b.buffer)
 
 	start, end = b.adjustTimeRangeForSlack(start, end, 0)
 
-	b.meta.ObjectAdded(id, start, end)
-
 	// add to current
-	b.traces = append(b.traces, tr)
+	_, err = b.writer.Write([]*Trace{b.buffer})
+	if err != nil {
+		return fmt.Errorf("error writing row: %w", err)
+	}
+
+	b.meta.ObjectAdded(id, start, end)
 	b.ids.Set(id)
 
 	// This is actually the protobuf size but close enough
@@ -255,9 +252,29 @@ func (b *walBlock) adjustTimeRangeForSlack(start uint32, end uint32, additionalS
 	return start, end
 }
 
+func (b *walBlock) openWriter() (err error) {
+
+	nextFile := len(b.flushed) + 1
+	filename := fmt.Sprintf("%010d", nextFile)
+	filename = filepath.Join(b.walPath(), filename)
+
+	b.file, err = os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("error opening file: %w", err)
+	}
+
+	if b.writer == nil {
+		b.writer = parquet.NewGenericWriter[*Trace](b.file)
+	} else {
+		b.writer.Reset(b.file)
+	}
+
+	return nil
+}
+
 func (b *walBlock) Flush() (err error) {
 
-	if len(b.traces) == 0 {
+	if b.ids.Len() == 0 {
 		return nil
 	}
 
@@ -274,51 +291,20 @@ func (b *walBlock) Flush() (err error) {
 		return fmt.Errorf("error writing meta json: %w", err)
 	}
 
-	nextFile := len(b.flushed) + 1
-	filename := fmt.Sprintf("%010d", nextFile)
-	filename = filepath.Join(b.walPath(), filename)
-
-	// Sort currently buffered data by trace ID
-	sort.Slice(b.traces, func(i, j int) bool {
-		return bytes.Compare(b.traces[i].TraceID, b.traces[j].TraceID) == -1
-	})
-
-	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return fmt.Errorf("error opening file: %w", err)
-	}
-	defer file.Close()
-
-	if b.writer == nil {
-		b.writer = parquet.NewGenericWriter[*Trace](file)
-	} else {
-		b.writer.Reset(file)
-	}
-
-	_, err = b.writer.Write(b.traces)
-	if err != nil {
-		return fmt.Errorf("error writing row: %w", err)
-	}
-
+	// Now flush/close current writer
 	err = b.writer.Close()
 	if err != nil {
 		return fmt.Errorf("error closing writer: %w", err)
 	}
-	err = file.Close()
+
+	err = b.file.Close()
 	if err != nil {
 		return fmt.Errorf("error closing file: %w", err)
 	}
 
-	// Clear/repool current buffers
-	for i := range b.traces {
-		putPooledTrace(b.traces[i])
-		b.traces[i] = nil
-	}
-	b.traces = b.traces[:0]
-
-	pf, sz, err := openLocalParquetFile(filename)
+	pf, sz, err := openLocalParquetFile(b.file.Name())
 	if err != nil {
-		return fmt.Errorf("error opening local file [%s]: %w", filename, err)
+		return fmt.Errorf("error opening local file [%s]: %w", b.file.Name(), err)
 	}
 
 	b.flushed = append(b.flushed, &walBlockFlush{
@@ -329,7 +315,8 @@ func (b *walBlock) Flush() (err error) {
 	b.unflushedSize = 0
 	b.ids = common.NewIDMap()
 
-	return nil
+	// Open next one
+	return b.openWriter()
 }
 
 // DataLength returns estimated size of WAL files on disk. Used for
