@@ -1,0 +1,12 @@
+---
+exclusions:
+  target-promql-rule:
+    reason: The linter does not yet support panel reference targets. See grafana/dashboard-linter#59
+    entries:
+    - dashboard: AWX
+      panel: License Type
+    - dashboard: AWX
+      panel: License Expiry
+    - dashboard: AWX
+      panel: Tower Base URL
+

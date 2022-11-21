@@ -1,0 +1,11 @@
+exclusions:
+  # Previous version of dashboard-linter
+  panel-job-instance-rule:
+    reason: "Job label is named scrape_job and is being used."
+  # Newer version of dashboard-linter  
+  target-job-rule:
+    reason: "Job label is named scrape_job and is being used."
+  template-instance-rule:
+    reason: The dashboard is based on data scraped from a public API, and therefore will only ever have one instance.
+  target-instance-rule:
+    reason: The dashboard is based on data scraped from a public API, and therefore will only ever have one instance.

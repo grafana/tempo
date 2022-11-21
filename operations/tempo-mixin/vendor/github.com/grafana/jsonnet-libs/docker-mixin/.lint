@@ -1,0 +1,7 @@
+exclusions:
+  template-job-rule:
+    reason: "Prometheus datasource variable is being named as prometheus_datasource now while linter expects 'datasource'"
+  panel-datasource-rule:
+    reason: "Prometheus datasource variable is being named as prometheus_datasource now while linter expects 'datasource'"
+  template-datasource-rule:
+    reason: "Based on new convention we are using variable names prometheus_datasource and loki_datasource where as linter expects 'datasource'"

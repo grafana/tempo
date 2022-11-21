@@ -1,0 +1,49 @@
+groups:
+- name: ClusterAlerts
+  rules:
+  - alert: RabbitmqMemoryHigh
+    expr: rabbitmq_process_resident_memory_bytes / rabbitmq_resident_memory_limit_bytes * 100 > 90
+    for: 2m
+    labels:
+      severity: 'warning'
+    annotations:
+      title: 'Instance {{ $labels.instance }} using too much RAM Memory'
+      summary: Rabbitmq memory high (instance {{ $labels.instance }})
+      description: "A node is using more than 90% of allocated RAM\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  - alert: RabbitmqFileDescriptorsUsage
+    expr: rabbitmq_process_open_fds / rabbitmq_process_max_fds * 100 > 90
+    for: 2m
+    labels:
+      severity: 'warning'
+    annotations:
+      title: 'Instance {{ $labels.instance }} using too much file descriptors'
+      summary: 'Rabbitmq file descriptors usage (instance {{ $labels.instance }})'
+      description: 'A node is using more than 90% of file descriptors\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}'      
+  
+  - alert: RabbitmqUnroutableMessages
+    expr: increase(rabbitmq_channel_messages_unroutable_returned_total[1m]) > 0 or increase(rabbitmq_channel_messages_unroutable_dropped_total[1m]) > 0
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: Rabbitmq unroutable messages (instance {{ $labels.instance }})
+      description: "A queue has unroutable messages\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+  
+  - alert: RabbitmqNodeNotDistributed
+    expr: erlang_vm_dist_node_state < 3
+    for: 0m
+    labels:
+      severity: critical
+    annotations:
+      summary: Rabbitmq node not distributed (instance {{ $labels.instance }})
+      description: "Distribution link state is not 'up'\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+  
+  - alert: RabbitmqNodeDown
+    expr: sum by (rabbitmq_cluster) (rabbitmq_identity_info)
+    for: 0m
+    labels:
+      severity: critical
+    annotations:
+      summary: Rabbitmq node down (instance {{ $labels.instance }})
+      description: "Less than 3 nodes running in RabbitMQ cluster\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"

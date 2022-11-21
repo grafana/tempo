@@ -1,0 +1,1640 @@
+{
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "7.4.0"
+    },
+    {
+      "type": "panel",
+      "id": "grafana-worldmap-panel",
+      "name": "Worldmap Panel",
+      "version": "0.3.2"
+    },
+    {
+      "type": "panel",
+      "id": "graph",
+      "name": "Graph",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "logs",
+      "name": "Logs",
+      "version": ""
+    },
+    {
+      "type": "datasource",
+      "id": "loki",
+      "name": "Loki",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Loki v2+ showcase using JSON NGINX access logs.",
+  "editable": true,
+  "gnetId": 12559,
+  "graphTooltip": 0,
+  "id": null,
+  "iteration": 1613040868231,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "datasource": "$datasource",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 24,
+      "panels": [],
+      "title": "KPI's",
+      "type": "row"
+    },
+    {
+      "datasource": "$datasource",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 0,
+        "y": 1
+      },
+      "hideTimeOverride": false,
+      "id": 4,
+      "interval": null,
+      "maxDataPoints": 300,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "value"
+      },
+      "pluginVersion": "7.4.0",
+      "targets": [
+        {
+          "expr": "sum by($label_name) (count_over_time({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"}[$__interval]))  ",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "timeFrom": "24h",
+      "timeShift": null,
+      "title": "Total requests  ",
+      "transformations": [],
+      "type": "stat"
+    },
+    {
+      "datasource": "$datasource",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "light-blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 5,
+        "y": 1
+      },
+      "id": 5,
+      "interval": null,
+      "maxDataPoints": 200,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "7.4.0",
+      "targets": [
+        {
+          "expr": "sum by (status) (count_over_time({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} | json |  __error__=\"\" [$__interval]))",
+          "instant": false,
+          "legendFormat": "HTTP Status: {{status}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Requests per status code",
+      "transformations": [],
+      "type": "stat"
+    },
+    {
+      "cacheTimeout": null,
+      "datasource": "$datasource",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {},
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 13,
+        "y": 1
+      },
+      "hideTimeOverride": true,
+      "id": 19,
+      "interval": null,
+      "links": [],
+      "maxDataPoints": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "max"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "value"
+      },
+      "pluginVersion": "7.4.0",
+      "targets": [
+        {
+          "expr": "sum(count_over_time({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} | json | status >= 500 |__error__=\"\"[$__interval])) / (sum(count_over_time({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} | json | __error__=\"\"[$__interval]))/ 100)",
+          "instant": false,
+          "legendFormat": "",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "timeFrom": "1h",
+      "timeShift": null,
+      "title": "% of 5xx requests ",
+      "type": "stat"
+    },
+    {
+      "cacheTimeout": null,
+      "datasource": "$datasource",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 16,
+        "y": 1
+      },
+      "hideTimeOverride": true,
+      "id": 18,
+      "interval": "10m",
+      "links": [],
+      "maxDataPoints": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "value"
+      },
+      "pluginVersion": "7.4.0",
+      "targets": [
+        {
+          "expr": " sum(count_over_time(({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} |= \"Googlebot\")[$__interval])) / (sum(count_over_time(({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} != \"Googlebot\")[$__interval])) / 100)",
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "timeFrom": "1h",
+      "timeShift": null,
+      "title": "% of requests by Googlebot",
+      "type": "stat"
+    },
+    {
+      "datasource": "$datasource",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {},
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "semi-dark-orange",
+                "value": null
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 19,
+        "y": 1
+      },
+      "id": 30,
+      "interval": null,
+      "maxDataPoints": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "7.4.0",
+      "targets": [
+        {
+          "expr": "bytes_over_time({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"}[$__interval])",
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "NGINX logs queried for this period in bytes",
+      "type": "stat"
+    },
+    {
+      "datasource": "$datasource",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 0,
+        "y": 5
+      },
+      "id": 22,
+      "interval": "5m",
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "mean"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "value"
+      },
+      "pluginVersion": "7.4.0",
+      "targets": [
+        {
+          "expr": "count(sum by (remote_addr) (count_over_time({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} | json |  __error__=\"\" [$__interval])))",
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "timeFrom": "5m",
+      "timeShift": null,
+      "title": "Unique users right now",
+      "transformations": [],
+      "type": "stat"
+    },
+    {
+      "datasource": "$datasource",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 13,
+        "y": 5
+      },
+      "id": 8,
+      "interval": null,
+      "maxDataPoints": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "value"
+      },
+      "pluginVersion": "7.4.0",
+      "targets": [
+        {
+          "expr": "sum by ($label_name) (sum_over_time({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} | json | unwrap body_bytes_sent |  __error__=\"\" [$__interval]))",
+          "instant": true,
+          "legendFormat": "Bytes sent",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Total Bytes Sent",
+      "transformations": [],
+      "type": "stat"
+    },
+    {
+      "datasource": "$datasource",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {},
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "semi-dark-orange",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 19,
+        "y": 5
+      },
+      "id": 31,
+      "interval": null,
+      "maxDataPoints": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "7.4.0",
+      "targets": [
+        {
+          "expr": "count_over_time({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"}[$__interval])",
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "# NGINX log lines queried for this period",
+      "type": "stat"
+    },
+    {
+      "circleMaxSize": "50",
+      "circleMinSize": "15",
+      "colors": [
+        "#96D98D",
+        "#37872D",
+        "#19730E"
+      ],
+      "datasource": "$datasource",
+      "decimals": null,
+      "description": "",
+      "esMetric": "Count",
+      "fieldConfig": {
+        "defaults": {
+          "color": {},
+          "custom": {},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": []
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 15,
+        "x": 0,
+        "y": 9
+      },
+      "hideEmpty": false,
+      "hideZero": false,
+      "id": 14,
+      "initialZoom": "2",
+      "interval": null,
+      "locationData": "countries",
+      "mapCenter": "(0°, 0°)",
+      "mapCenterLatitude": 0,
+      "mapCenterLongitude": 0,
+      "maxDataPoints": 1,
+      "mouseWheelZoom": false,
+      "pluginVersion": "7.4.0",
+      "showLegend": true,
+      "stickyLabels": true,
+      "tableQueryOptions": {
+        "geohashField": "geohash",
+        "latitudeField": "latitude",
+        "longitudeField": "longitude",
+        "metricField": "metric",
+        "queryType": "geohash"
+      },
+      "targets": [
+        {
+          "expr": "sum by (geoip_country_code) (count_over_time({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} | json | geoip_country_code != \"\" | __error__=\"\" [$__interval]))",
+          "instant": false,
+          "legendFormat": "{{geoip_country_code}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "thresholds": "5,10",
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Requests per Country",
+      "transformations": [],
+      "type": "grafana-worldmap-panel",
+      "unitPlural": "",
+      "unitSingle": "",
+      "valueName": "total"
+    },
+    {
+      "datasource": "$datasource",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 9,
+        "x": 15,
+        "y": 9
+      },
+      "id": 11,
+      "options": {
+        "showLabels": false,
+        "showTime": false,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "targets": [
+        {
+          "expr": "{$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} | json | line_format \"request for {{.request_uri}} with HTTP status: {{.status}} \"",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Recent requests",
+      "type": "logs"
+    },
+    {
+      "collapsed": false,
+      "datasource": "$datasource",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "id": 26,
+      "panels": [],
+      "title": "Request statistics over time",
+      "type": "row"
+    },
+    {
+      "aliasColors": {
+        "95th percentile": "blue",
+        "max latency": "super-light-blue"
+      },
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$datasource",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "fill": 5,
+      "fillGradient": 9,
+      "gridPos": {
+        "h": 9,
+        "w": 7,
+        "x": 0,
+        "y": 20
+      },
+      "hiddenSeries": false,
+      "id": 16,
+      "interval": null,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "maxDataPoints": null,
+      "nullPointMode": "connected",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "7.4.0",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [
+        {
+          "$$hashKey": "object:232",
+          "alias": "max latency",
+          "dashes": true,
+          "fillGradient": 3
+        }
+      ],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "quantile_over_time(0.95,{$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} | json | unwrap request_time |  __error__=\"\"  [$__interval]) by ($label_name)",
+          "legendFormat": "95th percentile",
+          "refId": "C"
+        },
+        {
+          "expr": "max by ($label_name) (max_over_time({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} | json | unwrap request_time |  __error__=\"\"  [$__interval]))",
+          "legendFormat": "max latency",
+          "refId": "D"
+        }
+      ],
+      "thresholds": [
+        {
+          "$$hashKey": "object:168",
+          "colorMode": "critical",
+          "fill": true,
+          "line": true,
+          "op": "gt",
+          "value": 0.3,
+          "yaxis": "left"
+        }
+      ],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "95th percentile of Request Time",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:178",
+          "format": "s",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "$$hashKey": "object:179",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {
+        "HTTP Status 500": "red",
+        "{statuscode=\"200\"} 200": "green",
+        "{statuscode=\"404\"} 404": "semi-dark-purple",
+        "{statuscode=\"500\"} 500": "dark-red"
+      },
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$datasource",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 10,
+      "gridPos": {
+        "h": 9,
+        "w": 9,
+        "x": 7,
+        "y": 20
+      },
+      "hiddenSeries": false,
+      "id": 2,
+      "interval": null,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "maxDataPoints": 150,
+      "nullPointMode": "null as zero",
+      "options": {
+        "alertThreshold": false
+      },
+      "percentage": false,
+      "pluginVersion": "7.4.0",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "sum by (status) (count_over_time({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} | json |  __error__=\"\" [$__interval]))",
+          "legendFormat": "HTTP Status {{status}}",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "HTTP status codes over time",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "Time",
+                "HTTP Status 200",
+                "HTTP Status 301",
+                "HTTP Status 304",
+                "HTTP Status 404",
+                "HTTP Status 406",
+                "HTTP Status 500"
+              ]
+            }
+          }
+        }
+      ],
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:271",
+          "decimals": 0,
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "$$hashKey": "object:272",
+          "decimals": null,
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": "0",
+          "min": "100",
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {
+        "Bytes sent": "light-blue",
+        "appfelstrudel": "yellow"
+      },
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$datasource",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "fill": 8,
+      "fillGradient": 10,
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 20
+      },
+      "hiddenSeries": false,
+      "id": 9,
+      "interval": null,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "connected",
+      "options": {
+        "alertThreshold": false
+      },
+      "percentage": false,
+      "pluginVersion": "7.4.0",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "sum by ($label_name) (sum_over_time({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} | json | status=200 | unwrap body_bytes_sent |  __error__=\"\" [$__interval]))",
+          "legendFormat": "Bytes sent",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Bytes Sent",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "transformations": [],
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:72",
+          "format": "decbytes",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "$$hashKey": "object:73",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "collapsed": false,
+      "datasource": "$datasource",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "id": 28,
+      "panels": [],
+      "title": "Acquisition and Behaviour",
+      "type": "row"
+    },
+    {
+      "datasource": "$datasource",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": null,
+            "filterable": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requests"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "gradient-gauge"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-BlPu"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requests"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 300
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 9,
+        "x": 0,
+        "y": 30
+      },
+      "id": 6,
+      "interval": null,
+      "maxDataPoints": 1,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Requests"
+          }
+        ]
+      },
+      "pluginVersion": "7.4.0",
+      "targets": [
+        {
+          "expr": "topk(100, sum by (http_referer) (count_over_time({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} | json |  http_referer != \"\" and http_referer !~ \".*?\\\\*\\\\*\\\\*.*?\" | __error__=\"\" [$__interval])))",
+          "instant": true,
+          "legendFormat": "{{http_referer}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Top HTTP Referers",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {},
+            "renameByName": {
+              "Field": "Referer",
+              "Total": "Requests",
+              "Value #A": "Requests",
+              "http_referer": "HTTP Referrer"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": "$datasource",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": null,
+            "filterable": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requests"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 300
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "gradient-gauge"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-BlPu"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 15,
+        "x": 9,
+        "y": 30
+      },
+      "id": 7,
+      "interval": null,
+      "maxDataPoints": 1,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Requests"
+          }
+        ]
+      },
+      "pluginVersion": "7.4.0",
+      "targets": [
+        {
+          "expr": "topk(100, sum by (http_user_agent) (count_over_time({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} | json |  __error__=\"\" [$__interval])))",
+          "instant": true,
+          "legendFormat": "{{http_user_agent}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Top User Agents",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Field": false,
+              "Time": true
+            },
+            "indexByName": {},
+            "renameByName": {
+              "Field": "Agent",
+              "Total": "Requests",
+              "Value #A": "Requests",
+              "http_user_agent": "User agent"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": "$datasource",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": null,
+            "filterable": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requests"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 300
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "gradient-gauge"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-BlPu"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 9,
+        "x": 0,
+        "y": 36
+      },
+      "id": 3,
+      "interval": null,
+      "maxDataPoints": 1,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Requests"
+          }
+        ]
+      },
+      "pluginVersion": "7.4.0",
+      "targets": [
+        {
+          "expr": "topk(100, sum by (remote_addr, geoip_country_code) (count_over_time({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} | json |  __error__=\"\" [$__interval])))",
+          "instant": true,
+          "legendFormat": "{{remote_addr}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Top IPs",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Field": false,
+              "Time": true
+            },
+            "indexByName": {
+              "Time": 0,
+              "Value #A": 3,
+              "geoip_country_code": 2,
+              "remote_addr": 1
+            },
+            "renameByName": {
+              "Field": "IP Address",
+              "Total": "Requests",
+              "Value #A": "Requests",
+              "geoip_country_code": "Country",
+              "remote_addr": "IP Address "
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": "$datasource",
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": null,
+            "filterable": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requests"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 300
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "gradient-gauge"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-BlPu"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 15,
+        "x": 9,
+        "y": 36
+      },
+      "id": 12,
+      "interval": null,
+      "maxDataPoints": 1,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Requests"
+          }
+        ]
+      },
+      "pluginVersion": "7.4.0",
+      "targets": [
+        {
+          "expr": "topk(300, sum by (request_uri) (count_over_time({$label_name=~\"$label_value\", job=~\"$job\", instance=~\"$instance\"} !~ `\\.ico|\\.svg|\\.css|\\.png|\\.txt|\\.js|\\.xml` | json | status = 200 and request_uri != \"/\" | __error__=\"\" [$__interval])))",
+          "instant": true,
+          "legendFormat": "{{request_uri}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Top Requested Pages",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {},
+            "renameByName": {
+              "Field": "Page",
+              "Time": "",
+              "Total": "",
+              "Value #A": "Requests",
+              "request_uri": "Path"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "refresh": false,
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "loki",
+          "value": "loki"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Data Source",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "loki",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "allValue": null,
+        "current": {},
+        "datasource": "$datasource",
+        "definition": "label_names()",
+        "description": null,
+        "error": null,
+        "hide": 0,
+        "includeAll": false,
+        "label": "label_name",
+        "multi": false,
+        "name": "label_name",
+        "options": [],
+        "query": "label_names()",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "tagValuesQuery": "",
+        "tags": [],
+        "tagsQuery": "",
+        "type": "query",
+        "useTags": false
+      },
+      {
+        "allValue": null,
+        "current": {},
+        "datasource": "$datasource",
+        "definition": "label_values($label_name)",
+        "description": null,
+        "error": null,
+        "hide": 0,
+        "includeAll": true,
+        "label": "label_value",
+        "multi": true,
+        "name": "label_value",
+        "options": [],
+        "query": "label_values($label_name)",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "tagValuesQuery": "",
+        "tags": [],
+        "tagsQuery": "",
+        "type": "query",
+        "useTags": false
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": "$datasource",
+        "definition": "label_values({$label_name=~\"$label_value\"}, job)",
+        "description": null,
+        "error": null,
+        "hide": 0,
+        "includeAll": true,
+        "label": "job",
+        "multi": true,
+        "name": "job",
+        "options": [],
+        "query": "label_values({$label_name=~\"$label_value\"}, job)",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "tagValuesQuery": "",
+        "tags": [],
+        "tagsQuery": "",
+        "type": "query",
+        "useTags": false
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": "$datasource",
+        "definition": "label_values({$label_name=~\"$label_value\"}, instance)",
+        "description": null,
+        "error": null,
+        "hide": 0,
+        "includeAll": true,
+        "label": "instance",
+        "multi": true,
+        "name": "instance",
+        "options": [],
+        "query": "label_values({$label_name=~\"$label_value\"}, instance)",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "tagValuesQuery": "",
+        "tags": [],
+        "tagsQuery": "",
+        "type": "query",
+        "useTags": false
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
+  "timezone": "",
+  "title": "Loki v2 Web Analytics Dashboard for NGINX",
+  "uid": "Nz6kKgtGj",
+  "version": 46
+}
