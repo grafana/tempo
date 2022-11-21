@@ -139,7 +139,7 @@ func (w *WAL) RescanBlocks(additionalStartSlack time.Duration, log log.Logger) (
 		}
 
 		if remove {
-			err = os.RemoveAll(filepath.Join(w.c.Filepath, f.Name())) // jpe: handle vparquet wal folders
+			err = os.RemoveAll(filepath.Join(w.c.Filepath, f.Name()))
 			if err != nil {
 				return nil, err
 			}
