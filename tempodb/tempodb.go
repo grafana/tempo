@@ -494,6 +494,8 @@ func (rw *readerWriter) getWriterForBlock(meta *backend.BlockMeta, curTime time.
 
 // includeBlock indicates whether a given block should be included in a backend search
 func includeBlock(b *backend.BlockMeta, id common.ID, blockStart []byte, blockEnd []byte, timeStart int64, timeEnd int64) bool {
+	// todo: restore this functionality once it works. min/max ids are currently not recorded
+	//  correctly in a block
 	// if bytes.Compare(id, b.MinID) == -1 || bytes.Compare(id, b.MaxID) == 1 {
 	// 	return false
 	// }

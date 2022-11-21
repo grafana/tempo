@@ -90,8 +90,9 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 
 	// Cache of row group bounds
 	rowGroupMins := make([]common.ID, numRowGroups+1)
-	rowGroupMins[0] = b.meta.MinID
-	rowGroupMins[numRowGroups] = b.meta.MaxID // This is actually inclusive and the logic is special for the last row group below
+	// todo: restore using meta min/max id once it works
+	rowGroupMins[0] = bytes.Repeat([]byte{0}, 16)
+	rowGroupMins[numRowGroups] = bytes.Repeat([]byte{255}, 16) // This is actually inclusive and the logic is special for the last row group below
 
 	// Gets the minimum trace ID within the row group. Since the column is sorted
 	// ascending we just read the first value from the first page.
