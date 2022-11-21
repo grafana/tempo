@@ -136,7 +136,7 @@ func (b *bookmark[T]) close() {
 	b.iter.Close()
 }
 
-type genericIterator[T iteratable] interface { // jpe make this name not terrible
+type genericIterator[T iteratable] interface {
 	Next(ctx context.Context) (common.ID, T, error)
 	Close()
 }
