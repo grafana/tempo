@@ -91,6 +91,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	// Cache of row group bounds
 	rowGroupMins := make([]common.ID, numRowGroups+1)
 	// todo: restore using meta min/max id once it works
+	//    https://github.com/grafana/tempo/issues/1903
 	rowGroupMins[0] = bytes.Repeat([]byte{0}, 16)
 	rowGroupMins[numRowGroups] = bytes.Repeat([]byte{255}, 16) // This is actually inclusive and the logic is special for the last row group below
 
