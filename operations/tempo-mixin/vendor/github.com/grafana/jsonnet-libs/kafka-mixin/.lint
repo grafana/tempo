@@ -1,0 +1,7 @@
+exclusions:
+  template-job-rule:
+    reason: "No need for it since we are filtering by instance."
+  panel-job-instance-rule:
+    reason: "No need for it since we are filtering by instance."
+  panel-rate-interval-rule:
+    reason: "Some panel calculations need specific time frames."

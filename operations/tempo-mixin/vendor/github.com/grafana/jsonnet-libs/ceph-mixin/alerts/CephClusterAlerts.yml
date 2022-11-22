@@ -1,0 +1,51 @@
+groups:
+- name: CephClusterAlerts
+  rules:
+  - alert: CephUnhealthyWarining
+    expr: ceph_health_status == 1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: The Ceph cluster has warning level issues
+      description: "The Ceph cluster has warning level issues. Run the ceph -s command on any Ceph node to identify the reason and resolve the issue depending on the output."
+  - alert: CephUnhealthyCritical
+    expr: ceph_health_status == 2
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: The Ceph cluster has critical issues
+      description: "The Ceph cluster has critical issues. Run the ceph -s command on any Ceph node to identify the reason and resolve the issue depending on the output."
+  - alert: CephDiskLessThan15Left
+    expr: (ceph_cluster_total_bytes-ceph_cluster_total_used_bytes)/ceph_cluster_total_bytes < 0.15
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: The Ceph cluster has less than 15% storage space left
+      description: "The Ceph cluster has less than 15% storage space left"
+  - alert: CephDiskLessThan5Left
+    expr: (ceph_cluster_total_bytes-ceph_cluster_total_used_bytes)/ceph_cluster_total_bytes < 0.05
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: The Ceph cluster has less than 5% storage space left
+      description: "The Ceph cluster has less than 5% storage space left"
+  - alert: OSDNodeDown
+    expr: ceph_osd_up == 0
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: The OSD node is down
+      description: The OSD node is down, you won`t have access to the physical disks mounted in this node
+  - alert: MDSDown
+    expr: count(ceph_mds_metadata == 1) == 0
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: All MDS nodes down
+      description: There’s no MDS node available.

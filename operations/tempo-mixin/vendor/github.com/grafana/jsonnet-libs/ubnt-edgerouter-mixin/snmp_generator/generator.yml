@@ -1,0 +1,117 @@
+modules:
+  ubnt_router:
+    walk:
+    - sysName
+    - sysObjectID
+    - sysDescr
+    - sysContact
+    - sysLocation
+    - sysUpTime
+    - hrSystemUptime
+    - hrSystemNumUsers
+    - hrSystemProcesses
+    - hrDeviceTable
+    - ssRawInterrupts
+    - ssRawContexts
+    - laTable
+    - hrProcessorTable
+    - ssCpuRawUser
+    - ssCpuRawNice
+    - ssCpuRawSystem
+    - ssCpuRawIdle
+    - ssCpuRawWait
+    - ssCpuRawKernel
+    - ssCpuRawInterrupt
+    - ssCpuRawSoftIRQ
+    - hrMemorySize
+    - memTotalReal
+    - memAvailReal
+    - memTotalFree
+    - memShared
+    - memBuffer
+    - memCached
+    - ssIORawSent
+    - ssIORawReceived
+    # Unable to drop ramdisk and loopback filesystems, which seems to hang the SNMP walk
+    # - diskIOTable
+    - hrStorageTable
+    - ifTable
+    - ifXTable
+    - ipSystemStatsTable
+    - icmpStatsTable
+    - icmpMsgStatsTable
+    - udpInDatagrams
+    - udpNoPorts
+    - udpInErrors
+    - udpOutDatagrams
+    - tcpActiveOpens
+    - tcpPassiveOpens
+    - tcpAttemptFails
+    - tcpEstabResets
+    - tcpCurrEstab
+    - tcpInSegs
+    - tcpOutSegs
+    - tcpRetransSegs
+    - tcpInErrs
+    - tcpOutRsts
+    - inetCidrRouteNumber
+    - inetCidrRouteDiscards
+    - ipForwardNumber
+    - ipRoutingDiscards
+    - snmpInPkts
+    - snmpInGetRequests
+    - snmpInGetNexts
+    - snmpInTotalReqVars
+    - snmpInGetResponses
+    - snmpOutPkts
+    - snmpOutGetRequests
+    - snmpOutGetNexts
+    - snmpOutGetResponses
+
+
+    lookups:     
+    - source_indexes: [laIndex]
+      lookup: laNames
+
+    - source_indexes: [hrDeviceIndex]
+      lookup: hrDeviceDescr
+    - source_indexes: [hrDeviceIndex]
+      lookup: hrDeviceType
+
+    - source_indexes: [hrStorageIndex]
+      lookup: hrStorageDescr
+
+    - source_indexes: [ifIndex]
+      lookup: ifAlias
+    - source_indexes: [ifIndex]
+      lookup: ifDescr
+    - source_indexes: [ifIndex]
+      lookup: ifName      
+    - source_indexes: [ifIndex]
+      lookup: ifPhysAddress
+
+
+    overrides:
+      laNames:
+        ignore: true
+      laErrMessage:
+        ignore: true
+      laErrorFlag:
+        ignore: true
+
+      hrDeviceDescr:
+        ignore: true
+      hrDeviceType:
+        ignore: true
+
+      hrStorageDescr:
+        ignore: true
+
+      ifAlias:
+        ignore: true
+      ifDescr:
+        ignore: true
+      ifName:
+        ignore: true
+      ifPhysAddress:
+        ignore: true

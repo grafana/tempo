@@ -1,0 +1,170 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "cert-manager.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    app: {{ template "cert-manager.name" . }}
+    app.kubernetes.io/name: {{ template "cert-manager.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: "controller"
+    {{- include "labels" . | nindent 4 }}
+  {{- with .Values.deploymentAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ template "cert-manager.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: "controller"
+  {{- with .Values.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "cert-manager.name" . }}
+        app.kubernetes.io/name: {{ template "cert-manager.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: "controller"
+        {{- include "labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if and .Values.prometheus.enabled (not .Values.prometheus.servicemonitor.enabled) }}
+      {{- if not .Values.podAnnotations }}
+      annotations:
+      {{- end }}
+        prometheus.io/path: "/metrics"
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '9402'
+      {{- end }}
+    spec:
+      serviceAccountName: {{ template "cert-manager.serviceAccountName" . }}
+      {{- with .Values.global.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- $enabledDefined := gt (len (keys (pick .Values.securityContext "enabled"))) 0 }}
+      {{- $legacyEnabledExplicitlyOff := and $enabledDefined (not .Values.securityContext.enabled) }}
+      {{- if and .Values.securityContext (not $legacyEnabledExplicitlyOff) }}
+      securityContext:
+        {{- if .Values.securityContext.enabled }}
+        {{/* support legacy securityContext.enabled and its two parameters */}}
+        fsGroup: {{ default 1001 .Values.securityContext.fsGroup }}
+        runAsUser: {{ default 1001 .Values.securityContext.runAsUser }}
+        {{- else }}
+        {{/* this is the way forward: support an arbitrary yaml block */}}
+        {{- toYaml .Values.securityContext | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.image }}
+          image: "{{- if .registry -}}{{ .registry }}/{{- end -}}{{ .repository }}{{- if (.digest) -}} @{{ .digest }}{{- else -}}:{{ default $.Chart.AppVersion .tag }} {{- end -}}"
+          {{- end }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+          {{- if .Values.global.logLevel }}
+          - --v={{ .Values.global.logLevel }}
+          {{- end }}
+          {{- if .Values.clusterResourceNamespace }}
+          - --cluster-resource-namespace={{ .Values.clusterResourceNamespace }}
+          {{- else }}
+          - --cluster-resource-namespace=$(POD_NAMESPACE)
+          {{- end }}
+          {{- with .Values.global.leaderElection }}
+          - --leader-election-namespace={{ .namespace }}
+          {{- if .leaseDuration }}
+          - --leader-election-lease-duration={{ .leaseDuration }}
+          {{- end }}
+          {{- if .renewDeadline }}
+          - --leader-election-renew-deadline={{ .renewDeadline }}
+          {{- end }}
+          {{- if .retryPeriod }}
+          - --leader-election-retry-period={{ .retryPeriod }}
+          {{- end }}
+          {{- end }}
+          {{- with .Values.extraArgs }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+          {{- with .Values.ingressShim }}
+          {{- if .defaultIssuerName }}
+          - --default-issuer-name={{ .defaultIssuerName }}
+          {{- end }}
+          {{- if .defaultIssuerKind }}
+          - --default-issuer-kind={{ .defaultIssuerKind }}
+          {{- end }}
+          {{- if .defaultIssuerGroup }}
+          - --default-issuer-group={{ .defaultIssuerGroup }}
+          {{- end }}
+          {{- end }}
+          {{- if .Values.featureGates }}
+          - --feature-gates={{ .Values.featureGates }}
+          {{- end }}
+          ports:
+          - containerPort: 9402
+            name: http-metrics
+            protocol: TCP
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          {{- with .Values.extraEnv }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+          {{- with .Values.http_proxy }}
+          - name: HTTP_PROXY
+            value: {{ . }}
+          {{- end }}
+          {{- with .Values.https_proxy }}
+          - name: HTTPS_PROXY
+            value: {{ . }}
+          {{- end }}
+          {{- with .Values.no_proxy }}
+          - name: NO_PROXY
+            value: {{ . }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podDnsPolicy }}
+      dnsPolicy: {{ . }}
+      {{- end }}
+      {{- with .Values.podDnsConfig }}
+      dnsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

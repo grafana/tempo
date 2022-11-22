@@ -1,0 +1,47 @@
+version: '3.6'
+services:
+  grafana:
+    image: 'grafana/grafana:7.3.3'
+    environment:
+      - 'GF_AUTH_ANONYMOUS_ENABLED=true'
+      - 'GF_AUTH_ANONYMOUS_ORG_ROLE=Admin'
+    ports:
+      - '${GRAFANA_PORT:-3000}:3000'
+    entrypoint:
+      - 'sh'
+      - '-euc'
+      - |
+        cat > /etc/grafana/provisioning/dashboards/haproxy.yml <<EOF
+        apiVersion: 1
+        providers:
+          - name: 'haproxy'
+            updateIntervalSeconds: 1
+            allowUiUpdates: true
+            options:
+              path: '/var/lib/grafana/dashboards'
+        EOF
+        cat > /etc/grafana/provisioning/datasources/prometheus.yml <<EOF
+        apiVersion: 1
+        datasources:
+          - name: 'prometheus'
+            isDefault: true
+            type: 'prometheus'
+            access: 'proxy'
+            url: 'http://prometheus:9090'
+        EOF
+        exec /run.sh
+    volumes:
+      - './dashboards:/var/lib/grafana/dashboards'
+
+  prometheus:
+    image: 'quay.io/prometheus/prometheus:v2.22.1'
+    ports:
+      - '${PROMETHEUS_PORT:-9090}:9090'
+    volumes:
+      - './development/prometheus.yml:/etc/prometheus/prometheus.yml'
+  haproxy:
+    image: 'haproxy:2.3.1'
+    ports:
+      - '${HAPROXY_PORT:-8080:80}'
+    volumes:
+      - './development/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg'

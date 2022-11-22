@@ -1,0 +1,16 @@
+directory: charts
+repositories:
+- name: jetstack
+  url: https://charts.jetstack.io
+requires:
+- chart: jetstack/cert-manager
+  version: 1.1.0
+  directory: '1.1.0'
+# 1.5.5 is the earliest version that supports 1.22+
+- chart: jetstack/cert-manager
+  version: 1.5.5
+  directory: '1.5.5'
+- chart: jetstack/cert-manager
+  version: 1.8.0
+  directory: '1.8.0'
+version: 1

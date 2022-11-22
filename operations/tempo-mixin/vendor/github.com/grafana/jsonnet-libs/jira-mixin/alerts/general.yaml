@@ -1,0 +1,35 @@
+groups:
+- name: alert.rules
+  rules:
+  - alert: LicenseExpired
+    expr: jira_license_expiry_days_gauge <= 0
+    for: 1m
+    labels:
+      severity: "critical"
+    annotations:
+      summary: "JIRA license expired"
+      description: "The JIRA license has expired."
+  - alert: LicenseWarning
+    expr: jira_license_expiry_days_gauge <= 7 and jira_license_expiry_days_gauge > 0
+    for: 1m
+    labels:
+      severity: "warning"
+    annotations:
+      summary: "License expiring soon"
+      description: "The JIRA license will expire in less than one week."
+  - alert: NoUserCapacity
+    expr: jira_all_users_gauge/jira_allowed_users_gauge == 1
+    for: 1m
+    labels:
+      severity: "critical"
+    annotations:
+      summary: "All available accounts are taken"
+      description: "There is no more capacity for additional users to be added to the system."
+  - alert: EmailErrorsHigh
+    expr: jira_mail_queue_error_gauge /jira_mail_queue_gauge > 0.01
+    for: 1m
+    labels:
+      severity: "critical"
+    annotations:
+      summary: "Email errors are high."
+      description: "More than 1% of emails have resulted in an error in the past minute."

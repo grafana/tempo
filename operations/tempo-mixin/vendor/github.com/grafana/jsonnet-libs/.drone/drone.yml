@@ -1,0 +1,19 @@
+---
+kind: pipeline
+name: build
+steps:
+- commands:
+  - make install-ci-deps
+  - make lint-fmt
+  - make lint-mixins
+  image: golang:1.18
+  name: lint-fmt
+trigger:
+  event:
+    include:
+    - pull_request
+---
+kind: signature
+hmac: 78a1dae3b7fa280bb32281b3ddbdbc7d1a9a7ab54681a00ed536876e2bdca55d
+
+...
