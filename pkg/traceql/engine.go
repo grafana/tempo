@@ -22,7 +22,7 @@ func NewEngine() *Engine {
 	}
 }
 
-func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, spanSetFetcher SpansetFetcher) (*tempopb.SearchResponse, error) {
+func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, spanSetFetcher SpansetFetcher, opts interface{}) (*tempopb.SearchResponse, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.Execute")
 	defer span.Finish()
 
@@ -36,7 +36,7 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 	span.SetTag("pipeline", rootExpr.Pipeline)
 	span.SetTag("fetchSpansRequest", fetchSpansRequest)
 
-	fetchSpansResponse, err := spanSetFetcher.Fetch(ctx, fetchSpansRequest)
+	fetchSpansResponse, err := spanSetFetcher.Fetch(ctx, fetchSpansRequest, opts)
 	if err != nil {
 		return nil, err
 	}

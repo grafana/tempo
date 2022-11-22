@@ -244,6 +244,6 @@ func search(decoder model.ObjectDecoder, maxBytes int, id common.ID, obj []byte,
 	return nil
 }
 
-func (b *BackendBlock) Fetch(context.Context, traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+func (b *BackendBlock) Fetch(context.Context, traceql.FetchSpansRequest, interface{}) (traceql.FetchSpansResponse, error) {
 	return traceql.FetchSpansResponse{}, errors.New("Unsupported")
 }

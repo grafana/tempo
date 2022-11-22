@@ -64,7 +64,7 @@ func TestEngine_Execute(t *testing.T) {
 			},
 		},
 	}
-	response, err := e.Execute(context.Background(), req, &spanSetFetcher)
+	response, err := e.Execute(context.Background(), req, &spanSetFetcher, struct{}{})
 
 	require.NoError(t, err)
 
@@ -254,7 +254,7 @@ type MockSpanSetFetcher struct {
 	capturedRequest FetchSpansRequest
 }
 
-func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
+func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansRequest, opts interface{}) (FetchSpansResponse, error) {
 	m.capturedRequest = request
 	return FetchSpansResponse{
 		Results: m.iterator,

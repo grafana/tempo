@@ -58,7 +58,8 @@ type FetchSpansResponse struct {
 }
 
 type SpansetFetcher interface {
-	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
+	// TODO interface{} is common.SearchOptions, but we can't import that package because of an import cycle
+	Fetch(context.Context, FetchSpansRequest, interface{}) (FetchSpansResponse, error)
 }
 
 // MustExtractCondition from the first spanset filter in the traceql query.
