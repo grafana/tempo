@@ -166,7 +166,7 @@ func (e *Engine) asTraceSearchMetadata(spanset Spanset) *tempopb.TraceSearchMeta
 }
 
 func unixSecToNano(ts uint32) uint64 {
-	return uint64(ts) * 1_000_000_000
+	return uint64(ts) * uint64(time.Second/time.Nanosecond)
 }
 
 func (s Static) asAnyValue() *common_v1.AnyValue {
