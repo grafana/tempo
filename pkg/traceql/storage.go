@@ -100,3 +100,17 @@ func ExtractCondition(query string) (cond Condition, err error) {
 
 	return
 }
+
+type SpansetFetcherWrapper struct {
+	f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)
+}
+
+var _ = (SpansetFetcher)(&SpansetFetcherWrapper{})
+
+func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)) SpansetFetcher {
+	return SpansetFetcherWrapper{f}
+}
+
+func (s SpansetFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
+	return s.f(ctx, request)
+}

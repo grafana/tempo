@@ -486,7 +486,7 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 	opts.MaxBytes = q.limits.MaxBytesPerTrace(tenantID)
 
 	if api.IsTraceQLQuery(req.SearchReq) {
-		fetcher := newSpansetFetcher(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return q.store.Fetch(ctx, meta, req, opts)
 		})
 
@@ -494,18 +494,6 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 	}
 
 	return q.store.Search(ctx, meta, req.SearchReq, opts)
-}
-
-type spansetFetcher struct {
-	f func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error)
-}
-
-func newSpansetFetcher(f func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error)) traceql.SpansetFetcher {
-	return spansetFetcher{f}
-}
-
-func (s spansetFetcher) Fetch(ctx context.Context, request traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-	return s.f(ctx, request)
 }
 
 func (q *Querier) postProcessIngesterSearchResults(req *tempopb.SearchRequest, rr []responseFromIngesters) *tempopb.SearchResponse {

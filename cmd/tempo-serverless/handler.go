@@ -2,6 +2,7 @@ package serverless
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -99,24 +100,26 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		return nil, httpError("creating backend block", err, http.StatusInternalServerError)
 	}
 
+	opts := common.SearchOptions{
+		StartPage:  int(searchReq.StartPage),
+		TotalPages: int(searchReq.PagesToSearch),
+		MaxBytes:   maxBytes,
+	}
+	cfg.Search.ApplyToOptions(&opts)
+
 	var resp *tempopb.SearchResponse
 
 	if api.IsTraceQLQuery(searchReq.SearchReq) {
 		engine := traceql.NewEngine()
 
-		// TODO pass in SearchOptions
-		resp, err = engine.Execute(r.Context(), searchReq.SearchReq, block)
+		spansetFetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return block.Fetch(ctx, req, opts)
+		})
+		resp, err = engine.Execute(r.Context(), searchReq.SearchReq, spansetFetcher)
 		if err != nil {
 			return nil, httpError("searching block", err, http.StatusInternalServerError)
 		}
 	} else {
-		opts := common.SearchOptions{
-			StartPage:  int(searchReq.StartPage),
-			TotalPages: int(searchReq.PagesToSearch),
-			MaxBytes:   maxBytes,
-		}
-		cfg.Search.ApplyToOptions(&opts)
-
 		resp, err = block.Search(r.Context(), searchReq.SearchReq, opts)
 		if err != nil {
 			return nil, httpError("searching block", err, http.StatusInternalServerError)
