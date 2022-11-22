@@ -72,6 +72,7 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 		return nil, nil, fmt.Errorf("error reading dir: %w", err)
 	}
 
+	var warning error
 	for _, f := range files {
 		if f.Name() == backend.MetaName {
 			continue
@@ -90,7 +91,8 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 		// attempt to load in a parquet.file
 		pf, sz, err := openLocalParquetFile(filepath.Join(dir, f.Name()))
 		if err != nil {
-			return nil, nil, fmt.Errorf("error opening file: %w", err)
+			warning = fmt.Errorf("error opening file: %w", err)
+			continue
 		}
 
 		b.flushed = append(b.flushed, &walBlockFlush{
@@ -125,7 +127,7 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 		}
 	}
 
-	return b, nil, nil
+	return b, warning, nil
 }
 
 // createWALBlock creates a new appendable block
@@ -252,11 +254,16 @@ func (b *walBlock) adjustTimeRangeForSlack(start uint32, end uint32, additionalS
 	return start, end
 }
 
+func (b *walBlock) filepathOf(page int) string {
+	filename := fmt.Sprintf("%010d", page)
+	filename = filepath.Join(b.walPath(), filename)
+	return filename
+}
+
 func (b *walBlock) openWriter() (err error) {
 
 	nextFile := len(b.flushed) + 1
-	filename := fmt.Sprintf("%010d", nextFile)
-	filename = filepath.Join(b.walPath(), filename)
+	filename := b.filepathOf(nextFile)
 
 	b.file, err = os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {

@@ -3,7 +3,8 @@ package vparquet
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -52,6 +53,80 @@ func TestFullFilename(t *testing.T) {
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
+}
+
+// TestPartialReplay verifies that we can best-effort replay a partial/corrupted WAL block.
+// This test works by flushing a WAL block across a few pages, corrupting one, and then replaying
+// it.
+func TestPartialReplay(t *testing.T) {
+	decoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
+	blockID := uuid.New()
+	basePath := t.TempDir()
+
+	w, err := createWALBlock(blockID, "fake", basePath, backend.EncNone, model.CurrentEncoding, 0)
+	require.NoError(t, err)
+
+	// Flush a set of traces across 2 pages
+	count := 10
+	ids := make([]common.ID, count)
+	trs := make([]*tempopb.Trace, count)
+	for i := 0; i < count; i++ {
+		ids[i] = test.ValidTraceID(nil)
+		trs[i] = test.MakeTrace(10, ids[i])
+		trace.SortTrace(trs[i])
+
+		b1, err := decoder.PrepareForWrite(trs[i], 0, 0)
+		require.NoError(t, err)
+
+		b2, err := decoder.ToObject([][]byte{b1})
+		require.NoError(t, err)
+
+		err = w.Append(ids[i], b2, 0, 0)
+		require.NoError(t, err)
+
+		if i+1 == count/2 {
+			require.NoError(t, w.Flush())
+		}
+	}
+	require.NoError(t, w.Flush())
+
+	// Delete half of page 2
+	fpath := w.filepathOf(1)
+	info, err := os.Stat(fpath)
+	require.NoError(t, err)
+	os.Truncate(fpath, info.Size()/2)
+
+	// Replay, this has a warning on page 2
+	w2, warning, err := openWALBlock(filepath.Base(w.walPath()), filepath.Dir(w.walPath()), 0, 0)
+	require.NoError(t, err)
+	require.ErrorContains(t, warning, "invalid magic footer of parquet file")
+
+	// Verify we iterate only the records from the first flush
+	iter, err := w2.Iterator()
+	require.NoError(t, err)
+
+	gotCount := 0
+	for ; ; gotCount++ {
+		id, tr, err := iter.Next(context.Background())
+		require.NoError(t, err)
+
+		if id == nil {
+			break
+		}
+
+		// Find trace in the input data
+		match := 0
+		for i := range ids {
+			if bytes.Equal(ids[i], id) {
+				match = i
+				break
+			}
+		}
+
+		require.Equal(t, ids[match], id)
+		require.True(t, proto.Equal(trs[match], tr))
+	}
+	require.Equal(t, count/2, gotCount)
 }
 
 func TestParseFilename(t *testing.T) {
@@ -142,7 +217,6 @@ func TestParseFilename(t *testing.T) {
 func TestWalBlockFindTraceByID(t *testing.T) {
 	testWalBlock(t, func(w *walBlock, ids []common.ID, trs []*tempopb.Trace) {
 		for i := range ids {
-			fmt.Println("finding tr", i)
 			found, err := w.FindTraceByID(context.Background(), ids[i], common.DefaultSearchOptions())
 			require.NoError(t, err)
 			require.NotNil(t, found)
