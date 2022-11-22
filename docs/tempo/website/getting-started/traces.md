@@ -63,7 +63,7 @@ Metric
 : A number that helps an operator understand the state of a system, such as the number of active users, error count, average response time, and more.
 
 Span
-: Represents a unit of work done within a trace.
+: A unit of work done within a trace.
 
 Trace
 : An observed execution path of a request through a distributed system.
