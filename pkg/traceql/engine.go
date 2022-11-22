@@ -3,6 +3,7 @@ package traceql
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/opentracing/opentracing-go"
 
