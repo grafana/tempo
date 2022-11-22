@@ -262,7 +262,7 @@ func (a *v2AppendBlock) SearchTagValues(ctx context.Context, tag string, cb comm
 }
 
 // Fetch implements traceql.SpansetFetcher
-func (a *v2AppendBlock) Fetch(context.Context, traceql.FetchSpansRequest, interface{}) (traceql.FetchSpansResponse, error) {
+func (a *v2AppendBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	return traceql.FetchSpansResponse{}, common.ErrUnsupported
 }
 
