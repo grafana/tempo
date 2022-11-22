@@ -78,7 +78,7 @@
      ],
      "targets": [
       {
-       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",user=\"$tenant\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",user=\"$tenant\"})\n) by (limit_name)\n",
+       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",user=\"$tenant\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/compactor\"})\n) by (limit_name)\n",
        "format": "table",
        "instant": true,
        "intervalFactor": 2,
@@ -187,7 +187,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum(rate(tempo_distributor_bytes_received_total{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",tenant=\"$tenant\"}[$__rate_interval])) by (cluster, namespace, tenant)",
+       "expr": "sum(rate(tempo_distributor_bytes_received_total{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",tenant=\"$tenant\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -196,7 +196,7 @@
        "step": 10
       },
       {
-       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",user=\"$tenant\",limit_name=\"ingestion_rate_limit_bytes\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",user=\"$tenant\",limit_name=\"ingestion_rate_limit_bytes\"})\n) by (ingestion_rate_limit_bytes)\n",
+       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",user=\"$tenant\",limit_name=\"ingestion_rate_limit_bytes\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",limit_name=\"ingestion_rate_limit_bytes\"})\n) by (ingestion_rate_limit_bytes)\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -205,7 +205,7 @@
        "step": 10
       },
       {
-       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",user=\"$tenant\",limit_name=\"ingestion_burst_size_bytes\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",user=\"$tenant\",limit_name=\"ingestion_burst_size_bytes\"})\n) by (ingestion_burst_size_bytes)\n",
+       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",user=\"$tenant\",limit_name=\"ingestion_burst_size_bytes\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",limit_name=\"ingestion_burst_size_bytes\"})\n) by (ingestion_burst_size_bytes)\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -237,7 +237,7 @@
      },
      "yaxes": [
       {
-       "format": "short",
+       "format": "Bps",
        "label": null,
        "logBase": 1,
        "max": null,
@@ -292,7 +292,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum(rate(tempo_distributor_spans_received_total{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",tenant=~\"$tenant\"}[$__rate_interval]))",
+       "expr": "sum(rate(tempo_distributor_spans_received_total{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",tenant=\"$tenant\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -301,7 +301,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempo_discarded_spans_total{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",tenant=~\"$tenant\"}[$__rate_interval])) by (cluster, namespace, reason)",
+       "expr": "sum(rate(tempo_discarded_spans_total{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",tenant=\"$tenant\"}[$__rate_interval])) by (reason)",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -397,7 +397,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "max(tempo_ingester_live_traces{cluster=\"$cluster\",namespace=\"$namespace\",tenant=\"$tenant\"})",
+       "expr": "max(tempo_ingester_live_traces{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",tenant=\"$tenant\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -406,7 +406,7 @@
        "step": 10
       },
       {
-       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",user=\"$tenant\",limit_name=\"max_global_traces_per_user\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",user=\"$tenant\",limit_name=\"max_global_traces_per_user\"})\n) by (max_global_traces_per_user)\n",
+       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",user=\"$tenant\",limit_name=\"max_global_traces_per_user\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",limit_name=\"max_global_traces_per_user\"})\n) by (max_global_traces_per_user)\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -415,7 +415,7 @@
        "step": 10
       },
       {
-       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",user=\"$tenant\",limit_name=\"max_local_traces_per_user\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",user=\"$tenant\",limit_name=\"max_local_traces_per_user\"})\n) by (max_local_traces_per_user)\n",
+       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",user=\"$tenant\",limit_name=\"max_local_traces_per_user\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",limit_name=\"max_local_traces_per_user\"})\n) by (max_local_traces_per_user)\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -694,7 +694,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "avg(tempodb_blocklist_length{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",tenant=~\"$tenant\"})",
+       "expr": "avg(tempodb_blocklist_length{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",tenant=\"$tenant\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -775,7 +775,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum(tempodb_compaction_outstanding_blocks{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",tenant=\"$tenant\"}})\n/\ncount(tempo_build_info{cluster=~\"$cluster\", job=~\"($namespace)/compactor\"})\n",
+       "expr": "sum(tempodb_compaction_outstanding_blocks{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",tenant=\"$tenant\"})\n/\ncount(tempo_build_info{cluster=~\"$cluster\", job=~\"($namespace)/compactor\"})\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -868,7 +868,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum(tempo_metrics_generator_bytes_received_total{cluster=~\"$cluster\", job=~\"($namespace)/metrics-generator\",tenant=~\"$tenant\"})",
+       "expr": "sum(tempo_metrics_generator_bytes_received_total{cluster=~\"$cluster\", job=~\"($namespace)/metrics-generator\",tenant=\"$tenant\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -900,7 +900,7 @@
      },
      "yaxes": [
       {
-       "format": "short",
+       "format": "Bps",
        "label": null,
        "logBase": 1,
        "max": null,
@@ -959,7 +959,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum(tempo_metrics_generator_registry_active_series{cluster=~\"$cluster\", job=~\"($namespace)/metrics-generator\",tenant=~\"$tenant\"})",
+       "expr": "sum(tempo_metrics_generator_registry_active_series{cluster=~\"$cluster\", job=~\"($namespace)/metrics-generator\",tenant=\"$tenant\"})",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -968,7 +968,7 @@
        "step": 10
       },
       {
-       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",user=\"$tenant\",limit_name=\"metrics_generator_max_active_series\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/distributor\",user=\"$tenant\",limit_name=\"metrics_generator_max_active_series\"})\n) by (metrics_generator_max_active_series)\n",
+       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",user=\"$tenant\",limit_name=\"metrics_generator_max_active_series\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",limit_name=\"metrics_generator_max_active_series\"})\n) by (metrics_generator_max_active_series)\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
