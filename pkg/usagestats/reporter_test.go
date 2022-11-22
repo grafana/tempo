@@ -156,7 +156,7 @@ func Test_ReportLoop(t *testing.T) {
 	r.initLeader(ctx)
 
 	go func() {
-		<-time.After(6*time.Second + (stabilityCheckInterval * time.Duration(stabilityMinimunRequired+1)))
+		<-time.After(6*time.Second + (stabilityCheckInterval * time.Duration(stabilityMinimumRequired+1)))
 		cancel()
 	}()
 	require.Equal(t, nil, r.running(ctx))

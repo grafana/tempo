@@ -1,0 +1,77 @@
+{{- if .Values.startupapicheck.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "startupapicheck.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    app: {{ include "startupapicheck.name" . }}
+    app.kubernetes.io/name: {{ include "startupapicheck.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: "startupapicheck"
+    {{- include "labels" . | nindent 4 }}
+  {{- with .Values.startupapicheck.jobAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  backoffLimit: {{ .Values.startupapicheck.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "startupapicheck.name" . }}
+        app.kubernetes.io/name: {{ include "startupapicheck.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: "startupapicheck"
+        {{- include "labels" . | nindent 8 }}
+        {{- with .Values.startupapicheck.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.startupapicheck.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ template "startupapicheck.serviceAccountName" . }}
+      {{- with .Values.global.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.startupapicheck.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.startupapicheck.image }}
+          image: "{{- if .registry -}}{{ .registry }}/{{- end -}}{{ .repository }}{{- if (.digest) -}} @{{ .digest }}{{- else -}}:{{ default $.Chart.AppVersion .tag }} {{- end -}}"
+          {{- end }}
+          imagePullPolicy: {{ .Values.startupapicheck.image.pullPolicy }}
+          args:
+          - check
+          - api
+          - --wait={{ .Values.startupapicheck.timeout }}
+          {{- with .Values.startupapicheck.extraArgs }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+          {{- with .Values.startupapicheck.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.startupapicheck.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.startupapicheck.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.startupapicheck.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.startupapicheck.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

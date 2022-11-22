@@ -1,0 +1,6 @@
+.DS_Store
+vendor
+jsonnetfile.lock.json
+prometheus_alerts.yaml
+dashboards_out
+*.zip

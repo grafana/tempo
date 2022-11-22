@@ -354,10 +354,13 @@ github.com/gorilla/handlers
 # github.com/gorilla/mux v1.8.0
 ## explicit; go 1.12
 github.com/gorilla/mux
-# github.com/grafana/dskit v0.0.0-20220817135401-71aee950db17
+# github.com/grafana/dskit v0.0.0-20221102173529-7450e99ab017
 ## explicit; go 1.18
 github.com/grafana/dskit/backoff
 github.com/grafana/dskit/crypto/tls
+github.com/grafana/dskit/dns
+github.com/grafana/dskit/dns/godns
+github.com/grafana/dskit/dns/miekgdns
 github.com/grafana/dskit/flagext
 github.com/grafana/dskit/grpcclient
 github.com/grafana/dskit/grpcencoding/snappy
@@ -377,9 +380,10 @@ github.com/grafana/dskit/ring/client
 github.com/grafana/dskit/ring/shard
 github.com/grafana/dskit/ring/util
 github.com/grafana/dskit/runtimeconfig
+github.com/grafana/dskit/runutil
 github.com/grafana/dskit/services
 github.com/grafana/dskit/tenant
-# github.com/grafana/e2e v0.1.0
+# github.com/grafana/e2e v0.1.1-0.20221018202458-cffd2bb71c7b
 ## explicit; go 1.17
 github.com/grafana/e2e
 github.com/grafana/e2e/db
@@ -651,8 +655,8 @@ github.com/miekg/dns
 # github.com/minio/md5-simd v1.1.0
 ## explicit; go 1.14
 github.com/minio/md5-simd
-# github.com/minio/minio-go/v7 v7.0.16-0.20211116163909-d00629356463
-## explicit; go 1.15
+# github.com/minio/minio-go/v7 v7.0.23
+## explicit; go 1.17
 github.com/minio/minio-go/v7
 github.com/minio/minio-go/v7/pkg/credentials
 github.com/minio/minio-go/v7/pkg/encrypt
@@ -983,15 +987,6 @@ github.com/stretchr/testify/require
 # github.com/subosito/gotenv v1.3.0
 ## explicit; go 1.18
 github.com/subosito/gotenv
-# github.com/thanos-io/thanos v0.24.0
-## explicit; go 1.15
-github.com/thanos-io/thanos/pkg/discovery/dns
-github.com/thanos-io/thanos/pkg/discovery/dns/godns
-github.com/thanos-io/thanos/pkg/discovery/dns/miekgdns
-github.com/thanos-io/thanos/pkg/errutil
-github.com/thanos-io/thanos/pkg/extprom
-github.com/thanos-io/thanos/pkg/runutil
-github.com/thanos-io/thanos/pkg/testutil
 # github.com/tklauser/go-sysconf v0.3.10
 ## explicit; go 1.13
 github.com/tklauser/go-sysconf

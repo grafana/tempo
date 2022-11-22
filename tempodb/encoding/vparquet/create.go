@@ -141,7 +141,7 @@ func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
 	b.bloom.Add(id)
 	b.meta.ObjectAdded(id, start, end)
 	b.currentBufferedTraces++
-	b.currentBufferedBytes += estimateTraceSize(tr)
+	b.currentBufferedBytes += estimateMarshalledSizeFromTrace(tr)
 
 	return nil
 }
@@ -155,7 +155,7 @@ func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) e
 	b.bloom.Add(id)
 	b.meta.ObjectAdded(id, start, end)
 	b.currentBufferedTraces++
-	b.currentBufferedBytes += estimateProtoSize(row)
+	b.currentBufferedBytes += estimateMarshalledSizeFromParquetRow(row)
 
 	return nil
 }
@@ -233,51 +233,25 @@ func (b *streamingBlock) Complete() (int, error) {
 	return n, writeBlockMeta(b.ctx, b.to, b.meta, b.bloom)
 }
 
-// estimateTraceSize attempts to estimate the size of trace in bytes. This is used to make choose
+// estimateMarshalledSizeFromTrace attempts to estimate the size of trace in bytes. This is used to make choose
 // when to cut a row group during block creation.
 // TODO: This function regularly estimates lower values then estimateProtoSize() and the size
 // of the actual proto. It's also quite inefficient. Perhaps just using static values per span or attribute
 // would be a better choice?
-func estimateTraceSize(tr *Trace) (size int) {
-	size += len(tr.TraceID)
-	size += len(tr.TraceIDText)
-	size += len(tr.RootServiceName)
-	size += len(tr.RootSpanName)
-	size += 8 + 8 + 8 // start/end/duration
-	size += 7
+func estimateMarshalledSizeFromTrace(tr *Trace) (size int) {
+	size += 7 // 7 trace lvl fields
 
 	for _, rs := range tr.ResourceSpans {
 		size += estimateAttrSize(rs.Resource.Attrs)
-		size += len(rs.Resource.ServiceName)
-		size += strLen(rs.Resource.Namespace)
-		size += strLen(rs.Resource.Cluster)
-		size += strLen(rs.Resource.Pod)
-		size += strLen(rs.Resource.Container)
-		size += strLen(rs.Resource.K8sClusterName)
-		size += strLen(rs.Resource.K8sContainerName)
-		size += strLen(rs.Resource.K8sNamespaceName)
-		size += strLen(rs.Resource.K8sPodName)
-		size += 9
+		size += 10 // 10 resource span lvl fields
 
 		for _, ils := range rs.ScopeSpans {
-			size += len(ils.Scope.Name)
-			size += len(ils.Scope.Version)
-			size += 2
+			size += 2 // 2 scope span lvl fields
+
 			for _, s := range ils.Spans {
-				size += 8 + 8 + 8 + 8 + 4 + 4 // start/end/kind/statuscode/dropped events/dropped attrs
-				size += len(s.ID)
-				size += len(s.ParentSpanID)
-				size += len(s.Name)
-				size += strLen(s.HttpMethod)
-				size += strLen(s.HttpUrl)
-				size += len(s.StatusMessage)
-				size += len(s.TraceState)
-				if s.HttpStatusCode != nil {
-					size += 8
-				}
+				size += 14 // 14 span lvl fields
 				size += estimateAttrSize(s.Attrs)
 				size += estimateEventsSize(s.Events)
-				size += 14
 			}
 		}
 	}
@@ -285,40 +259,13 @@ func estimateTraceSize(tr *Trace) (size int) {
 }
 
 func estimateAttrSize(attrs []Attribute) (size int) {
-	for _, a := range attrs {
-		size += len(a.Key)
-		size += strLen(a.Value)
-		size += len(a.ValueArray)
-		size += len(a.ValueKVList)
-		if a.ValueBool != nil {
-			size++
-		}
-		if a.ValueDouble != nil {
-			size += 8
-		}
-		if a.ValueInt != nil {
-			size += 8
-		}
-	}
-	return
+	return len(attrs) * 7 // 7 attribute lvl fields
 }
 
 func estimateEventsSize(events []Event) (size int) {
 	for _, e := range events {
-		size += 8 + 4 // time/dropped attributes
-		size += len(e.Name)
-
-		for _, eva := range e.Attrs {
-			size += len(eva.Value)
-			size += len(eva.Key)
-		}
+		size += 4                // 4 event lvl fields
+		size += 4 * len(e.Attrs) // 2 event attribute fields
 	}
 	return
-}
-
-func strLen(s *string) (size int) {
-	if s == nil {
-		return 0
-	}
-	return len(*s)
 }

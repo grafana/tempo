@@ -2,7 +2,9 @@ package vparquet
 
 import (
 	"fmt"
+	"io"
 	"math/rand"
+	"os"
 	"testing"
 
 	"github.com/dustin/go-humanize"
@@ -200,28 +202,45 @@ func BenchmarkDeconstruct(b *testing.B) {
 }
 
 func TestParquetRowSizeEstimate(t *testing.T) {
+	// use this test to parse actual Parquet files and compare the two methods of estimating row size
+	s := []string{}
 
-	batchCount := 100
-	spanCounts := []int{
-		100, 1000,
-		// 10000, this crashes in GitHub
+	for _, s := range s {
+		estimateRowSize(t, s)
+	}
+}
+
+func estimateRowSize(t *testing.T, name string) {
+	f, err := os.OpenFile(name, os.O_RDONLY, 0644)
+	require.NoError(t, err)
+
+	fi, err := f.Stat()
+	require.NoError(t, err)
+
+	pf, err := parquet.OpenFile(f, fi.Size())
+	require.NoError(t, err)
+
+	r := parquet.NewGenericReader[*Trace](pf)
+	row := make([]*Trace, 1)
+
+	totalProtoSize := int64(0)
+	totalTraceSize := int64(0)
+	for {
+		_, err := r.Read(row)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			require.NoError(t, err)
+		}
+
+		tr := row[0]
+		sch := parquet.SchemaOf(tr)
+		row := sch.Deconstruct(nil, tr)
+
+		totalProtoSize += int64(estimateMarshalledSizeFromParquetRow(row))
+		totalTraceSize += int64(estimateMarshalledSizeFromTrace(tr))
 	}
 
-	for _, spanCount := range spanCounts {
-		ss := humanize.SI(float64(batchCount*spanCount), "")
-		t.Run(fmt.Sprintf("SpanCount%v", ss), func(t *testing.T) {
-
-			id := test.ValidTraceID(nil)
-			tr := test.MakeTraceWithSpanCount(batchCount, spanCount, id)
-			proto, _ := tr.Marshal()
-			fmt.Println("Size of proto is:", len(proto))
-
-			parq := traceToParquet(id, tr, nil)
-			sch := parquet.SchemaOf(parq)
-			row := sch.Deconstruct(nil, parq)
-
-			fmt.Println("Size of parquet row is:", estimateProtoSize(row))
-			fmt.Println("Size of parquet is:", estimateTraceSize(parq))
-		})
-	}
+	fmt.Println(pf.Size(), ",", len(pf.RowGroups()), ",", totalProtoSize, ",", totalTraceSize)
 }

@@ -116,6 +116,8 @@ type Span struct {
 	DroppedAttributesCount int32       `parquet:",snappy"`
 	Events                 []Event     `parquet:""`
 	DroppedEventsCount     int32       `parquet:",snappy"`
+	Links                  []byte      `parquet:",snappy"` // proto encoded []*v1_trace.Span_Link
+	DroppedLinksCount      int32       `parquet:",snappy"`
 
 	// Known attributes
 	HttpMethod     *string `parquet:",snappy,optional,dict"`
@@ -322,6 +324,16 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 				ss.HttpMethod = nil
 				ss.HttpUrl = nil
 				ss.HttpStatusCode = nil
+				if len(s.Links) > 0 {
+					links := tempopb.LinkSlice{
+						Links: s.Links,
+					}
+					ss.Links = extendReuseSlice(links.Size(), ss.Links)
+					_, _ = links.MarshalToSizedBuffer(ss.Links)
+				} else {
+					ss.Links = ss.Links[:0] // you can 0 length slice a nil slice
+				}
+				ss.DroppedLinksCount = int32(s.DroppedLinksCount)
 
 				ss.Attrs = extendReuseSlice(len(s.Attributes), ss.Attrs)
 				attrCount := 0
@@ -546,8 +558,16 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 					},
 					DroppedAttributesCount: uint32(span.DroppedAttributesCount),
 					DroppedEventsCount:     uint32(span.DroppedEventsCount),
+					DroppedLinksCount:      uint32(span.DroppedLinksCount),
 					Attributes:             parquetToProtoAttrs(span.Attrs),
 					Events:                 parquetToProtoEvents(span.Events),
+				}
+
+				// unmarshal links
+				if len(span.Links) > 0 {
+					links := tempopb.LinkSlice{}
+					_ = links.Unmarshal(span.Links) // todo: bubble these errors up
+					protoSpan.Links = links.Links
 				}
 
 				// known span attributes

@@ -149,3 +149,10 @@ message TraceBytes {
   // pre-marshalled Traces
   repeated bytes traces = 1;
 }
+
+// this message exists for marshalling/unmarshalling convenience to/from parquet. in parquet we proto encode
+// links to a column. unfortunately you can't encode a slice directly so we use this wrapper to generate 
+// the required marshalling/unmarshalling functions.
+message LinkSlice {
+  repeated tempopb.trace.v1.Span.Link links = 1;
+}

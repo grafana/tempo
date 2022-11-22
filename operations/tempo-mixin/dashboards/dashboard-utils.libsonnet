@@ -24,12 +24,12 @@ grafana {
           ],
         };
 
-        d.addMultiTemplate('cluster', 'tempo_build_info', 'cluster')
-        .addMultiTemplate('namespace', "tempo_build_info{cluster=~'$cluster'}", 'namespace', allValue=null),
+        d.addMultiTemplate('cluster', 'tempo_build_info', $._config.per_cluster_label)
+        .addMultiTemplate('namespace', 'tempo_build_info{' + $._config.per_cluster_label + "=~'$cluster'}", 'namespace', allValue=null),
     },
 
   jobMatcher(job)::
-    'cluster=~"$cluster", job=~"($namespace)/%s"' % job,
+    $._config.per_cluster_label + '=~"$cluster", job=~"($namespace)' + $._config.namespace_selector_separator + '%s"' % job,
 
   queryPanel(queries, legends, legendLink=null)::
     super.queryPanel(queries, legends, legendLink) + {
@@ -97,7 +97,7 @@ grafana {
   },
 
   namespaceMatcher()::
-    'cluster=~"$cluster", namespace=~"$namespace"',
+    $._config.per_cluster_label + '=~"$cluster", namespace=~"$namespace"',
 
   containerCPUUsagePanel(title, containerName)::
     $.panel(title) +

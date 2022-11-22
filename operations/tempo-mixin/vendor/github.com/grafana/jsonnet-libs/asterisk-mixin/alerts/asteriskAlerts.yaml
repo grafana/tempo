@@ -1,0 +1,40 @@
+groups:
+- name: AsteriskAlerts
+  rules:
+
+  - alert: AsteriskRestarted
+    expr: asterisk_core_uptime_seconds < 60
+    for: 5s
+    labels:
+      severity: critical
+    annotations:
+      summary: "Asterisk instance restarted in the last minute"
+      description: "Asterisk instance restarted in the last minute\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+  
+  - alert: AsteriskReloaded
+    expr: asterisk_core_last_reload_seconds < 60
+    for: 5s
+    labels:
+      severity: warning
+    annotations:
+      summary: "Asterisk instance reloaded in the last minute"
+      description: "Asterisk instance reloaded in the last minute\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  - alert: AsteriskHighScrapeTime
+    expr: asterisk_core_scrape_time_ms > 100
+    for: 10s
+    labels:
+      severity: critical
+    annotations:
+      summary: "Asterisk instance core high scrape time"
+      description: "Asterisk instance core high scrape time (Possible system performance degradation)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  - alert: AsteriskHighActiveCallsCount
+    expr: asterisk_calls_count > 100
+    for: 10s
+    labels:
+      severity: warning
+    annotations:
+      summary: "Asterisk high active call count"
+      description: "Asterisk high active call count\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      

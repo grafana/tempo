@@ -22,6 +22,8 @@ This document explains the configuration options for Tempo as well as the detail
   - [search](#search)
   - [usage-report](#usage-report)
 
+Additionally, you may wish to review [TLS]({{< relref "tls/" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
+
 ## Use environment variables in the configuration
 
 You can use environment variable references in the configuration file to set values that need to be configurable during deployment using `--config.expand-env` option.
@@ -125,6 +127,41 @@ distributor:
         zipkin:
         opencensus:
         kafka:
+
+    # Optional.
+    # Configures forwarders that asynchronously replicate ingested traces
+    # to specified endpoints. Forwarders work on per-tenant basis, so to
+    # fully enable this feature, overrides configuration must also be updated.
+    #
+    # Note: Forwarders work asynchronously and can fail or decide not to forward
+    # some traces. This feature works in a "best-effort" manner.
+    forwarders:
+
+        # Forwarder name. Must be unique within the list of forwarders. 
+        # This name can be referenced in the overrides configuration to
+        # enable forwarder for a tenant.
+      - name: <string>
+
+        # The forwarder backend to use
+        # Should be "otlpgrpc".
+        backend: <string>
+
+        # otlpgrpc configuration. Will be used only if value of backend is "otlpgrpc".
+        otlpgrpc:
+          
+          # List of otlpgrpc compatible endpoints.
+          endpoints: <list of string>
+          tls:
+
+            # Optional.
+            # Disables TSL if set to true.
+            [insecure: <boolean> | default = false]
+
+            # Optional.
+            # Path to the TLS certificate. This field must be set if insecure = false.
+            [cert_file: <string | default = "">]
+      - (repetition of above...)
+
 
     # Optional.
     # Enable to log every received trace id to help debug ingestion
@@ -264,6 +301,12 @@ metrics_generator:
 
         # A list of labels that will be added to all generated metrics.
         [external_labels: <map>]
+
+        # The maximum length of label names. Label names exceeding this limit will be truncated.
+        [max_label_name_length: <int> | default = 1024]
+
+        # The maximum length of label values. Label values exceeding this limit will be truncated.
+        [max_label_value_length: <int> | default = 2048]
 
     # Storage and remote write configuration
     storage:
@@ -635,40 +678,40 @@ storage:
             # store traces in this container.
             # Tempo requires a dedicated bucket since it maintains a top-level object structure and does not support
             # a custom prefix to nest within a shared bucket.
-            [container-name: <string>]
+            [container_name: <string>]
 
             # optional.
             # Azure endpoint to use, defaults to Azure global(core.windows.net) for other
             # regions this needs to be changed e.g Azure China(blob.core.chinacloudapi.cn),
             # Azure German(blob.core.cloudapi.de), Azure US Government(blob.core.usgovcloudapi.net).
-            [endpoint-suffix: <string>]
+            [endpoint_suffix: <string>]
 
             # Name of the azure storage account
-            [storage-account-name: <string>]
+            [storage_account_name: <string>]
 
             # optional.
             # access key when using access key credentials.
-            [storage-account-key: <string>]
+            [storage_account_key: <string>]
 
             # optional.
             # use Azure Managed Identity to access Azure storage.
-            [use-managed-identity: <bool>]
+            [use_managed_identity: <bool>]
 
             # optional.
             # The Client ID for the user-assigned Azure Managed Identity used to access Azure storage.
-            [user-assigned-id: <bool>]
+            [user_assigned_id: <bool>]
 
             # Optional. Default is 0 (disabled)
-            # Example: "hedge-requests-at: 500ms"
+            # Example: "hedge_requests_at: 500ms"
             # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
             # be set to p99 of Axure Blog Storage requests to reduce long tail latency.  This setting is most impactful when
             # used with queriers and has minimal to no impact on other pieces.
-            [hedge-requests-at: <duration>]
+            [hedge_requests_at: <duration>]
 
             # Optional. Default is 2
-            # Example: "hedge-requests-up-to: 2"
-            # The maximum number of requests to execute when hedging. Requires hedge-requests-at to be set.
-            [hedge-requests-up-to: <int>]
+            # Example: "hedge_requests_up_to: 2"
+            # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
+            [hedge_requests_up_to: <int>]
 
         # How often to repoll the backend for new blocks. Default is 5m
         [blocklist_poll: <duration>]
@@ -919,6 +962,11 @@ storage:
 
             # number of bytes per search page
             [search_page_size_bytes: <int> | default = 1MiB]
+
+            # an estimate of the number of bytes per row group when cutting Parquet blocks. lower values will
+            #  create larger footers but will be harder to shard when searching. It is difficult to calculate
+            #  this field directly and it may vary based on workload. This is roughly a lower bound.
+            [row_group_size_bytes: <int> | default = 100MB]
 ```
 
 ## Memberlist
@@ -1075,6 +1123,12 @@ overrides:
     # A value of 0 disables the limit.
     [max_bytes_per_tag_values_query: <int> | default = 5000000 (5MB) ]
 
+    # Generic forwarding configuration
+
+    # Per-user configuration of generic forwarder feature. Each forwarder in the list
+    # must refer by name to a forwarder defined in the distributor.forwarders configuration.
+    [forwarders: <list of strings>]
+
     # Metrics-generator configurations
 
     # Per-user configuration of the metrics-generator ring size. If set, the tenant will use a
@@ -1097,7 +1151,7 @@ overrides:
     # overrides settings in the global configuration.
     [metrics_generator_processor_service_graphs_histogram_buckets: <list of float>]
     [metrics_generator_processor_service_graphs_dimensions: <list of string>]
-    [metrics_generator_processor_span_metrics_histogram_buckets: <<list of float>]
+    [metrics_generator_processor_span_metrics_histogram_buckets: <list of float>]
     [metrics_generator_processor_span_metrics_dimensions: <list of string>]
 
     # Maximum number of active series in the registry, per instance of the metrics-generator. A

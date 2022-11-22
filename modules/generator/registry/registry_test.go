@@ -61,7 +61,7 @@ func TestManagedRegistry_counter(t *testing.T) {
 
 	counter := registry.NewCounter("my_counter", []string{"label"})
 
-	counter.Inc(NewLabelValues([]string{"value-1"}), 1.0)
+	counter.Inc(newLabelValues([]string{"value-1"}), 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "my_counter", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
@@ -77,7 +77,7 @@ func TestManagedRegistry_histogram(t *testing.T) {
 
 	histogram := registry.NewHistogram("histogram", []string{"label"}, []float64{1.0, 2.0})
 
-	histogram.ObserveWithExemplar(NewLabelValues([]string{"value-1"}), 1.0, "")
+	histogram.ObserveWithExemplar(newLabelValues([]string{"value-1"}), 1.0, "")
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
@@ -158,9 +158,9 @@ func TestManagedRegistry_maxSeries(t *testing.T) {
 	counter1 := registry.NewCounter("metric_1", []string{"label"})
 	counter2 := registry.NewCounter("metric_2", nil)
 
-	counter1.Inc(NewLabelValues([]string{"value-1"}), 1.0)
+	counter1.Inc(newLabelValues([]string{"value-1"}), 1.0)
 	// these series should be discarded
-	counter1.Inc(NewLabelValues([]string{"value-2"}), 1.0)
+	counter1.Inc(newLabelValues([]string{"value-2"}), 1.0)
 	counter2.Inc(nil, 1.0)
 
 	assert.Equal(t, uint32(1), registry.activeSeries.Load())
@@ -188,6 +188,32 @@ func TestManagedRegistry_disableCollection(t *testing.T) {
 	registry.collectMetrics(context.Background())
 	assert.Empty(t, appender.samples)
 	assert.Empty(t, appender.exemplars)
+}
+
+func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		MaxLabelNameLength:  8,
+		MaxLabelValueLength: 5,
+	}
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger())
+	defer registry.Close()
+
+	counter := registry.NewCounter("counter", []string{"very_lengthy_label"})
+	histogram := registry.NewHistogram("histogram", []string{"another_very_lengthy_label"}, []float64{1.0})
+
+	counter.Inc(registry.NewLabelValues([]string{"very_length_value"}), 1.0)
+	histogram.ObserveWithExemplar(registry.NewLabelValues([]string{"another_very_lengthy_value"}), 1.0, "")
+
+	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "counter", "very_len": "very_", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_count", "another_": "anoth", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_sum", "another_": "anoth", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_bucket", "another_": "anoth", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_bucket", "another_": "anoth", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 0, 1.0),
+	}
+	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
 
 func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender *capturingAppender, expectedSamples []sample) {

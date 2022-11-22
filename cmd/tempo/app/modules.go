@@ -2,17 +2,19 @@ package app
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"path"
 
 	"github.com/go-kit/log/level"
+	"github.com/grafana/dskit/dns"
 	"github.com/grafana/dskit/kv/codec"
 	"github.com/grafana/dskit/kv/memberlist"
 	"github.com/grafana/dskit/modules"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/thanos-io/thanos/pkg/discovery/dns"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
 
@@ -257,6 +259,9 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// http query echo endpoint
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathEcho), echoHandler())
 
+	// http endpoint to see usage stats data
+	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathUsageStats), usageStatsHandler(t.cfg.UsageReport))
+
 	// todo: queryFrontend should implement service.Service and take the cortex frontend a submodule
 	return t.frontend, nil
 }
@@ -449,5 +454,27 @@ func addHTTPAPIPrefix(cfg *Config, apiPath string) string {
 func echoHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "echo", http.StatusOK)
+	}
+}
+
+func usageStatsHandler(urCfg usagestats.Config) http.HandlerFunc {
+	if !urCfg.Enabled {
+		return func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "usage-stats is not enabled", http.StatusOK)
+		}
+	}
+
+	// usage stats is Enabled, build and return usage stats json
+	reportStr, err := jsoniter.MarshalToString(usagestats.BuildStats())
+	if err != nil {
+		return func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "error building usage report", http.StatusInternalServerError)
+		}
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, reportStr)
 	}
 }

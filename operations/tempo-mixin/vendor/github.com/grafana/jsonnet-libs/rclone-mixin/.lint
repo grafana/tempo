@@ -1,0 +1,6 @@
+exclusions:
+  panel-job-instance-rule:
+    entries:
+    - dashboard: rclone
+      panel: Historical Instances
+      reason: Deliberately getting all instances of the job to provide a comprehensive list of historical executions of rclone

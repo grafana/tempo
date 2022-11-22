@@ -1,4 +1,17 @@
 ## main / unreleased
+* [BUGFIX] Stop distributors on Otel receiver fatal error[#1887](https://github.com/grafana/tempo/pull/1887) (@rdooley)
+* [CHANGE] **BREAKING CHANGE** Use snake case on Azure Storage config [#1879](https://github.com/grafana/tempo/issues/1879) (@faustodavid)
+Example of using snake case on Azure Storage config:
+```
+# config.yaml
+storage:
+  azure:
+    storage_account_name:
+    storage_account_key:
+    container_name:
+```
+* [ENHANCEMENT] Support global and wildcard overrides in generic forwarder feature [#1871](https://github.com/grafana/tempo/pull/1871) (@Blinkuu)
+* [FEATURE] Add `/status/usage-stats` endpoint to show usage stats data [#1782](https://github.com/grafana/tempo/pull/1782) (@electron0zero)
 * [FEATURE] Add generic forwarder and implement otlpgrpc forwarder [#1775](https://github.com/grafana/tempo/pull/1775) (@Blinkuu)
     New config options and example configuration:
 ```
@@ -47,6 +60,11 @@ Old config will still work but will be removed in a future release. [#1735](http
 * [CHANGE] Update alpine image version to 3.16. [#1784](https://github.com/grafana/tempo/pull/1784) (@zalegrala)
 * [CHANGE] Delete TempoRequestErrors alert from mixin [#1810](https://github.com/grafana/tempo/pull/1810) (@zalegrala)
   - **BREAKING CHANGE** Any jsonnet users relying on this alert should copy this into their own environment.
+* [CHANGE] Update and replace a few go modules [#1945](https://github.com/grafana/tempo/pull/1945) (@zalegrala)
+  * Replace `github.com/thanos-io/thanos/pkg/discovery/dns` use with `github.com/grafana/dskit/dns`
+  * Upgrade `github.com/grafana/dskit`
+  * Upgrade `github.com/grafana/e2e`
+  * Upgrade `github.com/minio/minio-go/v7`
 * [FEATURE] Add capability to configure the used S3 Storage Class [#1697](https://github.com/grafana/tempo/pull/1714) (@amitsetty)
 * [ENHANCEMENT] cache: expose username and sentinel_username redis configuration options for ACL-based Redis Auth support [#1708](https://github.com/grafana/tempo/pull/1708) (@jsievenpiper)
 * [ENHANCEMENT] metrics-generator: expose span size as a metric [#1662](https://github.com/grafana/tempo/pull/1662) (@ie-pham)
@@ -55,7 +73,7 @@ Old config will still work but will be removed in a future release. [#1735](http
 * [ENHANCEMENT] Add cli command an existing file to tempodb's current parquet schema. [#1706](https://github.com/grafana/tempo/pull/1707) (@joe-elliott)
 * [ENHANCEMENT] Add query parameter to search API for traceQL queries [#1729](https://github.com/grafana/tempo/pull/1729) (@kvrhdn)
 * [ENHANCEMENT] metrics-generator: filter out older spans before metrics are aggregated [#1612](https://github.com/grafana/tempo/pull/1612) (@ie-pham)
-* * [ENHANCEMENT] Add hedging to trace by ID lookups created by the frontend. [#1735](https://github.com/grafana/tempo/pull/1735) (@mapno)
+* [ENHANCEMENT] Add hedging to trace by ID lookups created by the frontend. [#1735](https://github.com/grafana/tempo/pull/1735) (@mapno)
     New config options and defaults:
 ```
 query_frontend:
@@ -71,13 +89,14 @@ Internal types are updated to use `scope` instead of `instrumentation_library`. 
 * [ENHANCEMENT] metrics-generator: extract `status_message` field from spans [#1786](https://github.com/grafana/tempo/pull/1786), [#1794](https://github.com/grafana/tempo/pull/1794) (@stoewer)
 * [ENHANCEMENT] metrics-generator: handle collisions between user defined and default dimensions [#1794](https://github.com/grafana/tempo/pull/1794) (@stoewer)
 * [ENHANCEMENT] distributor: Log span names when `distributor.log_received_spans.include_all_attributes` is on [#1790](https://github.com/grafana/tempo/pull/1790) (@suraciii)
+* [ENHANCEMENT] metrics-generator: truncate label names and values exceeding a configurable length [#1897](https://github.com/grafana/tempo/pull/1897) (@kvrhdn)
 * [ENHANCEMENT] Add parquet WAL [#1878](https://github.com/grafana/tempo/pull/1878) (@joe-elliott, @mdisibio)
 * [BUGFIX] Honor caching and buffering settings when finding traces by id [#1697](https://github.com/grafana/tempo/pull/1697) (@joe-elliott)
 * [BUGFIX] Correctly propagate errors from the iterator layer up through the queriers [#1723](https://github.com/grafana/tempo/pull/1723) (@joe-elliott)
 * [BUGFIX] Make multitenancy work with HTTP [#1781](https://github.com/grafana/tempo/pull/1781) (@gouthamve)
 * [BUGFIX] Fix parquet search bug fix on http.status_code that may cause incorrect results to be returned [#1799](https://github.com/grafana/tempo/pull/1799) (@mdisibio)
 * [BUGFIX] Fix failing SearchTagValues endpoint after startup [#1813](https://github.com/grafana/tempo/pull/1813) (@stoewer)
-
+* [ENHANCEMENT] New tenant dashboard [#1901](https://github.com/grafana/tempo/pull/1901) (@mapno)
 
 ## v1.5.0 / 2022-08-17
 

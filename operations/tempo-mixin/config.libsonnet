@@ -26,6 +26,7 @@
     },
 
     per_cluster_label: 'cluster',
+    namespace_selector_separator: '/',
 
     // Groups labels to uniquely identify and group by {jobs, clusters, tenants}
     cluster_selectors: [$._config.per_cluster_label, 'namespace'],

@@ -19,8 +19,8 @@ func Test_counter(t *testing.T) {
 
 	c := newCounter("my_counter", []string{"label"}, onAdd, nil)
 
-	c.Inc(NewLabelValues([]string{"value-1"}), 1.0)
-	c.Inc(NewLabelValues([]string{"value-2"}), 2.0)
+	c.Inc(newLabelValues([]string{"value-1"}), 1.0)
+	c.Inc(newLabelValues([]string{"value-2"}), 2.0)
 
 	assert.Equal(t, 2, seriesAdded)
 
@@ -31,8 +31,8 @@ func Test_counter(t *testing.T) {
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples, nil)
 
-	c.Inc(NewLabelValues([]string{"value-2"}), 2.0)
-	c.Inc(NewLabelValues([]string{"value-3"}), 3.0)
+	c.Inc(newLabelValues([]string{"value-2"}), 2.0)
+	c.Inc(newLabelValues([]string{"value-3"}), 3.0)
 
 	assert.Equal(t, 3, seriesAdded)
 
@@ -52,7 +52,7 @@ func Test_counter_invalidLabelValues(t *testing.T) {
 		c.Inc(nil, 1.0)
 	})
 	assert.Panics(t, func() {
-		c.Inc(NewLabelValues([]string{"value-1", "value-2"}), 1.0)
+		c.Inc(newLabelValues([]string{"value-1", "value-2"}), 1.0)
 	})
 }
 
@@ -68,8 +68,8 @@ func Test_counter_cantAdd(t *testing.T) {
 	// allow adding new series
 	canAdd = true
 
-	c.Inc(NewLabelValues([]string{"value-1"}), 1.0)
-	c.Inc(NewLabelValues([]string{"value-2"}), 2.0)
+	c.Inc(newLabelValues([]string{"value-1"}), 1.0)
+	c.Inc(newLabelValues([]string{"value-2"}), 2.0)
 
 	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
@@ -81,8 +81,8 @@ func Test_counter_cantAdd(t *testing.T) {
 	// block new series - existing series can still be updated
 	canAdd = false
 
-	c.Inc(NewLabelValues([]string{"value-2"}), 2.0)
-	c.Inc(NewLabelValues([]string{"value-3"}), 3.0)
+	c.Inc(newLabelValues([]string{"value-2"}), 2.0)
+	c.Inc(newLabelValues([]string{"value-3"}), 3.0)
 
 	collectionTimeMs = time.Now().UnixMilli()
 	expectedSamples = []sample{
@@ -102,8 +102,8 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 	c := newCounter("my_counter", []string{"label"}, nil, onRemove)
 
 	timeMs := time.Now().UnixMilli()
-	c.Inc(NewLabelValues([]string{"value-1"}), 1.0)
-	c.Inc(NewLabelValues([]string{"value-2"}), 2.0)
+	c.Inc(newLabelValues([]string{"value-1"}), 1.0)
+	c.Inc(newLabelValues([]string{"value-2"}), 2.0)
 
 	c.removeStaleSeries(timeMs)
 
@@ -120,7 +120,7 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 	timeMs = time.Now().UnixMilli()
 
 	// update value-2 series
-	c.Inc(NewLabelValues([]string{"value-2"}), 2.0)
+	c.Inc(newLabelValues([]string{"value-2"}), 2.0)
 
 	c.removeStaleSeries(timeMs)
 
@@ -136,8 +136,8 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 func Test_counter_externalLabels(t *testing.T) {
 	c := newCounter("my_counter", []string{"label"}, nil, nil)
 
-	c.Inc(NewLabelValues([]string{"value-1"}), 1.0)
-	c.Inc(NewLabelValues([]string{"value-2"}), 2.0)
+	c.Inc(newLabelValues([]string{"value-1"}), 1.0)
+	c.Inc(newLabelValues([]string{"value-2"}), 2.0)
 
 	collectionTimeMs := time.Now().UnixMilli()
 	expectedSamples := []sample{
@@ -165,8 +165,8 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 
 	for i := 0; i < 4; i++ {
 		go accessor(func() {
-			c.Inc(NewLabelValues([]string{"value-1"}), 1.0)
-			c.Inc(NewLabelValues([]string{"value-2"}), 1.0)
+			c.Inc(newLabelValues([]string{"value-1"}), 1.0)
+			c.Inc(newLabelValues([]string{"value-2"}), 1.0)
 		})
 	}
 
@@ -177,7 +177,7 @@ func Test_counter_concurrencyDataRace(t *testing.T) {
 		for i := range s {
 			s[i] = letters[rand.Intn(len(letters))]
 		}
-		c.Inc(NewLabelValues([]string{string(s)}), 1.0)
+		c.Inc(newLabelValues([]string{string(s)}), 1.0)
 	})
 
 	go accessor(func() {
@@ -210,7 +210,7 @@ func Test_counter_concurrencyCorrectness(t *testing.T) {
 				case <-end:
 					return
 				default:
-					c.Inc(NewLabelValues([]string{"value-1"}), 1.0)
+					c.Inc(newLabelValues([]string{"value-1"}), 1.0)
 					totalCount.Inc()
 				}
 			}
