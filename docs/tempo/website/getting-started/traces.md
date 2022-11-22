@@ -30,17 +30,17 @@ Services respond and data flows back from each, sometimes triggering new events 
 
 Finally, the request and response activity ends and a record of that request is sent to Grafana or Grafana Cloud.
 
-## Traces and labels
+## Traces and trace IDs
 
-Setting up tracing adds a label to all of these events. The label is generated when the request is initiated and that same label is applied to every single event as the request and response generate activity across the system.
+Setting up tracing adds an identifier, or trace ID, to all of these events. The trace ID is generated when the request is initiated and that same trace ID is applied to every single event as the request and response generate activity across the system.
 
-That label enables one to trace, or follow a request as it flows from node to node, service to microservice to lambda function to wherever it goes in your chaotic, cloud computing system and back again. This is recorded and displayed as spans.
+That trace ID enables one to trace, or follow a request as it flows from node to node, service to microservice to lambda function to wherever it goes in your chaotic, cloud computing system and back again. This is recorded and displayed as spans.
 
-Here's an example showing two pages in Grafana Cloud. The first, on the left (1), shows a query using the **Explore** feature. In the query results you can see a **traceID** field that was added to an application. That field contains a **Tempo** label. The second page, on the right (2), uses the same Explore feature to perform a Tempo search using that **traceID** label. It then shows a set of spans as horizontal bars, each bar denoting a different part of the system.
+Here's an example showing two pages in Grafana Cloud. The first, on the left (1), shows a query using the **Explore** feature. In the query results you can see a **traceID** field that was added to an application. That field contains a **Tempo** trace ID. The second page, on the right (2), uses the same Explore feature to perform a Tempo search using that **trace ID**. It then shows a set of spans as horizontal bars, each bar denoting a different part of the system.
 
 <p align="center"><img src="../assets/trace-explore-spans.png" alt="Trace example"></p>
 
-The label is applied to activities recorded as metrics and as logs. 
+The trace ID is applied to activities recorded as metrics and as logs. 
 
 ## What are traces used for? 
 
@@ -54,7 +54,7 @@ Data source
 : A basic storage for data such as a database, a flat file, or even live references or measurements from a device. dA file, database, or service that provides data. For example, traces data is imported into Grafana by configuring and enabling a Tempo data source.
 
 Exemplar
-: Any data that serves as a detailed example of one of the observations aggregated into a metric. An exemplar contains the observed value together with an optional timestamp and arbitrary labels, which are typically used to reference a trace.
+: Any data that serves as a detailed example of one of the observations aggregated into a metric. An exemplar contains the observed value together with an optional timestamp and arbitrary trace IDs, which are typically used to reference a trace.
 
 Log
 : Chronological events, usually text-based, allowing for the diagnosis of problems. Logs can provide informational context, such as detailed records of all events during user interactions, for example, when events happen, who used the system, status messages, etc.
