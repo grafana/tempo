@@ -21,7 +21,7 @@ Traces can be discovered by searching logs for entries containing trace IDs.  Th
 
 ## Find traces using Tempo search
 
-Search for traces using common dimensions such as time range, duration, span tags, service names, etc. Use the trace view to quickly diagnose errors and high-latency events in your system.
+Search for traces using common dimensions such as time range, duration, span tags, service names, and more. Use the trace view to quickly diagnose errors and high-latency events in your system.
 
 Tempo includes the ability to search recent traces held in ingesters.
 Traces can be searched for data originating from a specific service,
@@ -77,7 +77,7 @@ For more information about RED method, refer to [The RED Method: How to instrume
 
 >**Note:** Metrics generation is disabled by default. Contact Grafana Support to enable metrics generation in your organization. 
 
-Once metrics-generator is enabled in your organization, refer to [Metrics-generator configuration]({{< relref "../configuration">}}) for information on metrics-generator options.
+After the metrics generator is enabled in your organization, refer to [Metrics-generator configuration]({{< relref "../configuration">}}) for information about metrics-generator options.
 
 <p align="center"><img src="../assets/trace_service_graph.png" alt="Trace service graph"></p>
 
@@ -85,7 +85,7 @@ These metrics exist in your Hosted Metrics instance and can also be easily used 
 
 <p align="center"><img src="../assets/trace_custom_metrics_dash.png" alt="Trace custom metrics dashboard"></p>
 
-Metrics automatically generate exemplars as well which allows easy metrics to trace linking. [Exemplars]({{< relref "exemplars" >}}) are GA in Grafana Cloud so you can also push your own.
+The metrics generator automatically generates exemplars as well which allows easy metrics to trace linking. [Exemplars]({{< relref "exemplars" >}}) are GA in Grafana Cloud so you can also push your own.
 
 <p align="center"><img src="../assets/trace_exemplars.png" alt="Trace exemplars"></p>
 
