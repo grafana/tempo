@@ -754,13 +754,7 @@
      "fill": 1,
      "id": 8,
      "legend": {
-      "avg": false,
-      "current": false,
-      "max": false,
-      "min": false,
-      "show": true,
-      "total": false,
-      "values": false
+      "show": false
      },
      "lines": true,
      "linewidth": 1,
@@ -781,11 +775,11 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (cluster,namespace,tenant) (tempodb_compaction_outstanding_blocks{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",tenant=\"$tenant\"}})\n/\nignoring(tenant) group_left count(tempo_build_info{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",tenant=\"$tenant\"})\n",
+       "expr": "sum(tempodb_compaction_outstanding_blocks{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",tenant=\"$tenant\"}})\n/\ncount(tempo_build_info{cluster=~\"$cluster\", job=~\"($namespace)/compactor\"})\n",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
-       "legendFormat": "{{ tenant }}",
+       "legendFormat": "blocks",
        "legendLink": null,
        "step": 10
       }
@@ -1168,7 +1162,7 @@
   ]
  },
  "timezone": "utc",
- "title": "Tempo Tenants",
+ "title": "Tempo / Tenants",
  "uid": "",
  "version": 0
 }
