@@ -161,7 +161,6 @@ func testIngestionSlack(t *testing.T, e encoding.VersionedEncoding) {
 
 	require.Equal(t, uint32(appendTime.Unix()), blockStart)
 	require.Equal(t, traceEnd, blockEnd)
-	fmt.Println("append", appendTime, "blockStart", block.BlockMeta().StartTime, "traceStart", time.Unix(int64(traceStart), 0))
 }
 
 func TestFindByTraceID(t *testing.T) {

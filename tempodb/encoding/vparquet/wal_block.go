@@ -62,7 +62,7 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 	b := &walBlock{
 		meta:           meta,
 		path:           path,
-		ids:            common.NewIDMap(),
+		ids:            common.NewIDMap[int64](),
 		ingestionSlack: ingestionSlack,
 	}
 
@@ -95,7 +95,7 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 
 		b.flushed = append(b.flushed, &walBlockFlush{
 			file: pf,
-			ids:  common.NewIDMap(),
+			ids:  common.NewIDMap[int64](),
 		})
 		b.flushedSize += sz
 	}
@@ -119,7 +119,7 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 				case columnPathTraceID:
 					traceID := e.Value.ByteArray()
 					b.meta.ObjectAdded(traceID, 0, 0)
-					page.ids.Set(traceID)
+					page.ids.Set(traceID, match.RowNumber[0]) // Save rownumber for the trace ID
 				}
 			}
 		}
@@ -129,7 +129,7 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 }
 
 // createWALBlock creates a new appendable block
-func createWALBlock(id uuid.UUID, tenantID string, filepath string, _ backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
+func createWALBlock(id uuid.UUID, tenantID string, filepath string, _ backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (*walBlock, error) {
 	b := &walBlock{
 		meta: &backend.BlockMeta{
 			Version:  VersionString,
@@ -137,7 +137,7 @@ func createWALBlock(id uuid.UUID, tenantID string, filepath string, _ backend.En
 			TenantID: tenantID,
 		},
 		path:           filepath,
-		ids:            common.NewIDMap(),
+		ids:            common.NewIDMap[int64](),
 		ingestionSlack: ingestionSlack,
 	}
 
@@ -174,7 +174,7 @@ func ownsWALBlock(entry fs.DirEntry) bool {
 
 type walBlockFlush struct {
 	file *parquet.File
-	ids  *common.IDMap
+	ids  *common.IDMap[int64]
 }
 
 type walBlock struct {
@@ -184,7 +184,7 @@ type walBlock struct {
 
 	// Unflushed data
 	buffer        *Trace
-	ids           *common.IDMap
+	ids           *common.IDMap[int64]
 	file          *os.File
 	writer        *parquet.GenericWriter[*Trace]
 	decoder       model.ObjectDecoder
@@ -221,7 +221,7 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 	}
 
 	b.meta.ObjectAdded(id, start, end)
-	b.ids.Set(id)
+	b.ids.Set(id, int64(b.ids.Len())) // Next row number
 
 	// This is actually the protobuf size but close enough
 	// for this purpose and only temporary until next flush.
@@ -313,7 +313,7 @@ func (b *walBlock) Flush() (err error) {
 	})
 	b.flushedSize += sz
 	b.unflushedSize = 0
-	b.ids = common.NewIDMap()
+	b.ids = common.NewIDMap[int64]()
 
 	// Open next one
 	return b.openWriter()
@@ -328,8 +328,9 @@ func (b *walBlock) DataLength() uint64 {
 func (b *walBlock) Iterator() (common.Iterator, error) {
 	bookmarks := make([]*bookmark[*Trace], 0, len(b.flushed))
 	for _, page := range b.flushed {
+
 		r := parquet.NewGenericReader[*Trace](page.file)
-		iter := &traceIterator{reader: r}
+		iter := &traceIterator{reader: r, rowNumbers: page.ids.ValuesSortedByID()}
 
 		bookmarks = append(bookmarks, newBookmark[*Trace](iter))
 	}
@@ -349,16 +350,26 @@ func (b *walBlock) Clear() error {
 }
 
 // jpe what to do with common.SearchOptions?
-func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
+func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
 	trs := make([]*tempopb.Trace, 0)
 
-	for i, page := range b.flushed {
-		if page.ids.Has(id) {
-			tr, err := findTraceByID(ctx, id, b.meta, page.file)
+	for _, page := range b.flushed {
+		if rowNumber, ok := page.ids.Get(id); ok {
+			r := parquet.NewReader(page.file)
+			err := r.SeekToRow(rowNumber)
 			if err != nil {
-				return nil, fmt.Errorf("error finding trace by id in block [%s %d]: %w", b.meta.BlockID.String(), i, err)
+				return nil, errors.Wrap(err, "seek to row")
 			}
-			trs = append(trs, tr)
+
+			tr := new(Trace)
+			err = r.Read(tr)
+			if err != nil {
+				return nil, errors.Wrap(err, "error reading row from backend")
+			}
+
+			trp := parquetTraceToTempopbTrace(tr)
+
+			trs = append(trs, trp)
 		}
 	}
 
@@ -496,13 +507,28 @@ func tracePoolPut(t *Trace) {
 }
 
 // traceIterator is used to iterate a parquet file and implement iterIterator
+// traces are iterated according to the given row numbers, because there is
+// not a guarantee that the underlying parquet file is sorted
 type traceIterator struct {
-	reader *parquet.GenericReader[*Trace]
+	reader     *parquet.GenericReader[*Trace]
+	rowNumbers []int64
 }
 
 func (i *traceIterator) Next(ctx context.Context) (common.ID, *Trace, error) {
+	if len(i.rowNumbers) == 0 {
+		return nil, nil, nil
+	}
+
+	nextRowNumber := i.rowNumbers[0]
+	i.rowNumbers = i.rowNumbers[1:]
+
+	err := i.reader.SeekToRow(nextRowNumber)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	tr := tracePoolGet()
-	_, err := i.reader.Read([]*Trace{tr})
+	_, err = i.reader.Read([]*Trace{tr})
 	if err != nil {
 		return nil, nil, err
 	}

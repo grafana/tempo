@@ -1,10 +1,20 @@
 package vparquet
 
 import (
+	"bytes"
+	"context"
+	"fmt"
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -190,4 +200,76 @@ func TestParseFilename(t *testing.T) {
 			require.Equal(t, tc.expectedVersion, actualVersion)
 		})
 	}
+}
+
+func TestWalBlockFindTraceByID(t *testing.T) {
+	testWalBlock(t, func(w *walBlock, ids []common.ID, trs []*tempopb.Trace) {
+		for i := range ids {
+			fmt.Println("finding tr", i)
+			found, err := w.FindTraceByID(context.Background(), ids[i], common.DefaultSearchOptions())
+			require.NoError(t, err)
+			require.NotNil(t, found)
+			require.True(t, proto.Equal(trs[i], found))
+		}
+	})
+}
+
+func TestWalBlockIterator(t *testing.T) {
+	testWalBlock(t, func(w *walBlock, ids []common.ID, trs []*tempopb.Trace) {
+
+		iter, err := w.Iterator()
+		require.NoError(t, err)
+
+		count := 0
+		for ; ; count++ {
+			id, tr, err := iter.Next(context.Background())
+			require.NoError(t, err)
+
+			if id == nil {
+				break
+			}
+
+			// Find trace in the input data
+			match := 0
+			for i := range ids {
+				if bytes.Equal(ids[i], id) {
+					match = i
+					break
+				}
+			}
+
+			require.Equal(t, ids[match], id)
+			require.True(t, proto.Equal(trs[match], tr))
+		}
+		require.Equal(t, len(ids), count)
+	})
+}
+
+func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*tempopb.Trace)) {
+	w, err := createWALBlock(uuid.New(), "fake", t.TempDir(), backend.EncNone, model.CurrentEncoding, 0)
+	require.NoError(t, err)
+
+	decoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	count := 10
+	ids := make([]common.ID, count)
+	trs := make([]*tempopb.Trace, count)
+	for i := 0; i < count; i++ {
+		ids[i] = test.ValidTraceID(nil)
+		trs[i] = test.MakeTrace(10, ids[i])
+		trace.SortTrace(trs[i])
+
+		b1, err := decoder.PrepareForWrite(trs[i], 0, 0)
+		require.NoError(t, err)
+
+		b2, err := decoder.ToObject([][]byte{b1})
+		require.NoError(t, err)
+
+		err = w.Append(ids[i], b2, 0, 0)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, w.Flush())
+
+	f(w, ids, trs)
 }
