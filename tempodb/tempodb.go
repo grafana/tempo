@@ -370,6 +370,7 @@ func (rw *readerWriter) Fetch(ctx context.Context, meta *backend.BlockMeta, req 
 		return traceql.FetchSpansResponse{}, err
 	}
 
+	rw.cfg.Search.ApplyToOptions(&opts)
 	return block.Fetch(ctx, req, opts)
 }
 
