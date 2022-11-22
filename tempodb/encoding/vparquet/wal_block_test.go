@@ -54,69 +54,6 @@ func TestFullFilename(t *testing.T) {
 	}
 }
 
-// jpe - restore this when what partial failure conditions exist
-// func TestPartialBlock(t *testing.T) {
-// 	blockID := uuid.New()
-// 	block, err := createWALBlock(blockID, testTenantID, t.TempDir(), backend.EncSnappy, "v2", 0)
-// 	require.NoError(t, err, "unexpected error creating block")
-
-// 	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
-// 	dec := model.MustNewObjectDecoder(model.CurrentEncoding)
-
-// 	numMsgs := 100
-// 	reqs := make([]*tempopb.Trace, 0, numMsgs)
-// 	for i := 0; i < numMsgs; i++ {
-// 		id := make([]byte, 4)
-// 		binary.LittleEndian.PutUint32(id, uint32(i)) // using i for the id b/c the iterator below requires a sorted ascending list of ids
-
-// 		id = test.ValidTraceID(id)
-// 		req := test.MakeTrace(rand.Intn(10), id)
-// 		reqs = append(reqs, req)
-
-// 		b1, err := enc.PrepareForWrite(req, 0, 0)
-// 		require.NoError(t, err)
-
-// 		b2, err := enc.ToObject([][]byte{b1})
-// 		require.NoError(t, err)
-
-// 		err = block.Append(id, b2, 0, 0)
-// 		require.NoError(t, err)
-// 	}
-
-// 	// append garbage data
-// 	v2Block := block.(*walBlock)
-// 	garbo := make([]byte, 100)
-// 	_, err = rand.Read(garbo)
-// 	require.NoError(t, err)
-
-// 	appendFile, err := os.OpenFile(v2Block.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-// 	require.NoError(t, err)
-// 	_, err = appendFile.Write(garbo)
-// 	require.NoError(t, err)
-// 	err = appendFile.Close()
-// 	require.NoError(t, err)
-
-// 	// confirm all objects are still read
-// 	i := 0
-// 	iter, err := block.Iterator()
-// 	bytesIter := iter.(BytesIterator)
-// 	require.NoError(t, err)
-// 	for {
-// 		_, bytesObject, err := bytesIter.NextBytes(context.Background())
-// 		if err == io.EOF {
-// 			break
-// 		}
-// 		require.NoError(t, err)
-
-// 		req, err := dec.PrepareForRead(bytesObject)
-// 		require.NoError(t, err)
-
-// 		require.True(t, proto.Equal(req, reqs[i]))
-// 		i++
-// 	}
-// 	require.Equal(t, numMsgs, i)
-// }
-
 func TestParseFilename(t *testing.T) {
 	tests := []struct {
 		name            string
