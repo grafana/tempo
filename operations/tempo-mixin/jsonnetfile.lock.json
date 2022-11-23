@@ -5,16 +5,6 @@
       "source": {
         "git": {
           "remote": "https://github.com/grafana/jsonnet-libs.git",
-          "subdir": ""
-        }
-      },
-      "version": "32101ab7cf57915901a75af9c2cf2442416677f6",
-      "sum": "jLhWK5OHprAhR6zBzyFdHr8Z48YVAopl9Xya03/9Mo0="
-    },
-    {
-      "source": {
-        "git": {
-          "remote": "https://github.com/grafana/jsonnet-libs.git",
           "subdir": "grafana-builder"
         }
       },

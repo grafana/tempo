@@ -1,3 +1,0 @@
-{
-  timeseries:: import 'timeseries.libsonnet',
-}
