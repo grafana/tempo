@@ -1,1 +1,0 @@
-(import 'gitlab-overview.libsonnet')
