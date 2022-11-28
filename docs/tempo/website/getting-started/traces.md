@@ -40,13 +40,14 @@ Here's an example showing two pages in Grafana Cloud. The first, on the left (1)
 
 <p align="center"><img src="../assets/trace-explore-spans.png" alt="Trace example"></p>
 
-The trace ID is applied to activities recorded as metrics and as logs. 
 
-## What are traces used for? 
+The trace ID is applied to activities recorded as metrics and as logs.
+
+## What are traces used for?
 
 Traces can help you find bottlenecks. A trace can be visualized to give a graphic representation of how long it takes for each step in the data flow pathway to complete. It can show where new requests are initiated and end, and how your system responds. This data helps you locate problem areas, often in places you never would have anticipated or found without this ability to trace the request flow.
 
-Metrics, logs, and traces form the three pillars of observability. Metrics provide the health data about the state of a system. Logs provide an audit trail of activity that create an informational context. Traces tell you what happens at each step or action in a data pathway. 
+Metrics, logs, and traces form the three pillars of observability. Metrics provide the health data about the state of a system. Logs provide an audit trail of activity that create an informational context. Traces tell you what happens at each step or action in a data pathway.
 
 ## Terminology
 
