@@ -64,6 +64,10 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			break
 		}
 
+		// jpe why does this fail vparquet -> v2 but not vparquet -> vparquet?
+		//      does this copy need to be in the parquet iterator?
+		id = append([]byte(nil), id...)
+
 		// This assumes the incoming bytes are the same data encoding.
 		err = newBlock.AddObject(id, trBytes)
 		if err != nil {
