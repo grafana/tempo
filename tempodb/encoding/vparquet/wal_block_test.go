@@ -94,7 +94,7 @@ func TestPartialReplay(t *testing.T) {
 	fpath := w.filepathOf(1)
 	info, err := os.Stat(fpath)
 	require.NoError(t, err)
-	os.Truncate(fpath, info.Size()/2)
+	require.NoError(t, os.Truncate(fpath, info.Size()/2))
 
 	// Replay, this has a warning on page 2
 	w2, warning, err := openWALBlock(filepath.Base(w.walPath()), filepath.Dir(w.walPath()), 0, 0)
