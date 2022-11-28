@@ -71,7 +71,7 @@ require (
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	github.com/weaveworks/common v0.0.0-20220916164235-da3fde973eec
 	github.com/willf/bloom v2.0.3+incompatible
-	go.opencensus.io v0.23.0
+	go.opencensus.io v0.24.0
 	go.opentelemetry.io/collector v0.57.2
 	go.opentelemetry.io/collector/pdata v0.57.2
 	go.opentelemetry.io/collector/semconv v0.57.2
