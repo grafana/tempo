@@ -16,7 +16,7 @@ client instrumentation, pipeline, backend, and visualization.
 
 This diagram illustrates a tracing system configuration:
 
-<p align="center"><img src="getting-started.png" alt="Tracing pipeline overview"></p>
+<p align="center"><img src="../assets/getting-started.png" alt="Tracing pipeline overview"></p>
 
 ## Client instrumentation
 
