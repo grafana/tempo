@@ -7,8 +7,8 @@ import (
 	"github.com/segmentio/parquet-go"
 )
 
-type Iterator interface {
-	Next(context.Context) (*Trace, error)
+type TraceIterator interface {
+	NextTrace(context.Context) (common.ID, *Trace, error)
 	Close()
 }
 

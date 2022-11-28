@@ -10,7 +10,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
-func TestIteratorReadsAllRows(t *testing.T) {
+func TestRawIteratorReadsAllRows(t *testing.T) {
 	rawR, _, _, err := local.New(&local.Config{
 		Path: "./test-data",
 	})
@@ -28,13 +28,13 @@ func TestIteratorReadsAllRows(t *testing.T) {
 
 	b := newBackendBlock(meta, r)
 
-	iter, err := b.Iterator(context.Background())
+	iter, err := b.RawIterator(context.Background(), newRowPool(10))
 	require.NoError(t, err)
 	defer iter.Close()
 
 	actualCount := 0
 	for {
-		tr, err := iter.Next(context.Background())
+		_, tr, err := iter.Next(context.Background())
 		if tr == nil {
 			break
 		}

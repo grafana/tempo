@@ -36,24 +36,46 @@ func (b *backendWriter) Close() error {
 func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
 	s := newStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
 
-	trp := &Trace{}
+	var next func(context.Context) (common.ID, *Trace, error)
+	repool := false
+	if ii, ok := i.(*commonIterator); ok {
+		// Use interal iterator and avoid translation to/from proto
+		// TODO - Operate on parquet.Row for even better performance
+		next = ii.NextTrace
+		// TODO - Figure out what is wrong with pooling and reenable it
+		//repool = true
+	} else {
+		// Need to convert from proto->parquet obj
+		trp := &Trace{}
+		next = func(context.Context) (common.ID, *Trace, error) {
+			id, tr, err := i.Next(ctx)
+			if err == io.EOF || tr == nil {
+				return id, nil, err
+			}
+
+			// Copy ID to allow it to escape the iterator.
+			id = append([]byte(nil), id...)
+
+			trp = traceToParquet(id, tr, trp)
+			return id, trp, nil
+		}
+	}
+
 	for {
-		id, tr, err := i.Next(ctx)
+		_, tr, err := next(ctx)
 		if err == io.EOF || tr == nil {
 			break
 		}
 
-		// Copy ID to allow it to escape the iterator.
-		id = append([]byte(nil), id...)
-
-		trp = traceToParquet(id, tr, trp)
-		err = s.Add(trp, 0, 0) // start and end time of the wal meta are used.
+		err = s.Add(tr, 0, 0) // start and end time of the wal meta are used.
 		if err != nil {
 			return nil, err
 		}
 
-		// Here we repurpose RowGroupSizeBytes as number of raw column values.
-		// This is a fairly close approximation.
+		if repool {
+			tracePoolPut(tr)
+		}
+
 		if s.EstimatedBufferedBytes() > cfg.RowGroupSizeBytes {
 			_, err = s.Flush()
 			if err != nil {

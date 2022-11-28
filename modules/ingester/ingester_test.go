@@ -175,8 +175,7 @@ func TestWal(t *testing.T) {
 		require.NoError(t, err, "unexpected error querying")
 
 		trace.SortTrace(foundTrace.Trace)
-		equal := proto.Equal(traces[i], foundTrace.Trace)
-		require.True(t, equal)
+		test.TracesEqual(t, traces[i], foundTrace.Trace)
 	}
 }
 
@@ -189,20 +188,23 @@ func TestSearchWAL(t *testing.T) {
 	inst, _ := i.getOrCreateInstance("test")
 	require.NotNil(t, inst)
 
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
 	// create some search data
 	id := make([]byte, 16)
 	_, err = rand.Read(id)
 	require.NoError(t, err)
 	trace := test.MakeTrace(10, id)
-	traceBytes, err := trace.Marshal()
+	b1, err := dec.PrepareForWrite(trace, 0, 0)
 	require.NoError(t, err)
+
 	entry := &tempofb.SearchEntryMutable{}
 	entry.TraceID = id
 	entry.AddTag("foo", "bar")
 	searchBytes := entry.ToBytes()
 
 	// push to instance
-	require.NoError(t, inst.PushBytes(context.Background(), id, traceBytes, searchBytes))
+	require.NoError(t, inst.PushBytes(context.Background(), id, b1, searchBytes))
 
 	// Write wal
 	require.NoError(t, inst.CutCompleteTraces(0, true))
@@ -336,6 +338,7 @@ func defaultIngesterModule(t testing.TB, tmpDir string) *Ingester {
 			},
 			WAL: &wal.Config{
 				Filepath: tmpDir,
+				Version:  "v2",
 			},
 		},
 	}, log.NewNopLogger())

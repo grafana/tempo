@@ -97,7 +97,7 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest)
 	}
 
 	// TODO - route global search options here
-	pf, _, err := b.openForSearch(ctx, common.SearchOptions{})
+	pf, _, err := b.openForSearch(ctx, common.DefaultSearchOptions())
 	if err != nil {
 		return traceql.FetchSpansResponse{}, err
 	}
@@ -177,6 +177,33 @@ func (i *spansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
 
 	// The spanset is in the OtherEntries
 	spanset := res.OtherEntries[0].Value.(*traceql.Spanset)
+
+	return spanset, nil
+}
+
+// mergeSpansetIterator iterates through a slice of spansetIterators exhausting them
+// in order
+type mergeSpansetIterator struct {
+	iters []*spansetIterator
+	cur   int
+}
+
+var _ traceql.SpansetIterator = (*mergeSpansetIterator)(nil)
+
+func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
+	if i.cur >= len(i.iters) {
+		return nil, nil
+	}
+
+	iter := i.iters[i.cur]
+	spanset, err := iter.Next(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if spanset == nil {
+		i.cur++
+		return i.Next(ctx)
+	}
 
 	return spanset, nil
 }
