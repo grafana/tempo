@@ -1466,7 +1466,7 @@
     "type": "datasource"
    },
    {
-    "allValue": ".+",
+    "allValue": null,
     "current": {
      "selected": true,
      "text": "All",
