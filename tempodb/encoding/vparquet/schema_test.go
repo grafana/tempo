@@ -244,3 +244,34 @@ func estimateRowSize(t *testing.T, name string) {
 
 	fmt.Println(pf.Size(), ",", len(pf.RowGroups()), ",", totalProtoSize, ",", totalTraceSize)
 }
+
+func TestExtendReuseSlice(t *testing.T) {
+	tcs := []struct {
+		sz       int
+		in       []int
+		expected []int
+	}{
+		{
+			sz:       0,
+			in:       []int{1, 2, 3},
+			expected: []int{},
+		},
+		{
+			sz:       2,
+			in:       []int{1, 2, 3},
+			expected: []int{1, 2},
+		},
+		{
+			sz:       5,
+			in:       []int{1, 2, 3},
+			expected: []int{1, 2, 3, 0, 0},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(fmt.Sprintf("%v", tc.sz), func(t *testing.T) {
+			out := extendReuseSlice(tc.sz, tc.in)
+			assert.Equal(t, tc.expected, out)
+		})
+	}
+}

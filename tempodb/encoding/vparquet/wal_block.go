@@ -285,6 +285,8 @@ func (b *walBlock) Flush() (err error) {
 		return nil
 	}
 
+	b.buffer = nil
+
 	// Flush latest meta first
 	// This mainly contains the slack-adjusted start/end times
 	metaBytes, err := json.Marshal(b.BlockMeta())
@@ -344,7 +346,7 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 		bookmarks = append(bookmarks, newBookmark[parquet.Row](iter))
 	}
 
-	sch := parquet.SchemaOf(new(Trace))
+	sch := parquet.SchemaOf(new(Trace)) // jpe here as well
 	iter := newMultiblockIterator(bookmarks, func(rows []parquet.Row) (parquet.Row, error) {
 		if len(rows) == 1 {
 			return rows[0], nil
@@ -569,16 +571,18 @@ var _ common.Iterator = (*commonIterator)(nil)
 // commonIterator implements common.Iterator. it is returned from the AppendFile and is meant
 // to be passed to a CreateBlock
 type commonIterator struct {
-	iter   *MultiBlockIterator[parquet.Row]
-	schema *parquet.Schema
-	pool   *rowPool
+	iter        *MultiBlockIterator[parquet.Row]
+	schema      *parquet.Schema
+	pool        *rowPool
+	commonTrace *Trace
 }
 
 func newCommonIterator(iter *MultiBlockIterator[parquet.Row], pool *rowPool) *commonIterator {
 	return &commonIterator{
-		iter:   iter,
-		schema: parquet.SchemaOf(&Trace{}),
-		pool:   pool,
+		iter:        iter,
+		schema:      parquet.SchemaOf(&Trace{}), // jpe - find all schemas
+		pool:        pool,
+		commonTrace: &Trace{},
 	}
 }
 
