@@ -12,19 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tracetransform // import "go.opentelemetry.io/otel/exporters/otlp/otlptrace/internal/tracetransform"
+package semconv // import "go.opentelemetry.io/otel/semconv/v1.4.0"
 
-import (
-	"go.opentelemetry.io/otel/sdk/instrumentation"
-	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
+const (
+	// ExceptionEventName is the name of the Span event representing an exception.
+	ExceptionEventName = "exception"
 )
-
-func InstrumentationScope(il instrumentation.Scope) *commonpb.InstrumentationScope {
-	if il == (instrumentation.Scope{}) {
-		return nil
-	}
-	return &commonpb.InstrumentationScope{
-		Name:    il.Name,
-		Version: il.Version,
-	}
-}

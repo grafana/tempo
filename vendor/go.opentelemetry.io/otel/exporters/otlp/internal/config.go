@@ -12,19 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tracetransform // import "go.opentelemetry.io/otel/exporters/otlp/otlptrace/internal/tracetransform"
+// Package internal contains common functionality for all OTLP exporters.
+package internal // import "go.opentelemetry.io/otel/exporters/otlp/internal"
 
 import (
-	"go.opentelemetry.io/otel/sdk/instrumentation"
-	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
+	"fmt"
+	"path"
+	"strings"
 )
 
-func InstrumentationScope(il instrumentation.Scope) *commonpb.InstrumentationScope {
-	if il == (instrumentation.Scope{}) {
-		return nil
+// CleanPath returns a path with all spaces trimmed and all redundancies removed. If urlPath is empty or cleaning it results in an empty string, defaultPath is returned instead.
+func CleanPath(urlPath string, defaultPath string) string {
+	tmp := path.Clean(strings.TrimSpace(urlPath))
+	if tmp == "." {
+		return defaultPath
 	}
-	return &commonpb.InstrumentationScope{
-		Name:    il.Name,
-		Version: il.Version,
+	if !path.IsAbs(tmp) {
+		tmp = fmt.Sprintf("/%s", tmp)
 	}
+	return tmp
 }
