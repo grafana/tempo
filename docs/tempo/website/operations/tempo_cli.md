@@ -273,4 +273,20 @@ Arguments:
 **Example:**
 ```bash
 tempo-cli parquet convert data.parquet out.parquet
+````
+
+## Write trace command
+
+Synthetically creates a trace with a desired number of spans to send to Tempo using OTLP over gRPC.
+
+```bash
+tempo-cli write trace <otel-endpoint> <span-count>
+
+Arguments:
+-  `otel-endpoint` OpenTelemetry endpoint for OTLP
+-  `span-count` The number of spans to send in the trace
+
+Flags:
+  --tenant-id=STRING      Header value for X-Scope-OrgID tenant used in multi-tenant environments
+
 ```
