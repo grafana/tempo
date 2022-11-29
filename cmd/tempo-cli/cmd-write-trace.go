@@ -29,7 +29,8 @@ type writeTraceCmd struct {
 
 	logger log.Logger
 
-	SpanCount int64 `arg:"" help:"The number of spans to send in the trace"`
+	SpanCount int64  `arg:"" help:"The number of spans to send in the trace"`
+	TenantID  string `arg:"" help:"Header value for X-Scope-OrgID tenant"`
 }
 
 func (cmd *writeTraceCmd) Run(_ *globalOptions) error {
@@ -84,7 +85,14 @@ func (cmd *writeTraceCmd) installOpenTelemetryTracer() (func(), error) {
 		return nil, errors.Wrap(err, "failed to dial otel grpc")
 	}
 
-	traceExporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
+	options := []otlptracegrpc.Option{otlptracegrpc.WithGRPCConn(conn)}
+
+	if cmd.TenantID != "" {
+		options = append(options,
+			otlptracegrpc.WithHeaders(map[string]string{"X-Scope-OrgID": cmd.TenantID}))
+	}
+
+	traceExporter, err := otlptracegrpc.New(ctx, options...)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to creat trace exporter")
 	}
