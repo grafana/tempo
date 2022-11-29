@@ -29,8 +29,7 @@ type writeTraceCmd struct {
 
 	logger log.Logger
 
-	SpanCount int64  `arg:"" help:"The number of spans to send in the trace"`
-	TenantID  string `arg:"" help:"Header value for X-Scope-OrgID tenant"`
+	SpanCount int64 `arg:"" help:"The number of spans to send in the trace"`
 }
 
 func (cmd *writeTraceCmd) Run(_ *globalOptions) error {
@@ -53,7 +52,7 @@ func (cmd *writeTraceCmd) Run(_ *globalOptions) error {
 		opts := trace.WithSpanKind(trace.SpanKindUnspecified)
 		_, span := tracer.Start(ctx, fmt.Sprintf("span %d", n), opts)
 		span.SetAttributes(attribute.KeyValue{Key: "itteration", Value: attribute.Int64Value(n)})
-		span.SetAttributes(attribute.KeyValue{Key: "bas64TraceID", Value: attribute.StringValue(base64.StdEncoding.EncodeToString([]byte(span.SpanContext().TraceID().String())))})
+		span.SetAttributes(attribute.KeyValue{Key: "base64TraceID", Value: attribute.StringValue(base64.StdEncoding.EncodeToString([]byte(span.SpanContext().TraceID().String())))})
 		n++
 		span.End()
 	}

@@ -37,6 +37,7 @@ type backendOptions struct {
 
 type tracingOptions struct {
 	OTELEndpoint string `arg:"" help:"OpenTelemetry endpoint for OTLP"`
+	TenantID     string `name:"tenant-id" help:"Header value for X-Scope-OrgID tenant"`
 }
 
 var cli struct {
