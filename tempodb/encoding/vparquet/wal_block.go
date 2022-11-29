@@ -26,6 +26,10 @@ import (
 
 var _ common.WALBlock = (*walBlock)(nil)
 
+// todo: this default size was very roughly tuned and likely should be based on config.
+// likely the best candidate is some fraction of max trace size per tenant.
+const defaultRowPoolSize = 100000
+
 // path + filename = folder to create
 //   path/folder/00001
 //   	        /00002
@@ -198,7 +202,7 @@ type walBlock struct {
 }
 
 func (b *walBlock) BlockMeta() *backend.BlockMeta {
-	return b.meta // jpe make ingestion slack a handled by BlockMeta
+	return b.meta
 }
 
 func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
@@ -335,7 +339,7 @@ func (b *walBlock) DataLength() uint64 {
 }
 
 func (b *walBlock) Iterator() (common.Iterator, error) {
-	pool := newRowPool(100000) // jpe should be based on config somewhere?
+	pool := newRowPool(defaultRowPoolSize)
 	bookmarks := make([]*bookmark[parquet.Row], 0, len(b.flushed))
 
 	for _, page := range b.flushed {
@@ -346,7 +350,7 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 		bookmarks = append(bookmarks, newBookmark[parquet.Row](iter))
 	}
 
-	sch := parquet.SchemaOf(new(Trace)) // jpe here as well
+	sch := parquet.SchemaOf(new(Trace))
 	iter := newMultiblockIterator(bookmarks, func(rows []parquet.Row) (parquet.Row, error) {
 		if len(rows) == 1 {
 			return rows[0], nil
@@ -355,7 +359,7 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 		ts := make([]*Trace, 0, len(rows))
 		for _, row := range rows {
 			tr := &Trace{}
-			err := sch.Reconstruct(tr, row) // jpe - how much is this called? outsized impact on mem?
+			err := sch.Reconstruct(tr, row)
 			if err != nil {
 				return nil, err
 			}
@@ -370,7 +374,7 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 		return row, nil
 	})
 
-	return newCommonIterator(iter, pool), nil
+	return newCommonIterator(iter, pool, sch), nil
 }
 
 func (b *walBlock) Clear() error {
@@ -571,18 +575,16 @@ var _ common.Iterator = (*commonIterator)(nil)
 // commonIterator implements common.Iterator. it is returned from the AppendFile and is meant
 // to be passed to a CreateBlock
 type commonIterator struct {
-	iter        *MultiBlockIterator[parquet.Row]
-	schema      *parquet.Schema
-	pool        *rowPool
-	commonTrace *Trace
+	iter   *MultiBlockIterator[parquet.Row]
+	schema *parquet.Schema
+	pool   *rowPool
 }
 
-func newCommonIterator(iter *MultiBlockIterator[parquet.Row], pool *rowPool) *commonIterator {
+func newCommonIterator(iter *MultiBlockIterator[parquet.Row], pool *rowPool, schema *parquet.Schema) *commonIterator {
 	return &commonIterator{
-		iter:        iter,
-		schema:      parquet.SchemaOf(&Trace{}), // jpe - find all schemas
-		pool:        pool,
-		commonTrace: &Trace{},
+		iter:   iter,
+		schema: schema,
+		pool:   pool,
 	}
 }
 
@@ -612,6 +614,14 @@ func (i *commonIterator) NextRow(ctx context.Context) (common.ID, parquet.Row, e
 
 func (i *commonIterator) Close() {
 	i.iter.Close()
+}
+
+// rowPool exists to expose the *rowPool used by the iterating code. this pool is created in the
+// Iterator() method of the wal block above and used in each rowIterator that is reading
+// individual parquet.Files. this method is then called in CreateBlock() to access this pool for
+// returning rows once they are written to the complete block.
+func (i *commonIterator) rowPool() *rowPool {
+	return i.pool
 }
 
 func openLocalParquetFile(filename string) (*parquet.File, int64, error) {

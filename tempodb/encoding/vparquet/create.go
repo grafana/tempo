@@ -42,13 +42,13 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 	if ii, ok := i.(*commonIterator); ok {
 		// Use interal iterator and avoid translation to/from proto
 		next = ii.NextRow
-		pool = ii.pool // jpe the way we pass this around is bad
+		pool = ii.rowPool()
 	} else {
-		pool = newRowPool(100000) // jpe - where to get this value from?
+		pool = newRowPool(defaultRowPoolSize)
 
 		// Need to convert from proto->parquet obj
 		trp := &Trace{}
-		sch := parquet.SchemaOf(trp) // jpe how many schemas did i make?
+		sch := parquet.SchemaOf(trp)
 		next = func(context.Context) (common.ID, parquet.Row, error) {
 			id, tr, err := i.Next(ctx)
 			if err == io.EOF || tr == nil {
@@ -60,7 +60,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 
 			trp = traceToParquet(id, tr, trp)
 
-			row := sch.Deconstruct(pool.Get(), trp) // jpe get row from pool
+			row := sch.Deconstruct(pool.Get(), trp)
 
 			return id, row, nil
 		}

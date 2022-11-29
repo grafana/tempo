@@ -43,6 +43,9 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 				return nil, nil, err
 			}
 
+			// copy the id to escape the iterator
+			id = append([]byte(nil), id...)
+
 			traceBytes, err := dec.PrepareForWrite(tr, 0, 0) // start/end of the blockmeta are used
 			if err != nil {
 				return nil, nil, err
@@ -63,10 +66,6 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		if id == nil {
 			break
 		}
-
-		// jpe why does this fail vparquet -> v2 but not vparquet -> vparquet?
-		//      does this copy need to be in the parquet iterator?
-		id = append([]byte(nil), id...)
 
 		// This assumes the incoming bytes are the same data encoding.
 		err = newBlock.AddObject(id, trBytes)
