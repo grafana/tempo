@@ -523,12 +523,12 @@ func parseName(filename string) (uuid.UUID, string, string, error) {
 // traces are iterated according to the given row numbers, because there is
 // not a guarantee that the underlying parquet file is sorted
 type rowIterator struct {
-	reader       *parquet.Reader
+	reader       *parquet.Reader //nolint:all //deprecated
 	rowNumbers   []int64
 	traceIDIndex int
 }
 
-func newRowIterator(r *parquet.Reader, rowNumbers []int64, traceIDIndex int) *rowIterator {
+func newRowIterator(r *parquet.Reader, rowNumbers []int64, traceIDIndex int) *rowIterator { //nolint:all //deprecated
 	return &rowIterator{
 		reader:       r,
 		rowNumbers:   rowNumbers,
