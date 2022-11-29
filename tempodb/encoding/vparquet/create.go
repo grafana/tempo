@@ -37,15 +37,11 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 	s := newStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
 
 	var next func(context.Context) (common.ID, parquet.Row, error)
-	var pool *rowPool
 
 	if ii, ok := i.(*commonIterator); ok {
 		// Use interal iterator and avoid translation to/from proto
 		next = ii.NextRow
-		pool = ii.rowPool()
 	} else {
-		pool = newRowPool(defaultRowPoolSize)
-
 		// Need to convert from proto->parquet obj
 		trp := &Trace{}
 		sch := parquet.SchemaOf(trp)
@@ -60,7 +56,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 
 			trp = traceToParquet(id, tr, trp)
 
-			row := sch.Deconstruct(pool.Get(), trp)
+			row := sch.Deconstruct(completeBlockRowPool.Get(), trp)
 
 			return id, row, nil
 		}
@@ -76,7 +72,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		if err != nil {
 			return nil, err
 		}
-		pool.Put(row)
+		completeBlockRowPool.Put(row)
 
 		if s.EstimatedBufferedBytes() > cfg.RowGroupSizeBytes {
 			_, err = s.Flush()

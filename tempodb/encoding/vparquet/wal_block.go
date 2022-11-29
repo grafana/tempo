@@ -30,6 +30,9 @@ var _ common.WALBlock = (*walBlock)(nil)
 // likely the best candidate is some fraction of max trace size per tenant.
 const defaultRowPoolSize = 100000
 
+// completeBlockRowPool is used by the wal iterators and complete block logic to pool rows
+var completeBlockRowPool = newRowPool(defaultRowPoolSize)
+
 // path + filename = folder to create
 //   path/folder/00001
 //   	        /00002
@@ -339,13 +342,12 @@ func (b *walBlock) DataLength() uint64 {
 }
 
 func (b *walBlock) Iterator() (common.Iterator, error) {
-	pool := newRowPool(defaultRowPoolSize)
 	bookmarks := make([]*bookmark[parquet.Row], 0, len(b.flushed))
 
 	for _, page := range b.flushed {
 		idx, _ := parquetquery.GetColumnIndexByPath(page.file, TraceIDColumnName)
 		r := parquet.NewReader(page.file)
-		iter := newRowIterator(r, page.ids.ValuesSortedByID(), pool, idx)
+		iter := newRowIterator(r, page.ids.ValuesSortedByID(), idx)
 
 		bookmarks = append(bookmarks, newBookmark[parquet.Row](iter))
 	}
@@ -364,17 +366,17 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 				return nil, err
 			}
 			ts = append(ts, tr)
-			pool.Put(row)
+			completeBlockRowPool.Put(row)
 		}
 
 		t := CombineTraces(ts...)
-		row := pool.Get()
+		row := completeBlockRowPool.Get()
 		row = sch.Deconstruct(row, t)
 
 		return row, nil
 	})
 
-	return newCommonIterator(iter, pool, sch), nil
+	return newCommonIterator(iter, sch), nil
 }
 
 func (b *walBlock) Clear() error {
@@ -523,15 +525,13 @@ func parseName(filename string) (uuid.UUID, string, string, error) {
 type rowIterator struct {
 	reader       *parquet.Reader
 	rowNumbers   []int64
-	pool         *rowPool
 	traceIDIndex int
 }
 
-func newRowIterator(r *parquet.Reader, rowNumbers []int64, pool *rowPool, traceIDIndex int) *rowIterator {
+func newRowIterator(r *parquet.Reader, rowNumbers []int64, traceIDIndex int) *rowIterator {
 	return &rowIterator{
 		reader:       r,
 		rowNumbers:   rowNumbers,
-		pool:         pool,
 		traceIDIndex: traceIDIndex,
 	}
 }
@@ -549,7 +549,7 @@ func (i *rowIterator) Next(ctx context.Context) (common.ID, parquet.Row, error) 
 		return nil, nil, err
 	}
 
-	rows := []parquet.Row{i.pool.Get()}
+	rows := []parquet.Row{completeBlockRowPool.Get()}
 	_, err = i.reader.ReadRows(rows)
 	if err != nil {
 		return nil, nil, err
@@ -577,14 +577,12 @@ var _ common.Iterator = (*commonIterator)(nil)
 type commonIterator struct {
 	iter   *MultiBlockIterator[parquet.Row]
 	schema *parquet.Schema
-	pool   *rowPool
 }
 
-func newCommonIterator(iter *MultiBlockIterator[parquet.Row], pool *rowPool, schema *parquet.Schema) *commonIterator {
+func newCommonIterator(iter *MultiBlockIterator[parquet.Row], schema *parquet.Schema) *commonIterator {
 	return &commonIterator{
 		iter:   iter,
 		schema: schema,
-		pool:   pool,
 	}
 }
 
@@ -614,14 +612,6 @@ func (i *commonIterator) NextRow(ctx context.Context) (common.ID, parquet.Row, e
 
 func (i *commonIterator) Close() {
 	i.iter.Close()
-}
-
-// rowPool exists to expose the *rowPool used by the iterating code. this pool is created in the
-// Iterator() method of the wal block above and used in each rowIterator that is reading
-// individual parquet.Files. this method is then called in CreateBlock() to access this pool for
-// returning rows once they are written to the complete block.
-func (i *commonIterator) rowPool() *rowPool {
-	return i.pool
 }
 
 func openLocalParquetFile(filename string) (*parquet.File, int64, error) {
