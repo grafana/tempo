@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
+	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/warnings"
@@ -26,6 +26,13 @@ import (
 )
 
 var _ common.WALBlock = (*walBlock)(nil)
+
+// todo: this default size was very roughly tuned and likely should be based on config.
+// likely the best candidate is some fraction of max trace size per tenant.
+const defaultRowPoolSize = 100000
+
+// completeBlockRowPool is used by the wal iterators and complete block logic to pool rows
+var completeBlockRowPool = newRowPool(defaultRowPoolSize)
 
 // path + filename = folder to create
 //   path/folder/00001
@@ -37,7 +44,7 @@ var _ common.WALBlock = (*walBlock)(nil)
 
 // openWALBlock opens an existing appendable block.  It is read-only by
 // not assigning a decoder.
-func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ time.Duration) (common.WALBlock, error, error) { // jpe what returns a warning?
+func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ time.Duration) (common.WALBlock, error, error) {
 	dir := filepath.Join(path, filename)
 	_, _, version, err := parseName(filename)
 	if err != nil {
@@ -199,7 +206,7 @@ type walBlock struct {
 }
 
 func (b *walBlock) BlockMeta() *backend.BlockMeta {
-	return b.meta // jpe make ingestion slack a handled by BlockMeta
+	return b.meta
 }
 
 func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
@@ -286,6 +293,8 @@ func (b *walBlock) Flush() (err error) {
 		return nil
 	}
 
+	b.buffer = nil
+
 	// Flush latest meta first
 	// This mainly contains the slack-adjusted start/end times
 	metaBytes, err := json.Marshal(b.BlockMeta())
@@ -334,30 +343,47 @@ func (b *walBlock) DataLength() uint64 {
 }
 
 func (b *walBlock) Iterator() (common.Iterator, error) {
-	bookmarks := make([]*bookmark[*Trace], 0, len(b.flushed))
+	bookmarks := make([]*bookmark[parquet.Row], 0, len(b.flushed))
+
 	for _, page := range b.flushed {
+		idx, _ := parquetquery.GetColumnIndexByPath(page.file, TraceIDColumnName)
+		r := parquet.NewReader(page.file)
+		iter := newRowIterator(r, page.ids.ValuesSortedByID(), idx)
 
-		r := parquet.NewGenericReader[*Trace](page.file)
-		iter := &traceIterator{reader: r, rowNumbers: page.ids.ValuesSortedByID()}
-
-		bookmarks = append(bookmarks, newBookmark[*Trace](iter))
+		bookmarks = append(bookmarks, newBookmark[parquet.Row](iter))
 	}
 
-	iter := newMultiblockIterator(bookmarks, func(ts []*Trace) (*Trace, error) {
+	sch := parquet.SchemaOf(new(Trace))
+	iter := newMultiblockIterator(bookmarks, func(rows []parquet.Row) (parquet.Row, error) {
+		if len(rows) == 1 {
+			return rows[0], nil
+		}
+
+		ts := make([]*Trace, 0, len(rows))
+		for _, row := range rows {
+			tr := &Trace{}
+			err := sch.Reconstruct(tr, row)
+			if err != nil {
+				return nil, err
+			}
+			ts = append(ts, tr)
+			completeBlockRowPool.Put(row)
+		}
+
 		t := CombineTraces(ts...)
-		return t, nil
+		row := completeBlockRowPool.Get()
+		row = sch.Deconstruct(row, t)
+
+		return row, nil
 	})
 
-	return &commonIterator{
-		iter: iter,
-	}, nil
+	return newCommonIterator(iter, sch), nil
 }
 
 func (b *walBlock) Clear() error {
 	return os.RemoveAll(b.walPath())
 }
 
-// jpe what to do with common.SearchOptions?
 func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
 	trs := make([]*tempopb.Trace, 0)
 
@@ -395,7 +421,6 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
-	// jpe parrallelize?
 	for i, page := range b.flushed {
 		r, err := searchParquetFile(ctx, page.file, req, page.file.RowGroups())
 		if err != nil {
@@ -416,7 +441,6 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 }
 
 func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
-	// jpe parallelize?
 	for i, page := range b.flushed {
 		err := searchTags(ctx, cb, page.file)
 		if err != nil {
@@ -428,7 +452,6 @@ func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts c
 }
 
 func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
-	// jpe parallelize?
 	for i, f := range b.flushed {
 		err := searchTagValues(ctx, tag, cb, f.file)
 		if err != nil {
@@ -497,32 +520,24 @@ func parseName(filename string) (uuid.UUID, string, string, error) {
 	return id, tenant, version, nil
 }
 
-// jpe iterators feel like a mess, clean up ?
-
-var tracePool sync.Pool
-
-func tracePoolGet() *Trace {
-	o := tracePool.Get()
-	if o == nil {
-		return &Trace{}
-	}
-
-	return o.(*Trace)
-}
-
-func tracePoolPut(t *Trace) {
-	tracePool.Put(t)
-}
-
-// traceIterator is used to iterate a parquet file and implement iterIterator
+// rowIterator is used to iterate a parquet file and implement iterIterator
 // traces are iterated according to the given row numbers, because there is
 // not a guarantee that the underlying parquet file is sorted
-type traceIterator struct {
-	reader     *parquet.GenericReader[*Trace]
-	rowNumbers []int64
+type rowIterator struct {
+	reader       *parquet.Reader //nolint:all //deprecated
+	rowNumbers   []int64
+	traceIDIndex int
 }
 
-func (i *traceIterator) Next(ctx context.Context) (common.ID, *Trace, error) {
+func newRowIterator(r *parquet.Reader, rowNumbers []int64, traceIDIndex int) *rowIterator { //nolint:all //deprecated
+	return &rowIterator{
+		reader:       r,
+		rowNumbers:   rowNumbers,
+		traceIDIndex: traceIDIndex,
+	}
+}
+
+func (i *rowIterator) Next(ctx context.Context) (common.ID, parquet.Row, error) {
 	if len(i.rowNumbers) == 0 {
 		return nil, nil, nil
 	}
@@ -535,43 +550,65 @@ func (i *traceIterator) Next(ctx context.Context) (common.ID, *Trace, error) {
 		return nil, nil, err
 	}
 
-	tr := tracePoolGet()
-	_, err = i.reader.Read([]*Trace{tr})
+	rows := []parquet.Row{completeBlockRowPool.Get()}
+	_, err = i.reader.ReadRows(rows)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return tr.TraceID, tr, nil
+	row := rows[0]
+	var id common.ID
+	for _, v := range row {
+		if v.Column() == i.traceIDIndex {
+			id = v.ByteArray()
+			break
+		}
+	}
+
+	return id, row, nil
 }
 
-func (i *traceIterator) Close() {
+func (i *rowIterator) Close() {
 	i.reader.Close()
 }
 
-var _ TraceIterator = (*commonIterator)(nil)
 var _ common.Iterator = (*commonIterator)(nil)
 
-// commonIterator implements both TraceIterator and common.Iterator. it is returned from the AppendFile and is meant
+// commonIterator implements common.Iterator. it is returned from the AppendFile and is meant
 // to be passed to a CreateBlock
 type commonIterator struct {
-	iter *MultiBlockIterator[*Trace]
+	iter   *MultiBlockIterator[parquet.Row]
+	schema *parquet.Schema
+}
+
+func newCommonIterator(iter *MultiBlockIterator[parquet.Row], schema *parquet.Schema) *commonIterator {
+	return &commonIterator{
+		iter:   iter,
+		schema: schema,
+	}
 }
 
 func (i *commonIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, error) {
-	id, obj, err := i.iter.Next(ctx)
+	id, row, err := i.iter.Next(ctx)
 	if err != nil && err != io.EOF {
 		return nil, nil, err
 	}
 
-	if obj == nil || err == io.EOF {
+	if row == nil || err == io.EOF {
 		return nil, nil, nil
 	}
 
-	tr := parquetTraceToTempopbTrace(obj)
+	t := &Trace{}
+	err = i.schema.Reconstruct(t, row)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tr := parquetTraceToTempopbTrace(t)
 	return id, tr, nil
 }
 
-func (i *commonIterator) NextTrace(ctx context.Context) (common.ID, *Trace, error) {
+func (i *commonIterator) NextRow(ctx context.Context) (common.ID, parquet.Row, error) {
 	return i.iter.Next(ctx)
 }
 
