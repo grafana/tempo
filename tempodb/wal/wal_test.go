@@ -281,7 +281,7 @@ func testFetch(t *testing.T, e encoding.VersionedEncoding) {
 			condition := traceql.MustExtractCondition(query)
 			resp, err := block.Fetch(ctx, traceql.FetchSpansRequest{
 				Conditions: []traceql.Condition{condition},
-			})
+			}, common.DefaultSearchOptions())
 			// not all blocks support fetch
 			if err == common.ErrUnsupported {
 				return
