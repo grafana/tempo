@@ -32,6 +32,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/search"
 )
 
@@ -240,6 +241,11 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 	tracesToCut := i.tracesToCut(cutoff, immediate)
 	segmentDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
+	// Sort by ID
+	sort.Slice(tracesToCut, func(i, j int) bool {
+		return bytes.Compare(tracesToCut[i].traceID, tracesToCut[j].traceID) == -1
+	})
+
 	for _, t := range tracesToCut {
 		// sort batches before cutting to reduce combinations during compaction
 		sortByteSlices(t.batches)
@@ -259,7 +265,9 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 		tempopb.ReuseByteSlices(t.batches)
 	}
 
-	return nil
+	i.blocksMtx.Lock()
+	defer i.blocksMtx.Unlock()
+	return i.headBlock.Flush()
 }
 
 // CutBlockIfReady cuts a completingBlock from the HeadBlock if ready.
@@ -274,11 +282,18 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 
 	now := time.Now()
 	if i.lastBlockCut.Add(maxBlockLifetime).Before(now) || i.headBlock.DataLength() >= maxBlockBytes || immediate {
+
+		// Final flush
+		err := i.headBlock.Flush()
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("failed to flush head block: %w", err)
+		}
+
 		completingBlock := i.headBlock
 
 		i.completingBlocks = append(i.completingBlocks, completingBlock)
 
-		err := i.resetHeadBlock()
+		err = i.resetHeadBlock()
 		if err != nil {
 			return uuid.Nil, fmt.Errorf("failed to resetHeadBlock: %w", err)
 		}
@@ -451,7 +466,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	combiner.Consume(completeTrace)
 
 	// headBlock
-	tr, err := i.headBlock.FindTraceByID(ctx, id, common.SearchOptions{})
+	tr, err := i.headBlock.FindTraceByID(ctx, id, common.DefaultSearchOptions())
 	if err != nil {
 		return nil, fmt.Errorf("headBlock.FindTraceByID failed: %w", err)
 	}
@@ -459,7 +474,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 
 	// completingBlock
 	for _, c := range i.completingBlocks {
-		tr, err = c.FindTraceByID(ctx, id, common.SearchOptions{})
+		tr, err = c.FindTraceByID(ctx, id, common.DefaultSearchOptions())
 		if err != nil {
 			return nil, fmt.Errorf("completingBlock.FindTraceByID failed: %w", err)
 		}
@@ -468,7 +483,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 
 	// completeBlock
 	for _, c := range i.completeBlocks {
-		found, err := c.FindTraceByID(ctx, id, common.SearchOptions{})
+		found, err := c.FindTraceByID(ctx, id, common.DefaultSearchOptions())
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.FindTraceByID failed: %w", err)
 		}
@@ -538,21 +553,23 @@ func (i *instance) resetHeadBlock() error {
 	i.headBlock = newHeadBlock
 	i.lastBlockCut = time.Now()
 
-	// Create search data wal file
-	f, enc, err := i.writer.WAL().NewFile(i.headBlock.BlockMeta().BlockID, i.instanceID, searchDir)
-	if err != nil {
-		return err
-	}
+	// Create search data wal file if needed
+	if i.useFlatbufferSearch || i.headBlock.BlockMeta().Version == v2.VersionString {
+		f, enc, err := i.writer.WAL().NewFile(i.headBlock.BlockMeta().BlockID, i.instanceID, searchDir)
+		if err != nil {
+			return err
+		}
 
-	b, err := search.NewStreamingSearchBlockForFile(f, i.headBlock.BlockMeta().BlockID, enc)
-	if err != nil {
-		return err
-	}
-	if i.searchHeadBlock != nil {
-		i.searchAppendBlocks[oldHeadBlock.BlockMeta().BlockID.String()] = i.searchHeadBlock
-	}
-	i.searchHeadBlock = &searchStreamingBlockEntry{
-		b: b,
+		b, err := search.NewStreamingSearchBlockForFile(f, i.headBlock.BlockMeta().BlockID, enc)
+		if err != nil {
+			return err
+		}
+		if i.searchHeadBlock != nil {
+			i.searchAppendBlocks[oldHeadBlock.BlockMeta().BlockID.String()] = i.searchHeadBlock
+		}
+		i.searchHeadBlock = &searchStreamingBlockEntry{
+			b: b,
+		}
 	}
 	return nil
 }

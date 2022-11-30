@@ -42,6 +42,19 @@ type SearchOptions struct {
 	CacheControl       CacheControl
 }
 
+// DefaultSearchOptions() is used in a lot of places such as local ingester searches. It is important
+// in these cases to set a reasonable read buffer size and count to prevent constant tiny readranges
+// against the local backend.
+// TODO: Note that there is another method of creating "default search options" that looks like this:
+// tempodb.SearchConfig{}.ApplyToOptions(&searchOpts). we should consolidate these.
+func DefaultSearchOptions() SearchOptions {
+	return SearchOptions{
+		ReadBufferCount: 32,
+		ReadBufferSize:  1024 * 1024,
+		ChunkSizeBytes:  4 * 1024 * 1024,
+	}
+}
+
 type Compactor interface {
 	Compact(ctx context.Context, l log.Logger, r backend.Reader, writerCallback func(*backend.BlockMeta, time.Time) backend.Writer, inputs []*backend.BlockMeta) ([]*backend.BlockMeta, error)
 }
@@ -77,8 +90,9 @@ type WALBlock interface {
 	BackendBlock
 
 	Append(id ID, b []byte, start, end uint32) error
+	Flush() error
+
 	DataLength() uint64
-	Length() int
 	Iterator() (Iterator, error)
 	Clear() error
 }

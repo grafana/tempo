@@ -180,6 +180,33 @@ func (i *spansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
 	return spanset, nil
 }
 
+// mergeSpansetIterator iterates through a slice of spansetIterators exhausting them
+// in order
+type mergeSpansetIterator struct {
+	iters []*spansetIterator
+	cur   int
+}
+
+var _ traceql.SpansetIterator = (*mergeSpansetIterator)(nil)
+
+func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
+	if i.cur >= len(i.iters) {
+		return nil, nil
+	}
+
+	iter := i.iters[i.cur]
+	spanset, err := iter.Next(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if spanset == nil {
+		i.cur++
+		return i.Next(ctx)
+	}
+
+	return spanset, nil
+}
+
 // fetch is the core logic for executing the given conditions against the parquet columns. The algorithm
 // can be summarized as a hiearchy of iterators where we iterate related columns together and collect the results
 // at each level into attributes, spans, and spansets.  Each condition (.foo=bar) is pushed down to the one or more

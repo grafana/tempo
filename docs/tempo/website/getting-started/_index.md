@@ -6,14 +6,17 @@ weight: 150
 
 # Get started with Grafana Tempo
 
-Distributed tracing visualizes the lifecycle of a request as it passes through
-a set of applications.
- To build  a tracing pipeline, you need four major components:
+Distributed tracing visualizes the lifecycle of a request as it passes through a set of applications.
+For more information about traces, refer to [What are traces?]({{< relref "traces" >}}).
+
+Grafana Tempo is an open-source, easy-to-use, and high-scale distributed tracing backend. Tempo lets you search for traces, generate metrics from spans, and link your tracing data with logs and metrics.
+
+To build a tracing pipeline, you need four major components:
 client instrumentation, pipeline, backend, and visualization.
 
 This diagram illustrates a tracing system configuration:
 
-<p align="center"><img src="getting-started.png" alt="Tracing pipeline overview"></p>
+<p align="center"><img src="../assets/getting-started.png" alt="Tracing pipeline overview"></p>
 
 ## Client instrumentation
 
@@ -70,7 +73,7 @@ Getting started with Tempo is easy.
 
 First, check out the [examples]({{< relref "example-demo-app.md" >}}) for ideas on how to get started with Tempo.
 
-Next, review the [setup documentation]({{< relref "../setup/" >}}) for step-by-step instructions on setting up a Tempo cluster and creating a test app.
+Next, review the [Setup documentation]({{< relref "../setup/" >}}) for step-by-step instructions for setting up a Tempo cluster and creating a test application.
 
 For production workloads, refer to the [deployment]({{< relref "../operations/deployment" >}}) section.
 
@@ -82,4 +85,6 @@ For production workloads, refer to the [deployment]({{< relref "../operations/de
 Grafana has a built-in Tempo data source that can be used to query Tempo and visualize traces.
 For more information, refer to the [Tempo data source](https://grafana.com/docs/grafana/latest/datasources/tempo/) and the [Tempo in Grafana]({{< relref "./tempo-in-grafana/" >}}) topics.
 
-See [querying configuration documentation]({{< relref "../configuration/querying" >}}) for details about Grafana configuration.
+For details about Grafana configuration, refer to [querying configuration]({{< relref "../configuration/querying" >}}).
+
+For more information, refer to the [Tempo in Grafana]({{< relref "tempo-in-grafana" >}}) documentation.

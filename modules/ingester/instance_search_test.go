@@ -88,6 +88,9 @@ func TestInstanceSearch(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, sr.Traces, len(ids))
 			checkEqual(t, ids, sr)
+
+			err = ingester.stopping(nil)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -153,7 +156,6 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 
 	sort.Strings(srv.TagValues)
 	assert.Contains(t, sr.TagNames, tagName)
-	assert.Equal(t, tagName, sr.TagNames[0])
 	assert.Equal(t, expectedTagValues, srv.TagValues)
 }
 

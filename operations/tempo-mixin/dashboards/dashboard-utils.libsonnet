@@ -24,7 +24,7 @@ grafana {
           ],
         };
 
-        d.addMultiTemplate('cluster', 'tempo_build_info', $._config.per_cluster_label)
+        d.addMultiTemplate('cluster', 'tempo_build_info', $._config.per_cluster_label, allValue=null)
         .addMultiTemplate('namespace', 'tempo_build_info{' + $._config.per_cluster_label + "=~'$cluster'}", 'namespace', allValue=null),
     },
 
