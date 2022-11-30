@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
@@ -19,6 +20,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/grafana/tempo/pkg/model/trace"
@@ -38,6 +40,7 @@ var (
 	tempoReadBackoffDuration      time.Duration
 	tempoSearchBackoffDuration    time.Duration
 	tempoRetentionDuration        time.Duration
+	tempoPushTLS                  bool
 
 	logger *zap.Logger
 )
@@ -58,6 +61,7 @@ func init() {
 
 	flag.StringVar(&tempoQueryURL, "tempo-query-url", "", "The URL (scheme://hostname) at which to query Tempo.")
 	flag.StringVar(&tempoPushURL, "tempo-push-url", "", "The URL (scheme://hostname:port) at which to push traces to Tempo.")
+	flag.BoolVar(&tempoPushTLS, "tempo-push-tls", false, "Whether to use TLS when pushing spans to Tempo")
 	flag.StringVar(&tempoOrgID, "tempo-org-id", "", "The orgID to query in Tempo")
 	flag.DurationVar(&tempoWriteBackoffDuration, "tempo-write-backoff-duration", 15*time.Second, "The amount of time to pause between write Tempo calls")
 	flag.DurationVar(&tempoLongWriteBackoffDuration, "tempo-long-write-backoff-duration", 1*time.Minute, "The amount of time to pause between long write Tempo calls")
@@ -278,8 +282,22 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 		zap.String("endpoint", fmt.Sprintf("%s:14250", u.Host)),
 	)
 
+	var dialOpts []grpc.DialOption
+
+	if tempoPushTLS {
+		dialOpts = []grpc.DialOption{
+			grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
+				InsecureSkipVerify: true,
+			})),
+		}
+	} else {
+		dialOpts = []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		}
+	}
+
 	// new jaeger grpc exporter
-	conn, err := grpc.Dial(u.Host+":14250", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(u.Host+":14250", dialOpts...)
 	if err != nil {
 		return nil, err
 	}
