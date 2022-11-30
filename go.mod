@@ -45,13 +45,13 @@ require (
 	github.com/minio/minio-go/v7 v7.0.23
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter v0.57.2
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.57.2
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.57.2
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.57.2
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.57.2
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.57.2
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.57.2
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter v0.66.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.66.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.66.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.66.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.66.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.66.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.66.0
 	github.com/opentracing-contrib/go-grpc v0.0.0-20210225150812-73cb765af46e
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pierrec/lz4/v4 v4.1.17
@@ -72,16 +72,16 @@ require (
 	github.com/weaveworks/common v0.0.0-20220916164235-da3fde973eec
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.24.0
-	go.opentelemetry.io/collector v0.57.2
-	go.opentelemetry.io/collector/pdata v0.57.2
-	go.opentelemetry.io/collector/semconv v0.57.2
-	go.opentelemetry.io/otel v1.10.0
-	go.opentelemetry.io/otel/bridge/opencensus v0.31.0
-	go.opentelemetry.io/otel/bridge/opentracing v1.10.0
-	go.opentelemetry.io/otel/exporters/jaeger v1.10.0
-	go.opentelemetry.io/otel/metric v0.32.0
-	go.opentelemetry.io/otel/sdk v1.10.0
-	go.opentelemetry.io/otel/trace v1.10.0
+	go.opentelemetry.io/collector v0.66.0
+	go.opentelemetry.io/collector/pdata v0.66.0
+	go.opentelemetry.io/collector/semconv v0.66.0
+	go.opentelemetry.io/otel v1.11.1
+	go.opentelemetry.io/otel/bridge/opencensus v0.33.0
+	go.opentelemetry.io/otel/bridge/opentracing v1.11.1
+	go.opentelemetry.io/otel/exporters/jaeger v1.11.1
+	go.opentelemetry.io/otel/metric v0.33.0
+	go.opentelemetry.io/otel/sdk v1.11.1
+	go.opentelemetry.io/otel/trace v1.11.1
 	go.uber.org/atomic v1.10.0
 	go.uber.org/goleak v1.2.0
 	go.uber.org/multierr v1.8.0
@@ -97,6 +97,10 @@ require (
 
 require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
+	go.opentelemetry.io/collector/component v0.66.0
+	go.opentelemetry.io/collector/consumer v0.66.0
+	go.opentelemetry.io/collector/exporter/otlpexporter v0.66.0
+	go.opentelemetry.io/collector/receiver/otlpreceiver v0.66.0
 	golang.org/x/exp v0.0.0-20221002003631-540bb7301a08
 )
 
@@ -203,11 +207,11 @@ require (
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/oklog/run v1.1.0 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.57.2 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.57.2 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.57.2 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.57.2 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.57.2 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.66.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.66.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.66.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.66.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.66.0 // indirect
 	github.com/opencontainers/image-spec v1.0.3-0.20220512140940-7b36cea86235 // indirect
 	github.com/opentracing-contrib/go-stdlib v1.0.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.0 // indirect
@@ -250,11 +254,14 @@ require (
 	go.etcd.io/etcd/client/pkg/v3 v3.5.4 // indirect
 	go.etcd.io/etcd/client/v3 v3.5.4 // indirect
 	go.mongodb.org/mongo-driver v1.10.2 // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.33.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.36.0 // indirect
-	go.opentelemetry.io/otel/exporters/prometheus v0.31.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v0.31.0 // indirect
-	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
+	go.opentelemetry.io/collector/featuregate v0.66.0 // indirect
+	go.opentelemetry.io/collector/processor/batchprocessor v0.66.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.36.4 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.36.4 // indirect
+	go.opentelemetry.io/contrib/propagators/b3 v1.11.1 // indirect
+	go.opentelemetry.io/otel/exporters/prometheus v0.33.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v0.33.0 // indirect
+	golang.org/x/crypto v0.0.0-20221010152910-d6f0a8c073c2 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/net v0.0.0-20220921155015-db77216a4ee9 // indirect
 	golang.org/x/oauth2 v0.0.0-20220909003341-f21342109be1 // indirect
