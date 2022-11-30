@@ -489,7 +489,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 				TraceState:             "state",
 				DroppedAttributesCount: 3,
 				Attributes: []*v1_common.KeyValue{
-					&v1_common.KeyValue{
+					{
 						Key:   "key",
 						Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "value"}},
 					},
