@@ -50,6 +50,12 @@ var (
 		Name:      "metrics_generator_spans_discarded_total",
 		Help:      "The total number of discarded spans received per tenant",
 	}, []string{"tenant", "reason"})
+	metricIngestionLatencyMs = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_ingestion_latency",
+		Help:      "The ingestion latency ms",
+		Buckets:   prometheus.LinearBuckets(0, 15000, 5),
+	})
 )
 
 const reasonOutsideTimeRangeSlack = "outside_metrics_ingestion_slack"
@@ -278,6 +284,8 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 			timeNow := time.Now()
 			index := 0
 			for _, span := range ss.Spans {
+				latencyMs := (timeNow.UnixNano() - int64(span.EndTimeUnixNano)) / 1000000
+				metricIngestionLatencyMs.Observe(float64(latencyMs))
 				if span.EndTimeUnixNano >= uint64(timeNow.Add(-i.cfg.MetricsIngestionSlack).UnixNano()) && span.EndTimeUnixNano <= uint64(timeNow.Add(i.cfg.MetricsIngestionSlack).UnixNano()) {
 					newSpansArr[index] = span
 					index++
