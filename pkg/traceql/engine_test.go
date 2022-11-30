@@ -254,6 +254,8 @@ type MockSpanSetFetcher struct {
 	capturedRequest FetchSpansRequest
 }
 
+var _ = (SpansetFetcher)(&MockSpanSetFetcher{})
+
 func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	m.capturedRequest = request
 	return FetchSpansResponse{

@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/opentracing/opentracing-go"
+
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/decoder"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -20,7 +22,6 @@ import (
 	"github.com/grafana/tempo/pkg/warnings"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/opentracing/opentracing-go"
 )
 
 const maxDataEncodingLength = 32
@@ -276,7 +277,7 @@ func (a *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.Ta
 }
 
 // Fetch implements traceql.SpansetFetcher
-func (a *walBlock) Fetch(context.Context, traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+func (a *walBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	return traceql.FetchSpansResponse{}, common.ErrUnsupported
 }
 

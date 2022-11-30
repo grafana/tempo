@@ -46,7 +46,7 @@ func (m *mockReader) Search(ctx context.Context, meta *backend.BlockMeta, req *t
 	return nil, nil
 }
 
-func (m *mockReader) Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+func (m *mockReader) Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	return traceql.FetchSpansResponse{}, nil
 }
 

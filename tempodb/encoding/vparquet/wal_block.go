@@ -13,6 +13,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
+	"github.com/segmentio/parquet-go"
+
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -20,8 +23,6 @@ import (
 	"github.com/grafana/tempo/pkg/warnings"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/pkg/errors"
-	"github.com/segmentio/parquet-go"
 )
 
 var _ common.WALBlock = (*walBlock)(nil)
@@ -438,7 +439,7 @@ func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.Ta
 	return nil
 }
 
-func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	// todo: this same method is called in backendBlock.Fetch. is there anyway to share this?
 	err := checkConditions(req.Conditions)
 	if err != nil {
