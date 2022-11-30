@@ -560,6 +560,7 @@ func (i *rowIterator) Next(ctx context.Context) (common.ID, parquet.Row, error) 
 	for _, v := range row {
 		if v.Column() == i.traceIDIndex {
 			id = v.ByteArray()
+			break
 		}
 	}
 

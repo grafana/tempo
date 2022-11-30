@@ -275,3 +275,10 @@ func TestExtendReuseSlice(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkExtendReuseSlice(b *testing.B) {
+	in := []int{1, 2, 3}
+	for i := 0; i < b.N; i++ {
+		_ = extendReuseSlice(100, in)
+	}
+}
