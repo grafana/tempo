@@ -480,7 +480,7 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		FooterSize:    req.FooterSize,
 	}
 
-	opts := common.SearchOptions{}
+	opts := common.DefaultSearchOptions()
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 	opts.MaxBytes = q.limits.MaxBytesPerTrace(tenantID)

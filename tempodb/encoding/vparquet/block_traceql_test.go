@@ -116,7 +116,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	}
 
 	for _, req := range searchesThatMatch {
-		resp, err := b.Fetch(ctx, req, common.SearchOptions{})
+		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
 		require.NoError(t, err, "search request:", req)
 
 		spanSet, err := resp.Results.Next(ctx)
@@ -206,7 +206,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	}
 
 	for _, req := range searchesThatDontMatch {
-		resp, err := b.Fetch(ctx, req, common.SearchOptions{})
+		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
 		require.NoError(t, err, "search request:", req)
 
 		spanSet, err := resp.Results.Next(ctx)
@@ -441,7 +441,7 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 
 	for _, tc := range testCases {
 		req := tc.req
-		resp, err := b.Fetch(ctx, req, common.SearchOptions{})
+		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
 		require.NoError(t, err, "search request:", req)
 
 		// Turn iterator into slice
