@@ -12,7 +12,6 @@ import (
 	"github.com/weaveworks/common/user"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configtls"
@@ -44,13 +43,13 @@ func TestReceivers(t *testing.T) {
 	testReceivers := []struct {
 		name     string
 		factory  component.ExporterFactory
-		config   func(component.ExporterFactory, string) config.Exporter
+		config   func(component.ExporterFactory, string) component.ExporterConfig
 		endpoint string
 	}{
 		{
 			"jaeger gRPC",
 			jaegerexporter.NewFactory(),
-			func(factory component.ExporterFactory, endpoint string) config.Exporter {
+			func(factory component.ExporterFactory, endpoint string) component.ExporterConfig {
 				exporterCfg := factory.CreateDefaultConfig()
 				jaegerCfg := exporterCfg.(*jaegerexporter.Config)
 				jaegerCfg.GRPCClientSettings = configgrpc.GRPCClientSettings{
@@ -66,7 +65,7 @@ func TestReceivers(t *testing.T) {
 		{
 			"otlp gRPC",
 			otlpexporter.NewFactory(),
-			func(factory component.ExporterFactory, endpoint string) config.Exporter {
+			func(factory component.ExporterFactory, endpoint string) component.ExporterConfig {
 				exporterCfg := factory.CreateDefaultConfig()
 				otlpCfg := exporterCfg.(*otlpexporter.Config)
 				otlpCfg.GRPCClientSettings = configgrpc.GRPCClientSettings{
@@ -82,7 +81,7 @@ func TestReceivers(t *testing.T) {
 		{
 			"zipkin",
 			zipkinexporter.NewFactory(),
-			func(factory component.ExporterFactory, endpoint string) config.Exporter {
+			func(factory component.ExporterFactory, endpoint string) component.ExporterConfig {
 				exporterCfg := factory.CreateDefaultConfig()
 				zipkinCfg := exporterCfg.(*zipkinexporter.Config)
 				zipkinCfg.HTTPClientSettings = confighttp.HTTPClientSettings{
@@ -141,7 +140,8 @@ func TestReceivers(t *testing.T) {
 			require.NoError(t, err)
 
 			// unmarshal into otlp proto
-			traces, err := ptrace.NewProtoUnmarshaler().UnmarshalTraces(b)
+			unmarshaler := &ptrace.ProtoUnmarshaler{}
+			traces, err := unmarshaler.UnmarshalTraces(b)
 			require.NoError(t, err)
 			require.NotNil(t, traces)
 

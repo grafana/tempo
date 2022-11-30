@@ -304,7 +304,7 @@ func (r *receiversShim) GetFactory(component.Kind, component.Type) component.Fac
 func (r *receiversShim) GetExtensions() map[component.ID]component.Extension { return nil }
 
 // GetExporters implements component.Host
-func (r *receiversShim) GetExporters() map[component.DataType]map[component.ID]component.Exporter {
+func (r *receiversShim) GetExporters() map[component.DataType]map[component.ID]component.Component {
 	return nil
 }
 
