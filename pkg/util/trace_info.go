@@ -204,7 +204,8 @@ func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 			if err != nil {
 				return err
 			}
-			conv, err := ptrace.NewProtoMarshaler().MarshalTraces(internalTrace)
+			marshaler := &ptrace.ProtoMarshaler{}
+			conv, err := marshaler.MarshalTraces(internalTrace)
 			if err != nil {
 				return err
 			}

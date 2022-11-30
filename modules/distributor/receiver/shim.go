@@ -21,7 +21,6 @@ import (
 	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -83,7 +82,7 @@ type mapProvider struct {
 	raw map[string]interface{}
 }
 
-func (m *mapProvider) Retrieve(context.Context, string, confmap.WatcherFunc) (confmap.Retrieved, error) {
+func (m *mapProvider) Retrieve(context.Context, string, confmap.WatcherFunc) (*confmap.Retrieved, error) {
 	return confmap.NewRetrieved(m.raw, []confmap.RetrievedOption{}...)
 }
 
@@ -141,21 +140,23 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 	// Creates a config provider with the given config map.
 	// The provider will be used to retrieve the actual config for the pipeline (although we only need the receivers).
 	pro, err := service.NewConfigProvider(service.ConfigProviderSettings{
-		Locations: []string{"mock:/"},
-		MapProviders: map[string]confmap.Provider{"mock": &mapProvider{raw: map[string]interface{}{
-			"receivers": receiverCfg,
-			"exporters": map[string]interface{}{
-				"nop": map[string]interface{}{},
-			},
-			"service": map[string]interface{}{
-				"pipelines": map[string]interface{}{
-					"traces": map[string]interface{}{
-						"exporters": []string{"nop"}, // nop exporter to avoid errors
-						"receivers": receivers,
+		ResolverSettings: confmap.ResolverSettings{
+			URIs: []string{"mock:/"},
+			Providers: map[string]confmap.Provider{"mock": &mapProvider{raw: map[string]interface{}{
+				"receivers": receiverCfg,
+				"exporters": map[string]interface{}{
+					"nop": map[string]interface{}{},
+				},
+				"service": map[string]interface{}{
+					"pipelines": map[string]interface{}{
+						"traces": map[string]interface{}{
+							"exporters": []string{"nop"}, // nop exporter to avoid errors
+							"receivers": receivers,
+						},
 					},
 				},
-			},
-		}}},
+			}}},
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -165,7 +166,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 	// We only need the receivers, the rest of the configuration is not used.
 	conf, err := pro.Get(context.Background(), component.Factories{
 		Receivers: receiverFactories,
-		Exporters: map[config.Type]component.ExporterFactory{"nop": componenttest.NewNopExporterFactory()}, // nop exporter to avoid errors
+		Exporters: map[component.Type]component.ExporterFactory{"nop": componenttest.NewNopExporterFactory()}, // nop exporter to avoid errors
 	})
 	if err != nil {
 		return nil, err
@@ -295,15 +296,15 @@ func (r *receiversShim) ReportFatalError(err error) {
 }
 
 // GetFactory implements component.Host
-func (r *receiversShim) GetFactory(component.Kind, config.Type) component.Factory {
+func (r *receiversShim) GetFactory(component.Kind, component.Type) component.Factory {
 	return nil
 }
 
 // GetExtensions implements component.Host
-func (r *receiversShim) GetExtensions() map[config.ComponentID]component.Extension { return nil }
+func (r *receiversShim) GetExtensions() map[component.ID]component.Extension { return nil }
 
 // GetExporters implements component.Host
-func (r *receiversShim) GetExporters() map[config.DataType]map[config.ComponentID]component.Exporter {
+func (r *receiversShim) GetExporters() map[component.DataType]map[component.ID]component.Exporter {
 	return nil
 }
 

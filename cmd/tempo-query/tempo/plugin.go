@@ -89,7 +89,8 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		return nil, fmt.Errorf("%s", body)
 	}
 
-	otTrace, err := ptrace.NewProtoUnmarshaler().UnmarshalTraces(body)
+	unmarshaler := &ptrace.ProtoUnmarshaler{}
+	otTrace, err := unmarshaler.UnmarshalTraces(body)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling body to otlp trace %v: %w", traceID, err)
 	}

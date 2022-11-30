@@ -58,7 +58,8 @@ func batchesToTraces(t *testing.T, batches []*v1.ResourceSpans) ptrace.Traces {
 	m, err := trace.Marshal()
 	require.NoError(t, err)
 
-	traces, err := ptrace.NewProtoUnmarshaler().UnmarshalTraces(m)
+	unmarshaler := &ptrace.ProtoUnmarshaler{}
+	traces, err := unmarshaler.UnmarshalTraces(m)
 	require.NoError(t, err)
 
 	return traces
