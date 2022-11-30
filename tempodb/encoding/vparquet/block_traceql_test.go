@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -479,6 +481,28 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 	fltPtr := func(f float64) *float64 { return &f }
 	boolPtr := func(b bool) *bool { return &b }
 
+	links := tempopb.LinkSlice{
+		Links: []*v1.Span_Link{
+			{
+				TraceId:                []byte{0x01},
+				SpanId:                 []byte{0x02},
+				TraceState:             "state",
+				DroppedAttributesCount: 3,
+				Attributes: []*v1_common.KeyValue{
+					{
+						Key:   "key",
+						Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "value"}},
+					},
+				},
+			},
+		},
+	}
+	linkBytes := make([]byte, links.Size())
+	_, err := links.MarshalTo(linkBytes)
+	if err != nil {
+		panic("failed to marshal links")
+	}
+
 	return &Trace{
 		TraceID:           test.ValidTraceID(id),
 		StartTimeUnixNano: uint64(1000 * time.Second),
@@ -540,6 +564,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 									}},
 									{TimeUnixNano: 2, Name: "e2", Attrs: []EventAttribute{}},
 								},
+								Links: linkBytes,
 							},
 						},
 					},
