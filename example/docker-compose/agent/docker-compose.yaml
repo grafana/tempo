@@ -2,13 +2,13 @@ version: "3"
 services:
 
   # Generate fake traces...
-  synthetic-load-generator:
-    image: omnition/synthetic-load-generator:1.0.29
-    volumes:
-      - ../shared/load-generator.json:/etc/load-generator.json
+  k6-tracing:
+    image: ghcr.io/grafana/xk6-client-tracing:latest
     environment:
-      - TOPOLOGY_FILE=/etc/load-generator.json
-      - JAEGER_COLLECTOR_URL=http://agent:14268
+      - ENDPOINT=agent:4317
+    restart: always
+    depends_on:
+      - tempo
 
   # And put them in a Grafana Agent pipeline...
   agent:

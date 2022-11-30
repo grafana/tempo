@@ -82,10 +82,10 @@ services:
     ports:
       - 9001:9001
 
-  synthetic-load-generator:
-    image: omnition/synthetic-load-generator:1.0.29
-    volumes:
-      - ../shared/load-generator.json:/etc/load-generator.json
+  k6-tracing:
+    image: ghcr.io/grafana/xk6-client-tracing:latest
     environment:
-      - TOPOLOGY_FILE=/etc/load-generator.json
-      - JAEGER_COLLECTOR_URL=http://tempo1:14268
+      - ENDPOINT=tempo1:4317
+    restart: always
+    depends_on:
+      - tempo1

@@ -22,13 +22,11 @@ services:
       # This creates an empty tempo bucket
       - ./gcs-data/:/data/tempo/
 
-  synthetic-load-generator:
-    image: omnition/synthetic-load-generator:1.0.29
-    volumes:
-      - ../shared/load-generator.json:/etc/load-generator.json
+  k6-tracing:
+    image: ghcr.io/grafana/xk6-client-tracing:latest
     environment:
-      - TOPOLOGY_FILE=/etc/load-generator.json
-      - JAEGER_COLLECTOR_URL=http://tempo:14268
+      - ENDPOINT=tempo:4317
+    restart: always
     depends_on:
       - tempo
 

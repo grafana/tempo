@@ -85,13 +85,13 @@ services:
       - -euc
       - mkdir -p /data/tempo && minio server /data --console-address ':9001'
 
-  synthetic-load-generator:
-    image: omnition/synthetic-load-generator:1.0.29
-    volumes:
-      - ../shared/load-generator.json:/etc/load-generator.json
+  k6-tracing:
+    image: ghcr.io/grafana/xk6-client-tracing:latest
     environment:
-      - TOPOLOGY_FILE=/etc/load-generator.json
-      - JAEGER_COLLECTOR_URL=http://distributor:14268
+      - ENDPOINT=distributor:4317
+    restart: always
+    depends_on:
+      - distributor
 
   prometheus:
     image: prom/prometheus:latest

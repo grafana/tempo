@@ -5,9 +5,9 @@ traces:
   configs:
   - name: default
     receivers:
-      jaeger:
+      otlp:
         protocols:
-          thrift_http:
+          grpc:
     remote_write:
       - endpoint: tempo:4317
         insecure: true
