@@ -33,10 +33,10 @@ type Broker struct {
 	responses     chan *responsePromise
 	done          chan bool
 
-	registeredMetrics map[string]struct{}
-
+	metricRegistry         metrics.Registry
 	incomingByteRate       metrics.Meter
 	requestRate            metrics.Meter
+	fetchRate              metrics.Meter
 	requestSize            metrics.Histogram
 	requestLatency         metrics.Histogram
 	outgoingByteRate       metrics.Meter
@@ -45,6 +45,7 @@ type Broker struct {
 	requestsInFlight       metrics.Counter
 	brokerIncomingByteRate metrics.Meter
 	brokerRequestRate      metrics.Meter
+	brokerFetchRate        metrics.Meter
 	brokerRequestSize      metrics.Histogram
 	brokerRequestLatency   metrics.Histogram
 	brokerOutgoingByteRate metrics.Meter
@@ -172,6 +173,8 @@ func (b *Broker) Open(conf *Config) error {
 
 	b.lock.Lock()
 
+	b.metricRegistry = newCleanupRegistry(conf.MetricRegistry)
+
 	go withRecover(func() {
 		defer func() {
 			b.lock.Unlock()
@@ -206,14 +209,15 @@ func (b *Broker) Open(conf *Config) error {
 		b.conf = conf
 
 		// Create or reuse the global metrics shared between brokers
-		b.incomingByteRate = metrics.GetOrRegisterMeter("incoming-byte-rate", conf.MetricRegistry)
-		b.requestRate = metrics.GetOrRegisterMeter("request-rate", conf.MetricRegistry)
-		b.requestSize = getOrRegisterHistogram("request-size", conf.MetricRegistry)
-		b.requestLatency = getOrRegisterHistogram("request-latency-in-ms", conf.MetricRegistry)
-		b.outgoingByteRate = metrics.GetOrRegisterMeter("outgoing-byte-rate", conf.MetricRegistry)
-		b.responseRate = metrics.GetOrRegisterMeter("response-rate", conf.MetricRegistry)
-		b.responseSize = getOrRegisterHistogram("response-size", conf.MetricRegistry)
-		b.requestsInFlight = metrics.GetOrRegisterCounter("requests-in-flight", conf.MetricRegistry)
+		b.incomingByteRate = metrics.GetOrRegisterMeter("incoming-byte-rate", b.metricRegistry)
+		b.requestRate = metrics.GetOrRegisterMeter("request-rate", b.metricRegistry)
+		b.fetchRate = metrics.GetOrRegisterMeter("consumer-fetch-rate", b.metricRegistry)
+		b.requestSize = getOrRegisterHistogram("request-size", b.metricRegistry)
+		b.requestLatency = getOrRegisterHistogram("request-latency-in-ms", b.metricRegistry)
+		b.outgoingByteRate = metrics.GetOrRegisterMeter("outgoing-byte-rate", b.metricRegistry)
+		b.responseRate = metrics.GetOrRegisterMeter("response-rate", b.metricRegistry)
+		b.responseSize = getOrRegisterHistogram("response-size", b.metricRegistry)
+		b.requestsInFlight = metrics.GetOrRegisterCounter("requests-in-flight", b.metricRegistry)
 		// Do not gather metrics for seeded broker (only used during bootstrap) because they share
 		// the same id (-1) and are already exposed through the global metrics above
 		if b.id >= 0 && !metrics.UseNilMetrics {
@@ -270,6 +274,13 @@ func (b *Broker) Open(conf *Config) error {
 	return nil
 }
 
+func (b *Broker) ResponseSize() int {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	return len(b.responses)
+}
+
 // Connected returns true if the broker is connected and false otherwise. If the broker is not
 // connected but it had tried to connect, the error from that connection attempt is also returned.
 func (b *Broker) Connected() (bool, error) {
@@ -316,7 +327,7 @@ func (b *Broker) Close() error {
 	b.done = nil
 	b.responses = nil
 
-	b.unregisterMetrics()
+	b.metricRegistry.UnregisterAll()
 
 	if err == nil {
 		DebugLogger.Printf("Closed connection to broker %s\n", b.addr)
@@ -432,7 +443,7 @@ func (b *Broker) AsyncProduce(request *ProduceRequest, cb ProduceCallback) error
 					return
 				}
 
-				if err := versionedDecode(packets, res, request.version()); err != nil {
+				if err := versionedDecode(packets, res, request.version(), b.metricRegistry); err != nil {
 					// Malformed response
 					cb(nil, err)
 					return
@@ -448,7 +459,7 @@ func (b *Broker) AsyncProduce(request *ProduceRequest, cb ProduceCallback) error
 	return b.sendWithPromise(request, promise)
 }
 
-//Produce returns a produce response or error
+// Produce returns a produce response or error
 func (b *Broker) Produce(request *ProduceRequest) (*ProduceResponse, error) {
 	var (
 		response *ProduceResponse
@@ -472,6 +483,15 @@ func (b *Broker) Produce(request *ProduceRequest) (*ProduceResponse, error) {
 
 // Fetch returns a FetchResponse or error
 func (b *Broker) Fetch(request *FetchRequest) (*FetchResponse, error) {
+	defer func() {
+		if b.fetchRate != nil {
+			b.fetchRate.Mark(1)
+		}
+		if b.brokerFetchRate != nil {
+			b.brokerFetchRate.Mark(1)
+		}
+	}()
+
 	response := new(FetchResponse)
 
 	err := b.sendAndReceive(request, response)
@@ -717,6 +737,7 @@ func (b *Broker) DeleteAcls(request *DeleteAclsRequest) (*DeleteAclsResponse, er
 // InitProducerID sends an init producer request and returns a response or error
 func (b *Broker) InitProducerID(request *InitProducerIDRequest) (*InitProducerIDResponse, error) {
 	response := new(InitProducerIDResponse)
+	response.Version = request.version()
 
 	err := b.sendAndReceive(request, response)
 	if err != nil {
@@ -967,7 +988,7 @@ func (b *Broker) sendInternal(rb protocolBody, promise *responsePromise) error {
 	}
 
 	req := &request{correlationID: b.correlationID, clientID: b.conf.ClientID, body: rb}
-	buf, err := encode(req, b.conf.MetricRegistry)
+	buf, err := encode(req, b.metricRegistry)
 	if err != nil {
 		return err
 	}
@@ -1011,13 +1032,13 @@ func (b *Broker) sendAndReceive(req protocolBody, res protocolBody) error {
 		return nil
 	}
 
-	return handleResponsePromise(req, res, promise)
+	return b.handleResponsePromise(req, res, promise)
 }
 
-func handleResponsePromise(req protocolBody, res protocolBody, promise *responsePromise) error {
+func (b *Broker) handleResponsePromise(req protocolBody, res protocolBody, promise *responsePromise) error {
 	select {
 	case buf := <-promise.packets:
-		return versionedDecode(buf, res, req.version())
+		return versionedDecode(buf, res, req.version(), b.metricRegistry)
 	case err := <-promise.errors:
 		return err
 	}
@@ -1109,7 +1130,7 @@ func (b *Broker) responseReceiver() {
 		}
 
 		decodedHeader := responseHeader{}
-		err = versionedDecode(header, &decodedHeader, response.headerVersion)
+		err = versionedDecode(header, &decodedHeader, response.headerVersion, b.metricRegistry)
 		if err != nil {
 			b.updateIncomingCommunicationMetrics(bytesReadHeader, requestLatency)
 			dead = err
@@ -1170,7 +1191,7 @@ func (b *Broker) authenticateViaSASLv1() error {
 			Logger.Printf("Error while performing SASL handshake %s\n", b.addr)
 			return handshakeErr
 		}
-		handshakeErr = handleResponsePromise(handshakeRequest, handshakeResponse, prom)
+		handshakeErr = b.handleResponsePromise(handshakeRequest, handshakeResponse, prom)
 		if handshakeErr != nil {
 			Logger.Printf("Error while performing SASL handshake %s\n", b.addr)
 			return handshakeErr
@@ -1190,7 +1211,7 @@ func (b *Broker) authenticateViaSASLv1() error {
 			Logger.Printf("Error while performing SASL Auth %s\n", b.addr)
 			return nil, authErr
 		}
-		authErr = handleResponsePromise(authenticateRequest, authenticateResponse, prom)
+		authErr = b.handleResponsePromise(authenticateRequest, authenticateResponse, prom)
 		if authErr != nil {
 			Logger.Printf("Error while performing SASL Auth %s\n", b.addr)
 			return nil, authErr
@@ -1231,7 +1252,7 @@ func (b *Broker) sendAndReceiveSASLHandshake(saslType SASLMechanism, version int
 	rb := &SaslHandshakeRequest{Mechanism: string(saslType), Version: version}
 
 	req := &request{correlationID: b.correlationID, clientID: b.conf.ClientID, body: rb}
-	buf, err := encode(req, b.conf.MetricRegistry)
+	buf, err := encode(req, b.metricRegistry)
 	if err != nil {
 		return err
 	}
@@ -1268,7 +1289,7 @@ func (b *Broker) sendAndReceiveSASLHandshake(saslType SASLMechanism, version int
 	b.updateIncomingCommunicationMetrics(n+8, time.Since(requestTime))
 	res := &SaslHandshakeResponse{}
 
-	err = versionedDecode(payload, res, 0)
+	err = versionedDecode(payload, res, 0, b.metricRegistry)
 	if err != nil {
 		Logger.Printf("Failed to parse SASL handshake : %s\n", err.Error())
 		return err
@@ -1407,7 +1428,7 @@ func (b *Broker) sendAndReceiveSASLSCRAMv0() error {
 		// Will be decremented in updateIncomingCommunicationMetrics (except error)
 		b.addRequestInFlightMetrics(1)
 		length := len(msg)
-		authBytes := make([]byte, length+4) //4 byte length header + auth data
+		authBytes := make([]byte, length+4) // 4 byte length header + auth data
 		binary.BigEndian.PutUint32(authBytes, uint32(length))
 		copy(authBytes[4:], []byte(msg))
 		_, err := b.write(authBytes)
@@ -1600,6 +1621,7 @@ func (b *Broker) updateThrottleMetric(throttleTime time.Duration) {
 func (b *Broker) registerMetrics() {
 	b.brokerIncomingByteRate = b.registerMeter("incoming-byte-rate")
 	b.brokerRequestRate = b.registerMeter("request-rate")
+	b.brokerFetchRate = b.registerMeter("consumer-fetch-rate")
 	b.brokerRequestSize = b.registerHistogram("request-size")
 	b.brokerRequestLatency = b.registerHistogram("request-latency-in-ms")
 	b.brokerOutgoingByteRate = b.registerMeter("outgoing-byte-rate")
@@ -1609,38 +1631,19 @@ func (b *Broker) registerMetrics() {
 	b.brokerThrottleTime = b.registerHistogram("throttle-time-in-ms")
 }
 
-func (b *Broker) unregisterMetrics() {
-	for name := range b.registeredMetrics {
-		b.conf.MetricRegistry.Unregister(name)
-	}
-	b.registeredMetrics = nil
-}
-
 func (b *Broker) registerMeter(name string) metrics.Meter {
 	nameForBroker := getMetricNameForBroker(name, b)
-	if b.registeredMetrics == nil {
-		b.registeredMetrics = map[string]struct{}{}
-	}
-	b.registeredMetrics[nameForBroker] = struct{}{}
-	return metrics.GetOrRegisterMeter(nameForBroker, b.conf.MetricRegistry)
+	return metrics.GetOrRegisterMeter(nameForBroker, b.metricRegistry)
 }
 
 func (b *Broker) registerHistogram(name string) metrics.Histogram {
 	nameForBroker := getMetricNameForBroker(name, b)
-	if b.registeredMetrics == nil {
-		b.registeredMetrics = map[string]struct{}{}
-	}
-	b.registeredMetrics[nameForBroker] = struct{}{}
-	return getOrRegisterHistogram(nameForBroker, b.conf.MetricRegistry)
+	return getOrRegisterHistogram(nameForBroker, b.metricRegistry)
 }
 
 func (b *Broker) registerCounter(name string) metrics.Counter {
 	nameForBroker := getMetricNameForBroker(name, b)
-	if b.registeredMetrics == nil {
-		b.registeredMetrics = map[string]struct{}{}
-	}
-	b.registeredMetrics[nameForBroker] = struct{}{}
-	return metrics.GetOrRegisterCounter(nameForBroker, b.conf.MetricRegistry)
+	return metrics.GetOrRegisterCounter(nameForBroker, b.metricRegistry)
 }
 
 func validServerNameTLS(addr string, cfg *tls.Config) *tls.Config {

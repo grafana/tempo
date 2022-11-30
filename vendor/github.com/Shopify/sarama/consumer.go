@@ -104,6 +104,7 @@ type consumer struct {
 	children        map[string]map[int32]*partitionConsumer
 	brokerConsumers map[*Broker]*brokerConsumer
 	client          Client
+	metricRegistry  metrics.Registry
 	lock            sync.Mutex
 }
 
@@ -136,12 +137,14 @@ func newConsumer(client Client) (Consumer, error) {
 		conf:            client.Config(),
 		children:        make(map[string]map[int32]*partitionConsumer),
 		brokerConsumers: make(map[*Broker]*brokerConsumer),
+		metricRegistry:  newCleanupRegistry(client.Config().MetricRegistry),
 	}
 
 	return c, nil
 }
 
 func (c *consumer) Close() error {
+	c.metricRegistry.UnregisterAll()
 	return c.client.Close()
 }
 
@@ -678,13 +681,9 @@ func (child *partitionConsumer) parseRecords(batch *RecordBatch) ([]*ConsumerMes
 }
 
 func (child *partitionConsumer) parseResponse(response *FetchResponse) ([]*ConsumerMessage, error) {
-	var (
-		metricRegistry          = child.conf.MetricRegistry
-		consumerBatchSizeMetric metrics.Histogram
-	)
-
-	if metricRegistry != nil {
-		consumerBatchSizeMetric = getOrRegisterHistogram("consumer-batch-size", metricRegistry)
+	var consumerBatchSizeMetric metrics.Histogram
+	if child.consumer != nil && child.consumer.metricRegistry != nil {
+		consumerBatchSizeMetric = getOrRegisterHistogram("consumer-batch-size", child.consumer.metricRegistry)
 	}
 
 	// If request was throttled and empty we log and return without error
@@ -709,7 +708,9 @@ func (child *partitionConsumer) parseResponse(response *FetchResponse) ([]*Consu
 		return nil, err
 	}
 
-	consumerBatchSizeMetric.Update(int64(nRecs))
+	if consumerBatchSizeMetric != nil {
+		consumerBatchSizeMetric.Update(int64(nRecs))
+	}
 
 	if block.PreferredReadReplica != invalidPreferredReplicaID {
 		child.preferredReadReplica = block.PreferredReadReplica
@@ -936,8 +937,24 @@ func (bc *brokerConsumer) subscriptionConsumer() {
 			return
 		}
 
+		// if there isn't response, it means that not fetch was made
+		// so we don't need to handle any response
+		if response == nil {
+			continue
+		}
+
 		bc.acks.Add(len(bc.subscriptions))
 		for child := range bc.subscriptions {
+			if _, ok := response.Blocks[child.topic]; !ok {
+				bc.acks.Done()
+				continue
+			}
+
+			if _, ok := response.Blocks[child.topic][child.partition]; !ok {
+				bc.acks.Done()
+				continue
+			}
+
 			child.feeder <- response
 		}
 		bc.acks.Wait()
@@ -1036,6 +1053,8 @@ func (bc *brokerConsumer) abort(err error) {
 	}
 }
 
+// fetchResponse can be nil if no fetch is made, it can occur when
+// all partitions are paused
 func (bc *brokerConsumer) fetchNewMessages() (*FetchResponse, error) {
 	request := &FetchRequest{
 		MinBytes:    bc.consumer.conf.Consumer.Fetch.Min,
@@ -1075,6 +1094,11 @@ func (bc *brokerConsumer) fetchNewMessages() (*FetchResponse, error) {
 		if !child.IsPaused() {
 			request.AddBlock(child.topic, child.partition, child.offset, child.fetchSize)
 		}
+	}
+
+	// avoid to fetch when there is no block
+	if len(request.blocks) == 0 {
+		return nil, nil
 	}
 
 	return bc.broker.Fetch(request)

@@ -23,7 +23,6 @@ import (
 	agenttracepb "github.com/census-instrumentation/opencensus-proto/gen-go/agent/trace/v1"
 	resourcepb "github.com/census-instrumentation/opencensus-proto/gen-go/resource/v1"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/obsreport"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -40,25 +39,29 @@ const (
 type Receiver struct {
 	agenttracepb.UnimplementedTraceServiceServer
 	nextConsumer consumer.Traces
-	id           config.ComponentID
+	id           component.ID
 	obsrecv      *obsreport.Receiver
 }
 
 // New creates a new opencensus.Receiver reference.
-func New(id config.ComponentID, nextConsumer consumer.Traces, set component.ReceiverCreateSettings) (*Receiver, error) {
+func New(id component.ID, nextConsumer consumer.Traces, set component.ReceiverCreateSettings) (*Receiver, error) {
 	if nextConsumer == nil {
 		return nil, component.ErrNilNextConsumer
 	}
 
+	obsrecv, err := obsreport.NewReceiver(obsreport.ReceiverSettings{
+		ReceiverID:             id,
+		Transport:              receiverTransport,
+		LongLivedCtx:           true,
+		ReceiverCreateSettings: set,
+	})
+	if err != nil {
+		return nil, err
+	}
 	return &Receiver{
 		nextConsumer: nextConsumer,
 		id:           id,
-		obsrecv: obsreport.NewReceiver(obsreport.ReceiverSettings{
-			ReceiverID:             id,
-			Transport:              receiverTransport,
-			LongLivedCtx:           true,
-			ReceiverCreateSettings: set,
-		}),
+		obsrecv:      obsrecv,
 	}, nil
 }
 

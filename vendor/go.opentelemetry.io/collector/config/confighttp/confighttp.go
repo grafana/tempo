@@ -30,6 +30,7 @@ import (
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configcompression"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/config/internal"
 )
 
 const headerContentEncoding = "Content-Encoding"
@@ -183,11 +184,6 @@ func (hcs *HTTPClientSettings) ToClient(host component.Host, settings component.
 	}, nil
 }
 
-// Deprecated: [v0.57.0] use ToClient.
-func (hcs *HTTPClientSettings) ToClientWithHost(host component.Host, settings component.TelemetrySettings) (*http.Client, error) {
-	return hcs.ToClient(host, settings)
-}
-
 // Custom RoundTripper that adds headers.
 type headerRoundTripper struct {
 	transport http.RoundTripper
@@ -264,6 +260,8 @@ func WithErrorHandler(e errorHandler) ToServerOption {
 
 // ToServer creates an http.Server from settings object.
 func (hss *HTTPServerSettings) ToServer(host component.Host, settings component.TelemetrySettings, handler http.Handler, opts ...ToServerOption) (*http.Server, error) {
+	internal.WarnOnUnspecifiedHost(settings.Logger, hss.Endpoint)
+
 	serverOpts := &toServerOptions{}
 	for _, o := range opts {
 		o(serverOpts)

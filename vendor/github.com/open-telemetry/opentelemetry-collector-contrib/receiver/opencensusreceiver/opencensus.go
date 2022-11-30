@@ -24,11 +24,10 @@ import (
 
 	agentmetricspb "github.com/census-instrumentation/opencensus-proto/gen-go/agent/metrics/v1"
 	agenttracepb "github.com/census-instrumentation/opencensus-proto/gen-go/agent/trace/v1"
-	gatewayruntime "github.com/grpc-ecosystem/grpc-gateway/runtime"
+	gatewayruntime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/rs/cors"
 	"github.com/soheilhy/cmux"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/consumer"
 	"google.golang.org/grpc"
@@ -57,7 +56,7 @@ type ocReceiver struct {
 	startTracesReceiverOnce  sync.Once
 	startMetricsReceiverOnce sync.Once
 
-	id       config.ComponentID
+	id       component.ID
 	settings component.ReceiverCreateSettings
 }
 
@@ -65,7 +64,7 @@ type ocReceiver struct {
 // responsibility to invoke the respective Start*Reception methods as well
 // as the various Stop*Reception methods to end it.
 func newOpenCensusReceiver(
-	id config.ComponentID,
+	id component.ID,
 	transport string,
 	addr string,
 	tc consumer.Traces,
@@ -174,11 +173,11 @@ func (ocr *ocReceiver) grpcServer(host component.Host) (*grpc.Server, error) {
 	defer ocr.mu.Unlock()
 
 	if ocr.serverGRPC == nil {
-		opts, err := ocr.grpcServerSettings.ToServerOption(host, ocr.settings.TelemetrySettings)
+		var err error
+		ocr.serverGRPC, err = ocr.grpcServerSettings.ToServer(host, ocr.settings.TelemetrySettings)
 		if err != nil {
 			return nil, err
 		}
-		ocr.serverGRPC = grpc.NewServer(opts...)
 	}
 
 	return ocr.serverGRPC, nil

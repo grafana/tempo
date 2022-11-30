@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/featuregate"
 )
 
 const (
@@ -41,9 +42,9 @@ func NewFactory() component.ProcessorFactory {
 		component.WithLogsProcessor(createLogsProcessor, component.StabilityLevelStable))
 }
 
-func createDefaultConfig() config.Processor {
+func createDefaultConfig() component.ProcessorConfig {
 	return &Config{
-		ProcessorSettings: config.NewProcessorSettings(config.NewComponentID(typeStr)),
+		ProcessorSettings: config.NewProcessorSettings(component.NewID(typeStr)),
 		SendBatchSize:     defaultSendBatchSize,
 		Timeout:           defaultTimeout,
 	}
@@ -52,29 +53,29 @@ func createDefaultConfig() config.Processor {
 func createTracesProcessor(
 	_ context.Context,
 	set component.ProcessorCreateSettings,
-	cfg config.Processor,
+	cfg component.ProcessorConfig,
 	nextConsumer consumer.Traces,
 ) (component.TracesProcessor, error) {
 	level := set.MetricsLevel
-	return newBatchTracesProcessor(set, nextConsumer, cfg.(*Config), level)
+	return newBatchTracesProcessor(set, nextConsumer, cfg.(*Config), level, featuregate.GetRegistry())
 }
 
 func createMetricsProcessor(
 	_ context.Context,
 	set component.ProcessorCreateSettings,
-	cfg config.Processor,
+	cfg component.ProcessorConfig,
 	nextConsumer consumer.Metrics,
 ) (component.MetricsProcessor, error) {
 	level := set.MetricsLevel
-	return newBatchMetricsProcessor(set, nextConsumer, cfg.(*Config), level)
+	return newBatchMetricsProcessor(set, nextConsumer, cfg.(*Config), level, featuregate.GetRegistry())
 }
 
 func createLogsProcessor(
 	_ context.Context,
 	set component.ProcessorCreateSettings,
-	cfg config.Processor,
+	cfg component.ProcessorConfig,
 	nextConsumer consumer.Logs,
 ) (component.LogsProcessor, error) {
 	level := set.MetricsLevel
-	return newBatchLogsProcessor(set, nextConsumer, cfg.(*Config), level)
+	return newBatchLogsProcessor(set, nextConsumer, cfg.(*Config), level, featuregate.GetRegistry())
 }

@@ -19,15 +19,14 @@ import (
 	"errors"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter/exporterhelper/internal"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-var tracesMarshaler = ptrace.NewProtoMarshaler()
-var tracesUnmarshaler = ptrace.NewProtoUnmarshaler()
+var tracesMarshaler = &ptrace.ProtoMarshaler{}
+var tracesUnmarshaler = &ptrace.ProtoUnmarshaler{}
 
 type tracesRequest struct {
 	baseRequest
@@ -35,7 +34,7 @@ type tracesRequest struct {
 	pusher consumer.ConsumeTracesFunc
 }
 
-func newTracesRequest(ctx context.Context, td ptrace.Traces, pusher consumer.ConsumeTracesFunc) request {
+func newTracesRequest(ctx context.Context, td ptrace.Traces, pusher consumer.ConsumeTracesFunc) internal.Request {
 	return &tracesRequest{
 		baseRequest: baseRequest{ctx: ctx},
 		td:          td,
@@ -44,7 +43,7 @@ func newTracesRequest(ctx context.Context, td ptrace.Traces, pusher consumer.Con
 }
 
 func newTraceRequestUnmarshalerFunc(pusher consumer.ConsumeTracesFunc) internal.RequestUnmarshaler {
-	return func(bytes []byte) (internal.PersistentRequest, error) {
+	return func(bytes []byte) (internal.Request, error) {
 		traces, err := tracesUnmarshaler.UnmarshalTraces(bytes)
 		if err != nil {
 			return nil, err
@@ -58,7 +57,7 @@ func (req *tracesRequest) Marshal() ([]byte, error) {
 	return tracesMarshaler.MarshalTraces(req.td)
 }
 
-func (req *tracesRequest) onError(err error) request {
+func (req *tracesRequest) OnError(err error) internal.Request {
 	var traceError consumererror.Traces
 	if errors.As(err, &traceError) {
 		return newTracesRequest(req.ctx, traceError.GetTraces(), req.pusher)
@@ -66,11 +65,11 @@ func (req *tracesRequest) onError(err error) request {
 	return req
 }
 
-func (req *tracesRequest) export(ctx context.Context) error {
+func (req *tracesRequest) Export(ctx context.Context) error {
 	return req.pusher(ctx, req.td)
 }
 
-func (req *tracesRequest) count() int {
+func (req *tracesRequest) Count() int {
 	return req.td.SpanCount()
 }
 
@@ -79,14 +78,14 @@ type traceExporter struct {
 	consumer.Traces
 }
 
-// NewTracesExporter creates a TracesExporter that records observability metrics and wraps every request with a Span.
+// NewTracesExporter creates a component.TracesExporter that records observability metrics and wraps every request with a Span.
 func NewTracesExporter(
-	cfg config.Exporter,
+	_ context.Context,
 	set component.ExporterCreateSettings,
+	cfg component.ExporterConfig,
 	pusher consumer.ConsumeTracesFunc,
 	options ...Option,
 ) (component.TracesExporter, error) {
-
 	if cfg == nil {
 		return nil, errNilConfig
 	}
@@ -100,7 +99,10 @@ func NewTracesExporter(
 	}
 
 	bs := fromOptions(options...)
-	be := newBaseExporter(cfg, set, bs, config.TracesDataType, newTraceRequestUnmarshalerFunc(pusher))
+	be, err := newBaseExporter(cfg, set, bs, component.DataTypeTraces, newTraceRequestUnmarshalerFunc(pusher))
+	if err != nil {
+		return nil, err
+	}
 	be.wrapConsumerSender(func(nextSender requestSender) requestSender {
 		return &tracesExporterWithObservability{
 			obsrep:     be.obsrep,
@@ -110,11 +112,11 @@ func NewTracesExporter(
 
 	tc, err := consumer.NewTraces(func(ctx context.Context, td ptrace.Traces) error {
 		req := newTracesRequest(ctx, td, pusher)
-		err := be.sender.send(req)
-		if errors.Is(err, errSendingQueueIsFull) {
-			be.obsrep.recordTracesEnqueueFailure(req.context(), int64(req.count()))
+		serr := be.sender.send(req)
+		if errors.Is(serr, errSendingQueueIsFull) {
+			be.obsrep.recordTracesEnqueueFailure(req.Context(), int64(req.Count()))
 		}
-		return err
+		return serr
 	}, bs.consumerOptions...)
 
 	return &traceExporter{
@@ -128,10 +130,10 @@ type tracesExporterWithObservability struct {
 	nextSender requestSender
 }
 
-func (tewo *tracesExporterWithObservability) send(req request) error {
-	req.setContext(tewo.obsrep.StartTracesOp(req.context()))
+func (tewo *tracesExporterWithObservability) send(req internal.Request) error {
+	req.SetContext(tewo.obsrep.StartTracesOp(req.Context()))
 	// Forward the data to the next consumer (this pusher is the next).
 	err := tewo.nextSender.send(req)
-	tewo.obsrep.EndTracesOp(req.context(), req.count(), err)
+	tewo.obsrep.EndTracesOp(req.Context(), req.Count(), err)
 	return err
 }

@@ -43,7 +43,7 @@ import (
 func newTracesExporter(cfg *Config, set component.ExporterCreateSettings) (component.TracesExporter, error) {
 	s := newProtoGRPCSender(cfg, set.TelemetrySettings)
 	return exporterhelper.NewTracesExporter(
-		cfg, set, s.pushTraces,
+		context.TODO(), set, cfg, s.pushTraces,
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
 		exporterhelper.WithStart(s.start),
 		exporterhelper.WithShutdown(s.shutdown),
@@ -126,16 +126,11 @@ func (s *protoGRPCSender) shutdown(context.Context) error {
 	return nil
 }
 
-func (s *protoGRPCSender) start(_ context.Context, host component.Host) error {
+func (s *protoGRPCSender) start(ctx context.Context, host component.Host) error {
 	if s.clientSettings == nil {
 		return fmt.Errorf("client settings not found")
 	}
-	opts, err := s.clientSettings.ToDialOptions(host, s.settings)
-	if err != nil {
-		return err
-	}
-
-	conn, err := grpc.Dial(s.clientSettings.Endpoint, opts...)
+	conn, err := s.clientSettings.ToClientConn(ctx, host, s.settings)
 	if err != nil {
 		return err
 	}
@@ -181,8 +176,7 @@ func (s *protoGRPCSender) propagateStateChange(st connectivity.State) {
 }
 
 func (s *protoGRPCSender) onStateChange(st connectivity.State) {
-	mCtx, _ := tag.New(context.Background(), tag.Upsert(tag.MustNewKey("exporter_name"), s.name))
-	stats.Record(mCtx, mLastConnectionState.M(int64(st)))
+	_ = stats.RecordWithTags(context.Background(), []tag.Mutator{tag.Upsert(tag.MustNewKey("exporter_name"), s.name)}, mLastConnectionState.M(int64(st)))
 	s.settings.Logger.Info("State of the connection with the Jaeger Collector backend", zap.Stringer("state", st))
 }
 

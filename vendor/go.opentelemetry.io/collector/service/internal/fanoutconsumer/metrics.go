@@ -25,8 +25,8 @@ import (
 
 // NewMetrics wraps multiple metrics consumers in a single one.
 // It fanouts the incoming data to all the consumers, and does smart routing:
-//  * Clones only to the consumer that needs to mutate the data.
-//  * If all consumers needs to mutate the data one will get the original data.
+//   - Clones only to the consumer that needs to mutate the data.
+//   - If all consumers needs to mutate the data one will get the original data.
 func NewMetrics(mcs []consumer.Metrics) consumer.Metrics {
 	if len(mcs) == 1 {
 		// Don't wrap if no need to do it.
@@ -69,7 +69,9 @@ func (msc *metricsConsumer) ConsumeMetrics(ctx context.Context, md pmetric.Metri
 	// the incoming data to a mutating consumer is used that may change the incoming data before
 	// cloning.
 	for _, mc := range msc.clone {
-		errs = multierr.Append(errs, mc.ConsumeMetrics(ctx, md.Clone()))
+		clonedMetrics := pmetric.NewMetrics()
+		md.CopyTo(clonedMetrics)
+		errs = multierr.Append(errs, mc.ConsumeMetrics(ctx, clonedMetrics))
 	}
 	for _, mc := range msc.pass {
 		errs = multierr.Append(errs, mc.ConsumeMetrics(ctx, md))

@@ -19,7 +19,7 @@ import (
 	"path"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/service/featuregate"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/service/internal/runtimeinfo"
 	"go.opentelemetry.io/collector/service/internal/zpages"
 )
@@ -72,9 +72,12 @@ func getFeaturesTableData() zpages.FeatureGateTableData {
 	data := zpages.FeatureGateTableData{}
 	for _, g := range featuregate.GetRegistry().List() {
 		data.Rows = append(data.Rows, zpages.FeatureGateTableRowData{
-			ID:          g.ID,
-			Enabled:     g.Enabled,
-			Description: g.Description,
+			ID:             g.ID(),
+			Enabled:        g.IsEnabled(),
+			Description:    g.Description(),
+			ReferenceURL:   g.ReferenceURL(),
+			Stage:          g.Stage().String(),
+			RemovalVersion: g.RemovalVersion(),
 		})
 	}
 

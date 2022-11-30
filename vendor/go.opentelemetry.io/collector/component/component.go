@@ -17,8 +17,6 @@ package component // import "go.opentelemetry.io/collector/component"
 import (
 	"context"
 	"errors"
-
-	"go.opentelemetry.io/collector/config"
 )
 
 var (
@@ -35,10 +33,10 @@ var (
 //
 // A component's lifecycle has the following phases:
 //
-//   1. Creation: The component is created using its respective factory, via a Create* call.
-//   2. Start: The component's Start method is called.
-//   3. Running: The component is up and running.
-//   4. Shutdown: The component's Shutdown method is called and the lifecycle is complete.
+//  1. Creation: The component is created using its respective factory, via a Create* call.
+//  2. Start: The component's Start method is called.
+//  3. Running: The component is up and running.
+//  4. Shutdown: The component's Shutdown method is called and the lifecycle is complete.
 //
 // Once the lifecycle is complete it may be repeated, in which case a new component
 // is created, starts, runs and is shutdown again.
@@ -58,6 +56,10 @@ type Component interface {
 
 	// Shutdown is invoked during service shutdown. After Shutdown() is called, if the component
 	// accepted data in any way, it should not accept it anymore.
+	//
+	// This method must be safe to call:
+	//   - without Start() having been called
+	//   - if the component is in a shutdown state already
 	//
 	// If there are any background operations running by the component they must be aborted before
 	// this function returns. Remember that if you started any long-running background operations from
@@ -114,28 +116,33 @@ const (
 	StabilityLevelUndefined StabilityLevel = iota // skip 0, start types from 1.
 	StabilityLevelUnmaintained
 	StabilityLevelDeprecated
-	StabilityLevelInDevelopment
+	StabilityLevelDevelopment
 	StabilityLevelAlpha
 	StabilityLevelBeta
 	StabilityLevelStable
 )
 
+// Deprecated: [0.65.0] Use StabilityLevelDevelopment instead.
+const StabilityLevelInDevelopment = StabilityLevelDevelopment
+
 func (sl StabilityLevel) String() string {
 	switch sl {
+	case StabilityLevelUndefined:
+		return "Undefined"
 	case StabilityLevelUnmaintained:
-		return "unmaintained"
+		return "Unmaintained"
 	case StabilityLevelDeprecated:
-		return "deprecated"
-	case StabilityLevelInDevelopment:
-		return "in development"
+		return "Deprecated"
+	case StabilityLevelDevelopment:
+		return "Development"
 	case StabilityLevelAlpha:
-		return "alpha"
+		return "Alpha"
 	case StabilityLevelBeta:
-		return "beta"
+		return "Beta"
 	case StabilityLevelStable:
-		return "stable"
+		return "Stable"
 	}
-	return "undefined"
+	return ""
 }
 
 func (sl StabilityLevel) LogMessage() string {
@@ -144,8 +151,8 @@ func (sl StabilityLevel) LogMessage() string {
 		return "Unmaintained component. Actively looking for contributors. Component will become deprecated after 6 months of remaining unmaintained."
 	case StabilityLevelDeprecated:
 		return "Deprecated component. Will be removed in future releases."
-	case StabilityLevelInDevelopment:
-		return "In development component. May change in the future."
+	case StabilityLevelDevelopment:
+		return "Development component. May change in the future."
 	case StabilityLevelAlpha:
 		return "Alpha component. May change in the future."
 	case StabilityLevelBeta:
@@ -162,28 +169,17 @@ func (sl StabilityLevel) LogMessage() string {
 // use the factory helpers for the appropriate component type.
 type Factory interface {
 	// Type gets the type of the component created by this factory.
-	Type() config.Type
-
-	// StabilityLevel gets the stability level of the component.
-	StabilityLevel(config.DataType) StabilityLevel
+	Type() Type
 
 	unexportedFactoryFunc()
 }
 
 type baseFactory struct {
-	cfgType   config.Type
-	stability map[config.DataType]StabilityLevel
+	cfgType Type
 }
 
 func (baseFactory) unexportedFactoryFunc() {}
 
-func (bf baseFactory) Type() config.Type {
+func (bf baseFactory) Type() Type {
 	return bf.cfgType
-}
-
-func (bf baseFactory) StabilityLevel(dt config.DataType) StabilityLevel {
-	if val, ok := bf.stability[dt]; ok {
-		return val
-	}
-	return StabilityLevelUndefined
 }

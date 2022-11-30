@@ -188,6 +188,28 @@ type Config struct {
 		// If enabled, the producer will ensure that exactly one copy of each message is
 		// written.
 		Idempotent bool
+		// Transaction specify
+		Transaction struct {
+			// Used in transactions to identify an instance of a producer through restarts
+			ID string
+			// Amount of time a transaction can remain unresolved (neither committed nor aborted)
+			// default is 1 min
+			Timeout time.Duration
+
+			Retry struct {
+				// The total number of times to retry sending a message (default 50).
+				// Similar to the `message.send.max.retries` setting of the JVM producer.
+				Max int
+				// How long to wait for the cluster to settle between retries
+				// (default 10ms). Similar to the `retry.backoff.ms` setting of the
+				// JVM producer.
+				Backoff time.Duration
+				// Called to compute backoff time dynamically. Useful for implementing
+				// more sophisticated backoff strategies. This takes precedence over
+				// `Backoff` if set.
+				BackoffFunc func(retries, maxRetries int) time.Duration
+			}
+		}
 
 		// Return specifies what channels will be populated. If they are set to true,
 		// you must read from the respective channels to prevent deadlock. If,
@@ -273,7 +295,16 @@ type Config struct {
 			}
 			Rebalance struct {
 				// Strategy for allocating topic partitions to members (default BalanceStrategyRange)
+				// Deprecated: Strategy exists for historical compatibility
+				// and should not be used. Please use GroupStrategies.
 				Strategy BalanceStrategy
+
+				// GroupStrategies is the priority-ordered list of client-side consumer group
+				// balancing strategies that will be offered to the coordinator. The first
+				// strategy that all group members support will be chosen by the leader.
+				// default: [BalanceStrategyRange]
+				GroupStrategies []BalanceStrategy
+
 				// The maximum allowed time for each worker to join the group once a rebalance has begun.
 				// This is basically a limit on the amount of time needed for all tasks to flush any pending
 				// data and commit offsets. If the timeout is exceeded, then the worker will be removed from
@@ -296,8 +327,17 @@ type Config struct {
 				// coordinator for the group.
 				UserData []byte
 			}
+
 			// support KIP-345
 			InstanceId string
+
+			// If true, consumer offsets will be automatically reset to configured Initial value
+			// if the fetched consumer offset is out of range of available offsets. Out of range
+			// can happen if the data has been deleted from the server, or during situations of
+			// under-replication where a replica does not have all the data yet. It can be
+			// dangerous to reset the offset automatically, particularly in the latter case. Defaults
+			// to true to maintain existing behavior.
+			ResetInvalidOffsets bool
 		}
 
 		Retry struct {
@@ -482,6 +522,10 @@ func NewConfig() *Config {
 	c.Producer.Return.Errors = true
 	c.Producer.CompressionLevel = CompressionLevelDefault
 
+	c.Producer.Transaction.Timeout = 1 * time.Minute
+	c.Producer.Transaction.Retry.Max = 50
+	c.Producer.Transaction.Retry.Backoff = 100 * time.Millisecond
+
 	c.Consumer.Fetch.Min = 1
 	c.Consumer.Fetch.Default = 1024 * 1024
 	c.Consumer.Retry.Backoff = 2 * time.Second
@@ -495,10 +539,11 @@ func NewConfig() *Config {
 
 	c.Consumer.Group.Session.Timeout = 10 * time.Second
 	c.Consumer.Group.Heartbeat.Interval = 3 * time.Second
-	c.Consumer.Group.Rebalance.Strategy = BalanceStrategyRange
+	c.Consumer.Group.Rebalance.GroupStrategies = []BalanceStrategy{BalanceStrategyRange}
 	c.Consumer.Group.Rebalance.Timeout = 60 * time.Second
 	c.Consumer.Group.Rebalance.Retry.Max = 4
 	c.Consumer.Group.Rebalance.Retry.Backoff = 2 * time.Second
+	c.Consumer.Group.ResetInvalidOffsets = true
 
 	c.ClientID = defaultClientID
 	c.ChannelBufferSize = 256
@@ -511,6 +556,7 @@ func NewConfig() *Config {
 
 // Validate checks a Config instance. It will return a
 // ConfigurationError if the specified values don't make sense.
+//
 //nolint:gocyclo // This function's cyclomatic complexity has go beyond 100
 func (c *Config) Validate() error {
 	// some configuration values should be warned on but not fail completely, do those first
@@ -706,6 +752,10 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	if c.Producer.Transaction.ID != "" && !c.Producer.Idempotent {
+		return ConfigurationError("Transactional producer requires Idempotent to be true")
+	}
+
 	// validate the Consumer values
 	switch {
 	case c.Consumer.Fetch.Min <= 0:
@@ -734,6 +784,10 @@ func (c *Config) Validate() error {
 		Logger.Println("Deprecation warning: Consumer.Offsets.CommitInterval exists for historical compatibility" +
 			" and should not be used. Please use Consumer.Offsets.AutoCommit, the current value will be ignored")
 	}
+	if c.Consumer.Group.Rebalance.Strategy != nil {
+		Logger.Println("Deprecation warning: Consumer.Group.Rebalance.Strategy exists for historical compatibility" +
+			" and should not be used. Please use Consumer.Group.Rebalance.GroupStrategies")
+	}
 
 	// validate IsolationLevel
 	if c.Consumer.IsolationLevel == ReadCommitted && !c.Version.IsAtLeast(V0_11_0_0) {
@@ -748,8 +802,8 @@ func (c *Config) Validate() error {
 		return ConfigurationError("Consumer.Group.Heartbeat.Interval must be >= 1ms")
 	case c.Consumer.Group.Heartbeat.Interval >= c.Consumer.Group.Session.Timeout:
 		return ConfigurationError("Consumer.Group.Heartbeat.Interval must be < Consumer.Group.Session.Timeout")
-	case c.Consumer.Group.Rebalance.Strategy == nil:
-		return ConfigurationError("Consumer.Group.Rebalance.Strategy must not be empty")
+	case c.Consumer.Group.Rebalance.Strategy == nil && len(c.Consumer.Group.Rebalance.GroupStrategies) == 0:
+		return ConfigurationError("Consumer.Group.Rebalance.GroupStrategies or Consumer.Group.Rebalance.Strategy must not be empty")
 	case c.Consumer.Group.Rebalance.Timeout <= time.Millisecond:
 		return ConfigurationError("Consumer.Group.Rebalance.Timeout must be >= 1ms")
 	case c.Consumer.Group.Rebalance.Retry.Max < 0:
@@ -757,6 +811,13 @@ func (c *Config) Validate() error {
 	case c.Consumer.Group.Rebalance.Retry.Backoff < 0:
 		return ConfigurationError("Consumer.Group.Rebalance.Retry.Backoff must be >= 0")
 	}
+
+	for _, strategy := range c.Consumer.Group.Rebalance.GroupStrategies {
+		if strategy == nil {
+			return ConfigurationError("elements in Consumer.Group.Rebalance.Strategies must not be empty")
+		}
+	}
+
 	if c.Consumer.Group.InstanceId != "" {
 		if !c.Version.IsAtLeast(V2_3_0_0) {
 			return ConfigurationError("Consumer.Group.InstanceId need Version >= 2.3")

@@ -15,11 +15,11 @@
 package service // import "go.opentelemetry.io/collector/service"
 
 import (
+	"errors"
+
 	"github.com/spf13/cobra"
 
-	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/converter/overwritepropertiesconverter"
-	"go.opentelemetry.io/collector/service/featuregate"
+	"go.opentelemetry.io/collector/featuregate"
 )
 
 // NewCommand constructs a new cobra.Command using the given CollectorSettings.
@@ -30,15 +30,18 @@ func NewCommand(set CollectorSettings) *cobra.Command {
 		Version:      set.BuildInfo.Version,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			featuregate.GetRegistry().Apply(gatesList)
+			if err := featuregate.GetRegistry().Apply(getFeatureGatesFlag(flagSet)); err != nil {
+				return err
+			}
 			if set.ConfigProvider == nil {
 				var err error
-				cfgSet := newDefaultConfigProviderSettings(getConfigFlag(flagSet))
-				// Append the "overwrite properties converter" as the first converter.
-				cfgSet.MapConverters = append(
-					[]confmap.Converter{overwritepropertiesconverter.New(getSetFlag(flagSet))},
-					cfgSet.MapConverters...)
-				set.ConfigProvider, err = NewConfigProvider(cfgSet)
+
+				configFlags := getConfigFlag(flagSet)
+				if len(configFlags) == 0 {
+					return errors.New("at least one config flag must be provided")
+				}
+
+				set.ConfigProvider, err = NewConfigProvider(newDefaultConfigProviderSettings(configFlags))
 				if err != nil {
 					return err
 				}

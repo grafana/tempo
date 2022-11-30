@@ -19,14 +19,15 @@ import (
 	"math"
 	"strconv"
 
-	tracepb "github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator"
 )
 
 type status struct {
-	codePtr *int32
+	codePtr *ptrace.StatusCode
 	message string
 }
 
@@ -50,12 +51,12 @@ type statusMapper struct {
 	fromErrorTagUnknown status
 }
 
-// ocStatus returns an OC status from the best possible extraction source.
+// status fills the given ptrace.Status from the best possible extraction source.
 // It'll first try to return status extracted from "census.status_code" to account for zipkin
 // then fallback on code extracted from "status.code" tags
 // and finally fallback on code extracted and translated from "http.status_code"
-// ocStatus must be called after all tags/attributes are processed with the `fromAttribute` method.
-func (m *statusMapper) ocStatus() *tracepb.Status {
+// status must be called after all tags/attributes are processed with the `fromAttribute` method.
+func (m *statusMapper) status(dest ptrace.Status) {
 	var s status
 	switch {
 	case m.fromCensus.codePtr != nil:
@@ -76,75 +77,75 @@ func (m *statusMapper) ocStatus() *tracepb.Status {
 	}
 
 	if s.codePtr != nil {
-		code := int32(0)
+		code := ptrace.StatusCodeUnset
 		if s.codePtr != nil {
 			code = *s.codePtr
 		}
-		return &tracepb.Status{
-			Code:    code,
-			Message: s.message,
-		}
+		dest.SetCode(code)
+		dest.SetMessage(s.message)
 	}
-	return nil
 }
 
-func (m *statusMapper) fromAttribute(key string, attrib *tracepb.AttributeValue) bool {
+func (m *statusMapper) fromAttribute(key string, attrib pcommon.Value) bool {
 	switch key {
 	case tagZipkinCensusCode:
-		code, err := attribToStatusCode(attrib)
+		ocCode, err := attribToStatusCode(attrib)
 		if err == nil {
+			// Convert oc status (OK == 0) to otel (OK == 1), anything else is error.
+			code := ptrace.StatusCodeOk
+			if ocCode != 0 {
+				code = ptrace.StatusCodeError
+			}
 			m.fromCensus.codePtr = &code
 		}
 		return true
 
 	case tagZipkinCensusMsg, tagZipkinOpenCensusMsg:
-		m.fromCensus.message = attrib.GetStringValue().GetValue()
+		m.fromCensus.message = attrib.Str()
 		return true
 
 	case conventions.OtelStatusCode:
+		// Keep the code as is, even if unknown. Since we are allowed to receive unknown values for enums.
 		code, err := attribToStatusCode(attrib)
 		if err == nil {
-			m.fromStatus.codePtr = &code
+			m.fromStatus.codePtr = (*ptrace.StatusCode)(&code)
 		}
 		return true
 
 	case conventions.OtelStatusDescription:
-		m.fromStatus.message = attrib.GetStringValue().GetValue()
+		m.fromStatus.message = attrib.Str()
 		return true
 
 	case conventions.AttributeHTTPStatusCode:
 		httpCode, err := attribToStatusCode(attrib)
 		if err == nil {
-			code := ocStatusCodeFromHTTP(httpCode)
+			code := statusCodeFromHTTP(httpCode)
 			m.fromHTTP.codePtr = &code
 		}
 
 	case tracetranslator.TagHTTPStatusMsg:
-		m.fromHTTP.message = attrib.GetStringValue().GetValue()
+		m.fromHTTP.message = attrib.Str()
 
 	case tracetranslator.TagError:
-		code, ok := extractStatusFromError(attrib)
-		if ok {
-			m.fromErrorTag.codePtr = code
-			return true
-		}
-		m.fromErrorTagUnknown.codePtr = code
+		// The status is stored with the "error" key, but otel does not care about the old census values.
+		// See https://github.com/census-instrumentation/opencensus-go/blob/1eb9a13c7dd02141e065a665f6bf5c99a090a16a/exporter/zipkin/zipkin.go#L160-L165
+		code := ptrace.StatusCodeError
+		m.fromErrorTag.codePtr = &code
+		return true
 	}
 	return false
 }
 
 // attribToStatusCode maps an integer or string attribute value to a status code.
 // The function return nil if the value is of another type or cannot be converted to an int32 value.
-func attribToStatusCode(attr *tracepb.AttributeValue) (int32, error) {
-	if attr == nil {
+func attribToStatusCode(attr pcommon.Value) (int32, error) {
+	switch attr.Type() {
+	case pcommon.ValueTypeEmpty:
 		return 0, fmt.Errorf("nil attribute")
-	}
-
-	switch val := attr.Value.(type) {
-	case *tracepb.AttributeValue_IntValue:
-		return toInt32(int(val.IntValue))
-	case *tracepb.AttributeValue_StringValue:
-		i, err := strconv.Atoi(val.StringValue.GetValue())
+	case pcommon.ValueTypeInt:
+		return toInt32(attr.Int())
+	case pcommon.ValueTypeStr:
+		i, err := strconv.ParseInt(attr.Str(), 10, 64)
 		if err != nil {
 			return 0, err
 		}
@@ -153,52 +154,18 @@ func attribToStatusCode(attr *tracepb.AttributeValue) (int32, error) {
 	return 0, fmt.Errorf("invalid attribute type")
 }
 
-func toInt32(i int) (int32, error) {
+func toInt32(i int64) (int32, error) {
 	if i <= math.MaxInt32 && i >= math.MinInt32 {
 		return int32(i), nil
 	}
 	return 0, fmt.Errorf("outside of the int32 range")
 }
 
-func extractStatusFromError(attrib *tracepb.AttributeValue) (*int32, bool) {
-	// The status is stored with the "error" key
-	// See https://github.com/census-instrumentation/opencensus-go/blob/1eb9a13c7dd02141e065a665f6bf5c99a090a16a/exporter/zipkin/zipkin.go#L160-L165
-	var unknown int32 = 2
-
-	switch val := attrib.Value.(type) {
-	case *tracepb.AttributeValue_StringValue:
-		canonicalCodeStr := val.StringValue.GetValue()
-		if canonicalCodeStr == "" {
-			return nil, true
-		}
-		code, set := canonicalCodesMap[canonicalCodeStr]
-		if set {
-			return &code, true
-		}
-	default:
-		break
+// statusCodeFromHTTP takes an HTTP status code and return the appropriate OpenTelemetry status code
+// See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/http.md
+func statusCodeFromHTTP(code int32) ptrace.StatusCode {
+	if code >= 100 && code < 400 {
+		return ptrace.StatusCodeUnset
 	}
-
-	return &unknown, false
-}
-
-var canonicalCodesMap = map[string]int32{
-	// https://github.com/googleapis/googleapis/blob/bee79fbe03254a35db125dc6d2f1e9b752b390fe/google/rpc/code.proto#L33-L186
-	"OK":                  0,
-	"CANCELLED":           1,
-	"UNKNOWN":             2,
-	"INVALID_ARGUMENT":    3,
-	"DEADLINE_EXCEEDED":   4,
-	"NOT_FOUND":           5,
-	"ALREADY_EXISTS":      6,
-	"PERMISSION_DENIED":   7,
-	"RESOURCE_EXHAUSTED":  8,
-	"FAILED_PRECONDITION": 9,
-	"ABORTED":             10,
-	"OUT_OF_RANGE":        11,
-	"UNIMPLEMENTED":       12,
-	"INTERNAL":            13,
-	"UNAVAILABLE":         14,
-	"DATA_LOSS":           15,
-	"UNAUTHENTICATED":     16,
+	return ptrace.StatusCodeError
 }

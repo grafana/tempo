@@ -127,7 +127,7 @@ func zSpanToInternal(zspan *zipkinmodel.SpanModel, tags map[string]string, dest 
 	dest.SetTraceID(idutils.UInt64ToTraceID(zspan.TraceID.High, zspan.TraceID.Low))
 	dest.SetSpanID(idutils.UInt64ToSpanID(uint64(zspan.ID)))
 	if value, ok := tags[tracetranslator.TagW3CTraceState]; ok {
-		dest.SetTraceState(ptrace.TraceState(value))
+		dest.TraceState().FromRaw(value)
 		delete(tags, tracetranslator.TagW3CTraceState)
 	}
 	parentID := zspan.ParentID
@@ -144,7 +144,6 @@ func zSpanToInternal(zspan *zipkinmodel.SpanModel, tags map[string]string, dest 
 	}
 
 	attrs := dest.Attributes()
-	attrs.Clear()
 	attrs.EnsureCapacity(len(tags))
 	if err := zTagsToInternalAttrs(zspan, tags, attrs, parseStringTags); err != nil {
 		return err
@@ -156,7 +155,7 @@ func zSpanToInternal(zspan *zipkinmodel.SpanModel, tags map[string]string, dest 
 	return err
 }
 
-func populateSpanStatus(tags map[string]string, status ptrace.SpanStatus) {
+func populateSpanStatus(tags map[string]string, status ptrace.Status) {
 	if value, ok := tags[conventions.OtelStatusCode]; ok {
 		status.SetCode(ptrace.StatusCode(statusCodeValue[value]))
 		delete(tags, conventions.OtelStatusCode)
@@ -217,7 +216,7 @@ func zTagsToSpanLinks(tags map[string]string, dest ptrace.SpanLinkSlice) error {
 		if errTrace != nil {
 			return errTrace
 		}
-		link.SetTraceID(pcommon.NewTraceID(rawTrace))
+		link.SetTraceID(rawTrace)
 
 		// Convert span id.
 		rawSpan := [8]byte{}
@@ -225,9 +224,9 @@ func zTagsToSpanLinks(tags map[string]string, dest ptrace.SpanLinkSlice) error {
 		if errSpan != nil {
 			return errSpan
 		}
-		link.SetSpanID(pcommon.NewSpanID(rawSpan))
+		link.SetSpanID(rawSpan)
 
-		link.SetTraceState(ptrace.TraceState(parts[2]))
+		link.TraceState().FromRaw(parts[2])
 
 		var jsonStr string
 		if partCnt == 5 {
@@ -293,15 +292,15 @@ func populateSpanEvents(zspan *zipkinmodel.SpanModel, events ptrace.SpanEventSli
 func jsonMapToAttributeMap(attrs map[string]interface{}, dest pcommon.Map) error {
 	for key, val := range attrs {
 		if s, ok := val.(string); ok {
-			dest.InsertString(key, s)
+			dest.PutStr(key, s)
 		} else if d, ok := val.(float64); ok {
 			if math.Mod(d, 1.0) == 0.0 {
-				dest.InsertInt(key, int64(d))
+				dest.PutInt(key, int64(d))
 			} else {
-				dest.InsertDouble(key, d)
+				dest.PutDouble(key, d)
 			}
 		} else if b, ok := val.(bool); ok {
-			dest.InsertBool(key, b)
+			dest.PutBool(key, b)
 		}
 	}
 	return nil
@@ -311,27 +310,27 @@ func zTagsToInternalAttrs(zspan *zipkinmodel.SpanModel, tags map[string]string, 
 	parseErr := tagsToAttributeMap(tags, dest, parseStringTags)
 	if zspan.LocalEndpoint != nil {
 		if zspan.LocalEndpoint.IPv4 != nil {
-			dest.InsertString(conventions.AttributeNetHostIP, zspan.LocalEndpoint.IPv4.String())
+			dest.PutStr(conventions.AttributeNetHostIP, zspan.LocalEndpoint.IPv4.String())
 		}
 		if zspan.LocalEndpoint.IPv6 != nil {
-			dest.InsertString(conventions.AttributeNetHostIP, zspan.LocalEndpoint.IPv6.String())
+			dest.PutStr(conventions.AttributeNetHostIP, zspan.LocalEndpoint.IPv6.String())
 		}
 		if zspan.LocalEndpoint.Port > 0 {
-			dest.UpsertInt(conventions.AttributeNetHostPort, int64(zspan.LocalEndpoint.Port))
+			dest.PutInt(conventions.AttributeNetHostPort, int64(zspan.LocalEndpoint.Port))
 		}
 	}
 	if zspan.RemoteEndpoint != nil {
 		if zspan.RemoteEndpoint.ServiceName != "" {
-			dest.InsertString(conventions.AttributePeerService, zspan.RemoteEndpoint.ServiceName)
+			dest.PutStr(conventions.AttributePeerService, zspan.RemoteEndpoint.ServiceName)
 		}
 		if zspan.RemoteEndpoint.IPv4 != nil {
-			dest.InsertString(conventions.AttributeNetPeerIP, zspan.RemoteEndpoint.IPv4.String())
+			dest.PutStr(conventions.AttributeNetPeerIP, zspan.RemoteEndpoint.IPv4.String())
 		}
 		if zspan.RemoteEndpoint.IPv6 != nil {
-			dest.InsertString(conventions.AttributeNetPeerIP, zspan.RemoteEndpoint.IPv6.String())
+			dest.PutStr(conventions.AttributeNetPeerIP, zspan.RemoteEndpoint.IPv6.String())
 		}
 		if zspan.RemoteEndpoint.Port > 0 {
-			dest.UpsertInt(conventions.AttributeNetPeerPort, int64(zspan.RemoteEndpoint.Port))
+			dest.PutInt(conventions.AttributeNetPeerPort, int64(zspan.RemoteEndpoint.Port))
 		}
 	}
 	return parseErr
@@ -348,18 +347,18 @@ func tagsToAttributeMap(tags map[string]string, dest pcommon.Map, parseStringTag
 			switch zipkin.DetermineValueType(val) {
 			case pcommon.ValueTypeInt:
 				iValue, _ := strconv.ParseInt(val, 10, 64)
-				dest.UpsertInt(key, iValue)
+				dest.PutInt(key, iValue)
 			case pcommon.ValueTypeDouble:
 				fValue, _ := strconv.ParseFloat(val, 64)
-				dest.UpsertDouble(key, fValue)
+				dest.PutDouble(key, fValue)
 			case pcommon.ValueTypeBool:
 				bValue, _ := strconv.ParseBool(val)
-				dest.UpsertBool(key, bValue)
+				dest.PutBool(key, bValue)
 			default:
-				dest.UpsertString(key, val)
+				dest.PutStr(key, val)
 			}
 		} else {
-			dest.UpsertString(key, val)
+			dest.PutStr(key, val)
 		}
 	}
 	return parseErr
@@ -371,15 +370,15 @@ func populateResourceFromZipkinSpan(tags map[string]string, localServiceName str
 	}
 
 	if len(tags) == 0 {
-		resource.Attributes().InsertString(conventions.AttributeServiceName, localServiceName)
+		resource.Attributes().PutStr(conventions.AttributeServiceName, localServiceName)
 		return
 	}
 
 	snSource := tags[zipkin.TagServiceNameSource]
 	if snSource == "" {
-		resource.Attributes().InsertString(conventions.AttributeServiceName, localServiceName)
+		resource.Attributes().PutStr(conventions.AttributeServiceName, localServiceName)
 	} else {
-		resource.Attributes().InsertString(snSource, localServiceName)
+		resource.Attributes().PutStr(snSource, localServiceName)
 	}
 	delete(tags, zipkin.TagServiceNameSource)
 
@@ -388,7 +387,7 @@ func populateResourceFromZipkinSpan(tags map[string]string, localServiceName str
 			continue
 		}
 		if value, ok := tags[key]; ok {
-			resource.Attributes().UpsertString(key, value)
+			resource.Attributes().PutStr(key, value)
 			delete(tags, key)
 		}
 	}
@@ -442,7 +441,7 @@ func setTimestampsV2(zspan *zipkinmodel.SpanModel, dest ptrace.Span, destAttrs p
 		dest.SetStartTimestamp(unixTimeZero)
 		dest.SetEndTimestamp(zeroPlusDuration)
 
-		destAttrs.InsertBool(zipkin.StartTimeAbsent, true)
+		destAttrs.PutBool(zipkin.StartTimeAbsent, true)
 	} else {
 		dest.SetStartTimestamp(pcommon.NewTimestampFromTime(zspan.Timestamp))
 		dest.SetEndTimestamp(pcommon.NewTimestampFromTime(zspan.Timestamp.Add(zspan.Duration)))

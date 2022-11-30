@@ -22,7 +22,6 @@ import (
 	"go.opencensus.io/tag"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/internal/obsreportconfig/obsmetrics"
 )
@@ -49,17 +48,26 @@ type Processor struct {
 
 // ProcessorSettings are settings for creating a Processor.
 type ProcessorSettings struct {
-	Level                   configtelemetry.Level
-	ProcessorID             config.ComponentID
+	ProcessorID             component.ID
 	ProcessorCreateSettings component.ProcessorCreateSettings
 }
 
 // NewProcessor creates a new Processor.
-func NewProcessor(cfg ProcessorSettings) *Processor {
+func NewProcessor(cfg ProcessorSettings) (*Processor, error) {
 	return &Processor{
-		level:    cfg.Level,
+		level:    cfg.ProcessorCreateSettings.MetricsLevel,
 		mutators: []tag.Mutator{tag.Upsert(obsmetrics.TagKeyProcessor, cfg.ProcessorID.String(), tag.WithTTL(tag.TTLNoPropagation))},
+	}, nil
+}
+
+// Deprecated: [v0.65.0] use NewProcessor.
+func MustNewProcessor(cfg ProcessorSettings) *Processor {
+	proc, err := NewProcessor(cfg)
+	if err != nil {
+		panic(err)
 	}
+
+	return proc
 }
 
 // TracesAccepted reports that the trace data was accepted.

@@ -23,20 +23,20 @@ import (
 	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
+	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
-	"go.opentelemetry.io/collector/service/internal/configunmarshaler"
 )
 
 // ConfigProvider provides the service configuration.
 //
 // The typical usage is the following:
 //
-//		cfgProvider.Get(...)
-//		cfgProvider.Watch() // wait for an event.
-//		cfgProvider.Get(...)
-//		cfgProvider.Watch() // wait for an event.
-//		// repeat Get/Watch cycle until it is time to shut down the Collector process.
-//		cfgProvider.Shutdown()
+//	cfgProvider.Get(...)
+//	cfgProvider.Watch() // wait for an event.
+//	cfgProvider.Get(...)
+//	cfgProvider.Watch() // wait for an event.
+//	// repeat Get/Watch cycle until it is time to shut down the Collector process.
+//	cfgProvider.Shutdown()
 type ConfigProvider interface {
 	// Get returns the service configuration, or error otherwise.
 	//
@@ -66,35 +66,29 @@ type configProvider struct {
 }
 
 // ConfigProviderSettings are the settings to configure the behavior of the ConfigProvider.
-// TODO: embed confmap.ResolverSettings into this to avoid duplicates.
 type ConfigProviderSettings struct {
-	// Locations from where the confmap.Conf is retrieved, and merged in the given order.
-	// It is required to have at least one location.
-	Locations []string
-
-	// MapProviders is a map of pairs <scheme, confmap.Provider>.
-	// It is required to have at least one confmap.Provider.
-	MapProviders map[string]confmap.Provider
-
-	// MapConverters is a slice of confmap.Converter.
-	MapConverters []confmap.Converter
+	// ResolverSettings are the settings to configure the behavior of the confmap.Resolver.
+	ResolverSettings confmap.ResolverSettings
 }
 
-func newDefaultConfigProviderSettings(locations []string) ConfigProviderSettings {
+func newDefaultConfigProviderSettings(uris []string) ConfigProviderSettings {
 	return ConfigProviderSettings{
-		Locations:     locations,
-		MapProviders:  makeMapProvidersMap(fileprovider.New(), envprovider.New(), yamlprovider.New()),
-		MapConverters: []confmap.Converter{expandconverter.New()},
+		ResolverSettings: confmap.ResolverSettings{
+			URIs:       uris,
+			Providers:  makeMapProvidersMap(fileprovider.New(), envprovider.New(), yamlprovider.New(), httpprovider.New()),
+			Converters: []confmap.Converter{expandconverter.New()},
+		},
 	}
 }
 
 // NewConfigProvider returns a new ConfigProvider that provides the service configuration:
 // * Initially it resolves the "configuration map":
-//	 * Retrieve the confmap.Conf by merging all retrieved maps from the given `locations` in order.
-// 	 * Then applies all the confmap.Converter in the given order.
+//   - Retrieve the confmap.Conf by merging all retrieved maps from the given `locations` in order.
+//   - Then applies all the confmap.Converter in the given order.
+//
 // * Then unmarshalls the confmap.Conf into the service Config.
 func NewConfigProvider(set ConfigProviderSettings) (ConfigProvider, error) {
-	mr, err := confmap.NewResolver(confmap.ResolverSettings{URIs: set.Locations, Providers: set.MapProviders, Converters: set.MapConverters})
+	mr, err := confmap.NewResolver(set.ResolverSettings)
 	if err != nil {
 		return nil, err
 	}
@@ -105,21 +99,23 @@ func NewConfigProvider(set ConfigProviderSettings) (ConfigProvider, error) {
 }
 
 func (cm *configProvider) Get(ctx context.Context, factories component.Factories) (*Config, error) {
-	retMap, err := cm.mapResolver.Resolve(ctx)
+	conf, err := cm.mapResolver.Resolve(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot resolve the configuration: %w", err)
 	}
 
-	var cfg *Config
-	if cfg, err = configunmarshaler.New().Unmarshal(retMap, factories); err != nil {
+	var cfg *configSettings
+	if cfg, err = unmarshal(conf, factories); err != nil {
 		return nil, fmt.Errorf("cannot unmarshal the configuration: %w", err)
 	}
 
-	if err = cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
-	}
-
-	return cfg, nil
+	return &Config{
+		Receivers:  cfg.Receivers.GetReceivers(),
+		Processors: cfg.Processors.GetProcessors(),
+		Exporters:  cfg.Exporters.GetExporters(),
+		Extensions: cfg.Extensions.GetExtensions(),
+		Service:    cfg.Service,
+	}, nil
 }
 
 func (cm *configProvider) Watch() <-chan error {

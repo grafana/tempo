@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"sync"
 
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
 	"go.opentelemetry.io/collector/component"
@@ -67,7 +68,7 @@ func newOtlpReceiver(cfg *Config, settings component.ReceiverCreateSettings) *ot
 }
 
 func (r *otlpReceiver) startGRPCServer(cfg *configgrpc.GRPCServerSettings, host component.Host) error {
-	r.settings.Logger.Info("Starting GRPC server on endpoint " + cfg.NetAddr.Endpoint)
+	r.settings.Logger.Info("Starting GRPC server", zap.String("endpoint", cfg.NetAddr.Endpoint))
 
 	gln, err := cfg.ToListener()
 	if err != nil {
@@ -85,7 +86,7 @@ func (r *otlpReceiver) startGRPCServer(cfg *configgrpc.GRPCServerSettings, host 
 }
 
 func (r *otlpReceiver) startHTTPServer(cfg *confighttp.HTTPServerSettings, host component.Host) error {
-	r.settings.Logger.Info("Starting HTTP server on endpoint " + cfg.Endpoint)
+	r.settings.Logger.Info("Starting HTTP server", zap.String("endpoint", cfg.Endpoint))
 	var hln net.Listener
 	hln, err := cfg.ToListener()
 	if err != nil {
@@ -105,23 +106,21 @@ func (r *otlpReceiver) startHTTPServer(cfg *confighttp.HTTPServerSettings, host 
 func (r *otlpReceiver) startProtocolServers(host component.Host) error {
 	var err error
 	if r.cfg.GRPC != nil {
-		var opts []grpc.ServerOption
-		opts, err = r.cfg.GRPC.ToServerOption(host, r.settings.TelemetrySettings)
+		r.serverGRPC, err = r.cfg.GRPC.ToServer(host, r.settings.TelemetrySettings)
 		if err != nil {
 			return err
 		}
-		r.serverGRPC = grpc.NewServer(opts...)
 
 		if r.traceReceiver != nil {
-			ptraceotlp.RegisterServer(r.serverGRPC, r.traceReceiver)
+			ptraceotlp.RegisterGRPCServer(r.serverGRPC, r.traceReceiver)
 		}
 
 		if r.metricsReceiver != nil {
-			pmetricotlp.RegisterServer(r.serverGRPC, r.metricsReceiver)
+			pmetricotlp.RegisterGRPCServer(r.serverGRPC, r.metricsReceiver)
 		}
 
 		if r.logReceiver != nil {
-			plogotlp.RegisterServer(r.serverGRPC, r.logReceiver)
+			plogotlp.RegisterGRPCServer(r.serverGRPC, r.logReceiver)
 		}
 
 		err = r.startGRPCServer(r.cfg.GRPC, host)
@@ -175,7 +174,11 @@ func (r *otlpReceiver) registerTraceConsumer(tc consumer.Traces) error {
 	if tc == nil {
 		return component.ErrNilNextConsumer
 	}
-	r.traceReceiver = trace.New(r.cfg.ID(), tc, r.settings)
+	var err error
+	r.traceReceiver, err = trace.New(r.cfg.ID(), tc, r.settings)
+	if err != nil {
+		return err
+	}
 	if r.httpMux != nil {
 		r.httpMux.HandleFunc("/v1/traces", func(resp http.ResponseWriter, req *http.Request) {
 			if req.Method != http.MethodPost {
@@ -199,7 +202,12 @@ func (r *otlpReceiver) registerMetricsConsumer(mc consumer.Metrics) error {
 	if mc == nil {
 		return component.ErrNilNextConsumer
 	}
-	r.metricsReceiver = metrics.New(r.cfg.ID(), mc, r.settings)
+	var err error
+	r.metricsReceiver, err = metrics.New(r.cfg.ID(), mc, r.settings)
+	if err != nil {
+		return err
+	}
+
 	if r.httpMux != nil {
 		r.httpMux.HandleFunc("/v1/metrics", func(resp http.ResponseWriter, req *http.Request) {
 			if req.Method != http.MethodPost {
@@ -223,7 +231,12 @@ func (r *otlpReceiver) registerLogsConsumer(lc consumer.Logs) error {
 	if lc == nil {
 		return component.ErrNilNextConsumer
 	}
-	r.logReceiver = logs.New(r.cfg.ID(), lc, r.settings)
+	var err error
+	r.logReceiver, err = logs.New(r.cfg.ID(), lc, r.settings)
+	if err != nil {
+		return err
+	}
+
 	if r.httpMux != nil {
 		r.httpMux.HandleFunc("/v1/logs", func(resp http.ResponseWriter, req *http.Request) {
 			if req.Method != http.MethodPost {

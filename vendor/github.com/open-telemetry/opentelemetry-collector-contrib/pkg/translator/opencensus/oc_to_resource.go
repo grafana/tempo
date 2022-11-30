@@ -81,60 +81,56 @@ func ocNodeResourceToInternal(ocNode *occommon.Node, ocResource *ocresource.Reso
 	}
 
 	attrs := dest.Attributes()
-	attrs.Clear()
 	attrs.EnsureCapacity(maxTotalAttrCount)
 
-	if ocNode != nil {
-		// Copy all Attributes.
-		for k, v := range ocNode.Attributes {
-			attrs.InsertString(k, v)
+	// Copy all resource Labels and Node attributes.
+	for k, v := range ocResource.GetLabels() {
+		switch k {
+		case resourcekeys.CloudKeyZone:
+			attrs.PutStr(conventions.AttributeCloudAvailabilityZone, v)
+		default:
+			attrs.PutStr(k, v)
 		}
+	}
+	for k, v := range ocNode.GetAttributes() {
+		attrs.PutStr(k, v)
+	}
 
-		// Add all special fields.
+	// Add all special fields that should overwrite any resource label or node attribute.
+	if ocNode != nil {
 		if ocNode.ServiceInfo != nil {
 			if ocNode.ServiceInfo.Name != "" {
-				attrs.UpsertString(conventions.AttributeServiceName, ocNode.ServiceInfo.Name)
+				attrs.PutStr(conventions.AttributeServiceName, ocNode.ServiceInfo.Name)
 			}
 		}
 		if ocNode.Identifier != nil {
 			if ocNode.Identifier.StartTimestamp != nil {
-				attrs.UpsertString(occonventions.AttributeProcessStartTime, ocNode.Identifier.StartTimestamp.AsTime().Format(time.RFC3339Nano))
+				attrs.PutStr(occonventions.AttributeProcessStartTime, ocNode.Identifier.StartTimestamp.AsTime().Format(time.RFC3339Nano))
 			}
 			if ocNode.Identifier.HostName != "" {
-				attrs.UpsertString(conventions.AttributeHostName, ocNode.Identifier.HostName)
+				attrs.PutStr(conventions.AttributeHostName, ocNode.Identifier.HostName)
 			}
 			if ocNode.Identifier.Pid != 0 {
-				attrs.UpsertInt(conventions.AttributeProcessPID, int64(ocNode.Identifier.Pid))
+				attrs.PutInt(conventions.AttributeProcessPID, int64(ocNode.Identifier.Pid))
 			}
 		}
 		if ocNode.LibraryInfo != nil {
 			if ocNode.LibraryInfo.CoreLibraryVersion != "" {
-				attrs.UpsertString(conventions.AttributeTelemetrySDKVersion, ocNode.LibraryInfo.CoreLibraryVersion)
+				attrs.PutStr(conventions.AttributeTelemetrySDKVersion, ocNode.LibraryInfo.CoreLibraryVersion)
 			}
 			if ocNode.LibraryInfo.ExporterVersion != "" {
-				attrs.UpsertString(occonventions.AttributeExporterVersion, ocNode.LibraryInfo.ExporterVersion)
+				attrs.PutStr(occonventions.AttributeExporterVersion, ocNode.LibraryInfo.ExporterVersion)
 			}
 			if ocNode.LibraryInfo.Language != occommon.LibraryInfo_LANGUAGE_UNSPECIFIED {
 				if str, ok := ocLangCodeToLangMap[ocNode.LibraryInfo.Language]; ok {
-					attrs.UpsertString(conventions.AttributeTelemetrySDKLanguage, str)
+					attrs.PutStr(conventions.AttributeTelemetrySDKLanguage, str)
 				}
 			}
 		}
 	}
-
 	if ocResource != nil {
-		// Copy resource Labels.
-		for k, v := range ocResource.Labels {
-			switch k {
-			case resourcekeys.CloudKeyZone:
-				attrs.InsertString(conventions.AttributeCloudAvailabilityZone, v)
-			default:
-				attrs.InsertString(k, v)
-			}
-		}
-		// Add special fields.
 		if ocResource.Type != "" {
-			attrs.UpsertString(occonventions.AttributeResourceType, ocResource.Type)
+			attrs.PutStr(occonventions.AttributeResourceType, ocResource.Type)
 		}
 	}
 }

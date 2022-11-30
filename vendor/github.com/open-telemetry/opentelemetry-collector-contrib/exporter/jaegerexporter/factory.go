@@ -39,9 +39,9 @@ func NewFactory() component.ExporterFactory {
 		component.WithTracesExporter(createTracesExporter, stability))
 }
 
-func createDefaultConfig() config.Exporter {
+func createDefaultConfig() component.ExporterConfig {
 	return &Config{
-		ExporterSettings: config.NewExporterSettings(config.NewComponentID(typeStr)),
+		ExporterSettings: config.NewExporterSettings(component.NewID(typeStr)),
 		TimeoutSettings:  exporterhelper.NewDefaultTimeoutSettings(),
 		RetrySettings:    exporterhelper.NewDefaultRetrySettings(),
 		QueueSettings:    exporterhelper.NewDefaultQueueSettings(),
@@ -55,7 +55,7 @@ func createDefaultConfig() config.Exporter {
 func createTracesExporter(
 	_ context.Context,
 	set component.ExporterCreateSettings,
-	config config.Exporter,
+	config component.ExporterConfig,
 ) (component.TracesExporter, error) {
 
 	expCfg := config.(*Config)

@@ -46,9 +46,9 @@ func NewFactory() component.ExporterFactory {
 		component.WithTracesExporter(createTracesExporter, stability))
 }
 
-func createDefaultConfig() config.Exporter {
+func createDefaultConfig() component.ExporterConfig {
 	return &Config{
-		ExporterSettings: config.NewExporterSettings(config.NewComponentID(typeStr)),
+		ExporterSettings: config.NewExporterSettings(component.NewID(typeStr)),
 		RetrySettings:    exporterhelper.NewDefaultRetrySettings(),
 		QueueSettings:    exporterhelper.NewDefaultQueueSettings(),
 		HTTPClientSettings: confighttp.HTTPClientSettings{
@@ -62,9 +62,9 @@ func createDefaultConfig() config.Exporter {
 }
 
 func createTracesExporter(
-	_ context.Context,
+	ctx context.Context,
 	set component.ExporterCreateSettings,
-	cfg config.Exporter,
+	cfg component.ExporterConfig,
 ) (component.TracesExporter, error) {
 	zc := cfg.(*Config)
 
@@ -78,8 +78,9 @@ func createTracesExporter(
 		return nil, err
 	}
 	return exporterhelper.NewTracesExporter(
-		zc,
+		ctx,
 		set,
+		cfg,
 		ze.pushTraces,
 		exporterhelper.WithStart(ze.start),
 		// explicitly disable since we rely on http.Client timeout logic.
