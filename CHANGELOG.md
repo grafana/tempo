@@ -99,6 +99,7 @@ Internal types are updated to use `scope` instead of `instrumentation_library`. 
 * [BUGFIX] Fix failing SearchTagValues endpoint after startup [#1813](https://github.com/grafana/tempo/pull/1813) (@stoewer)
 * [BUGFIX] tempo-mixin: tweak dashboards to support metrics without `cluster` label present [#1913](https://github.com/grafana/tempo/pull/1913) (@kvrhdn)
 * [ENHANCEMENT] New tenant dashboard [#1901](https://github.com/grafana/tempo/pull/1901) (@mapno)
+* [BUGFIX] Fix docker-compose examples not running on Apple M1 hardware [#1920](https://github.com/grafana/tempo/pull/1920) (@stoewer)
 
 ## v1.5.0 / 2022-08-17
 
