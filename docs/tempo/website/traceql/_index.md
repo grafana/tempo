@@ -6,7 +6,7 @@ weight: 450
 aliases:
   - /docs/tempo/latest/traceql/
 keywords:
-  - tempo query language
+  - Tempo query language
   - query language
   - TraceQL
 ---
