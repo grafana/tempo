@@ -26,13 +26,11 @@ services:
       - -euc
       - mkdir -p /data/tempo && /opt/bin/minio server /data --console-address ':9001'
 
-  synthetic-load-generator:
-    image: omnition/synthetic-load-generator:1.0.29
-    volumes:
-      - ../shared/load-generator.json:/etc/load-generator.json
+  k6-tracing:
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.2
     environment:
-      - TOPOLOGY_FILE=/etc/load-generator.json
-      - JAEGER_COLLECTOR_URL=http://tempo:14268
+      - ENDPOINT=tempo:4317
+    restart: always
     depends_on:
       - tempo
 
@@ -48,7 +46,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:9.1.6
+    image: grafana/grafana:9.3.0
     volumes:
       - ../shared/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

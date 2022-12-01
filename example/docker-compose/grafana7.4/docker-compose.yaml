@@ -24,7 +24,7 @@ services:
   synthetic-load-generator:
     image: omnition/synthetic-load-generator:1.0.25
     volumes:
-      - ../shared/load-generator.json:/etc/load-generator.json
+      - ./load-generator.json:/etc/load-generator.json
     environment:
       - TOPOLOGY_FILE=/etc/load-generator.json
       - JAEGER_COLLECTOR_URL=http://tempo:14268
