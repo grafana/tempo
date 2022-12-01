@@ -2,7 +2,6 @@ package traceql
 
 import (
 	"context"
-	"fmt"
 )
 
 type Operands []Static
@@ -55,50 +54,33 @@ type SpansetIterator interface {
 
 type FetchSpansResponse struct {
 	Results SpansetIterator
+	Bytes   func() uint64
 }
 
 type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
 }
 
-// MustExtractCondition from the first spanset filter in the traceql query.
-// I.e. given a query { .foo=`bar`} it will extract the condition attr
-// foo EQ str(bar). Panics if the query fails to parse or contains a
-// different structure. For testing purposes.
-func MustExtractCondition(query string) Condition {
-	c, err := ExtractCondition(query)
+// MustExtractConditions parses the given traceql query and returns
+// the storage layer conditions. Panics if the query fails to parse.
+func MustExtractConditions(query string) []Condition {
+	c, err := ExtractConditions(query)
 	if err != nil {
 		panic(err)
 	}
 	return c
 }
 
-// ExtractCondition from the first spanset filter in the traceql query.
-// I.e. given a query { .foo=`bar`} it will extract the condition attr
-// foo EQ str(bar). For testing purposes.
-func ExtractCondition(query string) (cond Condition, err error) {
+// ExtractConditions parses the given traceql query and returns
+// the storage layer conditions. Returns an error if the query fails to parse.
+func ExtractConditions(query string) (cond []Condition, err error) {
 	ast, err := Parse(query)
 	if err != nil {
 		return cond, err
 	}
-
-	f, ok := ast.Pipeline.Elements[0].(SpansetFilter)
-	if !ok {
-		return Condition{}, fmt.Errorf("first pipeline element is not a SpansetFilter")
-	}
-
-	switch e := f.Expression.(type) {
-	case BinaryOperation:
-		cond.Attribute = e.LHS.(Attribute)
-		cond.Op = e.Op
-		cond.Operands = []Static{e.RHS.(Static)}
-	case Attribute:
-		cond.Attribute = e
-		cond.Op = OpNone
-		cond.Operands = nil
-	}
-
-	return
+	req := &FetchSpansRequest{}
+	ast.Pipeline.extractConditions(req)
+	return req.Conditions, nil
 }
 
 type SpansetFetcherWrapper struct {

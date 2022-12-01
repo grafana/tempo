@@ -2,9 +2,11 @@ package vparquet
 
 import (
 	"context"
+	"path"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -12,6 +14,8 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -468,10 +472,10 @@ func makeReq(conditions ...traceql.Condition) traceql.FetchSpansRequest {
 
 func parse(t *testing.T, q string) traceql.Condition {
 
-	cond, err := traceql.ExtractCondition(q)
+	cond, err := traceql.ExtractConditions(q)
 	require.NoError(t, err, "query:", q)
 
-	return cond
+	return cond[0]
 }
 
 func fullyPopulatedTestTrace(id common.ID) *Trace {
@@ -586,5 +590,68 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 				},
 			},
 		},
+	}
+}
+
+func BenchmarkBackendBlockTraceQL(b *testing.B) {
+	testCases := []struct {
+		name  string
+		conds []traceql.Condition
+	}{
+		{"noMatch", traceql.MustExtractConditions("{ span.foo = `bar` }")},
+		{"partialMatch", traceql.MustExtractConditions("{ .foo = `bar` || .component = `gRPC` }")},
+		{"service.name", traceql.MustExtractConditions("{ resource.service.name = `a` }")},
+	}
+
+	ctx := context.TODO()
+	tenantID := "1"
+	blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
+
+	r, _, _, err := local.New(&local.Config{
+		Path: path.Join("/Users/marty/src/tmp/"),
+	})
+	require.NoError(b, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
+	require.NoError(b, err)
+
+	opts := common.DefaultSearchOptions()
+	opts.StartPage = 10
+	opts.TotalPages = 10
+
+	block := newBackendBlock(meta, rr)
+	_, _, err = block.openForSearch(ctx, opts)
+	require.NoError(b, err)
+
+	for _, tc := range testCases {
+
+		req := traceql.FetchSpansRequest{
+			AllConditions: true,
+			Conditions:    tc.conds,
+		}
+
+		b.Run(tc.name, func(b *testing.B) {
+			b.ResetTimer()
+			bytesRead := 0
+
+			for i := 0; i < b.N; i++ {
+				resp, err := block.Fetch(ctx, req, opts)
+				require.NoError(b, err)
+				require.NotNil(b, resp)
+
+				// Read first 20 results (if any)
+				for i := 0; i < 20; i++ {
+					ss, err := resp.Results.Next(ctx)
+					require.NoError(b, err)
+					if ss == nil {
+						break
+					}
+				}
+				bytesRead += int(resp.Bytes())
+			}
+			b.SetBytes(int64(bytesRead) / int64(b.N))
+			b.ReportMetric(float64(bytesRead)/float64(b.N)/1000.0/1000.0, "MB_io/op")
+		})
 	}
 }
