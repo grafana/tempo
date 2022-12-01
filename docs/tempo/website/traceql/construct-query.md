@@ -6,7 +6,7 @@ aliases:
   - /docs/tempo/latest/traceql/construct-query
 weight: 100
 keywords:
-  - tempo query language
+  - Tempo query language
   - query language
   - TraceQL
 ---
