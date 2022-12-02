@@ -140,8 +140,6 @@ func (f *Frontend) running(ctx context.Context) error {
 }
 
 func (f *Frontend) stopping(_ error) error {
-	// Allow some time for queriers to disconnect when both modules are running in the same binary.
-	time.Sleep(1 * time.Second)
 	// This will also stop the requests queue, which stop accepting new requests and errors out any pending requests.
 	return services.StopManagerAndAwaitStopped(context.Background(), f.subservices)
 }

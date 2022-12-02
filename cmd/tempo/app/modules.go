@@ -410,6 +410,12 @@ func (t *App) setupModuleManager() error {
 		deps[SingleBinary] = append(deps[SingleBinary], MetricsGenerator)
 	}
 
+	// If the querier and the query-frontend are both enabled, the querier will depend on the query-frontend during startup.  During shutdown, this dependency relationship will ensure that the querier is stopped before the query-frontend, which allows proper notification and clean shutodwn.
+	switch t.cfg.Target {
+	case SingleBinary, ScalableSingleBinary:
+		deps[Querier] = append(deps[Querier], QueryFrontend)
+	}
+
 	for mod, targets := range deps {
 		if err := mm.AddDependency(mod, targets...); err != nil {
 			return err
