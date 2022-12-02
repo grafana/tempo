@@ -471,7 +471,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 
 	iters := make([]*spansetIterator, 0, len(b.flushed))
 	for _, f := range b.flushed {
-		iter, err := fetch(ctx, req, f.file)
+		iter, err := fetch(ctx, req, f.file, opts)
 		if err != nil {
 			return traceql.FetchSpansResponse{}, errors.Wrap(err, "creating fetch iter")
 		}

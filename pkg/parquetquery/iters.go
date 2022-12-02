@@ -255,6 +255,8 @@ type ColumnIterator struct {
 	seekToMtx sync.Mutex
 	seekTo    RowNumber
 
+	iter func()
+	init bool
 	quit chan struct{}
 	ch   chan *columnIteratorBuffer
 
@@ -282,7 +284,7 @@ func NewColumnIterator(ctx context.Context, rgs []pq.RowGroup, column int, colum
 		currN:    -1,
 	}
 
-	go c.iterate(ctx, readSize)
+	c.iter = func() { c.iterate(ctx, readSize) }
 	return c
 }
 
@@ -451,6 +453,11 @@ func (c *ColumnIterator) Next() (*IteratorResult, error) {
 }
 
 func (c *ColumnIterator) next() (RowNumber, pq.Value, error) {
+	if !c.init {
+		c.init = true
+		go c.iter()
+	}
+
 	err := c.currErr.Load()
 	if err != nil {
 		return EmptyRowNumber(), pq.Value{}, err.(error)
