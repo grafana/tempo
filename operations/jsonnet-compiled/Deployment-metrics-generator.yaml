@@ -27,9 +27,9 @@ spec:
     spec:
       containers:
       - args:
-        - -target=metrics-generator
         - -config.file=/conf/tempo.yaml
         - -mem-ballast-size-mbs=1024
+        - -target=metrics-generator
         image: grafana/tempo:latest
         imagePullPolicy: IfNotPresent
         name: metrics-generator

@@ -12,16 +12,17 @@
   local tempo_data_volume = 'tempo-data',
   local tempo_overrides_config_volume = 'overrides',
 
+  tempo_compactor_ports:: [ containerPort.new('prom-metrics', $._config.port)],
+  tempo_compactor_args:: {
+                             target: target_name,
+                             'config.file': '/conf/tempo.yaml',
+                             'mem-ballast-size-mbs': $._config.ballast_size_mbs,
+                            },
+
   tempo_compactor_container::
     container.new(target_name, $._images.tempo) +
-    container.withPorts([
-      containerPort.new('prom-metrics', $._config.port),
-    ]) +
-    container.withArgs([
-      '-target=' + target_name,
-      '-config.file=/conf/tempo.yaml',
-      '-mem-ballast-size-mbs=' + $._config.ballast_size_mbs,
-    ]) +
+    container.withPorts($.tempo_compactor_ports) +
+    container.withArgs($.util.mapToFlags($.tempo_compactor_args)) +
     (if $._config.variables_expansion then container.withEnvMixin($._config.variables_expansion_env_mixin) else {}) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
@@ -29,7 +30,7 @@
     ]) +
     $.util.withResources($._config.compactor.resources) +
     $.util.readinessProbe +
-    (if $._config.variables_expansion then container.withArgsMixin(['--config.expand-env=true']) else {}) +
+    (if $._config.variables_expansion then container.withArgsMixin(['-config.expand-env=true']) else {}) +
     (if $._config.compactor.resources.limits.memory != null then container.withEnvMixin([envVar.new('GOMEMLIMIT', $._config.compactor.resources.limits.memory + 'B')]) else {}),
 
   tempo_compactor_deployment:

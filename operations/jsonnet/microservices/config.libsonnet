@@ -3,14 +3,21 @@
     tempo: 'grafana/tempo:latest',
     tempo_query: 'grafana/tempo-query:latest',
     tempo_vulture: 'grafana/tempo-vulture:latest',
+    rollout_operator: 'grafana/rollout-operator:v0.1.1',
     memcached: 'memcached:1.6.9-alpine',
     memcachedExporter: 'prom/memcached-exporter:v0.6.0',
   },
 
   _config+:: {
     gossip_member_label: 'tempo-gossip-member',
+    // Labels that service selectors should not use
+    service_ignored_labels:: [self.gossip_member_label],
+
     variables_expansion: false,
     variables_expansion_env_mixin: null,
+    node_selector: null,
+    ingester_allow_multiple_replicas_on_same_node: false,
+
     compactor: {
       replicas: 1,
       resources: {

@@ -27,9 +27,9 @@ spec:
     spec:
       containers:
       - args:
-        - -target=distributor
         - -config.file=/conf/tempo.yaml
         - -mem-ballast-size-mbs=1024
+        - -target=distributor
         image: grafana/tempo:latest
         imagePullPolicy: IfNotPresent
         name: distributor

@@ -14,6 +14,13 @@
   local tempo_data_volume = 'ingester-data',
   local tempo_overrides_config_volume = 'overrides',
 
+  tempo_ingester_ports:: [ containerPort.new('prom-metrics', $._config.port)],
+  tempo_ingester_args:: {
+                             target: target_name,
+                             'config.file': '/conf/tempo.yaml',
+                             'mem-ballast-size-mbs': $._config.ballast_size_mbs,
+                            },
+
   tempo_ingester_pvc::
     pvc.new()
     + pvc.mixin.metadata.withName(tempo_data_volume)
@@ -25,14 +32,8 @@
 
   tempo_ingester_container::
     container.new(target_name, $._images.tempo) +
-    container.withPorts([
-      containerPort.new('prom-metrics', $._config.port),
-    ]) +
-    container.withArgs([
-      '-target=' + target_name,
-      '-config.file=/conf/tempo.yaml',
-      '-mem-ballast-size-mbs=' + $._config.ballast_size_mbs,
-    ]) +
+    container.withPorts($.tempo_ingester_ports) +
+    container.withArgs($.util.mapToFlags($.tempo_ingester_args)) +
     (if $._config.variables_expansion then container.withEnvMixin($._config.variables_expansion_env_mixin) else {}) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
@@ -41,44 +42,37 @@
     ]) +
     $.util.withResources($._config.ingester.resources) +
     $.util.readinessProbe +
-    (if $._config.variables_expansion then container.withArgsMixin(['--config.expand-env=true']) else {}),
+    (if $._config.variables_expansion then container.withArgsMixin(['-config.expand-env=true']) else {}),
 
-  tempo_ingester_statefulset:
-    statefulset.new(
-      target_name,
-      $._config.ingester.replicas,
-      self.tempo_ingester_container,
-      self.tempo_ingester_pvc,
-      {
-        app: target_name,
-        [$._config.gossip_member_label]: 'true',
-      },
-    )
-    + k.util.antiAffinityStatefulSet
-    + statefulset.mixin.spec.withServiceName(target_name)
-    + statefulset.mixin.spec.template.metadata.withAnnotations({
-      config_hash: std.md5(std.toString($.tempo_ingester_configmap.data['tempo.yaml'])),
-    })
-    + statefulset.mixin.spec.template.spec.withVolumes([
-      volume.fromConfigMap(tempo_config_volume, $.tempo_ingester_configmap.metadata.name),
-      volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
-    ])
-    + statefulset.mixin.spec.withPodManagementPolicy('Parallel'),
+  newIngesterStatefulSet(name, container, with_anti_affinity=true)::
+   statefulset.new(
+         name,
+         3,
+         container,
+         self.tempo_ingester_pvc,
+         {
+           app: target_name,
+           [$._config.gossip_member_label]: 'true',
+         },
+       )
+       + k.util.antiAffinityStatefulSet
+       + statefulset.mixin.spec.withServiceName(target_name)
+       + statefulset.mixin.spec.template.metadata.withAnnotations({
+         config_hash: std.md5(std.toString($.tempo_ingester_configmap.data['tempo.yaml'])),
+       })
+       + statefulset.mixin.spec.template.spec.withVolumes([
+         volume.fromConfigMap(tempo_config_volume, $.tempo_ingester_configmap.metadata.name),
+         volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
+       ]) +
+       statefulset.mixin.spec.withPodManagementPolicy('Parallel')+
+       statefulset.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
+       $.util.podPriority('high') +
+       (if with_anti_affinity then $.util.antiAffinity else {}),
+
+  tempo_ingester_statefulset: $.newIngesterStatefulSet(target_name, self.tempo_ingester_container) + statefulset.mixin.spec.withReplicas($._config.ingester.replicas),
 
   tempo_ingester_service:
     k.util.serviceFor($.tempo_ingester_statefulset),
-
-  gossip_ring_service:
-    service.new(
-      'gossip-ring',  // name
-      {
-        [$._config.gossip_member_label]: 'true',
-      },
-      [
-        servicePort.newNamed('gossip-ring', $._config.gossip_ring_port, $._config.gossip_ring_port) +
-        servicePort.withProtocol('TCP'),
-      ],
-    ) + service.mixin.spec.withClusterIp('None'),  // headless service
 
   local podDisruptionBudget = k.policy.v1beta1.podDisruptionBudget,
   ingester_pdb:

@@ -25,9 +25,9 @@ spec:
     spec:
       containers:
       - args:
-        - -target=compactor
         - -config.file=/conf/tempo.yaml
         - -mem-ballast-size-mbs=1024
+        - -target=compactor
         env:
         - name: GOMEMLIMIT
           value: 5GiB
