@@ -1,6 +1,9 @@
 package sparse
 
-import "unsafe"
+import (
+	"time"
+	"unsafe"
+)
 
 type Array struct{ array }
 
@@ -25,6 +28,7 @@ func (a Array) Uint32Array() Uint32Array   { return Uint32Array{a.array} }
 func (a Array) Uint64Array() Uint64Array   { return Uint64Array{a.array} }
 func (a Array) Uint128Array() Uint128Array { return Uint128Array{a.array} }
 func (a Array) StringArray() StringArray   { return StringArray{a.array} }
+func (a Array) TimeArray() TimeArray       { return TimeArray{a.array} }
 
 type array struct {
 	ptr unsafe.Pointer
@@ -290,3 +294,19 @@ func (a StringArray) Len() int                   { return int(a.len) }
 func (a StringArray) Index(i int) string         { return *(*string)(a.index(i)) }
 func (a StringArray) Slice(i, j int) StringArray { return StringArray{a.slice(i, j)} }
 func (a StringArray) UnsafeArray() Array         { return Array{a.array} }
+
+type TimeArray struct{ array }
+
+func MakeTimeArray(values []time.Time) TimeArray {
+	const sizeOfTime = unsafe.Sizeof(time.Time{})
+	return TimeArray{makeArray(*(*unsafe.Pointer)(unsafe.Pointer(&values)), uintptr(len(values)), sizeOfTime)}
+}
+
+func UnsafeTimeArray(base unsafe.Pointer, length int, offset uintptr) TimeArray {
+	return TimeArray{makeArray(base, uintptr(length), offset)}
+}
+
+func (a TimeArray) Len() int                 { return int(a.len) }
+func (a TimeArray) Index(i int) time.Time    { return *(*time.Time)(a.index(i)) }
+func (a TimeArray) Slice(i, j int) TimeArray { return TimeArray{a.slice(i, j)} }
+func (a TimeArray) UnsafeArray() Array       { return Array{a.array} }

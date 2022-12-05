@@ -134,7 +134,8 @@ type DecimalType struct {
 }
 
 func (t *DecimalType) String() string {
-	return fmt.Sprintf("DECIMAL(%d,%d)", t.Scale, t.Precision)
+	// Matching parquet-cli's decimal string format: https://github.com/apache/parquet-mr/blob/d057b39d93014fe40f5067ee4a33621e65c91552/parquet-column/src/test/java/org/apache/parquet/parser/TestParquetParser.java#L249-L265
+	return fmt.Sprintf("DECIMAL(%d,%d)", t.Precision, t.Scale)
 }
 
 // Time units for logical types.

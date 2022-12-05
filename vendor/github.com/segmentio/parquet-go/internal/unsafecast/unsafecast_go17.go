@@ -134,3 +134,7 @@ func BytesToFloat64(data []byte) []float64 {
 func BytesToString(data []byte) string {
 	return *(*string)(unsafe.Pointer(&data))
 }
+
+func Bytes(data *byte, size int) []byte {
+	return unsafe.Slice(data, size)
+}

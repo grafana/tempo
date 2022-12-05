@@ -44,15 +44,13 @@ func (f *bloomFilter) Check(v Value) (bool, error) {
 func (v Value) hash(h bloom.Hash) uint64 {
 	switch v.Kind() {
 	case Boolean:
-		return h.Sum64Uint8(uint8(v.u64))
+		return h.Sum64Uint8(v.byte())
 	case Int32, Float:
-		return h.Sum64Uint32(uint32(v.u64))
+		return h.Sum64Uint32(v.uint32())
 	case Int64, Double:
-		return h.Sum64Uint64(v.u64)
-	case Int96:
-		return h.Sum64(v.Bytes())
-	default:
-		return h.Sum64(v.ByteArray())
+		return h.Sum64Uint64(v.uint64())
+	default: // Int96, ByteArray, FixedLenByteArray, or null
+		return h.Sum64(v.byteArray())
 	}
 }
 

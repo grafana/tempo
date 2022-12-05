@@ -57,7 +57,7 @@ func OpenFile(r io.ReaderAt, size int64, options ...FileOption) (*File, error) {
 	if cast, ok := f.reader.(interface{ SetMagicFooterSection(offset, length int64) }); ok {
 		cast.SetMagicFooterSection(size-8, 8)
 	}
-	if _, err := r.ReadAt(b[:8], size-8); err != nil {
+	if n, err := r.ReadAt(b[:8], size-8); n != 8 {
 		return nil, fmt.Errorf("reading magic footer of parquet file: %w", err)
 	}
 	if string(b[4:8]) != "PAR1" {
@@ -174,6 +174,10 @@ func OpenFile(r io.ReaderAt, size int64, options ...FileOption) (*File, error) {
 // this case the page index is not cached within the file, programs are expected
 // to make use of independently from the parquet package.
 func (f *File) ReadPageIndex() ([]format.ColumnIndex, []format.OffsetIndex, error) {
+	if len(f.metadata.RowGroups) == 0 {
+		return nil, nil, nil
+	}
+
 	columnIndexOffset := f.metadata.RowGroups[0].Columns[0].ColumnIndexOffset
 	offsetIndexOffset := f.metadata.RowGroups[0].Columns[0].OffsetIndexOffset
 	columnIndexLength := int64(0)
@@ -359,11 +363,13 @@ type fileRowGroup struct {
 	rowGroup *format.RowGroup
 	columns  []ColumnChunk
 	sorting  []SortingColumn
+	config   *FileConfig
 }
 
 func (g *fileRowGroup) init(file *File, schema *Schema, columns []*Column, rowGroup *format.RowGroup) {
 	g.schema = schema
 	g.rowGroup = rowGroup
+	g.config = file.config
 	g.columns = make([]ColumnChunk, len(rowGroup.Columns))
 	g.sorting = make([]SortingColumn, len(rowGroup.SortingColumns))
 	fileColumnChunks := make([]fileColumnChunk, len(rowGroup.Columns))
@@ -398,7 +404,7 @@ func (g *fileRowGroup) Schema() *Schema                 { return g.schema }
 func (g *fileRowGroup) NumRows() int64                  { return g.rowGroup.NumRows }
 func (g *fileRowGroup) ColumnChunks() []ColumnChunk     { return g.columns }
 func (g *fileRowGroup) SortingColumns() []SortingColumn { return g.sorting }
-func (g *fileRowGroup) Rows() Rows                      { return &rowGroupRows{rowGroup: g} }
+func (g *fileRowGroup) Rows() Rows                      { return newRowGroupRows(g, g.config.ReadMode) }
 
 type fileSortingColumn struct {
 	column     *Column

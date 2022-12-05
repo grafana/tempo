@@ -5,6 +5,7 @@ package parquet
 import (
 	"math/bits"
 	"reflect"
+	"time"
 	"unsafe"
 
 	"github.com/segmentio/parquet-go/deprecated"
@@ -30,6 +31,8 @@ func writeRowsFuncOf(t reflect.Type, schema *Schema, path columnPath) writeRowsF
 	switch t {
 	case reflect.TypeOf(deprecated.Int96{}):
 		return writeRowsFuncOfRequired(t, schema, path)
+	case reflect.TypeOf(time.Time{}):
+		return writeRowsFuncOfTime(t, schema, path)
 	}
 
 	switch t.Kind() {
@@ -387,6 +390,46 @@ func writeRowsFuncOfMap(t reflect.Type, schema *Schema, path columnPath) writeRo
 
 					elemLevels.repetitionLevel = elemLevels.repetitionDepth
 				}
+			}
+		}
+
+		return nil
+	}
+}
+
+func writeRowsFuncOfTime(_ reflect.Type, schema *Schema, path columnPath) writeRowsFunc {
+	t := reflect.TypeOf(int64(0))
+	elemSize := uintptr(t.Size())
+	writeRows := writeRowsFuncOf(t, schema, path)
+
+	col, _ := schema.Lookup(path...)
+	unit := Nanosecond.TimeUnit()
+	lt := col.Node.Type().LogicalType()
+	if lt != nil && lt.Timestamp != nil {
+		unit = lt.Timestamp.Unit
+	}
+
+	return func(columns []ColumnBuffer, rows sparse.Array, levels columnLevels) error {
+		if rows.Len() == 0 {
+			return writeRows(columns, rows, levels)
+		}
+
+		times := rows.TimeArray()
+		for i := 0; i < times.Len(); i++ {
+			t := times.Index(i)
+			var val int64
+			switch {
+			case unit.Millis != nil:
+				val = t.UnixMilli()
+			case unit.Micros != nil:
+				val = t.UnixMicro()
+			default:
+				val = t.UnixNano()
+			}
+
+			a := makeArray(unsafecast.PointerOfValue(reflect.ValueOf(val)), 1, elemSize)
+			if err := writeRows(columns, a, levels); err != nil {
+				return err
 			}
 		}
 

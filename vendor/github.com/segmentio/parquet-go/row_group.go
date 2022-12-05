@@ -245,20 +245,21 @@ func (r *rowGroup) NumRows() int64                  { return r.numRows }
 func (r *rowGroup) ColumnChunks() []ColumnChunk     { return r.columns }
 func (r *rowGroup) SortingColumns() []SortingColumn { return r.sorting }
 func (r *rowGroup) Schema() *Schema                 { return r.schema }
-func (r *rowGroup) Rows() Rows                      { return &rowGroupRows{rowGroup: r} }
+func (r *rowGroup) Rows() Rows                      { return newRowGroupRows(r, ReadModeSync) }
 
 func NewRowGroupRowReader(rowGroup RowGroup) Rows {
-	return &rowGroupRows{rowGroup: rowGroup}
+	return newRowGroupRows(rowGroup, ReadModeSync)
 }
 
 type rowGroupRows struct {
-	rowGroup RowGroup
-	buffers  []Value
-	readers  []asyncPages
-	columns  []columnChunkRows
-	inited   bool
-	closed   bool
-	done     chan<- struct{}
+	rowGroup     RowGroup
+	buffers      []Value
+	readers      []Pages
+	columns      []columnChunkRows
+	inited       bool
+	closed       bool
+	done         chan<- struct{}
+	pageReadMode ReadMode
 }
 
 type columnChunkRows struct {
@@ -277,18 +278,35 @@ func (r *rowGroupRows) buffer(i int) []Value {
 	return r.buffers[j:k:k]
 }
 
+func newRowGroupRows(rowGroup RowGroup, pageReadMode ReadMode) *rowGroupRows {
+	return &rowGroupRows{
+		rowGroup:     rowGroup,
+		pageReadMode: pageReadMode,
+	}
+}
+
 func (r *rowGroupRows) init() {
 	columns := r.rowGroup.ColumnChunks()
 
 	r.buffers = make([]Value, len(columns)*columnBufferSize)
-	r.readers = make([]asyncPages, len(columns))
+	r.readers = make([]Pages, len(columns))
 	r.columns = make([]columnChunkRows, len(columns))
 
-	done := make(chan struct{})
-	r.done = done
-
-	for i, column := range columns {
-		r.readers[i].init(column.Pages(), done)
+	switch r.pageReadMode {
+	case ReadModeAsync:
+		done := make(chan struct{})
+		r.done = done
+		readers := make([]asyncPages, len(columns))
+		for i, column := range columns {
+			readers[i].init(column.Pages(), done)
+			r.readers[i] = &readers[i]
+		}
+	case ReadModeSync:
+		for i, column := range columns {
+			r.readers[i] = column.Pages()
+		}
+	default:
+		panic(fmt.Sprintf("parquet: invalid page read mode: %d", r.pageReadMode))
 	}
 
 	r.inited = true
