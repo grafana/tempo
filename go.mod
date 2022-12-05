@@ -74,7 +74,7 @@ require (
 	go.opencensus.io v0.24.0
 	go.opentelemetry.io/collector v0.57.2
 	go.opentelemetry.io/collector/pdata v0.57.2
-	go.opentelemetry.io/collector/semconv v0.57.2
+	go.opentelemetry.io/collector/semconv v0.66.0
 	go.opentelemetry.io/otel v1.10.0
 	go.opentelemetry.io/otel/bridge/opencensus v0.31.0
 	go.opentelemetry.io/otel/bridge/opentracing v1.10.0
