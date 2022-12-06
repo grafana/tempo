@@ -10,6 +10,7 @@ For configuration options, check the storage section on the [configuration]({{< 
 ## Permissions
 The following authentication methods are supported:
 - GCP environment variable `GOOGLE_APPLICATION_CREDENTIALS`
+- GCP Workload Identity
 
 The `(service-)account` that will communicate towards GCS should be assigned to the bucket which will receive the traces and should have the following IAM polices within the bucket:
 
@@ -17,3 +18,4 @@ The `(service-)account` that will communicate towards GCS should be assigned to 
 - `storage.objects.delete`
 - `storage.objects.get`
 - `storage.buckets.get`
+- `storage.objects.list`
