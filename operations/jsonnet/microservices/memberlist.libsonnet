@@ -14,5 +14,5 @@
         servicePort.newNamed('gossip-ring', $._config.gossip_ring_port, $._config.gossip_ring_port) +
         servicePort.withProtocol('TCP'),
       ],
-    ) + service.mixin.spec.withClusterIp('None')
+    ) + service.mixin.spec.withClusterIp('None'),
 }

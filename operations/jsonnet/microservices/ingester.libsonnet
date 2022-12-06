@@ -14,12 +14,12 @@
   local tempo_data_volume = 'ingester-data',
   local tempo_overrides_config_volume = 'overrides',
 
-  tempo_ingester_ports:: [ containerPort.new('prom-metrics', $._config.port)],
+  tempo_ingester_ports:: [containerPort.new('prom-metrics', $._config.port)],
   tempo_ingester_args:: {
-                             target: target_name,
-                             'config.file': '/conf/tempo.yaml',
-                             'mem-ballast-size-mbs': $._config.ballast_size_mbs,
-                            },
+    target: target_name,
+    'config.file': '/conf/tempo.yaml',
+    'mem-ballast-size-mbs': $._config.ballast_size_mbs,
+  },
 
   tempo_ingester_pvc::
     pvc.new()
@@ -45,29 +45,29 @@
     (if $._config.variables_expansion then container.withArgsMixin(['-config.expand-env=true']) else {}),
 
   newIngesterStatefulSet(name, container, with_anti_affinity=true)::
-   statefulset.new(
-         name,
-         3,
-         container,
-         self.tempo_ingester_pvc,
-         {
-           app: target_name,
-           [$._config.gossip_member_label]: 'true',
-         },
-       )
-       + k.util.antiAffinityStatefulSet
-       + statefulset.mixin.spec.withServiceName(target_name)
-       + statefulset.mixin.spec.template.metadata.withAnnotations({
-         config_hash: std.md5(std.toString($.tempo_ingester_configmap.data['tempo.yaml'])),
-       })
-       + statefulset.mixin.spec.template.spec.withVolumes([
-         volume.fromConfigMap(tempo_config_volume, $.tempo_ingester_configmap.metadata.name),
-         volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
-       ]) +
-       statefulset.mixin.spec.withPodManagementPolicy('Parallel')+
-       statefulset.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
-       $.util.podPriority('high') +
-       (if with_anti_affinity then $.util.antiAffinity else {}),
+    statefulset.new(
+      name,
+      3,
+      container,
+      self.tempo_ingester_pvc,
+      {
+        app: target_name,
+        [$._config.gossip_member_label]: 'true',
+      },
+    )
+    + k.util.antiAffinityStatefulSet
+    + statefulset.mixin.spec.withServiceName(target_name)
+    + statefulset.mixin.spec.template.metadata.withAnnotations({
+      config_hash: std.md5(std.toString($.tempo_ingester_configmap.data['tempo.yaml'])),
+    })
+    + statefulset.mixin.spec.template.spec.withVolumes([
+      volume.fromConfigMap(tempo_config_volume, $.tempo_ingester_configmap.metadata.name),
+      volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
+    ]) +
+    statefulset.mixin.spec.withPodManagementPolicy('Parallel') +
+    statefulset.mixin.spec.template.spec.withTerminationGracePeriodSeconds(1200) +
+    $.util.podPriority('high') +
+    (if with_anti_affinity then $.util.antiAffinity else {}),
 
   tempo_ingester_statefulset: $.newIngesterStatefulSet(target_name, self.tempo_ingester_container) + statefulset.mixin.spec.withReplicas($._config.ingester.replicas),
 

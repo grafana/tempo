@@ -12,12 +12,12 @@
   local tempo_generator_wal_volume = 'metrics-generator-wal-data',
   local tempo_overrides_config_volume = 'overrides',
 
-  tempo_metrics_generator_ports:: [ containerPort.new('prom-metrics', $._config.port)],
+  tempo_metrics_generator_ports:: [containerPort.new('prom-metrics', $._config.port)],
   tempo_metrics_generator_args:: {
-                                  target: target_name,
-                                  'config.file': '/conf/tempo.yaml',
-                                  'mem-ballast-size-mbs': $._config.ballast_size_mbs,
-                                 },
+    target: target_name,
+    'config.file': '/conf/tempo.yaml',
+    'mem-ballast-size-mbs': $._config.ballast_size_mbs,
+  },
 
   tempo_metrics_generator_container::
     container.new(target_name, $._images.tempo) +

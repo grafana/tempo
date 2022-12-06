@@ -20,11 +20,11 @@
   },
 
   tempo_config+: {
-   ingester+: {
+    ingester+: {
       lifecycler+: {
         ring+: (if $._config.multi_zone_ingester_enabled then { zone_awareness_enabled: $._config.multi_zone_ingester_enabled } else {}),
       } + (if $._config.multi_zone_ingester_enabled then { availability_zone: '${AVAILABILITY_ZONE}' } else {}),
-    }
+    },
   },
 
   //
@@ -40,9 +40,9 @@
 
     $.tempo_ingester_container +
     container.withArgs($.util.mapToFlags(
-        $.tempo_ingester_args + zone_args
+      $.tempo_ingester_args + zone_args
     )) +
-    container.withEnvMixin([{name: 'AVAILABILITY_ZONE', value: zone_name}]) +
+    container.withEnvMixin([{ name: 'AVAILABILITY_ZONE', value: zone_name }]) +
     (if $._config.variables_expansion then container.withArgsMixin(['-config.expand-env=true']) else {}),
 
   newIngesterZoneStatefulSet(zone, container)::

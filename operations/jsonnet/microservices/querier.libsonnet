@@ -10,12 +10,12 @@
   local tempo_config_volume = 'tempo-conf',
   local tempo_overrides_config_volume = 'overrides',
 
-  tempo_querier_ports:: [ containerPort.new('prom-metrics', $._config.port)],
+  tempo_querier_ports:: [containerPort.new('prom-metrics', $._config.port)],
   tempo_querier_args:: {
-                          target: target_name,
-                          'config.file': '/conf/tempo.yaml',
-                          'mem-ballast-size-mbs': $._config.ballast_size_mbs,
-                         },
+    target: target_name,
+    'config.file': '/conf/tempo.yaml',
+    'mem-ballast-size-mbs': $._config.ballast_size_mbs,
+  },
 
   tempo_querier_container::
     container.new(target_name, $._images.tempo) +
