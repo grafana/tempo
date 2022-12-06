@@ -1602,7 +1602,7 @@ func (col *fixedLenByteArrayColumnBuffer) WriteFixedLenByteArrays(values []byte)
 
 func (col *fixedLenByteArrayColumnBuffer) WriteValues(values []Value) (int, error) {
 	for _, v := range values {
-		col.data = append(col.data, v.ByteArray()...)
+		col.data = append(col.data, v.byteArray()...)
 	}
 	return len(values), nil
 }
@@ -1893,7 +1893,7 @@ func (col *be128ColumnBuffer) WriteValues(values []Value) (int, error) {
 	col.values = col.values[:n+len(values)]
 	newValues := col.values[n:]
 	for i, v := range values {
-		copy(newValues[i][:], v.ByteArray())
+		copy(newValues[i][:], v.byteArray())
 	}
 	return len(values), nil
 }

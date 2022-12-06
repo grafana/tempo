@@ -176,6 +176,19 @@ func (w *GenericWriter[T]) WriteRowGroup(rowGroup RowGroup) (int64, error) {
 	return w.base.WriteRowGroup(rowGroup)
 }
 
+// SetKeyValueMetadata sets a key/value pair in the Parquet file metadata.
+//
+// Keys are assumed to be unique, if the same key is repeated multiple times the
+// last value is retained. While the parquet format does not require unique keys,
+// this design decision was made to optimize for the most common use case where
+// applications leverage this extension mechanism to associate single values to
+// keys. This may create incompatibilities with other parquet libraries, or may
+// cause some key/value pairs to be lost when open parquet files written with
+// repeated keys. We can revisit this decision if it ever becomes a blocker.
+func (w *GenericWriter[T]) SetKeyValueMetadata(key, value string) {
+	w.base.SetKeyValueMetadata(key, value)
+}
+
 func (w *GenericWriter[T]) ReadRowsFrom(rows RowReader) (int64, error) {
 	return w.base.ReadRowsFrom(rows)
 }

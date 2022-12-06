@@ -315,8 +315,8 @@ func (i *booleanColumnIndexer) Reset() {
 
 func (i *booleanColumnIndexer) IndexPage(numValues, numNulls int64, min, max Value) {
 	i.observe(numValues, numNulls)
-	i.minValues = append(i.minValues, min.Boolean())
-	i.maxValues = append(i.maxValues, max.Boolean())
+	i.minValues = append(i.minValues, min.boolean())
+	i.maxValues = append(i.maxValues, max.boolean())
 }
 
 func (i *booleanColumnIndexer) ColumnIndex() format.ColumnIndex {
@@ -346,8 +346,8 @@ func (i *int32ColumnIndexer) Reset() {
 
 func (i *int32ColumnIndexer) IndexPage(numValues, numNulls int64, min, max Value) {
 	i.observe(numValues, numNulls)
-	i.minValues = append(i.minValues, min.Int32())
-	i.maxValues = append(i.maxValues, max.Int32())
+	i.minValues = append(i.minValues, min.int32())
+	i.maxValues = append(i.maxValues, max.int32())
 }
 
 func (i *int32ColumnIndexer) ColumnIndex() format.ColumnIndex {
@@ -377,8 +377,8 @@ func (i *int64ColumnIndexer) Reset() {
 
 func (i *int64ColumnIndexer) IndexPage(numValues, numNulls int64, min, max Value) {
 	i.observe(numValues, numNulls)
-	i.minValues = append(i.minValues, min.Int64())
-	i.maxValues = append(i.maxValues, max.Int64())
+	i.minValues = append(i.minValues, min.int64())
+	i.maxValues = append(i.maxValues, max.int64())
 }
 
 func (i *int64ColumnIndexer) ColumnIndex() format.ColumnIndex {
@@ -439,8 +439,8 @@ func (i *floatColumnIndexer) Reset() {
 
 func (i *floatColumnIndexer) IndexPage(numValues, numNulls int64, min, max Value) {
 	i.observe(numValues, numNulls)
-	i.minValues = append(i.minValues, min.Float())
-	i.maxValues = append(i.maxValues, max.Float())
+	i.minValues = append(i.minValues, min.float())
+	i.maxValues = append(i.maxValues, max.float())
 }
 
 func (i *floatColumnIndexer) ColumnIndex() format.ColumnIndex {
@@ -470,8 +470,8 @@ func (i *doubleColumnIndexer) Reset() {
 
 func (i *doubleColumnIndexer) IndexPage(numValues, numNulls int64, min, max Value) {
 	i.observe(numValues, numNulls)
-	i.minValues = append(i.minValues, min.Double())
-	i.maxValues = append(i.maxValues, max.Double())
+	i.minValues = append(i.minValues, min.double())
+	i.maxValues = append(i.maxValues, max.double())
 }
 
 func (i *doubleColumnIndexer) ColumnIndex() format.ColumnIndex {
@@ -502,8 +502,8 @@ func (i *byteArrayColumnIndexer) Reset() {
 
 func (i *byteArrayColumnIndexer) IndexPage(numValues, numNulls int64, min, max Value) {
 	i.observe(numValues, numNulls)
-	minValue := min.ByteArray()
-	maxValue := max.ByteArray()
+	minValue := min.byteArray()
+	maxValue := max.byteArray()
 	if i.sizeLimit > 0 {
 		minValue = truncateLargeMinByteArrayValue(minValue, i.sizeLimit)
 		maxValue = truncateLargeMaxByteArrayValue(maxValue, i.sizeLimit)
@@ -546,8 +546,8 @@ func (i *fixedLenByteArrayColumnIndexer) Reset() {
 
 func (i *fixedLenByteArrayColumnIndexer) IndexPage(numValues, numNulls int64, min, max Value) {
 	i.observe(numValues, numNulls)
-	i.minValues = append(i.minValues, min.ByteArray()...)
-	i.maxValues = append(i.maxValues, max.ByteArray()...)
+	i.minValues = append(i.minValues, min.byteArray()...)
+	i.maxValues = append(i.maxValues, max.byteArray()...)
 }
 
 func (i *fixedLenByteArrayColumnIndexer) ColumnIndex() format.ColumnIndex {
@@ -587,8 +587,8 @@ func (i *uint32ColumnIndexer) Reset() {
 
 func (i *uint32ColumnIndexer) IndexPage(numValues, numNulls int64, min, max Value) {
 	i.observe(numValues, numNulls)
-	i.minValues = append(i.minValues, min.Uint32())
-	i.maxValues = append(i.maxValues, max.Uint32())
+	i.minValues = append(i.minValues, min.uint32())
+	i.maxValues = append(i.maxValues, max.uint32())
 }
 
 func (i *uint32ColumnIndexer) ColumnIndex() format.ColumnIndex {
@@ -618,8 +618,8 @@ func (i *uint64ColumnIndexer) Reset() {
 
 func (i *uint64ColumnIndexer) IndexPage(numValues, numNulls int64, min, max Value) {
 	i.observe(numValues, numNulls)
-	i.minValues = append(i.minValues, min.Uint64())
-	i.maxValues = append(i.maxValues, max.Uint64())
+	i.minValues = append(i.minValues, min.uint64())
+	i.maxValues = append(i.maxValues, max.uint64())
 }
 
 func (i *uint64ColumnIndexer) ColumnIndex() format.ColumnIndex {
@@ -650,10 +650,10 @@ func (i *be128ColumnIndexer) Reset() {
 func (i *be128ColumnIndexer) IndexPage(numValues, numNulls int64, min, max Value) {
 	i.observe(numValues, numNulls)
 	if !min.IsNull() {
-		i.minValues = append(i.minValues, *(*[16]byte)(min.ByteArray()))
+		i.minValues = append(i.minValues, *(*[16]byte)(min.byteArray()))
 	}
 	if !max.IsNull() {
-		i.maxValues = append(i.maxValues, *(*[16]byte)(max.ByteArray()))
+		i.maxValues = append(i.maxValues, *(*[16]byte)(max.byteArray()))
 	}
 }
 

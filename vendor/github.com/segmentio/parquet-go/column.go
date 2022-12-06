@@ -381,8 +381,27 @@ func schemaElementTypeOf(s *format.SchemaElement) Type {
 		case lt.Enum != nil:
 			return (*enumType)(lt.Enum)
 		case lt.Decimal != nil:
-			// TODO:
-			// return (*decimalType)(lt.Decimal)
+			// A parquet decimal can be one of several different physical types.
+			if t := s.Type; t != nil {
+				var typ Type
+				switch kind := Kind(*s.Type); kind {
+				case Int32:
+					typ = Int32Type
+				case Int64:
+					typ = Int64Type
+				case FixedLenByteArray:
+					if s.TypeLength == nil {
+						panic("DECIMAL using FIXED_LEN_BYTE_ARRAY must specify a length")
+					}
+					typ = FixedLenByteArrayType(int(*s.TypeLength))
+				default:
+					panic("DECIMAL must be of type INT32, INT64, or FIXED_LEN_BYTE_ARRAY but got " + kind.String())
+				}
+				return &decimalType{
+					decimal: *lt.Decimal,
+					Type:    typ,
+				}
+			}
 		case lt.Date != nil:
 			return (*dateType)(lt.Date)
 		case lt.Time != nil:

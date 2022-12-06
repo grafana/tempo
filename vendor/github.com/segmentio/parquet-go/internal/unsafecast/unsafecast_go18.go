@@ -81,6 +81,16 @@ func Slice[To, From any](data []From) []To {
 	return *(*[]To)(unsafe.Pointer(s))
 }
 
+// Bytes constructs a byte slice. The pointer to the first element of the slice
+// is set to data, the length and capacity are set to size.
+func Bytes(data *byte, size int) []byte {
+	return *(*[]byte)(unsafe.Pointer(&slice{
+		ptr: unsafe.Pointer(data),
+		len: size,
+		cap: size,
+	}))
+}
+
 // BytesToString converts a byte slice to a string value. The returned string
 // shares the backing array of the byte slice.
 //
