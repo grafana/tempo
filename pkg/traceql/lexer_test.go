@@ -134,3 +134,9 @@ func testLexer(t *testing.T, tcs []lexerTestCase) {
 		})
 	}
 }
+
+func BenchmarkIsAttributeRune(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		isAttributeRune('=')
+	}
+}

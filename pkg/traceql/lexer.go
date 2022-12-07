@@ -224,12 +224,16 @@ func isDurationRune(r rune) bool {
 }
 
 func isAttributeRune(r rune) bool {
-	return !unicode.IsSpace(r) &&
-		r != scanner.EOF &&
-		r != '(' &&
-		r != ')' &&
-		r != '}' &&
-		r != '{'
+	if unicode.IsSpace(r) {
+		return false
+	}
+
+	switch r {
+	case scanner.EOF, '{', '}', '(', ')', '=', '~', '!', '<', '>', '&', '|', '^':
+		return false
+	default:
+		return true
+	}
 }
 
 func startsAttribute(tok int) bool {
