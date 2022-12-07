@@ -540,7 +540,7 @@ func newRowIterator(r *parquet.Reader, rowNumbers []common.IDMapEntry[int64], tr
 	}
 }
 
-func (i *rowIterator) peekNextID(ctx context.Context) (common.ID, error) {
+func (i *rowIterator) peekNextID(ctx context.Context) (common.ID, error) { //nolint:unused //this is being marked as unused, but it's required to satisfy the bookmarkIterator interface
 	if len(i.rowNumbers) == 0 {
 		return nil, nil
 	}

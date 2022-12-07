@@ -23,7 +23,7 @@ func (i *intIterator) Next(_ context.Context) (common.ID, *uint8, error) {
 
 func (i *intIterator) Close() {}
 
-func (i *intIterator) peekNextID(_ context.Context) (common.ID, error) {
+func (i *intIterator) peekNextID(_ context.Context) (common.ID, error) { //nolint:unused //this is being marked as unused, but it's literally used about 30 lines south
 	s := *i
 	if len(s) == 0 {
 		return nil, io.EOF
