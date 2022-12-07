@@ -1,7 +1,7 @@
 name: "doc-validator"
 on:
   pull_request:
-    paths: ["docs/sources/**"]
+    paths: ["docs/tempo/website/**"]
   workflow_dispatch:
 jobs:
   doc-validator:
@@ -12,4 +12,4 @@ jobs:
       - name: "Checkout code"
         uses: "actions/checkout@v3"
       - name: "Run doc-validator tool"
-        run: "doc-validator ./docs/sources"
+        run: "doc-validator ./docs/tempo/website"
