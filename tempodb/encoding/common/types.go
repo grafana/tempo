@@ -13,20 +13,20 @@ import (
 // ID in TempoDB
 type ID []byte
 
-type idMapEntry[T any] struct {
-	id    ID
-	entry T
+type IDMapEntry[T any] struct {
+	ID    ID
+	Entry T
 }
 
 // IDMap is a helper for recording and checking for IDs. Not safe for concurrent use.
 type IDMap[T any] struct {
-	m map[uint64]idMapEntry[T]
+	m map[uint64]IDMapEntry[T]
 	h hash.Hash64
 }
 
 func NewIDMap[T any]() *IDMap[T] {
 	return &IDMap[T]{
-		m: map[uint64]idMapEntry[T]{},
+		m: map[uint64]IDMapEntry[T]{},
 		h: fnv.New64(),
 	}
 }
@@ -42,7 +42,7 @@ func (m *IDMap[T]) tokenFor(id ID) uint64 {
 }
 
 func (m *IDMap[T]) Set(id ID, val T) {
-	m.m[m.tokenFor(id)] = idMapEntry[T]{id, val}
+	m.m[m.tokenFor(id)] = IDMapEntry[T]{id, val}
 }
 
 func (m *IDMap[T]) Has(id ID) bool {
@@ -52,28 +52,22 @@ func (m *IDMap[T]) Has(id ID) bool {
 
 func (m *IDMap[T]) Get(id ID) (T, bool) {
 	v, ok := m.m[m.tokenFor(id)]
-	return v.entry, ok
+	return v.Entry, ok
 }
 
 func (m *IDMap[T]) Len() int {
 	return len(m.m)
 }
 
-func (m *IDMap[T]) ValuesSortedByID() []T {
+func (m *IDMap[T]) EntriesSortedByID() []IDMapEntry[T] {
 	// Copy and sort entries by ID
-	entries := make([]idMapEntry[T], 0, len(m.m))
+	entries := make([]IDMapEntry[T], 0, len(m.m))
 	for _, e := range m.m {
 		entries = append(entries, e)
 	}
 	sort.Slice(entries, func(i, j int) bool {
-		return bytes.Compare(entries[i].id, entries[j].id) == -1
+		return bytes.Compare(entries[i].ID, entries[j].ID) == -1
 	})
 
-	// Copy sorted values
-	values := make([]T, 0, len(entries))
-	for _, e := range entries {
-		values = append(values, e.entry)
-	}
-
-	return values
+	return entries
 }

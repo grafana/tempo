@@ -348,7 +348,7 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 	for _, page := range b.flushed {
 		idx, _ := parquetquery.GetColumnIndexByPath(page.file, TraceIDColumnName)
 		r := parquet.NewReader(page.file)
-		iter := newRowIterator(r, page.ids.ValuesSortedByID(), idx)
+		iter := newRowIterator(r, page.ids.EntriesSortedByID(), idx)
 
 		bookmarks = append(bookmarks, newBookmark[parquet.Row](iter))
 	}
@@ -525,16 +525,24 @@ func parseName(filename string) (uuid.UUID, string, string, error) {
 // not a guarantee that the underlying parquet file is sorted
 type rowIterator struct {
 	reader       *parquet.Reader //nolint:all //deprecated
-	rowNumbers   []int64
+	rowNumbers   []common.IDMapEntry[int64]
 	traceIDIndex int
 }
 
-func newRowIterator(r *parquet.Reader, rowNumbers []int64, traceIDIndex int) *rowIterator { //nolint:all //deprecated
+func newRowIterator(r *parquet.Reader, rowNumbers []common.IDMapEntry[int64], traceIDIndex int) *rowIterator { //nolint:all //deprecated
 	return &rowIterator{
 		reader:       r,
 		rowNumbers:   rowNumbers,
 		traceIDIndex: traceIDIndex,
 	}
+}
+
+func (i *rowIterator) peekNextID(ctx context.Context) (common.ID, error) {
+	if len(i.rowNumbers) == 0 {
+		return nil, io.EOF
+	}
+
+	return i.rowNumbers[0].ID, nil
 }
 
 func (i *rowIterator) Next(ctx context.Context) (common.ID, parquet.Row, error) {
@@ -545,7 +553,7 @@ func (i *rowIterator) Next(ctx context.Context) (common.ID, parquet.Row, error) 
 	nextRowNumber := i.rowNumbers[0]
 	i.rowNumbers = i.rowNumbers[1:]
 
-	err := i.reader.SeekToRow(nextRowNumber)
+	err := i.reader.SeekToRow(nextRowNumber.Entry)
 	if err != nil {
 		return nil, nil, err
 	}

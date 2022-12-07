@@ -74,6 +74,10 @@ func (i *rawIterator) Next(context.Context) (common.ID, parquet.Row, error) {
 	return nil, nil, errors.Wrap(err, fmt.Sprintf("error iterating through block %s", i.blockID))
 }
 
+func (i *rawIterator) peekNextID(ctx context.Context) (common.ID, error) {
+	return nil, common.ErrUnsupported
+}
+
 func (i *rawIterator) Close() {
 	i.r.Close()
 }
