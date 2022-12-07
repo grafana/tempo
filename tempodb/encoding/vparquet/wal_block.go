@@ -187,6 +187,12 @@ type walBlockFlush struct {
 	ids  *common.IDMap[int64]
 }
 
+func (w *walBlockFlush) rowIterator() *rowIterator {
+	idx, _ := parquetquery.GetColumnIndexByPath(w.file, TraceIDColumnName)
+	r := parquet.NewReader(w.file)
+	return newRowIterator(r, w.ids.EntriesSortedByID(), idx)
+}
+
 type walBlock struct {
 	meta           *backend.BlockMeta
 	path           string
@@ -346,10 +352,7 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 	bookmarks := make([]*bookmark[parquet.Row], 0, len(b.flushed))
 
 	for _, page := range b.flushed {
-		idx, _ := parquetquery.GetColumnIndexByPath(page.file, TraceIDColumnName)
-		r := parquet.NewReader(page.file)
-		iter := newRowIterator(r, page.ids.EntriesSortedByID(), idx)
-
+		iter := page.rowIterator()
 		bookmarks = append(bookmarks, newBookmark[parquet.Row](iter))
 	}
 
@@ -539,7 +542,7 @@ func newRowIterator(r *parquet.Reader, rowNumbers []common.IDMapEntry[int64], tr
 
 func (i *rowIterator) peekNextID(ctx context.Context) (common.ID, error) {
 	if len(i.rowNumbers) == 0 {
-		return nil, io.EOF
+		return nil, nil
 	}
 
 	return i.rowNumbers[0].ID, nil
@@ -603,7 +606,7 @@ func (i *commonIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, e
 	}
 
 	if row == nil || err == io.EOF {
-		return nil, nil, io.EOF
+		return nil, nil, nil
 	}
 
 	t := &Trace{}
