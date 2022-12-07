@@ -603,7 +603,7 @@ func (i *commonIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, e
 	}
 
 	if row == nil || err == io.EOF {
-		return nil, nil, nil
+		return nil, nil, io.EOF
 	}
 
 	t := &Trace{}
