@@ -187,6 +187,12 @@ type walBlockFlush struct {
 	ids  *common.IDMap[int64]
 }
 
+func (w *walBlockFlush) rowIterator() *rowIterator {
+	idx, _ := parquetquery.GetColumnIndexByPath(w.file, TraceIDColumnName)
+	r := parquet.NewReader(w.file)
+	return newRowIterator(r, w.ids.EntriesSortedByID(), idx)
+}
+
 type walBlock struct {
 	meta           *backend.BlockMeta
 	path           string
@@ -346,10 +352,7 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 	bookmarks := make([]*bookmark[parquet.Row], 0, len(b.flushed))
 
 	for _, page := range b.flushed {
-		idx, _ := parquetquery.GetColumnIndexByPath(page.file, TraceIDColumnName)
-		r := parquet.NewReader(page.file)
-		iter := newRowIterator(r, page.ids.ValuesSortedByID(), idx)
-
+		iter := page.rowIterator()
 		bookmarks = append(bookmarks, newBookmark[parquet.Row](iter))
 	}
 
@@ -525,16 +528,24 @@ func parseName(filename string) (uuid.UUID, string, string, error) {
 // not a guarantee that the underlying parquet file is sorted
 type rowIterator struct {
 	reader       *parquet.Reader //nolint:all //deprecated
-	rowNumbers   []int64
+	rowNumbers   []common.IDMapEntry[int64]
 	traceIDIndex int
 }
 
-func newRowIterator(r *parquet.Reader, rowNumbers []int64, traceIDIndex int) *rowIterator { //nolint:all //deprecated
+func newRowIterator(r *parquet.Reader, rowNumbers []common.IDMapEntry[int64], traceIDIndex int) *rowIterator { //nolint:all //deprecated
 	return &rowIterator{
 		reader:       r,
 		rowNumbers:   rowNumbers,
 		traceIDIndex: traceIDIndex,
 	}
+}
+
+func (i *rowIterator) peekNextID(ctx context.Context) (common.ID, error) { //nolint:unused //this is being marked as unused, but it's required to satisfy the bookmarkIterator interface
+	if len(i.rowNumbers) == 0 {
+		return nil, nil
+	}
+
+	return i.rowNumbers[0].ID, nil
 }
 
 func (i *rowIterator) Next(ctx context.Context) (common.ID, parquet.Row, error) {
@@ -545,7 +556,7 @@ func (i *rowIterator) Next(ctx context.Context) (common.ID, parquet.Row, error) 
 	nextRowNumber := i.rowNumbers[0]
 	i.rowNumbers = i.rowNumbers[1:]
 
-	err := i.reader.SeekToRow(nextRowNumber)
+	err := i.reader.SeekToRow(nextRowNumber.Entry)
 	if err != nil {
 		return nil, nil, err
 	}

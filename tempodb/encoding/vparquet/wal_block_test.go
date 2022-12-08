@@ -256,13 +256,46 @@ func TestWalBlockIterator(t *testing.T) {
 	})
 }
 
+// TestRowIterator cheats a bit by testing the rowIterator directly by reaching into the internals
+// of walblock. it also ignores the passed in traces and ids and simply asserts that the row iterator
+// is internally consistent.
+func TestRowIterator(t *testing.T) {
+	testWalBlock(t, func(w *walBlock, _ []common.ID, _ []*tempopb.Trace) {
+		for _, f := range w.flushed {
+			ri := f.rowIterator()
+
+			var lastID []byte
+			for {
+				peekID, err := ri.peekNextID(context.Background())
+				require.NoError(t, err)
+
+				peekAgainID, err := ri.peekNextID(context.Background())
+				require.NoError(t, err)
+				require.Equal(t, peekID, peekAgainID)
+
+				id, _, err := ri.Next(context.Background())
+				require.NoError(t, err)
+				require.Equal(t, peekID, id)
+				if id == nil {
+					break
+				}
+
+				// make sure ordering is correct
+				require.True(t, bytes.Compare(lastID, id) < 0)
+
+				lastID = id
+			}
+		}
+	})
+}
+
 func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*tempopb.Trace)) {
 	w, err := createWALBlock(uuid.New(), "fake", t.TempDir(), backend.EncNone, model.CurrentEncoding, 0)
 	require.NoError(t, err)
 
 	decoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
-	count := 10
+	count := 30
 	ids := make([]common.ID, count)
 	trs := make([]*tempopb.Trace, count)
 	for i := 0; i < count; i++ {
@@ -278,6 +311,10 @@ func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*temp
 
 		err = w.Append(ids[i], b2, 0, 0)
 		require.NoError(t, err)
+
+		if i%10 == 0 {
+			require.NoError(t, w.Flush())
+		}
 	}
 
 	require.NoError(t, w.Flush())
