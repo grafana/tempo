@@ -65,7 +65,7 @@ tempo {
   },
 
   local statefulSet = $.apps.v1.statefulSet,
-  tempo_ingester_statefulset+:
-    statefulSet.mixin.spec.withPodManagementPolicy('Parallel'),
+  tempo_ingester_statefulset:
+    if !$._config.multi_zone_ingester_enabled then super.tempo_ingester_statefulset + statefulSet.mixin.spec.withPodManagementPolicy('Parallel') else null,
 
 }
