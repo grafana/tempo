@@ -283,7 +283,7 @@ func TestRowIterator(t *testing.T) {
 				// make sure ordering is correct
 				require.True(t, bytes.Compare(lastID, id) < 0, "ids not in order: %v %v", lastID, id)
 
-				lastID = append([]byte{nil}, id...}
+				lastID = append([]byte(nil), id...)
 			}
 		}
 	})
