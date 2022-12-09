@@ -899,8 +899,6 @@ github.com/segmentio/encoding v0.3.5 h1:UZEiaZ55nlXGDL92scoVuw00RmiRCazIEmvPSbSv
 github.com/segmentio/encoding v0.3.5/go.mod h1:n0JeuIqEQrQoPDGsjo8UNd1iA0U8d8+oHAA4E3G3OxM=
 github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e h1:uO75wNGioszjmIzcY/tvdDYKRLVvzggtAmmJkn9j4GQ=
 github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e/go.mod h1:tm/wZFQ8e24NYaBGIlnO2WGCAi67re4HHuOm0sftE/M=
-github.com/segmentio/parquet-go v0.0.0-20221205175245-39e02a5ed102 h1:l8FsX3vlG/KMWi/PrJZyjKfV5ytjte6KL8kRL+ekaFE=
-github.com/segmentio/parquet-go v0.0.0-20221205175245-39e02a5ed102/go.mod h1:SclLlCfB7c7CH0YerV+OtYmZExyK5rhVOd6UT90erVw=
 github.com/segmentio/parquet-go v0.0.0-20221209072905-710d87d50dd1 h1:dSPoc3EY9Bj65BJNbv6vI1S/aXRuzXh+p6wIj2POIpE=
 github.com/segmentio/parquet-go v0.0.0-20221209072905-710d87d50dd1/go.mod h1:SclLlCfB7c7CH0YerV+OtYmZExyK5rhVOd6UT90erVw=
 github.com/sercand/kuberesolver v2.4.0+incompatible h1:WE2OlRf6wjLxHwNkkFLQGaZcVLEXjMjBPjjEU5vksH8=

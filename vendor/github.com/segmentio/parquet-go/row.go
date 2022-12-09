@@ -138,6 +138,16 @@ type RowWriterWithSchema interface {
 	Schema() *Schema
 }
 
+// RowReaderFunc is a function type implementing the RowReader interface.
+type RowReaderFunc func([]Row) (int, error)
+
+func (f RowReaderFunc) ReadRows(rows []Row) (int, error) { return f(rows) }
+
+// RowWriterFunc is a function type implementing the RowWriter interface.
+type RowWriterFunc func([]Row) (int, error)
+
+func (f RowWriterFunc) WriteRows(rows []Row) (int, error) { return f(rows) }
+
 // MultiRowWriter constructs a RowWriter which dispatches writes to all the
 // writers passed as arguments.
 //

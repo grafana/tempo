@@ -196,7 +196,7 @@ func MergeRowGroups(rowGroups []RowGroup, options ...RowGroupOption) (RowGroup, 
 		}
 	}
 
-	m := &mergedRowGroup{sorting: config.SortingColumns}
+	m := &mergedRowGroup{sorting: config.Sorting.SortingColumns}
 	m.init(schema, mergedRowGroups)
 
 	if len(m.sorting) == 0 {
@@ -213,24 +213,7 @@ func MergeRowGroups(rowGroups []RowGroup, options ...RowGroupOption) (RowGroup, 
 		}
 	}
 
-	m.sortFuncs = make([]columnSortFunc, len(m.sorting))
-	forEachLeafColumnOf(schema, func(leaf leafColumn) {
-		if sortingIndex := searchSortingColumn(m.sorting, leaf.path); sortingIndex < len(m.sorting) {
-			m.sortFuncs[sortingIndex] = columnSortFunc{
-				columnIndex: leaf.columnIndex,
-				compare: sortFuncOf(
-					leaf.node.Type(),
-					&SortConfig{
-						MaxRepetitionLevel: int(leaf.maxRepetitionLevel),
-						MaxDefinitionLevel: int(leaf.maxDefinitionLevel),
-						Descending:         m.sorting[sortingIndex].Descending(),
-						NullsFirst:         m.sorting[sortingIndex].NullsFirst(),
-					},
-				),
-			}
-		}
-	})
-
+	m.compare = compareRowsFuncOf(schema, m.sorting)
 	return m, nil
 }
 

@@ -246,9 +246,11 @@ written to a parquet file:
 type RowType struct { FirstName, LastName string }
 
 buffer := parquet.NewGenericBuffer[RowType](
-    parquet.SortingColumns(
-        parquet.Ascending("LastName"),
-        parquet.Ascending("FistName"),
+    parquet.SortingRowGroupConfig(
+        parquet.SortingColumns(
+            parquet.Ascending("LastName"),
+            parquet.Ascending("FistName"),
+        ),
     ),
 )
 
@@ -328,13 +330,14 @@ type RowType struct {
     LastName  string `parquet:"last_name"`
 }
 
+const filterBitsPerValue = 10
 writer := parquet.NewGenericWriter[RowType](output,
     parquet.BloomFilters(
         // Configures the write to generate split-block bloom filters for the
         // "first_name" and "last_name" columns of the parquet schema of rows
         // witten by the application.
-        parquet.SplitBlockFilter("first_name"),
-        parquet.SplitBlockFilter("last_name"),
+        parquet.SplitBlockFilter(filterBitsPerValue, "first_name"),
+        parquet.SplitBlockFilter(filterBitsPerValue, "last_name"),
     ),
 )
 ...
@@ -556,3 +559,17 @@ before submitting contributions.
 ### Continuous Integration
 
 The project uses [Github Actions](https://github.com/segmentio/parquet-go/actions) for CI.
+
+### Debugging
+
+The package has debugging capabilities built in which can be turned on using the
+`PARQUETGODEBUG` environment variable. The value follows a model similar to
+`GODEBUG`, it must be formatted as a comma-separated list of `key=value` pairs.
+
+The following debug flag are currently supported:
+
+- `tracebuf=1` turns on tracing of internal buffers, which validates that
+  reference counters are set to zero when buffers are reclaimed by the garbage
+  collector. When the package detects that a buffer was leaked, it logs an error
+  message along with the stack trace captured when the buffer was last used.
+

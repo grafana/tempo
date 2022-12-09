@@ -76,6 +76,16 @@ type ValueWriterTo interface {
 	WriteValuesTo(ValueWriter) (int64, error)
 }
 
+// ValueReaderFunc is a function type implementing the ValueReader interface.
+type ValueReaderFunc func([]Value) (int, error)
+
+func (f ValueReaderFunc) ReadValues(values []Value) (int, error) { return f(values) }
+
+// ValueWriterFunc is a function type implementing the ValueWriter interface.
+type ValueWriterFunc func([]Value) (int, error)
+
+func (f ValueWriterFunc) WriteValues(values []Value) (int, error) { return f(values) }
+
 // CopyValues copies values from src to dst, returning the number of values
 // that were written.
 //

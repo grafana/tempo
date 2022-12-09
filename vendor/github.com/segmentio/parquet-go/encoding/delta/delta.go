@@ -25,6 +25,13 @@ func (buf *int32Buffer) decode(src []byte) ([]byte, error) {
 	return remain, err
 }
 
+func (buf *int32Buffer) sum() (sum int32) {
+	for _, v := range buf.values {
+		sum += v
+	}
+	return sum
+}
+
 var (
 	int32BufferPool sync.Pool // *int32Buffer
 )
