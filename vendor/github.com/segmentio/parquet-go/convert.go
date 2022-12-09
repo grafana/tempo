@@ -439,7 +439,6 @@ func (p missingPage) NumRows() int64                    { return p.numRows }
 func (p missingPage) NumValues() int64                  { return p.numValues }
 func (p missingPage) NumNulls() int64                   { return p.numNulls }
 func (p missingPage) Bounds() (min, max Value, ok bool) { return }
-func (p missingPage) Clone() Page                       { return p }
 func (p missingPage) Slice(i, j int64) Page             { return p }
 func (p missingPage) Size() int64                       { return 0 }
 func (p missingPage) RepetitionLevels() []byte          { return nil }

@@ -577,7 +577,7 @@ loop:
     BSWAPQ R8
     BSWAPQ R9
     CMPQ R8, R9
-    JAE next
+    JBE next
 more:
     MOVQ AX, BX
 next:

@@ -177,6 +177,15 @@ func (e *ByteArrayEncoding) DecodeFixedLenByteArray(dst []byte, src []byte, size
 	return decodeFixedLenByteArray(dst[:0], src, size, prefix.values, suffix.values)
 }
 
+func (e *ByteArrayEncoding) EstimateDecodeByteArraySize(src []byte) int {
+	length := getInt32Buffer()
+	defer putInt32Buffer(length)
+	src, _ = length.decode(src)
+	sum := int(length.sum())
+	length.decode(src)
+	return sum + int(length.sum())
+}
+
 func (e *ByteArrayEncoding) wrap(err error) error {
 	if err != nil {
 		err = encoding.Error(e, err)
