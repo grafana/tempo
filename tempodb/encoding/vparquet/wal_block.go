@@ -314,13 +314,6 @@ func (b *walBlock) openWriter() (err error) {
 			Schema:         walSchema,
 			PageBufferSize: 1024,
 		})
-		// ,parquet.WriteBufferSize(0) -> bufio.NewWriterSize - 32k default - 32k per file - minor memory savings - possible cpu improvement?
-		// ColumnPageBuffers -> allows for on disk buffer pool?
-		// ColumnIndexSizeLimit -> 16 default
-		// PageBufferSize -> 256KB default
-		// Schema -> default nil - minor savings to create one and share between all writers
-		// BloomFilters -> ability to add custom bloom filters? ignore for now
-		// Compression -> default nil
 	} else {
 		b.writer.Reset(b.file)
 	}
