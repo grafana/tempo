@@ -99,23 +99,24 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 			continue
 		}
 
-		// attempt to load in a parquet.file
-		pf, sz, err := openLocalParquetFile(filepath.Join(dir, f.Name()))
+		path := filepath.Join(dir, f.Name())
+		page := newWalBlockFlush(path, common.NewIDMap[int64]())
+
+		// attempt to load it now so we can bail if it's corrupt
+		_, err = page.File()
 		if err != nil {
-			warning = fmt.Errorf("error opening file: %w", err)
+			warning = fmt.Errorf("error opening file info: %s %w", page.path, err)
 			continue
 		}
 
-		b.flushed = append(b.flushed, &walBlockFlush{
-			file: pf,
-			ids:  common.NewIDMap[int64](),
-		})
-		b.flushedSize += sz
+		b.flushed = append(b.flushed, page)
+		b.flushedSize += i.Size()
 	}
 
 	// iterate through all files and build meta
 	for i, page := range b.flushed {
-		iter := makeIterFunc(context.Background(), page.file.RowGroups(), page.file)(columnPathTraceID, nil, columnPathTraceID)
+		file, _ := page.File() // ignoring error b/c this was successfully loaded above
+		iter := makeIterFunc(context.Background(), file.RowGroups(), file)(columnPathTraceID, nil, columnPathTraceID)
 		defer iter.Close()
 
 		for {
@@ -186,14 +187,35 @@ func ownsWALBlock(entry fs.DirEntry) bool {
 }
 
 type walBlockFlush struct {
-	file *parquet.File
+	pf   *parquet.File
+	path string
 	ids  *common.IDMap[int64]
 }
 
-func (w *walBlockFlush) rowIterator() *rowIterator {
-	idx, _ := parquetquery.GetColumnIndexByPath(w.file, TraceIDColumnName)
-	r := parquet.NewReader(w.file)
-	return newRowIterator(r, w.ids.EntriesSortedByID(), idx)
+func newWalBlockFlush(path string, ids *common.IDMap[int64]) *walBlockFlush {
+	return &walBlockFlush{
+		path: path,
+		ids:  ids,
+	}
+}
+
+func (w *walBlockFlush) File() (*parquet.File, error) {
+	if w.pf == nil {
+		return openLocalParquetFile(w.path)
+	}
+
+	return w.pf, nil
+}
+
+func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
+	pf, err := w.File()
+	if err != nil {
+		return nil, err
+	}
+
+	idx, _ := parquetquery.GetColumnIndexByPath(pf, TraceIDColumnName)
+	r := parquet.NewReader(pf)
+	return newRowIterator(r, w.ids.EntriesSortedByID(), idx), nil
 }
 
 type walBlock struct {
@@ -333,20 +355,18 @@ func (b *walBlock) Flush() (err error) {
 		return fmt.Errorf("error closing writer: %w", err)
 	}
 
+	info, err := b.file.Stat()
+	if err != nil {
+		return fmt.Errorf("error getting info: %w", err)
+	}
+	sz := info.Size()
+
 	err = b.file.Close()
 	if err != nil {
 		return fmt.Errorf("error closing file: %w", err)
 	}
 
-	pf, sz, err := openLocalParquetFile(b.file.Name())
-	if err != nil {
-		return fmt.Errorf("error opening local file [%s]: %w", b.file.Name(), err)
-	}
-
-	b.flushed = append(b.flushed, &walBlockFlush{
-		file: pf,
-		ids:  b.ids,
-	})
+	b.flushed = append(b.flushed, newWalBlockFlush(b.file.Name(), b.ids))
 	b.flushedSize += sz
 	b.unflushedSize = 0
 	b.ids = common.NewIDMap[int64]()
@@ -365,7 +385,10 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 	bookmarks := make([]*bookmark[parquet.Row], 0, len(b.flushed))
 
 	for _, page := range b.flushed {
-		iter := page.rowIterator()
+		iter, err := page.rowIterator()
+		if err != nil {
+			return nil, fmt.Errorf("error creating iterator for %s: %w", page.path, err)
+		}
 		bookmarks = append(bookmarks, newBookmark[parquet.Row](iter))
 	}
 
@@ -405,8 +428,13 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.Sea
 
 	for _, page := range b.flushed {
 		if rowNumber, ok := page.ids.Get(id); ok {
-			r := parquet.NewReader(page.file)
-			err := r.SeekToRow(rowNumber)
+			file, err := page.File()
+			if err != nil {
+				return nil, fmt.Errorf("error opening file %s: %w", page.path, err)
+			}
+
+			r := parquet.NewReader(file)
+			err = r.SeekToRow(rowNumber)
 			if err != nil {
 				return nil, errors.Wrap(err, "seek to row")
 			}
@@ -438,7 +466,12 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 	}
 
 	for i, page := range b.flushed {
-		r, err := searchParquetFile(ctx, page.file, req, page.file.RowGroups())
+		file, err := page.File()
+		if err != nil {
+			return nil, fmt.Errorf("error opening file %s: %w", page.path, err)
+		}
+
+		r, err := searchParquetFile(ctx, file, req, file.RowGroups())
 		if err != nil {
 			return nil, fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
@@ -458,7 +491,12 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 
 func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
 	for i, page := range b.flushed {
-		err := searchTags(ctx, cb, page.file)
+		file, err := page.File()
+		if err != nil {
+			return fmt.Errorf("error opening file %s: %w", page.path, err)
+		}
+
+		err = searchTags(ctx, cb, file)
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
@@ -468,8 +506,13 @@ func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts c
 }
 
 func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
-	for i, f := range b.flushed {
-		err := searchTagValues(ctx, tag, cb, f.file)
+	for i, page := range b.flushed {
+		file, err := page.File()
+		if err != nil {
+			return fmt.Errorf("error opening file %s: %w", page.path, err)
+		}
+
+		err = searchTagValues(ctx, tag, cb, file)
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
@@ -486,8 +529,13 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 	}
 
 	iters := make([]*spansetIterator, 0, len(b.flushed))
-	for _, f := range b.flushed {
-		iter, err := fetch(ctx, req, f.file, opts)
+	for _, page := range b.flushed {
+		file, err := page.File()
+		if err != nil {
+			return traceql.FetchSpansResponse{}, fmt.Errorf("error opening file %s: %w", page.path, err)
+		}
+
+		iter, err := fetch(ctx, req, file, opts)
 		if err != nil {
 			return traceql.FetchSpansResponse{}, errors.Wrap(err, "creating fetch iter")
 		}
@@ -640,20 +688,20 @@ func (i *commonIterator) Close() {
 	i.iter.Close()
 }
 
-func openLocalParquetFile(filename string) (*parquet.File, int64, error) {
+func openLocalParquetFile(filename string) (*parquet.File, error) {
 	file, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
-		return nil, 0, fmt.Errorf("error opening file: %w", err)
+		return nil, fmt.Errorf("error opening file: %w", err)
 	}
 	info, err := file.Stat()
 	if err != nil {
-		return nil, 0, fmt.Errorf("error getting file info: %w", err)
+		return nil, fmt.Errorf("error getting file info: %w", err)
 	}
 	sz := info.Size()
 	pf, err := parquet.OpenFile(file, sz, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true))
 	if err != nil {
-		return nil, 0, fmt.Errorf("error opening parquet file: %w", err)
+		return nil, fmt.Errorf("error opening parquet file: %w", err)
 	}
 
-	return pf, sz, nil
+	return pf, nil
 }
