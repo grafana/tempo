@@ -18,6 +18,8 @@ type Finder interface {
 
 type TagCallback func(t string)
 
+type TagCallbackV2 func(*tempopb.TagValue) (stop bool)
+
 type Searcher interface {
 	Search(ctx context.Context, req *tempopb.SearchRequest, opts SearchOptions) (*tempopb.SearchResponse, error)
 	SearchTags(ctx context.Context, cb TagCallback, opts SearchOptions) error

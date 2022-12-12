@@ -121,6 +121,15 @@ message SearchTagValuesResponse {
   repeated string tagValues = 1;
 }
 
+message TagValue {
+  string type = 1;
+  string value = 2;
+}
+
+message SearchTagValuesV2Response {
+  repeated TagValue tagValues = 1;
+}
+
 message Trace {
   repeated tempopb.trace.v1.ResourceSpans batches = 1;
 }

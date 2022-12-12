@@ -44,10 +44,17 @@ const (
 	DefinitionLevelResourceSpansILSSpan      = 3
 	DefinitionLevelResourceSpansILSSpanAttrs = 4
 
-	FieldResourceAttrKey = "rs.Resource.Attrs.Key"
-	FieldResourceAttrVal = "rs.Resource.Attrs.Value"
-	FieldSpanAttrKey     = "rs.ils.Spans.Attrs.Key"
-	FieldSpanAttrVal     = "rs.ils.Spans.Attrs.Value"
+	FieldResourceAttrKey       = "rs.Resource.Attrs.Key"
+	FieldResourceAttrVal       = "rs.Resource.Attrs.Value"
+	FieldResourceAttrValInt    = "rs.Resource.Attrs.ValueInt"
+	FieldResourceAttrValDouble = "rs.Resource.Attrs.ValueDouble"
+	FieldResourceAttrValBool   = "rs.Resource.Attrs.ValueBool"
+
+	FieldSpanAttrKey       = "rs.ils.Spans.Attrs.Key"
+	FieldSpanAttrVal       = "rs.ils.Spans.Attrs.Value"
+	FieldSpanAttrValInt    = "rs.ils.Spans.Attrs.ValueInt"
+	FieldSpanAttrValDouble = "rs.ils.Spans.Attrs.ValueDouble"
+	FieldSpanAttrValBool   = "rs.ils.Spans.Attrs.ValueBool"
 )
 
 var (

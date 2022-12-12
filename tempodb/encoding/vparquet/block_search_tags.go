@@ -6,6 +6,7 @@ import (
 	"io"
 
 	pq "github.com/grafana/tempo/pkg/parquetquery"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -149,10 +150,34 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 	}
 	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
+	// Wrap to v2-style
+	cb2 := func(v *tempopb.TagValue) bool {
+		cb(v.Value)
+		return false
+	}
+
+	return searchTagValues(ctx, tag, cb2, pf)
+}
+
+func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag string, cb common.TagCallbackV2, opts common.SearchOptions) error {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTagValues",
+		opentracing.Tags{
+			"blockID":   b.meta.BlockID,
+			"tenantID":  b.meta.TenantID,
+			"blockSize": b.meta.Size,
+		})
+	defer span.Finish()
+
+	pf, rr, err := b.openForSearch(derivedCtx, opts)
+	if err != nil {
+		return fmt.Errorf("unexpected error opening parquet file: %w", err)
+	}
+	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
+
 	return searchTagValues(ctx, tag, cb, pf)
 }
 
-func searchTagValues(ctx context.Context, tag string, cb common.TagCallback, pf *parquet.File) error {
+func searchTagValues(ctx context.Context, tag string, cb common.TagCallbackV2, pf *parquet.File) error {
 	// labelMappings will indicate whether this is a search for a special or standard
 	// column
 	column := labelMappings[tag]
@@ -173,18 +198,30 @@ func searchTagValues(ctx context.Context, tag string, cb common.TagCallback, pf 
 
 // searchStandardTagValues searches a parquet file for "standard" tags. i.e. tags that don't have unique
 // columns and are contained in labelMappings
-func searchStandardTagValues(ctx context.Context, tag string, pf *parquet.File, cb common.TagCallback) error {
+func searchStandardTagValues(ctx context.Context, tag string, pf *parquet.File, cb common.TagCallbackV2) error {
 	rgs := pf.RowGroups()
 	makeIter := makeIterFunc(ctx, rgs, pf)
 
 	keyPred := pq.NewStringInPredicate([]string{tag})
 
-	err := searchKeyValues(DefinitionLevelResourceAttrs, FieldResourceAttrKey, FieldResourceAttrVal, makeIter, keyPred, cb)
+	err := searchKeyValues(DefinitionLevelResourceAttrs,
+		FieldResourceAttrKey,
+		FieldResourceAttrVal,
+		FieldResourceAttrValInt,
+		FieldResourceAttrValDouble,
+		FieldResourceAttrValBool,
+		makeIter, keyPred, cb)
 	if err != nil {
 		return errors.Wrap(err, "search resource key values")
 	}
 
-	err = searchKeyValues(DefinitionLevelResourceSpansILSSpanAttrs, FieldSpanAttrKey, FieldSpanAttrVal, makeIter, keyPred, cb)
+	err = searchKeyValues(DefinitionLevelResourceSpansILSSpanAttrs,
+		FieldSpanAttrKey,
+		FieldSpanAttrVal,
+		FieldSpanAttrValInt,
+		FieldSpanAttrValDouble,
+		FieldSpanAttrValBool,
+		makeIter, keyPred, cb)
 	if err != nil {
 		return errors.Wrap(err, "search span key values")
 	}
@@ -192,12 +229,18 @@ func searchStandardTagValues(ctx context.Context, tag string, pf *parquet.File, 
 	return nil
 }
 
-func searchKeyValues(definitionLevel int, keyPath, valuePath string, makeIter makeIterFn, keyPred pq.Predicate, cb common.TagCallback) error {
+func searchKeyValues(definitionLevel int, keyPath, stringPath, intPath, floatPath, boolPath string, makeIter makeIterFn, keyPred pq.Predicate, cb common.TagCallbackV2) error {
 
-	iter := pq.NewJoinIterator(definitionLevel, []pq.Iterator{
-		makeIter(keyPath, keyPred, ""),
-		makeIter(valuePath, nil, "values"),
-	}, nil)
+	iter := pq.NewLeftJoinIterator(definitionLevel,
+		// This is required
+		[]pq.Iterator{makeIter(keyPath, keyPred, "")},
+		[]pq.Iterator{
+			// These are optional and we find matching values of all types
+			makeIter(stringPath, nil, "string"),
+			makeIter(intPath, nil, "int"),
+			makeIter(floatPath, nil, "float"),
+			makeIter(boolPath, nil, "bool"),
+		}, nil)
 	defer iter.Close()
 
 	for {
@@ -209,8 +252,10 @@ func searchKeyValues(definitionLevel int, keyPath, valuePath string, makeIter ma
 			break
 		}
 		for _, e := range match.Entries {
-			// We know that "values" is the only data selected above.
-			cb(e.Value.String())
+			if callback(cb, e.Value) {
+				// Stop
+				return nil
+			}
 		}
 	}
 
@@ -219,7 +264,7 @@ func searchKeyValues(definitionLevel int, keyPath, valuePath string, makeIter ma
 
 // searchSpecialTagValues searches a parquet file for all values for the provided column. It first attempts
 // to only pull all values from the column's dictionary. If this fails it falls back to scanning the entire path.
-func searchSpecialTagValues(ctx context.Context, column string, pf *parquet.File, cb common.TagCallback) error {
+func searchSpecialTagValues(ctx context.Context, column string, pf *parquet.File, cb common.TagCallbackV2) error {
 	pred := newReportValuesPredicate(cb)
 	rgs := pf.RowGroups()
 

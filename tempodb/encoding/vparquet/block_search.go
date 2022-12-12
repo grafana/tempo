@@ -397,10 +397,10 @@ func (r *rowNumberIterator) Close() {}
 
 // reportValuesPredicate is a "fake" predicate that uses existing iterator logic to find all values in a given column
 type reportValuesPredicate struct {
-	cb common.TagCallback
+	cb common.TagCallbackV2
 }
 
-func newReportValuesPredicate(cb common.TagCallback) *reportValuesPredicate {
+func newReportValuesPredicate(cb common.TagCallbackV2) *reportValuesPredicate {
 	return &reportValuesPredicate{cb: cb}
 }
 
@@ -415,8 +415,10 @@ func (r *reportValuesPredicate) KeepColumnChunk(cc parquet.ColumnChunk) bool {
 func (r *reportValuesPredicate) KeepPage(pg parquet.Page) bool {
 	if dict := pg.Dictionary(); dict != nil {
 		for i := 0; i < dict.Len(); i++ {
-			s := dict.Index(int32(i)).String()
-			r.cb(s)
+			v := dict.Index(int32(i))
+			if callback(r.cb, v) {
+				break
+			}
 		}
 
 		return false
@@ -428,7 +430,28 @@ func (r *reportValuesPredicate) KeepPage(pg parquet.Page) bool {
 // KeepValue is only called if this column does not have a dictionary. Just report everything to r.cb and
 // return false so the iterator do any extra work.
 func (r *reportValuesPredicate) KeepValue(v parquet.Value) bool {
-	r.cb(v.String())
+	//r.cb(v.String())
+	callback(r.cb, v)
 
 	return false
+}
+
+func callback(cb common.TagCallbackV2, v parquet.Value) (stop bool) {
+	var typ string
+
+	switch v.Kind() {
+	case parquet.Boolean:
+		typ = "bool"
+	case parquet.Int32, parquet.Int64, parquet.Int96:
+		typ = "int"
+	case parquet.Float, parquet.Double:
+		typ = "float"
+	case parquet.ByteArray, parquet.FixedLenByteArray:
+		typ = "string"
+	default:
+		// Nils? Skip
+		return false
+	}
+
+	return cb(&tempopb.TagValue{Type: typ, Value: v.String()})
 }

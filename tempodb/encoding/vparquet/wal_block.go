@@ -455,8 +455,14 @@ func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts c
 }
 
 func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
+	// Wrap to v2-style
+	cb2 := func(v *tempopb.TagValue) bool {
+		cb(v.Value)
+		return false
+	}
+
 	for i, f := range b.flushed {
-		err := searchTagValues(ctx, tag, cb, f.file)
+		err := searchTagValues(ctx, tag, cb2, f.file)
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}

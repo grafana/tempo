@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -50,6 +51,51 @@ func TestBackendBlockSearchTagValues(t *testing.T) {
 		err := block.SearchTagValues(ctx, tag, cb, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.True(t, wasCalled, tag)
+	}
+}
+
+func TestBackendBlockSearchTagValuesV2(t *testing.T) {
+	block := makeBackendBlockWithTraces(t, []*Trace{fullyPopulatedTestTrace(common.ID{0})})
+
+	testCases := []struct {
+		tag  string
+		vals []*tempopb.TagValue
+	}{
+		// Intrinsic
+		{"name", []*tempopb.TagValue{
+			{Type: "string", Value: "hello"},
+			{Type: "string", Value: "world"},
+		}},
+
+		// Int column
+		{"http.status_code", []*tempopb.TagValue{
+			{Type: "int", Value: "500"},
+		}},
+
+		// Float column
+		{"float", []*tempopb.TagValue{
+			{Type: "float", Value: "456.78"},
+		}},
+
+		// Attr present at both resource and span level
+		{"foo", []*tempopb.TagValue{
+			{Type: "string", Value: "abc"},
+			{Type: "string", Value: "def"},
+		}},
+	}
+
+	ctx := context.Background()
+	for _, tc := range testCases {
+
+		var got []*tempopb.TagValue
+		cb := func(v *tempopb.TagValue) bool {
+			got = append(got, v)
+			return false
+		}
+
+		err := block.SearchTagValuesV2(ctx, tc.tag, cb, common.DefaultSearchOptions())
+		require.NoError(t, err, tc.tag)
+		require.Equal(t, tc.vals, got, tc.tag)
 	}
 }
 
