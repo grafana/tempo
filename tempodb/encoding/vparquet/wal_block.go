@@ -34,6 +34,9 @@ const defaultRowPoolSize = 100000
 // completeBlockRowPool is used by the wal iterators and complete block logic to pool rows
 var completeBlockRowPool = newRowPool(defaultRowPoolSize)
 
+// walSchema is a shared schema that all wals use. it comes with minor cpu and memory improvements
+var walSchema = parquet.SchemaOf(&Trace{})
+
 // path + filename = folder to create
 //   path/folder/00001
 //   	        /00002
@@ -285,7 +288,16 @@ func (b *walBlock) openWriter() (err error) {
 	}
 
 	if b.writer == nil {
-		b.writer = parquet.NewGenericWriter[*Trace](b.file)
+		b.writer = parquet.NewGenericWriter[*Trace](b.file, &parquet.WriterConfig{
+			Schema: walSchema,
+		})
+		// ,parquet.WriteBufferSize(0) -> bufio.NewWriterSize - 32k default - 32k per file - minor memory savings - possible cpu improvement?
+		// ColumnPageBuffers -> allows for on disk buffer pool?
+		// ColumnIndexSizeLimit -> 256KB default
+		// PageBufferSize -> 16 default
+		// Schema -> default nil - minor savings to create one and share between all writers
+		// BloomFilters -> ability to add custom bloom filters? ignore for now
+		// Compression -> default nil
 	} else {
 		b.writer.Reset(b.file)
 	}
