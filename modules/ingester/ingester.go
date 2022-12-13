@@ -421,6 +421,11 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 			return errors.Wrapf(err, "getting local blocks for tenant %v", t)
 		}
 
+		// don't persist a tenant if it doesn't have blocks
+		if len(newBlocks) == 0 {
+			delete(i.instances, t)
+		}
+
 		// Requeue needed flushes
 		for _, b := range newBlocks {
 			if b.FlushedTime().IsZero() {

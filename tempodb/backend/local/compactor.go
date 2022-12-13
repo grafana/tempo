@@ -37,6 +37,9 @@ func (rw *Backend) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	// if there are no more blocks in this tenant, clear the tenant
 	path = rw.rootPath(backend.KeyPath{tenantID})
 	folders, err := os.ReadDir(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("failed to list keypath for tenant %s: %w", path, err)
 	}
