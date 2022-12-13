@@ -78,7 +78,7 @@ func TestShutdownLeavesTenantsWithBlocks(t *testing.T) {
 	ctx := context.Background()
 	blockID := uuid.New()
 	contents := bytes.NewReader([]byte("test"))
-	tenant := "tenant"
+	tenant := "fake"
 
 	// write a "block"
 	err = w.Write(ctx, "test", backend.KeyPathForBlock(blockID, tenant), contents, contents.Size(), false)
