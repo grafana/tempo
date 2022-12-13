@@ -137,31 +137,17 @@ func searchTags(_ context.Context, cb common.TagCallback, pf *parquet.File) erro
 }
 
 func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTagValues",
-		opentracing.Tags{
-			"blockID":   b.meta.BlockID,
-			"tenantID":  b.meta.TenantID,
-			"blockSize": b.meta.Size,
-		})
-	defer span.Finish()
-
-	pf, rr, err := b.openForSearch(derivedCtx, opts)
-	if err != nil {
-		return fmt.Errorf("unexpected error opening parquet file: %w", err)
-	}
-	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
-
 	// Wrap to v2-style
 	cb2 := func(v traceql.Static) bool {
 		cb(strings.Trim(v.String(), "`"))
 		return false
 	}
 
-	return searchTagValues(ctx, traceql.NewAttribute(tag), cb2, pf)
+	return b.SearchTagValuesV2(ctx, traceql.NewAttribute(tag), cb2, opts)
 }
 
 func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTagValues",
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTagValuesV2",
 		opentracing.Tags{
 			"blockID":   b.meta.BlockID,
 			"tenantID":  b.meta.TenantID,
