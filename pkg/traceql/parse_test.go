@@ -891,3 +891,9 @@ func TestIntrinsics(t *testing.T) {
 		})
 	}
 }
+
+func TestParseIdentifier(t *testing.T) {
+	a, err := ParseIdentifier("span.foo")
+	require.NoError(t, err)
+	require.Equal(t, NewScopedAttribute(AttributeScopeSpan, false, "foo"), a)
+}

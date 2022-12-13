@@ -462,7 +462,7 @@ func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.Ta
 	}
 
 	for i, f := range b.flushed {
-		err := searchTagValues(ctx, tag, cb2, f.file)
+		err := searchTagValues(ctx, traceql.NewAttribute(tag), cb2, f.file)
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}

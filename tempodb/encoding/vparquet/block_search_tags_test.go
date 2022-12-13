@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -58,27 +59,45 @@ func TestBackendBlockSearchTagValuesV2(t *testing.T) {
 	block := makeBackendBlockWithTraces(t, []*Trace{fullyPopulatedTestTrace(common.ID{0})})
 
 	testCases := []struct {
-		tag  string
+		tag  traceql.Attribute
 		vals []*tempopb.TagValue
 	}{
 		// Intrinsic
-		{"name", []*tempopb.TagValue{
+		{traceql.MustParseIdentifier("name"), []*tempopb.TagValue{
 			{Type: "string", Value: "hello"},
 			{Type: "string", Value: "world"},
 		}},
 
-		// Int column
-		{"http.status_code", []*tempopb.TagValue{
+		// Mixed types
+		{traceql.MustParseIdentifier(".http.status_code"), []*tempopb.TagValue{
 			{Type: "int", Value: "500"},
+			{Type: "string", Value: "500ouch"},
+		}},
+
+		// Trace-level special
+		{traceql.NewAttribute("root.name"), []*tempopb.TagValue{
+			{Type: "string", Value: "RootSpan"},
+		}},
+
+		// Resource only, mixed well-known column and generic key/value
+		{traceql.MustParseIdentifier("resource.service.name"), []*tempopb.TagValue{
+			{Type: "string", Value: "myservice"},
+			{Type: "string", Value: "service2"},
+			{Type: "int", Value: "123"},
+		}},
+
+		// Span only
+		{traceql.MustParseIdentifier("span.service.name"), []*tempopb.TagValue{
+			{Type: "string", Value: "spanservicename"},
 		}},
 
 		// Float column
-		{"float", []*tempopb.TagValue{
+		{traceql.MustParseIdentifier(".float"), []*tempopb.TagValue{
 			{Type: "float", Value: "456.78"},
 		}},
 
 		// Attr present at both resource and span level
-		{"foo", []*tempopb.TagValue{
+		{traceql.MustParseIdentifier(".foo"), []*tempopb.TagValue{
 			{Type: "string", Value: "abc"},
 			{Type: "string", Value: "def"},
 		}},

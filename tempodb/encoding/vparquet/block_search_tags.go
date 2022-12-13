@@ -7,6 +7,7 @@ import (
 
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -156,10 +157,10 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 		return false
 	}
 
-	return searchTagValues(ctx, tag, cb2, pf)
+	return searchTagValues(ctx, traceql.NewAttribute(tag), cb2, pf)
 }
 
-func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag string, cb common.TagCallbackV2, opts common.SearchOptions) error {
+func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTagValues",
 		opentracing.Tags{
 			"blockID":   b.meta.BlockID,
@@ -177,53 +178,82 @@ func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag string, cb com
 	return searchTagValues(ctx, tag, cb, pf)
 }
 
-func searchTagValues(ctx context.Context, tag string, cb common.TagCallbackV2, pf *parquet.File) error {
-	// labelMappings will indicate whether this is a search for a special or standard
-	// column
-	column := labelMappings[tag]
-	if column == "" {
-		err := searchStandardTagValues(ctx, tag, pf, cb)
-		if err != nil {
-			return fmt.Errorf("unexpected error searching standard tags: %w", err)
+func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, pf *parquet.File) error {
+	// Special handling for intrinsics
+	if tag.Intrinsic != traceql.IntrinsicNone {
+		lookup := intrinsicColumnLookups[tag.Intrinsic]
+		if lookup.columnPath != "" {
+			err := searchSpecialTagValues(ctx, lookup.columnPath, pf, cb)
+			if err != nil {
+				return fmt.Errorf("unexpected error searching special tags: %w", err)
+			}
 		}
 		return nil
 	}
 
-	err := searchSpecialTagValues(ctx, column, pf, cb)
-	if err != nil {
-		return fmt.Errorf("unexpected error searching special tags: %w", err)
+	// Search dedicated attribute column if one exists and is a compatible scope.
+	column := wellKnownColumnLookups[tag.Name]
+	if column.columnPath != "" && (tag.Scope == column.level || tag.Scope == traceql.AttributeScopeNone) {
+		err := searchSpecialTagValues(ctx, column.columnPath, pf, cb)
+		if err != nil {
+			return fmt.Errorf("unexpected error searching special tags: %w", err)
+		}
 	}
+
+	// Look in non-traceql column mappings (ex: root.name)
+	// Unless a scope is specified, these mappings don't work with scopes
+	// And don't double search if same column as the well-known lookups
+	if tag.Scope == traceql.AttributeScopeNone {
+		if columnPath := labelMappings[tag.Name]; columnPath != "" && columnPath != column.columnPath {
+			err := searchSpecialTagValues(ctx, columnPath, pf, cb)
+			if err != nil {
+				return fmt.Errorf("unexpected error searching special tags: %w", err)
+			}
+			return nil
+		}
+	}
+
+	// Finally also search generic key/values
+	err := searchStandardTagValues(ctx, tag, pf, cb)
+	if err != nil {
+		return fmt.Errorf("unexpected error searching standard tags: %w", err)
+	}
+
 	return nil
 }
 
 // searchStandardTagValues searches a parquet file for "standard" tags. i.e. tags that don't have unique
 // columns and are contained in labelMappings
-func searchStandardTagValues(ctx context.Context, tag string, pf *parquet.File, cb common.TagCallbackV2) error {
+func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *parquet.File, cb common.TagCallbackV2) error {
 	rgs := pf.RowGroups()
 	makeIter := makeIterFunc(ctx, rgs, pf)
 
-	keyPred := pq.NewStringInPredicate([]string{tag})
+	keyPred := pq.NewStringInPredicate([]string{tag.Name})
 
-	err := searchKeyValues(DefinitionLevelResourceAttrs,
-		FieldResourceAttrKey,
-		FieldResourceAttrVal,
-		FieldResourceAttrValInt,
-		FieldResourceAttrValDouble,
-		FieldResourceAttrValBool,
-		makeIter, keyPred, cb)
-	if err != nil {
-		return errors.Wrap(err, "search resource key values")
+	if tag.Scope == traceql.AttributeScopeNone || tag.Scope == traceql.AttributeScopeResource {
+		err := searchKeyValues(DefinitionLevelResourceAttrs,
+			FieldResourceAttrKey,
+			FieldResourceAttrVal,
+			FieldResourceAttrValInt,
+			FieldResourceAttrValDouble,
+			FieldResourceAttrValBool,
+			makeIter, keyPred, cb)
+		if err != nil {
+			return errors.Wrap(err, "search resource key values")
+		}
 	}
 
-	err = searchKeyValues(DefinitionLevelResourceSpansILSSpanAttrs,
-		FieldSpanAttrKey,
-		FieldSpanAttrVal,
-		FieldSpanAttrValInt,
-		FieldSpanAttrValDouble,
-		FieldSpanAttrValBool,
-		makeIter, keyPred, cb)
-	if err != nil {
-		return errors.Wrap(err, "search span key values")
+	if tag.Scope == traceql.AttributeScopeNone || tag.Scope == traceql.AttributeScopeSpan {
+		err := searchKeyValues(DefinitionLevelResourceSpansILSSpanAttrs,
+			FieldSpanAttrKey,
+			FieldSpanAttrVal,
+			FieldSpanAttrValInt,
+			FieldSpanAttrValDouble,
+			FieldSpanAttrValBool,
+			makeIter, keyPred, cb)
+		if err != nil {
+			return errors.Wrap(err, "search span key values")
+		}
 	}
 
 	return nil
