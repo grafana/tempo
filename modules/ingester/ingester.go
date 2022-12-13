@@ -155,6 +155,8 @@ func (i *Ingester) stopping(_ error) error {
 		i.flushQueuesDone.Wait()
 	}
 
+	i.local.Shutdown()
+
 	return nil
 }
 
