@@ -13,7 +13,7 @@ keywords:
 
 # TraceQL
 
-Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo. A TraceQL query can select traces based on:
+Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo. Currently, TraceQL query can select traces based on the following see [future work](./architecture.md) for where the language is heading.
 
 - Span and resource attributes, timing, and duration
 - Basic aggregates: `count()` and `avg()`
@@ -22,29 +22,25 @@ The TraceQL language uses similar syntax and semantics as [PromQL](https://grafa
 
 TraceQL requires Tempo’s Parquet columnar format to be enabled. For information on enabling Parquet, refer to the [Apache Parquet backend](https://grafana.com/docs/tempo/latest/configuration/parquet/) Tempo documentation.
 
-Once TraceQL is available in Grafana Cloud as an experimental feature, you can open a ticket with Grafana Support to request access.
+## TraceQL query editor
+
+With Tempo 2.0, you can use the TraceQL query editor in the Tempo data source to build queries and drill-down into result sets. The editor is available in Grafana’s Explore interface. For more information, refer to [TraceQL query editor](query-editor.md).
+
+<p align="center"><img src="../assets/query-editor-http-method.png" alt="Query editor showing request for http.method" /></p>
 
 ## Construct a TraceQL query
 
 In TraceQL, a query is an expression that is evaluated on one trace at a time. The query is structured as a set of chained expressions (a pipeline). Each expression in the pipeline selects or discards spansets from being included in the results set. For example:
 
 ```
-{ .http.method = "POST" } | by(.http.target) | count() > 2
+{ span.http.status_code >= 200 && span.http.status_code < 300 } | count() > 2
 ```
 
-In this case, the search looks for any trace which includes a span attribute `http.method` set to `POST`, which is filtered by the attribute `http.target`, where two or more spans match that criteria.
+<!--  jpe finish ... -->
+In this case, the search looks for reduces traces to those spans that match the criteria `http.status_code` is in the range of `200` to `300`.  The returned spansets contain more than 2.
 
 Queries select sets of spans and filter them through a pipeline of aggregators and conditions. If a spanset is produced after evaluation on a trace, then this spanset (and by extension the trace) is included in the result set of the query.
 
-## TraceQL query editor
-
-With Tempo 2.0, you can use the TraceQL query editor in the Tempo data source to build queries and drill-down into result sets. The editor is available in Grafana’s Explore interface.
-
-This screenshot shows the query and results from the search above, `{ .http.method = "POST" } | by(.http.target) | count() > 2`.
-
-<p align="center"><img src="../assets/query-editor-http-method.png" alt="Query editor showing request for http.method" /></p>
-
-For more information, refer to [TraceQL query editor](query-editor.md).
 
 ## Selecting spans
 
@@ -62,7 +58,7 @@ If the trace does contain spans with an attribute `http.status` with the value `
 
 ### Intrinsic fields
 
-Intrinsic fields are fundamental to spans. Thes fields can be referenced when selecting spans.
+Intrinsic fields are fundamental to spans. These fields can be referenced when selecting spans. Note that custom attributes are prefixed with `.`, `span.` or `resource.` whereas intrinsics can be typed directly.
 
 
 | **Operation** | **Type** | **Definition**                        | **Example**            |
@@ -84,7 +80,7 @@ Attributes in a query start with a period and must end with a space. To find tra
 Or like this:
 
 ```
-{.http.method ="GET"}
+{ .http.method ="GET"}
 ```
 
 #### Examples
@@ -103,28 +99,15 @@ Find any database connection string that goes to a Postgres or MySQL database:
 
 ### Scoped attribute fields
 
-Attributes can be specifically scoped to either "span" or "resource". Specifying "span" or "resource" can result in significant performance benefits.
+Attributes can be specifically scoped to either "span" or "resource". Specifying "span" or "resource" can result in significant performance benefits because it reduces the amount of data that Tempo has to retrieve to answer your query.
 
 For example, to find traces with a span attribute of `http.status` set to `200`:
 { span.http.status = 200 }
 To find traces where a the resource `namespace` is set to `prod`:
 { resource.namespace = "prod" }
 
-### Scoped attribute fields
+<p align="center"><img src="../assets/span-resource-attributes.png" alt="Example of span resources and attributes" /></p>
 
-Attributes can be specifically scoped to either "span" or "resource". Specifying "span" or "resource" can result in significant performance benefits.
-
-For example, to find traces with a span attribute of `http.status` set to `200`:
-
-```
-{ span.http.status = 200 }
-```
-
-To find traces where a the resource `namespace` is set to `prod`:
-
-```
-{ resource.namespace = "prod" }
-```
 
 ### Comparison operators
 
@@ -139,10 +122,10 @@ The implemented comparison operators are:
 - `<=` (less than or equal to)
 - `=~` (regular expression)
 
-For example, to find all traces where an `http.status` attribute in a span are greater than `300` but less than equal to `500`:
+For example, to find all traces where an `http.status` attribute in a span are greater than `400` but less than equal to `500`:
 
 ```
-{ .http.status > 300 && .http.status < 500 }
+{ .http.status >= 400 && .http.status < 500 }
 ```
 
 Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
@@ -163,7 +146,7 @@ Find traces with "success" http status codes:
 { .http.status >= 200 && .http.status < 300 }
 ```
 
-Find traces where a `DELETE` HTTP method was used and the status was not OK:
+Find traces where a `DELETE` HTTP method was used and the instrinsic span status was not OK:
 
 ```
 { .http.method = "DELETE" && status != ok }
@@ -202,7 +185,7 @@ So far, all of the example queries expressions have been about individual spans.
 - `count` - The total count across a given intrinsic or items.
 - `avg` - The average across a given intrinsic or items.
 
-Aggregate functions allow you to carry out operations on matching results to further refine the traces returned.
+Aggregate functions allow you to carry out operations on matching results to further refine the traces returned. <jpe> More aggregations are planned in the future <jpe link to future doc>
 
 For example, to find traces where the total number of spans is greater than `10`:
 
@@ -216,41 +199,33 @@ Find traces where the average duration of the spans in a trace is greater than `
 avg(duration) > 20ms
 ```
 
-## Expression pipelining
-
-Pipelining lets you "pipe" a set of spans from one expression to the next. This is particularly useful if you want to perform an aggregate over a subset of a trace.
-
 For example, find traces that have more than 3 spans with an attribute `http.status` with a value of `200`:
 
 ```
 { .http.status = 200 } | count() > 3
 ```
 
-## Grouping
-
-Grouping lets you take a trace and break it down into sets of spans that are evaluated by future pipeline entries. Each set of spans created by the group is individually evaluated by downstream expressions.
-
-For example, find traces that have more than 5 spans in any region:
-
-```
-by(.region) | count() > 5
-```
-
 ## Examples
 
-Find any trace with a `namespace` attribute set to `prod`:
+Find any trace with a span attribute or resource attribute `namespace` set to `prod`:
 
 ```
 { .namespace = "prod" }
 ```
 
-Find any trace with a `namespace` attribute set to `prod` where the `http.status` is set to `200`:
+Find any trace with a span attribute `namespace` set to `prod`:
+
+```
+{ span.namespace = "prod" }
+```
+
+Find any trace with a `namespace` attribute set to `prod` and `http.status` attribute set to `200`:
 
 ```
 { .namespace = "prod" && .http.status = 200 }
 ```
 
-Find any trace where any independent spans within it have a `namespace` attribute set to `prod` and an `http.status` attribute set to `200`:
+Find any trace where spans within it have a `namespace` attribute set to `prod` and an `http.status` attribute set to `200`. In previous examples, all conditions had to be true on one span. These conditions can be true on either different spans or the same spans.
 
 ```
 { .namespace = "prod" } && { .http.status = 200 }
@@ -266,16 +241,4 @@ Find any trace where the average client-span duration in a trace exceeds a thres
 
 ```
 { span.kind = "client" } | avg(duration) > 1s
-```
-
-Find any trace that has a certain number of a given attribute in any namespace:
-
-```
-by(.namespace) | { .http.status = 500 } | count() > 5
-```
-
-Find any trace where any single span has the `http.method` attribute set to `GET` and the `endpoint` attribute is not set to `/login`, where the number of unique `endpoint` attributes is greater than 2 across all of the relevant spans:
-
-```
-{ .http.method = "GET" && .endpoint != "/login" } | by(.endpoint) | count() > 2
 ```

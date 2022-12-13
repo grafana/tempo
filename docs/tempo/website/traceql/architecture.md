@@ -29,20 +29,17 @@ For examples of query syntax, refer to [Perform a query]({{<relref "construct-qu
 
 ## Active development and limitations
 
-TraceQL is actively being developed. At this time, it is not production-ready.
-
 TraceQL will be implemented in phases. The initial iteration of the TraceQL engine includes spanset selection and pipelines.
 
 For more information about TraceQL’s design, refer to the [TraceQL Concepts design proposal](https://github.com/grafana/tempo/blob/main/docs/design-proposals/2022-04%20TraceQL%20Concepts.md).
 
-### Known limitations
+### Future work
 
-- Arithmetics are not implemented yet
-- Scalar pipeline expressions do not allow static expressions or statics on the LHS. This seems odd but it's to remove conflicts with scalar filters. These are currently not allowed:
-    - `(by(namespace) | count()) > 2 * 2`
-    - `(by(namespace) | count()) * 2 > 2`
-    - `2 < (by(namespace) | count())`
-- Nested parents are currently not allowed
+- Arithmetics
+- Grouping
+- Structural Queries
+- Metrics
+- Pipeline comparisons
 
 ### Request access
 
