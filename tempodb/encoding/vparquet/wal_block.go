@@ -691,7 +691,7 @@ func openLocalParquetFile(filename string) (*parquet.File, error) {
 		return nil, fmt.Errorf("error getting file info: %w", err)
 	}
 	sz := info.Size()
-	pf, err := parquet.OpenFile(file, sz, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true))
+	pf, err := parquet.OpenFile(file, sz, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true), parquet.FileSchema(walSchema))
 	if err != nil {
 		return nil, fmt.Errorf("error opening parquet file: %w", err)
 	}

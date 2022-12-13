@@ -93,6 +93,7 @@ type FileConfig struct {
 	SkipBloomFilters bool
 	ReadBufferSize   int
 	ReadMode         ReadMode
+	Schema           *Schema
 }
 
 // DefaultFileConfig returns a new FileConfig value initialized with the
@@ -103,6 +104,7 @@ func DefaultFileConfig() *FileConfig {
 		SkipBloomFilters: DefaultSkipBloomFilters,
 		ReadBufferSize:   defaultReadBufferSize,
 		ReadMode:         DefaultReadMode,
+		Schema:           nil,
 	}
 }
 
@@ -131,6 +133,7 @@ func (c *FileConfig) ConfigureFile(config *FileConfig) {
 		SkipBloomFilters: c.SkipBloomFilters,
 		ReadBufferSize:   coalesceInt(c.ReadBufferSize, config.ReadBufferSize),
 		ReadMode:         ReadMode(coalesceInt(int(c.ReadMode), int(config.ReadMode))),
+		Schema:           coalesceSchema(c.Schema, config.Schema),
 	}
 }
 
@@ -467,6 +470,15 @@ func FileReadMode(mode ReadMode) FileOption {
 // Defaults to 4096.
 func ReadBufferSize(size int) FileOption {
 	return fileOption(func(config *FileConfig) { config.ReadBufferSize = size })
+}
+
+// FileSchema is used to pass a known schema in while opening a Parquet file.
+// This optimization is only useful if your application is currently opening
+// an extremely large number of parquet files with the same, known schema.
+//
+// Defaults to nil.
+func FileSchema(schema *Schema) FileOption {
+	return fileOption(func(config *FileConfig) { config.Schema = schema })
 }
 
 // PageBufferSize configures the size of column page buffers on parquet writers.
