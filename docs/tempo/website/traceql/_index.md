@@ -1,7 +1,7 @@
 ---
 title: TraceQL
 menuTitle: TraceQL
-description: Learn about TraceQL, the query language for traces
+description: Learn about TraceQL, Tempo's query language for traces
 weight: 450
 aliases:
   - /docs/tempo/latest/traceql/
@@ -16,8 +16,7 @@ keywords:
 Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo. A TraceQL query can select traces based on:
 
 - Span and resource attributes, timing, and duration
-- Structural relationships between spans
-- Aggregated data from the spans in a trace
+- Basic aggregates: `count()` and `avg()`
 
 The TraceQL language uses similar syntax and semantics as [PromQL](https://grafana.com/blog/2020/02/04/introduction-to-promql-the-prometheus-query-language/) and [LogQL](https://grafana.com/docs/loki/latest/logql/), where possible. TraceQL recognizes two types of data: intrinsics, which are fundamental to spans, and attributes, which are customizable key-value pairs.
 
