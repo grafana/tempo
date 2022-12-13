@@ -201,7 +201,11 @@ func newWalBlockFlush(path string, ids *common.IDMap[int64]) *walBlockFlush {
 
 func (w *walBlockFlush) File() (*parquet.File, error) {
 	if w.pf == nil {
-		return openLocalParquetFile(w.path)
+		pf, err := openLocalParquetFile(w.path)
+		if err != nil {
+			return nil, err
+		}
+		w.pf = pf
 	}
 
 	return w.pf, nil
