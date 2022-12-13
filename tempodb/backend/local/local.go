@@ -163,7 +163,7 @@ func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.K
 
 // Shutdown implements backend.Reader
 func (rw *Backend) Shutdown() {
-
+	// clean up local storage jpe
 }
 
 func (rw *Backend) objectFileName(keypath backend.KeyPath, name string) string {

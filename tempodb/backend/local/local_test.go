@@ -67,3 +67,7 @@ func TestReadWrite(t *testing.T) {
 	assert.Len(t, list, 1)
 	assert.Equal(t, blockID.String(), list[0])
 }
+
+func TestShutdownCleansupTenants(t *testing.T) {
+	// jpe
+}
