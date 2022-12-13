@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	pq "github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
@@ -152,8 +152,8 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
 	// Wrap to v2-style
-	cb2 := func(v *tempopb.TagValue) bool {
-		cb(v.Value)
+	cb2 := func(v traceql.Static) bool {
+		cb(strings.Trim(v.String(), "`"))
 		return false
 	}
 
@@ -202,7 +202,7 @@ func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCa
 
 	// Look in non-traceql column mappings (ex: root.name)
 	// Unless a scope is specified, these mappings don't work with scopes
-	// And don't double search if same column as the well-known lookups
+	// And don't double search column was already in the well-known lookups
 	if tag.Scope == traceql.AttributeScopeNone {
 		if columnPath := labelMappings[tag.Name]; columnPath != "" && columnPath != column.columnPath {
 			err := searchSpecialTagValues(ctx, columnPath, pf, cb)

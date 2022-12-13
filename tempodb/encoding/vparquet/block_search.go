@@ -16,6 +16,7 @@ import (
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -430,28 +431,28 @@ func (r *reportValuesPredicate) KeepPage(pg parquet.Page) bool {
 // KeepValue is only called if this column does not have a dictionary. Just report everything to r.cb and
 // return false so the iterator do any extra work.
 func (r *reportValuesPredicate) KeepValue(v parquet.Value) bool {
-	//r.cb(v.String())
 	callback(r.cb, v)
 
 	return false
 }
 
 func callback(cb common.TagCallbackV2, v parquet.Value) (stop bool) {
-	var typ string
-
 	switch v.Kind() {
+
 	case parquet.Boolean:
-		typ = "bool"
-	case parquet.Int32, parquet.Int64, parquet.Int96:
-		typ = "int"
+		return cb(traceql.NewStaticBool(v.Boolean()))
+
+	case parquet.Int32, parquet.Int64:
+		return cb(traceql.NewStaticInt(int(v.Int64())))
+
 	case parquet.Float, parquet.Double:
-		typ = "float"
+		return cb(traceql.NewStaticFloat(v.Double()))
+
 	case parquet.ByteArray, parquet.FixedLenByteArray:
-		typ = "string"
+		return cb(traceql.NewStaticString(v.String()))
+
 	default:
-		// Nils? Skip
+		// Skip nils or unsupported type
 		return false
 	}
-
-	return cb(&tempopb.TagValue{Type: typ, Value: v.String()})
 }

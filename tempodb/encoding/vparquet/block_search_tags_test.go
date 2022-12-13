@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -60,54 +59,54 @@ func TestBackendBlockSearchTagValuesV2(t *testing.T) {
 
 	testCases := []struct {
 		tag  traceql.Attribute
-		vals []*tempopb.TagValue
+		vals []traceql.Static
 	}{
 		// Intrinsic
-		{traceql.MustParseIdentifier("name"), []*tempopb.TagValue{
-			{Type: "string", Value: "hello"},
-			{Type: "string", Value: "world"},
+		{traceql.MustParseIdentifier("name"), []traceql.Static{
+			traceql.NewStaticString("hello"),
+			traceql.NewStaticString("world"),
 		}},
 
 		// Mixed types
-		{traceql.MustParseIdentifier(".http.status_code"), []*tempopb.TagValue{
-			{Type: "int", Value: "500"},
-			{Type: "string", Value: "500ouch"},
+		{traceql.MustParseIdentifier(".http.status_code"), []traceql.Static{
+			traceql.NewStaticInt(500),
+			traceql.NewStaticString("500ouch"),
 		}},
 
 		// Trace-level special
-		{traceql.NewAttribute("root.name"), []*tempopb.TagValue{
-			{Type: "string", Value: "RootSpan"},
+		{traceql.NewAttribute("root.name"), []traceql.Static{
+			traceql.NewStaticString("RootSpan"),
 		}},
 
 		// Resource only, mixed well-known column and generic key/value
-		{traceql.MustParseIdentifier("resource.service.name"), []*tempopb.TagValue{
-			{Type: "string", Value: "myservice"},
-			{Type: "string", Value: "service2"},
-			{Type: "int", Value: "123"},
+		{traceql.MustParseIdentifier("resource.service.name"), []traceql.Static{
+			traceql.NewStaticString("myservice"),
+			traceql.NewStaticString("service2"),
+			traceql.NewStaticInt(123),
 		}},
 
 		// Span only
-		{traceql.MustParseIdentifier("span.service.name"), []*tempopb.TagValue{
-			{Type: "string", Value: "spanservicename"},
+		{traceql.MustParseIdentifier("span.service.name"), []traceql.Static{
+			traceql.NewStaticString("spanservicename"),
 		}},
 
 		// Float column
-		{traceql.MustParseIdentifier(".float"), []*tempopb.TagValue{
-			{Type: "float", Value: "456.78"},
+		{traceql.MustParseIdentifier(".float"), []traceql.Static{
+			traceql.NewStaticFloat(456.78),
 		}},
 
 		// Attr present at both resource and span level
-		{traceql.MustParseIdentifier(".foo"), []*tempopb.TagValue{
-			{Type: "string", Value: "abc"},
-			{Type: "string", Value: "def"},
+		{traceql.MustParseIdentifier(".foo"), []traceql.Static{
+			traceql.NewStaticString("abc"),
+			traceql.NewStaticString("def"),
 		}},
 	}
 
 	ctx := context.Background()
 	for _, tc := range testCases {
 
-		var got []*tempopb.TagValue
-		cb := func(v *tempopb.TagValue) bool {
+		var got []traceql.Static
+		cb := func(v traceql.Static) bool {
 			got = append(got, v)
 			return false
 		}
