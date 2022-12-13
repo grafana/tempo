@@ -411,6 +411,16 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 	level.Info(log.Logger).Log("msg", "reloading local blocks", "tenants", len(tenants))
 
 	for _, t := range tenants {
+		// check if any local blocks exist for a tenant before creating the instance. this is to protect us from cases
+		// where left-over empty local tenant folders persist empty tenants
+		blocks, err := reader.Blocks(ctx, t)
+		if err != nil {
+			return err
+		}
+		if len(blocks) == 0 {
+			continue
+		}
+
 		inst, err := i.getOrCreateInstance(t)
 		if err != nil {
 			return err
@@ -419,11 +429,6 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 		newBlocks, err := inst.rediscoverLocalBlocks(ctx)
 		if err != nil {
 			return errors.Wrapf(err, "getting local blocks for tenant %v", t)
-		}
-
-		// don't persist a tenant if it doesn't have blocks
-		if len(newBlocks) == 0 {
-			delete(i.instances, t)
 		}
 
 		// Requeue needed flushes

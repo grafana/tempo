@@ -82,7 +82,7 @@ func TestInstanceSearch(t *testing.T) {
 			ingester, _, _ = defaultIngester(t, tempDir)
 
 			i, ok := ingester.getInstanceByID("fake")
-			assert.True(t, ok)
+			require.True(t, ok)
 
 			sr, err = i.Search(context.Background(), req)
 			assert.NoError(t, err)
