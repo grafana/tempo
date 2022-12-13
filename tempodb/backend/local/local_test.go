@@ -84,6 +84,9 @@ func TestShutdownLeavesTenantsWithBlocks(t *testing.T) {
 	err = w.Write(ctx, "test", backend.KeyPathForBlock(blockID, tenant), contents, contents.Size(), false)
 	require.NoError(t, err)
 
+	tenantExists(t, tenant, r)
+	blockExists(t, blockID, tenant, r)
+
 	// shutdown the backend
 	r.Shutdown()
 
@@ -114,6 +117,11 @@ func TestShutdownRemovesTenantsWithoutBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	tenantExists(t, tenant, r)
+
+	// block should not exist
+	blocks, err := r.List(ctx, backend.KeyPath{tenant})
+	require.NoError(t, err)
+	require.Len(t, blocks, 0)
 
 	// shutdown the backend
 	r.Shutdown()
