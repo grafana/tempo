@@ -4,6 +4,7 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 )
 
@@ -24,9 +25,15 @@ func GetVirtualTagValues(tagName string) []string {
 	return nil
 }
 
-/*func GetVirtualTagValuesV2(tagName string) []tempopb.TagValue {
+func GetVirtualTagValuesV2(tagName string) []tempopb.TagValue {
 
 	switch tagName {
+	case traceql.IntrinsicStatus.String():
+		return []tempopb.TagValue{
+			{Type: "keyword", Value: traceql.StatusOk.String()},
+			{Type: "keyword", Value: traceql.StatusError.String()},
+			{Type: "keyword", Value: traceql.StatusUnset.String()},
+		}
 	case trace.StatusCodeTag:
 		return []tempopb.TagValue{
 			{Type: "keyword", Value: trace.StatusCodeUnset},
@@ -36,7 +43,7 @@ func GetVirtualTagValues(tagName string) []string {
 	}
 
 	return nil
-}*/
+}
 
 func GetSearchResultFromData(s *tempofb.SearchEntry) *tempopb.TraceSearchMetadata {
 	return &tempopb.TraceSearchMetadata{

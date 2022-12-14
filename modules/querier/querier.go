@@ -438,9 +438,9 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 	distinctValues := util.NewDistinctValueCollector(limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
 	// Virtual tags values. Get these first.
-	/*for _, v := range search.GetVirtualTagValuesV2(req.TagName) {
+	for _, v := range search.GetVirtualTagValuesV2(req.TagName) {
 		distinctValues.Collect(v)
-	}*/
+	}
 
 	// Get results from all ingesters
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
