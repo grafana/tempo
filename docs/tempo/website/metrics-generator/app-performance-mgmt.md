@@ -11,7 +11,7 @@ weight: 200
 Application performance management (APM) uses data gathered from services, agents, systems, and microservices to visualize and identify areas of concern.
 
 The Grafana APM dashboard visualizes the span metrics (traces data for rates, error rates, and durations (RED)) and service graphs.
-Once the requirements are set up, this pre-configured dashboard is immediately available.  
+Once the requirements are set up, this pre-configured dashboard is immediately available.
 
 You can use the APM dashboard to:
 
@@ -20,7 +20,7 @@ You can use the APM dashboard to:
 * Determine how long the slowest queries in your service take to complete
 * Examine all traces that contain spans of particular interest based on rate, error and duration values (RED signals)
 
-<p align="center"><img src="../../getting-started/apm-overview.png" alt="APM dashboard"></p>
+<p align="center"><img src="../../getting-started/assets/apm-overview.png" alt="APM dashboard"></p>
 
 ## Requirements to enable the APM dashboard
 
@@ -39,7 +39,7 @@ For information on how to configure these features, refer to the [Grafana Tempo 
 
 ## APM dashboard
 
-Using this dashboard, you can see the top five spans with a type of server (listed in the `Name` column).  
+Using this dashboard, you can see the top five spans with a type of server (listed in the `Name` column).
 You can refine any of this data using the filters.
 Selecting any of the data points lets you see more specific data.
 
@@ -96,11 +96,11 @@ Service graphs help to understand the structure of a distributed system, and the
 
 Service graphs infer the topology of a distributed system, provide a high level overview of the health of your system, and a historic view of a system’s topology.
 Service graphs show error rates and latencies, among other relevant data.
-The service graph layout can be the default or grid. 
+The service graph layout can be the default or grid.
 
 <p align="center"><img src="../apm-service-graph-web.png" alt="APM service graph with a connected node layout"></p>
 
-The grid layout changes the service graph to a series of rows and columns. 
+The grid layout changes the service graph to a series of rows and columns.
 
 <p align="center"><img src="../apm-service-graph-rows.png" alt="APM service graph with grid layout"></p>
 
@@ -164,7 +164,7 @@ In the example below, each field or label represents a key-value pair. Number 1 
 
 <p align="center"><img src="../apm-filter-example-numbered.png" alt="APM filter example with numbers"></p>
 
-If your metrics queries are too specific, they may not return any results. 
+If your metrics queries are too specific, they may not return any results.
 
 Updating the filter to be less specific returns a result. In this case, the results show only span metrics data associated with the `span_name` label with a value of `/base.Ruler/Rules`. No service graph data was available.
 
