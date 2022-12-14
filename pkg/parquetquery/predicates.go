@@ -68,29 +68,7 @@ func (p *StringInPredicate) KeepValue(v pq.Value) bool {
 
 func (p *StringInPredicate) KeepPage(page pq.Page) bool {
 	// todo: check bounds
-
-	return p.helper.keepPage(func() bool {
-		// If a dictionary column then ensure at least one matching
-		// value exists in the dictionary
-		dict := page.Dictionary()
-		if dict != nil && dict.Len() > 0 {
-			len := dict.Len()
-
-			for i := 0; i < len; i++ {
-				dictionaryEntry := dict.Index(int32(i)).ByteArray()
-				for _, subs := range p.ss {
-					if bytes.Equal(dictionaryEntry, subs) {
-						// At least 1 string present in this page
-						return true
-					}
-				}
-			}
-
-			return false
-		}
-
-		return true
-	})
+	return p.helper.keepPage(page, p.KeepValue)
 }
 
 // RegexInPredicate checks for match against any of the given regexs.
@@ -157,27 +135,7 @@ func (p *RegexInPredicate) KeepValue(v pq.Value) bool {
 }
 
 func (p *RegexInPredicate) KeepPage(page pq.Page) bool {
-
-	return p.helper.keepPage(func() bool {
-		// If a dictionary column then ensure at least one matching
-		// value exists in the dictionary
-		dict := page.Dictionary()
-		if dict != nil && dict.Len() > 0 {
-			len := dict.Len()
-
-			for i := 0; i < len; i++ {
-				dictionaryEntry := dict.Index(int32(i))
-				if p.keep(&dictionaryEntry) {
-					// At least 1 dictionary entry matches
-					return true
-				}
-			}
-
-			return false
-		}
-
-		return true
-	})
+	return p.helper.keepPage(page, p.KeepValue)
 }
 
 type SubstringPredicate struct {
@@ -218,23 +176,7 @@ func (p *SubstringPredicate) KeepValue(v pq.Value) bool {
 }
 
 func (p *SubstringPredicate) KeepPage(page pq.Page) bool {
-	return p.helper.keepPage(func() bool {
-		// If a dictionary column then ensure at least one matching
-		// value exists in the dictionary
-		dict := page.Dictionary()
-		if dict != nil && dict.Len() > 0 {
-			len := dict.Len()
-			for i := 0; i < len; i++ {
-				if p.KeepValue(dict.Index(int32(i))) {
-					return true
-				}
-			}
-
-			return false
-		}
-
-		return true
-	})
+	return p.helper.keepPage(page, p.KeepValue)
 }
 
 // IntBetweenPredicate checks for int between the bounds [min,max] inclusive
@@ -324,24 +266,7 @@ func (p *GenericPredicate[T]) KeepPage(page pq.Page) bool {
 		}
 	}
 
-	return p.helper.keepPage(func() bool {
-		// If a dictionary column then ensure at least one matching
-		// value exists in the dictionary
-		dict := page.Dictionary()
-		if dict != nil && dict.Len() > 0 {
-			len := dict.Len()
-			for i := 0; i < len; i++ {
-				if p.KeepValue(dict.Index(int32(i))) {
-					return true
-				}
-			}
-
-			// No values matched
-			return false
-		}
-
-		return true
-	})
+	return p.helper.keepPage(page, p.KeepValue)
 }
 
 func (p *GenericPredicate[T]) KeepValue(v pq.Value) bool {
@@ -523,11 +448,29 @@ func (d *DictionaryPredicateHelper) setNewRowGroup() {
 	d.newRowGroup = true
 }
 
-func (d *DictionaryPredicateHelper) keepPage(fn func() bool) bool {
+func (d *DictionaryPredicateHelper) keepPage(page pq.Page, keepValue func(pq.Value) bool) bool {
 	if !d.newRowGroup {
 		return d.keepPagesInRowGroup
 	}
 
-	d.keepPagesInRowGroup = fn()
+	d.newRowGroup = false
+	d.keepPagesInRowGroup = true
+
+	// If a dictionary column then ensure at least one matching
+	// value exists in the dictionary
+	dict := page.Dictionary()
+	if dict != nil && dict.Len() > 0 {
+		d.keepPagesInRowGroup = false
+		len := dict.Len()
+
+		for i := 0; i < len; i++ {
+			dictionaryEntry := dict.Index(int32(i))
+			if keepValue(dictionaryEntry) {
+				d.keepPagesInRowGroup = true
+				break
+			}
+		}
+	}
+
 	return d.keepPagesInRowGroup
 }
