@@ -103,7 +103,7 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 		page := newWalBlockFlush(path, common.NewIDMap[int64]())
 
 		// attempt to load it now so we can bail if it's corrupt
-		_, err = page.File()
+		_, err = page.file()
 		if err != nil {
 			warning = fmt.Errorf("error opening file info: %s %w", page.path, err)
 			continue
@@ -115,7 +115,7 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 
 	// iterate through all files and build meta
 	for i, page := range b.flushed {
-		file, _ := page.File() // ignoring error b/c this was successfully loaded above
+		file, _ := page.file() // ignoring error b/c this was successfully loaded above
 		iter := makeIterFunc(context.Background(), file.RowGroups(), file)(columnPathTraceID, nil, columnPathTraceID)
 		defer iter.Close()
 
@@ -187,7 +187,6 @@ func ownsWALBlock(entry fs.DirEntry) bool {
 }
 
 type walBlockFlush struct {
-	pf   *parquet.File
 	path string
 	ids  *common.IDMap[int64]
 }
@@ -199,20 +198,29 @@ func newWalBlockFlush(path string, ids *common.IDMap[int64]) *walBlockFlush {
 	}
 }
 
-func (w *walBlockFlush) File() (*parquet.File, error) {
-	if w.pf == nil {
-		return openLocalParquetFile(w.path)
-		// if err != nil {
-		// 	return nil, err
-		// }
-		// w.pf = pf
+// file() opens the parquet file and returns it. previously this method cached the file on first open
+// but the memory cost of this was quite high. so instead we open it fresh every time
+func (w *walBlockFlush) file() (*parquet.File, error) {
+	file, err := os.OpenFile(w.path, os.O_RDONLY, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("error opening file: %w", err)
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("error getting file info: %w", err)
+	}
+	sz := info.Size()
+	pf, err := parquet.OpenFile(file, sz, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true), parquet.FileSchema(walSchema))
+	if err != nil {
+		return nil, fmt.Errorf("error opening parquet file: %w", err)
 	}
 
-	return w.pf, nil
+	return pf, nil
+
 }
 
 func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
-	pf, err := w.File()
+	pf, err := w.file()
 	if err != nil {
 		return nil, err
 	}
@@ -319,6 +327,7 @@ func (b *walBlock) openWriter() (err error) {
 			// there is tension between this value and search speeds. 250KB is the default, but leaving this default causes the wal to hold onto
 			// a large amount of memory in multitenant installs. Reducing this value causes parquet to cut pages more aggressively which slows down search
 			// this setting does not impact the blocks shipped to the backend, only the wal.
+			// todo: slowdown due to excessive pages is in parquetquery.StringInPredicate.KeepPage. review and improve this method
 			PageBufferSize: 10 * 1024,
 		})
 	} else {
@@ -428,7 +437,7 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.Sea
 
 	for _, page := range b.flushed {
 		if rowNumber, ok := page.ids.Get(id); ok {
-			file, err := page.File()
+			file, err := page.file()
 			if err != nil {
 				return nil, fmt.Errorf("error opening file %s: %w", page.path, err)
 			}
@@ -466,7 +475,7 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 	}
 
 	for i, page := range b.flushed {
-		file, err := page.File()
+		file, err := page.file()
 		if err != nil {
 			return nil, fmt.Errorf("error opening file %s: %w", page.path, err)
 		}
@@ -491,7 +500,7 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 
 func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
 	for i, page := range b.flushed {
-		file, err := page.File()
+		file, err := page.file()
 		if err != nil {
 			return fmt.Errorf("error opening file %s: %w", page.path, err)
 		}
@@ -507,7 +516,7 @@ func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts c
 
 func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
 	for i, page := range b.flushed {
-		file, err := page.File()
+		file, err := page.file()
 		if err != nil {
 			return fmt.Errorf("error opening file %s: %w", page.path, err)
 		}
@@ -530,7 +539,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 
 	iters := make([]*spansetIterator, 0, len(b.flushed))
 	for _, page := range b.flushed {
-		file, err := page.File()
+		file, err := page.file()
 		if err != nil {
 			return traceql.FetchSpansResponse{}, fmt.Errorf("error opening file %s: %w", page.path, err)
 		}
@@ -686,22 +695,4 @@ func (i *commonIterator) NextRow(ctx context.Context) (common.ID, parquet.Row, e
 
 func (i *commonIterator) Close() {
 	i.iter.Close()
-}
-
-func openLocalParquetFile(filename string) (*parquet.File, error) {
-	file, err := os.OpenFile(filename, os.O_RDONLY, 0644)
-	if err != nil {
-		return nil, fmt.Errorf("error opening file: %w", err)
-	}
-	info, err := file.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("error getting file info: %w", err)
-	}
-	sz := info.Size()
-	pf, err := parquet.OpenFile(file, sz, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true), parquet.FileSchema(walSchema))
-	if err != nil {
-		return nil, fmt.Errorf("error opening parquet file: %w", err)
-	}
-
-	return pf, nil
 }
