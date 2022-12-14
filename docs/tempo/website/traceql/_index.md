@@ -50,7 +50,6 @@ TraceQL recognizes two types of data: intrinsics, which are fundamental to spans
 In TraceQL, curly brackets `{}` always select a set of spans from the current trace. They are commonly paired with a condition to reduce the spans being passed in.
 
 This simple query will be evaluated on every span of every trace, one at a time.
-
 ```
 { .http.status = 200 }
 ```
@@ -81,7 +80,6 @@ Attributes in a query start with a scope (see Scoped attribute fields section be
 ```
 
 Or like this:
-
 ```
 { .http.method ="GET"}
 ```
@@ -89,13 +87,11 @@ Or like this:
 #### Examples
 
 Find traces that passed through the prod namespace:
-
 ```
 { .namespace = "prod" }
 ```
 
 Find any database connection string that goes to a Postgres or MySQL database:
-
 ```
 { .db.system =~ "postgresql|mysql" }
 ```
