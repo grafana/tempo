@@ -15,7 +15,6 @@ keywords:
 
 With Tempo 2.0, you can use the TraceQL query editor in the Tempo data source to build queries and drill-down into result sets. The editor is available in Grafana’s Explore interface.
 
-This screenshot shows the query and results from the search above, `{ .http.method = "POST" } | by(.http.target) | count() > 2`.
 
 <p align="center"><img src="../assets/query-editor-http-method.png" alt="Query editor showing request for http.method" /></p>
 
