@@ -13,11 +13,12 @@ keywords:
 
 # TraceQL
 
-Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo. Currently, TraceQL query can select traces based on the following see [future work](./architecture.md) for where the language is heading.
+Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo. Currently, TraceQL query can select traces based on the following:
 
 - Span and resource attributes, timing, and duration
 - Basic aggregates: `count()` and `avg()`
 
+For information on where the language is headed, see [future work](architecture).
 The TraceQL language uses similar syntax and semantics as [PromQL](https://grafana.com/blog/2020/02/04/introduction-to-promql-the-prometheus-query-language/) and [LogQL](https://grafana.com/docs/loki/latest/logql/), where possible. TraceQL recognizes two types of data: intrinsics, which are fundamental to spans, and attributes, which are customizable key-value pairs.
 
 TraceQL requires Tempo’s Parquet columnar format to be enabled. For information on enabling Parquet, refer to the [Apache Parquet backend](https://grafana.com/docs/tempo/latest/configuration/parquet/) Tempo documentation.
@@ -38,6 +39,8 @@ In TraceQL, a query is an expression that is evaluated on one trace at a time. T
 
 <!--  jpe finish ... -->
 In this case, the search looks for reduces traces to those spans that match the criteria `http.status_code` is in the range of `200` to `300`.  The returned spansets contain more than 2.
+
+TraceQL recognizes two types of data: intrinsics, which are fundamental to spans, and attributes, which are customizable key-value pairs. You can use intrinsics and attributes to refine queries. 
 
 Queries select sets of spans and filter them through a pipeline of aggregators and conditions. If a spanset is produced after evaluation on a trace, then this spanset (and by extension the trace) is included in the result set of the query.
 
@@ -71,7 +74,7 @@ Intrinsic fields are fundamental to spans. These fields can be referenced when s
 
 Attribute fields are derived from the span and can be customized. Process and span attribute types are [defined by the attribute itself](https://github.com/open-telemetry/opentelemetry-proto/blob/b43e9b18b76abf3ee040164b55b9c355217151f3/opentelemetry/proto/common/v1/common.proto#L30-L38), whereas intrinsic fields have a built-in type. You can refer to dynamic attributes (also known as tags) on the span or the span's resource.
 
-Attributes in a query start with a period and must end with a space. To find traces with the `GET HTTP` method, your query could look like this:
+Attributes in a query start with a scope (see Scoped attribute fields section below). To find traces with the `GET HTTP` method, your query could look like this:
 
 ```
 { .http.method = "GET" }
