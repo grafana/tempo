@@ -14,6 +14,16 @@ import (
 	"github.com/segmentio/parquet-go"
 )
 
+var translateTagToAttribute = map[string]traceql.Attribute{
+	LabelName:       traceql.NewIntrinsic(traceql.IntrinsicName),
+	LabelStatusCode: traceql.NewIntrinsic(traceql.IntrinsicStatus),
+}
+
+var nonTraceQLAttributes = map[string]string{
+	LabelRootServiceName: columnPathRootServiceName,
+	LabelRootSpanName:    columnPathRootSpanName,
+}
+
 func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTags",
 		opentracing.Tags{
@@ -137,13 +147,19 @@ func searchTags(_ context.Context, cb common.TagCallback, pf *parquet.File) erro
 }
 
 func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
+
+	att, ok := translateTagToAttribute[tag]
+	if !ok {
+		att = traceql.NewAttribute(tag)
+	}
+
 	// Wrap to v2-style
 	cb2 := func(v traceql.Static) bool {
 		cb(strings.Trim(v.String(), "`"))
 		return false
 	}
 
-	return b.SearchTagValuesV2(ctx, traceql.NewAttribute(tag), cb2, opts)
+	return b.SearchTagValuesV2(ctx, att, cb2, opts)
 }
 
 func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
@@ -177,25 +193,21 @@ func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCa
 		return nil
 	}
 
+	// Special handling for weird non-traceql things
+	if columnPath := nonTraceQLAttributes[tag.Name]; columnPath != "" {
+		err := searchSpecialTagValues(ctx, columnPath, pf, cb)
+		if err != nil {
+			return fmt.Errorf("unexpected error searching special tags: %s %w", columnPath, err)
+		}
+		return nil
+	}
+
 	// Search dedicated attribute column if one exists and is a compatible scope.
 	column := wellKnownColumnLookups[tag.Name]
 	if column.columnPath != "" && (tag.Scope == column.level || tag.Scope == traceql.AttributeScopeNone) {
 		err := searchSpecialTagValues(ctx, column.columnPath, pf, cb)
 		if err != nil {
 			return fmt.Errorf("unexpected error searching special tags: %w", err)
-		}
-	}
-
-	// Look in non-traceql column mappings (ex: root.name)
-	// Unless a scope is specified, these mappings don't work with scopes
-	// And don't double search column was already in the well-known lookups
-	if tag.Scope == traceql.AttributeScopeNone {
-		if columnPath := labelMappings[tag.Name]; columnPath != "" && columnPath != column.columnPath {
-			err := searchSpecialTagValues(ctx, columnPath, pf, cb)
-			if err != nil {
-				return fmt.Errorf("unexpected error searching special tags: %w", err)
-			}
-			return nil
 		}
 	}
 

@@ -428,6 +428,51 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	return resp, nil
 }
 
+func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
+	userID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "error extracting org id in Querier.SearchTagValues")
+	}
+
+	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
+	distinctValues := util.NewDistinctValueCollector(limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+
+	// Virtual tags values. Get these first.
+	/*for _, v := range search.GetVirtualTagValuesV2(req.TagName) {
+		distinctValues.Collect(v)
+	}*/
+
+	// Get results from all ingesters
+	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	if err != nil {
+		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTagValues")
+	}
+	lookupResults, err := q.forGivenIngesters(ctx, replicationSet, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
+		return client.SearchTagValuesV2(ctx, req)
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "error querying ingesters in Querier.SearchTagValues")
+	}
+	for _, resp := range lookupResults {
+		for _, res := range resp.response.(*tempopb.SearchTagValuesV2Response).TagValues {
+			distinctValues.Collect(*res)
+		}
+	}
+
+	if distinctValues.Exceeded() {
+		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
+	}
+
+	resp := &tempopb.SearchTagValuesV2Response{}
+
+	for _, v := range distinctValues.Values() {
+		v2 := v
+		resp.TagValues = append(resp.TagValues, &v2)
+	}
+
+	return resp, nil
+}
+
 // SearchBlock searches the specified subset of the block for the passed tags.
 func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	// if we have no external configuration always search in the querier

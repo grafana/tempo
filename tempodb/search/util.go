@@ -24,6 +24,20 @@ func GetVirtualTagValues(tagName string) []string {
 	return nil
 }
 
+/*func GetVirtualTagValuesV2(tagName string) []tempopb.TagValue {
+
+	switch tagName {
+	case trace.StatusCodeTag:
+		return []tempopb.TagValue{
+			{Type: "keyword", Value: trace.StatusCodeUnset},
+			{Type: "keyword", Value: trace.StatusCodeOK},
+			{Type: "keyword", Value: trace.StatusCodeError},
+		}
+	}
+
+	return nil
+}*/
+
 func GetSearchResultFromData(s *tempofb.SearchEntry) *tempopb.TraceSearchMetadata {
 	return &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(s.Id()),

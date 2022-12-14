@@ -12,6 +12,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/api"
 	v2 "github.com/grafana/tempo/pkg/model/v2"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 
 	"github.com/grafana/tempo/pkg/tempofb"
@@ -405,6 +406,107 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	return &tempopb.SearchTagValuesResponse{
 		TagValues: distinctValues.Strings(),
 	}, nil
+}
+
+func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
+	userID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	tag, err := traceql.ParseIdentifier(req.TagName)
+	if err != nil {
+		return nil, err
+	}
+
+	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
+	distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+
+	cb := func(v traceql.Static) bool {
+		tv := tempopb.TagValue{}
+
+		switch v.Type {
+		case traceql.TypeString:
+			tv.Type = "string"
+			tv.Value = v.S // avoid formatting
+
+		case traceql.TypeBoolean:
+			tv.Type = "bool"
+			tv.Value = v.String()
+
+		case traceql.TypeInt:
+			tv.Type = "int"
+			tv.Value = v.String()
+
+		case traceql.TypeFloat:
+			tv.Type = "float"
+			tv.Value = v.String()
+
+		case traceql.TypeDuration:
+			tv.Type = "duration"
+			tv.Value = v.String()
+
+		case traceql.TypeStatus:
+			tv.Type = "keyword"
+			tv.Value = v.String()
+		}
+
+		return distinctValues.Collect(tv)
+	}
+
+	// wal blocks
+	err = func() error {
+		i.blocksMtx.RLock()
+		defer i.blocksMtx.RUnlock()
+
+		for _, b := range i.completingBlocks {
+			err = b.SearchTagValuesV2(ctx, tag, cb, common.DefaultSearchOptions())
+			if err == common.ErrUnsupported {
+				level.Warn(log.Logger).Log("msg", "block does not support tag value search v2", "blockID", b.BlockMeta().BlockID)
+				continue
+			}
+			if err != nil {
+				return fmt.Errorf("unexpected error searching tag values v2 (%s): %w", b.BlockMeta().BlockID, err)
+			}
+		}
+
+		return nil
+	}()
+
+	// local blocks
+	if !distinctValues.Exceeded() {
+		err = func() error {
+			i.blocksMtx.RLock()
+			defer i.blocksMtx.RUnlock()
+			for _, b := range i.completeBlocks {
+				err = b.SearchTagValuesV2(ctx, tag, cb, common.DefaultSearchOptions())
+				if err == common.ErrUnsupported {
+					level.Warn(log.Logger).Log("msg", "block does not support tag value search v2", "blockID", b.BlockMeta().BlockID)
+					continue
+				}
+				if err != nil {
+					return fmt.Errorf("unexpected error searching tag values v2 (%s): %w", b.BlockMeta().BlockID, err)
+				}
+				if distinctValues.Exceeded() {
+					break
+				}
+			}
+			return nil
+		}()
+	}
+
+	if distinctValues.Exceeded() {
+		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
+	}
+
+	resp := &tempopb.SearchTagValuesV2Response{}
+
+	for _, v := range distinctValues.Values() {
+		v2 := v
+		resp.TagValues = append(resp.TagValues, &v2)
+	}
+
+	return resp, nil
 }
 
 func (i *instance) visitSearchEntriesLiveTraces(ctx context.Context, visitFn func(entry *tempofb.SearchEntry)) error {
