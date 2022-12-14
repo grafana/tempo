@@ -37,10 +37,9 @@ func NewStringInPredicate(ss []string) Predicate {
 }
 
 func (p *StringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
-	p.helper.setNewRowGroup()
+	p.helper.setNewRowGroup(cc)
 
 	if ci := cc.ColumnIndex(); ci != nil {
-
 		for _, subs := range p.ss {
 			for i := 0; i < ci.NumPages(); i++ {
 				ok := bytes.Compare(ci.MinValue(i).ByteArray(), subs) <= 0 && bytes.Compare(ci.MaxValue(i).ByteArray(), subs) >= 0
@@ -121,7 +120,7 @@ func (p *RegexInPredicate) keep(v *pq.Value) bool {
 }
 
 func (p *RegexInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
-	p.helper.setNewRowGroup()
+	p.helper.setNewRowGroup(cc)
 
 	// Reset match cache on each row group change
 	p.matches = make(map[string]bool, len(p.matches))
@@ -238,7 +237,7 @@ func NewGenericPredicate[T any](fn func(T) bool, rangeFn func(T, T) bool, extrac
 }
 
 func (p *GenericPredicate[T]) KeepColumnChunk(c pq.ColumnChunk) bool {
-	p.helper.setNewRowGroup()
+	p.helper.setNewRowGroup(c)
 
 	if p.RangeFn == nil {
 		return true
@@ -440,11 +439,13 @@ func (p *InstrumentedPredicate) KeepValue(v pq.Value) bool {
 // KeepColumnChunk. This predicate saves the result of KeepPage and uses it for
 // all pages in the row group
 type DictionaryPredicateHelper struct {
+	numValues           int64
 	newRowGroup         bool
 	keepPagesInRowGroup bool
 }
 
-func (d *DictionaryPredicateHelper) setNewRowGroup() {
+func (d *DictionaryPredicateHelper) setNewRowGroup(cc pq.ColumnChunk) {
+	d.numValues = cc.NumValues()
 	d.newRowGroup = true
 }
 
@@ -459,16 +460,20 @@ func (d *DictionaryPredicateHelper) keepPage(page pq.Page, keepValue func(pq.Val
 	// If a dictionary column then ensure at least one matching
 	// value exists in the dictionary
 	dict := page.Dictionary()
-	if dict != nil && dict.Len() > 0 {
-		d.keepPagesInRowGroup = false
-		len := dict.Len()
+	if dict == nil {
+		return d.keepPagesInRowGroup
+	}
 
-		for i := 0; i < len; i++ {
-			dictionaryEntry := dict.Index(int32(i))
-			if keepValue(dictionaryEntry) {
-				d.keepPagesInRowGroup = true
-				break
-			}
+	len := dict.Len()
+	if len > int(d.numValues)/10 { // if our length is a significant portion of the total values, then using the dictionary is worse. 10 is a guess
+		return d.keepPagesInRowGroup
+	}
+
+	for i := 0; i < len; i++ {
+		dictionaryEntry := dict.Index(int32(i))
+		if keepValue(dictionaryEntry) {
+			d.keepPagesInRowGroup = true
+			break
 		}
 	}
 
