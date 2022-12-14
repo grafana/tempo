@@ -27,7 +27,7 @@ TraceQL requires Tempo’s Parquet columnar format to be enabled. For informatio
 
 With Tempo 2.0, you can use the TraceQL query editor in the Tempo data source to build queries and drill-down into result sets. The editor is available in Grafana’s Explore interface. For more information, refer to [TraceQL query editor](query-editor.md).
 
-<p align="center"><img src="../assets/query-editor-http-method.png" alt="Query editor showing request for http.method" /></p>
+<p align="center"><img src="assets/query-editor-http-method.png" alt="Query editor showing request for http.method" /></p>
 
 ## Construct a TraceQL query
 
@@ -38,14 +38,14 @@ In TraceQL, a query is an expression that is evaluated on one trace at a time. T
 ```
 
 <!--  jpe finish ... -->
-In this case, the search looks for reduces traces to those spans that match the criteria `http.status_code` is in the range of `200` to `300`.  The returned spansets contain more than 2.
-
-TraceQL recognizes two types of data: intrinsics, which are fundamental to spans, and attributes, which are customizable key-value pairs. You can use intrinsics and attributes to refine queries. 
+In this case, the search reduces traces to those spans that match the criteria `http.status_code` is in the range of `200` to `300`.  The returned spansets contain more than 2.
 
 Queries select sets of spans and filter them through a pipeline of aggregators and conditions. If a spanset is produced after evaluation on a trace, then this spanset (and by extension the trace) is included in the result set of the query.
 
 
 ## Selecting spans
+
+TraceQL recognizes two types of data: intrinsics, which are fundamental to spans, and attributes, which are customizable key-value pairs. You can use intrinsics and attributes to refine queries.
 
 In TraceQL, curly brackets `{}` always select a set of spans from the current trace. They are commonly paired with a condition to reduce the spans being passed in.
 
@@ -105,11 +105,16 @@ Find any database connection string that goes to a Postgres or MySQL database:
 Attributes can be specifically scoped to either "span" or "resource". Specifying "span" or "resource" can result in significant performance benefits because it reduces the amount of data that Tempo has to retrieve to answer your query.
 
 For example, to find traces with a span attribute of `http.status` set to `200`:
+```
 { span.http.status = 200 }
-To find traces where a the resource `namespace` is set to `prod`:
-{ resource.namespace = "prod" }
+```
 
-<p align="center"><img src="../assets/span-resource-attributes.png" alt="Example of span resources and attributes" /></p>
+To find traces where a the resource `namespace` is set to `prod`:
+```
+{ resource.namespace = "prod" }
+```
+
+<p align="center"><img src="assets/span-resource-attributes.png" alt="Example of span resources and attributes" /></p>
 
 
 ### Comparison operators
@@ -117,6 +122,7 @@ To find traces where a the resource `namespace` is set to `prod`:
 Comparison operators are used to test values within an expression.
 
 The implemented comparison operators are:
+
 - `=` (equality)
 - `!=` (inequality)
 - `>` (greater than)

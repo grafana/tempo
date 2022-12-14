@@ -4,7 +4,7 @@ menuTitle: TraceQL query editor
 description: Learn how to use the TraceQL query editor
 aliases:
   - /docs/tempo/latest/traceql/construct-query
-weight: 100
+weight: 400
 keywords:
   - Tempo query language
   - query language
