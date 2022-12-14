@@ -35,11 +35,10 @@ func TestSpanMetrics(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
-		"service":        "test-service",
-		"span_name":      "test",
-		"span_kind":      "SPAN_KIND_CLIENT",
-		"status_code":    "STATUS_CODE_OK",
-		"status_message": "OK",
+		"service":     "test-service",
+		"span_name":   "test",
+		"span_kind":   "SPAN_KIND_CLIENT",
+		"status_code": "STATUS_CODE_OK",
 	})
 
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
@@ -57,6 +56,8 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
+	cfg.IntrinsicDimensions.SpanKind = false
+	cfg.IntrinsicDimensions.StatusMessage = true
 	cfg.Dimensions = []string{"foo", "bar", "does-not-exist"}
 
 	p := New(cfg, testRegistry)
@@ -86,7 +87,6 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	lbls := labels.FromMap(map[string]string{
 		"service":        "test-service",
 		"span_name":      "test",
-		"span_kind":      "SPAN_KIND_CLIENT",
 		"status_code":    "STATUS_CODE_OK",
 		"status_message": "OK",
 		"foo":            "foo-value",
@@ -109,7 +109,7 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
-	cfg.Dimensions = []string{"span.kind", "status_message"}
+	cfg.Dimensions = []string{"span.kind", "span_name"}
 
 	p := New(cfg, testRegistry)
 	defer p.Shutdown(context.Background())
@@ -122,8 +122,8 @@ func TestSpanMetrics_collisions(t *testing.T) {
 				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "colliding_kind"}},
 			})
 			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
-				Key:   "status_message",
-				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "colliding_message"}},
+				Key:   "span_name",
+				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "colliding_name"}},
 			})
 		}
 	}
@@ -133,13 +133,12 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
-		"service":          "test-service",
-		"span_name":        "test",
-		"span_kind":        "SPAN_KIND_CLIENT",
-		"status_code":      "STATUS_CODE_OK",
-		"status_message":   "OK",
-		"__span_kind":      "colliding_kind",
-		"__status_message": "colliding_message",
+		"service":     "test-service",
+		"span_name":   "test",
+		"span_kind":   "SPAN_KIND_CLIENT",
+		"status_code": "STATUS_CODE_OK",
+		"__span_kind": "colliding_kind",
+		"__span_name": "colliding_name",
 	})
 
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
