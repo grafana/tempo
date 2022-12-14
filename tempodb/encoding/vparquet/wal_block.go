@@ -47,6 +47,11 @@ var walSchema = parquet.SchemaOf(&Trace{})
 
 // openWALBlock opens an existing appendable block.  It is read-only by
 // not assigning a decoder.
+//
+// there's an interesting bug here that does not come into play due to the fact that we do not append to a wal created with this method.
+// if there are 2 wal files and the second is loaded succesfully, but the first fails then b.flushed will contain one entry. then when
+// calling b.openWriter() it will attempt to create a new file as path/folder/00002 which will overwrite the first file. as long as we never
+// append to this file it should be ok.
 func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ time.Duration) (common.WALBlock, error, error) {
 	dir := filepath.Join(path, filename)
 	_, _, version, err := parseName(filename)
@@ -102,27 +107,20 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 		path := filepath.Join(dir, f.Name())
 		page := newWalBlockFlush(path, common.NewIDMap[int64]())
 
-		// attempt to load it now so we can bail if it's corrupt
-		_, err = page.file()
+		file, err := page.file()
 		if err != nil {
 			warning = fmt.Errorf("error opening file info: %s %w", page.path, err)
 			continue
 		}
 
-		b.flushed = append(b.flushed, page)
-		b.flushedSize += i.Size()
-	}
-
-	// iterate through all files and build meta
-	for i, page := range b.flushed {
-		file, _ := page.file() // ignoring error b/c this was successfully loaded above
+		// iterate the parquet file and build the meta
 		iter := makeIterFunc(context.Background(), file.RowGroups(), file)(columnPathTraceID, nil, columnPathTraceID)
 		defer iter.Close()
 
 		for {
 			match, err := iter.Next()
 			if err != nil {
-				return nil, nil, fmt.Errorf("error opening wal folder [%s %d]: %w", b.meta.BlockID.String(), i, err)
+				return nil, nil, fmt.Errorf("error iterating wal page [%s %d]: %w", b.meta.BlockID.String(), i, err)
 			}
 			if match == nil {
 				break
@@ -137,6 +135,9 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 				}
 			}
 		}
+
+		b.flushed = append(b.flushed, page)
+		b.flushedSize += i.Size()
 	}
 
 	return b, warning, nil
