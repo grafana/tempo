@@ -325,11 +325,9 @@ func (b *walBlock) openWriter() (err error) {
 	if b.writer == nil {
 		b.writer = parquet.NewGenericWriter[*Trace](b.file, &parquet.WriterConfig{
 			Schema: walSchema,
-			// there is tension between this value and search speeds. 250KB is the default, but leaving this default causes the wal to hold onto
-			// a large amount of memory in multitenant installs. Reducing this value causes parquet to cut pages more aggressively which slows down search
-			// this setting does not impact the blocks shipped to the backend, only the wal.
-			// todo: slowdown due to excessive pages is in parquetquery.StringInPredicate.KeepPage. review and improve this method
-			PageBufferSize: 10 * 1024,
+			// setting this value low massively reduces the amount of static memory we hold onto in highly multi-tenant environments at the cost of
+			// cutting pages more aggressively when writing column chunks
+			PageBufferSize: 1024,
 		})
 	} else {
 		b.writer.Reset(b.file)
