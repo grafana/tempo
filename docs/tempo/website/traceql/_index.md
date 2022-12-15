@@ -189,7 +189,7 @@ So far, all of the example queries expressions have been about individual spans.
 - `count` - The total count across a given intrinsic or items.
 - `avg` - The average across a given intrinsic or items.
 
-Aggregate functions allow you to carry out operations on matching results to further refine the traces returned. <jpe> More aggregations are planned in the future <jpe link to future doc>
+Aggregate functions allow you to carry out operations on matching results to further refine the traces returned. For more information on planned future work, refer to [How TraceQL works]({{< relref "architecture" >}}).
 
 For example, to find traces where the total number of spans is greater than `10`:
 
