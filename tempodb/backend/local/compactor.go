@@ -2,6 +2,7 @@ package local
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -20,14 +21,20 @@ func (rw *Backend) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error 
 
 func (rw *Backend) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	if len(tenantID) == 0 {
-		return fmt.Errorf("empty tenant id")
+		return errors.New("empty tenant id")
 	}
 
 	if blockID == uuid.Nil {
-		return fmt.Errorf("empty block id")
+		return errors.New("empty block id")
 	}
 
-	return os.RemoveAll(rw.rootPath(backend.KeyPathForBlock(blockID, tenantID)))
+	path := rw.rootPath(backend.KeyPathForBlock(blockID, tenantID))
+	err := os.RemoveAll(path)
+	if err != nil {
+		return fmt.Errorf("failed to remove keypath for block %s: %w", path, err)
+	}
+
+	return nil
 }
 
 func (rw *Backend) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
