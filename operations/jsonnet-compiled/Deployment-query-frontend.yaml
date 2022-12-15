@@ -25,9 +25,9 @@ spec:
     spec:
       containers:
       - args:
-        - -target=query-frontend
         - -config.file=/conf/tempo.yaml
         - -mem-ballast-size-mbs=1024
+        - -target=query-frontend
         image: grafana/tempo:latest
         imagePullPolicy: IfNotPresent
         name: query-frontend

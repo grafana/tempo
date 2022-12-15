@@ -1,4 +1,12 @@
 ## main / unreleased
+* [ENHANCEMENT] Add zone awareness replication for ingesters. [#1936](https://github.com/grafana/tempo/pull/1936) (@manohar-koukuntla)
+```
+# use the following fields in _config field of jsonnet config, to enable zone aware ingester
+    multi_zone_ingester_enabled: false,
+    multi_zone_ingester_migration_enabled: false,
+    multi_zone_ingester_replicas: 0,
+    multi_zone_ingester_max_unavailable: 25,
+```
 * [BUGFIX] Stop distributors on Otel receiver fatal error[#1887](https://github.com/grafana/tempo/pull/1887) (@rdooley)
 * [CHANGE] **BREAKING CHANGE** Use snake case on Azure Storage config [#1879](https://github.com/grafana/tempo/issues/1879) (@faustodavid)
 Example of using snake case on Azure Storage config:
