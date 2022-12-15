@@ -441,13 +441,14 @@ func (p *InstrumentedPredicate) KeepValue(v pq.Value) bool {
 // all pages in the row group. It also has a basic heuristic for choosing not
 // to check the dictionary at all if the cardinality is too high.
 type DictionaryPredicateHelper struct {
-	numValues           int64
+	fullScanThreshold   int64
 	newRowGroup         bool
 	keepPagesInRowGroup bool
 }
 
 func (d *DictionaryPredicateHelper) setNewRowGroup(cc pq.ColumnChunk) {
-	d.numValues = cc.NumValues()
+	// if our length is a significant portion of the total values, then using the dictionary is worse. 1.2 is a guess. todo: tune this value
+	d.fullScanThreshold = int64(float32(cc.NumValues()) / 1.2) // jpe remove?
 	d.newRowGroup = true
 }
 
@@ -467,9 +468,9 @@ func (d *DictionaryPredicateHelper) keepPage(page pq.Page, keepValue func(pq.Val
 	}
 
 	l := dict.Len()
-	if d.numValues > 0 && int64(l) > d.numValues/4 { // if our length is a significant portion of the total values, then using the dictionary is worse. 4 is a guess
-		return d.keepPagesInRowGroup
-	}
+	// if d.fullScanThreshold > 0 && int64(l) > d.fullScanThreshold { jpe remove?
+	// 	return d.keepPagesInRowGroup
+	// }
 
 	d.keepPagesInRowGroup = false
 	for i := 0; i < l; i++ {
