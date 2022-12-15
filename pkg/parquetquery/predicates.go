@@ -434,12 +434,12 @@ func (p *InstrumentedPredicate) KeepValue(v pq.Value) bool {
 }
 
 // DictionaryPredicateHelper is a helper for a predicate that uses a dictionary
-// for filtering. it implements the Predicate interface and can be used
-// to simply dictionary handling.
+// for filtering.
 //
 // There is one dictionary per ColumnChunk/RowGroup, but it is not accessible in
-// KeepColumnChunk. This predicate saves the result of KeepPage and uses it for
-// all pages in the row group
+// KeepColumnChunk. This helper saves the result of KeepPage and uses it for
+// all pages in the row group. It also has a basic heuristic for choosing not
+// to check the dictionary at all if the cardinality is too high.
 type DictionaryPredicateHelper struct {
 	numValues           int64
 	newRowGroup         bool
