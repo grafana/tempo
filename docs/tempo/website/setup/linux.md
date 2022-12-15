@@ -3,10 +3,7 @@ title: Deploy on Linux
 menuTitle: Deploy on Linux
 description: Learn how to deploy Tempo on Linux
 weight: 100
-draft: true
 ---
-
-<!-- This page was migrated from GET and needs to have the repo and file locations updated for Tempo. -->
 
 # Deploy on Linux
 
@@ -46,187 +43,142 @@ This is not recommended for production deployments. This guide focuses on setup 
 This example uses [Amazon S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html) on the AWS `us-east-1` region as your object store.
 If you plan on using a different region or object storage service, update the storage fields in the configuration file below. Currently, the supported object storage backends are AWS S3, other S3-compliant object stores, and Google Cloud’s GCS.
 
-After you have provisioned an object storage backend, create two buckets: `grafana-traces-admin` and `grafana-traces-data`.
-These buckets will be referenced in the configuration file of this guide.
-You may need to alter the bucket names to be globally unique.
+After you have provisioned an object storage backend, create the bucket `grafana-traces-data`.
+The buckets will be referenced in the configuration file of this guide.
+You may need to alter the bucket name to be globally unique.
 
-Consider adding a prefix for your organization to the bucket, for example, `myorg-grafana-traces-admin` and `myorg-grafana-traces-data`, and then replacing the names in the rest of these instructions with those bucket names.
+Consider adding a prefix for your organization to the bucket, for example, `myorg-grafana-traces-data`, and then replacing the names in the rest of these instructions with those bucket names.
 
 ## Install Tempo
 
 For a linux-amd64 installation, run the following commands via the command line interface on your Linux machine.
 You need administrator privileges to do this by running as the `root` user or via `sudo` as a user with permissions to do so.
 
-1. Add a dedicated user and group and then change the password for the user to `enterprise-traces`:
-   ```bash
-     groupadd --system enterprise-traces
-     useradd --system --home-dir /var/lib/enterprise-traces -g enterprise-traces enterprise-traces
-     yes enterprise-traces | passwd enterprise-traces
-   ```
-
-1. Create directories and assign ownership.
+1. Download the tempo binary, verify checksums, and add network capabilities to the binary. Be sure to [download the correct package installation](https://github.com/grafana/tempo/releases/tag/v1.5.0) for your OS and architecture:
 
    ```bash
-     mkdir -p /etc/enterprise-traces /var/lib/enterprise-traces /var/lib/enterprise-traces/rules-temp /var/lib/enterprise-traces/wal/search
-     chown root:enterprise-traces /etc/enterprise-traces
-     chown enterprise-traces:enterprise-traces /var/lib/enterprise-traces /var/lib/enterprise-traces/rules-temp /var/lib enterprise-traces/wal /var/lib/enterprise-traces/wal/search
-     chmod 0750 /etc/enterprise-traces /var/lib/enterprise-traces /var/lib/enterprise-traces/wal /var/lib/enterprise-traces/wal/search
-   ```
-
-1. Download the enterprise-traces binary, verify checksums, and add network capabilities to the binary:
-
-   ```bash
-   curl -Lo /usr/local/bin/enterprise-traces \
-   https://dl.grafana.com/get/releases/enterprise-traces-v1.3.0-linux-amd64
-   echo d950922d2038c84620ebe63a21786b9eaf8d4ed5f1801e6664133520407e5e86 \
-     /usr/local/bin/enterprise-traces | sha256sum -c
-   chmod 0755 /usr/local/bin/enterprise-traces
-   setcap 'cap_net_bind_service=+ep' /usr/local/bin/enterprise-traces
-   ```
-
-1. Set up systemd unit and enable startup on boot:
-
-   ```bash
-   cat > /etc/systemd/system/enterprise-traces.service <<EOF
-   [Unit]
-   After=network.target
-
-   [Service]
-   User=enterprise-traces
-   Group=enterprise-traces
-   WorkingDirectory=/var/lib/enterprise-traces
-   ExecStart=/usr/local/bin/enterprise-traces \
-   -config.file=/etc/enterprise-traces/enterprise-traces.yaml \
-   -log.level=warn \
-
-   [Install]
-   WantedBy=default.target
-   EOF
-
-   systemctl daemon-reload
-   systemctl enable enterprise-traces.service
+   curl -Lo tempo_1.5.0_linux_amd64.deb https://github.com/grafana/tempo/releases/download/v1.5.0/tempo_1.5.0_linux_amd64.deb
+   echo 967b06434252766e424eef997162ef89257fdb232c032369ad2e644920337a8c \
+     tempo_1.5.0_linux_amd64.deb | sha256sum -c
+   dpkg -i tempo_1.5.0_linux_amd64.deb
    ```
 
 ## Create a Tempo configuration file
 
-Copy the following YAML configuration to a file called `enterprise-traces.yaml`.
+Copy the following YAML configuration to a file called `tempo.yaml`.
 
-Paste in your S3 credentials for admin_client and the storage backend. If you wish to give your cluster a unique name, add a cluster property with the appropriate name. If you do not add a cluster name this will be taken automatically from the license.
-By default, the `cluster_name` Update the `cluster_name` field with the name of the cluster your license was issued for and paste in your S3 credentials for the `admin_client`.
+Paste in your S3 credentials for admin_client and the storage backend. If you wish to give your cluster a unique name, add a cluster property with the appropriate name.
 
-Refer to the [Tempo configuration documentation]({<< relref "../configuration" >>}) for explanations of the available options.
+Refer to the [Tempo configuration documentation]({{< relref "../configuration" >}}) for explanations of the available options.
 
 In the following configuration, Tempo options are altered to only listen to the OTLP gRPC and HTTP protocols.
 By default, Tempo listens for all compatible protocols.
-The extended instructions for installing the TNS application and Grafana Agent to verify that Tempo is receiving traces relies on the default Jaeger port being available, hence disabling listening on that port in Tempo for a single Linux node.
+The [extended instructions for installing the TNS application]({{< relref "../linux" >}}) and Grafana Agent to verify that Tempo is receiving traces, relies on the default Jaeger port being available. If Tempo were also attempting to listen on the same port as the Grafana Agent for Jaeger, then Tempo would not start due a port conflict, hence we disable listening on that port in Tempo for a single Linux node.
 
 ```yaml
-multitenancy_enabled: true
+   metrics_generator_enabled: true
 
-http_api_prefix: /tempo
+   server:
+   http_listen_port: 3200
 
-distributor:
-  receivers:
-    otlp:
-      protocols:
-        grpc:
-        http:
+   distributor:
+   receivers:                           # this configuration will listen on all ports and protocols that tempo is capable of.
+      otlp:
+         protocols:
+         http:
+         grpc:
 
-ingester:
-    lifecycler:
-      ring:
-        replication_factor: 3
+   ingester:
+   trace_idle_period: 10s               # the length of time after a trace has not received spans to consider it complete and flush it
+   max_block_bytes: 1_000_000           # cut the head block when it hits this size or ...
+   max_block_duration: 5m               #   this much time passes
 
-server:
-    http_listen_port: 3200
+   compactor:
+   compaction:
+      compaction_window: 1h              # blocks in this time window will be compacted together
+      max_block_bytes: 100_000_000       # maximum size of compacted blocks
+      block_retention: 1h
+      compacted_block_retention: 10m
 
-storage:
-    trace:
-        backend: s3
-        s3:
-          endpoint: s3.us-east-1.amazonaws.com
-          bucket: grafana-traces-data
-          forcepathstyle: true
-          #set to true if endpoint is https
-          insecure: true
-          access_key: # TODO: insert your key id
-          secret_key: # TODO: insert your secret key
-        wal:
-          path: /var/lib/enterprise-traces/wal
+   metrics_generator:
+   registry:
+      external_labels:
+         source: tempo
+         cluster: linux-microservices
+   storage:
+      path: /tmp/tempo/generator/wal
+      remote_write:
+         - url: http://prometheus:9090/api/v1/write
+         send_exemplars: true
 
+   storage:
+   trace:
+      backend: s3
+      s3:
+         endpoint: s3.us-east-1.amazonaws.com
+         bucket: grafana-traces-data
+         forcepathstyle: true
+         #set to true if endpoint is https
+         insecure: true
+         access_key: # TODO - Add S3 access key
+         secret_key: # TODO - Add S3 secret key
+      block:
+         bloom_filter_false_positive: .05 # bloom filter false positive rate.  lower values create larger filters but fewer false positives
+         index_downsample_bytes: 1000     # number of bytes per index record
+         encoding: zstd                   # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
+      wal:
+         path: /tmp/tempo/wal             # where to store the the wal locally
+         encoding: snappy                 # wal encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
+      local:
+         path: /tmp/tempo/blocks
+      pool:
+         max_workers: 100                 # worker pool determines the number of parallel requests to the object store backend
+         queue_depth: 10000
+
+   overrides:
+   metrics_generator_processors: [service-graphs, span-metrics]
 ```
+>**Note:** that in the above configuration we enable the metrics generator to generate Prometheus metrics data from incoming trace spans. This is sent to a Prometheus remote write compatible metrics store at `http://prometheus:9090/api/v1/write` (in the `metrics_generator` configuration block). Ensure you change the relevant `url` parameter to your own Prometheus compatible storage instance, or disable the metrics generator by replacing `metrics_generator_enabled: true` with `metrics_generator_enabled: false` if you do not wish to generate span metrics.
 
 ## Move the configuration file to the proper directory
 
-The `enterprise-traces.yaml` file need to be moved: 
-
-- `enterprise-traces.yaml` should be copied to `/etc/enterprise-traces/enterprise-traces.yaml`
-
-Copy the configuration file to all nodes in the Tempo cluster:
+Copy the `tempo.yaml` to `/etc/tempo/config.yml`:
 
 ```bash
-cp enterprise-traces.yaml /etc/enterprise-traces/enterprise-traces.yaml
+cp tempo.yaml /etc/tempo/config.yml
 ```
 
-## Generate an admin token
+## Restart the tempo service
 
-1. Generate an admin token by running the following on a single node in the cluster, using the password for the `enterprise-traces` user set earlier:
-
-   ```bash
-   su enterprise-traces -c "/usr/local/bin/enterprise-traces \
-      --config.file=/etc/enterprise-traces/enterprise-traces.yaml \
-      --license.path=/etc/enterprise-traces/license.jwt \
-      --log.level=warn \
-      --target=tokengen"
-   # Token created:  YWRtaW4tcG9saWN5LWJvb3RzdHJhcC10b2tlbjo8Ujc1IzQyfXBfMjd7fDIwMDRdYVxgeXw=
-   ```
-
-1. After you enter your password, the system outputs a new token. Save this token somewhere secure for future API calls and to enable the Tempo plugin.
-
-   ```bash
-   Password:
-   Token created: YourTokenHere12345
-   ```
-
-1. You can export the API token to use later in the procedure using the command below. Replace the value for the token with the one you generated.
-
-   ```bash
-   export API_TOKEN=YourTokenHere12345
-   ```
-
-## Start the tempo service
-
-Use `systemctl` to start the service:
+Use `systemctl` to restart the service (depending on how you installed Tempo, this may be different):
 
 ```bash
 systemctl start tempo.service
 ```
 
-You can replace `start` with `stop` to stop the service.
+You can replace `restart` with `stop` to stop the service, and `start` to start the service again after it's stopped, if required.
 
 ## Verify your cluster is working
 
-To verify your cluster is working, run the following command using the token you generated in the previous step.
+To verify that Tempo is working, run the following command:
 
 ```bash
-curl -u :$API_TOKEN localhost:3200/ready
+systemctl is-active tempo
 ```
 
-After running the above command, you should see the following output within 30-60 seconds:
+You should see the status `active` returned. If you do not, check that the configuration file is correct, and then restart the service. You can also use `journalctl -u tempo` to view the logs for Tempo to determine if there are any obvious reasons for failure to start.
 
-```bash
-ready
-```
+## Testing your installation
 
-This indicates the ingester component is ready to receive trace data.
+Verify that your storage bucket has received data by signing in to your storage provider and determining that a file has been written to storage. It should be called `tempo_cluster_seed.json`.
 
-## Use the CLI to send Tempo data to Grafana
+<!-- You can also [set up a test app]({{< relref "set-up-test-app">}}) to test that traces are received and visualized. -->
+
 
 <!-- Need info here --=>
 
-You can also [set up a test app]({{< relref "set-up-test-app">}}) to verfiy that traces are received and visualized. 
 
-<!-- Does not apply to Tempo 
+<!-- Does not apply to Tempo
 Refer to [Set up the Tempo plugin for Grafana]({{< relref "../setup-get-plugin-grafana" >}}) to integrate your Tempo cluster with Grafana and a UI to interact with the Admin API.
 -->
 
@@ -283,6 +235,6 @@ To set up the TNS app:
 1. Go to Grafana and select the **Explore** menu item.
 1. Select the **Tempo data source** from the list of data sources.
 1. Copy the trace ID into the **Trace ID** edit field.
-1. Select **Run query**. 
+1. Select **Run query**.
 1. The trace will be displayed in the traces **Explore** panel.
 -->
