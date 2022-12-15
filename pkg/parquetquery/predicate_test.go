@@ -39,8 +39,28 @@ func TestSubstringPredicate(t *testing.T) {
 				S string `parquet:",dict"`
 			}
 			require.NoError(t, w.Write(&dictString{"abc"}))
+			require.NoError(t, w.Write(&dictString{"abc"}))
+			require.NoError(t, w.Write(&dictString{"abc"}))
+			require.NoError(t, w.Write(&dictString{"abc"}))
+			require.NoError(t, w.Write(&dictString{"abc"}))
+		},
+	})
+
+	// If the dictionary cardinality is too high we just read the page anyway
+	testPredicate(t, predicateTestCase{
+		predicate:  NewSubstringPredicate("x"), // Not present in any values
+		keptChunks: 1,
+		keptPages:  1,
+		keptValues: 0,
+		writeData: func(w *parquet.Writer) { //nolint:all
+			type dictString struct {
+				S string `parquet:",dict"`
+			}
+			require.NoError(t, w.Write(&dictString{"abc"}))
 			require.NoError(t, w.Write(&dictString{"bcd"}))
 			require.NoError(t, w.Write(&dictString{"cde"}))
+			require.NoError(t, w.Write(&dictString{"def"}))
+			require.NoError(t, w.Write(&dictString{"efg"}))
 		},
 	})
 }
