@@ -347,17 +347,18 @@ func NewOrPredicate(preds ...Predicate) *OrPredicate {
 }
 
 func (p *OrPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+	ret := false
 	for _, p := range p.preds {
 		if p == nil {
 			// Nil means all values are returned
-			return true
+			ret = ret || true
 		}
 		if p.KeepColumnChunk(c) {
-			return true
+			ret = ret || true
 		}
 	}
 
-	return false
+	return true
 }
 
 func (p *OrPredicate) KeepPage(page pq.Page) bool {
