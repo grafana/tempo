@@ -352,6 +352,7 @@ func (p *OrPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
 		if p == nil {
 			// Nil means all values are returned
 			ret = ret || true
+			continue
 		}
 		if p.KeepColumnChunk(c) {
 			ret = ret || true
@@ -449,7 +450,7 @@ type DictionaryPredicateHelper struct {
 
 func (d *DictionaryPredicateHelper) setNewRowGroup(cc pq.ColumnChunk) {
 	// if our length is a significant portion of the total values, then using the dictionary is worse. 1.2 is a guess. todo: tune this value
-	d.fullScanThreshold = int64(float32(cc.NumValues()) / 1.2) // jpe remove?
+	d.fullScanThreshold = int64(float32(cc.NumValues()) / 1.2)
 	d.newRowGroup = true
 }
 
@@ -469,9 +470,9 @@ func (d *DictionaryPredicateHelper) keepPage(page pq.Page, keepValue func(pq.Val
 	}
 
 	l := dict.Len()
-	// if d.fullScanThreshold > 0 && int64(l) > d.fullScanThreshold { jpe remove?
-	// 	return d.keepPagesInRowGroup
-	// }
+	if d.fullScanThreshold > 0 && int64(l) > d.fullScanThreshold {
+		return d.keepPagesInRowGroup
+	}
 
 	d.keepPagesInRowGroup = false
 	for i := 0; i < l; i++ {

@@ -10,6 +10,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var _ Predicate = (*mockPredicate)(nil)
+
+type mockPredicate struct {
+	ret         bool
+	valCalled   bool
+	pageCalled  bool
+	chunkCalled bool
+}
+
+func newAlwaysTruePredicate() *mockPredicate {
+	return &mockPredicate{ret: true}
+}
+
+func newAlwaysFalsePredicate() *mockPredicate {
+	return &mockPredicate{ret: false}
+}
+
+func (p *mockPredicate) KeepValue(parquet.Value) bool             { p.valCalled = true; return p.ret }
+func (p *mockPredicate) KeepPage(parquet.Page) bool               { p.pageCalled = true; return p.ret }
+func (p *mockPredicate) KeepColumnChunk(parquet.ColumnChunk) bool { p.chunkCalled = true; return p.ret }
+
 func TestSubstringPredicate(t *testing.T) {
 
 	// Normal case - all chunks/pages/values inspected
@@ -61,8 +82,65 @@ func TestSubstringPredicate(t *testing.T) {
 			require.NoError(t, w.Write(&dictString{"cde"}))
 			require.NoError(t, w.Write(&dictString{"def"}))
 			require.NoError(t, w.Write(&dictString{"efg"}))
+			require.NoError(t, w.Write(&dictString{"fgh"}))
+			require.NoError(t, w.Write(&dictString{"ghi"}))
+			require.NoError(t, w.Write(&dictString{"ijk"}))
+			require.NoError(t, w.Write(&dictString{"jkl"}))
+			require.NoError(t, w.Write(&dictString{"klm"}))
+			require.NoError(t, w.Write(&dictString{"lmn"}))
 		},
 	})
+}
+
+// TestOrPredicateCallsKeepColumnChunk ensures that the OrPredicate calls
+// KeepColumnChunk on all of its children. This is important because the
+// Dictionary predicates rely on KeepColumnChunk always being called at the
+// beginning of a row group to reset their page.
+func TestOrPredicateCallsKeepColumnChunk(t *testing.T) {
+	tcs := []struct {
+		preds []*mockPredicate
+	}{
+		{},
+		{
+			preds: []*mockPredicate{
+				newAlwaysTruePredicate(),
+			},
+		},
+		{
+			preds: []*mockPredicate{
+				newAlwaysFalsePredicate(),
+			},
+		},
+		{
+			preds: []*mockPredicate{
+				newAlwaysFalsePredicate(),
+				newAlwaysTruePredicate(),
+			},
+		},
+		{
+			preds: []*mockPredicate{
+				newAlwaysTruePredicate(),
+				newAlwaysFalsePredicate(),
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		preds := make([]Predicate, 0, len(tc.preds)+1)
+		for _, pred := range tc.preds {
+			preds = append(preds, pred)
+		}
+
+		recordPred := &mockPredicate{}
+		preds = append(preds, recordPred)
+
+		p := NewOrPredicate(preds...)
+		p.KeepColumnChunk(nil)
+
+		for _, pred := range preds {
+			require.True(t, pred.(*mockPredicate).chunkCalled)
+		}
+	}
 }
 
 type predicateTestCase struct {
