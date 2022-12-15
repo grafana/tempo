@@ -153,7 +153,9 @@ func NewSubstringPredicate(substring string) *SubstringPredicate {
 	}
 }
 
-func (p *SubstringPredicate) KeepColumnChunk(_ pq.ColumnChunk) bool {
+func (p *SubstringPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
+	p.helper.setNewRowGroup(cc)
+
 	// Reset match cache on each row group change
 	p.matches = make(map[string]bool, len(p.matches))
 
@@ -464,12 +466,13 @@ func (d *DictionaryPredicateHelper) keepPage(page pq.Page, keepValue func(pq.Val
 		return d.keepPagesInRowGroup
 	}
 
-	len := dict.Len()
-	if len > int(d.numValues)/10 { // if our length is a significant portion of the total values, then using the dictionary is worse. 10 is a guess
+	l := dict.Len()
+	if d.numValues > 0 && int64(l) > d.numValues/4 { // if our length is a significant portion of the total values, then using the dictionary is worse. 4 is a guess
 		return d.keepPagesInRowGroup
 	}
 
-	for i := 0; i < len; i++ {
+	d.keepPagesInRowGroup = false
+	for i := 0; i < l; i++ {
 		dictionaryEntry := dict.Index(int32(i))
 		if keepValue(dictionaryEntry) {
 			d.keepPagesInRowGroup = true
