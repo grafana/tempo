@@ -7,7 +7,7 @@ aliases:
 weight: 400
 keywords:
   - Tempo query language
-  - query language
+  - query editor
   - TraceQL
 ---
 
