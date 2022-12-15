@@ -37,7 +37,7 @@ func NewStringInPredicate(ss []string) Predicate {
 }
 
 func (p *StringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
-	p.helper.setNewRowGroup(cc)
+	p.helper.setNewRowGroup()
 
 	if ci := cc.ColumnIndex(); ci != nil {
 		for _, subs := range p.ss {
@@ -120,7 +120,7 @@ func (p *RegexInPredicate) keep(v *pq.Value) bool {
 }
 
 func (p *RegexInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
-	p.helper.setNewRowGroup(cc)
+	p.helper.setNewRowGroup()
 
 	// Reset match cache on each row group change
 	p.matches = make(map[string]bool, len(p.matches))
@@ -154,7 +154,7 @@ func NewSubstringPredicate(substring string) *SubstringPredicate {
 }
 
 func (p *SubstringPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
-	p.helper.setNewRowGroup(cc)
+	p.helper.setNewRowGroup()
 
 	// Reset match cache on each row group change
 	p.matches = make(map[string]bool, len(p.matches))
@@ -239,7 +239,7 @@ func NewGenericPredicate[T any](fn func(T) bool, rangeFn func(T, T) bool, extrac
 }
 
 func (p *GenericPredicate[T]) KeepColumnChunk(c pq.ColumnChunk) bool {
-	p.helper.setNewRowGroup(c)
+	p.helper.setNewRowGroup()
 
 	if p.RangeFn == nil {
 		return true
@@ -447,7 +447,7 @@ type DictionaryPredicateHelper struct {
 	keepPagesInRowGroup bool
 }
 
-func (d *DictionaryPredicateHelper) setNewRowGroup(cc pq.ColumnChunk) {
+func (d *DictionaryPredicateHelper) setNewRowGroup() {
 	d.newRowGroup = true
 }
 
