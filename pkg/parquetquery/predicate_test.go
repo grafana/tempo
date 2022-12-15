@@ -66,30 +66,6 @@ func TestSubstringPredicate(t *testing.T) {
 			require.NoError(t, w.Write(&dictString{"abc"}))
 		},
 	})
-
-	// If the dictionary cardinality is too high we just read the page anyway
-	testPredicate(t, predicateTestCase{
-		predicate:  NewSubstringPredicate("x"), // Not present in any values
-		keptChunks: 1,
-		keptPages:  1,
-		keptValues: 0,
-		writeData: func(w *parquet.Writer) { //nolint:all
-			type dictString struct {
-				S string `parquet:",dict"`
-			}
-			require.NoError(t, w.Write(&dictString{"abc"}))
-			require.NoError(t, w.Write(&dictString{"bcd"}))
-			require.NoError(t, w.Write(&dictString{"cde"}))
-			require.NoError(t, w.Write(&dictString{"def"}))
-			require.NoError(t, w.Write(&dictString{"efg"}))
-			require.NoError(t, w.Write(&dictString{"fgh"}))
-			require.NoError(t, w.Write(&dictString{"ghi"}))
-			require.NoError(t, w.Write(&dictString{"ijk"}))
-			require.NoError(t, w.Write(&dictString{"jkl"}))
-			require.NoError(t, w.Write(&dictString{"klm"}))
-			require.NoError(t, w.Write(&dictString{"lmn"}))
-		},
-	})
 }
 
 // TestOrPredicateCallsKeepColumnChunk ensures that the OrPredicate calls
