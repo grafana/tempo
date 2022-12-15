@@ -5,21 +5,17 @@ description: Learn how to set up a Tempo cluster and visualize data
 weight: 150
 ---
 
-# Set up a Tempo cluster
+# Set up Tempo
 
 Tempo is available as a pre-compiled binary, a Docker image, and as common OS-specific packaging.
 
-No matter which option you choose, setting up your Tempo cluster involves: 
+You can choose to install Tempo on a single system or as a cluster.
 
-1. Naming your cluster
-1. Deploying your cluster
-1. Testing your cluster
-
-This page highlights these steps; more detailed instructions are available on the procedures for deploying clusters.
+This page highlights these steps; more detailed instructions are available on the procedures for installing Tempo.
 
 ## Name your cluster
 
-No matter which deployment method you choose, you need to decide what to call your Tempo cluster.
+If you install Tempo in a cluster, you need to decide what to call your cluster.
 A cluster name must meet the following criteria:
 
 - is 3 to 63 characters long
@@ -27,14 +23,16 @@ A cluster name must meet the following criteria:
 - begins with a letter or number
 - ends with a letter or number
 
-## Deploy your cluster
+## Deploy Tempo
 
-Choose a method to deploy your Tempo cluster:
+Choose a method to deploy Tempo:
 
-<!-- - [Deploy on Linux]({{< relref "linux">}}) -->
+- [Deploy on Linux]({{< relref "linux">}})
 - [Deploy on Kubernetes using Tanka]({{< relref "tanka">}})
 
-## Test your cluster
+## Test your installation
 
-Once your cluster is deployed, you can test your cluster by visualizing the traces data with a simple TNS app. 
+Once Tempo is deployed, you can test your cluster by visualizing the traces data with a simple TNS app.
 Refer to [Set up a test application for Tempo cluster]({{< relref "set-up-test-app" >}}) for instructions.
+
+The [Linux]({{< relref "linux">}}) installation provides a verification procedure.
