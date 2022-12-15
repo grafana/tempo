@@ -37,7 +37,6 @@ In TraceQL, a query is an expression that is evaluated on one trace at a time. T
 { span.http.status_code >= 200 && span.http.status_code < 300 } | count() > 2
 ```
 
-<!--  jpe finish ... -->
 In this case, the search reduces traces to those spans that match the criteria `http.status_code` is in the range of `200` to `300`.  The returned spansets contain more than 2.
 
 Queries select sets of spans and filter them through a pipeline of aggregators and conditions. If a spanset is produced after evaluation on a trace, then this spanset (and by extension the trace) is included in the result set of the query.
@@ -45,7 +44,7 @@ Queries select sets of spans and filter them through a pipeline of aggregators a
 
 ## Selecting spans
 
-TraceQL recognizes two types of data: intrinsics, which are fundamental to spans, and attributes, which are customizable key-value pairs. You can use intrinsics and attributes to refine queries.
+TraceQL differentiates between two types of span data: intrinsics, which are fundamental to spans, and attributes, which are customizable key-value pairs. You can use intrinsics and attributes to build filters and select spans.
 
 In TraceQL, curly brackets `{}` always select a set of spans from the current trace. They are commonly paired with a condition to reduce the spans being passed in.
 
