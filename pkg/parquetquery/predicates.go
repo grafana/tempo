@@ -359,7 +359,7 @@ func (p *OrPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
 		}
 	}
 
-	return true
+	return ret
 }
 
 func (p *OrPredicate) KeepPage(page pq.Page) bool {
