@@ -1,11 +1,11 @@
 ---
-title: Set up a Tempo cluster
-menuTitle: Set up a Tempo cluster
-description: Learn how to set up a Tempo cluster and visualize data
+title: Set up a Tempo server or cluster
+menuTitle: Set up a Tempo server or cluster
+description: Learn how to set up a Tempo server or cluster and visualize data
 weight: 150
 ---
 
-# Set up Tempo
+# Set up a Tempo server or cluster
 
 Tempo is available as a pre-compiled binary, a Docker image, and as common OS-specific packaging.
 
@@ -15,7 +15,7 @@ This page highlights these steps; more detailed instructions are available on th
 
 ## Name your cluster
 
-If you install Tempo in a cluster, you need to decide what to call your cluster.
+If you install Tempo in a cluster, you need to decide what to call it.
 A cluster name must meet the following criteria:
 
 - is 3 to 63 characters long
