@@ -136,6 +136,8 @@ This requires `jsonnet`, `jsonnet-bundler` and `tanka` binaries in `$PATH`.
 
 ## Documentation
 
+Use the [Writer's Toolkit](https://grafana.com/docs/writers-toolkit/writing-guide/contribute-documentation/) for information and templates to contribute to [Tempo documentation](https://grafana.com/docs/tempo/latest/). 
+
 Tempo uses a CI action to sync documentation to the [Grafana website](https://grafana.com/docs/tempo/latest). The CI is
 triggered on every merge to main in the `docs` subfolder.
 

@@ -179,6 +179,33 @@ func TestWal(t *testing.T) {
 	}
 }
 
+func TestWalDropsZeroLength(t *testing.T) {
+	tmpDir := t.TempDir()
+	ingester, _, _ := defaultIngester(t, tmpDir)
+
+	// force cut all traces and wipe wal
+	for _, instance := range ingester.instances {
+		err := instance.CutCompleteTraces(0, true)
+		require.NoError(t, err, "unexpected error cutting traces")
+
+		blockID, err := instance.CutBlockIfReady(0, 0, true)
+		require.NoError(t, err)
+
+		err = instance.CompleteBlock(blockID)
+		require.NoError(t, err)
+
+		err = instance.ClearCompletingBlock(blockID)
+		require.NoError(t, err)
+
+		err = ingester.local.ClearBlock(blockID, instance.instanceID)
+		require.NoError(t, err)
+	}
+
+	// create new ingester. we should have no tenants b/c we all our wals should have been 0 length
+	ingester, _, _ = defaultIngesterWithPush(t, tmpDir, func(t testing.TB, i *Ingester, rs *v1.ResourceSpans, b []byte) {})
+	require.Equal(t, 0, len(ingester.instances))
+}
+
 func TestSearchWAL(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("/tmp", "")
 	require.NoError(t, err, "unexpected error getting tempdir")
