@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -66,4 +67,81 @@ func TestReadWrite(t *testing.T) {
 	assert.NoError(t, err, "unexpected error reading blocklist")
 	assert.Len(t, list, 1)
 	assert.Equal(t, blockID.String(), list[0])
+}
+
+func TestShutdownLeavesTenantsWithBlocks(t *testing.T) {
+	r, w, _, err := New(&Config{
+		Path: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	blockID := uuid.New()
+	contents := bytes.NewReader([]byte("test"))
+	tenant := "fake"
+
+	// write a "block"
+	err = w.Write(ctx, "test", backend.KeyPathForBlock(blockID, tenant), contents, contents.Size(), false)
+	require.NoError(t, err)
+
+	tenantExists(t, tenant, r)
+	blockExists(t, blockID, tenant, r)
+
+	// shutdown the backend
+	r.Shutdown()
+
+	tenantExists(t, tenant, r)
+	blockExists(t, blockID, tenant, r)
+}
+
+func TestShutdownRemovesTenantsWithoutBlocks(t *testing.T) {
+	r, w, c, err := New(&Config{
+		Path: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	blockID := uuid.New()
+	contents := bytes.NewReader([]byte("test"))
+	tenant := "tenant"
+
+	// write a "block"
+	err = w.Write(ctx, "test", backend.KeyPathForBlock(blockID, tenant), contents, contents.Size(), false)
+	require.NoError(t, err)
+
+	tenantExists(t, tenant, r)
+	blockExists(t, blockID, tenant, r)
+
+	// clear the block
+	err = c.ClearBlock(blockID, tenant)
+	require.NoError(t, err)
+
+	tenantExists(t, tenant, r)
+
+	// block should not exist
+	blocks, err := r.List(ctx, backend.KeyPath{tenant})
+	require.NoError(t, err)
+	require.Len(t, blocks, 0)
+
+	// shutdown the backend
+	r.Shutdown()
+
+	// tenant should not exist
+	tenants, err := r.List(ctx, backend.KeyPath{})
+	require.NoError(t, err)
+	require.Len(t, tenants, 0)
+}
+
+func tenantExists(t *testing.T, tenant string, r backend.RawReader) {
+	tenants, err := r.List(context.Background(), backend.KeyPath{})
+	require.NoError(t, err)
+	require.Len(t, tenants, 1)
+	require.Equal(t, tenant, tenants[0])
+}
+
+func blockExists(t *testing.T, blockID uuid.UUID, tenant string, r backend.RawReader) {
+	blocks, err := r.List(context.Background(), backend.KeyPath{tenant})
+	require.NoError(t, err)
+	require.Len(t, blocks, 1)
+	require.Equal(t, blockID.String(), blocks[0])
 }

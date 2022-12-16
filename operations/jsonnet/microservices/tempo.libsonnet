@@ -9,6 +9,9 @@
 (import 'querier.libsonnet') +
 (import 'vulture.libsonnet') +
 (import 'memcached.libsonnet') +
+(import 'multi-zone.libsonnet') +
+(import 'memberlist.libsonnet') +
+
 {
   local k = import 'ksonnet-util/kausal.libsonnet',
   namespace:

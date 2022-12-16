@@ -12,16 +12,17 @@
   local tempo_generator_wal_volume = 'metrics-generator-wal-data',
   local tempo_overrides_config_volume = 'overrides',
 
+  tempo_metrics_generator_ports:: [containerPort.new('prom-metrics', $._config.port)],
+  tempo_metrics_generator_args:: {
+    target: target_name,
+    'config.file': '/conf/tempo.yaml',
+    'mem-ballast-size-mbs': $._config.ballast_size_mbs,
+  },
+
   tempo_metrics_generator_container::
     container.new(target_name, $._images.tempo) +
-    container.withPorts([
-      containerPort.new('prom-metrics', $._config.port),
-    ]) +
-    container.withArgs([
-      '-target=' + target_name,
-      '-config.file=/conf/tempo.yaml',
-      '-mem-ballast-size-mbs=' + $._config.ballast_size_mbs,
-    ]) +
+    container.withPorts($.tempo_metrics_generator_ports) +
+    container.withArgs($.util.mapToFlags($.tempo_metrics_generator_args)) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
       volumeMount.new(tempo_generator_wal_volume, $.tempo_metrics_generator_config.metrics_generator.storage.path),
@@ -32,7 +33,7 @@
     container.mixin.resources.withRequestsMixin({ 'ephemeral-storage': $._config.metrics_generator.ephemeral_storage_request_size }) +
     container.mixin.resources.withLimitsMixin({ 'ephemeral-storage': $._config.metrics_generator.ephemeral_storage_limit_size }) +
     $.util.readinessProbe +
-    (if $._config.variables_expansion then container.withArgsMixin(['--config.expand-env=true']) else {}),
+    (if $._config.variables_expansion then container.withArgsMixin(['-config.expand-env=true']) else {}),
 
   tempo_metrics_generator_deployment:
     deployment.new(

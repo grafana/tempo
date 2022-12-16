@@ -161,9 +161,27 @@ func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.K
 	return nil
 }
 
-// Shutdown implements backend.Reader
+// Shutdown implements backend.Reader. It attempts to clear all tenants
+// that do not have blocks.
 func (rw *Backend) Shutdown() {
+	ctx := context.Background()
 
+	// Shutdown() doesn't return error so this is best effort
+	tenants, err := rw.List(ctx, backend.KeyPath{})
+	if err != nil {
+		return
+	}
+
+	for _, tenant := range tenants {
+		blocks, err := rw.List(ctx, backend.KeyPath{tenant})
+		if err != nil {
+			continue
+		}
+
+		if len(blocks) == 0 {
+			_ = os.RemoveAll(rw.rootPath(backend.KeyPath{tenant}))
+		}
+	}
 }
 
 func (rw *Backend) objectFileName(keypath backend.KeyPath, name string) string {
