@@ -262,7 +262,8 @@ func TestWalBlockIterator(t *testing.T) {
 func TestRowIterator(t *testing.T) {
 	testWalBlock(t, func(w *walBlock, _ []common.ID, _ []*tempopb.Trace) {
 		for _, f := range w.flushed {
-			ri := f.rowIterator()
+			ri, err := f.rowIterator()
+			require.NoError(t, err)
 
 			var lastID []byte
 			for {

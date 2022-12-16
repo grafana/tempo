@@ -405,7 +405,9 @@ mechanisms to read column values:
 
 ```go
 pages := column.Pages()
-defer checkErr(pages.Close())
+defer func() {
+    checkErr(pages.Close())
+}()
 
 for {
     p, err := pages.ReadPage()

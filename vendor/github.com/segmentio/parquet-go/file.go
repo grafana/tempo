@@ -91,7 +91,12 @@ func OpenFile(r io.ReaderAt, size int64, options ...FileOption) (*File, error) {
 		return nil, fmt.Errorf("opening columns of parquet file: %w", err)
 	}
 
-	schema := NewSchema(f.root.Name(), f.root)
+	var schema *Schema
+	if c.Schema != nil {
+		schema = c.Schema
+	} else {
+		schema = NewSchema(f.root.Name(), f.root)
+	}
 	columns := make([]*Column, 0, numLeafColumnsOf(f.root))
 	f.schema = schema
 	f.root.forEachLeaf(func(c *Column) { columns = append(columns, c) })

@@ -51,7 +51,6 @@ func (p *StringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 		}
 		return false
 	}
-
 	return true
 }
 
@@ -66,6 +65,8 @@ func (p *StringInPredicate) KeepValue(v pq.Value) bool {
 }
 
 func (p *StringInPredicate) KeepPage(page pq.Page) bool {
+	//
+
 	// todo: check bounds
 	return p.helper.keepPage(page, p.KeepValue)
 }
