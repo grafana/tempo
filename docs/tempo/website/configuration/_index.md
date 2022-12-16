@@ -284,10 +284,26 @@ metrics_generator:
             # Buckets for the latency histogram in seconds.
             [histogram_buckets: <list of float> | default = 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.02, 2.05, 4.10]
 
-            # Additional dimensions to add to the metrics along with the default dimensions
-            # (service, span_name, span_kind, status_code, and status_message). Dimensions are searched 
-            # for in the resource and span attributes and are added to the metrics if present.
+            # Configure intrinsic dimensions to add to the metrics. Intrinsic dimensions are taken
+            # directly from the respective resource and span properties.
+            intrinsic_dimensions:
+                # Whether to add the name of the service the span is associated with.
+                [service: <bool> | default = true]
+                # Whether to add the name of the span.
+                [span_name: <bool> | default = true]
+                # Whether to add the span kind describing the relationship between spans.
+                [span_kind: <bool> | default = true]
+                # Whether to add the span status code.
+                [status_code: <bool> | default = true]
+                # Whether to add a status message. Important note: The span status message may 
+                # contain arbitrary strings and thus have a very high cardinality.
+                [status_message: <bool> | default = false]
+
+            # Additional dimensions to add to the metrics along with the intrinsic dimensions.
+            # Dimensions are searched for in the resource and span attributes and are added to 
+            # the metrics if present.
             [dimensions: <list of string>]
+          
 
     # Registry configuration
     registry:
@@ -1152,6 +1168,7 @@ overrides:
     [metrics_generator_processor_service_graphs_histogram_buckets: <list of float>]
     [metrics_generator_processor_service_graphs_dimensions: <list of string>]
     [metrics_generator_processor_span_metrics_histogram_buckets: <list of float>]
+    [metrics_generator_processor_span_metrics_intrinsic_dimensions: <map string to bool>]
     [metrics_generator_processor_span_metrics_dimensions: <list of string>]
 
     # Maximum number of active series in the registry, per instance of the metrics-generator. A
