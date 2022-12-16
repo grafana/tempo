@@ -19,6 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/atomic"
+	"go.uber.org/multierr"
 	"google.golang.org/grpc/codes"
 
 	"github.com/grafana/tempo/modules/overrides"
@@ -143,13 +144,14 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 }
 
 func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) error {
+	var errs []error
 	for j := range req.Traces {
 		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
 		if err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	return multierr.Combine(errs...)
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
