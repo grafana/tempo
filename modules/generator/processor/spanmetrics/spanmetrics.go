@@ -39,19 +39,19 @@ func New(cfg Config, registry registry.Registry) gen.Processor {
 	labels := make([]string, 0, 4+len(cfg.Dimensions))
 
 	if cfg.IntrinsicDimensions.Service {
-		labels = append(labels, "service")
+		labels = append(labels, dimService)
 	}
 	if cfg.IntrinsicDimensions.SpanName {
-		labels = append(labels, "span_name")
+		labels = append(labels, dimSpanName)
 	}
 	if cfg.IntrinsicDimensions.SpanKind {
-		labels = append(labels, "span_kind")
+		labels = append(labels, dimSpanKind)
 	}
 	if cfg.IntrinsicDimensions.StatusCode {
-		labels = append(labels, "status_code")
+		labels = append(labels, dimStatusCode)
 	}
 	if cfg.IntrinsicDimensions.StatusMessage {
-		labels = append(labels, "status_message")
+		labels = append(labels, dimStatusMessage)
 	}
 	intrinsicDimensions := labels[:]
 

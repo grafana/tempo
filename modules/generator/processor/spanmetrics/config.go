@@ -8,6 +8,12 @@ import (
 
 const (
 	Name = "span-metrics"
+
+	dimService       = "service"
+	dimSpanName      = "span_name"
+	dimSpanKind      = "span_kind"
+	dimStatusCode    = "status_code"
+	dimStatusMessage = "status_message"
 )
 
 type Config struct {
@@ -22,6 +28,14 @@ type Config struct {
 	Dimensions []string `yaml:"dimensions"`
 }
 
+func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	cfg.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
+	cfg.IntrinsicDimensions.Service = true
+	cfg.IntrinsicDimensions.SpanName = true
+	cfg.IntrinsicDimensions.SpanKind = true
+	cfg.IntrinsicDimensions.StatusCode = true
+}
+
 type IntrinsicDimensions struct {
 	Service       bool `yaml:"service"`
 	SpanName      bool `yaml:"span_name"`
@@ -30,10 +44,19 @@ type IntrinsicDimensions struct {
 	StatusMessage bool `yaml:"status_message,omitempty"`
 }
 
-func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	cfg.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
-	cfg.IntrinsicDimensions.Service = true
-	cfg.IntrinsicDimensions.SpanName = true
-	cfg.IntrinsicDimensions.SpanKind = true
-	cfg.IntrinsicDimensions.StatusCode = true
+func (ic *IntrinsicDimensions) ApplyFromMap(dimensions map[string]bool) {
+	for label, active := range dimensions {
+		switch label {
+		case dimService:
+			ic.Service = active
+		case dimSpanName:
+			ic.SpanName = active
+		case dimSpanKind:
+			ic.SpanKind = active
+		case dimStatusCode:
+			ic.StatusCode = active
+		case dimStatusMessage:
+			ic.StatusMessage = active
+		}
+	}
 }

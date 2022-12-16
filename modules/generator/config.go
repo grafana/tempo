@@ -65,6 +65,9 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	if dimensions := o.MetricsGeneratorProcessorSpanMetricsDimensions(userID); dimensions != nil {
 		copyCfg.SpanMetrics.Dimensions = dimensions
 	}
+	if dimensions := o.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID); dimensions == nil {
+		copyCfg.SpanMetrics.IntrinsicDimensions.ApplyFromMap(dimensions)
+	}
 
 	return copyCfg
 }
