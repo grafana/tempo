@@ -35,7 +35,6 @@ ifeq ($(BUILD_DEBUG), 1)
 	GO_OPT+= -gcflags="all=-N -l"
 endif
 
-GO_OPT_DEBUG=$(GO_OPT) -gcflags="all=-N -l"
 GOTEST_OPT?= -race -timeout 20m -count=1
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=go test
