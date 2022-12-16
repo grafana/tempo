@@ -9,7 +9,7 @@ weight: 150
 
 Tempo is available as a pre-compiled binary, a Docker image, and as common OS-specific packaging.
 
-You can choose to install Tempo on a single system or as a cluster.
+This section describes how to set up Tempo on a single Linux node or as a cluster using Kubernetes and Tanka. Tempo can also be set up as a distributed set of services.  
 
 This page highlights these steps; more detailed instructions are available on the procedures for installing Tempo.
 
