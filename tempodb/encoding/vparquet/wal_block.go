@@ -49,7 +49,7 @@ var walSchema = parquet.SchemaOf(&Trace{})
 // not assigning a decoder.
 //
 // there's an interesting bug here that does not come into play due to the fact that we do not append to a wal created with this method.
-// if there are 2 wal files and the second is loaded succesfully, but the first fails then b.flushed will contain one entry. then when
+// if there are 2 wal files and the second is loaded successfully, but the first fails then b.flushed will contain one entry. then when
 // calling b.openWriter() it will attempt to create a new file as path/folder/00002 which will overwrite the first file. as long as we never
 // append to this file it should be ok.
 func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ time.Duration) (common.WALBlock, error, error) {
