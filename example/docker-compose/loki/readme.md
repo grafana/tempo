@@ -29,8 +29,9 @@ loki_prometheus_1    /bin/prometheus --config.f ...   Up      0.0.0.0:9090->9090
 loki_tempo_1         /tempo -storage.trace.back ...   Up      0.0.0.0:32774->14268/tcp
 ```
 
-3. Navigate to [Grafana](http://localhost:3000/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Loki%22,%7B%7D%5D) and **query Loki a few times to generate some traces** (this setup does not use the synthetic load generator and all traces are generated from Loki).
-Something like the below works, but feel free to explore other options!
+3. Navigate to [Grafana](http://localhost:3000/explore?orgId=1&left=%5B%22now-1h%22,%22now%22,%22Loki%22,%7B%7D%5D) 
+and **query Loki a few times to generate some traces** (this setup does not use the xk6-client-tracing and all traces 
+are generated from Loki). Something like the below works, but feel free to explore other options!
 
 ```
 {container_name="loki_loki_1"}
