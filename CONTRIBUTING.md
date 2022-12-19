@@ -100,6 +100,11 @@ We try to ensure that most functionality of Tempo is well tested.
 
 A CI job runs these tests on every PR.
 
+### Debugging
+
+Using a debugger can be useful to find errors in Tempo code. This [example](./example/docker-compose/debug) 
+shows how to debug Tempo inside docker-compose.
+
 ### Linting
 
 Make sure to run
