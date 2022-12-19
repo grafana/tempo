@@ -110,6 +110,7 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.Dimensions = []string{"span.kind", "span_name"}
+	cfg.IntrinsicDimensions.SpanKind = false
 
 	p := New(cfg, testRegistry)
 	defer p.Shutdown(context.Background())
@@ -135,7 +136,6 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	lbls := labels.FromMap(map[string]string{
 		"service":     "test-service",
 		"span_name":   "test",
-		"span_kind":   "SPAN_KIND_CLIENT",
 		"status_code": "STATUS_CODE_OK",
 		"__span_kind": "colliding_kind",
 		"__span_name": "colliding_name",

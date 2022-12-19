@@ -53,10 +53,9 @@ func New(cfg Config, registry registry.Registry) gen.Processor {
 	if cfg.IntrinsicDimensions.StatusMessage {
 		labels = append(labels, dimStatusMessage)
 	}
-	intrinsicDimensions := labels[:]
 
 	for _, d := range cfg.Dimensions {
-		labels = append(labels, sanitizeLabelNameWithCollisions(d, intrinsicDimensions))
+		labels = append(labels, sanitizeLabelNameWithCollisions(d))
 	}
 
 	return &Processor{
@@ -128,14 +127,20 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 	p.spanMetricsDurationSeconds.ObserveWithExemplar(registryLabelValues, latencySeconds, tempo_util.TraceIDToHexString(span.TraceId))
 }
 
-func sanitizeLabelNameWithCollisions(name string, intrinsicDimensions []string) string {
+func sanitizeLabelNameWithCollisions(name string) string {
 	sanitized := strutil.SanitizeLabelName(name)
 
-	for _, dim := range intrinsicDimensions {
-		if sanitized == dim {
-			return "__" + sanitized
-		}
+	if isIntrinsicDimension(sanitized) {
+		return "__" + sanitized
 	}
 
 	return sanitized
+}
+
+func isIntrinsicDimension(name string) bool {
+	return name == dimService ||
+		name == dimSpanName ||
+		name == dimSpanKind ||
+		name == dimStatusCode ||
+		name == dimStatusMessage
 }
