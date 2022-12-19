@@ -1168,6 +1168,7 @@ overrides:
     [metrics_generator_processor_service_graphs_histogram_buckets: <list of float>]
     [metrics_generator_processor_service_graphs_dimensions: <list of string>]
     [metrics_generator_processor_span_metrics_histogram_buckets: <list of float>]
+    # Allowed keys for intrinsic dimensions are: service, span_name, span_kind, status_code, and status_message. 
     [metrics_generator_processor_span_metrics_intrinsic_dimensions: <map string to bool>]
     [metrics_generator_processor_span_metrics_dimensions: <list of string>]
 
