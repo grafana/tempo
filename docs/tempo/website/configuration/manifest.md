@@ -16,7 +16,7 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/tmp
 
 ## Complete configuration
 
-> **Note**: This manifest was generated on 2022-09-13.
+> **Note**: This manifest was generated on 2022-12-19.
 
 ```yaml
 target: all
@@ -31,6 +31,8 @@ server:
   grpc_listen_address: ""
   grpc_listen_port: 9095
   grpc_listen_conn_limit: 0
+  tls_cipher_suites: ""
+  tls_min_version: ""
   http_tls_config:
     cert_file: ""
     key_file: ""
@@ -86,6 +88,8 @@ distributor:
         tls_ca_path: ""
         tls_server_name: ""
         tls_insecure_skip_verify: false
+        tls_cipher_suites: ""
+        tls_min_version: ""
         username: ""
         password: ""
       multi:
@@ -104,6 +108,7 @@ distributor:
   receivers: {}
   override_ring_key: distributor
   log_received_traces: false
+  forwarders: []
   extend_writes: true
   search_tags_deny_list: []
 ingester_client:
@@ -129,6 +134,8 @@ ingester_client:
     tls_ca_path: ""
     tls_server_name: ""
     tls_insecure_skip_verify: false
+    tls_cipher_suites: ""
+    tls_min_version: ""
 metrics_generator_client:
   pool_config:
     checkinterval: 15s
@@ -152,6 +159,8 @@ metrics_generator_client:
     tls_ca_path: ""
     tls_server_name: ""
     tls_insecure_skip_verify: false
+    tls_cipher_suites: ""
+    tls_min_version: ""
 querier:
   search:
     query_timeout: 30s
@@ -163,7 +172,6 @@ querier:
   max_concurrent_queries: 5
   frontend_worker:
     frontend_address: 127.0.0.1:9095
-    scheduler_address: ""
     dns_lookup_duration: 10s
     parallelism: 2
     match_max_concurrent: true
@@ -185,39 +193,13 @@ querier:
       tls_ca_path: ""
       tls_server_name: ""
       tls_insecure_skip_verify: false
+      tls_cipher_suites: ""
+      tls_min_version: ""
   query_relevant_ingesters: false
 query_frontend:
-  log_queries_longer_than: 0s
-  max_body_size: 0
-  query_stats_enabled: false
   max_outstanding_per_tenant: 100
   querier_forget_delay: 0s
-  scheduler_address: ""
-  scheduler_dns_lookup_period: 0s
-  scheduler_worker_concurrency: 0
-  grpc_client_config:
-    max_recv_msg_size: 0
-    max_send_msg_size: 0
-    grpc_compression: ""
-    rate_limit: 0
-    rate_limit_burst: 0
-    backoff_on_ratelimits: false
-    backoff_config:
-      min_period: 0s
-      max_period: 0s
-      max_retries: 0
-    tls_enabled: false
-    tls_cert_path: ""
-    tls_key_path: ""
-    tls_ca_path: ""
-    tls_server_name: ""
-    tls_insecure_skip_verify: false
-  instance_interface_names: []
-  address: ""
-  port: 0
-  downstream_url: ""
   max_retries: 2
-  query_shards: 20
   search:
     concurrent_jobs: 50
     target_bytes_per_job: 10485760
@@ -227,6 +209,7 @@ query_frontend:
     query_backend_after: 15m0s
     query_ingesters_until: 1h0m0s
   trace_by_id:
+    query_shards: 20
     hedge_requests_at: 2s
     hedge_requests_up_to: 2
 compactor:
@@ -252,6 +235,8 @@ compactor:
         tls_ca_path: ""
         tls_server_name: ""
         tls_insecure_skip_verify: false
+        tls_cipher_suites: ""
+        tls_min_version: ""
         username: ""
         password: ""
       multi:
@@ -307,6 +292,8 @@ ingester:
           tls_ca_path: ""
           tls_server_name: ""
           tls_insecure_skip_verify: false
+          tls_cipher_suites: ""
+          tls_min_version: ""
           username: ""
           password: ""
         multi:
@@ -342,6 +329,7 @@ ingester:
   max_block_bytes: 1073741824
   complete_block_timeout: 15m0s
   override_ring_key: ring
+  use_flatbuffer_search: false
 metrics_generator:
   ring:
     kvstore:
@@ -365,6 +353,8 @@ metrics_generator:
         tls_ca_path: ""
         tls_server_name: ""
         tls_insecure_skip_verify: false
+        tls_cipher_suites: ""
+        tls_min_version: ""
         username: ""
         password: ""
       multi:
@@ -410,10 +400,17 @@ metrics_generator:
         - 4.096
         - 8.192
         - 16.384
+      intrinsic_dimensions:
+        service: true
+        span_name: true
+        span_kind: true
+        status_code: true
       dimensions: []
   registry:
     collection_interval: 15s
     stale_duration: 15m0s
+    max_label_name_length: 1024
+    max_label_value_length: 2048
   storage:
     path: ""
     wal:
@@ -437,13 +434,14 @@ storage:
       blocksfilepath: /tmp/tempo/wal/blocks
       encoding: snappy
       search_encoding: none
+      version: v2
       ingestion_time_range_slack: 2m0s
     block:
       index_downsample_bytes: 1048576
       index_page_size_bytes: 256000
       bloom_filter_false_positive: 0.01
       bloom_filter_shard_size_bytes: 102400
-      version: v2
+      version: vParquet
       encoding: zstd
       search_encoding: snappy
       search_page_size_bytes: 1048576
@@ -518,6 +516,7 @@ overrides:
   max_traces_per_user: 10000
   max_global_traces_per_user: 0
   max_search_bytes_per_trace: 5000
+  forwarders: []
   metrics_generator_ring_size: 0
   metrics_generator_processors: null
   metrics_generator_max_active_series: 0
@@ -529,6 +528,7 @@ overrides:
   metrics_generator_processor_service_graphs_dimensions: []
   metrics_generator_processor_span_metrics_histogram_buckets: []
   metrics_generator_processor_span_metrics_dimensions: []
+  metrics_generator_processor_span_metrics_intrinsic_dimensions: {}
   block_retention: 0s
   max_bytes_per_tag_values_query: 5000000
   max_search_duration: 0s
@@ -569,6 +569,8 @@ memberlist:
   tls_ca_path: ""
   tls_server_name: ""
   tls_insecure_skip_verify: false
+  tls_cipher_suites: ""
+  tls_min_version: ""
 usage_report:
   reporting_enabled: true
   backoff:
