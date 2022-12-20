@@ -3,6 +3,7 @@ package spanmetrics
 import (
 	"flag"
 
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -44,7 +45,7 @@ type IntrinsicDimensions struct {
 	StatusMessage bool `yaml:"status_message,omitempty"`
 }
 
-func (ic *IntrinsicDimensions) ApplyFromMap(dimensions map[string]bool) {
+func (ic *IntrinsicDimensions) ApplyFromMap(dimensions map[string]bool) error {
 	for label, active := range dimensions {
 		switch label {
 		case dimService:
@@ -57,6 +58,9 @@ func (ic *IntrinsicDimensions) ApplyFromMap(dimensions map[string]bool) {
 			ic.StatusCode = active
 		case dimStatusMessage:
 			ic.StatusMessage = active
+		default:
+			return errors.Errorf("%s is not a valid intrinsic dimension", label)
 		}
 	}
+	return nil
 }

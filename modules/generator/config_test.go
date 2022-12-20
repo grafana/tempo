@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
@@ -31,7 +32,8 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 			spanMetricsIntrinsicDimensions: map[string]bool{"status_code": true},
 		}
 
-		copied := original.copyWithOverrides(o, "tenant")
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
 
 		assert.NotEqual(t, *original, copied)
 
@@ -53,8 +55,18 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 	t.Run("empty overrides", func(t *testing.T) {
 		o := &mockOverrides{}
 
-		copied := original.copyWithOverrides(o, "tenant")
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
 
 		assert.Equal(t, *original, copied)
+	})
+
+	t.Run("invalid overrides", func(t *testing.T) {
+		o := &mockOverrides{
+			spanMetricsIntrinsicDimensions: map[string]bool{"invalid": true},
+		}
+
+		_, err := original.copyWithOverrides(o, "tenant")
+		require.Error(t, err)
 	})
 }
