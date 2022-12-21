@@ -42,7 +42,6 @@ output:
 
 linters:
   enable:
-    - deadcode
     - errcheck
     - goconst
     - gofmt
@@ -53,12 +52,10 @@ linters:
     - megacheck
     - misspell
     - revive
-    - structcheck
     - typecheck
     - unconvert
     - unparam
     - unused
-    - varcheck
 
 linters-settings:
   errcheck:

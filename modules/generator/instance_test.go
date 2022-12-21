@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
+	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -83,7 +84,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 	// no processors should be present initially
 	assert.Len(t, instance.processors, 0)
 
-	t.Run("add new processor", func(t *testing.T) {
+	t.Run("add servicegraphs processors", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
 			servicegraphs.Name: {},
 		}
@@ -106,20 +107,36 @@ func Test_instance_updateProcessors(t *testing.T) {
 		assert.Equal(t, instance.processors[servicegraphs.Name].Name(), servicegraphs.Name)
 	})
 
-	t.Run("replace processor", func(t *testing.T) {
+	t.Run("add spanmetrics processor", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
 			servicegraphs.Name: {},
+			spanmetrics.Name:   {},
 		}
-		overrides.serviceGraphsDimensions = []string{"namespace"}
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
+		assert.Len(t, instance.processors, 2)
+		assert.Equal(t, instance.processors[servicegraphs.Name].Name(), servicegraphs.Name)
+		assert.Equal(t, instance.processors[spanmetrics.Name].Name(), spanmetrics.Name)
+	})
+
+	t.Run("replace spanmetrics processor", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			servicegraphs.Name: {},
+			spanmetrics.Name:   {},
+		}
+		overrides.spanMetricsDimensions = []string{"namespace"}
+		overrides.spanMetricsIntrinsicDimensions = map[string]bool{"status_message": true}
 
 		err := instance.updateProcessors()
 		assert.NoError(t, err)
 
-		var expectedConfig servicegraphs.Config
+		var expectedConfig spanmetrics.Config
 		expectedConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 		expectedConfig.Dimensions = []string{"namespace"}
+		expectedConfig.IntrinsicDimensions.StatusMessage = true
 
-		assert.Equal(t, expectedConfig, instance.processors[servicegraphs.Name].(*servicegraphs.Processor).Cfg)
+		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
 	})
 
 	t.Run("remove processor", func(t *testing.T) {

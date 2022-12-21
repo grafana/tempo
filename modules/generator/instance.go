@@ -126,7 +126,10 @@ func (i *instance) watchOverrides() {
 
 func (i *instance) updateProcessors() error {
 	desiredProcessors := i.overrides.MetricsGeneratorProcessors(i.instanceID)
-	desiredCfg := i.cfg.Processor.copyWithOverrides(i.overrides, i.instanceID)
+	desiredCfg, err := i.cfg.Processor.copyWithOverrides(i.overrides, i.instanceID)
+	if err != nil {
+		return err
+	}
 
 	i.processorsMtx.RLock()
 	toAdd, toRemove, toReplace, err := i.diffProcessors(desiredProcessors, desiredCfg)
