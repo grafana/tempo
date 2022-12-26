@@ -3,6 +3,7 @@ package vparquet
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -221,6 +222,38 @@ func TestWalBlockFindTraceByID(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, found)
 			require.True(t, proto.Equal(trs[i], found))
+		}
+	})
+}
+
+// TODO: should we move this test somewhere else??
+func TestWalBlockSearch(t *testing.T) {
+	req := &tempopb.SearchRequest{}
+	testWalBlock(t, func(w *walBlock, ids []common.ID, trs []*tempopb.Trace) {
+		for i := range ids {
+			res, err := w.Search(context.Background(), req, common.DefaultSearchOptions())
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			require.NotNil(t, len(res.Traces))
+			fmt.Printf("ids: %s \n, res TraceID: %s\n", trs[i], res.Traces[0].TraceID)
+			require.True(t, proto.Equal(trs[i], res))
+		}
+	})
+}
+
+// TODO: should we move this test somewhere else??
+func TestWalBlockTraceQL(t *testing.T) {
+	req := &tempopb.SearchRequest{
+		Query: " .status = 'OK'",
+	}
+	testWalBlock(t, func(w *walBlock, ids []common.ID, trs []*tempopb.Trace) {
+		for i := range ids {
+			res, err := w.Search(context.Background(), req, common.DefaultSearchOptions())
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			require.NotNil(t, len(res.Traces))
+			fmt.Printf("ids: %s \n, res TraceID: %s\n", trs[i], res.Traces[0].TraceID)
+			require.True(t, proto.Equal(trs[i], res))
 		}
 	})
 }

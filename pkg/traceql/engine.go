@@ -26,6 +26,10 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.Execute")
 	defer span.Finish()
 
+	// TODO: move this parseQuery out of Execute and take a parsed query as argument.
+	// parseQuery can end up doing extra work(parsing same query againa and again) when we are iterating over list of blocks
+	// and calling engine.Execute on those blocks for same searchReq
+	// TODO: maybe write a function called ExecuteParsedQuery and ParseQuery and use both of them in this method??
 	rootExpr, err := e.parseQuery(searchReq)
 	if err != nil {
 		return nil, err

@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/atomic"
@@ -56,7 +58,7 @@ func TestInstanceSearch(t *testing.T) {
 			assert.Len(t, sr.Traces, len(ids))
 			checkEqual(t, ids, sr)
 
-			// Test after cutting new headblock
+			// Test after cutting new headBlock
 			blockID, err := i.CutBlockIfReady(0, 0, true)
 			require.NoError(t, err)
 			assert.NotEqual(t, blockID, uuid.Nil)
@@ -79,7 +81,87 @@ func TestInstanceSearch(t *testing.T) {
 			require.NoError(t, err)
 
 			// create new ingester.  this should replay wal!
-			ingester, _, _ = defaultIngester(t, tempDir)
+			ingester, _, _ = defaultIngester(t, tempDir, v2.VersionString)
+
+			i, ok := ingester.getInstanceByID("fake")
+			require.True(t, ok)
+
+			sr, err = i.Search(context.Background(), req)
+			assert.NoError(t, err)
+			assert.Len(t, sr.Traces, len(ids))
+			checkEqual(t, ids, sr)
+
+			err = ingester.stopping(nil)
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestInstanceSearchTraceQL is duplicate of TestInstanceSearch for now
+func TestInstanceSearchTraceQL(t *testing.T) {
+	// note: these queries return all traces
+	queries := []string{
+		`{ .service.name = "test-service" }`,
+		`{ duration > 1s }`,
+		`{ duration > 1s && .service.name = "test-service" }`,
+	}
+
+	for _, query := range queries {
+		t.Run(fmt.Sprintf("Query:%s", query), func(t *testing.T) {
+			i, ingester, tmpDir := defaultInstanceWithParquet(t)
+
+			// write traces into the ingester instance
+			_, ids := pushTracesInInstance(t, i, 10)
+
+			// MakeTrace creates traces with `service.name = "test-service"` attributes
+			req := &tempopb.SearchRequest{
+				Query: `{ .service.name = "test-service" }`,
+				Limit: 20,
+			}
+
+			// Test after appending to WAL
+			err := i.CutCompleteTraces(0, true)
+			require.NoError(t, err)
+			assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+
+			sr, err := i.Search(context.Background(), req)
+			assert.NoError(t, err)
+			assert.Len(t, sr.Traces, len(ids))
+			checkEqual(t, ids, sr)
+
+			// Test after cutting new headBlock
+			blockID, err := i.CutBlockIfReady(0, 0, true)
+			require.NoError(t, err)
+			assert.NotEqual(t, blockID, uuid.Nil)
+
+			sr, err = i.Search(context.Background(), req)
+			assert.NoError(t, err)
+			assert.Len(t, sr.Traces, len(ids))
+			checkEqual(t, ids, sr)
+
+			// Test after completing a block
+			err = i.CompleteBlock(blockID)
+			require.NoError(t, err)
+
+			sr, err = i.Search(context.Background(), req)
+			assert.NoError(t, err)
+			assert.Len(t, sr.Traces, len(ids))
+			checkEqual(t, ids, sr)
+
+			// Test after clearing the completing block
+			err = i.ClearCompletingBlock(blockID)
+			require.NoError(t, err)
+
+			sr, err = i.Search(context.Background(), req)
+			assert.NoError(t, err)
+			assert.Len(t, sr.Traces, len(ids))
+			checkEqual(t, ids, sr)
+
+			err = ingester.stopping(nil)
+			require.NoError(t, err)
+
+			// create new ingester.  this should replay wal!
+			ingester, _, _ = defaultIngester(t, tmpDir, vparquet.VersionString)
 
 			i, ok := ingester.getInstanceByID("fake")
 			require.True(t, ok)
@@ -172,7 +254,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 
 			tempDir := t.TempDir()
 
-			ingester, _, _ := defaultIngester(t, tempDir)
+			ingester, _, _ := defaultIngester(t, tempDir, v2.VersionString)
 			i, err := newInstance("fake", limiter, ingester.store, ingester.local, b)
 			assert.NoError(t, err, "unexpected error creating new instance")
 
@@ -260,7 +342,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	require.NoError(t, err)
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	ingester, _, _ := defaultIngester(t, t.TempDir())
+	ingester, _, _ := defaultIngester(t, t.TempDir(), v2.VersionString)
 	i, err := newInstance("fake", limiter, ingester.store, ingester.local, false)
 	require.NoError(t, err)
 

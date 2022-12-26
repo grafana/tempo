@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
@@ -76,24 +78,7 @@ func TestInstanceFind(t *testing.T) {
 	i, ingester := defaultInstance(t)
 
 	numTraces := 10
-	ids := [][]byte{}
-	traces := []*tempopb.Trace{}
-	for j := 0; j < numTraces; j++ {
-		id := make([]byte, 16)
-		rand.Read(id)
-
-		testTrace := test.MakeTrace(10, id)
-		trace.SortTrace(testTrace)
-		traceBytes, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(testTrace, 0, 0)
-		require.NoError(t, err)
-
-		err = i.PushBytes(context.Background(), id, traceBytes, nil)
-		require.NoError(t, err)
-		require.Equal(t, int(i.traceCount.Load()), len(i.traces))
-
-		ids = append(ids, id)
-		traces = append(traces, testTrace)
-	}
+	traces, ids := pushTracesInInstance(t, i, numTraces)
 
 	queryAll(t, i, ids, traces)
 
@@ -134,6 +119,31 @@ func TestInstanceFind(t *testing.T) {
 	require.NoError(t, err)
 
 	queryAll(t, i, ids, traces)
+}
+
+// pushTracesInInstance makes and pushes numTraces in the ingester instance,
+// returns traces and trace ids
+func pushTracesInInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.Trace, [][]byte) {
+	var ids [][]byte
+	var traces []*tempopb.Trace
+
+	for j := 0; j < numTraces; j++ {
+		id := make([]byte, 16)
+		rand.Read(id)
+
+		testTrace := test.MakeTrace(10, id)
+		trace.SortTrace(testTrace)
+		traceBytes, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(testTrace, 0, 0)
+		require.NoError(t, err)
+
+		err = i.PushBytes(context.Background(), id, traceBytes, nil)
+		require.NoError(t, err)
+		require.Equal(t, int(i.traceCount.Load()), len(i.traces))
+
+		ids = append(ids, id)
+		traces = append(traces, testTrace)
+	}
+	return traces, ids
 }
 
 func queryAll(t *testing.T, i *instance, ids [][]byte, traces []*tempopb.Trace) {
@@ -206,7 +216,7 @@ func TestInstanceLimits(t *testing.T) {
 	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	ingester, _, _ := defaultIngester(t, t.TempDir())
+	ingester, _, _ := defaultIngester(t, t.TempDir(), v2.VersionString)
 
 	type push struct {
 		req          *tempopb.PushBytesRequest
@@ -486,7 +496,7 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	maxTraceBytes := 100
 	id := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 
-	ingester, _, _ := defaultIngester(t, t.TempDir())
+	ingester, _, _ := defaultIngester(t, t.TempDir(), v2.VersionString)
 
 	limits, err := overrides.NewOverrides(overrides.Limits{
 		MaxBytesPerTrace: maxTraceBytes,
@@ -570,8 +580,23 @@ func defaultInstanceWithFlatBufferSearch(t testing.TB, fbSearch bool) (*instance
 
 	tmpDir := t.TempDir()
 
-	ingester, _, _ := defaultIngester(t, tmpDir)
+	ingester, _, _ := defaultIngester(t, tmpDir, v2.VersionString)
 	instance, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, fbSearch)
+	require.NoError(t, err, "unexpected error creating new instance")
+
+	return instance, ingester, tmpDir
+}
+
+// defaultInstanceWithParquet returns an instance with vParquet WAL, and no trace data.
+func defaultInstanceWithParquet(t testing.TB) (*instance, *Ingester, string) {
+	limits, err := overrides.NewOverrides(overrides.Limits{})
+	require.NoError(t, err, "unexpected error creating limits")
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	tmpDir := t.TempDir()
+
+	ingester, _, _ := defaultIngester(t, tmpDir, vparquet.VersionString)
+	instance, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, false)
 	require.NoError(t, err, "unexpected error creating new instance")
 
 	return instance, ingester, tmpDir
