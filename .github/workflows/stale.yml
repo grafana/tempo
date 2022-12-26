@@ -10,7 +10,7 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v6.0.1
+      - uses: actions/stale@v7.0.0
         with:
           close-issue-reason: not_planned
           operations-per-run: 100
