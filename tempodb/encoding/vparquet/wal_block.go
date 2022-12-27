@@ -235,6 +235,8 @@ func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
 	return newRowIterator(r, w.ids.EntriesSortedByID(), idx), nil
 }
 
+var _ common.WALBlock = (*walBlock)(nil)
+
 type walBlock struct {
 	meta           *backend.BlockMeta
 	path           string
@@ -550,7 +552,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "conditions invalid")
 	}
 
-	iters := make([]*spansetIterator, 0, len(b.flushed))
+	iters := make([]*genIterator[traceql.Spanset], 0, len(b.flushed))
 	for _, page := range b.flushed {
 		file, err := page.file()
 		if err != nil {
@@ -575,6 +577,10 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 func (b *walBlock) walPath() string {
 	filename := fmt.Sprintf("%s+%s+%s", b.meta.BlockID, b.meta.TenantID, VersionString)
 	return filepath.Join(b.path, filename)
+}
+
+func (b *walBlock) FetchSeries(context.Context, traceql.FetchSpansRequest) (traceql.FetchSpansetSeriesResponse, error) {
+	return traceql.FetchSpansetSeriesResponse{}, nil
 }
 
 // <blockID>+<tenantID>+vParquet

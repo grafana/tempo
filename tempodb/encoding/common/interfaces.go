@@ -26,6 +26,7 @@ type Searcher interface {
 	SearchTagValues(ctx context.Context, tag string, cb TagCallback, opts SearchOptions) error
 	SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb TagCallbackV2, opts SearchOptions) error
 	Fetch(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansResponse, error)
+	FetchSeries(context.Context, traceql.FetchSpansRequest) (traceql.FetchSpansetSeriesResponse, error)
 }
 
 type CacheControl struct {

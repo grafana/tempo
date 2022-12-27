@@ -285,6 +285,10 @@ func (a *walBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.Sear
 	return traceql.FetchSpansResponse{}, common.ErrUnsupported
 }
 
+func (a *walBlock) FetchSeries(context.Context, traceql.FetchSpansRequest) (traceql.FetchSpansetSeriesResponse, error) {
+	return traceql.FetchSpansetSeriesResponse{}, common.ErrUnsupported
+}
+
 func (a *walBlock) fullFilename() string {
 	filename := a.fullFilenameSeparator("+")
 	_, e1 := os.Stat(filename)

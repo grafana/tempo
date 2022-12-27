@@ -35,7 +35,6 @@ type QueryFrontend struct {
 	TraceByID, Search http.Handler
 	logger            log.Logger
 	queriesPerTenant  *prometheus.CounterVec
-	store             storage.Store
 }
 
 // New returns a new QueryFrontend
@@ -84,7 +83,6 @@ func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store stora
 		Search:           newHandler(search, searchCounter, logger),
 		logger:           logger,
 		queriesPerTenant: queriesPerTenant,
-		store:            store,
 	}, nil
 }
 

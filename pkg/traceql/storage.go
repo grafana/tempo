@@ -61,6 +61,40 @@ type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
 }
 
+// SpansetSeries is a set of streams of trace data.
+// It contains combinations of intrinsic and well-known attributes.
+// TODO(mapno): Extend to include dynamic attributes/columns and span attributes(?).
+type SpansetSeries struct {
+	// Well-known span attributes
+	HTTPStatusCode, HTTPMethod, HTTPUrl string
+
+	// Intrinsic span attributes
+
+	// Well-known resource attributes.
+	ServiceName, Cluster, Namespace, Pod, Container string
+	K8sCluster, K8sNamespace, K8sPod, K8sContainer  string
+
+	// Well-known trace attributes.
+	RootSpanName, RootServiceName string
+
+	// // Intrinsic trace attributes.
+	// Start, End, Duration uint64
+}
+
+type SpansetSeriesIterator interface {
+	Next(context.Context) (*SpansetSeries, error)
+}
+
+type FetchSpansetSeriesResponse struct {
+	Results SpansetSeriesIterator
+	Bytes   func() uint64
+}
+
+type SpansetSeriesFetcher interface {
+	// TODO(mapno): Use a dedicated request type(?).
+	FetchSeries(context.Context, FetchSpansRequest) (FetchSpansetSeriesResponse, error)
+}
+
 // MustExtractFetchSpansRequest parses the given traceql query and returns
 // the storage layer conditions. Panics if the query fails to parse.
 func MustExtractFetchSpansRequest(query string) FetchSpansRequest {

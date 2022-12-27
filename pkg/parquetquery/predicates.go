@@ -220,7 +220,7 @@ func (p *IntBetweenPredicate) KeepPage(page pq.Page) bool {
 	return true
 }
 
-// Generic predicate with callbacks to evalulate data of type T
+// GenericPredicate with callbacks to evalulate data of type T
 // Fn evalulates a single data point and is required. Optionally,
 // a RangeFn can evalulate a min/max range and is used to
 // skip column chunks and pages when RangeFn is supplied and
