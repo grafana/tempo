@@ -99,25 +99,20 @@ func TestInstanceSearch(t *testing.T) {
 
 // TestInstanceSearchTraceQL is duplicate of TestInstanceSearch for now
 func TestInstanceSearchTraceQL(t *testing.T) {
-	// note: these queries return all traces
 	queries := []string{
 		`{ .service.name = "test-service" }`,
-		`{ duration > 1s }`,
-		`{ duration > 1s && .service.name = "test-service" }`,
+		`{ duration >= 1s }`,
+		`{ duration >= 1s && .service.name = "test-service" }`,
 	}
 
 	for _, query := range queries {
 		t.Run(fmt.Sprintf("Query:%s", query), func(t *testing.T) {
 			i, ingester, tmpDir := defaultInstanceWithParquet(t)
-
-			// write traces into the ingester instance
+			// pushTracesInInstance creates traces with:
+			// `service.name = "test-service"` and duration >= 1s
 			_, ids := pushTracesInInstance(t, i, 10)
 
-			// MakeTrace creates traces with `service.name = "test-service"` attributes
-			req := &tempopb.SearchRequest{
-				Query: `{ .service.name = "test-service" }`,
-				Limit: 20,
-			}
+			req := &tempopb.SearchRequest{Query: query, Limit: 20}
 
 			// Test after appending to WAL
 			err := i.CutCompleteTraces(0, true)
