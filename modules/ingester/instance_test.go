@@ -78,7 +78,7 @@ func TestInstanceFind(t *testing.T) {
 	i, ingester := defaultInstance(t)
 
 	numTraces := 10
-	traces, ids := pushTracesInInstance(t, i, numTraces)
+	traces, ids := pushTracesToInstance(t, i, numTraces)
 
 	queryAll(t, i, ids, traces)
 
@@ -121,9 +121,9 @@ func TestInstanceFind(t *testing.T) {
 	queryAll(t, i, ids, traces)
 }
 
-// pushTracesInInstance makes and pushes numTraces in the ingester instance,
+// pushTracesToInstance makes and pushes numTraces in the ingester instance,
 // returns traces and trace ids
-func pushTracesInInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.Trace, [][]byte) {
+func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.Trace, [][]byte) {
 	var ids [][]byte
 	var traces []*tempopb.Trace
 

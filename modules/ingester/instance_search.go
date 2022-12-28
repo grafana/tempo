@@ -40,11 +40,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		// search in this order: HeadBlock, CompletingBlocks, and then finally in completeBlocks.
 		// Iterate over blocks, execute TraceQL, collect results, dedupe, sort and return traces.
 		// return early if we hit maxResults during search.
-		traces, metrics, blockErrs := i.searchWALWithTraceQL(ctx, req, maxResults)
-		err := multierr.Combine(blockErrs...)
-		if err != nil {
-			span.LogFields(ot_log.Error(fmt.Errorf("blockErrors: %w", err)))
-		}
+		traces, metrics, blockErrs := i.searchWALWithTraceQL(ctx, req)
 
 		// de-duplicate and sort results
 		// note: de-dupe code is similar to code below for v2 search results
@@ -72,10 +68,15 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			return results[i].StartTimeUnixNano > results[j].StartTimeUnixNano
 		})
 
+		err := multierr.Combine(blockErrs...)
+		if err != nil {
+			level.Error(log.Logger).Log("msg", "errors searching WAL with TraceQL", "err", err)
+		}
+
 		return &tempopb.SearchResponse{
 			Traces:  results,
 			Metrics: metrics,
-		}, nil
+		}, err
 	}
 
 	p := search.NewSearchPipeline(req)
@@ -245,7 +246,7 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 
 // searchWALWithTraceQL handles TraceQL search query for searching WAL,
 // acquires instance blocksMtx when searching WAL blocks
-func (i *instance) searchWALWithTraceQL(ctx context.Context, req *tempopb.SearchRequest, maxResults int) ([]*tempopb.TraceSearchMetadata, *tempopb.SearchMetrics, []error) {
+func (i *instance) searchWALWithTraceQL(ctx context.Context, req *tempopb.SearchRequest) ([]*tempopb.TraceSearchMetadata, *tempopb.SearchMetrics, []error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchWALWithTraceQL")
 	defer span.Finish()
 
@@ -267,67 +268,52 @@ func (i *instance) searchWALWithTraceQL(ctx context.Context, req *tempopb.Search
 
 	// search headBlock
 	res, err := engine.Execute(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		// span.SetTag("blockID", i.headBlock.BlockMeta().BlockID.String())
 		return i.headBlock.Fetch(ctx, req, opts)
 	}))
 	if err != nil {
+		level.Error(log.Logger).Log("msg", fmt.Sprintf("error searching headBlock, blockID: %s", i.headBlock.BlockMeta().BlockID.String()), "err", err)
 		blockErrs = append(blockErrs, err)
 	}
-
-	// collect headBlock results
 	traces = append(traces, res.Traces...)
 	metrics = mergeSearchMetrics(metrics, res.Metrics)
-
 	span.LogFields(
 		ot_log.String("msg", "done searching headBlock"),
-		ot_log.Int("traces_size", len(traces)))
-
-	if len(traces) >= maxResults {
-		// hit limit, return early
-		return traces, metrics, blockErrs
-	}
+		ot_log.Int("total_traces_size", len(traces)))
 
 	// search completingBlocks
 	for _, block := range i.completingBlocks {
-		if len(traces) >= maxResults {
-			break // exit early
-		}
-
-		// TODO: Execute will parse the query again and again... maybe fix that
-		// TODO: we are building NewSpansetFetcherWrapper for each block, feels bit wasteful :)
+		// TODO: Execute will parse the query for each block... parse once and reuse...
 		r, err := engine.Execute(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return block.Fetch(ctx, req, opts)
 		}))
 
 		if err != nil {
+			level.Error(log.Logger).Log("msg", fmt.Sprintf("error searching completingBlocks, blockID: %s", block.BlockMeta().BlockID.String()), "err", err)
 			blockErrs = append(blockErrs, err)
-			continue // collect error and continue to next block
 		}
 		traces = append(traces, r.Traces...)
 		metrics = mergeSearchMetrics(metrics, r.Metrics)
 	}
 	span.LogFields(
 		ot_log.String("msg", "done searching completingBlocks"),
-		ot_log.Int("traces_size", len(traces)))
+		ot_log.Int("total_traces_size", len(traces)))
 
 	// search completeBlocks
 	for _, block := range i.completeBlocks {
-		if len(traces) >= maxResults {
-			break // exit early
-		}
+		// TODO: Execute will parse the query for each block... parse once and reuse...
 		r, err := engine.Execute(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return block.Fetch(ctx, req, opts)
 		}))
 		if err != nil {
+			level.Error(log.Logger).Log("msg", fmt.Sprintf("error searching completeBlocks, blockID: %s", block.BlockMeta().BlockID.String()), "err", err)
 			blockErrs = append(blockErrs, err)
-			continue // collect error and continue to next block
 		}
 		traces = append(traces, r.Traces...)
 		metrics = mergeSearchMetrics(metrics, res.Metrics)
 	}
 	span.LogFields(
 		ot_log.String("msg", "done searching completeBlocks"),
-		ot_log.Int("traces_size", len(traces)))
+		ot_log.Int("total_traces_size", len(traces)))
 
 	return traces, metrics, blockErrs
 }

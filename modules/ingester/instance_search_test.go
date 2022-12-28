@@ -108,9 +108,9 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 	for _, query := range queries {
 		t.Run(fmt.Sprintf("Query:%s", query), func(t *testing.T) {
 			i, ingester, tmpDir := defaultInstanceWithParquet(t)
-			// pushTracesInInstance creates traces with:
+			// pushTracesToInstance creates traces with:
 			// `service.name = "test-service"` and duration >= 1s
-			_, ids := pushTracesInInstance(t, i, 10)
+			_, ids := pushTracesToInstance(t, i, 10)
 
 			req := &tempopb.SearchRequest{Query: query, Limit: 20}
 

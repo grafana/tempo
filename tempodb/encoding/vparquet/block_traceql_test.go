@@ -594,7 +594,6 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 }
 
 func BenchmarkBackendBlockTraceQL(b *testing.B) {
-	// TODO: do need a similar benchmark for ingester search??
 	testCases := []struct {
 		name  string
 		conds []traceql.Condition
