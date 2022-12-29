@@ -284,6 +284,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 // writes traces to the given instance along with search data. returns
 // ids expected to be returned from a tag search and strings expected to
 // be returned from a tag value search
+// nolint:revive,unparam
 func writeTracesWithSearchData(t *testing.T, i *instance, tagKey string, tagValue string, postFixValue bool) ([][]byte, []string) {
 	// This matches the encoding for live traces, since
 	// we are pushing to the instance directly it must match.
