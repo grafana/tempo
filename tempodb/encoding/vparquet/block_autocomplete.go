@@ -62,66 +62,15 @@ func fetchSeries(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet
 		}
 	}
 
-	// seriesColumns := map[string]bool{
-	// 	columnPathSpanID:             true,
-	// 	columnPathSpanName:           true,
-	// 	columnPathSpanStartTime:      true,
-	// 	columnPathSpanEndTime:        true,
-	// 	columnPathSpanStatusCode:     true,
-	// 	columnPathSpanHTTPStatusCode: true,
-	// 	columnPathSpanHTTPMethod:     true,
-	// 	columnPathSpanHTTPURL:        true,
-	// }
+	// TODO(mapno): Is it ok to reuse the collector for all the iterators,
+	//  or is there a better way?
+	collector := &spansetSeriesCollector{}
 
 	makeIter := makeIterFunc(ctx, pf.RowGroups(), pf)
 
-	var (
-		columnSelectAs    = map[string]string{}
-		columnPredicates  = map[string][]parquetquery.Predicate{}
-		genericConditions []traceql.Condition
-		spanIters         []parquetquery.Iterator
-	)
-
-	addPredicate := func(columnPath string, p parquetquery.Predicate) {
-		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
-	}
-
-	for _, spanCond := range spanConditions {
-		// Well-known selector?
-		if entry, ok := wellKnownColumnLookups[spanCond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeSpan {
-			if spanCond.Op == traceql.OpNone {
-				addPredicate(entry.columnPath, nil) // No filtering
-				columnSelectAs[entry.columnPath] = spanCond.Attribute.Name
-				continue
-			}
-
-			// Compatible type?
-			if entry.typ == operandType(spanCond.Operands) {
-				pred, err := createPredicate(spanCond.Op, spanCond.Operands)
-				if err != nil {
-					return nil, errors.Wrap(err, "creating predicate")
-				}
-				spanIters = append(spanIters, makeIter(entry.columnPath, pred, spanCond.Attribute.Name))
-				continue
-			}
-		}
-		// Else: generic attribute lookup
-		genericConditions = append(genericConditions, spanCond)
-	}
-
-	// Span attributes iterator
-	// TODO(mapno): Use a different parquetquery.GroupPredicate that doesn't collect values
-	spanAttributesIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
-		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
+	spanColumnIters, _, err := createSpanColumnIterators[*noopCollector](makeIter, spanConditions, true)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating span attribute iterator")
-	}
-
-	if len(spanIters) > 0 {
-		spanIters = append(spanIters, spanAttributesIter)
-	}
-	for columnPath, predicates := range columnPredicates {
-		spanIters = append(spanIters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
+		return nil, err
 	}
 
 	start, end := req.StartTimeUnixNanos, req.EndTimeUnixNanos
@@ -135,64 +84,26 @@ func fetchSeries(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet
 		endFilter = parquetquery.NewIntBetweenPredicate(int64(start), math.MaxInt64)
 	}
 
-	spanIters = append(spanIters, makeIter(columnPathSpanStartTime, startFilter, columnPathSpanStartTime))
-	spanIters = append(spanIters, makeIter(columnPathSpanEndTime, endFilter, columnPathSpanEndTime))
+	spanColumnIters = append(spanColumnIters, makeIter(columnPathSpanStartTime, startFilter, columnPathSpanStartTime))
+	spanColumnIters = append(spanColumnIters, makeIter(columnPathSpanEndTime, endFilter, columnPathSpanEndTime))
 
-	groupPredicate := &spansetSeriesCollector{}
-	// Scope span iterator
-	// TODO(mapno): Use left join
-	spanJoinIterator := parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, spanIters, groupPredicate)
+	// TODO(mapno): Use join-left iterator
+	spanIterator := parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, spanColumnIters, collector)
 
-	// Reset vars
-	columnSelectAs = map[string]string{}
-	columnPredicates = map[string][]parquetquery.Predicate{}
-	genericConditions = []traceql.Condition{}
-	resourceIters := []parquetquery.Iterator{}
-
-	for _, cond := range resourceConditions {
-
-		// Well-known selector?
-		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeSpan {
-			if cond.Op == traceql.OpNone {
-				addPredicate(entry.columnPath, nil) // No filtering
-				columnSelectAs[entry.columnPath] = cond.Attribute.Name
-				continue
-			}
-
-			// Compatible type?
-			if entry.typ == operandType(cond.Operands) {
-				pred, err := createPredicate(cond.Op, cond.Operands)
-				if err != nil {
-					return nil, errors.Wrap(err, "creating predicate")
-				}
-				resourceIters = append(resourceIters, makeIter(entry.columnPath, pred, cond.Attribute.Name))
-				continue
-			}
-		}
-
-		// Else: generic attribute lookup
-		genericConditions = append(genericConditions, cond)
-	}
-
-	resourceAttributesIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceAttrs,
-		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
+	resourceColumnIters, err := createResourceColumIterators[*noopCollector](makeIter, resourceConditions, true)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating span attribute iterator")
+		return nil, err
 	}
-	if resourceAttributesIter != nil {
-		resourceIters = append(resourceIters, resourceAttributesIter)
-	}
-
 	// Put span iterator last, so it is only read when
 	// the resource conditions are met.
-	resourceIters = append(resourceIters, spanJoinIterator)
+	resourceColumnIters = append(resourceColumnIters, spanIterator)
 
 	// Resource spans iterator
-	// TODO(mapno): Use left join
-	resourceIter := parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, resourceIters, groupPredicate)
+	// TODO(mapno): Use left-join iterator
+	resourceIterator := parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, resourceColumnIters, collector)
 
 	traceIters := []parquetquery.Iterator{
-		resourceIter,
+		resourceIterator,
 		// Add static columns that are always return
 		makeIter(columnPathTraceID, nil, columnPathTraceID),
 		makeIter(columnPathStartTimeUnixNano, nil, columnPathStartTimeUnixNano),
@@ -204,7 +115,7 @@ func fetchSeries(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet
 	// Final trace iterator
 	// Join iterator means it requires matching resources to have been found
 	// traceCollector adds trace-level data to the spansets
-	traceIter := parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, groupPredicate)
+	traceIter := parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, collector)
 
 	return &genIterator[traceql.SpansetSeries]{traceIter}, nil
 }
@@ -277,3 +188,10 @@ func (a *spansetSeriesCollector) KeepGroup(res *parquetquery.IteratorResult) boo
 
 	return true
 }
+
+var _ parquetquery.GroupPredicate = (*noopCollector)(nil)
+
+type noopCollector struct{}
+
+// TODO(mapno): Should it return false?
+func (n noopCollector) KeepGroup(*parquetquery.IteratorResult) bool { return true }

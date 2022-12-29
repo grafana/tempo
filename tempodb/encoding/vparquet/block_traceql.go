@@ -16,8 +16,8 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-// Helper function to create an iterator, that abstracts away
-// context like file and rowgroups.
+// Helper function to create an iterator,
+// that abstracts away context like file and rowgroups.
 type makeIterFn func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator
 
 const (
@@ -195,67 +195,74 @@ func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.Spanset, erro
 //
 // Diagram:
 //
-//  Span attribute iterator: key    -----------------------------
-//                           ...    --------------------------  |
-//  Span attribute iterator: valueN ----------------------|  |  |
-//                                                        |  |  |
-//                                                        V  V  V
-//                                                     -------------
-//                                                     | attribute |
-//                                                     | collector |
-//                                                     -------------
-//                                                            |
-//                                                            | List of attributes
-//                                                            |
-//                                                            |
-//  Span column iterator 1    ---------------------------     |
-//                      ...   ------------------------  |     |
-//  Span column iterator N    ---------------------  |  |     |
-//    (ex: name, status)                          |  |  |     |
-//                                                V  V  V     V
-//                                            ------------------
-//                                            | span collector |
-//                                            ------------------
-//                                                            |
-//                                                            | List of Spans
-//  Resource attribute                                        |
-//   iterators:                                               |
-//     key     -----------------------------------------      |
-//     ...     --------------------------------------  |      |
-//     valueN  -----------------------------------  |  |      |
-//                                               |  |  |      |
-//                                               V  V  V      |
-//                                            -------------   |
-//                                            | attribute |   |
-//                                            | collector |   |
-//                                            -------------   |
-//                                                      |     |
-//                                                      |     |
-//                                                      |     |
-//                                                      |     |
+//	Span attribute iterator: key    -----------------------------
+//	                         ...    --------------------------  |
+//	Span attribute iterator: valueN ----------------------|  |  |
+//	                                                      |  |  |
+//	                                                      V  V  V
+//	                                                   -------------
+//	                                                   | attribute |
+//	                                                   | collector |
+//	                                                   -------------
+//	                                                          |
+//	                                                          | List of attributes
+//	                                                          |
+//	                                                          |
+//	Span column iterator 1    ---------------------------     |
+//	                    ...   ------------------------  |     |
+//	Span column iterator N    ---------------------  |  |     |
+//	  (ex: name, status)                          |  |  |     |
+//	                                              V  V  V     V
+//	                                          ------------------
+//	                                          | span collector |
+//	                                          ------------------
+//	                                                          |
+//	                                                          | List of Spans
+//	Resource attribute                                        |
+//	 iterators:                                               |
+//	   key     -----------------------------------------      |
+//	   ...     --------------------------------------  |      |
+//	   valueN  -----------------------------------  |  |      |
+//	                                             |  |  |      |
+//	                                             V  V  V      |
+//	                                          -------------   |
+//	                                          | attribute |   |
+//	                                          | collector |   |
+//	                                          -------------   |
+//	                                                    |     |
+//	                                                    |     |
+//	                                                    |     |
+//	                                                    |     |
+//
 // Resource column iterator 1  --------------------     |     |
-//                      ...    -----------------  |     |     |
+//
+//	...    -----------------  |     |     |
+//
 // Resource column iterator N  --------------  |  |     |     |
-//    (ex: service.name)                    |  |  |     |     |
-//                                          V  V  V     V     V
-//                                         ----------------------
-//                                         |   batch collector  |
-//                                         ----------------------
-//                                                            |
-//                                                            | List of Spansets
+//
+//	(ex: service.name)                    |  |  |     |     |
+//	                                      V  V  V     V     V
+//	                                     ----------------------
+//	                                     |   batch collector  |
+//	                                     ----------------------
+//	                                                        |
+//	                                                        | List of Spansets
+//
 // Trace column iterator 1  --------------------------        |
-//                      ... -----------------------  |        |
+//
+//	... -----------------------  |        |
+//
 // Trace column iterator N  --------------------  |  |        |
-//    (ex: trace ID)                           |  |  |        |
-//                                             V  V  V        V
-//                                           -------------------
-//                                           | trace collector |
-//                                           -------------------
-//                                                            |
-//                                                            | Final Spanset
-//                                                            |
-//                                                            V
-
+//
+//	(ex: trace ID)                           |  |  |        |
+//	                                         V  V  V        V
+//	                                       -------------------
+//	                                       | trace collector |
+//	                                       -------------------
+//	                                                        |
+//	                                                        | Final Spanset
+//	                                                        |
+//	                                                        V
 func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, opts common.SearchOptions) (*genIterator[traceql.Spanset], error) {
 
 	// Categorize conditions into span-level or resource-level
@@ -347,10 +354,9 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 	return &genIterator[traceql.Spanset]{traceIter}, nil
 }
 
-// createSpanIterator iterates through all span-level columns, groups them into rows representing
-// one span each.  Spans are returned that match any of the given conditions.
-func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, start, end uint64, requireAtLeastOneMatch, allConditions bool) (parquetquery.Iterator, error) {
-
+// createSpanColumnIterators creates a column iterator for each span-level condition.
+// It also returns duration predicates, which are handled specially.
+func createSpanColumnIterators[T parquetquery.GroupPredicate](makeIter makeIterFn, conditions []traceql.Condition, withAllWellKnownColumns bool) ([]parquetquery.Iterator, []*parquetquery.GenericPredicate[int64], error) {
 	var (
 		columnSelectAs     = map[string]string{}
 		columnPredicates   = map[string][]parquetquery.Predicate{}
@@ -364,14 +370,12 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 	}
 
 	for _, cond := range conditions {
-
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
-
 		case traceql.IntrinsicName:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, err
+				return nil, durationPredicates, err
 			}
 			addPredicate(columnPathSpanName, pred)
 			columnSelectAs[columnPathSpanName] = columnPathSpanName
@@ -380,7 +384,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 		case traceql.IntrinsicDuration:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, err
+				return nil, durationPredicates, err
 			}
 			durationPredicates = append(durationPredicates, pred)
 			continue
@@ -388,7 +392,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 		case traceql.IntrinsicStatus:
 			pred, err := createStatusPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, err
+				return nil, durationPredicates, err
 			}
 			addPredicate(columnPathSpanStatusCode, pred)
 			columnSelectAs[columnPathSpanStatusCode] = columnPathSpanStatusCode
@@ -407,7 +411,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 			if entry.typ == operandType(cond.Operands) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
-					return nil, errors.Wrap(err, "creating predicate")
+					return nil, durationPredicates, errors.Wrap(err, "creating predicate")
 				}
 				addPredicate(entry.columnPath, pred)
 				columnSelectAs[entry.columnPath] = cond.Attribute.Name
@@ -419,17 +423,39 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 		genericConditions = append(genericConditions, cond)
 	}
 
-	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
+	attrIter, err := createAttributeIterator[T](makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
 		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating span attribute iterator")
+		return nil, durationPredicates, errors.Wrap(err, "creating span attribute iterator")
 	}
 	if attrIter != nil {
 		iters = append(iters, attrIter)
 	}
 
+	// Add predicates for well-known columns that were not explicitly selected in the query.
+	// These are used for collecting the values of the columns.
+	if withAllWellKnownColumns {
+		for name, column := range wellKnownColumnLookups {
+			if _, ok := columnPredicates[name]; column.level == traceql.AttributeScopeSpan && !ok {
+				addPredicate(column.columnPath, nil)
+				columnSelectAs[column.columnPath] = name
+			}
+		}
+	}
+
 	for columnPath, predicates := range columnPredicates {
 		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
+	}
+
+	return iters, durationPredicates, nil
+}
+
+// createSpanIterator iterates through all span-level columns, groups them into rows representing one span each.
+// Spans are returned that match any of the given conditions.
+func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, start, end uint64, requireAtLeastOneMatch, allConditions bool) (parquetquery.Iterator, error) {
+	iters, durationPredicates, err := createSpanColumnIterators[*attributeCollector](makeIter, conditions, false)
+	if err != nil {
+		return nil, err
 	}
 
 	// Time range filtering?
@@ -457,8 +483,8 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 		minCount = len(distinct)
 	}
 	spanCol := &spanCollector{
-		minCount,
-		durationPredicates,
+		minAttributes:   minCount,
+		durationFilters: durationPredicates,
 	}
 
 	// This is an optimization for when all the span conditions must be met.
@@ -490,14 +516,12 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol), nil
 }
 
-// createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
-// one batch each. It builds on top of the span iterator, and turns the groups of spans and resource-level values into
-// spansets.  Spansets are returned that match any of the given conditions.
-func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, requireAtLeastOneMatchOverall, allConditions bool) (parquetquery.Iterator, error) {
+// createResourceColumnIterators creates a list of iterators for all resource-level columns.
+func createResourceColumIterators[T parquetquery.GroupPredicate](makeIter makeIterFn, conditions []traceql.Condition, withAllWellKnownColumns bool) ([]parquetquery.Iterator, error) {
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
-		iters             = []parquetquery.Iterator{}
+		iters             []parquetquery.Iterator
 		genericConditions []traceql.Condition
 	)
 
@@ -506,7 +530,6 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	}
 
 	for _, cond := range conditions {
-
 		// Well-known selector?
 		if entry, ok := wellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeSpan {
 			if cond.Op == traceql.OpNone {
@@ -530,13 +553,40 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		genericConditions = append(genericConditions, cond)
 	}
 
-	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceAttrs,
+	attrIter, err := createAttributeIterator[T](makeIter, genericConditions, DefinitionLevelResourceAttrs,
 		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span attribute iterator")
 	}
 	if attrIter != nil {
 		iters = append(iters, attrIter)
+	}
+
+	for columnPath, predicates := range columnPredicates {
+		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
+	}
+
+	// Add predicates for well-known columns that were not explicitly selected in the query.
+	// These are used for collecting the values of the columns.
+	if withAllWellKnownColumns {
+		for name, column := range wellKnownColumnLookups {
+			if _, ok := columnPredicates[name]; column.level == traceql.AttributeScopeSpan && !ok {
+				addPredicate(column.columnPath, nil)
+				columnSelectAs[column.columnPath] = name
+			}
+		}
+	}
+
+	return iters, nil
+}
+
+// createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
+// one batch each. It builds on top of the span iterator, and turns the groups of spans and resource-level values into
+// spansets.  Spansets are returned that match any of the given conditions.
+func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, requireAtLeastOneMatchOverall, allConditions bool) (parquetquery.Iterator, error) {
+	columnIters, err := createResourceColumIterators[*attributeCollector](makeIter, conditions, false)
+	if err != nil {
+		return nil, err
 	}
 
 	minCount := 0
@@ -558,31 +608,29 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 
 	var required []parquetquery.Iterator
 
-	// This is an optimization for when all of the resource conditions must be met.
+	// This is an optimization for when all the resource conditions must be met.
 	// We simply move all iterators into the required list.
 	if allConditions {
-		required = append(required, iters...)
-		iters = nil
+		required = append(required, columnIters...)
+		columnIters = nil
 	}
 
-	// This is an optimization for cases when only resource conditions are
-	// present and we require at least one of them to match.  Wrap
-	// up the individual conditions with a union and move it into the
-	// required list.
-	if requireAtLeastOneMatch && len(iters) > 0 {
-		required = append(required, parquetquery.NewUnionIterator(DefinitionLevelResourceSpans, iters, nil))
-		iters = nil
+	// This is an optimization for cases when only resource conditions are present,
+	// and we require at least one of them to match.
+	// Wrap up the individual conditions with a union and move it into the required list.
+	if requireAtLeastOneMatch && len(columnIters) > 0 {
+		required = append(required, parquetquery.NewUnionIterator(DefinitionLevelResourceSpans, columnIters, nil))
+		columnIters = nil
 	}
 
-	// Put span iterator last so it is only read when
-	// the resource conditions are met.
+	// Put span iterator last, so it is only read when the resource conditions are met.
 	required = append(required, spanIterator)
 
 	// Left join here means the span iterator + 1 are required,
-	// and all other resource conditions are optional. Whatever matches
-	// is returned.
+	// and all other resource conditions are optional.
+	// Whatever matches is returned.
 	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpans,
-		required, iters, batchCol), nil
+		required, columnIters, batchCol), nil
 }
 
 func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator) parquetquery.Iterator {
@@ -811,7 +859,8 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 	}
 }
 
-func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition,
+func createAttributeIterator[T parquetquery.GroupPredicate](
+	makeIter makeIterFn, conditions []traceql.Condition,
 	definitionLevel int,
 	keyPath, strPath, intPath, floatPath, boolPath string,
 ) (parquetquery.Iterator, error) {
@@ -886,7 +935,7 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		return parquetquery.NewLeftJoinIterator(definitionLevel,
 			[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
 			valueIters,
-			&attributeCollector{}), nil
+			*new(T)), nil
 	}
 
 	return nil, nil
