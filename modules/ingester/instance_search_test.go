@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/stretchr/testify/assert"
@@ -95,6 +96,20 @@ func TestInstanceSearch(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+// Add a test to run traceQL on v2 wal, and test for the failure case.
+
+func TestInstanceSearchTraceQUnsupported(t *testing.T) {
+	i, _, _ := defaultInstanceWithFlatBufferSearch(t, true)
+	_, _ = writeTracesWithSearchData(t, i, "foo", "bar", false)
+	var req = &tempopb.SearchRequest{
+		Query: "{ .foo = .bar }",
+	}
+
+	_, err := i.Search(context.Background(), req)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, common.ErrUnsupported)
 }
 
 // TestInstanceSearchTraceQL is duplicate of TestInstanceSearch for now

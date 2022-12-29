@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/tempo/tempodb/search"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
+	"github.com/pkg/errors"
 	"github.com/weaveworks/common/user"
 	"go.uber.org/multierr"
 )
@@ -41,6 +42,20 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		// Iterate over blocks, execute TraceQL, collect results, dedupe, sort and return traces.
 		// return early if we hit maxResults during search.
 		traces, metrics, blockErrs := i.searchWALWithTraceQL(ctx, req)
+
+		// exit early if blockErrs have common.ErrUnsupported
+		for _, err := range blockErrs {
+			if errors.Is(err, common.ErrUnsupported) {
+				// fail this search because TraceQL is not supported
+				return nil, errors.Wrap(err, "TraceQL WAL Search not supported")
+			}
+		}
+
+		// merge and log blockErrs
+		blockErr := multierr.Combine(blockErrs...)
+		if blockErr != nil {
+			level.Error(log.Logger).Log("msg", "Block level errors while searching WAL with TraceQL", "err", blockErr)
+		}
 
 		// de-duplicate and sort results
 		// note: de-dupe code is similar to code below for v2 search results
@@ -68,15 +83,12 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			return results[i].StartTimeUnixNano > results[j].StartTimeUnixNano
 		})
 
-		err := multierr.Combine(blockErrs...)
-		if err != nil {
-			level.Error(log.Logger).Log("msg", "errors searching WAL with TraceQL", "err", err)
-		}
-
+		// bubbling up blockErrs back the stack will fail whole search request.
+		// Don't fail whole search for blockErrs
 		return &tempopb.SearchResponse{
 			Traces:  results,
 			Metrics: metrics,
-		}, err
+		}, nil
 	}
 
 	p := search.NewSearchPipeline(req)
@@ -270,9 +282,16 @@ func (i *instance) searchWALWithTraceQL(ctx context.Context, req *tempopb.Search
 	res, err := engine.Execute(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 		return i.headBlock.Fetch(ctx, req, opts)
 	}))
+
 	if err != nil {
 		level.Error(log.Logger).Log("msg", fmt.Sprintf("error searching headBlock, blockID: %s", i.headBlock.BlockMeta().BlockID.String()), "err", err)
 		blockErrs = append(blockErrs, err)
+
+		// TraceQL is not supported, bail out with errors
+		if errors.Is(err, common.ErrUnsupported) {
+			span.LogFields(ot_log.Error(fmt.Errorf("TraceQL WAL Search unsupported: %v", err)))
+			return nil, nil, blockErrs
+		}
 	}
 	traces = append(traces, res.Traces...)
 	metrics = mergeSearchMetrics(metrics, res.Metrics)
