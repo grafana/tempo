@@ -43,6 +43,8 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		// return early if we hit maxResults during search.
 		traces, metrics, blockErrs := i.searchWALWithTraceQL(ctx, req)
 
+		level.Info(log.Logger).Log("msg", "TraceQL WAL Search", "query", req.Query)
+
 		// exit early if blockErrs have common.ErrUnsupported
 		for _, err := range blockErrs {
 			if errors.Is(err, common.ErrUnsupported) {
@@ -54,11 +56,15 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		// merge and log blockErrs
 		blockErr := multierr.Combine(blockErrs...)
 		if blockErr != nil {
-			level.Error(log.Logger).Log("msg", "Block level errors while searching WAL with TraceQL", "err", blockErr)
+			level.Error(log.Logger).Log("msg", "TraceQL WAL Search: block level errors", "err", blockErr)
 		}
 
 		// de-duplicate and sort results
 		// note: de-dupe code is similar to code below for v2 search results
+		//
+		// TODO: de-duplicate traces as we search through blocks as a follow up optimisation
+		// we do de-duplicate traces after we are done with full search,
+		// this means we are fetching more traces then we need for this search request
 		resultsMap := map[string]*tempopb.TraceSearchMetadata{}
 		for _, result := range traces {
 			// Dedupe/combine results
@@ -82,6 +88,8 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		sort.Slice(results, func(i, j int) bool {
 			return results[i].StartTimeUnixNano > results[j].StartTimeUnixNano
 		})
+
+		level.Info(log.Logger).Log("msg", "TraceQL WAL Search: Complete", "total_results_size", len(results))
 
 		// bubbling up blockErrs back the stack will fail whole search request.
 		// Don't fail whole search for blockErrs
@@ -298,6 +306,7 @@ func (i *instance) searchWALWithTraceQL(ctx context.Context, req *tempopb.Search
 	span.LogFields(
 		ot_log.String("msg", "done searching headBlock"),
 		ot_log.Int("total_traces_size", len(traces)))
+	level.Info(log.Logger).Log("msg", "TraceQL WAL Search: done searching headBlock", "total_traces_size", len(traces))
 
 	// search completingBlocks
 	for _, block := range i.completingBlocks {
@@ -316,6 +325,7 @@ func (i *instance) searchWALWithTraceQL(ctx context.Context, req *tempopb.Search
 	span.LogFields(
 		ot_log.String("msg", "done searching completingBlocks"),
 		ot_log.Int("total_traces_size", len(traces)))
+	level.Info(log.Logger).Log("msg", "TraceQL WAL Search: done searching completingBlocks", "total_traces_size", len(traces))
 
 	// search completeBlocks
 	for _, block := range i.completeBlocks {
@@ -333,6 +343,7 @@ func (i *instance) searchWALWithTraceQL(ctx context.Context, req *tempopb.Search
 	span.LogFields(
 		ot_log.String("msg", "done searching completeBlocks"),
 		ot_log.Int("total_traces_size", len(traces)))
+	level.Info(log.Logger).Log("msg", "TraceQL WAL Search: done searching completeBlocks", "total_traces_size", len(traces))
 
 	return traces, metrics, blockErrs
 }
