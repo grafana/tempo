@@ -1,4 +1,5 @@
 ## main / unreleased
+* [ENHANCEMENT] Add support for TraceQL in Parquet WAL. [#1966](https://github.com/grafana/tempo/pull/1966) (@electron0zero)
 * [ENHANCEMENT] Add zone awareness replication for ingesters. [#1936](https://github.com/grafana/tempo/pull/1936) (@manohar-koukuntla)
 ```
 # use the following fields in _config field of jsonnet config, to enable zone aware ingester
