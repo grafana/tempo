@@ -38,6 +38,7 @@ In TraceQL, a query is an expression that is evaluated on one trace at a time. T
 ```
 
 In this example, the search reduces traces to those spans where: 
+
 * `http.status_code` is in the range of `200` to `299` and 
 * the number of matching spans within a trace is greater than two. 
 
