@@ -217,7 +217,7 @@ Docker compose uses an internal networking bridge to connect all of the defined 
    tempo
    ```
 
-1. Save the `docker-compose.yaml` file and exit your editor.
+    Save the `docker-compose.yaml` file and exit your editor.
 
 1. Edit the default Grafana data source for Tempo that is included in the examples. Edit the file located at `tempo/example/shared/grafana-datasources.yaml`, and change the `url` field of the `Tempo` data source to point to the local IP address of the machine running the Tempo service instead (eg. `url: http://10.128.0.104:3200`). The Tempo data source section should resemble this:
    ```
@@ -256,7 +256,6 @@ Docker compose uses an internal networking bridge to connect all of the defined 
 1. Once logged in, navigate to the **Explore** page, select the Tempo data source and select the **Search** tab. Select **Run query** to list the recent traces stored in Tempo. Select one to view the trace diagram:
     <p align="center"><img src="../assets/setup-linux-run-query.png" alt="Query example"></p>
 
-## Enable service graphs
 
 1. Alter the Tempo configuration to point to the instance of Prometheus running in docker compose. To do so, edit the configuration at `/etc/tempo/config.yaml` and change the `storage` block under the `metrics_generator` section so that the remote write url is `http://localhost:9090`. The configuration section should look like this:
    ```
