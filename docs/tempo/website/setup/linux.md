@@ -139,7 +139,7 @@ The [extended instructions for installing the TNS application]({{< relref "../li
    overrides:
    metrics_generator_processors: [service-graphs, span-metrics]
 ```
->**Note:** that in the above configuration we enable the metrics generator to generate Prometheus metrics data from incoming trace spans. This is sent to a Prometheus remote write compatible metrics store at `http://prometheus:9090/api/v1/write` (in the `metrics_generator` configuration block). Ensure you change the relevant `url` parameter to your own Prometheus compatible storage instance, or disable the metrics generator by replacing `metrics_generator_enabled: true` with `metrics_generator_enabled: false` if you do not wish to generate span metrics.
+>**Note:** In the above configuration, metrics generator is enabled to generate Prometheus metrics data from incoming trace spans. This is sent to a Prometheus remote write compatible metrics store at `http://prometheus:9090/api/v1/write` (in the `metrics_generator` configuration block). Ensure you change the relevant `url` parameter to your own Prometheus compatible storage instance, or disable the metrics generator by replacing `metrics_generator_enabled: true` with `metrics_generator_enabled: false` if you do not wish to generate span metrics.
 
 ## Move the configuration file to the proper directory
 
