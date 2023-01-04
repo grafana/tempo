@@ -9,19 +9,9 @@ weight: 150
 
 Tempo is available as a pre-compiled binary, a Docker image, and as common OS-specific packaging.
 
-This section describes how to set up Tempo on a single Linux node or as a cluster using Kubernetes and Tanka. Tempo can also be set up as a distributed set of services.  
+This section describes how to set up Tempo on a single Linux node or as a cluster using Kubernetes and Tanka. Tempo can also be set up as a distributed set of services.
 
 This page highlights these steps; more detailed instructions are available on the procedures for installing Tempo.
-
-## Name your cluster
-
-If you install Tempo in a cluster, you need to decide what to call it.
-A cluster name must meet the following criteria:
-
-- is 3 to 63 characters long
-- contains lowercase letters, numbers, underscores (_), or hyphens (-)
-- begins with a letter or number
-- ends with a letter or number
 
 ## Deploy Tempo
 
@@ -30,9 +20,11 @@ Choose a method to deploy Tempo:
 - [Deploy on Linux]({{< relref "linux">}})
 - [Deploy on Kubernetes using Tanka]({{< relref "tanka">}})
 
+You can also use Docker to deploy Tempo using [the Docker examples](https://github.com/grafana/tempo/tree/main/example/docker-compose).
+
 ## Test your installation
 
-Once Tempo is deployed, you can test your cluster by visualizing the traces data with a simple TNS app.
-Refer to [Set up a test application for Tempo cluster]({{< relref "set-up-test-app" >}}) for instructions.
+Once Tempo is deployed, you can test Tempo by visualizing traces data:
 
-The [Linux]({{< relref "linux">}}) installation provides a verification procedure.
+- Using a [test application for a Tempo cluster]({{< relref "set-up-test-app" >}}) for the Kubernetes with Tanka setup
+- Using a [Docker example]({{< relref "linux">}}) to test the Linux setup
