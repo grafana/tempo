@@ -25,6 +25,7 @@ Some of the examples include:
 - Trace discovery with Loki
 - Basic Grafana Agent/OpenTelemetry Setup
 - Various Backends (S3/GCS/Azure)
+- [K6 with Traces]({{< relref "docker-example" >}})
 
 This is a great place to get started with Tempo and learn about various trace discovery flows.
 
@@ -37,7 +38,7 @@ To learn how to set up a Tempo cluster, see [Deploy on Kubernetes with Tanka]({{
 
 ## Helm
 
-The Helm [example](https://github.com/grafana/tempo/tree/main/example/helm) shows a complete microservice based deployment. 
+The Helm [example](https://github.com/grafana/tempo/tree/main/example/helm) shows a complete microservice based deployment.
 There are monolithic mode and microservices examples.
 
 ## The New Stack demo
