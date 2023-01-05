@@ -42,7 +42,7 @@ In this example, the search reduces traces to those spans where:
 * `http.status_code` is in the range of `200` to `299` and 
 * the number of matching spans within a trace is greater than two. 
 
-Queries select sets of spans and filter them through a pipeline of aggregators and conditions. If a spanset is produced after evaluation on a trace, then this spanset (and by extension the trace) is included in the result set of the query.
+Queries select sets of spans and filter them through a pipeline of aggregators and conditions. If, for a given trace, this pipeline produces a spanset then it is included in the results of the query.
 
 
 ## Selecting spans
@@ -51,18 +51,10 @@ TraceQL differentiates between two types of span data: intrinsics, which are fun
 
 In TraceQL, curly brackets `{}` always select a set of spans from the current trace. They are commonly paired with a condition to reduce the spans being passed in.
 
-This simple query will be evaluated on every span of every trace, one at a time.
-```
-{ .http.status = 200 }
-```
-
-If the trace being evaluated contains no spans with an attribute `http.status` with the value `200`, then no spans will be selected and this trace will not appear in the result set.
-
-If the trace does contain spans with an attribute `http.status` with the value `200`, then only those spans will be returned. The trace is reduced to only the set of spans that match the condition inside the `{}`. The result set will contain only this subset of spans matching the condition.
 
 ### Intrinsic fields
 
-Intrinsic fields are fundamental to spans. These fields can be referenced when selecting spans. Note that custom attributes are prefixed with `.`, `span.` or `resource.` whereas intrinsics can be typed directly.
+Intrinsic fields are fundamental to spans. These fields can be referenced when selecting spans. Note that custom attributes are prefixed with `.`, `span.` or `resource.` whereas intrinsics are typed directly.
 
 
 | **Operation** | **Type** | **Definition**                        | **Example**            |
