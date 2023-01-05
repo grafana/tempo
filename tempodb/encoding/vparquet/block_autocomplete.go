@@ -62,10 +62,6 @@ func fetchSeries(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet
 		}
 	}
 
-	// TODO(mapno): Is it ok to reuse the collector for all the iterators,
-	//  or is there a better way?
-	collector := &spansetSeriesCollector{}
-
 	makeIter := makeIterFunc(ctx, pf.RowGroups(), pf)
 
 	spanColumnIters, _, err := createSpanColumnIterators[*noopCollector](makeIter, spanConditions, true)
@@ -88,7 +84,7 @@ func fetchSeries(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet
 	spanColumnIters = append(spanColumnIters, makeIter(columnPathSpanEndTime, endFilter, columnPathSpanEndTime))
 
 	// TODO(mapno): Use join-left iterator
-	spanIterator := parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, spanColumnIters, collector)
+	spanIterator := parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, spanColumnIters, &spanSeriesCollector{})
 
 	resourceColumnIters, err := createResourceColumIterators[*noopCollector](makeIter, resourceConditions, true)
 	if err != nil {
@@ -100,8 +96,9 @@ func fetchSeries(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet
 
 	// Resource spans iterator
 	// TODO(mapno): Use left-join iterator
-	resourceIterator := parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, resourceColumnIters, collector)
+	resourceIterator := parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, resourceColumnIters, &resourceSeriesCollector{})
 
+	// TODO(mapno): Do we need this?
 	traceIters := []parquetquery.Iterator{
 		resourceIterator,
 		// Add static columns that are always return
@@ -115,7 +112,7 @@ func fetchSeries(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet
 	// Final trace iterator
 	// Join iterator means it requires matching resources to have been found
 	// traceCollector adds trace-level data to the spansets
-	traceIter := parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, collector)
+	traceIter := parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, &spansetSeriesCollector{})
 
 	return &genIterator[traceql.SpansetSeries]{traceIter}, nil
 }
@@ -141,45 +138,97 @@ func (i *genIterator[T]) Next(context.Context) (*T, error) {
 	return value, nil
 }
 
+var _ parquetquery.GroupPredicate = (*spanSeriesCollector)(nil)
+
+type spanSeriesCollector struct{}
+
+func (c *spanSeriesCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
+	spanSeries := &traceql.SpanSeries{}
+	for _, kv := range res.Entries {
+		switch kv.Key {
+		case LabelHTTPMethod:
+			spanSeries.HTTPMethod = kv.Value.String()
+		case LabelHTTPUrl:
+			spanSeries.HTTPUrl = kv.Value.String()
+		case LabelHTTPStatusCode:
+			spanSeries.HTTPStatusCode = int(kv.Value.Int32())
+		}
+	}
+	res.Entries = res.Entries[:0]
+	res.OtherEntries = res.OtherEntries[:0]
+	res.AppendOtherValue("series", spanSeries)
+
+	return true
+}
+
+var _ parquetquery.GroupPredicate = (*resourceSeriesCollector)(nil)
+
+type resourceSeriesCollector struct{}
+
+func (c *resourceSeriesCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
+	resourceSeries := &traceql.ResourceSeries{}
+
+	spanSeries := make([]traceql.SpanSeries, 0, len(res.OtherEntries))
+	for _, oe := range res.OtherEntries {
+		switch oe.Value.(type) {
+		case *traceql.SpanSeries:
+			spanSeries = append(spanSeries, *oe.Value.(*traceql.SpanSeries))
+		}
+	}
+	resourceSeries.SpanSeries = spanSeries
+
+	for _, kv := range res.Entries {
+		switch kv.Key {
+		case LabelServiceName:
+			resourceSeries.ServiceName = kv.Value.String()
+		case LabelCluster:
+			resourceSeries.Cluster = kv.Value.String()
+		case LabelNamespace:
+			resourceSeries.Namespace = kv.Value.String()
+		case LabelPod:
+			resourceSeries.Pod = kv.Value.String()
+		case LabelContainer:
+			resourceSeries.Container = kv.Value.String()
+		case LabelK8sClusterName:
+			resourceSeries.K8sCluster = kv.Value.String()
+		case LabelK8sNamespaceName:
+			resourceSeries.K8sNamespace = kv.Value.String()
+		case LabelK8sPodName:
+			resourceSeries.K8sPod = kv.Value.String()
+		case LabelK8sContainerName:
+			resourceSeries.K8sContainer = kv.Value.String()
+		}
+	}
+	res.Entries = res.Entries[:0]
+	res.OtherEntries = res.OtherEntries[:0]
+	res.AppendOtherValue("series", resourceSeries)
+	return true
+}
+
 var _ parquetquery.GroupPredicate = (*spansetSeriesCollector)(nil)
 
 // spansetSeriesCollector is a parquetquery.GroupPredicate that collects values for intrinsic and well-known columns
 type spansetSeriesCollector struct{}
 
 func (a *spansetSeriesCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
-	var spansetSeries *traceql.SpansetSeries
+	spansetSeries := &traceql.SpansetSeries{}
+
+	resourceSeries := make([]traceql.ResourceSeries, 0, len(res.OtherEntries))
 	for _, oe := range res.OtherEntries {
-		if series, ok := oe.Value.(*traceql.SpansetSeries); ok {
-			spansetSeries = series
+		switch oe.Value.(type) {
+		case *traceql.ResourceSeries:
+			resourceSeries = append(resourceSeries, *oe.Value.(*traceql.ResourceSeries))
 		}
 	}
+	spansetSeries.ResourceSeries = resourceSeries
 
 	for _, kv := range res.Entries {
 		switch kv.Key {
 		// Trace well-known columns
 		case columnPathRootServiceName:
-			spansetSeries.ServiceName = kv.Value.String()
+			spansetSeries.RootServiceName = kv.Value.String()
 		case columnPathRootSpanName:
 			spansetSeries.RootSpanName = kv.Value.String()
-		// Resource well-known columns
-		case columnPathResourceServiceName:
-			spansetSeries.ServiceName = kv.Value.String()
-		case columnPathResourceCluster:
-			spansetSeries.Cluster = kv.Value.String()
-		case columnPathResourceNamespace:
-			spansetSeries.Namespace = kv.Value.String()
-		case columnPathResourcePod:
-			spansetSeries.Pod = kv.Value.String()
-		case columnPathResourceContainer:
-			spansetSeries.Container = kv.Value.String()
-		case columnPathResourceK8sClusterName:
-			spansetSeries.K8sCluster = kv.Value.String()
-		case columnPathResourceK8sNamespaceName:
-			spansetSeries.K8sNamespace = kv.Value.String()
-		case columnPathResourceK8sPodName:
-			spansetSeries.K8sPod = kv.Value.String()
-		case columnPathResourceK8sContainerName:
-			spansetSeries.K8sContainer = kv.Value.String()
 		}
 	}
 	res.Entries = res.Entries[:0]

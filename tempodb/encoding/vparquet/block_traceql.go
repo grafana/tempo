@@ -437,7 +437,12 @@ func createSpanColumnIterators[T parquetquery.GroupPredicate](makeIter makeIterF
 	if withAllWellKnownColumns {
 		for name, column := range wellKnownColumnLookups {
 			if _, ok := columnPredicates[name]; column.level == traceql.AttributeScopeSpan && !ok {
-				addPredicate(column.columnPath, nil)
+				pred := parquetquery.NewGenericPredicate(
+					func(v string) bool { return len(v) > 0 },
+					func(min, max string) bool { return min != "" || max != "" },
+					func(v parquet.Value) string { return v.String() },
+				)
+				addPredicate(column.columnPath, pred)
 				columnSelectAs[column.columnPath] = name
 			}
 		}
@@ -570,11 +575,20 @@ func createResourceColumIterators[T parquetquery.GroupPredicate](makeIter makeIt
 	// These are used for collecting the values of the columns.
 	if withAllWellKnownColumns {
 		for name, column := range wellKnownColumnLookups {
-			if _, ok := columnPredicates[name]; column.level == traceql.AttributeScopeSpan && !ok {
-				addPredicate(column.columnPath, nil)
+			if _, ok := columnPredicates[name]; column.level == traceql.AttributeScopeResource && !ok {
+				pred := parquetquery.NewGenericPredicate(
+					func(v string) bool { return len(v) > 0 },
+					func(min, max string) bool { return min != "" || max != "" },
+					func(v parquet.Value) string { return v.String() },
+				)
+				addPredicate(column.columnPath, pred)
 				columnSelectAs[column.columnPath] = name
 			}
 		}
+	}
+
+	for columnPath, predicates := range columnPredicates {
+		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
 	}
 
 	return iters, nil

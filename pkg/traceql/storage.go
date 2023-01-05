@@ -61,18 +61,26 @@ type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
 }
 
-// SpansetSeries is a set of streams of trace data.
-// It contains combinations of intrinsic and well-known attributes.
-// TODO(mapno): Extend to include dynamic attributes/columns and span attributes(?).
-type SpansetSeries struct {
+type SpanSeries struct {
 	// Well-known span attributes
-	HTTPStatusCode, HTTPMethod, HTTPUrl string
+	HTTPStatusCode      int
+	HTTPMethod, HTTPUrl string
+}
 
-	// Intrinsic span attributes
+type ResourceSeries struct {
+	SpanSeries []SpanSeries
 
 	// Well-known resource attributes.
 	ServiceName, Cluster, Namespace, Pod, Container string
 	K8sCluster, K8sNamespace, K8sPod, K8sContainer  string
+}
+
+// SpansetSeries is a set of streams of trace data.
+// It contains combinations of intrinsic and well-known attributes.
+// TODO(mapno): Extend to include dynamic attributes/columns and span attributes(?).
+type SpansetSeries struct {
+	// Intrinsic span attributes
+	ResourceSeries []ResourceSeries
 
 	// Well-known trace attributes.
 	RootSpanName, RootServiceName string
