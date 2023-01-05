@@ -62,24 +62,6 @@ func TestConfig_CheckConfig(t *testing.T) {
 			}(),
 			expect: []ConfigWarning{warnStorageTraceBackendLocal},
 		},
-		{
-			name: "warn ingester search",
-			config: func() *Config {
-				cfg := newDefaultConfig()
-				cfg.StorageConfig.Trace.Block.Version = "v2"
-				return cfg
-			}(),
-			expect: []ConfigWarning{warnIngesterSearchWillNotWork},
-		},
-		{
-			name: "warn flatbuffers not necessary",
-			config: func() *Config {
-				cfg := newDefaultConfig()
-				cfg.Ingester.UseFlatbufferSearch = true
-				return cfg
-			}(),
-			expect: []ConfigWarning{warnFlatBuffersNotNecessary},
-		},
 	}
 
 	for _, tc := range tt {
