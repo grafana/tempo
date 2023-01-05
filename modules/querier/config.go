@@ -11,13 +11,13 @@ import (
 
 // Config for a querier.
 type Config struct {
-	Search SearchConfig `yaml:"search"`
+	Search    SearchConfig    `yaml:"search"`
+	TraceByID TraceByIDConfig `yaml:"trace_by_id"`
 
-	TraceLookupQueryTimeout time.Duration `yaml:"query_timeout"`
-	ExtraQueryDelay         time.Duration `yaml:"extra_query_delay,omitempty"`
-	MaxConcurrentQueries    int           `yaml:"max_concurrent_queries"`
-	Worker                  worker.Config `yaml:"frontend_worker"`
-	QueryRelevantIngesters  bool          `yaml:"query_relevant_ingesters"`
+	ExtraQueryDelay        time.Duration `yaml:"extra_query_delay,omitempty"`
+	MaxConcurrentQueries   int           `yaml:"max_concurrent_queries"`
+	Worker                 worker.Config `yaml:"frontend_worker"`
+	QueryRelevantIngesters bool          `yaml:"query_relevant_ingesters"`
 }
 
 type SearchConfig struct {
@@ -28,13 +28,17 @@ type SearchConfig struct {
 	HedgeRequestsUpTo int           `yaml:"external_hedge_requests_up_to"`
 }
 
+type TraceByIDConfig struct {
+	QueryTimeout time.Duration `yaml:"query_timeout"`
+}
+
 // RegisterFlagsAndApplyDefaults register flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	cfg.TraceLookupQueryTimeout = 10 * time.Second
+	cfg.TraceByID.QueryTimeout = 10 * time.Second
 	cfg.QueryRelevantIngesters = false
 	cfg.ExtraQueryDelay = 0
-	cfg.MaxConcurrentQueries = 5
-	cfg.Search.PreferSelf = 2
+	cfg.MaxConcurrentQueries = 20
+	cfg.Search.PreferSelf = 10
 	cfg.Search.HedgeRequestsAt = 8 * time.Second
 	cfg.Search.HedgeRequestsUpTo = 2
 	cfg.Search.QueryTimeout = 30 * time.Second
