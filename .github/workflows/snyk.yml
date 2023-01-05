@@ -1,53 +1,15 @@
-name: Snyk SBOM CI
-
+name: Snyk Monitor Scanning
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:
+ release:
+   types: [published] 
+ push:
+    branches:
+      - 'main' 
+      - 'master'
+ workflow_dispatch:
 
 jobs:
-  snyk_scans:
-
-    runs-on: ubuntu-latest
-
-    steps:
-
-      - uses: actions/checkout@v3
-      - name: Run Snyk to check for vulnerabilities - sarif output
-        continue-on-error: true
-        uses: snyk/actions/golang@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          command: test
-          args:  --all-projects --sarif-file-output=${{ github.event.repository.name }}.sarif --strict-out-of-sync=false
-
-      - name: Run Snyk to check for vulnerabilities - json output
-        continue-on-error: true
-        uses: snyk/actions/golang@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          command: test
-          args: --json --all-projects --json-file-output=${{ github.event.repository.name }}.json  --strict-out-of-sync=false
-
-      - name: install snyk-to-html
-        continue-on-error: true
-        run: |
-          npm install snyk-to-html snyk2spdx snyk -g
-          snyk auth ${{ secrets.SNYK_TOKEN }}
-          snyk-to-html -i ${{ github.event.repository.name }}.json -o ${{ github.event.repository.name }}.html
-          snyk test --json --strict-out-of-sync=false | snyk2spdx --output ${{ github.event.repository.name }}.spdx
-
-      - name: Create results dir
-        continue-on-error: true
-        run: mkdir -p snyk_scans && cp -v ${{ github.event.repository.name }}.{html,json,sarif,spdx} snyk_scans/
-
-      - name: Use the Upload Artifact GitHub Action
-        continue-on-error: true
-        uses: actions/upload-artifact@v3
-        with:
-          name: snyk_scans
-          path: snyk_scans
+  snyk-scan-ci:
+    uses: 'grafana/security-github-actions/.github/workflows/snyk_monitor.yml@main'
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
