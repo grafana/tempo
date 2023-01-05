@@ -27,8 +27,8 @@ const (
 
 	DefaultPrefetchTraceCount   = 1000
 	DefaultSearchChunkSizeBytes = 1_000_000
-	DefaultReadBufferCount      = 8
-	DefaultReadBufferSize       = 4 * 1024 * 1024
+	DefaultReadBufferCount      = 32
+	DefaultReadBufferSize       = 1 * 1024 * 1024
 )
 
 // Config holds the entirety of tempodb configuration
