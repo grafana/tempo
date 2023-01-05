@@ -103,15 +103,15 @@ func (c SearchConfig) ApplyToOptions(o *common.SearchOptions) {
 
 // CompactorConfig contains compaction configuration options
 type CompactorConfig struct {
-	ChunkSizeBytes          uint32        `yaml:"chunk_size_bytes"`
-	FlushSizeBytes          uint32        `yaml:"flush_size_bytes"`
+	ChunkSizeBytes          uint32        `yaml:"v2_in_buffer_bytes"`
+	FlushSizeBytes          uint32        `yaml:"v2_out_buffer_bytes"`
+	IteratorBufferSize      int           `yaml:"v2_prefetch_traces_count"`
 	MaxCompactionRange      time.Duration `yaml:"compaction_window"`
 	MaxCompactionObjects    int           `yaml:"max_compaction_objects"`
 	MaxBlockBytes           uint64        `yaml:"max_block_bytes"`
 	BlockRetention          time.Duration `yaml:"block_retention"`
 	CompactedBlockRetention time.Duration `yaml:"compacted_block_retention"`
 	RetentionConcurrency    uint          `yaml:"retention_concurrency"`
-	IteratorBufferSize      int           `yaml:"iterator_buffer_size"`
 	MaxTimePerTenant        time.Duration `yaml:"max_time_per_tenant"`
 	CompactionCycle         time.Duration `yaml:"compaction_cycle"`
 }
