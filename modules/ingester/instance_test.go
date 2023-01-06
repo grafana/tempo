@@ -483,7 +483,7 @@ func TestInstanceMetrics(t *testing.T) {
 
 func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	ctx := context.Background()
-	maxTraceBytes := 100
+	maxTraceBytes := 1000
 	id := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 
 	ingester, _, _ := defaultIngester(t, t.TempDir())
@@ -497,28 +497,30 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, false)
 	require.NoError(t, err)
 
-	pushFn := func(byteCount int) error {
-		return i.PushBytes(ctx, id, make([]byte, byteCount), nil)
+	req := makeRequestWithByteLimit(maxTraceBytes-200, id)
+	reqSize := 0
+	for _, b := range req.Traces {
+		reqSize += len(b.Slice)
 	}
 
 	// Fill up trace to max
-	err = pushFn(maxTraceBytes)
+	err = i.PushBytesRequest(ctx, req)
 	require.NoError(t, err)
 
 	// Pushing again fails
-	err = pushFn(3)
-	require.Contains(t, err.Error(), (newTraceTooLargeError(id, i.instanceID, maxTraceBytes, 3)).Error())
+	err = i.PushBytesRequest(ctx, req)
+	require.Contains(t, err.Error(), (newTraceTooLargeError(id, i.instanceID, maxTraceBytes, reqSize)).Error())
 
 	// Pushing still fails after flush
 	err = i.CutCompleteTraces(0, true)
 	require.NoError(t, err)
-	err = pushFn(5)
-	require.Contains(t, err.Error(), (newTraceTooLargeError(id, i.instanceID, maxTraceBytes, 5)).Error())
+	err = i.PushBytesRequest(ctx, req)
+	require.Contains(t, err.Error(), (newTraceTooLargeError(id, i.instanceID, maxTraceBytes, reqSize)).Error())
 
 	// Cut block and then pushing works again
 	_, err = i.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
-	err = pushFn(maxTraceBytes)
+	err = i.PushBytesRequest(ctx, req)
 	require.NoError(t, err)
 }
 
@@ -559,11 +561,11 @@ func TestSortByteSlices(t *testing.T) {
 }
 
 func defaultInstance(t testing.TB) (*instance, *Ingester) {
-	instance, ingester, _ := defaultInstanceWithFlatBufferSearch(t, false)
+	instance, ingester, _ := defaultInstanceAndTmpDir(t)
 	return instance, ingester
 }
 
-func defaultInstanceWithFlatBufferSearch(t testing.TB, fbSearch bool) (*instance, *Ingester, string) {
+func defaultInstanceAndTmpDir(t testing.TB) (*instance, *Ingester, string) {
 	limits, err := overrides.NewOverrides(overrides.Limits{})
 	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
@@ -571,7 +573,8 @@ func defaultInstanceWithFlatBufferSearch(t testing.TB, fbSearch bool) (*instance
 	tmpDir := t.TempDir()
 
 	ingester, _, _ := defaultIngester(t, tmpDir)
-	instance, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, fbSearch)
+	ingester.getOrCreateInstance(testTenantID)
+	instance, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, false) // the default ingester uses a vparquet wal which does not use fb search
 	require.NoError(t, err, "unexpected error creating new instance")
 
 	return instance, ingester, tmpDir
@@ -639,7 +642,7 @@ func TestInstanceSearchCompleteParquet(t *testing.T) {
 	benchmarkInstanceSearch(t, false)
 }
 func benchmarkInstanceSearch(b testing.TB, fb bool) {
-	instance, _, _ := defaultInstanceWithFlatBufferSearch(b, fb)
+	instance, _ := defaultInstance(b) // jpe - extend to all block versions?
 	for i := 0; i < 1000; i++ {
 		request := makeRequest(nil)
 		err := instance.PushBytesRequest(context.Background(), request)

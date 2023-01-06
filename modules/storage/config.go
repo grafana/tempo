@@ -15,7 +15,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -37,7 +36,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.Trace.WAL = &wal.Config{}
 	f.StringVar(&cfg.Trace.WAL.Filepath, util.PrefixConfig(prefix, "trace.wal.path"), "/var/tempo/wal", "Path at which store WAL blocks.")
-	cfg.Trace.WAL.Version = v2.VersionString
 	cfg.Trace.WAL.Encoding = backend.EncSnappy
 	cfg.Trace.WAL.SearchEncoding = backend.EncNone
 	cfg.Trace.WAL.IngestionSlack = 2 * time.Minute

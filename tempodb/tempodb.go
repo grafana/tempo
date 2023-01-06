@@ -190,7 +190,7 @@ func New(cfg *Config, logger gkLog.Logger) (Reader, Writer, Compactor, error) {
 		blocklist:      blocklist.New(),
 	}
 
-	rw.wal, err = wal.New(rw.cfg.WAL)
+	rw.wal, err = wal.New(rw.cfg.WAL, rw.cfg.Block.Version)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -216,6 +216,12 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 	vers, err := encoding.FromVersion(rw.cfg.Block.Version)
 	if err != nil {
 		return nil, err
+	}
+
+	// force flush anything left in the wal
+	err = block.Flush()
+	if err != nil {
+		return nil, fmt.Errorf("error flushing wal block: %w", err)
 	}
 
 	iter, err := block.Iterator()

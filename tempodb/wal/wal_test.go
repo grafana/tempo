@@ -45,7 +45,7 @@ func TestCompletedDirIsRemoved(t *testing.T) {
 
 	_, err = New(&Config{
 		Filepath: tempDir,
-	})
+	}, encoding.DefaultEncoding().Version())
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	_, err = os.Stat(path.Join(tempDir, completedDir))
@@ -69,7 +69,7 @@ func testAppendBlockStartEnd(t *testing.T, e encoding.VersionedEncoding) {
 		Filepath:       t.TempDir(),
 		Encoding:       backend.EncNone,
 		IngestionSlack: 3 * time.Minute,
-	})
+	}, encoding.DefaultEncoding().Version())
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
@@ -129,7 +129,7 @@ func testIngestionSlack(t *testing.T, e encoding.VersionedEncoding) {
 		Filepath:       t.TempDir(),
 		Encoding:       backend.EncNone,
 		IngestionSlack: time.Minute,
-	})
+	}, encoding.DefaultEncoding().Version())
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
@@ -321,7 +321,7 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 	wal, err := New(&Config{
 		Filepath: tempDir,
 		Encoding: backend.EncGZIP,
-	})
+	}, encoding.DefaultEncoding().Version())
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	// create all valid blocks
@@ -365,16 +365,16 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 	require.DirExists(t, filepath.Join(tempDir, "fe0b83eb-a86b-4b6c-9a74-dc272cd5700e+tenant+vOther"))
 }
 
-func runWALTest(t testing.TB, dbEncoding string, runner func([][]byte, []*tempopb.Trace, common.WALBlock)) {
+func runWALTest(t testing.TB, encoding string, runner func([][]byte, []*tempopb.Trace, common.WALBlock)) {
 	wal, err := New(&Config{
 		Filepath: t.TempDir(),
 		Encoding: backend.EncNone,
-	})
+	}, encoding)
 	require.NoError(t, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
 
-	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, dbEncoding)
+	block, err := wal.newBlock(blockID, testTenantID, model.CurrentEncoding, encoding)
 	require.NoError(t, err, "unexpected error creating block")
 
 	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -513,7 +513,7 @@ func runWALBenchmark(b *testing.B, encoding string, flushCount int, runner func(
 	wal, err := New(&Config{
 		Filepath: b.TempDir(),
 		Encoding: backend.EncNone,
-	})
+	}, encoding)
 	require.NoError(b, err, "unexpected error creating temp wal")
 
 	blockID := uuid.New()
