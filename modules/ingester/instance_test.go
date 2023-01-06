@@ -207,6 +207,7 @@ func TestInstanceLimits(t *testing.T) {
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
 	ingester, _, _ := defaultIngester(t, t.TempDir())
+	ingester.limiter = limiter
 
 	type push struct {
 		req          *tempopb.PushBytesRequest
@@ -283,7 +284,8 @@ func TestInstanceLimits(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, false)
+			delete(ingester.instances, testTenantID) // force recreate instance to reset limits
+			i, err := ingester.getOrCreateInstance(testTenantID)
 			require.NoError(t, err, "unexpected error creating new instance")
 
 			for j, push := range tt.pushes {
@@ -486,15 +488,15 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	maxTraceBytes := 1000
 	id := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 
-	ingester, _, _ := defaultIngester(t, t.TempDir())
-
 	limits, err := overrides.NewOverrides(overrides.Limits{
 		MaxBytesPerTrace: maxTraceBytes,
 	})
 	require.NoError(t, err)
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, false)
+	ingester, _, _ := defaultIngester(t, t.TempDir())
+	ingester.limiter = limiter
+	i, err := ingester.getOrCreateInstance(testTenantID)
 	require.NoError(t, err)
 
 	req := makeRequestWithByteLimit(maxTraceBytes-200, id)
@@ -566,15 +568,11 @@ func defaultInstance(t testing.TB) (*instance, *Ingester) {
 }
 
 func defaultInstanceAndTmpDir(t testing.TB) (*instance, *Ingester, string) {
-	limits, err := overrides.NewOverrides(overrides.Limits{})
-	require.NoError(t, err, "unexpected error creating limits")
-	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
-
 	tmpDir := t.TempDir()
 
 	ingester, _, _ := defaultIngester(t, tmpDir)
 	ingester.getOrCreateInstance(testTenantID)
-	instance, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, false) // the default ingester uses a vparquet wal which does not use fb search
+	instance, err := ingester.getOrCreateInstance(testTenantID)
 	require.NoError(t, err, "unexpected error creating new instance")
 
 	return instance, ingester, tmpDir

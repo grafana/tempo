@@ -157,7 +157,6 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 // TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
 // partial results if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
 func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
-
 	limits, err := overrides.NewOverrides(overrides.Limits{
 		MaxBytesPerTagValuesQuery: 10,
 	})
@@ -167,7 +166,8 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	tempDir := t.TempDir()
 
 	ingester, _, _ := defaultIngester(t, tempDir)
-	i, err := newInstance("fake", limiter, ingester.store, ingester.local, false) // jpe change all to i.getOrCreateInstance?
+	ingester.limiter = limiter
+	i, err := ingester.getOrCreateInstance("fake")
 	assert.NoError(t, err, "unexpected error creating new instance")
 
 	var tagKey = "foo"
@@ -239,12 +239,8 @@ func TestInstanceSearchNoData(t *testing.T) {
 }
 
 func TestInstanceSearchDoesNotRace(t *testing.T) {
-	limits, err := overrides.NewOverrides(overrides.Limits{})
-	require.NoError(t, err)
-	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
-
 	ingester, _, _ := defaultIngester(t, t.TempDir())
-	i, err := newInstance("fake", limiter, ingester.store, ingester.local, false)
+	i, err := ingester.getOrCreateInstance("fake")
 	require.NoError(t, err)
 
 	// This matches the encoding for live traces, since
