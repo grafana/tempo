@@ -93,7 +93,7 @@ Attributes can be unscoped if you are unsure if the requested attribute exists o
 
 For example, to find traces with an attribute of `http.status` set to `200`:
 ```
-{ http.status = 200 }
+{ .http.status = 200 }
 ```
 
 To find traces where the `namespace` is set to `prod`:
