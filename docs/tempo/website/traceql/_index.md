@@ -158,13 +158,13 @@ Spanset operators let you combine two sets of spans using and (`&&`) as well as 
 - `{condA} || {condB}`
 
 
-For example, if you want to find a trace that went through two specific regions:
+For example, to find a trace that went through two specific regions:
 
 ```
 { resource.region = "eu-west-0" } && { resource.region = "eu-west-1" }
 ```
 
-Note the difference between the above and the following:
+Note the difference between the previous example and this one:
 
 ```
 { resource.region = "eu-west-0" && resource.region = "eu-west-1" }
