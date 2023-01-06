@@ -89,7 +89,7 @@ Find any database connection string that goes to a Postgres or MySQL database:
 
 ### Unscoped attribute fields
 
-Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource. When possible, use scoped  instead of unscoped attributes.
+Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource. When possible, use scoped instead of unscoped attributes.
 
 For example, to find traces with an attribute of `http.status` set to `200`:
 ```
