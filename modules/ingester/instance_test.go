@@ -571,7 +571,6 @@ func defaultInstanceAndTmpDir(t testing.TB) (*instance, *Ingester, string) {
 	tmpDir := t.TempDir()
 
 	ingester, _, _ := defaultIngester(t, tmpDir)
-	ingester.getOrCreateInstance(testTenantID)
 	instance, err := ingester.getOrCreateInstance(testTenantID)
 	require.NoError(t, err, "unexpected error creating new instance")
 
@@ -627,20 +626,14 @@ func BenchmarkInstanceFindTraceByIDFromCompleteBlock(b *testing.B) {
 	}
 }
 
-func BenchmarkInstanceSearchCompleteFB(b *testing.B) {
-	benchmarkInstanceSearch(b, true)
-}
 func BenchmarkInstanceSearchCompleteParquet(b *testing.B) {
-	benchmarkInstanceSearch(b, false)
-}
-func TestInstanceSearchCompleteFB(t *testing.T) {
-	benchmarkInstanceSearch(t, true)
+	benchmarkInstanceSearch(b)
 }
 func TestInstanceSearchCompleteParquet(t *testing.T) {
-	benchmarkInstanceSearch(t, false)
+	benchmarkInstanceSearch(t)
 }
-func benchmarkInstanceSearch(b testing.TB, fb bool) {
-	instance, _ := defaultInstance(b) // jpe - extend to all block versions?
+func benchmarkInstanceSearch(b testing.TB) {
+	instance, _ := defaultInstance(b)
 	for i := 0; i < 1000; i++ {
 		request := makeRequest(nil)
 		err := instance.PushBytesRequest(context.Background(), request)

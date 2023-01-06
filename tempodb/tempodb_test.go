@@ -767,7 +767,7 @@ func BenchmarkCompleteBlock(b *testing.B) {
 	enc := encoding.AllEncodings()
 
 	for _, e := range enc {
-		b.Run(fmt.Sprintf("%s", e.Version()), func(b *testing.B) {
+		b.Run(e.Version(), func(b *testing.B) {
 			benchmarkCompleteBlock(b, e)
 		})
 	}
