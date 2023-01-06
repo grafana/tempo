@@ -98,7 +98,7 @@ For example, to find traces with an attribute of `http.status` set to `200`:
 
 To find traces where the `namespace` is set to `prod`:
 ```
-{ namespace = "prod" }
+{ .namespace = "prod" }
 ```
 
 
