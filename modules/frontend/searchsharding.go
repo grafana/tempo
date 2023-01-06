@@ -32,7 +32,7 @@ const (
 var (
 	metricInspectedBytes = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "tempo",
-		Name:      "frontend_query_results_metrics_inspected_bytes",
+		Name:      "query_frontend_result_metrics_inspected_bytes",
 		Help:      "Inspected Bytes in a search query",
 		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
 	})
