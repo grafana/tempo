@@ -19,7 +19,6 @@ import (
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
 	"github.com/weaveworks/common/user"
-	"go.uber.org/multierr"
 )
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
@@ -36,68 +35,6 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	}
 
 	span.LogFields(ot_log.String("SearchRequest", req.String()))
-	if api.IsTraceQLQuery(req) {
-		// A trace can be live, in headBlock, completing blocks and complete blocks.
-		// search in this order: HeadBlock, CompletingBlocks, and then finally in completeBlocks.
-		// Iterate over blocks, execute TraceQL, collect results, dedupe, sort and return traces.
-		// return early if we hit maxResults during search.
-		traces, metrics, blockErrs := i.searchWALWithTraceQL(ctx, req)
-
-		level.Info(log.Logger).Log("msg", "TraceQL WAL Search", "query", req.Query)
-
-		// exit early if blockErrs have common.ErrUnsupported
-		for _, err := range blockErrs {
-			if errors.Is(err, common.ErrUnsupported) {
-				// fail this search because TraceQL is not supported
-				return nil, errors.Wrap(err, "TraceQL WAL Search not supported")
-			}
-		}
-
-		// merge and log blockErrs
-		blockErr := multierr.Combine(blockErrs...)
-		if blockErr != nil {
-			level.Error(log.Logger).Log("msg", "TraceQL WAL Search: block level errors", "err", blockErr)
-		}
-
-		// de-duplicate and sort results
-		// note: de-dupe code is similar to code below for v2 search results
-		//
-		// TODO: de-duplicate traces as we search through blocks as a follow up optimisation
-		// we do de-duplicate traces after we are done with full search,
-		// this means we are fetching more traces then we need for this search request
-		resultsMap := map[string]*tempopb.TraceSearchMetadata{}
-		for _, result := range traces {
-			// Dedupe/combine results
-			if existing := resultsMap[result.TraceID]; existing != nil {
-				search.CombineSearchResults(existing, result)
-			} else {
-				resultsMap[result.TraceID] = result
-			}
-
-			if len(resultsMap) >= maxResults {
-				break // exit early
-			}
-		}
-
-		results := make([]*tempopb.TraceSearchMetadata, 0, len(resultsMap))
-		for _, result := range resultsMap {
-			results = append(results, result)
-		}
-
-		// Sort
-		sort.Slice(results, func(i, j int) bool {
-			return results[i].StartTimeUnixNano > results[j].StartTimeUnixNano
-		})
-
-		level.Info(log.Logger).Log("msg", "TraceQL WAL Search: Complete", "total_results_size", len(results))
-
-		// bubbling up blockErrs back the stack will fail whole search request.
-		// Don't fail whole search for blockErrs
-		return &tempopb.SearchResponse{
-			Traces:  results,
-			Metrics: metrics,
-		}, nil
-	}
 
 	p := search.NewSearchPipeline(req)
 
@@ -204,6 +141,7 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 // searchWAL starts a search task for every WAL block. Must be called under lock.
 func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p search.Pipeline, sr *search.Results) {
 	searchFunc := func(e *searchStreamingBlockEntry) {
+		// flat-buffers search
 		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchWAL")
 		defer span.Finish()
 
@@ -222,15 +160,36 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 	}
 
 	searchWalBlock := func(b common.WALBlock) {
+		blockID := b.BlockMeta().BlockID.String()
 		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchWALBlock", opentracing.Tags{
-			"blockID": b.BlockMeta().BlockID,
+			"blockID": blockID,
 		})
 		defer span.Finish()
 		defer sr.FinishWorker()
 
-		resp, err := b.Search(ctx, req, common.DefaultSearchOptions())
+		var resp *tempopb.SearchResponse
+		var err error
+
+		isTraceQL := false
+		opts := common.DefaultSearchOptions()
+		if api.IsTraceQLQuery(req) {
+			isTraceQL = true
+			// note: we are creating new engine for each wal block,
+			// and engine.Execute is parsing the query for each block
+			resp, err = traceql.NewEngine().Execute(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return b.Fetch(ctx, req, opts)
+			}))
+		} else {
+			resp, err = b.Search(ctx, req, opts)
+		}
+
 		if err != nil {
-			level.Error(log.Logger).Log("msg", "error searching wal block", "blockID", b.BlockMeta().BlockID.String(), "err", err)
+			msg := "error searching local block"
+			if isTraceQL && errors.Is(err, common.ErrUnsupported) {
+				// we can remove this check when v2 is removed
+				msg = msg + ", TraceQL is not supported"
+			}
+			level.Error(log.Logger).Log("msg", msg, "blockID", blockID, "block_version", b.BlockMeta().Version, "isTraceQL", isTraceQL, "err", err)
 			return
 		}
 
@@ -264,101 +223,6 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 	}
 }
 
-// searchWALWithTraceQL handles TraceQL search query for searching WAL,
-// acquires instance blocksMtx when searching WAL blocks
-func (i *instance) searchWALWithTraceQL(ctx context.Context, req *tempopb.SearchRequest) ([]*tempopb.TraceSearchMetadata, *tempopb.SearchMetrics, []error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchWALWithTraceQL")
-	defer span.Finish()
-
-	opts := common.DefaultSearchOptions()
-	engine := traceql.NewEngine()
-	metrics := &tempopb.SearchMetrics{}
-	var traces []*tempopb.TraceSearchMetadata
-	var blockErrs []error
-
-	// i.traces has live Traces
-	// TODO: searching live traces with TraceQL is not supported yet
-
-	// Lock blocks mutex until all block search is done. This avoids
-	// deadlocking with other activity (ingest, flushing), caused by releasing
-	// and then attempting to retake the lock.
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
-	span.LogFields(ot_log.Event("blocksMtx acquired"))
-
-	// search headBlock
-	res, err := engine.Execute(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return i.headBlock.Fetch(ctx, req, opts)
-	}))
-
-	if err != nil {
-		level.Error(log.Logger).Log("msg", fmt.Sprintf("error searching headBlock, blockID: %s", i.headBlock.BlockMeta().BlockID.String()), "err", err)
-		blockErrs = append(blockErrs, err)
-
-		// TraceQL is not supported, bail out with errors
-		if errors.Is(err, common.ErrUnsupported) {
-			span.LogFields(ot_log.Error(fmt.Errorf("TraceQL WAL Search unsupported: %v", err)))
-			return nil, nil, blockErrs
-		}
-	}
-	traces = append(traces, res.Traces...)
-	metrics = mergeSearchMetrics(metrics, res.Metrics)
-	span.LogFields(
-		ot_log.String("msg", "done searching headBlock"),
-		ot_log.Int("total_traces_size", len(traces)))
-	level.Info(log.Logger).Log("msg", "TraceQL WAL Search: done searching headBlock", "total_traces_size", len(traces))
-
-	// search completingBlocks
-	for _, block := range i.completingBlocks {
-		// TODO: Execute will parse the query for each block... parse once and reuse...
-		r, err := engine.Execute(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-			return block.Fetch(ctx, req, opts)
-		}))
-
-		if err != nil {
-			level.Error(log.Logger).Log("msg", fmt.Sprintf("error searching completingBlocks, blockID: %s", block.BlockMeta().BlockID.String()), "err", err)
-			blockErrs = append(blockErrs, err)
-		}
-		traces = append(traces, r.Traces...)
-		metrics = mergeSearchMetrics(metrics, r.Metrics)
-	}
-	span.LogFields(
-		ot_log.String("msg", "done searching completingBlocks"),
-		ot_log.Int("total_traces_size", len(traces)))
-	level.Info(log.Logger).Log("msg", "TraceQL WAL Search: done searching completingBlocks", "total_traces_size", len(traces))
-
-	// search completeBlocks
-	for _, block := range i.completeBlocks {
-		// TODO: Execute will parse the query for each block... parse once and reuse...
-		r, err := engine.Execute(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-			return block.Fetch(ctx, req, opts)
-		}))
-		if err != nil {
-			level.Error(log.Logger).Log("msg", fmt.Sprintf("error searching completeBlocks, blockID: %s", block.BlockMeta().BlockID.String()), "err", err)
-			blockErrs = append(blockErrs, err)
-		}
-		traces = append(traces, r.Traces...)
-		metrics = mergeSearchMetrics(metrics, res.Metrics)
-	}
-	span.LogFields(
-		ot_log.String("msg", "done searching completeBlocks"),
-		ot_log.Int("total_traces_size", len(traces)))
-	level.Info(log.Logger).Log("msg", "TraceQL WAL Search: done searching completeBlocks", "total_traces_size", len(traces))
-
-	return traces, metrics, blockErrs
-}
-
-func mergeSearchMetrics(final, add *tempopb.SearchMetrics) *tempopb.SearchMetrics {
-	final.InspectedTraces += add.GetInspectedTraces()
-	final.InspectedBytes += add.GetInspectedBytes()
-	final.InspectedBlocks += add.GetInspectedBlocks()
-	final.SkippedBlocks += add.GetSkippedBlocks()
-	final.SkippedTraces += add.GetSkippedTraces()
-	final.TotalBlockBytes += add.GetTotalBlockBytes()
-
-	return final
-}
-
 // searchLocalBlocks starts a search task for every local block. Must be called under lock.
 func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchRequest, p search.Pipeline, sr *search.Results) {
 	// first check the searchCompleteBlocks map. if there is an entry for a block here we want to search it first
@@ -376,6 +240,7 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 			span.LogFields(ot_log.Event("local block entry mtx acquired"))
 			span.SetTag("blockID", e.b.BlockID().String())
 
+			// flat-buffers search
 			err := e.b.Search(ctx, p, sr)
 			if err != nil {
 				level.Error(log.Logger).Log("msg", "error searching local block", "blockID", e.b.BlockID().String(), "err", err)
@@ -404,14 +269,35 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchLocalBlocks")
 			defer span.Finish()
 
-			blockID := e.BlockMeta().BlockID
+			blockID := e.BlockMeta().BlockID.String()
 
 			span.LogFields(ot_log.Event("local block entry mtx acquired"))
 			span.SetTag("blockID", blockID)
 
-			resp, err := e.Search(ctx, req, common.DefaultSearchOptions())
+			var resp *tempopb.SearchResponse
+			var err error
+
+			isTraceQL := false
+			opts := common.DefaultSearchOptions()
+
+			if api.IsTraceQLQuery(req) {
+				isTraceQL = true
+				// note: we are creating new engine for each wal block,
+				// and engine.Execute is parsing the query for each block
+				resp, err = traceql.NewEngine().Execute(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+					return e.Fetch(ctx, req, opts)
+				}))
+			} else {
+				resp, err = e.Search(ctx, req, opts)
+			}
+
 			if err != nil {
-				level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "err", err)
+				msg := "error searching local block"
+				if errors.Is(err, common.ErrUnsupported) && isTraceQL {
+					// we can remove this check when v2 is removed
+					msg = msg + ", TraceQL is not supported"
+				}
+				level.Error(log.Logger).Log("msg", msg, "blockID", blockID, "isTraceQL", isTraceQL, "err", err)
 				return
 			}
 
