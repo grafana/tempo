@@ -213,22 +213,16 @@ ingester:
     [flush_check_period: <duration>]
 
     # maximum size of a block before cutting it
-    # (default: 1073741824 = 1GB)
+    # (default: 524288000 = 500MB)
     [max_block_bytes: <int>]
 
     # maximum length of time before cutting a block
-    # (default: 1h)
+    # (default: 30m)
     [max_block_duration: <duration>]
 
     # duration to keep blocks in the ingester after they have been flushed
     # (default: 15m)
     [ complete_block_timeout: <duration>]
-
-    # If true then flatbuffer search metadata files are created and used in the ingester for search, 
-    # search tags and search tag values. If false then the blocks themselves are used for search in the ingesters. 
-    # Warning: v2 blocks do not support ingester search without this enabled.
-    # (default: false)
-    [ use_flatbuffer_search: <bool> ]
 ```
 
 ## Metrics-generator
@@ -361,10 +355,6 @@ query_frontend:
     # (default: 2)
     [max_retries: <int>]
 
-    # The number of shards to split a trace by id query into.
-    # (default: 20)
-    [query_shards: <int>]
-
     # number of block queries that are tolerated to error before considering the entire query as failed
     # numbers greater than 0 make possible for a read to return partial results
     # (default: 0)
@@ -373,11 +363,11 @@ query_frontend:
     search:
 
         # The number of concurrent jobs to execute when searching the backend.
-        # (default: 50)
+        # (default: 1000)
         [concurrent_jobs: <int>]
 
         # The target number of bytes for each job to handle when performing a backend search.
-        # (default: 10485760)
+        # (default: 104857600)
         [target_bytes_per_job: <int>]
 
         # Limit used for search requests if none is set by the caller
@@ -392,7 +382,7 @@ query_frontend:
 
         # The maximum allowed time range for a search.
         # 0 disables this limit.
-        # (default: 1h1m0s)
+        # (default: 168h)
         [max_duration: <duration>]
 
         # query_backend_after and query_ingesters_until together control where the query-frontend searches for traces.
@@ -403,11 +393,14 @@ query_frontend:
         # (default: 15m)
         [query_backend_after: <duration>]
 
-        # (default: 1h)
+        # (default: 30m)
         [query_ingesters_until: <duration>]
 
     # Trace by ID lookup configuration
     trace_by_id:
+        # The number of shards to split a trace by id query into.
+        # (default: 50)
+        [query_shards: <int>]
 
         # If set to a non-zero value, a second request will be issued at the provided duration.
         # Recommended to be set to p99 of search requests to reduce long-tail latency.
@@ -428,14 +421,11 @@ The Querier is responsible for querying the backends/cache for the traceID.
 # querier config block
 querier:
 
-    # Timeout for trace lookup requests
-    [query_timeout: <duration> | default = 10s]
-
     # The query frontend turns both trace by id (/api/traces/<id>) and search (/api/search?<params>) requests
     # into subqueries that are then pulled and serviced by the queriers.
     # This value controls the overall number of simultaneous subqueries that the querier will service at once. It does
     # not distinguish between the types of queries.
-    [max_concurrent_queries: <int> | default = 5]
+    [max_concurrent_queries: <int> | default = 20]
 
     # The query frontend sents sharded requests to ingesters and querier (/api/traces/<id>)
     # By default, all healthy ingesters are queried for the trace id.
@@ -443,6 +433,10 @@ querier:
     # only query those ingesters who own the trace id hash as determined by the ring.
     # If this parameter is set, the number of 404s could increase during rollout or scaling of ingesters.
     [query_relevant_ingesters: <bool> | default = false]
+
+    trace_by_id:
+        # Timeout for trace lookup requests
+        [query_timeout: <duration> | default = 10s]
 
     search:
         # Timeout for search requests
@@ -459,7 +453,7 @@ querier:
         # number of subqueries. In the default case of 2 the querier will process up to 2 search requests subqueries before starting
         # to reach out to search_external_endpoints.
         # Setting this to 0 will disable this feature and the querier will proxy all search subqueries to search_external_endpoints.
-        [prefer_self: <int> | default = 2 ]
+        [prefer_self: <int> | default = 10 ]
 
         # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
         # be set to p99 of external search requests to reduce long tail latency.
@@ -514,12 +508,6 @@ compactor:
         # Optional. Blocks in this time window will be compacted together. Default is 1h.
         [compaction_window: <duration>]
 
-        # Optional. Amount of data to buffer from input blocks. Default is 5 MiB.
-        [chunk_size_bytes: <int>]
-
-        # Optional. Flush data to backend when buffer is this large. Default is 30 MB.
-        [flush_size_bytes: <int>]
-
         # Optional. Maximum number of traces in a compacted block. Default is 6 million.
         # WARNING: Deprecated. Use max_block_bytes instead.
         [max_compaction_objects: <int>]
@@ -530,9 +518,6 @@ compactor:
         # Optional. Number of tenants to process in parallel during retention. Default is 10.
         [retention_concurrency: <int>]
 
-        # Optional. Number of traces to buffer in memory during compaction. Increasing may improve performance but will also increase memory usage. Default is 1000.
-        [iterator_buffer_size: <int>]
-
         # Optional. The maximum amount of time to spend compacting a single tenant before moving to the next. Default is 5m.
         [max_time_per_tenant: <duration>]
 
@@ -540,6 +525,14 @@ compactor:
         # Note: The default will be used if the value is set to 0.
         [compaction_cycle: <duration>]
 
+        # Optional. Amount of data to buffer from input blocks. Default is 5 MiB.
+        [v2_in_buffer_bytes: <int>]
+
+        # Optional. Flush data to backend when buffer is this large. Default is 30 MB.
+        [v2_out_buffer_bytes: <int>]
+
+        # Optional. Number of traces to buffer in memory during compaction. Increasing may improve performance but will also increase memory usage. Default is 1000.
+        [v2_prefetch_traces_count: <int>]
 ```
 
 ## Storage
@@ -786,12 +779,12 @@ storage:
 
             # Size of read buffers used when performing search on a vparquet block. This value times the read_buffer_count
             # is the total amount of bytes used for buffering when performing search on a parquet block.
-            # Default: 4194304
+            # Default: 1048576
             [read_buffer_size_bytes: <int>]
 
             # Number of read buffers used when performing search on a vparquet block. This value times the  read_buffer_size_bytes
             # is the total amount of bytes used for buffering when performing search on a parquet block.
-            # Default: 8
+            # Default: 32
             [read_buffer_count: <int>]
 
             # Granular cache control settings for parquet metadata objects
@@ -923,11 +916,11 @@ storage:
         # the worker pool is used primarily when finding traces by id, but is also used by other
         pool:
 
-            # total number of workers pulling jobs from the queue (default: 50)
+            # total number of workers pulling jobs from the queue (default: 400)
             [max_workers: <int>]
 
             # length of job queue. imporatant for querier as it queues a job for every block it has to search
-            # (default: 10000)
+            # (default: 20000)
             [queue_depth: <int>]
 
         # Configuration block for the Write Ahead Log (WAL)
@@ -939,7 +932,7 @@ storage:
 
             # wal encoding/compression.
             # options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-            [encoding: <string> | default = snappy]
+            [v2_encoding: <string> | default = snappy]
 
             # Defines the search data encoding/compression protocol.
             # Options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
@@ -957,6 +950,8 @@ storage:
 
         # block configuration
         block:
+            # block format version. options: v2, vParquet
+            [version: <string> | default = vParquet]
 
             # bloom filter false positive rate.  lower values create larger filters but fewer false positives
             [bloom_filter_false_positive: <float> | default = 0.01]
@@ -965,13 +960,10 @@ storage:
             [bloom_filter_shard_size_bytes: <int> | default = 100KiB]
 
             # number of bytes per index record
-            [index_downsample_bytes: <uint64> | default = 1MiB]
-
-            # block format version. options: v2, vParquet
-            [version: <string> | default = v2]
+            [v2_index_downsample_bytes: <uint64> | default = 1MiB]
 
             # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-            [encoding: <string> | default = zstd]
+            [v2_encoding: <string> | default = zstd]
 
             # search data encoding/compression. same options as block encoding.
             [search_encoding: <string> | default = snappy]
@@ -982,7 +974,7 @@ storage:
             # an estimate of the number of bytes per row group when cutting Parquet blocks. lower values will
             #  create larger footers but will be harder to shard when searching. It is difficult to calculate
             #  this field directly and it may vary based on workload. This is roughly a lower bound.
-            [row_group_size_bytes: <int> | default = 100MB]
+            [parquet_row_group_size_bytes: <int> | default = 100MB]
 ```
 
 ## Memberlist
