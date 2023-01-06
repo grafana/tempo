@@ -502,7 +502,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 }
 
 func TestSearchCompactedBlocks(t *testing.T) {
-	r, w, c, _ := testConfig(t, backend.EncLZ4_256k, time.Minute)
+	r, w, c, _ := testConfig(t, backend.EncLZ4_256k, time.Hour)
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:          10,
