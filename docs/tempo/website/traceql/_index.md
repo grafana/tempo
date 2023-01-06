@@ -143,7 +143,7 @@ Find traces with "success" `http status` codes:
 Find traces where a `DELETE` HTTP method was used and the instrinsic span status was not OK:
 
 ```
-{ span.http.method = "DELETE" && span.status != ok }
+{ span.http.method = "DELETE" && status != ok }
 ```
 
 Both expressions require all conditions to be true on the same span. The entire expression inside of a pair of `{}` must be evaluated as true on a single span for it to be included in the result set.
