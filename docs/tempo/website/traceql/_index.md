@@ -134,7 +134,7 @@ Fields can also be combined in various ways to allow more flexible search criter
 
 #### Examples
 
-Find traces with "success" `http status` codes:
+Find traces with "success" `http.status` codes:
 
 ```
 { span.http.status >= 200 && span.http.status < 300 }
