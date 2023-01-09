@@ -119,6 +119,30 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		makeReq(parse(t, `{.`+LabelServiceName+` = "spanservicename"}`)), // service.name present on span
 		makeReq(parse(t, `{.`+LabelHTTPStatusCode+` = "500ouch"}`)),      // http.status_code doesn't match type of dedicated column
 		makeReq(parse(t, `{.foo = "def"}`)),
+		{
+			// Range at unscoped
+			AllConditions: true,
+			Conditions: []traceql.Condition{
+				parse(t, `{.`+LabelHTTPStatusCode+` >= 500}`),
+				parse(t, `{.`+LabelHTTPStatusCode+` <= 600}`),
+			},
+		},
+		{
+			// Range at span scope
+			AllConditions: true,
+			Conditions: []traceql.Condition{
+				parse(t, `{span.`+LabelHTTPStatusCode+` >= 500}`),
+				parse(t, `{span.`+LabelHTTPStatusCode+` <= 600}`),
+			},
+		},
+		{
+			// Range at resource scope
+			AllConditions: true,
+			Conditions: []traceql.Condition{
+				parse(t, `{resource.`+LabelServiceName+` >= 122}`),
+				parse(t, `{resource.`+LabelServiceName+` <= 124}`),
+			},
+		},
 	}
 
 	for _, req := range searchesThatMatch {
@@ -472,10 +496,10 @@ func makeReq(conditions ...traceql.Condition) traceql.FetchSpansRequest {
 
 func parse(t *testing.T, q string) traceql.Condition {
 
-	cond, err := traceql.ExtractConditions(q)
+	req, err := traceql.ExtractFetchSpansRequest(q)
 	require.NoError(t, err, "query:", q)
 
-	return cond[0]
+	return req.Conditions[0]
 }
 
 func fullyPopulatedTestTrace(id common.ID) *Trace {
@@ -595,12 +619,12 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 
 func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	testCases := []struct {
-		name  string
-		conds []traceql.Condition
+		name string
+		req  traceql.FetchSpansRequest
 	}{
-		{"noMatch", traceql.MustExtractConditions("{ span.foo = `bar` }")},
-		{"partialMatch", traceql.MustExtractConditions("{ .foo = `bar` || .component = `gRPC` }")},
-		{"service.name", traceql.MustExtractConditions("{ resource.service.name = `a` }")},
+		{"noMatch", traceql.MustExtractFetchSpansRequest("{ span.foo = `bar` }")},
+		{"partialMatch", traceql.MustExtractFetchSpansRequest("{ .foo = `bar` && .component = `gRPC` }")},
+		{"service.name", traceql.MustExtractFetchSpansRequest("{ resource.service.name = `a` }")},
 	}
 
 	ctx := context.TODO()
@@ -626,17 +650,12 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 
 	for _, tc := range testCases {
 
-		req := traceql.FetchSpansRequest{
-			AllConditions: true,
-			Conditions:    tc.conds,
-		}
-
 		b.Run(tc.name, func(b *testing.B) {
 			b.ResetTimer()
 			bytesRead := 0
 
 			for i := 0; i < b.N; i++ {
-				resp, err := block.Fetch(ctx, req, opts)
+				resp, err := block.Fetch(ctx, tc.req, opts)
 				require.NoError(b, err)
 				require.NotNil(b, resp)
 
