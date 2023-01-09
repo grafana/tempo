@@ -11,6 +11,8 @@ This guide provides a step-by-step process for installing Tempo on Linux.
 It assumes you have access to a Linux system and the permissions required to deploy a service with network and file system access.
 At the end of this guide, you will have deployed a single Tempo instance on a single node.
 
+These instructions focus on a single binary install. You can also run Tempo in distributed mode by deploying multiple binaries and using a distributed configuration.
+
 ## Before you begin
 
 To follow this guide, you need:
