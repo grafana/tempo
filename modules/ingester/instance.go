@@ -236,7 +236,7 @@ func (i *instance) measureReceivedBytes(traceBytes []byte, searchData []byte) {
 	i.bytesReceivedTotal.WithLabelValues(i.instanceID, searchDataType).Add(float64(len(searchData)))
 }
 
-// Moves any complete traces out of the map to complete traces.
+// CutCompleteTraces moves any complete traces out of the map to complete traces.
 func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error {
 	tracesToCut := i.tracesToCut(cutoff, immediate)
 	segmentDecoder := model.MustNewSegmentDecoder(model.CurrentEncoding)
