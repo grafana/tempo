@@ -1,0 +1,82 @@
+name: publish_docs
+
+on:
+  push:
+    # Sync on commit to release branches, or stable vx.y.z tag is pushed.
+    branches:
+      - release-*
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+    paths:
+      - 'docs/tempo/website/**'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v3
+        with:
+          # Fetch tags
+          fetch-depth: 0
+
+      - name: Checkout Actions library
+        uses: actions/checkout@v3
+        with:
+          repository: "grafana/grafana-github-actions"
+          path: ./actions
+
+      - name: Install Actions from library
+        run: npm install --production --prefix ./actions
+
+      # ----------------------------------------
+      # Ensure this is a final release tag, or
+      # branch with .0 tag already.
+      # Remaining steps are skipped if not.
+      # ----------------------------------------
+      - name: Check for matching release tag
+        id: has-tag
+        uses: ./actions/has-matching-release-tag
+        with:
+          ref_name: ${{ github.ref_name }}
+          release_tag_regexp: "^v(\\d+)\\.(\\d+)\\.(\\d+)$"
+          release_branch_regexp: "^release-v(\\d+)\\.(\\d+)$"
+
+      # ----------------------------------------
+      # Extract semver from branch or tag name
+      # Returns in the format v1.2
+      # ----------------------------------------
+      - if: steps.has-tag.outputs.bool == 'true'
+        name: Extract semver
+        uses: ./actions/docs-target
+        id: target
+        with:
+          ref_name: ${{ github.ref_name }}
+      
+      # ----------------------------------------
+      # Clone and run the website sync action
+      # ----------------------------------------
+      - if: steps.has-tag.outputs.bool == 'true'
+        # WEBSITE_SYNC_TEMPO is a fine-grained GitHub Personal Access Token that expires.
+        # It must be updated in the grafanabot GitHub account.
+        run: "git clone --single-branch --no-tags --depth 1 -b master https://grafanabot:${{ secrets.WEBSITE_SYNC_TEMPO }}@github.com/grafana/website-sync ./.github/actions/website-sync"
+      
+      - if: steps.has-tag.outputs.bool == 'true'
+        name: publish-to-git
+        uses: ./.github/actions/website-sync
+        id: publish
+        with:
+          repository: grafana/website
+          branch: master
+          host: github.com
+          # PUBLISH_TO_WEBSITE_TEMPO is a fine-grained GitHub Personal Access Token that expires.
+          # It must be updated in the grafanabot GitHub account.
+          github_pat: "grafanabot:${{ secrets.PUBLISH_TO_WEBSITE_TEMPO }}"
+          source_folder: docs/tempo/website
+          # target is v1.2.x
+          target_folder: content/docs/tempo/${{ steps.target.outputs.target }}.x
+      
+      - shell: bash
+        run: |
+          test -n "${{ steps.publish.outputs.commit_hash }}"
+          test -n "${{ steps.publish.outputs.working_directory }}"
