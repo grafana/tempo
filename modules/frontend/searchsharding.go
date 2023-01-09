@@ -19,12 +19,23 @@ import (
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
 )
 
 const (
 	defaultTargetBytesPerRequest = 100 * 1024 * 1024
 	defaultConcurrentRequests    = 1000
+)
+
+var (
+	metricInspectedBytes = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Name:      "query_frontend_result_metrics_inspected_bytes",
+		Help:      "Inspected Bytes in a search query",
+		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
+	})
 )
 
 type searchSharder struct {
@@ -67,6 +78,8 @@ func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchS
 // start=<unix epoch seconds>
 // end=<unix epoch seconds>
 func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
+	// create search related query metrics here??
+	// this is the place where we agg search response.
 	searchReq, err := api.ParseSearchRequest(r)
 	if err != nil {
 		return &http.Response{
@@ -203,9 +216,13 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// print out request metrics
 	cancelledReqs := startedReqs - overallResponse.finishedRequests
-	_ = level.Info(s.logger).Log(fmt.Sprintf(
-		"sharded search request stats, raw_query: %s, total: %d, started: %d, finished: %d, cancelled: %d",
-		r.URL.RawQuery, len(reqs), startedReqs, overallResponse.finishedRequests, cancelledReqs))
+	level.Info(s.logger).Log(
+		"msg", "sharded search query request stats",
+		"raw_query", r.URL.RawQuery,
+		"total", len(reqs),
+		"started", startedReqs,
+		"finished", overallResponse.finishedRequests,
+		"cancelled", cancelledReqs)
 
 	// all goroutines have finished, we can safely access searchResults fields directly now
 	span.SetTag("inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks)
@@ -214,6 +231,19 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span.SetTag("inspectedTraces", overallResponse.resultsMetrics.InspectedTraces)
 	span.SetTag("skippedTraces", overallResponse.resultsMetrics.SkippedTraces)
 	span.SetTag("totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
+
+	level.Info(s.logger).Log(
+		"msg", "sharded search query SearchMetrics",
+		"raw_query", r.URL.RawQuery,
+		"inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks,
+		"skippedBlocks", overallResponse.resultsMetrics.SkippedBlocks,
+		"inspectedBytes", overallResponse.resultsMetrics.InspectedBytes,
+		"inspectedTraces", overallResponse.resultsMetrics.InspectedTraces,
+		"skippedTraces", overallResponse.resultsMetrics.SkippedTraces,
+		"totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
+
+	// Collect inspectedBytes metrics
+	metricInspectedBytes.Observe(float64(overallResponse.resultsMetrics.InspectedBytes))
 
 	if overallResponse.err != nil {
 		return nil, overallResponse.err

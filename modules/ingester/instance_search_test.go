@@ -93,6 +93,81 @@ func TestInstanceSearch(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestInstanceSearchTraceQL is duplicate of TestInstanceSearch for now
+func TestInstanceSearchTraceQL(t *testing.T) {
+	queries := []string{
+		`{ .service.name = "test-service" }`,
+		`{ duration >= 1s }`,
+		`{ duration >= 1s && .service.name = "test-service" }`,
+	}
+
+	for _, query := range queries {
+		t.Run(fmt.Sprintf("Query:%s", query), func(t *testing.T) {
+			i, ingester, tmpDir := defaultInstanceAndTmpDir(t)
+			// pushTracesToInstance creates traces with:
+			// `service.name = "test-service"` and duration >= 1s
+			_, ids := pushTracesToInstance(t, i, 10)
+
+			req := &tempopb.SearchRequest{Query: query, Limit: 20}
+
+			// Test after appending to WAL
+			err := i.CutCompleteTraces(0, true)
+			require.NoError(t, err)
+			assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
+
+			sr, err := i.Search(context.Background(), req)
+			assert.NoError(t, err)
+			assert.Len(t, sr.Traces, len(ids))
+			checkEqual(t, ids, sr)
+
+			// Test after cutting new headBlock
+			blockID, err := i.CutBlockIfReady(0, 0, true)
+			require.NoError(t, err)
+			assert.NotEqual(t, blockID, uuid.Nil)
+
+			sr, err = i.Search(context.Background(), req)
+			assert.NoError(t, err)
+			assert.Len(t, sr.Traces, len(ids))
+			checkEqual(t, ids, sr)
+
+			// Test after completing a block
+			err = i.CompleteBlock(blockID)
+			require.NoError(t, err)
+
+			sr, err = i.Search(context.Background(), req)
+			assert.NoError(t, err)
+			assert.Len(t, sr.Traces, len(ids))
+			checkEqual(t, ids, sr)
+
+			// Test after clearing the completing block
+			err = i.ClearCompletingBlock(blockID)
+			require.NoError(t, err)
+
+			sr, err = i.Search(context.Background(), req)
+			assert.NoError(t, err)
+			assert.Len(t, sr.Traces, len(ids))
+			checkEqual(t, ids, sr)
+
+			err = ingester.stopping(nil)
+			require.NoError(t, err)
+
+			// create new ingester.  this should replay wal!
+			ingester, _, _ = defaultIngester(t, tmpDir)
+
+			i, ok := ingester.getInstanceByID("fake")
+			require.True(t, ok)
+
+			sr, err = i.Search(context.Background(), req)
+			assert.NoError(t, err)
+			assert.Len(t, sr.Traces, len(ids))
+			checkEqual(t, ids, sr)
+
+			err = ingester.stopping(nil)
+			require.NoError(t, err)
+		})
+	}
+}
+
 func checkEqual(t *testing.T, ids [][]byte, sr *tempopb.SearchResponse) {
 	for _, meta := range sr.Traces {
 		parsedTraceID, err := util.HexStringToTraceID(meta.TraceID)
@@ -184,6 +259,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 // writes traces to the given instance along with search data. returns
 // ids expected to be returned from a tag search and strings expected to
 // be returned from a tag value search
+// nolint:revive,unparam
 func writeTracesWithSearchData(t *testing.T, i *instance, tagKey string, tagValue string, postFixValue bool) ([][]byte, []string) {
 	// This matches the encoding for live traces, since
 	// we are pushing to the instance directly it must match.

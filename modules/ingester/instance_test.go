@@ -76,24 +76,7 @@ func TestInstanceFind(t *testing.T) {
 	i, ingester := defaultInstance(t)
 
 	numTraces := 10
-	ids := [][]byte{}
-	traces := []*tempopb.Trace{}
-	for j := 0; j < numTraces; j++ {
-		id := make([]byte, 16)
-		rand.Read(id)
-
-		testTrace := test.MakeTrace(10, id)
-		trace.SortTrace(testTrace)
-		traceBytes, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(testTrace, 0, 0)
-		require.NoError(t, err)
-
-		err = i.PushBytes(context.Background(), id, traceBytes, nil)
-		require.NoError(t, err)
-		require.Equal(t, int(i.traceCount.Load()), len(i.traces))
-
-		ids = append(ids, id)
-		traces = append(traces, testTrace)
-	}
+	traces, ids := pushTracesToInstance(t, i, numTraces)
 
 	queryAll(t, i, ids, traces)
 
@@ -134,6 +117,31 @@ func TestInstanceFind(t *testing.T) {
 	require.NoError(t, err)
 
 	queryAll(t, i, ids, traces)
+}
+
+// pushTracesToInstance makes and pushes numTraces in the ingester instance,
+// returns traces and trace ids
+func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.Trace, [][]byte) {
+	var ids [][]byte
+	var traces []*tempopb.Trace
+
+	for j := 0; j < numTraces; j++ {
+		id := make([]byte, 16)
+		rand.Read(id)
+
+		testTrace := test.MakeTrace(10, id)
+		trace.SortTrace(testTrace)
+		traceBytes, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(testTrace, 0, 0)
+		require.NoError(t, err)
+
+		err = i.PushBytes(context.Background(), id, traceBytes, nil)
+		require.NoError(t, err)
+		require.Equal(t, int(i.traceCount.Load()), len(i.traces))
+
+		ids = append(ids, id)
+		traces = append(traces, testTrace)
+	}
+	return traces, ids
 }
 
 func queryAll(t *testing.T, i *instance, ids [][]byte, traces []*tempopb.Trace) {
