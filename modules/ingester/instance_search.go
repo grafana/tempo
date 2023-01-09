@@ -17,7 +17,6 @@ import (
 	"github.com/grafana/tempo/tempodb/search"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
-	"github.com/pkg/errors"
 	"github.com/weaveworks/common/user"
 )
 
@@ -170,10 +169,8 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 		var resp *tempopb.SearchResponse
 		var err error
 
-		isTraceQL := false
 		opts := common.DefaultSearchOptions()
 		if api.IsTraceQLQuery(req) {
-			isTraceQL = true
 			// note: we are creating new engine for each wal block,
 			// and engine.Execute is parsing the query for each block
 			resp, err = traceql.NewEngine().Execute(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
@@ -184,12 +181,7 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 		}
 
 		if err != nil {
-			msg := "error searching local block"
-			if isTraceQL && errors.Is(err, common.ErrUnsupported) {
-				// we can remove this check when v2 is removed
-				msg = msg + ", TraceQL is not supported"
-			}
-			level.Error(log.Logger).Log("msg", msg, "blockID", blockID, "block_version", b.BlockMeta().Version, "isTraceQL", isTraceQL, "err", err)
+			level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "block_version", b.BlockMeta().Version, "err", err)
 			return
 		}
 
@@ -277,11 +269,8 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 			var resp *tempopb.SearchResponse
 			var err error
 
-			isTraceQL := false
 			opts := common.DefaultSearchOptions()
-
 			if api.IsTraceQLQuery(req) {
-				isTraceQL = true
 				// note: we are creating new engine for each wal block,
 				// and engine.Execute is parsing the query for each block
 				resp, err = traceql.NewEngine().Execute(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
@@ -292,12 +281,7 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 			}
 
 			if err != nil {
-				msg := "error searching local block"
-				if errors.Is(err, common.ErrUnsupported) && isTraceQL {
-					// we can remove this check when v2 is removed
-					msg = msg + ", TraceQL is not supported"
-				}
-				level.Error(log.Logger).Log("msg", msg, "blockID", blockID, "isTraceQL", isTraceQL, "err", err)
+				level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "err", err)
 				return
 			}
 
