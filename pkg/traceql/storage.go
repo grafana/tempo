@@ -74,11 +74,13 @@ func MustExtractFetchSpansRequest(query string) FetchSpansRequest {
 // ExtractFetchSpansRequest parses the given traceql query and returns
 // the storage layer conditions. Returns an error if the query fails to parse.
 func ExtractFetchSpansRequest(query string) (FetchSpansRequest, error) {
-	req := FetchSpansRequest{}
-
 	ast, err := Parse(query)
 	if err != nil {
-		return req, err
+		return FetchSpansRequest{}, err
+	}
+
+	req := FetchSpansRequest{
+		AllConditions: true,
 	}
 
 	ast.Pipeline.extractConditions(&req)
