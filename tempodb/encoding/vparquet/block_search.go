@@ -56,6 +56,7 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	o := []parquet.FileOption{
 		parquet.SkipBloomFilters(true),
 		parquet.SkipPageIndex(true),
+		parquet.FileReadMode(parquet.ReadModeAsync),
 	}
 
 	// backend reader
