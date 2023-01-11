@@ -19,14 +19,11 @@ var (
 )
 
 type Config struct {
-	Config               v1.Config    `yaml:",inline"`
-	MaxRetries           int          `yaml:"max_retries,omitempty"`
-	TolerateFailedBlocks int          `yaml:"tolerate_failed_blocks,omitempty"`
-	Search               SearchConfig `yaml:"search"`
-	// Deprecated: Use TraceByID.QueryShards instead.
-	// TODO: Remove QueryShards with Tempo v2
-	QueryShards int             `yaml:"query_shards,omitempty"`
-	TraceByID   TraceByIDConfig `yaml:"trace_by_id"`
+	Config               v1.Config       `yaml:",inline"`
+	MaxRetries           int             `yaml:"max_retries,omitempty"`
+	TolerateFailedBlocks int             `yaml:"tolerate_failed_blocks,omitempty"`
+	Search               SearchConfig    `yaml:"search"`
+	TraceByID            TraceByIDConfig `yaml:"trace_by_id"`
 }
 
 type SearchConfig struct {
@@ -44,22 +41,22 @@ type HedgingConfig struct {
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
-	cfg.Config.MaxOutstandingPerTenant = 100
+	cfg.Config.MaxOutstandingPerTenant = 2000
 	cfg.MaxRetries = 2
 	cfg.TolerateFailedBlocks = 0
 	cfg.Search = SearchConfig{
 		Sharder: SearchSharderConfig{
 			QueryBackendAfter:     15 * time.Minute,
-			QueryIngestersUntil:   time.Hour,
+			QueryIngestersUntil:   30 * time.Minute,
 			DefaultLimit:          20,
 			MaxLimit:              0,
-			MaxDuration:           61 * time.Minute,
+			MaxDuration:           168 * time.Hour, // 1 week
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		},
 	}
 	cfg.TraceByID = TraceByIDConfig{
-		QueryShards: 20,
+		QueryShards: 50,
 		Hedging: HedgingConfig{
 			HedgeRequestsAt:   2 * time.Second,
 			HedgeRequestsUpTo: 2,

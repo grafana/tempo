@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
@@ -216,7 +214,8 @@ func TestInstanceLimits(t *testing.T) {
 	require.NoError(t, err, "unexpected error creating limits")
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	ingester, _, _ := defaultIngester(t, t.TempDir(), v2.VersionString)
+	ingester, _, _ := defaultIngester(t, t.TempDir())
+	ingester.limiter = limiter
 
 	type push struct {
 		req          *tempopb.PushBytesRequest
@@ -293,7 +292,8 @@ func TestInstanceLimits(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, false)
+			delete(ingester.instances, testTenantID) // force recreate instance to reset limits
+			i, err := ingester.getOrCreateInstance(testTenantID)
 			require.NoError(t, err, "unexpected error creating new instance")
 
 			for j, push := range tt.pushes {
@@ -493,10 +493,8 @@ func TestInstanceMetrics(t *testing.T) {
 
 func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	ctx := context.Background()
-	maxTraceBytes := 100
+	maxTraceBytes := 1000
 	id := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-
-	ingester, _, _ := defaultIngester(t, t.TempDir(), v2.VersionString)
 
 	limits, err := overrides.NewOverrides(overrides.Limits{
 		MaxBytesPerTrace: maxTraceBytes,
@@ -504,31 +502,35 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	require.NoError(t, err)
 	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	i, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, false)
+	ingester, _, _ := defaultIngester(t, t.TempDir())
+	ingester.limiter = limiter
+	i, err := ingester.getOrCreateInstance(testTenantID)
 	require.NoError(t, err)
 
-	pushFn := func(byteCount int) error {
-		return i.PushBytes(ctx, id, make([]byte, byteCount), nil)
+	req := makeRequestWithByteLimit(maxTraceBytes-200, id)
+	reqSize := 0
+	for _, b := range req.Traces {
+		reqSize += len(b.Slice)
 	}
 
 	// Fill up trace to max
-	err = pushFn(maxTraceBytes)
+	err = i.PushBytesRequest(ctx, req)
 	require.NoError(t, err)
 
 	// Pushing again fails
-	err = pushFn(3)
-	require.Contains(t, err.Error(), (newTraceTooLargeError(id, i.instanceID, maxTraceBytes, 3)).Error())
+	err = i.PushBytesRequest(ctx, req)
+	require.Contains(t, err.Error(), (newTraceTooLargeError(id, i.instanceID, maxTraceBytes, reqSize)).Error())
 
 	// Pushing still fails after flush
 	err = i.CutCompleteTraces(0, true)
 	require.NoError(t, err)
-	err = pushFn(5)
-	require.Contains(t, err.Error(), (newTraceTooLargeError(id, i.instanceID, maxTraceBytes, 5)).Error())
+	err = i.PushBytesRequest(ctx, req)
+	require.Contains(t, err.Error(), (newTraceTooLargeError(id, i.instanceID, maxTraceBytes, reqSize)).Error())
 
 	// Cut block and then pushing works again
 	_, err = i.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
-	err = pushFn(maxTraceBytes)
+	err = i.PushBytesRequest(ctx, req)
 	require.NoError(t, err)
 }
 
@@ -569,34 +571,15 @@ func TestSortByteSlices(t *testing.T) {
 }
 
 func defaultInstance(t testing.TB) (*instance, *Ingester) {
-	instance, ingester, _ := defaultInstanceWithFlatBufferSearch(t, false)
+	instance, ingester, _ := defaultInstanceAndTmpDir(t)
 	return instance, ingester
 }
 
-func defaultInstanceWithFlatBufferSearch(t testing.TB, fbSearch bool) (*instance, *Ingester, string) {
-	limits, err := overrides.NewOverrides(overrides.Limits{})
-	require.NoError(t, err, "unexpected error creating limits")
-	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
-
+func defaultInstanceAndTmpDir(t testing.TB) (*instance, *Ingester, string) {
 	tmpDir := t.TempDir()
 
-	ingester, _, _ := defaultIngester(t, tmpDir, v2.VersionString)
-	instance, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, fbSearch)
-	require.NoError(t, err, "unexpected error creating new instance")
-
-	return instance, ingester, tmpDir
-}
-
-// defaultInstanceWithParquet returns an instance with vParquet WAL, and no trace data.
-func defaultInstanceWithParquet(t testing.TB) (*instance, *Ingester, string) {
-	limits, err := overrides.NewOverrides(overrides.Limits{})
-	require.NoError(t, err, "unexpected error creating limits")
-	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
-
-	tmpDir := t.TempDir()
-
-	ingester, _, _ := defaultIngester(t, tmpDir, vparquet.VersionString)
-	instance, err := newInstance(testTenantID, limiter, ingester.store, ingester.local, false)
+	ingester, _, _ := defaultIngester(t, tmpDir)
+	instance, err := ingester.getOrCreateInstance(testTenantID)
 	require.NoError(t, err, "unexpected error creating new instance")
 
 	return instance, ingester, tmpDir
@@ -651,20 +634,14 @@ func BenchmarkInstanceFindTraceByIDFromCompleteBlock(b *testing.B) {
 	}
 }
 
-func BenchmarkInstanceSearchCompleteFB(b *testing.B) {
-	benchmarkInstanceSearch(b, true)
-}
 func BenchmarkInstanceSearchCompleteParquet(b *testing.B) {
-	benchmarkInstanceSearch(b, false)
-}
-func TestInstanceSearchCompleteFB(t *testing.T) {
-	benchmarkInstanceSearch(t, true)
+	benchmarkInstanceSearch(b)
 }
 func TestInstanceSearchCompleteParquet(t *testing.T) {
-	benchmarkInstanceSearch(t, false)
+	benchmarkInstanceSearch(t)
 }
-func benchmarkInstanceSearch(b testing.TB, fb bool) {
-	instance, _, _ := defaultInstanceWithFlatBufferSearch(b, fb)
+func benchmarkInstanceSearch(b testing.TB) {
+	instance, _ := defaultInstance(b)
 	for i := 0; i < 1000; i++ {
 		request := makeRequest(nil)
 		err := instance.PushBytesRequest(context.Background(), request)

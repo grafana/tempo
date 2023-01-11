@@ -25,7 +25,7 @@ http_api_prefix: ""
 server:
   http_listen_network: tcp
   http_listen_address: ""
-  http_listen_port: 80
+  http_listen_port: 3100
   http_listen_conn_limit: 0
   grpc_listen_network: tcp
   grpc_listen_address: ""
@@ -99,7 +99,7 @@ distributor:
         mirror_timeout: 2s
     heartbeat_period: 5s
     heartbeat_timeout: 5m0s
-    instance_id: hostname
+    instance_id: joe
     instance_interface_names:
       - eth0
       - en0
@@ -164,12 +164,13 @@ metrics_generator_client:
 querier:
   search:
     query_timeout: 30s
-    prefer_self: 2
+    prefer_self: 10
     external_endpoints: []
     external_hedge_requests_at: 8s
     external_hedge_requests_up_to: 2
-  query_timeout: 10s
-  max_concurrent_queries: 5
+  trace_by_id:
+    query_timeout: 10s
+  max_concurrent_queries: 20
   frontend_worker:
     frontend_address: 127.0.0.1:9095
     dns_lookup_duration: 10s
@@ -197,19 +198,19 @@ querier:
       tls_min_version: ""
   query_relevant_ingesters: false
 query_frontend:
-  max_outstanding_per_tenant: 100
+  max_outstanding_per_tenant: 2000
   querier_forget_delay: 0s
   max_retries: 2
   search:
-    concurrent_jobs: 50
-    target_bytes_per_job: 10485760
+    concurrent_jobs: 1000
+    target_bytes_per_job: 104857600
     default_result_limit: 20
     max_result_limit: 0
-    max_duration: 1h1m0s
+    max_duration: 168h0m0s
     query_backend_after: 15m0s
-    query_ingesters_until: 1h0m0s
+    query_ingesters_until: 30m0s
   trace_by_id:
-    query_shards: 20
+    query_shards: 50
     hedge_requests_at: 2s
     hedge_requests_up_to: 2
 compactor:
@@ -248,7 +249,7 @@ compactor:
     heartbeat_timeout: 1m0s
     wait_stability_min_duration: 1m0s
     wait_stability_max_duration: 5m0s
-    instance_id: hostname
+    instance_id: joe
     instance_interface_names:
       - eth0
       - en0
@@ -256,15 +257,15 @@ compactor:
     instance_addr: ""
     wait_active_instance_timeout: 10m0s
   compaction:
-    chunk_size_bytes: 5242880
-    flush_size_bytes: 20971520
+    v2_in_buffer_bytes: 5242880
+    v2_out_buffer_bytes: 20971520
+    v2_prefetch_traces_count: 1000
     compaction_window: 1h0m0s
     max_compaction_objects: 6000000
     max_block_bytes: 107374182400
     block_retention: 336h0m0s
     compacted_block_retention: 1h0m0s
     retention_concurrency: 10
-    iterator_buffer_size: 1000
     max_time_per_tenant: 5m0s
     compaction_cycle: 30s
   override_ring_key: compactor
@@ -312,7 +313,21 @@ ingester:
     join_after: 0s
     min_ready_duration: 15s
     interface_names:
-      - en0
+      - wlp2s0
+      - br-39d728775b03
+      - br-d5846bf66182
+      - br-ea48fef4186e
+      - br-f163873defd4
+      - br-24f5062c6edd
+      - br-3b836e91bc36
+      - br-9cef180f0356
+      - br-a5544df3e712
+      - br-14ab1fbc2f0e
+      - br-16536cce4aa3
+      - docker0
+      - br-721c7a5d3933
+      - br-dd28551f2dbd
+      - br-d3d1776850a0
     final_sleep: 0s
     tokens_file_path: ""
     availability_zone: ""
@@ -320,16 +335,15 @@ ingester:
     readiness_check_ring_health: true
     address: 127.0.0.1
     port: 0
-    id: hostname
-  concurrent_flushes: 16
+    id: joe
+  concurrent_flushes: 4
   flush_check_period: 10s
   flush_op_timeout: 5m0s
   trace_idle_period: 10s
-  max_block_duration: 1h0m0s
-  max_block_bytes: 1073741824
+  max_block_duration: 30m0s
+  max_block_bytes: 524288000
   complete_block_timeout: 15m0s
   override_ring_key: ring
-  use_flatbuffer_search: false
 metrics_generator:
   ring:
     kvstore:
@@ -364,7 +378,7 @@ metrics_generator:
         mirror_timeout: 2s
     heartbeat_period: 5s
     heartbeat_timeout: 1m0s
-    instance_id: hostname
+    instance_id: joe
     instance_interface_names:
       - eth0
       - en0
@@ -426,31 +440,31 @@ metrics_generator:
 storage:
   trace:
     pool:
-      max_workers: 50
-      queue_depth: 10000
+      max_workers: 400
+      queue_depth: 20000
     wal:
       path: /tmp/tempo/wal
       completedfilepath: /tmp/tempo/wal/completed
       blocksfilepath: /tmp/tempo/wal/blocks
-      encoding: snappy
+      v2_encoding: snappy
       search_encoding: none
-      version: v2
       ingestion_time_range_slack: 2m0s
+      version: vParquet
     block:
-      index_downsample_bytes: 1048576
-      index_page_size_bytes: 256000
       bloom_filter_false_positive: 0.01
       bloom_filter_shard_size_bytes: 102400
       version: vParquet
-      encoding: zstd
       search_encoding: snappy
       search_page_size_bytes: 1048576
-      row_group_size_bytes: 100000000
+      v2_index_downsample_bytes: 1048576
+      v2_index_page_size_bytes: 256000
+      v2_encoding: zstd
+      parquet_row_group_size_bytes: 100000000
     search:
       chunk_size_bytes: 1000000
       prefetch_trace_count: 1000
-      read_buffer_count: 8
-      read_buffer_size_bytes: 4194304
+      read_buffer_count: 32
+      read_buffer_size_bytes: 1048576
       cache_control:
         footer: false
         column_index: false

@@ -12,7 +12,6 @@ import (
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv/consul"
 	"github.com/grafana/dskit/ring"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
@@ -51,7 +50,7 @@ func TestPushQueryAllEncodings(t *testing.T) {
 
 			tmpDir := t.TempDir()
 			ctx := user.InjectOrgID(context.Background(), "test")
-			ingester, traces, traceIDs := defaultIngesterWithPush(t, tmpDir, v2.VersionString, push)
+			ingester, traces, traceIDs := defaultIngesterWithPush(t, tmpDir, push)
 
 			// live trace search
 			for pos, traceID := range traceIDs {
@@ -84,7 +83,7 @@ func TestPushQueryAllEncodings(t *testing.T) {
 
 func TestFullTraceReturned(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), "test")
-	ingester, _, _ := defaultIngester(t, t.TempDir(), v2.VersionString)
+	ingester, _, _ := defaultIngester(t, t.TempDir())
 
 	traceID := make([]byte, 16)
 	_, err := rand.Read(traceID)
@@ -129,7 +128,7 @@ func TestWal(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	ctx := user.InjectOrgID(context.Background(), "test")
-	ingester, traces, traceIDs := defaultIngester(t, tmpDir, v2.VersionString)
+	ingester, traces, traceIDs := defaultIngester(t, tmpDir)
 
 	for pos, traceID := range traceIDs {
 		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
@@ -146,7 +145,7 @@ func TestWal(t *testing.T) {
 	}
 
 	// create new ingester.  this should replay wal!
-	ingester, _, _ = defaultIngester(t, tmpDir, v2.VersionString)
+	ingester, _, _ = defaultIngester(t, tmpDir)
 
 	// should be able to find old traces that were replayed
 	for i, traceID := range traceIDs {
@@ -182,7 +181,7 @@ func TestWal(t *testing.T) {
 
 func TestWalDropsZeroLength(t *testing.T) {
 	tmpDir := t.TempDir()
-	ingester, _, _ := defaultIngester(t, tmpDir, v2.VersionString)
+	ingester, _, _ := defaultIngester(t, tmpDir)
 
 	// force cut all traces and wipe wal
 	for _, instance := range ingester.instances {
@@ -203,7 +202,7 @@ func TestWalDropsZeroLength(t *testing.T) {
 	}
 
 	// create new ingester. we should have no tenants b/c we all our wals should have been 0 length
-	ingester, _, _ = defaultIngesterWithPush(t, tmpDir, v2.VersionString, func(t testing.TB, i *Ingester, rs *v1.ResourceSpans, b []byte) {})
+	ingester, _, _ = defaultIngesterWithPush(t, tmpDir, func(t testing.TB, i *Ingester, rs *v1.ResourceSpans, b []byte) {})
 	require.Equal(t, 0, len(ingester.instances))
 }
 
@@ -212,7 +211,7 @@ func TestSearchWAL(t *testing.T) {
 	require.NoError(t, err, "unexpected error getting tempdir")
 	defer os.RemoveAll(tmpDir)
 
-	i := defaultIngesterModule(t, tmpDir, v2.VersionString)
+	i := defaultIngesterModule(t, tmpDir)
 	inst, _ := i.getOrCreateInstance("test")
 	require.NotNil(t, inst)
 
@@ -254,7 +253,7 @@ func TestSearchWAL(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	// replay wal
-	i = defaultIngesterModule(t, tmpDir, v2.VersionString)
+	i = defaultIngesterModule(t, tmpDir)
 	inst, ok := i.getInstanceByID("test")
 	require.True(t, ok)
 
@@ -317,7 +316,7 @@ func TestFlush(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	ctx := user.InjectOrgID(context.Background(), "test")
-	ingester, traces, traceIDs := defaultIngester(t, tmpDir, v2.VersionString)
+	ingester, traces, traceIDs := defaultIngester(t, tmpDir)
 
 	for pos, traceID := range traceIDs {
 		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
@@ -331,7 +330,7 @@ func TestFlush(t *testing.T) {
 	require.NoError(t, ingester.stopping(nil))
 
 	// create new ingester.  this should replay wal!
-	ingester, _, _ = defaultIngester(t, tmpDir, v2.VersionString)
+	ingester, _, _ = defaultIngester(t, tmpDir)
 
 	// should be able to find old traces that were replayed
 	for i, traceID := range traceIDs {
@@ -345,7 +344,7 @@ func TestFlush(t *testing.T) {
 	}
 }
 
-func defaultIngesterModule(t testing.TB, tmpDir, walVersion string) *Ingester {
+func defaultIngesterModule(t testing.TB, tmpDir string) *Ingester {
 	ingesterConfig := defaultIngesterTestConfig()
 	limits, err := overrides.NewOverrides(defaultLimitsTestConfig())
 	require.NoError(t, err, "unexpected error creating overrides")
@@ -366,7 +365,6 @@ func defaultIngesterModule(t testing.TB, tmpDir, walVersion string) *Ingester {
 			},
 			WAL: &wal.Config{
 				Filepath: tmpDir,
-				Version:  walVersion,
 			},
 		},
 	}, log.NewNopLogger())
@@ -382,12 +380,12 @@ func defaultIngesterModule(t testing.TB, tmpDir, walVersion string) *Ingester {
 	return ingester
 }
 
-func defaultIngester(t testing.TB, tmpDir string, walVersion string) (*Ingester, []*tempopb.Trace, [][]byte) {
-	return defaultIngesterWithPush(t, tmpDir, walVersion, pushBatchV2)
+func defaultIngester(t testing.TB, tmpDir string) (*Ingester, []*tempopb.Trace, [][]byte) {
+	return defaultIngesterWithPush(t, tmpDir, pushBatchV2)
 }
 
-func defaultIngesterWithPush(t testing.TB, tmpDir, walVersion string, push func(testing.TB, *Ingester, *v1.ResourceSpans, []byte)) (*Ingester, []*tempopb.Trace, [][]byte) {
-	ingester := defaultIngesterModule(t, tmpDir, walVersion)
+func defaultIngesterWithPush(t testing.TB, tmpDir string, push func(testing.TB, *Ingester, *v1.ResourceSpans, []byte)) (*Ingester, []*tempopb.Trace, [][]byte) {
+	ingester := defaultIngesterModule(t, tmpDir)
 
 	// make some fake traceIDs/requests
 	traces := make([]*tempopb.Trace, 0)
@@ -433,6 +431,7 @@ func defaultIngesterTestConfig() Config {
 	cfg.LifecyclerConfig.Addr = "localhost"
 	cfg.LifecyclerConfig.ID = "localhost"
 	cfg.LifecyclerConfig.FinalSleep = 0
+	cfg.UseFlatbufferSearch = false
 
 	return cfg
 }

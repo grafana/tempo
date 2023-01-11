@@ -30,15 +30,15 @@ type Config struct {
 	Filepath          string `yaml:"path"`
 	CompletedFilepath string
 	BlocksFilepath    string
-	Encoding          backend.Encoding `yaml:"encoding"`
+	Encoding          backend.Encoding `yaml:"v2_encoding"`
 	SearchEncoding    backend.Encoding `yaml:"search_encoding"`
-	Version           string           `yaml:"version"`
 	IngestionSlack    time.Duration    `yaml:"ingestion_time_range_slack"`
+	Version           string           `yaml:"version,omitempty"`
 }
 
-func ValidateConfig(b *Config) error {
-	if _, err := encoding.FromVersion(b.Version); err != nil {
-		return err
+func ValidateConfig(c *Config) error {
+	if _, err := encoding.FromVersion(c.Version); err != nil {
+		return fmt.Errorf("failed to validate block version %s: %w", c.Version, err)
 	}
 
 	return nil

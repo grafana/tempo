@@ -27,8 +27,8 @@ const (
 
 	DefaultPrefetchTraceCount   = 1000
 	DefaultSearchChunkSizeBytes = 1_000_000
-	DefaultReadBufferCount      = 8
-	DefaultReadBufferSize       = 4 * 1024 * 1024
+	DefaultReadBufferCount      = 32
+	DefaultReadBufferSize       = 1 * 1024 * 1024
 )
 
 // Config holds the entirety of tempodb configuration
@@ -103,26 +103,35 @@ func (c SearchConfig) ApplyToOptions(o *common.SearchOptions) {
 
 // CompactorConfig contains compaction configuration options
 type CompactorConfig struct {
-	ChunkSizeBytes          uint32        `yaml:"chunk_size_bytes"`
-	FlushSizeBytes          uint32        `yaml:"flush_size_bytes"`
+	ChunkSizeBytes          uint32        `yaml:"v2_in_buffer_bytes"`
+	FlushSizeBytes          uint32        `yaml:"v2_out_buffer_bytes"`
+	IteratorBufferSize      int           `yaml:"v2_prefetch_traces_count"`
 	MaxCompactionRange      time.Duration `yaml:"compaction_window"`
 	MaxCompactionObjects    int           `yaml:"max_compaction_objects"`
 	MaxBlockBytes           uint64        `yaml:"max_block_bytes"`
 	BlockRetention          time.Duration `yaml:"block_retention"`
 	CompactedBlockRetention time.Duration `yaml:"compacted_block_retention"`
 	RetentionConcurrency    uint          `yaml:"retention_concurrency"`
-	IteratorBufferSize      int           `yaml:"iterator_buffer_size"`
 	MaxTimePerTenant        time.Duration `yaml:"max_time_per_tenant"`
 	CompactionCycle         time.Duration `yaml:"compaction_cycle"`
 }
 
 func validateConfig(cfg *Config) error {
+	if cfg == nil {
+		return errors.New("config should be non-nil")
+	}
+
 	if cfg.WAL == nil {
 		return errors.New("wal config should be non-nil")
 	}
 
 	if cfg.Block == nil {
 		return errors.New("block config should be non-nil")
+	}
+
+	// if the wal version is unspecified default to the block version
+	if cfg.WAL.Version == "" {
+		cfg.WAL.Version = cfg.Block.Version
 	}
 
 	err := wal.ValidateConfig(cfg.WAL)

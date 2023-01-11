@@ -53,7 +53,6 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
-			Version:  v2.VersionString,
 		},
 		BlocklistPoll: blocklistPoll,
 	}
@@ -214,7 +213,7 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 	rw.pollBlocklist()
 
 	blocklist := rw.blocklist.Metas(testTenantID)
-	assert.Len(t, blocklist, expectedB)
+	require.Len(t, blocklist, expectedB)
 	if expectedB > 0 && expectedID != uuid.Nil {
 		assert.Equal(t, expectedID, blocklist[0].BlockID)
 	}
@@ -503,7 +502,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 }
 
 func TestSearchCompactedBlocks(t *testing.T) {
-	r, w, c, _ := testConfig(t, backend.EncLZ4_256k, time.Minute)
+	r, w, c, _ := testConfig(t, backend.EncLZ4_256k, time.Hour)
 
 	c.EnableCompaction(&CompactorConfig{
 		ChunkSizeBytes:          10,
@@ -587,18 +586,19 @@ func TestCompleteBlock(t *testing.T) {
 }
 
 func testCompleteBlock(t *testing.T, from, to string) {
-
 	_, w, _, _ := testConfig(t, backend.EncLZ4_256k, time.Minute, func(c *Config) {
-		c.WAL.Version = from
-		c.Block.Version = to
+		c.Block.Version = from // temporarily set config to from while we create the wal, so it makes blocks in the "from" format
 	})
 
 	wal := w.WAL()
+	rw := w.(*readerWriter)
+	rw.cfg.Block.Version = to // now set it back so we cut blocks in the "to" format
 
 	blockID := uuid.New()
 
 	block, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
+	require.Equal(t, block.BlockMeta().Version, from)
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
@@ -617,6 +617,7 @@ func testCompleteBlock(t *testing.T, from, to string) {
 
 	complete, err := w.CompleteBlock(context.Background(), block)
 	require.NoError(t, err, "unexpected error completing block")
+	require.Equal(t, complete.BlockMeta().Version, to)
 
 	for i, id := range ids {
 		found, err := complete.FindTraceByID(context.TODO(), id, common.DefaultSearchOptions())
@@ -656,7 +657,6 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 		WAL: &wal.Config{
 			IngestionSlack: time.Minute,
 			Filepath:       path.Join(tempDir, "wal"),
-			Version:        v2.VersionString,
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -704,7 +704,6 @@ func TestShouldCache(t *testing.T) {
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
-			Version:  v2.VersionString,
 		},
 		BlocklistPoll:           0,
 		CacheMaxBlockAge:        time.Hour,
@@ -767,16 +766,14 @@ func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDec
 func BenchmarkCompleteBlock(b *testing.B) {
 	enc := encoding.AllEncodings()
 
-	for _, from := range enc {
-		for _, to := range enc {
-			b.Run(fmt.Sprintf("%s->%s", from.Version(), to.Version()), func(b *testing.B) {
-				benchmarkCompleteBlock(b, from, to)
-			})
-		}
+	for _, e := range enc {
+		b.Run(e.Version(), func(b *testing.B) {
+			benchmarkCompleteBlock(b, e)
+		})
 	}
 }
 
-func benchmarkCompleteBlock(b *testing.B, from, to encoding.VersionedEncoding) {
+func benchmarkCompleteBlock(b *testing.B, e encoding.VersionedEncoding) {
 	// Create a WAL block with traces
 	traceCount := 10_000
 	flushCount := 1000
@@ -793,13 +790,12 @@ func benchmarkCompleteBlock(b *testing.B, from, to encoding.VersionedEncoding) {
 			BloomShardSizeBytes:  100_000,
 			Encoding:             backend.EncNone,
 			IndexPageSizeBytes:   1000,
-			Version:              to.Version(),
+			Version:              e.Version(),
 			RowGroupSizeBytes:    30_000_000,
 		},
 		WAL: &wal.Config{
 			IngestionSlack: time.Minute,
 			Filepath:       path.Join(tempDir, "wal"),
-			Version:        from.Version(),
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())

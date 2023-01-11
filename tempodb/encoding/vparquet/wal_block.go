@@ -75,6 +75,10 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 		return nil, nil, fmt.Errorf("error unmarshaling wal meta json: %s %w", metaPath, err)
 	}
 
+	// below we're going to iterate all of the parquet files in the wal and build the meta, this will correctly
+	// recount total objects so clear them out here
+	meta.TotalObjects = 0
+
 	b := &walBlock{
 		meta:           meta,
 		path:           path,

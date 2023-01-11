@@ -24,7 +24,10 @@ func (s *mockNextTripperware) RoundTrip(_ *http.Request) (*http.Response, error)
 
 func TestFrontendRoundTripsSearch(t *testing.T) {
 	next := &mockNextTripperware{}
-	f, err := New(Config{QueryShards: minQueryShards,
+	f, err := New(Config{
+		TraceByID: TraceByIDConfig{
+			QueryShards: minQueryShards,
+		},
 		Search: SearchConfig{
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
@@ -43,7 +46,10 @@ func TestFrontendRoundTripsSearch(t *testing.T) {
 }
 
 func TestFrontendBadConfigFails(t *testing.T) {
-	f, err := New(Config{QueryShards: minQueryShards - 1,
+	f, err := New(Config{
+		TraceByID: TraceByIDConfig{
+			QueryShards: minQueryShards - 1,
+		},
 		Search: SearchConfig{
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
@@ -54,7 +60,10 @@ func TestFrontendBadConfigFails(t *testing.T) {
 	assert.EqualError(t, err, "frontend query shards should be between 2 and 256 (both inclusive)")
 	assert.Nil(t, f)
 
-	f, err = New(Config{QueryShards: maxQueryShards + 1,
+	f, err = New(Config{
+		TraceByID: TraceByIDConfig{
+			QueryShards: maxQueryShards + 1,
+		},
 		Search: SearchConfig{
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
@@ -65,7 +74,10 @@ func TestFrontendBadConfigFails(t *testing.T) {
 	assert.EqualError(t, err, "frontend query shards should be between 2 and 256 (both inclusive)")
 	assert.Nil(t, f)
 
-	f, err = New(Config{QueryShards: maxQueryShards,
+	f, err = New(Config{
+		TraceByID: TraceByIDConfig{
+			QueryShards: maxQueryShards,
+		},
 		Search: SearchConfig{
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    0,
@@ -76,7 +88,10 @@ func TestFrontendBadConfigFails(t *testing.T) {
 	assert.EqualError(t, err, "frontend search concurrent requests should be greater than 0")
 	assert.Nil(t, f)
 
-	f, err = New(Config{QueryShards: maxQueryShards,
+	f, err = New(Config{
+		TraceByID: TraceByIDConfig{
+			QueryShards: maxQueryShards,
+		},
 		Search: SearchConfig{
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
@@ -87,7 +102,10 @@ func TestFrontendBadConfigFails(t *testing.T) {
 	assert.EqualError(t, err, "frontend search target bytes per request should be greater than 0")
 	assert.Nil(t, f)
 
-	f, err = New(Config{QueryShards: maxQueryShards,
+	f, err = New(Config{
+		TraceByID: TraceByIDConfig{
+			QueryShards: maxQueryShards,
+		},
 		Search: SearchConfig{
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,

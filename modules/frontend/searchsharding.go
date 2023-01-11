@@ -25,8 +25,8 @@ import (
 )
 
 const (
-	defaultTargetBytesPerRequest = 10 * 1024 * 1024
-	defaultConcurrentRequests    = 50
+	defaultTargetBytesPerRequest = 100 * 1024 * 1024
+	defaultConcurrentRequests    = 1000
 )
 
 var (

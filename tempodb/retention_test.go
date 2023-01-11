@@ -16,7 +16,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -38,7 +37,6 @@ func TestRetention(t *testing.T) {
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
-			Version:  v2.VersionString,
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -100,7 +98,6 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
-			Version:  v2.VersionString,
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -168,7 +165,6 @@ func TestBlockRetentionOverride(t *testing.T) {
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
-			Version:  v2.VersionString,
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
