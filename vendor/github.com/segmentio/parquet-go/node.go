@@ -447,7 +447,9 @@ func nodesAreEqual(node1, node2 Node) bool {
 }
 
 func typesAreEqual(node1, node2 Node) bool {
-	return node1.Type().Kind() == node2.Type().Kind()
+	return node1.Type().Kind() == node2.Type().Kind() &&
+		node1.Type().Length() == node2.Type().Length() &&
+		reflect.DeepEqual(node1.Type().LogicalType(), node2.Type().LogicalType())
 }
 
 func repetitionsAreEqual(node1, node2 Node) bool {

@@ -33,6 +33,7 @@ require (
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cristalhq/hedgedhttp v0.7.0 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
@@ -49,7 +50,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/google/flatbuffers v2.0.0+incompatible // indirect
+	github.com/google/flatbuffers v22.10.26+incompatible // indirect
 	github.com/google/go-cmp v0.5.8 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
@@ -87,8 +88,9 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.1 // indirect
-	github.com/pierrec/lz4/v4 v4.1.15 // indirect
+	github.com/pierrec/lz4/v4 v4.1.17 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.13.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
@@ -98,7 +100,7 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rs/xid v1.2.1 // indirect
 	github.com/segmentio/encoding v0.3.5 // indirect
-	github.com/segmentio/parquet-go v0.0.0-20221103170249-ef6062d06d9f // indirect
+	github.com/segmentio/parquet-go v0.0.0-20221212205011-52de454c1d86 // indirect
 	github.com/sercand/kuberesolver v2.4.0+incompatible // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/sony/gobreaker v0.4.1 // indirect
@@ -109,6 +111,7 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.12.0 // indirect
+	github.com/stretchr/testify v1.8.1 // indirect
 	github.com/subosito/gotenv v1.3.0 // indirect
 	github.com/uber-go/atomic v1.4.0 // indirect
 	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect
@@ -117,7 +120,7 @@ require (
 	github.com/weaveworks/promrus v1.2.0 // indirect
 	github.com/willf/bitset v1.1.11 // indirect
 	github.com/willf/bloom v2.0.3+incompatible // indirect
-	go.opencensus.io v0.23.0 // indirect
+	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector/pdata v0.57.2 // indirect
 	go.opentelemetry.io/collector/semconv v0.57.2 // indirect
 	go.opentelemetry.io/otel v1.10.0 // indirect

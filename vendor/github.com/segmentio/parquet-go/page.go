@@ -62,10 +62,6 @@ type Page interface {
 	// available.
 	Values() ValueReader
 
-	// Returns a copy of the page which does not share any of the buffers, but
-	// contains the same values, repetition and definition levels.
-	Clone() Page
-
 	// Returns a new page which is as slice of the receiver between row indexes
 	// i and j.
 	Slice(i, j int64) Page
@@ -93,13 +89,6 @@ type Page interface {
 type PageReader interface {
 	// Reads and returns the next page from the sequence. When all pages have
 	// been read, or if the sequence was closed, the method returns io.EOF.
-	//
-	// The returned page and other objects derived from it remain valid until
-	// the next call to ReadPage, or until the sequence is closed. The page
-	// reader may use this property to optimize resource management by reusing
-	// memory across pages. Applications that need to acquire ownership of the
-	// returned page must clone by calling page.Buffer().Clone() to create a
-	// copy in memory.
 	ReadPage() (Page, error)
 }
 
@@ -238,11 +227,6 @@ func readPages(pages Pages, read chan<- asyncPage, seek <-chan int64, done <-cha
 	}
 }
 
-func copyPagesAndClose(w PageWriter, r Pages) (int64, error) {
-	defer r.Close()
-	return CopyPages(w, r)
-}
-
 type singlePage struct {
 	page    Page
 	seek    int64
@@ -301,34 +285,6 @@ func CopyPages(dst PageWriter, src PageReader) (numValues int64, err error) {
 	}
 }
 
-func forEachPageSlice(page Page, wantSize int64, do func(Page) error) error {
-	numRows := page.NumRows()
-	if numRows == 0 {
-		return nil
-	}
-
-	pageSize := page.Size()
-	numPages := (pageSize + (wantSize - 1)) / wantSize
-	rowIndex := int64(0)
-	if numPages < 2 {
-		return do(page)
-	}
-
-	for numPages > 0 {
-		lastRowIndex := rowIndex + ((numRows - rowIndex) / numPages)
-		pageSlice := page.Slice(rowIndex, lastRowIndex)
-		err := do(pageSlice)
-		Release(pageSlice)
-		if err != nil {
-			return err
-		}
-		rowIndex = lastRowIndex
-		numPages--
-	}
-
-	return nil
-}
-
 // errorPage is an implementation of the Page interface which always errors when
 // attempting to read its values.
 //
@@ -356,7 +312,6 @@ func (page *errorPage) NumRows() int64                    { return 1 }
 func (page *errorPage) NumValues() int64                  { return 1 }
 func (page *errorPage) NumNulls() int64                   { return 0 }
 func (page *errorPage) Bounds() (min, max Value, ok bool) { return }
-func (page *errorPage) Clone() Page                       { return page }
 func (page *errorPage) Slice(i, j int64) Page             { return page }
 func (page *errorPage) Size() int64                       { return 1 }
 func (page *errorPage) RepetitionLevels() []byte          { return nil }
@@ -403,7 +358,7 @@ func (page *optionalPage) NumNulls() int64 {
 
 func (page *optionalPage) Bounds() (min, max Value, ok bool) { return page.base.Bounds() }
 
-func (page *optionalPage) Size() int64 { return page.base.Size() + int64(len(page.definitionLevels)) }
+func (page *optionalPage) Size() int64 { return int64(len(page.definitionLevels)) + page.base.Size() }
 
 func (page *optionalPage) RepetitionLevels() []byte { return nil }
 
@@ -416,14 +371,6 @@ func (page *optionalPage) Values() ValueReader {
 		page:   page,
 		values: page.base.Values(),
 	}
-}
-
-func (page *optionalPage) Clone() Page {
-	return newOptionalPage(
-		page.base.Clone(),
-		page.maxDefinitionLevel,
-		copyBytes(page.definitionLevels),
-	)
 }
 
 func (page *optionalPage) Slice(i, j int64) Page {
@@ -487,16 +434,6 @@ func (page *repeatedPage) Values() ValueReader {
 		page:   page,
 		values: page.base.Values(),
 	}
-}
-
-func (page *repeatedPage) Clone() Page {
-	return newRepeatedPage(
-		page.base.Clone(),
-		page.maxRepetitionLevel,
-		page.maxDefinitionLevel,
-		copyBytes(page.repetitionLevels),
-		copyBytes(page.definitionLevels),
-	)
 }
 
 func (page *repeatedPage) Slice(i, j int64) Page {
@@ -647,16 +584,6 @@ func (page *booleanPage) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *booleanPage) Clone() Page {
-	return &booleanPage{
-		typ:         page.typ,
-		bits:        append([]byte{}, page.bits...),
-		offset:      page.offset,
-		numValues:   page.numValues,
-		columnIndex: page.columnIndex,
-	}
-}
-
 func (page *booleanPage) Slice(i, j int64) Page {
 	off := i / 8
 	end := j / 8
@@ -731,14 +658,6 @@ func (page *int32Page) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *int32Page) Clone() Page {
-	return &int32Page{
-		typ:         page.typ,
-		values:      append([]int32{}, page.values...),
-		columnIndex: page.columnIndex,
-	}
-}
-
 func (page *int32Page) Slice(i, j int64) Page {
 	return &int32Page{
 		typ:         page.typ,
@@ -802,14 +721,6 @@ func (page *int64Page) Bounds() (min, max Value, ok bool) {
 		max = page.makeValue(maxInt64)
 	}
 	return min, max, ok
-}
-
-func (page *int64Page) Clone() Page {
-	return &int64Page{
-		typ:         page.typ,
-		values:      append([]int64{}, page.values...),
-		columnIndex: page.columnIndex,
-	}
 }
 
 func (page *int64Page) Slice(i, j int64) Page {
@@ -879,14 +790,6 @@ func (page *int96Page) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *int96Page) Clone() Page {
-	return &int96Page{
-		typ:         page.typ,
-		values:      append([]deprecated.Int96{}, page.values...),
-		columnIndex: page.columnIndex,
-	}
-}
-
 func (page *int96Page) Slice(i, j int64) Page {
 	return &int96Page{
 		typ:         page.typ,
@@ -952,14 +855,6 @@ func (page *floatPage) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *floatPage) Clone() Page {
-	return &floatPage{
-		typ:         page.typ,
-		values:      append([]float32{}, page.values...),
-		columnIndex: page.columnIndex,
-	}
-}
-
 func (page *floatPage) Slice(i, j int64) Page {
 	return &floatPage{
 		typ:         page.typ,
@@ -1023,14 +918,6 @@ func (page *doublePage) Bounds() (min, max Value, ok bool) {
 		max = page.makeValue(maxFloat64)
 	}
 	return min, max, ok
-}
-
-func (page *doublePage) Clone() Page {
-	return &doublePage{
-		typ:         page.typ,
-		values:      append([]float64{}, page.values...),
-		columnIndex: page.columnIndex,
-	}
 }
 
 func (page *doublePage) Slice(i, j int64) Page {
@@ -1166,15 +1053,6 @@ func (page *byteArrayPage) cloneOffsets() []uint32 {
 	return offsets
 }
 
-func (page *byteArrayPage) Clone() Page {
-	return &byteArrayPage{
-		typ:         page.typ,
-		values:      page.cloneValues(),
-		offsets:     page.cloneOffsets(),
-		columnIndex: page.columnIndex,
-	}
-}
-
 func (page *byteArrayPage) Slice(i, j int64) Page {
 	return &byteArrayPage{
 		typ:         page.typ,
@@ -1256,15 +1134,6 @@ func (page *fixedLenByteArrayPage) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *fixedLenByteArrayPage) Clone() Page {
-	return &fixedLenByteArrayPage{
-		typ:         page.typ,
-		data:        append([]byte{}, page.data...),
-		size:        page.size,
-		columnIndex: page.columnIndex,
-	}
-}
-
 func (page *fixedLenByteArrayPage) Slice(i, j int64) Page {
 	return &fixedLenByteArrayPage{
 		typ:         page.typ,
@@ -1337,14 +1206,6 @@ func (page *uint32Page) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *uint32Page) Clone() Page {
-	return &uint32Page{
-		typ:         page.typ,
-		values:      append([]uint32{}, page.values...),
-		columnIndex: page.columnIndex,
-	}
-}
-
 func (page *uint32Page) Slice(i, j int64) Page {
 	return &uint32Page{
 		typ:         page.typ,
@@ -1408,14 +1269,6 @@ func (page *uint64Page) Bounds() (min, max Value, ok bool) {
 		max = page.makeValue(maxUint64)
 	}
 	return min, max, ok
-}
-
-func (page *uint64Page) Clone() Page {
-	return &uint64Page{
-		typ:         page.typ,
-		values:      append([]uint64{}, page.values...),
-		columnIndex: page.columnIndex,
-	}
 }
 
 func (page *uint64Page) Slice(i, j int64) Page {
@@ -1483,14 +1336,6 @@ func (page *be128Page) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *be128Page) Clone() Page {
-	return &be128Page{
-		typ:         page.typ,
-		values:      append([][16]byte{}, page.values...),
-		columnIndex: page.columnIndex,
-	}
-}
-
 func (page *be128Page) Slice(i, j int64) Page {
 	return &be128Page{
 		typ:         page.typ,
@@ -1540,7 +1385,6 @@ func (page *nullPage) Size() int64                       { return 1 }
 func (page *nullPage) Values() ValueReader {
 	return &nullPageValues{column: page.column, remain: page.count}
 }
-func (page *nullPage) Clone() Page { return page }
 func (page *nullPage) Slice(i, j int64) Page {
 	return &nullPage{column: page.column, count: page.count - int(j-i)}
 }

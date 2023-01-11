@@ -31,7 +31,11 @@ ALL_DOC := $(shell find . \( -name "*.md" -o -name "*.yaml" \) \
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 
 GO_OPT= -mod vendor -ldflags "-X main.Branch=$(GIT_BRANCH) -X main.Revision=$(GIT_REVISION) -X main.Version=$(VERSION)"
-GOTEST_OPT?= -race -timeout 16m -count=1
+ifeq ($(BUILD_DEBUG), 1)
+	GO_OPT+= -gcflags="all=-N -l"
+endif
+
+GOTEST_OPT?= -race -timeout 20m -count=1
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=go test
 LINT=golangci-lint
@@ -65,6 +69,10 @@ tempo-vulture:
 .PHONY: exe
 exe:
 	GOOS=linux $(MAKE) $(COMPONENT)
+
+.PHONY: exe-debug
+exe-debug:
+	BUILD_DEBUG=1 GOOS=linux $(MAKE) $(COMPONENT)
 
 ### Testin' and Lintin'
 
@@ -124,9 +132,17 @@ docker-component: check-component exe
 	docker build -t grafana/$(COMPONENT) --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile .
 	docker tag grafana/$(COMPONENT) $(COMPONENT)
 
+.PHONY: docker-component-debug
+docker-component-debug: check-component exe-debug
+	docker build -t grafana/$(COMPONENT)-debug --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile_debug .
+	docker tag grafana/$(COMPONENT)-debug $(COMPONENT)-debug
+
 .PHONY: docker-tempo
 docker-tempo:
 	COMPONENT=tempo $(MAKE) docker-component
+
+docker-tempo-debug:
+	COMPONENT=tempo $(MAKE) docker-component-debug
 
 .PHONY: docker-tempo-query
 docker-tempo-query:

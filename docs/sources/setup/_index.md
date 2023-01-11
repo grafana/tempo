@@ -1,40 +1,30 @@
 ---
-title: Set up a Tempo cluster
-menuTitle: Set up a Tempo cluster
-description: Learn how to set up a Tempo cluster and visualize data
+title: Set up a Tempo server or cluster
+menuTitle: Set up a Tempo server or cluster
+description: Learn how to set up a Tempo server or cluster and visualize data
 weight: 150
 ---
 
-# Set up a Tempo cluster
+# Set up a Tempo server or cluster
 
 Tempo is available as a pre-compiled binary, a Docker image, and as common OS-specific packaging.
 
-No matter which option you choose, setting up your Tempo cluster involves: 
+This section describes how to set up Tempo on a single Linux node or as a cluster using Kubernetes and Tanka. Tempo can also be set up as a distributed set of services.
 
-1. Naming your cluster
-1. Deploying your cluster
-1. Testing your cluster
+This page highlights these steps; more detailed instructions are available on the procedures for installing Tempo.
 
-This page highlights these steps; more detailed instructions are available on the procedures for deploying clusters.
+## Deploy Tempo
 
-## Name your cluster
+Choose a method to deploy Tempo:
 
-No matter which deployment method you choose, you need to decide what to call your Tempo cluster.
-A cluster name must meet the following criteria:
-
-- is 3 to 63 characters long
-- contains lowercase letters, numbers, underscores (_), or hyphens (-)
-- begins with a letter or number
-- ends with a letter or number
-
-## Deploy your cluster
-
-Choose a method to deploy your Tempo cluster:
-
-<!-- - [Deploy on Linux]({{< relref "linux">}}) -->
+- [Deploy on Linux]({{< relref "linux">}})
 - [Deploy on Kubernetes using Tanka]({{< relref "tanka">}})
 
-## Test your cluster
+You can also use Docker to deploy Tempo using [the Docker examples](https://github.com/grafana/tempo/tree/main/example/docker-compose).
 
-Once your cluster is deployed, you can test your cluster by visualizing the traces data with a simple TNS app. 
-Refer to [Set up a test application for Tempo cluster]({{< relref "set-up-test-app" >}}) for instructions.
+## Test your installation
+
+Once Tempo is deployed, you can test Tempo by visualizing traces data:
+
+- Using a [test application for a Tempo cluster]({{< relref "set-up-test-app" >}}) for the Kubernetes with Tanka setup
+- Using a [Docker example]({{< relref "linux">}}) to test the Linux setup

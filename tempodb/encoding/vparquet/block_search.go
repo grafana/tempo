@@ -56,6 +56,7 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	o := []parquet.FileOption{
 		parquet.SkipBloomFilters(true),
 		parquet.SkipPageIndex(true),
+		parquet.FileReadMode(parquet.ReadModeAsync),
 	}
 
 	// backend reader
@@ -147,6 +148,10 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 	}
 	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
+	return searchTags(derivedCtx, cb, pf)
+}
+
+func searchTags(_ context.Context, cb common.TagCallback, pf *parquet.File) error {
 	// find indexes of generic attribute columns
 	resourceKeyIdx, _ := pq.GetColumnIndexByPath(pf, FieldResourceAttrKey)
 	spanKeyIdx, _ := pq.GetColumnIndexByPath(pf, FieldSpanAttrKey)
@@ -170,6 +175,7 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 	}
 
 	// now search all row groups
+	var err error
 	rgs := pf.RowGroups()
 	for _, rg := range rgs {
 		// search all special attributes
@@ -215,29 +221,32 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 			err = func() error {
 				pgs := cc.Pages()
 				defer pgs.Close()
-				for {
-					pg, err := pgs.ReadPage()
-					if err == io.EOF || pg == nil {
-						break
-					}
-					if err != nil {
-						return err
-					}
 
-					func(page parquet.Page) {
-						defer parquet.Release(page)
-
-						dict := page.Dictionary()
-						if dict == nil {
-							return
-						}
-
-						for i := 0; i < dict.Len(); i++ {
-							s := dict.Index(int32(i)).String()
-							cb(s)
-						}
-					}(pg)
+				// normally we'd loop here calling read page for every page in the column chunk, but
+				// there is only one dictionary per column chunk, so just read it from the first page
+				// and be done.
+				pg, err := pgs.ReadPage()
+				if err == io.EOF || pg == nil {
+					return nil
 				}
+				if err != nil {
+					return err
+				}
+
+				func(page parquet.Page) {
+					defer parquet.Release(page)
+
+					dict := page.Dictionary()
+					if dict == nil {
+						return
+					}
+
+					for i := 0; i < dict.Len(); i++ {
+						s := dict.Index(int32(i)).String()
+						cb(s)
+					}
+				}(pg)
+
 				return nil
 			}()
 			if err != nil {
@@ -264,18 +273,22 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 	}
 	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
+	return searchTagValues(ctx, tag, cb, pf)
+}
+
+func searchTagValues(ctx context.Context, tag string, cb common.TagCallback, pf *parquet.File) error {
 	// labelMappings will indicate whether this is a search for a special or standard
 	// column
 	column := labelMappings[tag]
 	if column == "" {
-		err = searchStandardTagValues(ctx, tag, pf, cb)
+		err := searchStandardTagValues(ctx, tag, pf, cb)
 		if err != nil {
 			return fmt.Errorf("unexpected error searching standard tags: %w", err)
 		}
 		return nil
 	}
 
-	err = searchSpecialTagValues(ctx, column, pf, cb)
+	err := searchSpecialTagValues(ctx, column, pf, cb)
 	if err != nil {
 		return fmt.Errorf("unexpected error searching special tags: %w", err)
 	}

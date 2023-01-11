@@ -79,7 +79,7 @@ type IterateObjectCallback func(id common.ID, obj []byte) bool
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64) ([]*tempopb.Trace, []error, error)
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
-	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error)
+	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(sharder blocklist.JobSharder)
 
@@ -315,7 +315,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return nil, nil, nil
 	}
 
-	opts := common.SearchOptions{}
+	opts := common.DefaultSearchOptions()
 	if rw.cfg != nil && rw.cfg.Search != nil {
 		rw.cfg.Search.ApplyToOptions(&opts)
 	}
@@ -364,16 +364,14 @@ func (rw *readerWriter) Search(ctx context.Context, meta *backend.BlockMeta, req
 	return block.Search(ctx, req, opts)
 }
 
-func (rw *readerWriter) Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+func (rw *readerWriter) Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, err
 	}
 
-	// TODO options?
-	// rw.cfg.Search.ApplyToOptions(&opts)
-
-	return block.Fetch(ctx, req)
+	rw.cfg.Search.ApplyToOptions(&opts)
+	return block.Fetch(ctx, req, opts)
 }
 
 func (rw *readerWriter) Shutdown() {
@@ -493,10 +491,13 @@ func (rw *readerWriter) getWriterForBlock(meta *backend.BlockMeta, curTime time.
 }
 
 // includeBlock indicates whether a given block should be included in a backend search
-func includeBlock(b *backend.BlockMeta, id common.ID, blockStart []byte, blockEnd []byte, timeStart int64, timeEnd int64) bool {
-	if bytes.Compare(id, b.MinID) == -1 || bytes.Compare(id, b.MaxID) == 1 {
-		return false
-	}
+func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart []byte, blockEnd []byte, timeStart int64, timeEnd int64) bool {
+	// todo: restore this functionality once it works. min/max ids are currently not recorded
+	//    https://github.com/grafana/tempo/issues/1903
+	//  correctly in a block
+	// if bytes.Compare(id, b.MinID) == -1 || bytes.Compare(id, b.MaxID) == 1 {
+	// 	return false
+	// }
 
 	if timeStart != 0 && timeEnd != 0 {
 		if b.StartTime.Unix() >= timeEnd || b.EndTime.Unix() <= timeStart {

@@ -345,6 +345,12 @@ func (o *Overrides) MetricsGeneratorProcessorSpanMetricsDimensions(userID string
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsDimensions
 }
 
+// MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions controls the intrinsic dimensions such as service, span_kind, or
+// span_name that are activated or deactivated on the span metrics processor.
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID string) map[string]bool {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions
+}
+
 // BlockRetention is the duration of the block retention for this tenant.
 func (o *Overrides) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).BlockRetention)

@@ -8,10 +8,12 @@ import (
 	"math"
 	"reflect"
 	"strconv"
+	"time"
 	"unsafe"
 
 	"github.com/google/uuid"
 	"github.com/segmentio/parquet-go/deprecated"
+	"github.com/segmentio/parquet-go/format"
 	"github.com/segmentio/parquet-go/internal/unsafecast"
 )
 
@@ -73,6 +75,16 @@ type ValueWriter interface {
 type ValueWriterTo interface {
 	WriteValuesTo(ValueWriter) (int64, error)
 }
+
+// ValueReaderFunc is a function type implementing the ValueReader interface.
+type ValueReaderFunc func([]Value) (int, error)
+
+func (f ValueReaderFunc) ReadValues(values []Value) (int, error) { return f(values) }
+
+// ValueWriterFunc is a function type implementing the ValueWriter interface.
+type ValueWriterFunc func([]Value) (int, error)
+
+func (f ValueWriterFunc) WriteValues(values []Value) (int, error) { return f(values) }
 
 // CopyValues copies values from src to dst, returning the number of values
 // that were written.
@@ -158,6 +170,9 @@ func copyValues(dst ValueWriter, src ValueReader, buf []Value) (written int64, e
 //
 // The function panics if the Go value cannot be represented in parquet.
 func ValueOf(v interface{}) Value {
+	k := Kind(-1)
+	t := reflect.TypeOf(v)
+
 	switch value := v.(type) {
 	case nil:
 		return Value{}
@@ -165,10 +180,9 @@ func ValueOf(v interface{}) Value {
 		return makeValueBytes(FixedLenByteArray, value[:])
 	case deprecated.Int96:
 		return makeValueInt96(value)
+	case time.Time:
+		k = Int64
 	}
-
-	k := Kind(-1)
-	t := reflect.TypeOf(v)
 
 	switch t.Kind() {
 	case reflect.Bool:
@@ -197,10 +211,62 @@ func ValueOf(v interface{}) Value {
 		panic("cannot create parquet value from go value of type " + t.String())
 	}
 
-	return makeValue(k, reflect.ValueOf(v))
+	return makeValue(k, nil, reflect.ValueOf(v))
 }
 
-func makeValue(k Kind, v reflect.Value) Value {
+// BooleanValue constructs a BOOLEAN parquet value from the bool passed as
+// argument.
+func BooleanValue(value bool) Value { return makeValueBoolean(value) }
+
+// Int32Value constructs a INT32 parquet value from the int32 passed as
+// argument.
+func Int32Value(value int32) Value { return makeValueInt32(value) }
+
+// Int64Value constructs a INT64 parquet value from the int64 passed as
+// argument.
+func Int64Value(value int64) Value { return makeValueInt64(value) }
+
+// Int96Value constructs a INT96 parquet value from the deprecated.Int96 passed
+// as argument.
+func Int96Value(value deprecated.Int96) Value { return makeValueInt96(value) }
+
+// FloatValue constructs a FLOAT parquet value from the float32 passed as
+// argument.
+func FloatValue(value float32) Value { return makeValueFloat(value) }
+
+// DoubleValue constructs a DOUBLE parquet value from the float64 passed as
+// argument.
+func DoubleValue(value float64) Value { return makeValueDouble(value) }
+
+// ByteArrayValue constructs a BYTE_ARRAY parquet value from the byte slice
+// passed as argument.
+func ByteArrayValue(value []byte) Value { return makeValueBytes(ByteArray, value) }
+
+// FixedLenByteArrayValue constructs a BYTE_ARRAY parquet value from the byte
+// slice passed as argument.
+func FixedLenByteArrayValue(value []byte) Value { return makeValueBytes(FixedLenByteArray, value) }
+
+func makeValue(k Kind, lt *format.LogicalType, v reflect.Value) Value {
+	switch v.Type() {
+	case reflect.TypeOf(time.Time{}):
+		unit := Nanosecond.TimeUnit()
+		if lt != nil && lt.Timestamp != nil {
+			unit = lt.Timestamp.Unit
+		}
+
+		t := v.Interface().(time.Time)
+		var val int64
+		switch {
+		case unit.Millis != nil:
+			val = t.UnixMilli()
+		case unit.Micros != nil:
+			val = t.UnixMicro()
+		default:
+			val = t.UnixNano()
+		}
+		return makeValueInt64(val)
+	}
+
 	switch k {
 	case Boolean:
 		return makeValueBoolean(v.Bool())
@@ -364,52 +430,69 @@ func makeValueByteArray(kind Kind, data *byte, size int) Value {
 	}
 }
 
+// These methods are internal versions of methods exported by the Value type,
+// they are usually inlined by the compiler and intended to be used inside the
+// parquet-go package because they tend to generate better code than their
+// exported counter part, which requires making a copy of the receiver.
+func (v *Value) isNull() bool            { return v.kind == 0 }
+func (v *Value) byte() byte              { return byte(v.u64) }
+func (v *Value) boolean() bool           { return v.u64 != 0 }
+func (v *Value) int32() int32            { return int32(v.u64) }
+func (v *Value) int64() int64            { return int64(v.u64) }
+func (v *Value) int96() deprecated.Int96 { return makeInt96(v.byteArray()) }
+func (v *Value) float() float32          { return math.Float32frombits(uint32(v.u64)) }
+func (v *Value) double() float64         { return math.Float64frombits(uint64(v.u64)) }
+func (v *Value) uint32() uint32          { return uint32(v.u64) }
+func (v *Value) uint64() uint64          { return v.u64 }
+func (v *Value) byteArray() []byte       { return unsafecast.Bytes(v.ptr, int(v.u64)) }
+func (v *Value) be128() *[16]byte        { return (*[16]byte)(unsafe.Pointer(v.ptr)) }
+func (v *Value) column() int             { return int(^v.columnIndex) }
+
 // Kind returns the kind of v, which represents its parquet physical type.
 func (v Value) Kind() Kind { return ^Kind(v.kind) }
 
 // IsNull returns true if v is the null value.
-func (v Value) IsNull() bool { return v.kind == 0 }
+func (v Value) IsNull() bool { return v.isNull() }
 
 // Byte returns v as a byte, which may truncate the underlying byte.
-func (v Value) Byte() byte { return byte(v.u64) }
+func (v Value) Byte() byte { return v.byte() }
 
 // Boolean returns v as a bool, assuming the underlying type is BOOLEAN.
-func (v Value) Boolean() bool { return v.u64 != 0 }
+func (v Value) Boolean() bool { return v.boolean() }
 
 // Int32 returns v as a int32, assuming the underlying type is INT32.
-func (v Value) Int32() int32 { return int32(v.u64) }
+func (v Value) Int32() int32 { return v.int32() }
 
 // Int64 returns v as a int64, assuming the underlying type is INT64.
-func (v Value) Int64() int64 { return int64(v.u64) }
+func (v Value) Int64() int64 { return v.int64() }
 
 // Int96 returns v as a int96, assuming the underlying type is INT96.
 func (v Value) Int96() deprecated.Int96 {
 	var val deprecated.Int96
-	if !v.IsNull() {
-		val = makeInt96(v.ByteArray())
+	if !v.isNull() {
+		val = v.int96()
 	}
-
 	return val
 }
 
 // Float returns v as a float32, assuming the underlying type is FLOAT.
-func (v Value) Float() float32 { return math.Float32frombits(uint32(v.u64)) }
+func (v Value) Float() float32 { return v.float() }
 
 // Double returns v as a float64, assuming the underlying type is DOUBLE.
-func (v Value) Double() float64 { return math.Float64frombits(v.u64) }
+func (v Value) Double() float64 { return v.double() }
 
 // Uint32 returns v as a uint32, assuming the underlying type is INT32.
-func (v Value) Uint32() uint32 { return uint32(v.u64) }
+func (v Value) Uint32() uint32 { return v.uint32() }
 
 // Uint64 returns v as a uint64, assuming the underlying type is INT64.
-func (v Value) Uint64() uint64 { return v.u64 }
+func (v Value) Uint64() uint64 { return v.uint64() }
 
 // ByteArray returns v as a []byte, assuming the underlying type is either
 // BYTE_ARRAY or FIXED_LEN_BYTE_ARRAY.
 //
 // The application must treat the returned byte slice as a read-only value,
 // mutating the content will result in undefined behaviors.
-func (v Value) ByteArray() []byte { return unsafe.Slice(v.ptr, int(v.u64)) }
+func (v Value) ByteArray() []byte { return v.byteArray() }
 
 // RepetitionLevel returns the repetition level of v.
 func (v Value) RepetitionLevel() int { return int(v.repetitionLevel) }
@@ -420,7 +503,7 @@ func (v Value) DefinitionLevel() int { return int(v.definitionLevel) }
 // Column returns the column index within the row that v was created from.
 //
 // Returns -1 if the value does not carry a column index.
-func (v Value) Column() int { return int(^v.columnIndex) }
+func (v Value) Column() int { return v.column() }
 
 // Bytes returns the binary representation of v.
 //
@@ -434,16 +517,16 @@ func (v Value) AppendBytes(b []byte) []byte {
 	buf := [8]byte{}
 	switch v.Kind() {
 	case Boolean:
-		binary.LittleEndian.PutUint32(buf[:4], uint32(v.u64))
+		binary.LittleEndian.PutUint32(buf[:4], v.uint32())
 		return append(b, buf[0])
 	case Int32, Float:
-		binary.LittleEndian.PutUint32(buf[:4], uint32(v.u64))
+		binary.LittleEndian.PutUint32(buf[:4], v.uint32())
 		return append(b, buf[:4]...)
 	case Int64, Double:
-		binary.LittleEndian.PutUint64(buf[:8], v.u64)
+		binary.LittleEndian.PutUint64(buf[:8], v.uint64())
 		return append(b, buf[:8]...)
 	case ByteArray, FixedLenByteArray, Int96:
-		return append(b, v.ByteArray()...)
+		return append(b, v.byteArray()...)
 	default:
 		return b
 	}
@@ -475,19 +558,19 @@ func (v Value) Format(w fmt.State, r rune) {
 		if w.Flag('+') {
 			io.WriteString(w, "C:")
 		}
-		fmt.Fprint(w, v.Column())
+		fmt.Fprint(w, v.column())
 
 	case 'd':
 		if w.Flag('+') {
 			io.WriteString(w, "D:")
 		}
-		fmt.Fprint(w, v.DefinitionLevel())
+		fmt.Fprint(w, v.definitionLevel)
 
 	case 'r':
 		if w.Flag('+') {
 			io.WriteString(w, "R:")
 		}
-		fmt.Fprint(w, v.RepetitionLevel())
+		fmt.Fprint(w, v.repetitionLevel)
 
 	case 'q':
 		if w.Flag('+') {
@@ -495,7 +578,7 @@ func (v Value) Format(w fmt.State, r rune) {
 		}
 		switch v.Kind() {
 		case ByteArray, FixedLenByteArray:
-			fmt.Fprintf(w, "%q", v.ByteArray())
+			fmt.Fprintf(w, "%q", v.byteArray())
 		default:
 			fmt.Fprintf(w, `"%s"`, v)
 		}
@@ -506,19 +589,19 @@ func (v Value) Format(w fmt.State, r rune) {
 		}
 		switch v.Kind() {
 		case Boolean:
-			fmt.Fprint(w, v.Boolean())
+			fmt.Fprint(w, v.boolean())
 		case Int32:
-			fmt.Fprint(w, v.Int32())
+			fmt.Fprint(w, v.int32())
 		case Int64:
-			fmt.Fprint(w, v.Int64())
+			fmt.Fprint(w, v.int64())
 		case Int96:
-			fmt.Fprint(w, v.Int96())
+			fmt.Fprint(w, v.int96())
 		case Float:
-			fmt.Fprint(w, v.Float())
+			fmt.Fprint(w, v.float())
 		case Double:
-			fmt.Fprint(w, v.Double())
+			fmt.Fprint(w, v.double())
 		case ByteArray, FixedLenByteArray:
-			w.Write(v.ByteArray())
+			w.Write(v.byteArray())
 		default:
 			io.WriteString(w, "<null>")
 		}
@@ -539,33 +622,31 @@ func (v Value) Format(w fmt.State, r rune) {
 func (v Value) String() string {
 	switch v.Kind() {
 	case Boolean:
-		return strconv.FormatBool(v.Boolean())
+		return strconv.FormatBool(v.boolean())
 	case Int32:
-		return strconv.FormatInt(int64(v.Int32()), 10)
+		return strconv.FormatInt(int64(v.int32()), 10)
 	case Int64:
-		return strconv.FormatInt(v.Int64(), 10)
+		return strconv.FormatInt(v.int64(), 10)
 	case Int96:
 		return v.Int96().String()
 	case Float:
-		return strconv.FormatFloat(float64(v.Float()), 'g', -1, 32)
+		return strconv.FormatFloat(float64(v.float()), 'g', -1, 32)
 	case Double:
-		return strconv.FormatFloat(v.Double(), 'g', -1, 32)
+		return strconv.FormatFloat(v.double(), 'g', -1, 32)
 	case ByteArray, FixedLenByteArray:
 		// As an optimizations for the common case of using String on UTF8
 		// columns we convert the byte array to a string without copying the
 		// underlying data to a new memory location. This is safe as long as the
 		// application respects the requirement to not mutate the byte slices
 		// returned when calling ByteArray.
-		return unsafecast.BytesToString(v.ByteArray())
+		return unsafecast.BytesToString(v.byteArray())
 	default:
 		return "<null>"
 	}
 }
 
 // GoString returns a Go value string representation of v.
-func (v Value) GoString() string {
-	return fmt.Sprintf("%#v", v)
-}
+func (v Value) GoString() string { return fmt.Sprintf("%#v", v) }
 
 // Level returns v with the repetition level, definition level, and column index
 // set to the values passed as arguments.
@@ -582,8 +663,7 @@ func (v Value) Level(repetitionLevel, definitionLevel, columnIndex int) Value {
 func (v Value) Clone() Value {
 	switch k := v.Kind(); k {
 	case ByteArray, FixedLenByteArray:
-		b := copyBytes(v.ByteArray())
-		v.ptr = unsafecast.AddressOfBytes(b)
+		v.ptr = unsafecast.AddressOfBytes(copyBytes(v.byteArray()))
 	}
 	return v
 }
@@ -625,7 +705,7 @@ func parseValue(kind Kind, data []byte) (val Value, err error) {
 	case ByteArray, FixedLenByteArray:
 		val = makeValueBytes(kind, data)
 	}
-	if val.IsNull() {
+	if val.isNull() {
 		err = fmt.Errorf("cannot decode %s value from input of length %d", kind, len(data))
 	}
 	return val, err
@@ -649,21 +729,21 @@ func Equal(v1, v2 Value) bool {
 	if v1.kind != v2.kind {
 		return false
 	}
-	switch v1.Kind() {
+	switch ^Kind(v1.kind) {
 	case Boolean:
-		return v1.Boolean() == v2.Boolean()
+		return v1.boolean() == v2.boolean()
 	case Int32:
-		return v1.Int32() == v2.Int32()
+		return v1.int32() == v2.int32()
 	case Int64:
-		return v1.Int64() == v2.Int64()
+		return v1.int64() == v2.int64()
 	case Int96:
-		return v1.Int96() == v2.Int96()
+		return v1.int96() == v2.int96()
 	case Float:
-		return v1.Float() == v2.Float()
+		return v1.float() == v2.float()
 	case Double:
-		return v1.Double() == v2.Double()
+		return v1.double() == v2.double()
 	case ByteArray, FixedLenByteArray:
-		return bytes.Equal(v1.ByteArray(), v2.ByteArray())
+		return bytes.Equal(v1.byteArray(), v2.byteArray())
 	case -1: // null
 		return true
 	default:

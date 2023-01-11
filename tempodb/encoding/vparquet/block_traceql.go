@@ -89,26 +89,26 @@ var wellKnownColumnLookups = map[string]struct {
 // Fetch spansets from the block for the given TraceQL FetchSpansRequest. The request is checked for
 // internal consistencies:  operand count matches the operation, all operands in each condition are identical
 // types, and the operand type is compatible with the operation.
-func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
 
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "conditions invalid")
 	}
 
-	// TODO - route global search options here
-	pf, _, err := b.openForSearch(ctx, common.SearchOptions{})
+	pf, rr, err := b.openForSearch(ctx, opts)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, err
 	}
 
-	iter, err := fetch(ctx, req, pf)
+	iter, err := fetch(ctx, req, pf, opts)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "creating fetch iter")
 	}
 
 	return traceql.FetchSpansResponse{
 		Results: iter,
+		Bytes:   func() uint64 { return rr.TotalBytesRead.Load() },
 	}, nil
 }
 
@@ -181,6 +181,33 @@ func (i *spansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
 	return spanset, nil
 }
 
+// mergeSpansetIterator iterates through a slice of spansetIterators exhausting them
+// in order
+type mergeSpansetIterator struct {
+	iters []*spansetIterator
+	cur   int
+}
+
+var _ traceql.SpansetIterator = (*mergeSpansetIterator)(nil)
+
+func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
+	if i.cur >= len(i.iters) {
+		return nil, nil
+	}
+
+	iter := i.iters[i.cur]
+	spanset, err := iter.Next(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if spanset == nil {
+		i.cur++
+		return i.Next(ctx)
+	}
+
+	return spanset, nil
+}
+
 // fetch is the core logic for executing the given conditions against the parquet columns. The algorithm
 // can be summarized as a hiearchy of iterators where we iterate related columns together and collect the results
 // at each level into attributes, spans, and spansets.  Each condition (.foo=bar) is pushed down to the one or more
@@ -249,7 +276,7 @@ func (i *spansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
 //                                                            |
 //                                                            V
 
-func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File) (*spansetIterator, error) {
+func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, opts common.SearchOptions) (*spansetIterator, error) {
 
 	// Categorize conditions into span-level or resource-level
 	var (
@@ -288,9 +315,17 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File)
 		}
 	}
 
-	// For now we iterate all row groups in the file
-	// TODO: Add sharding params to the traceql request?
-	makeIter := makeIterFunc(ctx, pf.RowGroups(), pf)
+	rgs := pf.RowGroups()
+	if opts.TotalPages > 0 {
+		// Read UP TO TotalPages.  The sharding calculations
+		// are just estimates, so it may not line up with the
+		// actual number of pages in this file.
+		if opts.StartPage+opts.TotalPages > len(rgs) {
+			opts.TotalPages = len(rgs) - opts.StartPage
+		}
+		rgs = rgs[opts.StartPage : opts.StartPage+opts.TotalPages]
+	}
+	makeIter := makeIterFunc(ctx, rgs, pf)
 
 	// Global state
 	// Span-filtering behavior changes depending on the resource-filtering in effect,
@@ -430,18 +465,19 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 		endFilter = parquetquery.NewIntBetweenPredicate(int64(start), math.MaxInt64)
 	}
 
-	// Static columns that are always loaded
 	var required []parquetquery.Iterator
-	required = append(required, makeIter(columnPathSpanID, nil, columnPathSpanID))
-	required = append(required, makeIter(columnPathSpanStartTime, startFilter, columnPathSpanStartTime))
-	required = append(required, makeIter(columnPathSpanEndTime, endFilter, columnPathSpanEndTime))
 
 	minCount := 0
 	if requireAtLeastOneMatch {
 		minCount = 1
 	}
 	if allConditions {
-		minCount = len(conditions)
+		// The final number of expected attributes.
+		distinct := map[string]struct{}{}
+		for _, cond := range conditions {
+			distinct[cond.Attribute.Name] = struct{}{}
+		}
+		minCount = len(distinct)
 	}
 	spanCol := &spanCollector{
 		minCount,
@@ -464,6 +500,13 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 		required = append(required, parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpan, iters, nil))
 		iters = nil
 	}
+
+	// Static columns that are always loaded
+	// Since these are always present, they are put at the end and will only
+	// be read once the core conditions are met.
+	required = append(required, makeIter(columnPathSpanStartTime, startFilter, columnPathSpanStartTime))
+	required = append(required, makeIter(columnPathSpanEndTime, endFilter, columnPathSpanEndTime))
+	required = append(required, makeIter(columnPathSpanID, nil, columnPathSpanID))
 
 	// Left join here means the span id/start/end iterators + 1 are required,
 	// and all other conditions are optional. Whatever matches is returned.
@@ -524,16 +567,19 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		minCount = 1
 	}
 	if allConditions {
-		minCount = len(conditions)
+		// The final number of expected attributes
+		distinct := map[string]struct{}{}
+		for _, cond := range conditions {
+			distinct[cond.Attribute.Name] = struct{}{}
+		}
+		minCount = len(distinct)
 	}
 	batchCol := &batchCollector{
 		requireAtLeastOneMatchOverall,
 		minCount,
 	}
 
-	required := []parquetquery.Iterator{
-		spanIterator,
-	}
+	var required []parquetquery.Iterator
 
 	// This is an optimization for when all of the resource conditions must be met.
 	// We simply move all iterators into the required list.
@@ -550,6 +596,10 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		required = append(required, parquetquery.NewUnionIterator(DefinitionLevelResourceSpans, iters, nil))
 		iters = nil
 	}
+
+	// Put span iterator last so it is only read when
+	// the resource conditions are met.
+	required = append(required, spanIterator)
 
 	// Left join here means the span iterator + 1 are required,
 	// and all other resource conditions are optional. Whatever matches

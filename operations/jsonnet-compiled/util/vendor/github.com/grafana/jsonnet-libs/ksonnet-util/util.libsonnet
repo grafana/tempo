@@ -239,8 +239,28 @@ local util(k) = {
        else {})
     ),
 
+  resourcesRequestsMixin(cpu, memory)::
+    k.core.v1.container.mixin.resources.withRequestsMixin(
+      (if cpu != null
+       then { cpu: cpu }
+       else {}) +
+      (if memory != null
+       then { memory: memory }
+       else {})
+    ),
+
   resourcesLimits(cpu, memory)::
     k.core.v1.container.mixin.resources.withLimits(
+      (if cpu != null
+       then { cpu: cpu }
+       else {}) +
+      (if memory != null
+       then { memory: memory }
+       else {})
+    ),
+
+  resourcesLimitsMixin(cpu, memory)::
+    k.core.v1.container.mixin.resources.withLimitsMixin(
       (if cpu != null
        then { cpu: cpu }
        else {}) +

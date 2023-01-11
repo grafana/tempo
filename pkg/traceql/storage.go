@@ -2,7 +2,6 @@ package traceql
 
 import (
 	"context"
-	"fmt"
 )
 
 type Operands []Static
@@ -55,48 +54,49 @@ type SpansetIterator interface {
 
 type FetchSpansResponse struct {
 	Results SpansetIterator
+	Bytes   func() uint64
 }
 
 type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
 }
 
-// MustExtractCondition from the first spanset filter in the traceql query.
-// I.e. given a query { .foo=`bar`} it will extract the condition attr
-// foo EQ str(bar). Panics if the query fails to parse or contains a
-// different structure. For testing purposes.
-func MustExtractCondition(query string) Condition {
-	c, err := ExtractCondition(query)
+// MustExtractFetchSpansRequest parses the given traceql query and returns
+// the storage layer conditions. Panics if the query fails to parse.
+func MustExtractFetchSpansRequest(query string) FetchSpansRequest {
+	c, err := ExtractFetchSpansRequest(query)
 	if err != nil {
 		panic(err)
 	}
 	return c
 }
 
-// ExtractCondition from the first spanset filter in the traceql query.
-// I.e. given a query { .foo=`bar`} it will extract the condition attr
-// foo EQ str(bar). For testing purposes.
-func ExtractCondition(query string) (cond Condition, err error) {
+// ExtractFetchSpansRequest parses the given traceql query and returns
+// the storage layer conditions. Returns an error if the query fails to parse.
+func ExtractFetchSpansRequest(query string) (FetchSpansRequest, error) {
 	ast, err := Parse(query)
 	if err != nil {
-		return cond, err
+		return FetchSpansRequest{}, err
 	}
 
-	f, ok := ast.Pipeline.Elements[0].(SpansetFilter)
-	if !ok {
-		return Condition{}, fmt.Errorf("first pipeline element is not a SpansetFilter")
+	req := FetchSpansRequest{
+		AllConditions: true,
 	}
 
-	switch e := f.Expression.(type) {
-	case BinaryOperation:
-		cond.Attribute = e.LHS.(Attribute)
-		cond.Op = e.Op
-		cond.Operands = []Static{e.RHS.(Static)}
-	case Attribute:
-		cond.Attribute = e
-		cond.Op = OpNone
-		cond.Operands = nil
-	}
+	ast.Pipeline.extractConditions(&req)
+	return req, nil
+}
 
-	return
+type SpansetFetcherWrapper struct {
+	f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)
+}
+
+var _ = (SpansetFetcher)(&SpansetFetcherWrapper{})
+
+func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest) (FetchSpansResponse, error)) SpansetFetcher {
+	return SpansetFetcherWrapper{f}
+}
+
+func (s SpansetFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
+	return s.f(ctx, request)
 }

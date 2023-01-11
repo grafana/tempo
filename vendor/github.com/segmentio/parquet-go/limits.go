@@ -29,6 +29,10 @@ const (
 	MaxRowGroups = math.MaxInt16
 )
 
+const (
+	estimatedSizeOfByteArrayValues = 20
+)
+
 func makeRepetitionLevel(i int) byte {
 	checkIndexRange("repetition level", i, 0, MaxRepetitionLevel)
 	return byte(i)

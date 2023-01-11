@@ -44,15 +44,13 @@ func (f *bloomFilter) Check(v Value) (bool, error) {
 func (v Value) hash(h bloom.Hash) uint64 {
 	switch v.Kind() {
 	case Boolean:
-		return h.Sum64Uint8(uint8(v.u64))
+		return h.Sum64Uint8(v.byte())
 	case Int32, Float:
-		return h.Sum64Uint32(uint32(v.u64))
+		return h.Sum64Uint32(v.uint32())
 	case Int64, Double:
-		return h.Sum64Uint64(v.u64)
-	case Int96:
-		return h.Sum64(v.Bytes())
-	default:
-		return h.Sum64(v.ByteArray())
+		return h.Sum64Uint64(v.uint64())
+	default: // Int96, ByteArray, FixedLenByteArray, or null
+		return h.Sum64(v.byteArray())
 	}
 }
 
@@ -87,20 +85,35 @@ type BloomFilterColumn interface {
 
 	// Returns the size of the filter needed to encode values in the filter,
 	// assuming each value will be encoded with the given number of bits.
-	Size(numValues int64, bitsPerValue uint) int
+	Size(numValues int64) int
 }
 
 // SplitBlockFilter constructs a split block bloom filter object for the column
-// at the given path.
-func SplitBlockFilter(path ...string) BloomFilterColumn { return splitBlockFilter(path) }
+// at the given path, with the given bitsPerValue.
+//
+// If you are unsure what number of bitsPerValue to use, 10 is a reasonable
+// tradeoff between size and error rate for common datasets.
+//
+// For more information on the tradeoff between size and error rate, consult
+// this website: https://hur.st/bloomfilter/?n=4000&p=0.1&m=&k=1
+func SplitBlockFilter(bitsPerValue uint, path ...string) BloomFilterColumn {
+	return splitBlockFilter{
+		bitsPerValue: bitsPerValue,
+		path:         path,
+	}
+}
 
-type splitBlockFilter []string
+type splitBlockFilter struct {
+	bitsPerValue uint
+	path         []string
+}
 
-func (f splitBlockFilter) Path() []string              { return f }
+func (f splitBlockFilter) Path() []string              { return f.path }
 func (f splitBlockFilter) Hash() bloom.Hash            { return bloom.XXH64{} }
 func (f splitBlockFilter) Encoding() encoding.Encoding { return splitBlockEncoding{} }
-func (f splitBlockFilter) Size(numValues int64, bitsPerValue uint) int {
-	return bloom.BlockSize * bloom.NumSplitBlocksOf(numValues, bitsPerValue)
+
+func (f splitBlockFilter) Size(numValues int64) int {
+	return bloom.BlockSize * bloom.NumSplitBlocksOf(numValues, f.bitsPerValue)
 }
 
 // Creates a header from the given bloom filter.

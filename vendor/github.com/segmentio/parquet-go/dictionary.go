@@ -3,7 +3,6 @@ package parquet
 import (
 	"io"
 	"math/bits"
-	"strings"
 	"unsafe"
 
 	"github.com/segmentio/parquet-go/deprecated"
@@ -674,6 +673,7 @@ func (d *doubleDictionary) Page() Page {
 type byteArrayDictionary struct {
 	byteArrayPage
 	table map[string]int32
+	alloc allocator
 }
 
 func newByteArrayDictionary(typ Type, columnIndex int16, numValues int32, data encoding.Values) *byteArrayDictionary {
@@ -731,7 +731,7 @@ func (d *byteArrayDictionary) insert(indexes []int32, rows sparse.Array) {
 
 		index, exists := d.table[value]
 		if !exists {
-			value = cloneString(value)
+			value = d.alloc.copyString(value)
 			index = int32(len(d.table))
 			d.table[value] = index
 			d.values = append(d.values, value...)
@@ -740,12 +740,6 @@ func (d *byteArrayDictionary) insert(indexes []int32, rows sparse.Array) {
 
 		indexes[i] = index
 	}
-}
-
-func cloneString(s string) string {
-	b := new(strings.Builder)
-	b.WriteString(s)
-	return b.String()
 }
 
 func (d *byteArrayDictionary) Lookup(indexes []int32, values []Value) {
@@ -788,10 +782,10 @@ func (d *byteArrayDictionary) Bounds(indexes []int32) (min, max Value) {
 func (d *byteArrayDictionary) Reset() {
 	d.offsets = d.offsets[:1]
 	d.values = d.values[:0]
-
 	for k := range d.table {
 		delete(d.table, k)
 	}
+	d.alloc.reset()
 }
 
 func (d *byteArrayDictionary) Page() Page {
@@ -1225,10 +1219,6 @@ func (t *indexedType) NewPage(columnIndex, numValues int, data encoding.Values) 
 	return newIndexedPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
-func (t *indexedType) NewValues(values []byte, _ []uint32) encoding.Values {
-	return encoding.Int32ValuesFromBytes(values)
-}
-
 // indexedPage is an implementation of the Page interface which stores
 // indexes instead of plain value. The indexes reference the values in a
 // dictionary that the page was created for.
@@ -1297,14 +1287,6 @@ func (page *indexedPage) Bounds() (min, max Value, ok bool) {
 	return min, max, ok
 }
 
-func (page *indexedPage) Clone() Page {
-	return &indexedPage{
-		typ:         page.typ,
-		values:      append([]int32{}, page.values...),
-		columnIndex: page.columnIndex,
-	}
-}
-
 func (page *indexedPage) Slice(i, j int64) Page {
 	return &indexedPage{
 		typ:         page.typ,
@@ -1319,12 +1301,20 @@ func (page *indexedPage) Slice(i, j int64) Page {
 // its dictionary instead of plain values.
 type indexedPageType struct{ *indexedType }
 
+func (t indexedPageType) NewValues(values []byte, _ []uint32) encoding.Values {
+	return encoding.Int32ValuesFromBytes(values)
+}
+
 func (t indexedPageType) Encode(dst []byte, src encoding.Values, enc encoding.Encoding) ([]byte, error) {
 	return encoding.EncodeInt32(dst, src, enc)
 }
 
 func (t indexedPageType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
 	return encoding.DecodeInt32(dst, src, enc)
+}
+
+func (t indexedPageType) EstimateDecodeSize(numValues int, src []byte, enc encoding.Encoding) int {
+	return Int32Type.EstimateDecodeSize(numValues, src, enc)
 }
 
 type indexedPageValues struct {

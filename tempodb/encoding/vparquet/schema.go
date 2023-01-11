@@ -485,7 +485,6 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 }
 
 func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
-
 	protoTrace := &tempopb.Trace{}
 	protoTrace.Batches = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
 
@@ -620,5 +619,7 @@ func extendReuseSlice[T any](sz int, in []T) []T {
 		return in[:sz]
 	}
 
-	return make([]T, sz)
+	// append until we're large enough
+	in = in[:cap(in)]
+	return append(in, make([]T, sz-len(in))...)
 }

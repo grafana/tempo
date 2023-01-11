@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/segmentio/parquet-go/compress"
@@ -301,6 +302,12 @@ func (s *Schema) Columns() [][]string {
 	return s.columns
 }
 
+// Comparator constructs a comparator function which orders rows according to
+// the list of sorting columns passed as arguments.
+func (s *Schema) Comparator(sortingColumns ...SortingColumn) func(Row, Row) int {
+	return compareRowsFuncOf(s, sortingColumns)
+}
+
 func (s *Schema) forEachNode(do func(name string, node Node)) {
 	forEachNodeOf(s.Name(), s, do)
 }
@@ -488,6 +495,8 @@ func nodeOf(t reflect.Type, tag []string) Node {
 		return Leaf(Int96Type)
 	case reflect.TypeOf(uuid.UUID{}):
 		return UUID()
+	case reflect.TypeOf(time.Time{}):
+		return Timestamp(Nanosecond)
 	}
 
 	var n Node
@@ -823,7 +832,16 @@ func makeNodeOf(t reflect.Type, name string, tag []string) Node {
 				}
 				setNode(Timestamp(timeUnit))
 			default:
-				throwInvalidTag(t, name, option)
+				switch t {
+				case reflect.TypeOf(time.Time{}):
+					timeUnit, err := parseTimestampArgs(args)
+					if err != nil {
+						throwInvalidTag(t, name, option)
+					}
+					setNode(Timestamp(timeUnit))
+				default:
+					throwInvalidTag(t, name, option)
+				}
 			}
 		default:
 			throwUnknownTag(t, name, option)

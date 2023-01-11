@@ -28,15 +28,6 @@ func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader
 	return pf, r, nil
 }
 
-func (b *backendBlock) Iterator(ctx context.Context) (Iterator, error) {
-	_, r, err := b.open(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &blockIterator{blockID: b.meta.BlockID.String(), r: r}, nil
-}
-
 func (b *backendBlock) RawIterator(ctx context.Context, pool *rowPool) (*rawIterator, error) {
 	pf, r, err := b.open(ctx)
 	if err != nil {
@@ -49,27 +40,6 @@ func (b *backendBlock) RawIterator(ctx context.Context, pool *rowPool) (*rawIter
 	}
 
 	return &rawIterator{b.meta.BlockID.String(), r, traceIDIndex, pool}, nil
-}
-
-type blockIterator struct {
-	blockID string
-	r       *parquet.Reader //nolint:all //deprecated
-}
-
-func (i *blockIterator) Next(context.Context) (*Trace, error) {
-	t := &Trace{}
-	switch err := i.r.Read(t); err {
-	case nil:
-		return t, nil
-	case io.EOF:
-		return nil, nil
-	default:
-		return nil, errors.Wrap(err, fmt.Sprintf("error iterating through block %s", i.blockID))
-	}
-}
-
-func (i *blockIterator) Close() {
-	// parquet reader is shared, lets not close it here
 }
 
 type rawIterator struct {
@@ -102,6 +72,10 @@ func (i *rawIterator) Next(context.Context) (common.ID, parquet.Row, error) {
 	}
 
 	return nil, nil, errors.Wrap(err, fmt.Sprintf("error iterating through block %s", i.blockID))
+}
+
+func (i *rawIterator) peekNextID(ctx context.Context) (common.ID, error) { // nolint:unused // this is required to satisfy the bookmarkIterator interface
+	return nil, common.ErrUnsupported
 }
 
 func (i *rawIterator) Close() {

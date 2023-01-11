@@ -3,11 +3,12 @@ package generator
 import "time"
 
 type mockOverrides struct {
-	processors                    map[string]struct{}
-	serviceGraphsHistogramBuckets []float64
-	serviceGraphsDimensions       []string
-	spanMetricsHistogramBuckets   []float64
-	spanMetricsDimensions         []string
+	processors                     map[string]struct{}
+	serviceGraphsHistogramBuckets  []float64
+	serviceGraphsDimensions        []string
+	spanMetricsHistogramBuckets    []float64
+	spanMetricsDimensions          []string
+	spanMetricsIntrinsicDimensions map[string]bool
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -42,4 +43,8 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsHistogramBuckets(use
 
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDimensions(userID string) []string {
 	return m.spanMetricsDimensions
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID string) map[string]bool {
+	return m.spanMetricsIntrinsicDimensions
 }

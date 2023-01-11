@@ -155,6 +155,8 @@ func (i *Ingester) stopping(_ error) error {
 		i.flushQueuesDone.Wait()
 	}
 
+	i.local.Shutdown()
+
 	return nil
 }
 
@@ -411,6 +413,16 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 	level.Info(log.Logger).Log("msg", "reloading local blocks", "tenants", len(tenants))
 
 	for _, t := range tenants {
+		// check if any local blocks exist for a tenant before creating the instance. this is to protect us from cases
+		// where left-over empty local tenant folders persist empty tenants
+		blocks, err := reader.Blocks(ctx, t)
+		if err != nil {
+			return err
+		}
+		if len(blocks) == 0 {
+			continue
+		}
+
 		inst, err := i.getOrCreateInstance(t)
 		if err != nil {
 			return err

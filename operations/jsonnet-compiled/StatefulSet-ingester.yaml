@@ -30,9 +30,9 @@ spec:
             topologyKey: kubernetes.io/hostname
       containers:
       - args:
-        - -target=ingester
         - -config.file=/conf/tempo.yaml
         - -mem-ballast-size-mbs=1024
+        - -target=ingester
         image: grafana/tempo:latest
         imagePullPolicy: IfNotPresent
         name: ingester
@@ -59,6 +59,7 @@ spec:
           name: ingester-data
         - mountPath: /overrides
           name: overrides
+      terminationGracePeriodSeconds: 1200
       volumes:
       - configMap:
           name: tempo-ingester

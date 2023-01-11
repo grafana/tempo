@@ -64,6 +64,13 @@ type GenericWriter[T any] struct {
 //
 // If the option list may explicitly declare a schema, it must be compatible
 // with the schema generated from T.
+//
+// Sorting columns may be set on the writer to configure the generated row
+// groups metadata. However, rows are always written in the order they were
+// seen, no reordering is performed, the writer expects the application to
+// ensure proper correlation between the order of rows and the list of sorting
+// columns. See SortingWriter[T] for a writer which handles reordering rows
+// based on the configured sorting columns.
 func NewGenericWriter[T any](output io.Writer, options ...WriterOption) *GenericWriter[T] {
 	config, err := NewWriterConfig(options...)
 	if err != nil {
@@ -123,7 +130,6 @@ func makeWriteFunc[T any](t reflect.Type, schema *Schema) writeFunc[T] {
 				// These fields are usually lazily initialized when writing rows,
 				// we need them to exist now tho.
 				c.columnBuffer = c.newColumnBuffer()
-				c.maxValues = int32(c.columnBuffer.Cap())
 				w.columns[i] = c.columnBuffer
 			}
 		}
@@ -155,11 +161,9 @@ func (w *GenericWriter[T]) Write(rows []T) (int, error) {
 		}
 
 		for _, c := range w.base.writer.columns {
-			c.numValues = int32(c.columnBuffer.NumValues())
-
-			if c.numValues > 0 && c.numValues >= c.maxValues {
+			if c.columnBuffer.Size() >= int64(c.bufferSize) {
 				if err := c.flush(); err != nil {
-					return 0, err
+					return n, err
 				}
 			}
 		}
@@ -174,6 +178,19 @@ func (w *GenericWriter[T]) WriteRows(rows []Row) (int, error) {
 
 func (w *GenericWriter[T]) WriteRowGroup(rowGroup RowGroup) (int64, error) {
 	return w.base.WriteRowGroup(rowGroup)
+}
+
+// SetKeyValueMetadata sets a key/value pair in the Parquet file metadata.
+//
+// Keys are assumed to be unique, if the same key is repeated multiple times the
+// last value is retained. While the parquet format does not require unique keys,
+// this design decision was made to optimize for the most common use case where
+// applications leverage this extension mechanism to associate single values to
+// keys. This may create incompatibilities with other parquet libraries, or may
+// cause some key/value pairs to be lost when open parquet files written with
+// repeated keys. We can revisit this decision if it ever becomes a blocker.
+func (w *GenericWriter[T]) SetKeyValueMetadata(key, value string) {
+	w.base.SetKeyValueMetadata(key, value)
 }
 
 func (w *GenericWriter[T]) ReadRowsFrom(rows RowReader) (int64, error) {

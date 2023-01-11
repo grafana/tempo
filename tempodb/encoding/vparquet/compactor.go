@@ -35,7 +35,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		totalRecords    int
 		minBlockStart   time.Time
 		maxBlockEnd     time.Time
-		bookmarks       = make([]*bookmark, 0, len(inputs))
+		bookmarks       = make([]*bookmark[parquet.Row], 0, len(inputs))
 		// MaxBytesPerTrace is the largest trace that can be expected, and assumes 1 byte per value on average (same as flushing).
 		// Divide by 4 to presumably require 2 slice allocations if we ever see a trace this large
 		pool = newRowPool(c.opts.MaxBytesPerTrace / 4)
@@ -64,7 +64,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			return nil, err
 		}
 
-		bookmarks = append(bookmarks, newBookmark(iter))
+		bookmarks = append(bookmarks, newBookmark[parquet.Row](iter))
 	}
 
 	var (
@@ -256,48 +256,6 @@ func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l lo
 		c.opts.BytesWritten(compactionLevel, bytesFlushed)
 	}
 	return nil
-}
-
-type bookmark struct {
-	iter RawIterator
-
-	currentID     common.ID
-	currentObject parquet.Row
-	currentErr    error
-}
-
-func newBookmark(iter RawIterator) *bookmark {
-	return &bookmark{
-		iter: iter,
-	}
-}
-
-func (b *bookmark) current(ctx context.Context) ([]byte, parquet.Row, error) {
-	if b.currentErr != nil {
-		return nil, nil, b.currentErr
-	}
-
-	if b.currentObject != nil {
-		return b.currentID, b.currentObject, nil
-	}
-
-	b.currentID, b.currentObject, b.currentErr = b.iter.Next(ctx)
-	return b.currentID, b.currentObject, b.currentErr
-}
-
-func (b *bookmark) done(ctx context.Context) bool {
-	_, obj, err := b.current(ctx)
-
-	return obj == nil || err != nil
-}
-
-func (b *bookmark) clear() {
-	b.currentID = nil
-	b.currentObject = nil
-}
-
-func (b *bookmark) close() {
-	b.iter.Close()
 }
 
 type rowPool struct {

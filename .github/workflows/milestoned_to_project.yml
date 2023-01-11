@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/add-to-project@v0.3.0
+      - uses: actions/add-to-project@v0.4.0
         with:
           project-url: https://github.com/orgs/grafana/projects/135
           github-token: ${{ secrets.GH_BOT_ACCESS_TOKEN }}

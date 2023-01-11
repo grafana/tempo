@@ -60,7 +60,8 @@ func (t tooManySpansError) Error() string {
 type Processor struct {
 	Cfg Config
 
-	store store.Store
+	registry registry.Registry
+	store    store.Store
 
 	closeCh chan struct{}
 
@@ -82,7 +83,8 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 	}
 
 	p := &Processor{
-		Cfg: cfg,
+		Cfg:      cfg,
+		registry: registry,
 
 		closeCh: make(chan struct{}, 1),
 
@@ -241,7 +243,7 @@ func (p *Processor) onComplete(e *store.Edge) {
 		labelValues = append(labelValues, e.Dimensions[dimension])
 	}
 
-	registryLabelValues := registry.NewLabelValues(labelValues)
+	registryLabelValues := p.registry.NewLabelValues(labelValues)
 
 	p.serviceGraphRequestTotal.Inc(registryLabelValues, 1)
 	if e.Failed {

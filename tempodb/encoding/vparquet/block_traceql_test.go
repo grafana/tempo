@@ -2,14 +2,20 @@ package vparquet
 
 import (
 	"context"
+	"path"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -26,61 +32,61 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			EndTimeUnixNanos:   uint64(102 * time.Second),
 		},
 		// Intrinsics
-		makeReq(parse(t, `{`+LabelName+` = "hello"}`)),
-		makeReq(parse(t, `{`+LabelDuration+` =  100s}`)),
-		makeReq(parse(t, `{`+LabelDuration+` >  99s}`)),
-		makeReq(parse(t, `{`+LabelDuration+` >= 100s}`)),
-		makeReq(parse(t, `{`+LabelDuration+` <  101s}`)),
-		makeReq(parse(t, `{`+LabelDuration+` <= 100s}`)),
-		makeReq(parse(t, `{`+LabelDuration+` <= 100s}`)),
-		makeReq(parse(t, `{`+LabelStatus+` = error}`)),
-		makeReq(parse(t, `{`+LabelStatus+` = 2}`)),
+		traceql.MustExtractFetchSpansRequest(`{` + LabelName + ` = "hello"}`),
+		traceql.MustExtractFetchSpansRequest(`{` + LabelDuration + ` =  100s}`),
+		traceql.MustExtractFetchSpansRequest(`{` + LabelDuration + ` >  99s}`),
+		traceql.MustExtractFetchSpansRequest(`{` + LabelDuration + ` >= 100s}`),
+		traceql.MustExtractFetchSpansRequest(`{` + LabelDuration + ` <  101s}`),
+		traceql.MustExtractFetchSpansRequest(`{` + LabelDuration + ` <= 100s}`),
+		traceql.MustExtractFetchSpansRequest(`{` + LabelDuration + ` <= 100s}`),
+		traceql.MustExtractFetchSpansRequest(`{` + LabelStatus + ` = error}`),
+		traceql.MustExtractFetchSpansRequest(`{` + LabelStatus + ` = 2}`),
 		// Resource well-known attributes
-		makeReq(parse(t, `{.`+LabelServiceName+` = "spanservicename"}`)), // Overridden at span
-		makeReq(parse(t, `{.`+LabelCluster+` = "cluster"}`)),
-		makeReq(parse(t, `{.`+LabelNamespace+` = "namespace"}`)),
-		makeReq(parse(t, `{.`+LabelPod+` = "pod"}`)),
-		makeReq(parse(t, `{.`+LabelContainer+` = "container"}`)),
-		makeReq(parse(t, `{.`+LabelK8sNamespaceName+` = "k8snamespace"}`)),
-		makeReq(parse(t, `{.`+LabelK8sClusterName+` = "k8scluster"}`)),
-		makeReq(parse(t, `{.`+LabelK8sPodName+` = "k8spod"}`)),
-		makeReq(parse(t, `{.`+LabelK8sContainerName+` = "k8scontainer"}`)),
-		makeReq(parse(t, `{resource.`+LabelServiceName+` = "myservice"}`)),
-		makeReq(parse(t, `{resource.`+LabelCluster+` = "cluster"}`)),
-		makeReq(parse(t, `{resource.`+LabelNamespace+` = "namespace"}`)),
-		makeReq(parse(t, `{resource.`+LabelPod+` = "pod"}`)),
-		makeReq(parse(t, `{resource.`+LabelContainer+` = "container"}`)),
-		makeReq(parse(t, `{resource.`+LabelK8sNamespaceName+` = "k8snamespace"}`)),
-		makeReq(parse(t, `{resource.`+LabelK8sClusterName+` = "k8scluster"}`)),
-		makeReq(parse(t, `{resource.`+LabelK8sPodName+` = "k8spod"}`)),
-		makeReq(parse(t, `{resource.`+LabelK8sContainerName+` = "k8scontainer"}`)),
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelServiceName + ` = "spanservicename"}`), // Overridden at span
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelCluster + ` = "cluster"}`),
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelNamespace + ` = "namespace"}`),
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelPod + ` = "pod"}`),
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelContainer + ` = "container"}`),
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelK8sNamespaceName + ` = "k8snamespace"}`),
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelK8sClusterName + ` = "k8scluster"}`),
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelK8sPodName + ` = "k8spod"}`),
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelK8sContainerName + ` = "k8scontainer"}`),
+		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelServiceName + ` = "myservice"}`),
+		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelCluster + ` = "cluster"}`),
+		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelNamespace + ` = "namespace"}`),
+		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelPod + ` = "pod"}`),
+		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelContainer + ` = "container"}`),
+		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelK8sNamespaceName + ` = "k8snamespace"}`),
+		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelK8sClusterName + ` = "k8scluster"}`),
+		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelK8sPodName + ` = "k8spod"}`),
+		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelK8sContainerName + ` = "k8scontainer"}`),
 		// Span well-known attributes
-		makeReq(parse(t, `{.`+LabelHTTPStatusCode+` = 500}`)),
-		makeReq(parse(t, `{.`+LabelHTTPMethod+` = "get"}`)),
-		makeReq(parse(t, `{.`+LabelHTTPUrl+` = "url/hello/world"}`)),
-		makeReq(parse(t, `{span.`+LabelHTTPStatusCode+` = 500}`)),
-		makeReq(parse(t, `{span.`+LabelHTTPMethod+` = "get"}`)),
-		makeReq(parse(t, `{span.`+LabelHTTPUrl+` = "url/hello/world"}`)),
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelHTTPStatusCode + ` = 500}`),
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelHTTPMethod + ` = "get"}`),
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelHTTPUrl + ` = "url/hello/world"}`),
+		traceql.MustExtractFetchSpansRequest(`{span.` + LabelHTTPStatusCode + ` = 500}`),
+		traceql.MustExtractFetchSpansRequest(`{span.` + LabelHTTPMethod + ` = "get"}`),
+		traceql.MustExtractFetchSpansRequest(`{span.` + LabelHTTPUrl + ` = "url/hello/world"}`),
 		// Basic data types and operations
-		makeReq(parse(t, `{.float = 456.78}`)),      // Float ==
-		makeReq(parse(t, `{.float != 456.79}`)),     // Float !=
-		makeReq(parse(t, `{.float > 456.7}`)),       // Float >
-		makeReq(parse(t, `{.float >= 456.78}`)),     // Float >=
-		makeReq(parse(t, `{.float < 456.781}`)),     // Float <
-		makeReq(parse(t, `{.bool = false}`)),        // Bool ==
-		makeReq(parse(t, `{.bool != true}`)),        // Bool !=
-		makeReq(parse(t, `{.bar = 123}`)),           // Int ==
-		makeReq(parse(t, `{.bar != 124}`)),          // Int !=
-		makeReq(parse(t, `{.bar > 122}`)),           // Int >
-		makeReq(parse(t, `{.bar >= 123}`)),          // Int >=
-		makeReq(parse(t, `{.bar < 124}`)),           // Int <
-		makeReq(parse(t, `{.bar <= 123}`)),          // Int <=
-		makeReq(parse(t, `{.foo = "def"}`)),         // String ==
-		makeReq(parse(t, `{.foo != "deg"}`)),        // String !=
-		makeReq(parse(t, `{.foo =~ "d.*"}`)),        // String Regex
-		makeReq(parse(t, `{resource.foo = "abc"}`)), // Resource-level only
-		makeReq(parse(t, `{span.foo = "def"}`)),     // Span-level only
-		makeReq(parse(t, `{.foo}`)),                 // Projection only
+		traceql.MustExtractFetchSpansRequest(`{.float = 456.78}`),      // Float ==
+		traceql.MustExtractFetchSpansRequest(`{.float != 456.79}`),     // Float !=
+		traceql.MustExtractFetchSpansRequest(`{.float > 456.7}`),       // Float >
+		traceql.MustExtractFetchSpansRequest(`{.float >= 456.78}`),     // Float >=
+		traceql.MustExtractFetchSpansRequest(`{.float < 456.781}`),     // Float <
+		traceql.MustExtractFetchSpansRequest(`{.bool = false}`),        // Bool ==
+		traceql.MustExtractFetchSpansRequest(`{.bool != true}`),        // Bool !=
+		traceql.MustExtractFetchSpansRequest(`{.bar = 123}`),           // Int ==
+		traceql.MustExtractFetchSpansRequest(`{.bar != 124}`),          // Int !=
+		traceql.MustExtractFetchSpansRequest(`{.bar > 122}`),           // Int >
+		traceql.MustExtractFetchSpansRequest(`{.bar >= 123}`),          // Int >=
+		traceql.MustExtractFetchSpansRequest(`{.bar < 124}`),           // Int <
+		traceql.MustExtractFetchSpansRequest(`{.bar <= 123}`),          // Int <=
+		traceql.MustExtractFetchSpansRequest(`{.foo = "def"}`),         // String ==
+		traceql.MustExtractFetchSpansRequest(`{.foo != "deg"}`),        // String !=
+		traceql.MustExtractFetchSpansRequest(`{.foo =~ "d.*"}`),        // String Regex
+		traceql.MustExtractFetchSpansRequest(`{resource.foo = "abc"}`), // Resource-level only
+		traceql.MustExtractFetchSpansRequest(`{span.foo = "def"}`),     // Span-level only
+		traceql.MustExtractFetchSpansRequest(`{.foo}`),                 // Projection only
 		makeReq(
 			// Matches either condition
 			parse(t, `{.foo = "baz"}`),
@@ -108,15 +114,39 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		),
 
 		// Edge cases
-		makeReq(parse(t, `{.name = "Bob"}`)),                             // Almost conflicts with intrinsic but still works
-		makeReq(parse(t, `{resource.`+LabelServiceName+` = 123}`)),       // service.name doesn't match type of dedicated column
-		makeReq(parse(t, `{.`+LabelServiceName+` = "spanservicename"}`)), // service.name present on span
-		makeReq(parse(t, `{.`+LabelHTTPStatusCode+` = "500ouch"}`)),      // http.status_code doesn't match type of dedicated column
-		makeReq(parse(t, `{.foo = "def"}`)),
+		traceql.MustExtractFetchSpansRequest(`{.name = "Bob"}`),                                 // Almost conflicts with intrinsic but still works
+		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelServiceName + ` = 123}`),       // service.name doesn't match type of dedicated column
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelServiceName + ` = "spanservicename"}`), // service.name present on span
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelHTTPStatusCode + ` = "500ouch"}`),      // http.status_code doesn't match type of dedicated column
+		traceql.MustExtractFetchSpansRequest(`{.foo = "def"}`),
+		{
+			// Range at unscoped
+			AllConditions: true,
+			Conditions: []traceql.Condition{
+				parse(t, `{.`+LabelHTTPStatusCode+` >= 500}`),
+				parse(t, `{.`+LabelHTTPStatusCode+` <= 600}`),
+			},
+		},
+		{
+			// Range at span scope
+			AllConditions: true,
+			Conditions: []traceql.Condition{
+				parse(t, `{span.`+LabelHTTPStatusCode+` >= 500}`),
+				parse(t, `{span.`+LabelHTTPStatusCode+` <= 600}`),
+			},
+		},
+		{
+			// Range at resource scope
+			AllConditions: true,
+			Conditions: []traceql.Condition{
+				parse(t, `{resource.`+LabelServiceName+` >= 122}`),
+				parse(t, `{resource.`+LabelServiceName+` <= 124}`),
+			},
+		},
 	}
 
 	for _, req := range searchesThatMatch {
-		resp, err := b.Fetch(ctx, req)
+		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
 		require.NoError(t, err, "search request:", req)
 
 		spanSet, err := resp.Results.Next(ctx)
@@ -129,19 +159,15 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	searchesThatDontMatch := []traceql.FetchSpansRequest{
 		// TODO - Should the below query return data or not?  It does match the resource
 		// makeReq(parse(t, `{.foo = "abc"}`)),                           // This should not return results because the span has overridden this attribute to "def".
-		makeReq(parse(t, `{.foo =~ "xyz.*"}`)),                        // Regex IN
-		makeReq(parse(t, `{span.bool = true}`)),                       // Bool not match
-		makeReq(parse(t, `{`+LabelDuration+` >  100s}`)),              // Intrinsic: duration
-		makeReq(parse(t, `{`+LabelStatus+` = ok}`)),                   // Intrinsic: status
-		makeReq(parse(t, `{`+LabelName+` = "nothello"}`)),             // Intrinsic: name
-		makeReq(parse(t, `{.`+LabelServiceName+` = "notmyservice"}`)), // Well-known attribute: service.name not match
-		makeReq(parse(t, `{.`+LabelHTTPStatusCode+` = 200}`)),         // Well-known attribute: http.status_code not match
-		makeReq(parse(t, `{.`+LabelHTTPStatusCode+` > 600}`)),         // Well-known attribute: http.status_code not match
-		makeReq(
-			// Matches neither condition
-			parse(t, `{.foo = "xyz"}`),
-			parse(t, `{.`+LabelHTTPStatusCode+" = 1000}"),
-		),
+		traceql.MustExtractFetchSpansRequest(`{.foo =~ "xyz.*"}`),                                     // Regex IN
+		traceql.MustExtractFetchSpansRequest(`{span.bool = true}`),                                    // Bool not match
+		traceql.MustExtractFetchSpansRequest(`{` + LabelDuration + ` >  100s}`),                       // Intrinsic: duration
+		traceql.MustExtractFetchSpansRequest(`{` + LabelStatus + ` = ok}`),                            // Intrinsic: status
+		traceql.MustExtractFetchSpansRequest(`{` + LabelName + ` = "nothello"}`),                      // Intrinsic: name
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelServiceName + ` = "notmyservice"}`),          // Well-known attribute: service.name not match
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelHTTPStatusCode + ` = 200}`),                  // Well-known attribute: http.status_code not match
+		traceql.MustExtractFetchSpansRequest(`{.` + LabelHTTPStatusCode + ` > 600}`),                  // Well-known attribute: http.status_code not match
+		traceql.MustExtractFetchSpansRequest(`{.foo = "xyz" || .` + LabelHTTPStatusCode + " = 1000}"), // Matches neither condition
 		{
 			// Outside time range
 			StartTimeUnixNanos: uint64(300 * time.Second),
@@ -206,7 +232,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	}
 
 	for _, req := range searchesThatDontMatch {
-		resp, err := b.Fetch(ctx, req)
+		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
 		require.NoError(t, err, "search request:", req)
 
 		spanSet, err := resp.Results.Next(ctx)
@@ -441,7 +467,7 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 
 	for _, tc := range testCases {
 		req := tc.req
-		resp, err := b.Fetch(ctx, req)
+		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
 		require.NoError(t, err, "search request:", req)
 
 		// Turn iterator into slice
@@ -466,10 +492,10 @@ func makeReq(conditions ...traceql.Condition) traceql.FetchSpansRequest {
 
 func parse(t *testing.T, q string) traceql.Condition {
 
-	cond, err := traceql.ExtractCondition(q)
+	req, err := traceql.ExtractFetchSpansRequest(q)
 	require.NoError(t, err, "query:", q)
 
-	return cond
+	return req.Conditions[0]
 }
 
 func fullyPopulatedTestTrace(id common.ID) *Trace {
@@ -478,6 +504,28 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 	intPtr := func(i int64) *int64 { return &i }
 	fltPtr := func(f float64) *float64 { return &f }
 	boolPtr := func(b bool) *bool { return &b }
+
+	links := tempopb.LinkSlice{
+		Links: []*v1.Span_Link{
+			{
+				TraceId:                []byte{0x01},
+				SpanId:                 []byte{0x02},
+				TraceState:             "state",
+				DroppedAttributesCount: 3,
+				Attributes: []*v1_common.KeyValue{
+					{
+						Key:   "key",
+						Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "value"}},
+					},
+				},
+			},
+		},
+	}
+	linkBytes := make([]byte, links.Size())
+	_, err := links.MarshalTo(linkBytes)
+	if err != nil {
+		panic("failed to marshal links")
+	}
 
 	return &Trace{
 		TraceID:           test.ValidTraceID(id),
@@ -540,6 +588,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 									}},
 									{TimeUnixNano: 2, Name: "e2", Attrs: []EventAttribute{}},
 								},
+								Links: linkBytes,
 							},
 						},
 					},
@@ -561,5 +610,63 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 				},
 			},
 		},
+	}
+}
+
+func BenchmarkBackendBlockTraceQL(b *testing.B) {
+	testCases := []struct {
+		name string
+		req  traceql.FetchSpansRequest
+	}{
+		{"noMatch", traceql.MustExtractFetchSpansRequest("{ span.foo = `bar` }")},
+		{"partialMatch", traceql.MustExtractFetchSpansRequest("{ .foo = `bar` && .component = `gRPC` }")},
+		{"service.name", traceql.MustExtractFetchSpansRequest("{ resource.service.name = `a` }")},
+	}
+
+	ctx := context.TODO()
+	tenantID := "1"
+	blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
+
+	r, _, _, err := local.New(&local.Config{
+		Path: path.Join("/Users/marty/src/tmp/"),
+	})
+	require.NoError(b, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
+	require.NoError(b, err)
+
+	opts := common.DefaultSearchOptions()
+	opts.StartPage = 10
+	opts.TotalPages = 10
+
+	block := newBackendBlock(meta, rr)
+	_, _, err = block.openForSearch(ctx, opts)
+	require.NoError(b, err)
+
+	for _, tc := range testCases {
+
+		b.Run(tc.name, func(b *testing.B) {
+			b.ResetTimer()
+			bytesRead := 0
+
+			for i := 0; i < b.N; i++ {
+				resp, err := block.Fetch(ctx, tc.req, opts)
+				require.NoError(b, err)
+				require.NotNil(b, resp)
+
+				// Read first 20 results (if any)
+				for i := 0; i < 20; i++ {
+					ss, err := resp.Results.Next(ctx)
+					require.NoError(b, err)
+					if ss == nil {
+						break
+					}
+				}
+				bytesRead += int(resp.Bytes())
+			}
+			b.SetBytes(int64(bytesRead) / int64(b.N))
+			b.ReportMetric(float64(bytesRead)/float64(b.N)/1000.0/1000.0, "MB_io/op")
+		})
 	}
 }

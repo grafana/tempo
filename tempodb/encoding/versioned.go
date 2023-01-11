@@ -3,6 +3,7 @@ package encoding
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"time"
 
 	"github.com/google/uuid"
@@ -43,6 +44,9 @@ type VersionedEncoding interface {
 
 	// CreateWALBlock creates a new appendable block for the WAL
 	CreateWALBlock(id uuid.UUID, tenantID string, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error)
+
+	// OwnsWALBlock indicates if this encoding owns the WAL block
+	OwnsWALBlock(entry fs.DirEntry) bool
 }
 
 // FromVersion returns a versioned encoding for the provided string
@@ -62,8 +66,8 @@ func DefaultEncoding() VersionedEncoding {
 	return vparquet.Encoding{}
 }
 
-// allEncodings returns all encodings
-func allEncodings() []VersionedEncoding {
+// AllEncodings returns all encodings
+func AllEncodings() []VersionedEncoding {
 	return []VersionedEncoding{
 		v2.Encoding{},
 		vparquet.Encoding{},

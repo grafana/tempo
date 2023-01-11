@@ -19,15 +19,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Note: Standard wal block functionality (appending, searching, finding, etc.) is tested with all other wal blocks
+//  in /tempodb/wal/wal_test.go
+
 func TestFullFilename(t *testing.T) {
 	tests := []struct {
 		name     string
-		b        *v2AppendBlock
+		b        *walBlock
 		expected string
 	}{
 		{
 			name: "legacy",
-			b: &v2AppendBlock{
+			b: &walBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v0", backend.EncNone, ""),
 				filepath: "/blerg",
 			},
@@ -35,7 +38,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "ez-mode",
-			b: &v2AppendBlock{
+			b: &walBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v1", backend.EncNone, ""),
 				filepath: "/blerg",
 			},
@@ -43,7 +46,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "nopath",
-			b: &v2AppendBlock{
+			b: &walBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v1", backend.EncNone, ""),
 				filepath: "",
 			},
@@ -51,7 +54,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "gzip",
-			b: &v2AppendBlock{
+			b: &walBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncGZIP, ""),
 				filepath: "",
 			},
@@ -59,7 +62,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "lz41M",
-			b: &v2AppendBlock{
+			b: &walBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncLZ4_1M, ""),
 				filepath: "",
 			},
@@ -67,7 +70,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "lz4256k",
-			b: &v2AppendBlock{
+			b: &walBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncLZ4_256k, ""),
 				filepath: "",
 			},
@@ -75,7 +78,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "lz4M",
-			b: &v2AppendBlock{
+			b: &walBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncLZ4_4M, ""),
 				filepath: "",
 			},
@@ -83,7 +86,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "lz64k",
-			b: &v2AppendBlock{
+			b: &walBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncLZ4_64k, ""),
 				filepath: "",
 			},
@@ -91,7 +94,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "snappy",
-			b: &v2AppendBlock{
+			b: &walBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncSnappy, ""),
 				filepath: "",
 			},
@@ -99,7 +102,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "zstd",
-			b: &v2AppendBlock{
+			b: &walBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v2", backend.EncZstd, ""),
 				filepath: "",
 			},
@@ -107,7 +110,7 @@ func TestFullFilename(t *testing.T) {
 		},
 		{
 			name: "data encoding",
-			b: &v2AppendBlock{
+			b: &walBlock{
 				meta:     backend.NewBlockMeta("foo", uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), "v1", backend.EncNone, "dataencoding"),
 				filepath: "/blerg",
 			},
@@ -124,7 +127,7 @@ func TestFullFilename(t *testing.T) {
 }
 
 func TestAdjustTimeRangeForSlack(t *testing.T) {
-	a := &v2AppendBlock{
+	a := &walBlock{
 		meta: &backend.BlockMeta{
 			TenantID: "test",
 		},
@@ -164,7 +167,7 @@ func TestAdjustTimeRangeForSlack(t *testing.T) {
 
 func TestPartialBlock(t *testing.T) {
 	blockID := uuid.New()
-	block, err := newAppendBlock(blockID, testTenantID, t.TempDir(), backend.EncSnappy, "v2", 0)
+	block, err := createWALBlock(blockID, testTenantID, t.TempDir(), backend.EncSnappy, "v2", 0)
 	require.NoError(t, err, "unexpected error creating block")
 
 	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -191,7 +194,7 @@ func TestPartialBlock(t *testing.T) {
 	}
 
 	// append garbage data
-	v2Block := block
+	v2Block := block.(*walBlock)
 	garbo := make([]byte, 100)
 	_, err = rand.Read(garbo)
 	require.NoError(t, err)

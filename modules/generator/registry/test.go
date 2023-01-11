@@ -31,6 +31,10 @@ func (t *TestRegistry) NewCounter(name string, labels []string) Counter {
 	}
 }
 
+func (t *TestRegistry) NewLabelValues(values []string) *LabelValues {
+	return newLabelValues(values)
+}
+
 func (t *TestRegistry) NewHistogram(name string, labels []string, buckets []float64) Histogram {
 	return &testHistogram{
 		nameSum:    name + "_sum",

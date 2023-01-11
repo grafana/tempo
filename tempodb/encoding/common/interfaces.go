@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -18,11 +19,10 @@ type Finder interface {
 type TagCallback func(t string)
 
 type Searcher interface {
-	traceql.SpansetFetcher
-
 	Search(ctx context.Context, req *tempopb.SearchRequest, opts SearchOptions) (*tempopb.SearchResponse, error)
 	SearchTags(ctx context.Context, cb TagCallback, opts SearchOptions) error
 	SearchTagValues(ctx context.Context, tag string, cb TagCallback, opts SearchOptions) error
+	Fetch(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansResponse, error)
 }
 
 type CacheControl struct {
@@ -40,6 +40,19 @@ type SearchOptions struct {
 	ReadBufferCount    int
 	ReadBufferSize     int
 	CacheControl       CacheControl
+}
+
+// DefaultSearchOptions() is used in a lot of places such as local ingester searches. It is important
+// in these cases to set a reasonable read buffer size and count to prevent constant tiny readranges
+// against the local backend.
+// TODO: Note that there is another method of creating "default search options" that looks like this:
+// tempodb.SearchConfig{}.ApplyToOptions(&searchOpts). we should consolidate these.
+func DefaultSearchOptions() SearchOptions {
+	return SearchOptions{
+		ReadBufferCount: 32,
+		ReadBufferSize:  1024 * 1024,
+		ChunkSizeBytes:  4 * 1024 * 1024,
+	}
 }
 
 type Compactor interface {
@@ -77,8 +90,9 @@ type WALBlock interface {
 	BackendBlock
 
 	Append(id ID, b []byte, start, end uint32) error
+	Flush() error
+
 	DataLength() uint64
-	Length() int
 	Iterator() (Iterator, error)
 	Clear() error
 }

@@ -138,6 +138,47 @@ type RowWriterWithSchema interface {
 	Schema() *Schema
 }
 
+// RowReaderFunc is a function type implementing the RowReader interface.
+type RowReaderFunc func([]Row) (int, error)
+
+func (f RowReaderFunc) ReadRows(rows []Row) (int, error) { return f(rows) }
+
+// RowWriterFunc is a function type implementing the RowWriter interface.
+type RowWriterFunc func([]Row) (int, error)
+
+func (f RowWriterFunc) WriteRows(rows []Row) (int, error) { return f(rows) }
+
+// MultiRowWriter constructs a RowWriter which dispatches writes to all the
+// writers passed as arguments.
+//
+// When writing rows, if any of the writers returns an error, the operation is
+// aborted and the error returned. If one of the writers did not error, but did
+// not write all the rows, the operation is aborted and io.ErrShortWrite is
+// returned.
+//
+// Rows are written sequentially to each writer in the order they are given to
+// this function.
+func MultiRowWriter(writers ...RowWriter) RowWriter {
+	m := &multiRowWriter{writers: make([]RowWriter, len(writers))}
+	copy(m.writers, writers)
+	return m
+}
+
+type multiRowWriter struct{ writers []RowWriter }
+
+func (m *multiRowWriter) WriteRows(rows []Row) (int, error) {
+	for _, w := range m.writers {
+		n, err := w.WriteRows(rows)
+		if err != nil {
+			return n, err
+		}
+		if n != len(rows) {
+			return n, io.ErrShortWrite
+		}
+	}
+	return len(rows), nil
+}
+
 type forwardRowSeeker struct {
 	rows  RowReader
 	seek  int64
@@ -499,13 +540,15 @@ func deconstructFuncOfLeaf(columnIndex int16, node Node) (int16, deconstructFunc
 	if columnIndex > MaxColumnIndex {
 		panic("row cannot be deconstructed because it has more than 127 columns")
 	}
-	kind := node.Type().Kind()
+	typ := node.Type()
+	kind := typ.Kind()
+	lt := typ.LogicalType()
 	valueColumnIndex := ^columnIndex
 	return columnIndex + 1, func(row Row, levels levels, value reflect.Value) Row {
 		v := Value{}
 
 		if value.IsValid() {
-			v = makeValue(kind, value)
+			v = makeValue(kind, lt, value)
 		}
 
 		v.repetitionLevel = levels.repetitionLevel

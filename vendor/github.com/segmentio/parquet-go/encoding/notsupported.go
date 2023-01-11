@@ -196,6 +196,14 @@ func (NotSupported) DecodeFixedLenByteArray(dst []byte, src []byte, size int) ([
 	return dst, errNotSupported("FIXED_LEN_BYTE_ARRAY")
 }
 
+func (NotSupported) EstimateDecodeByteArraySize(src []byte) int {
+	return 0
+}
+
+func (NotSupported) CanDecodeInPlace() bool {
+	return false
+}
+
 func errNotSupported(typ string) error {
 	return fmt.Errorf("%w for type %s", ErrNotSupported, typ)
 }

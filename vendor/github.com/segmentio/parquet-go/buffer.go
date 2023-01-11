@@ -1,10 +1,13 @@
 package parquet
 
 import (
-	"math/bits"
+	"log"
+	"runtime"
 	"sort"
 	"sync"
 	"sync/atomic"
+
+	"github.com/segmentio/parquet-go/internal/debug"
 )
 
 // Buffer represents an in-memory group of parquet rows.
@@ -57,7 +60,7 @@ func (buf *Buffer) configure(schema *Schema) {
 	if schema == nil {
 		return
 	}
-	sortingColumns := buf.config.SortingColumns
+	sortingColumns := buf.config.Sorting.SortingColumns
 	buf.sorted = make([]ColumnBuffer, len(sortingColumns))
 
 	forEachLeafColumnOf(schema, func(leaf leafColumn) {
@@ -145,7 +148,7 @@ func (buf *Buffer) Schema() *Schema { return buf.schema }
 //
 // The sorting order is configured by passing a SortingColumns option when
 // constructing the buffer.
-func (buf *Buffer) SortingColumns() []SortingColumn { return buf.config.SortingColumns }
+func (buf *Buffer) SortingColumns() []SortingColumn { return buf.config.Sorting.SortingColumns }
 
 // Len returns the number of rows written to the buffer.
 func (buf *Buffer) Len() int {
@@ -256,7 +259,7 @@ func (buf *Buffer) WriteRowGroup(rowGroup RowGroup) (int64, error) {
 //
 // The buffer and the returned reader share memory. Mutating the buffer
 // concurrently to reading rows may result in non-deterministic behavior.
-func (buf *Buffer) Rows() Rows { return &rowGroupRows{rowGroup: buf} }
+func (buf *Buffer) Rows() Rows { return newRowGroupRows(buf, ReadModeSync) }
 
 // bufferWriter is an adapter for Buffer which implements both RowWriter and
 // PageWriter to enable optimizations in CopyRows for types that support writing
@@ -286,13 +289,14 @@ var (
 )
 
 type buffer struct {
-	data []byte
-	refc uintptr
-	pool *bufferPool
+	data  []byte
+	refc  uintptr
+	pool  *bufferPool
+	stack []byte
 }
 
-func newBuffer(data []byte) *buffer {
-	return &buffer{data: data, refc: 1}
+func (b *buffer) refCount() int {
+	return int(atomic.LoadUintptr(&b.refc))
 }
 
 func (b *buffer) ref() {
@@ -307,48 +311,61 @@ func (b *buffer) unref() {
 	}
 }
 
-// bufferPool holds a slice of sync.pools used for levelled buffering.
-// the table below shows the pools used for different buffer sizes when both getting
-// and putting a buffer. when allocating a new buffer from a given pool we always choose the
-// min of the put range to guarantee that all gets will have an adequately sized buffer.
-//
-// [pool] : <get range>  : <put range>  : <alloc size>
-// [0]    : 0    -> 1023 : 1024 -> 2047 : 1024
-// [1]    : 1024 -> 2047 : 2048 -> 4095 : 2048
-// [2]    : 2048 -> 4095 : 4096 -> 8191 : 4096
-// ...
-const numPoolBuckets = 16
-const basePoolIncrement = 1024
-
-type bufferPool struct {
-	pool [numPoolBuckets]sync.Pool
+func monitorBufferRelease(b *buffer) {
+	if rc := b.refCount(); rc != 0 {
+		log.Printf("PARQUETGODEBUG: buffer garbage collected with non-zero reference count\n%s", string(b.stack))
+	}
 }
 
-// get returns a buffer from the levelled buffer pool. sz is used to choose the appropriate pool
-func (p *bufferPool) get(sz int) *buffer {
-	i := levelledPoolIndex(sz)
-	b, _ := p.pool[i].Get().(*buffer)
+type bufferPool struct {
+	// Buckets are split in two groups for short and large buffers. In the short
+	// buffer group (below 256KB), the growth rate between each bucket is 2. The
+	// growth rate changes to 1.5 in the larger buffer group.
+	//
+	// Short buffer buckets:
+	// ---------------------
+	//   4K, 8K, 16K, 32K, 64K, 128K, 256K
+	//
+	// Large buffer buckets:
+	// ---------------------
+	//   364K, 546K, 819K ...
+	//
+	buckets [bufferPoolBucketCount]sync.Pool
+}
+
+func (p *bufferPool) newBuffer(bufferSize, bucketSize int) *buffer {
+	b := &buffer{
+		data: make([]byte, bufferSize, bucketSize),
+		refc: 1,
+		pool: p,
+	}
+	if debug.TRACEBUF > 0 {
+		b.stack = make([]byte, 4096)
+		runtime.SetFinalizer(b, monitorBufferRelease)
+	}
+	return b
+}
+
+// get returns a buffer from the levelled buffer pool. size is used to choose
+// the appropriate pool.
+func (p *bufferPool) get(bufferSize int) *buffer {
+	bucketIndex, bucketSize := bufferPoolBucketIndexAndSizeOfGet(bufferSize)
+
+	b := (*buffer)(nil)
+	if bucketIndex >= 0 {
+		b, _ = p.buckets[bucketIndex].Get().(*buffer)
+	}
+
 	if b == nil {
-		// align size to the pool
-		poolSize := basePoolIncrement << i
-		if sz > poolSize { // this can occur when the buffer requested is larger than the largest pool
-			poolSize = sz
-		}
-		b = &buffer{
-			data: make([]byte, 0, poolSize),
-			pool: p,
-		}
+		b = p.newBuffer(bufferSize, bucketSize)
+	} else {
+		b.data = b.data[:bufferSize]
+		b.ref()
 	}
-	// if the buffer comes from the largest pool it may not be big enough
-	if cap(b.data) < sz {
-		p.pool[i].Put(b)
-		b = &buffer{
-			data: make([]byte, 0, sz),
-			pool: p,
-		}
+
+	if debug.TRACEBUF > 0 {
+		b.stack = b.stack[:runtime.Stack(b.stack[:cap(b.stack)], false)]
 	}
-	b.data = b.data[:sz]
-	b.ref()
 	return b
 }
 
@@ -356,27 +373,56 @@ func (p *bufferPool) put(b *buffer) {
 	if b.pool != p {
 		panic("BUG: buffer returned to a different pool than the one it was allocated from")
 	}
-	// if this slice is somehow less then our min pool size, just drop it
-	sz := cap(b.data)
-	if sz < basePoolIncrement {
-		return
+	if b.refCount() != 0 {
+		panic("BUG: buffer returned to pool with a non-zero reference count")
 	}
-	i := levelledPoolIndex(sz / 2) // divide by 2 to put the buffer in the level below so it will always be large enough
-	p.pool[i].Put(b)
+	if bucketIndex, _ := bufferPoolBucketIndexAndSizeOfPut(cap(b.data)); bucketIndex >= 0 {
+		p.buckets[bucketIndex].Put(b)
+	}
 }
 
-// levelledPoolIndex returns the index of the pool to use for a buffer of size sz. it never returns
-// an index that will panic
-func levelledPoolIndex(sz int) int {
-	i := sz / basePoolIncrement
-	i = 32 - bits.LeadingZeros32(uint32(i)) // log2
-	if i >= numPoolBuckets {
-		i = numPoolBuckets - 1
+const (
+	bufferPoolBucketCount         = 32
+	bufferPoolMinSize             = 4096
+	bufferPoolLastShortBucketSize = 262144
+)
+
+func bufferPoolNextSize(size int) int {
+	if size < bufferPoolLastShortBucketSize {
+		return size * 2
+	} else {
+		return size + (size / 2)
 	}
-	if i < 0 {
-		i = 0
+}
+
+func bufferPoolBucketIndexAndSizeOfGet(size int) (int, int) {
+	limit := bufferPoolMinSize
+
+	for i := 0; i < bufferPoolBucketCount; i++ {
+		if size <= limit {
+			return i, limit
+		}
+		limit = bufferPoolNextSize(limit)
 	}
-	return i
+
+	return -1, size
+}
+
+func bufferPoolBucketIndexAndSizeOfPut(size int) (int, int) {
+	// When releasing buffers, some may have a capacity that is not one of the
+	// bucket sizes (due to the use of append for example). In this case, we
+	// have to put the buffer is the highest bucket with a size less or equal
+	// to the buffer capacity.
+	if limit := bufferPoolMinSize; size >= limit {
+		for i := 0; i < bufferPoolBucketCount; i++ {
+			n := bufferPoolNextSize(limit)
+			if size < n {
+				return i, limit
+			}
+			limit = n
+		}
+	}
+	return -1, size
 }
 
 var (
@@ -391,19 +437,29 @@ type bufferedPage struct {
 	definitionLevels *buffer
 }
 
-func (p *bufferedPage) Slice(i, j int64) Page {
-	bufferRef(p.values)
-	bufferRef(p.offsets)
-	bufferRef(p.definitionLevels)
-	bufferRef(p.repetitionLevels)
-
-	return &bufferedPage{
-		values:           p.values,
-		offsets:          p.offsets,
-		definitionLevels: p.definitionLevels,
-		repetitionLevels: p.repetitionLevels,
-		Page:             p.Page.Slice(i, j),
+func newBufferedPage(page Page, values, offsets, definitionLevels, repetitionLevels *buffer) *bufferedPage {
+	p := &bufferedPage{
+		Page:             page,
+		values:           values,
+		offsets:          offsets,
+		definitionLevels: definitionLevels,
+		repetitionLevels: repetitionLevels,
 	}
+	bufferRef(values)
+	bufferRef(offsets)
+	bufferRef(definitionLevels)
+	bufferRef(repetitionLevels)
+	return p
+}
+
+func (p *bufferedPage) Slice(i, j int64) Page {
+	return newBufferedPage(
+		p.Page.Slice(i, j),
+		p.values,
+		p.offsets,
+		p.definitionLevels,
+		p.repetitionLevels,
+	)
 }
 
 func (p *bufferedPage) Retain() {

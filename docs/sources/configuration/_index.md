@@ -129,6 +129,41 @@ distributor:
         kafka:
 
     # Optional.
+    # Configures forwarders that asynchronously replicate ingested traces
+    # to specified endpoints. Forwarders work on per-tenant basis, so to
+    # fully enable this feature, overrides configuration must also be updated.
+    #
+    # Note: Forwarders work asynchronously and can fail or decide not to forward
+    # some traces. This feature works in a "best-effort" manner.
+    forwarders:
+
+        # Forwarder name. Must be unique within the list of forwarders. 
+        # This name can be referenced in the overrides configuration to
+        # enable forwarder for a tenant.
+      - name: <string>
+
+        # The forwarder backend to use
+        # Should be "otlpgrpc".
+        backend: <string>
+
+        # otlpgrpc configuration. Will be used only if value of backend is "otlpgrpc".
+        otlpgrpc:
+          
+          # List of otlpgrpc compatible endpoints.
+          endpoints: <list of string>
+          tls:
+
+            # Optional.
+            # Disables TSL if set to true.
+            [insecure: <boolean> | default = false]
+
+            # Optional.
+            # Path to the TLS certificate. This field must be set if insecure = false.
+            [cert_file: <string | default = "">]
+      - (repetition of above...)
+
+
+    # Optional.
     # Enable to log every received trace id to help debug ingestion
     # WARNING: Deprecated. Use log_received_spans instead.
     [log_received_traces: <boolean> | default = false]
@@ -249,10 +284,26 @@ metrics_generator:
             # Buckets for the latency histogram in seconds.
             [histogram_buckets: <list of float> | default = 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.02, 2.05, 4.10]
 
-            # Additional dimensions to add to the metrics along with the default dimensions
-            # (service, span_name, span_kind, status_code, and status_message). Dimensions are searched 
-            # for in the resource and span attributes and are added to the metrics if present.
+            # Configure intrinsic dimensions to add to the metrics. Intrinsic dimensions are taken
+            # directly from the respective resource and span properties.
+            intrinsic_dimensions:
+                # Whether to add the name of the service the span is associated with.
+                [service: <bool> | default = true]
+                # Whether to add the name of the span.
+                [span_name: <bool> | default = true]
+                # Whether to add the span kind describing the relationship between spans.
+                [span_kind: <bool> | default = true]
+                # Whether to add the span status code.
+                [status_code: <bool> | default = true]
+                # Whether to add a status message. Important note: The span status message may 
+                # contain arbitrary strings and thus have a very high cardinality.
+                [status_message: <bool> | default = false]
+
+            # Additional dimensions to add to the metrics along with the intrinsic dimensions.
+            # Dimensions are searched for in the resource and span attributes and are added to 
+            # the metrics if present.
             [dimensions: <list of string>]
+          
 
     # Registry configuration
     registry:
@@ -266,6 +317,12 @@ metrics_generator:
 
         # A list of labels that will be added to all generated metrics.
         [external_labels: <map>]
+
+        # The maximum length of label names. Label names exceeding this limit will be truncated.
+        [max_label_name_length: <int> | default = 1024]
+
+        # The maximum length of label values. Label values exceeding this limit will be truncated.
+        [max_label_value_length: <int> | default = 2048]
 
     # Storage and remote write configuration
     storage:
@@ -1082,6 +1139,12 @@ overrides:
     # A value of 0 disables the limit.
     [max_bytes_per_tag_values_query: <int> | default = 5000000 (5MB) ]
 
+    # Generic forwarding configuration
+
+    # Per-user configuration of generic forwarder feature. Each forwarder in the list
+    # must refer by name to a forwarder defined in the distributor.forwarders configuration.
+    [forwarders: <list of strings>]
+
     # Metrics-generator configurations
 
     # Per-user configuration of the metrics-generator ring size. If set, the tenant will use a
@@ -1104,7 +1167,9 @@ overrides:
     # overrides settings in the global configuration.
     [metrics_generator_processor_service_graphs_histogram_buckets: <list of float>]
     [metrics_generator_processor_service_graphs_dimensions: <list of string>]
-    [metrics_generator_processor_span_metrics_histogram_buckets: <<list of float>]
+    [metrics_generator_processor_span_metrics_histogram_buckets: <list of float>]
+    # Allowed keys for intrinsic dimensions are: service, span_name, span_kind, status_code, and status_message. 
+    [metrics_generator_processor_span_metrics_intrinsic_dimensions: <map string to bool>]
     [metrics_generator_processor_span_metrics_dimensions: <list of string>]
 
     # Maximum number of active series in the registry, per instance of the metrics-generator. A

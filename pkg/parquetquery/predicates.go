@@ -20,6 +20,8 @@ type Predicate interface {
 // Case sensitive exact byte matching
 type StringInPredicate struct {
 	ss [][]byte
+
+	helper DictionaryPredicateHelper
 }
 
 var _ Predicate = (*StringInPredicate)(nil)
@@ -35,8 +37,9 @@ func NewStringInPredicate(ss []string) Predicate {
 }
 
 func (p *StringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
-	if ci := cc.ColumnIndex(); ci != nil {
+	p.helper.setNewRowGroup()
 
+	if ci := cc.ColumnIndex(); ci != nil {
 		for _, subs := range p.ss {
 			for i := 0; i < ci.NumPages(); i++ {
 				ok := bytes.Compare(ci.MinValue(i).ByteArray(), subs) <= 0 && bytes.Compare(ci.MaxValue(i).ByteArray(), subs) >= 0
@@ -48,7 +51,6 @@ func (p *StringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 		}
 		return false
 	}
-
 	return true
 }
 
@@ -63,28 +65,10 @@ func (p *StringInPredicate) KeepValue(v pq.Value) bool {
 }
 
 func (p *StringInPredicate) KeepPage(page pq.Page) bool {
+	//
+
 	// todo: check bounds
-
-	// If a dictionary column then ensure at least one matching
-	// value exists in the dictionary
-	dict := page.Dictionary()
-	if dict != nil && dict.Len() > 0 {
-		len := dict.Len()
-
-		for i := 0; i < len; i++ {
-			dictionaryEntry := dict.Index(int32(i)).ByteArray()
-			for _, subs := range p.ss {
-				if bytes.Equal(dictionaryEntry, subs) {
-					// At least 1 string present in this page
-					return true
-				}
-			}
-		}
-
-		return false
-	}
-
-	return true
+	return p.helper.keepPage(page, p.KeepValue)
 }
 
 // RegexInPredicate checks for match against any of the given regexs.
@@ -92,6 +76,8 @@ func (p *StringInPredicate) KeepPage(page pq.Page) bool {
 type RegexInPredicate struct {
 	regs    []*regexp.Regexp
 	matches map[string]bool
+
+	helper DictionaryPredicateHelper
 }
 
 var _ Predicate = (*RegexInPredicate)(nil)
@@ -135,6 +121,8 @@ func (p *RegexInPredicate) keep(v *pq.Value) bool {
 }
 
 func (p *RegexInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
+	p.helper.setNewRowGroup()
+
 	// Reset match cache on each row group change
 	p.matches = make(map[string]bool, len(p.matches))
 
@@ -147,30 +135,14 @@ func (p *RegexInPredicate) KeepValue(v pq.Value) bool {
 }
 
 func (p *RegexInPredicate) KeepPage(page pq.Page) bool {
-
-	// If a dictionary column then ensure at least one matching
-	// value exists in the dictionary
-	dict := page.Dictionary()
-	if dict != nil && dict.Len() > 0 {
-		len := dict.Len()
-
-		for i := 0; i < len; i++ {
-			dictionaryEntry := dict.Index(int32(i))
-			if p.keep(&dictionaryEntry) {
-				// At least 1 dictionary entry matches
-				return true
-			}
-		}
-
-		return false
-	}
-
-	return true
+	return p.helper.keepPage(page, p.KeepValue)
 }
 
 type SubstringPredicate struct {
 	substring string
 	matches   map[string]bool
+
+	helper DictionaryPredicateHelper
 }
 
 var _ Predicate = (*SubstringPredicate)(nil)
@@ -182,7 +154,9 @@ func NewSubstringPredicate(substring string) *SubstringPredicate {
 	}
 }
 
-func (p *SubstringPredicate) KeepColumnChunk(_ pq.ColumnChunk) bool {
+func (p *SubstringPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
+	p.helper.setNewRowGroup()
+
 	// Reset match cache on each row group change
 	p.matches = make(map[string]bool, len(p.matches))
 
@@ -204,22 +178,7 @@ func (p *SubstringPredicate) KeepValue(v pq.Value) bool {
 }
 
 func (p *SubstringPredicate) KeepPage(page pq.Page) bool {
-
-	// If a dictionary column then ensure at least one matching
-	// value exists in the dictionary
-	dict := page.Dictionary()
-	if dict != nil && dict.Len() > 0 {
-		len := dict.Len()
-		for i := 0; i < len; i++ {
-			if p.KeepValue(dict.Index(int32(i))) {
-				return true
-			}
-		}
-
-		return false
-	}
-
-	return true
+	return p.helper.keepPage(page, p.KeepValue)
 }
 
 // IntBetweenPredicate checks for int between the bounds [min,max] inclusive
@@ -270,15 +229,19 @@ type GenericPredicate[T any] struct {
 	Fn      func(T) bool
 	RangeFn func(min, max T) bool
 	Extract func(pq.Value) T
+
+	helper DictionaryPredicateHelper
 }
 
 var _ Predicate = (*GenericPredicate[int64])(nil)
 
 func NewGenericPredicate[T any](fn func(T) bool, rangeFn func(T, T) bool, extract func(pq.Value) T) *GenericPredicate[T] {
-	return &GenericPredicate[T]{fn, rangeFn, extract}
+	return &GenericPredicate[T]{Fn: fn, RangeFn: rangeFn, Extract: extract}
 }
 
 func (p *GenericPredicate[T]) KeepColumnChunk(c pq.ColumnChunk) bool {
+	p.helper.setNewRowGroup()
+
 	if p.RangeFn == nil {
 		return true
 	}
@@ -305,22 +268,7 @@ func (p *GenericPredicate[T]) KeepPage(page pq.Page) bool {
 		}
 	}
 
-	// If a dictionary column then ensure at least one matching
-	// value exists in the dictionary
-	dict := page.Dictionary()
-	if dict != nil && dict.Len() > 0 {
-		len := dict.Len()
-		for i := 0; i < len; i++ {
-			if p.KeepValue(dict.Index(int32(i))) {
-				return true
-			}
-		}
-
-		// No values matched
-		return false
-	}
-
-	return true
+	return p.helper.keepPage(page, p.KeepValue)
 }
 
 func (p *GenericPredicate[T]) KeepValue(v pq.Value) bool {
@@ -400,17 +348,19 @@ func NewOrPredicate(preds ...Predicate) *OrPredicate {
 }
 
 func (p *OrPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+	ret := false
 	for _, p := range p.preds {
 		if p == nil {
 			// Nil means all values are returned
-			return true
+			ret = ret || true
+			continue
 		}
 		if p.KeepColumnChunk(c) {
-			return true
+			ret = ret || true
 		}
 	}
 
-	return false
+	return ret
 }
 
 func (p *OrPredicate) KeepPage(page pq.Page) bool {
@@ -484,4 +434,48 @@ func (p *InstrumentedPredicate) KeepValue(v pq.Value) bool {
 	}
 
 	return false
+}
+
+// DictionaryPredicateHelper is a helper for a predicate that uses a dictionary
+// for filtering.
+//
+// There is one dictionary per ColumnChunk/RowGroup, but it is not accessible in
+// KeepColumnChunk. This helper saves the result of KeepPage and uses it for
+// all pages in the row group. It also has a basic heuristic for choosing not
+// to check the dictionary at all if the cardinality is too high.
+type DictionaryPredicateHelper struct {
+	newRowGroup         bool
+	keepPagesInRowGroup bool
+}
+
+func (d *DictionaryPredicateHelper) setNewRowGroup() {
+	d.newRowGroup = true
+}
+
+func (d *DictionaryPredicateHelper) keepPage(page pq.Page, keepValue func(pq.Value) bool) bool {
+	if !d.newRowGroup {
+		return d.keepPagesInRowGroup
+	}
+
+	d.newRowGroup = false
+	d.keepPagesInRowGroup = true
+
+	// If a dictionary column then ensure at least one matching
+	// value exists in the dictionary
+	dict := page.Dictionary()
+	if dict == nil {
+		return d.keepPagesInRowGroup
+	}
+
+	l := dict.Len()
+	d.keepPagesInRowGroup = false
+	for i := 0; i < l; i++ {
+		dictionaryEntry := dict.Index(int32(i))
+		if keepValue(dictionaryEntry) {
+			d.keepPagesInRowGroup = true
+			break
+		}
+	}
+
+	return d.keepPagesInRowGroup
 }

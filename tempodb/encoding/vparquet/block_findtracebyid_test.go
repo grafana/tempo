@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/segmentio/parquet-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -96,7 +97,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	for _, tr := range traces {
 		wantProto := parquetTraceToTempopbTrace(tr)
 
-		gotProto, err := b.FindTraceByID(ctx, tr.TraceID, common.SearchOptions{})
+		gotProto, err := b.FindTraceByID(ctx, tr.TraceID, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Equal(t, wantProto, gotProto)
 	}
@@ -120,21 +121,23 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 
 	b := newBackendBlock(meta, r)
 
-	iter, err := b.Iterator(context.Background())
+	iter, err := b.RawIterator(context.Background(), newRowPool(10))
 	require.NoError(t, err)
 
+	sch := parquet.SchemaOf(new(Trace))
 	for {
-		tr, err := iter.Next(context.Background())
+		_, row, err := iter.Next(context.Background())
 		require.NoError(t, err)
 
-		if tr == nil {
+		if row == nil {
 			break
 		}
 
-		// fmt.Println(tr)
-		// fmt.Println("going to search for traceID", util.TraceIDToHexString(tr.TraceID))
+		tr := &Trace{}
+		err = sch.Reconstruct(tr, row)
+		require.NoError(t, err)
 
-		protoTr, err := b.FindTraceByID(ctx, tr.TraceID, common.SearchOptions{})
+		protoTr, err := b.FindTraceByID(ctx, tr.TraceID, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.NotNil(t, protoTr)
 	}
@@ -165,7 +168,7 @@ func BenchmarkFindTraceByID(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		tr, err := block.FindTraceByID(ctx, traceID, defaultSearchOptions())
+		tr, err := block.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
 		require.NoError(b, err)
 		require.NotNil(b, tr)
 	}

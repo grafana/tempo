@@ -57,7 +57,9 @@ jobs:
       # Clone and run the website sync action
       # ----------------------------------------
       - if: steps.has-tag.outputs.bool == 'true'
-        run: git clone --single-branch --no-tags --depth 1 -b master https://grafanabot:${{ secrets.GH_BOT_ACCESS_TOKEN }}@github.com/grafana/website-sync ./.github/actions/website-sync
+        # WEBSITE_SYNC_TEMPO is a fine-grained GitHub Personal Access Token that expires.
+        # It must be updated in the grafanabot GitHub account.
+        run: "git clone --single-branch --no-tags --depth 1 -b master https://grafanabot:${{ secrets.WEBSITE_SYNC_TEMPO }}@github.com/grafana/website-sync ./.github/actions/website-sync"
       
       - if: steps.has-tag.outputs.bool == 'true'
         name: publish-to-git
@@ -67,7 +69,9 @@ jobs:
           repository: grafana/website
           branch: master
           host: github.com
-          github_pat: '${{ secrets.GH_BOT_ACCESS_TOKEN }}'
+          # PUBLISH_TO_WEBSITE_TEMPO is a fine-grained GitHub Personal Access Token that expires.
+          # It must be updated in the grafanabot GitHub account.
+          github_pat: "grafanabot:${{ secrets.PUBLISH_TO_WEBSITE_TEMPO }}"
           source_folder: docs/sources
           # target is v1.2.x
           target_folder: content/docs/tempo/${{ steps.target.outputs.target }}.x

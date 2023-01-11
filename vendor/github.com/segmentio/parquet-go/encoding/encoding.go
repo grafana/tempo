@@ -54,4 +54,19 @@ type Encoding interface {
 	DecodeDouble(dst []float64, src []byte) ([]float64, error)
 	DecodeByteArray(dst []byte, src []byte, offsets []uint32) ([]byte, []uint32, error)
 	DecodeFixedLenByteArray(dst []byte, src []byte, size int) ([]byte, error)
+
+	// Computes an estimation of the output size of decoding the encoded page
+	// of values passed as argument.
+	//
+	// Note that this is an estimate, it is useful to preallocate the output
+	// buffer that will be passed to the decode method, but the actual output
+	// size may be different.
+	//
+	// The estimate never errors since it is not intended to be used as an
+	// input validation method.
+	EstimateDecodeByteArraySize(src []byte) int
+
+	// When this method returns true, the encoding supports receiving the same
+	// buffer as source and destination.
+	CanDecodeInPlace() bool
 }

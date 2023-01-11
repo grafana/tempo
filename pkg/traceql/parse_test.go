@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -646,36 +647,48 @@ func TestSpansetFilterStatics(t *testing.T) {
 
 func TestSpansetFilterOperators(t *testing.T) {
 	tests := []struct {
-		in       string
-		err      error
-		expected FieldExpression
+		in                   string
+		expected             FieldExpression
+		alsoTestWithoutSpace bool
 	}{
 		{in: "{ .a + .b }", expected: newBinaryOperation(OpAdd, NewAttribute("a"), NewAttribute("b"))},
 		{in: "{ .a - .b }", expected: newBinaryOperation(OpSub, NewAttribute("a"), NewAttribute("b"))},
 		{in: "{ .a / .b }", expected: newBinaryOperation(OpDiv, NewAttribute("a"), NewAttribute("b"))},
 		{in: "{ .a % .b }", expected: newBinaryOperation(OpMod, NewAttribute("a"), NewAttribute("b"))},
 		{in: "{ .a * .b }", expected: newBinaryOperation(OpMult, NewAttribute("a"), NewAttribute("b"))},
-		{in: "{ .a = .b }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewAttribute("b"))},
-		{in: "{ .a != .b }", expected: newBinaryOperation(OpNotEqual, NewAttribute("a"), NewAttribute("b"))},
-		{in: "{ .a =~ .b }", expected: newBinaryOperation(OpRegex, NewAttribute("a"), NewAttribute("b"))},
-		{in: "{ .a !~ .b }", expected: newBinaryOperation(OpNotRegex, NewAttribute("a"), NewAttribute("b"))},
-		{in: "{ .a > .b }", expected: newBinaryOperation(OpGreater, NewAttribute("a"), NewAttribute("b"))},
-		{in: "{ .a >= .b }", expected: newBinaryOperation(OpGreaterEqual, NewAttribute("a"), NewAttribute("b"))},
-		{in: "{ .a < .b }", expected: newBinaryOperation(OpLess, NewAttribute("a"), NewAttribute("b"))},
-		{in: "{ .a <= .b }", expected: newBinaryOperation(OpLessEqual, NewAttribute("a"), NewAttribute("b"))},
-		{in: "{ .a ^ .b }", expected: newBinaryOperation(OpPower, NewAttribute("a"), NewAttribute("b"))},
-		{in: "{ .a && .b }", expected: newBinaryOperation(OpAnd, NewAttribute("a"), NewAttribute("b"))},
-		{in: "{ .a || .b }", expected: newBinaryOperation(OpOr, NewAttribute("a"), NewAttribute("b"))},
+		{in: "{ .a = .b }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
+		{in: "{ .a != .b }", expected: newBinaryOperation(OpNotEqual, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
+		{in: "{ .a =~ .b }", expected: newBinaryOperation(OpRegex, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
+		{in: "{ .a !~ .b }", expected: newBinaryOperation(OpNotRegex, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
+		{in: "{ .a > .b }", expected: newBinaryOperation(OpGreater, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
+		{in: "{ .a >= .b }", expected: newBinaryOperation(OpGreaterEqual, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
+		{in: "{ .a < .b }", expected: newBinaryOperation(OpLess, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
+		{in: "{ .a <= .b }", expected: newBinaryOperation(OpLessEqual, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
+		{in: "{ .a ^ .b }", expected: newBinaryOperation(OpPower, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
+		{in: "{ .a && .b }", expected: newBinaryOperation(OpAnd, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
+		{in: "{ .a || .b }", expected: newBinaryOperation(OpOr, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
 		{in: "{ !.b }", expected: newUnaryOperation(OpNot, NewAttribute("b"))},
 		{in: "{ -.b }", expected: newUnaryOperation(OpSub, NewAttribute("b"))},
+
+		// Against statics
+		{in: "{ .a = `foo` }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticString("foo")), alsoTestWithoutSpace: true},
+		{in: "{ .a = 3 }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticInt(3)), alsoTestWithoutSpace: true},
+		{in: "{ .a = 3.0 }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticFloat(3)), alsoTestWithoutSpace: true},
+		{in: "{ .a = true }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticBool(true)), alsoTestWithoutSpace: true},
+	}
+
+	test := func(q string, expected FieldExpression) {
+		actual, err := Parse(q)
+		require.NoError(t, err, q)
+		require.Equal(t, &RootExpr{newPipeline(newSpansetFilter(expected))}, actual, q)
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {
-			actual, err := Parse(tc.in)
-
-			require.NoError(t, err)
-			require.Equal(t, &RootExpr{newPipeline(newSpansetFilter(tc.expected))}, actual)
+			test(tc.in, tc.expected)
+			if tc.alsoTestWithoutSpace {
+				test(strings.ReplaceAll(tc.in, " ", ""), tc.expected)
+			}
 		})
 	}
 }

@@ -254,6 +254,8 @@ type MockSpanSetFetcher struct {
 	capturedRequest FetchSpansRequest
 }
 
+var _ = (SpansetFetcher)(&MockSpanSetFetcher{})
+
 func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	m.capturedRequest = request
 	return FetchSpansResponse{
@@ -280,6 +282,12 @@ func newCondition(attr Attribute, op Operator, operands ...Static) Condition {
 		Op:        op,
 		Operands:  operands,
 	}
+}
+
+func TestUnixSecToNano(t *testing.T) {
+	now := time.Now()
+	// tolerate delta's up to 1 second
+	assert.InDelta(t, uint64(now.UnixNano()), unixSecToNano(uint32(now.Unix())), float64(time.Second.Nanoseconds()))
 }
 
 func TestStatic_AsAnyValue(t *testing.T) {
