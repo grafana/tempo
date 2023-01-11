@@ -97,7 +97,6 @@ parse_fails:
   - '[ true ]'
   - '( true )'
   # spanset filters
-  - '{ }'                          # possibly allow this? same as { true }?
   - '{ . }'
   - '{ < }'
   - '{ .a < }'

@@ -140,7 +140,8 @@ spansetExpression: // shares the same operators as scalarPipelineExpression. spl
   ;
 
 spansetFilter:
-    OPEN_BRACE fieldExpression CLOSE_BRACE      { $$ = newSpansetFilter($2) }
+    OPEN_BRACE CLOSE_BRACE                      { $$ = newSpansetFilter(NewStaticBool(true)) }
+  | OPEN_BRACE fieldExpression CLOSE_BRACE      { $$ = newSpansetFilter($2) }
   ;
 
 scalarFilter:

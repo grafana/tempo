@@ -8,7 +8,7 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
     paths:
-      - 'docs/tempo/website/**'
+      - 'docs/sources/**'
 
 jobs:
   sync:
@@ -72,7 +72,7 @@ jobs:
           # PUBLISH_TO_WEBSITE_TEMPO is a fine-grained GitHub Personal Access Token that expires.
           # It must be updated in the grafanabot GitHub account.
           github_pat: "grafanabot:${{ secrets.PUBLISH_TO_WEBSITE_TEMPO }}"
-          source_folder: docs/tempo/website
+          source_folder: docs/sources
           # target is v1.2.x
           target_folder: content/docs/tempo/${{ steps.target.outputs.target }}.x
       

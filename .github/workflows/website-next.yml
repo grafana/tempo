@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'docs/tempo/website/**'
+      - 'docs/sources/**'
 
 jobs:
   # test:
@@ -15,7 +15,7 @@ jobs:
   #       uses: actions/checkout@v3
   #     - name: Build Website
   #       run: |
-  #         docker run -v ${PWD}/docs/sources:/hugo/content/docs/loki/latest --rm grafana/docs-base:latest /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make prod'
+  #         docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make prod'
   sync:
     runs-on: ubuntu-latest
     # needs: test
@@ -35,7 +35,7 @@ jobs:
           # PUBLISH_TO_WEBSITE_TEMPO is a fine-grained GitHub Personal Access Token that expires.
           # It must be updated in the grafanabot GitHub account.
           github_pat: "grafanabot:${{ secrets.PUBLISH_TO_WEBSITE_TEMPO }}"
-          source_folder: docs/tempo/website
+          source_folder: docs/sources
           target_folder: content/docs/tempo/next
       - shell: bash
         run: |

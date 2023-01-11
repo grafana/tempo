@@ -61,26 +61,30 @@ type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
 }
 
-// MustExtractConditions parses the given traceql query and returns
+// MustExtractFetchSpansRequest parses the given traceql query and returns
 // the storage layer conditions. Panics if the query fails to parse.
-func MustExtractConditions(query string) []Condition {
-	c, err := ExtractConditions(query)
+func MustExtractFetchSpansRequest(query string) FetchSpansRequest {
+	c, err := ExtractFetchSpansRequest(query)
 	if err != nil {
 		panic(err)
 	}
 	return c
 }
 
-// ExtractConditions parses the given traceql query and returns
+// ExtractFetchSpansRequest parses the given traceql query and returns
 // the storage layer conditions. Returns an error if the query fails to parse.
-func ExtractConditions(query string) (cond []Condition, err error) {
+func ExtractFetchSpansRequest(query string) (FetchSpansRequest, error) {
 	ast, err := Parse(query)
 	if err != nil {
-		return cond, err
+		return FetchSpansRequest{}, err
 	}
-	req := &FetchSpansRequest{}
-	ast.Pipeline.extractConditions(req)
-	return req.Conditions, nil
+
+	req := FetchSpansRequest{
+		AllConditions: true,
+	}
+
+	ast.Pipeline.extractConditions(&req)
+	return req, nil
 }
 
 type SpansetFetcherWrapper struct {
