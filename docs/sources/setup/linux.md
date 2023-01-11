@@ -79,7 +79,6 @@ The [extended instructions for installing the TNS application]({{< relref "../li
 
 ```yaml
    metrics_generator_enabled: true
-   search_enabled: true
 
    server:
    http_listen_port: 3200

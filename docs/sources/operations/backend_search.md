@@ -3,6 +3,8 @@ title: Backend search
 weight: 9
 ---
 
+jpe cleanup
+
 # Backend search
 
 Backend search is not yet mature. It can therefore be operationally more complex.
@@ -17,13 +19,6 @@ Queriers and query frontends have additional configuration related
 to search of the backend datastore.
 Some defaults are currently tuned for a search by trace ID.
 
-### All components
-
-```
-# Enable search functionality
-search_enabled: true
-```
-
 ### Querier
 
 Without serverless technologies:
@@ -37,7 +32,6 @@ querier:
 With serverless technologies:
 
 ```
-search_enabled: true
 querier:
   # The querier is only a proxy to the serverless endpoint.
   # Increase this greatly to permit needed throughput.

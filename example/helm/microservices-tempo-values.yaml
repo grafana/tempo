@@ -7,7 +7,6 @@ config: |
     search:
       max_duration: 0
   multitenancy_enabled: false
-  search_enabled: true
   compactor:
     compaction:
       block_retention: 1440h

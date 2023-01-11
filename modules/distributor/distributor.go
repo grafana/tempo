@@ -123,7 +123,6 @@ type Distributor struct {
 	traceEncoder    model.SegmentDecoder
 
 	// search
-	searchEnabled    bool
 	globalTagsToDrop map[string]struct{}
 
 	// metrics-generator
@@ -147,7 +146,7 @@ type Distributor struct {
 }
 
 // New a distributor creates.
-func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, generatorClientCfg generator_client.Config, generatorsRing ring.ReadRing, o *overrides.Overrides, middleware receiver.Middleware, logger log.Logger, loggingLevel logging.Level, searchEnabled bool, metricsGeneratorEnabled bool, reg prometheus.Registerer) (*Distributor, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, generatorClientCfg generator_client.Config, generatorsRing ring.ReadRing, o *overrides.Overrides, middleware receiver.Middleware, logger log.Logger, loggingLevel logging.Level, metricsGeneratorEnabled bool, reg prometheus.Registerer) (*Distributor, error) {
 	factory := cfg.factory
 	if factory == nil {
 		factory = func(addr string) (ring_client.PoolClient, error) {
@@ -202,7 +201,6 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		pool:                    pool,
 		DistributorRing:         distributorRing,
 		ingestionRateLimiter:    limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
-		searchEnabled:           searchEnabled,
 		metricsGeneratorEnabled: metricsGeneratorEnabled,
 		generatorClientCfg:      generatorClientCfg,
 		generatorsRing:          generatorsRing,
@@ -353,21 +351,19 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	}
 
 	var searchData [][]byte
-	if d.searchEnabled {
-		perTenantAllowedTags := d.overrides.SearchTagsAllowList(userID)
-		searchData = extractSearchDataAll(rebatchedTraces, func(tag string) bool {
-			// if in per tenant override, extract
-			if _, ok := perTenantAllowedTags[tag]; ok {
-				return true
-			}
-			// if in global deny list, drop
-			if _, ok := d.globalTagsToDrop[tag]; ok {
-				return false
-			}
-			// allow otherwise
+	perTenantAllowedTags := d.overrides.SearchTagsAllowList(userID)
+	searchData = extractSearchDataAll(rebatchedTraces, func(tag string) bool {
+		// if in per tenant override, extract
+		if _, ok := perTenantAllowedTags[tag]; ok {
 			return true
-		})
-	}
+		}
+		// if in global deny list, drop
+		if _, ok := d.globalTagsToDrop[tag]; ok {
+			return false
+		}
+		// allow otherwise
+		return true
+	})
 
 	err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, searchData, keys)
 	if err != nil {

@@ -15,7 +15,7 @@ spec:
   template:
     metadata:
       annotations:
-        config_hash: f2c7c344a113c8db82f5bb70cb58391d
+        config_hash: c665df5f7931c8887991277b9804a5d9
       labels:
         app: ingester
         name: ingester

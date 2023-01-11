@@ -1265,16 +1265,6 @@ overrides:
   - ingestion_rate_limit_bytes: 15000000
 ```
 
-## Search
-
-Tempo search can be enabled by the following top-level setting.  In microservices mode, it must be set for the distributors and queriers.
-
-```yaml
-search_enabled: true
-```
-
-Additional search-related settings are available in the [distributor](#distributor) and [ingester](#ingester) sections.
-
 ## Usage-report
 
 By default, Tempo will report anonymous usage data about the shape of a deployment to Grafana Labs. 

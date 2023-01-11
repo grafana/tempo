@@ -1017,7 +1017,7 @@ func prepare(t *testing.T, limits *overrides.Limits, kvStore kv.Client, logger l
 	l := logging.Level{}
 	_ = l.Set("error")
 	mw := receiver.MultiTenancyMiddleware()
-	d, err := New(distributorConfig, clientConfig, ingestersRing, generator_client.Config{}, nil, overrides, mw, logger, l, false, false, prometheus.NewPedanticRegistry())
+	d, err := New(distributorConfig, clientConfig, ingestersRing, generator_client.Config{}, nil, overrides, mw, logger, l, false, prometheus.NewPedanticRegistry())
 	require.NoError(t, err)
 
 	return d

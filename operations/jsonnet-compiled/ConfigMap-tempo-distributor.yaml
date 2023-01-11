@@ -25,7 +25,6 @@ data:
     metrics_generator_enabled: false
     overrides:
         per_tenant_override_config: /overrides/overrides.yaml
-    search_enabled: false
     server:
         http_listen_port: 3200
     storage:

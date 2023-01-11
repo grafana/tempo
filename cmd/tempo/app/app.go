@@ -54,7 +54,6 @@ var (
 	statFeatureEnabledMetricsGenerator = usagestats.NewInt("feature_enabled_metrics_generator")
 	statFeatureEnabledAuth             = usagestats.NewInt("feature_enabled_auth_stats")
 	statFeatureEnabledMultitenancy     = usagestats.NewInt("feature_enabled_multitenancy")
-	statFeatureEnabledSearch           = usagestats.NewInt("feature_enabled_search")
 )
 
 // App is the root datastructure.
@@ -102,13 +101,8 @@ func New(cfg Config) (*App, error) {
 	}
 
 	statFeatureEnabledMultitenancy.Set(0)
-	if cfg.SearchEnabled {
+	if cfg.MultitenancyEnabled {
 		statFeatureEnabledMultitenancy.Set(1)
-	}
-
-	statFeatureEnabledSearch.Set(0)
-	if cfg.SearchEnabled {
-		statFeatureEnabledSearch.Set(1)
 	}
 
 	app.setupAuthMiddleware()
