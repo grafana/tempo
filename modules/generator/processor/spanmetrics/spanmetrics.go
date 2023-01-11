@@ -22,10 +22,6 @@ const (
 	metricSizeTotal       = "traces_spanmetrics_size_total"
 )
 
-var (
-	intrinsicDimensions = []string{"service", "span_name", "span_kind", "status_code", "status_message"}
-)
-
 type Processor struct {
 	Cfg Config
 
@@ -40,8 +36,24 @@ type Processor struct {
 }
 
 func New(cfg Config, registry registry.Registry) gen.Processor {
-	labels := make([]string, 0, len(intrinsicDimensions)+len(cfg.Dimensions))
-	labels = append(labels, intrinsicDimensions...)
+	labels := make([]string, 0, 4+len(cfg.Dimensions))
+
+	if cfg.IntrinsicDimensions.Service {
+		labels = append(labels, dimService)
+	}
+	if cfg.IntrinsicDimensions.SpanName {
+		labels = append(labels, dimSpanName)
+	}
+	if cfg.IntrinsicDimensions.SpanKind {
+		labels = append(labels, dimSpanKind)
+	}
+	if cfg.IntrinsicDimensions.StatusCode {
+		labels = append(labels, dimStatusCode)
+	}
+	if cfg.IntrinsicDimensions.StatusMessage {
+		labels = append(labels, dimStatusMessage)
+	}
+
 	for _, d := range cfg.Dimensions {
 		labels = append(labels, sanitizeLabelNameWithCollisions(d))
 	}
@@ -87,15 +99,22 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 	latencySeconds := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 
 	labelValues := make([]string, 0, 4+len(p.Cfg.Dimensions))
-	// important: the order of labelValues must correspond to the order of labels / intrinsicDimensions
-	labelValues = append(
-		labelValues,
-		svcName,
-		span.GetName(),
-		span.GetKind().String(),
-		span.GetStatus().GetCode().String(),
-		span.GetStatus().GetMessage())
-
+	// important: the order of labelValues must correspond to the order of labels / intrinsic dimensions
+	if p.Cfg.IntrinsicDimensions.Service {
+		labelValues = append(labelValues, svcName)
+	}
+	if p.Cfg.IntrinsicDimensions.SpanName {
+		labelValues = append(labelValues, span.GetName())
+	}
+	if p.Cfg.IntrinsicDimensions.SpanKind {
+		labelValues = append(labelValues, span.GetKind().String())
+	}
+	if p.Cfg.IntrinsicDimensions.StatusCode {
+		labelValues = append(labelValues, span.GetStatus().GetCode().String())
+	}
+	if p.Cfg.IntrinsicDimensions.StatusMessage {
+		labelValues = append(labelValues, span.GetStatus().GetMessage())
+	}
 	for _, d := range p.Cfg.Dimensions {
 		value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
 		labelValues = append(labelValues, value)
@@ -111,11 +130,17 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 func sanitizeLabelNameWithCollisions(name string) string {
 	sanitized := strutil.SanitizeLabelName(name)
 
-	for _, dim := range intrinsicDimensions {
-		if sanitized == dim {
-			return "__" + sanitized
-		}
+	if isIntrinsicDimension(sanitized) {
+		return "__" + sanitized
 	}
 
 	return sanitized
+}
+
+func isIntrinsicDimension(name string) bool {
+	return name == dimService ||
+		name == dimSpanName ||
+		name == dimSpanKind ||
+		name == dimStatusCode ||
+		name == dimStatusMessage
 }

@@ -897,3 +897,22 @@ func TestParseIdentifier(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, NewScopedAttribute(AttributeScopeSpan, false, "foo"), a)
 }
+
+func TestEmptyQuery(t *testing.T) {
+	tests := []struct {
+		in string
+	}{
+		{in: "{}"},
+		{in: "{ }"},
+		{in: "{                    }"},
+		{in: "{ true }"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			actual, err := Parse(tc.in)
+			require.NoError(t, err, tc.in)
+			require.Equal(t, &RootExpr{newPipeline(newSpansetFilter(NewStaticBool(true)))}, actual, tc.in)
+		})
+	}
+}

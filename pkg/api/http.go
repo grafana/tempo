@@ -211,7 +211,7 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 	return req, nil
 }
 
-// ParseBlockSearchRequest parses all http parameters necessary to perform a block search.
+// ParseSearchBlockRequest parses all http parameters necessary to perform a block search.
 func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, error) {
 	searchReq, err := ParseSearchRequest(r)
 	if err != nil {

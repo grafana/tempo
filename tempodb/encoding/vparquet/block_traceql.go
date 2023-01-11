@@ -476,7 +476,12 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 		minCount = 1
 	}
 	if allConditions {
-		minCount = len(conditions)
+		// The final number of expected attributes.
+		distinct := map[string]struct{}{}
+		for _, cond := range conditions {
+			distinct[cond.Attribute.Name] = struct{}{}
+		}
+		minCount = len(distinct)
 	}
 	spanCol := &spanCollector{
 		minCount,
@@ -566,7 +571,12 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		minCount = 1
 	}
 	if allConditions {
-		minCount = len(conditions)
+		// The final number of expected attributes
+		distinct := map[string]struct{}{}
+		for _, cond := range conditions {
+			distinct[cond.Attribute.Name] = struct{}{}
+		}
+		minCount = len(distinct)
 	}
 	batchCol := &batchCollector{
 		requireAtLeastOneMatchOverall,

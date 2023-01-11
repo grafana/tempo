@@ -14,16 +14,17 @@
   local tempo_data_volume = 'tempo-data',
   local tempo_overrides_config_volume = 'overrides',
 
+  tempo_query_frontend_ports:: [containerPort.new('prom-metrics', $._config.port)],
+  tempo_query_frontend_args:: {
+    target: target_name,
+    'config.file': '/conf/tempo.yaml',
+    'mem-ballast-size-mbs': $._config.ballast_size_mbs,
+  },
+
   tempo_query_frontend_container::
     container.new(target_name, $._images.tempo) +
-    container.withPorts([
-      containerPort.new('prom-metrics', $._config.port),
-    ]) +
-    container.withArgs([
-      '-target=' + target_name,
-      '-config.file=/conf/tempo.yaml',
-      '-mem-ballast-size-mbs=' + $._config.ballast_size_mbs,
-    ]) +
+    container.withPorts($.tempo_query_frontend_ports) +
+    container.withArgs($.util.mapToFlags($.tempo_query_frontend_args)) +
     (if $._config.variables_expansion then container.withEnvMixin($._config.variables_expansion_env_mixin) else {}) +
     container.withVolumeMounts([
       volumeMount.new(tempo_config_volume, '/conf'),
@@ -31,7 +32,7 @@
     ]) +
     $.util.withResources($._config.query_frontend.resources) +
     $.util.readinessProbe +
-    (if $._config.variables_expansion then container.withArgsMixin(['--config.expand-env=true']) else {}),
+    (if $._config.variables_expansion then container.withArgsMixin(['-config.expand-env=true']) else {}),
 
   tempo_query_container::
     container.new('tempo-query', $._images.tempo_query) +

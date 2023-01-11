@@ -4,6 +4,8 @@ import (
 	"flag"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
@@ -50,7 +52,7 @@ func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag
 }
 
 // copyWithOverrides creates a copy of the config using values set in the overrides.
-func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userID string) ProcessorConfig {
+func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userID string) (ProcessorConfig, error) {
 	copyCfg := *cfg
 
 	if buckets := o.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID); buckets != nil {
@@ -65,6 +67,12 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	if dimensions := o.MetricsGeneratorProcessorSpanMetricsDimensions(userID); dimensions != nil {
 		copyCfg.SpanMetrics.Dimensions = dimensions
 	}
+	if dimensions := o.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID); dimensions != nil {
+		err := copyCfg.SpanMetrics.IntrinsicDimensions.ApplyFromMap(dimensions)
+		if err != nil {
+			return ProcessorConfig{}, errors.Wrap(err, "fail to apply overrides")
+		}
+	}
 
-	return copyCfg
+	return copyCfg, nil
 }

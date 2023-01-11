@@ -100,6 +100,11 @@ We try to ensure that most functionality of Tempo is well tested.
 
 A CI job runs these tests on every PR.
 
+### Debugging
+
+Using a debugger can be useful to find errors in Tempo code. This [example](./example/docker-compose/debug) 
+shows how to debug Tempo inside docker-compose.
+
 ### Linting
 
 Make sure to run
@@ -135,6 +140,8 @@ make jsonnet
 This requires `jsonnet`, `jsonnet-bundler` and `tanka` binaries in `$PATH`.
 
 ## Documentation
+
+Use the [Writer's Toolkit](https://grafana.com/docs/writers-toolkit/writing-guide/contribute-documentation/) for information and templates to contribute to [Tempo documentation](https://grafana.com/docs/tempo/latest/). 
 
 Tempo uses a CI action to sync documentation to the [Grafana website](https://grafana.com/docs/tempo/latest). The CI is
 triggered on every merge to main in the `docs` subfolder.
