@@ -89,16 +89,7 @@ iter:
 }
 
 func (e *Engine) parseQuery(searchReq *tempopb.SearchRequest) (*RootExpr, error) {
-	ast, err := Parse(searchReq.Query)
-	if err != nil {
-		// TODO parsing "{}" returns an error, this is a hacky solution but will fail on other valid queries like "{ }"
-		if searchReq.Query == "{}" {
-			return &RootExpr{Pipeline: Pipeline{[]pipelineElement{}}}, nil
-		}
-		return nil, err
-	}
-
-	return ast, nil
+	return Parse(searchReq.Query)
 }
 
 // createFetchSpansRequest will flatten the SpansetFilter in simple conditions the storage layer
