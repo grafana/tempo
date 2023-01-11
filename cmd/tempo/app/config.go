@@ -155,6 +155,27 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnStorageTraceBackendLocal)
 	}
 
+	// check v2 specific settings
+	if c.StorageConfig.Trace.Block.Version != "v2" && c.StorageConfig.Trace.Block.IndexDownsampleBytes != storage.DefaultIndexDownSampleBytes {
+		warnings = append(warnings, newV2Warning("v2_index_downsample_bytes"))
+	}
+
+	if c.StorageConfig.Trace.Block.Version != "v2" && c.StorageConfig.Trace.Block.IndexPageSizeBytes != storage.DefaultIndexPageSizeBytes {
+		warnings = append(warnings, newV2Warning("v2_index_page_size_bytes"))
+	}
+
+	if c.StorageConfig.Trace.Block.Version != "v2" && c.Compactor.Compactor.ChunkSizeBytes != tempodb.DefaultChunkSizeBytes {
+		warnings = append(warnings, newV2Warning("v2_in_buffer_bytes"))
+	}
+
+	if c.StorageConfig.Trace.Block.Version != "v2" && c.Compactor.Compactor.FlushSizeBytes != tempodb.DefaultFlushSizeBytes {
+		warnings = append(warnings, newV2Warning("v2_out_buffer_bytes"))
+	}
+
+	if c.StorageConfig.Trace.Block.Version != "v2" && c.Compactor.Compactor.IteratorBufferSize != tempodb.DefaultIteratorBufferSize {
+		warnings = append(warnings, newV2Warning("v2_prefetch_traces_count"))
+	}
+
 	return warnings
 }
 
@@ -225,3 +246,10 @@ var (
 		Message: "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.",
 	}
 )
+
+func newV2Warning(setting string) ConfigWarning {
+	return ConfigWarning{
+		Message: "c.StorageConfig.Trace.Block.Version != \"v2\" but " + setting + " is set",
+		Explain: "This setting is only used in v2 blocks",
+	}
+}
