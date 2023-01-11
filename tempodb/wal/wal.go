@@ -36,8 +36,6 @@ type Config struct {
 	Version           string           `yaml:"version,omitempty"`
 }
 
-// jpe test me
-// jpe test at the ingester level that defaults work
 func ValidateConfig(c *Config) error {
 	if _, err := encoding.FromVersion(c.Version); err != nil {
 		return fmt.Errorf("failed to validate block version %s: %w", c.Version, err)
