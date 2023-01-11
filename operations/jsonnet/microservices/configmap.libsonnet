@@ -77,7 +77,7 @@
   tempo_compactor_config:: $.tempo_config {
     compactor+: {
       compaction+: {
-        chunk_size_bytes: 10485760,
+        v2_in_buffer_bytes: 10485760,
         block_retention: '144h',
       },
       ring+: {

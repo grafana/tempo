@@ -16,7 +16,7 @@ Compression is configured under storage like so:
 storage:
   trace:
     block:
-      encoding: zstd
+      v2_encoding: zstd
 ```
 
 The following options are supported:
@@ -45,5 +45,5 @@ but only `snappy` has been tested at scale.
 storage:
   trace:
     wal:
-      encoding: snappy
+      v2_encoding: snappy
 ```

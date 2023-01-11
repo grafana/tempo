@@ -25,7 +25,7 @@ http_api_prefix: ""
 server:
   http_listen_network: tcp
   http_listen_address: ""
-  http_listen_port: 80
+  http_listen_port: 3100
   http_listen_conn_limit: 0
   grpc_listen_network: tcp
   grpc_listen_address: ""
@@ -99,7 +99,7 @@ distributor:
         mirror_timeout: 2s
     heartbeat_period: 5s
     heartbeat_timeout: 5m0s
-    instance_id: hostname
+    instance_id: joe
     instance_interface_names:
       - eth0
       - en0
@@ -249,7 +249,7 @@ compactor:
     heartbeat_timeout: 1m0s
     wait_stability_min_duration: 1m0s
     wait_stability_max_duration: 5m0s
-    instance_id: hostname
+    instance_id: joe
     instance_interface_names:
       - eth0
       - en0
@@ -313,7 +313,21 @@ ingester:
     join_after: 0s
     min_ready_duration: 15s
     interface_names:
-      - en0
+      - wlp2s0
+      - br-39d728775b03
+      - br-d5846bf66182
+      - br-ea48fef4186e
+      - br-f163873defd4
+      - br-24f5062c6edd
+      - br-3b836e91bc36
+      - br-9cef180f0356
+      - br-a5544df3e712
+      - br-14ab1fbc2f0e
+      - br-16536cce4aa3
+      - docker0
+      - br-721c7a5d3933
+      - br-dd28551f2dbd
+      - br-d3d1776850a0
     final_sleep: 0s
     tokens_file_path: ""
     availability_zone: ""
@@ -321,7 +335,7 @@ ingester:
     readiness_check_ring_health: true
     address: 127.0.0.1
     port: 0
-    id: hostname
+    id: joe
   concurrent_flushes: 4
   flush_check_period: 10s
   flush_op_timeout: 5m0s
@@ -364,7 +378,7 @@ metrics_generator:
         mirror_timeout: 2s
     heartbeat_period: 5s
     heartbeat_timeout: 1m0s
-    instance_id: hostname
+    instance_id: joe
     instance_interface_names:
       - eth0
       - en0
@@ -435,6 +449,7 @@ storage:
       v2_encoding: snappy
       search_encoding: none
       ingestion_time_range_slack: 2m0s
+      version: vParquet
     block:
       bloom_filter_false_positive: 0.01
       bloom_filter_shard_size_bytes: 102400
