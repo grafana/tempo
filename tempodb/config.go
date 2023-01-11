@@ -117,12 +117,21 @@ type CompactorConfig struct {
 }
 
 func validateConfig(cfg *Config) error {
+	if cfg == nil {
+		return errors.New("config should be non-nil")
+	}
+
 	if cfg.WAL == nil {
 		return errors.New("wal config should be non-nil")
 	}
 
 	if cfg.Block == nil {
 		return errors.New("block config should be non-nil")
+	}
+
+	// if the wal version is unspecified default to the block version
+	if cfg.WAL.Version == "" {
+		cfg.WAL.Version = cfg.Block.Version
 	}
 
 	err := wal.ValidateConfig(cfg.WAL)

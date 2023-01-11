@@ -24,8 +24,6 @@ const (
 type WAL struct {
 	c *Config
 	l *local.Backend
-
-	blockVersion string
 }
 
 type Config struct {
@@ -35,19 +33,22 @@ type Config struct {
 	Encoding          backend.Encoding `yaml:"v2_encoding"`
 	SearchEncoding    backend.Encoding `yaml:"search_encoding"`
 	IngestionSlack    time.Duration    `yaml:"ingestion_time_range_slack"`
+	Version           string           `yaml:"version,omitempty"`
 }
 
-func ValidateConfig(b *Config) error {
+// jpe test me
+// jpe test at the ingester level that defaults work
+func ValidateConfig(c *Config) error {
+	if _, err := encoding.FromVersion(c.Version); err != nil {
+		return fmt.Errorf("failed to validate block version %s: %w", c.Version, err)
+	}
+
 	return nil
 }
 
-func New(c *Config, blockVersion string) (*WAL, error) {
+func New(c *Config) (*WAL, error) {
 	if c.Filepath == "" {
 		return nil, fmt.Errorf("please provide a path for the WAL")
-	}
-
-	if _, err := encoding.FromVersion(blockVersion); err != nil {
-		return nil, fmt.Errorf("failed to validate block version %s: %w", blockVersion, err)
 	}
 
 	// make folder
@@ -85,9 +86,8 @@ func New(c *Config, blockVersion string) (*WAL, error) {
 	}
 
 	return &WAL{
-		c:            c,
-		l:            l,
-		blockVersion: blockVersion,
+		c: c,
+		l: l,
 	}, nil
 }
 
@@ -157,7 +157,7 @@ func (w *WAL) RescanBlocks(additionalStartSlack time.Duration, log log.Logger) (
 }
 
 func (w *WAL) NewBlock(id uuid.UUID, tenantID string, dataEncoding string) (common.WALBlock, error) {
-	return w.newBlock(id, tenantID, dataEncoding, w.blockVersion)
+	return w.newBlock(id, tenantID, dataEncoding, w.c.Version)
 }
 
 func (w *WAL) newBlock(id uuid.UUID, tenantID string, dataEncoding string, blockVersion string) (common.WALBlock, error) {

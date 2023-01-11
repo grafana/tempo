@@ -190,7 +190,7 @@ func New(cfg *Config, logger gkLog.Logger) (Reader, Writer, Compactor, error) {
 		blocklist:      blocklist.New(),
 	}
 
-	rw.wal, err = wal.New(rw.cfg.WAL, rw.cfg.Block.Version)
+	rw.wal, err = wal.New(rw.cfg.WAL)
 	if err != nil {
 		return nil, nil, nil, err
 	}
