@@ -112,29 +112,32 @@ func searchTags(_ context.Context, cb common.TagCallback, pf *parquet.File) erro
 			err = func() error {
 				pgs := cc.Pages()
 				defer pgs.Close()
-				for {
-					pg, err := pgs.ReadPage()
-					if err == io.EOF || pg == nil {
-						break
-					}
-					if err != nil {
-						return err
-					}
 
-					func(page parquet.Page) {
-						defer parquet.Release(page)
-
-						dict := page.Dictionary()
-						if dict == nil {
-							return
-						}
-
-						for i := 0; i < dict.Len(); i++ {
-							s := dict.Index(int32(i)).String()
-							cb(s)
-						}
-					}(pg)
+				// normally we'd loop here calling read page for every page in the column chunk, but
+				// there is only one dictionary per column chunk, so just read it from the first page
+				// and be done.
+				pg, err := pgs.ReadPage()
+				if err == io.EOF || pg == nil {
+					return nil
 				}
+				if err != nil {
+					return err
+				}
+
+				func(page parquet.Page) {
+					defer parquet.Release(page)
+
+					dict := page.Dictionary()
+					if dict == nil {
+						return
+					}
+
+					for i := 0; i < dict.Len(); i++ {
+						s := dict.Index(int32(i)).String()
+						cb(s)
+					}
+				}(pg)
+
 				return nil
 			}()
 			if err != nil {

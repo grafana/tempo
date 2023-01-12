@@ -399,7 +399,8 @@ func (r *rowNumberIterator) Close() {}
 
 // reportValuesPredicate is a "fake" predicate that uses existing iterator logic to find all values in a given column
 type reportValuesPredicate struct {
-	cb common.TagCallbackV2
+	cb            common.TagCallbackV2
+	inspectedDict bool
 }
 
 func newReportValuesPredicate(cb common.TagCallbackV2) *reportValuesPredicate {
@@ -408,6 +409,8 @@ func newReportValuesPredicate(cb common.TagCallbackV2) *reportValuesPredicate {
 
 // KeepColumnChunk always returns true b/c we always have to dig deeper to find all values
 func (r *reportValuesPredicate) KeepColumnChunk(cc parquet.ColumnChunk) bool {
+	// Reinspect dictionary for each new column chunk
+	r.inspectedDict = false
 	return true
 }
 
@@ -415,15 +418,19 @@ func (r *reportValuesPredicate) KeepColumnChunk(cc parquet.ColumnChunk) bool {
 // and return false b/c we don't have to go to the actual columns to retrieve values. if there is no dict we return
 // true so the iterator will call KeepValue on all values in the column
 func (r *reportValuesPredicate) KeepPage(pg parquet.Page) bool {
-	if dict := pg.Dictionary(); dict != nil {
-		for i := 0; i < dict.Len(); i++ {
-			v := dict.Index(int32(i))
-			if callback(r.cb, v) {
-				break
+	if !r.inspectedDict {
+		if dict := pg.Dictionary(); dict != nil {
+			for i := 0; i < dict.Len(); i++ {
+				v := dict.Index(int32(i))
+				if callback(r.cb, v) {
+					break
+				}
 			}
-		}
 
-		return false
+			// Only inspect first dictionary per column chunk.
+			r.inspectedDict = true
+			return false
+		}
 	}
 
 	return true
