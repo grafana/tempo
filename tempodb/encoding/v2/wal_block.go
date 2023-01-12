@@ -276,7 +276,7 @@ func (a *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.Ta
 	return common.ErrUnsupported
 }
 
-func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
+func (a *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
