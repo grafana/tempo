@@ -516,7 +516,7 @@ func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts c
 func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
 	// Wrap to v2-style
 	cb2 := func(v traceql.Static) bool {
-		cb(strings.Trim(v.String(), "`"))
+		cb(v.EncodeToString(false))
 		return false
 	}
 

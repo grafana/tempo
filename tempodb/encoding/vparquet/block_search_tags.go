@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -158,7 +157,7 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 
 	// Wrap to v2-style
 	cb2 := func(v traceql.Static) bool {
-		cb(strings.Trim(v.String(), "`"))
+		cb(v.EncodeToString(false))
 		return false
 	}
 

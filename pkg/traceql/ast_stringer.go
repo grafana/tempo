@@ -59,13 +59,20 @@ func (o UnaryOperation) String() string {
 }
 
 func (n Static) String() string {
+	return n.EncodeToString(true)
+}
+
+func (n Static) EncodeToString(quotes bool) string {
 	switch n.Type {
 	case TypeInt:
 		return strconv.Itoa(n.N)
 	case TypeFloat:
 		return strconv.FormatFloat(n.F, 'f', 5, 64)
 	case TypeString:
-		return "`" + n.S + "`"
+		if quotes {
+			return "`" + n.S + "`"
+		}
+		return n.S
 	case TypeBoolean:
 		return strconv.FormatBool(n.B)
 	case TypeNil:
