@@ -495,6 +495,9 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 		return nil
 	}()
+	if err != nil {
+		return nil, err
+	}
 
 	// local blocks
 	if !distinctValues.Exceeded() {
@@ -516,6 +519,9 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			}
 			return nil
 		}()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if distinctValues.Exceeded() {

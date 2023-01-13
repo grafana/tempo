@@ -34,12 +34,6 @@ func GetVirtualTagValuesV2(tagName string) []tempopb.TagValue {
 			{Type: "keyword", Value: traceql.StatusError.String()},
 			{Type: "keyword", Value: traceql.StatusUnset.String()},
 		}
-	case trace.StatusCodeTag:
-		return []tempopb.TagValue{
-			{Type: "keyword", Value: trace.StatusCodeUnset},
-			{Type: "keyword", Value: trace.StatusCodeOK},
-			{Type: "keyword", Value: trace.StatusCodeError},
-		}
 	}
 
 	return nil
