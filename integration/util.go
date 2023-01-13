@@ -3,6 +3,7 @@ package integration
 // Collection of utilities to share between our various load tests
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -234,6 +235,31 @@ func SearchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUti
 
 	// verify trace can be found using attribute
 	resp, err := client.Search(attr.GetKey() + "=" + attr.GetValue().GetStringValue())
+	require.NoError(t, err)
+
+	hasHex := func(hexId string, resp *tempopb.SearchResponse) bool {
+		for _, s := range resp.Traces {
+			equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexId)
+			require.NoError(t, err)
+			if equal {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	require.True(t, hasHex(info.HexID(), resp))
+}
+
+func SearchTraceQLAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
+	expected, err := info.ConstructTraceFromEpoch()
+	require.NoError(t, err)
+
+	attr := tempoUtil.RandomAttrFromTrace(expected)
+	query := fmt.Sprintf(`{ .%s = "%s"}`, attr.GetKey(), attr.GetValue().GetStringValue())
+
+	resp, err := client.SearchTraceQL(query)
 	require.NoError(t, err)
 
 	hasHex := func(hexId string, resp *tempopb.SearchResponse) bool {

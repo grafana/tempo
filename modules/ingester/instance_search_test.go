@@ -110,12 +110,16 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 
 			req := &tempopb.SearchRequest{Query: query, Limit: 20}
 
+			// Test live traces
+			sr, err := i.Search(context.Background(), req)
+			assert.NoError(t, err)
+			assert.Len(t, sr.Traces, 0)
+
 			// Test after appending to WAL
-			err := i.CutCompleteTraces(0, true)
-			require.NoError(t, err)
+			require.NoError(t, i.CutCompleteTraces(0, true))
 			assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
-			sr, err := i.Search(context.Background(), req)
+			sr, err = i.Search(context.Background(), req)
 			assert.NoError(t, err)
 			assert.Len(t, sr.Traces, len(ids))
 			checkEqual(t, ids, sr)

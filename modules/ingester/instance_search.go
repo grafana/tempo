@@ -260,7 +260,7 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 	for _, e := range i.completeBlocks {
 		if _, ok := i.searchCompleteBlocks[e]; ok && !api.IsTraceQLQuery(req) {
 			// no need to search this block, we already did above
-			// only applies for non-traceql queries
+			// only applies to non-traceql queries
 			continue
 		}
 

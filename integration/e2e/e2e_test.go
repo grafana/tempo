@@ -106,6 +106,9 @@ func TestAllInOne(t *testing.T) {
 			// flush trace to backend
 			callFlush(t, tempo)
 
+			// traceql search and verify trace is searchable once cut
+			util.SearchTraceQLAndAssertTrace(t, apiClient, info)
+
 			// sleep
 			time.Sleep(10 * time.Second)
 
