@@ -159,6 +159,9 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 	}
 
 	searchWalBlock := func(b common.WALBlock) {
+		i.blocksMtx.Lock()
+		defer i.blocksMtx.Unlock()
+
 		blockID := b.BlockMeta().BlockID.String()
 		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchWALBlock", opentracing.Tags{
 			"blockID": blockID,
@@ -187,6 +190,7 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 
 		sr.AddBlockInspected()
 		sr.AddBytesInspected(resp.Metrics.InspectedBytes)
+		sr.AddTraceInspected(resp.Metrics.InspectedTraces)
 		for _, r := range resp.Traces {
 			sr.AddResult(ctx, r)
 		}
@@ -328,28 +332,41 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 		}
 	}
 
-	// local blocks
-	if !distinctValues.Exceeded() {
-		i.blocksMtx.RLock()
-		defer i.blocksMtx.RUnlock()
-		for _, b := range i.completeBlocks {
-			_, ok := i.searchCompleteBlocks[b]
-			if ok {
-				// no need to search this block, we already did above
-				continue
-			}
+	search := func(s common.Searcher, dv *util.DistinctStringCollector) error {
+		if s == nil {
+			return nil
+		}
+		if dv.Exceeded() {
+			return nil
+		}
+		err = s.SearchTags(ctx, dv.Collect, common.DefaultSearchOptions())
+		if err != nil && err != common.ErrUnsupported {
+			return fmt.Errorf("unexpected error searching tags: %w", err)
+		}
 
-			err = b.SearchTags(ctx, distinctValues.Collect, common.DefaultSearchOptions())
-			if err == common.ErrUnsupported {
-				level.Warn(log.Logger).Log("msg", "block does not support tag search", "blockID", b.BlockMeta().BlockID)
-				continue
-			}
-			if err != nil {
-				return nil, fmt.Errorf("unexpected error searching tags (%s): %w", b.BlockMeta().BlockID, err)
-			}
-			if distinctValues.Exceeded() {
-				break
-			}
+		return nil
+	}
+
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
+	// search parquet wal/completing blocks/completed blocks
+	if err = search(i.headBlock, distinctValues); err != nil {
+		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
+	}
+	for _, b := range i.completingBlocks {
+		if err = search(b, distinctValues); err != nil {
+			return nil, fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err)
+		}
+	}
+	for _, b := range i.completeBlocks {
+		_, ok := i.searchCompleteBlocks[b]
+		if ok {
+			// no need to search this block, we already did above
+			continue
+		}
+		if err = search(b, distinctValues); err != nil {
+			return nil, fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err)
 		}
 	}
 
@@ -387,38 +404,41 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 		return nil, err
 	}
 
-	// wal + search blocks
-	if !distinctValues.Exceeded() {
-		err = i.visitSearchableBlocks(ctx, func(block search.SearchableBlock) error {
-			return block.TagValues(ctx, tagName, distinctValues.Collect)
-		})
-		if err != nil {
-			return nil, err
+	search := func(s common.Searcher, dv *util.DistinctStringCollector) error {
+		if s == nil {
+			return nil
 		}
+		if dv.Exceeded() {
+			return nil
+		}
+		err = s.SearchTagValues(ctx, tagName, dv.Collect, common.DefaultSearchOptions())
+		if err != nil && err != common.ErrUnsupported {
+			return fmt.Errorf("unexpected error searching tag values (%s): %w", tagName, err)
+		}
+
+		return nil
 	}
 
-	// local blocks
-	if !distinctValues.Exceeded() {
-		i.blocksMtx.RLock()
-		defer i.blocksMtx.RUnlock()
-		for _, b := range i.completeBlocks {
-			_, ok := i.searchCompleteBlocks[b]
-			if ok {
-				// no need to search this block, we already did above
-				continue
-			}
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
 
-			err = b.SearchTagValues(ctx, tagName, distinctValues.Collect, common.DefaultSearchOptions())
-			if err == common.ErrUnsupported {
-				level.Warn(log.Logger).Log("msg", "block does not support tag value search", "blockID", b.BlockMeta().BlockID)
-				continue
-			}
-			if err != nil {
-				return nil, fmt.Errorf("unexpected error searching tag values (%s): %w", b.BlockMeta().BlockID, err)
-			}
-			if distinctValues.Exceeded() {
-				break
-			}
+	// search parquet wal/completing blocks/completed blocks
+	if err = search(i.headBlock, distinctValues); err != nil {
+		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
+	}
+	for _, b := range i.completingBlocks {
+		if err = search(b, distinctValues); err != nil {
+			return nil, fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err)
+		}
+	}
+	for _, b := range i.completeBlocks {
+		_, ok := i.searchCompleteBlocks[b]
+		if ok {
+			// no need to search this block, we already did above
+			continue
+		}
+		if err = search(b, distinctValues); err != nil {
+			return nil, fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err)
 		}
 	}
 
@@ -429,6 +449,113 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	return &tempopb.SearchTagValuesResponse{
 		TagValues: distinctValues.Strings(),
 	}, nil
+}
+
+func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
+	userID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	tag, err := traceql.ParseIdentifier(req.TagName)
+	if err != nil {
+		return nil, err
+	}
+
+	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
+	distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+
+	cb := func(v traceql.Static) bool {
+		tv := tempopb.TagValue{}
+
+		switch v.Type {
+		case traceql.TypeString:
+			tv.Type = "string"
+			tv.Value = v.S // avoid formatting
+
+		case traceql.TypeBoolean:
+			tv.Type = "bool"
+			tv.Value = v.String()
+
+		case traceql.TypeInt:
+			tv.Type = "int"
+			tv.Value = v.String()
+
+		case traceql.TypeFloat:
+			tv.Type = "float"
+			tv.Value = v.String()
+
+		case traceql.TypeDuration:
+			tv.Type = "duration"
+			tv.Value = v.String()
+
+		case traceql.TypeStatus:
+			tv.Type = "keyword"
+			tv.Value = v.String()
+		}
+
+		return distinctValues.Collect(tv)
+	}
+
+	// wal blocks
+	err = func() error {
+		i.blocksMtx.RLock()
+		defer i.blocksMtx.RUnlock()
+
+		for _, b := range i.completingBlocks {
+			err = b.SearchTagValuesV2(ctx, tag, cb, common.DefaultSearchOptions())
+			if err == common.ErrUnsupported {
+				level.Warn(log.Logger).Log("msg", "block does not support tag value search v2", "blockID", b.BlockMeta().BlockID)
+				continue
+			}
+			if err != nil {
+				return fmt.Errorf("unexpected error searching tag values v2 (%s): %w", b.BlockMeta().BlockID, err)
+			}
+		}
+
+		return nil
+	}()
+	if err != nil {
+		return nil, err
+	}
+
+	// local blocks
+	if !distinctValues.Exceeded() {
+		err = func() error {
+			i.blocksMtx.RLock()
+			defer i.blocksMtx.RUnlock()
+			for _, b := range i.completeBlocks {
+				err = b.SearchTagValuesV2(ctx, tag, cb, common.DefaultSearchOptions())
+				if err == common.ErrUnsupported {
+					level.Warn(log.Logger).Log("msg", "block does not support tag value search v2", "blockID", b.BlockMeta().BlockID)
+					continue
+				}
+				if err != nil {
+					return fmt.Errorf("unexpected error searching tag values v2 (%s): %w", b.BlockMeta().BlockID, err)
+				}
+				if distinctValues.Exceeded() {
+					break
+				}
+			}
+			return nil
+		}()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if distinctValues.Exceeded() {
+		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
+	}
+
+	resp := &tempopb.SearchTagValuesV2Response{}
+
+	for _, v := range distinctValues.Values() {
+		v2 := v
+		resp.TagValues = append(resp.TagValues, &v2)
+	}
+
+	return resp, nil
 }
 
 func (i *instance) visitSearchEntriesLiveTraces(ctx context.Context, visitFn func(entry *tempofb.SearchEntry)) error {

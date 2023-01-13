@@ -891,3 +891,39 @@ func TestIntrinsics(t *testing.T) {
 		})
 	}
 }
+
+func TestParseIdentifier(t *testing.T) {
+	testCases := map[string]Attribute{
+		"name":             NewIntrinsic(IntrinsicName),
+		"status":           NewIntrinsic(IntrinsicStatus),
+		".name":            NewAttribute("name"),
+		".status":          NewAttribute("status"),
+		".foo.bar":         NewAttribute("foo.bar"),
+		"resource.foo.bar": NewScopedAttribute(AttributeScopeResource, false, "foo.bar"),
+		"span.foo.bar":     NewScopedAttribute(AttributeScopeSpan, false, "foo.bar"),
+	}
+	for i, expected := range testCases {
+		actual, err := ParseIdentifier(i)
+		require.NoError(t, err, i)
+		require.Equal(t, expected, actual, i)
+	}
+}
+
+func TestEmptyQuery(t *testing.T) {
+	tests := []struct {
+		in string
+	}{
+		{in: "{}"},
+		{in: "{ }"},
+		{in: "{                    }"},
+		{in: "{ true }"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			actual, err := Parse(tc.in)
+			require.NoError(t, err, tc.in)
+			require.Equal(t, &RootExpr{newPipeline(newSpansetFilter(NewStaticBool(true)))}, actual, tc.in)
+		})
+	}
+}

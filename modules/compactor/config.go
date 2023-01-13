@@ -22,7 +22,7 @@ type Config struct {
 // RegisterFlagsAndApplyDefaults registers the flags.
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.Compactor = tempodb.CompactorConfig{
-		ChunkSizeBytes:          5 * 1024 * 1024, // 5 MiB
+		ChunkSizeBytes:          tempodb.DefaultChunkSizeBytes, // 5 MiB
 		FlushSizeBytes:          tempodb.DefaultFlushSizeBytes,
 		CompactedBlockRetention: time.Hour,
 		RetentionConcurrency:    tempodb.DefaultRetentionConcurrency,

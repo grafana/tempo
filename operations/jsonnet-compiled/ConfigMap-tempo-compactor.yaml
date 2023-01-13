@@ -4,7 +4,7 @@ data:
     compactor:
         compaction:
             block_retention: 144h
-            chunk_size_bytes: 1.048576e+07
+            v2_in_buffer_bytes: 1.048576e+07
         ring:
             kvstore:
                 store: memberlist

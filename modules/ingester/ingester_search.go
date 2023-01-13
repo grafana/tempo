@@ -64,6 +64,24 @@ func (i *Ingester) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 	return res, nil
 }
 
+func (i *Ingester) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	inst, ok := i.getInstanceByID(instanceID)
+	if !ok || inst == nil {
+		return &tempopb.SearchTagValuesV2Response{}, nil
+	}
+
+	res, err := inst.SearchTagValuesV2(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
 // SearchBlock only exists here to fulfill the protobuf interface. The ingester will never support
 // backend search
 func (i *Ingester) SearchBlock(context.Context, *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {

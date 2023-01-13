@@ -16,6 +16,7 @@ import (
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -131,168 +132,6 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	results.Metrics.InspectedTraces += uint32(b.meta.TotalObjects)
 
 	return results, nil
-}
-
-func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTags",
-		opentracing.Tags{
-			"blockID":   b.meta.BlockID,
-			"tenantID":  b.meta.TenantID,
-			"blockSize": b.meta.Size,
-		})
-	defer span.Finish()
-
-	pf, rr, err := b.openForSearch(derivedCtx, opts)
-	if err != nil {
-		return fmt.Errorf("unexpected error opening parquet file: %w", err)
-	}
-	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
-
-	return searchTags(derivedCtx, cb, pf)
-}
-
-func searchTags(_ context.Context, cb common.TagCallback, pf *parquet.File) error {
-	// find indexes of generic attribute columns
-	resourceKeyIdx, _ := pq.GetColumnIndexByPath(pf, FieldResourceAttrKey)
-	spanKeyIdx, _ := pq.GetColumnIndexByPath(pf, FieldSpanAttrKey)
-	if resourceKeyIdx == -1 || spanKeyIdx == -1 {
-		return fmt.Errorf("resource or span attributes col not found (%d, %d)", resourceKeyIdx, spanKeyIdx)
-	}
-	standardAttrIdxs := []int{
-		resourceKeyIdx,
-		spanKeyIdx,
-	}
-
-	// find indexes of all special columns
-	specialAttrIdxs := map[int]string{}
-	for lbl, col := range labelMappings {
-		idx, _ := pq.GetColumnIndexByPath(pf, col)
-		if idx == -1 {
-			continue
-		}
-
-		specialAttrIdxs[idx] = lbl
-	}
-
-	// now search all row groups
-	var err error
-	rgs := pf.RowGroups()
-	for _, rg := range rgs {
-		// search all special attributes
-		for idx, lbl := range specialAttrIdxs {
-			cc := rg.ColumnChunks()[idx]
-			err = func() error {
-				pgs := cc.Pages()
-				defer pgs.Close()
-				for {
-					pg, err := pgs.ReadPage()
-					if err == io.EOF || pg == nil {
-						break
-					}
-					if err != nil {
-						return err
-					}
-
-					stop := func(page parquet.Page) bool {
-						defer parquet.Release(page)
-
-						// if a special attribute has any non-null values, include it
-						if page.NumNulls() < page.NumValues() {
-							cb(lbl)
-							delete(specialAttrIdxs, idx) // remove from map so we won't search again
-							return true
-						}
-						return false
-					}(pg)
-					if stop {
-						break
-					}
-				}
-				return nil
-			}()
-			if err != nil {
-				return err
-			}
-		}
-
-		// search other attributes
-		for _, idx := range standardAttrIdxs {
-			cc := rg.ColumnChunks()[idx]
-			err = func() error {
-				pgs := cc.Pages()
-				defer pgs.Close()
-
-				// normally we'd loop here calling read page for every page in the column chunk, but
-				// there is only one dictionary per column chunk, so just read it from the first page
-				// and be done.
-				pg, err := pgs.ReadPage()
-				if err == io.EOF || pg == nil {
-					return nil
-				}
-				if err != nil {
-					return err
-				}
-
-				func(page parquet.Page) {
-					defer parquet.Release(page)
-
-					dict := page.Dictionary()
-					if dict == nil {
-						return
-					}
-
-					for i := 0; i < dict.Len(); i++ {
-						s := dict.Index(int32(i)).String()
-						cb(s)
-					}
-				}(pg)
-
-				return nil
-			}()
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTagValues",
-		opentracing.Tags{
-			"blockID":   b.meta.BlockID,
-			"tenantID":  b.meta.TenantID,
-			"blockSize": b.meta.Size,
-		})
-	defer span.Finish()
-
-	pf, rr, err := b.openForSearch(derivedCtx, opts)
-	if err != nil {
-		return fmt.Errorf("unexpected error opening parquet file: %w", err)
-	}
-	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
-
-	return searchTagValues(ctx, tag, cb, pf)
-}
-
-func searchTagValues(ctx context.Context, tag string, cb common.TagCallback, pf *parquet.File) error {
-	// labelMappings will indicate whether this is a search for a special or standard
-	// column
-	column := labelMappings[tag]
-	if column == "" {
-		err := searchStandardTagValues(ctx, tag, pf, cb)
-		if err != nil {
-			return fmt.Errorf("unexpected error searching standard tags: %w", err)
-		}
-		return nil
-	}
-
-	err := searchSpecialTagValues(ctx, column, pf, cb)
-	if err != nil {
-		return fmt.Errorf("unexpected error searching special tags: %w", err)
-	}
-	return nil
 }
 
 func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, pf *parquet.File, rgs []parquet.RowGroup) pq.Iterator {
@@ -519,73 +358,6 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 	return results, nil
 }
 
-// searchStandardTagValues searches a parquet file for "standard" tags. i.e. tags that don't have unique
-// columns and are contained in labelMappings
-func searchStandardTagValues(ctx context.Context, tag string, pf *parquet.File, cb common.TagCallback) error {
-	rgs := pf.RowGroups()
-	makeIter := makeIterFunc(ctx, rgs, pf)
-
-	keyPred := pq.NewStringInPredicate([]string{tag})
-
-	err := searchKeyValues(DefinitionLevelResourceAttrs, FieldResourceAttrKey, FieldResourceAttrVal, makeIter, keyPred, cb)
-	if err != nil {
-		return errors.Wrap(err, "search resource key values")
-	}
-
-	err = searchKeyValues(DefinitionLevelResourceSpansILSSpanAttrs, FieldSpanAttrKey, FieldSpanAttrVal, makeIter, keyPred, cb)
-	if err != nil {
-		return errors.Wrap(err, "search span key values")
-	}
-
-	return nil
-}
-
-func searchKeyValues(definitionLevel int, keyPath, valuePath string, makeIter makeIterFn, keyPred pq.Predicate, cb common.TagCallback) error {
-
-	iter := pq.NewJoinIterator(definitionLevel, []pq.Iterator{
-		makeIter(keyPath, keyPred, ""),
-		makeIter(valuePath, nil, "values"),
-	}, nil)
-	defer iter.Close()
-
-	for {
-		match, err := iter.Next()
-		if err != nil {
-			return err
-		}
-		if match == nil {
-			break
-		}
-		for _, e := range match.Entries {
-			// We know that "values" is the only data selected above.
-			cb(e.Value.String())
-		}
-	}
-
-	return nil
-}
-
-// searchSpecialTagValues searches a parquet file for all values for the provided column. It first attempts
-// to only pull all values from the column's dictionary. If this fails it falls back to scanning the entire path.
-func searchSpecialTagValues(ctx context.Context, column string, pf *parquet.File, cb common.TagCallback) error {
-	pred := newReportValuesPredicate(cb)
-	rgs := pf.RowGroups()
-
-	iter := makeIterFunc(ctx, rgs, pf)(column, pred, "")
-	defer iter.Close()
-	for {
-		match, err := iter.Next()
-		if err != nil {
-			return errors.Wrap(err, "iter.Next failed")
-		}
-		if match == nil {
-			break
-		}
-	}
-
-	return nil
-}
-
 func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
 	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
 		index, _ := pq.GetColumnIndexByPath(pf, name)
@@ -627,15 +399,18 @@ func (r *rowNumberIterator) Close() {}
 
 // reportValuesPredicate is a "fake" predicate that uses existing iterator logic to find all values in a given column
 type reportValuesPredicate struct {
-	cb common.TagCallback
+	cb            common.TagCallbackV2
+	inspectedDict bool
 }
 
-func newReportValuesPredicate(cb common.TagCallback) *reportValuesPredicate {
+func newReportValuesPredicate(cb common.TagCallbackV2) *reportValuesPredicate {
 	return &reportValuesPredicate{cb: cb}
 }
 
 // KeepColumnChunk always returns true b/c we always have to dig deeper to find all values
 func (r *reportValuesPredicate) KeepColumnChunk(cc parquet.ColumnChunk) bool {
+	// Reinspect dictionary for each new column chunk
+	r.inspectedDict = false
 	return true
 }
 
@@ -643,13 +418,19 @@ func (r *reportValuesPredicate) KeepColumnChunk(cc parquet.ColumnChunk) bool {
 // and return false b/c we don't have to go to the actual columns to retrieve values. if there is no dict we return
 // true so the iterator will call KeepValue on all values in the column
 func (r *reportValuesPredicate) KeepPage(pg parquet.Page) bool {
-	if dict := pg.Dictionary(); dict != nil {
-		for i := 0; i < dict.Len(); i++ {
-			s := dict.Index(int32(i)).String()
-			r.cb(s)
-		}
+	if !r.inspectedDict {
+		if dict := pg.Dictionary(); dict != nil {
+			for i := 0; i < dict.Len(); i++ {
+				v := dict.Index(int32(i))
+				if callback(r.cb, v) {
+					break
+				}
+			}
 
-		return false
+			// Only inspect first dictionary per column chunk.
+			r.inspectedDict = true
+			return false
+		}
 	}
 
 	return true
@@ -658,7 +439,28 @@ func (r *reportValuesPredicate) KeepPage(pg parquet.Page) bool {
 // KeepValue is only called if this column does not have a dictionary. Just report everything to r.cb and
 // return false so the iterator do any extra work.
 func (r *reportValuesPredicate) KeepValue(v parquet.Value) bool {
-	r.cb(v.String())
+	callback(r.cb, v)
 
 	return false
+}
+
+func callback(cb common.TagCallbackV2, v parquet.Value) (stop bool) {
+	switch v.Kind() {
+
+	case parquet.Boolean:
+		return cb(traceql.NewStaticBool(v.Boolean()))
+
+	case parquet.Int32, parquet.Int64:
+		return cb(traceql.NewStaticInt(int(v.Int64())))
+
+	case parquet.Float, parquet.Double:
+		return cb(traceql.NewStaticFloat(v.Double()))
+
+	case parquet.ByteArray, parquet.FixedLenByteArray:
+		return cb(traceql.NewStaticString(v.String()))
+
+	default:
+		// Skip nils or unsupported type
+		return false
+	}
 }

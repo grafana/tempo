@@ -93,7 +93,6 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
-			Version:  v2.VersionString,
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -238,7 +237,6 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
-			Version:  v2.VersionString,
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -380,7 +378,6 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
-			Version:  v2.VersionString,
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -450,7 +447,6 @@ func TestCompactionMetrics(t *testing.T) {
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
-			Version:  v2.VersionString,
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -523,7 +519,6 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 		},
 		WAL: &wal.Config{
 			Filepath: path.Join(tempDir, "wal"),
-			Version:  v2.VersionString,
 		},
 		BlocklistPoll: 0,
 	}, log.NewNopLogger())
@@ -595,7 +590,6 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 		},
 		WAL: &wal.Config{
 			Filepath:       path.Join(tempDir, "wal"),
-			Version:        v2.VersionString,
 			IngestionSlack: time.Since(time.Unix(0, 0)), // Let us use obvious start/end times below
 		},
 		BlocklistPoll: 0,

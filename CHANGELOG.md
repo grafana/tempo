@@ -1,5 +1,6 @@
 ## main / unreleased
 * [ENHANCEMENT] Add support for TraceQL in Parquet WAL and Local Blocks. [#1966](https://github.com/grafana/tempo/pull/1966) (@electron0zero)
+* [ENHANCEMENT] Add new data-type aware searchtagvalues v2 api [#1956](https://github.com/grafana/tempo/pull/1956) (@mdisibio)
 * [CHANGE] Collect inspectedBytes from SearchMetrics [#1975](https://github.com/grafana/tempo/pull/1975) (@electron0zero)
 * [ENHANCEMENT] Add zone awareness replication for ingesters. [#1936](https://github.com/grafana/tempo/pull/1936) (@manohar-koukuntla)
 ```
@@ -75,6 +76,58 @@ Old config will still work but will be removed in a future release. [#1735](http
   * Upgrade `github.com/grafana/dskit`
   * Upgrade `github.com/grafana/e2e`
   * Upgrade `github.com/minio/minio-go/v7`
+* [CHANGE] Config updates to prepare for Tempo 2.0. [#1978](https://github.com/grafana/tempo/pull/1978) (@joe-elliott)
+  Defaults updated:
+  ```
+  query_frontend:
+    max_oustanding_per_tenant: 2000
+    search:
+        concurrent_jobs: 1000
+        target_bytes_per_job: 104857600
+        max_duration: 168h
+        query_ingesters_until: 30m
+    trace_by_id:
+        query_shards: 50
+  querier:
+      max_concurrent_queries: 20
+      search:
+          prefer_self: 10
+  ingester:
+      concurrent_flushes: 4
+      max_block_duration: 30m
+      max_block_bytes: 524288000
+  storage:
+      trace:
+          pool:
+              max_workers: 400
+              queue_depth: 20000
+          search:
+              read_buffer_count: 32
+              read_buffer_size_bytes: 1048576
+  ```
+  **BREAKING CHANGE** Renamed/removed/moved
+  ```
+  query_frontend:
+    query_shards:                  // removed. use trace_by_id.query_shards
+  querier:
+      query_timeout:               // removed. use trace_by_id.query_timeout
+  compactor:
+      compaction:
+          chunk_size_bytes:        // renamed to v2_in_buffer_bytes
+          flush_size_bytes:        // renamed to v2_out_buffer_bytes
+          iterator_buffer_size:    // renamed to v2_prefetch_traces_count
+  ingester:
+      use_flatbuffer_search:       // removed. automatically set based on block type
+  storage:
+      wal:
+          encoding:                // renamed to v2_encoding
+          version:                 // removed and pinned to block.version
+      block:
+          index_downsample_bytes:  // renamed to v2_index_downsample_bytes
+          index_page_size_bytes:   // renamed to v2_index_page_size_bytes
+          encoding:                // renamed to v2_encoding
+          row_group_size_bytes:    // renamed to parquet_row_group_size_bytes
+  ```
 * [FEATURE] Add capability to configure the used S3 Storage Class [#1697](https://github.com/grafana/tempo/pull/1714) (@amitsetty)
 * [ENHANCEMENT] cache: expose username and sentinel_username redis configuration options for ACL-based Redis Auth support [#1708](https://github.com/grafana/tempo/pull/1708) (@jsievenpiper)
 * [ENHANCEMENT] metrics-generator: expose span size as a metric [#1662](https://github.com/grafana/tempo/pull/1662) (@ie-pham)

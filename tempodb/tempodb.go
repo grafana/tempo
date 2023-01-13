@@ -218,6 +218,12 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 		return nil, err
 	}
 
+	// force flush anything left in the wal
+	err = block.Flush()
+	if err != nil {
+		return nil, fmt.Errorf("error flushing wal block: %w", err)
+	}
+
 	iter, err := block.Iterator()
 	if err != nil {
 		return nil, err

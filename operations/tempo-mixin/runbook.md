@@ -15,6 +15,7 @@ parallelism -
 - Number of shards each query is split into, configured via
     ```
     query_frontend:
+      trace_by_id:
         query_shards: 10
     ```
 - Number of Queriers (each of these process the sharded queries in parallel). This can be changed by modifying the size of the
@@ -115,7 +116,7 @@ There are several settings which can be tuned to reduce the amount of work done 
   30 minutes.  It could be reduced even further in extremely high volume situations.
 - max_block_bytes - The maximum size of an output block, and controls which input blocks will be compacted. Can be reduced to as
   little as a few GB to prevent really large compactions.
-- chunk_size_bytes - The amount of (compressed) data buffered from each input block. Can be reduced to a few megabytes to buffer
+- v2_in_buffer_bytes - The amount of (compressed) data buffered from each input block. Can be reduced to a few megabytes to buffer
   less.  Will increase the amount of reads from the backend.
 - flush_size_bytes - The amount of data buffered of the output block. Can be reduced to flush more frequently to the backend.
   There are platform-specific limits on how low this can go.  AWS S3 cannot be set lower than 5MB, or cause more than 10K flushes

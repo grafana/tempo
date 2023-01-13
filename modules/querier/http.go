@@ -29,7 +29,7 @@ const (
 // TraceByIDHandler is a http.HandlerFunc to retrieve traces
 func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	// Enforce the query timeout while querying backends
-	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.TraceLookupQueryTimeout))
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.TraceByID.QueryTimeout))
 	defer cancel()
 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.TraceByIDHandler")
@@ -195,6 +195,39 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	resp, err := q.SearchTagValues(ctx, req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	marshaller := &jsonpb.Marshaler{}
+	err = marshaller.Marshal(w, resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+}
+
+func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Request) {
+	// Enforce the query timeout while querying backends
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
+	defer cancel()
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagValuesHandler")
+	defer span.Finish()
+
+	vars := mux.Vars(r)
+	tagName, ok := vars["tagName"]
+	if !ok {
+		http.Error(w, "please provide a tagName", http.StatusBadRequest)
+		return
+	}
+	req := &tempopb.SearchTagValuesRequest{
+		TagName: tagName,
+	}
+
+	resp, err := q.SearchTagValuesV2(ctx, req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

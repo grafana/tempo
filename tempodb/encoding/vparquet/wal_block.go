@@ -75,6 +75,10 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 		return nil, nil, fmt.Errorf("error unmarshaling wal meta json: %s %w", metaPath, err)
 	}
 
+	// below we're going to iterate all of the parquet files in the wal and build the meta, this will correctly
+	// recount total objects so clear them out here
+	meta.TotalObjects = 0
+
 	b := &walBlock{
 		meta:           meta,
 		path:           path,
@@ -514,6 +518,16 @@ func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts c
 }
 
 func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
+	// Wrap to v2-style
+	cb2 := func(v traceql.Static) bool {
+		cb(v.EncodeToString(false))
+		return false
+	}
+
+	return b.SearchTagValuesV2(ctx, traceql.NewAttribute(tag), cb2, opts)
+}
+
+func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
 	for i, page := range b.flushed {
 		file, err := page.file()
 		if err != nil {

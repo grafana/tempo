@@ -44,7 +44,6 @@ func testSearchCompleteBlock(t *testing.T, blockVersion string) {
 		},
 		WAL: &wal.Config{
 			Filepath:       path.Join(tempDir, "wal"),
-			Version:        v2.VersionString,
 			IngestionSlack: time.Since(time.Time{}),
 		},
 		Search: &SearchConfig{

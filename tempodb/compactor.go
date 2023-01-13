@@ -24,9 +24,9 @@ const (
 
 	DefaultCompactionCycle = 30 * time.Second
 
-	DefaultFlushSizeBytes uint32 = 20 * 1024 * 1024 // 20 MiB
-
-	DefaultIteratorBufferSize = 1000
+	DefaultChunkSizeBytes            = 5 * 1024 * 1024  // 5 MiB
+	DefaultFlushSizeBytes     uint32 = 20 * 1024 * 1024 // 20 MiB
+	DefaultIteratorBufferSize        = 1000
 )
 
 var (
