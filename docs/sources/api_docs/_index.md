@@ -5,7 +5,7 @@ menuTitle: Tempo API
 weight: 500
 ---
 
-# Tempo API 
+# Tempo API
 
 Tempo exposes an API for pushing and querying traces, and operating the cluster itself.
 
@@ -74,10 +74,10 @@ _For more information, please check out the official documentation of [pprof](ht
 ### Ingest
 
 The Tempo distributor uses the OpenTelemetry Collector receivers as a foundation to ingest trace data.
-These APIs are meant to be consumed by the corresponding client SDK or pipeline component, such as Grafana 
+These APIs are meant to be consumed by the corresponding client SDK or pipeline component, such as Grafana
 Agent, OpenTelemetry Collector, or Jaeger Agent.
 
-|  Protocol | Type | Docs | 
+|  Protocol | Type | Docs |
 |  -------- | ---- | ---- |
 |  OpenTelemetry | GRPC | [Link](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md) |
 |  OpenTelemetry | HTTP | [Link](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md) |
@@ -91,7 +91,7 @@ For information on how to use the Zipkin endpoint with curl (for debugging purpo
 
 ### Query
 
-The following request is used to retrieve a trace from the query frontend service in 
+The following request is used to retrieve a trace from the query frontend service in
 a microservices deployment or the Tempo endpoint in a monolithic mode deployment.
 
 ```
@@ -99,7 +99,7 @@ GET /api/traces/<traceid>?start=<start>&end=<end>
 ```
 Parameters:
 - `start = (unix epoch seconds)`
-  Optional.  Along with `end` define a time range from which traces should be returned. 
+  Optional.  Along with `end` define a time range from which traces should be returned.
 - `end = (unix epoch seconds)`
   Optional.  Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` will include traces for the specified time range only. If the parameters are not provided then Tempo will check for the trace across all blocks in backend. If the parameters are provided, it will only check in the blocks within the specified time range, this can result in trace not being found or partial results if it does not fall in the specified time range.
 
@@ -121,11 +121,11 @@ Parameters:
   Default = `FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF`
   Example: `blockStart=FFFFFFFF-FFFF-FFFF-FFFF-456787652341`
 - `start = (unix epoch seconds)`
-  Optional.  Along with `end` define a time range from which traces should be returned. 
+  Optional.  Along with `end` define a time range from which traces should be returned.
 - `end = (unix epoch seconds)`
   Optional.  Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` will include blocks for the specified time range only.
 
-This API is not meant to be used directly unless for debugging the sharding functionality of the query 
+This API is not meant to be used directly unless for debugging the sharding functionality of the query
 frontend.
 
 Returns:
@@ -134,9 +134,14 @@ but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is
 
 ### Search
 
-Tempo's Search API finds traces based on span and process attributes (tags and values).  The API is available in the query frontend service in
-a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.  The following request is used to find traces containing spans
-from service "myservice" and the url contains "api/myapi".
+Tempo's Search API finds traces based on span and process attributes (tags and values).
+
+When performing a search, Tempo does a massively parallel search over the given time range, and takes the first N results. Even identical searches will differ due to things like machine load and network latency. TraceQL follows the same behavior.
+
+The API is available in the query frontend service in
+a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
+
+The following request is used to find traces containing spans from service `myservice` and the url contains `api/myapi`.
 
 ```
 GET /api/search?tags=service.name%3Dmyservice%20http.url%3Dapi%2Fmyapi
@@ -151,9 +156,9 @@ The URL query parameters support the following values:
 - `limit = (integer)`
   Optional.  Limit the number of search results. Default is 20, but this is configurable in the querier. Refer to [Configuration]({{< relref "../configuration#querier" >}}).
 - `start = (unix epoch seconds)`
-  Optional.  Along with `end` define a time range from which traces should be returned. 
+  Optional.  Along with `end` define a time range from which traces should be returned.
 - `end = (unix epoch seconds)`
- Optional.  Along with `start`, define a time range from which traces should be returned. Providing both `start` and `end` will change the way that Tempo searches. 
+ Optional.  Along with `start`, define a time range from which traces should be returned. Providing both `start` and `end` will change the way that Tempo searches.
  If the parameters are not provided, then Tempo will search the recent trace data stored in the ingesters. If the parameters are provided, it will search the backend as well.
 
 #### Example
@@ -325,7 +330,7 @@ Triggers a flush of all in-memory traces to the WAL. Useful at the time of rollo
 GET,POST /shutdown
 ```
 
-Flushes all in-memory traces and the WAL to the long term backend. Gracefully exits from the ring. Shuts down the 
+Flushes all in-memory traces and the WAL to the long term backend. Gracefully exits from the ring. Shuts down the
 ingester service.
 
 **Note**: This is usually used at the time of scaling down a cluster.
