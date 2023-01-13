@@ -26,6 +26,7 @@ These endpoints are exposed both when running Tempo in microservices and monolit
 | [Searching traces](#search) | Query-frontend | HTTP | `GET /api/search?<params>` |
 | [Search tag names](#search-tags) | Query-frontend | HTTP | `GET /api/search/tags` |
 | [Search tag values](#search-tag-values) | Query-frontend | HTTP | `GET /api/search/tag/<tag>/values` |
+| [Search tag values V2](#search-tag-values-v2) | Query-frontend | HTTP | `GET /api/v2/search/tag/<tag>/values` |
 | [Query Echo Endpoint](#query-echo-endpoint) | Query-frontend |  HTTP | `GET /api/echo` |
 | Memberlist | Distributor, Ingester, Querier, Compactor |  HTTP | `GET /memberlist` |
 | [Flush](#flush) | Ingester |  HTTP | `GET,POST /flush` |
@@ -254,6 +255,48 @@ $ curl -G -s http://localhost:3200/api/search/tag/service.name/values  | jq
     "frontend",
     "productcatalogservice",
     "recommendationservice"
+  ]
+}
+```
+
+### Search tag values V2
+
+This endpoint retrieves all discovered values and their data types for the given TraceQL identifier.  The endpoint is available in the query frontend service in
+a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. This endpoint is similar to `/api/search/tag/<tag>/values` but operates on TraceQL identifiers and types.  See [TraceQL](../traceql/) documention for more information. The following request will return all discovered service names.
+
+```
+GET /api/search/tag/.service.name/values
+```
+
+#### Example
+
+Example of how to query Tempo using curl.
+This query will return all discovered values for the tag `service.name`.
+
+```bash
+$ curl http://localhost:3200/api/v2/search/tag/.service.name/values | jq .
+{
+  "tagValues": [
+    {
+      "type": "string",
+      "value": "customer"
+    },
+    {
+      "type": "string",
+      "value": "mysql"
+    },
+    {
+      "type": "string",
+      "value": "driver"
+    },
+    {
+      "type": "string",
+      "value": "frontend"
+    },
+    {
+      "type": "string",
+      "value": "redis"
+    }
   ]
 }
 ```
