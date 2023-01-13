@@ -892,6 +892,23 @@ func TestIntrinsics(t *testing.T) {
 	}
 }
 
+func TestParseIdentifier(t *testing.T) {
+	testCases := map[string]Attribute{
+		"name":             NewIntrinsic(IntrinsicName),
+		"status":           NewIntrinsic(IntrinsicStatus),
+		".name":            NewAttribute("name"),
+		".status":          NewAttribute("status"),
+		".foo.bar":         NewAttribute("foo.bar"),
+		"resource.foo.bar": NewScopedAttribute(AttributeScopeResource, false, "foo.bar"),
+		"span.foo.bar":     NewScopedAttribute(AttributeScopeSpan, false, "foo.bar"),
+	}
+	for i, expected := range testCases {
+		actual, err := ParseIdentifier(i)
+		require.NoError(t, err, i)
+		require.Equal(t, expected, actual, i)
+	}
+}
+
 func TestEmptyQuery(t *testing.T) {
 	tests := []struct {
 		in string

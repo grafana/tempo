@@ -46,6 +46,31 @@ func Parse(s string) (expr *RootExpr, err error) {
 	return l.expr, nil
 }
 
+func ParseIdentifier(s string) (Attribute, error) {
+	if i := intrinsicFromString(s); i != IntrinsicNone {
+		return NewIntrinsic(i), nil
+	}
+
+	switch {
+	case strings.HasPrefix(s, "."):
+		return NewAttribute(strings.TrimPrefix(s, ".")), nil
+	case strings.HasPrefix(s, "resource."):
+		return NewScopedAttribute(AttributeScopeResource, false, strings.TrimPrefix(s, "resource.")), nil
+	case strings.HasPrefix(s, "span."):
+		return NewScopedAttribute(AttributeScopeSpan, false, strings.TrimPrefix(s, "span.")), nil
+	default:
+		return Attribute{}, fmt.Errorf("tag name is not valid intrinsic or scoped attribute: %s", s)
+	}
+}
+
+func MustParseIdentifier(s string) Attribute {
+	a, err := ParseIdentifier(s)
+	if err != nil {
+		panic(err)
+	}
+	return a
+}
+
 // ParseError is what is returned when we failed to parse.
 type ParseError struct {
 	msg       string

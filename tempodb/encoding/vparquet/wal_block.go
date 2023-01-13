@@ -518,6 +518,16 @@ func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts c
 }
 
 func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
+	// Wrap to v2-style
+	cb2 := func(v traceql.Static) bool {
+		cb(v.EncodeToString(false))
+		return false
+	}
+
+	return b.SearchTagValuesV2(ctx, traceql.NewAttribute(tag), cb2, opts)
+}
+
+func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
 	for i, page := range b.flushed {
 		file, err := page.file()
 		if err != nil {
