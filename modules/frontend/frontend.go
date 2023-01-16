@@ -79,6 +79,7 @@ func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store stora
 
 	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)
+	// TODO: pass the prom metric here??
 	return &QueryFrontend{
 		TraceByID:        newHandler(traces, traceByIDCounter, logger),
 		Search:           newHandler(search, searchCounter, logger),

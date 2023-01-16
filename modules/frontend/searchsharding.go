@@ -30,21 +30,18 @@ const (
 )
 
 var (
-	metricInspectedBytes = promauto.NewHistogram(prometheus.HistogramOpts{
+	metricRequestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempo",
-		Name:      "query_frontend_result_metrics_inspected_bytes",
-		Help:      "Inspected Bytes in a search query",
-		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
-	})
-)
-
-var (
-	metricInspectedBytes = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:      "query_frontend_request_duration_seconds",
+		Help:      "Time taken to process the search query",
+		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
+	}, []string{"status_code"})
+	queryThroughput = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempo",
-		Name:      "query_frontend_result_metrics_inspected_bytes",
-		Help:      "Inspected Bytes in a search query",
+		Name:      "query_frontend_request_bytes_processed_per_seconds",
+		Help:      "Bytes processed per second in the search query",
 		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
-	})
+	}, []string{"status_code"})
 )
 
 type searchSharder struct {
@@ -87,8 +84,6 @@ func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchS
 // start=<unix epoch seconds>
 // end=<unix epoch seconds>
 func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
-	// create search related query metrics here??
-	// this is the place where we agg search response.
 	searchReq, err := api.ParseSearchRequest(r)
 	if err != nil {
 		return &http.Response{
@@ -111,6 +106,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardSearch")
 	defer span.Finish()
 
+	reqStart := time.Now() // time search request
 	// sub context to cancel in-progress sub requests
 	subCtx, subCancel := context.WithCancel(ctx)
 	defer subCancel()
@@ -225,13 +221,18 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// print out request metrics
 	cancelledReqs := startedReqs - overallResponse.finishedRequests
+	reqTime := time.Since(reqStart).Seconds()
+	throughput := float64(overallResponse.resultsMetrics.InspectedBytes) / reqTime
+
 	level.Info(s.logger).Log(
 		"msg", "sharded search query request stats",
 		"raw_query", r.URL.RawQuery,
-		"total", len(reqs),
-		"started", startedReqs,
-		"finished", overallResponse.finishedRequests,
-		"cancelled", cancelledReqs)
+		"duration_seconds", reqTime,
+		"request_throughput", throughput,
+		"total_requests", len(reqs),
+		"started_requests", startedReqs,
+		"finished_requests", overallResponse.finishedRequests,
+		"cancelled_requests", cancelledReqs)
 
 	// all goroutines have finished, we can safely access searchResults fields directly now
 	span.SetTag("inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks)
@@ -251,14 +252,14 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		"skippedTraces", overallResponse.resultsMetrics.SkippedTraces,
 		"totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
 
-	// Collect inspectedBytes metrics
-	metricInspectedBytes.Observe(float64(overallResponse.resultsMetrics.InspectedBytes))
-
 	if overallResponse.err != nil {
+		recordMetrics(http.StatusInternalServerError, reqTime, throughput)
+		// TODO: what happens when there is an error in round trip??
 		return nil, overallResponse.err
 	}
 
 	if overallResponse.statusCode != http.StatusOK {
+		recordMetrics(http.StatusInternalServerError, reqTime, throughput)
 		// translate all non-200s into 500s. if, for instance, we get a 400 back from an internal component
 		// it means that we created a bad request. 400 should not be propagated back to the user b/c
 		// the bad request was due to a bug on our side, so return 500 instead.
@@ -272,17 +273,27 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	m := &jsonpb.Marshaler{}
 	bodyString, err := m.MarshalToString(overallResponse.result())
 	if err != nil {
+		recordMetrics(http.StatusInternalServerError, reqTime, throughput)
 		return nil, err
 	}
 
+	statusCode := http.StatusOK
+	recordMetrics(statusCode, reqTime, throughput)
 	return &http.Response{
-		StatusCode: http.StatusOK,
+		StatusCode: statusCode,
 		Header: http.Header{
 			api.HeaderContentType: {api.HeaderAcceptJSON},
 		},
 		Body:          io.NopCloser(strings.NewReader(bodyString)),
 		ContentLength: int64(len([]byte(bodyString))),
 	}, nil
+}
+
+func recordMetrics(statusCode int, reqTime, throughput float64) {
+	// sc := string(statusCode)
+	sc := fmt.Sprint(statusCode)
+	metricRequestDuration.WithLabelValues(sc).Observe(reqTime)
+	queryThroughput.WithLabelValues(sc).Observe(throughput)
 }
 
 // blockMetas returns all relevant blockMetas given a start/end
