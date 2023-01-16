@@ -40,7 +40,10 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	sr := search.NewResults()
 	defer sr.Close()
 
-	i.searchLiveTraces(ctx, p, sr)
+	// skip live traces in TraceQL queries
+	if !api.IsTraceQLQuery(req) {
+		i.searchLiveTraces(ctx, p, sr)
+	}
 
 	// Lock blocks mutex until all search tasks have been created. This avoids
 	// deadlocking with other activity (ingest, flushing), caused by releasing
@@ -139,7 +142,7 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 
 // searchWAL starts a search task for every WAL block. Must be called under lock.
 func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p search.Pipeline, sr *search.Results) {
-	searchFunc := func(e *searchStreamingBlockEntry) {
+	searchFBEntry := func(e *searchStreamingBlockEntry) {
 		// flat-buffers search
 		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchWAL")
 		defer span.Finish()
@@ -202,9 +205,11 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 		go searchWalBlock(i.headBlock)
 	}
 
-	if i.searchHeadBlock != nil {
+	// skip flat-buffers search in TraceQL queries
+	// sanity check, vParquet blocks shouldn't have flat-buffers search blocks
+	if i.searchHeadBlock != nil && !api.IsTraceQLQuery(req) {
 		sr.StartWorker()
-		go searchFunc(i.searchHeadBlock)
+		go searchFBEntry(i.searchHeadBlock)
 	}
 
 	// completing blocks
@@ -213,42 +218,49 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 		go searchWalBlock(b)
 	}
 
-	for _, e := range i.searchAppendBlocks {
-		sr.StartWorker()
-		go searchFunc(e)
+	// skip flat-buffers search in TraceQL queries
+	// sanity check, vParquet blocks shouldn't have flat-buffers search blocks
+	if !api.IsTraceQLQuery(req) {
+		for _, e := range i.searchAppendBlocks {
+			sr.StartWorker()
+			go searchFBEntry(e)
+		}
 	}
 }
 
 // searchLocalBlocks starts a search task for every local block. Must be called under lock.
 func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchRequest, p search.Pipeline, sr *search.Results) {
-	// first check the searchCompleteBlocks map. if there is an entry for a block here we want to search it first
-	for _, e := range i.searchCompleteBlocks {
-		sr.StartWorker()
-		go func(e *searchLocalBlockEntry) {
-			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.fb.searchLocalBlocks")
-			defer span.Finish()
+	if !api.IsTraceQLQuery(req) { // Skip flat-buffers search in TraceQL queries
 
-			defer sr.FinishWorker()
+		// first check the searchCompleteBlocks map. if there is an entry for a block here we want to search it first
+		for _, e := range i.searchCompleteBlocks {
+			sr.StartWorker()
+			go func(e *searchLocalBlockEntry) {
+				span, ctx := opentracing.StartSpanFromContext(ctx, "instance.fb.searchLocalBlocks")
+				defer span.Finish()
 
-			e.mtx.RLock()
-			defer e.mtx.RUnlock()
+				defer sr.FinishWorker()
 
-			span.LogFields(ot_log.Event("local block entry mtx acquired"))
-			span.SetTag("blockID", e.b.BlockID().String())
+				e.mtx.RLock()
+				defer e.mtx.RUnlock()
 
-			// flat-buffers search
-			err := e.b.Search(ctx, p, sr)
-			if err != nil {
-				level.Error(log.Logger).Log("msg", "error searching local block", "blockID", e.b.BlockID().String(), "err", err)
-			}
-		}(e)
+				span.LogFields(ot_log.Event("local block entry mtx acquired"))
+				span.SetTag("blockID", e.b.BlockID().String())
+
+				// flat-buffers search
+				err := e.b.Search(ctx, p, sr)
+				if err != nil {
+					level.Error(log.Logger).Log("msg", "error searching local block", "blockID", e.b.BlockID().String(), "err", err)
+				}
+			}(e)
+		}
 	}
 
 	// next check all complete blocks to see if they were not searched, if they weren't then attempt to search them
 	for _, e := range i.completeBlocks {
-		_, ok := i.searchCompleteBlocks[e]
-		if ok {
+		if _, ok := i.searchCompleteBlocks[e]; ok && !api.IsTraceQLQuery(req) {
 			// no need to search this block, we already did above
+			// only applies to non-traceql queries
 			continue
 		}
 

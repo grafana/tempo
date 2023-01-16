@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -106,6 +107,9 @@ func TestAllInOne(t *testing.T) {
 			// flush trace to backend
 			callFlush(t, tempo)
 
+			// traceql search and verify trace is searchable once cut
+			util.SearchTraceQLAndAssertTrace(t, apiClient, info)
+
 			// sleep
 			time.Sleep(10 * time.Second)
 
@@ -115,7 +119,7 @@ func TestAllInOne(t *testing.T) {
 			// test metrics
 			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 			require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
-			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(4), "tempo_query_frontend_queries_total"))
+			require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(5), "tempo_query_frontend_queries_total"))
 
 			// query trace - should fetch from backend
 			queryAndAssertTrace(t, apiClient, info)
@@ -451,7 +455,7 @@ func callFlush(t *testing.T, ingester *e2e.HTTPService) {
 	fmt.Printf("Calling /flush on %s\n", ingester.Name())
 	res, err := e2e.DoGet("http://" + ingester.Endpoint(3200) + "/flush")
 	require.NoError(t, err)
-	require.Equal(t, 204, res.StatusCode)
+	require.Equal(t, http.StatusNoContent, res.StatusCode)
 }
 
 func callIngesterRing(t *testing.T, svc *e2e.HTTPService) {
@@ -459,7 +463,7 @@ func callIngesterRing(t *testing.T, svc *e2e.HTTPService) {
 	fmt.Printf("Calling %s on %s\n", endpoint, svc.Name())
 	res, err := e2e.DoGet("http://" + svc.Endpoint(3200) + endpoint)
 	require.NoError(t, err)
-	require.Equal(t, 200, res.StatusCode)
+	require.Equal(t, http.StatusOK, res.StatusCode)
 }
 
 func callCompactorRing(t *testing.T, svc *e2e.HTTPService) {
@@ -467,7 +471,7 @@ func callCompactorRing(t *testing.T, svc *e2e.HTTPService) {
 	fmt.Printf("Calling %s on %s\n", endpoint, svc.Name())
 	res, err := e2e.DoGet("http://" + svc.Endpoint(3200) + endpoint)
 	require.NoError(t, err)
-	require.Equal(t, 200, res.StatusCode)
+	require.Equal(t, http.StatusOK, res.StatusCode)
 }
 
 func callStatus(t *testing.T, svc *e2e.HTTPService) {
@@ -475,16 +479,13 @@ func callStatus(t *testing.T, svc *e2e.HTTPService) {
 	fmt.Printf("Calling %s on %s\n", endpoint, svc.Name())
 	res, err := e2e.DoGet("http://" + svc.Endpoint(3200) + endpoint)
 	require.NoError(t, err)
-	// body, err := ioutil.ReadAll(res.Body)
-	// require.NoError(t, err)
-	// t.Logf("body: %+v", string(body))
-	require.Equal(t, 200, res.StatusCode)
+	require.Equal(t, http.StatusOK, res.StatusCode)
 }
 
 func assertEcho(t *testing.T, url string) {
 	res, err := e2e.DoGet(url)
 	require.NoError(t, err)
-	require.Equal(t, 200, res.StatusCode)
+	require.Equal(t, http.StatusOK, res.StatusCode)
 	defer res.Body.Close()
 }
 

@@ -161,3 +161,13 @@ func (c *Client) QueryTrace(id string) (*tempopb.Trace, error) {
 
 	return m, nil
 }
+
+func (c *Client) SearchTraceQL(query string) (*tempopb.SearchResponse, error) {
+	m := &tempopb.SearchResponse{}
+	_, err := c.getFor(c.BaseURL+"/api/search?q="+url.QueryEscape(query), m)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
