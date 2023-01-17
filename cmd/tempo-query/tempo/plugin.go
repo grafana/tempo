@@ -2,16 +2,20 @@ package tempo
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-logfmt/logfmt"
 	"github.com/gogo/protobuf/jsonpb"
+	tlsCfg "github.com/grafana/dskit/crypto/tls"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
@@ -42,22 +46,128 @@ const (
 	numTracesSearchTag   = "limit"
 )
 
-type Backend struct {
-	tempoBackend string
+var tlsVersions = map[string]uint16{
+	"VersionTLS10": tls.VersionTLS10,
+	"VersionTLS11": tls.VersionTLS11,
+	"VersionTLS12": tls.VersionTLS12,
+	"VersionTLS13": tls.VersionTLS13,
 }
 
-func New(cfg *Config) *Backend {
+type Backend struct {
+	tempoBackend string
+	tlsEnabled   bool
+	tls          tlsCfg.ClientConfig
+	httpClient   *http.Client
+}
+
+func New(cfg *Config) (*Backend, error) {
+	httpClient, err := createHTTPClient(cfg)
+	if err != nil {
+		return nil, err
+	}
 	return &Backend{
 		tempoBackend: cfg.Backend,
+		tlsEnabled:   cfg.TLSEnabled,
+		tls:          cfg.TLS,
+		httpClient:   httpClient,
+	}, nil
+}
+
+func createHTTPClient(cfg *Config) (*http.Client, error) {
+	if !cfg.TLSEnabled {
+
+		return http.DefaultClient, nil
 	}
+
+	config := &tls.Config{
+		InsecureSkipVerify: cfg.TLS.InsecureSkipVerify,
+		ServerName:         cfg.TLS.ServerName,
+	}
+
+	// read ca certificates
+	if cfg.TLS.CAPath != "" {
+
+		caCert, err := os.ReadFile(cfg.TLS.CAPath)
+		if err != nil {
+			return nil, fmt.Errorf("error opening %s CA", cfg.TLS.CAPath)
+		}
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+		config.RootCAs = caCertPool
+	}
+	// read client certificate
+	if cfg.TLS.CertPath != "" || cfg.TLS.KeyPath != "" {
+		clientCert, err := tls.LoadX509KeyPair(cfg.TLS.CertPath, cfg.TLS.KeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("error opening %s , %s cert", cfg.TLS.CertPath, cfg.TLS.KeyPath)
+		}
+		config.Certificates = []tls.Certificate{clientCert}
+	}
+
+	if cfg.TLS.MinVersion != "" {
+		minVersion, ok := tlsVersions[cfg.TLS.MinVersion]
+		if !ok {
+			return nil, fmt.Errorf("unknown minimum TLS version: %q", cfg.TLS.MinVersion)
+		}
+		config.MinVersion = minVersion
+	}
+
+	if cfg.TLS.CipherSuites != "" {
+		cleanedCipherSuiteNames := strings.ReplaceAll(cfg.TLS.CipherSuites, " ", "")
+		cipherSuitesNames := strings.Split(cleanedCipherSuiteNames, ",")
+		cipherSuites, err := mapCipherNamesToIDs(cipherSuitesNames)
+		if err != nil {
+			return nil, err
+		}
+		config.CipherSuites = cipherSuites
+	}
+	transport := &http.Transport{TLSClientConfig: config}
+	return &http.Client{Transport: transport}, nil
+
+}
+
+func mapCipherNamesToIDs(cipherSuiteNames []string) ([]uint16, error) {
+	cipherSuites := []uint16{}
+	allCipherSuites := tlsCipherSuites()
+
+	for _, name := range cipherSuiteNames {
+		id, ok := allCipherSuites[name]
+		if !ok {
+			return nil, fmt.Errorf("unsupported cipher suite: %q", name)
+		}
+		cipherSuites = append(cipherSuites, id)
+	}
+
+	return cipherSuites, nil
+}
+
+func tlsCipherSuites() map[string]uint16 {
+	cipherSuites := map[string]uint16{}
+
+	for _, suite := range tls.CipherSuites() {
+		cipherSuites[suite.Name] = suite.ID
+	}
+	for _, suite := range tls.InsecureCipherSuites() {
+		cipherSuites[suite.Name] = suite.ID
+	}
+
+	return cipherSuites
 }
 
 func (b *Backend) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]jaeger.DependencyLink, error) {
 	return nil, nil
 }
 
+func (b *Backend) apiSchema() string {
+	if b.tlsEnabled {
+		return "https"
+	}
+	return "http"
+}
+
 func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger.Trace, error) {
-	url := fmt.Sprintf("http://%s/api/traces/%s", b.tempoBackend, traceID)
+
+	url := fmt.Sprintf("%s://%s/api/traces/%s", b.apiSchema(), b.tempoBackend, traceID)
 
 	span, ctx := opentracing.StartSpanFromContext(ctx, "tempo-query.GetTrace")
 	defer span.Finish()
@@ -70,7 +180,7 @@ func (b *Backend) GetTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 	// Set content type to GRPC
 	req.Header.Set(AcceptHeaderKey, ProtobufTypeHeaderValue)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := b.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed GET to tempo %w", err)
 	}
@@ -183,7 +293,7 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 	defer span.Finish()
 
 	url := url.URL{
-		Scheme: "http",
+		Scheme: b.apiSchema(),
 		Host:   b.tempoBackend,
 		Path:   "api/search",
 	}
@@ -211,7 +321,7 @@ func (b *Backend) FindTraceIDs(ctx context.Context, query *jaeger_spanstore.Trac
 		return nil, err
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := b.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed GET to tempo %w", err)
 	}
@@ -272,14 +382,14 @@ func createTagsQueryParam(service string, operation string, tags map[string]stri
 }
 
 func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, tagName string) ([]string, error) {
-	url := fmt.Sprintf("http://%s/api/search/tag/%s/values", b.tempoBackend, tagName)
+	url := fmt.Sprintf("%s://%s/api/search/tag/%s/values", b.apiSchema(), b.tempoBackend, tagName)
 
 	req, err := b.newGetRequest(ctx, url, span)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := b.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed GET to tempo %w", err)
 	}

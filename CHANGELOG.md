@@ -1,4 +1,5 @@
 ## main / unreleased
+* [FEATURE] Add TLS support to jaeger query plugin. [#1999](https://github.com/grafana/tempo/pull/1999) (@rubenvp8510)
 * [ENHANCEMENT] Add support for TraceQL in Parquet WAL and Local Blocks. [#1966](https://github.com/grafana/tempo/pull/1966) (@electron0zero)
 * [ENHANCEMENT] Add new data-type aware searchtagvalues v2 api [#1956](https://github.com/grafana/tempo/pull/1956) (@mdisibio)
 * [CHANGE] Collect inspectedBytes from SearchMetrics [#1975](https://github.com/grafana/tempo/pull/1975) (@electron0zero)

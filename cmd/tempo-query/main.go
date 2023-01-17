@@ -53,7 +53,10 @@ func main() {
 	cfg := &tempo.Config{}
 	cfg.InitFromViper(v)
 
-	backend := tempo.New(cfg)
+	backend, err := tempo.New(cfg)
+	if err != nil {
+		logger.Error("failed to init tracer backend", "error", err)
+	}
 	plugin := &plugin{backend: backend}
 	grpc.ServeWithGRPCServer(&shared.PluginServices{
 		Store: plugin,
