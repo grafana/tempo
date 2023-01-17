@@ -2,7 +2,6 @@ package tempo
 
 import (
 	"github.com/grafana/dskit/crypto/tls"
-
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/spf13/viper"
 )
