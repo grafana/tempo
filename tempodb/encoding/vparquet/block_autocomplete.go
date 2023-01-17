@@ -41,8 +41,8 @@ func fetchSeries(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet
 		// If no-scoped intrinsic then assign default scope
 		scope := cond.Attribute.Scope
 		if cond.Attribute.Scope == traceql.AttributeScopeNone {
-			if defscope, ok := intrinsicDefaultScope[cond.Attribute.Intrinsic]; ok {
-				scope = defscope
+			if lookup, ok := intrinsicColumnLookups[cond.Attribute.Intrinsic]; ok {
+				scope = lookup.scope
 			}
 		}
 
