@@ -2,6 +2,7 @@ package parquetquery
 
 import (
 	"bytes"
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -11,6 +12,8 @@ import (
 // Predicate is a pushdown predicate that can be applied at
 // the chunk, page, and value levels.
 type Predicate interface {
+	fmt.Stringer
+
 	KeepColumnChunk(cc pq.ColumnChunk) bool
 	KeepPage(page pq.Page) bool
 	KeepValue(pq.Value) bool
@@ -34,6 +37,14 @@ func NewStringInPredicate(ss []string) Predicate {
 		p.ss[i] = []byte(ss[i])
 	}
 	return p
+}
+
+func (p *StringInPredicate) String() string {
+	var strings string
+	for _, s := range p.ss {
+		strings += fmt.Sprintf("%s, ", string(s))
+	}
+	return fmt.Sprintf("StringInPredicate{%s}", strings)
 }
 
 func (p *StringInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
@@ -97,6 +108,14 @@ func NewRegexInPredicate(regs []string) (*RegexInPredicate, error) {
 	return p, nil
 }
 
+func (p *RegexInPredicate) String() string {
+	var strings string
+	for _, s := range p.regs {
+		strings += fmt.Sprintf("%s, ", s.String())
+	}
+	return fmt.Sprintf("RegexInPredicate{%s}", strings)
+}
+
 func (p *RegexInPredicate) keep(v *pq.Value) bool {
 	if v.IsNull() {
 		// Null
@@ -154,6 +173,10 @@ func NewSubstringPredicate(substring string) *SubstringPredicate {
 	}
 }
 
+func (p *SubstringPredicate) String() string {
+	return fmt.Sprintf("SubstringPredicate{%s}", p.substring)
+}
+
 func (p *SubstringPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 	p.helper.setNewRowGroup()
 
@@ -190,6 +213,10 @@ var _ Predicate = (*IntBetweenPredicate)(nil)
 
 func NewIntBetweenPredicate(min, max int64) *IntBetweenPredicate {
 	return &IntBetweenPredicate{min, max}
+}
+
+func (p *IntBetweenPredicate) String() string {
+	return fmt.Sprintf("IntBetweenPredicate{%d,%d}", p.min, p.max)
 }
 
 func (p *IntBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
@@ -237,6 +264,10 @@ var _ Predicate = (*GenericPredicate[int64])(nil)
 
 func NewGenericPredicate[T any](fn func(T) bool, rangeFn func(T, T) bool, extract func(pq.Value) T) *GenericPredicate[T] {
 	return &GenericPredicate[T]{Fn: fn, RangeFn: rangeFn, Extract: extract}
+}
+
+func (p *GenericPredicate[T]) String() string {
+	return fmt.Sprintf("GenericPredicate{}")
 }
 
 func (p *GenericPredicate[T]) KeepColumnChunk(c pq.ColumnChunk) bool {
@@ -307,6 +338,10 @@ func NewFloatBetweenPredicate(min, max float64) *FloatBetweenPredicate {
 	return &FloatBetweenPredicate{min, max}
 }
 
+func (p *FloatBetweenPredicate) String() string {
+	return fmt.Sprintf("FloatBetweenPredicate{%f,%f}", p.min, p.max)
+}
+
 func (p *FloatBetweenPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
 
 	if ci := c.ColumnIndex(); ci != nil {
@@ -345,6 +380,14 @@ func NewOrPredicate(preds ...Predicate) *OrPredicate {
 	return &OrPredicate{
 		preds: preds,
 	}
+}
+
+func (p *OrPredicate) String() string {
+	var preds string
+	for _, pred := range p.preds {
+		preds += pred.String() + ","
+	}
+	return fmt.Sprintf("OrPredicate{%s}", p.preds)
 }
 
 func (p *OrPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
@@ -402,6 +445,13 @@ type InstrumentedPredicate struct {
 }
 
 var _ Predicate = (*InstrumentedPredicate)(nil)
+
+func (p *InstrumentedPredicate) String() string {
+	if p.pred == nil {
+		return fmt.Sprintf("InstrumentedPredicate{%d, nil}", p.InspectedValues)
+	}
+	return fmt.Sprintf("InstrumentedPredicate{%d, %s}", p.InspectedValues, p.pred)
+}
 
 func (p *InstrumentedPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
 	p.InspectedColumnChunks++
@@ -487,6 +537,10 @@ var _ Predicate = (*SkipNilsPredicate)(nil)
 
 func NewSkipNilsPredicate() *SkipNilsPredicate {
 	return &SkipNilsPredicate{}
+}
+
+func (p *SkipNilsPredicate) String() string {
+	return "SkipNilsPredicate{}"
 }
 
 func (p *SkipNilsPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {

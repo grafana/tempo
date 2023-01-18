@@ -2,6 +2,7 @@ package vparquet
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
@@ -88,6 +89,10 @@ type spanMetaCollector struct {
 }
 
 var _ parquetquery.GroupPredicate = (*spanMetaCollector)(nil)
+
+func (c *spanMetaCollector) String() string {
+	return fmt.Sprintf("spanMetaCollector(%d, %v)", c.minAttributes, c.durationFilters)
+}
 
 // jpe - how do we restrict to 3 spans per trace?
 func (c *spanMetaCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
@@ -181,6 +186,10 @@ type traceMetaCollector struct {
 }
 
 var _ parquetquery.GroupPredicate = (*traceMetaCollector)(nil)
+
+func (c *traceMetaCollector) String() string {
+	return "traceMetaCollector{}"
+}
 
 func (c *traceMetaCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	finalSpanset := &traceql.SpansetMetadata{}

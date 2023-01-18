@@ -375,6 +375,10 @@ type rowNumberIterator struct {
 
 var _ pq.Iterator = (*rowNumberIterator)(nil)
 
+func (r *rowNumberIterator) String() string {
+	return "rowNumberIterator()"
+}
+
 func (r *rowNumberIterator) Next() (*pq.IteratorResult, error) {
 	if len(r.rowNumbers) == 0 {
 		return nil, nil
@@ -405,6 +409,10 @@ type reportValuesPredicate struct {
 
 func newReportValuesPredicate(cb common.TagCallbackV2) *reportValuesPredicate {
 	return &reportValuesPredicate{cb: cb}
+}
+
+func (r *reportValuesPredicate) String() string {
+	return "reportValuesPredicate{}"
 }
 
 // KeepColumnChunk always returns true b/c we always have to dig deeper to find all values

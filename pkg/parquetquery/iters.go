@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	pq "github.com/segmentio/parquet-go"
@@ -184,6 +185,8 @@ func (r *IteratorResult) Columns(buffer [][]pq.Value, names ...string) [][]pq.Va
 
 // iterator - Every iterator follows this interface and can be composed.
 type Iterator interface {
+	fmt.Stringer
+
 	// Next returns nil when done
 	Next() (*IteratorResult, error)
 
@@ -286,6 +289,10 @@ func NewColumnIterator(ctx context.Context, rgs []pq.RowGroup, column int, colum
 
 	c.iter = func() { c.iterate(ctx, readSize) }
 	return c
+}
+
+func (c *ColumnIterator) String() string {
+	return fmt.Sprintf("ColumnIterator: %s \n\t%s", c.colName, util.TabOut(c.filter))
 }
 
 func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
@@ -577,6 +584,14 @@ func NewJoinIterator(definitionLevel int, iters []Iterator, pred GroupPredicate)
 	return &j
 }
 
+func (j *JoinIterator) String() string {
+	var iters string
+	for _, iter := range j.iters {
+		iters += "\n\t" + util.TabOut(iter)
+	}
+	return fmt.Sprintf("JoinIterator: %d\n\t%s\n%s)", j.definitionLevel, iters, j.pred)
+}
+
 func (j *JoinIterator) Next() (*IteratorResult, error) {
 	// Here is the algorithm for joins:  On each pass of the iterators
 	// we remember which ones are pointing at the earliest rows. If all
@@ -737,6 +752,18 @@ func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pre
 		pred:            pred,
 	}
 	return &j
+}
+
+func (j *LeftJoinIterator) String() string {
+	srequired := "required: "
+	for _, r := range j.required {
+		srequired += "\n\t\t" + util.TabOut(r)
+	}
+	soptional := "optional: "
+	for _, o := range j.optional {
+		soptional += "\n\t\t" + util.TabOut(o)
+	}
+	return fmt.Sprintf("LeftJoinIterator: %d\n\t%s\n\t%s\n\t%s", j.definitionLevel, srequired, soptional, j.pred)
 }
 
 func (j *LeftJoinIterator) Next() (*IteratorResult, error) {
@@ -926,6 +953,14 @@ func NewUnionIterator(definitionLevel int, iters []Iterator, pred GroupPredicate
 	return &j
 }
 
+func (u *UnionIterator) String() string {
+	var iters string
+	for _, iter := range u.iters {
+		iters += iter.String() + ", "
+	}
+	return fmt.Sprintf("UnionIterator(%s)", iters)
+}
+
 func (u *UnionIterator) Next() (*IteratorResult, error) {
 	// Here is the algorithm for unions:  On each pass of the iterators
 	// we remember which ones are pointing at the earliest same row. The
@@ -1040,6 +1075,8 @@ func (u *UnionIterator) Close() {
 }
 
 type GroupPredicate interface {
+	fmt.Stringer
+
 	KeepGroup(*IteratorResult) bool
 }
 
@@ -1066,6 +1103,18 @@ func NewKeyValueGroupPredicate(keys, values []string) *KeyValueGroupPredicate {
 		p.vals = append(p.vals, []byte(v))
 	}
 	return p
+}
+
+func (a *KeyValueGroupPredicate) String() string {
+	var skeys []string
+	var svals []string
+	for _, k := range a.keys {
+		skeys = append(skeys, string(k))
+	}
+	for _, v := range a.vals {
+		svals = append(svals, string(v))
+	}
+	return fmt.Sprintf("KeyValueGroupPredicate{%v, %v}", skeys, svals)
 }
 
 // KeepGroup checks if the given group contains all of the requested

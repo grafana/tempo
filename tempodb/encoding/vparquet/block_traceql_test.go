@@ -2,6 +2,7 @@ package vparquet
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"testing"
 	"time"
@@ -28,12 +29,18 @@ func TestOne(t *testing.T) {
 	resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
 	require.NoError(t, err, "search request:", req)
 
+	fmt.Println("-----------")
+	fmt.Println(req.Query)
+	fmt.Println("-----------")
+	fmt.Println(resp.Results.(*spansetIterator).iter)
+
 	spanSet, err := resp.Results.Next(ctx)
 	require.NoError(t, err, "search request:", req)
-	require.NotNil(t, spanSet, "search request:", req)
+
+	fmt.Println("-----------")
+	fmt.Println(spanSet)
 }
 
-// jpe everywhere that metadata was removed needs an equivalent test
 func TestBackendBlockSearchTraceQL(t *testing.T) {
 	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})

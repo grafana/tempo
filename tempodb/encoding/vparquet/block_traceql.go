@@ -415,8 +415,8 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 			}
 			durationPredicates = append(durationPredicates, pred)
 			addPredicate(columnPathSpanStartTime, nil)
+			columnSelectAs[columnPathSpanStartTime] = columnPathSpanStartTime
 			addPredicate(columnPathSpanEndTime, nil)
-			columnSelectAs[columnPathSpanStartTime] = columnPathSpanStartTime // jpe what does this do?
 			columnSelectAs[columnPathSpanEndTime] = columnPathSpanEndTime
 			continue
 
@@ -455,7 +455,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 	}
 
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
-		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool)
+		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool, allConditions)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span attribute iterator")
 	}
@@ -464,7 +464,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 	}
 
 	for columnPath, predicates := range columnPredicates {
-		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
+		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath])) // jpe why is this OR?
 	}
 
 	var required []parquetquery.Iterator
@@ -558,7 +558,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	}
 
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceAttrs,
-		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
+		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool, allConditions)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span attribute iterator")
 	}
@@ -836,6 +836,7 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition,
 	definitionLevel int,
 	keyPath, strPath, intPath, floatPath, boolPath string,
+	allConditions bool,
 ) (parquetquery.Iterator, error) {
 	var (
 		attrKeys        = []string{}
@@ -907,6 +908,15 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 	if len(valueIters) > 0 {
 		// LeftJoin means only look at rows where the key is what we want.
 		// Bring in any of the typed values as needed.
+
+		// if all conditions must be true we can use a simple join iterator to test the values one column at a time.
+		if allConditions {
+			iters := append([]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")}, valueIters...)
+			return parquetquery.NewJoinIterator(definitionLevel,
+				iters,
+				&attributeCollector{}), nil
+		}
+
 		return parquetquery.NewLeftJoinIterator(definitionLevel,
 			[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
 			valueIters,
@@ -925,6 +935,10 @@ type spanCollector struct {
 var _ parquetquery.GroupPredicate = (*spanCollector)(nil)
 
 // jpe - how do we restrict to 3 spans per trace?
+func (c *spanCollector) String() string {
+	return fmt.Sprintf("spanCollector(%d, %v)", c.minAttributes, c.durationFilters)
+}
+
 func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	span := &traceql.Span{
@@ -1023,6 +1037,10 @@ type batchCollector struct {
 
 var _ parquetquery.GroupPredicate = (*batchCollector)(nil)
 
+func (c *batchCollector) String() string {
+	return fmt.Sprintf("batchCollector{%v, %d}", c.requireAtLeastOneMatchOverall, c.minAttributes)
+}
+
 func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	// TODO - This wraps everything up in a spanset per batch.
@@ -1118,6 +1136,10 @@ type traceCollector struct {
 
 var _ parquetquery.GroupPredicate = (*traceCollector)(nil)
 
+func (c *traceCollector) String() string {
+	return "traceCollector{}"
+}
+
 func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	finalSpanset := &traceql.Spanset{}
 
@@ -1141,6 +1163,10 @@ type attributeCollector struct {
 }
 
 var _ parquetquery.GroupPredicate = (*attributeCollector)(nil)
+
+func (c *attributeCollector) String() string {
+	return "attributeCollector{}"
+}
 
 func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
