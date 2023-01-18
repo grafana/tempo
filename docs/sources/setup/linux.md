@@ -83,23 +83,15 @@ server:
   http_listen_port: 3200
 
 distributor:
-  receivers:                   # this configuration will listen on all ports and protocols that tempo is capable of.
+  receivers:                   
       otlp:
         protocols:
           http:
           grpc:
 
-ingester:
-  trace_idle_period: 10s           # the length of time after a trace has not received spans to consider it complete and flush it
-  max_block_bytes: 1_000_000       # cut the head block when it hits this size or ...
-  max_block_duration: 5m           #   this much time passes
-
 compactor:
   compaction:
-    compaction_window: 1h          # blocks in this time window will be compacted together
-    max_block_bytes: 100_000_000     # maximum size of compacted blocks
-    block_retention: 1h
-    compacted_block_retention: 10m
+    block_retention: 48h                # configure total trace retention here
 
 metrics_generator:
   registry:
@@ -123,18 +115,10 @@ storage:
       insecure: true
       access_key: # TODO - Add S3 access key
       secret_key: # TODO - Add S3 secret key
-    block:
-      bloom_filter_false_positive: .05 # bloom filter false positive rate.  lower values create larger filters but fewer false positives
-      v2_index_downsample_bytes: 1000   # number of bytes per index record
-      v2_encoding: zstd             # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
     wal:
       path: /tmp/tempo/wal         # where to store the the wal locally
-      v2_encoding: snappy           # wal encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
     local:
       path: /tmp/tempo/blocks
-    pool:
-      max_workers: 100           # worker pool determines the number of parallel requests to the object store backend
-      queue_depth: 10000
 overrides:
   metrics_generator_processors: [service-graphs, span-metrics]
 ```

@@ -21,7 +21,7 @@ ingester:
 
 compactor:
   compaction:
-    block_retention: 1h                # overall Tempo trace retention is set to 1h. this is being set for demo purposes and should probably be left alone normally
+    block_retention: 1h                # overall Tempo trace retention. set for demo purposes
 
 metrics_generator:
   registry:

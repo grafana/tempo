@@ -21,7 +21,7 @@ ingester:
 
 compactor:
   compaction:
-    block_retention: 1h
+    block_retention: 1h                # overall Tempo trace retention. set for demo purposes
 
 memberlist:
   abort_if_cluster_join_fails: false
