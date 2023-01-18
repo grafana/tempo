@@ -77,7 +77,6 @@ In the following configuration, Tempo options are altered to only listen to the 
 By default, Tempo listens for all compatible protocols.
 The [extended instructions for installing the TNS application]({{< relref "../linux" >}}) and Grafana Agent to verify that Tempo is receiving traces, relies on the default Jaeger port being available. If Tempo were also attempting to listen on the same port as the Grafana Agent for Jaeger, then Tempo would not start due a port conflict, hence we disable listening on that port in Tempo for a single Linux node.
 
-// jpe - find all config blocks like this and clean up
 ```yaml
 server:
   http_listen_port: 3200
