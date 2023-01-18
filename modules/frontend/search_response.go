@@ -68,9 +68,10 @@ func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
 	defer r.mtx.Unlock()
 
 	for _, t := range res.Traces {
-		// todo: determine a better way to combine?
 		if _, ok := r.resultsMap[t.TraceID]; !ok {
 			r.resultsMap[t.TraceID] = t
+		} else {
+			coalesce(r.resultsMap[t.TraceID], t)
 		}
 	}
 
@@ -138,4 +139,15 @@ func (r *searchResponse) result() *tempopb.SearchResponse {
 	})
 
 	return res
+}
+
+// coalesce combines two trace search metadata objects into one by taking the earliest start time and longest duration
+func coalesce(a, b *tempopb.TraceSearchMetadata) {
+	// Take min start time and max duration
+	if a.StartTimeUnixNano > b.StartTimeUnixNano {
+		a.StartTimeUnixNano = b.StartTimeUnixNano
+	}
+	if a.DurationMs < b.DurationMs {
+		a.DurationMs = b.DurationMs
+	}
 }
