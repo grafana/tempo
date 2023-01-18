@@ -150,4 +150,5 @@ func coalesce(a, b *tempopb.TraceSearchMetadata) {
 	if a.DurationMs < b.DurationMs {
 		a.DurationMs = b.DurationMs
 	}
+	// TODO: Merge spansets?
 }
