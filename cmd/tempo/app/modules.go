@@ -171,8 +171,15 @@ func (t *App) initGenerator() (services.Service, error) {
 	}
 	t.generator = generator
 
-	tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC, t.generator)
-	return t.generator, nil
+	var service services.Service
+	if generator != nil {
+		tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC, t.generator)
+		service = t.generator
+	} else {
+		service = services.NewIdleService(nil, nil)
+	}
+
+	return service, nil
 }
 
 func (t *App) initQuerier() (services.Service, error) {
