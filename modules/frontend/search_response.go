@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/tempodb/search"
 )
 
 // searchResponse is a thread safe struct used to aggregate the responses from all downstream
@@ -71,7 +72,7 @@ func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
 		if _, ok := r.resultsMap[t.TraceID]; !ok {
 			r.resultsMap[t.TraceID] = t
 		} else {
-			coalesce(r.resultsMap[t.TraceID], t)
+			search.CombineSearchResults(r.resultsMap[t.TraceID], t)
 		}
 	}
 
@@ -139,16 +140,4 @@ func (r *searchResponse) result() *tempopb.SearchResponse {
 	})
 
 	return res
-}
-
-// coalesce combines two trace search metadata objects into one by taking the earliest start time and longest duration
-func coalesce(a, b *tempopb.TraceSearchMetadata) {
-	// Take min start time and max duration
-	if a.StartTimeUnixNano > b.StartTimeUnixNano {
-		a.StartTimeUnixNano = b.StartTimeUnixNano
-	}
-	if a.DurationMs < b.DurationMs {
-		a.DurationMs = b.DurationMs
-	}
-	// TODO: Merge spansets?
 }

@@ -163,7 +163,7 @@ func TestCancelFuncEvents(t *testing.T) {
 	assert.True(t, called)                  // addResponse calls cancelFunc (without calling shouldQuit)
 }
 
-func TestSearchResponseCoalesce(t *testing.T) {
+func TestSearchResponseCombineResults(t *testing.T) {
 	start := time.Date(1, 2, 3, 4, 5, 6, 7, time.UTC)
 	traceID := "traceID"
 
