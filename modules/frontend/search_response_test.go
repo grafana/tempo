@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/assert"
@@ -48,7 +49,7 @@ func TestSearchResponseShouldQuit(t *testing.T) {
 	sr.addResponse(&tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
-				TraceID: "samething",
+				TraceID: "something",
 			},
 		},
 		Metrics: &tempopb.SearchMetrics{},
@@ -57,10 +58,10 @@ func TestSearchResponseShouldQuit(t *testing.T) {
 	sr.addResponse(&tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
-				TraceID: "samething",
+				TraceID: "something",
 			},
 			{
-				TraceID: "samething",
+				TraceID: "something",
 			},
 		},
 		Metrics: &tempopb.SearchMetrics{},
@@ -128,7 +129,7 @@ func TestCancelFuncEvents(t *testing.T) {
 	sr.addResponse(&tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
-				TraceID: "samething",
+				TraceID: "something",
 			},
 		},
 		Metrics: &tempopb.SearchMetrics{},
@@ -142,7 +143,7 @@ func TestCancelFuncEvents(t *testing.T) {
 	sr.addResponse(&tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
-				TraceID: "samething",
+				TraceID: "something",
 			},
 		},
 		Metrics: &tempopb.SearchMetrics{},
@@ -153,11 +154,48 @@ func TestCancelFuncEvents(t *testing.T) {
 	sr.addResponse(&tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
-				TraceID: "samething else", // needs unique traceID to hit limits
+				TraceID: "something else", // needs unique traceID to hit limits
 			},
 		},
 		Metrics: &tempopb.SearchMetrics{},
 	})
 	assert.True(t, sr.internalShouldQuit()) // internalShouldQuit should return true
 	assert.True(t, called)                  // addResponse calls cancelFunc (without calling shouldQuit)
+}
+
+func TestSearchResponseCombineResults(t *testing.T) {
+	start := time.Date(1, 2, 3, 4, 5, 6, 7, time.UTC)
+	traceID := "traceID"
+
+	sr := newSearchResponse(context.Background(), 10, func() {})
+	sr.addResponse(&tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:           traceID,
+				StartTimeUnixNano: uint64(start.Add(time.Second).UnixNano()),
+				DurationMs:        uint32(time.Second.Milliseconds()),
+			}, // 1 second after start and shorter duration
+			{
+				TraceID:           traceID,
+				StartTimeUnixNano: uint64(start.UnixNano()),
+				DurationMs:        uint32(time.Hour.Milliseconds()),
+			}, // earliest start time and longer duration
+			{
+				TraceID:           traceID,
+				StartTimeUnixNano: uint64(start.Add(time.Hour).UnixNano()),
+				DurationMs:        uint32(time.Millisecond.Milliseconds()),
+			}, // 1 hour after start and shorter duration
+		},
+		Metrics: &tempopb.SearchMetrics{},
+	})
+
+	expected := &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{TraceID: traceID, StartTimeUnixNano: uint64(start.UnixNano()), DurationMs: uint32(time.Hour.Milliseconds())},
+		},
+		Metrics: &tempopb.SearchMetrics{},
+	}
+
+	assert.Equal(t, expected, sr.result())
+
 }

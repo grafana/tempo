@@ -49,7 +49,7 @@ func GetSearchResultFromData(s *tempofb.SearchEntry) *tempopb.TraceSearchMetadat
 	}
 }
 
-// CombineResults overlays the incoming search result with the existing result. This is required
+// CombineSearchResults overlays the incoming search result with the existing result. This is required
 // for the following reason:  a trace may be present in multiple blocks, or in partial segments
 // in live traces.  The results should reflect elements of all segments.
 func CombineSearchResults(existing *tempopb.TraceSearchMetadata, incoming *tempopb.TraceSearchMetadata) {
