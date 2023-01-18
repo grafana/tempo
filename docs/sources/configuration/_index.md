@@ -230,13 +230,6 @@ For more information on configuration options, see [here](https://github.com/gra
 
 The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
 
-The metrics-generator is an optional component, it can be enabled by setting the following top-level setting.
-In microservices mode, it must be set for the distributors and the metrics-generators.
-
-```yaml
-metrics_generator_enabled: true
-```
-
 Metrics-generator processors are disabled by default. To enable it for a specific tenant set `metrics_generator_processors` in the [overrides](#overrides) section.
 
 ```yaml

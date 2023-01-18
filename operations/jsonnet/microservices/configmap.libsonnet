@@ -3,7 +3,6 @@
   local configMap = k.core.v1.configMap,
 
   tempo_config:: {
-    metrics_generator_enabled: $._config.metrics_generator_enabled,
     http_api_prefix: $._config.http_api_prefix,
 
     server: {

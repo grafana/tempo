@@ -16,7 +16,6 @@ data:
     metrics_generator:
         storage:
             path: /var/tempo/generator_wal
-    metrics_generator_enabled: false
     overrides:
         per_tenant_override_config: /overrides/overrides.yaml
     server:

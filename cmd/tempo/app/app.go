@@ -51,9 +51,8 @@ var (
 		nil,
 	)
 
-	statFeatureEnabledMetricsGenerator = usagestats.NewInt("feature_enabled_metrics_generator")
-	statFeatureEnabledAuth             = usagestats.NewInt("feature_enabled_auth_stats")
-	statFeatureEnabledMultitenancy     = usagestats.NewInt("feature_enabled_multitenancy")
+	statFeatureEnabledAuth         = usagestats.NewInt("feature_enabled_auth_stats")
+	statFeatureEnabledMultitenancy = usagestats.NewInt("feature_enabled_multitenancy")
 )
 
 // App is the root datastructure.
@@ -93,11 +92,6 @@ func New(cfg Config) (*App, error) {
 	statFeatureEnabledAuth.Set(0)
 	if cfg.AuthEnabled {
 		statFeatureEnabledAuth.Set(1)
-	}
-
-	statFeatureEnabledMetricsGenerator.Set(0)
-	if cfg.MetricsGeneratorEnabled {
-		statFeatureEnabledMetricsGenerator.Set(1)
 	}
 
 	statFeatureEnabledMultitenancy.Set(0)

@@ -20,7 +20,6 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/tmp
 
 ```yaml
 target: all
-metrics_generator_enabled: false
 http_api_prefix: ""
 server:
   http_listen_network: tcp

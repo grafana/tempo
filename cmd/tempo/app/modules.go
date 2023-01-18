@@ -132,7 +132,7 @@ func (t *App) initOverrides() (services.Service, error) {
 
 func (t *App) initDistributor() (services.Service, error) {
 	// todo: make ingester client a module instead of passing the config everywhere
-	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.cfg.GeneratorClient, t.generatorRing, t.overrides, t.TracesConsumerMiddleware, log.Logger, t.cfg.Server.LogLevel, t.cfg.MetricsGeneratorEnabled, prometheus.DefaultRegisterer)
+	distributor, err := distributor.New(t.cfg.Distributor, t.cfg.IngesterClient, t.ring, t.cfg.GeneratorClient, t.generatorRing, t.overrides, t.TracesConsumerMiddleware, log.Logger, t.cfg.Server.LogLevel, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create distributor %w", err)
 	}
@@ -405,21 +405,14 @@ func (t *App) setupModuleManager() error {
 		QueryFrontend:        {Store, Server, Overrides, UsageReport},
 		Ring:                 {Server, MemberlistKV},
 		MetricsGeneratorRing: {Server, MemberlistKV},
-		Distributor:          {Ring, Server, Overrides, UsageReport},
+		Distributor:          {Ring, Server, Overrides, UsageReport, MetricsGeneratorRing},
 		Ingester:             {Store, Server, Overrides, MemberlistKV, UsageReport},
 		MetricsGenerator:     {Server, Overrides, MemberlistKV, UsageReport},
 		Querier:              {Store, Ring, Overrides, UsageReport},
 		Compactor:            {Store, Server, Overrides, MemberlistKV, UsageReport},
-		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor},
+		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
 		ScalableSingleBinary: {SingleBinary},
 		UsageReport:          {MemberlistKV},
-	}
-
-	if t.cfg.MetricsGeneratorEnabled {
-		// If metrics-generator is enabled, the distributor needs the metrics-generator ring
-		deps[Distributor] = append(deps[Distributor], MetricsGeneratorRing)
-		// Add the metrics generator as dependency for when target is {,scalable-}single-binary
-		deps[SingleBinary] = append(deps[SingleBinary], MetricsGenerator)
 	}
 
 	for mod, targets := range deps {
