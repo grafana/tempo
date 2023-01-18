@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,18 +31,18 @@ const (
 )
 
 var (
-	metricRequestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	searchThroughput = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempo",
-		Name:      "query_frontend_request_duration_seconds",
-		Help:      "Time taken to process the search query",
-		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
-	}, []string{"status_code"})
-	queryThroughput = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "query_frontend_request_bytes_processed_per_seconds",
+		Name:      "query_frontend_search_bytes_processed_per_seconds",
 		Help:      "Bytes processed per second in the search query",
 		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
-	}, []string{"status_code"})
+	}, []string{"status"})
+
+	sloPerTenant = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "query_frontend_search_queries_within_slo_total",
+		Help:      "Total search queries within SLO per tenant",
+	}, []string{"status"})
 )
 
 type searchSharder struct {
@@ -221,8 +222,21 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// print out request metrics
 	cancelledReqs := startedReqs - overallResponse.finishedRequests
-	reqTime := time.Since(reqStart).Seconds()
-	throughput := float64(overallResponse.resultsMetrics.InspectedBytes) / reqTime
+	reqTime := time.Since(reqStart)
+	throughput := float64(overallResponse.resultsMetrics.InspectedBytes) / reqTime.Seconds()
+
+	statusCode := http.StatusInternalServerError    // by default, return 500 on errors
+	defer func(status int, reqTime time.Duration) { // record throughput metrics
+		s := strconv.Itoa(status)
+		// orgID, _ := user.ExtractOrgID(ctx)
+		searchThroughput.WithLabelValues(s).Observe(throughput)
+		b := reqTime < (1 * time.Second) // hardcode it for now
+		t := throughput > 1*1024*1024    // 1MB/s throughput
+		if b || t {
+			// we are within SLO if query returned within x seconds or processed y bytes/s data
+			sloPerTenant.WithLabelValues(s).Inc()
+		}
+	}(statusCode, reqTime)
 
 	level.Info(s.logger).Log(
 		"msg", "sharded search query request stats",
@@ -253,18 +267,15 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		"totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
 
 	if overallResponse.err != nil {
-		recordMetrics(http.StatusInternalServerError, reqTime, throughput)
-		// TODO: what happens when there is an error in round trip??
 		return nil, overallResponse.err
 	}
 
 	if overallResponse.statusCode != http.StatusOK {
-		recordMetrics(http.StatusInternalServerError, reqTime, throughput)
 		// translate all non-200s into 500s. if, for instance, we get a 400 back from an internal component
 		// it means that we created a bad request. 400 should not be propagated back to the user b/c
 		// the bad request was due to a bug on our side, so return 500 instead.
 		return &http.Response{
-			StatusCode: http.StatusInternalServerError,
+			StatusCode: statusCode,
 			Header:     http.Header{},
 			Body:       io.NopCloser(strings.NewReader(overallResponse.statusMsg)),
 		}, nil
@@ -273,12 +284,10 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	m := &jsonpb.Marshaler{}
 	bodyString, err := m.MarshalToString(overallResponse.result())
 	if err != nil {
-		recordMetrics(http.StatusInternalServerError, reqTime, throughput)
 		return nil, err
 	}
 
-	statusCode := http.StatusOK
-	recordMetrics(statusCode, reqTime, throughput)
+	statusCode = http.StatusOK
 	return &http.Response{
 		StatusCode: statusCode,
 		Header: http.Header{
@@ -287,13 +296,6 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		Body:          io.NopCloser(strings.NewReader(bodyString)),
 		ContentLength: int64(len([]byte(bodyString))),
 	}, nil
-}
-
-func recordMetrics(statusCode int, reqTime, throughput float64) {
-	// sc := string(statusCode)
-	sc := fmt.Sprint(statusCode)
-	metricRequestDuration.WithLabelValues(sc).Observe(reqTime)
-	queryThroughput.WithLabelValues(sc).Observe(throughput)
 }
 
 // blockMetas returns all relevant blockMetas given a start/end
