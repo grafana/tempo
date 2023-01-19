@@ -165,21 +165,19 @@ func (t *App) initIngester() (services.Service, error) {
 
 func (t *App) initGenerator() (services.Service, error) {
 	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
-	generator, err := generator.New(&t.cfg.Generator, t.overrides, prometheus.DefaultRegisterer, log.Logger)
+	genSvc, err := generator.New(&t.cfg.Generator, t.overrides, prometheus.DefaultRegisterer, log.Logger)
+	if err == generator.ErrUnconfigured && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
+		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
+		return services.NewIdleService(nil, nil), nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics-generator %w", err)
 	}
-	t.generator = generator
+	t.generator = genSvc
 
-	var service services.Service
-	if generator != nil {
-		tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC, t.generator)
-		service = t.generator
-	} else {
-		service = services.NewIdleService(nil, nil)
-	}
+	tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC, t.generator)
 
-	return service, nil
+	return t.generator, nil
 }
 
 func (t *App) initQuerier() (services.Service, error) {
