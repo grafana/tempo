@@ -5,24 +5,17 @@ weight: 9
 
 # Backend search
 
-Backend search is not yet mature. It can therefore be operationally more complex.
-The defaults do not yet support Tempo well.
+Regardless of whether or not you are using TraceQL or the original search api Tempo will search all of the blocks 
+in the specified time range. Depending on your volume this may result in quite slow queries. This document contains
+some suggestions for tuning your backend to improve performance.
 
-Search of the backend datastore will likely exhibit poor performance
-unless you make some the of the changes detailed here.
+General advice is to scale your compactors and queriers. Additional queriers can more effectively run jobs in parallel
+while additional compactors will more aggressively reduce the length of your blocklist and copies of data (if using RF=3).
 
 ## Configuration
 
 Queriers and query frontends have additional configuration related
 to search of the backend datastore.
-Some defaults are currently tuned for a search by trace ID.
-
-### All components
-
-```
-# Enable search functionality
-search_enabled: true
-```
 
 ### Querier
 
@@ -37,7 +30,6 @@ querier:
 With serverless technologies:
 
 ```
-search_enabled: true
 querier:
   # The querier is only a proxy to the serverless endpoint.
   # Increase this greatly to permit needed throughput.
@@ -80,6 +72,11 @@ query_frontend:
     # At larger scales, increase the number of jobs attempted simultaneously,
     # per search query.
     concurrent_jobs: 2000
+
+    # The query frontend will attempt to divide jobs up by an estimate of job size. The smallest possible
+    # job size is a single parquet row group. Increasing this value will create fewer, larger jobs. Decreasing
+    # it will create more, smaller jobs.
+    target_bytes_per_job: 50_000_000
 ```
 
 ## Serverless environment
@@ -121,3 +118,14 @@ See here for cloud-specific details:
 
 - [AWS Lambda]({{< relref "serverless_aws/" >}})
 - [Google Cloud Run]({{< relref "serverless_gcp/" >}})
+
+## Caching
+
+If you have set up an external cache (redis or memcached) in in your storage block you can also use it to cache
+parquet footers using the following configuration:
+
+```
+storage:
+  cache_control:
+    footer: true
+```

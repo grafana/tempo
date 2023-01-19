@@ -123,15 +123,13 @@ type Distributor struct {
 	traceEncoder    model.SegmentDecoder
 
 	// search
-	searchEnabled    bool
 	globalTagsToDrop map[string]struct{}
 
 	// metrics-generator
-	metricsGeneratorEnabled bool
-	generatorClientCfg      generator_client.Config
-	generatorsRing          ring.ReadRing
-	generatorsPool          *ring_client.Pool
-	generatorForwarder      *generatorForwarder
+	generatorClientCfg generator_client.Config
+	generatorsRing     ring.ReadRing
+	generatorsPool     *ring_client.Pool
+	generatorForwarder *generatorForwarder
 
 	// Generic Forwarder
 	forwardersManager *forwarder.Manager
@@ -147,7 +145,7 @@ type Distributor struct {
 }
 
 // New a distributor creates.
-func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, generatorClientCfg generator_client.Config, generatorsRing ring.ReadRing, o *overrides.Overrides, middleware receiver.Middleware, logger log.Logger, loggingLevel logging.Level, searchEnabled bool, metricsGeneratorEnabled bool, reg prometheus.Registerer) (*Distributor, error) {
+func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, generatorClientCfg generator_client.Config, generatorsRing ring.ReadRing, o *overrides.Overrides, middleware receiver.Middleware, logger log.Logger, loggingLevel logging.Level, reg prometheus.Registerer) (*Distributor, error) {
 	factory := cfg.factory
 	if factory == nil {
 		factory = func(addr string) (ring_client.PoolClient, error) {
@@ -196,39 +194,35 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 	}
 
 	d := &Distributor{
-		cfg:                     cfg,
-		clientCfg:               clientCfg,
-		ingestersRing:           ingestersRing,
-		pool:                    pool,
-		DistributorRing:         distributorRing,
-		ingestionRateLimiter:    limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
-		searchEnabled:           searchEnabled,
-		metricsGeneratorEnabled: metricsGeneratorEnabled,
-		generatorClientCfg:      generatorClientCfg,
-		generatorsRing:          generatorsRing,
-		globalTagsToDrop:        tagsToDrop,
-		overrides:               o,
-		traceEncoder:            model.MustNewSegmentDecoder(model.CurrentEncoding),
-		logger:                  logger,
+		cfg:                  cfg,
+		clientCfg:            clientCfg,
+		ingestersRing:        ingestersRing,
+		pool:                 pool,
+		DistributorRing:      distributorRing,
+		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
+		generatorClientCfg:   generatorClientCfg,
+		generatorsRing:       generatorsRing,
+		globalTagsToDrop:     tagsToDrop,
+		overrides:            o,
+		traceEncoder:         model.MustNewSegmentDecoder(model.CurrentEncoding),
+		logger:               logger,
 	}
 
-	if metricsGeneratorEnabled {
-		d.generatorsPool = ring_client.NewPool(
-			"distributor_metrics_generator_pool",
-			generatorClientCfg.PoolConfig,
-			ring_client.NewRingServiceDiscovery(generatorsRing),
-			func(addr string) (ring_client.PoolClient, error) {
-				return generator_client.New(addr, generatorClientCfg)
-			},
-			metricGeneratorClients,
-			logger,
-		)
+	d.generatorsPool = ring_client.NewPool(
+		"distributor_metrics_generator_pool",
+		generatorClientCfg.PoolConfig,
+		ring_client.NewRingServiceDiscovery(generatorsRing),
+		func(addr string) (ring_client.PoolClient, error) {
+			return generator_client.New(addr, generatorClientCfg)
+		},
+		metricGeneratorClients,
+		logger,
+	)
 
-		subservices = append(subservices, d.generatorsPool)
+	subservices = append(subservices, d.generatorsPool)
 
-		d.generatorForwarder = newGeneratorForwarder(logger, d.sendToGenerators, o)
-		subservices = append(subservices, d.generatorForwarder)
-	}
+	d.generatorForwarder = newGeneratorForwarder(logger, d.sendToGenerators, o)
+	subservices = append(subservices, d.generatorForwarder)
 
 	forwardersManager, err := forwarder.NewManager(d.cfg.Forwarders, logger, o)
 	if err != nil {
@@ -353,21 +347,19 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	}
 
 	var searchData [][]byte
-	if d.searchEnabled {
-		perTenantAllowedTags := d.overrides.SearchTagsAllowList(userID)
-		searchData = extractSearchDataAll(rebatchedTraces, func(tag string) bool {
-			// if in per tenant override, extract
-			if _, ok := perTenantAllowedTags[tag]; ok {
-				return true
-			}
-			// if in global deny list, drop
-			if _, ok := d.globalTagsToDrop[tag]; ok {
-				return false
-			}
-			// allow otherwise
+	perTenantAllowedTags := d.overrides.SearchTagsAllowList(userID)
+	searchData = extractSearchDataAll(rebatchedTraces, func(tag string) bool {
+		// if in per tenant override, extract
+		if _, ok := perTenantAllowedTags[tag]; ok {
 			return true
-		})
-	}
+		}
+		// if in global deny list, drop
+		if _, ok := d.globalTagsToDrop[tag]; ok {
+			return false
+		}
+		// allow otherwise
+		return true
+	})
 
 	err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, searchData, keys)
 	if err != nil {
@@ -375,7 +367,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		return nil, err
 	}
 
-	if d.metricsGeneratorEnabled && len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
+	if len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
 		d.generatorForwarder.SendTraces(ctx, userID, keys, rebatchedTraces)
 	}
 

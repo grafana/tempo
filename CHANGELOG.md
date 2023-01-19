@@ -129,6 +129,7 @@ Old config will still work but will be removed in a future release. [#1735](http
           encoding:                // renamed to v2_encoding
           row_group_size_bytes:    // renamed to parquet_row_group_size_bytes
   ```
+* [CHANGE] **BREAKING CHANGE** Remove `search_enabled` and `metrics_generator_enabled`. Both default to true. [#2004](https://github.com/grafana/tempo/pull/2004) (@joe-elliott)
 * [FEATURE] Add capability to configure the used S3 Storage Class [#1697](https://github.com/grafana/tempo/pull/1714) (@amitsetty)
 * [ENHANCEMENT] cache: expose username and sentinel_username redis configuration options for ACL-based Redis Auth support [#1708](https://github.com/grafana/tempo/pull/1708) (@jsievenpiper)
 * [ENHANCEMENT] metrics-generator: expose span size as a metric [#1662](https://github.com/grafana/tempo/pull/1662) (@ie-pham)

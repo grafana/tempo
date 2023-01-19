@@ -230,7 +230,6 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
 
        _config+:: {
            namespace: 'tempo',
-           metrics_generator_enabled: true,
 
            compactor+: {
                replicas: 1,

@@ -18,6 +18,5 @@
     jaeger_ui: {
       base_path: '/',
     },
-    search_enabled: false,
   },
 }

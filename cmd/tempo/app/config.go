@@ -26,13 +26,11 @@ import (
 
 // Config is the root config for App.
 type Config struct {
-	Target                  string `yaml:"target,omitempty"`
-	AuthEnabled             bool   `yaml:"auth_enabled,omitempty"`
-	MultitenancyEnabled     bool   `yaml:"multitenancy_enabled,omitempty"`
-	SearchEnabled           bool   `yaml:"search_enabled,omitempty"`
-	MetricsGeneratorEnabled bool   `yaml:"metrics_generator_enabled"`
-	HTTPAPIPrefix           string `yaml:"http_api_prefix"`
-	UseOTelTracer           bool   `yaml:"use_otel_tracer,omitempty"`
+	Target              string `yaml:"target,omitempty"`
+	AuthEnabled         bool   `yaml:"auth_enabled,omitempty"`
+	MultitenancyEnabled bool   `yaml:"multitenancy_enabled,omitempty"`
+	HTTPAPIPrefix       string `yaml:"http_api_prefix"`
+	UseOTelTracer       bool   `yaml:"use_otel_tracer,omitempty"`
 
 	Server          server.Config           `yaml:"server,omitempty"`
 	Distributor     distributor.Config      `yaml:"distributor,omitempty"`
@@ -63,7 +61,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.StringVar(&c.Target, "target", SingleBinary, "target module")
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", false, "Set to true to enable auth (deprecated: use multitenancy.enabled)")
 	f.BoolVar(&c.MultitenancyEnabled, "multitenancy.enabled", false, "Set to true to enable multitenancy.")
-	f.BoolVar(&c.SearchEnabled, "search.enabled", false, "Set to true to enable search (unstable).")
 	f.StringVar(&c.HTTPAPIPrefix, "http-api-prefix", "", "String prefix for all http api endpoints.")
 	f.BoolVar(&c.UseOTelTracer, "use-otel-tracer", false, "Set to true to replace the OpenTracing tracer with the OpenTelemetry tracer")
 
@@ -123,10 +120,6 @@ func (c *Config) MultitenancyIsEnabled() bool {
 // CheckConfig checks if config values are suspect and returns a bundled list of warnings and explanation.
 func (c *Config) CheckConfig() []ConfigWarning {
 	var warnings []ConfigWarning
-	if c.Target == MetricsGenerator && !c.MetricsGeneratorEnabled {
-		warnings = append(warnings, warnMetricsGenerator)
-	}
-
 	if c.Ingester.CompleteBlockTimeout < c.StorageConfig.Trace.BlocklistPoll {
 		warnings = append(warnings, warnCompleteBlockTimeout)
 	}
@@ -187,20 +180,10 @@ func (c *Config) Collect(ch chan<- prometheus.Metric) {
 
 	features := map[string]int{
 		"search_external_endpoints": 0,
-		"search":                    0,
-		"metrics_generator":         0,
 	}
 
 	if len(c.Querier.Search.ExternalEndpoints) > 0 {
 		features["search_external_endpoints"] = 1
-	}
-
-	if c.SearchEnabled {
-		features["search"] = 1
-	}
-
-	if c.MetricsGeneratorEnabled {
-		features["metrics_generator"] = 1
 	}
 
 	for label, value := range features {
@@ -215,10 +198,6 @@ type ConfigWarning struct {
 }
 
 var (
-	warnMetricsGenerator = ConfigWarning{
-		Message: "target == metrics-generator but metrics_generator_enabled != true",
-		Explain: "The metrics-generator will only receive data if metrics_generator_enabled is set to true globally",
-	}
 	warnCompleteBlockTimeout = ConfigWarning{
 		Message: "ingester.complete_block_timeout < storage.trace.blocklist_poll",
 		Explain: "You may receive 404s between the time the ingesters have flushed a trace and the querier is aware of the new block",

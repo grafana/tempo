@@ -31,7 +31,10 @@ const (
 	ringNumTokens = 256
 )
 
-var ErrReadOnly = errors.New("metrics-generator is shutting down")
+var (
+	ErrUnconfigured = errors.New("no metrics_generator.storage.path configured, metrics generator will be disabled")
+	ErrReadOnly     = errors.New("metrics-generator is shutting down")
+)
 
 type Generator struct {
 	services.Service
@@ -58,7 +61,7 @@ type Generator struct {
 // New makes a new Generator.
 func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer, logger log.Logger) (*Generator, error) {
 	if cfg.Storage.Path == "" {
-		return nil, errors.New("must configure metrics_generator.storage.path")
+		return nil, ErrUnconfigured
 	}
 
 	err := os.MkdirAll(cfg.Storage.Path, os.ModePerm)

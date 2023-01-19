@@ -78,70 +78,50 @@ By default, Tempo listens for all compatible protocols.
 The [extended instructions for installing the TNS application]({{< relref "../linux" >}}) and Grafana Agent to verify that Tempo is receiving traces, relies on the default Jaeger port being available. If Tempo were also attempting to listen on the same port as the Grafana Agent for Jaeger, then Tempo would not start due a port conflict, hence we disable listening on that port in Tempo for a single Linux node.
 
 ```yaml
-   metrics_generator_enabled: true
-   search_enabled: true
+server:
+  http_listen_port: 3200
 
-   server:
-   http_listen_port: 3200
-
-   distributor:
-   receivers:                           # this configuration will listen on all ports and protocols that tempo is capable of.
+distributor:
+  receivers:                   
       otlp:
-         protocols:
-         http:
-         grpc:
+        protocols:
+          http:
+          grpc:
 
-   ingester:
-   trace_idle_period: 10s               # the length of time after a trace has not received spans to consider it complete and flush it
-   max_block_bytes: 1_000_000           # cut the head block when it hits this size or ...
-   max_block_duration: 5m               #   this much time passes
+compactor:
+  compaction:
+    block_retention: 48h                # configure total trace retention here
 
-   compactor:
-   compaction:
-      compaction_window: 1h              # blocks in this time window will be compacted together
-      max_block_bytes: 100_000_000       # maximum size of compacted blocks
-      block_retention: 1h
-      compacted_block_retention: 10m
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: linux-microservices
+  storage:
+    path: /tmp/tempo/generator/wal
+    remote_write:
+    - url: http://localhost:9090/api/v1/write
+      send_exemplars: true
 
-   metrics_generator:
-   registry:
-      external_labels:
-         source: tempo
-         cluster: linux-microservices
-   storage:
-      path: /tmp/tempo/generator/wal
-      remote_write:
-         - url: http://localhost:9090/api/v1/write
-         send_exemplars: true
-
-   storage:
-   trace:
-      backend: s3
-      s3:
-         endpoint: s3.us-east-1.amazonaws.com
-         bucket: grafana-traces-data
-         forcepathstyle: true
-         #set to true if endpoint is https
-         insecure: true
-         access_key: # TODO - Add S3 access key
-         secret_key: # TODO - Add S3 secret key
-      block:
-         bloom_filter_false_positive: .05 # bloom filter false positive rate.  lower values create larger filters but fewer false positives
-         v2_index_downsample_bytes: 1000     # number of bytes per index record
-         v2_encoding: zstd                   # block encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-      wal:
-         path: /tmp/tempo/wal             # where to store the the wal locally
-         v2_encoding: snappy                 # wal encoding/compression.  options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-      local:
-         path: /tmp/tempo/blocks
-      pool:
-         max_workers: 100                 # worker pool determines the number of parallel requests to the object store backend
-         queue_depth: 10000
-
-   overrides:
-   metrics_generator_processors: [service-graphs, span-metrics]
+storage:
+  trace:
+    backend: s3
+    s3:
+      endpoint: s3.us-east-1.amazonaws.com
+      bucket: grafana-traces-data
+      forcepathstyle: true
+      #set to true if endpoint is https
+      insecure: true
+      access_key: # TODO - Add S3 access key
+      secret_key: # TODO - Add S3 secret key
+    wal:
+      path: /tmp/tempo/wal         # where to store the the wal locally
+    local:
+      path: /tmp/tempo/blocks
+overrides:
+  metrics_generator_processors: [service-graphs, span-metrics]
 ```
->**Note:** In the above configuration, metrics generator is enabled to generate Prometheus metrics data from incoming trace spans. This is sent to a Prometheus remote write compatible metrics store at `http://prometheus:9090/api/v1/write` (in the `metrics_generator` configuration block). Ensure you change the relevant `url` parameter to your own Prometheus compatible storage instance, or disable the metrics generator by replacing `metrics_generator_enabled: true` with `metrics_generator_enabled: false` if you do not wish to generate span metrics.
+>**Note:** In the above configuration, metrics generator is enabled to generate Prometheus metrics data from incoming trace spans. This is sent to a Prometheus remote write compatible metrics store at `http://prometheus:9090/api/v1/write` (in the `metrics_generator` configuration block). Ensure you change the relevant `url` parameter to your own Prometheus compatible storage instance, or disable the metrics generator by removing the `metrics_generators_processors` if you do not wish to generate span metrics.
 
 ## Move the configuration file to the proper directory
 
@@ -247,7 +227,7 @@ Docker compose uses an internal networking bridge to connect all of the defined 
 1. Verify that the services are running using `docker compose ps`. You should see something like:
    ```
    NAME             	IMAGE                                   	COMMAND              	SERVICE         	CREATED         	STATUS          	PORTS
-   local-grafana-1  	grafana/grafana:9.3.0                   	"/run.sh"            	grafana         	2 minutes ago   	Up 3 seconds    	0.0.0.0:3000->3000/tcp, :::3000->3000/tcp
+   local-grafana-1  	grafana/grafana:9.3.2                   	"/run.sh"            	grafana         	2 minutes ago   	Up 3 seconds    	0.0.0.0:3000->3000/tcp, :::3000->3000/tcp
    local-k6-tracing-1   ghcr.io/grafana/xk6-client-tracing:v0.0.2   "/k6-tracing run /ex…"   k6-tracing      	2 minutes ago   	Up 2 seconds
    local-prometheus-1   prom/prometheus:latest                  	"/bin/prometheus --c…"   prometheus      	2 minutes ago   	Up 2 seconds    	0.0.0.0:9090->9090/tcp, :::9090->9090/tcp
    ```
