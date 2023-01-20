@@ -1,7 +1,6 @@
 package parquet
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -9,17 +8,55 @@ import (
 )
 
 const (
-	defaultRowBufferSize = 20
+	defaultRowBufferSize = 42
 )
 
 // Row represents a parquet row as a slice of values.
 //
 // Each value should embed a column index, repetition level, and definition
 // level allowing the program to determine how to reconstruct the original
-// object from the row. Repeated values share the same column index, their
-// relative position of repeated values is represented by their relative
-// position in the row.
+// object from the row.
 type Row []Value
+
+// MakeRow constructs a Row from a list of column values.
+//
+// The function panics if the column indexes of values in each column do not
+// match their position in the argument list.
+func MakeRow(columns ...[]Value) Row { return AppendRow(nil, columns...) }
+
+// AppendRow appends to row the given list of column values.
+//
+// AppendRow can be used to construct a Row value from columns, while retaining
+// the underlying memory buffer to avoid reallocation; for example:
+//
+// The function panics if the column indexes of values in each column do not
+// match their position in the argument list.
+func AppendRow(row Row, columns ...[]Value) Row {
+	numValues := 0
+
+	for expectedColumnIndex, column := range columns {
+		numValues += len(column)
+
+		for _, value := range column {
+			if value.columnIndex != ^int16(expectedColumnIndex) {
+				panic(fmt.Sprintf("value of column %d has column index %d", expectedColumnIndex, value.Column()))
+			}
+		}
+	}
+
+	if capacity := cap(row) - len(row); capacity < numValues {
+		row = append(make(Row, 0, len(row)+numValues), row...)
+	}
+
+	return appendRow(row, columns)
+}
+
+func appendRow(row Row, columns [][]Value) Row {
+	for _, column := range columns {
+		row = append(row, column...)
+	}
+	return row
+}
 
 // Clone creates a copy of the row which shares no pointers.
 //
@@ -56,8 +93,24 @@ func (row Row) Equal(other Row) bool {
 	return true
 }
 
-func (row Row) startsWith(columnIndex int16) bool {
-	return len(row) > 0 && row[0].Column() == int(columnIndex)
+// Range calls f for each column of row.
+func (row Row) Range(f func(columnIndex int, columnValues []Value) bool) {
+	columnIndex := 0
+
+	for i := 0; i < len(row); {
+		j := i + 1
+
+		for j < len(row) && row[j].columnIndex == ^int16(columnIndex) {
+			j++
+		}
+
+		if !f(columnIndex, row[i:j:j]) {
+			break
+		}
+
+		columnIndex++
+		i = j
+	}
 }
 
 // RowSeeker is an interface implemented by readers of parquet rows which can be
@@ -299,6 +352,15 @@ func copyRows(dst RowWriter, src RowReader, buf []Row) (written int64, err error
 	}
 }
 
+func makeRows(n int) []Row {
+	buf := make([]Value, n)
+	row := make([]Row, n)
+	for i := range row {
+		row[i] = buf[i : i : i+1]
+	}
+	return row
+}
+
 func clearRows(rows []Row) {
 	for i, values := range rows {
 		clearValues(values)
@@ -318,80 +380,6 @@ func targetSchemaOf(w RowWriter) *Schema {
 		return rws.Schema()
 	}
 	return nil
-}
-
-func errRowIndexOutOfBounds(rowIndex, rowCount int64) error {
-	return fmt.Errorf("row index out of bounds: %d/%d", rowIndex, rowCount)
-}
-
-func hasRepeatedRowValues(values []Value) bool {
-	for _, v := range values {
-		if v.repetitionLevel != 0 {
-			return true
-		}
-	}
-	return false
-}
-
-// repeatedRowLength gives the length of the repeated row starting at the
-// beginning of the repetitionLevels slice.
-func repeatedRowLength(repetitionLevels []byte) int {
-	// If a repetition level exists, at least one value is required to represent
-	// the column.
-	if len(repetitionLevels) > 0 {
-		// The subsequent levels will represent the start of a new record when
-		// they go back to zero.
-		if i := bytes.IndexByte(repetitionLevels[1:], 0); i >= 0 {
-			return i + 1
-		}
-	}
-	return len(repetitionLevels)
-}
-
-func countRowsOf(values []Value) (numRows int) {
-	if !hasRepeatedRowValues(values) {
-		return len(values) // Faster path when there are no repeated values.
-	}
-	if len(values) > 0 {
-		// The values may have not been at the start of a repeated row,
-		// it could be the continuation of a repeated row. Skip until we
-		// find the beginning of a row before starting to count how many
-		// rows there are.
-		if values[0].repetitionLevel != 0 {
-			_, values = splitRowValues(values)
-		}
-		for len(values) > 0 {
-			numRows++
-			_, values = splitRowValues(values)
-		}
-	}
-	return numRows
-}
-
-func limitRowValues(values []Value, rowCount int) []Value {
-	if !hasRepeatedRowValues(values) {
-		if len(values) > rowCount {
-			values = values[:rowCount]
-		}
-	} else {
-		var row Row
-		var limit int
-		for len(values) > 0 {
-			row, values = splitRowValues(values)
-			limit += len(row)
-		}
-		values = values[:limit]
-	}
-	return values
-}
-
-func splitRowValues(values []Value) (head, tail []Value) {
-	for i, v := range values {
-		if v.repetitionLevel == 0 {
-			return values[:i+1], values[i+1:]
-		}
-	}
-	return values, nil
 }
 
 // =============================================================================
@@ -415,7 +403,7 @@ type levels struct {
 // the current column onto, and returns the row minus the deserialied value(s)
 // It recurses until it hits a leaf node, then deserializes that value
 // individually as the base case.
-type deconstructFunc func(Row, levels, reflect.Value) Row
+type deconstructFunc func([][]Value, levels, reflect.Value)
 
 func deconstructFuncOf(columnIndex int16, node Node) (int16, deconstructFunc) {
 	switch {
@@ -435,7 +423,7 @@ func deconstructFuncOf(columnIndex int16, node Node) (int16, deconstructFunc) {
 //go:noinline
 func deconstructFuncOfOptional(columnIndex int16, node Node) (int16, deconstructFunc) {
 	columnIndex, deconstruct := deconstructFuncOf(columnIndex, Required(node))
-	return columnIndex, func(row Row, levels levels, value reflect.Value) Row {
+	return columnIndex, func(columns [][]Value, levels levels, value reflect.Value) {
 		if value.IsValid() {
 			if value.IsZero() {
 				value = reflect.Value{}
@@ -446,27 +434,26 @@ func deconstructFuncOfOptional(columnIndex int16, node Node) (int16, deconstruct
 				levels.definitionLevel++
 			}
 		}
-		return deconstruct(row, levels, value)
+		deconstruct(columns, levels, value)
 	}
 }
 
 //go:noinline
 func deconstructFuncOfRepeated(columnIndex int16, node Node) (int16, deconstructFunc) {
 	columnIndex, deconstruct := deconstructFuncOf(columnIndex, Required(node))
-	return columnIndex, func(row Row, levels levels, value reflect.Value) Row {
+	return columnIndex, func(columns [][]Value, levels levels, value reflect.Value) {
 		if !value.IsValid() || value.Len() == 0 {
-			return deconstruct(row, levels, reflect.Value{})
+			deconstruct(columns, levels, reflect.Value{})
+			return
 		}
 
 		levels.repetitionDepth++
 		levels.definitionLevel++
 
 		for i, n := 0, value.Len(); i < n; i++ {
-			row = deconstruct(row, levels, value.Index(i))
+			deconstruct(columns, levels, value.Index(i))
 			levels.repetitionLevel = levels.repetitionDepth
 		}
-
-		return row
 	}
 }
 
@@ -490,10 +477,11 @@ func deconstructFuncOfMap(columnIndex int16, node Node) (int16, deconstructFunc)
 	keyValueElem := keyValueType.Elem()
 	keyType := keyValueElem.Field(0).Type
 	valueType := keyValueElem.Field(1).Type
-	columnIndex, deconstruct := deconstructFuncOf(columnIndex, schemaOf(keyValueElem))
-	return columnIndex, func(row Row, levels levels, mapValue reflect.Value) Row {
+	nextColumnIndex, deconstruct := deconstructFuncOf(columnIndex, schemaOf(keyValueElem))
+	return nextColumnIndex, func(columns [][]Value, levels levels, mapValue reflect.Value) {
 		if !mapValue.IsValid() || mapValue.Len() == 0 {
-			return deconstruct(row, levels, reflect.Value{})
+			deconstruct(columns, levels, reflect.Value{})
+			return
 		}
 
 		levels.repetitionDepth++
@@ -506,11 +494,9 @@ func deconstructFuncOfMap(columnIndex int16, node Node) (int16, deconstructFunc)
 		for _, key := range mapValue.MapKeys() {
 			k.Set(key.Convert(keyType))
 			v.Set(mapValue.MapIndex(key).Convert(valueType))
-			row = deconstruct(row, levels, elem)
+			deconstruct(columns, levels, elem)
 			levels.repetitionLevel = levels.repetitionDepth
 		}
-
-		return row
 	}
 }
 
@@ -521,17 +507,16 @@ func deconstructFuncOfGroup(columnIndex int16, node Node) (int16, deconstructFun
 	for i, field := range fields {
 		columnIndex, funcs[i] = deconstructFuncOf(columnIndex, field)
 	}
-	return columnIndex, func(row Row, levels levels, value reflect.Value) Row {
+	return columnIndex, func(columns [][]Value, levels levels, value reflect.Value) {
 		if value.IsValid() {
 			for i, f := range funcs {
-				row = f(row, levels, fields[i].Value(value))
+				f(columns, levels, fields[i].Value(value))
 			}
 		} else {
 			for _, f := range funcs {
-				row = f(row, levels, value)
+				f(columns, levels, value)
 			}
 		}
-		return row
 	}
 }
 
@@ -544,7 +529,7 @@ func deconstructFuncOfLeaf(columnIndex int16, node Node) (int16, deconstructFunc
 	kind := typ.Kind()
 	lt := typ.LogicalType()
 	valueColumnIndex := ^columnIndex
-	return columnIndex + 1, func(row Row, levels levels, value reflect.Value) Row {
+	return columnIndex + 1, func(columns [][]Value, levels levels, value reflect.Value) {
 		v := Value{}
 
 		if value.IsValid() {
@@ -554,11 +539,15 @@ func deconstructFuncOfLeaf(columnIndex int16, node Node) (int16, deconstructFunc
 		v.repetitionLevel = levels.repetitionLevel
 		v.definitionLevel = levels.definitionLevel
 		v.columnIndex = valueColumnIndex
-		return append(row, v)
+
+		columns[columnIndex] = append(columns[columnIndex], v)
 	}
 }
 
-type reconstructFunc func(reflect.Value, levels, Row) (Row, error)
+// "reconstructX" turns a Go value into a Go representation of a Parquet series
+// of values
+
+type reconstructFunc func(reflect.Value, levels, [][]Value) error
 
 func reconstructFuncOf(columnIndex int16, node Node) (int16, reconstructFunc) {
 	switch {
@@ -582,26 +571,13 @@ func reconstructFuncOfOptional(columnIndex int16, node Node) (int16, reconstruct
 	// returned closure (see levels.definitionLevel++), but we don't actually do
 	// deserialization here, that happens in the leaf function, hence this line.
 	nextColumnIndex, reconstruct := reconstructFuncOf(columnIndex, Required(node))
-	rowLength := nextColumnIndex - columnIndex
 
-	return nextColumnIndex, func(value reflect.Value, levels levels, row Row) (Row, error) {
-		if !row.startsWith(columnIndex) {
-			return row, fmt.Errorf("row is missing optional column %d", columnIndex)
-		}
-		if len(row) < int(rowLength) {
-			return row, fmt.Errorf(
-				"expected optional column %d to have at least %d values but got %d",
-				columnIndex,
-				rowLength,
-				len(row),
-			)
-		}
-
+	return nextColumnIndex, func(value reflect.Value, levels levels, columns [][]Value) error {
 		levels.definitionLevel++
 
-		if row[0].definitionLevel < levels.definitionLevel {
+		if columns[0][0].definitionLevel < levels.definitionLevel {
 			value.Set(reflect.Zero(value.Type()))
-			return row[rowLength:], nil
+			return nil
 		}
 
 		if value.Kind() == reflect.Ptr {
@@ -611,80 +587,76 @@ func reconstructFuncOfOptional(columnIndex int16, node Node) (int16, reconstruct
 			value = value.Elem()
 		}
 
-		return reconstruct(value, levels, row)
+		return reconstruct(value, levels, columns)
 	}
+}
+
+func setMakeSlice(v reflect.Value, n int) reflect.Value {
+	t := v.Type()
+	if t.Kind() == reflect.Interface {
+		t = reflect.TypeOf(([]interface{})(nil))
+	}
+	s := reflect.MakeSlice(t, n, n)
+	v.Set(s)
+	return s
 }
 
 //go:noinline
 func reconstructFuncOfRepeated(columnIndex int16, node Node) (int16, reconstructFunc) {
 	nextColumnIndex, reconstruct := reconstructFuncOf(columnIndex, Required(node))
-	rowLength := nextColumnIndex - columnIndex
-	return nextColumnIndex, func(value reflect.Value, lvls levels, row Row) (Row, error) {
-		t := value.Type()
-		s := value
-		c := 0
+	return nextColumnIndex, func(value reflect.Value, levels levels, columns [][]Value) error {
+		levels.repetitionDepth++
+		levels.definitionLevel++
+
+		if columns[0][0].definitionLevel < levels.definitionLevel {
+			setMakeSlice(value, 0)
+			return nil
+		}
+
+		values := make([][]Value, len(columns))
+		column := columns[0]
 		n := 0
-		const defaultCapacity = 10
 
-		defer func() {
-			value.Set(s.Slice(0, n))
-		}()
-
-		if t.Kind() == reflect.Interface {
-			var v []interface{}
-			c = defaultCapacity
-			t = reflect.TypeOf(v)
-			s = reflect.MakeSlice(t, c, c)
-		} else if c = s.Cap(); c > 0 {
-			s = s.Slice(0, c)
-		} else {
-			c = defaultCapacity
-			s = reflect.MakeSlice(t, c, c)
+		for i, column := range columns {
+			values[i] = column[0:0:len(column)]
 		}
 
-		return reconstructRepeated(columnIndex, rowLength, lvls, row, func(levels levels, row Row) (Row, error) {
-			if n == c {
-				c *= 2
-				newSlice := reflect.MakeSlice(t, c, c)
-				reflect.Copy(newSlice, s)
-				s = newSlice
-			}
-			row, err := reconstruct(s.Index(n), levels, row)
+		for i := 0; i < len(column); {
+			i++
 			n++
-			return row, err
-		})
-	}
-}
 
-func reconstructRepeated(columnIndex, rowLength int16, levels levels, row Row, do func(levels, Row) (Row, error)) (Row, error) {
-	if !row.startsWith(columnIndex) {
-		return row, fmt.Errorf("row is missing repeated column %d: %+v", columnIndex, row)
-	}
-	if len(row) < int(rowLength) {
-		return row, fmt.Errorf(
-			"expected repeated column %d to have at least %d values but got %d",
-			columnIndex,
-			rowLength,
-			len(row),
-		)
-	}
-
-	levels.repetitionDepth++
-	levels.definitionLevel++
-
-	if row[0].definitionLevel < levels.definitionLevel {
-		return row[rowLength:], nil
-	}
-
-	var err error
-	for row.startsWith(columnIndex) && row[0].repetitionLevel == levels.repetitionLevel {
-		// TODO: check specific error here.
-		if row, err = do(levels, row); err != nil {
-			break
+			for i < len(column) && column[i].repetitionLevel > levels.repetitionDepth {
+				i++
+			}
 		}
-		levels.repetitionLevel = levels.repetitionDepth
+
+		value = setMakeSlice(value, n)
+
+		for i := 0; i < n; i++ {
+			for j, column := range values {
+				column = column[:cap(column)]
+				k := 1
+
+				for k < len(column) && column[k].repetitionLevel > levels.repetitionDepth {
+					k++
+				}
+
+				values[j] = column[:k]
+			}
+
+			if err := reconstruct(value.Index(i), levels, values); err != nil {
+				return err
+			}
+
+			for j, column := range values {
+				values[j] = column[len(column):len(column):cap(column)]
+			}
+
+			levels.repetitionLevel = levels.repetitionDepth
+		}
+
+		return nil
 	}
-	return row, err
 }
 
 func reconstructFuncOfRequired(columnIndex int16, node Node) (int16, reconstructFunc) {
@@ -707,25 +679,66 @@ func reconstructFuncOfMap(columnIndex int16, node Node) (int16, reconstructFunc)
 	keyValueElem := keyValueType.Elem()
 	keyValueZero := reflect.Zero(keyValueElem)
 	nextColumnIndex, reconstruct := reconstructFuncOf(columnIndex, schemaOf(keyValueElem))
-	rowLength := nextColumnIndex - columnIndex
-	return nextColumnIndex, func(mapValue reflect.Value, lvls levels, row Row) (Row, error) {
-		t := mapValue.Type()
+	return nextColumnIndex, func(value reflect.Value, levels levels, columns [][]Value) error {
+		levels.repetitionDepth++
+		levels.definitionLevel++
+
+		if columns[0][0].definitionLevel < levels.definitionLevel {
+			value.Set(reflect.MakeMap(value.Type()))
+			return nil
+		}
+
+		values := make([][]Value, len(columns))
+		column := columns[0]
+		t := value.Type()
 		k := t.Key()
 		v := t.Elem()
+		n := 0
 
-		if mapValue.IsNil() {
-			mapValue.Set(reflect.MakeMap(t))
+		for i, column := range columns {
+			values[i] = column[0:0:len(column)]
+		}
+
+		for i := 0; i < len(column); {
+			i++
+			n++
+
+			for i < len(column) && column[i].repetitionLevel > levels.repetitionDepth {
+				i++
+			}
+		}
+
+		if value.IsNil() {
+			value.Set(reflect.MakeMapWithSize(t, n))
 		}
 
 		elem := reflect.New(keyValueElem).Elem()
-		return reconstructRepeated(columnIndex, rowLength, lvls, row, func(levels levels, row Row) (Row, error) {
-			row, err := reconstruct(elem, levels, row)
-			if err == nil {
-				mapValue.SetMapIndex(elem.Field(0).Convert(k), elem.Field(1).Convert(v))
-				elem.Set(keyValueZero)
+		for i := 0; i < n; i++ {
+			for j, column := range values {
+				column = column[:cap(column)]
+				k := 1
+
+				for k < len(column) && column[k].repetitionLevel > levels.repetitionDepth {
+					k++
+				}
+
+				values[j] = column[:k]
 			}
-			return row, err
-		})
+
+			if err := reconstruct(elem, levels, values); err != nil {
+				return err
+			}
+
+			for j, column := range values {
+				values[j] = column[len(column):len(column):cap(column)]
+			}
+
+			value.SetMapIndex(elem.Field(0).Convert(k), elem.Field(1).Convert(v))
+			elem.Set(keyValueZero)
+			levels.repetitionLevel = levels.repetitionDepth
+		}
+
+		return nil
 	}
 }
 
@@ -733,16 +746,15 @@ func reconstructFuncOfMap(columnIndex int16, node Node) (int16, reconstructFunc)
 func reconstructFuncOfGroup(columnIndex int16, node Node) (int16, reconstructFunc) {
 	fields := node.Fields()
 	funcs := make([]reconstructFunc, len(fields))
-	columnIndexes := make([]int16, len(fields))
+	columnOffsets := make([]int16, len(fields))
+	firstColumnIndex := columnIndex
 
 	for i, field := range fields {
 		columnIndex, funcs[i] = reconstructFuncOf(columnIndex, field)
-		columnIndexes[i] = columnIndex
+		columnOffsets[i] = columnIndex - firstColumnIndex
 	}
 
-	return columnIndex, func(value reflect.Value, levels levels, row Row) (Row, error) {
-		var err error
-
+	return columnIndex, func(value reflect.Value, levels levels, columns [][]Value) error {
 		if value.Kind() == reflect.Interface {
 			value.Set(reflect.MakeMap(reflect.TypeOf((map[string]interface{})(nil))))
 			value = value.Elem()
@@ -758,37 +770,44 @@ func reconstructFuncOfGroup(columnIndex int16, node Node) (int16, reconstructFun
 				value.Set(reflect.MakeMap(value.Type()))
 			}
 
+			off := int16(0)
+
 			for i, f := range funcs {
 				name.SetString(fields[i].Name())
-				if row, err = f(elem, levels, row); err != nil {
-					err = fmt.Errorf("%s → %w", name, err)
-					break
+				end := columnOffsets[i]
+				err := f(elem, levels, columns[off:end:end])
+				if err != nil {
+					return fmt.Errorf("%s → %w", name, err)
 				}
+				off = end
 				value.SetMapIndex(name, elem)
 				elem.Set(zero)
 			}
 		} else {
+			off := int16(0)
+
 			for i, f := range funcs {
-				if row, err = f(fields[i].Value(value), levels, row); err != nil {
-					err = fmt.Errorf("%s → %w", fields[i].Name(), err)
-					break
+				end := columnOffsets[i]
+				err := f(fields[i].Value(value), levels, columns[off:end:end])
+				if err != nil {
+					return fmt.Errorf("%s → %w", fields[i].Name(), err)
 				}
+				off = end
 			}
 		}
 
-		return row, err
+		return nil
 	}
 }
 
 //go:noinline
 func reconstructFuncOfLeaf(columnIndex int16, node Node) (int16, reconstructFunc) {
 	typ := node.Type()
-	return columnIndex + 1, func(value reflect.Value, _ levels, row Row) (Row, error) {
-		if !row.startsWith(columnIndex) {
-			return row, fmt.Errorf("no values found in parquet row for column %d", columnIndex)
+	return columnIndex + 1, func(value reflect.Value, _ levels, columns [][]Value) error {
+		column := columns[0]
+		if len(column) == 0 {
+			return fmt.Errorf("no values found in parquet row for column %d", columnIndex)
 		}
-
-		err := typ.AssignValue(value, row[0])
-		return row[1:], err
+		return typ.AssignValue(value, column[0])
 	}
 }

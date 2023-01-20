@@ -705,6 +705,21 @@ func (col *repeatedColumnBuffer) ReadValuesAt(values []Value, offset int64) (int
 	panic("NOT IMPLEMENTED")
 }
 
+// repeatedRowLength gives the length of the repeated row starting at the
+// beginning of the repetitionLevels slice.
+func repeatedRowLength(repetitionLevels []byte) int {
+	// If a repetition level exists, at least one value is required to represent
+	// the column.
+	if len(repetitionLevels) > 0 {
+		// The subsequent levels will represent the start of a new record when
+		// they go back to zero.
+		if i := bytes.IndexByte(repetitionLevels[1:], 0); i >= 0 {
+			return i + 1
+		}
+	}
+	return len(repetitionLevels)
+}
+
 // =============================================================================
 // The types below are in-memory implementations of the ColumnBuffer interface
 // for each parquet type.

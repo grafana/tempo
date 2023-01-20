@@ -100,7 +100,7 @@ func forEachLeafColumn(node Node, path columnPath, columnIndex, maxRepetitionLev
 
 func lookupColumnPath(node Node, path columnPath) Node {
 	for node != nil && len(path) > 0 {
-		node = childByName(node, path[0])
+		node = fieldByName(node, path[0])
 		path = path[1:]
 	}
 	return node

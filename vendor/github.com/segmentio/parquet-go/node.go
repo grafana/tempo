@@ -235,6 +235,17 @@ func fieldRepetitionTypeOf(node Node) format.FieldRepetitionType {
 	}
 }
 
+func applyFieldRepetitionType(t format.FieldRepetitionType, repetitionLevel, definitionLevel byte) (byte, byte) {
+	switch t {
+	case format.Optional:
+		definitionLevel++
+	case format.Repeated:
+		repetitionLevel++
+		definitionLevel++
+	}
+	return repetitionLevel, definitionLevel
+}
+
 type Group map[string]Node
 
 func (g Group) String() string { return sprint("", g) }
@@ -381,8 +392,8 @@ func numLeafColumns(node Node, columnIndex int) int {
 
 func listElementOf(node Node) Node {
 	if !node.Leaf() {
-		if list := childByName(node, "list"); list != nil {
-			if elem := childByName(list, "element"); elem != nil {
+		if list := fieldByName(node, "list"); list != nil {
+			if elem := fieldByName(list, "element"); elem != nil {
 				return elem
 			}
 		}
@@ -392,9 +403,9 @@ func listElementOf(node Node) Node {
 
 func mapKeyValueOf(node Node) Node {
 	if !node.Leaf() && (node.Required() || node.Optional()) {
-		if keyValue := childByName(node, "key_value"); keyValue != nil && !keyValue.Leaf() && keyValue.Repeated() {
-			k := childByName(keyValue, "key")
-			v := childByName(keyValue, "value")
+		if keyValue := fieldByName(node, "key_value"); keyValue != nil && !keyValue.Leaf() && keyValue.Repeated() {
+			k := fieldByName(keyValue, "key")
+			v := fieldByName(keyValue, "value")
 			if k != nil && v != nil && k.Required() {
 				return keyValue
 			}
@@ -429,7 +440,7 @@ func forEachNodeOf(name string, node Node, do func(string, Node)) {
 	}
 }
 
-func childByName(node Node, name string) Node {
+func fieldByName(node Node, name string) Field {
 	for _, f := range node.Fields() {
 		if f.Name() == name {
 			return f
@@ -446,10 +457,10 @@ func nodesAreEqual(node1, node2 Node) bool {
 	}
 }
 
-func typesAreEqual(node1, node2 Node) bool {
-	return node1.Type().Kind() == node2.Type().Kind() &&
-		node1.Type().Length() == node2.Type().Length() &&
-		reflect.DeepEqual(node1.Type().LogicalType(), node2.Type().LogicalType())
+func typesAreEqual(type1, type2 Type) bool {
+	return type1.Kind() == type2.Kind() &&
+		type1.Length() == type2.Length() &&
+		reflect.DeepEqual(type1.LogicalType(), type2.LogicalType())
 }
 
 func repetitionsAreEqual(node1, node2 Node) bool {
@@ -457,7 +468,7 @@ func repetitionsAreEqual(node1, node2 Node) bool {
 }
 
 func leafNodesAreEqual(node1, node2 Node) bool {
-	return typesAreEqual(node1, node2) && repetitionsAreEqual(node1, node2)
+	return typesAreEqual(node1.Type(), node2.Type()) && repetitionsAreEqual(node1, node2)
 }
 
 func groupNodesAreEqual(node1, node2 Node) bool {
@@ -465,6 +476,10 @@ func groupNodesAreEqual(node1, node2 Node) bool {
 	fields2 := node2.Fields()
 
 	if len(fields1) != len(fields2) {
+		return false
+	}
+
+	if !repetitionsAreEqual(node1, node2) {
 		return false
 	}
 
