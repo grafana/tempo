@@ -705,10 +705,10 @@ func (w *writer) WriteRows(rows []Row) (int, error) {
 		// using the writer after getting an error, but maybe we could ensure that
 		// we are preventing further use as well?
 		for _, row := range rows[start:end] {
-			for _, value := range row {
-				columnIndex := value.Column()
-				w.values[columnIndex] = append(w.values[columnIndex], value)
-			}
+			row.Range(func(columnIndex int, columnValues []Value) bool {
+				w.values[columnIndex] = append(w.values[columnIndex], columnValues...)
+				return true
+			})
 		}
 
 		for i, values := range w.values {
@@ -1404,6 +1404,13 @@ func (w *offsetTrackingWriter) WriteString(s string) (int, error) {
 	return n, err
 }
 
+func (w *offsetTrackingWriter) ReadFrom(r io.Reader) (int64, error) {
+	// io.Copy will make use of io.ReaderFrom if w.writer implements it.
+	n, err := io.Copy(w.writer, r)
+	w.offset += n
+	return n, err
+}
+
 var (
 	_ RowWriterWithSchema = (*Writer)(nil)
 	_ RowReaderFrom       = (*Writer)(nil)
@@ -1413,4 +1420,7 @@ var (
 	_ ValueWriter = (*writer)(nil)
 
 	_ ValueWriter = (*writerColumn)(nil)
+
+	_ io.ReaderFrom   = (*offsetTrackingWriter)(nil)
+	_ io.StringWriter = (*offsetTrackingWriter)(nil)
 )

@@ -113,12 +113,3 @@ func nullIndexFuncOfByteArray(n int) nullIndexFunc {
 		}
 	}
 }
-
-func isZero(b []byte) bool {
-	for _, c := range b {
-		if c != 0 {
-			return false
-		}
-	}
-	return true
-}

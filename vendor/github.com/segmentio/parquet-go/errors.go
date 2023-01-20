@@ -2,6 +2,7 @@ package parquet
 
 import (
 	"errors"
+	"fmt"
 )
 
 var (
@@ -53,6 +54,11 @@ var (
 	// ErrTooManyRowGroups is returned when attempting to generate a parquet
 	// file with more than MaxRowGroups row groups.
 	ErrTooManyRowGroups = errors.New("the limit of 32767 row groups has been reached")
+
+	// ErrConversion is used to indicate that a conversion betwen two values
+	// cannot be done because there are no rules to translate between their
+	// physical types.
+	ErrInvalidConversion = errors.New("invalid conversion between parquet values")
 )
 
 type errno int
@@ -70,4 +76,8 @@ func (e errno) check() {
 	default:
 		panic("BUG: unknown error code")
 	}
+}
+
+func errRowIndexOutOfBounds(rowIndex, rowCount int64) error {
+	return fmt.Errorf("row index out of bounds: %d/%d", rowIndex, rowCount)
 }

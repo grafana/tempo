@@ -214,6 +214,12 @@ func ValueOf(v interface{}) Value {
 	return makeValue(k, nil, reflect.ValueOf(v))
 }
 
+// NulLValue constructs a null value, which is the zero-value of the Value type.
+func NullValue() Value { return Value{} }
+
+// ZeroValue constructs a zero value of the given kind.
+func ZeroValue(kind Kind) Value { return makeValueKind(kind) }
+
 // BooleanValue constructs a BOOLEAN parquet value from the bool passed as
 // argument.
 func BooleanValue(value bool) Value { return makeValueBoolean(value) }
@@ -333,6 +339,10 @@ func makeValue(k Kind, lt *format.LogicalType, v reflect.Value) Value {
 	panic("cannot create parquet value of type " + k.String() + " from go value of type " + v.Type().String())
 }
 
+func makeValueKind(kind Kind) Value {
+	return Value{kind: ^int8(kind)}
+}
+
 func makeValueBoolean(value bool) Value {
 	v := Value{kind: ^int8(Boolean)}
 	if value {
@@ -445,8 +455,69 @@ func (v *Value) double() float64         { return math.Float64frombits(uint64(v.
 func (v *Value) uint32() uint32          { return uint32(v.u64) }
 func (v *Value) uint64() uint64          { return v.u64 }
 func (v *Value) byteArray() []byte       { return unsafecast.Bytes(v.ptr, int(v.u64)) }
+func (v *Value) string() string          { return unsafecast.BytesToString(v.byteArray()) }
 func (v *Value) be128() *[16]byte        { return (*[16]byte)(unsafe.Pointer(v.ptr)) }
 func (v *Value) column() int             { return int(^v.columnIndex) }
+
+func (v Value) convertToBoolean(x bool) Value {
+	v.kind = ^int8(Boolean)
+	v.ptr = nil
+	v.u64 = 0
+	if x {
+		v.u64 = 1
+	}
+	return v
+}
+
+func (v Value) convertToInt32(x int32) Value {
+	v.kind = ^int8(Int32)
+	v.ptr = nil
+	v.u64 = uint64(x)
+	return v
+}
+
+func (v Value) convertToInt64(x int64) Value {
+	v.kind = ^int8(Int64)
+	v.ptr = nil
+	v.u64 = uint64(x)
+	return v
+}
+
+func (v Value) convertToInt96(x deprecated.Int96) Value {
+	i96 := makeValueInt96(x)
+	v.kind = i96.kind
+	v.ptr = i96.ptr
+	v.u64 = i96.u64
+	return v
+}
+
+func (v Value) convertToFloat(x float32) Value {
+	v.kind = ^int8(Float)
+	v.ptr = nil
+	v.u64 = uint64(math.Float32bits(x))
+	return v
+}
+
+func (v Value) convertToDouble(x float64) Value {
+	v.kind = ^int8(Double)
+	v.ptr = nil
+	v.u64 = math.Float64bits(x)
+	return v
+}
+
+func (v Value) convertToByteArray(x []byte) Value {
+	v.kind = ^int8(ByteArray)
+	v.ptr = unsafecast.AddressOfBytes(x)
+	v.u64 = uint64(len(x))
+	return v
+}
+
+func (v Value) convertToFixedLenByteArray(x []byte) Value {
+	v.kind = ^int8(FixedLenByteArray)
+	v.ptr = unsafecast.AddressOfBytes(x)
+	v.u64 = uint64(len(x))
+	return v
+}
 
 // Kind returns the kind of v, which represents its parquet physical type.
 func (v Value) Kind() Kind { return ^Kind(v.kind) }
@@ -611,11 +682,41 @@ func (v Value) Format(w fmt.State, r rune) {
 		case w.Flag('+'):
 			fmt.Fprintf(w, "%+[1]c %+[1]d %+[1]r %+[1]s", v)
 		case w.Flag('#'):
-			fmt.Fprintf(w, "parquet.Value{%+[1]c, %+[1]d, %+[1]r, %+[1]s}", v)
+			v.formatGoString(w)
 		default:
 			v.Format(w, 's')
 		}
 	}
+}
+
+func (v Value) formatGoString(w fmt.State) {
+	io.WriteString(w, "parquet.")
+	switch v.Kind() {
+	case Boolean:
+		fmt.Fprintf(w, "BooleanValue(%t)", v.boolean())
+	case Int32:
+		fmt.Fprintf(w, "Int32Value(%d)", v.int32())
+	case Int64:
+		fmt.Fprintf(w, "Int64Value(%d)", v.int64())
+	case Int96:
+		fmt.Fprintf(w, "Int96Value(%#v)", v.int96())
+	case Float:
+		fmt.Fprintf(w, "FloatValue(%g)", v.float())
+	case Double:
+		fmt.Fprintf(w, "DoubleValue(%g)", v.double())
+	case ByteArray:
+		fmt.Fprintf(w, "ByteArrayValue(%q)", v.byteArray())
+	case FixedLenByteArray:
+		fmt.Fprintf(w, "FixedLenByteArrayValue(%#v)", v.byteArray())
+	default:
+		io.WriteString(w, "Value{}")
+		return
+	}
+	fmt.Fprintf(w, ".Level(%d,%d,%d)",
+		v.RepetitionLevel(),
+		v.DefinitionLevel(),
+		v.Column(),
+	)
 }
 
 // String returns a string representation of v.
@@ -634,12 +735,7 @@ func (v Value) String() string {
 	case Double:
 		return strconv.FormatFloat(v.double(), 'g', -1, 32)
 	case ByteArray, FixedLenByteArray:
-		// As an optimizations for the common case of using String on UTF8
-		// columns we convert the byte array to a string without copying the
-		// underlying data to a new memory location. This is safe as long as the
-		// application respects the requirement to not mutate the byte slices
-		// returned when calling ByteArray.
-		return unsafecast.BytesToString(v.byteArray())
+		return string(v.byteArray())
 	default:
 		return "<null>"
 	}

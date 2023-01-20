@@ -7,3 +7,6 @@ AUTHORS.txt: .mailmap
 format:
 	go install github.com/kevinburke/differ@latest
 	differ gofmt -w .
+
+test:
+	go test -trimpath -race ./...

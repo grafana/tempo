@@ -24,7 +24,6 @@ type Schema struct {
 	root        Node
 	deconstruct deconstructFunc
 	reconstruct reconstructFunc
-	readRows    readRowsFunc
 	mapping     columnMapping
 	columns     [][]string
 }
@@ -129,7 +128,6 @@ func NewSchema(name string, root Node) *Schema {
 		root:        root,
 		deconstruct: makeDeconstructFunc(root),
 		reconstruct: makeReconstructFunc(root),
-		readRows:    makeReadRowsFunc(root),
 		mapping:     mapping,
 		columns:     columns,
 	}
@@ -160,11 +158,6 @@ func makeReconstructFunc(node Node) (reconstruct reconstructFunc) {
 		_, reconstruct = reconstructFuncOf(0, node)
 	}
 	return reconstruct
-}
-
-func makeReadRowsFunc(node Node) readRowsFunc {
-	_, readRows := readRowsFuncOf(node, 0, 0)
-	return readRows
 }
 
 // ConfigureRowGroup satisfies the RowGroupOption interface, allowing Schema
@@ -221,18 +214,26 @@ func (s *Schema) GoType() reflect.Type { return s.root.GoType() }
 // The method panics is the structure of the go value does not match the
 // parquet schema.
 func (s *Schema) Deconstruct(row Row, value interface{}) Row {
-	v := reflect.ValueOf(value)
-	for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
-		if v.IsNil() {
-			v = reflect.Value{}
+	columns := make([][]Value, len(s.columns))
+	values := make([]Value, len(s.columns))
+
+	for i := range columns {
+		columns[i] = values[i : i : i+1]
+	}
+
+	s.deconstructValueToColumns(columns, reflect.ValueOf(value))
+	return appendRow(row, columns)
+}
+
+func (s *Schema) deconstructValueToColumns(columns [][]Value, value reflect.Value) {
+	for value.Kind() == reflect.Ptr || value.Kind() == reflect.Interface {
+		if value.IsNil() {
+			value = reflect.Value{}
 			break
 		}
-		v = v.Elem()
+		value = value.Elem()
 	}
-	if s.deconstruct != nil {
-		row = s.deconstruct(row, levels{}, v)
-	}
-	return row
+	s.deconstruct(columns, levels{}, value)
 }
 
 // Reconstruct reconstructs a Go value from a row.
@@ -259,21 +260,16 @@ func (s *Schema) Reconstruct(value interface{}, row Row) error {
 		}
 		v = v.Elem()
 	}
-	var err error
 
-	if s.reconstruct != nil {
-		row, err = s.reconstruct(v, levels{}, row)
-		if len(row) > 0 && err == nil {
-			err = fmt.Errorf(
-				"%d values remain unused after reconstructing go value of type %s from parquet row",
-				len(row),
-				v.Type(),
-			)
+	columns := make([][]Value, len(s.columns))
+	row.Range(func(columnIndex int, columnValues []Value) bool {
+		if columnIndex < len(columns) {
+			columns[columnIndex] = columnValues
 		}
-	} else {
-		panic(fmt.Sprintf("Reconstruct called when undefined on schema: %v", s))
-	}
-	return err
+		return true
+	})
+
+	return s.reconstruct(v, levels{}, columns)
 }
 
 // Lookup returns the leaf column at the given path.
@@ -847,6 +843,22 @@ func makeNodeOf(t reflect.Type, name string, tag []string) Node {
 			throwUnknownTag(t, name, option)
 		}
 	})
+
+	// Special case: an "optional" struct tag on a slice applies to the
+	// individual items, not the overall list. The least messy way to
+	// deal with this is at this level, instead of passing down optional
+	// information into the nodeOf function, and then passing back whether an
+	// optional tag was applied.
+	if node == nil && t.Kind() == reflect.Slice {
+		isUint8 := t.Elem().Kind() == reflect.Uint8
+		// Note for strings "optional" applies only to the entire BYTE_ARRAY and
+		// not each individual byte.
+		if optional && !isUint8 {
+			node = Repeated(Optional(nodeOf(t.Elem(), tag)))
+			// Don't also apply "optional" to the whole list.
+			optional = false
+		}
+	}
 
 	if node == nil {
 		node = nodeOf(t, tag)
