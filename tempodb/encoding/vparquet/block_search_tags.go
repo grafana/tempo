@@ -260,16 +260,17 @@ func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *par
 }
 
 func searchKeyValues(definitionLevel int, keyPath, stringPath, intPath, floatPath, boolPath string, makeIter makeIterFn, keyPred pq.Predicate, cb common.TagCallbackV2) error {
+	skipNils := pq.NewSkipNilsPredicate()
 
 	iter := pq.NewLeftJoinIterator(definitionLevel,
 		// This is required
 		[]pq.Iterator{makeIter(keyPath, keyPred, "")},
 		[]pq.Iterator{
 			// These are optional and we find matching values of all types
-			makeIter(stringPath, nil, "string"),
-			makeIter(intPath, nil, "int"),
-			makeIter(floatPath, nil, "float"),
-			makeIter(boolPath, nil, "bool"),
+			makeIter(stringPath, skipNils, "string"),
+			makeIter(intPath, skipNils, "int"),
+			makeIter(floatPath, skipNils, "float"),
+			makeIter(boolPath, skipNils, "bool"),
 		}, nil)
 	defer iter.Close()
 
