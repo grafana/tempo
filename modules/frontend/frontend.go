@@ -53,6 +53,10 @@ func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store stora
 		return nil, fmt.Errorf("frontend search target bytes per request should be greater than 0")
 	}
 
+	if cfg.Search.SLO.ThroughputSLO <= 0 && cfg.TraceByID.SLO.ThroughputSLO <= 0 {
+		return nil, fmt.Errorf("frontend search and trace by id throughput slo should be greater than 0")
+	}
+
 	if cfg.Search.Sharder.QueryIngestersUntil < cfg.Search.Sharder.QueryBackendAfter {
 		return nil, fmt.Errorf("query backend after should be less than or equal to query ingester until")
 	}
@@ -69,12 +73,8 @@ func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store stora
 	traceByIDMiddleware := MergeMiddlewares(newTraceByIDMiddleware(cfg, logger), retryWare)
 	searchMiddleware := MergeMiddlewares(newSearchMiddleware(cfg, o, store, logger), retryWare)
 
-	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
-		"op": traceByIDOp,
-	})
-	searchCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{
-		"op": searchOp,
-	})
+	traceByIDCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
+	searchCounter := queriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
 
 	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)
@@ -96,7 +96,7 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 		rt := NewRoundTripper(
 			next,
 			newDeduper(logger),
-			newTraceByIDSharder(cfg.TraceByID.QueryShards, cfg.TolerateFailedBlocks, logger),
+			newTraceByIDSharder(cfg.TraceByID.QueryShards, cfg.TolerateFailedBlocks, cfg.TraceByID.SLO, logger),
 			newHedgedRequestWare(cfg.TraceByID.Hedging),
 		)
 
@@ -179,7 +179,7 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 func newSearchMiddleware(cfg Config, o *overrides.Overrides, reader tempodb.Reader, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		ingesterSearchRT := next
-		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, o, cfg.Search.Sharder, logger))
+		backendSearchRT := NewRoundTripper(next, newSearchSharder(reader, o, cfg.Search.Sharder, cfg.Search.SLO, logger))
 
 		return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			// backend search queries require sharding so we pass through a special roundtripper

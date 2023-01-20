@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
@@ -264,7 +265,10 @@ func TestShardingWareDoRequest(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			sharder := newTraceByIDSharder(2, 2, log.NewNopLogger())
+			sharder := newTraceByIDSharder(2, 2, SLOConfig{
+				DurationSLO:   1 * time.Second,
+				ThroughputSLO: 10 * 1024,
+			}, log.NewNopLogger())
 
 			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 				var testTrace *tempopb.Trace

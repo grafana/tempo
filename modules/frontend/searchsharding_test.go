@@ -551,7 +551,11 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			}, o, SearchSharderConfig{
 				ConcurrentRequests:    1, // 1 concurrent request to force order
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			}, log.NewNopLogger())
+			},
+				SLOConfig{
+					DurationSLO:   1 * time.Second,
+					ThroughputSLO: 10 * 1024,
+				}, log.NewNopLogger())
 			testRT := NewRoundTripper(next, sharder)
 
 			req := httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -597,6 +601,9 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
+	}, SLOConfig{
+		DurationSLO:   1 * time.Second,
+		ThroughputSLO: 10 * 1024,
 	}, log.NewNopLogger())
 	testRT := NewRoundTripper(next, sharder)
 
@@ -626,6 +633,9 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
+	}, SLOConfig{
+		DurationSLO:   1 * time.Second,
+		ThroughputSLO: 10 * 1024,
 	}, log.NewNopLogger())
 	testRT = NewRoundTripper(next, sharder)
 

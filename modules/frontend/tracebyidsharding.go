@@ -39,11 +39,12 @@ var (
 	}, []string{"tenant", "status"})
 )
 
-func newTraceByIDSharder(queryShards, maxFailedBlocks int, logger log.Logger) Middleware {
+func newTraceByIDSharder(queryShards, maxFailedBlocks int, sloCfg SLOConfig, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return shardQuery{
 			next:            next,
 			queryShards:     queryShards,
+			sloCfg:          sloCfg,
 			logger:          logger,
 			blockBoundaries: createBlockBoundaries(queryShards - 1), // one shard will be used to query ingesters
 			maxFailedBlocks: uint32(maxFailedBlocks),
@@ -54,6 +55,7 @@ func newTraceByIDSharder(queryShards, maxFailedBlocks int, logger log.Logger) Mi
 type shardQuery struct {
 	next            http.RoundTripper
 	queryShards     int
+	sloCfg          SLOConfig
 	logger          log.Logger
 	blockBoundaries [][]byte
 	maxFailedBlocks uint32
@@ -168,10 +170,10 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	wg.Wait()
 
-	reqTime := time.Since(reqStart)
+	reqTime := time.Since(reqStart) // time request
 
 	if overallError != nil {
-		recordTraceByIDMetrics(tenantID, statusCode, reqTime)
+		s.recordMetrics(tenantID, statusCode, reqTime)
 		return nil, overallError
 	}
 
@@ -187,7 +189,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		if statusCode != http.StatusNotFound {
 			statusCode = 500
 		}
-		recordTraceByIDMetrics(tenantID, statusCode, reqTime)
+		s.recordMetrics(tenantID, statusCode, reqTime)
 
 		return &http.Response{
 			StatusCode: statusCode,
@@ -204,11 +206,11 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	})
 	if err != nil {
 		_ = level.Error(s.logger).Log("msg", "error marshalling response to proto", "err", err)
-		recordTraceByIDMetrics(tenantID, statusCode, reqTime)
+		s.recordMetrics(tenantID, statusCode, reqTime)
 		return nil, err
 	}
 
-	recordTraceByIDMetrics(tenantID, statusCode, reqTime)
+	s.recordMetrics(tenantID, statusCode, reqTime)
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Header: http.Header{
@@ -220,13 +222,12 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 // recordTraceByIDMetrics records throughput and SLO metrics
-func recordTraceByIDMetrics(tenantID string, status int, reqTime time.Duration) {
-	// FIXME: take cfg as arg
-	if reqTime < (1 * time.Second) { // hardcode it for now
-		// we are within SLO if query returned within x seconds or processed y bytes/s data
+func (s shardQuery) recordMetrics(tenantID string, status int, reqTime time.Duration) {
+	// we are within SLO if query returned within DurationSLO seconds
+	// TODO: we don't have throughput metrics for TraceByID yet
+	if reqTime < s.sloCfg.DurationSLO {
 		sloTraceByIDPerTenant.WithLabelValues(tenantID, strconv.Itoa(status)).Inc()
 	}
-	fmt.Printf("logging in recordTraceByIDMetrics - statusCode: %d, orgID: %s, reqTime:%v \n", status, tenantID, reqTime)
 }
 
 // buildShardedRequests returns a slice of requests sharded on the precalculated

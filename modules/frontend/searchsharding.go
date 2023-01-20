@@ -38,7 +38,7 @@ var (
 		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
 	}, []string{"tenant", "status"})
 
-	sloPerTenant = promauto.NewCounterVec(prometheus.CounterOpts{
+	sloSearchPerTenant = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "query_frontend_search_queries_within_slo_total",
 		Help:      "Total search queries within SLO per tenant",
@@ -51,6 +51,7 @@ type searchSharder struct {
 	overrides *overrides.Overrides
 
 	cfg    SearchSharderConfig
+	sloCfg SLOConfig
 	logger log.Logger
 }
 
@@ -65,14 +66,15 @@ type SearchSharderConfig struct {
 }
 
 // newSearchSharder creates a sharding middleware for search
-func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchSharderConfig, logger log.Logger) Middleware {
+func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchSharderConfig, sloCfg SLOConfig, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
 			next:      next,
 			reader:    reader,
 			overrides: o,
-			logger:    logger,
 			cfg:       cfg,
+			sloCfg:    sloCfg,
+			logger:    logger,
 		}
 	})
 }
@@ -257,7 +259,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	if overallResponse.err != nil {
 		statusCode = overallResponse.statusCode
-		recordSearchMetrics(tenantID, statusCode, throughput, reqTime)
+		s.recordMetrics(tenantID, statusCode, throughput, reqTime)
 		return nil, overallResponse.err
 	}
 
@@ -265,7 +267,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		// translate all non-200s into 500s. if, for instance, we get a 400 back from an internal component
 		// it means that we created a bad request. 400 should not be propagated back to the user b/c
 		// the bad request was due to a bug on our side, so return 500 instead.
-		recordSearchMetrics(tenantID, overallResponse.statusCode, throughput, reqTime)
+		s.recordMetrics(tenantID, overallResponse.statusCode, throughput, reqTime)
 		return &http.Response{
 			StatusCode: overallResponse.statusCode,
 			Header:     http.Header{},
@@ -277,12 +279,12 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	bodyString, err := m.MarshalToString(overallResponse.result())
 	if err != nil {
 		statusCode = http.StatusInternalServerError
-		recordSearchMetrics(tenantID, statusCode, throughput, reqTime)
+		s.recordMetrics(tenantID, statusCode, throughput, reqTime)
 		return nil, err
 	}
 
 	statusCode = http.StatusOK
-	recordSearchMetrics(tenantID, statusCode, throughput, reqTime)
+	s.recordMetrics(tenantID, statusCode, throughput, reqTime)
 	return &http.Response{
 		StatusCode: statusCode,
 		Header: http.Header{
@@ -294,15 +296,13 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 // recordSearchMetrics records throughput and SLO metrics
-func recordSearchMetrics(tenantID string, status int, throughput float64, reqTime time.Duration) {
-	s := strconv.Itoa(status)
-	searchThroughput.WithLabelValues(tenantID, s).Observe(throughput)
-	// FIXME: take cfg as arg
-	b := reqTime < (1 * time.Second) // hardcode it for now
-	t := throughput > 1*1024*1024    // 1MB/s throughput
-	if b || t {
-		// we are within SLO if query returned within x seconds or processed y bytes/s data
-		sloPerTenant.WithLabelValues(tenantID, s).Inc()
+func (s *searchSharder) recordMetrics(tenantID string, status int, throughput float64, reqTime time.Duration) {
+	sts := strconv.Itoa(status)
+	searchThroughput.WithLabelValues(tenantID, sts).Observe(throughput)
+
+	// query is within SLO if query returned within DurationSLO seconds OR processed ThroughputSLO bytes/s data
+	if reqTime < s.sloCfg.DurationSLO || throughput > s.sloCfg.ThroughputSLO {
+		sloSearchPerTenant.WithLabelValues(tenantID, sts).Inc()
 	}
 }
 

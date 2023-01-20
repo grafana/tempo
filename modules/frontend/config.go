@@ -2,9 +2,8 @@ package frontend
 
 import (
 	"flag"
-	"time"
-
 	"net/http"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,11 +27,13 @@ type Config struct {
 
 type SearchConfig struct {
 	Sharder SearchSharderConfig `yaml:",inline"`
+	SLO     SLOConfig           `yaml:",inline"`
 }
 
 type TraceByIDConfig struct {
 	QueryShards int           `yaml:"query_shards,omitempty"`
 	Hedging     HedgingConfig `yaml:",inline"`
+	SLO         SLOConfig     `yaml:",inline"`
 }
 
 type HedgingConfig struct {
@@ -40,7 +41,17 @@ type HedgingConfig struct {
 	HedgeRequestsUpTo int           `yaml:"hedge_requests_up_to"`
 }
 
+type SLOConfig struct {
+	DurationSLO   time.Duration `yaml:"duration_slo,omitempty"`
+	ThroughputSLO float64       `yaml:"throughput_slo,omitempty"`
+}
+
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
+	slo := SLOConfig{
+		DurationSLO:   5 * time.Second,
+		ThroughputSLO: 100 * 1024 * 1024, // 100 MB
+	}
+
 	cfg.Config.MaxOutstandingPerTenant = 2000
 	cfg.MaxRetries = 2
 	cfg.TolerateFailedBlocks = 0
@@ -54,9 +65,11 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		},
+		SLO: slo,
 	}
 	cfg.TraceByID = TraceByIDConfig{
 		QueryShards: 50,
+		SLO:         slo,
 		Hedging: HedgingConfig{
 			HedgeRequestsAt:   2 * time.Second,
 			HedgeRequestsUpTo: 2,
