@@ -76,17 +76,6 @@ func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store stora
 		"op": searchOp,
 	})
 
-	// add a within slo label?? and then get per tenant SLO
-	// add a config for SLO on throughput and duration.
-	// fast OR processed enough data (more than x/gb/per seconds)
-	// TODO: pass metric the handlers
-	// query_frontend config blocks....
-	// default SLO: query that returned within 2.5 seconds or processed 1GB/s
-	// is within SLO, you can override this by config....
-	// query_within_slo counter...
-	// Add only for search path for now....
-	// we can have PerTenant slo with Tenant label??
-
 	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)
 	return &QueryFrontend{
