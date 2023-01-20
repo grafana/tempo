@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -19,12 +21,22 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/user"
 )
 
 const (
 	minQueryShards = 2
 	maxQueryShards = 256
+)
+
+var (
+	sloTraceByIDPerTenant = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "query_frontend_tracebyid_queries_within_slo_total",
+		Help:      "Total TraceByID Search queries within SLO per tenant",
+	}, []string{"tenant", "status"})
 )
 
 func newTraceByIDSharder(queryShards, maxFailedBlocks int, logger log.Logger) Middleware {
@@ -52,6 +64,16 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	ctx := r.Context()
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardQuery")
 	defer span.Finish()
+
+	tenantID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Body:       io.NopCloser(strings.NewReader(err.Error())),
+		}, nil
+	}
+
+	reqStart := time.Now() // time request
 
 	// context propagation
 	r = r.WithContext(ctx)
@@ -146,7 +168,10 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	wg.Wait()
 
+	reqTime := time.Since(reqStart)
+
 	if overallError != nil {
+		recordTraceByIDMetrics(tenantID, statusCode, reqTime)
 		return nil, overallError
 	}
 
@@ -162,6 +187,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		if statusCode != http.StatusNotFound {
 			statusCode = 500
 		}
+		recordTraceByIDMetrics(tenantID, statusCode, reqTime)
 
 		return &http.Response{
 			StatusCode: statusCode,
@@ -178,9 +204,11 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	})
 	if err != nil {
 		_ = level.Error(s.logger).Log("msg", "error marshalling response to proto", "err", err)
+		recordTraceByIDMetrics(tenantID, statusCode, reqTime)
 		return nil, err
 	}
 
+	recordTraceByIDMetrics(tenantID, statusCode, reqTime)
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Header: http.Header{
@@ -189,6 +217,16 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		Body:          io.NopCloser(bytes.NewReader(buff)),
 		ContentLength: int64(len(buff)),
 	}, nil
+}
+
+// recordTraceByIDMetrics records throughput and SLO metrics
+func recordTraceByIDMetrics(tenantID string, status int, reqTime time.Duration) {
+	// FIXME: take cfg as arg
+	if reqTime < (1 * time.Second) { // hardcode it for now
+		// we are within SLO if query returned within x seconds or processed y bytes/s data
+		sloTraceByIDPerTenant.WithLabelValues(tenantID, strconv.Itoa(status)).Inc()
+	}
+	fmt.Printf("logging in recordTraceByIDMetrics - statusCode: %d, orgID: %s, reqTime:%v \n", status, tenantID, reqTime)
 }
 
 // buildShardedRequests returns a slice of requests sharded on the precalculated

@@ -74,7 +74,7 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 
 	res := &tempopb.SearchResponse{
 		Traces: nil,
-		// TODO capture and update metrics
+		// TODO: capture and update metrics, need InspectedBytes for throughput and SLO metrics
 		Metrics: &tempopb.SearchMetrics{},
 	}
 	for {
