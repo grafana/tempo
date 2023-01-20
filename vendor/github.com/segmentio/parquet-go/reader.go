@@ -108,7 +108,7 @@ func fileRowGroupOf(f *File) RowGroup {
 	default:
 		// TODO: should we attempt to merge the row groups via MergeRowGroups
 		// to preserve the global order of sorting columns within the file?
-		return MultiRowGroup(rowGroups...)
+		return newMultiRowGroup(f.config.ReadMode, rowGroups...)
 	}
 }
 
