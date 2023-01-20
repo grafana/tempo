@@ -162,9 +162,6 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 	}
 
 	searchWalBlock := func(b common.WALBlock) {
-		i.blocksMtx.Lock()
-		defer i.blocksMtx.Unlock()
-
 		blockID := b.BlockMeta().BlockID.String()
 		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchWALBlock", opentracing.Tags{
 			"blockID": blockID,

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -251,6 +252,19 @@ type walBlock struct {
 	// Flushed data
 	flushed     []*walBlockFlush
 	flushedSize int64
+	mtx         sync.Mutex
+}
+
+func (b *walBlock) readFlushes() []*walBlockFlush {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+	return b.flushed
+}
+
+func (b *walBlock) writeFlush(f *walBlockFlush) {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+	b.flushed = append(b.flushed, f)
 }
 
 func (b *walBlock) BlockMeta() *backend.BlockMeta {
@@ -378,7 +392,7 @@ func (b *walBlock) Flush() (err error) {
 		return fmt.Errorf("error closing file: %w", err)
 	}
 
-	b.flushed = append(b.flushed, newWalBlockFlush(b.file.Name(), b.ids))
+	b.writeFlush(newWalBlockFlush(b.file.Name(), b.ids))
 	b.flushedSize += sz
 	b.unflushedSize = 0
 	b.ids = common.NewIDMap[int64]()
@@ -474,10 +488,12 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.Sea
 
 func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
 	results := &tempopb.SearchResponse{
-		Metrics: &tempopb.SearchMetrics{},
+		Metrics: &tempopb.SearchMetrics{
+			InspectedBlocks: 1,
+		},
 	}
 
-	for i, page := range b.flushed {
+	for i, page := range b.readFlushes() {
 		file, err := page.file()
 		if err != nil {
 			return nil, fmt.Errorf("error opening file %s: %w", page.path, err)
@@ -489,20 +505,18 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 		}
 
 		results.Traces = append(results.Traces, r.Traces...)
+		results.Metrics.InspectedBytes += uint64(file.Size())
+		results.Metrics.InspectedTraces += uint32(file.NumRows())
 		if len(results.Traces) >= int(req.Limit) {
 			break
 		}
 	}
 
-	results.Metrics.InspectedBlocks++
-	results.Metrics.InspectedBytes += b.DataLength()
-	results.Metrics.InspectedTraces += uint32(b.meta.TotalObjects)
-
 	return results, nil
 }
 
 func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
-	for i, page := range b.flushed {
+	for i, page := range b.readFlushes() {
 		file, err := page.file()
 		if err != nil {
 			return fmt.Errorf("error opening file %s: %w", page.path, err)
@@ -533,7 +547,7 @@ func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.Ta
 }
 
 func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
-	for i, page := range b.flushed {
+	for i, page := range b.readFlushes() {
 		file, err := page.file()
 		if err != nil {
 			return fmt.Errorf("error opening file %s: %w", page.path, err)
@@ -555,8 +569,9 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "conditions invalid")
 	}
 
-	iters := make([]*spansetIterator, 0, len(b.flushed))
-	for _, page := range b.flushed {
+	pages := b.readFlushes()
+	iters := make([]*spansetIterator, 0, len(pages))
+	for _, page := range pages {
 		file, err := page.file()
 		if err != nil {
 			return traceql.FetchSpansResponse{}, fmt.Errorf("error opening file %s: %w", page.path, err)
