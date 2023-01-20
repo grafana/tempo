@@ -34,7 +34,6 @@ const (
 type QueryFrontend struct {
 	TraceByID, Search http.Handler
 	logger            log.Logger
-	queriesPerTenant  *prometheus.CounterVec
 	store             storage.Store
 }
 
@@ -91,11 +90,10 @@ func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store stora
 	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)
 	return &QueryFrontend{
-		TraceByID:        newHandler(traces, traceByIDCounter, logger),
-		Search:           newHandler(search, searchCounter, logger),
-		logger:           logger,
-		queriesPerTenant: queriesPerTenant,
-		store:            store,
+		TraceByID: newHandler(traces, traceByIDCounter, logger),
+		Search:    newHandler(search, searchCounter, logger),
+		logger:    logger,
+		store:     store,
 	}, nil
 }
 
