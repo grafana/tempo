@@ -6,6 +6,71 @@ import (
 	"io"
 )
 
+// MergeRowGroups constructs a row group which is a merged view of rowGroups. If
+// rowGroups are sorted and the passed options include sorting, the merged row
+// group will also be sorted.
+//
+// The function validates the input to ensure that the merge operation is
+// possible, ensuring that the schemas match or can be converted to an
+// optionally configured target schema passed as argument in the option list.
+//
+// The sorting columns of each row group are also consulted to determine whether
+// the output can be represented. If sorting columns are configured on the merge
+// they must be a prefix of sorting columns of all row groups being merged.
+func MergeRowGroups(rowGroups []RowGroup, options ...RowGroupOption) (RowGroup, error) {
+	config, err := NewRowGroupConfig(options...)
+	if err != nil {
+		return nil, err
+	}
+
+	schema := config.Schema
+	if len(rowGroups) == 0 {
+		return newEmptyRowGroup(schema), nil
+	}
+	if schema == nil {
+		schema = rowGroups[0].Schema()
+
+		for _, rowGroup := range rowGroups[1:] {
+			if !nodesAreEqual(schema, rowGroup.Schema()) {
+				return nil, ErrRowGroupSchemaMismatch
+			}
+		}
+	}
+
+	mergedRowGroups := make([]RowGroup, len(rowGroups))
+	copy(mergedRowGroups, rowGroups)
+
+	for i, rowGroup := range mergedRowGroups {
+		if rowGroupSchema := rowGroup.Schema(); !nodesAreEqual(schema, rowGroupSchema) {
+			conv, err := Convert(schema, rowGroupSchema)
+			if err != nil {
+				return nil, fmt.Errorf("cannot merge row groups: %w", err)
+			}
+			mergedRowGroups[i] = ConvertRowGroup(rowGroup, conv)
+		}
+	}
+
+	m := &mergedRowGroup{sorting: config.Sorting.SortingColumns}
+	m.init(schema, mergedRowGroups)
+
+	if len(m.sorting) == 0 {
+		// When the row group has no ordering, use a simpler version of the
+		// merger which simply concatenates rows from each of the row groups.
+		// This is preferable because it makes the output deterministic, the
+		// heap merge may otherwise reorder rows across groups.
+		return &m.multiRowGroup, nil
+	}
+
+	for _, rowGroup := range m.rowGroups {
+		if !sortingColumnsHavePrefix(rowGroup.SortingColumns(), m.sorting) {
+			return nil, ErrRowGroupSortingColumnsMismatch
+		}
+	}
+
+	m.compare = compareRowsFuncOf(schema, m.sorting)
+	return m, nil
+}
+
 type mergedRowGroup struct {
 	multiRowGroup
 	sorting []SortingColumn
@@ -41,6 +106,12 @@ type mergedRowGroupRows struct {
 	schema    *Schema
 }
 
+func (r *mergedRowGroupRows) readInternal(rows []Row) (int, error) {
+	n, err := r.merge.ReadRows(rows)
+	r.rowIndex += int64(n)
+	return n, err
+}
+
 func (r *mergedRowGroupRows) Close() (lastErr error) {
 	r.merge.close()
 	r.rowIndex = 0
@@ -61,14 +132,13 @@ func (r *mergedRowGroupRows) ReadRows(rows []Row) (int, error) {
 		if n > len(rows) {
 			n = len(rows)
 		}
-		n, err := r.merge.ReadRows(rows[:n])
+		n, err := r.readInternal(rows[:n])
 		if err != nil {
 			return 0, err
 		}
-		r.rowIndex += int64(n)
 	}
 
-	return r.merge.ReadRows(rows)
+	return r.readInternal(rows)
 }
 
 func (r *mergedRowGroupRows) SeekToRow(rowIndex int64) error {
@@ -83,6 +153,8 @@ func (r *mergedRowGroupRows) Schema() *Schema {
 	return r.schema
 }
 
+// MergeRowReader constructs a RowReader which creates an ordered sequence of
+// all the readers using the given compare function as the ordering predicate.
 func MergeRowReaders(readers []RowReader, compare func(Row, Row) int) RowReader {
 	return &mergedRowReader{
 		compare: compare,

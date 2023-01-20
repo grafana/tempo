@@ -3,7 +3,6 @@
   local configMap = k.core.v1.configMap,
 
   tempo_config:: {
-    search_enabled: $._config.search_enabled,
     server: {
       http_listen_port: $._config.tempo.port,
     },

@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/tempodb/search"
 )
 
 // searchResponse is a thread safe struct used to aggregate the responses from all downstream
@@ -68,9 +69,10 @@ func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
 	defer r.mtx.Unlock()
 
 	for _, t := range res.Traces {
-		// todo: determine a better way to combine?
 		if _, ok := r.resultsMap[t.TraceID]; !ok {
 			r.resultsMap[t.TraceID] = t
+		} else {
+			search.CombineSearchResults(r.resultsMap[t.TraceID], t)
 		}
 	}
 

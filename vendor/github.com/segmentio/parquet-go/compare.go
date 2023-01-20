@@ -178,88 +178,41 @@ func lessBE128(v1, v2 *[16]byte) bool {
 }
 
 func compareRowsFuncOf(schema *Schema, sortingColumns []SortingColumn) func(Row, Row) int {
-	compareFuncs := make([]func(Row, Row) int, len(sortingColumns))
-	direct := true
+	leafColumns := make([]leafColumn, len(sortingColumns))
+	canCompareRows := true
 
 	forEachLeafColumnOf(schema, func(leaf leafColumn) {
 		if leaf.maxRepetitionLevel > 0 {
-			direct = false
+			canCompareRows = false
 		}
 
 		if sortingIndex := searchSortingColumn(sortingColumns, leaf.path); sortingIndex < len(sortingColumns) {
-			sortingColumn := sortingColumns[sortingIndex]
-			descending := sortingColumn.Descending()
-			optional := leaf.maxDefinitionLevel > 0
-			sortFunc := (func(Row, Row) int)(nil)
+			leafColumns[sortingIndex] = leaf
 
-			if direct && !optional {
-				// This is an optimization for the common case where rows
-				// are sorted by non-optional, non-repeated columns.
-				//
-				// The sort function can make the assumption that it will
-				// find the column value at the current column index, and
-				// does not need to scan the rows looking for values with
-				// a matching column index.
-				//
-				// A second optimization consists in passing the column type
-				// directly to the sort function instead of an intermediary
-				// closure, which removes an indirection layer and improves
-				// throughput by ~20% in BenchmarkSortRowBuffer.
-				typ := leaf.node.Type()
-				if descending {
-					sortFunc = compareRowsFuncOfIndexDescending(leaf.columnIndex, typ)
-				} else {
-					sortFunc = compareRowsFuncOfIndexAscending(leaf.columnIndex, typ)
-				}
-			} else {
-				compare := leaf.node.Type().Compare
-
-				if descending {
-					compare = CompareDescending(compare)
-				}
-
-				if optional {
-					if sortingColumn.NullsFirst() {
-						compare = CompareNullsFirst(compare)
-					} else {
-						compare = CompareNullsLast(compare)
-					}
-				}
-
-				sortFunc = compareRowsFuncOfScan(leaf.columnIndex, compare)
+			if leaf.maxDefinitionLevel > 0 {
+				canCompareRows = false
 			}
-
-			compareFuncs[sortingIndex] = sortFunc
 		}
 	})
 
-	// When some sorting columns were not found on the schema it is possible for
-	// the list of compare functions to still contain nil values; we compact it
-	// here to keep only the columns that we found comparators for.
-	n := 0
-	for _, f := range compareFuncs {
-		if f != nil {
-			compareFuncs[n] = f
-			n++
-		}
+	// This is an optimization for the common case where rows
+	// are sorted by non-optional, non-repeated columns.
+	//
+	// The sort function can make the assumption that it will
+	// find the column value at the current column index, and
+	// does not need to scan the rows looking for values with
+	// a matching column index.
+	if canCompareRows {
+		return compareRowsFuncOfColumnIndexes(leafColumns, sortingColumns)
 	}
 
-	// For the common case where rows are sorted by a single column, we can skip
-	// looping over the list of sort functions.
-	switch n {
-	case 0:
-		return compareRowsUnordered
-	case 1:
-		return compareFuncs[0]
-	default:
-		return compareRowsFuncOfColumns(compareFuncs[:n])
-	}
+	return compareRowsFuncOfColumnValues(leafColumns, sortingColumns)
 }
 
 func compareRowsUnordered(Row, Row) int { return 0 }
 
 //go:noinline
-func compareRowsFuncOfColumns(compareFuncs []func(Row, Row) int) func(Row, Row) int {
+func compareRowsFuncOfIndexColumns(compareFuncs []func(Row, Row) int) func(Row, Row) int {
 	return func(row1, row2 Row) int {
 		for _, compare := range compareFuncs {
 			if cmp := compare(row1, row2); cmp != 0 {
@@ -281,36 +234,109 @@ func compareRowsFuncOfIndexDescending(columnIndex int16, typ Type) func(Row, Row
 }
 
 //go:noinline
-func compareRowsFuncOfScan(columnIndex int16, compare func(Value, Value) int) func(Row, Row) int {
-	columnIndex = ^columnIndex
+func compareRowsFuncOfColumnIndexes(leafColumns []leafColumn, sortingColumns []SortingColumn) func(Row, Row) int {
+	compareFuncs := make([]func(Row, Row) int, len(sortingColumns))
+
+	for sortingIndex, sortingColumn := range sortingColumns {
+		leaf := leafColumns[sortingIndex]
+		typ := leaf.node.Type()
+
+		if sortingColumn.Descending() {
+			compareFuncs[sortingIndex] = compareRowsFuncOfIndexDescending(leaf.columnIndex, typ)
+		} else {
+			compareFuncs[sortingIndex] = compareRowsFuncOfIndexAscending(leaf.columnIndex, typ)
+		}
+	}
+
+	switch len(compareFuncs) {
+	case 0:
+		return compareRowsUnordered
+	case 1:
+		return compareFuncs[0]
+	default:
+		return compareRowsFuncOfIndexColumns(compareFuncs)
+	}
+}
+
+//go:noinline
+func compareRowsFuncOfColumnValues(leafColumns []leafColumn, sortingColumns []SortingColumn) func(Row, Row) int {
+	highestColumnIndex := int16(0)
+	columnIndexes := make([]int16, len(sortingColumns))
+	compareFuncs := make([]func(Value, Value) int, len(sortingColumns))
+
+	for sortingIndex, sortingColumn := range sortingColumns {
+		leaf := leafColumns[sortingIndex]
+		compare := leaf.node.Type().Compare
+
+		if sortingColumn.Descending() {
+			compare = CompareDescending(compare)
+		}
+
+		if leaf.maxDefinitionLevel > 0 {
+			if sortingColumn.NullsFirst() {
+				compare = CompareNullsFirst(compare)
+			} else {
+				compare = CompareNullsLast(compare)
+			}
+		}
+
+		columnIndexes[sortingIndex] = leaf.columnIndex
+		compareFuncs[sortingIndex] = compare
+
+		if leaf.columnIndex > highestColumnIndex {
+			highestColumnIndex = leaf.columnIndex
+		}
+	}
+
 	return func(row1, row2 Row) int {
+		columns1 := make([][2]int32, 0, 64)
+		columns2 := make([][2]int32, 0, 64)
+
 		i1 := 0
 		i2 := 0
 
-		for {
-			for i1 < len(row1) && row1[i1].columnIndex != columnIndex {
-				i1++
+		for columnIndex := int16(0); columnIndex <= highestColumnIndex; columnIndex++ {
+			j1 := i1 + 1
+			j2 := i2 + 1
+
+			for j1 < len(row1) && row1[j1].columnIndex == ^columnIndex {
+				j1++
 			}
 
-			for i2 < len(row2) && row2[i2].columnIndex != columnIndex {
+			for j2 < len(row2) && row2[j2].columnIndex == ^columnIndex {
+				j2++
+			}
+
+			columns1 = append(columns1, [2]int32{int32(i1), int32(j1)})
+			columns2 = append(columns2, [2]int32{int32(i2), int32(j2)})
+			i1 = j1
+			i2 = j2
+		}
+
+		for i, compare := range compareFuncs {
+			columnIndex := columnIndexes[i]
+			offsets1 := columns1[columnIndex]
+			offsets2 := columns2[columnIndex]
+			values1 := row1[offsets1[0]:offsets1[1]:offsets1[1]]
+			values2 := row2[offsets2[0]:offsets2[1]:offsets2[1]]
+			i1 := 0
+			i2 := 0
+
+			for i1 < len(values1) && i2 < len(values2) {
+				if cmp := compare(values1[i1], values2[i2]); cmp != 0 {
+					return cmp
+				}
+				i1++
 				i2++
 			}
 
-			end1 := i1 == len(row1)
-			end2 := i2 == len(row2)
-
-			if end1 && end2 {
-				return 0
-			} else if end1 {
-				return -1
-			} else if end2 {
+			if i1 < len(values1) {
 				return +1
-			} else if cmp := compare(row1[i1], row2[i2]); cmp != 0 {
-				return cmp
 			}
-
-			i1++
-			i2++
+			if i2 < len(values2) {
+				return -1
+			}
 		}
+		return 0
 	}
 }

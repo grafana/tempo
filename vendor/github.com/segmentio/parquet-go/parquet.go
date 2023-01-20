@@ -42,3 +42,12 @@ func typeNameOf(t reflect.Type) string {
 	}
 	return s1 + " (" + s2 + ")"
 }
+
+func isZero(b []byte) bool {
+	for _, c := range b {
+		if c != 0 {
+			return false
+		}
+	}
+	return true
+}

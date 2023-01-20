@@ -125,8 +125,6 @@
     gossip_ring_port: 7946,
     backend: error 'Must specify a backend',  // gcs|s3
     bucket: error 'Must specify a bucket',
-    search_enabled: false,
-    metrics_generator_enabled: false,
 
     overrides_configmap_name: 'tempo-overrides',
     overrides+:: {

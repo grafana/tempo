@@ -9,6 +9,29 @@ import (
 // Int96 is an implementation of the deprecated INT96 parquet type.
 type Int96 [3]uint32
 
+// Int32ToInt96 converts a int32 value to a Int96.
+func Int32ToInt96(value int32) (i96 Int96) {
+	if value < 0 {
+		i96[2] = 0xFFFFFFFF
+		i96[1] = 0xFFFFFFFF
+	}
+	i96[0] = uint32(value)
+	return
+}
+
+// Int64ToInt96 converts a int64 value to Int96.
+func Int64ToInt96(value int64) (i96 Int96) {
+	if value < 0 {
+		i96[2] = 0xFFFFFFFF
+	}
+	i96[1] = uint32(value >> 32)
+	i96[0] = uint32(value)
+	return
+}
+
+// IsZero returns true if i is the zero-value.
+func (i Int96) IsZero() bool { return i == Int96{} }
+
 // Negative returns true if i is a negative value.
 func (i Int96) Negative() bool {
 	return (i[2] >> 31) != 0
@@ -46,6 +69,16 @@ func (i Int96) Int() *big.Int {
 	z.Lsh(z, 32)
 	z.Or(z, big.NewInt(int64(i[0])))
 	return z
+}
+
+// Int32 converts i to a int32, potentially truncating the value.
+func (i Int96) Int32() int32 {
+	return int32(i[0])
+}
+
+// Int64 converts i to a int64, potentially truncating the value.
+func (i Int96) Int64() int64 {
+	return int64(i[1])<<32 | int64(i[0])
 }
 
 // String returns a string representation of i.

@@ -152,71 +152,6 @@ func sortingColumnsAreEqual(s1, s2 SortingColumn) bool {
 	return path1.equal(path2) && s1.Descending() == s2.Descending() && s1.NullsFirst() == s2.NullsFirst()
 }
 
-// MergeRowGroups constructs a row group which is a merged view of rowGroups. If
-// rowGroups are sorted and the passed options include sorting, the merged row
-// group will also be sorted.
-//
-// The function validates the input to ensure that the merge operation is
-// possible, ensuring that the schemas match or can be converted to an
-// optionally configured target schema passed as argument in the option list.
-//
-// The sorting columns of each row group are also consulted to determine whether
-// the output can be represented. If sorting columns are configured on the merge
-// they must be a prefix of sorting columns of all row groups being merged.
-func MergeRowGroups(rowGroups []RowGroup, options ...RowGroupOption) (RowGroup, error) {
-	config, err := NewRowGroupConfig(options...)
-	if err != nil {
-		return nil, err
-	}
-
-	schema := config.Schema
-	if len(rowGroups) == 0 {
-		return newEmptyRowGroup(schema), nil
-	}
-	if schema == nil {
-		schema = rowGroups[0].Schema()
-
-		for _, rowGroup := range rowGroups[1:] {
-			if !nodesAreEqual(schema, rowGroup.Schema()) {
-				return nil, ErrRowGroupSchemaMismatch
-			}
-		}
-	}
-
-	mergedRowGroups := make([]RowGroup, len(rowGroups))
-	copy(mergedRowGroups, rowGroups)
-
-	for i, rowGroup := range mergedRowGroups {
-		if rowGroupSchema := rowGroup.Schema(); !nodesAreEqual(schema, rowGroupSchema) {
-			conv, err := Convert(schema, rowGroupSchema)
-			if err != nil {
-				return nil, fmt.Errorf("cannot merge row groups: %w", err)
-			}
-			mergedRowGroups[i] = ConvertRowGroup(rowGroup, conv)
-		}
-	}
-
-	m := &mergedRowGroup{sorting: config.Sorting.SortingColumns}
-	m.init(schema, mergedRowGroups)
-
-	if len(m.sorting) == 0 {
-		// When the row group has no ordering, use a simpler version of the
-		// merger which simply concatenates rows from each of the row groups.
-		// This is preferable because it makes the output deterministic, the
-		// heap merge may otherwise reorder rows across groups.
-		return &m.multiRowGroup, nil
-	}
-
-	for _, rowGroup := range m.rowGroups {
-		if !sortingColumnsHavePrefix(rowGroup.SortingColumns(), m.sorting) {
-			return nil, ErrRowGroupSortingColumnsMismatch
-		}
-	}
-
-	m.compare = compareRowsFuncOf(schema, m.sorting)
-	return m, nil
-}
-
 type rowGroup struct {
 	schema  *Schema
 	numRows int64
@@ -423,7 +358,7 @@ func (r *rowGroupRows) ReadRows(rows []Row) (int, error) {
 		return 0, io.EOF
 	}
 
-	n, err := r.Schema().readRows(r, rows[:numRows], 0)
+	n, err := r.readRows(rows[:numRows])
 
 	for i := range r.columns {
 		r.columns[i].rows -= int64(n)
@@ -434,6 +369,50 @@ func (r *rowGroupRows) ReadRows(rows []Row) (int, error) {
 
 func (r *rowGroupRows) Schema() *Schema {
 	return r.rowGroup.Schema()
+}
+
+func (r *rowGroupRows) readRows(rows []Row) (int, error) {
+	for i := range rows {
+	readColumns:
+		for columnIndex := range r.columns {
+			col := &r.columns[columnIndex]
+			buf := r.buffer(columnIndex)
+
+			skip := int32(1)
+			for {
+				if col.offset == col.length {
+					n, err := col.values.ReadValues(buf)
+					if n == 0 {
+						switch err {
+						case nil:
+							err = io.ErrNoProgress
+						case io.EOF:
+							continue readColumns
+						}
+						return i, err
+					}
+					col.offset = 0
+					col.length = int32(n)
+				}
+
+				_ = buf[:col.offset]
+				_ = buf[:col.length]
+				endOffset := col.offset + skip
+
+				for endOffset < col.length && buf[endOffset].repetitionLevel != 0 {
+					endOffset++
+				}
+
+				rows[i] = append(rows[i], buf[col.offset:endOffset]...)
+
+				if col.offset = endOffset; col.offset < col.length {
+					break
+				}
+				skip = 0
+			}
+		}
+	}
+	return len(rows), nil
 }
 
 type seekRowGroup struct {

@@ -19,21 +19,9 @@ distributor:
 ingester:
   max_block_duration: 5m               # cut the headblock when this much time passes. this is being set for demo purposes and should probably be left alone normally
 
-memberlist:
-  abort_if_cluster_join_fails: false
-  bind_port: 7946
-  join_members:
-  - ingester-0:7946
-  - ingester-1:7946
-  - ingester-2:7946
-
 compactor:
   compaction:
-    block_retention: 1h               # overall Tempo trace retention. set for demo purposes
-
-querier:
-  frontend_worker:
-    frontend_address: query-frontend:9095
+    block_retention: 1h                # overall Tempo trace retention. set for demo purposes
 
 metrics_generator:
   registry:
@@ -48,17 +36,11 @@ metrics_generator:
 
 storage:
   trace:
-    backend: s3
-    s3:
-      bucket: tempo
-      endpoint: minio:9000
-      access_key: tempo
-      secret_key: supersecret
-      insecure: true
+    backend: local                     # backend configuration to use
     wal:
       path: /tmp/tempo/wal             # where to store the the wal locally
     local:
       path: /tmp/tempo/blocks
 
 overrides:
-  metrics_generator_processors: ['service-graphs', 'span-metrics']
+  metrics_generator_processors: [service-graphs, span-metrics] # enables metrics generator

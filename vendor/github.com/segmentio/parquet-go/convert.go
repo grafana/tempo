@@ -1,11 +1,19 @@
 package parquet
 
 import (
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io"
+	"math"
+	"math/big"
+	"strconv"
 	"sync"
+	"time"
 
+	"github.com/segmentio/parquet-go/deprecated"
 	"github.com/segmentio/parquet-go/encoding"
+	"github.com/segmentio/parquet-go/format"
 )
 
 // ConvertError is an error type returned by calls to Convert when the conversion
@@ -41,7 +49,7 @@ func (e *ConvertError) Error() string {
 type Conversion interface {
 	// Applies the conversion logic on the src row, returning the result
 	// appended to dst.
-	Convert(dst, src Row) (Row, error)
+	Convert(rows []Row) (int, error)
 	// Converts the given column index in the target schema to the original
 	// column index in the source schema of the conversion.
 	Column(int) int
@@ -50,171 +58,167 @@ type Conversion interface {
 }
 
 type conversion struct {
-	targetColumnTypes   []Type
-	targetToSourceIndex []int16
-	sourceToTargetIndex []int16
-	convertFunc         convertFunc
-	schema              *Schema
-	buffers             sync.Pool
+	columns []conversionColumn
+	schema  *Schema
+	buffers sync.Pool
+	// This field is used to size the column buffers held in the sync.Pool since
+	// they are intended to store the source rows being converted from.
+	numberOfSourceColumns int
 }
 
 type conversionBuffer struct {
-	types   []Type
 	columns [][]Value
+}
+
+type conversionColumn struct {
+	sourceIndex   int
+	convertValues conversionFunc
+}
+
+type conversionFunc func([]Value) error
+
+func convertToSelf(column []Value) error { return nil }
+
+//go:noinline
+func convertToType(targetType, sourceType Type) conversionFunc {
+	return func(column []Value) error {
+		for i, v := range column {
+			v, err := sourceType.ConvertValue(v, targetType)
+			if err != nil {
+				return err
+			}
+			column[i].ptr = v.ptr
+			column[i].u64 = v.u64
+			column[i].kind = v.kind
+		}
+		return nil
+	}
+}
+
+//go:noinline
+func convertToValue(value Value) conversionFunc {
+	return func(column []Value) error {
+		for i := range column {
+			column[i] = value
+		}
+		return nil
+	}
+}
+
+//go:noinline
+func convertToZero(kind Kind) conversionFunc {
+	return func(column []Value) error {
+		for i := range column {
+			column[i].ptr = nil
+			column[i].u64 = 0
+			column[i].kind = ^int8(kind)
+		}
+		return nil
+	}
+}
+
+//go:noinline
+func convertToLevels(repetitionLevels, definitionLevels []byte) conversionFunc {
+	return func(column []Value) error {
+		for i := range column {
+			r := column[i].repetitionLevel
+			d := column[i].definitionLevel
+			column[i].repetitionLevel = repetitionLevels[r]
+			column[i].definitionLevel = definitionLevels[d]
+		}
+		return nil
+	}
+}
+
+//go:noinline
+func multiConversionFunc(conversions []conversionFunc) conversionFunc {
+	switch len(conversions) {
+	case 0:
+		return convertToSelf
+	case 1:
+		return conversions[0]
+	default:
+		return func(column []Value) error {
+			for _, conv := range conversions {
+				if err := conv(column); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}
 }
 
 func (c *conversion) getBuffer() *conversionBuffer {
 	b, _ := c.buffers.Get().(*conversionBuffer)
 	if b == nil {
-		n := len(c.targetColumnTypes)
-		columns, values, types := make([][]Value, n), make([]Value, n), make([]Type, n)
-		for i := range columns {
-			columns[i] = values[i : i : i+1]
+		b = &conversionBuffer{
+			columns: make([][]Value, c.numberOfSourceColumns),
 		}
-		b = &conversionBuffer{types: types, columns: columns}
+		values := make([]Value, c.numberOfSourceColumns)
+		for i := range b.columns {
+			b.columns[i] = values[i : i : i+1]
+		}
 	}
 	return b
 }
 
 func (c *conversion) putBuffer(b *conversionBuffer) {
-	for i, values := range b.columns {
-		clearValues(values)
-		b.columns[i] = values[:0]
-	}
 	c.buffers.Put(b)
 }
 
-// convertFunc takes a target and source row, then copies data
-// from the source to the target according to the heuristics determined
-// by the target schema given in makeConvertFunc
-type convertFunc func(Row, levels, *conversionBuffer) (Row, error)
+// Convert here satisfies the Conversion interface, and does the actual work
+// to convert between the source and target Rows.
+func (c *conversion) Convert(rows []Row) (int, error) {
+	source := c.getBuffer()
+	defer c.putBuffer(source)
 
-func (c *conversion) makeConvertFunc(node Node) (convert convertFunc) {
-	if !node.Leaf() {
-		_, convert = c.convertFuncOf(0, node)
-	}
-	return convert
-}
-
-func (c *conversion) convertFuncOf(tgtIdx int16, node Node) (int16, convertFunc) {
-	switch {
-	case node.Repeated():
-		return c.convertFuncOfRepeated(tgtIdx, node)
-	default:
-		return c.convertFuncOfRequired(tgtIdx, node)
-	}
-}
-
-func (c *conversion) convertFuncOfRequired(tgtIdx int16, node Node) (int16, convertFunc) {
-	switch {
-	case node.Leaf():
-		return c.convertFuncOfLeaf(tgtIdx, node)
-	default:
-		return c.convertFuncOfGroup(tgtIdx, node)
-	}
-}
-
-// convertFuncOfLeaf is the base case to our schema-tree traversal, doing the
-// actual copy of the value from the old Row (via conversionBuffer) to the new Row
-func (c *conversion) convertFuncOfLeaf(tgtIdx int16, node Node) (int16, convertFunc) {
-	return tgtIdx + 1, func(tgt Row, _ levels, src *conversionBuffer) (Row, error) {
-		value := Value{}
-		if tgtIdx >= 0 && len(src.columns[tgtIdx]) > 0 {
-			// Pop the top value and remove from the buffer.
-			value = src.columns[tgtIdx][0]
-			src.columns[tgtIdx] = src.columns[tgtIdx][1:]
+	for n, row := range rows {
+		for i, values := range source.columns {
+			source.columns[i] = values[:0]
 		}
-		value.kind = ^int8(c.targetColumnTypes[tgtIdx].Kind())
-		value.columnIndex = ^tgtIdx
+		row.Range(func(columnIndex int, columnValues []Value) bool {
+			source.columns[columnIndex] = append(source.columns[columnIndex], columnValues...)
+			return true
+		})
+		row = row[:0]
 
-		var err error
-		srcType := src.types[tgtIdx]
-		if srcType != nil {
-			value, err = node.Type().ConvertValue(value, srcType)
-			if err != nil {
-				return nil, err
+		for columnIndex, conv := range c.columns {
+			columnOffset := len(row)
+			if conv.sourceIndex < 0 {
+				// When there is no source column, we put a single value as
+				// placeholder in the column. This is a condition where the
+				// target contained a column which did not exist at had not
+				// other columns existing at that same level.
+				row = append(row, Value{})
+			} else {
+				// We must copy to the output row first and not mutate the
+				// source columns because multiple target columns may map to
+				// the same source column.
+				row = append(row, source.columns[conv.sourceIndex]...)
+			}
+			columnValues := row[columnOffset:]
+
+			if err := conv.convertValues(columnValues); err != nil {
+				return n, err
+			}
+
+			// Since the column index may have changed between the source and
+			// taget columns we ensure that the right value is always written
+			// to the output row.
+			for i := range columnValues {
+				columnValues[i].columnIndex = ^int16(columnIndex)
 			}
 		}
 
-		tgt = append(tgt, value)
-		return tgt, nil
-	}
-}
-
-func (c *conversion) convertFuncOfGroup(tgtIdx int16, node Node) (int16, convertFunc) {
-	fields := node.Fields()
-	funcs := make([]convertFunc, len(fields))
-
-	for i, field := range fields {
-		tgtIdx, funcs[i] = c.convertFuncOf(tgtIdx, field)
+		rows[n] = row
 	}
 
-	return tgtIdx, func(tgt Row, levels levels, src *conversionBuffer) (Row, error) {
-		var err error
-		for i, convFunc := range funcs {
-			if tgt, err = convFunc(tgt, levels, src); err != nil {
-				err = fmt.Errorf("%s → %w", fields[i].Name(), err)
-				break
-			}
-		}
-		return tgt, err
-	}
-}
-
-func (c *conversion) convertFuncOfRepeated(tgtIdx int16, node Node) (int16, convertFunc) {
-	nextIdx, convFunc := c.convertFuncOf(tgtIdx, Required(node))
-	return nextIdx, func(tgt Row, levels levels, src *conversionBuffer) (Row, error) {
-		var err error
-
-		levels.repetitionDepth++
-
-		for _, elem := range src.columns[tgtIdx] {
-			if elem.repetitionLevel != levels.repetitionLevel {
-				break
-			}
-			tgt, err = convFunc(tgt, levels, src)
-			levels.repetitionLevel = levels.repetitionDepth
-		}
-
-		return tgt, err
-	}
-}
-
-// Convert here satisfies the Conversion interface, and does the actual work to
-// convert between the source and target Rows.
-func (c *conversion) Convert(target, source Row) (Row, error) {
-	buf := c.getBuffer()
-	defer c.putBuffer(buf)
-
-	// Build conversion buffer
-	for _, value := range source {
-		sourceIndex := value.Column()
-		targetIndex := c.sourceToTargetIndex[sourceIndex]
-		if targetIndex >= 0 {
-			typ := c.targetColumnTypes[targetIndex]
-			value.kind = ^int8(typ.Kind())
-			value.columnIndex = ^targetIndex
-			buf.types[targetIndex] = typ
-			buf.columns[targetIndex] = append(buf.columns[targetIndex], value)
-		}
-	}
-
-	// Fill empty columns
-	for i, values := range buf.columns {
-		if len(values) == 0 {
-			buf.columns[i] = append(buf.columns[i], Value{
-				kind:        ^int8(c.targetColumnTypes[i].Kind()),
-				columnIndex: ^int16(i),
-			})
-		}
-	}
-
-	// Construct row from buffer
-	return c.convertFunc(target, levels{}, buf)
+	return len(rows), nil
 }
 
 func (c *conversion) Column(i int) int {
-	return int(c.targetToSourceIndex[i])
+	return c.columns[i].sourceIndex
 }
 
 func (c *conversion) Schema() *Schema {
@@ -223,9 +227,9 @@ func (c *conversion) Schema() *Schema {
 
 type identity struct{ schema *Schema }
 
-func (id identity) Convert(dst, src Row) (Row, error) { return append(dst, src...), nil }
-func (id identity) Column(i int) int                  { return i }
-func (id identity) Schema() *Schema                   { return id.schema }
+func (id identity) Convert(rows []Row) (int, error) { return len(rows), nil }
+func (id identity) Column(i int) int                { return i }
+func (id identity) Schema() *Schema                 { return id.schema }
 
 // Convert constructs a conversion function from one parquet schema to another.
 //
@@ -248,48 +252,95 @@ func Convert(to, from Node) (conv Conversion, err error) {
 
 	targetMapping, targetColumns := columnMappingOf(to)
 	sourceMapping, sourceColumns := columnMappingOf(from)
-
-	columnIndexBuffer := make([]int16, len(targetColumns)+len(sourceColumns))
-	targetColumnTypes := make([]Type, len(targetColumns))
-	targetToSourceIndex := columnIndexBuffer[:len(targetColumns)]
-	sourceToTargetIndex := columnIndexBuffer[len(targetColumns):]
+	columns := make([]conversionColumn, len(targetColumns))
 
 	for i, path := range targetColumns {
-		sourceColumn := sourceMapping.lookup(path)
 		targetColumn := targetMapping.lookup(path)
-		targetToSourceIndex[i] = sourceColumn.columnIndex
-		targetColumnTypes[i] = targetColumn.node.Type()
-	}
-
-	for i, path := range sourceColumns {
 		sourceColumn := sourceMapping.lookup(path)
-		targetColumn := targetMapping.lookup(path)
 
-		if targetColumn.node != nil {
-			sourceType := sourceColumn.node.Type()
+		conversions := []conversionFunc{}
+		if sourceColumn.node != nil {
 			targetType := targetColumn.node.Type()
-			if sourceType.Kind() != targetType.Kind() {
-				return nil, &ConvertError{Path: path, From: sourceColumn.node, To: targetColumn.node}
+			sourceType := sourceColumn.node.Type()
+			if !typesAreEqual(targetType, sourceType) {
+				conversions = append(conversions,
+					convertToType(targetType, sourceType),
+				)
 			}
 
-			sourceRepetition := fieldRepetitionTypeOf(sourceColumn.node)
-			targetRepetition := fieldRepetitionTypeOf(targetColumn.node)
-			if sourceRepetition != targetRepetition {
-				return nil, &ConvertError{Path: path, From: sourceColumn.node, To: targetColumn.node}
+			repetitionLevels := make([]byte, len(path)+1)
+			definitionLevels := make([]byte, len(path)+1)
+			targetRepetitionLevel := byte(0)
+			targetDefinitionLevel := byte(0)
+			sourceRepetitionLevel := byte(0)
+			sourceDefinitionLevel := byte(0)
+			targetNode := to
+			sourceNode := from
+
+			for j := 0; j < len(path); j++ {
+				targetNode = fieldByName(targetNode, path[j])
+				sourceNode = fieldByName(sourceNode, path[j])
+
+				targetRepetitionLevel, targetDefinitionLevel = applyFieldRepetitionType(
+					fieldRepetitionTypeOf(targetNode),
+					targetRepetitionLevel,
+					targetDefinitionLevel,
+				)
+				sourceRepetitionLevel, sourceDefinitionLevel = applyFieldRepetitionType(
+					fieldRepetitionTypeOf(sourceNode),
+					sourceRepetitionLevel,
+					sourceDefinitionLevel,
+				)
+
+				repetitionLevels[sourceRepetitionLevel] = targetRepetitionLevel
+				definitionLevels[sourceDefinitionLevel] = targetDefinitionLevel
+			}
+
+			repetitionLevels = repetitionLevels[:sourceRepetitionLevel+1]
+			definitionLevels = definitionLevels[:sourceDefinitionLevel+1]
+
+			if !isDirectLevelMapping(repetitionLevels) || !isDirectLevelMapping(definitionLevels) {
+				conversions = append(conversions,
+					convertToLevels(repetitionLevels, definitionLevels),
+				)
+			}
+
+		} else {
+			targetType := targetColumn.node.Type()
+			targetKind := targetType.Kind()
+			sourceColumn = sourceMapping.lookupClosest(path)
+			if sourceColumn.node != nil {
+				conversions = append(conversions,
+					convertToZero(targetKind),
+				)
+			} else {
+				conversions = append(conversions,
+					convertToValue(ZeroValue(targetKind)),
+				)
 			}
 		}
 
-		sourceToTargetIndex[i] = targetColumn.columnIndex
+		columns[i] = conversionColumn{
+			sourceIndex:   int(sourceColumn.columnIndex),
+			convertValues: multiConversionFunc(conversions),
+		}
 	}
 
 	c := &conversion{
-		targetColumnTypes:   targetColumnTypes,
-		targetToSourceIndex: targetToSourceIndex,
-		sourceToTargetIndex: sourceToTargetIndex,
-		schema:              schema,
+		columns:               columns,
+		schema:                schema,
+		numberOfSourceColumns: len(sourceColumns),
 	}
-	c.convertFunc = c.makeConvertFunc(schema)
 	return c, nil
+}
+
+func isDirectLevelMapping(levels []byte) bool {
+	for i, level := range levels {
+		if level != byte(i) {
+			return false
+		}
+	}
+	return true
 }
 
 // ConvertRowGroup constructs a wrapper of the given row group which applies
@@ -500,30 +551,18 @@ func ConvertRowReader(rows RowReader, conv Conversion) RowReaderWithSchema {
 type convertedRows struct {
 	io.Closer
 	rows RowReadSeeker
-	buf  Row
 	conv Conversion
 }
 
 func (c *convertedRows) ReadRows(rows []Row) (int, error) {
-	maxRowLen := 0
-	defer func() {
-		clearValues(c.buf[:maxRowLen])
-	}()
-
 	n, err := c.rows.ReadRows(rows)
-
-	for i, row := range rows[:n] {
-		var err error
-		c.buf, err = c.conv.Convert(c.buf[:0], row)
-		if len(c.buf) > maxRowLen {
-			maxRowLen = len(c.buf)
+	if n > 0 {
+		var convErr error
+		n, convErr = c.conv.Convert(rows[:n])
+		if convErr != nil {
+			err = convErr
 		}
-		if err != nil {
-			return i, err
-		}
-		rows[i] = append(row[:0], c.buf...)
 	}
-
 	return n, err
 }
 
@@ -533,4 +572,476 @@ func (c *convertedRows) Schema() *Schema {
 
 func (c *convertedRows) SeekToRow(rowIndex int64) error {
 	return c.rows.SeekToRow(rowIndex)
+}
+
+var (
+	trueBytes  = []byte(`true`)
+	falseBytes = []byte(`false`)
+	unixEpoch  = time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+)
+
+func convertBooleanToInt32(v Value) (Value, error) {
+	return v.convertToInt32(int32(v.byte())), nil
+}
+
+func convertBooleanToInt64(v Value) (Value, error) {
+	return v.convertToInt64(int64(v.byte())), nil
+}
+
+func convertBooleanToInt96(v Value) (Value, error) {
+	return v.convertToInt96(deprecated.Int96{0: uint32(v.byte())}), nil
+}
+
+func convertBooleanToFloat(v Value) (Value, error) {
+	return v.convertToFloat(float32(v.byte())), nil
+}
+
+func convertBooleanToDouble(v Value) (Value, error) {
+	return v.convertToDouble(float64(v.byte())), nil
+}
+
+func convertBooleanToByteArray(v Value) (Value, error) {
+	return v.convertToByteArray([]byte{v.byte()}), nil
+}
+
+func convertBooleanToFixedLenByteArray(v Value, size int) (Value, error) {
+	b := []byte{v.byte()}
+	c := make([]byte, size)
+	copy(c, b)
+	return v.convertToFixedLenByteArray(c), nil
+}
+
+func convertBooleanToString(v Value) (Value, error) {
+	b := ([]byte)(nil)
+	if v.boolean() {
+		b = trueBytes
+	} else {
+		b = falseBytes
+	}
+	return v.convertToByteArray(b), nil
+}
+
+func convertInt32ToBoolean(v Value) (Value, error) {
+	return v.convertToBoolean(v.int32() != 0), nil
+}
+
+func convertInt32ToInt64(v Value) (Value, error) {
+	return v.convertToInt64(int64(v.int32())), nil
+}
+
+func convertInt32ToInt96(v Value) (Value, error) {
+	return v.convertToInt96(deprecated.Int32ToInt96(v.int32())), nil
+}
+
+func convertInt32ToFloat(v Value) (Value, error) {
+	return v.convertToFloat(float32(v.int32())), nil
+}
+
+func convertInt32ToDouble(v Value) (Value, error) {
+	return v.convertToDouble(float64(v.int32())), nil
+}
+
+func convertInt32ToByteArray(v Value) (Value, error) {
+	b := make([]byte, 4)
+	binary.LittleEndian.PutUint32(b, v.uint32())
+	return v.convertToByteArray(b), nil
+}
+
+func convertInt32ToFixedLenByteArray(v Value, size int) (Value, error) {
+	b := make([]byte, 4)
+	c := make([]byte, size)
+	binary.LittleEndian.PutUint32(b, v.uint32())
+	copy(c, b)
+	return v.convertToFixedLenByteArray(c), nil
+}
+
+func convertInt32ToString(v Value) (Value, error) {
+	return v.convertToByteArray(strconv.AppendInt(nil, int64(v.int32()), 10)), nil
+}
+
+func convertInt64ToBoolean(v Value) (Value, error) {
+	return v.convertToBoolean(v.int64() != 0), nil
+}
+
+func convertInt64ToInt32(v Value) (Value, error) {
+	return v.convertToInt32(int32(v.int64())), nil
+}
+
+func convertInt64ToInt96(v Value) (Value, error) {
+	return v.convertToInt96(deprecated.Int64ToInt96(v.int64())), nil
+}
+
+func convertInt64ToFloat(v Value) (Value, error) {
+	return v.convertToFloat(float32(v.int64())), nil
+}
+
+func convertInt64ToDouble(v Value) (Value, error) {
+	return v.convertToDouble(float64(v.int64())), nil
+}
+
+func convertInt64ToByteArray(v Value) (Value, error) {
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, v.uint64())
+	return v.convertToByteArray(b), nil
+}
+
+func convertInt64ToFixedLenByteArray(v Value, size int) (Value, error) {
+	b := make([]byte, 8)
+	c := make([]byte, size)
+	binary.LittleEndian.PutUint64(b, v.uint64())
+	copy(c, b)
+	return v.convertToFixedLenByteArray(c), nil
+}
+
+func convertInt64ToString(v Value) (Value, error) {
+	return v.convertToByteArray(strconv.AppendInt(nil, v.int64(), 10)), nil
+}
+
+func convertInt96ToBoolean(v Value) (Value, error) {
+	return v.convertToBoolean(!v.int96().IsZero()), nil
+}
+
+func convertInt96ToInt32(v Value) (Value, error) {
+	return v.convertToInt32(v.int96().Int32()), nil
+}
+
+func convertInt96ToInt64(v Value) (Value, error) {
+	return v.convertToInt64(v.int96().Int64()), nil
+}
+
+func convertInt96ToFloat(v Value) (Value, error) {
+	return v, invalidConversion(v, "INT96", "FLOAT")
+}
+
+func convertInt96ToDouble(v Value) (Value, error) {
+	return v, invalidConversion(v, "INT96", "DOUBLE")
+}
+
+func convertInt96ToByteArray(v Value) (Value, error) {
+	return v.convertToByteArray(v.byteArray()), nil
+}
+
+func convertInt96ToFixedLenByteArray(v Value, size int) (Value, error) {
+	b := v.byteArray()
+	if len(b) < size {
+		c := make([]byte, size)
+		copy(c, b)
+		b = c
+	} else {
+		b = b[:size]
+	}
+	return v.convertToFixedLenByteArray(b), nil
+}
+
+func convertInt96ToString(v Value) (Value, error) {
+	return v.convertToByteArray([]byte(v.String())), nil
+}
+
+func convertFloatToBoolean(v Value) (Value, error) {
+	return v.convertToBoolean(v.float() != 0), nil
+}
+
+func convertFloatToInt32(v Value) (Value, error) {
+	return v.convertToInt32(int32(v.float())), nil
+}
+
+func convertFloatToInt64(v Value) (Value, error) {
+	return v.convertToInt64(int64(v.float())), nil
+}
+
+func convertFloatToInt96(v Value) (Value, error) {
+	return v, invalidConversion(v, "FLOAT", "INT96")
+}
+
+func convertFloatToDouble(v Value) (Value, error) {
+	return v.convertToDouble(float64(v.float())), nil
+}
+
+func convertFloatToByteArray(v Value) (Value, error) {
+	b := make([]byte, 4)
+	binary.LittleEndian.PutUint32(b, v.uint32())
+	return v.convertToByteArray(b), nil
+}
+
+func convertFloatToFixedLenByteArray(v Value, size int) (Value, error) {
+	b := make([]byte, 4)
+	c := make([]byte, size)
+	binary.LittleEndian.PutUint32(b, v.uint32())
+	copy(c, b)
+	return v.convertToFixedLenByteArray(c), nil
+}
+
+func convertFloatToString(v Value) (Value, error) {
+	return v.convertToByteArray(strconv.AppendFloat(nil, float64(v.float()), 'g', -1, 32)), nil
+}
+
+func convertDoubleToBoolean(v Value) (Value, error) {
+	return v.convertToBoolean(v.double() != 0), nil
+}
+
+func convertDoubleToInt32(v Value) (Value, error) {
+	return v.convertToInt32(int32(v.double())), nil
+}
+
+func convertDoubleToInt64(v Value) (Value, error) {
+	return v.convertToInt64(int64(v.double())), nil
+}
+
+func convertDoubleToInt96(v Value) (Value, error) {
+	return v, invalidConversion(v, "FLOAT", "INT96")
+}
+
+func convertDoubleToFloat(v Value) (Value, error) {
+	return v.convertToFloat(float32(v.double())), nil
+}
+
+func convertDoubleToByteArray(v Value) (Value, error) {
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, v.uint64())
+	return v.convertToByteArray(b), nil
+}
+
+func convertDoubleToFixedLenByteArray(v Value, size int) (Value, error) {
+	b := make([]byte, 8)
+	c := make([]byte, size)
+	binary.LittleEndian.PutUint64(b, v.uint64())
+	copy(c, b)
+	return v.convertToFixedLenByteArray(c), nil
+}
+
+func convertDoubleToString(v Value) (Value, error) {
+	return v.convertToByteArray(strconv.AppendFloat(nil, v.double(), 'g', -1, 64)), nil
+}
+
+func convertByteArrayToBoolean(v Value) (Value, error) {
+	return v.convertToBoolean(!isZero(v.byteArray())), nil
+}
+
+func convertByteArrayToInt32(v Value) (Value, error) {
+	b := make([]byte, 4)
+	copy(b, v.byteArray())
+	return v.convertToInt32(int32(binary.LittleEndian.Uint32(b))), nil
+}
+
+func convertByteArrayToInt64(v Value) (Value, error) {
+	b := make([]byte, 8)
+	copy(b, v.byteArray())
+	return v.convertToInt64(int64(binary.LittleEndian.Uint64(b))), nil
+}
+
+func convertByteArrayToInt96(v Value) (Value, error) {
+	b := make([]byte, 12)
+	copy(b, v.byteArray())
+	return v.convertToInt96(deprecated.Int96{
+		0: binary.LittleEndian.Uint32(b[0:4]),
+		1: binary.LittleEndian.Uint32(b[4:8]),
+		2: binary.LittleEndian.Uint32(b[8:12]),
+	}), nil
+}
+
+func convertByteArrayToFloat(v Value) (Value, error) {
+	b := make([]byte, 4)
+	copy(b, v.byteArray())
+	return v.convertToFloat(math.Float32frombits(binary.LittleEndian.Uint32(b))), nil
+}
+
+func convertByteArrayToDouble(v Value) (Value, error) {
+	b := make([]byte, 8)
+	copy(b, v.byteArray())
+	return v.convertToDouble(math.Float64frombits(binary.LittleEndian.Uint64(b))), nil
+}
+
+func convertByteArrayToFixedLenByteArray(v Value, size int) (Value, error) {
+	b := v.byteArray()
+	if len(b) < size {
+		c := make([]byte, size)
+		copy(c, b)
+		b = c
+	} else {
+		b = b[:size]
+	}
+	return v.convertToFixedLenByteArray(b), nil
+}
+
+func convertFixedLenByteArrayToString(v Value) (Value, error) {
+	b := v.byteArray()
+	c := make([]byte, hex.EncodedLen(len(b)))
+	hex.Encode(c, b)
+	return v.convertToByteArray(c), nil
+}
+
+func convertStringToBoolean(v Value) (Value, error) {
+	b, err := strconv.ParseBool(v.string())
+	if err != nil {
+		return v, conversionError(v, "STRING", "BOOLEAN", err)
+	}
+	return v.convertToBoolean(b), nil
+}
+
+func convertStringToInt32(v Value) (Value, error) {
+	i, err := strconv.ParseInt(v.string(), 10, 32)
+	if err != nil {
+		return v, conversionError(v, "STRING", "INT32", err)
+	}
+	return v.convertToInt32(int32(i)), nil
+}
+
+func convertStringToInt64(v Value) (Value, error) {
+	i, err := strconv.ParseInt(v.string(), 10, 64)
+	if err != nil {
+		return v, conversionError(v, "STRING", "INT64", err)
+	}
+	return v.convertToInt64(i), nil
+}
+
+func convertStringToInt96(v Value) (Value, error) {
+	i, ok := new(big.Int).SetString(v.string(), 10)
+	if !ok {
+		return v, conversionError(v, "STRING", "INT96", strconv.ErrSyntax)
+	}
+	b := i.Bytes()
+	c := make([]byte, 12)
+	copy(c, b)
+	i96 := deprecated.BytesToInt96(c)
+	return v.convertToInt96(i96[0]), nil
+}
+
+func convertStringToFloat(v Value) (Value, error) {
+	f, err := strconv.ParseFloat(v.string(), 32)
+	if err != nil {
+		return v, conversionError(v, "STRING", "FLOAT", err)
+	}
+	return v.convertToFloat(float32(f)), nil
+}
+
+func convertStringToDouble(v Value) (Value, error) {
+	f, err := strconv.ParseFloat(v.string(), 64)
+	if err != nil {
+		return v, conversionError(v, "STRING", "DOUBLE", err)
+	}
+	return v.convertToDouble(f), nil
+}
+
+func convertStringToFixedLenByteArray(v Value, size int) (Value, error) {
+	b := v.byteArray()
+	c := make([]byte, size)
+	_, err := hex.Decode(c, b)
+	if err != nil {
+		return v, conversionError(v, "STRING", "BYTE_ARRAY", err)
+	}
+	return v.convertToFixedLenByteArray(c), nil
+}
+
+func convertStringToDate(v Value, tz *time.Location) (Value, error) {
+	t, err := time.ParseInLocation("2006-01-02", v.string(), tz)
+	if err != nil {
+		return v, conversionError(v, "STRING", "DATE", err)
+	}
+	d := daysSinceUnixEpoch(t)
+	return v.convertToInt32(int32(d)), nil
+}
+
+func convertStringToTimeMillis(v Value, tz *time.Location) (Value, error) {
+	t, err := time.ParseInLocation("15:04:05.999", v.string(), tz)
+	if err != nil {
+		return v, conversionError(v, "STRING", "TIME", err)
+	}
+	m := nearestMidnightLessThan(t)
+	milliseconds := t.Sub(m).Milliseconds()
+	return v.convertToInt32(int32(milliseconds)), nil
+}
+
+func convertStringToTimeMicros(v Value, tz *time.Location) (Value, error) {
+	t, err := time.ParseInLocation("15:04:05.999999", v.string(), tz)
+	if err != nil {
+		return v, conversionError(v, "STRING", "TIME", err)
+	}
+	m := nearestMidnightLessThan(t)
+	microseconds := t.Sub(m).Microseconds()
+	return v.convertToInt64(microseconds), nil
+}
+
+func convertDateToTimestamp(v Value, u format.TimeUnit, tz *time.Location) (Value, error) {
+	t := unixEpoch.AddDate(0, 0, int(v.int32()))
+	d := timeUnitDuration(u)
+	return v.convertToInt64(int64(t.In(tz).Sub(unixEpoch) / d)), nil
+}
+
+func convertDateToString(v Value) (Value, error) {
+	t := unixEpoch.AddDate(0, 0, int(v.int32()))
+	b := t.AppendFormat(make([]byte, 0, 10), "2006-01-02")
+	return v.convertToByteArray(b), nil
+}
+
+func convertTimeMillisToString(v Value, tz *time.Location) (Value, error) {
+	t := time.UnixMilli(int64(v.int32())).In(tz)
+	b := t.AppendFormat(make([]byte, 0, 12), "15:04:05.999")
+	return v.convertToByteArray(b), nil
+}
+
+func convertTimeMicrosToString(v Value, tz *time.Location) (Value, error) {
+	t := time.UnixMicro(v.int64()).In(tz)
+	b := t.AppendFormat(make([]byte, 0, 15), "15:04:05.999999")
+	return v.convertToByteArray(b), nil
+}
+
+func convertTimestampToDate(v Value, u format.TimeUnit, tz *time.Location) (Value, error) {
+	t := timestamp(v, u, tz)
+	d := daysSinceUnixEpoch(t)
+	return v.convertToInt32(int32(d)), nil
+}
+
+func convertTimestampToTimeMillis(v Value, u format.TimeUnit, sourceZone, targetZone *time.Location) (Value, error) {
+	t := timestamp(v, u, sourceZone)
+	m := nearestMidnightLessThan(t)
+	milliseconds := t.In(targetZone).Sub(m).Milliseconds()
+	return v.convertToInt32(int32(milliseconds)), nil
+}
+
+func convertTimestampToTimeMicros(v Value, u format.TimeUnit, sourceZone, targetZone *time.Location) (Value, error) {
+	t := timestamp(v, u, sourceZone)
+	m := nearestMidnightLessThan(t)
+	microseconds := t.In(targetZone).Sub(m).Microseconds()
+	return v.convertToInt64(int64(microseconds)), nil
+}
+
+func convertTimestampToTimestamp(v Value, sourceUnit, targetUnit format.TimeUnit) (Value, error) {
+	sourceScale := timeUnitDuration(sourceUnit).Nanoseconds()
+	targetScale := timeUnitDuration(targetUnit).Nanoseconds()
+	targetValue := (v.int64() * sourceScale) / targetScale
+	return v.convertToInt64(targetValue), nil
+}
+
+const nanosecondsPerDay = 24 * 60 * 60 * 1e9
+
+func daysSinceUnixEpoch(t time.Time) int {
+	return int(t.Sub(unixEpoch).Hours()) / 24
+}
+
+func nearestMidnightLessThan(t time.Time) time.Time {
+	y, m, d := t.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, t.Location())
+}
+
+func timestamp(v Value, u format.TimeUnit, tz *time.Location) time.Time {
+	return unixEpoch.In(tz).Add(time.Duration(v.int64()) * timeUnitDuration(u))
+}
+
+func timeUnitDuration(unit format.TimeUnit) time.Duration {
+	switch {
+	case unit.Millis != nil:
+		return time.Millisecond
+	case unit.Micros != nil:
+		return time.Microsecond
+	default:
+		return time.Nanosecond
+	}
+}
+
+func invalidConversion(value Value, from, to string) error {
+	return fmt.Errorf("%s to %s: %s: %w", from, to, value, ErrInvalidConversion)
+}
+
+func conversionError(value Value, from, to string, err error) error {
+	return fmt.Errorf("%s to %s: %q: %s: %w", from, to, value.string(), err, ErrInvalidConversion)
 }

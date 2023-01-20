@@ -161,19 +161,19 @@ func OpenFile(r io.ReaderAt, size int64, options ...FileOption) (*File, error) {
 // Only leaf columns have indexes, the returned indexes are arranged using the
 // following layout:
 //
-//   - -------------- +
-//     | col 0: chunk 0 |
-//   - -------------- +
-//     | col 1: chunk 0 |
-//   - -------------- +
-//     | ...            |
-//   - -------------- +
-//     | col 0: chunk 1 |
-//   - -------------- +
-//     | col 1: chunk 1 |
-//   - -------------- +
-//     | ...            |
-//   - -------------- +
+//	------------------
+//	| col 0: chunk 0 |
+//	------------------
+//	| col 1: chunk 0 |
+//	------------------
+//	| ...            |
+//	------------------
+//	| col 0: chunk 1 |
+//	------------------
+//	| col 1: chunk 1 |
+//	------------------
+//	| ...            |
+//	------------------
 //
 // This method is useful in combination with the SkipPageIndex option to delay
 // reading the page index section until after the file was opened. Note that in
@@ -281,7 +281,7 @@ func (f *File) ReadPageIndex() ([]format.ColumnIndex, []format.OffsetIndex, erro
 // NumRows returns the number of rows in the file.
 func (f *File) NumRows() int64 { return f.metadata.NumRows }
 
-// RowGroups returns the list of row group in the file.
+// RowGroups returns the list of row groups in the file.
 func (f *File) RowGroups() []RowGroup { return f.rowGroups }
 
 // Root returns the root column of f.

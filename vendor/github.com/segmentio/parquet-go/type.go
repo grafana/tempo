@@ -318,12 +318,32 @@ func (t booleanType) AssignValue(dst reflect.Value, src Value) error {
 	default:
 		dst.Set(reflect.ValueOf(v))
 	}
-
 	return nil
 }
 
 func (t booleanType) ConvertValue(val Value, typ Type) (Value, error) {
-	return val, checkTypeKindEqual(t, typ)
+	switch typ.(type) {
+	case *stringType:
+		return convertStringToBoolean(val)
+	}
+	switch typ.Kind() {
+	case Boolean:
+		return val, nil
+	case Int32:
+		return convertInt32ToBoolean(val)
+	case Int64:
+		return convertInt64ToBoolean(val)
+	case Int96:
+		return convertInt96ToBoolean(val)
+	case Float:
+		return convertFloatToBoolean(val)
+	case Double:
+		return convertDoubleToBoolean(val)
+	case ByteArray, FixedLenByteArray:
+		return convertByteArrayToBoolean(val)
+	default:
+		return makeValueKind(Boolean), nil
+	}
 }
 
 type int32Type struct{}
@@ -381,12 +401,32 @@ func (t int32Type) AssignValue(dst reflect.Value, src Value) error {
 	default:
 		dst.Set(reflect.ValueOf(v))
 	}
-
 	return nil
 }
 
 func (t int32Type) ConvertValue(val Value, typ Type) (Value, error) {
-	return val, checkTypeKindEqual(t, typ)
+	switch typ.(type) {
+	case *stringType:
+		return convertStringToInt32(val)
+	}
+	switch typ.Kind() {
+	case Boolean:
+		return convertBooleanToInt32(val)
+	case Int32:
+		return val, nil
+	case Int64:
+		return convertInt64ToInt32(val)
+	case Int96:
+		return convertInt96ToInt32(val)
+	case Float:
+		return convertFloatToInt32(val)
+	case Double:
+		return convertDoubleToInt32(val)
+	case ByteArray, FixedLenByteArray:
+		return convertByteArrayToInt32(val)
+	default:
+		return makeValueKind(Int32), nil
+	}
 }
 
 type int64Type struct{}
@@ -448,7 +488,28 @@ func (t int64Type) AssignValue(dst reflect.Value, src Value) error {
 }
 
 func (t int64Type) ConvertValue(val Value, typ Type) (Value, error) {
-	return val, checkTypeKindEqual(t, typ)
+	switch typ.(type) {
+	case *stringType:
+		return convertStringToInt64(val)
+	}
+	switch typ.Kind() {
+	case Boolean:
+		return convertBooleanToInt64(val)
+	case Int32:
+		return convertInt32ToInt64(val)
+	case Int64:
+		return val, nil
+	case Int96:
+		return convertInt96ToInt64(val)
+	case Float:
+		return convertFloatToInt64(val)
+	case Double:
+		return convertDoubleToInt64(val)
+	case ByteArray, FixedLenByteArray:
+		return convertByteArrayToInt64(val)
+	default:
+		return makeValueKind(Int64), nil
+	}
 }
 
 type int96Type struct{}
@@ -504,7 +565,28 @@ func (t int96Type) AssignValue(dst reflect.Value, src Value) error {
 }
 
 func (t int96Type) ConvertValue(val Value, typ Type) (Value, error) {
-	return val, checkTypeKindEqual(t, typ)
+	switch typ.(type) {
+	case *stringType:
+		return convertStringToInt96(val)
+	}
+	switch typ.Kind() {
+	case Boolean:
+		return convertBooleanToInt96(val)
+	case Int32:
+		return convertInt32ToInt96(val)
+	case Int64:
+		return convertInt64ToInt96(val)
+	case Int96:
+		return val, nil
+	case Float:
+		return convertFloatToInt96(val)
+	case Double:
+		return convertDoubleToInt96(val)
+	case ByteArray, FixedLenByteArray:
+		return convertByteArrayToInt96(val)
+	default:
+		return makeValueKind(Int96), nil
+	}
 }
 
 type floatType struct{}
@@ -564,7 +646,28 @@ func (t floatType) AssignValue(dst reflect.Value, src Value) error {
 }
 
 func (t floatType) ConvertValue(val Value, typ Type) (Value, error) {
-	return val, checkTypeKindEqual(t, typ)
+	switch typ.(type) {
+	case *stringType:
+		return convertStringToFloat(val)
+	}
+	switch typ.Kind() {
+	case Boolean:
+		return convertBooleanToFloat(val)
+	case Int32:
+		return convertInt32ToFloat(val)
+	case Int64:
+		return convertInt64ToFloat(val)
+	case Int96:
+		return convertInt96ToFloat(val)
+	case Float:
+		return val, nil
+	case Double:
+		return convertDoubleToFloat(val)
+	case ByteArray, FixedLenByteArray:
+		return convertByteArrayToFloat(val)
+	default:
+		return makeValueKind(Float), nil
+	}
 }
 
 type doubleType struct{}
@@ -620,12 +723,32 @@ func (t doubleType) AssignValue(dst reflect.Value, src Value) error {
 	default:
 		dst.Set(reflect.ValueOf(v))
 	}
-
 	return nil
 }
 
 func (t doubleType) ConvertValue(val Value, typ Type) (Value, error) {
-	return val, checkTypeKindEqual(t, typ)
+	switch typ.(type) {
+	case *stringType:
+		return convertStringToDouble(val)
+	}
+	switch typ.Kind() {
+	case Boolean:
+		return convertBooleanToDouble(val)
+	case Int32:
+		return convertInt32ToDouble(val)
+	case Int64:
+		return convertInt64ToDouble(val)
+	case Int96:
+		return convertInt96ToDouble(val)
+	case Float:
+		return convertFloatToDouble(val)
+	case Double:
+		return val, nil
+	case ByteArray, FixedLenByteArray:
+		return convertByteArrayToDouble(val)
+	default:
+		return makeValueKind(Double), nil
+	}
 }
 
 type byteArrayType struct{}
@@ -684,12 +807,28 @@ func (t byteArrayType) AssignValue(dst reflect.Value, src Value) error {
 		val := reflect.ValueOf(string(v))
 		dst.Set(val)
 	}
-
 	return nil
 }
 
 func (t byteArrayType) ConvertValue(val Value, typ Type) (Value, error) {
-	return val, checkTypeKindEqual(t, typ)
+	switch typ.Kind() {
+	case Boolean:
+		return convertBooleanToByteArray(val)
+	case Int32:
+		return convertInt32ToByteArray(val)
+	case Int64:
+		return convertInt64ToByteArray(val)
+	case Int96:
+		return convertInt96ToByteArray(val)
+	case Float:
+		return convertFloatToByteArray(val)
+	case Double:
+		return convertDoubleToByteArray(val)
+	case ByteArray, FixedLenByteArray:
+		return val, nil
+	default:
+		return makeValueKind(ByteArray), nil
+	}
 }
 
 type fixedLenByteArrayType struct{ length int }
@@ -776,7 +915,72 @@ func (t fixedLenByteArrayType) AssignValue(dst reflect.Value, src Value) error {
 }
 
 func (t fixedLenByteArrayType) ConvertValue(val Value, typ Type) (Value, error) {
-	return val, checkTypeKindEqual(t, typ)
+	switch typ.(type) {
+	case *stringType:
+		return convertStringToFixedLenByteArray(val, t.length)
+	}
+	switch typ.Kind() {
+	case Boolean:
+		return convertBooleanToFixedLenByteArray(val, t.length)
+	case Int32:
+		return convertInt32ToFixedLenByteArray(val, t.length)
+	case Int64:
+		return convertInt64ToFixedLenByteArray(val, t.length)
+	case Int96:
+		return convertInt96ToFixedLenByteArray(val, t.length)
+	case Float:
+		return convertFloatToFixedLenByteArray(val, t.length)
+	case Double:
+		return convertDoubleToFixedLenByteArray(val, t.length)
+	case ByteArray, FixedLenByteArray:
+		return convertByteArrayToFixedLenByteArray(val, t.length)
+	default:
+		return makeValueBytes(FixedLenByteArray, make([]byte, t.length)), nil
+	}
+}
+
+type uint32Type struct{ int32Type }
+
+func (t uint32Type) Compare(a, b Value) int {
+	return compareUint32(a.uint32(), b.uint32())
+}
+
+func (t uint32Type) NewColumnIndexer(sizeLimit int) ColumnIndexer {
+	return newUint32ColumnIndexer()
+}
+
+func (t uint32Type) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newUint32ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
+}
+
+func (t uint32Type) NewDictionary(columnIndex, numValues int, data encoding.Values) Dictionary {
+	return newUint32Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t uint32Type) NewPage(columnIndex, numValues int, data encoding.Values) Page {
+	return newUint32Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+type uint64Type struct{ int64Type }
+
+func (t uint64Type) Compare(a, b Value) int {
+	return compareUint64(a.uint64(), b.uint64())
+}
+
+func (t uint64Type) NewColumnIndexer(sizeLimit int) ColumnIndexer {
+	return newUint64ColumnIndexer()
+}
+
+func (t uint64Type) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return newUint64ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
+}
+
+func (t uint64Type) NewDictionary(columnIndex, numValues int, data encoding.Values) Dictionary {
+	return newUint64Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+}
+
+func (t uint64Type) NewPage(columnIndex, numValues int, data encoding.Values) Page {
+	return newUint64Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
 }
 
 // BE128 stands for "big-endian 128 bits". This type is used as a special case
@@ -910,15 +1114,25 @@ var unsignedIntTypes = [...]intType{
 
 type intType format.IntType
 
-func (t *intType) String() string { return (*format.IntType)(t).String() }
-
-func (t *intType) Kind() Kind {
-	if t.BitWidth == 64 {
-		return Int64
+func (t *intType) baseType() Type {
+	if t.IsSigned {
+		if t.BitWidth == 64 {
+			return int64Type{}
+		} else {
+			return int32Type{}
+		}
 	} else {
-		return Int32
+		if t.BitWidth == 64 {
+			return uint64Type{}
+		} else {
+			return uint32Type{}
+		}
 	}
 }
+
+func (t *intType) String() string { return (*format.IntType)(t).String() }
+
+func (t *intType) Kind() Kind { return t.baseType().Kind() }
 
 func (t *intType) Length() int { return int(t.BitWidth) }
 
@@ -927,6 +1141,9 @@ func (t *intType) EstimateSize(n int) int { return (int(t.BitWidth) / 8) * n }
 func (t *intType) EstimateNumValues(n int) int { return n / (int(t.BitWidth) / 8) }
 
 func (t *intType) Compare(a, b Value) int {
+	// This code is similar to t.baseType().Compare(a,b) but comparison methods
+	// tend to be invoked a lot (e.g. when sorting) so avoiding the interface
+	// indirection in this case yields much better throughput in some cases.
 	if t.BitWidth == 64 {
 		i1 := a.int64()
 		i2 := b.int64()
@@ -946,17 +1163,9 @@ func (t *intType) Compare(a, b Value) int {
 	}
 }
 
-func (t *intType) ColumnOrder() *format.ColumnOrder {
-	return &typeDefinedColumnOrder
-}
+func (t *intType) ColumnOrder() *format.ColumnOrder { return t.baseType().ColumnOrder() }
 
-func (t *intType) PhysicalType() *format.Type {
-	if t.BitWidth == 64 {
-		return &physicalTypes[Int64]
-	} else {
-		return &physicalTypes[Int32]
-	}
-}
+func (t *intType) PhysicalType() *format.Type { return t.baseType().PhysicalType() }
 
 func (t *intType) LogicalType() *format.LogicalType {
 	return &format.LogicalType{Integer: (*format.IntType)(t)}
@@ -973,114 +1182,50 @@ func (t *intType) ConvertedType() *deprecated.ConvertedType {
 }
 
 func (t *intType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
-	if t.IsSigned {
-		if t.BitWidth == 64 {
-			return newInt64ColumnIndexer()
-		} else {
-			return newInt32ColumnIndexer()
-		}
-	} else {
-		if t.BitWidth == 64 {
-			return newUint64ColumnIndexer()
-		} else {
-			return newUint32ColumnIndexer()
-		}
-	}
+	return t.baseType().NewColumnIndexer(sizeLimit)
 }
 
 func (t *intType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
-	if t.IsSigned {
-		if t.BitWidth == 64 {
-			return newInt64ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
-		} else {
-			return newInt32ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
-		}
-	} else {
-		if t.BitWidth == 64 {
-			return newUint64ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
-		} else {
-			return newUint32ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
-		}
-	}
+	return t.baseType().NewColumnBuffer(columnIndex, numValues)
 }
 
 func (t *intType) NewDictionary(columnIndex, numValues int, data encoding.Values) Dictionary {
-	if t.IsSigned {
-		if t.BitWidth == 64 {
-			return newInt64Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
-		} else {
-			return newInt32Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
-		}
-	} else {
-		if t.BitWidth == 64 {
-			return newUint64Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
-		} else {
-			return newUint32Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
-		}
-	}
+	return t.baseType().NewDictionary(columnIndex, numValues, data)
 }
 
 func (t *intType) NewPage(columnIndex, numValues int, data encoding.Values) Page {
-	if t.IsSigned {
-		if t.BitWidth == 64 {
-			return newInt64Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
-		} else {
-			return newInt32Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
-		}
-	} else {
-		if t.BitWidth == 64 {
-			return newUint64Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
-		} else {
-			return newUint32Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
-		}
-	}
+	return t.baseType().NewPage(columnIndex, numValues, data)
 }
 
-func (t *intType) NewValues(values []byte, _ []uint32) encoding.Values {
-	if t.BitWidth == 64 {
-		return encoding.Int64ValuesFromBytes(values)
-	} else {
-		return encoding.Int32ValuesFromBytes(values)
-	}
+func (t *intType) NewValues(values []byte, offsets []uint32) encoding.Values {
+	return t.baseType().NewValues(values, offsets)
 }
 
 func (t *intType) Encode(dst []byte, src encoding.Values, enc encoding.Encoding) ([]byte, error) {
-	if t.BitWidth == 64 {
-		return encoding.EncodeInt64(dst, src, enc)
-	} else {
-		return encoding.EncodeInt32(dst, src, enc)
-	}
+	return t.baseType().Encode(dst, src, enc)
 }
 
 func (t *intType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
-	if t.BitWidth == 64 {
-		return encoding.DecodeInt64(dst, src, enc)
-	} else {
-		return encoding.DecodeInt32(dst, src, enc)
-	}
+	return t.baseType().Decode(dst, src, enc)
 }
 
 func (t *intType) EstimateDecodeSize(numValues int, src []byte, enc encoding.Encoding) int {
-	if t.BitWidth == 64 {
-		return Int64Type.EstimateDecodeSize(numValues, src, enc)
-	} else {
-		return Int32Type.EstimateDecodeSize(numValues, src, enc)
-	}
+	return t.baseType().EstimateDecodeSize(numValues, src, enc)
 }
 
 func (t *intType) AssignValue(dst reflect.Value, src Value) error {
 	if t.BitWidth == 64 {
-		return Int64Type.AssignValue(dst, src)
+		return int64Type{}.AssignValue(dst, src)
 	} else {
-		return Int32Type.AssignValue(dst, src)
+		return int32Type{}.AssignValue(dst, src)
 	}
 }
 
 func (t *intType) ConvertValue(val Value, typ Type) (Value, error) {
 	if t.BitWidth == 64 {
-		return Int64Type.ConvertValue(val, typ)
+		return int64Type{}.ConvertValue(val, typ)
 	} else {
-		return Int32Type.ConvertValue(val, typ)
+		return int32Type{}.ConvertValue(val, typ)
 	}
 }
 
@@ -1131,9 +1276,9 @@ func (t *stringType) Kind() Kind { return ByteArray }
 
 func (t *stringType) Length() int { return 0 }
 
-func (t *stringType) EstimateSize(n int) int { return ByteArrayType.EstimateSize(n) }
+func (t *stringType) EstimateSize(n int) int { return byteArrayType{}.EstimateSize(n) }
 
-func (t *stringType) EstimateNumValues(n int) int { return ByteArrayType.EstimateNumValues(n) }
+func (t *stringType) EstimateNumValues(n int) int { return byteArrayType{}.EstimateNumValues(n) }
 
 func (t *stringType) Compare(a, b Value) int {
 	return bytes.Compare(a.byteArray(), b.byteArray())
@@ -1184,15 +1329,45 @@ func (t *stringType) Decode(dst encoding.Values, src []byte, enc encoding.Encodi
 }
 
 func (t *stringType) EstimateDecodeSize(numValues int, src []byte, enc encoding.Encoding) int {
-	return ByteArrayType.EstimateDecodeSize(numValues, src, enc)
+	return byteArrayType{}.EstimateDecodeSize(numValues, src, enc)
 }
 
 func (t *stringType) AssignValue(dst reflect.Value, src Value) error {
-	return ByteArrayType.AssignValue(dst, src)
+	return byteArrayType{}.AssignValue(dst, src)
 }
 
 func (t *stringType) ConvertValue(val Value, typ Type) (Value, error) {
-	return ByteArrayType.ConvertValue(val, typ)
+	switch t2 := typ.(type) {
+	case *dateType:
+		return convertDateToString(val)
+	case *timeType:
+		tz := t2.tz()
+		if t2.Unit.Micros != nil {
+			return convertTimeMicrosToString(val, tz)
+		} else {
+			return convertTimeMillisToString(val, tz)
+		}
+	}
+	switch typ.Kind() {
+	case Boolean:
+		return convertBooleanToString(val)
+	case Int32:
+		return convertInt32ToString(val)
+	case Int64:
+		return convertInt64ToString(val)
+	case Int96:
+		return convertInt96ToString(val)
+	case Float:
+		return convertFloatToString(val)
+	case Double:
+		return convertDoubleToString(val)
+	case ByteArray:
+		return val, nil
+	case FixedLenByteArray:
+		return convertFixedLenByteArrayToString(val)
+	default:
+		return makeValueKind(ByteArray), nil
+	}
 }
 
 // UUID constructs a leaf node of UUID logical type.
@@ -1204,15 +1379,15 @@ type uuidType format.UUIDType
 
 func (t *uuidType) String() string { return (*format.UUIDType)(t).String() }
 
-func (t *uuidType) Kind() Kind { return FixedLenByteArray }
+func (t *uuidType) Kind() Kind { return be128Type{}.Kind() }
 
-func (t *uuidType) Length() int { return 16 }
+func (t *uuidType) Length() int { return be128Type{}.Length() }
 
-func (t *uuidType) EstimateSize(n int) int { return 16 * n }
+func (t *uuidType) EstimateSize(n int) int { return be128Type{}.EstimateSize(n) }
 
-func (t *uuidType) EstimateNumValues(n int) int { return n / 16 }
+func (t *uuidType) EstimateNumValues(n int) int { return be128Type{}.EstimateNumValues(n) }
 
-func (t *uuidType) Compare(a, b Value) int { return compareBE128(a.be128(), b.be128()) }
+func (t *uuidType) Compare(a, b Value) int { return be128Type{}.Compare(a, b) }
 
 func (t *uuidType) ColumnOrder() *format.ColumnOrder { return &typeDefinedColumnOrder }
 
@@ -1225,31 +1400,31 @@ func (t *uuidType) LogicalType() *format.LogicalType {
 func (t *uuidType) ConvertedType() *deprecated.ConvertedType { return nil }
 
 func (t *uuidType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
-	return newBE128ColumnIndexer()
+	return be128Type{}.NewColumnIndexer(sizeLimit)
 }
 
 func (t *uuidType) NewDictionary(columnIndex, numValues int, data encoding.Values) Dictionary {
-	return newBE128Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	return be128Type{}.NewDictionary(columnIndex, numValues, data)
 }
 
 func (t *uuidType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
-	return newBE128ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
+	return be128Type{}.NewColumnBuffer(columnIndex, numValues)
 }
 
 func (t *uuidType) NewPage(columnIndex, numValues int, data encoding.Values) Page {
-	return newBE128Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	return be128Type{}.NewPage(columnIndex, numValues, data)
 }
 
-func (t *uuidType) NewValues(values []byte, _ []uint32) encoding.Values {
-	return encoding.FixedLenByteArrayValues(values, 16)
+func (t *uuidType) NewValues(values []byte, offsets []uint32) encoding.Values {
+	return be128Type{}.NewValues(values, offsets)
 }
 
 func (t *uuidType) Encode(dst []byte, src encoding.Values, enc encoding.Encoding) ([]byte, error) {
-	return encoding.EncodeFixedLenByteArray(dst, src, enc)
+	return be128Type{}.Encode(dst, src, enc)
 }
 
 func (t *uuidType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
-	return encoding.DecodeFixedLenByteArray(dst, src, enc)
+	return be128Type{}.Decode(dst, src, enc)
 }
 
 func (t *uuidType) EstimateDecodeSize(numValues int, src []byte, enc encoding.Encoding) int {
@@ -1273,25 +1448,19 @@ type enumType format.EnumType
 
 func (t *enumType) String() string { return (*format.EnumType)(t).String() }
 
-func (t *enumType) Kind() Kind { return ByteArray }
+func (t *enumType) Kind() Kind { return new(stringType).Kind() }
 
-func (t *enumType) Length() int { return 0 }
+func (t *enumType) Length() int { return new(stringType).Length() }
 
-func (t *enumType) EstimateSize(n int) int { return ByteArrayType.EstimateSize(n) }
+func (t *enumType) EstimateSize(n int) int { return new(stringType).EstimateSize(n) }
 
-func (t *enumType) EstimateNumValues(n int) int { return ByteArrayType.EstimateNumValues(n) }
+func (t *enumType) EstimateNumValues(n int) int { return new(stringType).EstimateNumValues(n) }
 
-func (t *enumType) Compare(a, b Value) int {
-	return bytes.Compare(a.byteArray(), b.byteArray())
-}
+func (t *enumType) Compare(a, b Value) int { return new(stringType).Compare(a, b) }
 
-func (t *enumType) ColumnOrder() *format.ColumnOrder {
-	return &typeDefinedColumnOrder
-}
+func (t *enumType) ColumnOrder() *format.ColumnOrder { return new(stringType).ColumnOrder() }
 
-func (t *enumType) PhysicalType() *format.Type {
-	return &physicalTypes[ByteArray]
-}
+func (t *enumType) PhysicalType() *format.Type { return new(stringType).PhysicalType() }
 
 func (t *enumType) LogicalType() *format.LogicalType {
 	return &format.LogicalType{Enum: (*format.EnumType)(t)}
@@ -1302,43 +1471,48 @@ func (t *enumType) ConvertedType() *deprecated.ConvertedType {
 }
 
 func (t *enumType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
-	return newByteArrayColumnIndexer(sizeLimit)
+	return new(stringType).NewColumnIndexer(sizeLimit)
 }
 
 func (t *enumType) NewDictionary(columnIndex, numValues int, data encoding.Values) Dictionary {
-	return newByteArrayDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	return new(stringType).NewDictionary(columnIndex, numValues, data)
 }
 
 func (t *enumType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
-	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
+	return new(stringType).NewColumnBuffer(columnIndex, numValues)
 }
 
 func (t *enumType) NewPage(columnIndex, numValues int, data encoding.Values) Page {
-	return newByteArrayPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	return new(stringType).NewPage(columnIndex, numValues, data)
 }
 
 func (t *enumType) NewValues(values []byte, offsets []uint32) encoding.Values {
-	return encoding.ByteArrayValues(values, offsets)
+	return new(stringType).NewValues(values, offsets)
 }
 
 func (t *enumType) Encode(dst []byte, src encoding.Values, enc encoding.Encoding) ([]byte, error) {
-	return encoding.EncodeByteArray(dst, src, enc)
+	return new(stringType).Encode(dst, src, enc)
 }
 
 func (t *enumType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
-	return encoding.DecodeByteArray(dst, src, enc)
+	return new(stringType).Decode(dst, src, enc)
 }
 
 func (t *enumType) EstimateDecodeSize(numValues int, src []byte, enc encoding.Encoding) int {
-	return ByteArrayType.EstimateDecodeSize(numValues, src, enc)
+	return new(stringType).EstimateDecodeSize(numValues, src, enc)
 }
 
 func (t *enumType) AssignValue(dst reflect.Value, src Value) error {
-	return ByteArrayType.AssignValue(dst, src)
+	return new(stringType).AssignValue(dst, src)
 }
 
 func (t *enumType) ConvertValue(val Value, typ Type) (Value, error) {
-	return ByteArrayType.ConvertValue(val, typ)
+	switch typ.(type) {
+	case *byteArrayType, *stringType, *enumType:
+		return val, nil
+	default:
+		return val, invalidConversion(val, "ENUM", typ.String())
+	}
 }
 
 // JSON constructs a leaf node of JSON logical type.
@@ -1350,25 +1524,19 @@ type jsonType format.JsonType
 
 func (t *jsonType) String() string { return (*format.JsonType)(t).String() }
 
-func (t *jsonType) Kind() Kind { return ByteArray }
+func (t *jsonType) Kind() Kind { return byteArrayType{}.Kind() }
 
-func (t *jsonType) Length() int { return 0 }
+func (t *jsonType) Length() int { return byteArrayType{}.Length() }
 
-func (t *jsonType) EstimateSize(n int) int { return ByteArrayType.EstimateSize(n) }
+func (t *jsonType) EstimateSize(n int) int { return byteArrayType{}.EstimateSize(n) }
 
-func (t *jsonType) EstimateNumValues(n int) int { return ByteArrayType.EstimateNumValues(n) }
+func (t *jsonType) EstimateNumValues(n int) int { return byteArrayType{}.EstimateNumValues(n) }
 
-func (t *jsonType) Compare(a, b Value) int {
-	return bytes.Compare(a.byteArray(), b.byteArray())
-}
+func (t *jsonType) Compare(a, b Value) int { return byteArrayType{}.Compare(a, b) }
 
-func (t *jsonType) ColumnOrder() *format.ColumnOrder {
-	return &typeDefinedColumnOrder
-}
+func (t *jsonType) ColumnOrder() *format.ColumnOrder { return byteArrayType{}.ColumnOrder() }
 
-func (t *jsonType) PhysicalType() *format.Type {
-	return &physicalTypes[ByteArray]
-}
+func (t *jsonType) PhysicalType() *format.Type { return byteArrayType{}.PhysicalType() }
 
 func (t *jsonType) LogicalType() *format.LogicalType {
 	return &format.LogicalType{Json: (*format.JsonType)(t)}
@@ -1379,43 +1547,48 @@ func (t *jsonType) ConvertedType() *deprecated.ConvertedType {
 }
 
 func (t *jsonType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
-	return newByteArrayColumnIndexer(sizeLimit)
+	return byteArrayType{}.NewColumnIndexer(sizeLimit)
 }
 
 func (t *jsonType) NewDictionary(columnIndex, numValues int, data encoding.Values) Dictionary {
-	return newByteArrayDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	return byteArrayType{}.NewDictionary(columnIndex, numValues, data)
 }
 
 func (t *jsonType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
-	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
+	return byteArrayType{}.NewColumnBuffer(columnIndex, numValues)
 }
 
 func (t *jsonType) NewPage(columnIndex, numValues int, data encoding.Values) Page {
-	return newByteArrayPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	return byteArrayType{}.NewPage(columnIndex, numValues, data)
 }
 
 func (t *jsonType) NewValues(values []byte, offsets []uint32) encoding.Values {
-	return encoding.ByteArrayValues(values, offsets)
+	return byteArrayType{}.NewValues(values, offsets)
 }
 
 func (t *jsonType) Encode(dst []byte, src encoding.Values, enc encoding.Encoding) ([]byte, error) {
-	return encoding.EncodeByteArray(dst, src, enc)
+	return byteArrayType{}.Encode(dst, src, enc)
 }
 
 func (t *jsonType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
-	return encoding.DecodeByteArray(dst, src, enc)
+	return byteArrayType{}.Decode(dst, src, enc)
 }
 
 func (t *jsonType) EstimateDecodeSize(numValues int, src []byte, enc encoding.Encoding) int {
-	return ByteArrayType.EstimateDecodeSize(numValues, src, enc)
+	return byteArrayType{}.EstimateDecodeSize(numValues, src, enc)
 }
 
 func (t *jsonType) AssignValue(dst reflect.Value, src Value) error {
-	return ByteArrayType.AssignValue(dst, src)
+	return byteArrayType{}.AssignValue(dst, src)
 }
 
 func (t *jsonType) ConvertValue(val Value, typ Type) (Value, error) {
-	return ByteArrayType.ConvertValue(val, typ)
+	switch typ.(type) {
+	case *byteArrayType, *stringType, *jsonType:
+		return val, nil
+	default:
+		return val, invalidConversion(val, "JSON", typ.String())
+	}
 }
 
 // BSON constructs a leaf node of BSON logical type.
@@ -1427,25 +1600,19 @@ type bsonType format.BsonType
 
 func (t *bsonType) String() string { return (*format.BsonType)(t).String() }
 
-func (t *bsonType) Kind() Kind { return ByteArray }
+func (t *bsonType) Kind() Kind { return byteArrayType{}.Kind() }
 
-func (t *bsonType) Length() int { return 0 }
+func (t *bsonType) Length() int { return byteArrayType{}.Length() }
 
-func (t *bsonType) EstimateSize(n int) int { return ByteArrayType.EstimateSize(n) }
+func (t *bsonType) EstimateSize(n int) int { return byteArrayType{}.EstimateSize(n) }
 
-func (t *bsonType) EstimateNumValues(n int) int { return ByteArrayType.EstimateNumValues(n) }
+func (t *bsonType) EstimateNumValues(n int) int { return byteArrayType{}.EstimateNumValues(n) }
 
-func (t *bsonType) Compare(a, b Value) int {
-	return bytes.Compare(a.byteArray(), b.byteArray())
-}
+func (t *bsonType) Compare(a, b Value) int { return byteArrayType{}.Compare(a, b) }
 
-func (t *bsonType) ColumnOrder() *format.ColumnOrder {
-	return &typeDefinedColumnOrder
-}
+func (t *bsonType) ColumnOrder() *format.ColumnOrder { return byteArrayType{}.ColumnOrder() }
 
-func (t *bsonType) PhysicalType() *format.Type {
-	return &physicalTypes[ByteArray]
-}
+func (t *bsonType) PhysicalType() *format.Type { return byteArrayType{}.PhysicalType() }
 
 func (t *bsonType) LogicalType() *format.LogicalType {
 	return &format.LogicalType{Bson: (*format.BsonType)(t)}
@@ -1456,43 +1623,48 @@ func (t *bsonType) ConvertedType() *deprecated.ConvertedType {
 }
 
 func (t *bsonType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
-	return newByteArrayColumnIndexer(sizeLimit)
+	return byteArrayType{}.NewColumnIndexer(sizeLimit)
 }
 
 func (t *bsonType) NewDictionary(columnIndex, numValues int, data encoding.Values) Dictionary {
-	return newByteArrayDictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	return byteArrayType{}.NewDictionary(columnIndex, numValues, data)
 }
 
 func (t *bsonType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
-	return newByteArrayColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
+	return byteArrayType{}.NewColumnBuffer(columnIndex, numValues)
 }
 
 func (t *bsonType) NewPage(columnIndex, numValues int, data encoding.Values) Page {
-	return newByteArrayPage(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	return byteArrayType{}.NewPage(columnIndex, numValues, data)
 }
 
 func (t *bsonType) NewValues(values []byte, offsets []uint32) encoding.Values {
-	return encoding.ByteArrayValues(values, offsets)
+	return byteArrayType{}.NewValues(values, offsets)
 }
 
 func (t *bsonType) Encode(dst []byte, src encoding.Values, enc encoding.Encoding) ([]byte, error) {
-	return encoding.EncodeByteArray(dst, src, enc)
+	return byteArrayType{}.Encode(dst, src, enc)
 }
 
 func (t *bsonType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
-	return encoding.DecodeByteArray(dst, src, enc)
+	return byteArrayType{}.Decode(dst, src, enc)
 }
 
 func (t *bsonType) EstimateDecodeSize(numValues int, src []byte, enc encoding.Encoding) int {
-	return ByteArrayType.EstimateDecodeSize(numValues, src, enc)
+	return byteArrayType{}.EstimateDecodeSize(numValues, src, enc)
 }
 
 func (t *bsonType) AssignValue(dst reflect.Value, src Value) error {
-	return ByteArrayType.AssignValue(dst, src)
+	return byteArrayType{}.AssignValue(dst, src)
 }
 
 func (t *bsonType) ConvertValue(val Value, typ Type) (Value, error) {
-	return ByteArrayType.ConvertValue(val, typ)
+	switch typ.(type) {
+	case *byteArrayType, *bsonType:
+		return val, nil
+	default:
+		return val, invalidConversion(val, "BSON", typ.String())
+	}
 }
 
 // Date constructs a leaf node of DATE logical type.
@@ -1504,21 +1676,19 @@ type dateType format.DateType
 
 func (t *dateType) String() string { return (*format.DateType)(t).String() }
 
-func (t *dateType) Kind() Kind { return Int32 }
+func (t *dateType) Kind() Kind { return int32Type{}.Kind() }
 
-func (t *dateType) Length() int { return 32 }
+func (t *dateType) Length() int { return int32Type{}.Length() }
 
-func (t *dateType) EstimateSize(n int) int { return Int32Type.EstimateSize(n) }
+func (t *dateType) EstimateSize(n int) int { return int32Type{}.EstimateSize(n) }
 
-func (t *dateType) EstimateNumValues(n int) int { return Int32Type.EstimateNumValues(n) }
+func (t *dateType) EstimateNumValues(n int) int { return int32Type{}.EstimateNumValues(n) }
 
-func (t *dateType) Compare(a, b Value) int { return compareInt32(a.int32(), b.int32()) }
+func (t *dateType) Compare(a, b Value) int { return int32Type{}.Compare(a, b) }
 
-func (t *dateType) ColumnOrder() *format.ColumnOrder {
-	return &typeDefinedColumnOrder
-}
+func (t *dateType) ColumnOrder() *format.ColumnOrder { return int32Type{}.ColumnOrder() }
 
-func (t *dateType) PhysicalType() *format.Type { return &physicalTypes[Int32] }
+func (t *dateType) PhysicalType() *format.Type { return int32Type{}.PhysicalType() }
 
 func (t *dateType) LogicalType() *format.LogicalType {
 	return &format.LogicalType{Date: (*format.DateType)(t)}
@@ -1529,43 +1699,49 @@ func (t *dateType) ConvertedType() *deprecated.ConvertedType {
 }
 
 func (t *dateType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
-	return newInt32ColumnIndexer()
-}
-
-func (t *dateType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
-	return newInt32ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
+	return int32Type{}.NewColumnIndexer(sizeLimit)
 }
 
 func (t *dateType) NewDictionary(columnIndex, numValues int, data encoding.Values) Dictionary {
-	return newInt32Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	return int32Type{}.NewDictionary(columnIndex, numValues, data)
+}
+
+func (t *dateType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return int32Type{}.NewColumnBuffer(columnIndex, numValues)
 }
 
 func (t *dateType) NewPage(columnIndex, numValues int, data encoding.Values) Page {
-	return newInt32Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	return int32Type{}.NewPage(columnIndex, numValues, data)
 }
 
-func (t *dateType) NewValues(values []byte, _ []uint32) encoding.Values {
-	return encoding.Int32ValuesFromBytes(values)
+func (t *dateType) NewValues(values []byte, offsets []uint32) encoding.Values {
+	return int32Type{}.NewValues(values, offsets)
 }
 
 func (t *dateType) Encode(dst []byte, src encoding.Values, enc encoding.Encoding) ([]byte, error) {
-	return encoding.EncodeInt32(dst, src, enc)
+	return int32Type{}.Encode(dst, src, enc)
 }
 
 func (t *dateType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
-	return encoding.DecodeInt32(dst, src, enc)
+	return int32Type{}.Decode(dst, src, enc)
 }
 
 func (t *dateType) EstimateDecodeSize(numValues int, src []byte, enc encoding.Encoding) int {
-	return Int32Type.EstimateDecodeSize(numValues, src, enc)
+	return int32Type{}.EstimateDecodeSize(numValues, src, enc)
 }
 
 func (t *dateType) AssignValue(dst reflect.Value, src Value) error {
-	return Int32Type.AssignValue(dst, src)
+	return int32Type{}.AssignValue(dst, src)
 }
 
 func (t *dateType) ConvertValue(val Value, typ Type) (Value, error) {
-	return Int32Type.ConvertValue(val, typ)
+	switch src := typ.(type) {
+	case *stringType:
+		return convertStringToDate(val, time.UTC)
+	case *timestampType:
+		return convertTimestampToDate(val, src.Unit, src.tz())
+	}
+	return int32Type{}.ConvertValue(val, typ)
 }
 
 // TimeUnit represents units of time in the parquet type system.
@@ -1613,69 +1789,41 @@ func Time(unit TimeUnit) Node {
 
 type timeType format.TimeType
 
-func (t *timeType) useInt32() bool {
-	return t.Unit.Millis != nil
-}
-
-func (t *timeType) useInt64() bool {
-	return t.Unit.Micros != nil
-}
-
-func (t *timeType) String() string {
-	return (*format.TimeType)(t).String()
-}
-
-func (t *timeType) Kind() Kind {
-	if t.useInt32() {
-		return Int32
+func (t *timeType) tz() *time.Location {
+	if t.IsAdjustedToUTC {
+		return time.UTC
 	} else {
-		return Int64
+		return time.Local
 	}
 }
 
-func (t *timeType) Length() int {
+func (t *timeType) baseType() Type {
 	if t.useInt32() {
-		return 32
+		return int32Type{}
 	} else {
-		return 64
+		return int64Type{}
 	}
 }
 
-func (t *timeType) EstimateSize(n int) int {
-	if t.useInt32() {
-		return Int32Type.EstimateSize(n)
-	} else {
-		return Int64Type.EstimateNumValues(n)
-	}
-}
+func (t *timeType) useInt32() bool { return t.Unit.Millis != nil }
 
-func (t *timeType) EstimateNumValues(n int) int {
-	if t.useInt32() {
-		return Int32Type.EstimateNumValues(n)
-	} else {
-		return Int64Type.EstimateNumValues(n)
-	}
-}
+func (t *timeType) useInt64() bool { return t.Unit.Micros != nil }
 
-func (t *timeType) Compare(a, b Value) int {
-	if t.useInt32() {
-		return compareInt32(a.int32(), b.int32())
-	} else {
-		return compareInt64(a.int64(), b.int64())
-	}
-}
+func (t *timeType) String() string { return (*format.TimeType)(t).String() }
 
-func (t *timeType) ColumnOrder() *format.ColumnOrder {
-	return &typeDefinedColumnOrder
-}
+func (t *timeType) Kind() Kind { return t.baseType().Kind() }
 
-func (t *timeType) PhysicalType() *format.Type {
-	if t.useInt32() {
-		return &physicalTypes[Int32]
-	} else {
-		return &physicalTypes[Int64]
-	}
-}
+func (t *timeType) Length() int { return t.baseType().Length() }
+
+func (t *timeType) EstimateSize(n int) int { return t.baseType().EstimateSize(n) }
+
+func (t *timeType) EstimateNumValues(n int) int { return t.baseType().EstimateNumValues(n) }
+
+func (t *timeType) Compare(a, b Value) int { return t.baseType().Compare(a, b) }
+
+func (t *timeType) ColumnOrder() *format.ColumnOrder { return t.baseType().ColumnOrder() }
+
+func (t *timeType) PhysicalType() *format.Type { return t.baseType().PhysicalType() }
 
 func (t *timeType) LogicalType() *format.LogicalType {
 	return &format.LogicalType{Time: (*format.TimeType)(t)}
@@ -1693,83 +1841,59 @@ func (t *timeType) ConvertedType() *deprecated.ConvertedType {
 }
 
 func (t *timeType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
-	if t.useInt32() {
-		return newInt32ColumnIndexer()
-	} else {
-		return newInt64ColumnIndexer()
-	}
+	return t.baseType().NewColumnIndexer(sizeLimit)
 }
 
 func (t *timeType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
-	if t.useInt32() {
-		return newInt32ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
-	} else {
-		return newInt64ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
-	}
+	return t.baseType().NewColumnBuffer(columnIndex, numValues)
 }
 
 func (t *timeType) NewDictionary(columnIndex, numValues int, data encoding.Values) Dictionary {
-	if t.useInt32() {
-		return newInt32Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
-	} else {
-		return newInt64Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
-	}
+	return t.baseType().NewDictionary(columnIndex, numValues, data)
 }
 
 func (t *timeType) NewPage(columnIndex, numValues int, data encoding.Values) Page {
-	if t.useInt32() {
-		return newInt32Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
-	} else {
-		return newInt64Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
-	}
+	return t.baseType().NewPage(columnIndex, numValues, data)
 }
 
-func (t *timeType) NewValues(values []byte, _ []uint32) encoding.Values {
-	if t.useInt32() {
-		return encoding.Int32ValuesFromBytes(values)
-	} else {
-		return encoding.Int64ValuesFromBytes(values)
-	}
+func (t *timeType) NewValues(values []byte, offset []uint32) encoding.Values {
+	return t.baseType().NewValues(values, offset)
 }
 
 func (t *timeType) Encode(dst []byte, src encoding.Values, enc encoding.Encoding) ([]byte, error) {
-	if t.useInt32() {
-		return encoding.EncodeInt32(dst, src, enc)
-	} else {
-		return encoding.EncodeInt64(dst, src, enc)
-	}
+	return t.baseType().Encode(dst, src, enc)
 }
 
 func (t *timeType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
-	if t.useInt32() {
-		return encoding.DecodeInt32(dst, src, enc)
-	} else {
-		return encoding.DecodeInt64(dst, src, enc)
-	}
+	return t.baseType().Decode(dst, src, enc)
 }
 
 func (t *timeType) EstimateDecodeSize(numValues int, src []byte, enc encoding.Encoding) int {
-	if t.useInt32() {
-		return Int32Type.EstimateDecodeSize(numValues, src, enc)
-	} else {
-		return Int64Type.EstimateDecodeSize(numValues, src, enc)
-	}
+	return t.baseType().EstimateDecodeSize(numValues, src, enc)
 }
 
 func (t *timeType) AssignValue(dst reflect.Value, src Value) error {
-	if t.useInt32() {
-		return Int32Type.AssignValue(dst, src)
-	} else {
-		return Int64Type.AssignValue(dst, src)
-	}
+	return t.baseType().AssignValue(dst, src)
 }
 
 func (t *timeType) ConvertValue(val Value, typ Type) (Value, error) {
-	if t.useInt32() {
-		return Int32Type.ConvertValue(val, typ)
-	} else {
-		return Int64Type.ConvertValue(val, typ)
+	switch src := typ.(type) {
+	case *stringType:
+		tz := t.tz()
+		if t.Unit.Micros != nil {
+			return convertStringToTimeMicros(val, tz)
+		} else {
+			return convertStringToTimeMillis(val, tz)
+		}
+	case *timestampType:
+		tz := t.tz()
+		if t.Unit.Micros != nil {
+			return convertTimestampToTimeMicros(val, src.Unit, src.tz(), tz)
+		} else {
+			return convertTimestampToTimeMillis(val, src.Unit, src.tz(), tz)
+		}
 	}
+	return t.baseType().ConvertValue(val, typ)
 }
 
 // Timestamp constructs of leaf node of TIMESTAMP logical type.
@@ -1781,21 +1905,29 @@ func Timestamp(unit TimeUnit) Node {
 
 type timestampType format.TimestampType
 
+func (t *timestampType) tz() *time.Location {
+	if t.IsAdjustedToUTC {
+		return time.UTC
+	} else {
+		return time.Local
+	}
+}
+
 func (t *timestampType) String() string { return (*format.TimestampType)(t).String() }
 
-func (t *timestampType) Kind() Kind { return Int64 }
+func (t *timestampType) Kind() Kind { return int64Type{}.Kind() }
 
-func (t *timestampType) Length() int { return 64 }
+func (t *timestampType) Length() int { return int64Type{}.Length() }
 
-func (t *timestampType) EstimateSize(n int) int { return Int64Type.EstimateSize(n) }
+func (t *timestampType) EstimateSize(n int) int { return int64Type{}.EstimateSize(n) }
 
-func (t *timestampType) EstimateNumValues(n int) int { return Int64Type.EstimateNumValues(n) }
+func (t *timestampType) EstimateNumValues(n int) int { return int64Type{}.EstimateNumValues(n) }
 
-func (t *timestampType) Compare(a, b Value) int { return compareInt64(a.int64(), b.int64()) }
+func (t *timestampType) Compare(a, b Value) int { return int64Type{}.Compare(a, b) }
 
-func (t *timestampType) ColumnOrder() *format.ColumnOrder { return &typeDefinedColumnOrder }
+func (t *timestampType) ColumnOrder() *format.ColumnOrder { return int64Type{}.ColumnOrder() }
 
-func (t *timestampType) PhysicalType() *format.Type { return &physicalTypes[Int64] }
+func (t *timestampType) PhysicalType() *format.Type { return int64Type{}.PhysicalType() }
 
 func (t *timestampType) LogicalType() *format.LogicalType {
 	return &format.LogicalType{Timestamp: (*format.TimestampType)(t)}
@@ -1813,35 +1945,35 @@ func (t *timestampType) ConvertedType() *deprecated.ConvertedType {
 }
 
 func (t *timestampType) NewColumnIndexer(sizeLimit int) ColumnIndexer {
-	return newInt64ColumnIndexer()
-}
-
-func (t *timestampType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
-	return newInt64ColumnBuffer(t, makeColumnIndex(columnIndex), makeNumValues(numValues))
+	return int64Type{}.NewColumnIndexer(sizeLimit)
 }
 
 func (t *timestampType) NewDictionary(columnIndex, numValues int, data encoding.Values) Dictionary {
-	return newInt64Dictionary(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	return int64Type{}.NewDictionary(columnIndex, numValues, data)
+}
+
+func (t *timestampType) NewColumnBuffer(columnIndex, numValues int) ColumnBuffer {
+	return int64Type{}.NewColumnBuffer(columnIndex, numValues)
 }
 
 func (t *timestampType) NewPage(columnIndex, numValues int, data encoding.Values) Page {
-	return newInt64Page(t, makeColumnIndex(columnIndex), makeNumValues(numValues), data)
+	return int64Type{}.NewPage(columnIndex, numValues, data)
 }
 
-func (t *timestampType) NewValues(values []byte, _ []uint32) encoding.Values {
-	return encoding.Int64ValuesFromBytes(values)
+func (t *timestampType) NewValues(values []byte, offsets []uint32) encoding.Values {
+	return int64Type{}.NewValues(values, offsets)
 }
 
 func (t *timestampType) Encode(dst []byte, src encoding.Values, enc encoding.Encoding) ([]byte, error) {
-	return encoding.EncodeInt64(dst, src, enc)
+	return int64Type{}.Encode(dst, src, enc)
 }
 
 func (t *timestampType) Decode(dst encoding.Values, src []byte, enc encoding.Encoding) (encoding.Values, error) {
-	return encoding.DecodeInt64(dst, src, enc)
+	return int64Type{}.Decode(dst, src, enc)
 }
 
 func (t *timestampType) EstimateDecodeSize(numValues int, src []byte, enc encoding.Encoding) int {
-	return Int64Type.EstimateDecodeSize(numValues, src, enc)
+	return int64Type{}.EstimateDecodeSize(numValues, src, enc)
 }
 
 func (t *timestampType) AssignValue(dst reflect.Value, src Value) error {
@@ -1865,37 +1997,18 @@ func (t *timestampType) AssignValue(dst reflect.Value, src Value) error {
 		dst.Set(reflect.ValueOf(val))
 		return nil
 	default:
-		return Int64Type.AssignValue(dst, src)
+		return int64Type{}.AssignValue(dst, src)
 	}
 }
 
 func (t *timestampType) ConvertValue(val Value, typ Type) (Value, error) {
-	var sourceTs *format.TimestampType
-	if typ.LogicalType() != nil {
-		sourceTs = typ.LogicalType().Timestamp
+	switch src := typ.(type) {
+	case *timestampType:
+		return convertTimestampToTimestamp(val, src.Unit, t.Unit)
+	case *dateType:
+		return convertDateToTimestamp(val, t.Unit, t.tz())
 	}
-
-	// Ignore when source is not a timestamp (i.e., Integer)
-	if sourceTs == nil {
-		return val, nil
-	}
-
-	source := timeUnitDuration(sourceTs.Unit)
-	target := timeUnitDuration(t.Unit)
-	converted := val.int64() * source.Nanoseconds() / target.Nanoseconds()
-
-	return ValueOf(converted), nil
-}
-
-func timeUnitDuration(unit format.TimeUnit) time.Duration {
-	switch {
-	case unit.Millis != nil:
-		return time.Millisecond
-	case unit.Micros != nil:
-		return time.Microsecond
-	default:
-		return time.Nanosecond
-	}
+	return int64Type{}.ConvertValue(val, typ)
 }
 
 // List constructs a node of LIST logical type.
