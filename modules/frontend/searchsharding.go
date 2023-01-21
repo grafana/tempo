@@ -267,9 +267,10 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		// translate all non-200s into 500s. if, for instance, we get a 400 back from an internal component
 		// it means that we created a bad request. 400 should not be propagated back to the user b/c
 		// the bad request was due to a bug on our side, so return 500 instead.
-		s.recordMetrics(tenantID, overallResponse.statusCode, throughput, reqTime)
+		statusCode = http.StatusInternalServerError
+		s.recordMetrics(tenantID, statusCode, throughput, reqTime)
 		return &http.Response{
-			StatusCode: overallResponse.statusCode,
+			StatusCode: statusCode,
 			Header:     http.Header{},
 			Body:       io.NopCloser(strings.NewReader(overallResponse.statusMsg)),
 		}, nil

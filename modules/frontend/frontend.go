@@ -53,8 +53,8 @@ func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store stora
 		return nil, fmt.Errorf("frontend search target bytes per request should be greater than 0")
 	}
 
-	if cfg.Search.SLO.ThroughputSLO <= 0 && cfg.TraceByID.SLO.ThroughputSLO <= 0 {
-		return nil, fmt.Errorf("frontend search and trace by id throughput slo should be greater than 0")
+	if cfg.Search.SLO.ThroughputSLO <= 0 || cfg.TraceByID.SLO.ThroughputSLO <= 0 {
+		return nil, fmt.Errorf("frontend search or trace by id throughput slo should be greater than 0")
 	}
 
 	if cfg.Search.Sharder.QueryIngestersUntil < cfg.Search.Sharder.QueryBackendAfter {
