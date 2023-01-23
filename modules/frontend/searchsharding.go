@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -229,9 +230,11 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	throughput := float64(overallResponse.resultsMetrics.InspectedBytes) / reqTime.Seconds()
 	var statusCode int
 
+	query, _ := url.PathUnescape(r.URL.RawQuery)
+	span.SetTag("query", query)
 	level.Info(s.logger).Log(
 		"msg", "sharded search query request stats",
-		"raw_query", r.URL.RawQuery,
+		"query", query,
 		"duration_seconds", reqTime,
 		"request_throughput", throughput,
 		"total_requests", len(reqs),
@@ -249,7 +252,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	level.Info(s.logger).Log(
 		"msg", "sharded search query SearchMetrics",
-		"raw_query", r.URL.RawQuery,
+		"query", query,
 		"inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks,
 		"skippedBlocks", overallResponse.resultsMetrics.SkippedBlocks,
 		"inspectedBytes", overallResponse.resultsMetrics.InspectedBytes,
