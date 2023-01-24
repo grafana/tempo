@@ -320,9 +320,19 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 	}
 
 	for _, rg := range c.rgs {
+		select {
+		case <-ctx.Done():
+			c.storeErr("context done", ctx.Err())
+		case _, ok := <-c.quit:
+			if !ok {
+				return
+			}
+		default:
+		}
+
 		// bail out if we errored somewhere
 		if c.currErr.Load() != nil {
-			break
+			return
 		}
 
 		col := rg.ColumnChunks()[c.col]
@@ -408,6 +418,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 									columnIteratorPoolPut(newBuffer)
 									return true
 								case <-ctx.Done():
+									c.storeErr("context done", ctx.Err())
 									columnIteratorPoolPut(newBuffer)
 									return true
 								}
@@ -458,11 +469,6 @@ func (c *ColumnIterator) next() (RowNumber, pq.Value, error) {
 		go c.iter()
 	}
 
-	err := c.currErr.Load()
-	if err != nil {
-		return EmptyRowNumber(), pq.Value{}, err.(error)
-	}
-
 	// Consume current buffer until exhausted
 	// then read another one from the channel.
 	if c.curr != nil {
@@ -485,7 +491,15 @@ func (c *ColumnIterator) next() (RowNumber, pq.Value, error) {
 		return c.curr.rowNumbers[0], c.curr.values[0], nil
 	}
 
-	// Failed to read from the channel, means iterator is exhausted.
+	// Failed to read from the channel, means iterator is done.
+
+	// Check for error
+	err := c.currErr.Load()
+	if err != nil {
+		return EmptyRowNumber(), pq.Value{}, err.(error)
+	}
+
+	// No error means iterator is exhausted
 	return EmptyRowNumber(), pq.Value{}, nil
 }
 
@@ -861,31 +875,7 @@ func (j *LeftJoinIterator) collect(rowNumber RowNumber) (*IteratorResult, error)
 		}
 	}
 
-	skip := func(iters []Iterator, peeks []*IteratorResult) {
-		for i := range iters {
-			// Skip forward
-			if peeks[i] == nil {
-				peeks[i], err = iters[i].Next()
-				if err != nil {
-					return
-				}
-			}
-			for peeks[i] != nil && CompareRowNumbers(j.definitionLevel, peeks[i].RowNumber, rowNumber) < 0 {
-				columnIteratorResultPoolPut(peeks[i])
-				peeks[i], err = iters[i].Next()
-				if err != nil {
-					return
-				}
-			}
-		}
-	}
-
-	skip(j.required, j.peeksRequired)
-	if err != nil {
-		return nil, err
-	}
-
-	skip(j.optional, j.peeksOptional)
+	err = j.seekAll(rowNumber, j.definitionLevel)
 	if err != nil {
 		return nil, err
 	}
