@@ -1,17 +1,5 @@
 ## main / unreleased
-* [FEATURE] Add TLS support to jaeger query plugin. [#1999](https://github.com/grafana/tempo/pull/1999) (@rubenvp8510)
-* [ENHANCEMENT] Add support for TraceQL in Parquet WAL and Local Blocks. [#1966](https://github.com/grafana/tempo/pull/1966) (@electron0zero)
-* [ENHANCEMENT] Add new data-type aware searchtagvalues v2 api [#1956](https://github.com/grafana/tempo/pull/1956) (@mdisibio)
-* [CHANGE] Collect inspectedBytes from SearchMetrics [#1975](https://github.com/grafana/tempo/pull/1975) (@electron0zero)
-* [ENHANCEMENT] Add zone awareness replication for ingesters. [#1936](https://github.com/grafana/tempo/pull/1936) (@manohar-koukuntla)
-```
-# use the following fields in _config field of jsonnet config, to enable zone aware ingester
-    multi_zone_ingester_enabled: false,
-    multi_zone_ingester_migration_enabled: false,
-    multi_zone_ingester_replicas: 0,
-    multi_zone_ingester_max_unavailable: 25,
-```
-* [BUGFIX] Stop distributors on Otel receiver fatal error[#1887](https://github.com/grafana/tempo/pull/1887) (@rdooley)
+
 * [CHANGE] **BREAKING CHANGE** Use snake case on Azure Storage config [#1879](https://github.com/grafana/tempo/issues/1879) (@faustodavid)
 Example of using snake case on Azure Storage config:
 ```
@@ -22,53 +10,13 @@ storage:
     storage_account_key:
     container_name:
 ```
-* [ENHANCEMENT] Support global and wildcard overrides in generic forwarder feature [#1871](https://github.com/grafana/tempo/pull/1871) (@Blinkuu)
-* [FEATURE] Add `/status/usage-stats` endpoint to show usage stats data [#1782](https://github.com/grafana/tempo/pull/1782) (@electron0zero)
-* [FEATURE] Add generic forwarder and implement otlpgrpc forwarder [#1775](https://github.com/grafana/tempo/pull/1775) (@Blinkuu)
-    New config options and example configuration:
-```
-# config.yaml
-distributor:
-  forwarders:
-    - name: "otel-forwarder"
-      backend: "otlpgrpc"
-      otlpgrpc:
-        endpoints: ['otelcol:4317']
-        tls:
-          insecure: true
-
-# overrides.yaml
-overrides:
-  "example-tenant-1":
-    forwarders: ['otel-forwarder']
-  "example-tenant-2":
-    forwarders: ['otel-forwarder']
-```
-* [ENHANCEMENT] Refactor queueManager into generic queue.Queue [#1796](https://github.com/grafana/tempo/pull/1796) (@Blinkuu)
-  - **BREAKING CHANGE** Rename `tempo_distributor_forwarder_queue_length` metric to `tempo_distributor_queue_length`. New metric has two custom labels: `name` and  `tenant`.
-  - Deprecated `tempo_distributor_forwarder_pushes_total` metric in favor of `tempo_distributor_queue_pushes_total`.
-  - Deprecated `tempo_distributor_forwarder_pushes_failures_total` metric in favor of `tempo_distributor_queue_pushes_failures_total`.
-* [ENHANCEMENT] Filter namespace by cluster in tempo dashboards variables [#1771](https://github.com/grafana/tempo/pull/1771) (@electron0zero)
-* [ENHANCEMENT] Exit early from sharded search requests [#1742](https://github.com/grafana/tempo/pull/1742) (@electron0zero)
-* [ENHANCEMENT] Upgrade prometheus/prometheus to `51a44e6657c3` [#1829](https://github.com/grafana/tempo/pull/1829) (@mapno)
-* [ENHANCEMENT] Avoid running tempodb pool jobs with a cancelled context [#1852](https://github.com/grafana/tempo/pull/1852) (@zalegrala)
-* [ENHANCEMENT] Add config flag to allow for compactor disablement for debug purposes [#1850](https://github.com/grafana/tempo/pull/1850) (@zalegrala)
-* [CHANGE] Identify bloom that could not be retrieved from backend block [#1737](https://github.com/grafana/tempo/pull/1737) (@AlexDHoffer)
-* [CHANGE] tempo: check configuration returns now a list of warnings [#1663](https://github.com/grafana/tempo/pull/1663) (@frzifus)
-* [CHANGE] Make DNS address fully qualified to reduce DNS lookups in Kubernetes [#1687](https://github.com/grafana/tempo/pull/1687) (@electron0zero)
-* [CHANGE] Improve parquet compaction memory profile when dropping spans [#1692](https://github.com/grafana/tempo/pull/1692) (@joe-elliott)
 * [CHANGE] Increase default values for `server.grpc_server_max_recv_msg_size` and `server.grpc_server_max_send_msg_size` from 4MB to 16MB [#1688](https://github.com/grafana/tempo/pull/1688) (@mapno)
-* [CHANGE] Use Parquet for local block search, tag search and tag value search instead of flatbuffers. A configuration value
-  (`ingester.use_flatbuffer_search`) is provided to continue using flatbuffers.
-  - **BREAKING CHANGE** Makes Parquet the default encoding.
 * [CHANGE] **BREAKING CHANGE** Use storage.trace.block.row_group_size_bytes to cut rows during compaction instead of
   compactor.compaction.flush_size_bytes. [#1696](https://github.com/grafana/tempo/pull/1696) (@joe-elliott)
-* [CHANGE] Return 200 instead of 206 when blocks failed is < tolerate_failed_blocks. [#1725](https://github.com/grafana/tempo/pull/1725) (@joe-elliott)
 * [CHANGE] Update Go to 1.19 [#1665](https://github.com/grafana/tempo/pull/1665) (@ie-pham)
 * [CHANGE] Remove unsued scheduler frontend code [#1734](https://github.com/grafana/tempo/pull/1734) (@mapno)
 * [CHANGE] Deprecated `query-frontend.query_shards` in favor of `query_frontend.trace_by_id.query_shards`.
 Old config will still work but will be removed in a future release. [#1735](https://github.com/grafana/tempo/pull/1735) (@mapno)
-* [CHANGE] Add GOMEMLIMIT variable to compactor jsonnet and set the value to equal compactor memory limit. [#1758](https://github.com/grafana/tempo/pull/1758/files) (@ie-pham)
 * [CHANGE] Update alpine image version to 3.16. [#1784](https://github.com/grafana/tempo/pull/1784) (@zalegrala)
 * [CHANGE] Delete TempoRequestErrors alert from mixin [#1810](https://github.com/grafana/tempo/pull/1810) (@zalegrala)
   - **BREAKING CHANGE** Any jsonnet users relying on this alert should copy this into their own environment.
@@ -130,7 +78,62 @@ Old config will still work but will be removed in a future release. [#1735](http
           row_group_size_bytes:    // renamed to parquet_row_group_size_bytes
   ```
 * [CHANGE] **BREAKING CHANGE** Remove `search_enabled` and `metrics_generator_enabled`. Both default to true. [#2004](https://github.com/grafana/tempo/pull/2004) (@joe-elliott)
-* [FEATURE] Add capability to configure the used S3 Storage Class [#1697](https://github.com/grafana/tempo/pull/1714) (@amitsetty)
+* [CHANGE] Update OTel collector to v0.57.2 [#1757](https://github.com/grafana/tempo/pull/1757) (@mapno)
+* [FEATURE] TraceQL support https://grafana.com/docs/tempo/latest/traceql/
+* [FEATURE] Parquet backend is GA and default
+* [FEATURE] Add generic forwarder and implement otlpgrpc forwarder [#1775](https://github.com/grafana/tempo/pull/1775) (@Blinkuu)
+    New config options and example configuration:
+```
+# config.yaml
+distributor:
+  forwarders:
+    - name: "otel-forwarder"
+      backend: "otlpgrpc"
+      otlpgrpc:
+        endpoints: ['otelcol:4317']
+        tls:
+          insecure: true
+
+# overrides.yaml
+overrides:
+  "example-tenant-1":
+    forwarders: ['otel-forwarder']
+  "example-tenant-2":
+    forwarders: ['otel-forwarder']
+```
+* [ENHANCEMENT] Add support for TraceQL in Parquet WAL and Local Blocks. [#1966](https://github.com/grafana/tempo/pull/1966) (@electron0zero)
+* [ENHANCEMENT] Add `/status/usage-stats` endpoint to show usage stats data [#1782](https://github.com/grafana/tempo/pull/1782) (@electron0zero)
+* [ENHANCEMENT] Add TLS support to jaeger query plugin. [#1999](https://github.com/grafana/tempo/pull/1999) (@rubenvp8510)
+* [ENHANCEMENT] Collect inspectedBytes from SearchMetrics [#1975](https://github.com/grafana/tempo/pull/1975) (@electron0zero)
+* [ENHANCEMENT] Add zone awareness replication for ingesters. [#1936](https://github.com/grafana/tempo/pull/1936) (@manohar-koukuntla)
+```
+# use the following fields in _config field of jsonnet config, to enable zone aware ingester
+    multi_zone_ingester_enabled: false,
+    multi_zone_ingester_migration_enabled: false,
+    multi_zone_ingester_replicas: 0,
+    multi_zone_ingester_max_unavailable: 25,
+```
+* [ENHANCEMENT] Support global and wildcard overrides in generic forwarder feature [#1871](https://github.com/grafana/tempo/pull/1871) (@Blinkuu)
+* [ENHANCEMENT] Add new data-type aware searchtagvalues v2 api [#1956](https://github.com/grafana/tempo/pull/1956) (@mdisibio)
+* [ENHANCEMENT] Refactor queueManager into generic queue.Queue [#1796](https://github.com/grafana/tempo/pull/1796) (@Blinkuu)
+  - **BREAKING CHANGE** Rename `tempo_distributor_forwarder_queue_length` metric to `tempo_distributor_queue_length`. New metric has two custom labels: `name` and  `tenant`.
+  - Deprecated `tempo_distributor_forwarder_pushes_total` metric in favor of `tempo_distributor_queue_pushes_total`.
+  - Deprecated `tempo_distributor_forwarder_pushes_failures_total` metric in favor of `tempo_distributor_queue_pushes_failures_total`.
+* [ENHANCEMENT] Filter namespace by cluster in tempo dashboards variables [#1771](https://github.com/grafana/tempo/pull/1771) (@electron0zero)
+* [ENHANCEMENT] Exit early from sharded search requests [#1742](https://github.com/grafana/tempo/pull/1742) (@electron0zero)
+* [ENHANCEMENT] Upgrade prometheus/prometheus to `51a44e6657c3` [#1829](https://github.com/grafana/tempo/pull/1829) (@mapno)
+* [ENHANCEMENT] Avoid running tempodb pool jobs with a cancelled context [#1852](https://github.com/grafana/tempo/pull/1852) (@zalegrala)
+* [ENHANCEMENT] Add config flag to allow for compactor disablement for debug purposes [#1850](https://github.com/grafana/tempo/pull/1850) (@zalegrala)
+* [ENHANCEMENT] Identify bloom that could not be retrieved from backend block [#1737](https://github.com/grafana/tempo/pull/1737) (@AlexDHoffer)
+* [ENHANCEMENT] tempo: check configuration returns now a list of warnings [#1663](https://github.com/grafana/tempo/pull/1663) (@frzifus)
+* [ENHANCEMENT] Make DNS address fully qualified to reduce DNS lookups in Kubernetes [#1687](https://github.com/grafana/tempo/pull/1687) (@electron0zero)
+* [ENHANCEMENT] Improve parquet compaction memory profile when dropping spans [#1692](https://github.com/grafana/tempo/pull/1692) (@joe-elliott)
+* [ENHANCEMENT] Use Parquet for local block search, tag search and tag value search instead of flatbuffers. A configuration value
+  (`ingester.use_flatbuffer_search`) is provided to continue using flatbuffers.
+  - **BREAKING CHANGE** Makes Parquet the default encoding.
+* [ENHANCEMENT] Return 200 instead of 206 when blocks failed is < tolerate_failed_blocks. [#1725](https://github.com/grafana/tempo/pull/1725) (@joe-elliott)
+* [ENHANCEMENT] Add GOMEMLIMIT variable to compactor jsonnet and set the value to equal compactor memory limit. [#1758](https://github.com/grafana/tempo/pull/1758/files) (@ie-pham)
+* [ENHANCEMENT] Add capability to configure the used S3 Storage Class [#1697](https://github.com/grafana/tempo/pull/1714) (@amitsetty)
 * [ENHANCEMENT] cache: expose username and sentinel_username redis configuration options for ACL-based Redis Auth support [#1708](https://github.com/grafana/tempo/pull/1708) (@jsievenpiper)
 * [ENHANCEMENT] metrics-generator: expose span size as a metric [#1662](https://github.com/grafana/tempo/pull/1662) (@ie-pham)
 * [ENHANCEMENT] Set Max Idle connections to 100 for Azure, should reduce DNS errors in Azure [#1632](https://github.com/grafana/tempo/pull/1632) (@electron0zero)
@@ -146,12 +149,10 @@ query_frontend:
     hedge_requests_at: 5s
     hedge_requests_up_to: 3
 ```
-* [ENHACEMENT] Update OTel collector to v0.57.2 [#1757](https://github.com/grafana/tempo/pull/1757) (@mapno)
 * [ENHANCEMENT] Vulture now has improved distribution of the random traces it searches. [#1763](https://github.com/grafana/tempo/pull/1763) (@rfratto)
 * [ENHANCEMENT] Upgrade opentelemetry-proto submodule to v0.18.0 [#1754](https://github.com/grafana/tempo/pull/1754) (@mapno)
 * [ENHANCEMENT] Add TLS support to the vulture [#1874](https://github.com/grafana/tempo/pull/1874) (@zalegrala)
 Internal types are updated to use `scope` instead of `instrumentation_library`. This is a breaking change in trace by ID queries if JSON is requested.
-* [BUGFIX] New wal file separator '+' for the NTFS filesystem and backward compatibility with the old separator ':' [#1700](https://github.com/grafana/tempo/pull/1700) (@kilian-kier)
 * [ENHANCEMENT] metrics-generator: extract `status_message` field from spans [#1786](https://github.com/grafana/tempo/pull/1786), [#1794](https://github.com/grafana/tempo/pull/1794) (@stoewer)
 * [ENHANCEMENT] metrics-generator: handle collisions between user defined and default dimensions [#1794](https://github.com/grafana/tempo/pull/1794) (@stoewer)
   **BREAKING CHANGE** Custom dimensions colliding with intrinsic dimensions will be prefixed with `__`.
@@ -160,13 +161,15 @@ Internal types are updated to use `scope` instead of `instrumentation_library`. 
 * [ENHANCEMENT] metrics-generator: truncate label names and values exceeding a configurable length [#1897](https://github.com/grafana/tempo/pull/1897) (@kvrhdn)
 * [ENHANCEMENT] Add parquet WAL [#1878](https://github.com/grafana/tempo/pull/1878) (@joe-elliott, @mdisibio)
 * [ENHANCEMENT] Convert last few Jsonnet alerts with per_cluster_label [#2000](https://github.com/grafana/tempo/pull/2000) (@Whyeasy)
+* [ENHANCEMENT] New tenant dashboard [#1901](https://github.com/grafana/tempo/pull/1901) (@mapno)
+* [BUGFIX] Stop distributors on Otel receiver fatal error[#1887](https://github.com/grafana/tempo/pull/1887) (@rdooley)
+* [BUGFIX] New wal file separator '+' for the NTFS filesystem and backward compatibility with the old separator ':' [#1700](https://github.com/grafana/tempo/pull/1700) (@kilian-kier)
 * [BUGFIX] Honor caching and buffering settings when finding traces by id [#1697](https://github.com/grafana/tempo/pull/1697) (@joe-elliott)
 * [BUGFIX] Correctly propagate errors from the iterator layer up through the queriers [#1723](https://github.com/grafana/tempo/pull/1723) (@joe-elliott)
 * [BUGFIX] Make multitenancy work with HTTP [#1781](https://github.com/grafana/tempo/pull/1781) (@gouthamve)
 * [BUGFIX] Fix parquet search bug fix on http.status_code that may cause incorrect results to be returned [#1799](https://github.com/grafana/tempo/pull/1799) (@mdisibio)
 * [BUGFIX] Fix failing SearchTagValues endpoint after startup [#1813](https://github.com/grafana/tempo/pull/1813) (@stoewer)
 * [BUGFIX] tempo-mixin: tweak dashboards to support metrics without `cluster` label present [#1913](https://github.com/grafana/tempo/pull/1913) (@kvrhdn)
-* [ENHANCEMENT] New tenant dashboard [#1901](https://github.com/grafana/tempo/pull/1901) (@mapno)
 * [BUGFIX] Fix docker-compose examples not running on Apple M1 hardware [#1920](https://github.com/grafana/tempo/pull/1920) (@stoewer)
 * [BUGFIX] Fix traceql parsing of most binary operations to not require spacing [#1939](https://github.com/grafana/tempo/pull/1941) (@mdisibio)
 * [BUGFIX] Don't persist tenants without blocks in the ingester[#1947](https://github.com/grafana/tempo/pull/1947) (@joe-elliott)
