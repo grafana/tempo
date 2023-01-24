@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -321,4 +322,63 @@ func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*temp
 	require.NoError(t, w.Flush())
 
 	f(w, ids, trs)
+}
+
+func BenchmarkWalTraceQL(b *testing.B) {
+
+	reqs := []string{
+		"{ .foo = `bar` }",
+		"{ span.foo = `bar` }",
+		"{ resource.foo = `bar` }",
+	}
+
+	w, warn, err := openWALBlock("15eec7d7-4b9f-4cf7-948d-fb9765ecd9a8+1+vParquet", "/Users/marty/src/tmp/wal/", 0, 0)
+	require.NoError(b, err)
+	require.NoError(b, warn)
+
+	for _, q := range reqs {
+		req := traceql.MustExtractFetchSpansRequest(q)
+		b.Run(q, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				resp, err := w.Fetch(context.TODO(), req, common.DefaultSearchOptions())
+				require.NoError(b, err)
+
+				for {
+					ss, err := resp.Results.Next(context.TODO())
+					require.NoError(b, err)
+					if ss == nil {
+						break
+					}
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkWalSearchTagValues(b *testing.B) {
+
+	tags := []string{
+		"service.name",
+		"name",
+		"foo",
+		"http.url",
+		"http.status_code",
+		"celery.task_name",
+	}
+
+	w, warn, err := openWALBlock("15eec7d7-4b9f-4cf7-948d-fb9765ecd9a8+1+vParquet", "/Users/marty/src/tmp/wal/", 0, 0)
+	require.NoError(b, err)
+	require.NoError(b, warn)
+
+	cb := func(v string) {
+	}
+
+	for _, t := range tags {
+		b.Run(t, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				err := w.SearchTagValues(context.TODO(), t, cb, common.DefaultSearchOptions())
+				require.NoError(b, err)
+			}
+		})
+	}
 }

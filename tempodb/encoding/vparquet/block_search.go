@@ -418,19 +418,22 @@ func (r *reportValuesPredicate) KeepColumnChunk(cc parquet.ColumnChunk) bool {
 // and return false b/c we don't have to go to the actual columns to retrieve values. if there is no dict we return
 // true so the iterator will call KeepValue on all values in the column
 func (r *reportValuesPredicate) KeepPage(pg parquet.Page) bool {
-	if !r.inspectedDict {
-		if dict := pg.Dictionary(); dict != nil {
-			for i := 0; i < dict.Len(); i++ {
-				v := dict.Index(int32(i))
-				if callback(r.cb, v) {
-					break
-				}
-			}
+	if r.inspectedDict {
+		// Already inspected dictionary for this column chunk
+		return false
+	}
 
-			// Only inspect first dictionary per column chunk.
-			r.inspectedDict = true
-			return false
+	if dict := pg.Dictionary(); dict != nil {
+		for i := 0; i < dict.Len(); i++ {
+			v := dict.Index(int32(i))
+			if callback(r.cb, v) {
+				break
+			}
 		}
+
+		// Only inspect first dictionary per column chunk.
+		r.inspectedDict = true
+		return false
 	}
 
 	return true

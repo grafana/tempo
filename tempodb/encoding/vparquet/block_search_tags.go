@@ -16,6 +16,21 @@ import (
 var translateTagToAttribute = map[string]traceql.Attribute{
 	LabelName:       traceql.NewIntrinsic(traceql.IntrinsicName),
 	LabelStatusCode: traceql.NewIntrinsic(traceql.IntrinsicStatus),
+
+	// Preserve behavior of v1 tag lookups which directed some attributes
+	// to dedicated columns.
+	LabelServiceName:      traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelServiceName),
+	LabelCluster:          traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelCluster),
+	LabelNamespace:        traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelNamespace),
+	LabelPod:              traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelPod),
+	LabelContainer:        traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelContainer),
+	LabelK8sNamespaceName: traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sNamespaceName),
+	LabelK8sClusterName:   traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sClusterName),
+	LabelK8sPodName:       traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sPodName),
+	LabelK8sContainerName: traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sContainerName),
+	LabelHTTPMethod:       traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPMethod),
+	LabelHTTPUrl:          traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPUrl),
+	LabelHTTPStatusCode:   traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPStatusCode),
 }
 
 var nonTraceQLAttributes = map[string]string{
@@ -260,16 +275,17 @@ func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *par
 }
 
 func searchKeyValues(definitionLevel int, keyPath, stringPath, intPath, floatPath, boolPath string, makeIter makeIterFn, keyPred pq.Predicate, cb common.TagCallbackV2) error {
+	skipNils := pq.NewSkipNilsPredicate()
 
 	iter := pq.NewLeftJoinIterator(definitionLevel,
 		// This is required
 		[]pq.Iterator{makeIter(keyPath, keyPred, "")},
 		[]pq.Iterator{
 			// These are optional and we find matching values of all types
-			makeIter(stringPath, nil, "string"),
-			makeIter(intPath, nil, "int"),
-			makeIter(floatPath, nil, "float"),
-			makeIter(boolPath, nil, "bool"),
+			makeIter(stringPath, skipNils, "string"),
+			makeIter(intPath, skipNils, "int"),
+			makeIter(floatPath, skipNils, "float"),
+			makeIter(boolPath, skipNils, "bool"),
 		}, nil)
 	defer iter.Close()
 

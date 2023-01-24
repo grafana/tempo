@@ -98,7 +98,7 @@ func NewRegexInPredicate(regs []string) (*RegexInPredicate, error) {
 }
 
 func (p *RegexInPredicate) keep(v *pq.Value) bool {
-	if v.Kind() < 0 {
+	if v.IsNull() {
 		// Null
 		return false
 	}
@@ -478,4 +478,25 @@ func (d *DictionaryPredicateHelper) keepPage(page pq.Page, keepValue func(pq.Val
 	}
 
 	return d.keepPagesInRowGroup
+}
+
+type SkipNilsPredicate struct {
+}
+
+var _ Predicate = (*SkipNilsPredicate)(nil)
+
+func NewSkipNilsPredicate() *SkipNilsPredicate {
+	return &SkipNilsPredicate{}
+}
+
+func (p *SkipNilsPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
+	return true
+}
+
+func (p *SkipNilsPredicate) KeepPage(page pq.Page) bool {
+	return page.NumValues() > page.NumNulls()
+}
+
+func (p *SkipNilsPredicate) KeepValue(v pq.Value) bool {
+	return !v.IsNull()
 }

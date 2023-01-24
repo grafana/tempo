@@ -92,7 +92,10 @@ type BackendBlock interface {
 type WALBlock interface {
 	BackendBlock
 
+	// Append the given trace to the block. Must be safe for concurrent use with read operations.
 	Append(id ID, b []byte, start, end uint32) error
+
+	// Flush any unbuffered data to disk.  Must be safe for concurrent use with read operations.
 	Flush() error
 
 	DataLength() uint64
