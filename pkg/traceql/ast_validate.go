@@ -98,7 +98,17 @@ func (o SpansetOperation) validate() error {
 	if err := o.LHS.validate(); err != nil {
 		return err
 	}
-	return o.RHS.validate()
+	if err := o.RHS.validate(); err != nil {
+		return err
+	}
+
+	// supported spanset operations
+	switch o.Op {
+	case OpSpansetChild, OpSpansetDescendant, OpSpansetSibling:
+		return newUnsupportedError(fmt.Sprintf("spanset operation (%v) not supported", o.Op))
+	}
+
+	return nil
 }
 
 func (f SpansetFilter) validate() error {

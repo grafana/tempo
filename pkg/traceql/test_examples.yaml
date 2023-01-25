@@ -42,9 +42,6 @@ valid:
   # spanset expressions
   - '{ true } && { true }'
   - '{ true } || { true }'
-  - '{ true } >> { true }' # jpe these should be invalid
-  - '{ true } > { true }'
-  - '{ true } ~ { true }'
   # scalar filters
   - 'avg(.field) > 1'
   # pipelines
@@ -56,9 +53,6 @@ valid:
   # pipeline expressions
   - '({ true } | count() > 1 | { false }) && ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) || ({ true } | count() > 1 | { false })'
-  - '({ true } | count() > 1 | { false }) >> ({ true } | count() > 1 | { false })'
-  - '({ true } | count() > 1 | { false }) > ({ true } | count() > 1 | { false })'
-  - '({ true } | count() > 1 | { false }) ~ ({ true } | count() > 1 | { false })'
   
 # parse_fails throw an error when parsing
 parse_fails:
@@ -243,6 +237,13 @@ unsupported:
   # childCount - will be invalid when supported
   - '{ "foo" = childCount }'
   - 'avg(childCount) > "foo"'
+  # spanset operations - will be valid when supported
+  - '{ true } >> { true }'
+  - '{ true } > { true }'
+  - '{ true } ~ { true }'
+  - '({ true } | count() > 1 | { false }) >> ({ true } | count() > 1 | { false })'
+  - '({ true } | count() > 1 | { false }) > ({ true } | count() > 1 | { false })'
+  - '({ true } | count() > 1 | { false }) ~ ({ true } | count() > 1 | { false })'
 
 # parsed and the ast is dumped to stdout. this is a debugging tool
 dump:
