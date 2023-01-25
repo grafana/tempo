@@ -147,16 +147,6 @@ validate_fails:
   - 'min(1) = max(2) + 3'
   # scalar filters have to match types
   - 'min(1) = "foo"'
-  # scalar filter expressions not supported yet at this time
-  - '3 = 2'                     # naked scalar filter, technically allowed
-  - 'avg(.field) > 1 - 3'         # scalar expressions in scalar filters are currently not allowed. possible future addition
-  - '{ true } | count() + count() = 1' 
-  - '({ true } | count()) + ({ true } | count()) = 1'
-  - '({ true } | count()) - ({ true } | count()) <= 1'
-  - '({ true } | count()) / ({ true } | count()) > ({ true } | count()) / ({ true } | count())'
-  - '({ true } | count()) * ({ true } | count()) < ({ true } | count()) / ({ true } | count())'
-  - '({ .http.status = 200 } | count()) + ({ name = `foo` } | avg(duration)) = 2'
-  - '({ .a } | count()) > ({ .b } | count())'
 
 # unsupported parse correctly and return an unsupported error when calling .validate()
 unsupported:
@@ -244,6 +234,17 @@ unsupported:
   - '({ true } | count() > 1 | { false }) >> ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) > ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) ~ ({ true } | count() > 1 | { false })'
+  # spanset pipelines + scalar filters - will be valid when supported
+  - '{ true } | count() + count() = 1' 
+  - '({ true } | count()) + ({ true } | count()) = 1'
+  - '({ true } | count()) - ({ true } | count()) <= 1'
+  - '({ true } | count()) / ({ true } | count()) > ({ true } | count()) / ({ true } | count())'
+  - '({ true } | count()) * ({ true } | count()) < ({ true } | count()) / ({ true } | count())'
+  - '({ .http.status = 200 } | count()) + ({ name = `foo` } | avg(duration)) = 2'
+  - '({ .a } | count()) > ({ .b } | count())'
+  # other scalar filters. no idea if these should be supported
+  - '3 = 2'                       # naked scalar filter, technically allowed
+  - 'avg(.field) > 1 - 3'         # scalar expressions in scalar filters are currently not allowed. possible future addition
 
 # parsed and the ast is dumped to stdout. this is a debugging tool
 dump:

@@ -146,13 +146,13 @@ func (f ScalarFilter) validate() error {
 	switch f.lhs.(type) {
 	case Aggregate:
 	default:
-		return fmt.Errorf("scalar filter lhs of type (%v) not supported", f.lhs)
+		return newUnsupportedError("scalar filter lhs of type (%v)")
 	}
 
 	switch f.rhs.(type) {
 	case Static:
 	default:
-		return fmt.Errorf("scalar filter rhs of type (%v) not supported", f.rhs)
+		return newUnsupportedError("scalar filter rhs of type (%v)")
 	}
 
 	return nil
