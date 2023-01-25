@@ -4,15 +4,15 @@ import "fmt"
 
 // unsupportedError is returned for traceql features that are not yet supported.
 type unsupportedError struct {
-	msg string
+	feature string
 }
 
-func newUnsupportedError(msg string) unsupportedError {
-	return unsupportedError{msg: msg}
+func newUnsupportedError(feature string) unsupportedError {
+	return unsupportedError{feature: feature}
 }
 
 func (e unsupportedError) Error() string {
-	return e.msg
+	return e.feature + " not yet supported"
 }
 
 func (r RootExpr) validate() error {
@@ -30,7 +30,7 @@ func (p Pipeline) validate() error {
 }
 
 func (o GroupOperation) validate() error {
-	return newUnsupportedError("coalesce() not yet supported")
+	return newUnsupportedError("by()")
 
 	// todo: once grouping is supported the below validation will apply
 	// if !o.Expression.referencesSpan() {
@@ -41,7 +41,7 @@ func (o GroupOperation) validate() error {
 }
 
 func (o CoalesceOperation) validate() error {
-	return newUnsupportedError("coalesce() not yet supported")
+	return newUnsupportedError("coalesce()")
 }
 
 func (o ScalarOperation) validate() error {
@@ -87,7 +87,7 @@ func (a Aggregate) validate() error {
 	switch a.op {
 	case aggregateCount, aggregateAvg:
 	default:
-		return newUnsupportedError(fmt.Sprintf("aggregate operation (%v) not supported", a.op))
+		return newUnsupportedError(fmt.Sprintf("aggregate operation (%v)", a.op))
 	}
 
 	return nil
@@ -105,7 +105,7 @@ func (o SpansetOperation) validate() error {
 	// supported spanset operations
 	switch o.Op {
 	case OpSpansetChild, OpSpansetDescendant, OpSpansetSibling:
-		return newUnsupportedError(fmt.Sprintf("spanset operation (%v) not supported", o.Op))
+		return newUnsupportedError(fmt.Sprintf("spanset operation (%v)", o.Op))
 	}
 
 	return nil
@@ -187,7 +187,7 @@ func (o BinaryOperation) validate() error {
 		OpSpansetChild,
 		OpSpansetDescendant,
 		OpSpansetSibling:
-		return newUnsupportedError(fmt.Sprintf("binary operation (%v) not supported", o.Op))
+		return newUnsupportedError(fmt.Sprintf("binary operation (%v)", o.Op))
 	}
 
 	return nil
@@ -212,7 +212,7 @@ func (o UnaryOperation) validate() error {
 
 func (n Static) validate() error {
 	if n.Type == TypeNil {
-		return newUnsupportedError("nil not yet supported")
+		return newUnsupportedError("nil")
 	}
 
 	return nil
@@ -220,12 +220,12 @@ func (n Static) validate() error {
 
 func (a Attribute) validate() error {
 	if a.Parent {
-		return newUnsupportedError("parent not yet supported")
+		return newUnsupportedError("parent")
 	}
 	switch a.Intrinsic {
 	case IntrinsicParent,
 		IntrinsicChildCount:
-		return newUnsupportedError(fmt.Sprintf("intrinsic (%v) not supported", a.Intrinsic)) // jpe conslidate "not yet supported message"
+		return newUnsupportedError(fmt.Sprintf("intrinsic (%v)", a.Intrinsic))
 	}
 
 	return nil
