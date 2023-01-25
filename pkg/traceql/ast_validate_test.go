@@ -18,6 +18,8 @@ type TestQueries struct {
 	Dump          []string `yaml:"dump"`
 }
 
+// jpe - confirm ast_execute never panics
+
 func TestExamples(t *testing.T) {
 	b, err := os.ReadFile(testExamplesFile)
 	require.NoError(t, err)
@@ -48,7 +50,7 @@ func TestExamples(t *testing.T) {
 			require.NoError(t, err)
 			err = p.validate()
 			require.Error(t, err)
-			require.False(t, errors.As(err, &unsupportedError{})) // jpe confirm this works
+			require.False(t, errors.As(err, &unsupportedError{}))
 		})
 	}
 
@@ -58,7 +60,7 @@ func TestExamples(t *testing.T) {
 			require.NoError(t, err)
 			err = p.validate()
 			require.Error(t, err)
-			require.True(t, errors.As(err, &unsupportedError{})) // jpe confirm this works
+			require.True(t, errors.As(err, &unsupportedError{}))
 		})
 	}
 
