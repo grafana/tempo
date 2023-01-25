@@ -28,7 +28,7 @@ type Intrinsic int
 const (
 	IntrinsicNone Intrinsic = iota
 	IntrinsicDuration
-	IntrinsicChildCount
+	IntrinsicChildCount // jpe unsupported
 	IntrinsicName
 	IntrinsicStatus
 	IntrinsicParent

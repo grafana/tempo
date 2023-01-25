@@ -191,5 +191,12 @@ func (n Static) validate() error {
 }
 
 func (a Attribute) validate() error {
+	if a.Parent {
+		return newUnsupportedError("parent not yet supported")
+	}
+	if a.Intrinsic == IntrinsicParent {
+		return newUnsupportedError("parent not yet supported")
+	}
+
 	return nil
 }
