@@ -212,8 +212,10 @@ func (a Attribute) validate() error {
 	if a.Parent {
 		return newUnsupportedError("parent not yet supported")
 	}
-	if a.Intrinsic == IntrinsicParent {
-		return newUnsupportedError("parent not yet supported")
+	switch a.Intrinsic {
+	case IntrinsicParent,
+		IntrinsicChildCount:
+		return newUnsupportedError(fmt.Sprintf("intrinsic (%v) not supported", a.Intrinsic)) // jpe conslidate "not yet supported message"
 	}
 
 	return nil

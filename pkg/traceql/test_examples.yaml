@@ -37,7 +37,6 @@ valid:
   - '{ status = error }'
   - '{ status != error }'
   - '{ duration > 1s }'
-  - '{ 1 = childCount }' # jpe should be invalid
   - '{ 1 < 1h }'
   - '{ 1 <= 1.1 }'
   # spanset expressions
@@ -129,7 +128,6 @@ validate_fails:
   - '{ 1 && "foo" }'
   - '{ 1 || ok }'
   - '{ true || 1.1 }'
-  - '{ "foo" = childCount }'
   - '{ status > ok }'
   # unary operators - incorrect types
   - '{ -true }'
@@ -155,7 +153,6 @@ validate_fails:
   - 'min(1) = max(2) + 3'
   # scalar filters have to match types
   - 'min(1) = "foo"'
-  - 'avg(childCount) > "foo"'
   # scalar filter expressions not supported yet at this time
   - '3 = 2'                     # naked scalar filter, technically allowed
   - 'avg(.field) > 1 - 3'         # scalar expressions in scalar filters are currently not allowed. possible future addition
@@ -241,6 +238,11 @@ unsupported:
   - '{ 1 + 1 }'       
   - 'min(1.1 - 3) > 1'
   - 'max(1h + 2h) > 1'
+  # childCount - will be valid when supported
+  - '{ 1 = childCount }'
+  # childCount - will be invalid when supported
+  - '{ "foo" = childCount }'
+  - 'avg(childCount) > "foo"'
 
 # parsed and the ast is dumped to stdout. this is a debugging tool
 dump:
