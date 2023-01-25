@@ -4,6 +4,7 @@ import "fmt"
 
 type StaticType int
 
+// jpe are all of these supported?
 const (
 	TypeNil       StaticType = iota
 	TypeSpanset              // type used by spanset pipelines

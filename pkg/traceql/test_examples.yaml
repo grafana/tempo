@@ -50,7 +50,6 @@ valid:
   - '{ status != error }'
   - '{ duration > 1s }'
   - '{ duration > 1s * 2s }' 
-  - '{ .foo = nil }'
   - '{ 1 = childCount }'
   - '{ 1 * 1h = 1 }'     # combining float, int and duration can make sense, but can also be weird. we just accept it all
   - '{ 1 / 1.1 = 1 }'
@@ -238,6 +237,8 @@ unsupported:
   - '{ -parent = nil }'
   - '{ !parent = nil }'
   - 'min(parent) = nil'
+  # nil - will be valid when supported
+  - '{ .foo = nil }'
 
 # parsed and the ast is dumped to stdout. this is a debugging tool
 dump:

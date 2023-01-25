@@ -187,6 +187,10 @@ func (o UnaryOperation) validate() error {
 }
 
 func (n Static) validate() error {
+	if n.Type == TypeNil {
+		return newUnsupportedError("nil not yet supported")
+	}
+
 	return nil
 }
 
