@@ -30,11 +30,14 @@ func (p Pipeline) validate() error {
 }
 
 func (o GroupOperation) validate() error {
-	if !o.Expression.referencesSpan() {
-		return fmt.Errorf("grouping field expressions must reference the span: %s", o.String())
-	}
+	return newUnsupportedError("coalesce() not yet supported")
 
-	return o.Expression.validate()
+	// todo: once grouping is supported the below validation will apply
+	// if !o.Expression.referencesSpan() {
+	// 	return fmt.Errorf("grouping field expressions must reference the span: %s", o.String())
+	// }
+
+	// return o.Expression.validate()
 }
 
 func (o CoalesceOperation) validate() error {
@@ -84,7 +87,7 @@ func (a Aggregate) validate() error {
 	switch a.op {
 	case aggregateCount, aggregateAvg:
 	default:
-		return fmt.Errorf("aggregate operation (%v) not supported", a.op)
+		return newUnsupportedError(fmt.Sprintf("aggregate operation (%v) not supported", a.op))
 	}
 
 	return nil

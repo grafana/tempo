@@ -74,11 +74,6 @@ valid:
   - '{ true } | count() = 1'
   - '{ true } | avg(duration) = 1h'
   - 'count() = 1 | { true }'
-  - '{ true } | by(.a)'
-  - '{ true } | by(1 + .a)'
-  - 'by(.a) | { true }'
-  - '{ true } | by(name) | count() > 2'
-  - '{ true } | by(.field) | avg(.b) = 2'
   - '{ true } | count() = 1 | { true }'
   # pipeline expressions
   - '({ true } | count() > 1 | { false }) && ({ true } | count() > 1 | { false })'
@@ -190,14 +185,36 @@ validate_fails:
   - 'min(1.1 - 3) > 1'
   - 'min(3) = max(duration)'
   - 'min(1) = max(2) + 3'
-  # group expressions must reference the span
-  - '{ true } | by(1)'
-  - '{ true } | by("foo")'
   # scalar filters have to match types
   - 'min(1) = "foo"'
   - 'avg(childCount) > "foo"'
   - 'max(duration) < ok'
-  # aggregates not supported yet at this time
+  # scalar filter expressions not supported yet at this time
+  - '3 = 2'                     # naked scalar filter, technically allowed
+  - 'avg(.field) > 1 - 3'         # scalar expressions in scalar filters are currently not allowed. possible future addition
+  - '{ true } | count() + count() = 1' 
+  - '({ true } | count()) + ({ true } | count()) = 1'
+  - '({ true } | count()) - ({ true } | count()) <= 1'
+  - '({ true } | count()) / ({ true } | count()) > ({ true } | count()) / ({ true } | count())'
+  - '({ true } | count()) * ({ true } | count()) < ({ true } | count()) / ({ true } | count())'
+  - '({ .http.status = 200 } | count()) + ({ name = `foo` } | avg(duration)) = 2'
+  - '({ .a } | count()) > ({ .b } | count())'
+
+# unsupported parse correctly and return an unsupported error when calling .validate()
+unsupported:
+  # coalesce - will be valid when supported
+  - '{ true } | coalesce()'
+  - '{ true } | by(1 + .a) | coalesce()'
+  # by - will be valid when supported
+  - '{ true } | by(.a)'
+  - '{ true } | by(1 + .a)'
+  - 'by(.a) | { true }'
+  - '{ true } | by(name) | count() > 2'
+  - '{ true } | by(.field) | avg(.b) = 2'
+  # by - will *not* be valid when supported - group expressions must reference the span
+  - '{ true } | by(1)'
+  - '{ true } | by("foo")'
+  # aggregates - will be valid when supported
   - 'min(childCount) < 2'
   - 'max(duration) >= 1s'
   - 'min(.field) < max(duration)'
@@ -219,21 +236,9 @@ validate_fails:
   - '{ true } | by(3 * .field - 2) | max(duration) < 1s'
   - 'max(duration) > 3s | { status = error || .http.status = 500 }'
   - '{ .http.status = 200 } | max(.field) - min(.field) > 3'
-  # scalar filter expressions not supported yet at this time
-  - '3 = 2'                     # naked scalar filter, technically allowed
-  - 'avg(.field) > 1 - 3'         # scalar expressions in scalar filters are currently not allowed. possible future addition
-  - '{ true } | count() + count() = 1' 
-  - '({ true } | count()) + ({ true } | count()) = 1'
-  - '({ true } | count()) - ({ true } | count()) <= 1'
-  - '({ true } | count()) / ({ true } | count()) > ({ true } | count()) / ({ true } | count())'
-  - '({ true } | count()) * ({ true } | count()) < ({ true } | count()) / ({ true } | count())'
-  - '({ .http.status = 200 } | count()) + ({ name = `foo` } | avg(duration)) = 2'
-  - '({ .a } | count()) > ({ .b } | count())'
 
-# unsupported parse correctly and return an unsupported error when calling .validate()
-unsupported:
-  - '{ true } | coalesce()'
-  - '{ true } | by(1 + .a) | coalesce()'
+
+
 
 # parsed and the ast is dumped to stdout. this is a debugging tool
 dump:
