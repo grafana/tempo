@@ -188,7 +188,6 @@ validate_fails:
   # scalar filters have to match types
   - 'min(1) = "foo"'
   - 'avg(childCount) > "foo"'
-  - 'max(duration) < ok'
   # scalar filter expressions not supported yet at this time
   - '3 = 2'                     # naked scalar filter, technically allowed
   - 'avg(.field) > 1 - 3'         # scalar expressions in scalar filters are currently not allowed. possible future addition
@@ -236,9 +235,8 @@ unsupported:
   - '{ true } | by(3 * .field - 2) | max(duration) < 1s'
   - 'max(duration) > 3s | { status = error || .http.status = 500 }'
   - '{ .http.status = 200 } | max(.field) - min(.field) > 3'
-
-
-
+  # aggregates - will *not* be valid when supported - comparing number type to status type
+  - 'max(duration) < ok'
 
 # parsed and the ast is dumped to stdout. this is a debugging tool
 dump:
