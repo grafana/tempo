@@ -89,7 +89,11 @@ iter:
 }
 
 func (e *Engine) parseQuery(searchReq *tempopb.SearchRequest) (*RootExpr, error) {
-	return Parse(searchReq.Query)
+	r, err := Parse(searchReq.Query)
+	if err != nil {
+		return nil, err
+	}
+	return r, r.validate()
 }
 
 // createFetchSpansRequest will flatten the SpansetFilter in simple conditions the storage layer

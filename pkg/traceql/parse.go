@@ -43,6 +43,7 @@ func Parse(s string) (expr *RootExpr, err error) {
 	if e != 0 {
 		return nil, fmt.Errorf("unknown parse error: %d", e)
 	}
+
 	return l.expr, nil
 }
 
