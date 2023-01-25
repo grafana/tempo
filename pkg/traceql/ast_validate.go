@@ -166,6 +166,20 @@ func (o BinaryOperation) validate() error {
 		return fmt.Errorf("illegal operation for the given types: %s", o.String())
 	}
 
+	switch o.Op {
+	case OpAdd,
+		OpSub,
+		OpMult,
+		OpDiv,
+		OpMod,
+		OpNotRegex,
+		OpPower,
+		OpSpansetChild,
+		OpSpansetDescendant,
+		OpSpansetSibling:
+		return newUnsupportedError(fmt.Sprintf("binary operation (%v) not supported", o.Op))
+	}
+
 	return nil
 }
 

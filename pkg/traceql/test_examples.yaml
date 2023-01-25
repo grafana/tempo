@@ -11,14 +11,8 @@ valid:
   - '{ 1 >= 2 }'
   - '{ 1 < 2 }'
   - '{ 1 <= 2 }'
-  - '{ 1 + 1 = 2 }'
-  - '{ 1 - 1 = 2 }'
-  - '{ 1 * 1 = 2 }'
-  - '{ 1 / 1 = 2 }'
-  - '{ 1 ^ 1 = 2 }'
   - '{ -1 = 2 }'
   - '{ "test" =~ "test" }'
-  - '{ "test" !~ "test" }'
   - '{ "test" = "test" }'
   - '{ "test" != "test" }'
   - '{ .a }'
@@ -31,14 +25,8 @@ valid:
   - '{ .a >= 2 }'
   - '{ .a < 2 }'
   - '{ .a <= 2 }'
-  - '{ .a + 1 = 2 }'
-  - '{ .a - 1 = 2 }'
-  - '{ .a * 1 = 2 }'
-  - '{ .a / 1 = 2 }'
-  - '{ .a ^ 1 = 2 }'
   - '{ -.a = 2 }'
   - '{ .a =~ "test" }'
-  - '{ .a !~ "test" }'
   - '{ .a = "test" }'
   - '{ .a != "test" }'
   - '{ resource.a != 3 }'
@@ -49,16 +37,13 @@ valid:
   - '{ status = error }'
   - '{ status != error }'
   - '{ duration > 1s }'
-  - '{ duration > 1s * 2s }' 
-  - '{ 1 = childCount }'
-  - '{ 1 * 1h = 1 }'     # combining float, int and duration can make sense, but can also be weird. we just accept it all
-  - '{ 1 / 1.1 = 1 }'
+  - '{ 1 = childCount }' # jpe should be invalid
   - '{ 1 < 1h }'
   - '{ 1 <= 1.1 }'
   # spanset expressions
   - '{ true } && { true }'
   - '{ true } || { true }'
-  - '{ true } >> { true }'
+  - '{ true } >> { true }' # jpe these should be invalid
   - '{ true } > { true }'
   - '{ true } ~ { true }'
   # scalar filters
@@ -126,7 +111,6 @@ parse_fails:
 # validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
 validate_fails:
   # span expressions must evaluate to a boolean
-  - '{ 1 + 1 }'
   - '{ status }'
   - '{ ok }'
   - '{ 1.1 }'
@@ -166,9 +150,7 @@ validate_fails:
   # scalar expressions must reference the span
   - 'sum(3) = 2'
   - 'sum(3) = min(14)'
-  - 'min(2h) < max(duration)'
-  - 'max(1h + 2h) > 1'                 
-  - 'min(1.1 - 3) > 1'
+  - 'min(2h) < max(duration)'          
   - 'min(3) = max(duration)'
   - 'min(1) = max(2) + 3'
   # scalar filters have to match types
@@ -239,6 +221,26 @@ unsupported:
   - 'min(parent) = nil'
   # nil - will be valid when supported
   - '{ .foo = nil }'
+  # binary operations - will be valid when supported
+  - '{ 1 + 1 = 2 }'
+  - '{ 1 - 1 = 2 }'
+  - '{ 1 * 1 = 2 }'
+  - '{ 1 / 1 = 2 }'
+  - '{ 1 ^ 1 = 2 }'
+  - '{ "test" !~ "test" }'
+  - '{ .a + 1 = 2 }'
+  - '{ .a - 1 = 2 }'
+  - '{ .a * 1 = 2 }'
+  - '{ .a / 1 = 2 }'
+  - '{ .a ^ 1 = 2 }'
+  - '{ .a !~ "test" }'
+  - '{ duration > 1s * 2s }' 
+  - '{ 1 * 1h = 1 }'     # combining float, int and duration can make sense, but can also be weird. we just accept it all
+  - '{ 1 / 1.1 = 1 }'
+  # binary operations - will not be valid when supported
+  - '{ 1 + 1 }'       
+  - 'min(1.1 - 3) > 1'
+  - 'max(1h + 2h) > 1'
 
 # parsed and the ast is dumped to stdout. this is a debugging tool
 dump:
