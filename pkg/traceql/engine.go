@@ -205,7 +205,11 @@ func (s Static) asAnyValue() *common_v1.AnyValue {
 				StringValue: "nil",
 			},
 		}
-	default:
-		panic(fmt.Errorf("static has unexpected type %v", s.Type))
+	}
+
+	return &common_v1.AnyValue{
+		Value: &common_v1.AnyValue_StringValue{
+			StringValue: fmt.Sprintf("error formatting val: static has unexpected type %v", s.Type),
+		},
 	}
 }

@@ -18,8 +18,6 @@ type TestQueries struct {
 	Dump          []string `yaml:"dump"`
 }
 
-// jpe - confirm ast_execute never panics
-
 func TestExamples(t *testing.T) {
 	b, err := os.ReadFile(testExamplesFile)
 	require.NoError(t, err)

@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 
@@ -71,7 +72,11 @@ func (f ScalarFilter) evaluate(input []Spanset) (output []Spanset, err error) {
 			}
 
 			for _, ss := range input {
-				if binOp(f.op, ss.Scalar, r) {
+				res, err := binOp(f.op, ss.Scalar, r)
+				if err != nil {
+					return nil, fmt.Errorf("scalar filter (%v) failed: %v", f, err)
+				}
+				if res {
 					output = append(output, ss)
 				}
 			}
@@ -187,43 +192,43 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 	case OpOr:
 		return NewStaticBool(lhs.B || rhs.B), nil
 	default:
-		panic("unexpected operator " + o.Op.String())
+		return NewStaticNil(), errors.New("unexpected operator " + o.Op.String())
 	}
 
-	panic("operator " + o.Op.String() + " is not yet implemented")
+	return NewStaticNil(), errors.New("operator " + o.Op.String() + " is not yet implemented")
 }
 
-func binOp(op Operator, lhs, rhs Static) bool {
+func binOp(op Operator, lhs, rhs Static) (bool, error) {
 	lhsT := lhs.impliedType()
 	rhsT := rhs.impliedType()
 	if !lhsT.isMatchingOperand(rhsT) {
-		return false
+		return false, nil
 	}
 
 	if !op.binaryTypesValid(lhsT, rhsT) {
-		return false
+		return false, nil
 	}
 
 	switch op {
 	case OpGreater:
-		return lhs.asFloat() > rhs.asFloat()
+		return lhs.asFloat() > rhs.asFloat(), nil
 	case OpGreaterEqual:
-		return lhs.asFloat() >= rhs.asFloat()
+		return lhs.asFloat() >= rhs.asFloat(), nil
 	case OpLess:
-		return lhs.asFloat() < rhs.asFloat()
+		return lhs.asFloat() < rhs.asFloat(), nil
 	case OpLessEqual:
-		return lhs.asFloat() <= rhs.asFloat()
+		return lhs.asFloat() <= rhs.asFloat(), nil
 	case OpEqual:
-		return lhs.Equals(rhs)
+		return lhs.Equals(rhs), nil
 	case OpNotEqual:
-		return !lhs.Equals(rhs)
+		return !lhs.Equals(rhs), nil
 	case OpAnd:
-		return lhs.B && rhs.B
+		return lhs.B && rhs.B, nil
 	case OpOr:
-		return lhs.B || rhs.B
-	default:
-		panic("unexpected operator " + op.String())
+		return lhs.B || rhs.B, nil
 	}
+
+	return false, errors.New("unexpected operator " + op.String())
 }
 
 func (o UnaryOperation) execute(span Span) (Static, error) {
@@ -252,7 +257,7 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 		}
 	}
 
-	panic("UnaryOperation has Op different from Not and Sub")
+	return NewStaticNil(), errors.New("UnaryOperation has Op different from Not and Sub")
 }
 
 func (s Static) execute(span Span) (Static, error) {
