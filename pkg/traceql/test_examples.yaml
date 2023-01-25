@@ -74,11 +74,9 @@ valid:
   - '{ true } | count() = 1'
   - '{ true } | avg(duration) = 1h'
   - 'count() = 1 | { true }'
-  - '{ true } | coalesce()'
   - '{ true } | by(.a)'
   - '{ true } | by(1 + .a)'
   - 'by(.a) | { true }'
-  - '{ true } | by(1 + .a) | coalesce()'
   - '{ true } | by(name) | count() > 2'
   - '{ true } | by(.field) | avg(.b) = 2'
   - '{ true } | count() = 1 | { true }'
@@ -138,7 +136,7 @@ parse_fails:
   - '(by(namespace) | count()) * 2 > 2'
   - '2 < (by(namespace) | count())'     # static value needs to be on the RHS to remove conflicts with scalar expressions
 
-# validate_fails parse correctly and return an error when calling .validate()
+# validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
 validate_fails:
   # span expressions must evaluate to a boolean
   - '{ 1 + 1 }'
@@ -232,6 +230,10 @@ validate_fails:
   - '({ .http.status = 200 } | count()) + ({ name = `foo` } | avg(duration)) = 2'
   - '({ .a } | count()) > ({ .b } | count())'
 
+# unsupported parse correctly and return an unsupported error when calling .validate()
+unsupported:
+  - '{ true } | coalesce()'
+  - '{ true } | by(1 + .a) | coalesce()'
 
 # parsed and the ast is dumped to stdout. this is a debugging tool
 dump:

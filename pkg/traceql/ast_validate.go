@@ -2,6 +2,19 @@ package traceql
 
 import "fmt"
 
+// unsupportedError is returned for traceql features that are not yet supported.
+type unsupportedError struct {
+	msg string
+}
+
+func newUnsupportedError(msg string) unsupportedError {
+	return unsupportedError{msg: msg}
+}
+
+func (e unsupportedError) Error() string {
+	return e.msg
+}
+
 func (r RootExpr) validate() error {
 	return r.Pipeline.validate()
 }
@@ -25,7 +38,7 @@ func (o GroupOperation) validate() error {
 }
 
 func (o CoalesceOperation) validate() error {
-	return nil
+	return newUnsupportedError("coalesce() not yet supported")
 }
 
 func (o ScalarOperation) validate() error {

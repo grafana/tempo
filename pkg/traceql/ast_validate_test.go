@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"errors"
 	"os"
 	"testing"
 
@@ -13,6 +14,7 @@ type TestQueries struct {
 	Valid         []string `yaml:"valid"`
 	ParseFails    []string `yaml:"parse_fails"`
 	ValidateFails []string `yaml:"validate_fails"`
+	Unsupported   []string `yaml:"unsupported"`
 	Dump          []string `yaml:"dump"`
 }
 
@@ -46,6 +48,17 @@ func TestExamples(t *testing.T) {
 			require.NoError(t, err)
 			err = p.validate()
 			require.Error(t, err)
+			require.False(t, errors.As(err, &unsupportedError{})) // jpe confirm this works
+		})
+	}
+
+	for _, q := range queries.Unsupported {
+		t.Run("unsupported - "+q, func(t *testing.T) {
+			p, err := Parse(q)
+			require.NoError(t, err)
+			err = p.validate()
+			require.Error(t, err)
+			require.True(t, errors.As(err, &unsupportedError{})) // jpe confirm this works
 		})
 	}
 
