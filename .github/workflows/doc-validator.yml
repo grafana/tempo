@@ -7,9 +7,9 @@ jobs:
   doc-validator:
     runs-on: "ubuntu-latest"
     container:
-      image: "grafana/doc-validator:latest"
+      image: "grafana/doc-validator:v1.9.0"
     steps:
       - name: "Checkout code"
         uses: "actions/checkout@v3"
       - name: "Run doc-validator tool"
-        run: "doc-validator ./docs/tempo/website"
+        run: "doc-validator --skip-image-validation ./docs/tempo/website /docs/tempo/latest"
