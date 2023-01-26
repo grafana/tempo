@@ -94,7 +94,7 @@ These metrics exist in your Hosted Metrics instance and can also be easily used 
 
 <p align="center"><img src="../assets/trace_custom_metrics_dash.png" alt="Trace custom metrics dashboard"></p>
 
-The metrics generator automatically generates exemplars as well which allows easy metrics to trace linking. [Exemplars]({{< relref "exemplars" >}}) are GA in Grafana Cloud so you can also push your own.
+The metrics generator automatically generates exemplars as well which allows easy metrics to trace linking. [Exemplars](https://grafana.com/docs/grafana-cloud/data-configuration/traces/exemplars/) are GA in Grafana Cloud so you can also push your own.
 
 <p align="center"><img src="../assets/trace_exemplars.png" alt="Trace exemplars"></p>
 

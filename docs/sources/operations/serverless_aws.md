@@ -1,9 +1,9 @@
 ---
 title: Backend search - serverless AWS setup
-alias: 
+alias:
 - /docs/tempo/latest/operations/backend_search/serverless_aws/
 - /docs/tempo/latest/operations/serverless_aws/
-weight: 11
+weight: 95
 ---
 
 # AWS Lambda for serverless backend search
@@ -17,7 +17,7 @@ For more guidance on configuration options for full backend search [check here](
     cd ./cmd/tempo-serverless && make build-lambda-zip
     ```
 
-    This will create a ZIP file containing the binary required for 
+    This will create a ZIP file containing the binary required for
     the function. The file name will be of the form: `./lambda/tempo-<branch name>-<commit hash>.zip`.
     Here is an example of that name:
 
@@ -74,7 +74,7 @@ For more guidance on configuration options for full backend search [check here](
         }
     }
     ```
-    
+
 5. Add the hostname of the newly-created ALB to the querier config:
 
     ```

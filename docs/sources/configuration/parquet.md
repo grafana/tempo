@@ -1,76 +1,67 @@
 ---
 title: Parquet
+menuTitle: Apache Parquet
 weight: 75
 ---
 
-# Apache Parquet backend
+# Apache Parquet block format
 
-<span style="background-color:#f3f973;">This is an experimental feature released with [Tempo 1.5]({{< relref "../release-notes/v1-5/" >}}). For more information about how to enable it, continue reading.</span>
 
-Tempo now has a columnar block format based on Apache Parquet.
+Tempo has a default columnar block format based on Apache Parquet. [TraceQL]({{< relref "../traceql" >}}), the query language for traces, requires Parquet. In a future release, Parquet will be required to use traces search.
+
 A columnar block format may result in improved search performance and also enables a large ecosystem of tools access to the underlying trace data.
 
 For more information, refer to the [Parquet design document](https://github.com/mdisibio/tempo/blob/design-proposal-parquet/docs/design-proposals/2022-04%20Parquet.md) and [Issue 1480](https://github.com/grafana/tempo/issues/1480).
 
+If you install using the new Helm charts, then Parquet is enabled by default.
+
 ## Considerations
 
-The new Parquet block format can be used as a drop-in replacement for Tempo's existing block format.
-No data conversion or upgrade process is necessary.
-As soon as the Parquet format is enabled, Tempo starts writing data in that format, leaving existing data as-is.
+The new Parquet block is enabled by default in Tempo 2.0. No data conversion or upgrade process is necessary. As soon as the Parquet format is enabled, Tempo starts writing data in that format, leaving existing data as-is.
 
-Please note, however, that enabling the Parquet block format means Tempo will require more CPU and memory resources than it previously did. 
+The new Parquet block format requires more CPU and memory resources than the previous v2 format but provides faster search and the new TraceQL.
 
+## Convert to Parquet
 
-## Enable Parquet
+You can use `tempo-cli` to convert a Parquet file from its existing schema to the one used in Tempo.
+For instructions, refer to the [Parquet convert command documentation]({{< relref "../operations/tempo_cli#parquet-convert-command" >}}).
 
-To use Parquet, set the block format option to `vParquet` in the Storage section of the configuration file.
+## Disable Parquet
+
+It is possible to disable Parquet and use the previous v2 block format. This disables TraceQL and will result in reduced search performance, but also reduces resource consumption, and may be desired for a high-throughput cluster that does not need these capabilities. Set the block format option to v2 in the Storage section of the configuration file.
 
 ```yaml
 # block format version. options: v2, vParquet
-[version: vParquet | default = v2]
+[version: v2]
 ```
 
-The following adjustments are recommended for your configuration:
+To re-enable Parquet, set the block format option to `vParquet` in the Storage section of the configuration file.
 
 ```yaml
-querier:
-  max_concurrent_queries: 100
-  search:
-    prefer_self: 50   # only if you're using external endpoints
-
-query_frontend:
-  max_outstanding_per_tenant: 2000
-  search:
-    concurrent_jobs: 2000
-    target_bytes_per_job: 400_000_000
-
-storage:
-  trace:
-    <gcs|s3|azure>:
-      hedge_requests_at: 1s
-      hedge_requests_up_to: 2
+# block format version. options: v2, vParquet
+[version: vParquet]
 ```
 
 ## Parquet configuration parameters
 
-Some parameters in the Tempo configuration are specific to Parquet.  
+Some parameters in the Tempo configuration are specific to Parquet.
 For more information, refer to the [storage configuration documentation](https://grafana.com/docs/tempo/latest/configuration/#storage).
 
 ### Trace search parameters
 
 These configuration options impact trace search.
 
-| Parameter | Default value | Description | 
+| Parameter | Default value | Description |
 | --- | --- | --- |
-| `[read_buffer_size_bytes: <int>]` | `4194304` | Size of read buffers used when performing search on a vParquet block. This value times the `read_buffer_count`  is the total amount of bytes used for buffering when performing search on a Parquet block.
- | 
-| `[read_buffer_count: <int>]` | 8 | Number of read buffers used when performing search on a vParquet block. This value times the `read_buffer_size_bytes` is the total amount of bytes used for buffering when performing search on a Parquet block.
+| `[read_buffer_size_bytes: <int>]` | `10485676` | Size of read buffers used when performing search on a vParquet block. This value times the `read_buffer_count`  is the total amount of bytes used for buffering when performing search on a Parquet block.
+ |
+| `[read_buffer_count: <int>]` | 32 | Number of read buffers used when performing search on a vParquet block. This value times the `read_buffer_size_bytes` is the total amount of bytes used for buffering when performing search on a Parquet block.
  |
 
 The `cache_control` section contains the follow parameters for Parquet metadata objects:
 
 | Parameter | Default value | Description |
 | --- | --- | --- |
-| <code>[footer: <bool> \| default = false]</code> | `false` | Specifies if the footer should be cached | 
-| `[column_index: <bool> \| default = false]` | `false` | Specifies if the column index should be cached | 
+| <code>[footer: <bool> \| default = false]</code> | `false` | Specifies if the footer should be cached |
+| `[column_index: <bool> \| default = false]` | `false` | Specifies if the column index should be cached |
 | `[offset_index: <bool> \| default = false]` | `false` | Specifies if the offset index should be cached |

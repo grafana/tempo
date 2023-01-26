@@ -2,7 +2,7 @@
 title: Tempo CLI
 description: Guide to using tempo-cli
 keywords: ["tempo", "cli", "tempo-cli", "command line interface"]
-weight: 7
+weight: 70
 ---
 
 # Tempo CLI
@@ -25,6 +25,7 @@ tempo-cli command [subcommand] -h
 ```
 
 ## Running Tempo CLI
+
 Tempo CLI is currently available as source code. A working Go installation is required to build it. It can be compiled to a native binary and executed normally, or it can be executed using the `go run` command.
 
 **Example:**
