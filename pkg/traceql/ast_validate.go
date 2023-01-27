@@ -2,6 +2,19 @@ package traceql
 
 import "fmt"
 
+// unsupportedError is returned for traceql features that are not yet supported.
+type unsupportedError struct {
+	feature string
+}
+
+func newUnsupportedError(feature string) unsupportedError {
+	return unsupportedError{feature: feature}
+}
+
+func (e unsupportedError) Error() string {
+	return e.feature + " not yet supported"
+}
+
 func (r RootExpr) validate() error {
 	return r.Pipeline.validate()
 }
@@ -17,15 +30,18 @@ func (p Pipeline) validate() error {
 }
 
 func (o GroupOperation) validate() error {
-	if !o.Expression.referencesSpan() {
-		return fmt.Errorf("grouping field expressions must reference the span: %s", o.String())
-	}
+	return newUnsupportedError("by()")
 
-	return o.Expression.validate()
+	// todo: once grouping is supported the below validation will apply
+	// if !o.Expression.referencesSpan() {
+	// 	return fmt.Errorf("grouping field expressions must reference the span: %s", o.String())
+	// }
+
+	// return o.Expression.validate()
 }
 
 func (o CoalesceOperation) validate() error {
-	return nil
+	return newUnsupportedError("coalesce()")
 }
 
 func (o ScalarOperation) validate() error {
@@ -71,7 +87,7 @@ func (a Aggregate) validate() error {
 	switch a.op {
 	case aggregateCount, aggregateAvg:
 	default:
-		return fmt.Errorf("aggregate operation (%v) not supported", a.op)
+		return newUnsupportedError(fmt.Sprintf("aggregate operation (%v)", a.op))
 	}
 
 	return nil
@@ -82,7 +98,17 @@ func (o SpansetOperation) validate() error {
 	if err := o.LHS.validate(); err != nil {
 		return err
 	}
-	return o.RHS.validate()
+	if err := o.RHS.validate(); err != nil {
+		return err
+	}
+
+	// supported spanset operations
+	switch o.Op {
+	case OpSpansetChild, OpSpansetDescendant, OpSpansetSibling:
+		return newUnsupportedError(fmt.Sprintf("spanset operation (%v)", o.Op))
+	}
+
+	return nil
 }
 
 func (f SpansetFilter) validate() error {
@@ -120,13 +146,13 @@ func (f ScalarFilter) validate() error {
 	switch f.lhs.(type) {
 	case Aggregate:
 	default:
-		return fmt.Errorf("scalar filter lhs of type (%v) not supported", f.lhs)
+		return newUnsupportedError("scalar filter lhs of type (%v)")
 	}
 
 	switch f.rhs.(type) {
 	case Static:
 	default:
-		return fmt.Errorf("scalar filter rhs of type (%v) not supported", f.rhs)
+		return newUnsupportedError("scalar filter rhs of type (%v)")
 	}
 
 	return nil
@@ -150,6 +176,20 @@ func (o BinaryOperation) validate() error {
 		return fmt.Errorf("illegal operation for the given types: %s", o.String())
 	}
 
+	switch o.Op {
+	case OpAdd,
+		OpSub,
+		OpMult,
+		OpDiv,
+		OpMod,
+		OpNotRegex,
+		OpPower,
+		OpSpansetChild,
+		OpSpansetDescendant,
+		OpSpansetSibling:
+		return newUnsupportedError(fmt.Sprintf("binary operation (%v)", o.Op))
+	}
+
 	return nil
 }
 
@@ -171,9 +211,22 @@ func (o UnaryOperation) validate() error {
 }
 
 func (n Static) validate() error {
+	if n.Type == TypeNil {
+		return newUnsupportedError("nil")
+	}
+
 	return nil
 }
 
 func (a Attribute) validate() error {
+	if a.Parent {
+		return newUnsupportedError("parent")
+	}
+	switch a.Intrinsic {
+	case IntrinsicParent,
+		IntrinsicChildCount:
+		return newUnsupportedError(fmt.Sprintf("intrinsic (%v)", a.Intrinsic))
+	}
+
 	return nil
 }

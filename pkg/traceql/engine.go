@@ -89,7 +89,11 @@ iter:
 }
 
 func (e *Engine) parseQuery(searchReq *tempopb.SearchRequest) (*RootExpr, error) {
-	return Parse(searchReq.Query)
+	r, err := Parse(searchReq.Query)
+	if err != nil {
+		return nil, err
+	}
+	return r, r.validate()
 }
 
 // createFetchSpansRequest will flatten the SpansetFilter in simple conditions the storage layer
@@ -205,7 +209,11 @@ func (s Static) asAnyValue() *common_v1.AnyValue {
 				StringValue: "nil",
 			},
 		}
-	default:
-		panic(fmt.Errorf("static has unexpected type %v", s.Type))
+	}
+
+	return &common_v1.AnyValue{
+		Value: &common_v1.AnyValue_StringValue{
+			StringValue: fmt.Sprintf("error formatting val: static has unexpected type %v", s.Type),
+		},
 	}
 }

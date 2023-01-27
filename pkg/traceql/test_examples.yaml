@@ -11,14 +11,8 @@ valid:
   - '{ 1 >= 2 }'
   - '{ 1 < 2 }'
   - '{ 1 <= 2 }'
-  - '{ 1 + 1 = 2 }'
-  - '{ 1 - 1 = 2 }'
-  - '{ 1 * 1 = 2 }'
-  - '{ 1 / 1 = 2 }'
-  - '{ 1 ^ 1 = 2 }'
   - '{ -1 = 2 }'
   - '{ "test" =~ "test" }'
-  - '{ "test" !~ "test" }'
   - '{ "test" = "test" }'
   - '{ "test" != "test" }'
   - '{ .a }'
@@ -31,42 +25,23 @@ valid:
   - '{ .a >= 2 }'
   - '{ .a < 2 }'
   - '{ .a <= 2 }'
-  - '{ .a + 1 = 2 }'
-  - '{ .a - 1 = 2 }'
-  - '{ .a * 1 = 2 }'
-  - '{ .a / 1 = 2 }'
-  - '{ .a ^ 1 = 2 }'
   - '{ -.a = 2 }'
   - '{ .a =~ "test" }'
-  - '{ .a !~ "test" }'
   - '{ .a = "test" }'
   - '{ .a != "test" }'
-  - '{ parent.a != 3 }'
-  - '{ parent.resource.a && true }'
-  - '{ parent.span.a > 3 }'
-  - '{ parent.duration = 1h }'
   - '{ resource.a != 3 }'
   - '{ span.a != 3 }'
   - '{ !("test" != .c || ((true && .b) || 3 < .a)) }'
-  - '{ parent = nil }'
   - '{ status = ok }'
   - '{ status = unset }'
   - '{ status = error }'
   - '{ status != error }'
   - '{ duration > 1s }'
-  - '{ duration > 1s * 2s }' 
-  - '{ .foo = nil }'
-  - '{ 1 = childCount }'
-  - '{ 1 * 1h = 1 }'     # combining float, int and duration can make sense, but can also be weird. we just accept it all
-  - '{ 1 / 1.1 = 1 }'
   - '{ 1 < 1h }'
   - '{ 1 <= 1.1 }'
   # spanset expressions
   - '{ true } && { true }'
   - '{ true } || { true }'
-  - '{ true } >> { true }'
-  - '{ true } > { true }'
-  - '{ true } ~ { true }'
   # scalar filters
   - 'avg(.field) > 1'
   # pipelines
@@ -74,22 +49,10 @@ valid:
   - '{ true } | count() = 1'
   - '{ true } | avg(duration) = 1h'
   - 'count() = 1 | { true }'
-  - '{ true } | coalesce()'
-  - '{ true } | by(.a)'
-  - '{ true } | by(1 + .a)'
-  - 'by(.a) | { true }'
-  - '{ true } | by(1 + .a) | coalesce()'
-  - '{ true } | by(name) | count() > 2'
-  - '{ true } | by(.field) | avg(.b) = 2'
   - '{ true } | count() = 1 | { true }'
   # pipeline expressions
   - '({ true } | count() > 1 | { false }) && ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) || ({ true } | count() > 1 | { false })'
-  - '({ true } | count() > 1 | { false }) >> ({ true } | count() > 1 | { false })'
-  - '({ true } | count() > 1 | { false }) > ({ true } | count() > 1 | { false })'
-  - '({ true } | count() > 1 | { false }) ~ ({ true } | count() > 1 | { false })'
-  # random
-  - '{ (-(3 / 2) * .test - parent.blerg + .other)^3 = 2 }'
   
 # parse_fails throw an error when parsing
 parse_fails:
@@ -138,11 +101,9 @@ parse_fails:
   - '(by(namespace) | count()) * 2 > 2'
   - '2 < (by(namespace) | count())'     # static value needs to be on the RHS to remove conflicts with scalar expressions
 
-# validate_fails parse correctly and return an error when calling .validate()
+# validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
 validate_fails:
   # span expressions must evaluate to a boolean
-  - '{ 1 + 1 }'
-  - '{ parent }'
   - '{ status }'
   - '{ ok }'
   - '{ 1.1 }'
@@ -152,54 +113,56 @@ validate_fails:
   - '{ 1 + "foo" = 1 }'
   - '{ 1 - true = 1 }'
   - '{ 1 / ok = 1 }'
-  - '{ 1 % parent = 1 }'
   - '{ 1 ^ name = 1 }'
   - '{ 1 = "foo" }'
   - '{ 1 != true }'
   - '{ 1 > ok }'
-  - '{ 1 >= parent }'
   - '{ 1 = name }'
   - '{ 1 =~ 2}'
   - '{ 1 && "foo" }'
   - '{ 1 || ok }'
   - '{ true || 1.1 }'
-  - '{ "foo" = childCount }'
   - '{ status > ok }'
   # unary operators - incorrect types
   - '{ -true }'
   - '{ -"foo" = "bar" }'
   - '{ -ok = status }'
-  - '{ -parent = nil }'
   - '{ -name = "foo" }'
   - '{ !"foo" = "bar" }'
   - '{ !ok = status }'
-  - '{ !parent = nil }'
   - '{ !name = "foo" }'
   - '{ !1 = 1 }'
   - '{ !1h = 1 }'
   - '{ !1.1 = 1.1 }'
   # scalar expressions must evaluate to a number
   - 'max(name) = "foo"'
-  - 'min(parent) = nil'
   - 'avg("foo") = "bar"'
   - 'max(status) = ok'
   - 'min(1 = 3) = 1'
   # scalar expressions must reference the span
   - 'sum(3) = 2'
   - 'sum(3) = min(14)'
-  - 'min(2h) < max(duration)'
-  - 'max(1h + 2h) > 1'                 
-  - 'min(1.1 - 3) > 1'
+  - 'min(2h) < max(duration)'          
   - 'min(3) = max(duration)'
   - 'min(1) = max(2) + 3'
-  # group expressions must reference the span
-  - '{ true } | by(1)'
-  - '{ true } | by("foo")'
   # scalar filters have to match types
   - 'min(1) = "foo"'
-  - 'avg(childCount) > "foo"'
-  - 'max(duration) < ok'
-  # aggregates not supported yet at this time
+
+# unsupported parse correctly and return an unsupported error when calling .validate()
+unsupported:
+  # coalesce - will be valid when supported
+  - '{ true } | coalesce()'
+  - '{ true } | by(1 + .a) | coalesce()'
+  # by - will be valid when supported
+  - '{ true } | by(.a)'
+  - '{ true } | by(1 + .a)'
+  - 'by(.a) | { true }'
+  - '{ true } | by(name) | count() > 2'
+  - '{ true } | by(.field) | avg(.b) = 2'
+  # by - will *not* be valid when supported - group expressions must reference the span
+  - '{ true } | by(1)'
+  - '{ true } | by("foo")'
+  # aggregates - will be valid when supported
   - 'min(childCount) < 2'
   - 'max(duration) >= 1s'
   - 'min(.field) < max(duration)'
@@ -221,9 +184,57 @@ validate_fails:
   - '{ true } | by(3 * .field - 2) | max(duration) < 1s'
   - 'max(duration) > 3s | { status = error || .http.status = 500 }'
   - '{ .http.status = 200 } | max(.field) - min(.field) > 3'
-  # scalar filter expressions not supported yet at this time
-  - '3 = 2'                     # naked scalar filter, technically allowed
-  - 'avg(.field) > 1 - 3'         # scalar expressions in scalar filters are currently not allowed. possible future addition
+  # aggregates - will *not* be valid when supported - comparing number type to status type
+  - 'max(duration) < ok'
+  # parent - will be valid when supported
+  - '{ parent.a != 3 }'
+  - '{ parent.resource.a && true }'
+  - '{ parent.span.a > 3 }'
+  - '{ parent.duration = 1h }'
+  - '{ parent = nil }'
+  - '{ (-(3 / 2) * .test - parent.blerg + .other)^3 = 2 }'
+  # parent - will not be valid when supported
+  - '{ parent }'
+  - '{ 1 % parent = 1 }'
+  - '{ 1 >= parent }'
+  - '{ -parent = nil }'
+  - '{ !parent = nil }'
+  - 'min(parent) = nil'
+  # nil - will be valid when supported
+  - '{ .foo = nil }'
+  # binary operations - will be valid when supported
+  - '{ 1 + 1 = 2 }'
+  - '{ 1 - 1 = 2 }'
+  - '{ 1 * 1 = 2 }'
+  - '{ 1 / 1 = 2 }'
+  - '{ 1 ^ 1 = 2 }'
+  - '{ "test" !~ "test" }'
+  - '{ .a + 1 = 2 }'
+  - '{ .a - 1 = 2 }'
+  - '{ .a * 1 = 2 }'
+  - '{ .a / 1 = 2 }'
+  - '{ .a ^ 1 = 2 }'
+  - '{ .a !~ "test" }'
+  - '{ duration > 1s * 2s }' 
+  - '{ 1 * 1h = 1 }'     # combining float, int and duration can make sense, but can also be weird. we just accept it all
+  - '{ 1 / 1.1 = 1 }'
+  # binary operations - will not be valid when supported
+  - '{ 1 + 1 }'       
+  - 'min(1.1 - 3) > 1'
+  - 'max(1h + 2h) > 1'
+  # childCount - will be valid when supported
+  - '{ 1 = childCount }'
+  # childCount - will be invalid when supported
+  - '{ "foo" = childCount }'
+  - 'avg(childCount) > "foo"'
+  # spanset operations - will be valid when supported
+  - '{ true } >> { true }'
+  - '{ true } > { true }'
+  - '{ true } ~ { true }'
+  - '({ true } | count() > 1 | { false }) >> ({ true } | count() > 1 | { false })'
+  - '({ true } | count() > 1 | { false }) > ({ true } | count() > 1 | { false })'
+  - '({ true } | count() > 1 | { false }) ~ ({ true } | count() > 1 | { false })'
+  # spanset pipelines + scalar filters - will be valid when supported
   - '{ true } | count() + count() = 1' 
   - '({ true } | count()) + ({ true } | count()) = 1'
   - '({ true } | count()) - ({ true } | count()) <= 1'
@@ -231,7 +242,9 @@ validate_fails:
   - '({ true } | count()) * ({ true } | count()) < ({ true } | count()) / ({ true } | count())'
   - '({ .http.status = 200 } | count()) + ({ name = `foo` } | avg(duration)) = 2'
   - '({ .a } | count()) > ({ .b } | count())'
-
+  # other scalar filters. no idea if these should be supported
+  - '3 = 2'                       # naked scalar filter, technically allowed
+  - 'avg(.field) > 1 - 3'         # scalar expressions in scalar filters are currently not allowed. possible future addition
 
 # parsed and the ast is dumped to stdout. this is a debugging tool
 dump:

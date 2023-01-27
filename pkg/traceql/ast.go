@@ -2,6 +2,7 @@ package traceql
 
 import (
 	"fmt"
+	"math"
 	"time"
 )
 
@@ -439,7 +440,7 @@ func (s Static) asFloat() float64 {
 	case TypeDuration:
 		return float64(s.D.Nanoseconds())
 	default:
-		panic(fmt.Sprintf("called asfloat on non-numeric Static (type = %v)", s.Type))
+		return math.NaN()
 	}
 }
 

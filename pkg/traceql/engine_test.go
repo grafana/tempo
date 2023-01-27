@@ -2,7 +2,9 @@ package traceql
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -306,6 +309,55 @@ func TestStatic_AsAnyValue(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(fmt.Sprintf("%v", tc.s), func(t *testing.T) {
 			assert.Equal(t, tc.expected, tc.s.asAnyValue())
+		})
+	}
+}
+
+func TestExamplesInEngine(t *testing.T) {
+	b, err := os.ReadFile(testExamplesFile)
+	require.NoError(t, err)
+
+	queries := &TestQueries{}
+	err = yaml.Unmarshal(b, queries)
+	require.NoError(t, err)
+
+	e := NewEngine()
+
+	for _, q := range queries.Valid {
+		t.Run("valid - "+q, func(t *testing.T) {
+			_, err := e.parseQuery(&tempopb.SearchRequest{
+				Query: q,
+			})
+			require.NoError(t, err)
+		})
+	}
+
+	for _, q := range queries.ParseFails {
+		t.Run("parse fails - "+q, func(t *testing.T) {
+			_, err := e.parseQuery(&tempopb.SearchRequest{
+				Query: q,
+			})
+			require.Error(t, err)
+		})
+	}
+
+	for _, q := range queries.ValidateFails {
+		t.Run("validate fails - "+q, func(t *testing.T) {
+			_, err := e.parseQuery(&tempopb.SearchRequest{
+				Query: q,
+			})
+			require.Error(t, err)
+			require.False(t, errors.As(err, &unsupportedError{}))
+		})
+	}
+
+	for _, q := range queries.Unsupported {
+		t.Run("unsupported - "+q, func(t *testing.T) {
+			_, err := e.parseQuery(&tempopb.SearchRequest{
+				Query: q,
+			})
+			require.Error(t, err)
+			require.True(t, errors.As(err, &unsupportedError{}))
 		})
 	}
 }
