@@ -13,6 +13,7 @@ import (
 // metrics.
 type Results struct {
 	resultsCh chan *tempopb.TraceSearchMetadata
+	errorsCh  chan error
 	doneCh    chan struct{}
 	quit      atomic.Bool
 	started   atomic.Bool
@@ -28,6 +29,7 @@ func NewResults() *Results {
 	return &Results{
 		resultsCh: make(chan *tempopb.TraceSearchMetadata),
 		doneCh:    make(chan struct{}),
+		errorsCh:  make(chan error),
 	}
 }
 
@@ -51,6 +53,26 @@ func (sr *Results) AddResult(ctx context.Context, r *tempopb.TraceSearchMetadata
 	}
 }
 
+// AddError sends an error from a search task (goroutine) to the receiver of the
+// search results, i.e. the initiator of the search.  This function blocks until there
+// is buffer space in the errors channel or if the task should stop searching because the
+// receiver went away or the given context is done. In this case true is returned.
+func (sr *Results) AddError(ctx context.Context, err error) (quit bool) {
+	if sr.quit.Load() {
+		return true
+	}
+
+	select {
+	case sr.errorsCh <- err:
+		return false
+	case <-ctx.Done():
+		return true
+	case <-sr.doneCh:
+		// This returns immediately once the done channel is closed.
+		return true
+	}
+}
+
 // Quit returns if search tasks should quit early. This can occur due to max results
 // already found, or other errors such as timeout, etc.
 func (sr *Results) Quit() bool {
@@ -62,6 +84,13 @@ func (sr *Results) Quit() bool {
 // for res := range sr.Results()
 func (sr *Results) Results() <-chan *tempopb.TraceSearchMetadata {
 	return sr.resultsCh
+}
+
+// Errors returns the results channel. Channel is closed when the search is complete.
+// Can be iterated by range like:
+// for err := range sr.Errors()
+func (sr *Results) Errors() <-chan error {
+	return sr.errorsCh
 }
 
 // Close signals to all workers to quit, when max results is received and no more work is needed.
@@ -96,6 +125,7 @@ func (sr *Results) AllWorkersStarted() {
 		go func() {
 			sr.wg.Wait()
 			close(sr.resultsCh)
+			close(sr.errorsCh)
 		}()
 	}
 }
