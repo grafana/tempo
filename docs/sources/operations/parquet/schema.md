@@ -240,18 +240,9 @@ repeated group Attrs {
 }
 ```
 
-Pros:
-
-* Preserves the functionality of parquet column min/max statistics which can be leveraged during search
-* Native data types should be more efficient to store and process
-
-Cons:
-
-* Many nulls - as each attribute only populates 1 column, the other 5 are guaranteed to be null. This has a non-trivial impact on storage size.
-
 ## Event attributes
 
-Span event attributes are stored as JSON-encoded strings in a generic key/value map. This is by far the most space-efficient encoding and the trade-off of decreased searchability seems worthwhile. Storing event attributes this way reduces the block size ~16% for our dataset, which is huge. There are currently no use cases to search event attributes, but we can revisit this in the future if needed.
+Event attributes are stored as protocol-buffer encoded.
 
 ```yaml
 repeated group Attrs {

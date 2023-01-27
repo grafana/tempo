@@ -21,11 +21,6 @@ The new Parquet block is enabled by default in Tempo 2.0. No data conversion or 
 
 The new Parquet block format requires more CPU and memory resources than the previous v2 format but provides faster search and the new TraceQL.
 
-## Convert to Parquet
-
-You can use `tempo-cli` to convert a Parquet file from its existing schema to the one used in Tempo.
-For instructions, refer to the [Parquet convert command documentation]({{< relref "../operations/tempo_cli#parquet-convert-command" >}}).
-
 ## Disable Parquet
 
 It is possible to disable Parquet and use the previous v2 block format. This disables TraceQL and will result in reduced search performance, but also reduces resource consumption, and may be desired for a high-throughput cluster that does not need these capabilities. Set the block format option to v2 in the Storage section of the configuration file.
@@ -65,3 +60,9 @@ The `cache_control` section contains the follow parameters for Parquet metadata 
 | <code>[footer: <bool> \| default = false]</code> | `false` | Specifies if the footer should be cached |
 | `[column_index: <bool> \| default = false]` | `false` | Specifies if the column index should be cached |
 | `[offset_index: <bool> \| default = false]` | `false` | Specifies if the offset index should be cached |
+
+## Convert to Parquet
+
+If you have used an earlier version of the Parquet format, you can use `tempo-cli` to convert a Parquet file from its existing schema to the one used in Tempo 2.0.
+
+For instructions, refer to the [Parquet convert command documentation]({{< relref "../operations/tempo_cli#parquet-convert-command" >}}).
