@@ -17,7 +17,9 @@ import (
 	"github.com/grafana/tempo/tempodb/search"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
+	"github.com/pkg/errors"
 	"github.com/weaveworks/common/user"
+	"go.uber.org/multierr"
 )
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
@@ -40,6 +42,9 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	sr := search.NewResults()
 	defer sr.Close()
 
+	// for collecting errors from all goroutines
+	errCh := make(chan error)
+
 	// skip live traces in TraceQL queries
 	if !api.IsTraceQLQuery(req) {
 		i.searchLiveTraces(ctx, p, sr)
@@ -49,11 +54,22 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	// deadlocking with other activity (ingest, flushing), caused by releasing
 	// and then attempting to retake the lock.
 	i.blocksMtx.RLock()
-	i.searchWAL(ctx, req, p, sr)
-	i.searchLocalBlocks(ctx, req, p, sr)
+	i.searchWAL(ctx, req, p, sr, errCh)
+	i.searchLocalBlocks(ctx, req, p, sr, errCh)
 	i.blocksMtx.RUnlock()
 
+	// read errors
+	var err error
+	go func() {
+		var errs []error
+		for e := range errCh {
+			errs = append(errs, e)
+		}
+		err = multierr.Combine(errs...)
+	}()
+
 	sr.AllWorkersStarted()
+	close(errCh) // close errors after all workers have finished
 
 	resultsMap := map[string]*tempopb.TraceSearchMetadata{}
 
@@ -88,7 +104,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			InspectedBlocks: sr.BlocksInspected(),
 			SkippedBlocks:   sr.BlocksSkipped(),
 		},
-	}, nil
+	}, err
 }
 
 func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *search.Results) {
@@ -141,7 +157,7 @@ func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *
 }
 
 // searchWAL starts a search task for every WAL block. Must be called under lock.
-func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p search.Pipeline, sr *search.Results) {
+func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p search.Pipeline, sr *search.Results, errCh chan<- error) {
 	searchFBEntry := func(e *searchStreamingBlockEntry) {
 		// flat-buffers search
 		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchWAL")
@@ -158,6 +174,9 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 		err := e.b.Search(ctx, p, sr)
 		if err != nil {
 			level.Error(log.Logger).Log("msg", "error searching wal block", "blockID", e.b.BlockID().String(), "err", err)
+			if !errors.Is(err, common.ErrUnsupported) {
+				errCh <- err
+			}
 		}
 	}
 
@@ -185,6 +204,9 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 
 		if err != nil {
 			level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "block_version", b.BlockMeta().Version, "err", err)
+			if !errors.Is(err, common.ErrUnsupported) {
+				errCh <- err
+			}
 			return
 		}
 
@@ -226,7 +248,7 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 }
 
 // searchLocalBlocks starts a search task for every local block. Must be called under lock.
-func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchRequest, p search.Pipeline, sr *search.Results) {
+func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchRequest, p search.Pipeline, sr *search.Results, errCh chan<- error) {
 	if !api.IsTraceQLQuery(req) { // Skip flat-buffers search in TraceQL queries
 
 		// first check the searchCompleteBlocks map. if there is an entry for a block here we want to search it first
@@ -248,6 +270,9 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 				err := e.b.Search(ctx, p, sr)
 				if err != nil {
 					level.Error(log.Logger).Log("msg", "error searching local block", "blockID", e.b.BlockID().String(), "err", err)
+					if !errors.Is(err, common.ErrUnsupported) {
+						errCh <- err
+					}
 				}
 			}(e)
 		}
@@ -295,6 +320,9 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 
 			if err != nil {
 				level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "err", err)
+				if !errors.Is(err, common.ErrUnsupported) {
+					errCh <- err
+				}
 				return
 			}
 
