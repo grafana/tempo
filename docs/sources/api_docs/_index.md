@@ -270,7 +270,7 @@ This endpoint retrieves all discovered values and their data types for the given
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. This endpoint is similar to `/api/search/tag/<tag>/values` but operates on TraceQL identifiers and types. See [TraceQL](../traceql/) documention for more information. The following request returns all discovered service names.
 
 ```
-GET /api/search/tag/.service.name/values
+GET /api/v2/search/tag/.service.name/values
 ```
 
 #### Example
