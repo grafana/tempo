@@ -33,7 +33,7 @@ Once you upgrade to Tempo 2.0, there is no path to downgrade.
 
 Parquet provides faster search and is required to enable TraceQL. However, the Tempo installation will require additional CPU and memory resources to use Parquet efficiently.
 
-You can revert to the previous `v2` block format using the instructions provided in the [Parquet configuration documentation]({{< relref "../configuration/parquet/" >}}).
+You can can continue using the previous `v2` block format using the instructions provided in the [Parquet configuration documentation]({{< relref "../configuration/parquet/" >}}).
 
 ### Enable TraceQL in Grafana
 
@@ -49,9 +49,9 @@ The following tables describe the parameters that have been removed or renamed.
 
 | Parameter | Comments |
 | --- | --- |
-| `query_frontend:`<br/>  `query_shards:` | Replaced by `trace_by_id.query_shards`. |
-| `querier:`<br/>  `query_timeout:` | Replaced by two different settings: `search.query_timeout` and `trace_by_id.query_timeout`. |
-| `ingester:`<br/>  `use_flatbuffer_search:` | Removed and automatically determined based on block format. |
+| <code>query_frontend:<br>&nbsp;&nbsp;query_shards:<code> | Replaced by `trace_by_id.query_shards`. |
+| <code>querier:<br>&nbsp;&nbsp;query_timeout:<code> | Replaced by two different settings: `search.query_timeout` and `trace_by_id.query_timeout`. |
+| <code>ingester:<br>&nbsp;&nbsp;use_flatbuffer_search:<code> | Removed and automatically determined based on block format. |
 | `search_enabled` | Removed. Now defaults to true. |
 | `metrics_generator_enabled` | Removed. Now defaults to true. |
 
@@ -61,19 +61,19 @@ The following `compactor` configuration parameters were renamed.
 
 | Parameter | Comments |
 | --- | --- |
-| `compaction:`<br/>   `chunk_size_bytes:` | Renamed to `v2_in_buffer_bytes` |
-| `compaction:`<br/>   `flush_size_bytes:` | Renamed to `v2_out_buffer_bytes` |
-| `compaction:`<br/>   `iterator_buffer_size:` | Renamed to `v2_prefetch_traces_count` |
+| <code>compaction:<br>&nbsp;&nbsp;chunk_size_bytes:<code> | Renamed to `v2_in_buffer_bytes` |
+| <code>compaction:<br>&nbsp;&nbsp;flush_size_bytes:<code> | Renamed to `v2_out_buffer_bytes` |
+| <code>compaction:<br>&nbsp;&nbsp;iterator_buffer_size:<code> | Renamed to `v2_prefetch_traces_count` |
 
 The following `storage` configuration parameters were renamed.
 
 | Parameter | Comments |
 | --- | --- |
-| `wal:`<br/>  `encoding:` | Renamed to `v2_encoding` |
-| `block:`<br/>  `index_downsample_bytes:` | Renamed to `v2_index_downsample_bytes` |
-| `block:`<br/>  `index_page_size_bytes:` | Renamed to `v2_index_page_size_bytes` |
-| `block:`<br/>  `encoding:` | Renamed to `v2_encoding` |
-| `block:`<br/>  `row_group_size_bytes:` | Renamed to `parquet_row_group_size_bytes` |
+| <code>wal:<br>&nbsp;&nbsp;encoding:<code> | Renamed to `v2_encoding` |
+| <code>block:<br>&nbsp;&nbsp;index_downsample_bytes:<code> | Renamed to `v2_index_downsample_bytes` |
+| <code>block:<br>&nbsp;&nbsp;index_page_size_bytes:<code> | Renamed to `v2_index_page_size_bytes` |
+| <code>block:<br>&nbsp;&nbsp;encoding:<code> | Renamed to `v2_encoding` |
+| <code>block:<br>&nbsp;&nbsp;row_group_size_bytes:<code> | Renamed to `parquet_row_group_size_bytes` |
 
 The Azure Storage configuration section now uses snake case with underscores (`_`) instead of dashes (`-`). Example of using snake case on Azure Storage config:
 
