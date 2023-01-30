@@ -17,9 +17,7 @@ import (
 	"github.com/grafana/tempo/tempodb/search"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
-	"github.com/pkg/errors"
 	"github.com/weaveworks/common/user"
-	"go.uber.org/multierr"
 )
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
@@ -42,8 +40,21 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	sr := search.NewResults()
 	defer sr.Close()
 
-	// for collecting errors from all goroutines
-	// errCh := make(chan error)
+	// watch for errors in a goroutine, and set error
+	var err error
+	go func() {
+		for e := range sr.Errors() {
+			if e != common.ErrUnsupported { // ignore ErrUnsupported
+				err = e
+				// sr.Close() signals to all workers to quit,
+				// all the blocked calls of AddError and AddResult will return.
+				// once all goroutines are done, sr.AllWorkersStarted()
+				// will close errors and results channel
+				sr.Close()
+				return
+			}
+		}
+	}()
 
 	// skip live traces in TraceQL queries
 	if !api.IsTraceQLQuery(req) {
@@ -60,17 +71,11 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 
 	sr.AllWorkersStarted()
 
-	// read and combine errors
-	var errs []error
-	for err := range sr.Errors() {
-		log.Logger.Log("err", err)
-		errs = append(errs, err)
-	}
-	err := multierr.Combine(errs...)
-
 	// read and combine search results
 	resultsMap := map[string]*tempopb.TraceSearchMetadata{}
 
+	// collect results from all the goroutines via sr.Results channel.
+	// when sr.Results is closed, range loop will exit.
 	for result := range sr.Results() {
 		// Dedupe/combine results
 		if existing := resultsMap[result.TraceID]; existing != nil {
@@ -80,8 +85,18 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		}
 
 		if len(resultsMap) >= maxResults {
+			sr.Close() // signal all workers to quit
 			break
 		}
+	}
+
+	// we reach here when:
+	// 1. exit due error, and range iteration is stopped early
+	// 2. we hit maxResults and break
+	//
+	// we are watching for error in a goroutine, check if reached here due to an error
+	if err != nil {
+		return nil, err
 	}
 
 	results := make([]*tempopb.TraceSearchMetadata, 0, len(resultsMap))
@@ -102,7 +117,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			InspectedBlocks: sr.BlocksInspected(),
 			SkippedBlocks:   sr.BlocksSkipped(),
 		},
-	}, err
+	}, nil
 }
 
 func (i *instance) searchLiveTraces(ctx context.Context, p search.Pipeline, sr *search.Results) {
@@ -172,9 +187,7 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 		err := e.b.Search(ctx, p, sr)
 		if err != nil {
 			level.Error(log.Logger).Log("msg", "error searching wal block", "blockID", e.b.BlockID().String(), "err", err)
-			if !errors.Is(err, common.ErrUnsupported) {
-				sr.AddError(ctx, err)
-			}
+			sr.AddError(ctx, err)
 		}
 	}
 
@@ -202,9 +215,7 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 
 		if err != nil {
 			level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "block_version", b.BlockMeta().Version, "err", err)
-			if !errors.Is(err, common.ErrUnsupported) {
-				sr.AddError(ctx, err)
-			}
+			sr.AddError(ctx, err)
 			return
 		}
 
@@ -268,9 +279,7 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 				err := e.b.Search(ctx, p, sr)
 				if err != nil {
 					level.Error(log.Logger).Log("msg", "error searching local block", "blockID", e.b.BlockID().String(), "err", err)
-					if !errors.Is(err, common.ErrUnsupported) {
-						sr.AddError(ctx, err)
-					}
+					sr.AddError(ctx, err)
 				}
 			}(e)
 		}
@@ -318,9 +327,7 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 
 			if err != nil {
 				level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "err", err)
-				if !errors.Is(err, common.ErrUnsupported) {
-					sr.AddError(ctx, err)
-				}
+				sr.AddError(ctx, err)
 				return
 			}
 

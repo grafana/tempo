@@ -34,7 +34,7 @@ func NewResults() *Results {
 }
 
 // AddResult sends a search result from a search task (goroutine) to the receiver of the
-// the search results, i.e. the initiator of the search.  This function blocks until there
+// search results, i.e. the initiator of the search.  This function blocks until there
 // is buffer space in the results channel or if the task should stop searching because the
 // receiver went away or the given context is done. In this case true is returned.
 func (sr *Results) AddResult(ctx context.Context, r *tempopb.TraceSearchMetadata) (quit bool) {
@@ -64,7 +64,7 @@ func (sr *Results) AddError(ctx context.Context, err error) (quit bool) {
 
 	select {
 	case sr.errorsCh <- err:
-		return false
+		return true
 	case <-ctx.Done():
 		return true
 	case <-sr.doneCh:
@@ -89,6 +89,10 @@ func (sr *Results) Results() <-chan *tempopb.TraceSearchMetadata {
 // Errors returns the results channel. Channel is closed when the search is complete.
 // Can be iterated by range like:
 // for err := range sr.Errors()
+//
+// NOTE: Read from sr.Errors() in a goroutine before workers are started,
+// reading inline from sr.Errors() will block until all workers are done
+// and errorsCh is closed.
 func (sr *Results) Errors() <-chan error {
 	return sr.errorsCh
 }
