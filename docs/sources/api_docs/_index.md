@@ -22,7 +22,7 @@ These endpoints are exposed both when running Tempo in microservices and monolit
 | [Metrics](#metrics) | _All services_ |  HTTP | `GET /metrics` |
 | [Pprof](#pprof) | _All services_ |  HTTP | `GET /debug/pprof` |
 | [Ingest traces](#ingest) | Distributor |  - | See section for details |
-| [Querying traces](#query) | Query-frontend |  HTTP | `GET /api/traces/<traceID>` |
+| [Querying traces by id](#query) | Query-frontend |  HTTP | `GET /api/traces/<traceID>` |
 | [Searching traces](#search) | Query-frontend | HTTP | `GET /api/search?<params>` |
 | [Search tag names](#search-tags) | Query-frontend | HTTP | `GET /api/search/tags` |
 | [Search tag values](#search-tag-values) | Query-frontend | HTTP | `GET /api/search/tag/<tag>/values` |
@@ -148,11 +148,18 @@ GET /api/search?tags=service.name%3Dmyservice%20http.url%3Dapi%2Fmyapi
 ```
 
 The URL query parameters support the following values:
+
+**Parameters for TraceQL Search**
+- `q = (TraceQL query)`: Url encoded [TraceQL query](https://grafana.com/docs/tempo/latest/traceql/).
+
+**Parameters for Tag Based Search**
 - `tags = (logfmt)`: logfmt encoding of any span-level or process-level attributes to filter on. The value is matched as a case-insensitive substring. Key-value pairs are separated by spaces. If a value contains a space, it should be enclosed within double quotes.
 - `minDuration = (go duration value)`
   Optional.  Find traces with at least this duration.  Duration values are of the form `10s` for 10 seconds, `100ms`, `30m`, etc.
 - `maxDuration = (go duration value)`
   Optional.  Find traces with no greater than this duration.  Uses the same form as `minDuration`.
+
+**Parameters supported for all searches**
 - `limit = (integer)`
   Optional.  Limit the number of search results. Default is 20, but this is configurable in the querier. Refer to [Configuration]({{< relref "../configuration#querier" >}}).
 - `start = (unix epoch seconds)`
@@ -161,7 +168,48 @@ The URL query parameters support the following values:
  Optional.  Along with `start`, define a time range from which traces should be returned. Providing both `start` and `end` will change the way that Tempo searches.
  If the parameters are not provided, then Tempo will search the recent trace data stored in the ingesters. If the parameters are provided, it will search the backend as well.
 
-#### Example
+#### Example of TraceQL search
+
+Example of how to query Tempo using curl.
+This query will return all traces that have their status set to error.
+
+```bash
+$ curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ status=error }' | jq
+{
+  "traces": [
+    {
+      "traceID": "169bdefcae1f19",
+      "rootServiceName": "gme-ruler",
+      "rootTraceName": "rule",
+      "startTimeUnixNano": "1675090379953800000",
+      "durationMs": 3,
+      "spanSet": {
+        "spans": [
+          {
+            "spanID": "45b795d0c4f9f6ae",
+            "startTimeUnixNano": "1675090379955688000",
+            "durationNanos": "525000",
+            "attributes": [
+              {
+                "key": "status",
+                "value": {
+                  "stringValue": "error"
+                }
+              }
+            ]
+          }
+        ],
+        "matched": 1
+      }
+    },
+  ],
+  "metrics": {
+    "inspectedBlocks": 13
+  }
+}
+```
+
+#### Example of Tags Based Search
 
 Example of how to query Tempo using curl.
 This query will return all traces that have a tag `service.name` containing `cartservice` and a minimum duration of 600 ms.
