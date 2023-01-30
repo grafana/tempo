@@ -27,7 +27,7 @@ Tempo 2.0 marks a major milestone in Tempo’s development. When planning your u
   - TraceQL editor needs to be enabled in Grafana to use the query editor.
   - Resource requirements have changed for Tempo 2.0 with the default configuration.
 
-Once you upgrade to Tempo 2.0, there is no path to downgrade. Tempo 2.0 uses the new Parquet block format. 
+Once you upgrade to Tempo 2.0, there is no path to downgrade.  
 
 ### Check Tempo installation resource allocation
 
