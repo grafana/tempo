@@ -150,9 +150,9 @@ query_frontend:
     hedge_requests_up_to: 3
 ```
 * [ENHANCEMENT] Vulture now has improved distribution of the random traces it searches. [#1763](https://github.com/grafana/tempo/pull/1763) (@rfratto)
-* [ENHANCEMENT] Upgrade opentelemetry-proto submodule to v0.18.0 [#1754](https://github.com/grafana/tempo/pull/1754) (@mapno)
+* [ENHANCEMENT] Upgrade opentelemetry-proto submodule to v0.18.0 Internal types are updated to use `scope` instead of `instrumentation_library`. 
+                This is a breaking change in trace by ID queries if JSON is requested. [#1754](https://github.com/grafana/tempo/pull/1754) (@mapno)
 * [ENHANCEMENT] Add TLS support to the vulture [#1874](https://github.com/grafana/tempo/pull/1874) (@zalegrala)
-Internal types are updated to use `scope` instead of `instrumentation_library`. This is a breaking change in trace by ID queries if JSON is requested.
 * [ENHANCEMENT] metrics-generator: extract `status_message` field from spans [#1786](https://github.com/grafana/tempo/pull/1786), [#1794](https://github.com/grafana/tempo/pull/1794) (@stoewer)
 * [ENHANCEMENT] metrics-generator: handle collisions between user defined and default dimensions [#1794](https://github.com/grafana/tempo/pull/1794) (@stoewer)
   **BREAKING CHANGE** Custom dimensions colliding with intrinsic dimensions will be prefixed with `__`.
@@ -175,7 +175,7 @@ Internal types are updated to use `scope` instead of `instrumentation_library`. 
 * [BUGFIX] Don't persist tenants without blocks in the ingester[#1947](https://github.com/grafana/tempo/pull/1947) (@joe-elliott)
 * [BUGFIX] TraceQL: span scope not working with ranges [#1948](https://github.com/grafana/tempo/issues/1948) (@mdisibio)
 * [BUGFIX] TraceQL: skip live traces search [#1997](https://github.com/grafana/tempo/pull/1997) (@mapno)
-* [BUGFIX] Return more consistent search results by combining partial traces [#](https://github.com/tempo/pull/) (@mapno)
+* [BUGFIX] Return more consistent search results by combining partial traces [#2003](https://github.com/grafana/tempo/pull/2003) (@mapno)
 
 ## v1.5.0 / 2022-08-17
 
