@@ -86,12 +86,12 @@ func (sr *Results) Results() <-chan *tempopb.TraceSearchMetadata {
 	return sr.resultsCh
 }
 
-// Errors returns the results channel. Channel is closed when the search is complete.
+// Errors returns the errors channel. Channel is closed when the search is complete.
 // Can be iterated by range like:
 // for err := range sr.Errors()
 //
-// NOTE: Read from sr.Errors() in a goroutine before workers are started,
-// reading inline from sr.Errors() will block until all workers are done
+// NOTE: Read from sr.Errors() in a goroutine before workers are started.
+// reading from sr.Errors() will block until all workers are done
 // and errorsCh is closed.
 func (sr *Results) Errors() <-chan error {
 	return sr.errorsCh
