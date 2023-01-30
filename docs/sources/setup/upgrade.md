@@ -27,7 +27,7 @@ Tempo 2.0 marks a major milestone in Tempo’s development. When planning your u
   - TraceQL editor needs to be enabled in Grafana to use the query editor.
   - Resource requirements have changed for Tempo 2.0 with the default configuration.
 
-Once you upgrade to Tempo 2.0, there is no path to downgrade.  
+Once you upgrade to Tempo 2.0, there is no path to downgrade.
 
 ### Check Tempo installation resource allocation
 
@@ -49,28 +49,31 @@ The following tables describe the parameters that have been removed or renamed.
 
 | Parameter | Comments |
 | --- | --- |
-| query_frontend:<br>  query_shards: | Replaced by `trace_by_id.query_shards`. |
-| querier:<br>  query_timeout: | Replaced by two different settings: `search.query_timeout` and `trace_by_id.query_timeout`. |
-| ingester:<br>  use_flatbuffer_search: | Removed and automatically determined based on block format. |
+| `query_frontend:`<br/>  `query_shards:` | Replaced by `trace_by_id.query_shards`. |
+| `querier:`<br/>  `query_timeout:` | Replaced by two different settings: `search.query_timeout` and `trace_by_id.query_timeout`. |
+| `ingester:`<br/>  `use_flatbuffer_search:` | Removed and automatically determined based on block format. |
 | `search_enabled` | Removed. Now defaults to true. |
 | `metrics_generator_enabled` | Removed. Now defaults to true. |
 
 #### Renamed
 
-The following configuration parameters were renamed.
+The following `compactor` configuration parameters were renamed.
 
 | Parameter | Comments |
 | --- | --- |
-| `compactor` section |  |
-| compaction:<br> chunk_size_bytes: | Renamed to `v2_in_buffer_bytes` |
-| compaction:<br> flush_size_bytes: | Renamed to `v2_out_buffer_bytes` |
-| compaction:<br> iterator_buffer_size: | Renamed to `v2_prefetch_traces_count` |
-| `storage` section |  |
-| wal:<br> encoding: | Renamed to `v2_encoding` |
-| block:<br> index_downsample_bytes: | Renamed to `v2_index_downsample_bytes` |
-| block:<br> index_page_size_bytes: | Renamed to `v2_index_page_size_bytes` |
-| block:<br> encoding: | Renamed to `v2_encoding` |
-| block:<br> row_group_size_bytes: | Renamed to `parquet_row_group_size_bytes` |
+| `compaction:`<br/>   `chunk_size_bytes:` | Renamed to `v2_in_buffer_bytes` |
+| `compaction:`<br/>   `flush_size_bytes:` | Renamed to `v2_out_buffer_bytes` |
+| `compaction:`<br/>   `iterator_buffer_size:` | Renamed to `v2_prefetch_traces_count` |
+
+The following `storage` configuration parameters were renamed.
+
+| Parameter | Comments |
+| --- | --- |
+| `wal:`<br/>  `encoding:` | Renamed to `v2_encoding` |
+| `block:`<br/>  `index_downsample_bytes:` | Renamed to `v2_index_downsample_bytes` |
+| `block:`<br/>  `index_page_size_bytes:` | Renamed to `v2_index_page_size_bytes` |
+| `block:`<br/>  `encoding:` | Renamed to `v2_encoding` |
+| `block:`<br/>  `row_group_size_bytes:` | Renamed to `parquet_row_group_size_bytes` |
 
 The Azure Storage configuration section now uses snake case with underscores (`_`) instead of dashes (`-`). Example of using snake case on Azure Storage config:
 
