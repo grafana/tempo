@@ -1,30 +1,30 @@
 ---
 title: Polling and monitoring
-weight: 8
+weight: 80
 ---
 
-# Polling 
+# Polling
 
 Tempo maintains knowledge of the state of the backend by polling it on regular intervals. There are currently
 only two components that need this knowledge and, consequently, only two that poll the backend: compactors
-and queriers. 
+and queriers.
 
-To reduce calls to the backend, only a small subset of compactors actually list all blocks and build 
+To reduce calls to the backend, only a small subset of compactors actually list all blocks and build
 what's called a tenant index. The tenant index is a gzip'ed json file located at `/<tenant>/index.json.gz` containing
 an entry for every block and compacted block for that tenant. This is done once every `blocklist_poll` duration.
 
-All other compactors and all queriers then rely on downloading this file, unzipping it and using the contained list. 
+All other compactors and all queriers then rely on downloading this file, unzipping it and using the contained list.
 Again, this is done once every `blocklist_poll` duration.
 
 Due to this behavior, a given compactor or querier will often have an out of date blocklist.
-During normal operation, it will stale by at most 2x the configured `blocklist_poll`. 
+During normal operation, it will stale by at most 2x the configured `blocklist_poll`.
 
 >**Note**: For details about configuring polling, see [polling configuration]({{< relref "../configuration/polling" >}}).
 
 ## Monitoring
 
 See our Jsonnet for example [alerts](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/alerts.libsonnet) and [runbook entries](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/runbook.md)
-related to polling. 
+related to polling.
 
 If you are building your own dashboards/alerts here are a few relevant metrics:
 

@@ -1,15 +1,15 @@
 ---
 title: Ingester PVCs
-weight: 5
+weight: 50
 ---
 
 # Ingester persistent volume operations
 
 Tempo ingesters make heavy use of local disks to store write-ahead logs and blocks before being flushed to the backend (GCS, S3, etc.).  It is important to monitor the free volume space as full disks can lead to data loss and other errors. The amount of disk space available affects how much volume a Tempo ingester can process and the length of time an outage to the backend can be tolerated.
 
-Therefore it may be necessary to increase the disk space for ingesters as usage increases. 
+Therefore it may be necessary to increase the disk space for ingesters as usage increases.
 
-## Deploying 
+## Deploying
 
 When deployed as a StatefulSet with Persistent Volume Claims (PVC), some manual steps are required. The following configuration has worked successfully on GKE with GCS:
 

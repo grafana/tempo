@@ -1,11 +1,11 @@
 ---
 title: Backend search
-weight: 9
+weight: 90
 ---
 
 # Backend search
 
-Regardless of whether or not you are using TraceQL or the original search api Tempo will search all of the blocks 
+Regardless of whether or not you are using TraceQL or the original search api Tempo will search all of the blocks
 in the specified time range. Depending on your volume this may result in quite slow queries. This document contains
 some suggestions for tuning your backend to improve performance.
 

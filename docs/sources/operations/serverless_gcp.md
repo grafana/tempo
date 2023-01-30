@@ -1,6 +1,6 @@
 ---
 title: Backend search - serverless GCP setup
-weight: 10
+weight: 93
 alias:
 - /docs/tempo/latest/operations/backend_search/serverless_gcp/
 - /docs/tempo/latest/operations/serverless_gcp/
@@ -37,7 +37,7 @@ For more guidance on configuration options for full backend search [check here](
       // this can be increased if you would like to use multiple functions
       count = 1
     }
-    
+
     resource "google_cloud_run_service" "run" {
       count = local.count
 
