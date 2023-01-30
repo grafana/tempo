@@ -49,9 +49,9 @@ The following tables describe the parameters that have been removed or renamed.
 
 | Parameter | Comments |
 | --- | --- |
-| <code>query_frontend:<br>&nbsp;&nbsp;query_shards:<code> | Replaced by `trace_by_id.query_shards`. |
-| <code>querier:<br>&nbsp;&nbsp;query_timeout:<code> | Replaced by two different settings: `search.query_timeout` and `trace_by_id.query_timeout`. |
-| <code>ingester:<br>&nbsp;&nbsp;use_flatbuffer_search:<code> | Removed and automatically determined based on block format. |
+| <pre>query_frontend:<br>&nbsp;&nbsp;query_shards:</pre> | Replaced by `trace_by_id.query_shards`. |
+| <pre>querier:<br>&nbsp;&nbsp;query_timeout:</pre> | Replaced by two different settings: `search.query_timeout` and `trace_by_id.query_timeout`. |
+| <pre>ingester:<br>&nbsp;&nbsp;use_flatbuffer_search:</pre> | Removed and automatically determined based on block format. |
 | `search_enabled` | Removed. Now defaults to true. |
 | `metrics_generator_enabled` | Removed. Now defaults to true. |
 
@@ -61,19 +61,19 @@ The following `compactor` configuration parameters were renamed.
 
 | Parameter | Comments |
 | --- | --- |
-| <code>compaction:<br>&nbsp;&nbsp;chunk_size_bytes:<code> | Renamed to `v2_in_buffer_bytes` |
-| <code>compaction:<br>&nbsp;&nbsp;flush_size_bytes:<code> | Renamed to `v2_out_buffer_bytes` |
-| <code>compaction:<br>&nbsp;&nbsp;iterator_buffer_size:<code> | Renamed to `v2_prefetch_traces_count` |
+| <pre>compaction:<br>&nbsp;&nbsp;chunk_size_bytes:</pre> | Renamed to `v2_in_buffer_bytes` |
+| <pre>compaction:<br>&nbsp;&nbsp;flush_size_bytes:</pre> | Renamed to `v2_out_buffer_bytes` |
+| <pre>compaction:<br>&nbsp;&nbsp;iterator_buffer_size:</pre> | Renamed to `v2_prefetch_traces_count` |
 
 The following `storage` configuration parameters were renamed.
 
 | Parameter | Comments |
 | --- | --- |
-| <code>wal:<br>&nbsp;&nbsp;encoding:<code> | Renamed to `v2_encoding` |
-| <code>block:<br>&nbsp;&nbsp;index_downsample_bytes:<code> | Renamed to `v2_index_downsample_bytes` |
-| <code>block:<br>&nbsp;&nbsp;index_page_size_bytes:<code> | Renamed to `v2_index_page_size_bytes` |
-| <code>block:<br>&nbsp;&nbsp;encoding:<code> | Renamed to `v2_encoding` |
-| <code>block:<br>&nbsp;&nbsp;row_group_size_bytes:<code> | Renamed to `parquet_row_group_size_bytes` |
+| <pre>wal:<br>&nbsp;&nbsp;encoding:</pre> | Renamed to `v2_encoding` |
+| <pre>block:<br>&nbsp;&nbsp;index_downsample_bytes:</pre> | Renamed to `v2_index_downsample_bytes` |
+| <pre>block:<br>&nbsp;&nbsp;index_page_size_bytes:</pre> | Renamed to `v2_index_page_size_bytes` |
+| <pre>block:<br>&nbsp;&nbsp;encoding:</pre> | Renamed to `v2_encoding` |
+| <pre>block:<br>&nbsp;&nbsp;row_group_size_bytes:</pre> | Renamed to `parquet_row_group_size_bytes` |
 
 The Azure Storage configuration section now uses snake case with underscores (`_`) instead of dashes (`-`). Example of using snake case on Azure Storage config:
 
