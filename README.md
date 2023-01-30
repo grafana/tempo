@@ -18,7 +18,7 @@ Tempo implements [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), a tr
 
 ## Getting Started
 
-- [Getting Started Documentation](https://grafana.com/docs/tempo/latest/getting-started/)
+- [Get started documentation](https://grafana.com/docs/tempo/latest/getting-started/)
 - [Deployment Examples](./example)
   - [Docker Compose](./example/docker-compose)
   - [Helm](./example/helm)
