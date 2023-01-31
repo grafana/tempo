@@ -13,7 +13,9 @@ keywords:
 
 # TraceQL query editor
 
-With Tempo 2.0, you can use the TraceQL query editor in the Tempo data source to build queries and drill-down into result sets. The editor is available in Grafana’s Explore interface.
+With Tempo 2.0, you can use the TraceQL viewer and query editor in the Tempo data source to build queries and drill-down into result sets. The editor is available in Grafana’s Explore interface.
+
+>**NOTE**: To use the TraceQL query editor, you need to enable the `traceqlEditor` feature flag. This feature is available starting in Grafana 9.3.2.
 
 
 <p align="center"><img src="../assets/query-editor-http-method.png" alt="Query editor showing request for http.method" /></p>
