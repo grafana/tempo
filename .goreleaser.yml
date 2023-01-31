@@ -128,7 +128,7 @@ nfpms:
       - deb
       - rpm
     contents:
-      - src: ./example/docker-compose/local/tempo-local.yaml
+      - src: ./example/docker-compose/shared/tempo.yaml
         dst: /etc/tempo/config.yml
         type: 'config|noreplace'
       - src: ./tools/packaging/tempo.service
