@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"go.uber.org/atomic"
 )
 
@@ -16,6 +17,7 @@ type Results struct {
 	errorsCh  chan error
 	doneCh    chan struct{}
 	quit      atomic.Bool
+	error     atomic.Error
 	started   atomic.Bool
 	wg        sync.WaitGroup
 
@@ -29,7 +31,6 @@ func NewResults() *Results {
 	return &Results{
 		resultsCh: make(chan *tempopb.TraceSearchMetadata),
 		doneCh:    make(chan struct{}),
-		errorsCh:  make(chan error),
 	}
 }
 
@@ -53,24 +54,19 @@ func (sr *Results) AddResult(ctx context.Context, r *tempopb.TraceSearchMetadata
 	}
 }
 
-// AddError sends an error from a search task (goroutine) to the receiver of the
-// search results, i.e. the initiator of the search.  This function blocks until there
-// is buffer space in the errors channel or if the task should stop searching because the
-// receiver went away or the given context is done. In this case true is returned.
-func (sr *Results) AddError(ctx context.Context, err error) (quit bool) {
-	if sr.quit.Load() {
-		return true
+// SetError will set error in a thread safe manner.
+//
+// NOTE: this will ignore common.Unsupported errors,
+// we don't Propagate those error upstream.
+func (sr *Results) SetError(err error) {
+	if err != common.ErrUnsupported { // ignore common.Unsupported
+		sr.error.Store(err)
 	}
+}
 
-	select {
-	case sr.errorsCh <- err:
-		return true
-	case <-ctx.Done():
-		return true
-	case <-sr.doneCh:
-		// This returns immediately once the done channel is closed.
-		return true
-	}
+// Error returns error set by SetError
+func (sr *Results) Error() error {
+	return sr.error.Load()
 }
 
 // Quit returns if search tasks should quit early. This can occur due to max results
@@ -129,7 +125,6 @@ func (sr *Results) AllWorkersStarted() {
 		go func() {
 			sr.wg.Wait()
 			close(sr.resultsCh)
-			close(sr.errorsCh)
 		}()
 	}
 }

@@ -40,26 +40,21 @@ func TestResultsDoesNotRace(t *testing.T) {
 					}
 
 					if tc.error {
-						sr.AddError(ctx, errors.New("test error"))
+						sr.SetError(errors.New("test error"))
 					}
 				}()
 			}
 
-			var err error
-			go func() {
-				for err = range sr.Errors() {
-					sr.Close()
-					return
-				}
-			}()
-
 			sr.AllWorkersStarted()
 
 			var resultsCount int
-			if tc.consumeResults {
-				for range sr.Results() {
-					resultsCount++
+			var err error
+			for range sr.Results() {
+				if sr.Error() != nil {
+					err = sr.Error() // capture err to assert below
+					break            // exit early
 				}
+				resultsCount++
 			}
 
 			if tc.error {
