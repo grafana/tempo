@@ -23,8 +23,7 @@ Traces can be discovered by searching logs for entries containing trace IDs.  Th
 
 Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo.
 
-The default Tempo search reviews the whole trace. TraceQL provides a method for formulating precise queries so you can zoom in to the data you need. Query results are returned faster because the queries limit what is searched.
-These queries also make it possible for you to understand the broad context for an event sequence.
+The default Tempo search reviews the whole trace. TraceQL provides a method for formulating precise queries so you can quickly identify the traces and spans that you need. Query results are returned faster because the queries limit what is searched.
 
 You can run a TraceQL query either by issuing it to Tempo’s `q` parameter of the [`search` API endpoint]({{< relref "../api_docs/#search" >}}), or, for those using Tempo in conjunction with Grafana, by using Grafana’s [TraceQL query editor]({{< relref "../traceql/query-editor" >}}).
 

@@ -11,7 +11,7 @@ Tempo has a default columnar block format based on Apache Parquet. [TraceQL]({{<
 
 A columnar block format may result in improved search performance and also enables a large ecosystem of tools access to the underlying trace data. For example, you can use `parquet-tools` to [query Parquet data]({{< relref "../operations/parquet" >}}).
 
-For more information, refer to the [Parquet schema]({{< relref "../operations/parquet/schema" >}}), the [Parquet design document](https://github.com/mdisibio/tempo/blob/design-proposal-parquet/docs/design-proposals/2022-04%20Parquet.md), and [Issue 1480](https://github.com/grafana/tempo/issues/1480).
+For more information, refer to the [Parquet schema]({{< relref "../operations/parquet/schema" >}}) and the [Parquet design document](https://github.com/mdisibio/tempo/blob/design-proposal-parquet/docs/design-proposals/2022-04%20Parquet.md).
 
 If you install using the new Helm charts, then Parquet is enabled by default.
 
