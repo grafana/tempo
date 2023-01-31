@@ -1,5 +1,7 @@
 ## main / unreleased
 
+## v2.0.0 / 2023-01-31
+
 * [CHANGE] **BREAKING CHANGE** Use snake case on Azure Storage config [#1879](https://github.com/grafana/tempo/issues/1879) (@faustodavid)
 Example of using snake case on Azure Storage config:
 ```
