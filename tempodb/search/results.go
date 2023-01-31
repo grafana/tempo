@@ -14,7 +14,6 @@ import (
 // metrics.
 type Results struct {
 	resultsCh chan *tempopb.TraceSearchMetadata
-	errorsCh  chan error
 	doneCh    chan struct{}
 	quit      atomic.Bool
 	error     atomic.Error
@@ -80,17 +79,6 @@ func (sr *Results) Quit() bool {
 // for res := range sr.Results()
 func (sr *Results) Results() <-chan *tempopb.TraceSearchMetadata {
 	return sr.resultsCh
-}
-
-// Errors returns the errors channel. Channel is closed when the search is complete.
-// Can be iterated by range like:
-// for err := range sr.Errors()
-//
-// NOTE: Read from sr.Errors() in a goroutine before workers are started.
-// reading from sr.Errors() will block until all workers are done
-// and errorsCh is closed.
-func (sr *Results) Errors() <-chan error {
-	return sr.errorsCh
 }
 
 // Close signals to all workers to quit, when max results is received and no more work is needed.
