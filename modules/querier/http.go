@@ -11,9 +11,11 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
+	"github.com/pkg/errors"
 
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 )
 
 const (
@@ -223,6 +225,13 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "please provide a tagName", http.StatusBadRequest)
 		return
 	}
+
+	_, err := traceql.ParseIdentifier(tagName)
+	if err != nil {
+		http.Error(w, errors.Wrap(err, "please provide a valid tagName").Error(), http.StatusBadRequest)
+		return
+	}
+
 	req := &tempopb.SearchTagValuesRequest{
 		TagName: tagName,
 	}
