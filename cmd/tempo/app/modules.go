@@ -48,6 +48,7 @@ const (
 	MetricsGeneratorRing string = "metrics-generator-ring"
 	Overrides            string = "overrides"
 	Server               string = "server"
+	InternalServer       string = "internal-server"
 	Distributor          string = "distributor"
 	Ingester             string = "ingester"
 	MetricsGenerator     string = "metrics-generator"
@@ -96,6 +97,30 @@ func (t *App) initServer() (services.Service, error) {
 
 	t.Server = server
 	s := NewServerService(server, servicesToWaitFor)
+
+	return s, nil
+}
+
+func (t *App) initInternalServer() (services.Service, error) {
+	DisableSignalHandling(&t.cfg.InternalServer.Config)
+	serv, err := server.New(t.cfg.InternalServer.Config)
+	if err != nil {
+		return nil, err
+	}
+
+	servicesToWaitFor := func() []services.Service {
+		svs := []services.Service(nil)
+		for m, s := range t.serviceMap {
+			// Server should not wait for itself.
+			if m != InternalServer {
+				svs = append(svs, s)
+			}
+		}
+		return svs
+	}
+
+	t.InternalServer = serv
+	s := NewServerService(t.InternalServer, servicesToWaitFor)
 
 	return s, nil
 }
@@ -390,6 +415,9 @@ func (t *App) setupModuleManager() error {
 	mm := modules.NewManager(log.Logger)
 
 	mm.RegisterModule(Server, t.initServer, modules.UserInvisibleModule)
+	if t.cfg.InternalServer.Enable {
+		mm.RegisterModule(InternalServer, t.initInternalServer, modules.UserInvisibleModule)
+	}
 	mm.RegisterModule(MemberlistKV, t.initMemberlistKV, modules.UserInvisibleModule)
 	mm.RegisterModule(Ring, t.initRing, modules.UserInvisibleModule)
 	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
@@ -423,6 +451,26 @@ func (t *App) setupModuleManager() error {
 		UsageReport:          {MemberlistKV},
 	}
 
+	if t.cfg.InternalServer.Enable {
+		for key, ds := range deps {
+			idx := -1
+			for i, v := range ds {
+				if v == Server {
+					idx = i
+					break
+				}
+			}
+
+			if idx == -1 {
+				continue
+			}
+
+			a := append(ds[:idx+1], ds[idx:]...)
+			a[idx] = InternalServer
+			deps[key] = a
+		}
+	}
+
 	for mod, targets := range deps {
 		if err := mm.AddDependency(mod, targets...); err != nil {
 			return err
@@ -430,6 +478,7 @@ func (t *App) setupModuleManager() error {
 	}
 
 	t.ModuleManager = mm
+
 	t.deps = deps
 
 	return nil
