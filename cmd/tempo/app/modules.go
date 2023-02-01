@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/dskit/services"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
 
@@ -65,6 +66,15 @@ func (t *App) initServer() (services.Service, error) {
 	t.cfg.Server.ExcludeRequestInLog = true
 
 	prometheus.MustRegister(&t.cfg)
+
+	if t.cfg.EnableGoRuntimeMetrics {
+		// unregister default Go collector
+		prometheus.Unregister(collectors.NewGoCollector())
+		// register Go collector with all available runtime metrics
+		prometheus.MustRegister(collectors.NewGoCollector(
+			collectors.WithGoCollectorRuntimeMetrics(collectors.MetricsAll),
+		))
+	}
 
 	DisableSignalHandling(&t.cfg.Server)
 
