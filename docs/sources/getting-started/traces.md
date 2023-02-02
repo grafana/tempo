@@ -40,7 +40,6 @@ Here's an example showing two pages in Grafana Cloud. The first, on the left (1)
 
 <p align="center"><img src="../assets/trace-explore-spans.png" alt="Trace example"></p>
 
-
 The trace ID is applied to activities recorded as metrics and as logs.
 
 ## What are traces used for?
@@ -52,7 +51,7 @@ Metrics, logs, and traces form the three pillars of observability. Metrics provi
 ## Terminology
 
 Data source
-: A basic storage for data such as a database, a flat file, or even live references or measurements from a device. dA file, database, or service that provides data. For example, traces data is imported into Grafana by configuring and enabling a Tempo data source.
+: A basic storage for data such as a database, a flat file, or even live references or measurements from a device. A file, database, or service that provides data. For example, traces data is imported into Grafana by configuring and enabling a Tempo data source.
 
 Exemplar
 : Any data that serves as a detailed example of one of the observations aggregated into a metric. An exemplar contains the observed value together with an optional timestamp and arbitrary trace IDs, which are typically used to reference a trace.
