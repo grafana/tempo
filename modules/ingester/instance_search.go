@@ -79,6 +79,11 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		}
 	}
 
+	// can happen when we have only error, and no results
+	if sr.Error() != nil {
+		return nil, sr.Error()
+	}
+
 	results := make([]*tempopb.TraceSearchMetadata, 0, len(resultsMap))
 	for _, result := range resultsMap {
 		results = append(results, result)
