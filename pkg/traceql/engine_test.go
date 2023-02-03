@@ -187,7 +187,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 			Matched: 2,
 			Spans: []*tempopb.Span{
 				{
-					SpanID:            util.TraceIDToHexString(spanID1),
+					SpanID:            util.SpanIDToHexString(spanID1),
 					Name:              "HTTP GET",
 					StartTimeUnixNano: uint64(now.UnixNano()),
 					DurationNanos:     10_000_000_000,
@@ -235,7 +235,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 					},
 				},
 				{
-					SpanID:            util.TraceIDToHexString(spanID2),
+					SpanID:            util.SpanIDToHexString(spanID2),
 					StartTimeUnixNano: uint64(now.Add(2 * time.Second).UnixNano()),
 					DurationNanos:     18_000_000_000,
 					Attributes:        nil,

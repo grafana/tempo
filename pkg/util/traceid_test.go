@@ -89,6 +89,34 @@ func TestTraceIDToHexString(t *testing.T) {
 	}
 }
 
+func TestSpanIDToHexString(t *testing.T) {
+	tc := []struct {
+		byteID  []byte
+		traceID string
+	}{
+		{
+			byteID:  []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12},
+			traceID: "0000000000000012",
+		},
+		{
+			byteID:  []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef},
+			traceID: "1234567890abcdef", // 64 bit
+		},
+		{
+			byteID:  []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0xa0},
+			traceID: "00000000000012a0", // trailing zero
+		},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.traceID, func(t *testing.T) {
+			actual := SpanIDToHexString(tt.byteID)
+
+			assert.Equal(t, tt.traceID, actual)
+		})
+	}
+}
+
 func TestEqualHexStringTraceIDs(t *testing.T) {
 	a := "82f6471b46d25e23418a0a99d4c2cda"
 	b := "082f6471b46d25e23418a0a99d4c2cda"
