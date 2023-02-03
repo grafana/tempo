@@ -635,8 +635,11 @@ func reconstructFuncOfRepeated(columnIndex int16, node Node) (int16, reconstruct
 		for i := 0; i < n; i++ {
 			for j, column := range values {
 				column = column[:cap(column)]
-				k := 1
+				if len(column) == 0 {
+					continue
+				}
 
+				k := 1
 				for k < len(column) && column[k].repetitionLevel > levels.repetitionDepth {
 					k++
 				}
