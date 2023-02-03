@@ -38,7 +38,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	p := search.NewSearchPipeline(req)
 
 	sr := search.NewResults()
-	defer sr.Close()
+	defer sr.Close() // signal all running workers to quit
 
 	// skip live traces in TraceQL queries
 	if !api.IsTraceQLQuery(req) {
@@ -55,9 +55,17 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 
 	sr.AllWorkersStarted()
 
+	// read and combine search results
 	resultsMap := map[string]*tempopb.TraceSearchMetadata{}
 
+	// collect results from all the goroutines via sr.Results channel.
+	// range loop will exit when sr.Results channel is closed.
 	for result := range sr.Results() {
+		// exit early and Propagate error upstream
+		if sr.Error() != nil {
+			return nil, sr.Error()
+		}
+
 		// Dedupe/combine results
 		if existing := resultsMap[result.TraceID]; existing != nil {
 			search.CombineSearchResults(existing, result)
@@ -66,8 +74,14 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		}
 
 		if len(resultsMap) >= maxResults {
+			sr.Close() // signal pending workers to exit
 			break
 		}
+	}
+
+	// can happen when we have only error, and no results
+	if sr.Error() != nil {
+		return nil, sr.Error()
 	}
 
 	results := make([]*tempopb.TraceSearchMetadata, 0, len(resultsMap))
@@ -158,6 +172,7 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 		err := e.b.Search(ctx, p, sr)
 		if err != nil {
 			level.Error(log.Logger).Log("msg", "error searching wal block", "blockID", e.b.BlockID().String(), "err", err)
+			sr.SetError(err)
 		}
 	}
 
@@ -185,6 +200,7 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 
 		if err != nil {
 			level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "block_version", b.BlockMeta().Version, "err", err)
+			sr.SetError(err)
 			return
 		}
 
@@ -248,6 +264,7 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 				err := e.b.Search(ctx, p, sr)
 				if err != nil {
 					level.Error(log.Logger).Log("msg", "error searching local block", "blockID", e.b.BlockID().String(), "err", err)
+					sr.SetError(err)
 				}
 			}(e)
 		}
@@ -295,6 +312,7 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 
 			if err != nil {
 				level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "err", err)
+				sr.SetError(err)
 				return
 			}
 

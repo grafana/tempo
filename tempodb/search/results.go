@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"go.uber.org/atomic"
 )
 
@@ -15,6 +16,7 @@ type Results struct {
 	resultsCh chan *tempopb.TraceSearchMetadata
 	doneCh    chan struct{}
 	quit      atomic.Bool
+	error     atomic.Error
 	started   atomic.Bool
 	wg        sync.WaitGroup
 
@@ -32,7 +34,7 @@ func NewResults() *Results {
 }
 
 // AddResult sends a search result from a search task (goroutine) to the receiver of the
-// the search results, i.e. the initiator of the search.  This function blocks until there
+// search results, i.e. the initiator of the search.  This function blocks until there
 // is buffer space in the results channel or if the task should stop searching because the
 // receiver went away or the given context is done. In this case true is returned.
 func (sr *Results) AddResult(ctx context.Context, r *tempopb.TraceSearchMetadata) (quit bool) {
@@ -49,6 +51,21 @@ func (sr *Results) AddResult(ctx context.Context, r *tempopb.TraceSearchMetadata
 		// This returns immediately once the done channel is closed.
 		return true
 	}
+}
+
+// SetError will set error in a thread safe manner.
+//
+// NOTE: this will ignore common.Unsupported errors,
+// we don't Propagate those error upstream.
+func (sr *Results) SetError(err error) {
+	if err != common.ErrUnsupported { // ignore common.Unsupported
+		sr.error.Store(err)
+	}
+}
+
+// Error returns error set by SetError
+func (sr *Results) Error() error {
+	return sr.error.Load()
 }
 
 // Quit returns if search tasks should quit early. This can occur due to max results
