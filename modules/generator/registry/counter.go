@@ -27,10 +27,34 @@ type counterSeries struct {
 	labelValues []string
 	value       *atomic.Float64
 	lastUpdated *atomic.Int64
+	// firstSeries is used to track if this series is new to the counter.  This
+	// is used to ensure that new counters being with 0, and then are incremented
+	// to the desired value.  This avoids Prometheus throwing away the first
+	// value in the series, due to the transition from null -> x.
+	firstSeriesMtx sync.RWMutex
+	firstSeries    bool
 }
 
 var _ Counter = (*counter)(nil)
 var _ metric = (*counter)(nil)
+
+func (co *counterSeries) isNew() bool {
+	co.firstSeriesMtx.RLock()
+	defer co.firstSeriesMtx.RUnlock()
+	return co.firstSeries
+}
+
+func (co *counterSeries) registerFirstSeries() {
+	co.firstSeriesMtx.Lock()
+	defer co.firstSeriesMtx.Unlock()
+	co.firstSeries = true
+}
+
+func (co *counterSeries) registerSeenSeries() {
+	co.firstSeriesMtx.Lock()
+	defer co.firstSeriesMtx.Unlock()
+	co.firstSeries = false
+}
 
 func newCounter(name string, labels []string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) *counter {
 	if onAddSeries == nil {
@@ -84,6 +108,7 @@ func (c *counter) Inc(labelValues *LabelValues, value float64) {
 		c.updateSeries(s, value)
 		return
 	}
+	newSeries.registerFirstSeries()
 	c.series[hash] = newSeries
 }
 
@@ -126,6 +151,17 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 			lb.Set(name, s.labelValues[i])
 		}
 
+		// If we are about to call Append for the first time on a series, we need
+		// to first insert a 0 value to allow Prometheus to start from a non-null
+		// value.
+		if s.isNew() {
+			_, err = appender.Append(0, lb.Labels(nil), timeMs, 0)
+			if err != nil {
+				return
+			}
+		}
+
+		s.registerSeenSeries()
 		_, err = appender.Append(0, lb.Labels(nil), timeMs, s.value.Load())
 		if err != nil {
 			return
