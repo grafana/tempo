@@ -79,6 +79,7 @@ There are two types of attributes: span attributes and resource attributes. By e
 
 <p align="center"><img src="assets/span-resource-attributes.png" alt="Example of span and resource  attributes." /></p>
 
+For more information about attributes and resources, refer to the [OpenTelemetry Resource SDK](https://opentelemetry.io/docs/reference/specification/resource/sdk/).
 #### Examples
 
 Find traces that passed through the `prod` namespace:
