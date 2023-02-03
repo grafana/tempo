@@ -74,7 +74,8 @@ To find traces with the `GET HTTP` method, your query could look like this:
 ```
 { span.http.method = "GET" }
 ```
-There are two types of attributes, span attributes and resource attributes. By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
+
+There are two types of attributes: span attributes and resource attributes. By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
 
 <p align="center"><img src="assets/span-resource-attributes.png" alt="Example of span resources and attributes" /></p>
 
