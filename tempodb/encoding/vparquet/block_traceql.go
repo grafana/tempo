@@ -513,7 +513,8 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 	required = append(required, makeIter(columnPathSpanID, nil, columnPathSpanID))
 
 	// jpe if there are no direct conditions imposed on the span/span attributes level we are purposefully going to request the "Kind" column
-	//  b/c it is extremely cheap to retrieve. retrieving matching spans in this case will allow aggregates such as "count" to be computed
+	//  b/c it is extremely cheap to retrieve. retrieving matching spans in this case will allow] aggregates such as "count" to be computed
+	//  how do we know to pull duration for things like | avg(duration) > 1s? look at avg(span.http.status_code) it pushes a column request down here
 
 	// Left join here means the span id/start/end iterators + 1 are required,
 	// and all other conditions are optional. Whatever matches is returned.

@@ -42,15 +42,9 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 	}
 	iterator := fetchSpansResponse.Results
 
-	res := &tempopb.SearchResponse{
-		Traces: nil,
-		// TODO capture and update metrics
-		Metrics: &tempopb.SearchMetrics{},
-	}
-
 	spansetsEvaluated := 0
 
-iter:
+	results := []Spanset{}
 	for {
 		spanSet, err := iterator.Next(ctx)
 		if err != nil {
@@ -73,16 +67,34 @@ iter:
 			continue
 		}
 
-		for _, spanSet := range ss {
-			res.Traces = append(res.Traces, e.asTraceSearchMetadata(spanSet))
+		results = append(results, ss...)
 
-			if len(res.Traces) == int(searchReq.Limit) {
-				break iter
-			}
+		if len(results) == int(searchReq.Limit) {
+			break
 		}
 	}
 
-	// jpe iterate over all matching spansets and request metadata
+	if len(results) == 0 {
+		return &tempopb.SearchResponse{
+			Traces: nil,
+			// TODO capture and update metrics
+			Metrics: &tempopb.SearchMetrics{},
+		}, nil
+	}
+
+	ss, err := spanSetFetcher.FetchMetadata(ctx, results)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &tempopb.SearchResponse{
+		Traces: nil,
+		// TODO capture and update metrics
+		Metrics: &tempopb.SearchMetrics{},
+	}
+	for _, spanSet := range ss {
+		res.Traces = append(res.Traces, e.asTraceSearchMetadata(spanSet))
+	}
 
 	span.SetTag("spansets_evaluated", spansetsEvaluated)
 	span.SetTag("spansets_found", len(res.Traces))
@@ -114,7 +126,7 @@ func (e *Engine) createFetchSpansRequest(searchReq *tempopb.SearchRequest, pipel
 	return req
 }
 
-func (e *Engine) asTraceSearchMetadata(spanset Spanset) *tempopb.TraceSearchMetadata {
+func (e *Engine) asTraceSearchMetadata(spanset SpansetMetadata) *tempopb.TraceSearchMetadata {
 	metadata := &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(spanset.TraceID),
 		RootServiceName:   spanset.RootServiceName,

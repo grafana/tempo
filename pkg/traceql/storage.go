@@ -2,6 +2,9 @@ package traceql
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/grafana/tempo/pkg/parquetquery"
 )
 
 type Operands []Static
@@ -32,6 +35,7 @@ func (f *FetchSpansRequest) appendCondition(c ...Condition) {
 
 type Span struct {
 	// jpe need rownumber to go fetch metadata later?
+	rowNum     parquetquery.RowNumber
 	Attributes map[Attribute]Static
 }
 
@@ -44,6 +48,7 @@ type SpanMetadata struct {
 	ID                 []byte
 	StartTimeUnixNanos uint64
 	EndtimeUnixNanos   uint64
+	Attributes         map[Attribute]Static // jpe copy from Span in the fetch part?
 }
 
 type SpansetMetadata struct {
@@ -52,7 +57,7 @@ type SpansetMetadata struct {
 	RootServiceName    string
 	StartTimeUnixNanos uint64
 	DurationNanos      uint64
-	Span               []SpanMetadata
+	Spans              []SpanMetadata
 }
 
 type SpansetIterator interface {
@@ -66,6 +71,7 @@ type FetchSpansResponse struct {
 
 type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
+	FetchMetadata(context.Context, []Spanset) ([]SpansetMetadata, error) // jpe review this method signature
 }
 
 // MustExtractFetchSpansRequest parses the given traceql query and returns
@@ -106,4 +112,9 @@ func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest)
 
 func (s SpansetFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	return s.f(ctx, request)
+}
+
+func (s SpansetFetcherWrapper) FetchMetadata(ctx context.Context, spansets []Spanset) ([]SpansetMetadata, error) {
+	// jpe implement
+	return nil, fmt.Errorf("not implemented")
 }

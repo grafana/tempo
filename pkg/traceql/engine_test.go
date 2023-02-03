@@ -19,6 +19,8 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
+// jpe - everywhere you removed ID replace with span rownumbers
+
 func TestEngine_Execute(t *testing.T) {
 	now := time.Now()
 	e := Engine{}
@@ -30,20 +32,13 @@ func TestEngine_Execute(t *testing.T) {
 		iterator: &MockSpanSetIterator{
 			results: []*Spanset{
 				{
-					TraceID:         []byte{1},
-					RootSpanName:    "HTTP GET",
-					RootServiceName: "my-service",
 					Spans: []Span{
 						{
-							ID: []byte{1},
 							Attributes: map[Attribute]Static{
 								NewAttribute("foo"): NewStaticString("value"),
 							},
 						},
 						{
-							ID:                 []byte{2},
-							StartTimeUnixNanos: uint64(now.UnixNano()),
-							EndtimeUnixNanos:   uint64(now.Add(100 * time.Millisecond).UnixNano()),
 							Attributes: map[Attribute]Static{
 								NewAttribute("foo"): NewStaticString("value"),
 								NewAttribute("bar"): NewStaticString("value"),
@@ -52,12 +47,8 @@ func TestEngine_Execute(t *testing.T) {
 					},
 				},
 				{
-					TraceID:         []byte{2},
-					RootSpanName:    "HTTP POST",
-					RootServiceName: "my-service",
 					Spans: []Span{
 						{
-							ID: []byte{3},
 							Attributes: map[Attribute]Static{
 								NewAttribute("bar"): NewStaticString("value"),
 							},
@@ -143,13 +134,13 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 	spanID1 := traceID[:8]
 	spanID2 := traceID[8:]
 
-	spanSet := Spanset{
+	spanSet := SpansetMetadata{
 		TraceID:            traceID,
 		RootServiceName:    "my-service",
 		RootSpanName:       "HTTP GET",
 		StartTimeUnixNanos: 1000,
 		DurationNanos:      uint64(time.Second.Nanoseconds()),
-		Spans: []Span{
+		Spans: []SpanMetadata{
 			{
 				ID:                 spanID1,
 				StartTimeUnixNanos: uint64(now.UnixNano()),
@@ -264,6 +255,10 @@ func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansReques
 	return FetchSpansResponse{
 		Results: m.iterator,
 	}, nil
+}
+
+func (m *MockSpanSetFetcher) FetchMetadata(context.Context, []Spanset) ([]SpansetMetadata, error) {
+	return nil, fmt.Errorf("not implemented") // jpe test?
 }
 
 type MockSpanSetIterator struct {

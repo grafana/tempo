@@ -127,13 +127,13 @@ func TestPipelineEvaluate(t *testing.T) {
 			[]Spanset{
 				{Spans: []Span{
 					// First span should be dropped here
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a")}},
-					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a"), NewAttribute("foo2"): NewStaticString("b")}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a")}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a"), NewAttribute("foo2"): NewStaticString("b")}},
 				}},
 			},
 			[]Spanset{
 				{Spans: []Span{
-					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a"), NewAttribute("foo2"): NewStaticString("b")}}}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a"), NewAttribute("foo2"): NewStaticString("b")}}}},
 			},
 		},
 	}
@@ -171,17 +171,17 @@ func TestSpansetFilterEvaluate(t *testing.T) {
 			[]Spanset{
 				{Spans: []Span{
 					// Second span should be dropped here
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
-					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
 				}},
 				{Spans: []Span{
 					// This entire spanset will be dropped
-					{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
 				}},
 			},
 			[]Spanset{
 				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}}}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}}}},
 			},
 		},
 		{
@@ -189,27 +189,27 @@ func TestSpansetFilterEvaluate(t *testing.T) {
 			[]Spanset{
 				{Spans: []Span{
 					// Second span should be dropped here
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(2)}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(2)}},
 				}},
 				{Spans: []Span{
 					// First span should be dropped here
-					{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(3)}},
-					{ID: []byte{4}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(4)}},
-					{ID: []byte{5}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(5)}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(3)}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(4)}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(5)}},
 				}},
 				{Spans: []Span{
 					// Entire spanset should be dropped
-					{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(6)}},
-					{ID: []byte{4}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(7)}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(6)}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(7)}},
 				}},
 			},
 			[]Spanset{
 				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}}}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}}}},
 				{Spans: []Span{
-					{ID: []byte{4}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(4)}},
-					{ID: []byte{5}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(5)}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(4)}},
+					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(5)}},
 				}},
 			},
 		},
