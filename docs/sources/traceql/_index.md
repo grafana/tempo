@@ -67,11 +67,14 @@ Intrinsic fields are fundamental to spans. These fields can be referenced when s
 
 Attribute fields are derived from the span and can be customized. Process and span attribute types are [defined by the attribute itself](https://github.com/open-telemetry/opentelemetry-proto/blob/b43e9b18b76abf3ee040164b55b9c355217151f3/opentelemetry/proto/common/v1/common.proto#L30-L38), whereas intrinsic fields have a built-in type. You can refer to dynamic attributes (also known as tags) on the span or the span's resource.
 
-Attributes in a query start with a span or resource scope depending on what exactly you want to query. This provides significant performance benefits because it allows Tempo to only scan the data you are interested in. To find traces with the `GET HTTP` method, your query could look like this:
+Attributes in a query start with a span or resource scope depending on what exactly you want to query. This provides significant performance benefits because it allows Tempo to only scan the data you are interested in.
+
+To find traces with the `GET HTTP` method, your query could look like this:
 
 ```
 { span.http.method = "GET" }
 ```
+There are two types of attributes, span attributes and resource attributes. By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
 
 <p align="center"><img src="assets/span-resource-attributes.png" alt="Example of span resources and attributes" /></p>
 
