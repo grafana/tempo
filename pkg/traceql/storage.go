@@ -31,21 +31,28 @@ func (f *FetchSpansRequest) appendCondition(c ...Condition) {
 }
 
 type Span struct {
-	ID                 []byte
-	StartTimeUnixNanos uint64
-	EndtimeUnixNanos   uint64
-	Attributes         map[Attribute]Static
+	// jpe need rownumber to go fetch metadata later?
+	Attributes map[Attribute]Static
 }
 
 type Spanset struct {
+	Scalar Static
+	Spans  []Span
+}
+
+type SpanMetadata struct {
+	ID                 []byte
+	StartTimeUnixNanos uint64
+	EndtimeUnixNanos   uint64
+}
+
+type SpansetMetadata struct {
 	TraceID            []byte
 	RootSpanName       string
 	RootServiceName    string
 	StartTimeUnixNanos uint64
 	DurationNanos      uint64
-	Attributes         map[Attribute]Static
-	Scalar             Static
-	Spans              []Span
+	Span               []SpanMetadata
 }
 
 type SpansetIterator interface {

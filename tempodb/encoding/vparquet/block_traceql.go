@@ -459,7 +459,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
 	}
 
-	// Time range filtering?
+	// Time range filtering? jpe - move up to trace level?
 	var startFilter, endFilter parquetquery.Predicate
 	if start > 0 && end > 0 {
 		// Here's how we detect the span overlaps the time window:
@@ -511,6 +511,9 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 	required = append(required, makeIter(columnPathSpanStartTime, startFilter, columnPathSpanStartTime))
 	required = append(required, makeIter(columnPathSpanEndTime, endFilter, columnPathSpanEndTime))
 	required = append(required, makeIter(columnPathSpanID, nil, columnPathSpanID))
+
+	// jpe if there are no direct conditions imposed on the span/span attributes level we are purposefully going to request the "Kind" column
+	//  b/c it is extremely cheap to retrieve. retrieving matching spans in this case will allow aggregates such as "count" to be computed
 
 	// Left join here means the span id/start/end iterators + 1 are required,
 	// and all other conditions are optional. Whatever matches is returned.

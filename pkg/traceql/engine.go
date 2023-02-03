@@ -82,6 +82,8 @@ iter:
 		}
 	}
 
+	// jpe iterate over all matching spansets and request metadata
+
 	span.SetTag("spansets_evaluated", spansetsEvaluated)
 	span.SetTag("spansets_found", len(res.Traces))
 
