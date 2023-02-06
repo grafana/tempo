@@ -400,18 +400,18 @@ query_frontend:
         # (default: 30m)
         [query_ingesters_until: <duration>]
 
-        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not
+        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
         # tempo_query_frontend_search_queries_within_slo_total is incremented if query 
-        # completes in duration less than value of duration_slo
+        # completes in duration less than value of duration_slo.
         # This works in boolean OR with throughput_slo config,
-        # Query is within SLO if it returned within duration_slo seconds OR processed throughput_slo bytes/s data
+        # Query is within SLO if it returned within duration_slo seconds OR processed throughput_slo bytes/s data.
         [duration_slo: <duration> | default = 5s ]
 
-        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not
+        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
         # tempo_query_frontend_search_queries_within_slo_total is incremented if query 
-        # throughput (data processed per second) more than value of throughput_slo
+        # throughput (data processed per second) more than value of throughput_slo.
         # This works in boolean OR with throughput_slo config,
-        # Query is within SLO if it returned within duration_slo seconds OR processed throughput_slo bytes/s data
+        # Query is within SLO if it returned within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_slo: <float> | default = 104857600 ]
 
 
@@ -429,10 +429,10 @@ query_frontend:
         # Requires hedge_requests_at to be set. Must be greater than 0.
         [hedge_requests_up_to: <int> | default = 2 ]
 
-        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not
+        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
         # tempo_query_frontend_tracebyid_queries_within_slo_total is incremented if query 
-        # completes in duration less than value of duration_slo
-        # Query is within SLO if it returned within duration_slo seconds
+        # completes in duration less than value of duration_slo.
+        # Query is within SLO if it returned within duration_slo seconds.
         [duration_slo: <duration> | default = 5s ]
 ```
 
