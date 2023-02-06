@@ -3,7 +3,6 @@ package v2
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 
@@ -249,5 +248,9 @@ func search(decoder model.ObjectDecoder, maxBytes int, id common.ID, obj []byte,
 }
 
 func (b *BackendBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.SearchOptions) (traceql.FetchSpansResponse, error) {
-	return traceql.FetchSpansResponse{}, errors.New("Unsupported")
+	return traceql.FetchSpansResponse{}, common.ErrUnsupported
+}
+
+func (b *BackendBlock) FetchMetadata(context.Context, []traceql.Spanset, common.SearchOptions) ([]traceql.SpansetMetadata, error) {
+	return nil, common.ErrUnsupported
 }

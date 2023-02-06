@@ -291,17 +291,20 @@ func testFetch(t *testing.T, e encoding.VersionedEncoding) {
 			}
 			require.NoError(t, err)
 
-			// grab the first result and make sure it's the expected id
+			// grab the first result
 			ss, err := resp.Results.Next(ctx)
 			require.NoError(t, err)
-
-			expectedID := ids[i]
-			require.Equal(t, ss.TraceID, expectedID)
 
 			// confirm no more matches
 			ss, err = resp.Results.Next(ctx)
 			require.NoError(t, err)
 			require.Nil(t, ss)
+
+			// confirm traceid matches
+			ssmeta, err := block.FetchMetadata(ctx, []traceql.Spanset{*ss}, common.DefaultSearchOptions())
+			expectedID := ids[i]
+			require.Equal(t, 1, len(ssmeta))
+			require.Equal(t, ssmeta[0].TraceID, expectedID)
 		}
 	})
 }

@@ -25,7 +25,9 @@ type Searcher interface {
 	SearchTags(ctx context.Context, cb TagCallback, opts SearchOptions) error
 	SearchTagValues(ctx context.Context, tag string, cb TagCallback, opts SearchOptions) error
 	SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb TagCallbackV2, opts SearchOptions) error
+
 	Fetch(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansResponse, error)
+	FetchMetadata(context.Context, []traceql.Spanset, SearchOptions) ([]traceql.SpansetMetadata, error) // jpe review this method signature - i assume this is necessary?
 }
 
 type CacheControl struct {
