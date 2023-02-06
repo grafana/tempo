@@ -24,19 +24,21 @@ func TestOne(t *testing.T) {
 	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.Background()
-	req := traceql.MustExtractFetchSpansRequest(`{.foo =~ "xyz.*"}`)
+	req := traceql.MustExtractFetchSpansRequest(`{ true }`)
+
+	req.StartTimeUnixNanos = uint64(1000 * time.Second)
+	req.EndTimeUnixNanos = uint64(1001 * time.Second)
 
 	resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+	require.NoError(t, err, "search request:", req)
+
+	spanSet, err := resp.Results.Next(ctx)
 	require.NoError(t, err, "search request:", req)
 
 	fmt.Println("-----------")
 	fmt.Println(req.Query)
 	fmt.Println("-----------")
 	fmt.Println(resp.Results.(*spansetIterator).iter)
-
-	spanSet, err := resp.Results.Next(ctx)
-	require.NoError(t, err, "search request:", req)
-
 	fmt.Println("-----------")
 	fmt.Println(spanSet)
 }
@@ -49,9 +51,19 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	searchesThatMatch := []traceql.FetchSpansRequest{
 		{}, // Empty request
 		{
-			// Time range
-			StartTimeUnixNanos: uint64(101 * time.Second),
-			EndTimeUnixNanos:   uint64(102 * time.Second),
+			// Time range inside trace
+			StartTimeUnixNanos: uint64(1100 * time.Second),
+			EndTimeUnixNanos:   uint64(1200 * time.Second),
+		},
+		{
+			// Time range overlap start
+			StartTimeUnixNanos: uint64(900 * time.Second),
+			EndTimeUnixNanos:   uint64(1100 * time.Second),
+		},
+		{
+			// Time range overlap end
+			StartTimeUnixNanos: uint64(1900 * time.Second),
+			EndTimeUnixNanos:   uint64(2100 * time.Second),
 		},
 		// Intrinsics
 		traceql.MustExtractFetchSpansRequest(`{` + LabelName + ` = "hello"}`),
@@ -189,9 +201,14 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		traceql.MustExtractFetchSpansRequest(`{.` + LabelHTTPStatusCode + ` > 600}`),                  // Well-known attribute: http.status_code not match
 		traceql.MustExtractFetchSpansRequest(`{.foo = "xyz" || .` + LabelHTTPStatusCode + " = 1000}"), // Matches neither condition
 		{
-			// Outside time range
-			StartTimeUnixNanos: uint64(300 * time.Second),
-			EndTimeUnixNanos:   uint64(400 * time.Second),
+			// Time range after trace
+			StartTimeUnixNanos: uint64(3000 * time.Second),
+			EndTimeUnixNanos:   uint64(4000 * time.Second),
+		},
+		{
+			// Time range before trace
+			StartTimeUnixNanos: uint64(600 * time.Second),
+			EndTimeUnixNanos:   uint64(700 * time.Second),
 		},
 		{
 			// Matches some conditions but not all

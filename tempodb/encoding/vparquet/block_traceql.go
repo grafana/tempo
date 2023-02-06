@@ -3,6 +3,7 @@ package vparquet
 import (
 	"context"
 	"fmt"
+	"math"
 	"reflect"
 	"time"
 
@@ -22,6 +23,7 @@ type makeIterFn func(columnName string, predicate parquetquery.Predicate, select
 const (
 	columnPathTraceID                  = "TraceID"
 	columnPathStartTimeUnixNano        = "StartTimeUnixNano"
+	columnPathEndTimeUnixNano          = "EndTimeUnixNano"
 	columnPathDurationNanos            = "DurationNanos"
 	columnPathRootSpanName             = "RootSpanName"
 	columnPathRootServiceName          = "RootServiceName"
@@ -363,7 +365,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 		allConditions = req.AllConditions && !mingledConditions
 	)
 
-	spanIter, err := createSpanIterator(makeIter, spanConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, spanRequireAtLeastOneMatch, allConditions)
+	spanIter, err := createSpanIterator(makeIter, spanConditions, spanRequireAtLeastOneMatch, allConditions)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span iterator")
 	}
@@ -373,14 +375,14 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 		return nil, errors.Wrap(err, "creating resource iterator")
 	}
 
-	traceIter := createTraceIterator(makeIter, resourceIter)
+	traceIter := createTraceIterator(makeIter, resourceIter, req.StartTimeUnixNanos, req.EndTimeUnixNanos)
 
 	return &spansetIterator{traceIter}, nil
 }
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
-func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, start, end uint64, requireAtLeastOneMatch, allConditions bool) (parquetquery.Iterator, error) {
+func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, requireAtLeastOneMatch, allConditions bool) (parquetquery.Iterator, error) {
 
 	var (
 		columnSelectAs     = map[string]string{}
@@ -417,7 +419,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 			addPredicate(columnPathSpanStartTime, nil)
 			columnSelectAs[columnPathSpanStartTime] = columnPathSpanStartTime
 			addPredicate(columnPathSpanEndTime, nil)
-			columnSelectAs[columnPathSpanEndTime] = columnPathSpanEndTime
+			columnSelectAs[columnPathSpanEndTime] = columnPathSpanEndTime // jpe these all end up in an orpred but i don't think they should
 			continue
 
 		case traceql.IntrinsicStatus:
@@ -484,6 +486,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 	spanCol := &spanCollector{
 		minCount,
 		durationPredicates,
+		false,
 	}
 
 	// This is an optimization for when all of the span conditions must be met.
@@ -506,11 +509,14 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, sta
 	// jpe if there are no direct conditions imposed on the span/span attributes level we are purposefully going to request the "Kind" column
 	//  b/c it is extremely cheap to retrieve. retrieving matching spans in this case will allow aggregates such as "count" to be computed
 	//  how do we know to pull duration for things like | avg(duration) > 1s? look at avg(span.http.status_code) it pushes a column request down here
-	if len(iters)+len(required) == 0 {
+	// does the iterator infinite loop if we don't do this?
+	//  the entire engine is built around spans. we have to return at least one entry for every span to the layers above for things to work
+	if len(required) == 0 {
 		required = []parquetquery.Iterator{makeIter(columnPathSpanKind, nil, columnPathSpanKind)}
+		// jpe - this almost doesn't matter and it might be more straightforward to just return this row and let the engine reject it?
+		// without this queries like { .cluster = "cluster" } fail b/c they rely on the span iterator to return something
+		spanCol.kindAsCount = true // signal to the collector we are only grabbing kind to count spans and we should not store it in attributes
 	}
-
-	// jpe - should all iterators be required?
 
 	// Left join here means the span id/start/end iterators + 1 are required,
 	// and all other conditions are optional. Whatever matches is returned.
@@ -613,9 +619,25 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 }
 
 // jpe - modify to impose trace level time range condition
-func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator) parquetquery.Iterator {
-	traceIters := []parquetquery.Iterator{
-		resourceIter,
+func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, start, end uint64) parquetquery.Iterator {
+	traceIters := make([]parquetquery.Iterator, 0, 3)
+
+	// order is interesting here. would it be more efficient to grab the span/resource conditions first
+	// or the time range filtering first?
+	traceIters = append(traceIters, resourceIter)
+
+	// evaluate time range
+	// Time range filtering?
+	if start > 0 && end > 0 {
+		// Here's how we detect the span overlaps the time window:
+		// Span start <= req.End
+		// Span end >= req.Start
+		var startFilter, endFilter parquetquery.Predicate
+		startFilter = parquetquery.NewIntBetweenPredicate(0, int64(end))
+		endFilter = parquetquery.NewIntBetweenPredicate(int64(start), math.MaxInt64)
+
+		traceIters = append(traceIters, makeIter(columnPathStartTimeUnixNano, startFilter, columnPathStartTimeUnixNano))
+		traceIters = append(traceIters, makeIter(columnPathEndTimeUnixNano, endFilter, columnPathEndTimeUnixNano))
 	}
 
 	// Final trace iterator
@@ -930,6 +952,7 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 type spanCollector struct {
 	minAttributes   int
 	durationFilters []*parquetquery.GenericPredicate[int64]
+	kindAsCount     bool
 }
 
 var _ parquetquery.GroupPredicate = (*spanCollector)(nil)
@@ -981,6 +1004,12 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 				status = traceql.Status(kv.Value.Uint64())
 			}
 			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicStatus)] = traceql.NewStaticStatus(status)
+		case columnPathSpanKind:
+			// if we're acutally retrieving kind then keep it, otherwise it's just being used to count spans and we should not
+			//  include it in our attributes
+			if !c.kindAsCount {
+				span.Attributes[newSpanAttr(columnPathSpanKind)] = traceql.NewStaticInt(int(kv.Value.Int64()))
+			}
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?

@@ -742,6 +742,7 @@ type LeftJoinIterator struct {
 var _ Iterator = (*LeftJoinIterator)(nil)
 
 func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pred GroupPredicate) *LeftJoinIterator {
+	// jpe - left join iterator loops infinitely if required is empty
 	j := LeftJoinIterator{
 		definitionLevel: definitionLevel,
 		required:        required,
