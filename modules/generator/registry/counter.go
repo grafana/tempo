@@ -37,6 +37,8 @@ type counterSeries struct {
 var _ Counter = (*counter)(nil)
 var _ metric = (*counter)(nil)
 
+const insertOffsetDuration = 1 * time.Second
+
 func (co *counterSeries) isNew() bool {
 	return co.firstSeries.Load()
 }
@@ -135,6 +137,7 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 	}
 
 	for _, s := range c.series {
+		t := time.UnixMilli(timeMs)
 		// set series-specific labels
 		for i, name := range c.labels {
 			lb.Set(name, s.labelValues[i])
@@ -148,10 +151,12 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 			if err != nil {
 				return
 			}
+			// Increment timeMs to ensure that the next value is not at the same time.
+			t = t.Add(insertOffsetDuration)
 		}
 
 		s.registerSeenSeries()
-		_, err = appender.Append(0, lb.Labels(nil), timeMs, s.value.Load())
+		_, err = appender.Append(0, lb.Labels(nil), t.UnixMilli(), s.value.Load())
 		if err != nil {
 			return
 		}

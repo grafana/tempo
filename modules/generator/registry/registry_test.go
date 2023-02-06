@@ -226,8 +226,14 @@ func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender 
 	collectionTimeMs := time.Now().UnixMilli()
 	r.collectMetrics(context.Background())
 
+	// Ignore the collection time on expected samples, since we won't know when the collection will actually take place.
 	for i := range expectedSamples {
 		expectedSamples[i].t = collectionTimeMs
+	}
+
+	// Ignore the collection time on the collected samples.  Initial counter values will be offset from the collection time.
+	for i := range appender.samples {
+		appender.samples[i].t = collectionTimeMs
 	}
 
 	assert.Equal(t, true, appender.isCommitted)
