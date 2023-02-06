@@ -81,8 +81,8 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 	fmt.Println("Age           : ", fmt.Sprint(time.Since(unifiedMeta.EndTime).Round(time.Second)))
 
 	if scan {
-		if meta.Version != v2.VersionString {
-			return fmt.Errorf("cannot scan block contents. unsupported block version: %s", meta.Version)
+		if unifiedMeta.Version != v2.VersionString {
+			return fmt.Errorf("cannot scan block contents. unsupported block version: %s", unifiedMeta.Version)
 		}
 
 		fmt.Println("Scanning block contents.  Press CRTL+C to quit ...")
@@ -154,7 +154,7 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 
 			copy(prevID, objID)
 
-			trace, err := model.MustNewObjectDecoder(meta.DataEncoding).PrepareForRead(obj)
+			trace, err := model.MustNewObjectDecoder(unifiedMeta.DataEncoding).PrepareForRead(obj)
 			if err != nil {
 				return err
 			}
