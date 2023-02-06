@@ -19,6 +19,21 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+func TestOne(t *testing.T) {
+	wantTr := fullyPopulatedTestTrace(nil)
+	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
+	ctx := context.Background()
+	req := traceql.MustExtractFetchSpansRequest(`{.foo =~ "xyz.*"}`)
+
+	resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+	require.NoError(t, err, "search request:", req)
+
+	spanSet, err := resp.Results.Next(ctx)
+	require.NoError(t, err, "search request:", req)
+	require.NotNil(t, spanSet, "search request:", req)
+}
+
+// jpe everywhere that metadata was removed needs an equivalent test
 func TestBackendBlockSearchTraceQL(t *testing.T) {
 	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
@@ -152,8 +167,6 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		spanSet, err := resp.Results.Next(ctx)
 		require.NoError(t, err, "search request:", req)
 		require.NotNil(t, spanSet, "search request:", req)
-		require.Equal(t, wantTr.TraceID, spanSet.TraceID, "search request:", req)
-		require.Equal(t, []byte("spanid"), spanSet.Spans[0].ID, "search request:", req)
 	}
 
 	searchesThatDontMatch := []traceql.FetchSpansRequest{
@@ -254,12 +267,7 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 
 	makeSpanset := func(traceID []byte, rootSpanName, rootServiceName string, startTimeUnixNano, durationNanos uint64, spans ...traceql.Span) traceql.Spanset {
 		return traceql.Spanset{
-			TraceID:            traceID,
-			RootSpanName:       rootSpanName,
-			RootServiceName:    rootServiceName,
-			StartTimeUnixNanos: startTimeUnixNano,
-			DurationNanos:      durationNanos,
-			Spans:              spans,
+			Spans: spans,
 		}
 	}
 
@@ -282,9 +290,6 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 					wantTr.StartTimeUnixNano,
 					wantTr.DurationNanos,
 					traceql.Span{
-						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
 						Attributes: map[traceql.Attribute]traceql.Static{
 							// foo not returned because the span didn't match it
 							traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "bar"): traceql.NewStaticInt(123),
@@ -307,9 +312,6 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 					wantTr.StartTimeUnixNano,
 					wantTr.DurationNanos,
 					traceql.Span{
-						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
 						Attributes: map[traceql.Attribute]traceql.Static{
 							// Foo matched on resource.
 							// TODO - This seems misleading since the span has foo=<something else>
@@ -335,9 +337,6 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 					wantTr.StartTimeUnixNano,
 					wantTr.DurationNanos,
 					traceql.Span{
-						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
 						Attributes: map[traceql.Attribute]traceql.Static{
 							newSpanAttr(LabelHTTPStatusCode): traceql.NewStaticInt(500), // This is the only attribute that matched anything
 						},
@@ -362,9 +361,6 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 					wantTr.StartTimeUnixNano,
 					wantTr.DurationNanos,
 					traceql.Span{
-						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
 						Attributes: map[traceql.Attribute]traceql.Static{
 							newResAttr("foo"):                traceql.NewStaticString("abc"), // Both are returned
 							newSpanAttr("foo"):               traceql.NewStaticString("def"), // Both are returned
@@ -394,16 +390,10 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 					wantTr.StartTimeUnixNano,
 					wantTr.DurationNanos,
 					traceql.Span{
-						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
-						Attributes:         map[traceql.Attribute]traceql.Static{},
+						Attributes: map[traceql.Attribute]traceql.Static{},
 					},
 					traceql.Span{
-						ID:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
-						Attributes:         map[traceql.Attribute]traceql.Static{},
+						Attributes: map[traceql.Attribute]traceql.Static{},
 					},
 				),
 			),
@@ -423,9 +413,6 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 					wantTr.StartTimeUnixNano,
 					wantTr.DurationNanos,
 					traceql.Span{
-						ID:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
 						Attributes: map[traceql.Attribute]traceql.Static{
 							traceql.NewIntrinsic(traceql.IntrinsicName):   traceql.NewStaticString("world"),
 							traceql.NewIntrinsic(traceql.IntrinsicStatus): traceql.NewStaticStatus(traceql.StatusUnset),
@@ -445,17 +432,11 @@ func TestBackendBlockSearchTraceQLResults(t *testing.T) {
 					wantTr.StartTimeUnixNano,
 					wantTr.DurationNanos,
 					traceql.Span{
-						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
 						Attributes: map[traceql.Attribute]traceql.Static{
 							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(100 * time.Second),
 						},
 					},
 					traceql.Span{
-						ID:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
 						Attributes: map[traceql.Attribute]traceql.Static{
 							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(0 * time.Second),
 						},

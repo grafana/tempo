@@ -35,7 +35,7 @@ func (f *FetchSpansRequest) appendCondition(c ...Condition) {
 
 type Span struct {
 	// jpe need rownumber to go fetch metadata later?
-	rowNum     parquetquery.RowNumber
+	RowNum     parquetquery.RowNumber
 	Attributes map[Attribute]Static
 }
 
