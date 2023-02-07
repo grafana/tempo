@@ -868,7 +868,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum(tempo_metrics_generator_bytes_received_total{cluster=~\"$cluster\", job=~\"($namespace)/metrics-generator\",tenant=\"$tenant\"})",
+       "expr": "sum(rate(tempo_metrics_generator_bytes_received_total{cluster=~\"$cluster\", job=~\"($namespace)/metrics-generator\",tenant=\"$tenant\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
