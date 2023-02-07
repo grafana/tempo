@@ -127,31 +127,26 @@ func (i *instance) watchOverrides() {
 // Look at the processors defined and see if any are actually span-metrics subprocessors
 // If they are, set the appropriate flags in the spanmetrics struct
 func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, desiredCfg ProcessorConfig) (map[string]struct{}, ProcessorConfig) {
-	_, allOk := desiredProcessors["span-metrics"]
 	_, countOk := desiredProcessors["span-metrics-count"]
 	_, latencyOk := desiredProcessors["span-metrics-latency"]
 
-	if allOk {
-		delete(desiredProcessors, "span-metrics-latency")
-		delete(desiredProcessors, "span-metrics-count")
-	} else if countOk && latencyOk {
-		delete(desiredProcessors, "span-metrics-latency")
-		delete(desiredProcessors, "span-metrics-count")
+    if countOk && latencyOk {
 		desiredProcessors["span-metrics"] = struct{}{}
 		desiredCfg.SpanMetrics.Subprocessors["Latency"] = true
 		desiredCfg.SpanMetrics.Subprocessors["Count"] = true
 	} else if countOk {
-		delete(desiredProcessors, "span-metrics-count")
 		desiredProcessors["span-metrics"] = struct{}{}
 		desiredCfg.SpanMetrics.Subprocessors["Latency"] = false
 		desiredCfg.SpanMetrics.Subprocessors["Count"] = true
 		desiredCfg.SpanMetrics.HistogramBuckets = nil
 	} else if latencyOk {
-		delete(desiredProcessors, "span-metrics-latency")
 		desiredProcessors["span-metrics"] = struct{}{}
 		desiredCfg.SpanMetrics.Subprocessors["Count"] = false
 		desiredCfg.SpanMetrics.Subprocessors["Latency"] = true
 	}
+
+    delete(desiredProcessors, "span-metrics-latency")
+    delete(desiredProcessors, "span-metrics-count")
 
 	return desiredProcessors, desiredCfg
 }
