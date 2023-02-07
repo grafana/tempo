@@ -153,9 +153,9 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 			}
 			// Increment timeMs to ensure that the next value is not at the same time.
 			t = t.Add(insertOffsetDuration)
+			s.registerSeenSeries()
 		}
 
-		s.registerSeenSeries()
 		_, err = appender.Append(0, lb.Labels(nil), t.UnixMilli(), s.value.Load())
 		if err != nil {
 			return
