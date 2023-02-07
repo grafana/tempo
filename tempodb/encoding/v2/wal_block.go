@@ -285,11 +285,6 @@ func (a *walBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.Sear
 	return traceql.FetchSpansResponse{}, common.ErrUnsupported
 }
 
-// FetchMetadata implements traceql.SpansetFetcher
-func (b *walBlock) FetchMetadata(context.Context, []traceql.Spanset, common.SearchOptions) ([]traceql.SpansetMetadata, error) {
-	return nil, common.ErrUnsupported
-}
-
 func (a *walBlock) fullFilename() string {
 	filename := a.fullFilenameSeparator("+")
 	_, e1 := os.Stat(filename)

@@ -19,8 +19,6 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
-// jpe - everywhere you removed ID replace with span rownumbers
-
 func TestEngine_Execute(t *testing.T) {
 	now := time.Now()
 	e := Engine{}
@@ -30,15 +28,22 @@ func TestEngine_Execute(t *testing.T) {
 	}
 	spanSetFetcher := MockSpanSetFetcher{
 		iterator: &MockSpanSetIterator{
-			results: []*Spanset{
+			results: []*SpansetMetadata{
 				{
-					Spans: []Span{
+					TraceID:         []byte{1},
+					RootSpanName:    "HTTP GET",
+					RootServiceName: "my-service",
+					Spans: []SpanMetadata{
 						{
+							ID: []byte{1},
 							Attributes: map[Attribute]Static{
 								NewAttribute("foo"): NewStaticString("value"),
 							},
 						},
 						{
+							ID:                 []byte{2},
+							StartTimeUnixNanos: uint64(now.UnixNano()),
+							EndtimeUnixNanos:   uint64(now.Add(100 * time.Millisecond).UnixNano()),
 							Attributes: map[Attribute]Static{
 								NewAttribute("foo"): NewStaticString("value"),
 								NewAttribute("bar"): NewStaticString("value"),
@@ -47,8 +52,12 @@ func TestEngine_Execute(t *testing.T) {
 					},
 				},
 				{
-					Spans: []Span{
+					TraceID:         []byte{2},
+					RootSpanName:    "HTTP POST",
+					RootServiceName: "my-service",
+					Spans: []SpanMetadata{
 						{
+							ID: []byte{3},
 							Attributes: map[Attribute]Static{
 								NewAttribute("bar"): NewStaticString("value"),
 							},
@@ -69,6 +78,7 @@ func TestEngine_Execute(t *testing.T) {
 		},
 		AllConditions: true,
 	}
+	spanSetFetcher.capturedRequest.Filter = nil // have to set this to nil b/c assert.Equal does not handle function pointers
 	assert.Equal(t, expectedFetchSpansRequest, spanSetFetcher.capturedRequest)
 
 	expectedTraceSearchMetadata := []*tempopb.TraceSearchMetadata{
@@ -252,26 +262,47 @@ var _ = (SpansetFetcher)(&MockSpanSetFetcher{})
 
 func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	m.capturedRequest = request
+	m.iterator.(*MockSpanSetIterator).filter = request.Filter
 	return FetchSpansResponse{
 		Results: m.iterator,
 	}, nil
 }
 
-func (m *MockSpanSetFetcher) FetchMetadata(context.Context, []Spanset) ([]SpansetMetadata, error) {
-	return nil, fmt.Errorf("not implemented") // jpe test?
-}
-
 type MockSpanSetIterator struct {
-	results []*Spanset
+	results []*SpansetMetadata
+	filter  FilterSpans
 }
 
-func (m *MockSpanSetIterator) Next(ctx context.Context) (*Spanset, error) {
-	if len(m.results) == 0 {
-		return nil, nil
+func (m *MockSpanSetIterator) Next(ctx context.Context) (*SpansetMetadata, error) {
+	for {
+		if len(m.results) == 0 {
+			return nil, nil
+		}
+		r := m.results[0]
+		m.results = m.results[1:]
+
+		ss, err := m.filter(spansetFromMetaData(r))
+		if err != nil {
+			return nil, err
+		}
+		if len(ss) == 0 {
+			return nil, nil
+		}
+
+		r.Spans = r.Spans[len(ss):] // jpe this is horrible - really should match spans passed by m.filter and only pass that metadata
+		return r, nil
 	}
-	r := m.results[0]
-	m.results = m.results[1:]
-	return r, nil
+}
+
+func spansetFromMetaData(meta *SpansetMetadata) Spanset { // jpe weird pointer conversion
+	ret := Spanset{}
+	for _, s := range meta.Spans {
+		s := Span{
+			Attributes: s.Attributes,
+		}
+		ret.Spans = append(ret.Spans, s)
+	}
+	return ret
 }
 
 func newCondition(attr Attribute, op Operator, operands ...Static) Condition {

@@ -2,7 +2,6 @@ package traceql
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
 )
@@ -14,6 +13,13 @@ type Condition struct {
 	Op        Operator
 	Operands  Operands
 }
+
+// FilterSpans is a hint that allows the calling code to filter down spans to only
+// those that metadata needs to be retrieved for. If the returned Spanset has no
+// spans it is discarded and will not appear in FetchSpansResponse. The bool
+// return value is used to indicate if the Fetcher should continue iterating or if
+// it can bail out.
+type FilterSpans func(Spanset) ([]Spanset, error)
 
 type FetchSpansRequest struct {
 	Query              string
@@ -28,16 +34,24 @@ type FetchSpansRequest struct {
 	// can make extra optimizations by returning only spansets that meet
 	// all criteria.
 	AllConditions bool
+
+	// For some implementations retrieving all of the metadata for the spans
+	// can be quite costly. This hint allows the calling code to filter down
+	// spans before the span metadata is fetched, but after the data requested
+	// in the Conditions is fetched. If this is unset then all metadata
+	// for all matching spansets is returned.
+	Filter FilterSpans
 }
 
 func (f *FetchSpansRequest) appendCondition(c ...Condition) {
 	f.Conditions = append(f.Conditions, c...)
 }
 
-type Span struct {
-	// jpe need rownumber to go fetch metadata later?
-	RowNum     parquetquery.RowNumber
-	Attributes map[Attribute]Static
+type Span struct { // jpe make this an interface?
+	RowNum             parquetquery.RowNumber
+	StartTimeUnixNanos uint64
+	EndtimeUnixNanos   uint64
+	Attributes         map[Attribute]Static
 }
 
 type Spanset struct {
@@ -49,7 +63,7 @@ type SpanMetadata struct {
 	ID                 []byte
 	StartTimeUnixNanos uint64
 	EndtimeUnixNanos   uint64
-	Attributes         map[Attribute]Static // jpe copy from Span in the fetch part?
+	Attributes         map[Attribute]Static
 }
 
 type SpansetMetadata struct {
@@ -62,7 +76,7 @@ type SpansetMetadata struct {
 }
 
 type SpansetIterator interface {
-	Next(context.Context) (*Spanset, error)
+	Next(context.Context) (*SpansetMetadata, error)
 }
 
 type FetchSpansResponse struct {
@@ -72,7 +86,6 @@ type FetchSpansResponse struct {
 
 type SpansetFetcher interface {
 	Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error)
-	FetchMetadata(context.Context, []Spanset) ([]SpansetMetadata, error) // jpe review this method signature
 }
 
 // MustExtractFetchSpansRequest parses the given traceql query and returns
@@ -114,9 +127,4 @@ func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest)
 
 func (s SpansetFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	return s.f(ctx, request)
-}
-
-func (s SpansetFetcherWrapper) FetchMetadata(ctx context.Context, spansets []Spanset) ([]SpansetMetadata, error) {
-	// jpe implement
-	return nil, fmt.Errorf("not implemented")
 }

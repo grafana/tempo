@@ -570,7 +570,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 	}
 
 	pages := b.readFlushes()
-	iters := make([]*spansetIterator, 0, len(pages))
+	iters := make([]traceql.SpansetIterator, 0, len(pages))
 	for _, page := range pages {
 		file, err := page.file()
 		if err != nil {
@@ -590,26 +590,6 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 			iters: iters,
 		},
 	}, nil
-}
-
-func (b *walBlock) FetchMetadata(ctx context.Context, ss []traceql.Spanset, opts common.SearchOptions) ([]traceql.SpansetMetadata, error) {
-	pages := b.readFlushes()
-	allMeta := []traceql.SpansetMetadata{}
-	for _, page := range pages {
-		file, err := page.file()
-		if err != nil {
-			return nil, fmt.Errorf("error opening file %s: %w", page.path, err)
-		}
-
-		meta, err := fetchMetadata(ctx, ss, file, opts) // jpe this is wrong. it's using row numbers to match spans, but that won't work across the wal files
-		if err != nil {
-			return nil, errors.Wrap(err, "creating fetch iter")
-		}
-		allMeta = append(allMeta, meta...)
-	}
-
-	// combine iters?
-	return allMeta, nil
 }
 
 func (b *walBlock) walPath() string {

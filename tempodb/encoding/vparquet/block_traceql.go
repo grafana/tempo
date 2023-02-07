@@ -57,6 +57,9 @@ const (
 	columnPathSpanHTTPStatusCode = "rs.ils.Spans.HttpStatusCode"
 	columnPathSpanHTTPMethod     = "rs.ils.Spans.HttpMethod"
 	columnPathSpanHTTPURL        = "rs.ils.Spans.HttpUrl"
+
+	otherEntrySpansetKey = "spanset"
+	otherEntrySpanKey    = "span"
 )
 
 var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
@@ -166,37 +169,85 @@ func operandType(operands traceql.Operands) traceql.StaticType {
 // spansetIterator turns the parquet iterator into the final
 // traceql iterator.  Every row it receives is one spanset.
 type spansetIterator struct {
-	iter parquetquery.Iterator
+	iter   parquetquery.Iterator
+	filter traceql.FilterSpans
+
+	currentSpans []*traceql.Span
 }
 
-var _ traceql.SpansetIterator = (*spansetIterator)(nil)
+//var _ pq.Iterator = (*spansetIterator)(nil) jpe do i want to do an pq.Iterator? or just leave the types
 
-func (i *spansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
-
-	res, err := i.iter.Next()
-	if err != nil {
-		return nil, err
+func newSpansetIterator(iter parquetquery.Iterator, filter traceql.FilterSpans) *spansetIterator {
+	return &spansetIterator{
+		iter:   iter,
+		filter: filter,
 	}
-	if res == nil {
-		return nil, nil
+}
+
+func (i *spansetIterator) Next() (*traceql.Span, error) {
+	// drain current buffer
+	if len(i.currentSpans) > 0 {
+		ret := i.currentSpans[0]
+		i.currentSpans = i.currentSpans[1:]
+		return ret, nil
 	}
 
-	// The spanset is in the OtherEntries
-	spanset := res.OtherEntries[0].Value.(*traceql.Spanset)
+	for {
+		res, err := i.iter.Next()
+		if err != nil {
+			return nil, err
+		}
+		if res == nil {
+			return nil, nil
+		}
 
-	return spanset, nil
+		// The spanset is in the OtherEntries
+		iface := res.OtherValueFromKey(otherEntrySpansetKey)
+		if iface == nil {
+			return nil, fmt.Errorf("engine assumption broken: spanset not found in other entries")
+		}
+		spanset, ok := iface.(*traceql.Spanset)
+		if !ok {
+			return nil, fmt.Errorf("engine assumption broken: spanset is not of type *traceql.Spanset")
+		}
+
+		var filteredSpansets []traceql.Spanset
+		if i.filter != nil {
+			filteredSpansets, err = i.filter(*spanset) // jpe pointer/val juggling
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			filteredSpansets = []traceql.Spanset{*spanset} // jpe pointer/val juggling
+		}
+
+		// flatten spans into i.currentSpans
+		for _, ss := range filteredSpansets {
+			for _, s := range ss.Spans {
+				span := s
+				i.currentSpans = append(i.currentSpans, &span) // jpe pointer/val juggling
+			}
+		}
+
+		// found something!
+		if len(i.currentSpans) > 0 {
+			ret := i.currentSpans[0]
+			i.currentSpans = i.currentSpans[1:]
+			return ret, nil
+		}
+	}
 }
 
 // mergeSpansetIterator iterates through a slice of spansetIterators exhausting them
 // in order
 type mergeSpansetIterator struct {
-	iters []*spansetIterator
+	iters []traceql.SpansetIterator
 	cur   int
 }
 
 var _ traceql.SpansetIterator = (*mergeSpansetIterator)(nil)
 
-func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
+func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.SpansetMetadata, error) {
 	if i.cur >= len(i.iters) {
 		return nil, nil
 	}
@@ -286,7 +337,7 @@ func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.Spanset, erro
 //                                                            |
 //                                                            V
 
-func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, opts common.SearchOptions) (*spansetIterator, error) {
+func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, opts common.SearchOptions) (*spansetMetadataIterator, error) {
 
 	// Categorize conditions into span-level or resource-level
 	var (
@@ -325,16 +376,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 		}
 	}
 
-	rgs := pf.RowGroups()
-	if opts.TotalPages > 0 {
-		// Read UP TO TotalPages.  The sharding calculations
-		// are just estimates, so it may not line up with the
-		// actual number of pages in this file.
-		if opts.StartPage+opts.TotalPages > len(rgs) {
-			opts.TotalPages = len(rgs) - opts.StartPage
-		}
-		rgs = rgs[opts.StartPage : opts.StartPage+opts.TotalPages]
-	}
+	rgs := rowGroupsFromFile(pf, opts)
 	makeIter := makeIterFunc(ctx, rgs, pf)
 
 	// Global state
@@ -365,7 +407,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 		allConditions = req.AllConditions && !mingledConditions
 	)
 
-	spanIter, err := createSpanIterator(makeIter, spanConditions, spanRequireAtLeastOneMatch, allConditions)
+	spanIter, spanStartEndRetrieved, err := createSpanIterator(makeIter, spanConditions, spanRequireAtLeastOneMatch, allConditions)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span iterator")
 	}
@@ -377,19 +419,22 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 
 	traceIter := createTraceIterator(makeIter, resourceIter, req.StartTimeUnixNanos, req.EndTimeUnixNanos)
 
-	return &spansetIterator{traceIter}, nil
+	spansetIter := newSpansetIterator(traceIter, req.Filter)
+
+	return createSpansetMetaIterator(makeIter, spansetIter, spanStartEndRetrieved)
 }
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
-func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, requireAtLeastOneMatch, allConditions bool) (parquetquery.Iterator, error) {
+func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, requireAtLeastOneMatch, allConditions bool) (parquetquery.Iterator, bool, error) {
 
 	var (
-		columnSelectAs     = map[string]string{}
-		columnPredicates   = map[string][]parquetquery.Predicate{}
-		iters              []parquetquery.Iterator
-		genericConditions  []traceql.Condition
-		durationPredicates []*parquetquery.GenericPredicate[int64]
+		columnSelectAs        = map[string]string{}
+		columnPredicates      = map[string][]parquetquery.Predicate{}
+		iters                 []parquetquery.Iterator
+		genericConditions     []traceql.Condition
+		durationPredicates    []*parquetquery.GenericPredicate[int64]
+		spanStartEndRetreived bool
 	)
 
 	addPredicate := func(columnPath string, p parquetquery.Predicate) {
@@ -404,28 +449,29 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 		case traceql.IntrinsicName:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			addPredicate(columnPathSpanName, pred)
 			columnSelectAs[columnPathSpanName] = columnPathSpanName
 			continue
 
 		case traceql.IntrinsicDuration:
+			spanStartEndRetreived = true
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			durationPredicates = append(durationPredicates, pred)
 			addPredicate(columnPathSpanStartTime, nil)
 			columnSelectAs[columnPathSpanStartTime] = columnPathSpanStartTime
 			addPredicate(columnPathSpanEndTime, nil)
-			columnSelectAs[columnPathSpanEndTime] = columnPathSpanEndTime // jpe these all end up in an orpred but i don't think they should
+			columnSelectAs[columnPathSpanEndTime] = columnPathSpanEndTime
 			continue
 
 		case traceql.IntrinsicStatus:
 			pred, err := createStatusPredicate(cond.Op, cond.Operands)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			addPredicate(columnPathSpanStatusCode, pred)
 			columnSelectAs[columnPathSpanStatusCode] = columnPathSpanStatusCode
@@ -444,7 +490,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 			if entry.typ == operandType(cond.Operands) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
 				if err != nil {
-					return nil, errors.Wrap(err, "creating predicate")
+					return nil, false, errors.Wrap(err, "creating predicate")
 				}
 				addPredicate(entry.columnPath, pred)
 				columnSelectAs[entry.columnPath] = cond.Attribute.Name
@@ -459,14 +505,14 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
 		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool, allConditions)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating span attribute iterator")
+		return nil, false, errors.Wrap(err, "creating span attribute iterator")
 	}
 	if attrIter != nil {
 		iters = append(iters, attrIter)
 	}
 
 	for columnPath, predicates := range columnPredicates {
-		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath])) // jpe why is this OR?
+		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
 	}
 
 	var required []parquetquery.Iterator
@@ -506,21 +552,19 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 		iters = nil
 	}
 
-	// jpe if there are no direct conditions imposed on the span/span attributes level we are purposefully going to request the "Kind" column
+	// if there are no direct conditions imposed on the span/span attributes level we are purposefully going to request the "Kind" column
 	//  b/c it is extremely cheap to retrieve. retrieving matching spans in this case will allow aggregates such as "count" to be computed
 	//  how do we know to pull duration for things like | avg(duration) > 1s? look at avg(span.http.status_code) it pushes a column request down here
-	// does the iterator infinite loop if we don't do this?
 	//  the entire engine is built around spans. we have to return at least one entry for every span to the layers above for things to work
 	if len(required) == 0 {
 		required = []parquetquery.Iterator{makeIter(columnPathSpanKind, nil, columnPathSpanKind)}
-		// jpe - this almost doesn't matter and it might be more straightforward to just return this row and let the engine reject it?
 		// without this queries like { .cluster = "cluster" } fail b/c they rely on the span iterator to return something
 		spanCol.kindAsCount = true // signal to the collector we are only grabbing kind to count spans and we should not store it in attributes
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
 	// and all other conditions are optional. Whatever matches is returned.
-	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol), nil
+	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol), spanStartEndRetreived, nil
 }
 
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
@@ -618,7 +662,6 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		required, iters, batchCol), nil
 }
 
-// jpe - modify to impose trace level time range condition
 func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, start, end uint64) parquetquery.Iterator {
 	traceIters := make([]parquetquery.Iterator, 0, 3)
 
@@ -957,7 +1000,6 @@ type spanCollector struct {
 
 var _ parquetquery.GroupPredicate = (*spanCollector)(nil)
 
-// jpe - how do we restrict to 3 spans per trace?
 func (c *spanCollector) String() string {
 	return fmt.Sprintf("spanCollector(%d, %v)", c.minAttributes, c.durationFilters)
 }
@@ -969,7 +1011,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		RowNum:     res.RowNumber,
 	}
 
-	for _, e := range res.OtherEntries { // jpe - this is likely not going to be copied through correctly
+	for _, e := range res.OtherEntries {
 		span.Attributes[newSpanAttr(e.Key)] = e.Value.(traceql.Static)
 	}
 
@@ -978,13 +1020,12 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// Merge all individual columns into the span
 	for _, kv := range res.Entries {
 		switch kv.Key {
-		// jpe  move to spansetmeta collector?
-		// case columnPathSpanID:
-		// 	span.ID = kv.Value.ByteArray()
 		case columnPathSpanStartTime:
 			startTimeUnixNanos = kv.Value.Uint64()
+			span.StartTimeUnixNanos = startTimeUnixNanos
 		case columnPathSpanEndTime:
 			endTimeUnixNanos = kv.Value.Uint64()
+			span.EndtimeUnixNanos = endTimeUnixNanos
 		case columnPathSpanName:
 			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicName)] = traceql.NewStaticString(kv.Value.String())
 		//case columnPathSpanDuration:
@@ -1027,7 +1068,6 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	}
 
 	// Save computed duration if any filters present and at least one is passed.
-	//    jpe move to spansetmeta collector?
 	if len(c.durationFilters) > 0 {
 		duration := endTimeUnixNanos - startTimeUnixNanos
 		for _, f := range c.durationFilters {
@@ -1052,7 +1092,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	res.Entries = res.Entries[:0]
 	res.OtherEntries = res.OtherEntries[:0]
-	res.AppendOtherValue("span", span)
+	res.AppendOtherValue(otherEntrySpanKey, span)
 
 	return true
 }
@@ -1152,7 +1192,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	res.Entries = res.Entries[:0]
 	res.OtherEntries = res.OtherEntries[:0]
-	res.AppendOtherValue("spanset", sp)
+	res.AppendOtherValue(otherEntrySpansetKey, sp)
 
 	return true
 }
@@ -1180,7 +1220,7 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	res.Entries = res.Entries[:0]
 	res.OtherEntries = res.OtherEntries[:0]
-	res.AppendOtherValue("spanset", finalSpanset)
+	res.AppendOtherValue(otherEntrySpansetKey, finalSpanset)
 
 	return true
 }

@@ -3,56 +3,24 @@ package vparquet
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/segmentio/parquet-go"
 )
 
-// FetchMetadata for the given spansets from the block.
-func (b *backendBlock) FetchMetadata(ctx context.Context, ss []traceql.Spanset, opts common.SearchOptions) ([]traceql.SpansetMetadata, error) {
-	pf, _, err := b.openForSearch(ctx, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	return fetchMetadata(ctx, ss, pf, opts)
-}
-
-// jpe does this correclty merge the span attributes into the output metadata?
-func fetchMetadata(ctx context.Context, ss []traceql.Spanset, pf *parquet.File, opts common.SearchOptions) ([]traceql.SpansetMetadata, error) {
-	rgs := pf.RowGroups() // jpe consolidate?
-	if opts.TotalPages > 0 {
-		// Read UP TO TotalPages.  The sharding calculations
-		// are just estimates, so it may not line up with the
-		// actual number of pages in this file.
-		if opts.StartPage+opts.TotalPages > len(rgs) {
-			opts.TotalPages = len(rgs) - opts.StartPage
-		}
-		rgs = rgs[opts.StartPage : opts.StartPage+opts.TotalPages]
-	}
-	makeIter := makeIterFunc(ctx, rgs, pf)
-
-	// collect rownumbers
-	rowNums := []parquetquery.RowNumber{} // jpe prealloc
-	for _, ss := range ss {
-		for _, span := range ss.Spans {
-			rowNums = append(rowNums, span.RowNum)
-		}
-	}
-
+func createSpansetMetaIterator(makeIter makeIterFn, ss *spansetIterator, spanStartEndRetreived bool) (*spansetMetadataIterator, error) {
 	// span level iterator
 	iters := make([]parquetquery.Iterator, 0, 4)
-	iters = append(iters, &rowNumberIterator{rowNumbers: rowNums})
-	iters = append(iters, makeIter(columnPathSpanStartTime, nil, columnPathSpanStartTime))
-	iters = append(iters, makeIter(columnPathSpanEndTime, nil, columnPathSpanEndTime))
+	iters = append(iters, &spansToMetaIterator{ss})
+	if !spanStartEndRetreived {
+		iters = append(iters, makeIter(columnPathSpanStartTime, nil, columnPathSpanStartTime))
+		iters = append(iters, makeIter(columnPathSpanEndTime, nil, columnPathSpanEndTime))
+	}
 	iters = append(iters, makeIter(columnPathSpanID, nil, columnPathSpanID))
-	spanIterator := parquetquery.NewJoinIterator(DefinitionLevelResourceSpans, iters, &spanCollector{})
+	spanIterator := parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, iters, &spanMetaCollector{})
 
-	// now wrap in a trace level iterator
+	// trace level iterator
 	traceIters := []parquetquery.Iterator{
 		spanIterator,
 		// Add static columns that are always return
@@ -62,119 +30,94 @@ func fetchMetadata(ctx context.Context, ss []traceql.Spanset, pf *parquet.File, 
 		makeIter(columnPathRootSpanName, nil, columnPathRootSpanName),
 		makeIter(columnPathRootServiceName, nil, columnPathRootServiceName),
 	}
-	traceIter := parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, &traceCollector{})
+	traceIter := parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, &traceMetaCollector{})
 
-	// jpe and return meta? should this function return an iterator as well?
-	meta := []traceql.SpansetMetadata{}
-	for {
-		res, err := traceIter.Next()
-		if res == nil {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		spansetMetaData := res.OtherEntries[0].Value.(*traceql.SpansetMetadata) // jpe one of these assertions is going to break, use key instead of index
-		meta = append(meta, *spansetMetaData)
-	}
-
-	return meta, nil
+	return newSpansetMetadataIterator(traceIter), nil
 }
 
-// This turns groups of span values into Span objects
+// spansToMetaIterator operates similarly to the rowNumberIterator except it takes a spanIterator
+// and drains it. It is the bridge between the "data" iterators and "metadata" iterators
+type spansToMetaIterator struct {
+	iter *spansetIterator
+}
+
+var _ pq.Iterator = (*spansToMetaIterator)(nil)
+
+func (i *spansToMetaIterator) String() string {
+	return fmt.Sprintf("spansToMetaIterator: \n\t%s", i.iter.iter.String())
+}
+
+func (i *spansToMetaIterator) Next() (*pq.IteratorResult, error) {
+	// now go to our iterator
+	next, err := i.iter.Next()
+	if err != nil {
+		return nil, err
+	}
+	if next == nil {
+		return nil, nil
+	}
+
+	res := &pq.IteratorResult{RowNumber: next.RowNum}
+	res.AppendOtherValue(otherEntrySpanKey, next)
+
+	return res, nil
+}
+
+func (i *spansToMetaIterator) SeekTo(to pq.RowNumber, definitionLevel int) (*pq.IteratorResult, error) {
+	var at *pq.IteratorResult
+
+	for at, _ = i.Next(); i != nil && at != nil && pq.CompareRowNumbers(definitionLevel, at.RowNumber, to) < 0; {
+		at, _ = i.Next()
+	}
+
+	return at, nil
+}
+
+func (i *spansToMetaIterator) Close() {
+	i.iter.iter.Close()
+}
+
+// spanMetaCollector collects iterator results with the expectation that they were created
+// using the iterators defined above
 type spanMetaCollector struct {
-	minAttributes   int                                     // jpe wut
-	durationFilters []*parquetquery.GenericPredicate[int64] // jpe wut
 }
 
 var _ parquetquery.GroupPredicate = (*spanMetaCollector)(nil)
 
 func (c *spanMetaCollector) String() string {
-	return fmt.Sprintf("spanMetaCollector(%d, %v)", c.minAttributes, c.durationFilters)
+	return fmt.Sprintf("spanMetaCollector()")
 }
 
-// jpe - how do we restrict to 3 spans per trace?
 func (c *spanMetaCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
-
-	span := &traceql.SpanMetadata{
-		Attributes: make(map[traceql.Attribute]traceql.Static),
+	// extract the span from the iterator result and steal it's attributes
+	// this is where we convert a traceql.Span to a traceql.SpanMetadata
+	span, ok := res.OtherValueFromKey(otherEntrySpanKey).(*traceql.Span)
+	if !ok {
+		return false // something very wrong happened. should we panic?
 	}
 
-	for _, e := range res.OtherEntries { // jpe - this is likely not going to be copied through correctly
-		span.Attributes[newSpanAttr(e.Key)] = e.Value.(traceql.Static)
+	spanMetadata := &traceql.SpanMetadata{
+		StartTimeUnixNanos: span.StartTimeUnixNanos,
+		EndtimeUnixNanos:   span.EndtimeUnixNanos,
+		Attributes:         span.Attributes,
 	}
 
-	// Merge all individual columns into the span
+	// span start/end time may come from span attributes or it may come from
+	// the iterator results. if we find it in the iterator results, use that
 	for _, kv := range res.Entries {
 		switch kv.Key {
 		case columnPathSpanID:
-			span.ID = kv.Value.ByteArray()
+			spanMetadata.ID = kv.Value.ByteArray()
 		case columnPathSpanStartTime:
-			span.StartTimeUnixNanos = kv.Value.Uint64()
+			spanMetadata.StartTimeUnixNanos = kv.Value.Uint64()
 		case columnPathSpanEndTime:
-			span.EndtimeUnixNanos = kv.Value.Uint64()
-		case columnPathSpanName:
-			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicName)] = traceql.NewStaticString(kv.Value.String())
-		//case columnPathSpanDuration:
-		//	span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(kv.Value.Uint64()))
-		case columnPathSpanStatusCode:
-			// Map OTLP status code back to TraceQL enum.
-			// For other values, use the raw integer.
-			var status traceql.Status
-			switch kv.Value.Uint64() {
-			case uint64(v1.Status_STATUS_CODE_UNSET):
-				status = traceql.StatusUnset
-			case uint64(v1.Status_STATUS_CODE_OK):
-				status = traceql.StatusOk
-			case uint64(v1.Status_STATUS_CODE_ERROR):
-				status = traceql.StatusError
-			default:
-				status = traceql.Status(kv.Value.Uint64())
-			}
-			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicStatus)] = traceql.NewStaticStatus(status)
-		default:
-			// TODO - This exists for span-level dedicated columns like http.status_code
-			// Are nils possible here?
-			switch kv.Value.Kind() {
-			case parquet.Boolean:
-				span.Attributes[newSpanAttr(kv.Key)] = traceql.NewStaticBool(kv.Value.Boolean())
-			case parquet.Int32, parquet.Int64:
-				span.Attributes[newSpanAttr(kv.Key)] = traceql.NewStaticInt(int(kv.Value.Int64()))
-			case parquet.Float:
-				span.Attributes[newSpanAttr(kv.Key)] = traceql.NewStaticFloat(kv.Value.Double())
-			case parquet.ByteArray:
-				span.Attributes[newSpanAttr(kv.Key)] = traceql.NewStaticString(kv.Value.String())
-			}
-		}
-	}
-
-	// Save computed duration if any filters present and at least one is passed.
-	if len(c.durationFilters) > 0 {
-		duration := span.EndtimeUnixNanos - span.StartTimeUnixNanos
-		for _, f := range c.durationFilters {
-			if f == nil || f.Fn(int64(duration)) {
-				span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(duration))
-				break
-			}
-		}
-	}
-
-	if c.minAttributes > 0 {
-		count := 0
-		for _, v := range span.Attributes {
-			if v.Type != traceql.TypeNil {
-				count++
-			}
-		}
-		if count < c.minAttributes {
-			return false
+			spanMetadata.EndtimeUnixNanos = kv.Value.Uint64()
 		}
 	}
 
 	res.Entries = res.Entries[:0]
 	res.OtherEntries = res.OtherEntries[:0]
-	res.AppendOtherValue("span", span)
+	res.AppendOtherValue(otherEntrySpanKey, spanMetadata)
 
 	return true
 }
@@ -209,17 +152,53 @@ func (c *traceMetaCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
+	// we're copying spans directly from the spanMetaIterator into the traceMetaIterator
+	//  this skips the step of the batchIterator present on the normal fetch path
 	for _, e := range res.OtherEntries {
-		if spanset, ok := e.Value.(*traceql.SpansetMetadata); ok {
-			finalSpanset.Spans = append(finalSpanset.Spans, spanset.Spans...)
+		if span, ok := e.Value.(*traceql.SpanMetadata); ok {
+			finalSpanset.Spans = append(finalSpanset.Spans, *span)
 		}
 	}
 
 	res.Entries = res.Entries[:0]
 	res.OtherEntries = res.OtherEntries[:0]
-	res.AppendOtherValue("spanset", finalSpanset)
+	res.AppendOtherValue(otherEntrySpansetKey, finalSpanset)
 
 	return true
 }
 
-// jpe - how to marry in attribute data?
+// spansetMetadataIterator turns the parquet iterator into the final
+// traceql iterator.  Every row it receives is one spanset.
+type spansetMetadataIterator struct {
+	iter parquetquery.Iterator
+}
+
+var _ traceql.SpansetIterator = (*spansetMetadataIterator)(nil)
+
+func newSpansetMetadataIterator(iter parquetquery.Iterator) *spansetMetadataIterator {
+	return &spansetMetadataIterator{
+		iter: iter,
+	}
+}
+
+func (i *spansetMetadataIterator) Next(ctx context.Context) (*traceql.SpansetMetadata, error) {
+	res, err := i.iter.Next()
+	if err != nil {
+		return nil, err
+	}
+	if res == nil {
+		return nil, nil
+	}
+
+	// The spanset is in the OtherEntries
+	iface := res.OtherValueFromKey(otherEntrySpansetKey)
+	if iface == nil {
+		return nil, fmt.Errorf("engine assumption broken: spanset not found in other entries")
+	}
+	ss, ok := iface.(*traceql.SpansetMetadata)
+	if !ok {
+		return nil, fmt.Errorf("engine assumption broken: spanset is not of type *traceql.Spanset")
+	}
+
+	return ss, nil
+}

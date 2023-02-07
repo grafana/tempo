@@ -36,64 +36,59 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 	span.SetTag("pipeline", rootExpr.Pipeline)
 	span.SetTag("fetchSpansRequest", fetchSpansRequest)
 
+	spansetsEvaluated := 0
+	// set up the expression evaluation as a filter to reduce data pulled
+	fetchSpansRequest.Filter = func(inSS Spanset) ([]Spanset, error) {
+		if len(inSS.Spans) == 0 {
+			return nil, nil
+		}
+
+		evalSS, err := rootExpr.Pipeline.evaluate([]Spanset{inSS})
+		if err != nil {
+			span.LogKV("msg", "pipeline.evaluate", "err", err)
+			return nil, err
+		}
+
+		spansetsEvaluated++
+		if len(evalSS) == 0 {
+			return nil, nil
+		}
+
+		// reduce all evalSS to their max length to reduce meta data lookups
+		for i := range evalSS {
+			if len(evalSS[i].Spans) > e.spansPerSpanSet {
+				evalSS[i].Spans = evalSS[i].Spans[:e.spansPerSpanSet]
+			}
+		}
+
+		return evalSS, nil
+	}
+
 	fetchSpansResponse, err := spanSetFetcher.Fetch(ctx, fetchSpansRequest)
 	if err != nil {
 		return nil, err
 	}
 	iterator := fetchSpansResponse.Results
 
-	spansetsEvaluated := 0
-
-	results := []Spanset{}
-	for {
-		spanSet, err := iterator.Next(ctx)
-		if err != nil {
-			span.LogKV("msg", "iterator.Next", "err", err)
-			return nil, err
-		}
-
-		if spanSet == nil {
-			break
-		}
-
-		ss, err := rootExpr.Pipeline.evaluate([]Spanset{*spanSet})
-		if err != nil {
-			span.LogKV("msg", "pipeline.evaluate", "err", err)
-			return nil, err
-		}
-		spansetsEvaluated++
-
-		if len(ss) == 0 {
-			continue
-		}
-
-		results = append(results, ss...)
-
-		if len(results) == int(searchReq.Limit) {
-			break
-		}
-	}
-
-	if len(results) == 0 {
-		return &tempopb.SearchResponse{
-			Traces: nil,
-			// TODO capture and update metrics
-			Metrics: &tempopb.SearchMetrics{},
-		}, nil
-	}
-
-	ss, err := spanSetFetcher.FetchMetadata(ctx, results)
-	if err != nil {
-		return nil, err
-	}
-
 	res := &tempopb.SearchResponse{
 		Traces: nil,
 		// TODO capture and update metrics
 		Metrics: &tempopb.SearchMetrics{},
 	}
-	for _, spanSet := range ss {
-		res.Traces = append(res.Traces, e.asTraceSearchMetadata(spanSet))
+	for {
+		spanset, err := iterator.Next(ctx)
+		if spanset == nil {
+			break
+		}
+		if err != nil {
+			span.LogKV("msg", "iterator.Next", "err", err)
+			return nil, err
+		}
+		res.Traces = append(res.Traces, e.asTraceSearchMetadata(*spanset)) // jpe pointer <> val conversion
+
+		if len(res.Traces) >= int(searchReq.Limit) && searchReq.Limit > 0 {
+			break
+		}
 	}
 
 	span.SetTag("spansets_evaluated", spansetsEvaluated)
@@ -166,10 +161,6 @@ func (e *Engine) asTraceSearchMetadata(spanset SpansetMetadata) *tempopb.TraceSe
 		}
 
 		metadata.SpanSet.Spans = append(metadata.SpanSet.Spans, tempopbSpan)
-
-		if e.spansPerSpanSet != 0 && len(metadata.SpanSet.Spans) == e.spansPerSpanSet {
-			break
-		}
 	}
 
 	return metadata

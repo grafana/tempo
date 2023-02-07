@@ -149,6 +149,15 @@ func (r *IteratorResult) AppendOtherValue(k string, v interface{}) {
 	}{k, v})
 }
 
+func (r *IteratorResult) OtherValueFromKey(k string) interface{} {
+	for _, e := range r.OtherEntries {
+		if e.Key == k {
+			return e.Value
+		}
+	}
+	return nil
+}
+
 // ToMap converts the unstructured list of data into a map containing an entry
 // for each column, and the lists of values.  The order of columns is
 // not preseved, but the order of values within each column is.
@@ -742,7 +751,6 @@ type LeftJoinIterator struct {
 var _ Iterator = (*LeftJoinIterator)(nil)
 
 func NewLeftJoinIterator(definitionLevel int, required, optional []Iterator, pred GroupPredicate) *LeftJoinIterator {
-	// jpe - left join iterator loops infinitely if required is empty
 	j := LeftJoinIterator{
 		definitionLevel: definitionLevel,
 		required:        required,

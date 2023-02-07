@@ -266,6 +266,7 @@ func testSearch(t *testing.T, e encoding.VersionedEncoding) {
 	})
 }
 
+// jpe review this test, make sure filters and everything is working for vparquet
 func TestFetch(t *testing.T) {
 	for _, e := range encoding.AllEncodings() {
 		t.Run(e.Version(), func(t *testing.T) {
@@ -294,17 +295,17 @@ func testFetch(t *testing.T, e encoding.VersionedEncoding) {
 			// grab the first result
 			ss, err := resp.Results.Next(ctx)
 			require.NoError(t, err)
+			require.NotNil(t, ss)
+
+			// confirm traceid matches
+			expectedID := ids[i]
+			require.Len(t, ss, 1)
+			require.Equal(t, ss.TraceID, expectedID)
 
 			// confirm no more matches
 			ss, err = resp.Results.Next(ctx)
 			require.NoError(t, err)
 			require.Nil(t, ss)
-
-			// confirm traceid matches
-			ssmeta, err := block.FetchMetadata(ctx, []traceql.Spanset{*ss}, common.DefaultSearchOptions())
-			expectedID := ids[i]
-			require.Equal(t, 1, len(ssmeta))
-			require.Equal(t, ssmeta[0].TraceID, expectedID)
 		}
 	})
 }
