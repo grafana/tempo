@@ -9,8 +9,6 @@ import (
 
 const (
 	Name                    = "span-metrics"
-	LatencySubprocessorName = "span-metrics-latency"
-	CountSubprocessorName   = "span-metrics-count"
 
 	dimService       = "service"
 	dimSpanName      = "span_name"
@@ -35,7 +33,7 @@ type Config struct {
 	
 	// Subprocessor options for this Processor include Latency, Counts
 	// These are metrics categories that exist under the umbrella of Span Metrics
-	Subprocessors map[string]bool
+	Subprocessors map[Subprocessor]bool
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -44,9 +42,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.IntrinsicDimensions.SpanName = true
 	cfg.IntrinsicDimensions.SpanKind = true
 	cfg.IntrinsicDimensions.StatusCode = true
-	cfg.Subprocessors = make(map[string]bool)
-	cfg.Subprocessors["Latency"] = true
-	cfg.Subprocessors["Count"] = true
+    cfg.Subprocessors = make(map[Subprocessor]bool)
+    cfg.Subprocessors[Latency] = true
+    cfg.Subprocessors[Count] = true
+    cfg.Subprocessors[Size] = true
 }
 
 type IntrinsicDimensions struct {

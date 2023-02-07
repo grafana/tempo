@@ -132,17 +132,17 @@ func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, de
 
     if countOk && latencyOk {
 		desiredProcessors["span-metrics"] = struct{}{}
-		desiredCfg.SpanMetrics.Subprocessors["Latency"] = true
-		desiredCfg.SpanMetrics.Subprocessors["Count"] = true
+		desiredCfg.SpanMetrics.Subprocessors[Latency] = true
+		desiredCfg.SpanMetrics.Subprocessors[Count] = true
 	} else if countOk {
 		desiredProcessors["span-metrics"] = struct{}{}
-		desiredCfg.SpanMetrics.Subprocessors["Latency"] = false
-		desiredCfg.SpanMetrics.Subprocessors["Count"] = true
+		desiredCfg.SpanMetrics.Subprocessors[Latency] = false
+		desiredCfg.SpanMetrics.Subprocessors[Count] = true
 		desiredCfg.SpanMetrics.HistogramBuckets = nil
 	} else if latencyOk {
 		desiredProcessors["span-metrics"] = struct{}{}
-		desiredCfg.SpanMetrics.Subprocessors["Count"] = false
-		desiredCfg.SpanMetrics.Subprocessors["Latency"] = true
+		desiredCfg.SpanMetrics.Subprocessors[Count] = false
+		desiredCfg.SpanMetrics.Subprocessors[Latency] = true
 	}
 
     delete(desiredProcessors, "span-metrics-latency")
