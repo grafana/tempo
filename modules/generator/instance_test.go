@@ -163,6 +163,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 		expectedConfig.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
 		expectedConfig.Subprocessors[spanmetrics.Latency] = true
 		expectedConfig.Subprocessors[spanmetrics.Count] = false
+		expectedConfig.Subprocessors[spanmetrics.Size] = false
 
 		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
 
@@ -193,6 +194,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 		expectedConfig.HistogramBuckets = nil
 		expectedConfig.Subprocessors[spanmetrics.Latency] = false
 		expectedConfig.Subprocessors[spanmetrics.Count] = true
+		expectedConfig.Subprocessors[spanmetrics.Size] = false
 
 		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
 
@@ -208,11 +210,12 @@ func Test_instance_updateProcessors(t *testing.T) {
 		assert.Equal(t, expectedProcessors, actualProcessors)
 	})
 
-	t.Run("use both subprocessors at once", func(t *testing.T) {
+	t.Run("use all three subprocessors at once", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
 			servicegraphs.Name:           {},
 			spanmetrics.Count.String():   {},
 			spanmetrics.Latency.String(): {},
+			spanmetrics.Size.String():    {},
 		}
 		err := instance.updateProcessors()
 		assert.NoError(t, err)
@@ -224,6 +227,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 		expectedConfig.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
 		expectedConfig.Subprocessors[spanmetrics.Latency] = true
 		expectedConfig.Subprocessors[spanmetrics.Count] = true
+		expectedConfig.Subprocessors[spanmetrics.Size] = true
 
 		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
 
