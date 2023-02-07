@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	Name                    = "span-metrics"
+	Name = "span-metrics"
 
 	dimService       = "service"
 	dimSpanName      = "span_name"
@@ -42,10 +42,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.IntrinsicDimensions.SpanName = true
 	cfg.IntrinsicDimensions.SpanKind = true
 	cfg.IntrinsicDimensions.StatusCode = true
-    cfg.Subprocessors = make(map[Subprocessor]bool)
-    cfg.Subprocessors[Latency] = true
-    cfg.Subprocessors[Count] = true
-    cfg.Subprocessors[Size] = true
+	cfg.Subprocessors = make(map[Subprocessor]bool)
+	cfg.Subprocessors[Latency] = true
+	cfg.Subprocessors[Count] = true
+	cfg.Subprocessors[Size] = true
 }
 
 type IntrinsicDimensions struct {

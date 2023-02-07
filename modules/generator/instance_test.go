@@ -150,8 +150,8 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 	t.Run("add span-latency subprocessor", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
-			servicegraphs.Name:                  {},
-			spanmetrics.LatencySubprocessorName: {},
+			servicegraphs.Name:           {},
+			spanmetrics.Latency.String(): {},
 		}
 		err := instance.updateProcessors()
 		assert.NoError(t, err)
@@ -161,8 +161,8 @@ func Test_instance_updateProcessors(t *testing.T) {
 		expectedConfig.Dimensions = []string{"namespace"}
 		expectedConfig.IntrinsicDimensions.StatusMessage = true
 		expectedConfig.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
-		expectedConfig.Subprocessors["Latency"] = true
-		expectedConfig.Subprocessors["Count"] = false
+		expectedConfig.Subprocessors[spanmetrics.Latency] = true
+		expectedConfig.Subprocessors[spanmetrics.Count] = false
 
 		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
 
@@ -180,8 +180,8 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 	t.Run("replace span-latency subprocessor with span-count", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
-			servicegraphs.Name:                {},
-			spanmetrics.CountSubprocessorName: {},
+			servicegraphs.Name:         {},
+			spanmetrics.Count.String(): {},
 		}
 		err := instance.updateProcessors()
 		assert.NoError(t, err)
@@ -191,8 +191,8 @@ func Test_instance_updateProcessors(t *testing.T) {
 		expectedConfig.Dimensions = []string{"namespace"}
 		expectedConfig.IntrinsicDimensions.StatusMessage = true
 		expectedConfig.HistogramBuckets = nil
-		expectedConfig.Subprocessors["Latency"] = false
-		expectedConfig.Subprocessors["Count"] = true
+		expectedConfig.Subprocessors[spanmetrics.Latency] = false
+		expectedConfig.Subprocessors[spanmetrics.Count] = true
 
 		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
 
@@ -210,9 +210,9 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 	t.Run("use both subprocessors at once", func(t *testing.T) {
 		overrides.processors = map[string]struct{}{
-			servicegraphs.Name:                  {},
-			spanmetrics.CountSubprocessorName:   {},
-			spanmetrics.LatencySubprocessorName: {},
+			servicegraphs.Name:           {},
+			spanmetrics.Count.String():   {},
+			spanmetrics.Latency.String(): {},
 		}
 		err := instance.updateProcessors()
 		assert.NoError(t, err)
@@ -222,8 +222,8 @@ func Test_instance_updateProcessors(t *testing.T) {
 		expectedConfig.Dimensions = []string{"namespace"}
 		expectedConfig.IntrinsicDimensions.StatusMessage = true
 		expectedConfig.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
-		expectedConfig.Subprocessors["Latency"] = true
-		expectedConfig.Subprocessors["Count"] = true
+		expectedConfig.Subprocessors[spanmetrics.Latency] = true
+		expectedConfig.Subprocessors[spanmetrics.Count] = true
 
 		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
 
@@ -252,8 +252,8 @@ func Test_instance_updateProcessors(t *testing.T) {
 		expectedConfig.Dimensions = []string{"namespace"}
 		expectedConfig.IntrinsicDimensions.StatusMessage = true
 		expectedConfig.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
-		expectedConfig.Subprocessors["Latency"] = true
-		expectedConfig.Subprocessors["Count"] = true
+		expectedConfig.Subprocessors[spanmetrics.Latency] = true
+		expectedConfig.Subprocessors[spanmetrics.Count] = true
 
 		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
 

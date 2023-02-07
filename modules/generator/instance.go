@@ -127,26 +127,26 @@ func (i *instance) watchOverrides() {
 // Look at the processors defined and see if any are actually span-metrics subprocessors
 // If they are, set the appropriate flags in the spanmetrics struct
 func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, desiredCfg ProcessorConfig) (map[string]struct{}, ProcessorConfig) {
-	_, countOk := desiredProcessors["span-metrics-count"]
-	_, latencyOk := desiredProcessors["span-metrics-latency"]
+	_, countOk := desiredProcessors[spanmetrics.Count.String()]
+	_, latencyOk := desiredProcessors[spanmetrics.Latency.String()]
 
-    if countOk && latencyOk {
-		desiredProcessors["span-metrics"] = struct{}{}
-		desiredCfg.SpanMetrics.Subprocessors[Latency] = true
-		desiredCfg.SpanMetrics.Subprocessors[Count] = true
+	if countOk && latencyOk {
+		desiredProcessors[spanmetrics.Name] = struct{}{}
+		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Latency] = true
+		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Count] = true
 	} else if countOk {
-		desiredProcessors["span-metrics"] = struct{}{}
-		desiredCfg.SpanMetrics.Subprocessors[Latency] = false
-		desiredCfg.SpanMetrics.Subprocessors[Count] = true
+		desiredProcessors[spanmetrics.Name] = struct{}{}
+		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Latency] = false
+		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Count] = true
 		desiredCfg.SpanMetrics.HistogramBuckets = nil
 	} else if latencyOk {
-		desiredProcessors["span-metrics"] = struct{}{}
-		desiredCfg.SpanMetrics.Subprocessors[Count] = false
-		desiredCfg.SpanMetrics.Subprocessors[Latency] = true
+		desiredProcessors[spanmetrics.Name] = struct{}{}
+		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Count] = false
+		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Latency] = true
 	}
 
-    delete(desiredProcessors, "span-metrics-latency")
-    delete(desiredProcessors, "span-metrics-count")
+	delete(desiredProcessors, spanmetrics.Latency.String())
+	delete(desiredProcessors, spanmetrics.Count.String())
 
 	return desiredProcessors, desiredCfg
 }
