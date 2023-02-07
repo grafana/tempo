@@ -133,7 +133,7 @@ dashboard_utils {
         .addPanel(
           $.panel('Bytes/s') +
           $.queryPanel(
-            'sum(tempo_metrics_generator_bytes_received_total{%s,tenant="$tenant"})' % $.jobMatcher($._config.jobs.metrics_generator),
+            'sum(rate(tempo_metrics_generator_bytes_received_total{%s,tenant="$tenant"}[$__rate_interval]))' % $.jobMatcher($._config.jobs.metrics_generator),
             'rate',
           ) + {
             legend: { show: false },
