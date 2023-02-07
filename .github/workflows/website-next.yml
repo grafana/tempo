@@ -8,17 +8,16 @@ on:
       - 'docs/sources/**'
 
 jobs:
-  # test:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Check out code
-  #       uses: actions/checkout@v3
-  #     - name: Build Website
-  #       run: |
-  #         docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make prod'
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+      - name: Build Website
+        run: docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod
   sync:
     runs-on: ubuntu-latest
-    # needs: test
+    needs: test
     steps:
       - uses: actions/checkout@v3
       - name: "Clone website-sync Action"

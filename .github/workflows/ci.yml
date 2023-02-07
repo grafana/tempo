@@ -182,3 +182,12 @@ jobs:
 
       - name: Check tempo-mixin
         run: make tempo-mixin-check
+
+  build-technical-documentation:
+    name: Build technical documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+      - name: Build Website
+        run: docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod

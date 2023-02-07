@@ -11,8 +11,16 @@ on:
       - 'docs/sources/**'
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+      - name: Build Website
+        run: docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod
   sync:
     runs-on: ubuntu-latest
+    needs: test
     steps:
       - name: Checkout this repo
         uses: actions/checkout@v3
