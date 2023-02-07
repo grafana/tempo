@@ -1,5 +1,9 @@
 package spanmetrics
 
+import (
+    "strings"
+)
+
 type Subprocessor int
 
 const (
@@ -7,6 +11,12 @@ const (
 	Count
 	Size
 )
+
+var SupportedSubprocessors = []Subprocessor{
+    Latency,
+    Count,
+    Size,
+}
 
 func (s Subprocessor) String() string {
 	switch s {
@@ -19,4 +29,13 @@ func (s Subprocessor) String() string {
 	default:
 		return "unsupported"
 	}
+}
+
+func ParseSubprocessor(s string) (bool) {
+	for _, p := range SupportedSubprocessors {
+		if strings.EqualFold(p.String(), s) {
+			return true
+		}
+	}
+	return false
 }

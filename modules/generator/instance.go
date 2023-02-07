@@ -127,22 +127,34 @@ func (i *instance) watchOverrides() {
 // Look at the processors defined and see if any are actually span-metrics subprocessors
 // If they are, set the appropriate flags in the spanmetrics struct
 func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, desiredCfg ProcessorConfig) (map[string]struct{}, ProcessorConfig) {
+    desiredProcessorsFound := false
+    for d, _ := range desiredProcessors {
+        if (d == spanmetrics.Name) || (spanmetrics.ParseSubprocessor(d) == true) {
+            desiredProcessorsFound = true
+        }
+    }
+
+    if !desiredProcessorsFound {
+        return desiredProcessors, desiredCfg
+    }
+
+    _, allOk := desiredProcessors[spanmetrics.Name]
 	_, countOk := desiredProcessors[spanmetrics.Count.String()]
 	_, latencyOk := desiredProcessors[spanmetrics.Latency.String()]
 
-	if countOk && latencyOk {
-		desiredProcessors[spanmetrics.Name] = struct{}{}
-		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Latency] = true
-		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Count] = true
-	} else if countOk {
-		desiredProcessors[spanmetrics.Name] = struct{}{}
-		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Latency] = false
-		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Count] = true
-		desiredCfg.SpanMetrics.HistogramBuckets = nil
-	} else if latencyOk {
-		desiredProcessors[spanmetrics.Name] = struct{}{}
-		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Count] = false
-		desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Latency] = true
+	if !allOk {
+	    desiredProcessors[spanmetrics.Name] = struct{}{}
+	    desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Count] = false
+	    desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Latency] = false
+	    desiredCfg.SpanMetrics.HistogramBuckets = nil
+
+		if countOk {
+		    desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Count] = true
+		}
+		if latencyOk {
+		    desiredCfg.SpanMetrics.Subprocessors[spanmetrics.Latency] = true
+		    desiredCfg.SpanMetrics.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
+		}
 	}
 
 	delete(desiredProcessors, spanmetrics.Latency.String())
