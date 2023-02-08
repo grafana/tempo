@@ -27,10 +27,25 @@ type counterSeries struct {
 	labelValues []string
 	value       *atomic.Float64
 	lastUpdated *atomic.Int64
+	// firstSeries is used to track if this series is new to the counter.  This
+	// is used to ensure that new counters being with 0, and then are incremented
+	// to the desired value.  This avoids Prometheus throwing away the first
+	// value in the series, due to the transition from null -> x.
+	firstSeries *atomic.Bool
 }
 
 var _ Counter = (*counter)(nil)
 var _ metric = (*counter)(nil)
+
+const insertOffsetDuration = 1 * time.Second
+
+func (co *counterSeries) isNew() bool {
+	return co.firstSeries.Load()
+}
+
+func (co *counterSeries) registerSeenSeries() {
+	co.firstSeries.Store(false)
+}
 
 func newCounter(name string, labels []string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) *counter {
 	if onAddSeries == nil {
@@ -92,6 +107,7 @@ func (c *counter) newSeries(labelValues *LabelValues, value float64) *counterSer
 		labelValues: labelValues.getValuesCopy(),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
+		firstSeries: atomic.NewBool(true),
 	}
 }
 
@@ -121,12 +137,26 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 	}
 
 	for _, s := range c.series {
+		t := time.UnixMilli(timeMs)
 		// set series-specific labels
 		for i, name := range c.labels {
 			lb.Set(name, s.labelValues[i])
 		}
 
-		_, err = appender.Append(0, lb.Labels(nil), timeMs, s.value.Load())
+		// If we are about to call Append for the first time on a series, we need
+		// to first insert a 0 value to allow Prometheus to start from a non-null
+		// value.
+		if s.isNew() {
+			_, err = appender.Append(0, lb.Labels(nil), timeMs, 0)
+			if err != nil {
+				return
+			}
+			// Increment timeMs to ensure that the next value is not at the same time.
+			t = t.Add(insertOffsetDuration)
+			s.registerSeenSeries()
+		}
+
+		_, err = appender.Append(0, lb.Labels(nil), t.UnixMilli(), s.value.Load())
 		if err != nil {
 			return
 		}
