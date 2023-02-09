@@ -64,7 +64,7 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		}, nil
 	}
 
-	reqStart := time.Now() // time request
+	reqStart := time.Now()
 
 	// context propagation
 	r = r.WithContext(ctx)
@@ -159,10 +159,9 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	wg.Wait()
 
-	reqTime := time.Since(reqStart) // time request
+	reqTime := time.Since(reqStart)
 
 	if overallError != nil {
-		// s.recordMetrics(tenantID, statusCode, reqTime)
 		return nil, overallError
 	}
 
@@ -178,7 +177,6 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 		if statusCode != http.StatusNotFound {
 			statusCode = 500
 		}
-		// s.recordMetrics(tenantID, statusCode, reqTime)
 
 		return &http.Response{
 			StatusCode: statusCode,
@@ -195,7 +193,6 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	})
 	if err != nil {
 		_ = level.Error(s.logger).Log("msg", "error marshalling response to proto", "err", err)
-		// s.recordMetrics(tenantID, statusCode, reqTime)
 		return nil, err
 	}
 

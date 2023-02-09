@@ -29,7 +29,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-var defaultSLOcfg = SLOConfig{
+var testSLOcfg = SLOConfig{
 	ThroughputSLO: 0,
 	DurationSLO:   0,
 }
@@ -556,7 +556,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			}, o, SearchSharderConfig{
 				ConcurrentRequests:    1, // 1 concurrent request to force order
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			}, defaultSLOcfg, log.NewNopLogger())
+			}, testSLOcfg, log.NewNopLogger())
 			testRT := NewRoundTripper(next, sharder)
 
 			req := httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -602,7 +602,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, defaultSLOcfg, log.NewNopLogger())
+	}, testSLOcfg, log.NewNopLogger())
 	testRT := NewRoundTripper(next, sharder)
 
 	// no org id
@@ -631,7 +631,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, defaultSLOcfg, log.NewNopLogger())
+	}, testSLOcfg, log.NewNopLogger())
 	testRT = NewRoundTripper(next, sharder)
 
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)

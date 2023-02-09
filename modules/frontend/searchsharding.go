@@ -114,7 +114,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardSearch")
 	defer span.Finish()
 
-	reqStart := time.Now() // time search request
+	reqStart := time.Now()
 	// sub context to cancel in-progress sub requests
 	subCtx, subCancel := context.WithCancel(ctx)
 	defer subCancel()
@@ -287,7 +287,8 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	// only record metric when it's enabled and within slo
 	if s.sloCfg.DurationSLO != 0 && s.sloCfg.ThroughputSLO != 0 {
 		if reqTime < s.sloCfg.DurationSLO || throughput > s.sloCfg.ThroughputSLO {
-			// query is within SLO if query returned 200 within DurationSLO seconds OR processed ThroughputSLO bytes/s data
+			// query is within SLO if query returned 200 within DurationSLO seconds OR
+			// processed ThroughputSLO bytes/s data
 			sloSearchCounter.WithLabelValues(tenantID).Inc()
 		}
 	}
