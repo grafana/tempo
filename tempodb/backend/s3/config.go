@@ -12,6 +12,7 @@ type Config struct {
 	Region             string         `yaml:"region"`
 	AccessKey          string         `yaml:"access_key"`
 	SecretKey          flagext.Secret `yaml:"secret_key"`
+	SessionToken       flagext.Secret `yaml:"session_token"`
 	Insecure           bool           `yaml:"insecure"`
 	InsecureSkipVerify bool           `yaml:"insecure_skip_verify"`
 	PartSize           uint64         `yaml:"part_size"`

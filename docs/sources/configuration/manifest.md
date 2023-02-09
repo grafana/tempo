@@ -492,6 +492,7 @@ storage:
       region: ""
       access_key: ""
       secret_key: ""
+      session_token: ""
       insecure: false
       insecure_skip_verify: false
       part_size: 0

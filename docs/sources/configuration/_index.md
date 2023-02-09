@@ -644,6 +644,10 @@ storage:
             [secret_key: <string>]
 
             # optional.
+            # session token when using static credentials.
+            [session_token: <string>]
+
+            # optional.
             # enable if endpoint is http
             [insecure: <bool>]
 
