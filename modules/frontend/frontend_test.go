@@ -133,42 +133,4 @@ func TestFrontendBadConfigFails(t *testing.T) {
 	}, nil, nil, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "query backend after should be less than or equal to query ingester until")
 	assert.Nil(t, f)
-
-	f, err = New(Config{
-		TraceByID: TraceByIDConfig{
-			QueryShards: maxQueryShards,
-			SLO: SLOConfig{
-				ThroughputSLO: -1,
-				DurationSLO:   1 * time.Second,
-			},
-		},
-		Search: SearchConfig{
-			Sharder: SearchSharderConfig{
-				ConcurrentRequests:    defaultConcurrentRequests,
-				TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			},
-			SLO: sloCfg,
-		},
-	}, nil, nil, nil, log.NewNopLogger(), nil)
-	assert.EqualError(t, err, "frontend search or trace by id throughput slo should be greater than 0")
-	assert.Nil(t, f)
-
-	f, err = New(Config{
-		TraceByID: TraceByIDConfig{
-			QueryShards: maxQueryShards,
-			SLO:         sloCfg,
-		},
-		Search: SearchConfig{
-			Sharder: SearchSharderConfig{
-				ConcurrentRequests:    defaultConcurrentRequests,
-				TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			},
-			SLO: SLOConfig{
-				ThroughputSLO: -1,
-				DurationSLO:   1 * time.Second,
-			},
-		},
-	}, nil, nil, nil, log.NewNopLogger(), nil)
-	assert.EqualError(t, err, "frontend search or trace by id throughput slo should be greater than 0")
-	assert.Nil(t, f)
 }

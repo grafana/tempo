@@ -13,4 +13,3 @@
 /cmd/tempo-serverless/vendor/
 /pkg/traceql/y.output
 private-key.key
-image.sh

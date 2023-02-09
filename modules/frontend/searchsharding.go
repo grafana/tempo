@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -32,18 +31,23 @@ const (
 )
 
 var (
-	searchThroughput = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	queryThroughput = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempo",
-		Name:      "query_frontend_search_bytes_processed_per_seconds",
-		Help:      "Bytes processed per second in the search query",
+		Name:      "query_frontend_bytes_processed_per_seconds",
+		Help:      "Bytes processed per second in the query per tenant",
 		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
-	}, []string{"tenant", "status"})
+	}, []string{"tenant", "op"})
 
-	sloSearchPerTenant = promauto.NewCounterVec(prometheus.CounterOpts{
+	searchThroughput = queryThroughput.MustCurryWith(prometheus.Labels{"op": searchOp})
+
+	sloQueriesPerTenant = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
-		Name:      "query_frontend_search_queries_within_slo_total",
-		Help:      "Total search queries within SLO per tenant",
-	}, []string{"tenant", "status"})
+		Name:      "query_frontend_queries_within_slo_total",
+		Help:      "Total Queries within SLO per tenant",
+	}, []string{"tenant", "op"})
+
+	sloTraceByIDCounter = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
+	sloSearchCounter    = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
 )
 
 type searchSharder struct {
@@ -226,9 +230,8 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	// print out request metrics
 	cancelledReqs := startedReqs - overallResponse.finishedRequests
 	reqTime := time.Since(reqStart)
-	// FIXME: InspectedBytes is 0 for TraceQL Search, SLO and throughput will be incorrect
 	throughput := float64(overallResponse.resultsMetrics.InspectedBytes) / reqTime.Seconds()
-	var statusCode int
+	searchThroughput.WithLabelValues(tenantID).Observe(throughput)
 
 	query, _ := url.PathUnescape(r.URL.RawQuery)
 	span.SetTag("query", query)
@@ -261,8 +264,6 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		"totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
 
 	if overallResponse.err != nil {
-		statusCode = overallResponse.statusCode
-		s.recordMetrics(tenantID, statusCode, throughput, reqTime)
 		return nil, overallResponse.err
 	}
 
@@ -270,10 +271,8 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		// translate all non-200s into 500s. if, for instance, we get a 400 back from an internal component
 		// it means that we created a bad request. 400 should not be propagated back to the user b/c
 		// the bad request was due to a bug on our side, so return 500 instead.
-		statusCode = http.StatusInternalServerError
-		s.recordMetrics(tenantID, statusCode, throughput, reqTime)
 		return &http.Response{
-			StatusCode: statusCode,
+			StatusCode: http.StatusInternalServerError,
 			Header:     http.Header{},
 			Body:       io.NopCloser(strings.NewReader(overallResponse.statusMsg)),
 		}, nil
@@ -282,32 +281,25 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	m := &jsonpb.Marshaler{}
 	bodyString, err := m.MarshalToString(overallResponse.result())
 	if err != nil {
-		statusCode = http.StatusInternalServerError
-		s.recordMetrics(tenantID, statusCode, throughput, reqTime)
 		return nil, err
 	}
 
-	statusCode = http.StatusOK
-	s.recordMetrics(tenantID, statusCode, throughput, reqTime)
+	// only record metric when it's enabled and within slo
+	if s.sloCfg.DurationSLO != 0 && s.sloCfg.ThroughputSLO != 0 {
+		if reqTime < s.sloCfg.DurationSLO || throughput > s.sloCfg.ThroughputSLO {
+			// query is within SLO if query returned 200 within DurationSLO seconds OR processed ThroughputSLO bytes/s data
+			sloSearchCounter.WithLabelValues(tenantID).Inc()
+		}
+	}
+
 	return &http.Response{
-		StatusCode: statusCode,
+		StatusCode: http.StatusOK,
 		Header: http.Header{
 			api.HeaderContentType: {api.HeaderAcceptJSON},
 		},
 		Body:          io.NopCloser(strings.NewReader(bodyString)),
 		ContentLength: int64(len([]byte(bodyString))),
 	}, nil
-}
-
-// recordSearchMetrics records throughput and SLO metrics
-func (s *searchSharder) recordMetrics(tenantID string, status int, throughput float64, reqTime time.Duration) {
-	sts := strconv.Itoa(status)
-	searchThroughput.WithLabelValues(tenantID, sts).Observe(throughput)
-
-	// query is within SLO if query returned within DurationSLO seconds OR processed ThroughputSLO bytes/s data
-	if reqTime < s.sloCfg.DurationSLO || throughput > s.sloCfg.ThroughputSLO {
-		sloSearchPerTenant.WithLabelValues(tenantID, sts).Inc()
-	}
 }
 
 // blockMetas returns all relevant blockMetas given a start/end

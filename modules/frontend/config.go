@@ -48,8 +48,8 @@ type SLOConfig struct {
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	slo := SLOConfig{
-		DurationSLO:   5 * time.Second,
-		ThroughputSLO: 100 * 1024 * 1024, // 100 MB
+		DurationSLO:   0,
+		ThroughputSLO: 0,
 	}
 
 	cfg.Config.MaxOutstandingPerTenant = 2000
