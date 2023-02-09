@@ -3,8 +3,8 @@ package v2
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"io"
-	"math/rand"
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/backend"

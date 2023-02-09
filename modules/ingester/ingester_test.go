@@ -2,7 +2,7 @@ package ingester
 
 import (
 	"context"
-	"math/rand"
+	"crypto/rand"
 	"os"
 	"testing"
 	"time"

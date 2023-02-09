@@ -2,7 +2,7 @@ package e2e
 
 import (
 	"context"
-	"math/rand"
+	crand "crypto/rand"
 	"testing"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter"
@@ -121,7 +121,7 @@ func TestReceivers(t *testing.T) {
 
 			// make request
 			traceID := make([]byte, 16)
-			_, err = rand.Read(traceID)
+			_, err = crand.Read(traceID)
 			require.NoError(t, err)
 			req := test.MakeTrace(20, traceID)
 

@@ -27,6 +27,8 @@ const (
 	testTenantID = "fake"
 )
 
+var rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+
 func TestStreamingBlockError(t *testing.T) {
 	// no block metas
 	_, err := NewStreamingBlock(nil, uuid.New(), "", nil, 0)
@@ -54,7 +56,7 @@ func TestStreamingBlockAddObject(t *testing.T) {
 		},
 	}
 
-	numObjects := (rand.Int() % 20) + 1
+	numObjects := (rng.Int() % 20) + 1
 	cb, err := NewStreamingBlock(&common.BlockConfig{
 		BloomFP:              0.01,
 		BloomShardSizeBytes:  100,
@@ -72,11 +74,11 @@ func TestStreamingBlockAddObject(t *testing.T) {
 	ids := make([][]byte, 0)
 	for i := 0; i < numObjects; i++ {
 		id := make([]byte, 16)
-		_, err = rand.Read(id)
+		_, err = rng.Read(id)
 		assert.NoError(t, err)
 
-		object := make([]byte, rand.Int()%1024)
-		_, err = rand.Read(object)
+		object := make([]byte, rng.Int()%1024)
+		_, err = rng.Read(object)
 		assert.NoError(t, err)
 
 		ids = append(ids, id)
@@ -130,10 +132,10 @@ func TestStreamingBlockAddObject(t *testing.T) {
 
 func TestStreamingBlockAll(t *testing.T) {
 	for i := 0; i < 10; i++ {
-		indexDownsampleBytes := rand.Intn(5000) + 1000
-		bloomFP := float64(rand.Intn(99)+1) / 100.0
-		bloomShardSize := rand.Intn(10_000) + 10_000
-		indexPageSize := rand.Intn(5000) + 1000
+		indexDownsampleBytes := rng.Intn(5000) + 1000
+		bloomFP := float64(rng.Intn(99)+1) / 100.0
+		bloomShardSize := rng.Intn(10_000) + 10_000
+		indexPageSize := rng.Intn(5000) + 1000
 
 		for _, enc := range backend.SupportedEncoding {
 			t.Run(enc.String(), func(t *testing.T) {
@@ -205,8 +207,6 @@ func testStreamingBlockToBackendBlock(t *testing.T, cfg *common.BlockConfig) {
 }
 
 func streamingBlock(t *testing.T, cfg *common.BlockConfig, w backend.Writer) (*StreamingBlock, [][]byte, [][]byte) {
-	rand.Seed(time.Now().Unix())
-
 	buffer := &bytes.Buffer{}
 	writer := bufio.NewWriter(buffer)
 	dataWriter, err := NewDataWriter(writer, backend.EncNone)
@@ -219,10 +219,10 @@ func streamingBlock(t *testing.T, cfg *common.BlockConfig, w backend.Writer) (*S
 	var maxID, minID []byte
 	for i := 0; i < numMsgs; i++ {
 		id := make([]byte, 16)
-		rand.Read(id)
+		rng.Read(id)
 		ids = append(ids, id)
-		req := make([]byte, rand.Intn(100)+1)
-		rand.Read(req)
+		req := make([]byte, rng.Intn(100)+1)
+		rng.Read(req)
 		reqs = append(reqs, req)
 
 		err = appender.Append(id, req)

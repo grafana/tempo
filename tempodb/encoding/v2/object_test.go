@@ -2,7 +2,7 @@ package v2
 
 import (
 	"bytes"
-	"math/rand"
+	"crypto/rand"
 	"testing"
 
 	"github.com/golang/protobuf/proto" //nolint:all //ProtoReflect
@@ -37,7 +37,8 @@ func TestMarshalUnmarshal(t *testing.T) {
 func TestMarshalUnmarshalFromBuffer(t *testing.T) {
 	buffer := &bytes.Buffer{}
 	id := make([]byte, 16)
-	rand.Read(id)
+	_, err := rand.Read(id)
+	assert.NoError(t, err)
 
 	o := object{}
 	var reqs []*tempopb.Trace
