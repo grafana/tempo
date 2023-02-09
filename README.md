@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/sources/logo_and_name.png" alt="Tempo Logo"></p>
+<p align="center"><img src="docs/sources/tempo/logo_and_name.png" alt="Tempo Logo"></p>
 <p align="center">
   <a href="https://github.com/grafana/tempo/releases"><img src="https://img.shields.io/github/v/release/grafana/tempo?display_name=tag&sort=semver" alt="Latest Release"/></a>
   <img src="https://img.shields.io/github/license/grafana/tempo" alt="License" />
@@ -14,7 +14,7 @@ Tempo is Jaeger, Zipkin, Kafka, OpenCensus and OpenTelemetry compatible.  It ing
 
 Tempo implements [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), a traces-first query language inspired by LogQL and PromQL. This query language allows users to very precisely and easily select spans and jump directly to the spans fulfilling the specified conditions:
 
-<p align="center"><img src="docs/sources/getting-started/assets/grafana-query.png" alt="Tempo Screenshot"></p>
+<p align="center"><img src="docs/sources/tempo/getting-started/assets/grafana-query.png" alt="Tempo Screenshot"></p>
 
 ## Getting Started
 
