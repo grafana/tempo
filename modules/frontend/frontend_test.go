@@ -15,11 +15,6 @@ import (
 
 type mockNextTripperware struct{}
 
-var sloCfg = SLOConfig{
-	DurationSLO:   5 * time.Second,
-	ThroughputSLO: 1 * 1024 * 1024,
-}
-
 func (s *mockNextTripperware) RoundTrip(_ *http.Request) (*http.Response, error) {
 	return &http.Response{
 		StatusCode: 200,
@@ -32,14 +27,14 @@ func TestFrontendRoundTripsSearch(t *testing.T) {
 	f, err := New(Config{
 		TraceByID: TraceByIDConfig{
 			QueryShards: minQueryShards,
-			SLO:         sloCfg,
+			SLO:         defaultSLOcfg,
 		},
 		Search: SearchConfig{
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			},
-			SLO: sloCfg,
+			SLO: defaultSLOcfg,
 		},
 	}, next, nil, nil, log.NewNopLogger(), nil)
 	require.NoError(t, err)
@@ -62,7 +57,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			},
-			SLO: sloCfg,
+			SLO: defaultSLOcfg,
 		},
 	}, nil, nil, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend query shards should be between 2 and 256 (both inclusive)")
@@ -71,14 +66,14 @@ func TestFrontendBadConfigFails(t *testing.T) {
 	f, err = New(Config{
 		TraceByID: TraceByIDConfig{
 			QueryShards: maxQueryShards + 1,
-			SLO:         sloCfg,
+			SLO:         defaultSLOcfg,
 		},
 		Search: SearchConfig{
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			},
-			SLO: sloCfg,
+			SLO: defaultSLOcfg,
 		},
 	}, nil, nil, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend query shards should be between 2 and 256 (both inclusive)")
@@ -87,14 +82,14 @@ func TestFrontendBadConfigFails(t *testing.T) {
 	f, err = New(Config{
 		TraceByID: TraceByIDConfig{
 			QueryShards: maxQueryShards,
-			SLO:         sloCfg,
+			SLO:         defaultSLOcfg,
 		},
 		Search: SearchConfig{
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    0,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			},
-			SLO: sloCfg,
+			SLO: defaultSLOcfg,
 		},
 	}, nil, nil, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend search concurrent requests should be greater than 0")
@@ -103,14 +98,14 @@ func TestFrontendBadConfigFails(t *testing.T) {
 	f, err = New(Config{
 		TraceByID: TraceByIDConfig{
 			QueryShards: maxQueryShards,
-			SLO:         sloCfg,
+			SLO:         defaultSLOcfg,
 		},
 		Search: SearchConfig{
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: 0,
 			},
-			SLO: sloCfg,
+			SLO: defaultSLOcfg,
 		},
 	}, nil, nil, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend search target bytes per request should be greater than 0")
@@ -119,7 +114,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 	f, err = New(Config{
 		TraceByID: TraceByIDConfig{
 			QueryShards: maxQueryShards,
-			SLO:         sloCfg,
+			SLO:         defaultSLOcfg,
 		},
 		Search: SearchConfig{
 			Sharder: SearchSharderConfig{
@@ -128,7 +123,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 				QueryIngestersUntil:   time.Minute,
 				QueryBackendAfter:     time.Hour,
 			},
-			SLO: sloCfg,
+			SLO: defaultSLOcfg,
 		},
 	}, nil, nil, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "query backend after should be less than or equal to query ingester until")
