@@ -6,8 +6,6 @@ weight: 200
 
 # Application performance management dashboard
 
-<span style="background-color:#f3f973;">This is an experimental feature. For more information about how to enable it, continue reading.</span>
-
 Application performance management (APM) uses data gathered from services, agents, systems, and microservices to visualize and identify areas of concern.
 
 The Grafana APM dashboard visualizes the span metrics (traces data for rates, error rates, and durations (RED)) and service graphs.
@@ -30,7 +28,7 @@ To use the APM dashboard, you need:
 
 * Tempo or Grafana Cloud Traces with either 1) the metrics generator enabled and configured or 2) the Grafana Agent enabled and configured to send data to a Prometheus-compatible metrics store
 * [Services graphs]({{< relref "../metrics-generator/service_graphs/#how-to-run" >}}), which are enabled by default in Grafana
-* [APM table enabled](https://grafana.com/docs/grafana/latest/datasources/tempo/) within the service graph tab (use the `tempoApmTable` feature flag in Grafana to enable)
+* [APM table enabled](https://grafana.com/docs/grafana/latest/datasources/tempo/) within the service graph tab
 * [Span metrics]({{< relref "../metrics-generator/span_metrics/#how-to-run" >}}) enabled in your Tempo data source configuration
 
 The APM dashboard can be generated with the metrics-generator or Grafana Agent.
