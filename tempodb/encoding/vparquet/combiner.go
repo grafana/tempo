@@ -100,7 +100,7 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 	}
 
 	// coalese root level information
-	if tr.EndTimeUnixNano > c.result.EndTimeUnixNano || c.result.EndTimeUnixNano == 0 {
+	if tr.EndTimeUnixNano > c.result.EndTimeUnixNano {
 		c.result.EndTimeUnixNano = tr.EndTimeUnixNano
 	}
 	if tr.StartTimeUnixNano < c.result.StartTimeUnixNano || c.result.StartTimeUnixNano == 0 {
