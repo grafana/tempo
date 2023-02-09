@@ -78,6 +78,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.Trace.S3.Endpoint, util.PrefixConfig(prefix, "trace.s3.endpoint"), "", "s3 endpoint to push blocks to.")
 	f.StringVar(&cfg.Trace.S3.AccessKey, util.PrefixConfig(prefix, "trace.s3.access_key"), "", "s3 access key.")
 	f.Var(&cfg.Trace.S3.SecretKey, util.PrefixConfig(prefix, "trace.s3.secret_key"), "s3 secret key.")
+	f.Var(&cfg.Trace.S3.SessionToken, util.PrefixConfig(prefix, "trace.s3.session_token"), "s3 session token.")
 	cfg.Trace.S3.HedgeRequestsUpTo = 2
 
 	cfg.Trace.GCS = &gcs.Config{}
