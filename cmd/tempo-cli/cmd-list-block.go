@@ -119,7 +119,7 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 		}
 
 		// Print stats on ctrl+c
-		c := make(chan os.Signal)
+		c := make(chan os.Signal, 1)
 		// nolint:govet
 		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 		go func() {

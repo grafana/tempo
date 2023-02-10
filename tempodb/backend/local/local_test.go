@@ -3,6 +3,7 @@ package local
 import (
 	"bytes"
 	"context"
+	crand "crypto/rand"
 	"fmt"
 	"math/rand"
 	"os"
@@ -42,7 +43,7 @@ func TestReadWrite(t *testing.T) {
 
 	fakeObject := make([]byte, 20)
 
-	_, err = rand.Read(fakeObject)
+	_, err = crand.Read(fakeObject)
 	assert.NoError(t, err, "unexpected error creating fakeObject")
 
 	ctx := context.Background()

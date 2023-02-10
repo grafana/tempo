@@ -2,7 +2,7 @@ package v2
 
 import (
 	"bytes"
-	"math/rand"
+	crand "crypto/rand"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -56,7 +56,7 @@ func makeRecord(t *testing.T) (Record, error) {
 		Length: 0,
 	}
 
-	_, err := rand.Read(r.ID)
+	_, err := crand.Read(r.ID)
 	if err != nil {
 		return Record{}, err
 	}

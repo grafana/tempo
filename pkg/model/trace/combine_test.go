@@ -2,8 +2,8 @@ package trace
 
 import (
 	"bytes"
+	crand "crypto/rand"
 	"fmt"
-	"math/rand"
 	"sort"
 	"strconv"
 	"testing"
@@ -74,7 +74,7 @@ func TestTokenForIDCollision(t *testing.T) {
 
 	spanID := make([]byte, 8)
 	for i := 0; i < n; i++ {
-		_, err := rand.Read(spanID)
+		_, err := crand.Read(spanID)
 		require.NoError(t, err)
 
 		copy := append([]byte(nil), spanID...)
