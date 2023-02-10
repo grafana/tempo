@@ -89,5 +89,5 @@ The above structure can be set on the following receiver configurations:
 - `distributor.receivers.otlp.protocols.grpc.tls`
 - `distributor.receivers.otlp.protocols.http.tls`
 - `distributor.receivers.zipkin.tls`
-- `distributor.receivers.jaeger.grpc.tls`
-- `distributor.receivers.jaeger.thrift_http.tls`
+- `distributor.receivers.jaeger.protocols.grpc.tls`
+- `distributor.receivers.jaeger.protocols.thrift_http.tls`
