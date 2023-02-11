@@ -92,27 +92,35 @@ func TestTraceIDToHexString(t *testing.T) {
 func TestSpanIDToHexString(t *testing.T) {
 	tc := []struct {
 		byteID  []byte
-		traceID string
+		spanID string
 	}{
 		{
 			byteID:  []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12},
-			traceID: "0000000000000012",
+			spanID: "0000000000000012",
 		},
 		{
 			byteID:  []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef},
-			traceID: "1234567890abcdef", // 64 bit
+			spanID: "1234567890abcdef", // 64 bit
 		},
 		{
 			byteID:  []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0xa0},
-			traceID: "00000000000012a0", // trailing zero
+			spanID: "00000000000012a0", // trailing zero
+		},
+		{
+			byteID:  []byte{0x12, 0xa0},
+			spanID: "00000000000012a0", // less than 64 bytes
+		},
+		{
+			byteID:  []byte{0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef},
+			spanID: "1234567890abcdef1234567890abcdef", // 128 bit
 		},
 	}
 
 	for _, tt := range tc {
-		t.Run(tt.traceID, func(t *testing.T) {
+		t.Run(tt.spanID, func(t *testing.T) {
 			actual := SpanIDToHexString(tt.byteID)
 
-			assert.Equal(t, tt.traceID, actual)
+			assert.Equal(t, tt.spanID, actual)
 		})
 	}
 }

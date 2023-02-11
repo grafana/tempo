@@ -55,7 +55,21 @@ func TraceIDToHexString(byteID []byte) string {
 // Assuming everything passed in here will be 64 bit or less
 func SpanIDToHexString(byteID []byte) string {
 	id := hex.EncodeToString(byteID)
-	return id[len(id)-16:]
+	length := len(id)
+	if (length >= 16) {
+		if (string(id[0]) == "0"){
+			return id[length-16:]
+		}
+		return id
+		
+	}
+	
+	padding := ""
+	for i := 0; i<16-length; i++ {
+		padding += "0"
+	}
+
+	return padding + id
 }
 
 
