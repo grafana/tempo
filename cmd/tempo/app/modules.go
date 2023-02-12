@@ -102,6 +102,11 @@ func (t *App) initServer() (services.Service, error) {
 }
 
 func (t *App) initInternalServer() (services.Service, error) {
+
+	if !t.cfg.InternalServer.Enable {
+		return services.NewIdleService(nil, nil), nil
+	}
+
 	DisableSignalHandling(&t.cfg.InternalServer.Config)
 	serv, err := server.New(t.cfg.InternalServer.Config)
 	if err != nil {
@@ -111,8 +116,8 @@ func (t *App) initInternalServer() (services.Service, error) {
 	servicesToWaitFor := func() []services.Service {
 		svs := []services.Service(nil)
 		for m, s := range t.serviceMap {
-			// Server should not wait for itself.
-			if m != InternalServer {
+			// Server should not wait for itself or the server
+			if m != InternalServer && m != Server {
 				svs = append(svs, s)
 			}
 		}
@@ -434,7 +439,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(UsageReport, t.initUsageReport)
 
 	deps := map[string][]string{
-		// Server:       nil,
+		Server: {InternalServer},
 		// Store:        nil,
 		Overrides:            {Server},
 		MemberlistKV:         {Server},
@@ -449,26 +454,6 @@ func (t *App) setupModuleManager() error {
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
 		ScalableSingleBinary: {SingleBinary},
 		UsageReport:          {MemberlistKV},
-	}
-
-	if t.cfg.InternalServer.Enable {
-		for key, ds := range deps {
-			idx := -1
-			for i, v := range ds {
-				if v == Server {
-					idx = i
-					break
-				}
-			}
-
-			if idx == -1 {
-				continue
-			}
-
-			a := append(ds[:idx+1], ds[idx:]...)
-			a[idx] = InternalServer
-			deps[key] = a
-		}
 	}
 
 	for mod, targets := range deps {
