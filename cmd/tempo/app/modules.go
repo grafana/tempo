@@ -420,9 +420,7 @@ func (t *App) setupModuleManager() error {
 	mm := modules.NewManager(log.Logger)
 
 	mm.RegisterModule(Server, t.initServer, modules.UserInvisibleModule)
-	if t.cfg.InternalServer.Enable {
-		mm.RegisterModule(InternalServer, t.initInternalServer, modules.UserInvisibleModule)
-	}
+	mm.RegisterModule(InternalServer, t.initInternalServer, modules.UserInvisibleModule)
 	mm.RegisterModule(MemberlistKV, t.initMemberlistKV, modules.UserInvisibleModule)
 	mm.RegisterModule(Ring, t.initRing, modules.UserInvisibleModule)
 	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
