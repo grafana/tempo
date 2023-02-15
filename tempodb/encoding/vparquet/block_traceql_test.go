@@ -412,17 +412,17 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		name string
 		req  traceql.FetchSpansRequest
 	}{
-		{"noMatch", traceql.MustExtractFetchSpansRequest("{ span.bloom = `bar` }")},
+		//		{"noMatch", traceql.MustExtractFetchSpansRequest("{ span.bloom = `bar` }")},
 		{"partialMatch", traceql.MustExtractFetchSpansRequest("{ .foo = `bar` && .component = `gRPC` }")},
-		{"service.name", traceql.MustExtractFetchSpansRequest("{ resource.service.name = `a` }")},
+		//		{"service.name", traceql.MustExtractFetchSpansRequest("{ resource.service.name = `a` }")},
 	}
 
 	ctx := context.TODO()
 	tenantID := "1"
-	blockID := uuid.MustParse("13a1cd39-90c8-4c6d-a939-1f504ecffcd0")
+	blockID := uuid.MustParse("149e41d2-cc4d-4f71-b355-3377eabc94c8")
 
 	r, _, _, err := local.New(&local.Config{
-		Path: path.Join("/tmp/testblock/"),
+		Path: path.Join("/home/joe/testblock/"),
 	})
 	require.NoError(b, err)
 
