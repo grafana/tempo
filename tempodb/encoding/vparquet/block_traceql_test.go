@@ -412,9 +412,24 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		name string
 		req  traceql.FetchSpansRequest
 	}{
-		//		{"noMatch", traceql.MustExtractFetchSpansRequest("{ span.bloom = `bar` }")},
-		{"partialMatch", traceql.MustExtractFetchSpansRequest("{ .foo = `bar` && .component = `gRPC` }")},
-		//		{"service.name", traceql.MustExtractFetchSpansRequest("{ resource.service.name = `a` }")},
+		// span
+		{"spanAttNameNoMatch", traceql.MustExtractFetchSpansRequest("{ span.foo = `bar` }")},
+		{"spanAttValNoMatch", traceql.MustExtractFetchSpansRequest("{ span.bloom = `bar` }")},
+		{"spanAttValMatch", traceql.MustExtractFetchSpansRequest("{ span.bloom > 0 }")},
+		{"spanAttIntrinsicNoMatch", traceql.MustExtractFetchSpansRequest("{ span.name = `asdfasdf` }")},
+		{"spanAttIntrinsicMatch", traceql.MustExtractFetchSpansRequest("{ span.name = `gcs.ReadRange` }")},
+
+		// resource
+		{"resourceAttNameNoMatch", traceql.MustExtractFetchSpansRequest("{ resource.foo = `bar` }")},
+		{"resourceAttValNoMatch", traceql.MustExtractFetchSpansRequest("{ resource.module.path = `bar` }")},
+		{"resourceAttValMatch", traceql.MustExtractFetchSpansRequest("{ resource.os.type = `linux` }")},
+		{"resourceAttIntrinsicNoMatch", traceql.MustExtractFetchSpansRequest("{ resource.service.name = `a` }")},
+		{"resourceAttIntrinsicMatch", traceql.MustExtractFetchSpansRequest("{ resource.service.name = `tempo-query-frontend` }")},
+
+		// mixed
+		{"mixedNameNoMatch", traceql.MustExtractFetchSpansRequest("{ .foo = `bar` }")},
+		{"mixedValNoMatch", traceql.MustExtractFetchSpansRequest("{ .bloom = `bar` }")},
+		{"mixedValMixedMatch", traceql.MustExtractFetchSpansRequest("{ resource.foo = `bar` && span.name = `gcs.ReadRange` }")},
 	}
 
 	ctx := context.TODO()
