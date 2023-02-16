@@ -1,0 +1,100 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-tracing
+spec:
+  backoffLimit: 1
+  completions: 1
+  parallelism: 1
+  template:
+    metadata:
+      labels:
+        name: k6-tracing
+    spec:
+      containers:
+        - args:
+            - run
+            - /config/param.js
+          image: zalegrala/xk6-client-tracing:latest
+          imagePullPolicy: Always
+          name: k6-tracing
+          ports:
+            - containerPort: 6565
+              name: none
+              protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /config
+              name: k6-tracing-config
+      dnsPolicy: ClusterFirst
+      restartPolicy: Never
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - configMap:
+            defaultMode: 420
+            name: k6-tracing-config
+          name: k6-tracing-config
+  ttlSecondsAfterFinished: 604800
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k6-tracing-config
+data:
+  param.js: |
+    import { sleep } from 'k6'
+    import tracing from 'k6/x/tracing'
+    import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js'
+
+    export let options = {
+      vus: 1,
+      duration: '3m',
+    }
+
+    const client = new tracing.Client({
+      endpoint: 'tempo-distributor:4317',
+      exporter: tracing.EXPORTER_OTLP,
+      insecure: true,
+      headers: { 'X-Scope-OrgID': 'k6' },
+    })
+
+    export default function () {
+      let pushSizeTraces = randomIntBetween(2, 3)
+      let pushSizeSpans = 0
+      let t = []
+      for (let i = 0; i < pushSizeTraces; i++) {
+        let c = randomIntBetween(5, 35)
+        pushSizeSpans += c
+
+        t.push({
+          random_service_name: false,
+          spans: {
+            count: c,
+            size: randomIntBetween(300, 30000),
+            random_name: true,
+            fixed_attrs: {
+              test: 'test',
+            },
+          },
+        })
+      }
+
+      let gen = new tracing.ParameterizedGenerator(t)
+      let traces = gen.traces()
+      client.push(traces)
+
+      console.log(
+        `Pushed ${pushSizeSpans} spans from ${pushSizeTraces} different traces. Here is a random traceID: ${
+          t[Math.floor(Math.random() * t.length)].id
+        }`
+      )
+      sleep(1)
+    }
+
+    export function teardown() {
+      client.shutdown()
+    }
