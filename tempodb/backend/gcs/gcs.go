@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/googleapis/gax-go/v2"
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
 	"cloud.google.com/go/storage"
@@ -28,6 +29,7 @@ type readerWriter struct {
 	cfg          *Config
 	bucket       *storage.BucketHandle
 	hedgedBucket *storage.BucketHandle
+	retryer      []storage.RetryOption
 }
 
 // NewNoConfirm gets the GCS backend without testing it
@@ -64,6 +66,15 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 		cfg:          cfg,
 		bucket:       bucket,
 		hedgedBucket: hedgedBucket,
+		retryer: []storage.RetryOption{
+			// Use WithBackoff to change the timing of the exponential backoff.
+			storage.WithBackoff(gax.Backoff{
+				Initial: 2 * time.Second,
+			}),
+			// Use WithPolicy to configure the idempotency policy. RetryAlways will
+			// retry the operation even if it is non-idempotent.
+			storage.WithPolicy(storage.RetryAlways),
+		},
 	}
 
 	return rw, rw, rw, nil
@@ -177,7 +188,7 @@ func (rw *readerWriter) Shutdown() {
 }
 
 func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer {
-	o := rw.bucket.Object(name)
+	o := rw.bucket.Object(name).Retryer(rw.retryer...)
 	w := o.NewWriter(ctx)
 	w.ChunkSize = rw.cfg.ChunkBufferSize
 
@@ -193,7 +204,7 @@ func (rw *readerWriter) writer(ctx context.Context, name string) *storage.Writer
 }
 
 func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {
-	r, err := rw.hedgedBucket.Object(name).NewReader(ctx)
+	r, err := rw.hedgedBucket.Object(name).Retryer(rw.retryer...).NewReader(ctx)
 	if err != nil {
 		return nil, err
 	}
