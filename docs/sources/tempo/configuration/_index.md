@@ -659,6 +659,14 @@ storage:
             # enable to use path-style requests.
             [forcepathstyle: <bool>]
 
+            # Optional. Default is 0
+            # Example: "bucket_lookup_type: 0"
+            # options: 0: BucketLookupAuto, 1: BucketLookupDNS, 2: BucketLookupPath
+            # See the [S3 documentation on virtual-hosted–style and path-style](https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html#path-style-access) for more detail.
+            # See the [Minio-API documentation on opts.BucketLookup](https://github.com/minio/minio-go/blob/master/docs/API.md#newendpoint-string-opts-options-client-error)] for more detail.
+            # Notice: ignore this option if `forcepathstyle` is set true, this option allow expose minio's sdk configure.
+            [bucket_lookup_type: <int> | default = 0]
+
             # Optional. Default is 0 (disabled)
             # Example: "hedge_requests_at: 500ms"
             # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
