@@ -386,6 +386,8 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 
 	if cfg.ForcePathStyle {
 		opts.BucketLookup = minio.BucketLookupPath
+	} else {
+		opts.BucketLookup = minio.BucketLookupType(cfg.RequestPathStyle)
 	}
 
 	return minio.NewCore(cfg.Endpoint, opts)
