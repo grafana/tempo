@@ -29,6 +29,7 @@ const (
 	acceptRanges    = "Accept-Ranges"
 	contentType     = "Content-Type"
 	contentLength   = "Content-Length"
+	eTag            = "ETag"
 )
 
 type codings map[string]float64
@@ -64,6 +65,8 @@ type GzipResponseWriter struct {
 	ignore           bool   // If true, then we immediately passthru writes to the underlying ResponseWriter.
 	keepAcceptRanges bool   // Keep "Accept-Ranges" header.
 	setContentType   bool   // Add content type, if missing and detected.
+	suffixETag       string // Suffix to add to ETag header if response is compressed.
+	dropETag         bool   // Drop ETag header if response is compressed (supersedes suffixETag).
 
 	contentTypeFilter func(ct string) bool // Only compress if the response is one of these content-types. All are accepted if empty.
 }
@@ -100,12 +103,13 @@ func (w *GzipResponseWriter) Write(b []byte) (int, error) {
 	}
 	w.buf = append(w.buf, b[:toAdd]...)
 	remain := b[toAdd:]
+	hdr := w.Header()
 
 	// Only continue if they didn't already choose an encoding or a known unhandled content length or type.
-	if len(w.Header()[HeaderNoCompression]) == 0 && w.Header().Get(contentEncoding) == "" && w.Header().Get(contentRange) == "" {
+	if len(hdr[HeaderNoCompression]) == 0 && hdr.Get(contentEncoding) == "" && hdr.Get(contentRange) == "" {
 		// Check more expensive parts now.
-		cl, _ := atoi(w.Header().Get(contentLength))
-		ct := w.Header().Get(contentType)
+		cl, _ := atoi(hdr.Get(contentLength))
+		ct := hdr.Get(contentType)
 		if cl == 0 || cl >= w.minSize && (ct == "" || w.contentTypeFilter(ct)) {
 			// If the current buffer is less than minSize and a Content-Length isn't set, then wait until we have more data.
 			if len(w.buf) < w.minSize && cl == 0 {
@@ -121,8 +125,8 @@ func (w *GzipResponseWriter) Write(b []byte) (int, error) {
 
 				// Handles the intended case of setting a nil Content-Type (as for http/server or http/fs)
 				// Set the header only if the key does not exist
-				if _, ok := w.Header()[contentType]; w.setContentType && !ok {
-					w.Header().Set(contentType, ct)
+				if _, ok := hdr[contentType]; w.setContentType && !ok {
+					hdr.Set(contentType, ct)
 				}
 
 				// If the Content-Type is acceptable to GZIP, initialize the GZIP writer.
@@ -165,6 +169,21 @@ func (w *GzipResponseWriter) startGzip() error {
 	// Delete Accept-Ranges.
 	if !w.keepAcceptRanges {
 		w.Header().Del(acceptRanges)
+	}
+
+	// Suffix ETag.
+	if w.suffixETag != "" && !w.dropETag && w.Header().Get(eTag) != "" {
+		orig := w.Header().Get(eTag)
+		insertPoint := strings.LastIndex(orig, `"`)
+		if insertPoint == -1 {
+			insertPoint = len(orig)
+		}
+		w.Header().Set(eTag, orig[:insertPoint]+w.suffixETag+orig[insertPoint:])
+	}
+
+	// Delete ETag.
+	if w.dropETag {
+		w.Header().Del(eTag)
 	}
 
 	// Write the header to gzip response.
@@ -369,6 +388,8 @@ func NewWrapper(opts ...option) (func(http.Handler) http.HandlerFunc, error) {
 					minSize:           c.minSize,
 					contentTypeFilter: c.contentTypes,
 					keepAcceptRanges:  c.keepAcceptRanges,
+					dropETag:          c.dropETag,
+					suffixETag:        c.suffixETag,
 					buf:               gw.buf,
 					setContentType:    c.setContentType,
 				}
@@ -388,7 +409,8 @@ func NewWrapper(opts ...option) (func(http.Handler) http.HandlerFunc, error) {
 					h.ServeHTTP(gw, r)
 				}
 			} else {
-				h.ServeHTTP(w, r)
+				h.ServeHTTP(newNoGzipResponseWriter(w), r)
+				w.Header().Del(HeaderNoCompression)
 			}
 		}
 	}, nil
@@ -431,6 +453,8 @@ type config struct {
 	contentTypes     func(ct string) bool
 	keepAcceptRanges bool
 	setContentType   bool
+	suffixETag       string
+	dropETag         bool
 }
 
 func (c *config) validate() error {
@@ -569,6 +593,35 @@ func KeepAcceptRanges() option {
 func ContentTypeFilter(compress func(ct string) bool) option {
 	return func(c *config) {
 		c.contentTypes = compress
+	}
+}
+
+// SuffixETag adds the specified suffix to the ETag header (if it exists) of
+// responses which are compressed.
+//
+// Per [RFC 7232 Section 2.3.3](https://www.rfc-editor.org/rfc/rfc7232#section-2.3.3),
+// the ETag of a compressed response must differ from it's uncompressed version.
+//
+// A suffix such as "-gzip" is sometimes used as a workaround for generating a
+// unique new ETag (see https://bz.apache.org/bugzilla/show_bug.cgi?id=39727).
+func SuffixETag(suffix string) option {
+	return func(c *config) {
+		c.suffixETag = suffix
+	}
+}
+
+// DropETag removes the ETag of responses which are compressed. If DropETag is
+// specified in conjunction with SuffixETag, this option will take precedence
+// and the ETag will be dropped.
+//
+// Per [RFC 7232 Section 2.3.3](https://www.rfc-editor.org/rfc/rfc7232#section-2.3.3),
+// the ETag of a compressed response must differ from it's uncompressed version.
+//
+// This workaround eliminates ETag conflicts between the compressed and
+// uncompressed versions by removing the ETag from the compressed version.
+func DropETag() option {
+	return func(c *config) {
+		c.dropETag = true
 	}
 }
 
@@ -742,4 +795,68 @@ func atoi(s string) (int, bool) {
 	// Slow path for invalid, big, or underscored integers.
 	i64, err := strconv.ParseInt(s, 10, 0)
 	return int(i64), err == nil
+}
+
+// newNoGzipResponseWriter will return a response writer that
+// cleans up compression artifacts.
+// Depending on whether http.Hijacker is supported the returned will as well.
+func newNoGzipResponseWriter(w http.ResponseWriter) http.ResponseWriter {
+	n := &NoGzipResponseWriter{ResponseWriter: w}
+	if hj, ok := w.(http.Hijacker); ok {
+		x := struct {
+			http.ResponseWriter
+			http.Hijacker
+			http.Flusher
+		}{
+			ResponseWriter: n,
+			Hijacker:       hj,
+			Flusher:        n,
+		}
+		return x
+	}
+
+	return n
+}
+
+// NoGzipResponseWriter filters out HeaderNoCompression.
+type NoGzipResponseWriter struct {
+	http.ResponseWriter
+	hdrCleaned bool
+}
+
+func (n *NoGzipResponseWriter) CloseNotify() <-chan bool {
+	if cn, ok := n.ResponseWriter.(http.CloseNotifier); ok {
+		return cn.CloseNotify()
+	}
+	return nil
+}
+
+func (n *NoGzipResponseWriter) Flush() {
+	if !n.hdrCleaned {
+		n.ResponseWriter.Header().Del(HeaderNoCompression)
+		n.hdrCleaned = true
+	}
+	if f, ok := n.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func (n *NoGzipResponseWriter) Header() http.Header {
+	return n.ResponseWriter.Header()
+}
+
+func (n *NoGzipResponseWriter) Write(bytes []byte) (int, error) {
+	if !n.hdrCleaned {
+		n.ResponseWriter.Header().Del(HeaderNoCompression)
+		n.hdrCleaned = true
+	}
+	return n.ResponseWriter.Write(bytes)
+}
+
+func (n *NoGzipResponseWriter) WriteHeader(statusCode int) {
+	if !n.hdrCleaned {
+		n.ResponseWriter.Header().Del(HeaderNoCompression)
+		n.hdrCleaned = true
+	}
+	n.ResponseWriter.WriteHeader(statusCode)
 }

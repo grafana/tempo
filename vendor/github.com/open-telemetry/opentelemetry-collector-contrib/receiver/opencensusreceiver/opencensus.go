@@ -24,13 +24,13 @@ import (
 
 	agentmetricspb "github.com/census-instrumentation/opencensus-proto/gen-go/agent/metrics/v1"
 	agenttracepb "github.com/census-instrumentation/opencensus-proto/gen-go/agent/trace/v1"
-	gatewayruntime "github.com/grpc-ecosystem/grpc-gateway/runtime"
+	gatewayruntime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/rs/cors"
 	"github.com/soheilhy/cmux"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/receiver"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -57,20 +57,18 @@ type ocReceiver struct {
 	startTracesReceiverOnce  sync.Once
 	startMetricsReceiverOnce sync.Once
 
-	id       config.ComponentID
-	settings component.ReceiverCreateSettings
+	settings receiver.CreateSettings
 }
 
 // newOpenCensusReceiver just creates the OpenCensus receiver services. It is the caller's
 // responsibility to invoke the respective Start*Reception methods as well
 // as the various Stop*Reception methods to end it.
 func newOpenCensusReceiver(
-	id config.ComponentID,
 	transport string,
 	addr string,
 	tc consumer.Traces,
 	mc consumer.Metrics,
-	settings component.ReceiverCreateSettings,
+	settings receiver.CreateSettings,
 	opts ...ocOption,
 ) (*ocReceiver, error) {
 	// TODO: (@odeke-em) use options to enable address binding changes.
@@ -80,7 +78,6 @@ func newOpenCensusReceiver(
 	}
 
 	ocr := &ocReceiver{
-		id:              id,
 		ln:              ln,
 		corsOrigins:     []string{}, // Disable CORS by default.
 		gatewayMux:      gatewayruntime.NewServeMux(),
@@ -131,7 +128,7 @@ func (ocr *ocReceiver) registerTraceConsumer(host component.Host) error {
 	var err error
 
 	ocr.startTracesReceiverOnce.Do(func() {
-		ocr.traceReceiver, err = octrace.New(ocr.id, ocr.traceConsumer, ocr.settings)
+		ocr.traceReceiver, err = octrace.New(ocr.traceConsumer, ocr.settings)
 		if err != nil {
 			return
 		}
@@ -153,7 +150,7 @@ func (ocr *ocReceiver) registerMetricsConsumer(host component.Host) error {
 	var err error
 
 	ocr.startMetricsReceiverOnce.Do(func() {
-		ocr.metricsReceiver, err = ocmetrics.New(ocr.id, ocr.metricsConsumer, ocr.settings)
+		ocr.metricsReceiver, err = ocmetrics.New(ocr.metricsConsumer, ocr.settings)
 		if err != nil {
 			return
 		}
@@ -174,11 +171,11 @@ func (ocr *ocReceiver) grpcServer(host component.Host) (*grpc.Server, error) {
 	defer ocr.mu.Unlock()
 
 	if ocr.serverGRPC == nil {
-		opts, err := ocr.grpcServerSettings.ToServerOption(host, ocr.settings.TelemetrySettings)
+		var err error
+		ocr.serverGRPC, err = ocr.grpcServerSettings.ToServer(host, ocr.settings.TelemetrySettings)
 		if err != nil {
 			return nil, err
 		}
-		ocr.serverGRPC = grpc.NewServer(opts...)
 	}
 
 	return ocr.serverGRPC, nil

@@ -27,8 +27,8 @@ import (
 
 // NewLogs wraps multiple log consumers in a single one.
 // It fanouts the incoming data to all the consumers, and does smart routing:
-//  * Clones only to the consumer that needs to mutate the data.
-//  * If all consumers needs to mutate the data one will get the original data.
+//   - Clones only to the consumer that needs to mutate the data.
+//   - If all consumers needs to mutate the data one will get the original data.
 func NewLogs(lcs []consumer.Logs) consumer.Logs {
 	if len(lcs) == 1 {
 		// Don't wrap if no need to do it.
@@ -71,7 +71,9 @@ func (lsc *logsConsumer) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
 	// the incoming data to a mutating consumer is used that may change the incoming data before
 	// cloning.
 	for _, lc := range lsc.clone {
-		errs = multierr.Append(errs, lc.ConsumeLogs(ctx, ld.Clone()))
+		clonedLogs := plog.NewLogs()
+		ld.CopyTo(clonedLogs)
+		errs = multierr.Append(errs, lc.ConsumeLogs(ctx, clonedLogs))
 	}
 	for _, lc := range lsc.pass {
 		errs = multierr.Append(errs, lc.ConsumeLogs(ctx, ld))

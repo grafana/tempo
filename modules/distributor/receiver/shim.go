@@ -20,12 +20,14 @@ import (
 	"github.com/weaveworks/common/logging"
 	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componenttest"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/exportertest"
+	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.opentelemetry.io/collector/service"
+	"go.opentelemetry.io/collector/receiver"
 
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/otel/metric"
@@ -62,10 +64,12 @@ type TracesPusher interface {
 	PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error)
 }
 
+var _ services.Service = (*receiversShim)(nil)
+
 type receiversShim struct {
 	services.Service
 
-	receivers   []component.Receiver
+	receivers   []receiver.Traces
 	pusher      TracesPusher
 	logger      *log.RateLimitedLogger
 	metricViews []*view.View
@@ -83,7 +87,7 @@ type mapProvider struct {
 	raw map[string]interface{}
 }
 
-func (m *mapProvider) Retrieve(context.Context, string, confmap.WatcherFunc) (confmap.Retrieved, error) {
+func (m *mapProvider) Retrieve(context.Context, string, confmap.WatcherFunc) (*confmap.Retrieved, error) {
 	return confmap.NewRetrieved(m.raw, []confmap.RetrievedOption{}...)
 }
 
@@ -107,7 +111,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 	shim.metricViews = views
 
 	// load config
-	receiverFactories, err := component.MakeReceiverFactoryMap(
+	receiverFactories, err := receiver.MakeFactoryMap(
 		jaegerreceiver.NewFactory(),
 		zipkinreceiver.NewFactory(),
 		opencensusreceiver.NewFactory(),
@@ -140,22 +144,24 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 
 	// Creates a config provider with the given config map.
 	// The provider will be used to retrieve the actual config for the pipeline (although we only need the receivers).
-	pro, err := service.NewConfigProvider(service.ConfigProviderSettings{
-		Locations: []string{"mock:/"},
-		MapProviders: map[string]confmap.Provider{"mock": &mapProvider{raw: map[string]interface{}{
-			"receivers": receiverCfg,
-			"exporters": map[string]interface{}{
-				"nop": map[string]interface{}{},
-			},
-			"service": map[string]interface{}{
-				"pipelines": map[string]interface{}{
-					"traces": map[string]interface{}{
-						"exporters": []string{"nop"}, // nop exporter to avoid errors
-						"receivers": receivers,
+	pro, err := otelcol.NewConfigProvider(otelcol.ConfigProviderSettings{
+		ResolverSettings: confmap.ResolverSettings{
+			URIs: []string{"mock:/"},
+			Providers: map[string]confmap.Provider{"mock": &mapProvider{raw: map[string]interface{}{
+				"receivers": receiverCfg,
+				"exporters": map[string]interface{}{
+					"nop": map[string]interface{}{},
+				},
+				"service": map[string]interface{}{
+					"pipelines": map[string]interface{}{
+						"traces": map[string]interface{}{
+							"exporters": []string{"nop"}, // nop exporter to avoid errors
+							"receivers": receivers,
+						},
 					},
 				},
-			},
-		}}},
+			}}},
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -163,9 +169,9 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 
 	// Creates the configuration for the pipeline.
 	// We only need the receivers, the rest of the configuration is not used.
-	conf, err := pro.Get(context.Background(), component.Factories{
+	conf, err := pro.Get(context.Background(), otelcol.Factories{
 		Receivers: receiverFactories,
-		Exporters: map[config.Type]component.ExporterFactory{"nop": componenttest.NewNopExporterFactory()}, // nop exporter to avoid errors
+		Exporters: map[component.Type]exporter.Factory{"nop": exportertest.NewNopFactory()}, // nop exporter to avoid errors
 	})
 	if err != nil {
 		return nil, err
@@ -173,7 +179,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 
 	// todo: propagate a real context?  translate our log configuration into zap?
 	ctx := context.Background()
-	params := component.ReceiverCreateSettings{TelemetrySettings: component.TelemetrySettings{
+	params := receiver.CreateSettings{TelemetrySettings: component.TelemetrySettings{
 		Logger:         zapLogger,
 		TracerProvider: trace.NewNoopTracerProvider(),
 		MeterProvider:  metric.NewNoopMeterProvider(),
@@ -295,15 +301,14 @@ func (r *receiversShim) ReportFatalError(err error) {
 }
 
 // GetFactory implements component.Host
-func (r *receiversShim) GetFactory(component.Kind, config.Type) component.Factory {
+func (r *receiversShim) GetFactory(component.Kind, component.Type) component.Factory {
 	return nil
 }
 
 // GetExtensions implements component.Host
-func (r *receiversShim) GetExtensions() map[config.ComponentID]component.Extension { return nil }
+func (r *receiversShim) GetExtensions() map[component.ID]extension.Extension { return nil }
 
-// GetExporters implements component.Host
-func (r *receiversShim) GetExporters() map[config.DataType]map[config.ComponentID]component.Exporter {
+func (r *receiversShim) GetExporters() map[component.DataType]map[component.ID]component.Component {
 	return nil
 }
 

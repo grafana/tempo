@@ -17,9 +17,10 @@ package service // import "go.opentelemetry.io/collector/service"
 import (
 	"net/http"
 	"path"
+	"sort"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/service/featuregate"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/service/internal/runtimeinfo"
 	"go.opentelemetry.io/collector/service/internal/zpages"
 )
@@ -34,7 +35,7 @@ const (
 func (host *serviceHost) RegisterZPages(mux *http.ServeMux, pathPrefix string) {
 	mux.HandleFunc(path.Join(pathPrefix, servicezPath), host.zPagesRequest)
 	mux.HandleFunc(path.Join(pathPrefix, pipelinezPath), host.pipelines.HandleZPages)
-	mux.HandleFunc(path.Join(pathPrefix, extensionzPath), host.extensions.HandleZPages)
+	mux.HandleFunc(path.Join(pathPrefix, extensionzPath), host.serviceExtensions.HandleZPages)
 	mux.HandleFunc(path.Join(pathPrefix, featurezPath), handleFeaturezRequest)
 }
 
@@ -70,14 +71,16 @@ func handleFeaturezRequest(w http.ResponseWriter, r *http.Request) {
 
 func getFeaturesTableData() zpages.FeatureGateTableData {
 	data := zpages.FeatureGateTableData{}
-	for _, g := range featuregate.GetRegistry().List() {
+	featuregate.GlobalRegistry().VisitAll(func(gate *featuregate.Gate) {
 		data.Rows = append(data.Rows, zpages.FeatureGateTableRowData{
-			ID:          g.ID,
-			Enabled:     g.Enabled,
-			Description: g.Description,
+			ID:             gate.ID(),
+			Enabled:        gate.IsEnabled(),
+			Description:    gate.Description(),
+			ReferenceURL:   gate.ReferenceURL(),
+			Stage:          gate.Stage().String(),
+			RemovalVersion: gate.RemovalVersion(),
 		})
-	}
-
+	})
 	return data
 }
 
@@ -87,4 +90,50 @@ func getBuildInfoProperties(buildInfo component.BuildInfo) [][2]string {
 		{"Description", buildInfo.Description},
 		{"Version", buildInfo.Version},
 	}
+}
+
+type zpagesPipeline interface {
+	receiverIDs() []string
+	processorIDs() []string
+	exporterIDs() []string
+	mutatesData() bool
+}
+
+func handleZPages[V zpagesPipeline](w http.ResponseWriter, r *http.Request, pipes map[component.ID]V) {
+	qValues := r.URL.Query()
+	pipelineName := qValues.Get(zPipelineName)
+	componentName := qValues.Get(zComponentName)
+	componentKind := qValues.Get(zComponentKind)
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	zpages.WriteHTMLPageHeader(w, zpages.HeaderData{Title: "builtPipelines"})
+
+	sumData := zpages.SummaryPipelinesTableData{}
+	sumData.Rows = make([]zpages.SummaryPipelinesTableRowData, 0, len(pipes))
+	for c, p := range pipes {
+		sumData.Rows = append(sumData.Rows, zpages.SummaryPipelinesTableRowData{
+			FullName:    c.String(),
+			InputType:   string(c.Type()),
+			MutatesData: p.mutatesData(),
+			Receivers:   p.receiverIDs(),
+			Processors:  p.processorIDs(),
+			Exporters:   p.exporterIDs(),
+		})
+	}
+	sort.Slice(sumData.Rows, func(i, j int) bool {
+		return sumData.Rows[i].FullName < sumData.Rows[j].FullName
+	})
+	zpages.WriteHTMLPipelinesSummaryTable(w, sumData)
+
+	if pipelineName != "" && componentName != "" && componentKind != "" {
+		fullName := componentName
+		if componentKind == "processor" {
+			fullName = pipelineName + "/" + componentName
+		}
+		zpages.WriteHTMLComponentHeader(w, zpages.ComponentHeaderData{
+			Name: componentKind + ": " + fullName,
+		})
+		// TODO: Add config + status info.
+	}
+	zpages.WriteHTMLPageFooter(w)
 }

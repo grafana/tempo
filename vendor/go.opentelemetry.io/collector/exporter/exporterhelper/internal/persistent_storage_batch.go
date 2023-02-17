@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build enable_unstable
-// +build enable_unstable
-
 package internal // import "go.opentelemetry.io/collector/exporter/exporterhelper/internal"
 
 import (
@@ -59,7 +56,7 @@ func (bof *batchStruct) execute(ctx context.Context) (*batchStruct, error) {
 }
 
 // set adds a Set operation to the batch
-func (bof *batchStruct) set(key string, value interface{}, marshal func(interface{}) ([]byte, error)) *batchStruct {
+func (bof *batchStruct) set(key string, value any, marshal func(any) ([]byte, error)) *batchStruct {
 	valueBytes, err := marshal(value)
 	if err != nil {
 		bof.logger.Debug("Failed marshaling item, skipping it", zap.String(zapKey, key), zap.Error(err))
@@ -92,7 +89,7 @@ func (bof *batchStruct) delete(keys ...string) *batchStruct {
 
 // getResult returns the result of a Get operation for a given key using the provided unmarshal function.
 // It should be called after execute. It may return nil value
-func (bof *batchStruct) getResult(key string, unmarshal func([]byte) (interface{}, error)) (interface{}, error) {
+func (bof *batchStruct) getResult(key string, unmarshal func([]byte) (any, error)) (any, error) {
 	op := bof.getOperations[key]
 	if op == nil {
 		return nil, errKeyNotPresentInBatch
@@ -107,7 +104,7 @@ func (bof *batchStruct) getResult(key string, unmarshal func([]byte) (interface{
 
 // getRequestResult returns the result of a Get operation as a request
 // If the value cannot be retrieved, it returns an error
-func (bof *batchStruct) getRequestResult(key string) (PersistentRequest, error) {
+func (bof *batchStruct) getRequestResult(key string) (Request, error) {
 	reqIf, err := bof.getResult(key, bof.bytesToRequest)
 	if err != nil {
 		return nil, err
@@ -116,7 +113,7 @@ func (bof *batchStruct) getRequestResult(key string) (PersistentRequest, error) 
 		return nil, errValueNotSet
 	}
 
-	return reqIf.(PersistentRequest), nil
+	return reqIf.(Request), nil
 }
 
 // getItemIndexResult returns the result of a Get operation as an itemIndex
@@ -150,7 +147,7 @@ func (bof *batchStruct) getItemIndexArrayResult(key string) ([]itemIndex, error)
 }
 
 // setRequest adds Set operation over a given request to the batch
-func (bof *batchStruct) setRequest(key string, value PersistentRequest) *batchStruct {
+func (bof *batchStruct) setRequest(key string, value Request) *batchStruct {
 	return bof.set(key, value, requestToBytes)
 }
 
@@ -164,7 +161,7 @@ func (bof *batchStruct) setItemIndexArray(key string, value []itemIndex) *batchS
 	return bof.set(key, value, itemIndexArrayToBytes)
 }
 
-func itemIndexToBytes(val interface{}) ([]byte, error) {
+func itemIndexToBytes(val any) ([]byte, error) {
 	var buf bytes.Buffer
 	err := binary.Write(&buf, binary.LittleEndian, val)
 	if err != nil {
@@ -173,7 +170,7 @@ func itemIndexToBytes(val interface{}) ([]byte, error) {
 	return buf.Bytes(), err
 }
 
-func bytesToItemIndex(b []byte) (interface{}, error) {
+func bytesToItemIndex(b []byte) (any, error) {
 	var val itemIndex
 	err := binary.Read(bytes.NewReader(b), binary.LittleEndian, &val)
 	if err != nil {
@@ -182,7 +179,7 @@ func bytesToItemIndex(b []byte) (interface{}, error) {
 	return val, nil
 }
 
-func itemIndexArrayToBytes(arr interface{}) ([]byte, error) {
+func itemIndexArrayToBytes(arr any) ([]byte, error) {
 	var buf bytes.Buffer
 	size := 0
 
@@ -207,7 +204,7 @@ func itemIndexArrayToBytes(arr interface{}) ([]byte, error) {
 	return buf.Bytes(), err
 }
 
-func bytesToItemIndexArray(b []byte) (interface{}, error) {
+func bytesToItemIndexArray(b []byte) (any, error) {
 	var size uint32
 	reader := bytes.NewReader(b)
 	err := binary.Read(reader, binary.LittleEndian, &size)
@@ -220,10 +217,10 @@ func bytesToItemIndexArray(b []byte) (interface{}, error) {
 	return val, err
 }
 
-func requestToBytes(req interface{}) ([]byte, error) {
-	return req.(PersistentRequest).Marshal()
+func requestToBytes(req any) ([]byte, error) {
+	return req.(Request).Marshal()
 }
 
-func (bof *batchStruct) bytesToRequest(b []byte) (interface{}, error) {
+func (bof *batchStruct) bytesToRequest(b []byte) (any, error) {
 	return bof.pcs.unmarshaler(b)
 }

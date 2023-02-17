@@ -31,16 +31,17 @@ const (
 	// LevelDetailed adds dimensions and views to the previous levels.
 	LevelDetailed
 
-	levelNoneStr     = "none"
-	levelBasicStr    = "basic"
-	levelNormalStr   = "normal"
-	levelDetailedStr = "detailed"
+	levelNoneStr     = "None"
+	levelBasicStr    = "Basic"
+	levelNormalStr   = "Normal"
+	levelDetailedStr = "Detailed"
 )
 
 // Level is the level of internal telemetry (metrics, logs, traces about the component itself)
 // that every component should generate.
 type Level int32
 
+var _ encoding.TextMarshaler = (*Level)(nil)
 var _ encoding.TextUnmarshaler = (*Level)(nil)
 
 func (l Level) String() string {
@@ -54,7 +55,12 @@ func (l Level) String() string {
 	case LevelDetailed:
 		return levelDetailedStr
 	}
-	return "unknown"
+	return ""
+}
+
+// MarshalText marshals Level to text.
+func (l Level) MarshalText() (text []byte, err error) {
+	return []byte(l.String()), nil
 }
 
 // UnmarshalText unmarshalls text to a Level.
@@ -65,16 +71,16 @@ func (l *Level) UnmarshalText(text []byte) error {
 
 	str := strings.ToLower(string(text))
 	switch str {
-	case levelNoneStr:
+	case strings.ToLower(levelNoneStr):
 		*l = LevelNone
 		return nil
-	case levelBasicStr:
+	case strings.ToLower(levelBasicStr):
 		*l = LevelBasic
 		return nil
-	case levelNormalStr:
+	case strings.ToLower(levelNormalStr):
 		*l = LevelNormal
 		return nil
-	case levelDetailedStr:
+	case strings.ToLower(levelDetailedStr):
 		*l = LevelDetailed
 		return nil
 	}
