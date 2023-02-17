@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
+	"github.com/googleapis/gax-go/v2"
 	"github.com/grafana/tempo/tempodb/backend"
 	"google.golang.org/api/iterator"
 )
@@ -17,7 +19,13 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	compactedMetaFilename := backend.CompactedMetaFileName(blockID, tenantID)
 
 	src := rw.bucket.Object(metaFilename)
-	dst := rw.bucket.Object(compactedMetaFilename)
+	// TODO: Configure retry opts or move it to bucket config.
+	dst := rw.bucket.Object(compactedMetaFilename).Retryer(
+		storage.WithBackoff(gax.Backoff{
+			Initial: time.Second,
+		}),
+		storage.WithPolicy(storage.RetryAlways),
+	)
 
 	ctx := context.TODO()
 	_, err := dst.CopierFrom(src).Run(ctx)
