@@ -56,22 +56,15 @@ func TraceIDToHexString(byteID []byte) string {
 func SpanIDToHexString(byteID []byte) string {
 	id := hex.EncodeToString(byteID)
 	length := len(id)
-	if (length >= 16) {
-		if (string(id[0]) == "0"){
+	if length >= 16 {
+		if string(id[0]) == "0" {
 			return id[length-16:]
 		}
 		return id
-		
-	}
-	
-	padding := ""
-	for i := 0; i<16-length; i++ {
-		padding += "0"
 	}
 
-	return padding + id
+	return fmt.Sprintf("%016s", id)
 }
-
 
 // EqualHexStringTraceIDs compares two trace ID strings and compares the
 // resulting bytes after padding.  Returns true unless there is a reason not
