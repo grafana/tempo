@@ -298,7 +298,7 @@ func testFetch(t *testing.T, e encoding.VersionedEncoding) {
 
 			// confirm traceid matches
 			expectedID := ids[i]
-			require.Len(t, ss, 1)
+			require.NotNil(t, ss)
 			require.Equal(t, ss.TraceID, expectedID)
 
 			// confirm no more matches
