@@ -38,8 +38,6 @@ func TestOne(t *testing.T) {
 	require.NoError(t, err, "search request:", req)
 
 	fmt.Println("-----------")
-	fmt.Println(req.Query)
-	fmt.Println("-----------")
 	fmt.Println(resp.Results.(*spansetMetadataIterator).iter)
 	fmt.Println("-----------")
 	fmt.Println(spanSet)
