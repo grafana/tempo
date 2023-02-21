@@ -144,7 +144,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 	spanID1 := traceID[:8]
 	spanID2 := traceID[8:]
 
-	spanSet := SpansetMetadata{
+	spanSet := &SpansetMetadata{
 		TraceID:            traceID,
 		RootServiceName:    "my-service",
 		RootSpanName:       "HTTP GET",
@@ -289,12 +289,12 @@ func (m *MockSpanSetIterator) Next(ctx context.Context) (*SpansetMetadata, error
 			return nil, nil
 		}
 
-		r.Spans = r.Spans[len(ss):] // jpe this is horrible - really should match spans passed by m.filter and only pass that metadata
+		r.Spans = r.Spans[len(ss):]
 		return r, nil
 	}
 }
 
-func spansetFromMetaData(meta *SpansetMetadata) Spanset { // jpe weird pointer conversion
+func spansetFromMetaData(meta *SpansetMetadata) Spanset {
 	ret := Spanset{}
 	for _, s := range meta.Spans {
 		s := Span{

@@ -598,7 +598,7 @@ func (j *JoinIterator) String() string {
 	for _, iter := range j.iters {
 		iters += "\n\t" + util.TabOut(iter)
 	}
-	return fmt.Sprintf("JoinIterator: %d\n\t%s\n%s)", j.definitionLevel, iters, j.pred)
+	return fmt.Sprintf("JoinIterator: %d\t%s\n%s)", j.definitionLevel, iters, j.pred)
 }
 
 func (j *JoinIterator) Next() (*IteratorResult, error) {

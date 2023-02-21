@@ -178,9 +178,6 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 		return nil, nil
 	}
 
-	// jpe - two pass search might break due to this. confirm by writing a test that searches for spans in
-	//  row groups besides the first one.
-
 	// The row number coming out of the iterator is relative,
 	// so offset it using the num rows in all previous groups
 	rowMatch := int64(0)

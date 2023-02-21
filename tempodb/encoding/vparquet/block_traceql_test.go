@@ -1,8 +1,10 @@
 package vparquet
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"math/rand"
 	"path"
 	"testing"
 	"time"
@@ -44,8 +46,22 @@ func TestOne(t *testing.T) {
 }
 
 func TestBackendBlockSearchTraceQL(t *testing.T) {
-	wantTr := fullyPopulatedTestTrace(nil)
-	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
+	numTraces := 250
+	traces := make([]*Trace, 0, numTraces)
+	wantTraceIdx := rand.Intn(numTraces)
+	wantTraceID := test.ValidTraceID(nil)
+	for i := 0; i < numTraces; i++ {
+		if i == wantTraceIdx {
+			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
+			continue
+		}
+
+		id := test.ValidTraceID(nil)
+		tr := traceToParquet(id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+
+	b := makeBackendBlockWithTraces(t, traces)
 	ctx := context.Background()
 
 	searchesThatMatch := []traceql.FetchSpansRequest{
@@ -183,9 +199,19 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
 		require.NoError(t, err, "search request:", req)
 
-		spanSet, err := resp.Results.Next(ctx)
-		require.NoError(t, err, "search request:", req)
-		require.NotNil(t, spanSet, "search request:", req)
+		found := false
+		for {
+			spanSet, err := resp.Results.Next(ctx)
+			require.NoError(t, err, "search request:", req)
+			if spanSet == nil {
+				break
+			}
+			found = bytes.Equal(spanSet.TraceID, wantTraceID)
+			if found {
+				break
+			}
+		}
+		require.True(t, found, "search request:", req)
 	}
 
 	searchesThatDontMatch := []traceql.FetchSpansRequest{
@@ -272,9 +298,14 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
 		require.NoError(t, err, "search request:", req)
 
-		spanSet, err := resp.Results.Next(ctx)
-		require.NoError(t, err, "search request:", req)
-		require.Nil(t, spanSet, "search request:", req)
+		for {
+			spanSet, err := resp.Results.Next(ctx)
+			require.NoError(t, err, "search request:", req)
+			if spanSet == nil {
+				break
+			}
+			require.NotEqual(t, wantTraceID, spanSet.TraceID, "search request:", req)
+		}
 	}
 }
 

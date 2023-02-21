@@ -266,7 +266,6 @@ func testSearch(t *testing.T, e encoding.VersionedEncoding) {
 	})
 }
 
-// jpe review this test, make sure filters and everything is working for vparquet
 func TestFetch(t *testing.T) {
 	for _, e := range encoding.AllEncodings() {
 		t.Run(e.Version(), func(t *testing.T) {

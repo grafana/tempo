@@ -84,7 +84,7 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 			span.LogKV("msg", "iterator.Next", "err", err)
 			return nil, err
 		}
-		res.Traces = append(res.Traces, e.asTraceSearchMetadata(*spanset)) // jpe pointer <> val conversion
+		res.Traces = append(res.Traces, e.asTraceSearchMetadata(spanset))
 
 		if len(res.Traces) >= int(searchReq.Limit) && searchReq.Limit > 0 {
 			break
@@ -121,7 +121,7 @@ func (e *Engine) createFetchSpansRequest(searchReq *tempopb.SearchRequest, pipel
 	return req
 }
 
-func (e *Engine) asTraceSearchMetadata(spanset SpansetMetadata) *tempopb.TraceSearchMetadata {
+func (e *Engine) asTraceSearchMetadata(spanset *SpansetMetadata) *tempopb.TraceSearchMetadata {
 	metadata := &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(spanset.TraceID),
 		RootServiceName:   spanset.RootServiceName,

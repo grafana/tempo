@@ -175,8 +175,6 @@ type spansetIterator struct {
 	currentSpans []*traceql.Span
 }
 
-//var _ pq.Iterator = (*spansetIterator)(nil) jpe do i want to do an pq.Iterator? or just leave the types
-
 func newSpansetIterator(iter parquetquery.Iterator, filter traceql.FilterSpans) *spansetIterator {
 	return &spansetIterator{
 		iter:   iter,
@@ -211,21 +209,24 @@ func (i *spansetIterator) Next() (*traceql.Span, error) {
 			return nil, fmt.Errorf("engine assumption broken: spanset is not of type *traceql.Spanset")
 		}
 
+		// TODO: the engine wants to work with value types, but the fetch layer is using pointers. as a result
+		//  there is some gross "bridge" code here that converts between the two. We should write benchmarks
+		//  and determine if moving to or the other is worth it
 		var filteredSpansets []traceql.Spanset
 		if i.filter != nil {
-			filteredSpansets, err = i.filter(*spanset) // jpe pointer/val juggling
+			filteredSpansets, err = i.filter(*spanset)
 			if err != nil {
 				return nil, err
 			}
 		} else {
-			filteredSpansets = []traceql.Spanset{*spanset} // jpe pointer/val juggling
+			filteredSpansets = []traceql.Spanset{*spanset}
 		}
 
 		// flatten spans into i.currentSpans
 		for _, ss := range filteredSpansets {
 			for _, s := range ss.Spans {
 				span := s
-				i.currentSpans = append(i.currentSpans, &span) // jpe pointer/val juggling
+				i.currentSpans = append(i.currentSpans, &span)
 			}
 		}
 
@@ -264,10 +265,6 @@ func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.SpansetMetada
 
 	return spanset, nil
 }
-
-// jpe - review iterators and how they are built here. there may be subtle implications on the span/attribute levels
-// imposed here that are no longer valid b/c of the two pass change. i.e. we no longer have to always grab span level
-// data.
 
 // fetch is the core logic for executing the given conditions against the parquet columns. The algorithm
 // can be summarized as a hiearchy of iterators where we iterate related columns together and collect the results
