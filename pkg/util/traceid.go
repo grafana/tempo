@@ -52,17 +52,10 @@ func TraceIDToHexString(byteID []byte) string {
 }
 
 // SpanIDToHexString converts a span ID to its string representation and WITHOUT removing any leading zeros.
-// Assuming everything passed in here will be 64 bit or less
+// If the id is < 16, left pad with 0s
 func SpanIDToHexString(byteID []byte) string {
 	id := hex.EncodeToString(byteID)
-	length := len(id)
-	if length >= 16 {
-		if string(id[0]) == "0" {
-			return id[length-16:]
-		}
-		return id
-	}
-
+	id = strings.TrimLeft(id, "0")
 	return fmt.Sprintf("%016s", id)
 }
 
