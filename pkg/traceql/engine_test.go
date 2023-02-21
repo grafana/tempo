@@ -90,7 +90,7 @@ func TestEngine_Execute(t *testing.T) {
 			SpanSet: &tempopb.SpanSet{
 				Spans: []*tempopb.Span{
 					{
-						SpanID:            "2",
+						SpanID:            "0000000000000002",
 						StartTimeUnixNano: uint64(now.UnixNano()),
 						DurationNanos:     100_000_000,
 						Attributes: []*v1.KeyValue{
