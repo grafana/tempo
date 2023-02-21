@@ -274,24 +274,22 @@ type MockSpanSetIterator struct {
 }
 
 func (m *MockSpanSetIterator) Next(ctx context.Context) (*SpansetMetadata, error) {
-	for {
-		if len(m.results) == 0 {
-			return nil, nil
-		}
-		r := m.results[0]
-		m.results = m.results[1:]
-
-		ss, err := m.filter(spansetFromMetaData(r))
-		if err != nil {
-			return nil, err
-		}
-		if len(ss) == 0 {
-			return nil, nil
-		}
-
-		r.Spans = r.Spans[len(ss):]
-		return r, nil
+	if len(m.results) == 0 {
+		return nil, nil
 	}
+	r := m.results[0]
+	m.results = m.results[1:]
+
+	ss, err := m.filter(spansetFromMetaData(r))
+	if err != nil {
+		return nil, err
+	}
+	if len(ss) == 0 {
+		return nil, nil
+	}
+
+	r.Spans = r.Spans[len(ss):]
+	return r, nil
 }
 
 func spansetFromMetaData(meta *SpansetMetadata) Spanset {

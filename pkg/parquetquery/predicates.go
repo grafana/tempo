@@ -267,7 +267,7 @@ func NewGenericPredicate[T any](fn func(T) bool, rangeFn func(T, T) bool, extrac
 }
 
 func (p *GenericPredicate[T]) String() string {
-	return fmt.Sprintf("GenericPredicate{}")
+	return "GenericPredicate{}"
 }
 
 func (p *GenericPredicate[T]) KeepColumnChunk(c pq.ColumnChunk) bool {

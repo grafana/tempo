@@ -1043,7 +1043,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			}
 			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicStatus)] = traceql.NewStaticStatus(status)
 		case columnPathSpanKind:
-			// if we're acutally retrieving kind then keep it, otherwise it's just being used to count spans and we should not
+			// if we're actually retrieving kind then keep it, otherwise it's just being used to count spans and we should not
 			//  include it in our attributes
 			if !c.kindAsCount {
 				span.Attributes[newSpanAttr(columnPathSpanKind)] = traceql.NewStaticInt(int(kv.Value.Int64()))

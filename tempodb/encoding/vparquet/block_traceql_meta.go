@@ -85,7 +85,7 @@ type spanMetaCollector struct {
 var _ parquetquery.GroupPredicate = (*spanMetaCollector)(nil)
 
 func (c *spanMetaCollector) String() string {
-	return fmt.Sprintf("spanMetaCollector()")
+	return "spanMetaCollector()"
 }
 
 func (c *spanMetaCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
