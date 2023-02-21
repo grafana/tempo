@@ -5,6 +5,7 @@ import (
 	crand "crypto/rand"
 	"testing"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter"
 	"github.com/stretchr/testify/assert"
@@ -95,6 +96,18 @@ func TestReceivers(t *testing.T) {
 				return zipkinCfg
 			},
 			"http://" + tempo.Endpoint(9411),
+		},
+		{
+			"datadog",
+			datadogexporter.NewFactory(),
+			func(factory exporter.Factory, endpoint string) component.Config {
+				exporterCfg := factory.CreateDefaultConfig()
+				ddCfg := exporterCfg.(*datadogexporter.Config)
+				ddCfg.Traces.Endpoint = endpoint
+				ddCfg.TLSSetting = datadogexporter.LimitedTLSClientSettings{InsecureSkipVerify: true}
+				return ddCfg
+			},
+			"http://" + tempo.Endpoint(8126),
 		},
 	}
 
