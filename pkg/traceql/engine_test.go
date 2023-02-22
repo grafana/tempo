@@ -295,7 +295,7 @@ func (m *MockSpanSetIterator) Next(ctx context.Context) (*SpansetMetadata, error
 func spansetFromMetaData(meta *SpansetMetadata) Spanset {
 	ret := Spanset{}
 	for _, s := range meta.Spans {
-		s := Span{
+		s := &Span{
 			Attributes: s.Attributes,
 		}
 		ret.Spans = append(ret.Spans, s)

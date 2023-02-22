@@ -109,30 +109,30 @@ func TestPipelineEvaluate(t *testing.T) {
 		{
 			"{ true } | { true } | { true }",
 			[]Spanset{
-				{Spans: []Span{{}}},
+				{Spans: []*Span{{}}},
 			},
 			[]Spanset{
-				{Spans: []Span{{}}},
+				{Spans: []*Span{{}}},
 			},
 		},
 		{
 			"{ true } | { false } | { true }",
 			[]Spanset{
-				{Spans: []Span{{}}},
+				{Spans: []*Span{{}}},
 			},
 			[]Spanset{},
 		},
 		{
 			"{ .foo1 = `a` } | { .foo2 = `b` }",
 			[]Spanset{
-				{Spans: []Span{
+				{Spans: []*Span{
 					// First span should be dropped here
 					{Attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a")}},
 					{Attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a"), NewAttribute("foo2"): NewStaticString("b")}},
 				}},
 			},
 			[]Spanset{
-				{Spans: []Span{
+				{Spans: []*Span{
 					{Attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a"), NewAttribute("foo2"): NewStaticString("b")}}}},
 			},
 		},
@@ -159,55 +159,55 @@ func TestSpansetFilterEvaluate(t *testing.T) {
 			"{ true }",
 			[]Spanset{
 				// Empty spanset is dropped
-				{Spans: []Span{}},
-				{Spans: []Span{{}}},
+				{Spans: []*Span{}},
+				{Spans: []*Span{{}}},
 			},
 			[]Spanset{
-				{Spans: []Span{{}}},
+				{Spans: []*Span{{}}},
 			},
 		},
 		{
 			"{ .foo = `a` }",
 			[]Spanset{
-				{Spans: []Span{
+				{Spans: []*Span{
 					// Second span should be dropped here
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
 				}},
-				{Spans: []Span{
+				{Spans: []*Span{
 					// This entire spanset will be dropped
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
 				}},
 			},
 			[]Spanset{
-				{Spans: []Span{
+				{Spans: []*Span{
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}}}},
 			},
 		},
 		{
 			"{ .foo = 1 || (.foo >= 4 && .foo < 6) }",
 			[]Spanset{
-				{Spans: []Span{
+				{Spans: []*Span{
 					// Second span should be dropped here
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(2)}},
 				}},
-				{Spans: []Span{
+				{Spans: []*Span{
 					// First span should be dropped here
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(3)}},
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(4)}},
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(5)}},
 				}},
-				{Spans: []Span{
+				{Spans: []*Span{
 					// Entire spanset should be dropped
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(6)}},
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(7)}},
 				}},
 			},
 			[]Spanset{
-				{Spans: []Span{
+				{Spans: []*Span{
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}}}},
-				{Spans: []Span{
+				{Spans: []*Span{
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(4)}},
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(5)}},
 				}},

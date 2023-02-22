@@ -10,7 +10,7 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
-func appendSpans(buffer []Span, input []Spanset) []Span {
+func appendSpans(buffer []*Span, input []Spanset) []*Span {
 	for _, i := range input {
 		buffer = append(buffer, i.Spans...)
 	}
@@ -92,7 +92,7 @@ func (f ScalarFilter) evaluate(input []Spanset) (output []Spanset, err error) {
 	return output, nil
 }
 
-func (f SpansetFilter) matches(span Span) (bool, error) {
+func (f SpansetFilter) matches(span *Span) (bool, error) {
 	static, err := f.Expression.execute(span)
 	if err != nil {
 		level.Debug(log.Logger).Log("msg", "SpanSetFilter.matches failed", "err", err)
@@ -139,7 +139,7 @@ func (a Aggregate) evaluate(input []Spanset) (output []Spanset, err error) {
 	return output, nil
 }
 
-func (o BinaryOperation) execute(span Span) (Static, error) {
+func (o BinaryOperation) execute(span *Span) (Static, error) {
 	lhs, err := o.LHS.execute(span)
 	if err != nil {
 		return NewStaticNil(), err
@@ -231,7 +231,7 @@ func binOp(op Operator, lhs, rhs Static) (bool, error) {
 	return false, errors.New("unexpected operator " + op.String())
 }
 
-func (o UnaryOperation) execute(span Span) (Static, error) {
+func (o UnaryOperation) execute(span *Span) (Static, error) {
 	static, err := o.Expression.execute(span)
 	if err != nil {
 		return NewStaticNil(), err
@@ -260,11 +260,11 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 	return NewStaticNil(), errors.New("UnaryOperation has Op different from Not and Sub")
 }
 
-func (s Static) execute(span Span) (Static, error) {
+func (s Static) execute(span *Span) (Static, error) {
 	return s, nil
 }
 
-func (a Attribute) execute(span Span) (Static, error) {
+func (a Attribute) execute(span *Span) (Static, error) {
 	static, ok := span.Attributes[a]
 	if ok {
 		return static, nil

@@ -265,7 +265,7 @@ func (f SpansetFilter) evaluate(input []Spanset) ([]Spanset, error) {
 			continue
 		}
 
-		var matchingSpans []Span
+		var matchingSpans []*Span
 		for _, s := range ss.Spans {
 			result, err := f.Expression.execute(s)
 			if err != nil {
@@ -330,7 +330,7 @@ type FieldExpression interface {
 	__fieldExpression()
 
 	extractConditions(request *FetchSpansRequest)
-	execute(span Span) (Static, error)
+	execute(span *Span) (Static, error)
 }
 
 type BinaryOperation struct {

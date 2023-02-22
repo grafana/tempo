@@ -226,7 +226,7 @@ func (i *spansetIterator) Next() (*traceql.Span, error) {
 		for _, ss := range filteredSpansets {
 			for _, s := range ss.Spans {
 				span := s
-				i.currentSpans = append(i.currentSpans, &span)
+				i.currentSpans = append(i.currentSpans, span)
 			}
 		}
 
@@ -1003,6 +1003,7 @@ func (c *spanCollector) String() string {
 
 func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
+	// TODO: this allocates a lot of memory, we should look into span pooling
 	span := &traceql.Span{
 		Attributes: make(map[traceql.Attribute]traceql.Static),
 		RowNum:     res.RowNumber,
@@ -1116,11 +1117,11 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// and filter out spans that didn't match anything.
 
 	resAttrs := make(map[traceql.Attribute]traceql.Static)
-	spans := make([]traceql.Span, 0, len(res.OtherEntries))
+	spans := make([]*traceql.Span, 0, len(res.OtherEntries))
 
 	for _, kv := range res.OtherEntries {
 		if span, ok := kv.Value.(*traceql.Span); ok {
-			spans = append(spans, *span)
+			spans = append(spans, span)
 			continue
 		}
 
@@ -1167,9 +1168,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
-	sp := &traceql.Spanset{
-		Spans: make([]traceql.Span, 0, len(spans)),
-	}
+	sp := &traceql.Spanset{}
 
 	// Copy over only spans that met minimum criteria
 	if c.requireAtLeastOneMatchOverall {

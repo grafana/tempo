@@ -132,7 +132,7 @@ func TestSpansetFilter_matches(t *testing.T) {
 
 			spansetFilter := expr.Pipeline.Elements[0].(SpansetFilter)
 
-			matches, err := spansetFilter.matches(tt.span)
+			matches, err := spansetFilter.matches(&tt.span)
 
 			if tt.err {
 				fmt.Println(err)
@@ -155,18 +155,18 @@ func TestSpansetOperationEvaluate(t *testing.T) {
 		{
 			"{ .foo = `a` } && { .foo = `b` }",
 			[]Spanset{
-				{Spans: []Span{
+				{Spans: []*Span{
 					// This spanset will be kept because it satisfies both conditions
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
 				}},
-				{Spans: []Span{
+				{Spans: []*Span{
 					// This spanset will be dropped
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
 				}},
 			},
 			[]Spanset{
-				{Spans: []Span{
+				{Spans: []*Span{
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
 				}},
@@ -175,22 +175,22 @@ func TestSpansetOperationEvaluate(t *testing.T) {
 		{
 			"{ .foo = `a` } || { .foo = `b` }",
 			[]Spanset{
-				{Spans: []Span{
+				{Spans: []*Span{
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
 				}},
-				{Spans: []Span{
+				{Spans: []*Span{
 					// Second span will be dropped
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("c")}},
 				}},
 			},
 			[]Spanset{
-				{Spans: []Span{
+				{Spans: []*Span{
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
 				}},
-				{Spans: []Span{
+				{Spans: []*Span{
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
 				}},
 			},
@@ -220,12 +220,12 @@ func TestScalarFilterEvaluate(t *testing.T) {
 		{
 			"{ .foo = `a` } | count() > 1",
 			[]Spanset{
-				{Spans: []Span{
+				{Spans: []*Span{
 					// This has 1 match
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
 				}},
-				{Spans: []Span{
+				{Spans: []*Span{
 					// This has 2 matches
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
@@ -234,7 +234,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 			[]Spanset{
 				{
 					Scalar: NewStaticInt(2),
-					Spans: []Span{
+					Spans: []*Span{
 						{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 						{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 					},
@@ -244,7 +244,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 		{
 			"{ .foo = `a` } | avg(duration) >= 10ms",
 			[]Spanset{
-				{Spans: []Span{
+				{Spans: []*Span{
 					// Avg duration = 5ms
 					{Attributes: map[Attribute]Static{
 						NewAttribute("foo"):             NewStaticString("a"),
@@ -255,7 +255,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 						NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
 					},
 				}},
-				{Spans: []Span{
+				{Spans: []*Span{
 					// Avg duration = 10ms
 					{Attributes: map[Attribute]Static{
 						NewAttribute("foo"):             NewStaticString("a"),
@@ -272,7 +272,7 @@ func TestScalarFilterEvaluate(t *testing.T) {
 					// TODO - Type handling of aggregate output could use some improvement.
 					// avg(duration) should probably return a Duration instead of a float.
 					Scalar: NewStaticFloat(10.0 * float64(time.Millisecond)),
-					Spans: []Span{
+					Spans: []*Span{
 						{Attributes: map[Attribute]Static{
 							NewAttribute("foo"):             NewStaticString("a"),
 							NewIntrinsic(IntrinsicDuration): NewStaticDuration(5 * time.Millisecond)},

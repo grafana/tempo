@@ -61,7 +61,7 @@ type Span struct {
 
 type Spanset struct {
 	Scalar Static
-	Spans  []Span
+	Spans  []*Span
 }
 
 type SpanMetadata struct {
