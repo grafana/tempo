@@ -4,6 +4,7 @@
 * [BUGFIX] Suppress logspam in single binary mode when metrics generator is disabled. [#2058](https://github.com/grafana/tempo/pull/2058) (@joe-elliott)
 * [BUGFIX] Error more gracefully while reading some blocks written by an interim commit between 1.5 and 2.0 [#2055](https://github.com/grafana/tempo/pull/2055) (@mdisibio)
 * [BUGFIX] Correctly coalesce trace level data when combining Parquet traces. [#2095](https://github.com/grafana/tempo/pull/2095) (@joe-elliott)
+* [CHANGE] Pad span id to always be 16 characters. [#2062](https://github.com/grafana/tempo/pull/2062) (@ie-pham)
 
 ## v2.0.0 / 2023-01-31
 
