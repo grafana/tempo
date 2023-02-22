@@ -76,7 +76,7 @@ But the following guide should help estimate the cardinality that the feature wi
 
 #### Cardinality from traces
 
-The amount of edges depends on the amount of nodes in the system and the direction of the requests between them.
+The amount of edges depends on the number of nodes in the system and the direction of the requests between them.
 Let’s call this amount hops. Every hop will be a unique combination of client + server labels.
 
 For example:
