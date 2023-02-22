@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -15,6 +16,34 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
+
+// todo: this sync pool currently just massively reduces allocations for queries like { .foo = "bar" } where millions of spans
+// are created in the spanCollector and then thrown away in the batchCollector. this could be extended to catch other times
+// we drop spans.
+var spanPool = sync.Pool{
+	New: func() interface{} {
+		return &traceql.Span{
+			Attributes: make(map[traceql.Attribute]traceql.Static),
+		}
+	},
+}
+
+func putSpan(s *traceql.Span) {
+	s.EndtimeUnixNanos = 0
+	s.StartTimeUnixNanos = 0
+	s.RowNum = parquetquery.EmptyRowNumber()
+
+	// clear attributes
+	for k := range s.Attributes {
+		delete(s.Attributes, k)
+	}
+
+	spanPool.Put(s)
+}
+
+func getSpan() *traceql.Span {
+	return spanPool.Get().(*traceql.Span)
+}
 
 // Helper function to create an iterator, that abstracts away
 // context like file and rowgroups.
@@ -1001,13 +1030,13 @@ func (c *spanCollector) String() string {
 	return fmt.Sprintf("spanCollector(%d, %v)", c.minAttributes, c.durationFilters)
 }
 
+var spanCreated = 0
+
 func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	// TODO: this allocates a lot of memory, we should look into span pooling
-	span := &traceql.Span{
-		Attributes: make(map[traceql.Attribute]traceql.Static),
-		RowNum:     res.RowNumber,
-	}
+	span := getSpan()
+	span.RowNum = res.RowNumber
 
 	for _, e := range res.OtherEntries {
 		span.Attributes[newSpanAttr(e.Key)] = e.Value.(traceql.Static)
@@ -1175,7 +1204,9 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		for _, span := range spans {
 			if len(span.Attributes) > 0 {
 				sp.Spans = append(sp.Spans, span)
+				continue
 			}
+			putSpan(span)
 		}
 	} else {
 		sp.Spans = spans
