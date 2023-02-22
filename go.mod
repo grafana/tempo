@@ -34,6 +34,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/grafana/dskit v0.0.0-20230202132725-6043e861a8e2
 	github.com/grafana/e2e v0.1.1-0.20221018202458-cffd2bb71c7b
+	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v1.4.0
 	github.com/hashicorp/go-plugin v1.4.8
@@ -45,6 +46,7 @@ require (
 	github.com/minio/minio-go/v7 v7.0.23
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/olekukonko/tablewriter v0.0.5
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.71.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter v0.71.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.71.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.71.0
@@ -74,7 +76,12 @@ require (
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.24.0
 	go.opentelemetry.io/collector v0.71.0
+	go.opentelemetry.io/collector/component v0.71.0
+	go.opentelemetry.io/collector/confmap v0.71.0
+	go.opentelemetry.io/collector/consumer v0.71.0
+	go.opentelemetry.io/collector/exporter/otlpexporter v0.71.0
 	go.opentelemetry.io/collector/pdata v1.0.0-rc5
+	go.opentelemetry.io/collector/receiver/otlpreceiver v0.71.0
 	go.opentelemetry.io/collector/semconv v0.71.0
 	go.opentelemetry.io/otel v1.13.0
 	go.opentelemetry.io/otel/bridge/opencensus v0.36.0
@@ -87,6 +94,7 @@ require (
 	go.uber.org/goleak v1.2.0
 	go.uber.org/multierr v1.9.0
 	go.uber.org/zap v1.24.0
+	golang.org/x/exp v0.0.0-20221002003631-540bb7301a08
 	golang.org/x/sync v0.1.0
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.110.0
@@ -94,17 +102,6 @@ require (
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
-)
-
-require (
-	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.71.0
-	go.opentelemetry.io/collector/component v0.71.0
-	go.opentelemetry.io/collector/confmap v0.71.0
-	go.opentelemetry.io/collector/consumer v0.71.0
-	go.opentelemetry.io/collector/exporter/otlpexporter v0.71.0
-	go.opentelemetry.io/collector/receiver/otlpreceiver v0.71.0
-	golang.org/x/exp v0.0.0-20221002003631-540bb7301a08
 )
 
 require (
