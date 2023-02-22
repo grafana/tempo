@@ -8,10 +8,10 @@ weight: 200
 
 # Service graph view
 
-The Service graph view visualizes the span metrics (traces data for rates, error rates, and durations (RED)) and service graphs.
+The service graph view visualizes the span metrics (traces data for rates, error rates, and durations (RED)) and service graphs.
 Once the requirements are set up, this pre-configured view is immediately available.
 
-Using Service graph view, you can:
+Using the service graph view, you can:
 
 * Discover spans which are consistently erroring and the rates at which they occur
 * Get an overview of the overall rate of span calls throughout your services
@@ -24,7 +24,7 @@ Using Service graph view, you can:
 
 You have to enable span metrics and service graph generation on the Grafana backend so metrics that are generated as traces are ingested.
 
-To use the Service graph view, you need:
+To use the service graph view, you need:
 
 * Tempo or Grafana Cloud Traces with either 1) the metrics generator enabled and configured or 2) the Grafana Agent enabled and configured to send data to a Prometheus-compatible metrics store
 * [Services graphs]({{< relref "../metrics-generator/service_graphs/#how-to-run" >}}), which are enabled by default in Grafana

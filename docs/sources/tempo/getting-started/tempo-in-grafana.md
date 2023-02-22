@@ -76,13 +76,13 @@ for search of the backend datastore.
 
 ## Service graph view
 
-Grafana provides a built-in Service graph view available in Grafana Cloud and Grafana 9.1.
-The Service view graph visualizes the span metrics (traces data for rates, error rates, and durations (RED)) and service graphs.
+Grafana provides a built-in service graph view available in Grafana Cloud and Grafana 9.1.
+The service graph view visualizes the span metrics (traces data for rates, error rates, and durations (RED)) and service graphs.
 Once the requirements are set up, this pre-configured dashboard is immediately available in **Explore > Service Graphs**.
 
-For more information, refer to the [Service view graph]({{< relref "../metrics-generator/service-view-graph/" >}}).
+For more information, refer to the [service graph view]({{< relref "../metrics-generator/service-graph-view/" >}}).
 
-<p align="center"><img src="../assets/apm-overview.png" alt="Service view graph overview"></p>
+<p align="center"><img src="../assets/apm-overview.png" alt="Service graph view overview"></p>
 
 ## Metrics from spans
 

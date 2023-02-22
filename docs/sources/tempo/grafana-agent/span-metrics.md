@@ -21,7 +21,7 @@ The generated metrics show application-level insight into your monitoring,
 as far as tracing gets propagated through your applications.
 
 Span metrics are also used in the service graph view.
-For more information, refer to the [Service view graph]({{< relref "../metrics-generator/service-view-graph/" >}}).
+For more information, refer to the [service graph view]({{< relref "../metrics-generator/service-graph-view/" >}}).
 
 ## Server-side metrics
 
