@@ -8,7 +8,7 @@ weight: 400
 
 # Metrics-generator
 
-Metrics-generator is an optional Tempo component that derives metrics from ingested traces. 
+Metrics-generator is an optional Tempo component that derives metrics from ingested traces.
 If present, the distributor will write received spans to both the ingester and the metrics-generator.
 The metrics-generator processes spans and writes metrics to a Prometheus data source using the Prometheus remote write protocol.
 
@@ -31,11 +31,11 @@ Every processor derives different metrics. Currently the following processors ar
 
 Service graphs are the representations of the relationships between services within a distributed system.
 
-This service graphs processor builds a map of services by analysing traces, with the objective to find _edges_.
+This service graphs processor builds a map of services by analyzing traces, with the objective to find _edges_.
 Edges are spans with a parent-child relationship, that represent a jump (e.g. a request) between two services.
 The amount of request and their duration are recorded as metrics, which are used to represent the graph.
 
-To read more about this processor, go to its [section]({{< relref "service_graphs/" >}}).
+To learn more about this processor, read the [documentation]({{< relref "service_graphs/" >}}).
 
 ### Span metrics
 
@@ -45,4 +45,4 @@ The span metrics processor will compute the total count and the duration of span
 Dimensions can be the service name, the operation, the span kind, the status code and any tag or attribute present in the span.
 The more dimensions are enabled, the higher the cardinality of the generated metrics.
 
-To read more about this processor, navigate to its [section]({{< relref "span_metrics/" >}}).
+To learn more about this processor, read the [documentation]({{< relref "span_metrics/" >}}).
