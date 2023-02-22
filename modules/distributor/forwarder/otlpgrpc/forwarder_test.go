@@ -15,18 +15,24 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 )
 
-type mockWorkingPTraceOTLPServer struct{}
+var _ ptraceotlp.GRPCServer = (*mockWorkingPTraceOTLPServer)(nil)
 
-func (m *mockWorkingPTraceOTLPServer) Export(_ context.Context, _ ptraceotlp.Request) (ptraceotlp.Response, error) {
-	return ptraceotlp.NewResponse(), nil
+type mockWorkingPTraceOTLPServer struct {
+	ptraceotlp.UnimplementedGRPCServer
+}
+
+func (m *mockWorkingPTraceOTLPServer) Export(_ context.Context, _ ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
+	return ptraceotlp.NewExportResponse(), nil
 }
 
 type mockRecordingPTraceOTLPServer struct {
-	next ptraceotlp.Server
-	req  ptraceotlp.Request
+	next ptraceotlp.GRPCServer
+	req  ptraceotlp.ExportRequest
+
+	ptraceotlp.UnimplementedGRPCServer
 }
 
-func (m *mockRecordingPTraceOTLPServer) Export(ctx context.Context, req ptraceotlp.Request) (ptraceotlp.Response, error) {
+func (m *mockRecordingPTraceOTLPServer) Export(ctx context.Context, req ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
 	m.req = req
 	return m.next.Export(ctx, req)
 }
@@ -44,7 +50,7 @@ func newForwarder(t *testing.T, cfg Config, logger log.Logger) *Forwarder {
 	return f
 }
 
-func newListener(t *testing.T, srv ptraceotlp.Server) *bufconn.Listener {
+func newListener(t *testing.T, srv ptraceotlp.GRPCServer) *bufconn.Listener {
 	t.Helper()
 
 	const size = 1024 * 1024
@@ -59,7 +65,7 @@ func newListener(t *testing.T, srv ptraceotlp.Server) *bufconn.Listener {
 		s.GracefulStop()
 	})
 
-	ptraceotlp.RegisterServer(s, srv)
+	ptraceotlp.RegisterGRPCServer(s, srv)
 	go func() {
 		err := s.Serve(l)
 		require.NoError(t, err)
