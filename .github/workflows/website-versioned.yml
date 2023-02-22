@@ -8,7 +8,7 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
     paths:
-      - 'docs/sources/**'
+      - 'docs/sources/tempo/**'
 
 jobs:
   test:
@@ -17,7 +17,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v3
       - name: Build Website
-        run: docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod
+        run: docker run -v ${PWD}/docs/sources/tempo:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod
   sync:
     runs-on: ubuntu-latest
     needs: test
@@ -84,7 +84,7 @@ jobs:
           # GitHub administrator to update the organization secret.
           # The IT helpdesk can update the organization secret.
           github_pat: "grafanabot:${{ secrets.PUBLISH_TO_WEBSITE_TOKEN }}"
-          source_folder: docs/sources
+          source_folder: docs/sources/tempo
           # target is v1.2.x
           target_folder: content/docs/tempo/${{ steps.target.outputs.target }}.x
       
