@@ -8,7 +8,7 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "a924ab1b5fd4e6eacd7235a20978d050a27bdb65",
+      "version": "7c72d8eedb2520fc050e3dc4febdd400ab2a1920",
       "sum": "/pkNOLhRqvQoPA0yYdUuJvpPHqhkCLauAUMD2ZHMIkE="
     },
     {
@@ -18,8 +18,18 @@
           "subdir": "memcached"
         }
       },
-      "version": "a924ab1b5fd4e6eacd7235a20978d050a27bdb65",
+      "version": "7c72d8eedb2520fc050e3dc4febdd400ab2a1920",
       "sum": "SWywAq4U0MRPMbASU0Ez8O9ArRNeoZzb75sEuReueow="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/jsonnet-libs/k8s-libsonnet.git",
+          "subdir": "1.22"
+        }
+      },
+      "version": "8ecd8500e820a5ef4e0394f64e383b0edb768137",
+      "sum": "+pMhSLOcwfOC74Snh1B2Dx32nmzx51PqsoEJBphmXqM="
     },
     {
       "source": {
