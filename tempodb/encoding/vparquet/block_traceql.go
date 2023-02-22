@@ -1030,11 +1030,7 @@ func (c *spanCollector) String() string {
 	return fmt.Sprintf("spanCollector(%d, %v)", c.minAttributes, c.durationFilters)
 }
 
-var spanCreated = 0
-
 func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
-
-	// TODO: this allocates a lot of memory, we should look into span pooling
 	span := getSpan()
 	span.RowNum = res.RowNumber
 
@@ -1142,7 +1138,6 @@ func (c *batchCollector) String() string {
 }
 
 func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
-
 	// TODO - This wraps everything up in a spanset per batch.
 	// We probably don't need to do this, since the traceCollector
 	// flattens it into 1 spanset per trace.  All we really need
@@ -1212,7 +1207,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			putSpan(span)
 		}
 	} else {
-		filteredSpans = c.keepGroupSpans
+		filteredSpans = append([]*traceql.Span(nil), c.keepGroupSpans...)
 	}
 
 	// Throw out batches without any spans
