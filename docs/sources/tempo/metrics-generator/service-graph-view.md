@@ -31,17 +31,17 @@ To use the service graph view, you need:
 * [Span metrics table enabled](https://grafana.com/docs/grafana/latest/datasources/tempo/) within the service graph tab
 * [Span metrics]({{< relref "../metrics-generator/span_metrics/#how-to-run" >}}) enabled in your Tempo data source configuration
 
-The Service graph view can be generated with the metrics-generator or Grafana Agent.
+The service graph view can be generated with the metrics-generator or Grafana Agent.
 
 For information on how to configure these features, refer to the [Grafana Tempo data sources documentation](https://grafana.com/docs/grafana/latest/datasources/tempo/).
 
-## What does the Service graph view show?
+## What does the service graph view show?
 
 Using this view, you can see the top five spans with a type of server (listed in the `Name` column).
 You can refine any of this data using the filters.
 Selecting any of the data points lets you see more specific data.
 
-The Service graph view provides a span metrics visualization (table, screen section 2) and service graph (screen section 3). In addition, you can use the filters (screen section 1) to customize the data displayed.
+The service graph view provides a span metrics visualization (table, screen section 2) and service graph (screen section 3). In addition, you can use the filters (screen section 1) to customize the data displayed.
 
 <p align="center"><img src="../apm-overview-numbered.png" alt="View with numbered sections"></p>
 
@@ -112,7 +112,7 @@ For information about service graphs and how they are calculated, refer to the [
 
 ## Use filters to reveal details
 
-The Service graph view uses service graphs and span metrics to provide a gateway to your tracing information.
+The service graph view uses service graphs and span metrics to provide a gateway to your tracing information.
 This dashboard is derived from a fixed set of metrics queries.
 These underlying queries can not be changed.
 However, you can choose which traces are included in the metrics query by filtering.
