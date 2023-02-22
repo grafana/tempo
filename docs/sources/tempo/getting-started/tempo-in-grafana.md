@@ -74,15 +74,15 @@ for search of the backend datastore.
 -  Run Grafana 8.3.6 or a more recent version. Enable the `tempoBackendSearch` [feature toggle](https://github.com/grafana/tempo/blob/main/example/docker-compose/tempo-search/grafana.ini). This will cause Grafana to pass the `start` and `end` parameters necessary for the backend datastore search.
 
 
-## APM dashboard
+## Service graph view
 
-Grafana provides a built-in Application Performance Management (APM) dashboard available in Grafana Cloud and Grafana 9.1.
-The Grafana APM dashboard visualizes the span metrics (traces data for rates, error rates, and durations (RED)) and service graphs.
+Grafana provides a built-in Service graph view available in Grafana Cloud and Grafana 9.1.
+The Service view graph visualizes the span metrics (traces data for rates, error rates, and durations (RED)) and service graphs.
 Once the requirements are set up, this pre-configured dashboard is immediately available in **Explore > Service Graphs**.
 
-For more information, refer to the [APM dashboard documentation]({{< relref "../metrics-generator/app-performance-mgmt/" >}}).
+For more information, refer to the [Service view graph]({{< relref "../metrics-generator/service-view-graph/" >}}).
 
-<p align="center"><img src="../assets/apm-overview.png" alt="APM dashboard overview"></p>
+<p align="center"><img src="../assets/apm-overview.png" alt="Service view graph overview"></p>
 
 ## Metrics from spans
 

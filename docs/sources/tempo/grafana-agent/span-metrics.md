@@ -20,8 +20,8 @@ Even if you already have metrics, span metrics can provide in-depth monitoring o
 The generated metrics show application-level insight into your monitoring,
 as far as tracing gets propagated through your applications.
 
-Span metrics are also used in the application performance management dashboard.
-For more information, refer to the [APM dashboard documentation]({{< relref "../metrics-generator/app-performance-mgmt/" >}}).
+Span metrics are also used in the service graph view.
+For more information, refer to the [Service view graph]({{< relref "../metrics-generator/service-view-graph/" >}}).
 
 ## Server-side metrics
 
