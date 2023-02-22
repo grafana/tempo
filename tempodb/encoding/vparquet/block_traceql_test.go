@@ -445,8 +445,8 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"spanAttNameNoMatch", traceql.MustExtractFetchSpansRequest("{ span.foo = `bar` }")},
 		{"spanAttValNoMatch", traceql.MustExtractFetchSpansRequest("{ span.bloom = `bar` }")},
 		{"spanAttValMatch", traceql.MustExtractFetchSpansRequest("{ span.bloom > 0 }")},
-		{"spanAttIntrinsicNoMatch", traceql.MustExtractFetchSpansRequest("{ span.name = `asdfasdf` }")},
-		{"spanAttIntrinsicMatch", traceql.MustExtractFetchSpansRequest("{ span.name = `gcs.ReadRange` }")},
+		{"spanAttIntrinsicNoMatch", traceql.MustExtractFetchSpansRequest("{ name = `asdfasdf` }")},
+		{"spanAttIntrinsicMatch", traceql.MustExtractFetchSpansRequest("{ name = `gcs.ReadRange` }")},
 
 		// resource
 		{"resourceAttNameNoMatch", traceql.MustExtractFetchSpansRequest("{ resource.foo = `bar` }")},
@@ -458,7 +458,9 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		// mixed
 		{"mixedNameNoMatch", traceql.MustExtractFetchSpansRequest("{ .foo = `bar` }")},
 		{"mixedValNoMatch", traceql.MustExtractFetchSpansRequest("{ .bloom = `bar` }")},
-		{"mixedValMixedMatch", traceql.MustExtractFetchSpansRequest("{ resource.foo = `bar` && span.name = `gcs.ReadRange` }")},
+		{"mixedValMixedMatchAnd", traceql.MustExtractFetchSpansRequest("{ resource.foo = `bar` && name = `gcs.ReadRange` }")},
+		{"mixedValMixedMatchOr", traceql.MustExtractFetchSpansRequest("{ resource.foo = `bar` || name = `gcs.ReadRange` }")},
+		{"mixedValBothMatch", traceql.MustExtractFetchSpansRequest("{ resource.service.name = `query-frontend` && name = `gcs.ReadRange` }")},
 	}
 
 	ctx := context.TODO()
