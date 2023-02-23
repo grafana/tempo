@@ -421,6 +421,12 @@ func (s Static) impliedType() StaticType {
 }
 
 func (s Static) Equals(other Static) bool {
+	// if either is a number compare as floats
+	bothAreTypeNumber := (s.Type == TypeInt || s.Type == TypeFloat) && (other.Type == TypeInt || other.Type == TypeFloat)
+	if bothAreTypeNumber {
+		return s.asFloat() == other.asFloat()
+	}
+
 	eitherIsTypeStatus := (s.Type == TypeStatus && other.Type == TypeInt) || (other.Type == TypeStatus && s.Type == TypeInt)
 	if !eitherIsTypeStatus {
 		return s == other

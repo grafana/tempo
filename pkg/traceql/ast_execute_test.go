@@ -298,3 +298,179 @@ func TestScalarFilterEvaluate(t *testing.T) {
 		})
 	}
 }
+
+func TestBinaryOperationWorksWithFloatsAndInts(t *testing.T) {
+	testCases := []struct {
+		query  string
+		input  []Spanset
+		output []Spanset
+	}{
+		// binops work int -> float
+		{
+			"{ .foo > 0 }",
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				}},
+			},
+			[]Spanset{
+				{
+					Spans: []Span{
+						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+					},
+				},
+			},
+		},
+		{
+			"{ .foo < 2 }",
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				}},
+			},
+			[]Spanset{
+				{
+					Spans: []Span{
+						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+					},
+				},
+			},
+		},
+		{
+			"{ .foo = 1 }",
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				}},
+			},
+			[]Spanset{
+				{
+					Spans: []Span{
+						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+					},
+				},
+			},
+		},
+		// binops work float -> int
+		{
+			"{ .foo > 0. }",
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				}},
+			},
+			[]Spanset{
+				{
+					Spans: []Span{
+						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+					},
+				},
+			},
+		},
+		{
+			"{ .foo < 2. }",
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				}},
+			},
+			[]Spanset{
+				{
+					Spans: []Span{
+						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+					},
+				},
+			},
+		},
+		{
+			"{ .foo = 1. }",
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				}},
+			},
+			[]Spanset{
+				{
+					Spans: []Span{
+						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+					},
+				},
+			},
+		},
+		// binops work with statics
+		{
+			"{ 1 > 0. }",
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				}},
+			},
+			[]Spanset{
+				{
+					Spans: []Span{
+						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+					},
+				},
+			},
+		},
+		{
+			"{ 0 < 2. }",
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				}},
+			},
+			[]Spanset{
+				{
+					Spans: []Span{
+						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+					},
+				},
+			},
+		},
+		{
+			"{ 1 = 1. }",
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				}},
+			},
+			[]Spanset{
+				{
+					Spans: []Span{
+						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.query, func(t *testing.T) {
+			ast, err := Parse(tc.query)
+			require.NoError(t, err)
+
+			actual, err := ast.Pipeline.evaluate(tc.input)
+			require.NoError(t, err)
+			require.Equal(t, tc.output, actual)
+		})
+	}
+}
