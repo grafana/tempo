@@ -101,6 +101,7 @@ func (c *spanMetaCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		EndtimeUnixNanos:   span.EndtimeUnixNanos,
 		Attributes:         span.Attributes,
 	}
+	putSpan(span)
 
 	// span start/end time may come from span attributes or it may come from
 	// the iterator results. if we find it in the iterator results, use that

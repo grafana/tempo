@@ -17,9 +17,13 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-// todo: this sync pool currently just massively reduces allocations for queries like { .foo = "bar" } where millions of spans
-// are created in the spanCollector and then thrown away in the batchCollector. this could be extended to catch other times
-// we drop spans.
+// todo: this sync pool currently massively reduces allocations by pooling spans for certain queries.
+// it currently catches spans discarded:
+// - in the span collector
+// - in the batch collector
+// - while converting to spanmeta
+// to be fully effective it needs to catch spans thrown away in the query engine. perhaps filter spans
+// can return a slice of dropped and kept spansets?
 var spanPool = sync.Pool{
 	New: func() interface{} {
 		return &traceql.Span{
@@ -1109,6 +1113,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			}
 		}
 		if count < c.minAttributes {
+			putSpan(span)
 			return false
 		}
 	}
