@@ -144,6 +144,10 @@ docker-tempo:
 docker-tempo-debug:
 	COMPONENT=tempo $(MAKE) docker-component-debug
 
+.PHONY: docker-cli
+docker-tempo-cli:
+	COMPONENT=tempo-cli $(MAKE) docker-component
+
 .PHONY: docker-tempo-query
 docker-tempo-query:
 	COMPONENT=tempo-query $(MAKE) docker-component

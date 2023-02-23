@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/alecthomas/kong"
 	"gopkg.in/yaml.v2"
 
-	"github.com/alecthomas/kong"
+	"github.com/grafana/tempo/cmd/tempo/app"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
+	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 )
 
@@ -73,6 +73,10 @@ var cli struct {
 
 	Parquet struct {
 		Convert convertParquet `cmd:"" help:"convert from an existing file to tempodb parquet schema"`
+	} `cmd:""`
+
+	Migrate struct {
+		Tenant migrateTenantCmd `cmd:"" help:"migrate tenant between two backends"`
 	} `cmd:""`
 }
 
