@@ -57,8 +57,7 @@ blocks:
 		}
 
 		// create a copy with destination tenant ID
-		var destBlockMeta backend.BlockMeta
-		destBlockMeta = *sourceBlockMeta
+		destBlockMeta := *sourceBlockMeta
 		destBlockMeta.TenantID = cmd.DestTenantID
 
 		encoder, err := encoding.FromVersion(sourceBlockMeta.Version)
@@ -71,7 +70,7 @@ blocks:
 			return errors.Wrap(err, "copying block")
 		}
 
-		copiedBlocks += 1
+		copiedBlocks++
 		copiedSize += sourceBlockMeta.Size
 	}
 
