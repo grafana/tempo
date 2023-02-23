@@ -461,6 +461,49 @@ func TestBinaryOperationWorksWithFloatsAndInts(t *testing.T) {
 				},
 			},
 		},
+		// binops work with attributes
+		{
+			"{ .foo < .bar }",
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(2)}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(2), NewAttribute("bar"): NewStaticFloat(1)}},
+				}},
+			},
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(2)}},
+				}},
+			},
+		},
+		{
+			"{ .bar > .foo }",
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(2)}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(2), NewAttribute("bar"): NewStaticFloat(1)}},
+				}},
+			},
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(2)}},
+				}},
+			},
+		},
+		{
+			"{ .foo = .bar }",
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}},
+					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(2), NewAttribute("bar"): NewStaticFloat(1)}},
+				}},
+			},
+			[]Spanset{
+				{Spans: []Span{
+					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}},
+				}},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
