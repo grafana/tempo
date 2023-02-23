@@ -101,6 +101,7 @@ func (c *spanMetaCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		EndtimeUnixNanos:   span.EndtimeUnixNanos,
 		Attributes:         span.Attributes,
 	}
+	span.Attributes = make(map[traceql.Attribute]traceql.Static) // we have to overwrite the attributes b/c putSpan will attempt to reuse them
 	putSpan(span)
 
 	// span start/end time may come from span attributes or it may come from
