@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -57,9 +58,20 @@ func httpRequest(event events.ALBTargetGroupRequest) (*http.Request, error) {
 	// params
 	params := url.Values{}
 	for k, v := range event.QueryStringParameters {
-		params.Set(k, v)
+		unescaped, err := url.QueryUnescape(v)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unescape query string parameter %s: %s: %w", k, v, err)
+		}
+		params.Set(k, unescaped)
 	}
 	for k, vals := range event.MultiValueQueryStringParameters {
+		for i, v := range vals {
+			var err error
+			vals[i], err = url.QueryUnescape(v)
+			if err != nil {
+				return nil, fmt.Errorf("failed to unescape multi val query string parameter %s: %s: %w", k, v, err)
+			}
+		}
 		params[k] = vals
 	}
 

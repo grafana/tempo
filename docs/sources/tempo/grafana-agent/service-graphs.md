@@ -13,7 +13,7 @@ This is more efficient and recommended for larger installations.
 For a deep look into service graphs, visit [this section]({{< relref "../metrics-generator/service_graphs/" >}}).
 
 Service graphs are also used in the application performance management dashboard.
-For more information, refer to the [APM dashboard documentation]({{< relref "../metrics-generator/app-performance-mgmt/" >}}).
+For more information, refer to the [service graph view documentation]({{< relref "../metrics-generator/service-graph-view/" >}}).
 
 ## Quickstart
 

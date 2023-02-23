@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
+	internalserver "github.com/grafana/tempo/pkg/server"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
@@ -34,6 +35,7 @@ type Config struct {
 	EnableGoRuntimeMetrics bool   `yaml:"enable_go_runtime_metrics,omitempty"`
 
 	Server          server.Config           `yaml:"server,omitempty"`
+	InternalServer  internalserver.Config   `yaml:"internal_server,omitempty"`
 	Distributor     distributor.Config      `yaml:"distributor,omitempty"`
 	IngesterClient  ingester_client.Config  `yaml:"ingester_client,omitempty"`
 	GeneratorClient generator_client.Config `yaml:"metrics_generator_client,omitempty"`
@@ -69,6 +71,9 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	// Server settings
 	flagext.DefaultValues(&c.Server)
 	c.Server.LogLevel.RegisterFlags(f)
+
+	// Internal server settings
+	flagext.DefaultValues(&c.InternalServer)
 
 	// Increase max message size to 16MB
 	c.Server.GPRCServerMaxRecvMsgSize = 16 * 1024 * 1024
