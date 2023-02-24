@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
@@ -315,17 +316,26 @@ func estimateMarshalledSizeFromParquetRow(row parquet.Row) (size int) {
 }
 
 // countSpans counts the number of spans in the given trace in deconstructed
-// parquet row format. It simply counts the number of values for span ID, which
-// is always present.
-func countSpans(schema *parquet.Schema, row parquet.Row) (spans int) {
+// parquet row format and returns traceId.
+// It simply counts the number of values for span ID, which is always present.
+func countSpans(schema *parquet.Schema, row parquet.Row) (traceID string, spans int) {
+	traceIDColumn, found := schema.Lookup(TraceIDColumnName)
+	if !found {
+		return "", 0
+	}
+
 	spanID, found := schema.Lookup("rs", "ils", "Spans", "ID")
 	if !found {
-		return 0
+		return "", 0
 	}
 
 	for _, v := range row {
 		if v.Column() == spanID.ColumnIndex {
 			spans++
+		}
+
+		if v.Column() == traceIDColumn.ColumnIndex {
+			traceID = tempoUtil.TraceIDToHexString(v.ByteArray())
 		}
 	}
 
