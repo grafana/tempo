@@ -92,17 +92,7 @@ func main() {
 	// Allocate a block of memory to alter GC behaviour. See https://github.com/golang/go/issues/23044
 	ballast := make([]byte, *ballastMBs*1024*1024)
 
-	// Warn the user for suspect configurations
-	if warnings := config.CheckConfig(); len(warnings) != 0 {
-		level.Warn(log.Logger).Log("-- CONFIGURATION WARNINGS --")
-		for _, w := range warnings {
-			output := []any{"msg", w.Message}
-			if w.Explain != "" {
-				output = append(output, "explain", w.Explain)
-			}
-			level.Warn(log.Logger).Log(output...)
-		}
-	}
+	configIsValid(config)
 
 	// Start Tempo
 	t, err := app.New(*config)
@@ -120,15 +110,33 @@ func main() {
 	runtime.KeepAlive(ballast)
 }
 
+func configIsValid(config *app.Config) bool {
+	// Warn the user for suspect configurations
+	if warnings := config.CheckConfig(); len(warnings) != 0 {
+		level.Warn(log.Logger).Log("-- CONFIGURATION WARNINGS --")
+		for _, w := range warnings {
+			output := []any{"msg", w.Message}
+			if w.Explain != "" {
+				output = append(output, "explain", w.Explain)
+			}
+			level.Warn(log.Logger).Log(output...)
+		}
+		return false
+	}
+	return true
+}
+
 func loadConfig() (*app.Config, error) {
 	const (
 		configFileOption      = "config.file"
 		configExpandEnvOption = "config.expand-env"
+		configVerifyOption    = "config.verify"
 	)
 
 	var (
 		configFile      string
 		configExpandEnv bool
+		configVerify    bool
 	)
 
 	args := os.Args[1:]
@@ -171,11 +179,20 @@ func loadConfig() (*app.Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse configFile %s: %w", configFile, err)
 		}
+
+		if configVerify {
+			if !configIsValid(config) {
+				os.Exit(1)
+			}
+			os.Exit(0)
+		}
+
 	}
 
 	// overlay with cli
 	flagext.IgnoredFlag(flag.CommandLine, configFileOption, "Configuration file to load")
 	flagext.IgnoredFlag(flag.CommandLine, configExpandEnvOption, "Whether to expand environment variables in config file")
+	flagext.IgnoredFlag(flag.CommandLine, configVerifyOption, "Verify configuration and exit")
 	flag.Parse()
 
 	// after loading config, let's force some values if in single binary mode
