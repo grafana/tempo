@@ -662,27 +662,34 @@ func TestArithmetic(t *testing.T) {
 	}
 }
 
-func BenchmarkArithmeticOp(b *testing.B) {
+func BenchmarkBinOp(b *testing.B) {
 	ops := []struct {
 		op BinaryOperation
 	}{
 		{
 			op: BinaryOperation{
-				Op:  OpAdd,
+				Op:  OpEqual,
 				LHS: NewStaticInt(1),
 				RHS: NewStaticInt(1),
 			},
 		},
 		{
 			op: BinaryOperation{
-				Op:  OpAdd,
+				Op:  OpEqual,
 				LHS: NewStaticFloat(1),
 				RHS: NewStaticInt(1),
 			},
 		},
 		{
 			op: BinaryOperation{
-				Op:  OpAdd,
+				Op:  OpEqual,
+				LHS: NewStaticDuration(1),
+				RHS: NewStaticFloat(1),
+			},
+		},
+		{
+			op: BinaryOperation{
+				Op:  OpEqual,
 				LHS: NewStaticFloat(1),
 				RHS: NewStaticFloat(1),
 			},

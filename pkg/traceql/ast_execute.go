@@ -163,7 +163,6 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 	}
 
 	switch o.Op {
-	// TODO jpe benchmark arithmetic. is it better to stick with ints if possible and only drop to floats if needed?
 	case OpAdd:
 		return NewStaticFloat(lhs.asFloat() + rhs.asFloat()), nil
 	case OpSub:
