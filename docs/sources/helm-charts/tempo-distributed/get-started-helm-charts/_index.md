@@ -40,8 +40,8 @@ It also assumes that you have an understanding of what the `kubectl` command doe
 Verify that you have:
 - Access to the Kubernetes cluster
 - Persistent storage is enabled in the Kubernetes cluster, which has a default storage class setup. You can [change the default StorageClass](https://kubernetes.io/docs/tasks/administer-cluster/change-default-storage-class/).
-- Access to a Google Cloud Platform storage bucket (see [instructions](https://cloud.google.com/storage/docs/creating-buckets))
-- Optional: DNS service works in the Kubernetes cluster
+- Access to a storage bucket like Amazon S3, Azure Blob Storage, or Google Cloud Platform (for example, [Google Cloud Storage instructions](https://cloud.google.com/storage/docs/creating-buckets))
+- DNS service works in the Kubernetes cluster
 - Optional: An ingress controller is set up in the Kubernetes cluster, for example [ingress-nginx](https://kubernetes.github.io/ingress-nginx/)
 
 >**NOTE**: If you want to access Tempo from outside of the Kubernetes cluster, you will need an ingress. Ingress-related procedures are marked as optional.
@@ -57,7 +57,7 @@ If you are using the PodSecurityPolicy admission controller, then it is not poss
 If you are using the Pod Security admission controller, then MinIO and the tempo-distributed chart can successfully deploy under the baseline pod security level.
 -->
 
-## Install the Helm chart in a custom namespace
+## Create a custom namespace and add the Helm repository
 
 Using a custom namespace solves problems later on because you do not have to overwrite the default namespace.
 
@@ -67,7 +67,7 @@ Using a custom namespace solves problems later on because you do not have to ove
 kubectl create namespace tempo-test
 ```
 
-1. For more details, see the Kubernetes documentation about [Creating a new namespace](https://kubernetes.io/docs/tasks/administer-cluster/namespaces/#creating-a-new-namespace).
+   For more details, see the Kubernetes documentation about [Creating a new namespace](https://kubernetes.io/docs/tasks/administer-cluster/namespaces/#creating-a-new-namespace).
 
 1. Set up a Helm repository using the following commands:
 
@@ -78,37 +78,150 @@ kubectl create namespace tempo-test
 
    >**NOTE**: The Helm chart at https://grafana.github.io/helm-charts is a publication of the source code at grafana/tempo.
 
-### Set Google Cloud Platform as the storage option
 
-Before you run the Helm chart, you need to configure where trace data will be stored. These steps create a YAML file with the storage configuration.
+## Set Helm chart values
 
-You need the `secret_key` from your service provider used as part of the user or account authentication. In this case, it refers to S3’s secret key. Google Cloud Storage has a similar option.
+Your Helm chart values are set in the `custom.yaml` file. The following example `custom.yaml` file sets the storage and traces options, enables the gateway, and sets the cluster to main. The `traces` configure the distributor's receiver protocols.
+
+```yaml
+---
+storage:
+  trace:
+    backend: s3
+    s3:
+      access_key: 'grafana-tempo'
+      secret_key: 'supersecret'
+      bucket: 'tempo-traces'
+      endpoint: 'tempo-minio:9000'
+      insecure: true
+ traces:
+  otlp:
+    grpc:
+      enabled: true
+    http:
+      enabled: true
+  zipkin:
+    enabled: false
+  jaeger:
+    thriftHttp:
+      enabled: false
+  opencensus:
+    enabled: false
+```
+
+Next, we will:
+
+1. Create a `custom.yaml` file
+2. Set your storage values, the example above points to the MinIO instance configured by the chart
+3. Set your traces values to configure the receivers on the Tempo distributor
+
+### Create a `custom.yaml` file
 
 1. Create a YAML file of Helm values called `custom.yaml`.
+1. Copy the example above and paste it into the custom.yaml file.
+1. Save the file.
 
-1. Add the following configuration to the file to set Google Cloud Platform as the trace storage.
-   - Change `temorockstracing` to your `secret_key`.
-   - Change `bucket` to match the bucket name in GCP.
-   - Change `endpoint` to the correct one for your set up.
+### Set your storage option
+
+Before you run the Helm chart, you need to configure where trace data will be stored.
+
+The `storage` block defined in the `values.yaml` file is used to configure the storage that Tempo uses for trace storage.
+
+The procedure below configures MinIO as the local storage option managed by the Helm chart.
+However, you can use a other storage provides. Refer to the Optional storage section below.
+
+1. Update the configuration options in `custom.yaml` for your configuration.
 
    ```yaml
    ---
-   minio:
-     enabled: false
    storage:
      trace:
        backend: s3
        s3:
-         access_key: 'tempo-test'
-         secret_key: 'temporockstracing'
-         bucket: 'tempo-test'
-         endpoint: 'stodev0.znet:9000'
+         access_key: 'grafana-tempo'
+         secret_key: 'supersecret'
+         bucket: 'tempo-traces'
+         endpoint: 'tempo-minio:9000'
          insecure: true
    ```
+
+### Optional: Other storage option
+
+Each storage provider has a different configuration stanza, which are detailed in Tempo's documentation. You will need to update your configuration based upon you storage provider.
+Refer to the [`storage` configuration block](https://grafana.com/docs/tempo/latest/configuration/#storage) for information on storage options.
+
+To use other storage options, set `minio: enabled: false` in the `values.yaml` file:
+
+   ```yaml
+   ---
+   minio:
+     enabled: false  # Disables the MinIO chart
+   storage:
+   ```
+
+Update the `storage` configuration options based upon your requirements:
+
+- [Amazon S3 configuration documentation](https://grafana.com/docs/tempo/latest/configuration/s3/). The Amazon S3 example is identical to the MinIO configuration. The two last options, `endpoint` and `insecure`, are dropped.
+
+- [Azure Blob Storage configuration documentation](https://grafana.com/docs/tempo/latest/configuration/azure/)
+
+- [Google Cloud Storage configuration documentation](https://grafana.com/docs/tempo/latest/configuration/gcs/)
+
+
+<!--- GET example to document later
+```yaml
+minio:
+  enabled: true
+storage:
+  trace:
+    backend: s3
+    s3:
+      access_key: 'grafana-tempo'
+      secret_key: 'supersecret'
+      bucket: 'enterprise-traces'
+      endpoint: 'tempo-minio:9000'
+      insecure: true
+  admin:
+    backend: s3
+    s3:
+      access_key_id: 'grafana-tempo'
+      secret_access_key: 'supersecret'
+      bucket_name: 'enterprise-traces-admin'
+      endpoint: 'tempo-minio:9000'
+      insecure: true
+```
+-->
+
+### Set traces receivers
+
+Tempo can be configured to receive data from OTLP, Jaegar, Zipkin, Kafka, and OpenCensus.
+ The following example enables OTLP on the distributor. For other options, refer to the [distributor documentation](https://grafana.com/docs/tempo/latest/configuration/#distributor)
+
+The example used in this procedure has OTLP enabled.
+
+Enable any other protocols based on your requirements.
+
+ ```yaml
+ traces:
+  otlp:
+    grpc:
+      enabled: true
+    http:
+      enabled: true
+  zipkin:
+    enabled: false
+  jaeger:
+    thriftHttp:
+      enabled: false
+  opencensus:
+    enabled: false
+```
+
 
 ### Optional: Add custom configurations
 
 You can use a YAML file, like `custom.yaml`, to store custom configuration options that override the defaults present in the Helm chart.
+The [tempo-distributed Helm chart's README](https://github.com/grafana/helm-charts/blob/main/charts/tempo-distributed/README.md) contains a list of available options.
 
 To see all of the configurable parameters for the `tempo-distributed` Helm chart, use the following command:
 
@@ -142,10 +255,6 @@ For more information, see [Ingress](https://kubernetes.io/docs/concepts/services
          # empty, disabled.
    ```
 
-### Optional: Configure storage
-
-You can use storage options, including cloud-based storage, like Google Cloud Platform (GCP), Amazon S3, and local storage options, like MinIO. The Helm chart in this guide uses GCP, however, you can select other storage options.
-Refer to the []`storage` configuration block](https://grafana.com/docs/tempo/latest/configuration/#storage) for information on other storage options.
 
 ## Install Grafana Tempo using the Helm chart
 
@@ -189,25 +298,28 @@ Installed components:
 * memcached
 ```
 
+>**NOTE**: If you update your `values.yaml` or `custom.yaml`, run the same helm install command and replace `install` with `upgrade`.
+
 Check the statuses of the Tempo pods:
 
-```
+```bash
 kubectl -n tempo-test get pods
 ```
 
 The results look similar to this:
 
 ```
-❯ kubectl -n tempo-test get pods
-NAME                                	READY   STATUS	RESTARTS   AGE
-tempo-compactor-6cd48b65cb-5hkws    	1/1 	Running   0      	79m
-tempo-distributor-965fc4564-cq28j   	1/1 	Running   0      	79m
-tempo-ingester-0                    	1/1 	Running   0      	77m
-tempo-ingester-1                    	1/1 	Running   0      	78m
-tempo-ingester-2                    	1/1 	Running   0      	79m
-tempo-memcached-0                   	1/1 	Running   0      	94m
-tempo-querier-54bfd999c7-z59bb      	1/1 	Running   0      	79m
-tempo-query-frontend-757c66d7bd-rxtbl   1/1 	Running   0      	79m
+NAME                                    READY   STATUS    RESTARTS   AGE
+tempo-compactor-86cd974cf-8qrk2         1/1     Running   0          22h
+tempo-distributor-bbf4889db-v8l8r       1/1     Running   0          22h
+tempo-gateway-75f468bd46-fbzj4          1/1     Running   0          22h
+tempo-ingester-0                        1/1     Running   0          22h
+tempo-ingester-1                        1/1     Running   0          22h
+tempo-ingester-2                        1/1     Running   0          22h
+tempo-memcached-0                       1/1     Running   0          8d
+tempo-minio-6c4b66cb77-sgm8z            1/1     Running   0          26h
+tempo-querier-777c8dcf54-fqz45          1/1     Running   0          22h
+tempo-query-frontend-7f7f686d55-xsnq5   1/1     Running   0          22h
 ```
 
 Wait until all of the pods have a status of Running or Completed, which might take a few minutes.
