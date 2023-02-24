@@ -157,7 +157,7 @@ validate_fails:
   # scalar expressions must reference the span
   - 'sum(3) = 2'
   - 'sum(3) = min(14)'
-  - 'min(2h) < max(duration)'          
+  - 'min(2h) < max(duration)'
   - 'min(3) = max(duration)'
   - 'min(1) = max(2) + 3'
   - 'min(1.1 - 3) > 1'
