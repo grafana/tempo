@@ -42,7 +42,7 @@ func (m *mockSharder) Combine(dataEncoding string, tenantID string, objs ...[]by
 	return model.StaticCombiner.Combine(dataEncoding, objs...)
 }
 
-func (m *mockSharder) RecordDiscardedSpans(count int, tenantID string) {}
+func (m *mockSharder) RecordDiscardedSpans(count int, tenantID string, traceID string) {}
 
 type mockJobSharder struct{}
 
