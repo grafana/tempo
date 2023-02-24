@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -34,14 +35,63 @@ func testSearchCompleteBlock(t *testing.T, blockVersion string) {
 
 		for _, req := range searchesThatMatch {
 			res, err := r.Search(ctx, meta, req, common.DefaultSearchOptions())
-			require.NoError(t, err)
+			require.NoError(t, err, "search request: %+v", req)
 			require.Equal(t, 1, len(res.Traces), "search request: %+v", req)
 			require.Equal(t, wantMeta, res.Traces[0], "search request:", req)
 		}
 
 		for _, req := range searchesThatDontMatch {
 			res, err := r.Search(ctx, meta, req, common.DefaultSearchOptions())
-			require.NoError(t, err)
+			require.NoError(t, err, "search request: %+v", req)
+			require.Empty(t, res.Traces, "search request:", req)
+		}
+	})
+}
+
+// TestTraceQLCompleteBlock is a first attempt at adding some tests for traceql against a complete block.
+// to really improve this we need to drop the old search, move the SearchTestSuite() functionality here
+// and clean everything up.
+// This test currently only tests the most basic traceql functionality.
+func TestTraceQLCompleteBlock(t *testing.T) {
+	for _, v := range encoding.AllEncodings() {
+		vers := v.Version()
+		t.Run(vers, func(t *testing.T) {
+			testTraceQLCompleteBlock(t, vers)
+		})
+	}
+}
+
+func testTraceQLCompleteBlock(t *testing.T, blockVersion string) {
+	e := traceql.NewEngine()
+
+	runCompleteBlockTest(t, blockVersion, func(wantMeta *tempopb.TraceSearchMetadata, searchesThatMatch, searchesThatDontMatch []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader) {
+		ctx := context.Background()
+
+		for _, req := range searchesThatMatch {
+			fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+			})
+
+			res, err := e.Execute(ctx, req, fetcher)
+			if err == common.ErrUnsupported {
+				return
+			}
+			require.NoError(t, err, "search request: %+v", req)
+			require.Equal(t, 1, len(res.Traces), "search request: %+v", req)
+			res.Traces[0].SpanSet = nil // todo: add the matching spansets to wantmeta
+			require.Equal(t, wantMeta, res.Traces[0], "search request:", req)
+		}
+
+		for _, req := range searchesThatDontMatch {
+			fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+			})
+
+			res, err := e.Execute(ctx, req, fetcher)
+			if err == common.ErrUnsupported {
+				return
+			}
+			require.NoError(t, err, "search request: %+v", req)
 			require.Empty(t, res.Traces, "search request:", req)
 		}
 	})
@@ -105,4 +155,6 @@ func runCompleteBlockTest(t testing.TB, blockVersion string, runner func(*tempop
 	meta := block.BlockMeta()
 
 	runner(wantMeta, searchesThatMatch, searchesThatDontMatch, meta, rw)
+
+	// todo: do some compaction and then call runner again
 }
