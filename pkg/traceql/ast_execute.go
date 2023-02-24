@@ -3,6 +3,7 @@ package traceql
 import (
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 
 	"github.com/go-kit/log/level"
@@ -162,12 +163,17 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 	}
 
 	switch o.Op {
-	// TODO implement arithmetics
+	// TODO jpe benchmark arithmetic. is it better to stick with ints if possible and only drop to floats if needed?
 	case OpAdd:
+		return NewStaticFloat(lhs.asFloat() + rhs.asFloat()), nil
 	case OpSub:
+		return NewStaticFloat(lhs.asFloat() - rhs.asFloat()), nil
 	case OpDiv:
+		return NewStaticFloat(lhs.asFloat() / rhs.asFloat()), nil
 	case OpMod:
+		return NewStaticFloat(math.Mod(lhs.asFloat(), rhs.asFloat())), nil
 	case OpMult:
+		return NewStaticFloat(lhs.asFloat() * rhs.asFloat()), nil
 	case OpGreater:
 		return NewStaticBool(lhs.asFloat() > rhs.asFloat()), nil
 	case OpGreaterEqual:
@@ -177,6 +183,7 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 	case OpLessEqual:
 		return NewStaticBool(lhs.asFloat() <= rhs.asFloat()), nil
 	case OpPower:
+		return NewStaticFloat(math.Pow(lhs.asFloat(), rhs.asFloat())), nil
 	case OpEqual:
 		return NewStaticBool(lhs.Equals(rhs)), nil
 	case OpNotEqual:
@@ -194,10 +201,9 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 	default:
 		return NewStaticNil(), errors.New("unexpected operator " + o.Op.String())
 	}
-
-	return NewStaticNil(), errors.New("operator " + o.Op.String() + " is not yet implemented")
 }
 
+// why does this and the above exist?
 func binOp(op Operator, lhs, rhs Static) (bool, error) {
 	lhsT := lhs.impliedType()
 	rhsT := rhs.impliedType()
