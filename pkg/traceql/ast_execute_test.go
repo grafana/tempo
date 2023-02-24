@@ -641,3 +641,39 @@ func TestArithmetic(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkArithmeticOp(b *testing.B) {
+	ops := []struct {
+		op BinaryOperation
+	}{
+		{
+			op: BinaryOperation{
+				Op:  OpAdd,
+				LHS: NewStaticInt(1),
+				RHS: NewStaticInt(1),
+			},
+		},
+		{
+			op: BinaryOperation{
+				Op:  OpAdd,
+				LHS: NewStaticFloat(1),
+				RHS: NewStaticInt(1),
+			},
+		},
+		{
+			op: BinaryOperation{
+				Op:  OpAdd,
+				LHS: NewStaticFloat(1),
+				RHS: NewStaticFloat(1),
+			},
+		},
+	}
+
+	for _, o := range ops {
+		b.Run(o.op.String(), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				_, _ = o.op.execute(Span{})
+			}
+		})
+	}
+}
