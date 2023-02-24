@@ -146,9 +146,6 @@ func TestObjectConfigAttributes(t *testing.T) {
 func TestRetry_MarkBlockCompacted(t *testing.T) {
 	var count int32
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(time.Second)
-
-		fmt.Println(r.URL.Path, count)
 		switch r.URL.Path {
 		case "/b/blerg":
 			_, _ = w.Write([]byte(`{}`))

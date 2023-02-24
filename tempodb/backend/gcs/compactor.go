@@ -7,6 +7,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
+	"github.com/googleapis/gax-go/v2"
 	"github.com/grafana/tempo/tempodb/backend"
 	"google.golang.org/api/iterator"
 )
@@ -17,10 +18,9 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	compactedMetaFilename := backend.CompactedMetaFileName(blockID, tenantID)
 
 	src := rw.bucket.Object(metaFilename)
-	dst := rw.bucket.Object(compactedMetaFilename).If(
-		// Only copy if the destination does not exist. Makes the op idempotent.
-		// If the destination exists, we don't care to overwrite it.
-		storage.Conditions{DoesNotExist: true},
+	dst := rw.bucket.Object(compactedMetaFilename).Retryer(
+		storage.WithBackoff(gax.Backoff{}),
+		storage.WithPolicy(storage.RetryAlways),
 	)
 
 	ctx := context.TODO()

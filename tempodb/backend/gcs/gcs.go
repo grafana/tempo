@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/googleapis/gax-go/v2"
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
 	"cloud.google.com/go/storage"
@@ -287,16 +286,7 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 	}
 
 	// Build bucket
-	bucket := client.Bucket(cfg.BucketName)
-	if !hedge {
-		// Retryer is not thread safe, so we only use it when not hedging.
-		bucket = bucket.Retryer(
-			storage.WithBackoff(gax.Backoff{}), // TODO: make this configurable
-			storage.WithPolicy(storage.RetryIdempotent),
-		)
-	}
-
-	return bucket, nil
+	return client.Bucket(cfg.BucketName), nil
 }
 
 func readError(err error) error {
