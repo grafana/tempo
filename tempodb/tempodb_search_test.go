@@ -10,25 +10,45 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
+	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSearchCompleteBlock(t *testing.T) {
-	for _, v := range []string{v2.VersionString, vparquet.VersionString} {
-		t.Run(v, func(t *testing.T) {
-			testSearchCompleteBlock(t, v)
+	for _, v := range encoding.AllEncodings() {
+		vers := v.Version()
+		t.Run(vers, func(t *testing.T) {
+			testSearchCompleteBlock(t, vers)
 		})
 	}
 }
 
 func testSearchCompleteBlock(t *testing.T, blockVersion string) {
+	runCompleteBlockTest(t, blockVersion, func(wantMeta *tempopb.TraceSearchMetadata, searchesThatMatch, searchesThatDontMatch []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader) {
+		ctx := context.Background()
+
+		for _, req := range searchesThatMatch {
+			res, err := r.Search(ctx, meta, req, common.DefaultSearchOptions())
+			require.NoError(t, err)
+			require.Equal(t, 1, len(res.Traces), "search request: %+v", req)
+			require.Equal(t, wantMeta, res.Traces[0], "search request:", req)
+		}
+
+		for _, req := range searchesThatDontMatch {
+			res, err := r.Search(ctx, meta, req, common.DefaultSearchOptions())
+			require.NoError(t, err)
+			require.Empty(t, res.Traces, "search request:", req)
+		}
+	})
+}
+
+func runCompleteBlockTest(t testing.TB, blockVersion string, runner func(*tempopb.TraceSearchMetadata, []*tempopb.SearchRequest, []*tempopb.SearchRequest, *backend.BlockMeta, Reader)) {
 	tempDir := t.TempDir()
-	ctx := context.Background()
 
 	r, w, c, err := New(&Config{
 		Backend: "local",
@@ -84,16 +104,5 @@ func testSearchCompleteBlock(t *testing.T, blockVersion string) {
 	require.NoError(t, err)
 	meta := block.BlockMeta()
 
-	for _, req := range searchesThatMatch {
-		res, err := r.Search(ctx, meta, req, common.DefaultSearchOptions())
-		require.NoError(t, err)
-		require.Equal(t, 1, len(res.Traces), "search request: %+v", req)
-		require.Equal(t, wantMeta, res.Traces[0], "search request:", req)
-	}
-
-	for _, req := range searchesThatDontMatch {
-		res, err := rw.Search(ctx, meta, req, common.DefaultSearchOptions())
-		require.NoError(t, err)
-		require.Empty(t, res.Traces, "search request:", req)
-	}
+	runner(wantMeta, searchesThatMatch, searchesThatDontMatch, meta, rw)
 }
