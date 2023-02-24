@@ -299,210 +299,215 @@ func TestScalarFilterEvaluate(t *testing.T) {
 	}
 }
 
-func TestBinaryOperationWorksWithFloatsAndInts(t *testing.T) {
+func TestBinaryOperationsWorkAcrossNumberTypes(t *testing.T) {
 	testCases := []struct {
 		query  string
 		input  []Spanset
 		output []Spanset
 	}{
-		// binops work int -> float
 		{
 			"{ .foo > 0 }",
-			[]Spanset{
-				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-				}},
-			},
-			[]Spanset{
-				{
-					Spans: []Span{
-						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-					},
-				},
-			},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
 		},
 		{
 			"{ .foo < 2 }",
-			[]Spanset{
-				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-				}},
-			},
-			[]Spanset{
-				{
-					Spans: []Span{
-						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-					},
-				},
-			},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
 		},
 		{
 			"{ .foo = 1 }",
-			[]Spanset{
-				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-				}},
-			},
-			[]Spanset{
-				{
-					Spans: []Span{
-						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-					},
-				},
-			},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
 		},
-		// binops work float -> int
 		{
 			"{ .foo > 0. }",
-			[]Spanset{
-				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-				}},
-			},
-			[]Spanset{
-				{
-					Spans: []Span{
-						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-					},
-				},
-			},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
 		},
 		{
 			"{ .foo < 2. }",
-			[]Spanset{
-				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-				}},
-			},
-			[]Spanset{
-				{
-					Spans: []Span{
-						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-					},
-				},
-			},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
 		},
 		{
 			"{ .foo = 1. }",
-			[]Spanset{
-				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-				}},
-			},
-			[]Spanset{
-				{
-					Spans: []Span{
-						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-					},
-				},
-			},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
+		},
+		{
+			"{ .foo > 0ns }",
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
+		},
+		{
+			"{ .foo < 2ns }",
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
+		},
+		{
+			"{ .foo = 1ns }",
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+				{ID: []byte{3}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticDuration(1)}},
+			}}},
 		},
 		// binops work with statics
 		{
 			"{ 1 > 0. }",
-			[]Spanset{
-				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-				}},
-			},
-			[]Spanset{
-				{
-					Spans: []Span{
-						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-					},
-				},
-			},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+			}}},
 		},
 		{
 			"{ 0 < 2. }",
-			[]Spanset{
-				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-				}},
-			},
-			[]Spanset{
-				{
-					Spans: []Span{
-						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-					},
-				},
-			},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+			}}},
 		},
 		{
 			"{ 1 = 1. }",
-			[]Spanset{
-				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-				}},
-			},
-			[]Spanset{
-				{
-					Spans: []Span{
-						{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-						{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
-					},
-				},
-			},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+			}}},
+		},
+		{
+			"{ 1ms = 1ms }",
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+			}}},
+		},
+		{
+			"{ 1ns = 1 }",
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloat(1)}},
+			}}},
 		},
 		// binops work with attributes
 		{
 			"{ .foo < .bar }",
-			[]Spanset{
-				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(2)}},
-					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(2), NewAttribute("bar"): NewStaticFloat(1)}},
-				}},
-			},
-			[]Spanset{
-				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(2)}},
-				}},
-			},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(2)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(2), NewAttribute("bar"): NewStaticFloat(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(2)}},
+			}}},
 		},
 		{
 			"{ .bar > .foo }",
-			[]Spanset{
-				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(2)}},
-					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(2), NewAttribute("bar"): NewStaticFloat(1)}},
-				}},
-			},
-			[]Spanset{
-				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(2)}},
-				}},
-			},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(2)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(2), NewAttribute("bar"): NewStaticFloat(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(2)}},
+			}}},
 		},
 		{
 			"{ .foo = .bar }",
-			[]Spanset{
-				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}},
-					{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(2), NewAttribute("bar"): NewStaticFloat(1)}},
-				}},
-			},
-			[]Spanset{
-				{Spans: []Span{
-					{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}},
-				}},
-			},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}},
+				{ID: []byte{2}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(2), NewAttribute("bar"): NewStaticFloat(1)}},
+			}}},
+			[]Spanset{{Spans: []Span{
+				{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}},
+			}}},
 		},
 	}
 
@@ -555,6 +560,16 @@ func TestArithmetic(t *testing.T) {
 			[]Spanset{{Spans: []Span{{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}}}}},
 			[]Spanset{{Spans: []Span{{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}}}}},
 		},
+		{
+			"{ 2m + 2m = 4m }",
+			[]Spanset{{Spans: []Span{{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}}}}},
+			[]Spanset{{Spans: []Span{{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}}}}},
+		},
+		{
+			"{ 2m * 2 = 4m }",
+			[]Spanset{{Spans: []Span{{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}}}}},
+			[]Spanset{{Spans: []Span{{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}}}}},
+		},
 		// attribute arithmetic works
 		{
 			"{ .foo + .bar = 2 }",
@@ -583,6 +598,11 @@ func TestArithmetic(t *testing.T) {
 		},
 		{
 			"{ .foo ^ .bar < 3 }",
+			[]Spanset{{Spans: []Span{{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}}}}},
+			[]Spanset{{Spans: []Span{{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}}}}},
+		},
+		{
+			"{ .foo * 3ms = 3ms }",
 			[]Spanset{{Spans: []Span{{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}}}}},
 			[]Spanset{{Spans: []Span{{ID: []byte{1}, Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}}}}},
 		},
