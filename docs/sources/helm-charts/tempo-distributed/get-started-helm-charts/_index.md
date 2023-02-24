@@ -13,7 +13,7 @@ keywords:
 
 The Grafana Tempo Helm chart allows you to configure, install, and upgrade Grafana Tempo within a Kubernetes cluster. Using this procedure, you will:
 
-- Create a custom name-space within your Kubernetes cluster
+- Create a custom namespace within your Kubernetes cluster
 - Install Helm and the grafana helm-charts repository
 - Configure Google Cloud Platform storage for traces
 - Install Tempo using Helm
