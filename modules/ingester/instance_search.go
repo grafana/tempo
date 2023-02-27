@@ -334,7 +334,7 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 	}
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := util.NewDistinctStringCollector(limit)
+	distinctValues := util.NewDistinctValueCollector[string](limit, func(s string) int { return len(s) })
 
 	// live traces
 	kv := &tempofb.KeyValues{}
@@ -352,14 +352,14 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 	// wal + search blocks
 	if !distinctValues.Exceeded() {
 		err = i.visitSearchableBlocks(ctx, func(block search.SearchableBlock) error {
-			return block.Tags(ctx, distinctValues.Collect)
+			return block.Tags(ctx, func(t string) { distinctValues.Collect(t) })
 		})
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	search := func(s common.Searcher, dv *util.DistinctStringCollector) error {
+	search := func(s common.Searcher, dv *util.DistinctValueCollector[string]) error {
 		if s == nil {
 			return nil
 		}
@@ -402,7 +402,7 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 	}
 
 	return &tempopb.SearchTagsResponse{
-		TagNames: distinctValues.Strings(),
+		TagNames: distinctValues.Values(),
 	}, nil
 }
 
@@ -413,7 +413,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	}
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := util.NewDistinctStringCollector(limit)
+	distinctValues := util.NewDistinctValueCollector[string](limit, func(s string) int { return len(s) })
 
 	// live traces
 	kv := &tempofb.KeyValues{}
@@ -431,7 +431,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 		return nil, err
 	}
 
-	search := func(s common.Searcher, dv *util.DistinctStringCollector) error {
+	search := func(s common.Searcher, dv *util.DistinctValueCollector[string]) error {
 		if s == nil {
 			return nil
 		}
@@ -474,7 +474,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	}
 
 	return &tempopb.SearchTagValuesResponse{
-		TagValues: distinctValues.Strings(),
+		TagValues: distinctValues.Values(),
 	}, nil
 }
 

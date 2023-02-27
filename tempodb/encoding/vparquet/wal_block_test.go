@@ -370,8 +370,7 @@ func BenchmarkWalSearchTagValues(b *testing.B) {
 	require.NoError(b, err)
 	require.NoError(b, warn)
 
-	cb := func(v string) {
-	}
+	cb := func(v string) bool { return false }
 
 	for _, t := range tags {
 		b.Run(t, func(b *testing.B) {

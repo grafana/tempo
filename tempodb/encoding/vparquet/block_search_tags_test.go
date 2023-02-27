@@ -21,8 +21,9 @@ func TestBackendBlockSearchTags(t *testing.T) {
 
 	foundAttrs := map[string]struct{}{}
 
-	cb := func(s string) {
+	cb := func(s string) bool {
 		foundAttrs[s] = struct{}{}
+		return false
 	}
 
 	ctx := context.Background()
@@ -43,9 +44,10 @@ func TestBackendBlockSearchTagValues(t *testing.T) {
 	ctx := context.Background()
 	for tag, val := range attrs {
 		wasCalled := false
-		cb := func(s string) {
+		cb := func(s string) bool {
 			wasCalled = true
 			assert.Equal(t, val, s, tag)
+			return false
 		}
 
 		err := block.SearchTagValues(ctx, tag, cb, common.DefaultSearchOptions())
@@ -138,7 +140,7 @@ func BenchmarkBackendBlockSearchTags(b *testing.B) {
 
 	block := newBackendBlock(meta, rr)
 	opts := common.DefaultSearchOptions()
-	d := util.NewDistinctStringCollector(1_000_000)
+	d := util.NewDistinctValueCollector[string](1_000_000, func(s string) int { return len(s) })
 
 	b.ResetTimer()
 
@@ -172,7 +174,7 @@ func BenchmarkBackendBlockSearchTagValues(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			d := util.NewDistinctStringCollector(1_000_000)
+			d := util.NewDistinctValueCollector[string](1_000_000, func(s string) int { return len(s) })
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				err := block.SearchTagValues(ctx, tc, d.Collect, opts)

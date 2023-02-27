@@ -172,8 +172,7 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 
 	// Wrap to v2-style
 	cb2 := func(v traceql.Static) bool {
-		cb(v.EncodeToString(false))
-		return false
+		return cb(v.EncodeToString(false))
 	}
 
 	return b.SearchTagValuesV2(ctx, att, cb2, opts)
