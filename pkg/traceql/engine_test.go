@@ -28,23 +28,23 @@ func TestEngine_Execute(t *testing.T) {
 	}
 	spanSetFetcher := MockSpanSetFetcher{
 		iterator: &MockSpanSetIterator{
-			results: []*SpansetMetadata{
+			results: []*Spanset{
 				{
 					TraceID:         []byte{1},
 					RootSpanName:    "HTTP GET",
 					RootServiceName: "my-service",
-					Spans: []SpanMetadata{
-						{
-							ID: []byte{1},
-							Attributes: map[Attribute]Static{
+					Spans: []Span{
+						&mockSpan{
+							id: []byte{1},
+							attributes: map[Attribute]Static{
 								NewAttribute("foo"): NewStaticString("value"),
 							},
 						},
-						{
-							ID:                 []byte{2},
-							StartTimeUnixNanos: uint64(now.UnixNano()),
-							EndtimeUnixNanos:   uint64(now.Add(100 * time.Millisecond).UnixNano()),
-							Attributes: map[Attribute]Static{
+						&mockSpan{
+							id:                 []byte{2},
+							startTimeUnixNanos: uint64(now.UnixNano()),
+							endTimeUnixNanos:   uint64(now.Add(100 * time.Millisecond).UnixNano()),
+							attributes: map[Attribute]Static{
 								NewAttribute("foo"): NewStaticString("value"),
 								NewAttribute("bar"): NewStaticString("value"),
 							},
@@ -55,10 +55,10 @@ func TestEngine_Execute(t *testing.T) {
 					TraceID:         []byte{2},
 					RootSpanName:    "HTTP POST",
 					RootServiceName: "my-service",
-					Spans: []SpanMetadata{
-						{
-							ID: []byte{3},
-							Attributes: map[Attribute]Static{
+					Spans: []Span{
+						&mockSpan{
+							id: []byte{3},
+							attributes: map[Attribute]Static{
 								NewAttribute("bar"): NewStaticString("value"),
 							},
 						},
@@ -144,18 +144,18 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 	spanID1 := traceID[:8]
 	spanID2 := traceID[8:]
 
-	spanSet := &SpansetMetadata{
+	spanSet := &Spanset{
 		TraceID:            traceID,
 		RootServiceName:    "my-service",
 		RootSpanName:       "HTTP GET",
 		StartTimeUnixNanos: 1000,
 		DurationNanos:      uint64(time.Second.Nanoseconds()),
-		Spans: []SpanMetadata{
-			{
-				ID:                 spanID1,
-				StartTimeUnixNanos: uint64(now.UnixNano()),
-				EndtimeUnixNanos:   uint64(now.Add(10 * time.Second).UnixNano()),
-				Attributes: map[Attribute]Static{
+		Spans: []Span{
+			&mockSpan{
+				id:                 spanID1,
+				startTimeUnixNanos: uint64(now.UnixNano()),
+				endTimeUnixNanos:   uint64(now.Add(10 * time.Second).UnixNano()),
+				attributes: map[Attribute]Static{
 					NewIntrinsic(IntrinsicName):     NewStaticString("HTTP GET"),
 					NewIntrinsic(IntrinsicStatus):   NewStaticStatus(StatusOk),
 					NewAttribute("cluster"):         NewStaticString("prod"),
@@ -165,11 +165,11 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 					NewIntrinsic(IntrinsicDuration): NewStaticDuration(10 * time.Second),
 				},
 			},
-			{
-				ID:                 spanID2,
-				StartTimeUnixNanos: uint64(now.Add(2 * time.Second).UnixNano()),
-				EndtimeUnixNanos:   uint64(now.Add(20 * time.Second).UnixNano()),
-				Attributes:         map[Attribute]Static{},
+			&mockSpan{
+				id:                 spanID2,
+				startTimeUnixNanos: uint64(now.Add(2 * time.Second).UnixNano()),
+				endTimeUnixNanos:   uint64(now.Add(20 * time.Second).UnixNano()),
+				attributes:         map[Attribute]Static{},
 			},
 		},
 	}
@@ -269,18 +269,18 @@ func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansReques
 }
 
 type MockSpanSetIterator struct {
-	results []*SpansetMetadata
+	results []*Spanset
 	filter  FilterSpans
 }
 
-func (m *MockSpanSetIterator) Next(ctx context.Context) (*SpansetMetadata, error) {
+func (m *MockSpanSetIterator) Next(ctx context.Context) (*Spanset, error) {
 	if len(m.results) == 0 {
 		return nil, nil
 	}
 	r := m.results[0]
 	m.results = m.results[1:]
 
-	ss, err := m.filter(spansetFromMetaData(r))
+	ss, err := m.filter(r)
 	if err != nil {
 		return nil, err
 	}
@@ -290,17 +290,6 @@ func (m *MockSpanSetIterator) Next(ctx context.Context) (*SpansetMetadata, error
 
 	r.Spans = r.Spans[len(ss):]
 	return r, nil
-}
-
-func spansetFromMetaData(meta *SpansetMetadata) Spanset {
-	ret := Spanset{}
-	for _, s := range meta.Spans {
-		s := &Span{
-			Attributes: s.Attributes,
-		}
-		ret.Spans = append(ret.Spans, s)
-	}
-	return ret
 }
 
 func newCondition(attr Attribute, op Operator, operands ...Static) Condition {

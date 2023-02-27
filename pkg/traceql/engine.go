@@ -38,12 +38,12 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 
 	spansetsEvaluated := 0
 	// set up the expression evaluation as a filter to reduce data pulled
-	fetchSpansRequest.Filter = func(inSS Spanset) ([]Spanset, error) {
+	fetchSpansRequest.Filter = func(inSS *Spanset) ([]*Spanset, error) {
 		if len(inSS.Spans) == 0 {
 			return nil, nil
 		}
 
-		evalSS, err := rootExpr.Pipeline.evaluate([]Spanset{inSS})
+		evalSS, err := rootExpr.Pipeline.evaluate([]*Spanset{inSS})
 		if err != nil {
 			span.LogKV("msg", "pipeline.evaluate", "err", err)
 			return nil, err
@@ -121,7 +121,7 @@ func (e *Engine) createFetchSpansRequest(searchReq *tempopb.SearchRequest, pipel
 	return req
 }
 
-func (e *Engine) asTraceSearchMetadata(spanset *SpansetMetadata) *tempopb.TraceSearchMetadata {
+func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
 	metadata := &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(spanset.TraceID),
 		RootServiceName:   spanset.RootServiceName,
@@ -135,17 +135,19 @@ func (e *Engine) asTraceSearchMetadata(spanset *SpansetMetadata) *tempopb.TraceS
 
 	for _, span := range spanset.Spans {
 		tempopbSpan := &tempopb.Span{
-			SpanID:            util.TraceIDToHexString(span.ID),
-			StartTimeUnixNano: span.StartTimeUnixNanos,
-			DurationNanos:     span.EndtimeUnixNanos - span.StartTimeUnixNanos,
+			SpanID:            util.TraceIDToHexString(span.ID()),
+			StartTimeUnixNano: span.StartTimeUnixNanos(),
+			DurationNanos:     span.EndtimeUnixNanos() - span.StartTimeUnixNanos(),
 			Attributes:        nil,
 		}
 
-		if name, ok := span.Attributes[NewIntrinsic(IntrinsicName)]; ok {
+		atts := span.Attributes()
+
+		if name, ok := atts[NewIntrinsic(IntrinsicName)]; ok {
 			tempopbSpan.Name = name.S
 		}
 
-		for attribute, static := range span.Attributes {
+		for attribute, static := range atts {
 			if attribute.Intrinsic == IntrinsicName || attribute.Intrinsic == IntrinsicDuration {
 				continue
 			}

@@ -103,37 +103,37 @@ func TestPipelineExtractConditions(t *testing.T) {
 func TestPipelineEvaluate(t *testing.T) {
 	testCases := []struct {
 		query  string
-		input  []Spanset
-		output []Spanset
+		input  []*Spanset
+		output []*Spanset
 	}{
 		{
 			"{ true } | { true } | { true }",
-			[]Spanset{
-				{Spans: []*Span{{}}},
+			[]*Spanset{
+				{Spans: []Span{&mockSpan{}}},
 			},
-			[]Spanset{
-				{Spans: []*Span{{}}},
+			[]*Spanset{
+				{Spans: []Span{&mockSpan{}}},
 			},
 		},
 		{
 			"{ true } | { false } | { true }",
-			[]Spanset{
-				{Spans: []*Span{{}}},
+			[]*Spanset{
+				{Spans: []Span{&mockSpan{}}},
 			},
-			[]Spanset{},
+			[]*Spanset{},
 		},
 		{
 			"{ .foo1 = `a` } | { .foo2 = `b` }",
-			[]Spanset{
-				{Spans: []*Span{
+			[]*Spanset{
+				{Spans: []Span{
 					// First span should be dropped here
-					{Attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a")}},
-					{Attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a"), NewAttribute("foo2"): NewStaticString("b")}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a")}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a"), NewAttribute("foo2"): NewStaticString("b")}},
 				}},
 			},
-			[]Spanset{
-				{Spans: []*Span{
-					{Attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a"), NewAttribute("foo2"): NewStaticString("b")}}}},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo1"): NewStaticString("a"), NewAttribute("foo2"): NewStaticString("b")}}}},
 			},
 		},
 	}
@@ -152,64 +152,64 @@ func TestPipelineEvaluate(t *testing.T) {
 func TestSpansetFilterEvaluate(t *testing.T) {
 	testCases := []struct {
 		query  string
-		input  []Spanset
-		output []Spanset
+		input  []*Spanset
+		output []*Spanset
 	}{
 		{
 			"{ true }",
-			[]Spanset{
+			[]*Spanset{
 				// Empty spanset is dropped
-				{Spans: []*Span{}},
-				{Spans: []*Span{{}}},
+				{Spans: []Span{}},
+				{Spans: []Span{&mockSpan{}}},
 			},
-			[]Spanset{
-				{Spans: []*Span{{}}},
+			[]*Spanset{
+				{Spans: []Span{&mockSpan{}}},
 			},
 		},
 		{
 			"{ .foo = `a` }",
-			[]Spanset{
-				{Spans: []*Span{
+			[]*Spanset{
+				{Spans: []Span{
 					// Second span should be dropped here
-					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
-					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
 				}},
-				{Spans: []*Span{
+				{Spans: []Span{
 					// This entire spanset will be dropped
-					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
 				}},
 			},
-			[]Spanset{
-				{Spans: []*Span{
-					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}}}},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}}}},
 			},
 		},
 		{
 			"{ .foo = 1 || (.foo >= 4 && .foo < 6) }",
-			[]Spanset{
-				{Spans: []*Span{
+			[]*Spanset{
+				{Spans: []Span{
 					// Second span should be dropped here
-					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
-					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(2)}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(2)}},
 				}},
-				{Spans: []*Span{
+				{Spans: []Span{
 					// First span should be dropped here
-					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(3)}},
-					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(4)}},
-					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(5)}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(3)}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(4)}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(5)}},
 				}},
-				{Spans: []*Span{
+				{Spans: []Span{
 					// Entire spanset should be dropped
-					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(6)}},
-					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(7)}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(6)}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(7)}},
 				}},
 			},
-			[]Spanset{
-				{Spans: []*Span{
-					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}}}},
-				{Spans: []*Span{
-					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(4)}},
-					{Attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(5)}},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}}}},
+				{Spans: []Span{
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(4)}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(5)}},
 				}},
 			},
 		},
@@ -227,4 +227,26 @@ func TestSpansetFilterEvaluate(t *testing.T) {
 			require.Equal(t, tc.output, actual)
 		})
 	}
+}
+
+var _ Span = (*mockSpan)(nil)
+
+type mockSpan struct {
+	id                 []byte
+	startTimeUnixNanos uint64
+	endTimeUnixNanos   uint64
+	attributes         map[Attribute]Static
+}
+
+func (m *mockSpan) Attributes() map[Attribute]Static {
+	return m.attributes
+}
+func (m *mockSpan) ID() []byte {
+	return m.id
+}
+func (m *mockSpan) StartTimeUnixNanos() uint64 {
+	return m.startTimeUnixNanos
+}
+func (m *mockSpan) EndtimeUnixNanos() uint64 {
+	return m.endTimeUnixNanos
 }

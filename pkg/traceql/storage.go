@@ -2,8 +2,6 @@ package traceql
 
 import (
 	"context"
-
-	"github.com/grafana/tempo/pkg/parquetquery"
 )
 
 type Operands []Static
@@ -19,7 +17,7 @@ type Condition struct {
 // spans it is discarded and will not appear in FetchSpansResponse. The bool
 // return value is used to indicate if the Fetcher should continue iterating or if
 // it can bail out.
-type FilterSpans func(Spanset) ([]Spanset, error)
+type FilterSpans func(*Spanset) ([]*Spanset, error)
 
 type FetchSpansRequest struct {
 	StartTimeUnixNanos uint64
@@ -48,40 +46,30 @@ func (f *FetchSpansRequest) appendCondition(c ...Condition) {
 	f.Conditions = append(f.Conditions, c...)
 }
 
-type Span struct {
-	// these metadata fields are used by the storage layer to fetch spans
-	// todo: make this an interface so that the storage layer can track this info w/o muddying the engine
-	RowNum             parquetquery.RowNumber
-	StartTimeUnixNanos uint64
-	EndtimeUnixNanos   uint64
-
+type Span interface {
 	// these are the actual fields used by the engine to evaluate queries
-	Attributes map[Attribute]Static
+	// if a Filter parameter is passed the spans returned will only have this field populated
+	Attributes() map[Attribute]Static
+
+	ID() []byte
+	StartTimeUnixNanos() uint64
+	EndtimeUnixNanos() uint64
 }
 
 type Spanset struct {
+	// these fields are actually used by the engine to evaluate queries
 	Scalar Static
-	Spans  []*Span
-}
+	Spans  []Span
 
-type SpanMetadata struct {
-	ID                 []byte
-	StartTimeUnixNanos uint64
-	EndtimeUnixNanos   uint64
-	Attributes         map[Attribute]Static
-}
-
-type SpansetMetadata struct {
 	TraceID            []byte
 	RootSpanName       string
 	RootServiceName    string
 	StartTimeUnixNanos uint64
 	DurationNanos      uint64
-	Spans              []SpanMetadata
 }
 
 type SpansetIterator interface {
-	Next(context.Context) (*SpansetMetadata, error)
+	Next(context.Context) (*Spanset, error)
 }
 
 type FetchSpansResponse struct {

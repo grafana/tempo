@@ -57,7 +57,7 @@ func (i *spansToMetaIterator) Next() (*pq.IteratorResult, error) {
 		return nil, nil
 	}
 
-	res := &pq.IteratorResult{RowNumber: next.RowNum}
+	res := &pq.IteratorResult{RowNumber: next.rowNum}
 	res.AppendOtherValue(otherEntrySpanKey, next)
 
 	return res, nil
@@ -91,35 +91,27 @@ func (c *spanMetaCollector) String() string {
 func (c *spanMetaCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// extract the span from the iterator result and steal it's attributes
 	// this is where we convert a traceql.Span to a traceql.SpanMetadata
-	span, ok := res.OtherValueFromKey(otherEntrySpanKey).(*traceql.Span)
+	span, ok := res.OtherValueFromKey(otherEntrySpanKey).(*span)
 	if !ok {
 		return false // something very wrong happened. should we panic?
 	}
-
-	spanMetadata := &traceql.SpanMetadata{
-		StartTimeUnixNanos: span.StartTimeUnixNanos,
-		EndtimeUnixNanos:   span.EndtimeUnixNanos,
-		Attributes:         span.Attributes,
-	}
-	span.Attributes = make(map[traceql.Attribute]traceql.Static) // we have to overwrite the attributes b/c putSpan will attempt to reuse them
-	putSpan(span)
 
 	// span start/end time may come from span attributes or it may come from
 	// the iterator results. if we find it in the iterator results, use that
 	for _, kv := range res.Entries {
 		switch kv.Key {
 		case columnPathSpanID:
-			spanMetadata.ID = kv.Value.ByteArray()
+			span.id = kv.Value.ByteArray()
 		case columnPathSpanStartTime:
-			spanMetadata.StartTimeUnixNanos = kv.Value.Uint64()
+			span.startTimeUnixNanos = kv.Value.Uint64()
 		case columnPathSpanEndTime:
-			spanMetadata.EndtimeUnixNanos = kv.Value.Uint64()
+			span.endtimeUnixNanos = kv.Value.Uint64()
 		}
 	}
 
 	res.Entries = res.Entries[:0]
 	res.OtherEntries = res.OtherEntries[:0]
-	res.AppendOtherValue(otherEntrySpanKey, spanMetadata)
+	res.AppendOtherValue(otherEntrySpanKey, span)
 
 	return true
 }
@@ -137,7 +129,7 @@ func (c *traceMetaCollector) String() string {
 }
 
 func (c *traceMetaCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
-	finalSpanset := &traceql.SpansetMetadata{}
+	finalSpanset := &traceql.Spanset{}
 
 	for _, e := range res.Entries {
 		switch e.Key {
@@ -157,8 +149,8 @@ func (c *traceMetaCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// we're copying spans directly from the spanMetaIterator into the traceMetaIterator
 	//  this skips the step of the batchIterator present on the normal fetch path
 	for _, e := range res.OtherEntries {
-		if span, ok := e.Value.(*traceql.SpanMetadata); ok {
-			finalSpanset.Spans = append(finalSpanset.Spans, *span)
+		if span, ok := e.Value.(*span); ok {
+			finalSpanset.Spans = append(finalSpanset.Spans, span)
 		}
 	}
 
@@ -183,7 +175,7 @@ func newSpansetMetadataIterator(iter parquetquery.Iterator) *spansetMetadataIter
 	}
 }
 
-func (i *spansetMetadataIterator) Next(ctx context.Context) (*traceql.SpansetMetadata, error) {
+func (i *spansetMetadataIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
 	res, err := i.iter.Next()
 	if err != nil {
 		return nil, err
@@ -197,7 +189,7 @@ func (i *spansetMetadataIterator) Next(ctx context.Context) (*traceql.SpansetMet
 	if iface == nil {
 		return nil, fmt.Errorf("engine assumption broken: spanset not found in other entries")
 	}
-	ss, ok := iface.(*traceql.SpansetMetadata)
+	ss, ok := iface.(*traceql.Spanset)
 	if !ok {
 		return nil, fmt.Errorf("engine assumption broken: spanset is not of type *traceql.Spanset")
 	}

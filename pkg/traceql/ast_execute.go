@@ -10,14 +10,14 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
-func appendSpans(buffer []*Span, input []Spanset) []*Span {
+func appendSpans(buffer []Span, input []*Spanset) []Span {
 	for _, i := range input {
 		buffer = append(buffer, i.Spans...)
 	}
 	return buffer
 }
 
-func (o SpansetOperation) evaluate(input []Spanset) (output []Spanset, err error) {
+func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 	for i := range input {
 		curr := input[i : i+1]
@@ -57,7 +57,7 @@ func (o SpansetOperation) evaluate(input []Spanset) (output []Spanset, err error
 	return output, nil
 }
 
-func (f ScalarFilter) evaluate(input []Spanset) (output []Spanset, err error) {
+func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 	// TODO we solve this gap where pipeline elements and scalar binary
 	// operations meet in a generic way. For now we only support well-defined
@@ -92,7 +92,7 @@ func (f ScalarFilter) evaluate(input []Spanset) (output []Spanset, err error) {
 	return output, nil
 }
 
-func (f SpansetFilter) matches(span *Span) (bool, error) {
+func (f SpansetFilter) matches(span Span) (bool, error) {
 	static, err := f.Expression.execute(span)
 	if err != nil {
 		level.Debug(log.Logger).Log("msg", "SpanSetFilter.matches failed", "err", err)
@@ -105,7 +105,7 @@ func (f SpansetFilter) matches(span *Span) (bool, error) {
 	return static.B, nil
 }
 
-func (a Aggregate) evaluate(input []Spanset) (output []Spanset, err error) {
+func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 	for _, ss := range input {
 		switch a.op {
@@ -139,7 +139,7 @@ func (a Aggregate) evaluate(input []Spanset) (output []Spanset, err error) {
 	return output, nil
 }
 
-func (o BinaryOperation) execute(span *Span) (Static, error) {
+func (o BinaryOperation) execute(span Span) (Static, error) {
 	lhs, err := o.LHS.execute(span)
 	if err != nil {
 		return NewStaticNil(), err
@@ -231,7 +231,7 @@ func binOp(op Operator, lhs, rhs Static) (bool, error) {
 	return false, errors.New("unexpected operator " + op.String())
 }
 
-func (o UnaryOperation) execute(span *Span) (Static, error) {
+func (o UnaryOperation) execute(span Span) (Static, error) {
 	static, err := o.Expression.execute(span)
 	if err != nil {
 		return NewStaticNil(), err
@@ -260,23 +260,24 @@ func (o UnaryOperation) execute(span *Span) (Static, error) {
 	return NewStaticNil(), errors.New("UnaryOperation has Op different from Not and Sub")
 }
 
-func (s Static) execute(span *Span) (Static, error) {
+func (s Static) execute(span Span) (Static, error) {
 	return s, nil
 }
 
-func (a Attribute) execute(span *Span) (Static, error) {
-	static, ok := span.Attributes[a]
+func (a Attribute) execute(span Span) (Static, error) {
+	atts := span.Attributes()
+	static, ok := atts[a]
 	if ok {
 		return static, nil
 	}
 
 	if a.Scope == AttributeScopeNone {
-		for attribute, static := range span.Attributes {
+		for attribute, static := range atts {
 			if a.Name == attribute.Name && attribute.Scope == AttributeScopeSpan {
 				return static, nil
 			}
 		}
-		for attribute, static := range span.Attributes {
+		for attribute, static := range atts {
 			if a.Name == attribute.Name {
 				return static, nil
 			}

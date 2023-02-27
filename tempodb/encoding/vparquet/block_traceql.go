@@ -17,6 +17,28 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
+// span implements traceql.Span
+type span struct {
+	attributes         map[traceql.Attribute]traceql.Static
+	id                 []byte
+	startTimeUnixNanos uint64
+	endtimeUnixNanos   uint64
+	rowNum             parquetquery.RowNumber
+}
+
+func (s *span) Attributes() map[traceql.Attribute]traceql.Static {
+	return s.attributes
+}
+func (s *span) ID() []byte {
+	return s.id
+}
+func (s *span) StartTimeUnixNanos() uint64 {
+	return s.startTimeUnixNanos
+}
+func (s *span) EndtimeUnixNanos() uint64 {
+	return s.endtimeUnixNanos
+}
+
 // todo: this sync pool currently massively reduces allocations by pooling spans for certain queries.
 // it currently catches spans discarded:
 // - in the span collector
@@ -26,27 +48,28 @@ import (
 // can return a slice of dropped and kept spansets?
 var spanPool = sync.Pool{
 	New: func() interface{} {
-		return &traceql.Span{
-			Attributes: make(map[traceql.Attribute]traceql.Static),
+		return &span{
+			attributes: make(map[traceql.Attribute]traceql.Static),
 		}
 	},
 }
 
-func putSpan(s *traceql.Span) {
-	s.EndtimeUnixNanos = 0
-	s.StartTimeUnixNanos = 0
-	s.RowNum = parquetquery.EmptyRowNumber()
+func putSpan(s *span) {
+	s.id = nil
+	s.endtimeUnixNanos = 0
+	s.startTimeUnixNanos = 0
+	s.rowNum = parquetquery.EmptyRowNumber()
 
 	// clear attributes
-	for k := range s.Attributes {
-		delete(s.Attributes, k)
+	for k := range s.attributes {
+		delete(s.attributes, k)
 	}
 
 	spanPool.Put(s)
 }
 
-func getSpan() *traceql.Span {
-	return spanPool.Get().(*traceql.Span)
+func getSpan() *span {
+	return spanPool.Get().(*span)
 }
 
 // Helper function to create an iterator, that abstracts away
@@ -205,7 +228,7 @@ type spansetIterator struct {
 	iter   parquetquery.Iterator
 	filter traceql.FilterSpans
 
-	currentSpans []*traceql.Span
+	currentSpans []*span
 }
 
 func newSpansetIterator(iter parquetquery.Iterator, filter traceql.FilterSpans) *spansetIterator {
@@ -215,7 +238,7 @@ func newSpansetIterator(iter parquetquery.Iterator, filter traceql.FilterSpans) 
 	}
 }
 
-func (i *spansetIterator) Next() (*traceql.Span, error) {
+func (i *spansetIterator) Next() (*span, error) {
 	// drain current buffer
 	if len(i.currentSpans) > 0 {
 		ret := i.currentSpans[0]
@@ -245,20 +268,20 @@ func (i *spansetIterator) Next() (*traceql.Span, error) {
 		// TODO: the engine wants to work with value types, but the fetch layer is using pointers. as a result
 		//  there is some gross "bridge" code here that converts between the two. We should write benchmarks
 		//  and determine if moving to or the other is worth it
-		var filteredSpansets []traceql.Spanset
+		var filteredSpansets []*traceql.Spanset
 		if i.filter != nil {
-			filteredSpansets, err = i.filter(*spanset)
+			filteredSpansets, err = i.filter(spanset)
 			if err != nil {
 				return nil, err
 			}
 		} else {
-			filteredSpansets = []traceql.Spanset{*spanset}
+			filteredSpansets = []*traceql.Spanset{spanset}
 		}
 
 		// flatten spans into i.currentSpans
 		for _, ss := range filteredSpansets {
 			for _, s := range ss.Spans {
-				span := s
+				span := s.(*span)
 				i.currentSpans = append(i.currentSpans, span)
 			}
 		}
@@ -281,7 +304,7 @@ type mergeSpansetIterator struct {
 
 var _ traceql.SpansetIterator = (*mergeSpansetIterator)(nil)
 
-func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.SpansetMetadata, error) {
+func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
 	if i.cur >= len(i.iters) {
 		return nil, nil
 	}
@@ -1036,10 +1059,10 @@ func (c *spanCollector) String() string {
 
 func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	span := getSpan()
-	span.RowNum = res.RowNumber
+	span.rowNum = res.RowNumber
 
 	for _, e := range res.OtherEntries {
-		span.Attributes[newSpanAttr(e.Key)] = e.Value.(traceql.Static)
+		span.attributes[newSpanAttr(e.Key)] = e.Value.(traceql.Static)
 	}
 
 	var startTimeUnixNanos, endTimeUnixNanos uint64
@@ -1049,12 +1072,12 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		switch kv.Key {
 		case columnPathSpanStartTime:
 			startTimeUnixNanos = kv.Value.Uint64()
-			span.StartTimeUnixNanos = startTimeUnixNanos
+			span.startTimeUnixNanos = startTimeUnixNanos
 		case columnPathSpanEndTime:
 			endTimeUnixNanos = kv.Value.Uint64()
-			span.EndtimeUnixNanos = endTimeUnixNanos
+			span.endtimeUnixNanos = endTimeUnixNanos
 		case columnPathSpanName:
-			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicName)] = traceql.NewStaticString(kv.Value.String())
+			span.attributes[traceql.NewIntrinsic(traceql.IntrinsicName)] = traceql.NewStaticString(kv.Value.String())
 		//case columnPathSpanDuration:
 		//	span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(kv.Value.Uint64()))
 		case columnPathSpanStatusCode:
@@ -1071,25 +1094,25 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			default:
 				status = traceql.Status(kv.Value.Uint64())
 			}
-			span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicStatus)] = traceql.NewStaticStatus(status)
+			span.attributes[traceql.NewIntrinsic(traceql.IntrinsicStatus)] = traceql.NewStaticStatus(status)
 		case columnPathSpanKind:
 			// if we're actually retrieving kind then keep it, otherwise it's just being used to count spans and we should not
 			//  include it in our attributes
 			if !c.kindAsCount {
-				span.Attributes[newSpanAttr(columnPathSpanKind)] = traceql.NewStaticInt(int(kv.Value.Int64()))
+				span.attributes[newSpanAttr(columnPathSpanKind)] = traceql.NewStaticInt(int(kv.Value.Int64()))
 			}
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?
 			switch kv.Value.Kind() {
 			case parquet.Boolean:
-				span.Attributes[newSpanAttr(kv.Key)] = traceql.NewStaticBool(kv.Value.Boolean())
+				span.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticBool(kv.Value.Boolean())
 			case parquet.Int32, parquet.Int64:
-				span.Attributes[newSpanAttr(kv.Key)] = traceql.NewStaticInt(int(kv.Value.Int64()))
+				span.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticInt(int(kv.Value.Int64()))
 			case parquet.Float:
-				span.Attributes[newSpanAttr(kv.Key)] = traceql.NewStaticFloat(kv.Value.Double())
+				span.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticFloat(kv.Value.Double())
 			case parquet.ByteArray:
-				span.Attributes[newSpanAttr(kv.Key)] = traceql.NewStaticString(kv.Value.String())
+				span.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticString(kv.Value.String())
 			}
 		}
 	}
@@ -1099,7 +1122,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		duration := endTimeUnixNanos - startTimeUnixNanos
 		for _, f := range c.durationFilters {
 			if f == nil || f.Fn(int64(duration)) {
-				span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(duration))
+				span.attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(duration))
 				break
 			}
 		}
@@ -1107,7 +1130,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	if c.minAttributes > 0 {
 		count := 0
-		for _, v := range span.Attributes {
+		for _, v := range span.attributes {
 			if v.Type != traceql.TypeNil {
 				count++
 			}
@@ -1133,7 +1156,7 @@ type batchCollector struct {
 
 	// shared static spans used in KeepGroup. done for memory savings, but won't
 	// work if the batchCollector is accessed concurrently
-	keepGroupSpans []*traceql.Span
+	keepGroupSpans []*span
 }
 
 var _ parquetquery.GroupPredicate = (*batchCollector)(nil)
@@ -1152,7 +1175,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	resAttrs := make(map[traceql.Attribute]traceql.Static)
 	for _, kv := range res.OtherEntries {
-		if span, ok := kv.Value.(*traceql.Span); ok {
+		if span, ok := kv.Value.(*span); ok {
 			c.keepGroupSpans = append(c.keepGroupSpans, span)
 			continue
 		}
@@ -1185,34 +1208,37 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// Copy resource-level attributes to the individual spans now
 	for k, v := range resAttrs {
 		for _, span := range c.keepGroupSpans {
-			if _, alreadyExists := span.Attributes[k]; !alreadyExists {
-				span.Attributes[k] = v
+			if _, alreadyExists := span.attributes[k]; !alreadyExists {
+				span.attributes[k] = v
 			}
 		}
 	}
 
 	// Remove unmatched attributes
 	for _, span := range c.keepGroupSpans {
-		for k, v := range span.Attributes {
+		for k, v := range span.attributes {
 			if v.Type == traceql.TypeNil {
-				delete(span.Attributes, k)
+				delete(span.attributes, k)
 			}
 		}
 	}
 
-	var filteredSpans []*traceql.Span
+	var filteredSpans []traceql.Span
 
 	// Copy over only spans that met minimum criteria
 	if c.requireAtLeastOneMatchOverall {
 		for _, span := range c.keepGroupSpans {
-			if len(span.Attributes) > 0 {
+			if len(span.attributes) > 0 {
 				filteredSpans = append(filteredSpans, span)
 				continue
 			}
 			putSpan(span)
 		}
 	} else {
-		filteredSpans = append([]*traceql.Span(nil), c.keepGroupSpans...)
+		filteredSpans = make([]traceql.Span, 0, len(c.keepGroupSpans))
+		for _, span := range c.keepGroupSpans {
+			filteredSpans = append([]traceql.Span(nil), span)
+		}
 	}
 
 	// Throw out batches without any spans
