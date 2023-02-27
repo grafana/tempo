@@ -463,6 +463,8 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.Sea
 			}
 
 			r := parquet.NewReader(file)
+			defer r.Close()
+
 			err = r.SeekToRow(rowNumber)
 			if err != nil {
 				return nil, errors.Wrap(err, "seek to row")
