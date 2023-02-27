@@ -13,8 +13,6 @@ disk.
 
 The following examples showcase specific features or integrations:
 
-- [Loki Derived Fields](loki/readme.md)   
-  Highlights use of Loki derived fields to jump directly from logs -> traces.
 - [Grafana Agent](agent/readme.md)  
   Simple example using the Grafana Agent as a tracing pipeline.
 - [OpenTelemetry Collector](otel-collector/readme.md)  
