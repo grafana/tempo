@@ -27,11 +27,17 @@ tempo-cli command [subcommand] -h
 ## Running Tempo CLI
 
 Tempo CLI is currently available as source code. A working Go installation is required to build it. It can be compiled to a native binary and executed normally, or it can be executed using the `go run` command.
+It can be packaged as a Docker container using `make docker-tempo-cli`.
 
 **Example:**
 ```bash
 ./tempo-cli [arguments...]
 go run ./cmd/tempo-cli [arguments...]
+```
+
+```bash
+make docker-tempo-cli
+docker run docker.io/grafana/tempo-cli [arguments...]
 ```
 
 ## Backend options
@@ -266,6 +272,7 @@ attempting to determine the impact of changing compression or encoding of column
 
 ```bash
 tempo-cli parquet convert <in file> <out file>
+```
 
 Arguments:
 - `in file` Filename of an existing parquet file containing Tempo trace data
@@ -274,4 +281,25 @@ Arguments:
 **Example:**
 ```bash
 tempo-cli parquet convert data.parquet out.parquet
+```
+
+## Migrate tenant command
+Copy blocks from one backend and tenant to another. Blocks can be copied within the same backend or between two
+different backends. Data format will not be converted but tenant ID in `meta.json` will be rewritten.
+
+```bash
+tempo-cli migrate tenant <source tenant> <dest tenant>
+```
+
+Arguments:
+- `source tenant` Tenant to copy blocks from 
+- `dest tenant` Tenant to copy blocks into
+
+Options:
+- `--source-config-file <value>` Configuration file for the source backend
+- `--config-file <value>` Configuration file for the destination backend
+
+**Example:**
+```bash
+tempo-cli migrate tenant --source-config source.yaml --config-file dest.yaml my-tenant my-other-tenant
 ```
