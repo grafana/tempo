@@ -195,6 +195,8 @@ func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex
 		return nil, err
 	}
 
+	defer reader.Close()
+
 	bytes, err := tempo_io.ReadAllWithEstimate(reader, size)
 	if err != nil {
 		return nil, err

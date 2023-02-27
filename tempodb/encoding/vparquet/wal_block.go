@@ -446,6 +446,7 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 }
 
 func (b *walBlock) Clear() error {
+	b.file.Close()
 	return os.RemoveAll(b.walPath())
 }
 
