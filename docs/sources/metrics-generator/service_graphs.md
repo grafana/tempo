@@ -30,7 +30,7 @@ The metrics-generator processes traces and generates service graphs in the form 
 Service graphs work by inspecting traces and looking for spans with parent-children relationship that represent a request.
 The processor uses the [OpenTelemetry semantic conventions](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/README.md) to detect a myriad of requests.
 It currently supports the following requests:
-- A direct request between two services where the outgoing and the incoming span must have [`span.kind`](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind) `client` and `server` respectively.
+- A direct request between two services where the outgoing and the incoming span must have [`span.kind`](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind), `client, and `server`, respectively.
 - A request across a messaging system where the outgoing and the incoming span must have `span.kind` `producer` and `consumer` respectively.
 - A database request; in this case the processor looks for spans containing attributes `span.kind`=`client` as well as `db.name`.
 
@@ -76,12 +76,12 @@ But the following guide should help estimate the cardinality that the feature wi
 
 #### Cardinality from traces
 
-The amount of edges depends on the amount of nodes in the system and the direction of the requests between them.
+The amount of edges depends on the number of nodes in the system and the direction of the requests between them.
 Let’s call this amount hops. Every hop will be a unique combination of client + server labels.
 
 For example:
-- a system with 3 nodes `(A, B, C)` of which A only calls B and B only calls C will have 2 hops `(A → B, B → C)`
-- a system with 3 nodes `(A, B, C)` that call each other (i.e. all bidirectional links somehow) will have 6 hops `(A → B, B → A, B → C, C → B, A → C, C → A)`
+- A system with 3 nodes `(A, B, C)` of which A only calls B and B only calls C will have 2 hops `(A → B, B → C)`
+- A system with 3 nodes `(A, B, C)` that call each other (i.e. all bidirectional links somehow) will have 6 hops `(A → B, B → A, B → C, C → B, A → C, C → A)`
 
 We can’t calculate the amount of hops automatically based upon the nodes,
 but it should be a value between `#services - 1` and `#services!`.
@@ -124,8 +124,8 @@ To enable service graphs in Tempo/GET, enable the metrics generator and add an o
 
 ### Grafana
 
-**Note** Since 9.0.4 service graphs have been enabled by default in Grafana. Prior to Grafana 9.0.4, service graphs were hidden 
-under the [feature toggle](https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana/#feature_toggles) `tempoServiceGraph`. 
+**Note** Since 9.0.4 service graphs have been enabled by default in Grafana. Prior to Grafana 9.0.4, service graphs were hidden
+under the [feature toggle](https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana/#feature_toggles) `tempoServiceGraph`.
 
 Configure a Tempo data source's 'Service Graphs' by linking to the Prometheus backend where metrics are being sent:
 
