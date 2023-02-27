@@ -92,8 +92,6 @@ func main() {
 	// Allocate a block of memory to alter GC behaviour. See https://github.com/golang/go/issues/23044
 	ballast := make([]byte, *ballastMBs*1024*1024)
 
-	configIsValid(config)
-
 	// Start Tempo
 	t, err := app.New(*config)
 	if err != nil {
@@ -148,6 +146,7 @@ func loadConfig() (*app.Config, error) {
 
 	fs.StringVar(&configFile, configFileOption, "", "")
 	fs.BoolVar(&configExpandEnv, configExpandEnvOption, false, "")
+	fs.BoolVar(&configVerify, configVerifyOption, false, "")
 
 	// Try to find -config.file & -config.expand-env flags. As Parsing stops on the first error, eg. unknown flag,
 	// we simply try remaining parameters until we find config flag, or there are no params left.
@@ -180,13 +179,6 @@ func loadConfig() (*app.Config, error) {
 			return nil, fmt.Errorf("failed to parse configFile %s: %w", configFile, err)
 		}
 
-		if configVerify {
-			if !configIsValid(config) {
-				os.Exit(1)
-			}
-			os.Exit(0)
-		}
-
 	}
 
 	// overlay with cli
@@ -205,6 +197,15 @@ func loadConfig() (*app.Config, error) {
 		// Generator's ring
 		config.Generator.Ring.KVStore.Store = "inmemory"
 		config.Generator.Ring.InstanceAddr = "127.0.0.1"
+	}
+
+	// after finalizing the configuration, verify its validity and exit if config.verify flag is true.
+	isValid := configIsValid(config)
+	if configVerify {
+		if !isValid {
+			os.Exit(1)
+		}
+		os.Exit(0)
 	}
 
 	return config, nil
