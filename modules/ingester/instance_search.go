@@ -338,12 +338,13 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 
 	// live traces
 	kv := &tempofb.KeyValues{}
-	err = i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
+	err = i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) bool {
 		for i, ii := 0, entry.TagsLength(); i < ii; i++ {
 			entry.Tags(kv, i)
 			key := string(kv.Key())
 			distinctValues.Collect(key)
 		}
+		return false
 	})
 	if err != nil {
 		return nil, err
@@ -418,14 +419,18 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	// live traces
 	kv := &tempofb.KeyValues{}
 	tagNameBytes := []byte(tagName)
-	err = i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
+	err = i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) bool {
 		kv := tempofb.FindTag(entry, kv, tagNameBytes)
 		if kv != nil {
 			for i, ii := 0, kv.ValueLength(); i < ii; i++ {
 				key := string(kv.Value(i))
-				distinctValues.Collect(key)
+				if exceeded := distinctValues.Collect(key); exceeded {
+					// Exit early if we've exceeded the limit
+					return true
+				}
 			}
 		}
+		return false
 	})
 	if err != nil {
 		return nil, err
@@ -585,7 +590,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	return resp, nil
 }
 
-func (i *instance) visitSearchEntriesLiveTraces(ctx context.Context, visitFn func(entry *tempofb.SearchEntry)) error {
+func (i *instance) visitSearchEntriesLiveTraces(ctx context.Context, visitFn func(entry *tempofb.SearchEntry) bool) error {
 	span, _ := opentracing.StartSpanFromContext(ctx, "instance.visitSearchEntriesLiveTraces")
 	defer span.Finish()
 
@@ -593,10 +598,13 @@ func (i *instance) visitSearchEntriesLiveTraces(ctx context.Context, visitFn fun
 	defer i.tracesMtx.Unlock()
 
 	se := &tempofb.SearchEntry{}
+LiveTracesLoop:
 	for _, t := range i.traces {
 		for _, s := range t.searchData {
 			se.Reset(s)
-			visitFn(se)
+			if visitFn(se) {
+				break LiveTracesLoop
+			}
 
 			if err := ctx.Err(); err != nil {
 				return err
