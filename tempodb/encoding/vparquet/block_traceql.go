@@ -1025,7 +1025,8 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		// Bring in any of the typed values as needed.
 
 		// if all conditions must be true we can use a simple join iterator to test the values one column at a time.
-		if allConditions {
+		// len(valueIters) must be 1 to handle queries like `{ span.foo = "x" && span.bar > 1}`
+		if allConditions && len(valueIters) == 1 {
 			iters := append([]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")}, valueIters...)
 			return parquetquery.NewJoinIterator(definitionLevel,
 				iters,
