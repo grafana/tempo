@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
 
+	"github.com/grafana/dskit/multierror"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/parquetquery"
@@ -446,10 +447,16 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 }
 
 func (b *walBlock) Clear() error {
+	var errs multierror.MultiError
 	if b.file != nil {
-		b.file.Close()
+		errClose := b.file.Close()
+		errs.Add(errClose)
 	}
-	return os.RemoveAll(b.walPath())
+
+	errRemoveAll := os.RemoveAll(b.walPath())
+	errs.Add(errRemoveAll)
+
+	return errs.Err()
 }
 
 func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
