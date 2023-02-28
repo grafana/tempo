@@ -14,7 +14,7 @@
 * [BUGFIX] Unescape query parameters in AWS Lambda to allow TraceQL queries to work. [#2114](https://github.com/grafana/tempo/issues/2114) (@joe-elliott)
 * [CHANGE] Update Go to 1.20 [#2079](https://github.com/grafana/tempo/pull/2079) (@scalalang2)
 * [CHANGE] Removing leading zeroes in span id [#2062](https://github.com/grafana/tempo/pull/2062) (@ie-pham)
-* [BUGFIX] Retry idempotent operations in GCS backend [#2111](https://github.com/grafana/tempo/pull/2111) (@mapno)
+* [BUGFIX] Retry copy operations during compaction in GCS backend [#2111](https://github.com/grafana/tempo/pull/2111) (@mapno)
 * [BUGFIX] Fix float/int comparisons in TraceQL. [#2139](https://github.com/grafana/tempo/issues/2139) (@joe-elliott)
 
 ## v2.0.0 / 2023-01-31
