@@ -7,15 +7,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const (
@@ -75,7 +74,10 @@ func (rw *readerWriter) compactionLoop() {
 	}
 }
 
+// doCompaction runs a compaction cycle every 30s
 func (rw *readerWriter) doCompaction() {
+	// List of all tenants in the block list
+	// The block list is updated by constant polling the storage for tenant indexes and/or tenant blocks (and building the index)
 	tenants := rw.blocklist.Tenants()
 	if len(tenants) == 0 {
 		return
@@ -86,9 +88,18 @@ func (rw *readerWriter) doCompaction() {
 	sort.Slice(tenants, func(i, j int) bool { return tenants[i] < tenants[j] })
 	rw.compactorTenantOffset = (rw.compactorTenantOffset + 1) % uint(len(tenants))
 
+	// Select the next tenant to run compaction for
 	tenantID := tenants[rw.compactorTenantOffset]
+	// Get the meta file of all non-compacted blocks for the given tenant
 	blocklist := rw.blocklist.Metas(tenantID)
 
+	// Select which blocks to compact.
+	//
+	// Blocks are firstly divided by the active compaction window (default: most recent 24h)
+	//  1. If blocks are inside the active window, they're grouped by compaction level (how many times they've been compacted).
+	//   Favoring lower compaction levels, and compacting blocks only from the same tenant.
+	//  2. If blocks are outside the active window, they're grouped only by windows, ignoring compaction level.
+	//   It picks more recent windows first, and compacting blocks only from the same tenant.
 	blockSelector := newTimeWindowBlockSelector(blocklist,
 		rw.compactorCfg.MaxCompactionRange,
 		rw.compactorCfg.MaxCompactionObjects,
@@ -100,6 +111,7 @@ func (rw *readerWriter) doCompaction() {
 
 	level.Info(rw.logger).Log("msg", "starting compaction cycle", "tenantID", tenantID, "offset", rw.compactorTenantOffset)
 	for {
+		// Pick up to defaultMaxInputBlocks (4) blocks to compact into a single one
 		toBeCompacted, hashString := blockSelector.BlocksToCompact()
 		if len(toBeCompacted) == 0 {
 			measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
@@ -112,6 +124,7 @@ func (rw *readerWriter) doCompaction() {
 			continue
 		}
 		level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
+		// Compact selected blocks into a larger one
 		err := rw.compact(toBeCompacted, tenantID)
 
 		if err == backend.ErrDoesNotExist {
@@ -194,20 +207,23 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		ObjectsWritten: func(compactionLevel, objs int) {
 			metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
 		},
-		SpansDiscarded: func(spans int) {
-			rw.compactorSharder.RecordDiscardedSpans(spans, tenantID)
+		SpansDiscarded: func(traceId string, spans int) {
+			rw.compactorSharder.RecordDiscardedSpans(spans, tenantID, traceId)
 		},
 	}
 
 	compactor := enc.NewCompactor(opts)
 
+	// Compact selected blocks into a larger one
 	newCompactedBlocks, err := compactor.Compact(ctx, rw.logger, rw.r, rw.getWriterForBlock, blockMetas)
 	if err != nil {
 		return err
 	}
 
-	// mark old blocks compacted so they don't show up in polling
-	markCompacted(rw, tenantID, blockMetas, newCompactedBlocks)
+	// mark old blocks compacted, so they don't show up in polling
+	if err := markCompacted(rw, tenantID, blockMetas, newCompactedBlocks); err != nil {
+		return err
+	}
 
 	metricCompactionBlocks.WithLabelValues(compactionLevelLabel).Add(float64(len(blockMetas)))
 
@@ -225,10 +241,13 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 	return nil
 }
 
-func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.BlockMeta, newBlocks []*backend.BlockMeta) {
+func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.BlockMeta, newBlocks []*backend.BlockMeta) error {
+	// Check if we have any errors, but continue marking the blocks as compacted
+	var errCount int
 	for _, meta := range oldBlocks {
 		// Mark in the backend
 		if err := rw.c.MarkBlockCompacted(meta.BlockID, tenantID); err != nil {
+			errCount++
 			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
 			metricCompactionErrors.Inc()
 		}
@@ -245,6 +264,12 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks []*backend.Block
 
 	// Update blocklist in memory
 	rw.blocklist.Update(tenantID, newBlocks, oldBlocks, newCompactions, nil)
+
+	if errCount > 0 {
+		return fmt.Errorf("unable to mark %d blocks compacted", errCount)
+	}
+
+	return nil
 }
 
 func measureOutstandingBlocks(tenantID string, blockSelector CompactionBlockSelector, owned func(hash string) bool) {

@@ -135,7 +135,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 
 	for _, span := range spanset.Spans {
 		tempopbSpan := &tempopb.Span{
-			SpanID:            util.TraceIDToHexString(span.ID()),
+			SpanID:            util.SpanIDToHexString(span.ID()),
 			StartTimeUnixNano: span.StartTimeUnixNanos(),
 			DurationNanos:     span.EndtimeUnixNanos() - span.StartTimeUnixNanos(),
 			Attributes:        nil,
