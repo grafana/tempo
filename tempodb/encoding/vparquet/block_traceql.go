@@ -585,7 +585,6 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 	spanCol := &spanCollector{
 		minCount,
 		durationPredicates,
-		false,
 	}
 
 	// This is an optimization for when all of the span conditions must be met.
@@ -610,9 +609,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 	//  how do we know to pull duration for things like | avg(duration) > 1s? look at avg(span.http.status_code) it pushes a column request down here
 	//  the entire engine is built around spans. we have to return at least one entry for every span to the layers above for things to work
 	if len(required) == 0 {
-		required = []parquetquery.Iterator{makeIter(columnPathSpanKind, nil, columnPathSpanKind)}
-		// without this queries like { .cluster = "cluster" } fail b/c they rely on the span iterator to return something
-		spanCol.kindAsCount = true // signal to the collector we are only grabbing kind to count spans and we should not store it in attributes
+		required = []parquetquery.Iterator{makeIter(columnPathSpanKind, nil, "")}
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
@@ -1048,7 +1045,6 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 type spanCollector struct {
 	minAttributes   int
 	durationFilters []*parquetquery.GenericPredicate[int64]
-	kindAsCount     bool
 }
 
 var _ parquetquery.GroupPredicate = (*spanCollector)(nil)
@@ -1096,11 +1092,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			}
 			span.attributes[traceql.NewIntrinsic(traceql.IntrinsicStatus)] = traceql.NewStaticStatus(status)
 		case columnPathSpanKind:
-			// if we're actually retrieving kind then keep it, otherwise it's just being used to count spans and we should not
-			//  include it in our attributes
-			if !c.kindAsCount {
-				span.attributes[newSpanAttr(columnPathSpanKind)] = traceql.NewStaticInt(int(kv.Value.Int64()))
-			}
+			span.attributes[newSpanAttr(columnPathSpanKind)] = traceql.NewStaticInt(int(kv.Value.Int64()))
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?
