@@ -15,6 +15,7 @@ func TestStatic_Equals(t *testing.T) {
 	}{
 		{NewStaticInt(1), NewStaticInt(1)},
 		{NewStaticFloat(1.5), NewStaticFloat(1.5)},
+		{NewStaticInt(1), NewStaticFloat(1)},
 		{NewStaticString("foo"), NewStaticString("foo")},
 		{NewStaticBool(true), NewStaticBool(true)},
 		{NewStaticDuration(1 * time.Second), NewStaticDuration(1000 * time.Millisecond)},
@@ -28,10 +29,9 @@ func TestStatic_Equals(t *testing.T) {
 		lhs, rhs Static
 	}{
 		{NewStaticInt(1), NewStaticInt(2)},
-		{NewStaticInt(1), NewStaticFloat(1)},
 		{NewStaticBool(true), NewStaticInt(1)},
 		{NewStaticString("foo"), NewStaticString("bar")},
-		{NewStaticDuration(0), NewStaticInt(0)},
+		{NewStaticDuration(0), NewStaticInt(0)}, // should these be equal?
 		{NewStaticStatus(StatusError), NewStaticStatus(StatusOk)},
 		{NewStaticStatus(StatusOk), NewStaticInt(0)},
 		{NewStaticStatus(StatusError), NewStaticFloat(0)},

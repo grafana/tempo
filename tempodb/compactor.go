@@ -207,8 +207,8 @@ func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string
 		ObjectsWritten: func(compactionLevel, objs int) {
 			metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
 		},
-		SpansDiscarded: func(spans int) {
-			rw.compactorSharder.RecordDiscardedSpans(spans, tenantID)
+		SpansDiscarded: func(traceId string, spans int) {
+			rw.compactorSharder.RecordDiscardedSpans(spans, tenantID, traceId)
 		},
 	}
 

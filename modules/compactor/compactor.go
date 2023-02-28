@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
+	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -236,12 +237,13 @@ func (c *Compactor) Combine(dataEncoding string, tenantID string, objs ...[]byte
 		return objs[0], wasCombined, nil
 	}
 
-	spansDiscarded := countSpans(dataEncoding, objs[1:]...)
-	overrides.RecordDiscardedSpans(spansDiscarded, reasonCompactorDiscardedSpans, tenantID)
+	totalDiscarded := countSpans(dataEncoding, objs[1:]...)
+	overrides.RecordDiscardedSpans(totalDiscarded, reasonCompactorDiscardedSpans, tenantID)
 	return objs[0], wasCombined, nil
 }
 
-func (c *Compactor) RecordDiscardedSpans(count int, tenantID string) {
+func (c *Compactor) RecordDiscardedSpans(count int, tenantID string, traceID string) {
+	level.Warn(log.Logger).Log("msg", "max size of trace exceeded", "tenant", tenantID, "traceId", traceID, "discarded_span_count", count)
 	overrides.RecordDiscardedSpans(count, reasonCompactorDiscardedSpans, tenantID)
 }
 
@@ -293,12 +295,12 @@ func (c *Compactor) OnRingInstanceStopping(lifecycler *ring.BasicLifecycler) {}
 func (c *Compactor) OnRingInstanceHeartbeat(lifecycler *ring.BasicLifecycler, ringDesc *ring.Desc, instanceDesc *ring.InstanceDesc) {
 }
 
-func countSpans(dataEncoding string, objs ...[]byte) int {
+func countSpans(dataEncoding string, objs ...[]byte) (total int) {
+	var traceID string
 	decoder, err := model.NewObjectDecoder(dataEncoding)
 	if err != nil {
 		return 0
 	}
-	spans := 0
 
 	for _, o := range objs {
 		t, err := decoder.PrepareForRead(o)
@@ -308,10 +310,15 @@ func countSpans(dataEncoding string, objs ...[]byte) int {
 
 		for _, b := range t.Batches {
 			for _, ilm := range b.ScopeSpans {
-				spans += len(ilm.Spans)
+				if len(ilm.Spans) > 0 && traceID == "" {
+					traceID = tempoUtil.TraceIDToHexString(ilm.Spans[0].TraceId)
+				}
+				total += len(ilm.Spans)
 			}
 		}
 	}
 
-	return spans
+	level.Debug(log.Logger).Log("msg", "max size of trace exceeded", "traceId", traceID, "discarded_span_count", total)
+
+	return
 }
