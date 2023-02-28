@@ -92,8 +92,8 @@ func (s *StreamingSearchBlock) Tags(_ context.Context, cb tagCallback) error {
 	return nil
 }
 
-func (s *StreamingSearchBlock) TagValues(_ context.Context, tagName string, cb tagValueCallback) error {
-	s.header.Tags.RangeKeyValues(tagName, func(t string) { cb(t) })
+func (s *StreamingSearchBlock) TagValues(_ context.Context, tagName string, cb tagCallback) error {
+	s.header.Tags.RangeKeyValues(tagName, (tempofb.TagCallback)(cb))
 	return nil
 }
 

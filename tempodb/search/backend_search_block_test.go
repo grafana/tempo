@@ -106,7 +106,7 @@ func TestBackendSearchBlockSearch(t *testing.T) {
 			}
 
 			var gotTags []string
-			require.NoError(t, b2.Tags(ctx, func(k string) { gotTags = append(gotTags, k) }))
+			require.NoError(t, b2.Tags(ctx, func(k string) bool { gotTags = append(gotTags, k); return false }))
 			sort.Strings(gotTags)
 			require.Equal(t, tags, gotTags)
 

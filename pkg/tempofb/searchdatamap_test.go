@@ -35,8 +35,9 @@ func TestSearchDataMap(t *testing.T) {
 	assert.ElementsMatch(t, []Pair{{"key-1", "value-1-1"}, {"key-1", "value-1-2"}, {"key-2", "value-2-1"}}, pairs)
 
 	var strs []string
-	captureSliceFn := func(value string) {
+	captureSliceFn := func(value string) bool {
 		strs = append(strs, value)
+		return false
 	}
 
 	searchDataMap.RangeKeys(captureSliceFn)

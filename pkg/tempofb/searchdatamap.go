@@ -21,7 +21,7 @@ const (
 	maxBufferLen = 900 << 20
 )
 
-type TagCallback func(t string)
+type TagCallback func(t string) (stop bool)
 
 type SearchDataMap map[string]map[string]struct{}
 
@@ -79,13 +79,17 @@ func (s SearchDataMap) Range(f func(k, v string)) {
 
 func (s SearchDataMap) RangeKeys(f TagCallback) {
 	for k := range s {
-		f(k)
+		if stop := f(k); stop {
+			return
+		}
 	}
 }
 
 func (s SearchDataMap) RangeKeyValues(k string, f TagCallback) {
 	for v := range s[k] {
-		f(v)
+		if stop := f(v); stop {
+			return
+		}
 	}
 }
 
@@ -93,8 +97,9 @@ func WriteSearchDataMap(b *flatbuffers.Builder, d SearchDataMap, cache map[uint6
 	h := xxhash.New()
 
 	var keys []string
-	d.RangeKeys(func(k string) {
+	d.RangeKeys(func(k string) bool {
 		keys = append(keys, k)
+		return false
 	})
 	sort.Strings(keys)
 
@@ -103,8 +108,9 @@ func WriteSearchDataMap(b *flatbuffers.Builder, d SearchDataMap, cache map[uint6
 	for _, k := range keys {
 
 		values = values[:0]
-		d.RangeKeyValues(k, func(v string) {
+		d.RangeKeyValues(k, func(v string) bool {
 			values = append(values, v)
+			return false
 		})
 
 		offset := writeKeyValues(b, k, values, h, cache)
@@ -119,7 +125,7 @@ func WriteSearchDataMap(b *flatbuffers.Builder, d SearchDataMap, cache map[uint6
 	for _, kvo := range offsets {
 		b.PrependUOffsetT(kvo)
 	}
-	vector := b.EndVector((len(offsets)))
+	vector := b.EndVector(len(offsets))
 	return vector
 }
 

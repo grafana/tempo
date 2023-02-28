@@ -148,7 +148,9 @@ func searchTags(_ context.Context, cb common.TagCallback, pf *parquet.File) erro
 
 					for i := 0; i < dict.Len(); i++ {
 						s := dict.Index(int32(i)).String()
-						cb(s)
+						if cb(s) {
+							return // stop
+						}
 					}
 				}(pg)
 

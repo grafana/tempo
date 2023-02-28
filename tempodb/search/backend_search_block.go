@@ -168,7 +168,7 @@ func (s *BackendSearchBlock) Tags(ctx context.Context, cb tagCallback) error {
 	return nil
 }
 
-func (s *BackendSearchBlock) TagValues(ctx context.Context, tagName string, cb tagValueCallback) error {
+func (s *BackendSearchBlock) TagValues(ctx context.Context, tagName string, cb tagCallback) error {
 	header, err := s.readSearchHeader(ctx)
 	if err != nil {
 		return err
@@ -178,7 +178,7 @@ func (s *BackendSearchBlock) TagValues(ctx context.Context, tagName string, cb t
 	if kv != nil {
 		for j, valueLength := 0, kv.ValueLength(); j < valueLength; j++ {
 			value := string(kv.Value(j))
-			if cb(value) {
+			if stop := cb(value); stop {
 				return nil
 			}
 		}

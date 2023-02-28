@@ -342,7 +342,10 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 		for i, ii := 0, entry.TagsLength(); i < ii; i++ {
 			entry.Tags(kv, i)
 			key := string(kv.Key())
-			distinctValues.Collect(key)
+			if exceeded := distinctValues.Collect(key); exceeded {
+				// Exit early if we've exceeded the limit
+				return true
+			}
 		}
 		return false
 	})
@@ -353,7 +356,7 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 	// wal + search blocks
 	if !distinctValues.Exceeded() {
 		err = i.visitSearchableBlocks(ctx, func(block search.SearchableBlock) error {
-			return block.Tags(ctx, func(t string) { distinctValues.Collect(t) })
+			return block.Tags(ctx, distinctValues.Collect)
 		})
 		if err != nil {
 			return nil, err
@@ -590,7 +593,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	return resp, nil
 }
 
-func (i *instance) visitSearchEntriesLiveTraces(ctx context.Context, visitFn func(entry *tempofb.SearchEntry) bool) error {
+func (i *instance) visitSearchEntriesLiveTraces(ctx context.Context, visitFn func(entry *tempofb.SearchEntry) (stop bool)) error {
 	span, _ := opentracing.StartSpanFromContext(ctx, "instance.visitSearchEntriesLiveTraces")
 	defer span.Finish()
 
@@ -598,12 +601,13 @@ func (i *instance) visitSearchEntriesLiveTraces(ctx context.Context, visitFn fun
 	defer i.tracesMtx.Unlock()
 
 	se := &tempofb.SearchEntry{}
-LiveTracesLoop:
+
+liveTraces:
 	for _, t := range i.traces {
 		for _, s := range t.searchData {
 			se.Reset(s)
 			if visitFn(se) {
-				break LiveTracesLoop
+				break liveTraces
 			}
 
 			if err := ctx.Err(); err != nil {
