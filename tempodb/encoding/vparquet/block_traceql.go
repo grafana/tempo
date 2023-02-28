@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/tempo/pkg/parquetquery"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -238,6 +239,10 @@ func newSpansetIterator(iter parquetquery.Iterator, filter traceql.FilterSpans) 
 	}
 }
 
+func (i *spansetIterator) String() string {
+	return fmt.Sprintf("spansetIterator: \n\t%s", util.TabOut(i.iter))
+}
+
 func (i *spansetIterator) Next() (*span, error) {
 	// drain current buffer
 	if len(i.currentSpans) > 0 {
@@ -293,6 +298,10 @@ func (i *spansetIterator) Next() (*span, error) {
 			return ret, nil
 		}
 	}
+}
+
+func (i *spansetIterator) Close() {
+	i.iter.Close()
 }
 
 // mergeSpansetIterator iterates through a slice of spansetIterators exhausting them
@@ -1149,7 +1158,7 @@ type batchCollector struct {
 
 	// shared static spans used in KeepGroup. done for memory savings, but won't
 	// work if the batchCollector is accessed concurrently
-	keepGroupSpans []*span
+	buffer []*span
 }
 
 var _ parquetquery.GroupPredicate = (*batchCollector)(nil)
@@ -1164,12 +1173,12 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// flattens it into 1 spanset per trace.  All we really need
 	// todo is merge the resource-level attributes onto the spans
 	// and filter out spans that didn't match anything.
-	c.keepGroupSpans = c.keepGroupSpans[:0]
+	c.buffer = c.buffer[:0]
 
 	resAttrs := make(map[traceql.Attribute]traceql.Static)
 	for _, kv := range res.OtherEntries {
 		if span, ok := kv.Value.(*span); ok {
-			c.keepGroupSpans = append(c.keepGroupSpans, span)
+			c.buffer = append(c.buffer, span)
 			continue
 		}
 
@@ -1178,7 +1187,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	}
 
 	// Throw out batches without any spans
-	if len(c.keepGroupSpans) == 0 {
+	if len(c.buffer) == 0 {
 		return false
 	}
 
@@ -1200,7 +1209,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	// Copy resource-level attributes to the individual spans now
 	for k, v := range resAttrs {
-		for _, span := range c.keepGroupSpans {
+		for _, span := range c.buffer {
 			if _, alreadyExists := span.attributes[k]; !alreadyExists {
 				span.attributes[k] = v
 			}
@@ -1208,7 +1217,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	}
 
 	// Remove unmatched attributes
-	for _, span := range c.keepGroupSpans {
+	for _, span := range c.buffer {
 		for k, v := range span.attributes {
 			if v.Type == traceql.TypeNil {
 				delete(span.attributes, k)
@@ -1220,7 +1229,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	// Copy over only spans that met minimum criteria
 	if c.requireAtLeastOneMatchOverall {
-		for _, span := range c.keepGroupSpans {
+		for _, span := range c.buffer {
 			if len(span.attributes) > 0 {
 				filteredSpans = append(filteredSpans, span)
 				continue
@@ -1228,8 +1237,8 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			putSpan(span)
 		}
 	} else {
-		filteredSpans = make([]traceql.Span, 0, len(c.keepGroupSpans))
-		for _, span := range c.keepGroupSpans {
+		filteredSpans = make([]traceql.Span, 0, len(c.buffer))
+		for _, span := range c.buffer {
 			filteredSpans = append([]traceql.Span(nil), span)
 		}
 	}

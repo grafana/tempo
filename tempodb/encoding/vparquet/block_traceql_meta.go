@@ -7,6 +7,7 @@ import (
 	"github.com/grafana/tempo/pkg/parquetquery"
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 )
 
 func createSpansetMetaIterator(makeIter makeIterFn, ss *spansetIterator, spanStartEndRetreived bool) (*spansetMetadataIterator, error) {
@@ -44,7 +45,7 @@ type spansToMetaIterator struct {
 var _ pq.Iterator = (*spansToMetaIterator)(nil)
 
 func (i *spansToMetaIterator) String() string {
-	return fmt.Sprintf("spansToMetaIterator: \n\t%s", i.iter.iter.String())
+	return fmt.Sprintf("spansToMetaIterator: \n\t%s", util.TabOut(i.iter))
 }
 
 func (i *spansToMetaIterator) Next() (*pq.IteratorResult, error) {
@@ -74,7 +75,7 @@ func (i *spansToMetaIterator) SeekTo(to pq.RowNumber, definitionLevel int) (*pq.
 }
 
 func (i *spansToMetaIterator) Close() {
-	i.iter.iter.Close()
+	i.iter.Close()
 }
 
 // spanMetaCollector collects iterator results with the expectation that they were created
