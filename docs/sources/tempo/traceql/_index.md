@@ -56,6 +56,8 @@ In TraceQL, curly brackets `{}` always select a set of spans from the current tr
 
 Intrinsic fields are fundamental to spans. These fields can be referenced when selecting spans. Note that custom attributes are prefixed with `.`, `span.` or `resource.` whereas intrinsics are typed directly.
 
+The following is a table of the current intrinsic fields: 
+
 
 | **Operation** | **Type** | **Definition**                        | **Example**            |
 |---------------|----------|---------------------------------------|------------------------|

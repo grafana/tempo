@@ -1,6 +1,6 @@
 module github.com/grafana/tempo
 
-go 1.19
+go 1.20
 
 require (
 	cloud.google.com/go/storage v1.27.0
@@ -96,6 +96,7 @@ require (
 )
 
 require (
+	github.com/googleapis/gax-go/v2 v2.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	golang.org/x/exp v0.0.0-20221002003631-540bb7301a08
 )
@@ -152,7 +153,6 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.0 // indirect
-	github.com/googleapis/gax-go/v2 v2.6.0 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/grafana/regexp v0.0.0-20221005093135-b4c2bcb0a4b6 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect

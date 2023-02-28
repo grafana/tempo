@@ -1,11 +1,12 @@
 module github.com/grafana/tempo/cmd/tempo-serverless/lambda
 
-go 1.19
+go 1.20
 
 require (
 	github.com/aws/aws-lambda-go v1.28.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/grafana/tempo v0.0.0-00010101000000-000000000000
+	github.com/stretchr/testify v1.8.1
 )
 
 require (
@@ -112,7 +113,6 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.12.0 // indirect
-	github.com/stretchr/testify v1.8.1 // indirect
 	github.com/subosito/gotenv v1.3.0 // indirect
 	github.com/uber-go/atomic v1.4.0 // indirect
 	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect

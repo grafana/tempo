@@ -3,8 +3,8 @@ package ingester
 import (
 	"bytes"
 	"context"
+	crand "crypto/rand"
 	"fmt"
-	"math/rand"
 	"sort"
 	"strconv"
 	"testing"
@@ -275,7 +275,8 @@ func writeTracesWithSearchData(t *testing.T, i *instance, tagKey string, tagValu
 
 	for j := 0; j < numTraces; j++ {
 		id := make([]byte, 16)
-		rand.Read(id)
+		_, err := crand.Read(id)
+		require.NoError(t, err)
 
 		tv := tagValue
 		if postFixValue {
@@ -350,7 +351,8 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 
 	go concurrent(func() {
 		id := make([]byte, 16)
-		rand.Read(id)
+		_, err := crand.Read(id)
+		require.NoError(t, err)
 
 		trace := test.MakeTrace(10, id)
 		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
@@ -445,7 +447,8 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 
 	for j := 0; j < 500; j++ {
 		id := make([]byte, 16)
-		rand.Read(id)
+		_, err := crand.Read(id)
+		require.NoError(t, err)
 
 		trace := test.MakeTrace(10, id)
 		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)

@@ -99,6 +99,21 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 		return
 	}
 
+	// coalesce root level information
+	if tr.EndTimeUnixNano > c.result.EndTimeUnixNano {
+		c.result.EndTimeUnixNano = tr.EndTimeUnixNano
+	}
+	if tr.StartTimeUnixNano < c.result.StartTimeUnixNano || c.result.StartTimeUnixNano == 0 {
+		c.result.StartTimeUnixNano = tr.StartTimeUnixNano
+	}
+	if c.result.RootServiceName == "" {
+		c.result.RootServiceName = tr.RootServiceName
+	}
+	if c.result.RootSpanName == "" {
+		c.result.RootSpanName = tr.RootSpanName
+	}
+	c.result.DurationNanos = c.result.EndTimeUnixNano - c.result.StartTimeUnixNano
+
 	// loop through every span and copy spans in B that don't exist to A
 	for _, b := range tr.ResourceSpans {
 		notFoundILS := b.ScopeSpans[:0]

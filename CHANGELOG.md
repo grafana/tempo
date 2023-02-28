@@ -1,10 +1,22 @@
 ## main / unreleased
-
+* [FEATURE] Add flag to check configuration [#2131](https://github.com/grafana/tempo/issues/2131) (@robertscherbarth @agrib-01)
 * [CHANGE] No longer return `status.code` from /api/search/tags unless it is an attribute present in the data [#2059](https://github.com/grafana/tempo/issues/2059) (@mdisibio)
 * [FEATURE] Add flag to optionally enable all available Go runtime metrics [#2005](https://github.com/grafana/tempo/pull/2005) (@andreasgerstmayr)
+* [CHANGE] Add support for s3 session token in static config [#2093](https://github.com/grafana/tempo/pull/2093) (@farodin91)
+* [CHANGE] Update Go to 1.20 [#2079](https://github.com/grafana/tempo/pull/2079) (@scalalang2)
+* [CHANGE] Removing leading zeroes in span id [#2062](https://github.com/grafana/tempo/pull/2062) (@ie-pham)
+* [ENHANCEMENT] Metrics generator to make use of counters earlier [#2068](https://github.com/grafana/tempo/pull/2068) (@zalegrala)
+* [ENHANCEMENT] Log when a trace is too large to compact [#2105](https://github.com/grafana/tempo/pull/2105) (@scalalang2)
+* [ENHANCEMENT] tempo-cli: add command to migrate a tenant [#2130](https://github.com/grafana/tempo/pull/2130) (@kvrhdn)
 * [BUGFIX] Suppress logspam in single binary mode when metrics generator is disabled. [#2058](https://github.com/grafana/tempo/pull/2058) (@joe-elliott)
 * [BUGFIX] Error more gracefully while reading some blocks written by an interim commit between 1.5 and 2.0 [#2055](https://github.com/grafana/tempo/pull/2055) (@mdisibio)
-* [BUGFIX] Apply `rate()` to bytes/s panel in tenant's dashboard. [#](https://github.com/grafana/tempo/pull/) (@mapno)
+* [BUGFIX] Apply `rate()` to bytes/s panel in tenant's dashboard. [#2081](https://github.com/grafana/tempo/pull/2081) (@mapno)
+* [BUGFIX] Correctly coalesce trace level data when combining Parquet traces. [#2095](https://github.com/grafana/tempo/pull/2095) (@joe-elliott)
+* [BUGFIX] Unescape query parameters in AWS Lambda to allow TraceQL queries to work. [#2114](https://github.com/grafana/tempo/issues/2114) (@joe-elliott)
+* [CHANGE] Update Go to 1.20 [#2079](https://github.com/grafana/tempo/pull/2079) (@scalalang2)
+* [CHANGE] Removing leading zeroes in span id [#2062](https://github.com/grafana/tempo/pull/2062) (@ie-pham)
+* [BUGFIX] Retry copy operations during compaction in GCS backend [#2111](https://github.com/grafana/tempo/pull/2111) (@mapno)
+* [BUGFIX] Fix float/int comparisons in TraceQL. [#2139](https://github.com/grafana/tempo/issues/2139) (@joe-elliott)
 
 ## v2.0.0 / 2023-01-31
 

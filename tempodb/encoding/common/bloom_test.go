@@ -2,7 +2,7 @@ package common
 
 import (
 	"bytes"
-	"math/rand"
+	crand "crypto/rand"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,7 +16,7 @@ func TestShardedBloom(t *testing.T) {
 	traceIDs := make([][]byte, 0)
 	for i := 0; i < numTraces; i++ {
 		id := make([]byte, 16)
-		_, err = rand.Read(id)
+		_, err = crand.Read(id)
 		assert.NoError(t, err)
 		traceIDs = append(traceIDs, id)
 	}

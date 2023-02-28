@@ -22,10 +22,10 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.19
+      - name: Set up Go 1.20
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19
+          go-version: 1.20.x
 
       - name: Install jsonnetfmt and goimports
         run: |
@@ -46,17 +46,17 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.49.0
+          version: v1.51.0
 
 
   unit-tests:
     name: Test packages
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.19
+      - name: Set up Go 1.20
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19
+          go-version: 1.20.x
 
       - name: Check out code
         uses: actions/checkout@v3
@@ -68,10 +68,10 @@ jobs:
     name: Test integration e2e suite
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.19
+      - name: Set up Go 1.20
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19
+          go-version: 1.20.x
 
       - name: Check out code
         uses: actions/checkout@v3
@@ -83,10 +83,10 @@ jobs:
     name: Test serverless integration e2e suite
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.19
+      - name: Set up Go 1.20
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19
+          go-version: 1.20.x
 
       - name: Check out code
         uses: actions/checkout@v3
@@ -98,10 +98,10 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.19
+      - name: Set up Go 1.20
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19
+          go-version: 1.20.x
 
       - name: Check out code
         uses: actions/checkout@v3
@@ -122,10 +122,10 @@ jobs:
     name: Benchmark
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.19
+      - name: Set up Go 1.20
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19
+          go-version: 1.20.x
 
       - name: Check out code
         uses: actions/checkout@v3
@@ -137,10 +137,10 @@ jobs:
     name: Vendor check
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.19
+      - name: Set up Go 1.20
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19
+          go-version: 1.20.x
 
       - name: Check out code
         uses: actions/checkout@v3
@@ -158,10 +158,10 @@ jobs:
     name: Check jsonnet & tempo-mixin
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.19
+      - name: Set up Go 1.20
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19
+          go-version: 1.20.x
 
       - name: Install jsonnet, jsonnet-bundler & tanka
         run: |

@@ -343,6 +343,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 			Value: credentials.Value{
 				AccessKeyID:     cfg.AccessKey,
 				SecretAccessKey: cfg.SecretKey.String(),
+				SessionToken:    cfg.SessionToken.String(),
 			},
 		}),
 		wrapCredentialsProvider(&credentials.EnvMinio{}),
@@ -385,6 +386,8 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 
 	if cfg.ForcePathStyle {
 		opts.BucketLookup = minio.BucketLookupPath
+	} else {
+		opts.BucketLookup = minio.BucketLookupType(cfg.BucketLookupType)
 	}
 
 	return minio.NewCore(cfg.Endpoint, opts)

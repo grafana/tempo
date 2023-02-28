@@ -3,6 +3,7 @@ package wal
 import (
 	"bytes"
 	"context"
+	crand "crypto/rand"
 	"fmt"
 	"io"
 	"math/rand"
@@ -86,7 +87,8 @@ func testAppendBlockStartEnd(t *testing.T, e encoding.VersionedEncoding) {
 
 	for i := 0; i < 10; i++ {
 		id := make([]byte, 16)
-		rand.Read(id)
+		_, err := crand.Read(id)
+		require.NoError(t, err)
 		obj := test.MakeTrace(rand.Int()%10+1, id)
 
 		b1, err := enc.PrepareForWrite(obj, blockStart, blockEnd)
@@ -146,7 +148,8 @@ func testIngestionSlack(t *testing.T, e encoding.VersionedEncoding) {
 
 	// Append a trace
 	id := make([]byte, 16)
-	rand.Read(id)
+	_, err = crand.Read(id)
+	require.NoError(t, err)
 	obj := test.MakeTrace(rand.Int()%10+1, id)
 
 	b1, err := enc.PrepareForWrite(obj, traceStart, traceEnd)
@@ -332,7 +335,8 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 		require.NoError(t, err)
 
 		id := make([]byte, 16)
-		rand.Read(id)
+		_, err = crand.Read(id)
+		require.NoError(t, err)
 		tr := test.MakeTrace(10, id)
 		b1, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(tr, 0, 0)
 		require.NoError(t, err)
@@ -387,7 +391,8 @@ func runWALTest(t testing.TB, encoding string, runner func([][]byte, []*tempopb.
 	ids := make([][]byte, 0, objects)
 	for i := 0; i < objects; i++ {
 		id := make([]byte, 16)
-		rand.Read(id)
+		_, err = crand.Read(id)
+		require.NoError(t, err)
 		obj := test.MakeTrace(rand.Int()%10+1, id)
 
 		trace.SortTrace(obj)
@@ -533,7 +538,8 @@ func runWALBenchmark(b *testing.B, encoding string, flushCount int, runner func(
 	ids := make([][]byte, 0, objects)
 	for i := 0; i < objects; i++ {
 		id := make([]byte, 16)
-		rand.Read(id)
+		_, err = crand.Read(id)
+		require.NoError(b, err)
 		obj := test.MakeTrace(rand.Int()%10+1, id)
 
 		trace.SortTrace(obj)

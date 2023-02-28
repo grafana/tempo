@@ -270,7 +270,7 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 		instrumentation.PublishHedgedMetrics(stats)
 	}
 
-	// build client
+	// Build client
 	storageClientOptions := []option.ClientOption{
 		option.WithHTTPClient(&http.Client{
 			Transport: transport,
@@ -285,7 +285,7 @@ func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.Bucket
 		return nil, errors.Wrap(err, "creating storage client")
 	}
 
-	// build bucket
+	// Build bucket
 	return client.Bucket(cfg.BucketName), nil
 }
 
