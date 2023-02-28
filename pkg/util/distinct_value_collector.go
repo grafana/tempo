@@ -19,6 +19,9 @@ func NewDistinctValueCollector[T comparable](maxDataSize int, len func(T) int) *
 	}
 }
 
+// Collect a value. Returns true if it exceeded the maximum data size.
+// Values must not reference data that will be released.
+// See https://github.com/grafana/tempo/pull/1818 for more context.
 func (d *DistinctValueCollector[T]) Collect(v T) (exceeded bool) {
 	if _, ok := d.values[v]; ok {
 		// Already present
