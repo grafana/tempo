@@ -422,6 +422,6 @@ kind: secret
 name: gpg_passphrase
 ---
 kind: signature
-hmac: 215c5fbe3d1611d09447d29da3f0b2fe1e901b0ce3f152f1023ce1beccd5c7db
+hmac: 66d14ceba8885ceea66b6ab4274103b80ee5aff0323b6c5a496a844a2ce998ae
 
 ...
