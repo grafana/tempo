@@ -312,7 +312,6 @@ The results look similar to this:
 NAME                                    READY   STATUS    RESTARTS   AGE
 tempo-compactor-86cd974cf-8qrk2         1/1     Running   0          22h
 tempo-distributor-bbf4889db-v8l8r       1/1     Running   0          22h
-tempo-gateway-75f468bd46-fbzj4          1/1     Running   0          22h
 tempo-ingester-0                        1/1     Running   0          22h
 tempo-ingester-1                        1/1     Running   0          22h
 tempo-ingester-2                        1/1     Running   0          22h
@@ -328,4 +327,4 @@ Wait until all of the pods have a status of Running or Completed, which might ta
 The next step is to test your Tempo installation by sending trace data to Grafana. You can use the [Set up a test application for a Tempo cluster](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/) document for step-by-step instructions.
 
 If you already have Grafana available, you can add a Tempo data source using the URL fitting to your environment. For example:
-`http://tempo-query-frontend.trace-test.svc.cluster.znet:3100`
+`http://tempo-query-frontend.trace-test.svc.cluster.local:3100`
