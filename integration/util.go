@@ -223,10 +223,8 @@ func SearchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUti
 
 	attr := tempoUtil.RandomAttrFromTrace(expected)
 
-	// verify attribute is present in tags
-	tagsResp, err := client.SearchTags()
-	require.NoError(t, err)
-	require.Contains(t, tagsResp.TagNames, attr.Key)
+	// NOTE: SearchTags doesn't include live traces anymore
+	// so don't check SearchTags
 
 	// verify attribute value is present in tag values
 	tagValuesResp, err := client.SearchTagValues(attr.Key)
