@@ -353,11 +353,6 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := util.NewDistinctStringCollector(limit)
 
-	// Virtual tags. Get these first
-	for _, k := range search.GetVirtualTags() {
-		distinctValues.Collect(k)
-	}
-
 	// Get results from all ingesters
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
