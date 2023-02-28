@@ -18,7 +18,7 @@ Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting
 - Span and resource attributes, timing, and duration
 - Basic aggregates: `count()` and `avg()`
 
-Read Mary Disibio's blog post, "[Get to know TraceQL](https://grafana.com/blog/2023/02/07/get-to-know-traceql-a-powerful-new-query-language-for-distributed-tracing/)," for an introduction to TraceQL and it's capabilities.
+Read Mary Disibio's blog post, "[Get to know TraceQL](https://grafana.com/blog/2023/02/07/get-to-know-traceql-a-powerful-new-query-language-for-distributed-tracing/)," for an introduction to TraceQL and its capabilities.
 
 {{< vimeo 796408188 >}}
 
@@ -60,7 +60,7 @@ In TraceQL, curly brackets `{}` always select a set of spans from the current tr
 
 Intrinsic fields are fundamental to spans. These fields can be referenced when selecting spans. Note that custom attributes are prefixed with `.`, `span.` or `resource.` whereas intrinsics are typed directly.
 
-The following is a table of the current intrinsic fields:
+The following table shows the current intrinsic fields:
 
 
 | **Operation** | **Type** | **Definition**                        | **Example**            |
