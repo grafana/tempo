@@ -334,7 +334,7 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 	}
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := util.NewDistinctValueCollector[string](limit, func(s string) int { return len(s) })
+	distinctValues := util.NewDistinctStringCollector(limit)
 
 	// live traces
 	kv := &tempofb.KeyValues{}
@@ -363,7 +363,7 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 		}
 	}
 
-	search := func(s common.Searcher, dv *util.DistinctValueCollector[string]) error {
+	search := func(s common.Searcher, dv *util.DistinctStringCollector) error {
 		if s == nil {
 			return nil
 		}
@@ -406,7 +406,7 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 	}
 
 	return &tempopb.SearchTagsResponse{
-		TagNames: distinctValues.Values(),
+		TagNames: distinctValues.Strings(),
 	}, nil
 }
 
@@ -417,7 +417,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	}
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := util.NewDistinctValueCollector[string](limit, func(s string) int { return len(s) })
+	distinctValues := util.NewDistinctStringCollector(limit)
 
 	// live traces
 	kv := &tempofb.KeyValues{}
@@ -439,7 +439,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 		return nil, err
 	}
 
-	search := func(s common.Searcher, dv *util.DistinctValueCollector[string]) error {
+	search := func(s common.Searcher, dv *util.DistinctStringCollector) error {
 		if s == nil {
 			return nil
 		}
@@ -482,7 +482,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	}
 
 	return &tempopb.SearchTagValuesResponse{
-		TagValues: distinctValues.Values(),
+		TagValues: distinctValues.Strings(),
 	}, nil
 }
 

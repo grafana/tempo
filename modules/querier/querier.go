@@ -351,7 +351,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	}
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := util.NewDistinctValueCollector[string](limit, func(s string) int { return len(s) })
+	distinctValues := util.NewDistinctStringCollector(limit)
 
 	// Virtual tags. Get these first
 	for _, k := range search.GetVirtualTags() {
@@ -380,7 +380,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	}
 
 	resp := &tempopb.SearchTagsResponse{
-		TagNames: distinctValues.Values(),
+		TagNames: distinctValues.Strings(),
 	}
 
 	return resp, nil
@@ -393,7 +393,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	}
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := util.NewDistinctValueCollector[string](limit, func(s string) int { return len(s) })
+	distinctValues := util.NewDistinctStringCollector(limit)
 
 	// Virtual tags values. Get these first.
 	for _, v := range search.GetVirtualTagValues(req.TagName) {
@@ -422,7 +422,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	}
 
 	resp := &tempopb.SearchTagValuesResponse{
-		TagValues: distinctValues.Values(),
+		TagValues: distinctValues.Strings(),
 	}
 
 	return resp, nil

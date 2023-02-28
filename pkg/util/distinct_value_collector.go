@@ -41,7 +41,7 @@ func (d *DistinctValueCollector[T]) Collect(v T) (exceeded bool) {
 	return false
 }
 
-// Strings returns the final list of distinct values collected and sorted.
+// Values returns the final list of distinct values collected and sorted.
 func (d *DistinctValueCollector[T]) Values() []T {
 	ss := make([]T, 0, len(d.values))
 
