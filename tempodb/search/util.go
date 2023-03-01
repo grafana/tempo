@@ -8,10 +8,6 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
-func GetVirtualTags() []string {
-	return []string{trace.ErrorTag}
-}
-
 func GetVirtualTagValues(tagName string) []string {
 	switch tagName {
 
