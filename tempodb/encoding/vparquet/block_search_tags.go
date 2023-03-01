@@ -71,6 +71,11 @@ func searchTags(_ context.Context, cb common.TagCallback, pf *parquet.File) erro
 	// find indexes of all special columns
 	specialAttrIdxs := map[int]string{}
 	for lbl, col := range labelMappings {
+		if lbl == LabelStatusCode {
+			// Don't include this in the list of tags (but it can still be used in SearchTagValues)
+			continue
+		}
+
 		idx, _ := pq.GetColumnIndexByPath(pf, col)
 		if idx == -1 {
 			continue

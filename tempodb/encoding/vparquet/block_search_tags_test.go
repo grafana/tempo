@@ -32,6 +32,9 @@ func TestBackendBlockSearchTags(t *testing.T) {
 
 	// test that all attrs are in found attrs
 	for k := range attrs {
+		if k == LabelStatusCode {
+			continue
+		}
 		_, ok := foundAttrs[k]
 		require.True(t, ok)
 	}
