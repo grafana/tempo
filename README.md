@@ -28,9 +28,11 @@ Tempo implements [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), a tr
 
 To learn more about Tempo, consult the following documents & talks:
 
-- TraceQL ObservabilityCON 2022 Annoucement: "[TraceQL: a first-of-its-kind query language to accelerate trace analysis in Tempo 2.0][traceql-obscon-post]"
+- [New in Grafana Tempo 2.0: Apache Parquet as the default storage format, support for TraceQL][tempo_20_announce]
+- [Get to know TraceQL: A powerful new query language for distributed tracing][traceql-post]
 
-[traceql-obscon-post]: https://grafana.com/blog/2022/11/30/traceql-a-first-of-its-kind-query-language-to-accelerate-trace-analysis-in-tempo-2.0/
+[tempo_20_announce]: https://grafana.com/blog/2023/02/01/new-in-grafana-tempo-2.0-apache-parquet-as-the-default-storage-format-support-for-traceql/
+[traceql-post]: https://grafana.com/blog/2023/02/07/get-to-know-traceql-a-powerful-new-query-language-for-distributed-tracing/
 
 ## Getting Help
 
