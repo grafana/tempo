@@ -24,7 +24,7 @@ http_api_prefix: ""
 server:
   http_listen_network: tcp
   http_listen_address: ""
-  http_listen_port: 3100
+  http_listen_port: 3200
   http_listen_conn_limit: 0
   grpc_listen_network: tcp
   grpc_listen_address: ""
@@ -64,6 +64,50 @@ server:
   log_source_ips_regex: ""
   log_request_at_info_level_enabled: false
   http_path_prefix: ""
+internal_server:
+  http_listen_network: tcp
+  http_listen_address: localhost
+  http_listen_port: 3101
+  http_listen_conn_limit: 0
+  grpc_listen_network: ""
+  grpc_listen_address: ""
+  grpc_listen_port: 0
+  grpc_listen_conn_limit: 0
+  tls_cipher_suites: ""
+  tls_min_version: ""
+  http_tls_config:
+    cert_file: ""
+    key_file: ""
+    client_auth_type: ""
+    client_ca_file: ""
+  grpc_tls_config:
+    cert_file: ""
+    key_file: ""
+    client_auth_type: ""
+    client_ca_file: ""
+  register_instrumentation: false
+  graceful_shutdown_timeout: 30s
+  http_server_read_timeout: 30s
+  http_server_write_timeout: 30s
+  http_server_idle_timeout: 2m0s
+  grpc_server_max_recv_msg_size: 0
+  grpc_server_max_send_msg_size: 0
+  grpc_server_max_concurrent_streams: 0
+  grpc_server_max_connection_idle: 0s
+  grpc_server_max_connection_age: 0s
+  grpc_server_max_connection_age_grace: 0s
+  grpc_server_keepalive_time: 0s
+  grpc_server_keepalive_timeout: 0s
+  grpc_server_min_time_between_pings: 0s
+  grpc_server_ping_without_stream_allowed: false
+  log_format: ""
+  log_level: ""
+  log_source_ips_enabled: false
+  log_source_ips_header: ""
+  log_source_ips_regex: ""
+  log_request_at_info_level_enabled: false
+  http_path_prefix: ""
+  enable: false
 distributor:
   ring:
     kvstore:
@@ -98,7 +142,7 @@ distributor:
         mirror_timeout: 2s
     heartbeat_period: 5s
     heartbeat_timeout: 5m0s
-    instance_id: joe
+    instance_id: hostname
     instance_interface_names:
       - eth0
       - en0
@@ -109,12 +153,12 @@ distributor:
   log_received_traces: false
   forwarders: []
   extend_writes: true
-  search_tags_deny_list: []
 ingester_client:
   pool_config:
     checkinterval: 15s
     healthcheckenabled: true
     healthchecktimeout: 1s
+    maxconcurrenthealthchecks: 0
   remote_timeout: 5s
   grpc_client_config:
     max_recv_msg_size: 104857600
@@ -140,6 +184,7 @@ metrics_generator_client:
     checkinterval: 15s
     healthcheckenabled: true
     healthchecktimeout: 1s
+    maxconcurrenthealthchecks: 0
   remote_timeout: 5s
   grpc_client_config:
     max_recv_msg_size: 104857600
@@ -312,21 +357,8 @@ ingester:
     join_after: 0s
     min_ready_duration: 15s
     interface_names:
-      - wlp2s0
-      - br-39d728775b03
-      - br-d5846bf66182
-      - br-ea48fef4186e
-      - br-f163873defd4
-      - br-24f5062c6edd
-      - br-3b836e91bc36
-      - br-9cef180f0356
-      - br-a5544df3e712
-      - br-14ab1fbc2f0e
-      - br-16536cce4aa3
-      - docker0
-      - br-721c7a5d3933
-      - br-dd28551f2dbd
-      - br-d3d1776850a0
+      - eth0
+      - en0
     final_sleep: 0s
     tokens_file_path: ""
     availability_zone: ""
@@ -500,6 +532,7 @@ storage:
       hedge_requests_up_to: 2
       signature_v2: false
       forcepathstyle: false
+      bucket_lookup_type: 0
       tags: {}
       storage_class: ""
       metadata: {}
@@ -526,10 +559,8 @@ overrides:
   ingestion_rate_strategy: local
   ingestion_rate_limit_bytes: 15000000
   ingestion_burst_size_bytes: 20000000
-  search_tags_allow_list: null
   max_traces_per_user: 10000
   max_global_traces_per_user: 0
-  max_search_bytes_per_trace: 5000
   forwarders: []
   metrics_generator_ring_size: 0
   metrics_generator_processors: null

@@ -1124,11 +1124,6 @@ overrides:
     # This override limit is used by the ingester.
     [max_traces_per_user: <int> | default = 10000]
 
-    # Maximum size of search data for a single trace in bytes. A value of 0
-    # disables the check. From an operational perspective, the size of search
-    # data is proportional to the total size of all tags in a trace.
-    [max_search_bytes_per_trace: <int> | default = 5000]
-
     # Maximum size in bytes of a tag-values query. Tag-values query is used mainly
     # to populate the autocomplete dropdown. This limit protects the system from
     # tags with high cardinality or large values such as HTTP URLs or SQL queries.

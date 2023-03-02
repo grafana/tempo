@@ -303,7 +303,6 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
                },
            },
            overrides+: {
-               max_search_bytes_per_trace: 5000000,
                metrics_generator_processors: ['service-graphs', 'span-metrics'],
            },
        },

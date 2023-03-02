@@ -5,6 +5,13 @@
 * [CHANGE] Add support for s3 session token in static config [#2093](https://github.com/grafana/tempo/pull/2093) (@farodin91)
 * [CHANGE] Update Go to 1.20 [#2079](https://github.com/grafana/tempo/pull/2079) (@scalalang2)
 * [CHANGE] Removing leading zeroes in span id [#2062](https://github.com/grafana/tempo/pull/2062) (@ie-pham)
+* [CHANGE] **Breaking Change** Remove support for search on v2 blocks.
+  These config options :
+  ```
+  overrides:
+    max_search_bytes_per_trace:
+    search_tags_allow_list:
+  ```
 * [ENHANCEMENT] Metrics generator to make use of counters earlier [#2068](https://github.com/grafana/tempo/pull/2068) (@zalegrala)
 * [ENHANCEMENT] Log when a trace is too large to compact [#2105](https://github.com/grafana/tempo/pull/2105) (@scalalang2)
 * [ENHANCEMENT] tempo-cli: add command to migrate a tenant [#2130](https://github.com/grafana/tempo/pull/2130) (@kvrhdn)
