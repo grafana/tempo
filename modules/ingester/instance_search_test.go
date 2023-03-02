@@ -39,7 +39,7 @@ func TestInstanceSearch(t *testing.T) {
 	req.Tags[tagKey] = tagValue
 	req.Limit = uint32(len(ids)) + 1
 
-	sr, err := i.Search(context.Background(), req)
+	sr, err := i.Search(context.Background(), req) // jpe how does this work?
 	assert.NoError(t, err)
 	assert.Len(t, sr.Traces, len(ids))
 	// todo: test that returned results are in sorted time order, create order of id's beforehand
@@ -293,7 +293,7 @@ func writeTracesWithSearchData(t *testing.T, i *instance, tagKey string, tagValu
 		require.NoError(t, err)
 
 		// searchData will be nil if not
-		err = i.PushBytes(context.Background(), id, traceBytes, nil)
+		err = i.PushBytes(context.Background(), id, traceBytes)
 		require.NoError(t, err)
 
 		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
@@ -358,7 +358,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		require.NoError(t, err)
 
 		// searchData will be nil if not
-		err = i.PushBytes(context.Background(), id, traceBytes, nil)
+		err = i.PushBytes(context.Background(), id, traceBytes)
 		require.NoError(t, err)
 	})
 
@@ -448,7 +448,7 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 		require.NoError(t, err)
 
-		err = i.PushBytes(context.Background(), id, traceBytes, nil) // jpe do we still need a searchdata on pushbytes?
+		err = i.PushBytes(context.Background(), id, traceBytes)
 		require.NoError(t, err)
 	}
 
@@ -499,7 +499,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 		require.NoError(t, err)
 
-		err = i.PushBytes(context.Background(), id, traceBytes, nil)
+		err = i.PushBytes(context.Background(), id, traceBytes)
 		require.NoError(t, err)
 
 		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
@@ -516,8 +516,8 @@ func TestInstanceSearchMetrics(t *testing.T) {
 
 	// Live traces
 	m := search()
-	require.Equal(t, numTraces, m.InspectedTraces)
-	require.Equal(t, numBytes, m.InspectedBytes)
+	require.Equal(t, uint32(0), m.InspectedTraces) // we don't search live traces
+	require.Equal(t, uint64(0), m.InspectedBytes)  // we don't search live traces
 	require.Equal(t, uint32(1), m.InspectedBlocks) // 1 head block
 
 	// Test after appending to WAL
@@ -579,7 +579,7 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 			require.NoError(b, err)
 
 			// searchData will be nil if not
-			err = i.PushBytes(context.Background(), id, traceBytes, nil)
+			err = i.PushBytes(context.Background(), id, traceBytes)
 			require.NoError(b, err)
 
 			tracesPushed.Inc()

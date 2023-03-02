@@ -159,6 +159,7 @@ func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID, _ common
 	return dec.PrepareForRead(obj)
 }
 
+// jpe - remove?
 func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opt common.SearchOptions) (resp *tempopb.SearchResponse, err error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "BackendBlock.Search")
 	defer span.Finish()

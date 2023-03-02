@@ -43,8 +43,6 @@ type Config struct {
 	//  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
 	ExtendWrites bool `yaml:"extend_writes"`
 
-	SearchTagsDenyList []string `yaml:"search_tags_deny_list"`
-
 	// For testing.
 	factory func(addr string) (ring_client.PoolClient, error) `yaml:"-"`
 }

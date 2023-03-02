@@ -353,6 +353,7 @@ func (i *Ingester) replayWal() error {
 		if err != nil {
 			return err
 		}
+		instance.AddCompletingBlock(b)
 
 		i.enqueue(&flushOp{
 			kind:    opKindComplete,

@@ -61,8 +61,7 @@ var (
 )
 
 const (
-	traceDataType  = "trace"
-	searchDataType = "search" // jpe ?
+	traceDataType = "trace"
 )
 
 var (
@@ -145,13 +144,7 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 
 func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) error {
 	for j := range req.Traces {
-		// Search data is optional.
-		var searchData []byte // jpe ?
-		if len(req.SearchData) > j && len(req.SearchData[j].Slice) > 0 {
-			searchData = req.SearchData[j].Slice
-		}
-
-		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice, searchData)
+		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
 		if err != nil {
 			return err
 		}
@@ -160,8 +153,8 @@ func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesR
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
-func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, searchData []byte) error {
-	i.measureReceivedBytes(traceBytes, searchData)
+func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte) error {
+	i.measureReceivedBytes(traceBytes)
 
 	if !validation.ValidTraceID(id) {
 		return status.Errorf(codes.InvalidArgument, "%s is not a valid traceid", hex.EncodeToString(id))
@@ -173,10 +166,10 @@ func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, 
 		return status.Errorf(codes.FailedPrecondition, "%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, i.instanceID, err)
 	}
 
-	return i.push(ctx, id, traceBytes, searchData)
+	return i.push(ctx, id, traceBytes)
 }
 
-func (i *instance) push(ctx context.Context, id, traceBytes, searchData []byte) error {
+func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
@@ -193,7 +186,7 @@ func (i *instance) push(ctx context.Context, id, traceBytes, searchData []byte) 
 
 	trace := i.getOrCreateTrace(id, tkn, maxBytes)
 
-	err := trace.Push(ctx, i.instanceID, traceBytes, searchData)
+	err := trace.Push(ctx, i.instanceID, traceBytes)
 	if err != nil {
 		if e, ok := err.(*traceTooLargeError); ok {
 			return status.Errorf(codes.FailedPrecondition, e.Error())
@@ -208,12 +201,11 @@ func (i *instance) push(ctx context.Context, id, traceBytes, searchData []byte) 
 	return nil
 }
 
-func (i *instance) measureReceivedBytes(traceBytes []byte, searchData []byte) {
+func (i *instance) measureReceivedBytes(traceBytes []byte) {
 	// measure received bytes as sum of slice lengths
 	// type byte is guaranteed to be 1 byte in size
 	// ref: https://golang.org/ref/spec#Size_and_alignment_guarantees
 	i.bytesReceivedTotal.WithLabelValues(i.instanceID, traceDataType).Add(float64(len(traceBytes)))
-	i.bytesReceivedTotal.WithLabelValues(i.instanceID, searchDataType).Add(float64(len(searchData)))
 }
 
 // CutCompleteTraces moves any complete traces out of the map to complete traces.

@@ -152,6 +152,7 @@ func TestWal(t *testing.T) {
 			TraceID: traceID,
 		})
 		require.NoError(t, err, "unexpected error querying")
+		require.NotNil(t, foundTrace.Trace)
 		trace.SortTrace(foundTrace.Trace)
 		equal := proto.Equal(traces[i], foundTrace.Trace)
 		require.True(t, equal)
@@ -225,7 +226,7 @@ func TestSearchWAL(t *testing.T) {
 	require.NoError(t, err)
 
 	// push to instance
-	require.NoError(t, inst.PushBytes(context.Background(), id, b1, nil))
+	require.NoError(t, inst.PushBytes(context.Background(), id, b1))
 
 	// Write wal
 	require.NoError(t, inst.CutCompleteTraces(0, true))

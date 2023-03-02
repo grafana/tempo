@@ -89,7 +89,7 @@ func TestInstanceFind(t *testing.T) {
 		traceBytes, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(traces[j], 0, 0)
 		require.NoError(t, err)
 
-		err = i.PushBytes(context.Background(), ids[j], traceBytes, nil)
+		err = i.PushBytes(context.Background(), ids[j], traceBytes)
 		require.NoError(t, err)
 	}
 
@@ -136,7 +136,7 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 		traceBytes, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(testTrace, 0, 0)
 		require.NoError(t, err)
 
-		err = i.PushBytes(context.Background(), id, traceBytes, nil)
+		err = i.PushBytes(context.Background(), id, traceBytes)
 		require.NoError(t, err)
 		require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
@@ -437,7 +437,7 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 				tr := test.MakeTrace(1, uuid.Nil[:])
 				bytes, err := dec.PrepareForWrite(tr, 0, 0)
 				require.NoError(t, err)
-				err = instance.PushBytes(context.Background(), uuid.Nil[:], bytes, nil)
+				err = instance.PushBytes(context.Background(), uuid.Nil[:], bytes)
 				require.NoError(t, err)
 			}
 
