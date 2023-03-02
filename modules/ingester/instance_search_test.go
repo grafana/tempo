@@ -31,7 +31,7 @@ func TestInstanceSearch(t *testing.T) {
 
 	var tagKey = "foo"
 	var tagValue = "bar"
-	ids, _ := writeTracesWithSearchData(t, i, tagKey, tagValue, false)
+	ids, _ := writeTracesForSearch(t, i, tagKey, tagValue, false)
 
 	var req = &tempopb.SearchRequest{
 		Tags: map[string]string{},
@@ -39,18 +39,8 @@ func TestInstanceSearch(t *testing.T) {
 	req.Tags[tagKey] = tagValue
 	req.Limit = uint32(len(ids)) + 1
 
-	sr, err := i.Search(context.Background(), req) // jpe how does this work?
-	assert.NoError(t, err)
-	assert.Len(t, sr.Traces, len(ids))
-	// todo: test that returned results are in sorted time order, create order of id's beforehand
-	checkEqual(t, ids, sr)
-
-	// Test after appending to WAL
-	err = i.CutCompleteTraces(0, true)
-	require.NoError(t, err)
-	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
-
-	sr, err = i.Search(context.Background(), req)
+	// Test after appending to WAL. writeTracesforSearch() makes sure all traces are in the wal
+	sr, err := i.Search(context.Background(), req)
 	assert.NoError(t, err)
 	assert.Len(t, sr.Traces, len(ids))
 	checkEqual(t, ids, sr)
@@ -193,16 +183,11 @@ func TestInstanceSearchTags(t *testing.T) {
 	var tagKey = "foo"
 	var tagValue = "bar"
 
-	_, expectedTagValues := writeTracesWithSearchData(t, i, tagKey, tagValue, true)
+	_, expectedTagValues := writeTracesForSearch(t, i, tagKey, tagValue, true)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
-	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
 
 	// Test after appending to WAL
-	err := i.CutCompleteTraces(0, true)
-	require.NoError(t, err)
-	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
-
 	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
 
 	// Test after cutting new headblock
@@ -251,7 +236,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	var tagKey = "foo"
 	var tagValue = "bar"
 
-	_, _ = writeTracesWithSearchData(t, i, tagKey, tagValue, true)
+	_, _ = writeTracesForSearch(t, i, tagKey, tagValue, true)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 	resp, err := i.SearchTagValues(userCtx, tagKey)
@@ -263,7 +248,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 // ids expected to be returned from a tag search and strings expected to
 // be returned from a tag value search
 // nolint:revive,unparam
-func writeTracesWithSearchData(t *testing.T, i *instance, tagKey string, tagValue string, postFixValue bool) ([][]byte, []string) {
+func writeTracesForSearch(t *testing.T, i *instance, tagKey string, tagValue string, postFixValue bool) ([][]byte, []string) {
 	// This matches the encoding for live traces, since
 	// we are pushing to the instance directly it must match.
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
