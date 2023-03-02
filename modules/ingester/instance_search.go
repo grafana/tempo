@@ -34,8 +34,6 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 
 	span.LogFields(ot_log.String("SearchRequest", req.String()))
 
-	p := search.NewSearchPipeline(req)
-
 	sr := search.NewResults()
 	defer sr.Close() // signal all running workers to quit
 
@@ -43,8 +41,8 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	// deadlocking with other activity (ingest, flushing), caused by releasing
 	// and then attempting to retake the lock.
 	i.blocksMtx.RLock()
-	i.searchWAL(ctx, req, p, sr)
-	i.searchLocalBlocks(ctx, req, p, sr)
+	i.searchWAL(ctx, req, sr)
+	i.searchLocalBlocks(ctx, req, sr)
 	i.blocksMtx.RUnlock()
 
 	sr.AllWorkersStarted()
@@ -100,7 +98,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 }
 
 // searchWAL starts a search task for every WAL block. Must be called under lock.
-func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p search.Pipeline, sr *search.Results) { // jpe - do we use the pipeline?
+func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, sr *search.Results) {
 	searchWalBlock := func(b common.WALBlock) {
 		blockID := b.BlockMeta().BlockID.String()
 		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchWALBlock", opentracing.Tags{
@@ -151,7 +149,7 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, p 
 }
 
 // searchLocalBlocks starts a search task for every local block. Must be called under lock.
-func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchRequest, p search.Pipeline, sr *search.Results) {
+func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchRequest, sr *search.Results) {
 	// next check all complete blocks to see if they were not searched, if they weren't then attempt to search them
 	for _, e := range i.completeBlocks {
 		// todo: remove support for v2 search and then this check can be removed.

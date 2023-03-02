@@ -19,7 +19,6 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
@@ -492,8 +491,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 
 	search := func() *tempopb.SearchMetrics {
 		sr, err := i.Search(context.Background(), &tempopb.SearchRequest{
-			// Exhaustive search
-			Tags: map[string]string{search.SecretExhaustiveSearchTag: "!"},
+			Tags: map[string]string{"foo": "bar"},
 		})
 		require.NoError(t, err)
 		return sr.Metrics
@@ -593,9 +591,7 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	for j := 0; j < 2; j++ {
 		go concurrent(func() {
 			// time.Sleep(1 * time.Millisecond)
-			var req = &tempopb.SearchRequest{
-				Tags: map[string]string{search.SecretExhaustiveSearchTag: "!"},
-			}
+			var req = &tempopb.SearchRequest{}
 			resp, err := i.Search(ctx, req)
 			require.NoError(b, err)
 			searches.Inc()
