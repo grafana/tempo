@@ -31,6 +31,8 @@ import (
 // Currently supports 6 levels of nesting which should be enough for anybody. :)
 type RowNumber [6]int64
 
+const MaxDefinitionLevel = 5
+
 // EmptyRowNumber creates an empty invalid row number.
 func EmptyRowNumber() RowNumber {
 	return RowNumber{-1, -1, -1, -1, -1, -1}
@@ -237,6 +239,241 @@ func columnIteratorResultPoolPut(r *IteratorResult) {
 	if r != nil {
 		r.Reset()
 		columnIteratorResultPool.Put(r)
+	}
+}
+
+type SyncIterator struct {
+	// Config
+	column     int
+	columnName string
+	rgs        []pq.RowGroup
+	rgsMin     []RowNumber
+	rgsMax     []RowNumber
+	readSize   int
+	selectAs   string
+	filter     Predicate
+
+	// Status
+	curr            RowNumber
+	currRowGroup    pq.RowGroup
+	currRowGroupMin RowNumber
+	currRowGroupMax RowNumber
+	currChunk       pq.ColumnChunk
+	currPages       pq.Pages
+	currPage        pq.Page
+	currPageMax     RowNumber
+	currValues      pq.ValueReader
+	currBuf         []pq.Value
+	currBufN        int
+}
+
+var _ Iterator = (*SyncIterator)(nil)
+
+func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string) *SyncIterator {
+
+	rn := EmptyRowNumber()
+	rgsMin := make([]RowNumber, len(rgs))
+	rgsMax := make([]RowNumber, len(rgs))
+	for i := range rgs {
+		rgsMin[i] = rn
+		//rgsMin[i][0]++
+		rn.Skip(rgs[i].NumRows())
+		rgsMax[i] = rn
+	}
+
+	return &SyncIterator{
+		column:     column,
+		columnName: columnName,
+		rgs:        rgs,
+		readSize:   readSize,
+		selectAs:   selectAs,
+		rgsMin:     rgsMin,
+		rgsMax:     rgsMax,
+		filter:     filter,
+		curr:       EmptyRowNumber(),
+		currBuf:    make([]pq.Value, readSize),
+	}
+}
+
+func (c *SyncIterator) Next() (*IteratorResult, error) {
+	//c.curr.Next(MaxDefinitionLevel, MaxDefinitionLevel)
+	//curr := c.curr
+	res, err := c.SeekTo(c.curr, MaxDefinitionLevel)
+
+	//fmt.Println("SyncIterator.Next()", "curr=", curr, "Result=", res)
+
+	return res, err
+}
+
+// SeekTo moves this iterator to the next result that is greater than
+// or equal to the given row number (and based on the given definition level)
+func (c *SyncIterator) SeekTo(to RowNumber, d int) (*IteratorResult, error) {
+
+	if c.moveRowGroup(to, d) {
+		return nil, nil
+	}
+
+	done, err := c.movePages(to, d)
+	if err != nil {
+		return nil, err
+	}
+	if done {
+		return nil, nil
+	}
+
+	return c.moveValues(to, d)
+}
+
+func (c *SyncIterator) moveRowGroup(seekTo RowNumber, d int) (done bool) {
+	if c.currRowGroup != nil && CompareRowNumbers(0, seekTo, c.currRowGroupMax) >= 0 {
+		// Done with this row group
+		c.currRowGroup = nil
+		c.currRowGroupMax = EmptyRowNumber()
+		c.currChunk = nil
+		if c.currPages != nil {
+			c.currPages.Close()
+			c.currPages = nil
+		}
+		c.currValues = nil
+	}
+
+	for c.currRowGroup == nil {
+		if len(c.rgs) == 0 {
+			return true
+		}
+
+		rg := c.rgs[0]
+		c.rgs = c.rgs[1:]
+
+		max := c.rgsMax[0]
+		min := c.rgsMin[0]
+		c.rgsMax = c.rgsMax[1:]
+		c.rgsMin = c.rgsMin[1:]
+
+		if CompareRowNumbers(MaxDefinitionLevel, seekTo, max) == -1 {
+
+			cc := rg.ColumnChunks()[c.column]
+			if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
+				continue
+			}
+
+			c.curr = min
+			c.currRowGroup = rg
+			c.currRowGroupMin = min
+			c.currRowGroupMax = max
+			c.currChunk = cc
+			c.currPages = c.currChunk.Pages()
+
+		}
+	}
+
+	return c.currRowGroup == nil
+}
+
+func (c *SyncIterator) movePages(seekTo RowNumber, d int) (done bool, err error) {
+	if c.currPage != nil && CompareRowNumbers(d, seekTo, c.currPageMax) >= 0 {
+		// Value not in this page
+		c.setPage(nil)
+		c.currPageMax = EmptyRowNumber()
+	}
+
+	if c.currPage == nil {
+
+		// Seek into the pages. This is relative from the current page position.
+		if seekTo[0] > 0 {
+			// Determine row delta. We subtract 1 because curr points at the previous row
+			skip := seekTo[0] - c.curr[0] - 1
+			if skip > 0 {
+				if err := c.currPages.SeekToRow(skip); err != nil {
+					return true, err
+				}
+				c.curr.Skip(skip)
+			}
+		}
+
+		for c.currPage == nil {
+			pg, err := c.currPages.ReadPage()
+			if err == io.EOF {
+				return true, nil
+			}
+			if err != nil {
+				return true, err
+			}
+
+			if c.filter != nil && !c.filter.KeepPage(pg) {
+				c.curr.Skip(pg.NumRows())
+				continue
+			}
+
+			c.setPage(pg)
+			rn := c.curr
+			rn.Skip(pg.NumRows())
+			c.currPageMax = rn
+
+			c.currValues = pg.Values()
+			c.currBuf = c.currBuf[:0]
+			c.currBufN = 0
+		}
+	}
+
+	return false, nil
+}
+
+func (c *SyncIterator) moveValues(seekTo RowNumber, d int) (*IteratorResult, error) {
+	for {
+		// Refill buffer if empty
+		if c.currBufN >= len(c.currBuf) || len(c.currBuf) == 0 {
+			c.currBuf = c.currBuf[:cap(c.currBuf)]
+			n, err := c.currValues.ReadValues(c.currBuf)
+			if err != nil && err != io.EOF {
+				return nil, err
+			}
+			c.currBuf = c.currBuf[:n]
+			c.currBufN = 0
+			if n == 0 {
+				return nil, nil
+			}
+		}
+
+		// Consume current buffer until empty
+		for c.currBufN < len(c.currBuf) {
+			v := c.currBuf[c.currBufN]
+			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel())
+			c.currBufN++
+
+			if c.filter != nil && !c.filter.KeepValue(v) {
+				continue
+			}
+
+			if CompareRowNumbers(d, c.curr, seekTo) >= 0 {
+				return c.makeResult(c.curr, v), nil
+			}
+		}
+	}
+}
+
+func (c *SyncIterator) setPage(pg pq.Page) {
+	if c.currPage != nil {
+		pq.Release(c.currPage)
+	}
+	c.currPage = pg
+}
+
+func (c *SyncIterator) makeResult(t RowNumber, v pq.Value) *IteratorResult {
+	r := columnIteratorResultPoolGet()
+	r.RowNumber = t
+	if c.selectAs != "" {
+		r.AppendValue(c.selectAs, v)
+	}
+	return r
+}
+
+func (c *SyncIterator) Close() {
+	c.currRowGroup = nil
+	c.currChunk = nil
+	if c.currPages != nil {
+		c.currPages.Close()
+		c.currPages = nil
 	}
 }
 
