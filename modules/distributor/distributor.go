@@ -346,22 +346,10 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		return nil, err
 	}
 
-	var searchData [][]byte
-	perTenantAllowedTags := d.overrides.SearchTagsAllowList(userID) // jpe - remove. hahahahah
-	searchData = extractSearchDataAll(rebatchedTraces, func(tag string) bool {
-		// if in per tenant override, extract
-		if _, ok := perTenantAllowedTags[tag]; ok {
-			return true
-		}
-		// if in global deny list, drop
-		if _, ok := d.globalTagsToDrop[tag]; ok {
-			return false
-		}
-		// allow otherwise
-		return true
-	})
+	// var searchData [][]byte
+	//perTenantAllowedTags := d.overrides.SearchTagsAllowList(userID) // jpe - remove. hahahahah
 
-	err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, searchData, keys)
+	err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, nil, keys)
 	if err != nil {
 		recordDiscaredSpans(err, userID, spanCount)
 		return nil, err
@@ -402,7 +390,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		req := tempopb.PushBytesRequest{
 			Traces:     make([]tempopb.PreallocBytes, len(indexes)),
 			Ids:        make([]tempopb.PreallocBytes, len(indexes)),
-			SearchData: make([]tempopb.PreallocBytes, len(indexes)),
+			SearchData: make([]tempopb.PreallocBytes, len(indexes)), // jpe ??
 		}
 
 		for i, j := range indexes {

@@ -62,7 +62,7 @@ var (
 
 const (
 	traceDataType  = "trace"
-	searchDataType = "search"
+	searchDataType = "search" // jpe ?
 )
 
 var (
@@ -146,7 +146,7 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) error {
 	for j := range req.Traces {
 		// Search data is optional.
-		var searchData []byte
+		var searchData []byte // jpe ?
 		if len(req.SearchData) > j && len(req.SearchData[j].Slice) > 0 {
 			searchData = req.SearchData[j].Slice
 		}
@@ -235,7 +235,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 			return err
 		}
 
-		err = i.writeTraceToHeadBlock(t.traceID, out, t.searchData, t.start, t.end)
+		err = i.writeTraceToHeadBlock(t.traceID, out, t.start, t.end)
 		if err != nil {
 			return err
 		}
@@ -448,8 +448,8 @@ func (i *instance) getOrCreateTrace(traceID []byte, fp uint32, maxBytes int) *li
 		return trace
 	}
 
-	maxSearchBytes := i.limiter.limits.MaxSearchBytesPerTrace(i.instanceID)
-	trace = newTrace(traceID, maxBytes, maxSearchBytes)
+	// maxSearchBytes := i.limiter.limits.MaxSearchBytesPerTrace(i.instanceID) - jpe remove
+	trace = newTrace(traceID, maxBytes)
 	i.traces[fp] = trace
 	i.tracesCreatedTotal.Inc()
 	i.traceCount.Inc()
@@ -504,7 +504,7 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*liveTrac
 	return tracesToCut
 }
 
-func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]byte, start, end uint32) error {
+func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, start, end uint32) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 

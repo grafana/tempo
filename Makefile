@@ -12,7 +12,6 @@ GORELEASER := $(GOPATH)/bin/goreleaser
 
 # Build Images
 DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.14.0
-FLATBUFFERS_IMAGE ?= neomantra/flatbuffers
 LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.21.0
 DOCS_IMAGE ?= grafana/docs-base:latest
 
@@ -219,14 +218,6 @@ gen-proto:
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
 # ##############
-# Gen Flatbuffer
-# ##############
-.PHONY: gen-flat
-gen-flat:
-	# -o /pkg generates into same folder as tempo.fbs for simpler imports.
-	docker run --rm -v${PWD}:/opt/src ${FLATBUFFERS_IMAGE} flatc --go -o /opt/src/pkg /opt/src/pkg/tempofb/tempo.fbs
-
-# ##############
 # Gen Traceql
 # ##############
 .PHONY: gen-traceql
@@ -239,8 +230,8 @@ gen-traceql-local:
 
 ### Check vendored and generated files are up to date
 .PHONY: vendor-check
-vendor-check: gen-proto gen-flat update-mod gen-traceql
-	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/tempofb/ pkg/traceql/
+vendor-check: gen-proto update-mod gen-traceql
+	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/traceql/
 
 ### Tidy dependencies for tempo and tempo-serverless modules
 .PHONY: update-mod

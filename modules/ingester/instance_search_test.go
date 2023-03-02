@@ -19,12 +19,11 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempofb"
+	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/search"
 )
 
 func TestInstanceSearch(t *testing.T) {
@@ -358,13 +357,8 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 		require.NoError(t, err)
 
-		searchData := &tempofb.SearchEntryMutable{}
-		searchData.TraceID = id
-		searchData.AddTag(tagKey, tagValue)
-		searchBytes := searchData.ToBytes()
-
 		// searchData will be nil if not
-		err = i.PushBytes(context.Background(), id, traceBytes, searchBytes)
+		err = i.PushBytes(context.Background(), id, traceBytes, nil)
 		require.NoError(t, err)
 	})
 
@@ -454,12 +448,7 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 		require.NoError(t, err)
 
-		entry := &tempofb.SearchEntryMutable{}
-		entry.TraceID = id
-		entry.AddTag("foo", "bar")
-		searchBytes := entry.ToBytes()
-
-		err = i.PushBytes(context.Background(), id, traceBytes, searchBytes)
+		err = i.PushBytes(context.Background(), id, traceBytes, nil) // jpe do we still need a searchdata on pushbytes?
 		require.NoError(t, err)
 	}
 
@@ -510,14 +499,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 		require.NoError(t, err)
 
-		data := &tempofb.SearchEntryMutable{}
-		data.TraceID = id
-		data.AddTag("foo", "bar")
-		searchData := data.ToBytes()
-
-		numBytes += uint64(len(searchData))
-
-		err = i.PushBytes(context.Background(), id, traceBytes, searchData)
+		err = i.PushBytes(context.Background(), id, traceBytes, nil)
 		require.NoError(t, err)
 
 		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
@@ -596,16 +578,8 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 			traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 			require.NoError(b, err)
 
-			searchData := &tempofb.SearchEntryMutable{}
-			searchData.TraceID = id
-			searchData.AddTag("foo", "bar")
-			searchData.AddTag("foo", "baz")
-			searchData.AddTag("bar", "bar")
-			searchData.AddTag("bar", "baz")
-			searchBytes := searchData.ToBytes()
-
 			// searchData will be nil if not
-			err = i.PushBytes(context.Background(), id, traceBytes, searchBytes)
+			err = i.PushBytes(context.Background(), id, traceBytes, nil)
 			require.NoError(b, err)
 
 			tracesPushed.Inc()
