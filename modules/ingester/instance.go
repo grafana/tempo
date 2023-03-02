@@ -440,7 +440,6 @@ func (i *instance) getOrCreateTrace(traceID []byte, fp uint32, maxBytes int) *li
 		return trace
 	}
 
-	// maxSearchBytes := i.limiter.limits.MaxSearchBytesPerTrace(i.instanceID) - jpe remove
 	trace = newTrace(traceID, maxBytes)
 	i.traces[fp] = trace
 	i.tracesCreatedTotal.Inc()

@@ -33,8 +33,6 @@ func NewResults() *Results {
 	}
 }
 
-// jpe - what do i really need here?
-
 // AddResult sends a search result from a search task (goroutine) to the receiver of the
 // search results, i.e. the initiator of the search.  This function blocks until there
 // is buffer space in the results channel or if the task should stop searching because the

@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/api"
-	v2 "github.com/grafana/tempo/pkg/model/v2"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -121,6 +120,10 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, sr
 			resp, err = b.Search(ctx, req, opts)
 		}
 
+		if err == common.ErrUnsupported {
+			level.Warn(log.Logger).Log("msg", "wal block does not support search", "blockID", b.BlockMeta().BlockID)
+			return
+		}
 		if err != nil {
 			level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "block_version", b.BlockMeta().Version, "err", err)
 			sr.SetError(err)
@@ -152,13 +155,6 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, sr
 func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchRequest, sr *search.Results) {
 	// next check all complete blocks to see if they were not searched, if they weren't then attempt to search them
 	for _, e := range i.completeBlocks {
-		// todo: remove support for v2 search and then this check can be removed.
-		//  jpe - remove? or respond to unsupported error?
-		if e.BlockMeta().Version == v2.Encoding {
-			level.Warn(log.Logger).Log("msg", "local block search not supported on v2 blocks")
-			continue
-		}
-
 		sr.StartWorker()
 		go func(e *localBlock) {
 			defer sr.FinishWorker()
@@ -185,6 +181,10 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 				resp, err = e.Search(ctx, req, opts)
 			}
 
+			if err == common.ErrUnsupported {
+				level.Warn(log.Logger).Log("msg", "block does not support search", "blockID", e.BlockMeta().BlockID)
+				return
+			}
 			if err != nil {
 				level.Error(log.Logger).Log("msg", "error searching local block", "blockID", blockID, "err", err)
 				sr.SetError(err)
@@ -354,8 +354,6 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	err = func() error {
 		i.blocksMtx.RLock()
 		defer i.blocksMtx.RUnlock()
-
-		// jpe are we not searching the head block?
 
 		for _, b := range i.completingBlocks {
 			err = b.SearchTagValuesV2(ctx, tag, cb, common.DefaultSearchOptions())
