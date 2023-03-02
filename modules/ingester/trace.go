@@ -5,18 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-
 	"github.com/grafana/tempo/pkg/model"
-)
-
-var (
-	metricTraceSearchBytesDiscardedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "ingester_trace_search_bytes_discarded_total",
-		Help:      "The total number of trace search bytes discarded per tenant.",
-	}, []string{"tenant"})
 )
 
 type liveTrace struct {

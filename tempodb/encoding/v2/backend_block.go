@@ -107,23 +107,6 @@ func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (BytesIterator, error) {
 	return newPagedIterator(chunkSizeBytes, reader, dataReader, NewObjectReaderWriter()), nil
 }
 
-// partialIterator returns an Iterator that iterates over the a subset of pages in the block from the backend
-func (b *BackendBlock) partialIterator(chunkSizeBytes uint32, startPage int, totalPages int) (BytesIterator, error) {
-	// read index
-	ra := backend.NewContextReader(b.meta, common.NameObjects, b.reader, false)
-	dataReader, err := NewDataReader(ra, b.meta.Encoding)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create dataReader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
-	}
-
-	reader, err := b.NewIndexReader()
-	if err != nil {
-		return nil, err
-	}
-
-	return newPartialPagedIterator(chunkSizeBytes, reader, dataReader, NewObjectReaderWriter(), startPage, totalPages), nil
-}
-
 func (b *BackendBlock) NewIndexReader() (IndexReader, error) {
 	indexReaderAt := backend.NewContextReader(b.meta, common.NameIndex, b.reader, false)
 	reader, err := NewIndexReader(indexReaderAt, int(b.meta.IndexPageSize), int(b.meta.TotalRecords))
