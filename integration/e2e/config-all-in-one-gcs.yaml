@@ -38,5 +38,3 @@ storage:
     pool:
       max_workers: 10
       queue_depth: 1000
-
-overrides:

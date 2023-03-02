@@ -98,16 +98,14 @@ func TestAllInOne(t *testing.T) {
 			// query an in-memory trace
 			queryAndAssertTrace(t, apiClient, info)
 
-			// search an in-memory trace
-			util.SearchAndAssertTrace(t, apiClient, info)
-
 			// wait trace_idle_time and ensure trace is created in ingester
 			require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 
 			// flush trace to backend
 			callFlush(t, tempo)
 
-			// traceql search and verify trace is searchable once cut
+			// search for trace in backend
+			util.SearchAndAssertTrace(t, apiClient, info)
 			util.SearchTraceQLAndAssertTrace(t, apiClient, info)
 
 			// sleep
@@ -251,9 +249,6 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			// query an in-memory trace
 			queryAndAssertTrace(t, apiClient, info)
 
-			// search an in-memory trace
-			util.SearchAndAssertTrace(t, apiClient, info)
-
 			// wait trace_idle_time and ensure trace is created in ingester
 			require.NoError(t, tempoIngester1.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
 			require.NoError(t, tempoIngester2.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
@@ -263,6 +258,10 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			callFlush(t, tempoIngester1)
 			callFlush(t, tempoIngester2)
 			callFlush(t, tempoIngester3)
+
+			// search for trace
+			util.SearchAndAssertTrace(t, apiClient, info)
+			util.SearchTraceQLAndAssertTrace(t, apiClient, info)
 
 			// sleep for one maintenance cycle
 			time.Sleep(5 * time.Second)
@@ -290,8 +289,19 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			// query an in-memory trace
 			queryAndAssertTrace(t, apiClient, info)
 
-			// search an in-memory trace
+			// wait trace_idle_time and ensure trace is created in ingester
+			require.NoError(t, tempoIngester1.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+			require.NoError(t, tempoIngester2.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+			require.NoError(t, tempoIngester3.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+
+			// flush trace to backend
+			callFlush(t, tempoIngester1)
+			callFlush(t, tempoIngester2)
+			callFlush(t, tempoIngester3)
+
+			// search for trace
 			util.SearchAndAssertTrace(t, apiClient, info)
+			util.SearchTraceQLAndAssertTrace(t, apiClient, info)
 
 			// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 			now := time.Now()
