@@ -28,7 +28,6 @@ require (
 	github.com/gogo/status v1.1.1
 	github.com/golang/protobuf v1.5.2
 	github.com/golang/snappy v0.0.4
-	github.com/google/flatbuffers v22.10.26+incompatible
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
