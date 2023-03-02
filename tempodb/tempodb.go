@@ -31,7 +31,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
-	"github.com/grafana/tempo/tempodb/search"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -70,7 +69,6 @@ type Writer interface {
 	WriteBlock(ctx context.Context, block WriteableBlock) error
 	CompleteBlock(ctx context.Context, block common.WALBlock) (common.BackendBlock, error)
 	CompleteBlockWithBackend(ctx context.Context, block common.WALBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error)
-	CompleteSearchBlockWithBackend(block *search.StreamingSearchBlock, blockID uuid.UUID, tenantID string, r backend.Reader, w backend.Writer) (*search.BackendSearchBlock, error)
 	WAL() *wal.WAL
 }
 
@@ -256,15 +254,6 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 	}
 
 	return backendBlock, nil
-}
-
-func (rw *readerWriter) CompleteSearchBlockWithBackend(block *search.StreamingSearchBlock, blockID uuid.UUID, tenantID string, r backend.Reader, w backend.Writer) (*search.BackendSearchBlock, error) {
-	err := search.NewBackendSearchBlock(block, w, blockID, tenantID, rw.cfg.Block.SearchEncoding, rw.cfg.Block.SearchPageSizeBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return search.OpenBackendSearchBlock(blockID, tenantID, r)
 }
 
 func (rw *readerWriter) WAL() *wal.WAL {

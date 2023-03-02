@@ -431,7 +431,6 @@ func defaultIngesterTestConfig() Config {
 	cfg.LifecyclerConfig.Addr = "localhost"
 	cfg.LifecyclerConfig.ID = "localhost"
 	cfg.LifecyclerConfig.FinalSleep = 0
-	cfg.UseFlatbufferSearch = false
 
 	return cfg
 }

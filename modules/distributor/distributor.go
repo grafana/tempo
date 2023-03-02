@@ -347,7 +347,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	}
 
 	var searchData [][]byte
-	perTenantAllowedTags := d.overrides.SearchTagsAllowList(userID)
+	perTenantAllowedTags := d.overrides.SearchTagsAllowList(userID) // jpe - remove. hahahahah
 	searchData = extractSearchDataAll(rebatchedTraces, func(tag string) bool {
 		// if in per tenant override, extract
 		if _, ok := perTenantAllowedTags[tag]; ok {
