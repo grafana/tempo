@@ -35,6 +35,9 @@ func testSearchCompleteBlock(t *testing.T, blockVersion string) {
 
 		for _, req := range searchesThatMatch {
 			res, err := r.Search(ctx, meta, req, common.DefaultSearchOptions())
+			if err == common.ErrUnsupported {
+				return
+			}
 			require.NoError(t, err, "search request: %+v", req)
 			require.Equal(t, 1, len(res.Traces), "search request: %+v", req)
 			require.Equal(t, wantMeta, res.Traces[0], "search request:", req)

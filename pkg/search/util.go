@@ -1,20 +1,27 @@
 package search
 
 import (
-	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 )
 
-// jpe test?
+const (
+	ErrorTag        = "error"
+	StatusCodeTag   = "status.code"
+	StatusCodeUnset = "unset"
+	StatusCodeOK    = "ok"
+	StatusCodeError = "error"
+
+	RootSpanNotYetReceivedText = "<root span not yet received>"
+)
 
 func GetVirtualTagValues(tagName string) []string {
 	switch tagName {
 
-	case trace.StatusCodeTag:
-		return []string{trace.StatusCodeUnset, trace.StatusCodeOK, trace.StatusCodeError}
+	case StatusCodeTag:
+		return []string{StatusCodeUnset, StatusCodeOK, StatusCodeError}
 
-	case trace.ErrorTag:
+	case ErrorTag:
 		return []string{"true"}
 	}
 
