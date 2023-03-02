@@ -6,8 +6,8 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/tempodb/search"
 )
 
 // searchResponse is a thread safe struct used to aggregate the responses from all downstream

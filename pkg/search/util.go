@@ -8,6 +8,8 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
+// jpe test?
+
 func GetVirtualTagValues(tagName string) []string {
 	switch tagName {
 

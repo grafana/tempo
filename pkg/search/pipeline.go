@@ -22,6 +22,8 @@ type Pipeline struct {
 	tracefilters []tracefilter
 }
 
+// jpe what do i really need here?
+
 func NewSearchPipeline(req *tempopb.SearchRequest) Pipeline {
 	p := Pipeline{}
 
