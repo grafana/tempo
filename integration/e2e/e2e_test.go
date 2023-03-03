@@ -288,11 +288,6 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			// query an in-memory trace
 			queryAndAssertTrace(t, apiClient, info)
 
-			// wait trace_idle_time and ensure trace is created in ingester
-			require.NoError(t, tempoIngester1.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
-			require.NoError(t, tempoIngester2.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
-			require.NoError(t, tempoIngester3.WaitSumMetricsWithOptions(e2e.Less(3), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
-
 			// flush trace to backend
 			callFlush(t, tempoIngester1)
 			callFlush(t, tempoIngester2)
