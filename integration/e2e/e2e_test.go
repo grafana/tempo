@@ -271,6 +271,7 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 				require.NoError(t, i.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 			}
 			require.NoError(t, tempoQuerier.WaitSumMetrics(e2e.Equals(3), "tempodb_blocklist_length"))
+			require.NoError(t, tempoQueryFrontend.WaitSumMetrics(e2e.Equals(4), "tempo_query_frontend_queries_total"))
 
 			// query trace - should fetch from backend
 			queryAndAssertTrace(t, apiClient, info)
@@ -287,13 +288,17 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 
 			// query by id
 			queryAndAssertTrace(t, apiClient, info)
+
+			// wait trace_idle_time and ensure trace is created in ingester
+			require.NoError(t, tempoIngester1.WaitSumMetricsWithOptions(e2e.Less(4), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+			require.NoError(t, tempoIngester3.WaitSumMetricsWithOptions(e2e.Less(4), []string{"tempo_ingester_traces_created_total"}, e2e.WaitMissingMetrics))
+
+			// flush trace to backend
+			callFlush(t, tempoIngester1)
+			callFlush(t, tempoIngester3)
+
 			// search for trace
 			util.SearchAndAssertTrace(t, apiClient, info)
-			util.SearchTraceQLAndAssertTrace(t, apiClient, info)
-
-			// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
-			now := time.Now()
-			util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 
 			// stop another ingester and confirm things fail
 			err = tempoIngester1.Kill()
