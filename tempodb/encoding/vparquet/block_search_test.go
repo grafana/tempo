@@ -31,7 +31,7 @@ func TestBackendBlockSearch(t *testing.T) {
 		TraceID:           test.ValidTraceID(nil),
 		StartTimeUnixNano: uint64(1000 * time.Second),
 		EndTimeUnixNano:   uint64(2000 * time.Second),
-		DurationNanos:     uint64((100 * time.Millisecond).Nanoseconds()),
+		DurationNano:      uint64((100 * time.Millisecond).Nanoseconds()),
 		RootServiceName:   "RootService",
 		RootSpanName:      "RootSpan",
 		ResourceSpans: []ResourceSpans{
@@ -159,7 +159,7 @@ func TestBackendBlockSearch(t *testing.T) {
 	expected := &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(wantTr.TraceID),
 		StartTimeUnixNano: wantTr.StartTimeUnixNano,
-		DurationMs:        uint32(wantTr.DurationNanos / uint64(time.Millisecond)),
+		DurationMs:        uint32(wantTr.DurationNano / uint64(time.Millisecond)),
 		RootServiceName:   wantTr.RootServiceName,
 		RootTraceName:     wantTr.RootSpanName,
 	}

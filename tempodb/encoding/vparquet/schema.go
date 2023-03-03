@@ -116,8 +116,8 @@ type Span struct {
 	Kind                   int         `parquet:",delta"`
 	ParentSpanID           []byte      `parquet:","`
 	TraceState             string      `parquet:",snappy"`
-	StartUnixNanos         uint64      `parquet:",delta"`
-	EndUnixNanos           uint64      `parquet:",delta"`
+	StartTimeUnixNano      uint64      `parquet:",delta"`
+	EndTimeUnixNano        uint64      `parquet:",delta"`
 	StatusCode             int         `parquet:",delta"`
 	StatusMessage          string      `parquet:",snappy"`
 	Attrs                  []Attribute `parquet:""`
@@ -177,7 +177,7 @@ type Trace struct {
 	// Trace-level attributes for searching
 	StartTimeUnixNano uint64 `parquet:",delta"`
 	EndTimeUnixNano   uint64 `parquet:",delta"`
-	DurationNanos     uint64 `parquet:",delta"`
+	DurationNano      uint64 `parquet:",delta"`
 	RootServiceName   string `parquet:",dict"`
 	RootSpanName      string `parquet:",dict"`
 }
@@ -325,8 +325,8 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 					ss.StatusCode = 0
 					ss.StatusMessage = ""
 				}
-				ss.StartUnixNanos = s.StartTimeUnixNano
-				ss.EndUnixNanos = s.EndTimeUnixNano
+				ss.StartTimeUnixNano = s.StartTimeUnixNano
+				ss.EndTimeUnixNano = s.EndTimeUnixNano
 				ss.DroppedAttributesCount = int32(s.DroppedAttributesCount)
 				ss.DroppedEventsCount = int32(s.DroppedEventsCount)
 				ss.HttpMethod = nil
@@ -382,7 +382,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 
 	ot.StartTimeUnixNano = traceStart
 	ot.EndTimeUnixNano = traceEnd
-	ot.DurationNanos = traceEnd - traceStart
+	ot.DurationNano = traceEnd - traceStart
 	ot.RootSpanName = ""
 	ot.RootServiceName = ""
 
@@ -558,8 +558,8 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 					Name:              span.Name,
 					Kind:              v1_trace.Span_SpanKind(span.Kind),
 					ParentSpanId:      span.ParentSpanID,
-					StartTimeUnixNano: span.StartUnixNanos,
-					EndTimeUnixNano:   span.EndUnixNanos,
+					StartTimeUnixNano: span.StartTimeUnixNano,
+					EndTimeUnixNano:   span.EndTimeUnixNano,
 					Status: &v1_trace.Status{
 						Message: span.StatusMessage,
 						Code:    v1_trace.Status_StatusCode(span.StatusCode),

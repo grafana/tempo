@@ -104,8 +104,8 @@ const (
 
 	columnPathSpanID        = "rs.ils.Spans.ID"
 	columnPathSpanName      = "rs.ils.Spans.Name"
-	columnPathSpanStartTime = "rs.ils.Spans.StartUnixNanos"
-	columnPathSpanEndTime   = "rs.ils.Spans.EndUnixNanos"
+	columnPathSpanStartTime = "rs.ils.Spans.StartTimeUnixNano"
+	columnPathSpanEndTime   = "rs.ils.Spans.EndTimeUnixNano"
 	columnPathSpanKind      = "rs.ils.Spans.Kind"
 	//columnPathSpanDuration       = "rs.ils.Spans.DurationNanos"
 	columnPathSpanStatusCode     = "rs.ils.Spans.StatusCode"

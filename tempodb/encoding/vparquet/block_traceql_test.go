@@ -356,7 +356,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 		TraceID:           test.ValidTraceID(id),
 		StartTimeUnixNano: uint64(1000 * time.Second),
 		EndTimeUnixNano:   uint64(2000 * time.Second),
-		DurationNanos:     uint64((100 * time.Millisecond).Nanoseconds()),
+		DurationNano:      uint64((100 * time.Millisecond).Nanoseconds()),
 		RootServiceName:   "RootService",
 		RootSpanName:      "RootSpan",
 		ResourceSpans: []ResourceSpans{
@@ -380,11 +380,11 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 					{
 						Spans: []Span{
 							{
-								ID:             []byte("spanid"),
-								Name:           "hello",
-								StartUnixNanos: uint64(100 * time.Second),
-								EndUnixNanos:   uint64(200 * time.Second),
-								// DurationNanos:  uint64(100 * time.Second),
+								ID:                []byte("spanid"),
+								Name:              "hello",
+								StartTimeUnixNano: uint64(100 * time.Second),
+								EndTimeUnixNano:   uint64(200 * time.Second),
+								// DurationNano:  uint64(100 * time.Second),
 								HttpMethod:             strPtr("get"),
 								HttpUrl:                strPtr("url/hello/world"),
 								HttpStatusCode:         intPtr(500),
