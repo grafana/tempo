@@ -3,6 +3,7 @@ package traceql
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -77,12 +78,12 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 	}
 	for {
 		spanset, err := iterator.Next(ctx)
-		if spanset == nil {
-			break
-		}
-		if err != nil {
+		if err != nil && err != io.EOF {
 			span.LogKV("msg", "iterator.Next", "err", err)
 			return nil, err
+		}
+		if spanset == nil {
+			break
 		}
 		res.Traces = append(res.Traces, e.asTraceSearchMetadata(spanset))
 

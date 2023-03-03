@@ -270,9 +270,6 @@ func (i *spansetIterator) Next() (*span, error) {
 			return nil, fmt.Errorf("engine assumption broken: spanset is not of type *traceql.Spanset")
 		}
 
-		// TODO: the engine wants to work with value types, but the fetch layer is using pointers. as a result
-		//  there is some gross "bridge" code here that converts between the two. We should write benchmarks
-		//  and determine if moving to or the other is worth it
 		var filteredSpansets []*traceql.Spanset
 		if i.filter != nil {
 			filteredSpansets, err = i.filter(spanset)
@@ -1239,7 +1236,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	} else {
 		filteredSpans = make([]traceql.Span, 0, len(c.buffer))
 		for _, span := range c.buffer {
-			filteredSpans = append([]traceql.Span(nil), span)
+			filteredSpans = append(filteredSpans, span)
 		}
 	}
 
