@@ -18,7 +18,7 @@ Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting
 - Span and resource attributes, timing, and duration
 - Basic aggregates: `count()` and `avg()`
 
-Read Mary Disibio's blog post, "[Get to know TraceQL](https://grafana.com/blog/2023/02/07/get-to-know-traceql-a-powerful-new-query-language-for-distributed-tracing/)," for an introduction to TraceQL and its capabilities.
+Read the blog post, "[Get to know TraceQL](https://grafana.com/blog/2023/02/07/get-to-know-traceql-a-powerful-new-query-language-for-distributed-tracing/)," for an introduction to TraceQL and its capabilities.
 
 {{< vimeo 796408188 >}}
 
