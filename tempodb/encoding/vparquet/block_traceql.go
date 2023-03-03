@@ -301,6 +301,10 @@ func (i *spansetIterator) Close() {
 	i.iter.Close()
 }
 
+func (i *spansetIterator) Close() {
+	i.iter.Close()
+}
+
 // mergeSpansetIterator iterates through a slice of spansetIterators exhausting them
 // in order
 type mergeSpansetIterator struct {
@@ -326,6 +330,12 @@ func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.Spanset, erro
 	}
 
 	return spanset, nil
+}
+
+func (i *mergeSpansetIterator) Close() {
+	for _, iter := range i.iters {
+		iter.Close()
+	}
 }
 
 // fetch is the core logic for executing the given conditions against the parquet columns. The algorithm
