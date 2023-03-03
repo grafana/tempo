@@ -145,7 +145,7 @@ However, you can use a other storage provides. Refer to the Optional storage sec
          insecure: true
    ```
 
-### Optional: Other storage option
+### Optional: Other storage options
 
 Each storage provider has a different configuration stanza, which are detailed in Tempo's documentation. You will need to update your configuration based upon you storage provider.
 Refer to the [`storage` configuration block](https://grafana.com/docs/tempo/latest/configuration/#storage) for information on storage options.
