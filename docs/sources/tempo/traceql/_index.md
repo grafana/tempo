@@ -206,6 +206,18 @@ For example, find traces that have more than 3 spans with an attribute `http.sta
 { span.http.status = 200 } | count() > 3
 ```
 
+## Arithmetic
+
+TraceQL supports arbitrary arithmetic in your queries. This can be useful to make queries more human readable:
+```
+{ span.bytesProcessed > 10 * 1024 * 1024 }
+```
+to compare the ratios of two span attributes:
+```
+{ span.bytesProcessed < span.jobsProcessed * 10 }
+```
+or anything else that comes to mind.
+
 ## Examples
 
 Find any trace with a span attribute or resource attribute `namespace` set to `prod`:

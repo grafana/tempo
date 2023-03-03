@@ -421,9 +421,11 @@ func (s Static) impliedType() StaticType {
 }
 
 func (s Static) Equals(other Static) bool {
-	// if they are different number types. compare them as floats. otherwise just fall through to the normal comparison
-	// which should be more efficient
-	differentNumberTypes := (s.Type == TypeInt && other.Type == TypeFloat) || (other.Type == TypeInt && s.Type == TypeFloat)
+	// if they are different number types. compare them as floats. however, if they are the same type just fall through to
+	// a normal comparison which should be more efficient
+	differentNumberTypes := (s.Type == TypeInt || s.Type == TypeFloat || s.Type == TypeDuration) &&
+		(other.Type == TypeInt || other.Type == TypeFloat || other.Type == TypeDuration) &&
+		s.Type != other.Type
 	if differentNumberTypes {
 		return s.asFloat() == other.asFloat()
 	}
