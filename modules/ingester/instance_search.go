@@ -336,19 +336,6 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := util.NewDistinctStringCollector(limit)
 
-	// live traces
-	kv := &tempofb.KeyValues{}
-	err = i.visitSearchEntriesLiveTraces(ctx, func(entry *tempofb.SearchEntry) {
-		for i, ii := 0, entry.TagsLength(); i < ii; i++ {
-			entry.Tags(kv, i)
-			key := string(kv.Key())
-			distinctValues.Collect(key)
-		}
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	// wal + search blocks
 	if !distinctValues.Exceeded() {
 		err = i.visitSearchableBlocks(ctx, func(block search.SearchableBlock) error {

@@ -1,6 +1,7 @@
 package trace
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -27,10 +28,37 @@ func intKV(k string, v int) *v1_common.KeyValue {
 
 // Helper function to make a tag search
 func makeReq(k, v string) *tempopb.SearchRequest {
+	// todo: traceql concepts are different than search concepts. this code maps key/value pairs
+	// from search to traceql. we can clean this up after we drop old search and move these tests into
+	// the tempodb package.
+	traceqlKey := k
+	switch traceqlKey {
+	case "root.service.name":
+		traceqlKey = ".service.name"
+	case "root.name":
+		traceqlKey = "name"
+	case "name":
+	case "status.code":
+		traceqlKey = "status"
+	default:
+		traceqlKey = "." + traceqlKey
+	}
+
+	traceqlVal := v
+	switch traceqlKey {
+	case ".http.status_code":
+		break
+	case "status":
+		break
+	default:
+		traceqlVal = fmt.Sprintf(`"%s"`, v)
+	}
+
 	return &tempopb.SearchRequest{
 		Tags: map[string]string{
 			k: v,
 		},
+		Query: fmt.Sprintf("{ %s=%s }", traceqlKey, traceqlVal),
 	}
 }
 
@@ -136,32 +164,37 @@ func SearchTestSuite() (
 	searchesThatMatch = []*tempopb.SearchRequest{
 		{
 			// Empty request
+			Query: "{}",
 		},
 		{
 			MinDurationMs: 999,
 			MaxDurationMs: 1001,
+			Query:         "{}",
 		},
 		{
 			Start: 1000,
 			End:   2000,
+			Query: "{}",
 		},
 		{
 			// Overlaps start
 			Start: 999,
 			End:   1001,
+			Query: "{}",
 		},
 		{
 			// Overlaps end
 			Start: 1001,
 			End:   1002,
+			Query: "{}",
 		},
 
 		// Well-known resource attributes
-		makeReq("service.name", "Service"),
-		makeReq("cluster", "Cluster"),
-		makeReq("namespace", "Namespace"),
-		makeReq("pod", "Pod"),
-		makeReq("container", "Container"),
+		makeReq("service.name", "MyService"),
+		makeReq("cluster", "MyCluster"),
+		makeReq("namespace", "MyNamespace"),
+		makeReq("pod", "MyPod"),
+		makeReq("container", "MyContainer"),
 		makeReq("k8s.cluster.name", "k8sCluster"),
 		makeReq("k8s.namespace.name", "k8sNamespace"),
 		makeReq("k8s.pod.name", "k8sPod"),
@@ -170,9 +203,9 @@ func SearchTestSuite() (
 		makeReq("root.name", "RootSpan"),
 
 		// Well-known span attributes
-		makeReq("name", "Span"),
+		makeReq("name", "MySpan"),
 		makeReq("http.method", "Get"),
-		makeReq("http.url", "Hello"),
+		makeReq("http.url", "url/Hello/World"),
 		makeReq("http.status_code", "500"),
 		makeReq("status.code", "error"),
 
@@ -188,6 +221,7 @@ func SearchTestSuite() (
 				"http.method":  "Get",
 				"foo":          "Bar",
 			},
+			Query: "{ resource.service.name=`MyService` && .http.method=`Get` && .foo=`Bar` }",
 		},
 	}
 
@@ -195,13 +229,16 @@ func SearchTestSuite() (
 	searchesThatDontMatch = []*tempopb.SearchRequest{
 		{
 			MinDurationMs: 1001,
+			Query:         "{ duration > 1001ms }",
 		},
 		{
 			MaxDurationMs: 999,
+			Query:         "{ duration < 999ms }",
 		},
 		{
 			Start: 100,
 			End:   200,
+			Query: "{}",
 		},
 
 		// Well-known resource attributes
