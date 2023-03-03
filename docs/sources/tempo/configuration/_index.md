@@ -354,6 +354,9 @@ query_frontend:
     [tolerate_failed_blocks: <int>]
 
     search:
+        # Maximum number of outstanding requests per tenant per frontend; requests beyond this error with HTTP 429.
+        # (default: 2000)
+        [max_outstanding_per_tenant: <int>]
 
         # The number of concurrent jobs to execute when searching the backend.
         # (default: 1000)
@@ -521,7 +524,7 @@ compactor:
         # Optional. Amount of data to buffer from input blocks. Default is 5 MiB.
         [v2_in_buffer_bytes: <int>]
 
-        # Optional. Flush data to backend when buffer is this large. Default is 30 MB.
+        # Optional. Flush data to backend when buffer is this large. Default is 20 MB.
         [v2_out_buffer_bytes: <int>]
 
         # Optional. Number of traces to buffer in memory during compaction. Increasing may improve performance but will also increase memory usage. Default is 1000.
