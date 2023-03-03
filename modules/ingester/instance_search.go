@@ -511,50 +511,36 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return distinctValues.Collect(tv)
 	}
 
-	// wal blocks
-	err = func() error {
-		i.blocksMtx.RLock()
-		defer i.blocksMtx.RUnlock()
-
-		for _, b := range i.completingBlocks {
-			err = b.SearchTagValuesV2(ctx, tag, cb, common.DefaultSearchOptions())
-			if err == common.ErrUnsupported {
-				level.Warn(log.Logger).Log("msg", "block does not support tag value search v2", "blockID", b.BlockMeta().BlockID)
-				continue
-			}
-			if err != nil {
-				return fmt.Errorf("unexpected error searching tag values v2 (%s): %w", b.BlockMeta().BlockID, err)
-			}
+	search := func(s common.Searcher, dv *util.DistinctValueCollector[tempopb.TagValue]) error {
+		if s == nil || dv.Exceeded() {
+			return nil
 		}
 
+		err = s.SearchTagValuesV2(ctx, tag, cb, common.DefaultSearchOptions())
+		if err != nil && err != common.ErrUnsupported {
+			return fmt.Errorf("unexpected error searching tag values v2 (%s): %w", tag, err)
+		}
 		return nil
-	}()
-	if err != nil {
-		return nil, err
 	}
 
-	// local blocks
-	if !distinctValues.Exceeded() {
-		err = func() error {
-			i.blocksMtx.RLock()
-			defer i.blocksMtx.RUnlock()
-			for _, b := range i.completeBlocks {
-				err = b.SearchTagValuesV2(ctx, tag, cb, common.DefaultSearchOptions())
-				if err == common.ErrUnsupported {
-					level.Warn(log.Logger).Log("msg", "block does not support tag value search v2", "blockID", b.BlockMeta().BlockID)
-					continue
-				}
-				if err != nil {
-					return fmt.Errorf("unexpected error searching tag values v2 (%s): %w", b.BlockMeta().BlockID, err)
-				}
-				if distinctValues.Exceeded() {
-					break
-				}
-			}
-			return nil
-		}()
-		if err != nil {
-			return nil, err
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+	// head block
+	if err = search(i.headBlock, distinctValues); err != nil {
+		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
+	}
+
+	// completing blocks
+	for _, b := range i.completingBlocks {
+		if err = search(b, distinctValues); err != nil {
+			return nil, fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err)
+		}
+	}
+
+	// completed blocks
+	for _, b := range i.completeBlocks {
+		if err = search(b, distinctValues); err != nil {
+			return nil, fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err)
 		}
 	}
 

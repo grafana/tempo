@@ -48,6 +48,7 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	if b.pf != nil && b.readerAt != nil {
 		// Reset metrics, is there a better way to do this?
 		b.readerAt.TotalBytesRead.Store(0)
+		// TODO: We should reset the context here, but it's not possible to do so without creating a new parquet.File.
 		return b.pf, b.readerAt, nil
 	}
 
