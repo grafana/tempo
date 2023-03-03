@@ -70,6 +70,7 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 		return nil, err
 	}
 	iterator := fetchSpansResponse.Results
+	defer iterator.Close()
 
 	res := &tempopb.SearchResponse{
 		Traces: nil,
