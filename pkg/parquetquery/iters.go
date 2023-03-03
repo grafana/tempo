@@ -263,7 +263,7 @@ type SyncIterator struct {
 	currPage        pq.Page
 	currPageMax     RowNumber
 	currValues      pq.ValueReader
-	currBuf         []pq.Value
+	currBuf         *columnIteratorBuffer
 	currBufN        int
 }
 
@@ -291,7 +291,7 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		rgsMax:     rgsMax,
 		filter:     filter,
 		curr:       EmptyRowNumber(),
-		currBuf:    make([]pq.Value, readSize),
+		//currBuf:    columnIteratorPoolGet(readSize, 0), // Don't alloc the buffer until actually needed
 	}
 }
 
@@ -418,10 +418,6 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, d int) (done bool, err error)
 			}
 
 			c.setPage(pg)
-
-			c.currValues = pg.Values()
-			c.currBuf = c.currBuf[:0]
-			c.currBufN = 0
 		}
 	}
 
@@ -477,14 +473,17 @@ func (c *SyncIterator) next() (RowNumber, pq.Value, error) {
 			c.setPage(pg)
 		}
 
-		// Refill buffer if empty
-		if c.currBufN >= len(c.currBuf) || len(c.currBuf) == 0 {
-			c.currBuf = c.currBuf[:cap(c.currBuf)]
-			n, err := c.currValues.ReadValues(c.currBuf)
+		// Read next batch of values if needed
+		if c.currBuf == nil {
+			c.currBuf = columnIteratorPoolGet(c.readSize, 0)
+		}
+		if c.currBufN >= len(c.currBuf.values) || len(c.currBuf.values) == 0 {
+			c.currBuf.values = c.currBuf.values[:cap(c.currBuf.values)]
+			n, err := c.currValues.ReadValues(c.currBuf.values)
 			if err != nil && err != io.EOF {
 				return EmptyRowNumber(), pq.Value{}, err
 			}
-			c.currBuf = c.currBuf[:n]
+			c.currBuf.values = c.currBuf.values[:n]
 			c.currBufN = 0
 			if n == 0 {
 				// This value reader and page are exhausted.
@@ -494,8 +493,8 @@ func (c *SyncIterator) next() (RowNumber, pq.Value, error) {
 		}
 
 		// Consume current buffer until empty
-		for c.currBufN < len(c.currBuf) {
-			v := c.currBuf[c.currBufN]
+		for c.currBufN < len(c.currBuf.values) {
+			v := c.currBuf.values[c.currBufN]
 
 			// Inspect all values to track the current row number,
 			// even if the value is filtered out next.
@@ -520,8 +519,14 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 	// Reset value buffers
 	c.currValues = nil
 	c.currPageMax = EmptyRowNumber()
-	c.currBuf = c.currBuf[:0]
 	c.currBufN = 0
+
+	// If we don't immediately have a new incoming page
+	// then return the buffer to the pool.
+	if pg == nil && c.currBuf != nil {
+		columnIteratorPoolPut(c.currBuf)
+		c.currBuf = nil
+	}
 
 	if pg != nil {
 		rn := c.curr
@@ -554,12 +559,7 @@ func (c *SyncIterator) makeResult(t RowNumber, v pq.Value) *IteratorResult {
 }
 
 func (c *SyncIterator) Close() {
-	c.currRowGroup = nil
-	c.currChunk = nil
-	if c.currPages != nil {
-		c.currPages.Close()
-		c.currPages = nil
-	}
+	c.closeCurrRowGroup()
 }
 
 // ColumnIterator asynchronously iterates through the given row groups and column. Applies
