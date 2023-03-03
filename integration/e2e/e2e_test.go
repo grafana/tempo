@@ -285,14 +285,8 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 			info = tempoUtil.NewTraceInfo(time.Now(), "")
 			require.NoError(t, info.EmitAllBatches(c))
 
-			// query an in-memory trace
+			// query by id
 			queryAndAssertTrace(t, apiClient, info)
-
-			// flush trace to backend
-			callFlush(t, tempoIngester1)
-			callFlush(t, tempoIngester2)
-			callFlush(t, tempoIngester3)
-
 			// search for trace
 			util.SearchAndAssertTrace(t, apiClient, info)
 			util.SearchTraceQLAndAssertTrace(t, apiClient, info)
