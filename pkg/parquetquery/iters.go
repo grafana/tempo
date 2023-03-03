@@ -296,7 +296,14 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 }
 
 func (c *SyncIterator) Next() (*IteratorResult, error) {
-	return c.next()
+	rn, v, err := c.next()
+	if err != nil {
+		return nil, err
+	}
+	if !rn.Valid() {
+		return nil, nil
+	}
+	return c.makeResult(rn, v), nil
 }
 
 // SeekTo moves this iterator to the next result that is greater than
@@ -316,16 +323,16 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 	}
 
 	for {
-		res, err := c.next()
+		rn, v, err := c.next()
 		if err != nil {
 			return nil, err
 		}
-		if res == nil {
+		if !rn.Valid() {
 			return nil, err
 		}
 
-		if CompareRowNumbers(definitionLevel, res.RowNumber, to) >= 0 {
-			return res, nil
+		if CompareRowNumbers(definitionLevel, rn, to) >= 0 {
+			return c.makeResult(rn, v), nil
 		}
 	}
 }
@@ -333,14 +340,7 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 func (c *SyncIterator) seekRowGroup(seekTo RowNumber, d int) (done bool) {
 	if c.currRowGroup != nil && CompareRowNumbers(d, seekTo, c.currRowGroupMax) >= 0 {
 		// Done with this row group
-		c.currRowGroup = nil
-		c.currRowGroupMax = EmptyRowNumber()
-		c.currChunk = nil
-		if c.currPages != nil {
-			c.currPages.Close()
-			c.currPages = nil
-		}
-		c.currValues = nil
+		c.closeCurrRowGroup()
 	}
 
 	for c.currRowGroup == nil {
@@ -385,17 +385,22 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, d int) (done bool, err error)
 
 	if c.currPage == nil {
 
-		// Seek into the pages. This is relative to the start of the row group
-		if seekTo[0] > 0 {
-			// Determine row delta. We subtract 1 because curr points at the previous row
-			skip := seekTo[0] - c.currRowGroupMin[0] - 1
-			if skip > 0 {
-				if err := c.currPages.SeekToRow(skip); err != nil {
-					return true, err
+		// TODO (mdisibio)   :((((((((
+		//    pages.SeekToRow is more costly than expected.  It doesn't reuse existing i/o
+		// so it can't be called naively every time we swap pages. We need to figure out
+		// a way to determine when it is worth calling here.
+		/*
+			// Seek into the pages. This is relative to the start of the row group
+			if seekTo[0] > 0 {
+				// Determine row delta. We subtract 1 because curr points at the previous row
+				skip := seekTo[0] - c.currRowGroupMin[0] - 1
+				if skip > 0 {
+					if err := c.currPages.SeekToRow(skip); err != nil {
+						return true, err
+					}
+					c.curr.Skip(skip)
 				}
-				c.curr.Skip(skip)
-			}
-		}
+			}*/
 
 		for c.currPage == nil {
 			pg, err := c.currPages.ReadPage()
@@ -408,6 +413,7 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, d int) (done bool, err error)
 
 			if c.filter != nil && !c.filter.KeepPage(pg) {
 				c.curr.Skip(pg.NumRows())
+				pq.Release(pg)
 				continue
 			}
 
@@ -422,13 +428,13 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, d int) (done bool, err error)
 	return false, nil
 }
 
-func (c *SyncIterator) next() (*IteratorResult, error) {
+func (c *SyncIterator) next() (RowNumber, pq.Value, error) {
 	for {
 		if c.currRowGroup == nil {
 			// Pop next row group
 			if len(c.rgs) == 0 {
 				// No more row groups
-				return nil, nil
+				return EmptyRowNumber(), pq.Value{}, nil
 			}
 			rg := c.rgs[0]
 			max := c.rgsMax[0]
@@ -456,15 +462,16 @@ func (c *SyncIterator) next() (*IteratorResult, error) {
 			pg, err := c.currPages.ReadPage()
 			if err == io.EOF {
 				// This row group is exhausted
-				c.currRowGroup = nil
+				c.closeCurrRowGroup()
 				continue
 			}
 			if err != nil {
-				return nil, err
+				return EmptyRowNumber(), pq.Value{}, err
 			}
 			if c.filter != nil && !c.filter.KeepPage(pg) {
 				// This page filtered out
 				c.curr.Skip(pg.NumRows())
+				pq.Release(pg)
 				continue
 			}
 			c.setPage(pg)
@@ -475,7 +482,7 @@ func (c *SyncIterator) next() (*IteratorResult, error) {
 			c.currBuf = c.currBuf[:cap(c.currBuf)]
 			n, err := c.currValues.ReadValues(c.currBuf)
 			if err != nil && err != io.EOF {
-				return nil, err
+				return EmptyRowNumber(), pq.Value{}, err
 			}
 			c.currBuf = c.currBuf[:n]
 			c.currBufN = 0
@@ -499,7 +506,7 @@ func (c *SyncIterator) next() (*IteratorResult, error) {
 				continue
 			}
 
-			return c.makeResult(c.curr, v), nil
+			return c.curr, v, nil
 		}
 	}
 }
@@ -522,6 +529,19 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 		c.currPageMax = rn
 		c.currValues = pg.Values()
 	}
+}
+
+func (c *SyncIterator) closeCurrRowGroup() {
+	if c.currPages != nil {
+		c.currPages.Close()
+	}
+
+	c.currRowGroup = nil
+	c.currRowGroupMin = EmptyRowNumber()
+	c.currRowGroupMax = EmptyRowNumber()
+	c.currChunk = nil
+	c.currPages = nil
+	c.setPage(nil)
 }
 
 func (c *SyncIterator) makeResult(t RowNumber, v pq.Value) *IteratorResult {
