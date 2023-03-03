@@ -83,7 +83,7 @@ func testColumnIterator(t *testing.T, makeIter makeTestIterFn) {
 	for i := 0; i < count; i++ {
 		res, err := iter.Next()
 		require.NoError(t, err)
-		require.NotNil(t, res)
+		require.NotNil(t, res, "i=%d", i)
 		require.Equal(t, RowNumber{int64(i), -1, -1, -1, -1, -1}, res.RowNumber)
 		require.Equal(t, int64(i), res.ToMap()["A"][0].Int64())
 	}
@@ -122,6 +122,7 @@ func testColumnIteratorSeek(t *testing.T, makeIter makeTestIterFn) {
 		rn[0] = seekTo
 		res, err := iter.SeekTo(rn, 0)
 		require.NoError(t, err)
+		require.NotNil(t, res, "seekTo=%v", seekTo)
 		require.Equal(t, RowNumber{seekTo, -1, -1, -1, -1, -1}, res.RowNumber)
 		require.Equal(t, seekTo, res.ToMap()["A"][0].Int64())
 	}

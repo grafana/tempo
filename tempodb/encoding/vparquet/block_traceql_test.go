@@ -152,8 +152,8 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		spanSet, err := resp.Results.Next(ctx)
 		require.NoError(t, err, "search request:", req)
 		require.NotNil(t, spanSet, "search request:", req)
-		require.Equal(t, wantTr.TraceID, spanSet.TraceID, "search request:", req)
-		require.Equal(t, []byte("spanid"), spanSet.Spans[0].ID, "search request:", req)
+		require.Equal(t, wantTr.TraceID, spanSet.TraceID, "search request=%v", req)
+		require.Equal(t, []byte("spanid"), spanSet.Spans[0].ID, "search request=%v", req)
 	}
 
 	searchesThatDontMatch := []traceql.FetchSpansRequest{
