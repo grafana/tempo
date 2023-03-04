@@ -27,6 +27,7 @@ type Config struct {
 	// Additional dimensions (labels) to be added to the metric. The dimensions are generated
 	// from span attributes and are created along with the intrinsic dimensions.
 	Dimensions []string `yaml:"dimensions"`
+
 	// If enabled X-SampleRatio attribute will be used for metric calculation
 	EnableSpanMultiplier bool `yaml:"enable_span_multiplier"`
 }

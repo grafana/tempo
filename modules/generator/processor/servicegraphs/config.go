@@ -27,6 +27,7 @@ type Config struct {
 	// If client and server spans have the same attribute, behaviour is undetermined
 	// (either value could get used)
 	Dimensions []string `yaml:"dimensions"`
+
 	// If enabled X-SampleRatio attribute will be used for metric calculation
 	EnableSpanMultiplier bool `yaml:"enable_span_multiplier"`
 }
