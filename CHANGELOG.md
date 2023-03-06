@@ -11,6 +11,7 @@
 * [CHANGE] Update Go to 1.20 [#2079](https://github.com/grafana/tempo/pull/2079) (@scalalang2)
 * [BUGFIX] Retry copy operations during compaction in GCS backend [#2111](https://github.com/grafana/tempo/pull/2111) (@mapno)
 * [BUGFIX] Fix float/int comparisons in TraceQL. [#2139](https://github.com/grafana/tempo/issues/2139) (@joe-elliott)
+* [BUGFIX] Fix not closing WAL block file before attempting to delete the folder. [#2139](https://github.com/grafana/tempo/pull/2152) (@kostya9)
 
 ## v2.0.1 / 2023-03-03
 
@@ -20,8 +21,6 @@
 * [BUGFIX] Correctly coalesce trace level data when combining Parquet traces. [#2095](https://github.com/grafana/tempo/pull/2095) (@joe-elliott)
 * [BUGFIX] Unescape query parameters in AWS Lambda to allow TraceQL queries to work. [#2114](https://github.com/grafana/tempo/issues/2114) (@joe-elliott)
 * [CHANGE] Pad leading zeroes in span id to always be 16 chars [#2062](https://github.com/grafana/tempo/pull/2062) (@ie-pham)
-* [BUGFIX] Fix float/int comparisons in TraceQL. [#2139](https://github.com/grafana/tempo/issues/2139) (@joe-elliott)
-* [BUGFIX] Fix not closing WAL block file before attempting to delete the folder. [#2139](https://github.com/grafana/tempo/pull/2152) (@kostya9)
 
 ## v2.0.0 / 2023-01-31
 

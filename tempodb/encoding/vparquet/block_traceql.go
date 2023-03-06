@@ -301,10 +301,6 @@ func (i *spansetIterator) Close() {
 	i.iter.Close()
 }
 
-func (i *spansetIterator) Close() {
-	i.iter.Close()
-}
-
 // mergeSpansetIterator iterates through a slice of spansetIterators exhausting them
 // in order
 type mergeSpansetIterator struct {
