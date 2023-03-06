@@ -376,7 +376,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 						{Key: LabelServiceName, ValueInt: intPtr(123)}, // Different type than dedicated column
 					},
 				},
-				ScopeSpans: []ScopeSpan{
+				ScopeSpans: []ScopeSpans{
 					{
 						Spans: []Span{
 							{
@@ -423,7 +423,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 				Resource: Resource{
 					ServiceName: "service2",
 				},
-				ScopeSpans: []ScopeSpan{
+				ScopeSpans: []ScopeSpans{
 					{
 						Spans: []Span{
 							{

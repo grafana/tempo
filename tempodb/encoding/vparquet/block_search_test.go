@@ -50,7 +50,7 @@ func TestBackendBlockSearch(t *testing.T) {
 						{Key: "bat", Value: strPtr("baz")},
 					},
 				},
-				ScopeSpans: []ScopeSpan{
+				ScopeSpans: []ScopeSpans{
 					{
 						Spans: []Span{
 							{
@@ -317,7 +317,7 @@ func makeTraces() ([]*Trace, map[string]string) {
 						},
 					},
 				},
-				ScopeSpans: []ScopeSpan{
+				ScopeSpans: []ScopeSpans{
 					{},
 				},
 			}
