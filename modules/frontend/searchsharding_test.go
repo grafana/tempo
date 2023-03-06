@@ -30,8 +30,8 @@ import (
 )
 
 var testSLOcfg = SLOConfig{
-	ThroughputSLO: 0,
-	DurationSLO:   0,
+	ThroughputBytesSLO: 0,
+	DurationSLO:        0,
 }
 
 // implements tempodb.Reader interface

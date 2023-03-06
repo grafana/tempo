@@ -42,14 +42,14 @@ type HedgingConfig struct {
 }
 
 type SLOConfig struct {
-	DurationSLO   time.Duration `yaml:"duration_slo,omitempty"`
-	ThroughputSLO float64       `yaml:"throughput_slo,omitempty"`
+	DurationSLO        time.Duration `yaml:"duration_slo,omitempty"`
+	ThroughputBytesSLO float64       `yaml:"throughput_bytes_slo,omitempty"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	slo := SLOConfig{
-		DurationSLO:   0,
-		ThroughputSLO: 0,
+		DurationSLO:        0,
+		ThroughputBytesSLO: 0,
 	}
 
 	cfg.Config.MaxOutstandingPerTenant = 2000

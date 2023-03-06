@@ -285,10 +285,10 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	// only record metric when it's enabled and within slo
-	if s.sloCfg.DurationSLO != 0 && s.sloCfg.ThroughputSLO != 0 {
-		if reqTime < s.sloCfg.DurationSLO || throughput > s.sloCfg.ThroughputSLO {
+	if s.sloCfg.DurationSLO != 0 && s.sloCfg.ThroughputBytesSLO != 0 {
+		if reqTime < s.sloCfg.DurationSLO || throughput > s.sloCfg.ThroughputBytesSLO {
 			// query is within SLO if query returned 200 within DurationSLO seconds OR
-			// processed ThroughputSLO bytes/s data
+			// processed ThroughputBytesSLO bytes/s data
 			sloSearchCounter.WithLabelValues(tenantID).Inc()
 		}
 	}
