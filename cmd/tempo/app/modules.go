@@ -88,7 +88,7 @@ func (t *App) initServer() (services.Service, error) {
 		svs := []services.Service(nil)
 		for m, s := range t.serviceMap {
 			// Server should not wait for itself.
-			if m != Server {
+			if m != Server && m != InternalServer {
 				svs = append(svs, s)
 			}
 		}

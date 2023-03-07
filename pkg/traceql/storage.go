@@ -12,6 +12,13 @@ type Condition struct {
 	Operands  Operands
 }
 
+// FilterSpans is a hint that allows the calling code to filter down spans to only
+// those that metadata needs to be retrieved for. If the returned Spanset has no
+// spans it is discarded and will not appear in FetchSpansResponse. The bool
+// return value is used to indicate if the Fetcher should continue iterating or if
+// it can bail out.
+type FilterSpans func(*Spanset) ([]*Spanset, error)
+
 type FetchSpansRequest struct {
 	StartTimeUnixNanos uint64
 	EndTimeUnixNanos   uint64
@@ -24,28 +31,41 @@ type FetchSpansRequest struct {
 	// can make extra optimizations by returning only spansets that meet
 	// all criteria.
 	AllConditions bool
+
+	// For some implementations retrieving all of the metadata for the spans
+	// can be quite costly. This hint allows the calling code to filter down
+	// spans before the span metadata is fetched, but after the data requested
+	// in the Conditions is fetched. If this is unset then all metadata
+	// for all matching spansets is returned.
+	// If this is set it must be called by the storage layer even if there is
+	// no opportunity to pull metadata independently of span data.
+	Filter FilterSpans
 }
 
 func (f *FetchSpansRequest) appendCondition(c ...Condition) {
 	f.Conditions = append(f.Conditions, c...)
 }
 
-type Span struct {
-	ID                 []byte
-	StartTimeUnixNanos uint64
-	EndtimeUnixNanos   uint64
-	Attributes         map[Attribute]Static
+type Span interface {
+	// these are the actual fields used by the engine to evaluate queries
+	// if a Filter parameter is passed the spans returned will only have this field populated
+	Attributes() map[Attribute]Static
+
+	ID() []byte
+	StartTimeUnixNanos() uint64
+	EndtimeUnixNanos() uint64
 }
 
 type Spanset struct {
+	// these fields are actually used by the engine to evaluate queries
+	Scalar Static
+	Spans  []Span
+
 	TraceID            []byte
 	RootSpanName       string
 	RootServiceName    string
 	StartTimeUnixNanos uint64
 	DurationNanos      uint64
-	Attributes         map[Attribute]Static
-	Scalar             Static
-	Spans              []Span
 }
 
 type SpansetIterator interface {

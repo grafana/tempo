@@ -570,7 +570,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 	}
 
 	pages := b.readFlushes()
-	iters := make([]*spansetIterator, 0, len(pages))
+	iters := make([]traceql.SpansetIterator, 0, len(pages))
 	for _, page := range pages {
 		file, err := page.file()
 		if err != nil {

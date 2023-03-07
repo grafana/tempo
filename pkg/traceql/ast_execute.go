@@ -3,6 +3,7 @@ package traceql
 import (
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 
 	"github.com/go-kit/log/level"
@@ -10,14 +11,14 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 )
 
-func appendSpans(buffer []Span, input []Spanset) []Span {
+func appendSpans(buffer []Span, input []*Spanset) []Span {
 	for _, i := range input {
 		buffer = append(buffer, i.Spans...)
 	}
 	return buffer
 }
 
-func (o SpansetOperation) evaluate(input []Spanset) (output []Spanset, err error) {
+func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 	for i := range input {
 		curr := input[i : i+1]
@@ -57,7 +58,7 @@ func (o SpansetOperation) evaluate(input []Spanset) (output []Spanset, err error
 	return output, nil
 }
 
-func (f ScalarFilter) evaluate(input []Spanset) (output []Spanset, err error) {
+func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 	// TODO we solve this gap where pipeline elements and scalar binary
 	// operations meet in a generic way. For now we only support well-defined
@@ -105,7 +106,7 @@ func (f SpansetFilter) matches(span Span) (bool, error) {
 	return static.B, nil
 }
 
-func (a Aggregate) evaluate(input []Spanset) (output []Spanset, err error) {
+func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 	for _, ss := range input {
 		switch a.op {
@@ -162,12 +163,16 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 	}
 
 	switch o.Op {
-	// TODO implement arithmetics
 	case OpAdd:
+		return NewStaticFloat(lhs.asFloat() + rhs.asFloat()), nil
 	case OpSub:
+		return NewStaticFloat(lhs.asFloat() - rhs.asFloat()), nil
 	case OpDiv:
+		return NewStaticFloat(lhs.asFloat() / rhs.asFloat()), nil
 	case OpMod:
+		return NewStaticFloat(math.Mod(lhs.asFloat(), rhs.asFloat())), nil
 	case OpMult:
+		return NewStaticFloat(lhs.asFloat() * rhs.asFloat()), nil
 	case OpGreater:
 		return NewStaticBool(lhs.asFloat() > rhs.asFloat()), nil
 	case OpGreaterEqual:
@@ -177,6 +182,7 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 	case OpLessEqual:
 		return NewStaticBool(lhs.asFloat() <= rhs.asFloat()), nil
 	case OpPower:
+		return NewStaticFloat(math.Pow(lhs.asFloat(), rhs.asFloat())), nil
 	case OpEqual:
 		return NewStaticBool(lhs.Equals(rhs)), nil
 	case OpNotEqual:
@@ -194,10 +200,9 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 	default:
 		return NewStaticNil(), errors.New("unexpected operator " + o.Op.String())
 	}
-
-	return NewStaticNil(), errors.New("operator " + o.Op.String() + " is not yet implemented")
 }
 
+// why does this and the above exist?
 func binOp(op Operator, lhs, rhs Static) (bool, error) {
 	lhsT := lhs.impliedType()
 	rhsT := rhs.impliedType()
@@ -265,18 +270,19 @@ func (s Static) execute(span Span) (Static, error) {
 }
 
 func (a Attribute) execute(span Span) (Static, error) {
-	static, ok := span.Attributes[a]
+	atts := span.Attributes()
+	static, ok := atts[a]
 	if ok {
 		return static, nil
 	}
 
 	if a.Scope == AttributeScopeNone {
-		for attribute, static := range span.Attributes {
+		for attribute, static := range atts {
 			if a.Name == attribute.Name && attribute.Scope == AttributeScopeSpan {
 				return static, nil
 			}
 		}
-		for attribute, static := range span.Attributes {
+		for attribute, static := range atts {
 			if a.Name == attribute.Name {
 				return static, nil
 			}
