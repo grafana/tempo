@@ -307,6 +307,10 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 	}
 }
 
+func (c *SyncIterator) String() string {
+	return fmt.Sprintf("SyncIterator: %s \n\t%s", c.columnName, util.TabOut(c.filter))
+}
+
 func (c *SyncIterator) Next() (*IteratorResult, error) {
 	rn, v, err := c.next()
 	if err != nil {
