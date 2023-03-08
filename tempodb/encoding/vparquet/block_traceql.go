@@ -39,6 +39,9 @@ func (s *span) StartTimeUnixNanos() uint64 {
 func (s *span) EndtimeUnixNanos() uint64 {
 	return s.endtimeUnixNanos
 }
+func (s *span) Release() {
+	putSpan(s)
+}
 
 // todo: this sync pool currently massively reduces allocations by pooling spans for certain queries.
 // it currently catches spans discarded:
