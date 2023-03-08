@@ -40,7 +40,7 @@ It also assumes that you have an understanding of what the `kubectl` command doe
 Verify that you have:
 - Access to the Kubernetes cluster
 - Persistent storage is enabled in the Kubernetes cluster, which has a default storage class setup. You can [change the default StorageClass](https://kubernetes.io/docs/tasks/administer-cluster/change-default-storage-class/).
-- Access to a storage bucket like Amazon S3, Azure Blob Storage, or Google Cloud Platform (for example, [Google Cloud Storage instructions](https://cloud.google.com/storage/docs/creating-buckets))
+- Access to a local storage option (like MinIO) or a storage bucket like Amazon S3, Azure Blob Storage, or Google Cloud Platform (for example, [Google Cloud Storage instructions](https://cloud.google.com/storage/docs/creating-buckets))
 - DNS service works in the Kubernetes cluster
 - Optional: An ingress controller is set up in the Kubernetes cluster, for example [ingress-nginx](https://kubernetes.github.io/ingress-nginx/)
 
@@ -61,7 +61,7 @@ If you are using the Pod Security admission controller, then MinIO and the tempo
 
 Using a custom namespace solves problems later on because you do not have to overwrite the default namespace.
 
-1. Create a unique Kubernetes namespace, for example tempo-test:
+1. Create a unique Kubernetes namespace, for example `tempo-test`:
 
 ```bash
 kubectl create namespace tempo-test
@@ -94,6 +94,16 @@ storage:
       bucket: 'tempo-traces'
       endpoint: 'tempo-minio:9000'
       insecure: true
+minio:
+  enabled: true
+  mode: standalone
+  rootUser: grafana-tempo
+  rootPassword: supersecret
+  buckets:
+    # Default Tempo storage bucket.
+    - name: tempo-traces
+      policy: none
+      purge: false
  traces:
   otlp:
     grpc:
@@ -145,6 +155,13 @@ However, you can use a other storage provides. Refer to the Optional storage sec
          insecure: true
    ```
 
+1. Optional: Locate the MinIO section and change the the username and password to something you wish to use. 
+```yaml
+  minio:
+    enabled: true
+    mode: standalone
+    rootUser: minio
+    rootPassword: minio123
 ### Optional: Other storage options
 
 Each storage provider has a different configuration stanza, which are detailed in Tempo's documentation. You will need to update your configuration based upon you storage provider.
@@ -254,7 +271,7 @@ For more information, see [Ingress](https://kubernetes.io/docs/concepts/services
        tls:
          # empty, disabled.
    ```
-
+1. Save the changes. 
 
 ## Install Grafana Tempo using the Helm chart
 
