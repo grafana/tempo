@@ -105,7 +105,7 @@ minio:
     - name: tempo-traces
       policy: none
       purge: false
- traces:
+traces:
   otlp:
     grpc:
       enabled: true
@@ -156,13 +156,16 @@ However, you can use a other storage provides. Refer to the Optional storage sec
          insecure: true
    ```
 
-1. Optional: Locate the MinIO section and change the the username and password to something you wish to use. 
-```yaml
-  minio:
-    enabled: true
-    mode: standalone
-    rootUser: minio
-    rootPassword: minio123
+1. Optional: Locate the MinIO section and change the the username and password to something you wish to use.
+
+    ```yaml
+    minio:
+     enabled: true
+     mode: standalone
+     rootUser: minio
+     rootPassword: minio123
+    ```
+
 ### Optional: Other storage options
 
 Each storage provider has a different configuration stanza, which are detailed in Tempo's documentation. You will need to update your configuration based upon you storage provider.
@@ -170,12 +173,11 @@ Refer to the [`storage` configuration block](https://grafana.com/docs/tempo/late
 
 To use other storage options, set `minio: enabled: false` in the `values.yaml` file:
 
-   ```yaml
-   ---
-   minio:
-     enabled: false  # Disables the MinIO chart
-   storage:
-   ```
+```yaml
+---
+minio:
+  enabled: false # Disables the MinIO chart
+```
 
 Update the `storage` configuration options based upon your requirements:
 
@@ -213,14 +215,14 @@ storage:
 ### Set traces receivers
 
 Tempo can be configured to receive data from OTLP, Jaegar, Zipkin, Kafka, and OpenCensus.
- The following example enables OTLP on the distributor. For other options, refer to the [distributor documentation](https://grafana.com/docs/tempo/latest/configuration/#distributor)
+The following example enables OTLP on the distributor. For other options, refer to the [distributor documentation](https://grafana.com/docs/tempo/latest/configuration/#distributor)
 
 The example used in this procedure has OTLP enabled.
 
 Enable any other protocols based on your requirements.
 
- ```yaml
- traces:
+```yaml
+traces:
   otlp:
     grpc:
       enabled: true
@@ -259,7 +261,7 @@ For more information, see [Ingress](https://kubernetes.io/docs/concepts/services
 
 1. Open your `custom.yaml` or create a YAML file of Helm values called `custom.yaml`.
 1. Add the following configuration to the file:
-   ```
+   ```yaml
    nginx:
      ingress:
        enabled: true
@@ -269,10 +271,9 @@ For more information, see [Ingress](https://kubernetes.io/docs/concepts/services
            paths:
              - path: /
                pathType: Prefix
-       tls:
-         # empty, disabled.
+       tls: {} # empty, disabled.
    ```
-1. Save the changes. 
+1. Save the changes.
 
 ## Install Grafana Tempo using the Helm chart
 
