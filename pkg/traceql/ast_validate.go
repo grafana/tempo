@@ -177,13 +177,7 @@ func (o BinaryOperation) validate() error {
 	}
 
 	switch o.Op {
-	case OpAdd,
-		OpSub,
-		OpMult,
-		OpDiv,
-		OpMod,
-		OpNotRegex,
-		OpPower,
+	case OpNotRegex,
 		OpSpansetChild,
 		OpSpansetDescendant,
 		OpSpansetSibling:

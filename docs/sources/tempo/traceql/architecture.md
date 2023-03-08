@@ -35,7 +35,6 @@ For more information about TraceQL’s design, refer to the [TraceQL Concepts de
 
 ### Future work
 
-- Arithmetics
 - Additional aggregates, such as `max()`, `min()`, and others.
 - Grouping
 - Structural Queries
