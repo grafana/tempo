@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/segmentio/parquet-go"
 
+	"github.com/grafana/dskit/multierror"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/parquetquery"
@@ -118,8 +119,11 @@ func openWALBlock(filename string, path string, ingestionSlack time.Duration, _ 
 			continue
 		}
 
+		defer file.Close()
+		pf := file.parquetFile
+
 		// iterate the parquet file and build the meta
-		iter := makeIterFunc(context.Background(), file.RowGroups(), file)(columnPathTraceID, nil, columnPathTraceID)
+		iter := makeIterFunc(context.Background(), pf.RowGroups(), pf)(columnPathTraceID, nil, columnPathTraceID)
 		defer iter.Close()
 
 		for {
@@ -206,7 +210,7 @@ func newWalBlockFlush(path string, ids *common.IDMap[int64]) *walBlockFlush {
 
 // file() opens the parquet file and returns it. previously this method cached the file on first open
 // but the memory cost of this was quite high. so instead we open it fresh every time
-func (w *walBlockFlush) file() (*parquet.File, error) {
+func (w *walBlockFlush) file() (*pageFile, error) {
 	file, err := os.OpenFile(w.path, os.O_RDONLY, 0644)
 	if err != nil {
 		return nil, fmt.Errorf("error opening file: %w", err)
@@ -221,19 +225,48 @@ func (w *walBlockFlush) file() (*parquet.File, error) {
 		return nil, fmt.Errorf("error opening parquet file: %w", err)
 	}
 
-	return pf, nil
+	f := &pageFile{parquetFile: pf, osFile: file}
+
+	return f, nil
 
 }
 
 func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
-	pf, err := w.file()
+	file, err := w.file()
 	if err != nil {
 		return nil, err
 	}
 
+	pf := file.parquetFile
+
 	idx, _ := parquetquery.GetColumnIndexByPath(pf, TraceIDColumnName)
 	r := parquet.NewReader(pf)
-	return newRowIterator(r, w.ids.EntriesSortedByID(), idx), nil
+	return newRowIterator(r, file, w.ids.EntriesSortedByID(), idx), nil
+}
+
+type pageFile struct {
+	parquetFile *parquet.File
+	osFile      *os.File
+}
+
+func (b *pageFile) Close() error {
+	return b.osFile.Close()
+}
+
+type pageFileClosingIterator struct {
+	iter     *spansetMetadataIterator
+	pageFile *pageFile
+}
+
+var _ traceql.SpansetIterator = (*pageFileClosingIterator)(nil)
+
+func (b *pageFileClosingIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
+	return b.iter.Next(ctx)
+}
+
+func (b *pageFileClosingIterator) Close() {
+	b.iter.Close()
+	b.pageFile.Close()
 }
 
 type walBlock struct {
@@ -446,7 +479,16 @@ func (b *walBlock) Iterator() (common.Iterator, error) {
 }
 
 func (b *walBlock) Clear() error {
-	return os.RemoveAll(b.walPath())
+	var errs multierror.MultiError
+	if b.file != nil {
+		errClose := b.file.Close()
+		errs.Add(errClose)
+	}
+
+	errRemoveAll := os.RemoveAll(b.walPath())
+	errs.Add(errRemoveAll)
+
+	return errs.Err()
 }
 
 func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
@@ -459,7 +501,12 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.Sea
 				return nil, fmt.Errorf("error opening file %s: %w", page.path, err)
 			}
 
-			r := parquet.NewReader(file)
+			defer file.Close()
+			pf := file.parquetFile
+
+			r := parquet.NewReader(pf)
+			defer r.Close()
+
 			err = r.SeekToRow(rowNumber)
 			if err != nil {
 				return nil, errors.Wrap(err, "seek to row")
@@ -499,14 +546,17 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 			return nil, fmt.Errorf("error opening file %s: %w", page.path, err)
 		}
 
-		r, err := searchParquetFile(ctx, file, req, file.RowGroups())
+		defer file.Close()
+		pf := file.parquetFile
+
+		r, err := searchParquetFile(ctx, pf, req, pf.RowGroups())
 		if err != nil {
 			return nil, fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
 
 		results.Traces = append(results.Traces, r.Traces...)
-		results.Metrics.InspectedBytes += uint64(file.Size())
-		results.Metrics.InspectedTraces += uint32(file.NumRows())
+		results.Metrics.InspectedBytes += uint64(pf.Size())
+		results.Metrics.InspectedTraces += uint32(pf.NumRows())
 		if len(results.Traces) >= int(req.Limit) {
 			break
 		}
@@ -522,7 +572,10 @@ func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts c
 			return fmt.Errorf("error opening file %s: %w", page.path, err)
 		}
 
-		err = searchTags(ctx, cb, file)
+		defer file.Close()
+		pf := file.parquetFile
+
+		err = searchTags(ctx, cb, pf)
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
@@ -553,7 +606,10 @@ func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute,
 			return fmt.Errorf("error opening file %s: %w", page.path, err)
 		}
 
-		err = searchTagValues(ctx, tag, cb, file)
+		defer file.Close()
+		pf := file.parquetFile
+
+		err = searchTagValues(ctx, tag, cb, pf)
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
@@ -577,11 +633,15 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 			return traceql.FetchSpansResponse{}, fmt.Errorf("error opening file %s: %w", page.path, err)
 		}
 
-		iter, err := fetch(ctx, req, file, opts)
+		pf := file.parquetFile
+
+		iter, err := fetch(ctx, req, pf, opts)
 		if err != nil {
 			return traceql.FetchSpansResponse{}, errors.Wrap(err, "creating fetch iter")
 		}
-		iters = append(iters, iter)
+
+		wrappedIterator := &pageFileClosingIterator{iter: iter, pageFile: file}
+		iters = append(iters, wrappedIterator)
 	}
 
 	// combine iters?
@@ -631,13 +691,15 @@ func parseName(filename string) (uuid.UUID, string, string, error) {
 // not a guarantee that the underlying parquet file is sorted
 type rowIterator struct {
 	reader       *parquet.Reader //nolint:all //deprecated
+	pageFile     *pageFile
 	rowNumbers   []common.IDMapEntry[int64]
 	traceIDIndex int
 }
 
-func newRowIterator(r *parquet.Reader, rowNumbers []common.IDMapEntry[int64], traceIDIndex int) *rowIterator { //nolint:all //deprecated
+func newRowIterator(r *parquet.Reader, pageFile *pageFile, rowNumbers []common.IDMapEntry[int64], traceIDIndex int) *rowIterator { //nolint:all //deprecated
 	return &rowIterator{
 		reader:       r,
+		pageFile:     pageFile,
 		rowNumbers:   rowNumbers,
 		traceIDIndex: traceIDIndex,
 	}
@@ -684,6 +746,7 @@ func (i *rowIterator) Next(ctx context.Context) (common.ID, parquet.Row, error) 
 
 func (i *rowIterator) Close() {
 	i.reader.Close()
+	i.pageFile.Close()
 }
 
 var _ common.Iterator = (*commonIterator)(nil)

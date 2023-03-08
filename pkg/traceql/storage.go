@@ -70,6 +70,7 @@ type Spanset struct {
 
 type SpansetIterator interface {
 	Next(context.Context) (*Spanset, error)
+	Close()
 }
 
 type FetchSpansResponse struct {

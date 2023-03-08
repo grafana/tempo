@@ -328,6 +328,12 @@ func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.Spanset, erro
 	return spanset, nil
 }
 
+func (i *mergeSpansetIterator) Close() {
+	for _, iter := range i.iters {
+		iter.Close()
+	}
+}
+
 // fetch is the core logic for executing the given conditions against the parquet columns. The algorithm
 // can be summarized as a hiearchy of iterators where we iterate related columns together and collect the results
 // at each level into attributes, spans, and spansets.  Each condition (.foo=bar) is pushed down to the one or more

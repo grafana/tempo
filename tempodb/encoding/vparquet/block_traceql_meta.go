@@ -197,3 +197,7 @@ func (i *spansetMetadataIterator) Next(ctx context.Context) (*traceql.Spanset, e
 
 	return ss, nil
 }
+
+func (i *spansetMetadataIterator) Close() {
+	i.iter.Close()
+}

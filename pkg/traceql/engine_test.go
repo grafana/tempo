@@ -292,6 +292,8 @@ func (m *MockSpanSetIterator) Next(ctx context.Context) (*Spanset, error) {
 	return r, nil
 }
 
+func (m *MockSpanSetIterator) Close() {}
+
 func newCondition(attr Attribute, op Operator, operands ...Static) Condition {
 	return Condition{
 		Attribute: attr,
