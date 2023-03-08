@@ -2,6 +2,8 @@ package tempodb
 
 import (
 	"context"
+	"fmt"
+	"math/rand"
 	"path"
 	"testing"
 	"time"
@@ -11,11 +13,14 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +35,7 @@ func TestSearchCompleteBlock(t *testing.T) {
 }
 
 func testSearchCompleteBlock(t *testing.T, blockVersion string) {
-	runCompleteBlockTest(t, blockVersion, func(wantMeta *tempopb.TraceSearchMetadata, searchesThatMatch, searchesThatDontMatch []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader) {
+	runCompleteBlockSearchTest(t, blockVersion, func(_ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, searchesThatMatch, searchesThatDontMatch []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader) {
 		ctx := context.Background()
 
 		for _, req := range searchesThatMatch {
@@ -39,22 +44,19 @@ func testSearchCompleteBlock(t *testing.T, blockVersion string) {
 				return
 			}
 			require.NoError(t, err, "search request: %+v", req)
-			require.Equal(t, 1, len(res.Traces), "search request: %+v", req)
-			require.Equal(t, wantMeta, res.Traces[0], "search request:", req)
+			require.Equal(t, wantMeta, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
 		}
 
 		for _, req := range searchesThatDontMatch {
 			res, err := r.Search(ctx, meta, req, common.DefaultSearchOptions())
 			require.NoError(t, err, "search request: %+v", req)
-			require.Empty(t, res.Traces, "search request:", req)
+			require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
 		}
 	})
 }
 
-// TestTraceQLCompleteBlock is a first attempt at adding some tests for traceql against a complete block.
-// to really improve this we need to drop the old search, move the SearchTestSuite() functionality here
-// and clean everything up.
-// This test currently only tests the most basic traceql functionality.
+// TestTraceQLCompleteBlock tests basic traceql tag matching conditions and
+// aligns with the feature set and testing of the tags search
 func TestTraceQLCompleteBlock(t *testing.T) {
 	for _, v := range encoding.AllEncodings() {
 		vers := v.Version()
@@ -67,7 +69,7 @@ func TestTraceQLCompleteBlock(t *testing.T) {
 func testTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 	e := traceql.NewEngine()
 
-	runCompleteBlockTest(t, blockVersion, func(wantMeta *tempopb.TraceSearchMetadata, searchesThatMatch, searchesThatDontMatch []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader) {
+	runCompleteBlockSearchTest(t, blockVersion, func(_ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, searchesThatMatch, searchesThatDontMatch []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader) {
 		ctx := context.Background()
 
 		for _, req := range searchesThatMatch {
@@ -76,13 +78,11 @@ func testTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 			})
 
 			res, err := e.Execute(ctx, req, fetcher)
-			if err == common.ErrUnsupported {
-				return
-			}
 			require.NoError(t, err, "search request: %+v", req)
-			require.Equal(t, 1, len(res.Traces), "search request: %+v", req)
-			res.Traces[0].SpanSet = nil // todo: add the matching spansets to wantmeta
-			require.Equal(t, wantMeta, res.Traces[0], "search request:", req)
+			actual := actualForExpectedMeta(wantMeta, res)
+			require.NotNil(t, actual, "search request: %v", req)
+			actual.SpanSet = nil // todo: add the matching spansets to wantmeta
+			require.Equal(t, wantMeta, actual, "search request: %v", req)
 		}
 
 		for _, req := range searchesThatDontMatch {
@@ -91,16 +91,186 @@ func testTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 			})
 
 			res, err := e.Execute(ctx, req, fetcher)
-			if err == common.ErrUnsupported {
-				return
-			}
 			require.NoError(t, err, "search request: %+v", req)
-			require.Empty(t, res.Traces, "search request:", req)
+			require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
 		}
 	})
 }
 
-func runCompleteBlockTest(t testing.TB, blockVersion string, runner func(*tempopb.TraceSearchMetadata, []*tempopb.SearchRequest, []*tempopb.SearchRequest, *backend.BlockMeta, Reader)) {
+// TestAdvancedTraceQLCompleteBlock uses the actual trace data to construct complex traceql queries
+// it is supposed to cover all major traceql features. if you see one missing add it!
+func TestAdvancedTraceQLCompleteBlock(t *testing.T) {
+	for _, v := range encoding.AllEncodings() {
+		vers := v.Version()
+		t.Run(vers, func(t *testing.T) {
+			testAdvancedTraceQLCompleteBlock(t, vers)
+		})
+	}
+}
+
+func testAdvancedTraceQLCompleteBlock(t *testing.T, blockVersion string) {
+	e := traceql.NewEngine()
+
+	runCompleteBlockSearchTest(t, blockVersion, func(wantTr *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader) {
+		ctx := context.Background()
+
+		// collect some info about wantTr to use below
+		trueConditionsBySpan := [][]string{}
+		falseConditions := []string{
+			fmt.Sprintf("name=`%v`", test.RandomString()),
+			fmt.Sprintf("duration>%dh", rand.Intn(10)),
+			// status? can't really construct a status condition that's false for all spans
+		}
+		totalSpans := 0
+		for _, b := range wantTr.Batches {
+			trueResourceC, falseResourceC := conditionsForAttributes(b.Resource.Attributes, "resource")
+			falseConditions = append(falseConditions, falseResourceC...)
+
+			for _, ss := range b.ScopeSpans {
+				totalSpans += len(ss.Spans)
+				for _, s := range ss.Spans {
+					trueC, falseC := conditionsForAttributes(s.Attributes, "span")
+
+					status := trace.StatusToString(s.Status.Code)
+					trueC = append(trueC, fmt.Sprintf("name=`%v`", s.Name))
+					trueC = append(trueC, fmt.Sprintf("duration=%dns", s.EndTimeUnixNano-s.StartTimeUnixNano))
+					trueC = append(trueC, fmt.Sprintf("status=%s", status))
+
+					trueConditionsBySpan = append(trueConditionsBySpan, trueC)
+					trueConditionsBySpan = append(trueConditionsBySpan, trueResourceC)
+					falseConditions = append(falseConditions, falseC...)
+				}
+			}
+		}
+
+		rando := func(s []string) string {
+			return s[rand.Intn(len(s))]
+		}
+
+		searchesThatMatch := []*tempopb.SearchRequest{
+			// conditions
+			{Query: fmt.Sprintf("{%s && %s}", rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]))},
+			{Query: fmt.Sprintf("{%s || %s}", rando(trueConditionsBySpan[0]), rando(falseConditions))},
+			{Query: fmt.Sprintf("{(%s && %s) || %s}", rando(falseConditions), rando(falseConditions), rando(trueConditionsBySpan[0]))},
+			// spansets
+			{Query: fmt.Sprintf("{%s} && {%s}", rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[1]))},
+			{Query: fmt.Sprintf("{%s} || {%s}", rando(trueConditionsBySpan[0]), rando(falseConditions))},
+			{Query: fmt.Sprintf("{%s && %s} || {%s}", rando(falseConditions), rando(falseConditions), rando(trueConditionsBySpan[0]))},
+			// pipelines
+			{Query: fmt.Sprintf("{%s} | {%s}", rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]))},
+			{Query: fmt.Sprintf("{%s || %s} | {%s}", rando(falseConditions), rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]))},
+			// pipeline expressions
+			{Query: fmt.Sprintf("({%s} | count() > 0) && ({%s} | count() > 0)", rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[1]))},
+			{Query: fmt.Sprintf("({%s} | count() > 0) || ({%s} | count() > 0)", rando(trueConditionsBySpan[0]), rando(falseConditions))},
+			// counts
+			{Query: fmt.Sprintf("{} | count() = %d", totalSpans)},
+			{Query: fmt.Sprintf("{} | count() != %d", totalSpans+1)},
+			{Query: fmt.Sprintf("{} | count() <= %d", totalSpans)},
+			{Query: fmt.Sprintf("{} | count() >= %d", totalSpans)},
+			// avgs
+			{Query: "{ } | avg(duration) > 0"}, // todo: make this better
+		}
+		searchesThatDontMatch := []*tempopb.SearchRequest{
+			// conditions
+			{Query: fmt.Sprintf("{%s && %s}", rando(trueConditionsBySpan[0]), rando(falseConditions))},
+			{Query: fmt.Sprintf("{%s || %s}", rando(falseConditions), rando(falseConditions))},
+			{Query: fmt.Sprintf("{%s && (%s || %s)}", rando(falseConditions), rando(falseConditions), rando(trueConditionsBySpan[0]))},
+			// spansets
+			{Query: fmt.Sprintf("{%s} && {%s}", rando(trueConditionsBySpan[0]), rando(falseConditions))},
+			{Query: fmt.Sprintf("{%s} || {%s}", rando(falseConditions), rando(falseConditions))},
+			{Query: fmt.Sprintf("{%s && %s} || {%s}", rando(falseConditions), rando(falseConditions), rando(falseConditions))},
+			// pipelines
+			{Query: fmt.Sprintf("{%s} | {%s}", rando(trueConditionsBySpan[0]), rando(falseConditions))},
+			{Query: fmt.Sprintf("{%s} | {%s}", rando(falseConditions), rando(trueConditionsBySpan[0]))},
+			{Query: fmt.Sprintf("{%s || %s} | {%s}", rando(falseConditions), rando(trueConditionsBySpan[0]), rando(falseConditions))},
+			// pipeline expressions
+			{Query: fmt.Sprintf("({%s} | count() > 0) && ({%s} | count() > 0)", rando(trueConditionsBySpan[0]), rando(falseConditions))},
+			{Query: fmt.Sprintf("({%s} | count() > 0) || ({%s} | count() > 0)", rando(falseConditions), rando(falseConditions))},
+			// counts
+			{Query: fmt.Sprintf("{} | count() = %d", totalSpans+1)},
+			{Query: fmt.Sprintf("{} | count() != %d", totalSpans)},
+			{Query: fmt.Sprintf("{} | count() < %d", totalSpans)},
+			{Query: fmt.Sprintf("{} | count() > %d", totalSpans)},
+			// avgs
+			{Query: "{ } | avg(.dne) != 0"},
+			{Query: "{ } | avg(duration) < 0"},
+		}
+
+		for _, req := range searchesThatMatch {
+			fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+			})
+
+			res, err := e.Execute(ctx, req, fetcher)
+			require.NoError(t, err, "search request: %+v", req)
+			actual := actualForExpectedMeta(wantMeta, res)
+			require.NotNil(t, actual, "search request: %v", req)
+			actual.SpanSet = nil // todo: add the matching spansets to wantmeta
+			require.Equal(t, wantMeta, actual, "search request: %v", req)
+		}
+
+		for _, req := range searchesThatDontMatch {
+			fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+			})
+
+			res, err := e.Execute(ctx, req, fetcher)
+			require.NoError(t, err, "search request: %+v", req)
+			require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
+		}
+	})
+}
+
+func conditionsForAttributes(atts []*v1.KeyValue, scope string) ([]string, []string) {
+	trueConditions := []string{}
+	falseConditions := []string{}
+
+	for _, a := range atts {
+		switch v := a.GetValue().Value.(type) {
+		case *v1.AnyValue_StringValue:
+			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v=`%v`", scope, a.Key, v.StringValue))
+			trueConditions = append(trueConditions, fmt.Sprintf(".%v=`%v`", a.Key, v.StringValue))
+			falseConditions = append(falseConditions, fmt.Sprintf("%s.%v=`%v`", scope, a.Key, test.RandomString()))
+			falseConditions = append(falseConditions, fmt.Sprintf(".%v=`%v`", a.Key, test.RandomString()))
+		case *v1.AnyValue_BoolValue:
+			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v=%t", scope, a.Key, v.BoolValue))
+			trueConditions = append(trueConditions, fmt.Sprintf(".%v=%t", a.Key, v.BoolValue))
+			// tough to add an always false condition here
+		case *v1.AnyValue_IntValue:
+			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v=%d", scope, a.Key, v.IntValue))
+			trueConditions = append(trueConditions, fmt.Sprintf(".%v=%d", a.Key, v.IntValue))
+			falseConditions = append(falseConditions, fmt.Sprintf("%s.%v=%d", scope, a.Key, rand.Intn(1000)+20000))
+			falseConditions = append(falseConditions, fmt.Sprintf(".%v=%d", a.Key, rand.Intn(1000)+20000))
+		case *v1.AnyValue_DoubleValue:
+			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v=%f", scope, a.Key, v.DoubleValue))
+			trueConditions = append(trueConditions, fmt.Sprintf(".%v=%f", a.Key, v.DoubleValue))
+			falseConditions = append(falseConditions, fmt.Sprintf("%s.%v=%f", scope, a.Key, rand.Float64()))
+			falseConditions = append(falseConditions, fmt.Sprintf(".%v=%f", a.Key, rand.Float64()))
+		}
+	}
+
+	return trueConditions, falseConditions
+}
+
+func actualForExpectedMeta(wantMeta *tempopb.TraceSearchMetadata, res *tempopb.SearchResponse) *tempopb.TraceSearchMetadata {
+	// find wantMeta in res
+	for _, tr := range res.Traces {
+		if tr.TraceID == wantMeta.TraceID {
+			return tr
+		}
+	}
+
+	return nil
+}
+
+type runnerFn func(*tempopb.Trace, *tempopb.TraceSearchMetadata, []*tempopb.SearchRequest, []*tempopb.SearchRequest, *backend.BlockMeta, Reader)
+
+func runCompleteBlockSearchTest(t testing.TB, blockVersion string, runner runnerFn) {
+	// v2 doesn't support any search. just bail here before doing the work below to save resources
+	if blockVersion == v2.VersionString {
+		return
+	}
+
 	tempDir := t.TempDir()
 
 	r, w, c, err := New(&Config{
@@ -114,6 +284,7 @@ func runCompleteBlockTest(t testing.TB, blockVersion string, runner func(*tempop
 			BloomShardSizeBytes:  100_000,
 			Version:              blockVersion,
 			IndexPageSizeBytes:   1000,
+			RowGroupSizeBytes:    10000,
 		},
 		WAL: &wal.Config{
 			Filepath:       path.Join(tempDir, "wal"),
@@ -138,26 +309,41 @@ func runCompleteBlockTest(t testing.TB, blockVersion string, runner func(*tempop
 	r.EnablePolling(&mockJobSharder{})
 	rw := r.(*readerWriter)
 
-	id, wantTr, start, end, wantMeta, searchesThatMatch, searchesThatDontMatch, _, _ := trace.SearchTestSuite()
+	wantID, wantTr, start, end, wantMeta, searchesThatMatch, searchesThatDontMatch, _, _ := trace.SearchTestSuite()
 
 	// Write to wal
 	wal := w.WAL()
 	head, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
 	require.NoError(t, err)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
-	b1, err := dec.PrepareForWrite(wantTr, start, end)
-	require.NoError(t, err)
-	b2, err := dec.ToObject([][]byte{b1})
-	require.NoError(t, err)
-	err = head.Append(id, b2, start, end)
-	require.NoError(t, err, "unexpected error writing req")
+
+	totalTraces := 250
+	wantTrIdx := rand.Intn(250)
+	for i := 0; i < totalTraces; i++ {
+		var tr *tempopb.Trace
+		var id []byte
+		if i == wantTrIdx {
+			tr = wantTr
+			id = wantID
+		} else {
+			id = test.ValidTraceID(nil)
+			tr = test.MakeTrace(10, id)
+		}
+		b1, err := dec.PrepareForWrite(tr, start, end)
+		require.NoError(t, err)
+
+		b2, err := dec.ToObject([][]byte{b1})
+		require.NoError(t, err)
+		err = head.Append(id, b2, start, end)
+		require.NoError(t, err)
+	}
 
 	// Complete block
 	block, err := w.CompleteBlock(context.Background(), head)
 	require.NoError(t, err)
 	meta := block.BlockMeta()
 
-	runner(wantMeta, searchesThatMatch, searchesThatDontMatch, meta, rw)
+	runner(wantTr, wantMeta, searchesThatMatch, searchesThatDontMatch, meta, rw)
 
 	// todo: do some compaction and then call runner again
 }

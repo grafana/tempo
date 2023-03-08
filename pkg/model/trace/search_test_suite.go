@@ -2,6 +2,7 @@ package trace
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -28,38 +29,51 @@ func intKV(k string, v int) *v1_common.KeyValue {
 
 // Helper function to make a tag search
 func makeReq(k, v string) *tempopb.SearchRequest {
-	// todo: traceql concepts are different than search concepts. this code maps key/value pairs
-	// from search to traceql. we can clean this up after we drop old search and move these tests into
-	// the tempodb package.
-	traceqlKey := k
-	switch traceqlKey {
-	case "root.service.name":
-		traceqlKey = ".service.name"
-	case "root.name":
-		traceqlKey = "name"
-	case "name":
-	case "status.code":
-		traceqlKey = "status"
-	default:
-		traceqlKey = "." + traceqlKey
-	}
-
-	traceqlVal := v
-	switch traceqlKey {
-	case ".http.status_code":
-		break
-	case "status":
-		break
-	default:
-		traceqlVal = fmt.Sprintf(`"%s"`, v)
-	}
-
 	return &tempopb.SearchRequest{
 		Tags: map[string]string{
 			k: v,
 		},
-		Query: fmt.Sprintf("{ %s=%s }", traceqlKey, traceqlVal),
 	}
+}
+
+func addTraceQL(req *tempopb.SearchRequest) {
+	// todo: traceql concepts are different than search concepts. this code maps key/value pairs
+	// from search to traceql. we can clean this up after we drop old search and move these tests into
+	// the tempodb package.
+	traceqlConditions := []string{}
+	for k, v := range req.Tags {
+		traceqlKey := k
+		switch traceqlKey {
+		case "root.service.name":
+			traceqlKey = ".service.name"
+		case "root.name":
+			traceqlKey = "name"
+		case "name":
+		case "status.code":
+			traceqlKey = "status"
+		default:
+			traceqlKey = "." + traceqlKey
+		}
+
+		traceqlVal := v
+		switch traceqlKey {
+		case ".http.status_code":
+			break
+		case "status":
+			break
+		default:
+			traceqlVal = fmt.Sprintf(`"%s"`, v)
+		}
+		traceqlConditions = append(traceqlConditions, fmt.Sprintf("%s=%s", traceqlKey, traceqlVal))
+	}
+	if req.MaxDurationMs != 0 {
+		traceqlConditions = append(traceqlConditions, fmt.Sprintf("duration < %dms", req.MaxDurationMs))
+	}
+	if req.MinDurationMs != 0 {
+		traceqlConditions = append(traceqlConditions, fmt.Sprintf("duration > %dms", req.MinDurationMs))
+	}
+
+	req.Query = "{" + strings.Join(traceqlConditions, "&&") + "}"
 }
 
 // SearchTestSuite returns a set of search test cases that ensure
@@ -164,29 +178,24 @@ func SearchTestSuite() (
 	searchesThatMatch = []*tempopb.SearchRequest{
 		{
 			// Empty request
-			Query: "{}",
 		},
 		{
 			MinDurationMs: 999,
 			MaxDurationMs: 1001,
-			Query:         "{}",
 		},
 		{
 			Start: 1000,
 			End:   2000,
-			Query: "{}",
 		},
 		{
 			// Overlaps start
 			Start: 999,
 			End:   1001,
-			Query: "{}",
 		},
 		{
 			// Overlaps end
 			Start: 1001,
 			End:   1002,
-			Query: "{}",
 		},
 
 		// Well-known resource attributes
@@ -217,11 +226,10 @@ func SearchTestSuite() (
 		// Multiple
 		{
 			Tags: map[string]string{
-				"service.name": "Service",
+				"service.name": "MyService",
 				"http.method":  "Get",
 				"foo":          "Bar",
 			},
-			Query: "{ resource.service.name=`MyService` && .http.method=`Get` && .foo=`Bar` }",
 		},
 	}
 
@@ -229,16 +237,13 @@ func SearchTestSuite() (
 	searchesThatDontMatch = []*tempopb.SearchRequest{
 		{
 			MinDurationMs: 1001,
-			Query:         "{ duration > 1001ms }",
 		},
 		{
 			MaxDurationMs: 999,
-			Query:         "{ duration < 999ms }",
 		},
 		{
 			Start: 100,
 			End:   200,
-			Query: "{}",
 		},
 
 		// Well-known resource attributes
@@ -300,6 +305,14 @@ func SearchTestSuite() (
 		"root.service.name":  {"RootService"},
 		"service.name":       {"MyService", "RootService"},
 		"status.code":        {"0", "2"},
+	}
+
+	// add traceql to all searches
+	for _, req := range searchesThatDontMatch {
+		addTraceQL(req)
+	}
+	for _, req := range searchesThatMatch {
+		addTraceQL(req)
 	}
 
 	return
