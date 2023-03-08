@@ -2,6 +2,7 @@
 description: Learn how to get started with Grafana Tempo using the Helm chart.
 menuTitle: Get started
 title: Get started with Grafana Tempo using the Helm chart
+draft: true
 weight: 20
 keywords:
   - Helm chart
