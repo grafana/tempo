@@ -250,3 +250,4 @@ func (m *mockSpan) StartTimeUnixNanos() uint64 {
 func (m *mockSpan) EndtimeUnixNanos() uint64 {
 	return m.endTimeUnixNanos
 }
+func (m *mockSpan) Release() {}
