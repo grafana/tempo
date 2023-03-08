@@ -21,6 +21,13 @@ The Grafana Tempo Helm chart allows you to configure, install, and upgrade Grafa
 
 To learn more about Helm, read the [Helm documentation](https://helm.sh/).
 
+If you are using Helm to install GET, then you will also need to:
+
+- Additional admin storage bucket
+- Disable the gateway
+- Enable the enterpriseGateway
+- Obtain a GET license
+
 ## Before you begin
 
 These instructions are common across any flavor of Kubernetes. They also assume that you know how to install, configure, and operate a Kubernetes cluster.
@@ -84,6 +91,8 @@ kubectl create namespace tempo-test
 
 Your Helm chart values are set in the `custom.yaml` file. The following example `custom.yaml` file sets the storage and traces options, enables the gateway, and sets the cluster to main. The `traces` configure the distributor's receiver protocols.
 
+### Tempo helm chart values
+
 ```yaml
 ---
 storage:
@@ -118,6 +127,13 @@ minio:
       enabled: false
   opencensus:
     enabled: false
+```
+
+### Grafana Enterprise Traces helm chart values
+
+
+```yaml
+
 ```
 
 Next, we will:
@@ -156,7 +172,7 @@ However, you can use a other storage provides. Refer to the Optional storage sec
          insecure: true
    ```
 
-1. Optional: Locate the MinIO section and change the the username and password to something you wish to use. 
+1. Optional: Locate the MinIO section and change the the username and password to something you wish to use.
 ```yaml
   minio:
     enabled: true
@@ -272,7 +288,7 @@ For more information, see [Ingress](https://kubernetes.io/docs/concepts/services
        tls:
          # empty, disabled.
    ```
-1. Save the changes. 
+1. Save the changes.
 
 ## Install Grafana Tempo using the Helm chart
 
