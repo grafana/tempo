@@ -103,17 +103,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	// Get list of row groups to inspect. Ideally we use predicate pushdown
 	// here to keep only row groups that can potentially satisfy the request
 	// conditions, but don't have it figured out yet.
-	rgs := pf.RowGroups()
-	if opts.TotalPages > 0 {
-		// Read UP TO TotalPages.  The sharding calculations
-		// are just estimates, so it may not line up with the
-		// actual number of pages in this file.
-		if opts.StartPage+opts.TotalPages > len(rgs) {
-			opts.TotalPages = len(rgs) - opts.StartPage
-		}
-		rgs = rgs[opts.StartPage : opts.StartPage+opts.TotalPages]
-	}
-
+	rgs := rowGroupsFromFile(pf, opts)
 	results, err := searchParquetFile(derivedCtx, pf, req, rgs)
 	if err != nil {
 		return nil, err
@@ -366,6 +356,10 @@ type rowNumberIterator struct {
 
 var _ pq.Iterator = (*rowNumberIterator)(nil)
 
+func (r *rowNumberIterator) String() string {
+	return "rowNumberIterator()"
+}
+
 func (r *rowNumberIterator) Next() (*pq.IteratorResult, error) {
 	if len(r.rowNumbers) == 0 {
 		return nil, nil
@@ -396,6 +390,10 @@ type reportValuesPredicate struct {
 
 func newReportValuesPredicate(cb common.TagCallbackV2) *reportValuesPredicate {
 	return &reportValuesPredicate{cb: cb}
+}
+
+func (r *reportValuesPredicate) String() string {
+	return "reportValuesPredicate{}"
 }
 
 // KeepColumnChunk always returns true b/c we always have to dig deeper to find all values
@@ -457,4 +455,19 @@ func callback(cb common.TagCallbackV2, v parquet.Value) (stop bool) {
 		// Skip nils or unsupported type
 		return false
 	}
+}
+
+func rowGroupsFromFile(pf *parquet.File, opts common.SearchOptions) []parquet.RowGroup {
+	rgs := pf.RowGroups()
+	if opts.TotalPages > 0 {
+		// Read UP TO TotalPages.  The sharding calculations
+		// are just estimates, so it may not line up with the
+		// actual number of pages in this file.
+		if opts.StartPage+opts.TotalPages > len(rgs) {
+			opts.TotalPages = len(rgs) - opts.StartPage
+		}
+		rgs = rgs[opts.StartPage : opts.StartPage+opts.TotalPages]
+	}
+
+	return rgs
 }

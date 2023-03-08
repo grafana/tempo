@@ -39,6 +39,20 @@ valid:
   - '{ duration > 1s }'
   - '{ 1 < 1h }'
   - '{ 1 <= 1.1 }'
+  # binary operations
+  - '{ 1 + 1 = 2 }'
+  - '{ 1 - 1 = 2 }'
+  - '{ 1 * 1 = 2 }'
+  - '{ 1 / 1 = 2 }'
+  - '{ 1 ^ 1 = 2 }'
+  - '{ .a + 1 = 2 }'
+  - '{ .a - 1 = 2 }'
+  - '{ .a * 1 = 2 }'
+  - '{ .a / 1 = 2 }'
+  - '{ .a ^ 1 = 2 }'
+  - '{ duration > 1s * 2s }' 
+  - '{ 1 * 1h = 1 }'     # combining float, int and duration can make sense, but can also be weird. we just accept it all
+  - '{ 1 / 1.1 = 1 }'
   # spanset expressions
   - '{ true } && { true }'
   - '{ true } || { true }'
@@ -109,6 +123,7 @@ validate_fails:
   - '{ 1.1 }'
   - '{ 1h }'
   - '{ "foo" }'
+  - '{ 1 + 1 }'       
   # binary operators - incorrect types
   - '{ 1 + "foo" = 1 }'
   - '{ 1 - true = 1 }'
@@ -142,9 +157,11 @@ validate_fails:
   # scalar expressions must reference the span
   - 'sum(3) = 2'
   - 'sum(3) = min(14)'
-  - 'min(2h) < max(duration)'          
+  - 'min(2h) < max(duration)'
   - 'min(3) = max(duration)'
   - 'min(1) = max(2) + 3'
+  - 'min(1.1 - 3) > 1'
+  - 'max(1h + 2h) > 1'
   # scalar filters have to match types
   - 'min(1) = "foo"'
 
@@ -203,25 +220,8 @@ unsupported:
   # nil - will be valid when supported
   - '{ .foo = nil }'
   # binary operations - will be valid when supported
-  - '{ 1 + 1 = 2 }'
-  - '{ 1 - 1 = 2 }'
-  - '{ 1 * 1 = 2 }'
-  - '{ 1 / 1 = 2 }'
-  - '{ 1 ^ 1 = 2 }'
   - '{ "test" !~ "test" }'
-  - '{ .a + 1 = 2 }'
-  - '{ .a - 1 = 2 }'
-  - '{ .a * 1 = 2 }'
-  - '{ .a / 1 = 2 }'
-  - '{ .a ^ 1 = 2 }'
   - '{ .a !~ "test" }'
-  - '{ duration > 1s * 2s }' 
-  - '{ 1 * 1h = 1 }'     # combining float, int and duration can make sense, but can also be weird. we just accept it all
-  - '{ 1 / 1.1 = 1 }'
-  # binary operations - will not be valid when supported
-  - '{ 1 + 1 }'       
-  - 'min(1.1 - 3) > 1'
-  - 'max(1h + 2h) > 1'
   # childCount - will be valid when supported
   - '{ 1 = childCount }'
   # childCount - will be invalid when supported

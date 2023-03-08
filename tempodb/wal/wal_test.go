@@ -291,11 +291,14 @@ func testFetch(t *testing.T, e encoding.VersionedEncoding) {
 			}
 			require.NoError(t, err)
 
-			// grab the first result and make sure it's the expected id
+			// grab the first result
 			ss, err := resp.Results.Next(ctx)
 			require.NoError(t, err)
+			require.NotNil(t, ss)
 
+			// confirm traceid matches
 			expectedID := ids[i]
+			require.NotNil(t, ss)
 			require.Equal(t, ss.TraceID, expectedID)
 
 			// confirm no more matches
