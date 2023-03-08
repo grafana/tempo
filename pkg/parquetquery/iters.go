@@ -70,7 +70,7 @@ func TruncateRowNumber(definitionLevelToKeep int, t RowNumber) RowNumber {
 	return n
 }
 
-func (t RowNumber) Valid() bool {
+func (t *RowNumber) Valid() bool {
 	return t[0] >= 0
 }
 
@@ -462,13 +462,13 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, d int) (done bool, err error)
 	return false, nil
 }
 
-func (c *SyncIterator) next() (RowNumber, pq.Value, error) {
+func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 	for {
 		if c.currRowGroup == nil {
 			// Pop next row group
 			if len(c.rgs) == 0 {
 				// No more row groups
-				return EmptyRowNumber(), pq.Value{}, nil
+				return EmptyRowNumber(), nil, nil
 			}
 			rg := c.rgs[0]
 			max := c.rgsMax[0]
@@ -500,7 +500,7 @@ func (c *SyncIterator) next() (RowNumber, pq.Value, error) {
 				continue
 			}
 			if err != nil {
-				return EmptyRowNumber(), pq.Value{}, err
+				return EmptyRowNumber(), nil, err
 			}
 			if c.filter != nil && !c.filter.KeepPage(pg) {
 				// This page filtered out
@@ -519,7 +519,7 @@ func (c *SyncIterator) next() (RowNumber, pq.Value, error) {
 			c.currBuf = c.currBuf[:cap(c.currBuf)]
 			n, err := c.currValues.ReadValues(c.currBuf)
 			if err != nil && err != io.EOF {
-				return EmptyRowNumber(), pq.Value{}, err
+				return EmptyRowNumber(), nil, err
 			}
 			c.currBuf = c.currBuf[:n]
 			c.currBufN = 0
@@ -532,14 +532,14 @@ func (c *SyncIterator) next() (RowNumber, pq.Value, error) {
 
 		// Consume current buffer until empty
 		for c.currBufN < len(c.currBuf) {
-			v := c.currBuf[c.currBufN]
+			v := &c.currBuf[c.currBufN]
 
 			// Inspect all values to track the current row number,
 			// even if the value is filtered out next.
 			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel())
 			c.currBufN++
 
-			if c.filter != nil && !c.filter.KeepValue(v) {
+			if c.filter != nil && !c.filter.KeepValue(*v) {
 				continue
 			}
 
@@ -587,7 +587,7 @@ func (c *SyncIterator) closeCurrRowGroup() {
 	c.setPage(nil)
 }
 
-func (c *SyncIterator) makeResult(t RowNumber, v pq.Value) *IteratorResult {
+func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 	r := columnIteratorResultPoolGet()
 	r.RowNumber = t
 	if c.selectAs != "" {
