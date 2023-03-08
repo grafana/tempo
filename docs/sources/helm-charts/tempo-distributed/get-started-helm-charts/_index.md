@@ -133,7 +133,52 @@ minio:
 
 
 ```yaml
+---
+global:
+  clusterDomain: 'cluster.local'
 
+multitenancyEnabled: true
+enterprise:
+  enabled: true
+  image:
+    tag: weekly-r83-4e9cb510
+enterpriseGateway:
+  enabled: true
+gateway:
+  enabled: false
+minio:
+  enabled: true
+storage:
+  trace:
+    backend: s3
+    s3:
+      access_key: 'grafana-tempo'
+      secret_key: 'supersecret'
+      bucket: 'enterprise-traces'
+      endpoint: 'tempo-minio:9000'
+      insecure: true
+  admin:
+    backend: s3
+    s3:
+      access_key_id: 'grafana-tempo'
+      secret_access_key: 'supersecret'
+      bucket_name: 'enterprise-traces-admin'
+      endpoint: 'tempo-minio:9000'
+      insecure: true
+traces:
+  otlp:
+    http:
+      enabled: true
+    grpc:
+      enabled: true
+distributor:
+  config:
+    log_received_spans:
+      enabled: true
+
+license:
+  contents: |
+    LICENSEGOESHERE
 ```
 
 Next, we will:
@@ -179,6 +224,8 @@ However, you can use a other storage provides. Refer to the Optional storage sec
     mode: standalone
     rootUser: minio
     rootPassword: minio123
+```
+
 ### Optional: Other storage options
 
 Each storage provider has a different configuration stanza, which are detailed in Tempo's documentation. You will need to update your configuration based upon you storage provider.
