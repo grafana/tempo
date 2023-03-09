@@ -153,8 +153,8 @@ func testAdvancedTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 
 		searchesThatMatch := []*tempopb.SearchRequest{
 			// conditions
-			{Query: fmt.Sprintf("{%s && %s}", rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]))},
-			{Query: fmt.Sprintf("{%s || %s}", rando(trueConditionsBySpan[0]), rando(falseConditions))},
+			{Query: fmt.Sprintf("{%s && %s && %s && %s && %s}", rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]))},
+			{Query: fmt.Sprintf("{%s || %s || %s || %s || %s}", rando(falseConditions), rando(falseConditions), rando(falseConditions), rando(trueConditionsBySpan[0]), rando(falseConditions))},
 			{Query: fmt.Sprintf("{(%s && %s) || %s}", rando(falseConditions), rando(falseConditions), rando(trueConditionsBySpan[0]))},
 			// spansets
 			{Query: fmt.Sprintf("{%s} && {%s}", rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[1]))},
