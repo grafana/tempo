@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 
 	"github.com/opentracing/opentracing-go"
 	willf_bloom "github.com/willf/bloom"
@@ -108,23 +107,6 @@ func (b *BackendBlock) Iterator(chunkSizeBytes uint32) (BytesIterator, error) {
 	return newPagedIterator(chunkSizeBytes, reader, dataReader, NewObjectReaderWriter()), nil
 }
 
-// partialIterator returns an Iterator that iterates over the a subset of pages in the block from the backend
-func (b *BackendBlock) partialIterator(chunkSizeBytes uint32, startPage int, totalPages int) (BytesIterator, error) {
-	// read index
-	ra := backend.NewContextReader(b.meta, common.NameObjects, b.reader, false)
-	dataReader, err := NewDataReader(ra, b.meta.Encoding)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create dataReader (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
-	}
-
-	reader, err := b.NewIndexReader()
-	if err != nil {
-		return nil, err
-	}
-
-	return newPartialPagedIterator(chunkSizeBytes, reader, dataReader, NewObjectReaderWriter(), startPage, totalPages), nil
-}
-
 func (b *BackendBlock) NewIndexReader() (IndexReader, error) {
 	indexReaderAt := backend.NewContextReader(b.meta, common.NameIndex, b.reader, false)
 	reader, err := NewIndexReader(indexReaderAt, int(b.meta.IndexPageSize), int(b.meta.TotalRecords))
@@ -160,57 +142,7 @@ func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID, _ common
 }
 
 func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opt common.SearchOptions) (resp *tempopb.SearchResponse, err error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "BackendBlock.Search")
-	defer span.Finish()
-
-	decoder, err := model.NewObjectDecoder(b.meta.DataEncoding)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create NewDecoder: %w", err)
-	}
-
-	// Iterator
-	var iter BytesIterator
-	if opt.TotalPages > 0 {
-		iter, err = b.partialIterator(opt.ChunkSizeBytes, opt.StartPage, opt.TotalPages)
-	} else {
-		iter, err = b.Iterator(opt.ChunkSizeBytes)
-	}
-	if err != nil {
-		return nil, err
-	}
-	if opt.PrefetchTraceCount > 0 {
-		iter = NewPrefetchIterator(ctx, iter, opt.PrefetchTraceCount)
-	}
-	defer iter.Close()
-
-	resp = &tempopb.SearchResponse{
-		Metrics: &tempopb.SearchMetrics{},
-	}
-
-	for {
-		id, obj, err := iter.NextBytes(ctx)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("error iterating %s, %w", b.meta.BlockID, err)
-		}
-
-		err = search(decoder, opt.MaxBytes, id, obj, req, resp)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(resp.Traces) >= int(req.Limit) {
-			break
-		}
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
+	return nil, common.ErrUnsupported
 }
 
 func (b *BackendBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
@@ -223,28 +155,6 @@ func (b *BackendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 
 func (b *BackendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
 	return common.ErrUnsupported
-}
-
-func search(decoder model.ObjectDecoder, maxBytes int, id common.ID, obj []byte, req *tempopb.SearchRequest, resp *tempopb.SearchResponse) error {
-	resp.Metrics.InspectedTraces++
-	resp.Metrics.InspectedBytes += uint64(len(obj))
-
-	if maxBytes > 0 && len(obj) > maxBytes {
-		resp.Metrics.SkippedTraces++
-		return nil
-	}
-
-	metadata, err := decoder.Matches(id, obj, req)
-	if err != nil {
-		return err
-	}
-
-	if metadata != nil {
-		// Found a match
-		resp.Traces = append(resp.Traces, metadata)
-	}
-
-	return nil
 }
 
 func (b *BackendBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.SearchOptions) (traceql.FetchSpansResponse, error) {

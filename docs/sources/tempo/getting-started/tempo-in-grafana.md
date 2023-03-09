@@ -29,13 +29,9 @@ You can run a TraceQL query either by issuing it to Tempo’s `q` parameter of t
 
 For details about how queries are constructed, read the [TraceQL documentation]({{< relref "../traceql" >}}).
 
-## Find traces using Tempo search
+## Find traces using Tempo tags search
 
 Search for traces using common dimensions such as time range, duration, span tags, service names, and more. Use the trace view to quickly diagnose errors and high-latency events in your system.
-
-Tempo includes the ability to search recent traces held in ingesters.
-Traces can be searched for data originating from a specific service,
-duration range, span, or process-level attributes included in your application's instrumentation, such as HTTP status code and customer ID.
 
 ### Non-deterministic search
 
@@ -45,34 +41,6 @@ However, Tempo search is non-deterministic.
 If you perform the same search twice, you’ll get different lists, assuming the possible number of results for your search is greater than the number of results you have your search set to return.
 
 When performing a search, Tempo does a massively parallel search over the given time range, and takes the first N results. Even identical searches will differ due to things like machine load and network latency. This approach values speed over predictability and is quite simple; enforcing that the search results are consistent would introduce additional complexity (and increase the time the user spends waiting for results). TraceQL follows the same behavior.
-
-### Search of recent traces
-
-Search of recent traces is disabled by default.
-Ingesters default to storing the last 15 minutes of traces.
-
-To enable recent traces search:
-
--  Run Tempo, enabling search in the YAML configuration.
-Refer to the [search]({{< relref "../configuration#search" >}}) configuration documentation.
--  Run Grafana 8.2 or a more recent version. Enable the `tempoSearch` [feature toggle](https://github.com/grafana/tempo/blob/main/example/docker-compose/tempo-search/grafana.ini).
-
-<p align="center"><img src="../assets/tempo-search.png" alt="Tempo Search"></p>
-
-### Search of the backend datastore
-
-Tempo includes the the ability to search the entire backend datastore.
-
-To enable search of the backend datastore:
-
--  Run Tempo, enabling search in the YAML configuration.
-Refer to the [search]({{< relref "../configuration#search" >}}) configuration documentation.
-Further configuration information is in [backend search]({{< relref "../operations/backend_search" >}}).
-The Tempo configuration is the same for searching recent traces or
-for search of the backend datastore.
-
--  Run Grafana 8.3.6 or a more recent version. Enable the `tempoBackendSearch` [feature toggle](https://github.com/grafana/tempo/blob/main/example/docker-compose/tempo-search/grafana.ini). This will cause Grafana to pass the `start` and `end` parameters necessary for the backend datastore search.
-
 
 ## Service graph view
 

@@ -25,7 +25,6 @@ type Config struct {
 	MaxBlockBytes        uint64        `yaml:"max_block_bytes"`
 	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout"`
 	OverrideRingKey      string        `yaml:"override_ring_key"`
-	UseFlatbufferSearch  bool          `yaml:"-"` // no longer allow this to be set via config. this will be set based on the block version for now and then removed in 2.1
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.

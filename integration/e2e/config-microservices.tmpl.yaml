@@ -46,6 +46,3 @@ memberlist:
 querier:
   frontend_worker:
     frontend_address: tempo_e2e-query-frontend:9095
-
-overrides:
-  max_search_bytes_per_trace: 50_000

@@ -34,6 +34,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/hedgedmetrics"
 	"github.com/grafana/tempo/pkg/model/trace"
+	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
@@ -41,7 +42,6 @@ import (
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/search"
 )
 
 var (
@@ -561,7 +561,7 @@ func (q *Querier) postProcessIngesterSearchResults(req *tempopb.SearchRequest, r
 
 	for _, t := range traces {
 		if t.RootServiceName == "" {
-			t.RootServiceName = trace.RootSpanNotYetReceivedText
+			t.RootServiceName = search.RootSpanNotYetReceivedText
 		}
 		response.Traces = append(response.Traces, t)
 	}

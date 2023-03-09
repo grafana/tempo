@@ -134,7 +134,8 @@ but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is
 
 ### Search
 
-Tempo's Search API finds traces based on span and process attributes (tags and values).
+Tempo's Search API finds traces based on span and process attributes (tags and values). Note that search functionality is **not** available on
+[v2 blocks]({{< relref "../configuration/parquet#disable-parquet" >}}).
 
 When performing a search, Tempo does a massively parallel search over the given time range, and takes the first N results. Even identical searches will differ due to things like machine load and network latency. TraceQL follows the same behavior.
 

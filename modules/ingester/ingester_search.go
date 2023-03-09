@@ -8,8 +8,6 @@ import (
 	"github.com/weaveworks/common/user"
 )
 
-const searchDir = "search"
-
 func (i *Ingester) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {

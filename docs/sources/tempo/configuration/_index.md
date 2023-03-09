@@ -179,11 +179,6 @@ distributor:
     # Disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
     #  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
     [extend_writes: <bool>]
-
-    # Optional.
-    # List of tags that will **not** be extracted from trace data for search lookups
-    # This is a global config that will apply to all tenants
-    [search_tags_deny_list: <list of string> | default = ]
 ```
 
 ## Ingester
@@ -1126,11 +1121,6 @@ overrides:
     #    per-user traces limit (local: 10000 global: 0 actual local: 1) exceeded
     # This override limit is used by the ingester.
     [max_traces_per_user: <int> | default = 10000]
-
-    # Maximum size of search data for a single trace in bytes. A value of 0
-    # disables the check. From an operational perspective, the size of search
-    # data is proportional to the total size of all tags in a trace.
-    [max_search_bytes_per_trace: <int> | default = 5000]
 
     # Maximum size in bytes of a tag-values query. Tag-values query is used mainly
     # to populate the autocomplete dropdown. This limit protects the system from

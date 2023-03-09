@@ -43,7 +43,6 @@ config: |
     join_members:
       - tempo-tempo-distributed-gossip-ring
   overrides:
-    max_search_bytes_per_trace: 0
     per_tenant_override_config: /conf/overrides.yaml
   server:
     http_listen_port: 3100
