@@ -131,6 +131,7 @@ func (rw *Backend) Read(ctx context.Context, name string, keypath backend.KeyPat
 
 	stat, err := f.Stat()
 	if err != nil {
+		f.Close()
 		return nil, -1, err
 	}
 

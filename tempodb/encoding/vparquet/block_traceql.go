@@ -39,6 +39,9 @@ func (s *span) StartTimeUnixNanos() uint64 {
 func (s *span) EndtimeUnixNanos() uint64 {
 	return s.endtimeUnixNanos
 }
+func (s *span) Release() {
+	putSpan(s)
+}
 
 // todo: this sync pool currently massively reduces allocations by pooling spans for certain queries.
 // it currently catches spans discarded:
@@ -326,6 +329,12 @@ func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.Spanset, erro
 	}
 
 	return spanset, nil
+}
+
+func (i *mergeSpansetIterator) Close() {
+	for _, iter := range i.iters {
+		iter.Close()
+	}
 }
 
 // fetch is the core logic for executing the given conditions against the parquet columns. The algorithm

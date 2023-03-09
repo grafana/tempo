@@ -49,6 +49,7 @@ func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.Ke
 	if err != nil {
 		return nil, 0, err
 	}
+	defer object.Close()
 
 	b, err := tempo_io.ReadAllWithEstimate(object, size)
 	if err == nil && shouldCache {

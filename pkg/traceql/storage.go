@@ -54,6 +54,8 @@ type Span interface {
 	ID() []byte
 	StartTimeUnixNanos() uint64
 	EndtimeUnixNanos() uint64
+
+	Release()
 }
 
 type Spanset struct {
@@ -70,6 +72,7 @@ type Spanset struct {
 
 type SpansetIterator interface {
 	Next(context.Context) (*Spanset, error)
+	Close()
 }
 
 type FetchSpansResponse struct {
