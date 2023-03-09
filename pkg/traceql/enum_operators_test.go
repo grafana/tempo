@@ -62,6 +62,7 @@ func TestOperatorBinaryTypesValid(t *testing.T) {
 		{OpMod, TypeStatus, false},
 		{OpMult, TypeNil, false},
 		{OpPower, TypeBoolean, false},
+		{OpMult, TypeKind, false},
 		// equality
 		{OpEqual, TypeDuration, true},
 		{OpNotEqual, TypeStatus, true},
@@ -71,6 +72,8 @@ func TestOperatorBinaryTypesValid(t *testing.T) {
 		{OpNotEqual, TypeAttribute, true},
 		{OpEqual, TypeBoolean, true},
 		{OpNotEqual, TypeFloat, true},
+		{OpEqual, TypeKind, true},
+		{OpNotEqual, TypeKind, true},
 
 		{OpEqual, TypeSpanset, false},
 		// range comparison
@@ -80,6 +83,7 @@ func TestOperatorBinaryTypesValid(t *testing.T) {
 		{OpLessEqual, TypeDuration, true},
 
 		{OpGreater, TypeStatus, false},
+		{OpLessEqual, TypeKind, false},
 		{OpGreaterEqual, TypeNil, false},
 		{OpLess, TypeString, false},
 		{OpLessEqual, TypeBoolean, false},
@@ -88,6 +92,7 @@ func TestOperatorBinaryTypesValid(t *testing.T) {
 		{OpNotRegex, TypeAttribute, true},
 		{OpRegex, TypeString, true},
 
+		{OpRegex, TypeKind, false},
 		{OpRegex, TypeInt, false},
 		{OpNotRegex, TypeInt, false},
 		// boolean
