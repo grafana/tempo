@@ -42,15 +42,6 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	b.openMtx.Lock()
 	defer b.openMtx.Unlock()
 
-	// if this backend block is repeatedly used for search/searchtags/findtracebyid/etc then this is a nice
-	// performance improvement. this does not happen currently for full backend search, but does happen
-	// if this is a complete block held on disk by the ingester
-	if b.pf != nil && b.readerAt != nil {
-		// Reset metrics, is there a better way to do this?
-		b.readerAt.TotalBytesRead.Store(0)
-		return b.pf, b.readerAt, nil
-	}
-
 	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
 
 	// no searches currently require bloom filters or the page index. so just add them statically
