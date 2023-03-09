@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,8 +14,11 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -221,27 +225,27 @@ func testAdvancedTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 	})
 }
 
-func conditionsForAttributes(atts []*v1.KeyValue, scope string) ([]string, []string) {
+func conditionsForAttributes(atts []*v1_common.KeyValue, scope string) ([]string, []string) {
 	trueConditions := []string{}
 	falseConditions := []string{}
 
 	for _, a := range atts {
 		switch v := a.GetValue().Value.(type) {
-		case *v1.AnyValue_StringValue:
+		case *v1_common.AnyValue_StringValue:
 			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v=`%v`", scope, a.Key, v.StringValue))
 			trueConditions = append(trueConditions, fmt.Sprintf(".%v=`%v`", a.Key, v.StringValue))
 			falseConditions = append(falseConditions, fmt.Sprintf("%s.%v=`%v`", scope, a.Key, test.RandomString()))
 			falseConditions = append(falseConditions, fmt.Sprintf(".%v=`%v`", a.Key, test.RandomString()))
-		case *v1.AnyValue_BoolValue:
+		case *v1_common.AnyValue_BoolValue:
 			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v=%t", scope, a.Key, v.BoolValue))
 			trueConditions = append(trueConditions, fmt.Sprintf(".%v=%t", a.Key, v.BoolValue))
 			// tough to add an always false condition here
-		case *v1.AnyValue_IntValue:
+		case *v1_common.AnyValue_IntValue:
 			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v=%d", scope, a.Key, v.IntValue))
 			trueConditions = append(trueConditions, fmt.Sprintf(".%v=%d", a.Key, v.IntValue))
 			falseConditions = append(falseConditions, fmt.Sprintf("%s.%v=%d", scope, a.Key, rand.Intn(1000)+20000))
 			falseConditions = append(falseConditions, fmt.Sprintf(".%v=%d", a.Key, rand.Intn(1000)+20000))
-		case *v1.AnyValue_DoubleValue:
+		case *v1_common.AnyValue_DoubleValue:
 			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v=%f", scope, a.Key, v.DoubleValue))
 			trueConditions = append(trueConditions, fmt.Sprintf(".%v=%f", a.Key, v.DoubleValue))
 			falseConditions = append(falseConditions, fmt.Sprintf("%s.%v=%f", scope, a.Key, rand.Float64()))
@@ -309,7 +313,7 @@ func runCompleteBlockSearchTest(t testing.TB, blockVersion string, runner runner
 	r.EnablePolling(&mockJobSharder{})
 	rw := r.(*readerWriter)
 
-	wantID, wantTr, start, end, wantMeta, searchesThatMatch, searchesThatDontMatch, _, _ := trace.SearchTestSuite()
+	wantID, wantTr, start, end, wantMeta, searchesThatMatch, searchesThatDontMatch := searchTestSuite()
 
 	// Write to wal
 	wal := w.WAL()
@@ -346,4 +350,265 @@ func runCompleteBlockSearchTest(t testing.TB, blockVersion string, runner runner
 	runner(wantTr, wantMeta, searchesThatMatch, searchesThatDontMatch, meta, rw)
 
 	// todo: do some compaction and then call runner again
+}
+
+func stringKV(k, v string) *v1_common.KeyValue {
+	return &v1_common.KeyValue{
+		Key:   k,
+		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: v}},
+	}
+}
+
+func intKV(k string, v int) *v1_common.KeyValue {
+	return &v1_common.KeyValue{
+		Key:   k,
+		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: int64(v)}},
+	}
+}
+
+// Helper function to make a tag search
+func makeReq(k, v string) *tempopb.SearchRequest {
+	return &tempopb.SearchRequest{
+		Tags: map[string]string{
+			k: v,
+		},
+	}
+}
+
+func addTraceQL(req *tempopb.SearchRequest) {
+	// todo: traceql concepts are different than search concepts. this code maps key/value pairs
+	// from search to traceql. we can clean this up after we drop old search and move these tests into
+	// the tempodb package.
+	traceqlConditions := []string{}
+	for k, v := range req.Tags {
+		traceqlKey := k
+		switch traceqlKey {
+		case "root.service.name":
+			traceqlKey = ".service.name"
+		case "root.name":
+			traceqlKey = "name"
+		case "name":
+		case "status.code":
+			traceqlKey = "status"
+		default:
+			traceqlKey = "." + traceqlKey
+		}
+
+		traceqlVal := v
+		switch traceqlKey {
+		case ".http.status_code":
+			break
+		case "status":
+			break
+		default:
+			traceqlVal = fmt.Sprintf(`"%s"`, v)
+		}
+		traceqlConditions = append(traceqlConditions, fmt.Sprintf("%s=%s", traceqlKey, traceqlVal))
+	}
+	if req.MaxDurationMs != 0 {
+		traceqlConditions = append(traceqlConditions, fmt.Sprintf("duration < %dms", req.MaxDurationMs))
+	}
+	if req.MinDurationMs != 0 {
+		traceqlConditions = append(traceqlConditions, fmt.Sprintf("duration > %dms", req.MinDurationMs))
+	}
+
+	req.Query = "{" + strings.Join(traceqlConditions, "&&") + "}"
+}
+
+// searchTestSuite returns a set of search test cases that ensure
+// search behavior is consistent across block types and modules.
+// The return parameters are:
+//   - trace ID
+//   - trace - a fully-populated trace that is searched for every condition. If testing a
+//     block format, then write this trace to the block.
+//   - start, end - the unix second start/end times for the trace, i.e. slack-adjusted timestamps
+//   - expected - The exact search result that should be returned for every matching request
+//   - searchesThatMatch - List of search requests that are expected to match the trace
+//   - searchesThatDontMatch - List of requests that don't match the trace
+func searchTestSuite() (
+	id []byte,
+	tr *tempopb.Trace,
+	start, end uint32,
+	expected *tempopb.TraceSearchMetadata,
+	searchesThatMatch []*tempopb.SearchRequest,
+	searchesThatDontMatch []*tempopb.SearchRequest,
+) {
+
+	id = test.ValidTraceID(nil)
+
+	start = 1000
+	end = 1001
+
+	tr = &tempopb.Trace{
+		Batches: []*v1.ResourceSpans{
+			{
+				Resource: &v1_resource.Resource{
+					Attributes: []*v1_common.KeyValue{
+						stringKV("service.name", "MyService"),
+						stringKV("cluster", "MyCluster"),
+						stringKV("namespace", "MyNamespace"),
+						stringKV("pod", "MyPod"),
+						stringKV("container", "MyContainer"),
+						stringKV("k8s.cluster.name", "k8sCluster"),
+						stringKV("k8s.namespace.name", "k8sNamespace"),
+						stringKV("k8s.pod.name", "k8sPod"),
+						stringKV("k8s.container.name", "k8sContainer"),
+						stringKV("bat", "Baz"),
+					},
+				},
+				ScopeSpans: []*v1.ScopeSpans{
+					{
+						Spans: []*v1.Span{
+							{
+								TraceId:           id,
+								Name:              "MySpan",
+								SpanId:            []byte{1, 2, 3},
+								ParentSpanId:      []byte{4, 5, 6},
+								StartTimeUnixNano: uint64(1000 * time.Second),
+								EndTimeUnixNano:   uint64(1001 * time.Second),
+								Status: &v1.Status{
+									Code: v1.Status_STATUS_CODE_ERROR,
+								},
+								Attributes: []*v1_common.KeyValue{
+									stringKV("http.method", "Get"),
+									stringKV("http.url", "url/Hello/World"),
+									intKV("http.status_code", 500),
+									stringKV("foo", "Bar"),
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				Resource: &v1_resource.Resource{
+					Attributes: []*v1_common.KeyValue{
+						stringKV("service.name", "RootService"),
+					},
+				},
+				ScopeSpans: []*v1.ScopeSpans{
+					{
+						Spans: []*v1.Span{
+							{
+								TraceId:           id,
+								Name:              "RootSpan",
+								StartTimeUnixNano: uint64(1000 * time.Second),
+								EndTimeUnixNano:   uint64(1001 * time.Second),
+								Status:            &v1.Status{},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	expected = &tempopb.TraceSearchMetadata{
+		TraceID:           util.TraceIDToHexString(id),
+		StartTimeUnixNano: uint64(1000 * time.Second),
+		DurationMs:        1000,
+		RootServiceName:   "RootService",
+		RootTraceName:     "RootSpan",
+	}
+
+	// Matches
+	searchesThatMatch = []*tempopb.SearchRequest{
+		{
+			// Empty request
+		},
+		{
+			MinDurationMs: 999,
+			MaxDurationMs: 1001,
+		},
+		{
+			Start: 1000,
+			End:   2000,
+		},
+		{
+			// Overlaps start
+			Start: 999,
+			End:   1001,
+		},
+		{
+			// Overlaps end
+			Start: 1001,
+			End:   1002,
+		},
+
+		// Well-known resource attributes
+		makeReq("service.name", "MyService"),
+		makeReq("cluster", "MyCluster"),
+		makeReq("namespace", "MyNamespace"),
+		makeReq("pod", "MyPod"),
+		makeReq("container", "MyContainer"),
+		makeReq("k8s.cluster.name", "k8sCluster"),
+		makeReq("k8s.namespace.name", "k8sNamespace"),
+		makeReq("k8s.pod.name", "k8sPod"),
+		makeReq("k8s.container.name", "k8sContainer"),
+		makeReq("root.service.name", "RootService"),
+		makeReq("root.name", "RootSpan"),
+
+		// Well-known span attributes
+		makeReq("name", "MySpan"),
+		makeReq("http.method", "Get"),
+		makeReq("http.url", "url/Hello/World"),
+		makeReq("http.status_code", "500"),
+		makeReq("status.code", "error"),
+
+		// Span attributes
+		makeReq("foo", "Bar"),
+		// Resource attributes
+		makeReq("bat", "Baz"),
+
+		// Multiple
+		{
+			Tags: map[string]string{
+				"service.name": "MyService",
+				"http.method":  "Get",
+				"foo":          "Bar",
+			},
+		},
+	}
+
+	// Excludes
+	searchesThatDontMatch = []*tempopb.SearchRequest{
+		{
+			MinDurationMs: 1001,
+		},
+		{
+			MaxDurationMs: 999,
+		},
+		{
+			Start: 100,
+			End:   200,
+		},
+
+		// Well-known resource attributes
+		makeReq("service.name", "service"), // wrong case
+		makeReq("cluster", "cluster"),      // wrong case
+		makeReq("namespace", "namespace"),  // wrong case
+		makeReq("pod", "pod"),              // wrong case
+		makeReq("container", "container"),  // wrong case
+
+		// Well-known span attributes
+		makeReq("http.method", "post"),
+		makeReq("http.url", "asdf"),
+		makeReq("http.status_code", "200"),
+		makeReq("status.code", "ok"),
+		makeReq("root.service.name", "NotRootService"),
+		makeReq("root.name", "NotRootSpan"),
+
+		// Span attributes
+		makeReq("foo", "baz"), // wrong case
+	}
+
+	// add traceql to all searches
+	for _, req := range searchesThatDontMatch {
+		addTraceQL(req)
+	}
+	for _, req := range searchesThatMatch {
+		addTraceQL(req)
+	}
+
+	return
 }
