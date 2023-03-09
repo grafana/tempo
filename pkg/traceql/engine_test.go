@@ -43,7 +43,7 @@ func TestEngine_Execute(t *testing.T) {
 						&mockSpan{
 							id:                 []byte{2},
 							startTimeUnixNanos: uint64(now.UnixNano()),
-							endTimeUnixNanos:   uint64(now.Add(100 * time.Millisecond).UnixNano()),
+							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
 							attributes: map[Attribute]Static{
 								NewAttribute("foo"): NewStaticString("value"),
 								NewAttribute("bar"): NewStaticString("value"),
@@ -154,7 +154,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 			&mockSpan{
 				id:                 spanID1,
 				startTimeUnixNanos: uint64(now.UnixNano()),
-				endTimeUnixNanos:   uint64(now.Add(10 * time.Second).UnixNano()),
+				durationNanos:      uint64((10 * time.Second).Nanoseconds()),
 				attributes: map[Attribute]Static{
 					NewIntrinsic(IntrinsicName):     NewStaticString("HTTP GET"),
 					NewIntrinsic(IntrinsicStatus):   NewStaticStatus(StatusOk),
@@ -169,7 +169,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 			&mockSpan{
 				id:                 spanID2,
 				startTimeUnixNanos: uint64(now.Add(2 * time.Second).UnixNano()),
-				endTimeUnixNanos:   uint64(now.Add(20 * time.Second).UnixNano()),
+				durationNanos:      uint64((20 * time.Second).Nanoseconds()),
 				attributes:         map[Attribute]Static{},
 			},
 		},
@@ -247,7 +247,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 				{
 					SpanID:            util.SpanIDToHexString(spanID2),
 					StartTimeUnixNano: uint64(now.Add(2 * time.Second).UnixNano()),
-					DurationNanos:     18_000_000_000,
+					DurationNanos:     20_000_000_000,
 					Attributes:        nil,
 				},
 			},

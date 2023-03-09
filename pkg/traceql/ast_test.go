@@ -236,7 +236,7 @@ var _ Span = (*mockSpan)(nil)
 type mockSpan struct {
 	id                 []byte
 	startTimeUnixNanos uint64
-	endTimeUnixNanos   uint64
+	durationNanos      uint64
 	attributes         map[Attribute]Static
 }
 
@@ -249,6 +249,6 @@ func (m *mockSpan) ID() []byte {
 func (m *mockSpan) StartTimeUnixNanos() uint64 {
 	return m.startTimeUnixNanos
 }
-func (m *mockSpan) EndTimeUnixNanos() uint64 {
-	return m.endTimeUnixNanos
+func (m *mockSpan) DurationNanos() uint64 {
+	return m.durationNanos
 }
