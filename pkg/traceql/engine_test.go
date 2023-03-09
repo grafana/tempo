@@ -34,17 +34,17 @@ func TestEngine_Execute(t *testing.T) {
 					RootSpanName:    "HTTP GET",
 					RootServiceName: "my-service",
 					Spans: []Span{
-						{
-							ID: []byte{1},
-							Attributes: map[Attribute]Static{
+						&mockSpan{
+							id: []byte{1},
+							attributes: map[Attribute]Static{
 								NewAttribute("foo"): NewStaticString("value"),
 							},
 						},
-						{
-							ID:                 []byte{2},
-							StartTimeUnixNanos: uint64(now.UnixNano()),
-							EndtimeUnixNanos:   uint64(now.Add(100 * time.Millisecond).UnixNano()),
-							Attributes: map[Attribute]Static{
+						&mockSpan{
+							id:                 []byte{2},
+							startTimeUnixNanos: uint64(now.UnixNano()),
+							endTimeUnixNanos:   uint64(now.Add(100 * time.Millisecond).UnixNano()),
+							attributes: map[Attribute]Static{
 								NewAttribute("foo"): NewStaticString("value"),
 								NewAttribute("bar"): NewStaticString("value"),
 							},
@@ -56,9 +56,9 @@ func TestEngine_Execute(t *testing.T) {
 					RootSpanName:    "HTTP POST",
 					RootServiceName: "my-service",
 					Spans: []Span{
-						{
-							ID: []byte{3},
-							Attributes: map[Attribute]Static{
+						&mockSpan{
+							id: []byte{3},
+							attributes: map[Attribute]Static{
 								NewAttribute("bar"): NewStaticString("value"),
 							},
 						},
@@ -78,6 +78,7 @@ func TestEngine_Execute(t *testing.T) {
 		},
 		AllConditions: true,
 	}
+	spanSetFetcher.capturedRequest.Filter = nil // have to set this to nil b/c assert.Equal does not handle function pointers
 	assert.Equal(t, expectedFetchSpansRequest, spanSetFetcher.capturedRequest)
 
 	expectedTraceSearchMetadata := []*tempopb.TraceSearchMetadata{
@@ -135,6 +136,38 @@ func TestEngine_Execute(t *testing.T) {
 	assert.Equal(t, expectedTraceSearchMetadata, response.Traces)
 }
 
+func TestEngine_ReleasesOnDrop(t *testing.T) {
+	e := Engine{}
+
+	req := &tempopb.SearchRequest{
+		Query: `{ false }`,
+	}
+	span := &mockSpan{}
+	spanSetFetcher := MockSpanSetFetcher{
+		iterator: &MockSpanSetIterator{
+			results: []*Spanset{
+				{
+					Spans: []Span{span},
+				},
+			},
+		},
+	}
+
+	// should release because all spans dropped
+	_, err := e.Execute(context.Background(), req, &spanSetFetcher)
+	require.NoError(t, err)
+	require.True(t, span.wasReleased)
+
+	// reset
+	req.Query = `{ true }`
+	span.wasReleased = false
+
+	// should keep because some spans kept
+	_, err = e.Execute(context.Background(), req, &spanSetFetcher)
+	require.NoError(t, err)
+	require.False(t, span.wasReleased)
+}
+
 func TestEngine_asTraceSearchMetadata(t *testing.T) {
 	now := time.Now()
 
@@ -143,18 +176,18 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 	spanID1 := traceID[:8]
 	spanID2 := traceID[8:]
 
-	spanSet := Spanset{
+	spanSet := &Spanset{
 		TraceID:            traceID,
 		RootServiceName:    "my-service",
 		RootSpanName:       "HTTP GET",
 		StartTimeUnixNanos: 1000,
 		DurationNanos:      uint64(time.Second.Nanoseconds()),
 		Spans: []Span{
-			{
-				ID:                 spanID1,
-				StartTimeUnixNanos: uint64(now.UnixNano()),
-				EndtimeUnixNanos:   uint64(now.Add(10 * time.Second).UnixNano()),
-				Attributes: map[Attribute]Static{
+			&mockSpan{
+				id:                 spanID1,
+				startTimeUnixNanos: uint64(now.UnixNano()),
+				endTimeUnixNanos:   uint64(now.Add(10 * time.Second).UnixNano()),
+				attributes: map[Attribute]Static{
 					NewIntrinsic(IntrinsicName):     NewStaticString("HTTP GET"),
 					NewIntrinsic(IntrinsicStatus):   NewStaticStatus(StatusOk),
 					NewAttribute("cluster"):         NewStaticString("prod"),
@@ -164,11 +197,11 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 					NewIntrinsic(IntrinsicDuration): NewStaticDuration(10 * time.Second),
 				},
 			},
-			{
-				ID:                 spanID2,
-				StartTimeUnixNanos: uint64(now.Add(2 * time.Second).UnixNano()),
-				EndtimeUnixNanos:   uint64(now.Add(20 * time.Second).UnixNano()),
-				Attributes:         map[Attribute]Static{},
+			&mockSpan{
+				id:                 spanID2,
+				startTimeUnixNanos: uint64(now.Add(2 * time.Second).UnixNano()),
+				endTimeUnixNanos:   uint64(now.Add(20 * time.Second).UnixNano()),
+				attributes:         map[Attribute]Static{},
 			},
 		},
 	}
@@ -261,6 +294,7 @@ var _ = (SpansetFetcher)(&MockSpanSetFetcher{})
 
 func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	m.capturedRequest = request
+	m.iterator.(*MockSpanSetIterator).filter = request.Filter
 	return FetchSpansResponse{
 		Results: m.iterator,
 	}, nil
@@ -268,6 +302,7 @@ func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansReques
 
 type MockSpanSetIterator struct {
 	results []*Spanset
+	filter  FilterSpans
 }
 
 func (m *MockSpanSetIterator) Next(ctx context.Context) (*Spanset, error) {
@@ -276,8 +311,20 @@ func (m *MockSpanSetIterator) Next(ctx context.Context) (*Spanset, error) {
 	}
 	r := m.results[0]
 	m.results = m.results[1:]
+
+	ss, err := m.filter(r)
+	if err != nil {
+		return nil, err
+	}
+	if len(ss) == 0 {
+		return nil, nil
+	}
+
+	r.Spans = r.Spans[len(ss):]
 	return r, nil
 }
+
+func (m *MockSpanSetIterator) Close() {}
 
 func newCondition(attr Attribute, op Operator, operands ...Static) Condition {
 	return Condition{

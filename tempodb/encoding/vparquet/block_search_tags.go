@@ -199,7 +199,7 @@ func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attrib
 	}
 	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
-	return searchTagValues(ctx, tag, cb, pf)
+	return searchTagValues(derivedCtx, tag, cb, pf)
 }
 
 func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, pf *parquet.File) error {

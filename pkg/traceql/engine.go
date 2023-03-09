@@ -3,6 +3,7 @@ package traceql
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -36,49 +37,65 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 	span.SetTag("pipeline", rootExpr.Pipeline)
 	span.SetTag("fetchSpansRequest", fetchSpansRequest)
 
+	spansetsEvaluated := 0
+	// set up the expression evaluation as a filter to reduce data pulled
+	fetchSpansRequest.Filter = func(inSS *Spanset) ([]*Spanset, error) {
+		if len(inSS.Spans) == 0 {
+			return nil, nil
+		}
+
+		evalSS, err := rootExpr.Pipeline.evaluate([]*Spanset{inSS})
+		if err != nil {
+			span.LogKV("msg", "pipeline.evaluate", "err", err)
+			return nil, err
+		}
+
+		spansetsEvaluated++
+		if len(evalSS) == 0 {
+			// this is an easy place to release. the engine rejected every single span. just release
+			// them all back to the fetch layer
+			for _, s := range inSS.Spans {
+				s.Release()
+			}
+
+			return nil, nil
+		}
+
+		// reduce all evalSS to their max length to reduce meta data lookups
+		for i := range evalSS {
+			if len(evalSS[i].Spans) > e.spansPerSpanSet {
+				evalSS[i].Spans = evalSS[i].Spans[:e.spansPerSpanSet]
+			}
+		}
+
+		return evalSS, nil
+	}
+
 	fetchSpansResponse, err := spanSetFetcher.Fetch(ctx, fetchSpansRequest)
 	if err != nil {
 		return nil, err
 	}
 	iterator := fetchSpansResponse.Results
+	defer iterator.Close()
 
 	res := &tempopb.SearchResponse{
 		Traces: nil,
 		// TODO capture and update metrics
 		Metrics: &tempopb.SearchMetrics{},
 	}
-
-	spansetsEvaluated := 0
-
-iter:
 	for {
-		spanSet, err := iterator.Next(ctx)
-		if err != nil {
+		spanset, err := iterator.Next(ctx)
+		if err != nil && err != io.EOF {
 			span.LogKV("msg", "iterator.Next", "err", err)
 			return nil, err
 		}
-
-		if spanSet == nil {
+		if spanset == nil {
 			break
 		}
+		res.Traces = append(res.Traces, e.asTraceSearchMetadata(spanset))
 
-		ss, err := rootExpr.Pipeline.evaluate([]Spanset{*spanSet})
-		if err != nil {
-			span.LogKV("msg", "pipeline.evaluate", "err", err)
-			return nil, err
-		}
-		spansetsEvaluated++
-
-		if len(ss) == 0 {
-			continue
-		}
-
-		for _, spanSet := range ss {
-			res.Traces = append(res.Traces, e.asTraceSearchMetadata(spanSet))
-
-			if len(res.Traces) == int(searchReq.Limit) {
-				break iter
-			}
+		if len(res.Traces) >= int(searchReq.Limit) && searchReq.Limit > 0 {
+			break
 		}
 	}
 
@@ -112,7 +129,7 @@ func (e *Engine) createFetchSpansRequest(searchReq *tempopb.SearchRequest, pipel
 	return req
 }
 
-func (e *Engine) asTraceSearchMetadata(spanset Spanset) *tempopb.TraceSearchMetadata {
+func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
 	metadata := &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(spanset.TraceID),
 		RootServiceName:   spanset.RootServiceName,
@@ -126,17 +143,19 @@ func (e *Engine) asTraceSearchMetadata(spanset Spanset) *tempopb.TraceSearchMeta
 
 	for _, span := range spanset.Spans {
 		tempopbSpan := &tempopb.Span{
-			SpanID:            util.SpanIDToHexString(span.ID),
-			StartTimeUnixNano: span.StartTimeUnixNanos,
-			DurationNanos:     span.EndtimeUnixNanos - span.StartTimeUnixNanos,
+			SpanID:            util.SpanIDToHexString(span.ID()),
+			StartTimeUnixNano: span.StartTimeUnixNanos(),
+			DurationNanos:     span.EndtimeUnixNanos() - span.StartTimeUnixNanos(),
 			Attributes:        nil,
 		}
 
-		if name, ok := span.Attributes[NewIntrinsic(IntrinsicName)]; ok {
+		atts := span.Attributes()
+
+		if name, ok := atts[NewIntrinsic(IntrinsicName)]; ok {
 			tempopbSpan.Name = name.S
 		}
 
-		for attribute, static := range span.Attributes {
+		for attribute, static := range atts {
 			if attribute.Intrinsic == IntrinsicName || attribute.Intrinsic == IntrinsicDuration {
 				continue
 			}
@@ -152,10 +171,6 @@ func (e *Engine) asTraceSearchMetadata(spanset Spanset) *tempopb.TraceSearchMeta
 		}
 
 		metadata.SpanSet.Spans = append(metadata.SpanSet.Spans, tempopbSpan)
-
-		if e.spansPerSpanSet != 0 && len(metadata.SpanSet.Spans) == e.spansPerSpanSet {
-			break
-		}
 	}
 
 	return metadata
