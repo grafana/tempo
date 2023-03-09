@@ -7,7 +7,7 @@ weight: 75
 # Apache Parquet block format
 
 
-Tempo has a default columnar block format based on Apache Parquet. Tags based search as well as [TraceQL]({{< relref "../traceql" >}}), the query language for traces, requires Parquet.
+Tempo has a default columnar block format based on Apache Parquet. Parquet is required for tags-based search as well as [TraceQL]({{< relref "../traceql" >}}), the query language for traces.
 
 A columnar block format may result in improved search performance and also enables a large ecosystem of tools access to the underlying trace data. For example, you can use `parquet-tools` to [query Parquet data]({{< relref "../operations/parquet" >}}).
 
