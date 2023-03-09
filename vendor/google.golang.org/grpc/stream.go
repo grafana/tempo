@@ -39,7 +39,6 @@ import (
 	imetadata "google.golang.org/grpc/internal/metadata"
 	iresolver "google.golang.org/grpc/internal/resolver"
 	"google.golang.org/grpc/internal/serviceconfig"
-	istatus "google.golang.org/grpc/internal/status"
 	"google.golang.org/grpc/internal/transport"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
@@ -196,13 +195,6 @@ func newClientStream(ctx context.Context, desc *StreamDesc, cc *ClientConn, meth
 	rpcInfo := iresolver.RPCInfo{Context: ctx, Method: method}
 	rpcConfig, err := cc.safeConfigSelector.SelectConfig(rpcInfo)
 	if err != nil {
-		if st, ok := status.FromError(err); ok {
-			// Restrict the code to the list allowed by gRFC A54.
-			if istatus.IsRestrictedControlPlaneCode(st) {
-				err = status.Errorf(codes.Internal, "config selector returned illegal status: %v", err)
-			}
-			return nil, err
-		}
 		return nil, toRPCErr(err)
 	}
 
@@ -416,7 +408,7 @@ func (cs *clientStream) newAttemptLocked(isTransparent bool) (*csAttempt, error)
 		ctx = trace.NewContext(ctx, trInfo.tr)
 	}
 
-	if cs.cc.parsedTarget.URL.Scheme == "xds" {
+	if cs.cc.parsedTarget.Scheme == "xds" {
 		// Add extra metadata (metadata that will be added by transport) to context
 		// so the balancer can see them.
 		ctx = grpcutil.WithExtraMetadata(ctx, metadata.Pairs(
@@ -438,7 +430,7 @@ func (a *csAttempt) getTransport() error {
 	cs := a.cs
 
 	var err error
-	a.t, a.pickResult, err = cs.cc.getTransport(a.ctx, cs.callInfo.failFast, cs.callHdr.Method)
+	a.t, a.done, err = cs.cc.getTransport(a.ctx, cs.callInfo.failFast, cs.callHdr.Method)
 	if err != nil {
 		if de, ok := err.(dropError); ok {
 			err = de.error
@@ -455,25 +447,6 @@ func (a *csAttempt) getTransport() error {
 func (a *csAttempt) newStream() error {
 	cs := a.cs
 	cs.callHdr.PreviousAttempts = cs.numRetries
-
-	// Merge metadata stored in PickResult, if any, with existing call metadata.
-	// It is safe to overwrite the csAttempt's context here, since all state
-	// maintained in it are local to the attempt. When the attempt has to be
-	// retried, a new instance of csAttempt will be created.
-	if a.pickResult.Metatada != nil {
-		// We currently do not have a function it the metadata package which
-		// merges given metadata with existing metadata in a context. Existing
-		// function `AppendToOutgoingContext()` takes a variadic argument of key
-		// value pairs.
-		//
-		// TODO: Make it possible to retrieve key value pairs from metadata.MD
-		// in a form passable to AppendToOutgoingContext(), or create a version
-		// of AppendToOutgoingContext() that accepts a metadata.MD.
-		md, _ := metadata.FromOutgoingContext(a.ctx)
-		md = metadata.Join(md, a.pickResult.Metatada)
-		a.ctx = metadata.NewOutgoingContext(a.ctx, md)
-	}
-
 	s, err := a.t.NewStream(a.ctx, cs.callHdr)
 	if err != nil {
 		nse, ok := err.(*transport.NewStreamError)
@@ -548,12 +521,12 @@ type clientStream struct {
 // csAttempt implements a single transport stream attempt within a
 // clientStream.
 type csAttempt struct {
-	ctx        context.Context
-	cs         *clientStream
-	t          transport.ClientTransport
-	s          *transport.Stream
-	p          *parser
-	pickResult balancer.PickResult
+	ctx  context.Context
+	cs   *clientStream
+	t    transport.ClientTransport
+	s    *transport.Stream
+	p    *parser
+	done func(balancer.DoneInfo)
 
 	finished  bool
 	dc        Decompressor
@@ -771,25 +744,17 @@ func (cs *clientStream) withRetry(op func(a *csAttempt) error, onSuccess func())
 
 func (cs *clientStream) Header() (metadata.MD, error) {
 	var m metadata.MD
-	noHeader := false
 	err := cs.withRetry(func(a *csAttempt) error {
 		var err error
 		m, err = a.s.Header()
-		if err == transport.ErrNoHeaders {
-			noHeader = true
-			return nil
-		}
 		return toRPCErr(err)
 	}, cs.commitAttemptLocked)
-
 	if err != nil {
 		cs.finish(err)
 		return nil, err
 	}
-
-	if len(cs.binlogs) != 0 && !cs.serverHeaderBinlogged && !noHeader {
-		// Only log if binary log is on and header has not been logged, and
-		// there is actually headers to log.
+	if len(cs.binlogs) != 0 && !cs.serverHeaderBinlogged {
+		// Only log if binary log is on and header has not been logged.
 		logEntry := &binarylog.ServerHeader{
 			OnClientSide: true,
 			Header:       m,
@@ -1122,12 +1087,12 @@ func (a *csAttempt) finish(err error) {
 		tr = a.s.Trailer()
 	}
 
-	if a.pickResult.Done != nil {
+	if a.done != nil {
 		br := false
 		if a.s != nil {
 			br = a.s.BytesReceived()
 		}
-		a.pickResult.Done(balancer.DoneInfo{
+		a.done(balancer.DoneInfo{
 			Err:           err,
 			Trailer:       tr,
 			BytesSent:     a.s != nil,
@@ -1483,9 +1448,6 @@ type ServerStream interface {
 	// It is safe to have a goroutine calling SendMsg and another goroutine
 	// calling RecvMsg on the same stream at the same time, but it is not safe
 	// to call SendMsg on the same stream in different goroutines.
-	//
-	// It is not safe to modify the message after calling SendMsg. Tracing
-	// libraries and stats handlers may use the message lazily.
 	SendMsg(m interface{}) error
 	// RecvMsg blocks until it receives a message into m or the stream is
 	// done. It returns io.EOF when the client has performed a CloseSend. On

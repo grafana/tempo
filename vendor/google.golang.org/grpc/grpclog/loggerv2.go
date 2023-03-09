@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
@@ -139,9 +140,9 @@ func newLoggerV2WithConfig(infoW, warningW, errorW io.Writer, c loggerV2Config) 
 // newLoggerV2 creates a loggerV2 to be used as default logger.
 // All logs are written to stderr.
 func newLoggerV2() LoggerV2 {
-	errorW := io.Discard
-	warningW := io.Discard
-	infoW := io.Discard
+	errorW := ioutil.Discard
+	warningW := ioutil.Discard
+	infoW := ioutil.Discard
 
 	logLevel := os.Getenv("GRPC_GO_LOG_SEVERITY_LEVEL")
 	switch logLevel {
@@ -241,7 +242,7 @@ func (g *loggerT) V(l int) bool {
 // DepthLoggerV2, the below functions will be called with the appropriate stack
 // depth set for trivial functions the logger may ignore.
 //
-// # Experimental
+// Experimental
 //
 // Notice: This type is EXPERIMENTAL and may be changed or removed in a
 // later release.

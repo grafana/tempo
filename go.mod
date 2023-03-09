@@ -72,7 +72,7 @@ require (
 	github.com/stretchr/testify v1.8.1
 	github.com/uber-go/atomic v1.4.0
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
-	github.com/weaveworks/common v0.0.0-20221201103051-7c2720a9024d
+	github.com/weaveworks/common v0.0.0-20230208133027-16871410fca4
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.24.0
 	go.opentelemetry.io/collector v0.71.0
@@ -331,6 +331,7 @@ require (
 
 replace (
 	github.com/bradfitz/gomemcache => github.com/themihai/gomemcache v0.0.0-20180902122335-24332e2d58ab
+	google.golang.org/grpc => google.golang.org/grpc v1.50.1
 	k8s.io/api => k8s.io/api v0.25.0
 	k8s.io/client-go => k8s.io/client-go v0.25.0
 )
