@@ -279,6 +279,13 @@ func (i *spansetIterator) Next() (*span, error) {
 			if err != nil {
 				return nil, err
 			}
+			// if the filter removed all spansets then let's release all back to the pool
+			// no reason to try anything more nuanced than this. it will handle nearly all cases
+			if len(filteredSpansets) == 0 {
+				for _, s := range spanset.Spans {
+					putSpan(s.(*span))
+				}
+			}
 		} else {
 			filteredSpansets = []*traceql.Spanset{spanset}
 		}
