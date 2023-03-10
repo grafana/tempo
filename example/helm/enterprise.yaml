@@ -46,7 +46,7 @@ distributor:
 
 license:
   # Use a a secret that you create, or...
-  # kubectl create secret generic tempo-license --from-file=/home/zach/go/src/github.com/grafana/enterprise-traces/development/fixtures/license.jwt
+  # kubectl create secret generic tempo-license --from-file=license.jwt
   external: true
   # ...specify the license contents here.
   # contents: |
