@@ -149,7 +149,7 @@ multitenancyEnabled: true
 enterprise:
   enabled: true
   image:
-    tag: weekly-r83-4e9cb510
+    tag: v2.0.1
 enterpriseGateway:
   enabled: true
 gateway:
