@@ -92,6 +92,11 @@ kubens tempo-test
 
 Your Helm chart values are set in the `custom.yaml` file. The following example `custom.yaml` file sets the storage and traces options, enables the gateway, and sets the cluster to main. The `traces` configure the distributor's receiver protocols.
 
+Next, you will:
+
+1. Create a `custom.yaml` file
+2. Set your storage values, the example above points to the MinIO instance configured by the chart
+3. Set your traces values to configure the receivers on the Tempo distributor
 ### Tempo helm chart values
 
 ```yaml
