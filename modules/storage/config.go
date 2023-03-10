@@ -69,6 +69,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.Var(&cfg.Trace.Azure.StorageAccountKey, util.PrefixConfig(prefix, "trace.azure.storage_account_key"), "Azure storage access key.")
 	f.StringVar(&cfg.Trace.Azure.ContainerName, util.PrefixConfig(prefix, "trace.azure.container_name"), "", "Azure container name to store blocks in.")
 	f.StringVar(&cfg.Trace.Azure.Endpoint, util.PrefixConfig(prefix, "trace.azure.endpoint"), "blob.core.windows.net", "Azure endpoint to push blocks to.")
+	f.StringVar(&cfg.Trace.Azure.Environment, util.PrefixConfig(prefix, "trace.azure.environment"), "AzureGlobal", "Azure Cloud environment")
 	f.IntVar(&cfg.Trace.Azure.MaxBuffers, util.PrefixConfig(prefix, "trace.azure.max_buffers"), 4, "Number of simultaneous uploads.")
 	cfg.Trace.Azure.BufferSize = 3 * 1024 * 1024
 	cfg.Trace.Azure.HedgeRequestsUpTo = 2

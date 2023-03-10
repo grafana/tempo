@@ -698,6 +698,12 @@ storage:
             # Azure German(blob.core.cloudapi.de), Azure US Government(blob.core.usgovcloudapi.net).
             [endpoint_suffix: <string>]
 
+            # optional.
+            # Azure Cloud environment. Supported values are: AzureGlobal,
+            # AzureChinaCloud, AzureGermanCloud, AzureUSGovernment.
+            # Used by Azure Workload Identity.
+            [environment: <string> | default = "AzureGlobal"]
+
             # Name of the azure storage account
             [storage_account_name: <string>]
 
@@ -708,6 +714,13 @@ storage:
             # optional.
             # use Azure Managed Identity to access Azure storage.
             [use_managed_identity: <bool>]
+
+            # optional.
+            # Use a Federated Token to authenticate to the Azure storage account.
+            # Enable if you want to use Azure Workload Identity. Expects AZURE_CLIENT_ID,
+            # AZURE_TENANT_ID and AZURE_FEDERATED_TOKEN_FILE envs to be present (set automatically
+            # when using Azure Workload Identity).
+            [use_federated_token: <boolean> | default = false]
 
             # optional.
             # The Client ID for the user-assigned Azure Managed Identity used to access Azure storage.
