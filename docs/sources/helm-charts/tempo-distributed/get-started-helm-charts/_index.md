@@ -470,4 +470,4 @@ The next step is to test your Tempo installation by sending trace data to Grafan
 If you already have Grafana available, you can add a Tempo data source using the URL fitting to your environment. For example:
 `http://tempo-query-frontend.trace-test.svc.cluster.local:3100`
 
-Enterprise users may wish to install the Enterprise Traces plugin in their Enterprise Grafana instance to allow configuration of tenants, tokens, and access policies. Once a user, and access policy have been created using the plugin, a datasource can be configured to point at `http://tempo-enterprise-gateway.tempo-test.svc.cluster.local:3100`.
+Enterprise users may wish to [install the Enterprise Traces plugin](https://grafana.com/docs/enterprise-traces/latest/setup/setup-get-plugin-grafana/) in their Grafana Enterprise instance to allow configuration of tenants, tokens, and access policies. Once a user, and access policy have been created using the plugin, a datasource can be configured to point at `http://tempo-enterprise-gateway.tempo-test.svc.cluster.local:3100`.
