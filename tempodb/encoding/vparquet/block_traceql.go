@@ -523,6 +523,15 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 			columnSelectAs[columnPathSpanName] = columnPathSpanName
 			continue
 
+		case traceql.IntrinsicKind:
+			pred, err := createStatusKindPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, false, err
+			}
+			addPredicate(columnPathSpanKind, pred)
+			columnSelectAs[columnPathSpanKind] = columnPathSpanKind
+			continue
+
 		case traceql.IntrinsicDuration:
 			spanStartEndRetreived = true
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
@@ -537,7 +546,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 			continue
 
 		case traceql.IntrinsicStatus:
-			pred, err := createStatusPredicate(cond.Op, cond.Operands)
+			pred, err := createStatusKindPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, false, err
 			}
@@ -624,7 +633,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 	//  how do we know to pull duration for things like | avg(duration) > 1s? look at avg(span.http.status_code) it pushes a column request down here
 	//  the entire engine is built around spans. we have to return at least one entry for every span to the layers above for things to work
 	if len(required) == 0 {
-		required = []parquetquery.Iterator{makeIter(columnPathSpanKind, nil, "")}
+		required = []parquetquery.Iterator{makeIter(columnPathSpanKind, nil, "")} // jpe how does this interact with the kind specified above?
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
@@ -856,17 +865,20 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (*parque
 	return parquetquery.NewIntPredicate(fn, rangeFn), nil
 }
 
-func createStatusPredicate(op traceql.Operator, operands traceql.Operands) (*parquetquery.GenericPredicate[int64], error) {
+// jpe - ask grafana to support kind in autocomplete
+func createStatusKindPredicate(op traceql.Operator, operands traceql.Operands) (*parquetquery.GenericPredicate[int64], error) {
 	if op == traceql.OpNone {
 		return nil, nil
 	}
 
 	var i int64
-	switch operands[0].Type {
+	switch operands[0].Type { // jpe why only checking 0?
 	case traceql.TypeInt:
 		i = int64(operands[0].N)
 	case traceql.TypeStatus:
-		i = int64(StatusCodeMapping[operands[0].Status.String()])
+		i = int64(StatusCodeMapping[operands[0].Status.String()]) // jpe ok to combine these?
+	case traceql.TypeKind:
+		i = int64(KindMapping[operands[0].Kind.String()]) // jpe what happens when this lookup fails?
 	default:
 		return nil, fmt.Errorf("operand is not int or status: %+v", operands[0])
 	}
@@ -1107,8 +1119,25 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 				status = traceql.Status(kv.Value.Uint64())
 			}
 			span.attributes[traceql.NewIntrinsic(traceql.IntrinsicStatus)] = traceql.NewStaticStatus(status)
-		case columnPathSpanKind:
-			span.attributes[newSpanAttr(columnPathSpanKind)] = traceql.NewStaticInt(int(kv.Value.Int64()))
+		case columnPathSpanKind: // jpe test? better place to put these switch mappings?
+			var kind traceql.Kind
+			switch kv.Value.Uint64() {
+			case uint64(v1.Span_SPAN_KIND_UNSPECIFIED):
+				kind = traceql.KindUnspecified
+			case uint64(v1.Span_SPAN_KIND_INTERNAL):
+				kind = traceql.KindInternal
+			case uint64(v1.Span_SPAN_KIND_SERVER):
+				kind = traceql.KindServer
+			case uint64(v1.Span_SPAN_KIND_CLIENT):
+				kind = traceql.KindClient
+			case uint64(v1.Span_SPAN_KIND_PRODUCER):
+				kind = traceql.KindProducer
+			case uint64(v1.Span_SPAN_KIND_CONSUMER):
+				kind = traceql.KindConsumer
+			default:
+				kind = traceql.Kind(kv.Value.Uint64())
+			}
+			span.attributes[traceql.NewIntrinsic(traceql.IntrinsicKind)] = traceql.NewStaticKind(kind)
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?

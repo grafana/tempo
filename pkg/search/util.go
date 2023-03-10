@@ -28,7 +28,7 @@ func GetVirtualTagValues(tagName string) []string {
 	return nil
 }
 
-func GetVirtualTagValuesV2(tagName string) []tempopb.TagValue {
+func GetVirtualTagValuesV2(tagName string) []tempopb.TagValue { // jpe - where do i add kind?
 
 	switch tagName {
 	case traceql.IntrinsicStatus.String():
