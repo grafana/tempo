@@ -1,63 +1,26 @@
+---
+global:
+  clusterDomain: 'cluster.local'
+gateway:
+  enabled: true
+minio:
+  enabled: true
+storage:
+  trace:
+    backend: s3
+    s3:
+      access_key: 'grafana-tempo'
+      secret_key: 'supersecret'
+      bucket: 'tempo-traces'
+      endpoint: 'tempo-minio:9000'
+      insecure: true
 traces:
-  jaeger:
-    thriftHttp:
+  otlp:
+    http:
       enabled: true
-config: |
-  query_frontend:
-    search:
-      max_duration: 0
-  multitenancy_enabled: false
-  compactor:
-    compaction:
-      block_retention: 1440h
-  distributor:
-    receivers:
-      jaeger:
-        protocols:
-          thrift_compact:
-            endpoint: 0.0.0.0:6831
-          thrift_binary:
-            endpoint: 0.0.0.0:6832
-          thrift_http:
-            endpoint: 0.0.0.0:14268
-          grpc:
-            endpoint: 0.0.0.0:14250
-      otlp:
-        protocols:
-          http:
-            endpoint: 0.0.0.0:55681
-          grpc:
-            endpoint: 0.0.0.0:4317
-  querier:
-    frontend_worker:
-      frontend_address: tempo-tempo-distributed-query-frontend-discovery:9095
-  ingester:
-    lifecycler:
-      ring:
-        replication_factor: 1
-        kvstore:
-          store: memberlist
-      tokens_file_path: /var/tempo/tokens.json
-  memberlist:
-    abort_if_cluster_join_fails: false
-    join_members:
-      - tempo-tempo-distributed-gossip-ring
-  overrides:
-    per_tenant_override_config: /conf/overrides.yaml
-  server:
-    http_listen_port: 3100
-    log_level: info
-    grpc_server_max_recv_msg_size: 4.194304e+06
-    grpc_server_max_send_msg_size: 4.194304e+06
-  storage:
-    trace:
-      backend: s3
-      s3:
-        bucket: tempo
-        endpoint: minio:9000
-        access_key: tempo
-        secret_key: supersecret
-        insecure: true
-      blocklist_poll: 5m
-      wal:
-        path: /var/tempo/wal
+    grpc:
+      enabled: true
+distributor:
+  config:
+    log_received_spans:
+      enabled: true
