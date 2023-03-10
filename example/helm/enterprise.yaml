@@ -6,7 +6,7 @@ multitenancyEnabled: true
 enterprise:
   enabled: true
   image:
-    tag: weekly-r83-4e9cb510
+    tag: v2.0.1
 enterpriseGateway:
   enabled: true
 gateway:
@@ -45,5 +45,9 @@ distributor:
       enabled: true
 
 license:
-  contents: |
-    LICENSEGOESHERE
+  # Use a a secret that you create, or...
+  # kubectl create secret generic tempo-license --from-file=/home/zach/go/src/github.com/grafana/enterprise-traces/development/fixtures/license.jwt
+  external: true
+  # ...specify the license contents here.
+  # contents: |
+  #   LICENSEGOESHERE
