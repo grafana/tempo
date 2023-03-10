@@ -1,18 +1,3 @@
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  annotations:
-    ingress.kubernetes.io/ssl-redirect: "false"
-  name: ingress
-  namespace: default
-spec:
-  rules:
-  - http:
-      paths:
-      - backend:
-          serviceName: grafana
-          servicePort: 80
-        path: /
 ---
 apiVersion: v1
 data:
@@ -672,63 +657,18 @@ spec:
         name: synthetic-load-generator
     spec:
       containers:
-      - env:
-        - name: JAEGER_COLLECTOR_URL
-          value: http://tempo-tempo-distributed-distributor:14268
-        - name: TOPOLOGY_FILE
-          value: /conf/load-generator.json
-        image: omnition/synthetic-load-generator:1.0.25
-        imagePullPolicy: IfNotPresent
-        name: synthetic-load-gen
-        volumeMounts:
-        - mountPath: /conf
-          name: conf
+        - env:
+            - name: JAEGER_COLLECTOR_URL
+              value: http://tempo-distributor:14268
+            - name: TOPOLOGY_FILE
+              value: /conf/load-generator.json
+          image: omnition/synthetic-load-generator:1.0.25
+          imagePullPolicy: IfNotPresent
+          name: synthetic-load-gen
+          volumeMounts:
+            - mountPath: /conf
+              name: conf
       volumes:
-      - configMap:
-          name: synthetic-load-generator
-        name: conf
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    name: minio
-  name: minio
-  namespace: default
-spec:
-  ports:
-  - port: 9000
-    targetPort: 9000
-  selector:
-    app: minio
-    name: minio
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: minio
-  namespace: default
-spec:
-  minReadySeconds: 10
-  replicas: 1
-  selector:
-    matchLabels:
-      app: minio
-      name: minio
-  template:
-    metadata:
-      labels:
-        app: minio
-        name: minio
-    spec:
-      containers:
-      - env:
-        - name: MINIO_ACCESS_KEY
-          value: tempo
-        - name: MINIO_SECRET_KEY
-          value: supersecret
-        image: minio/minio:latest
-        imagePullPolicy: IfNotPresent
-        name: minio
-        command: ["sh"]
-        args: ["-euc", "mkdir -p /data/tempo && /opt/bin/minio server /data --console-address ':9001'"]
+        - configMap:
+            name: synthetic-load-generator
+          name: conf
