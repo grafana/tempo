@@ -77,7 +77,7 @@ kubectl create namespace tempo-test
 kubens tempo-test
 ```
 
-   For more details, see the Kubernetes documentation about [Creating a new namespace](https://kubernetes.io/docs/tasks/administer-cluster/namespaces/#creating-a-new-namespace).
+For more details, see the Kubernetes documentation about [Creating a new namespace](https://kubernetes.io/docs/tasks/administer-cluster/namespaces/#creating-a-new-namespace).
 
 1. Set up a Helm repository using the following commands:
 
@@ -97,6 +97,7 @@ Next, you will:
 1. Create a `custom.yaml` file
 2. Set your storage values, the example above points to the MinIO instance configured by the chart
 3. Set your traces values to configure the receivers on the Tempo distributor
+
 ### Tempo helm chart values
 
 ```yaml
@@ -137,7 +138,7 @@ traces:
 
 ### Grafana Enterprise Traces helm chart values
 
-The values in the example below provide configuration values for GET. 
+The values in the example below provide configuration values for GET.
 
 ```yaml
 ---
@@ -190,24 +191,11 @@ license:
 
 As noted above, please observe the additional `admin` bucket, the `gateway` has been disabled, the `enterpriseGateway` has been enabled, and a license has been specified.
 
-Next, we will:
-
-1. Create a `custom.yaml` file
-2. Set your storage values, the example above points to the MinIO instance configured by the chart
-3. Set your traces values to configure the receivers on the Tempo distributor
-
-### Create a `custom.yaml` file
-
-1. Create a YAML file of Helm values called `custom.yaml`.
-1. Copy the example above and paste it into the custom.yaml file.
-1. Save the file.
-
 #### Enterprise license configuration
 
 If you are using Grafana Enterprise Traces, you need to configure a license, which may be done in one of two ways.
 
->**NOTE**: The [Set up GET instructions](https://grafana.com/docs/enterprise-traces/latest/setup/#obtain-a-get-license) explain how to obtain a license. 
-
+> **NOTE**: The [Set up GET instructions](https://grafana.com/docs/enterprise-traces/latest/setup/#obtain-a-get-license) explain how to obtain a license.
 
 First, you may specify the license text in the `custom.yaml` values file.
 
@@ -221,16 +209,16 @@ Secondly, you may use a secret that contains the license content.
 
 1. Create the secret
 
-```bash
-kubectl create secret generic tempo-license --from-file=license.jwt
-```
+   ```bash
+   kubectl create secret generic tempo-license --from-file=license.jwt
+   ```
 
 1. Configure the `custom.yaml` to reference the secret.
 
-```yaml
-license:
-  external: true
-```
+   ```yaml
+   license:
+     external: true
+   ```
 
 ### Set your storage option
 
