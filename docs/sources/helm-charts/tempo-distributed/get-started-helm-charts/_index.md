@@ -53,7 +53,7 @@ Verify that you have:
 - DNS service works in the Kubernetes cluster
 - Optional: An ingress controller is set up in the Kubernetes cluster, for example [ingress-nginx](https://kubernetes.github.io/ingress-nginx/)
 
-> **NOTE**: If you want to access Tempo from outside of the Kubernetes cluster, you will need an ingress. Ingress-related procedures are marked as optional.
+> **NOTE**: If you want to access Tempo from outside of the Kubernetes cluster, you may need an ingress. Ingress-related procedures are marked as optional.
 
 <!-- This section should be verified before being made visible. It’s from Mimir and might need to be updated for Tempo.
 
@@ -207,7 +207,7 @@ license:
 
 Secondly, you may use a secret that contains the license content.
 
-1. Create the secret
+1. Create the secret.
 
    ```bash
    kubectl create secret generic tempo-license --from-file=license.jwt
@@ -260,13 +260,13 @@ Enterprise users will also need to specify an additional bucket for `admin` reso
 
 1. Optional: Locate the MinIO section and change the the username and password to something you wish to use.
 
-```yaml
-minio:
-  enabled: true
-  mode: standalone
-  rootUser: minio
-  rootPassword: minio123
-```
+   ```yaml
+   minio:
+     enabled: true
+     mode: standalone
+     rootUser: minio
+     rootPassword: minio123
+   ```
 
 ### Optional: Other storage options
 
