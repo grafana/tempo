@@ -204,7 +204,10 @@ Next, we will:
 
 #### Enterprise license configuration
 
-If you are using Grafana Enterprise Traces, you will need to configure a license, which may be done in one of two ways.
+If you are using Grafana Enterprise Traces, you need to configure a license, which may be done in one of two ways.
+
+>**NOTE**: The [Set up GET instructions](https://grafana.com/docs/enterprise-traces/latest/setup/#obtain-a-get-license) explain how to obtain a license. 
+
 
 First, you may specify the license text in the `custom.yaml` values file.
 
