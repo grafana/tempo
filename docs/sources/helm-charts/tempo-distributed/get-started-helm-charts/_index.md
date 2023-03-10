@@ -132,7 +132,7 @@ traces:
 
 ### Grafana Enterprise Traces helm chart values
 
-A complete example for GET is as follows.
+The values in the example below provide configuration values for GET. 
 
 ```yaml
 ---
