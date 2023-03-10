@@ -77,7 +77,7 @@ kubectl create namespace tempo-test
 kubens tempo-test
 ```
 
-For more details, see the Kubernetes documentation about [Creating a new namespace](https://kubernetes.io/docs/tasks/administer-cluster/namespaces/#creating-a-new-namespace).
+   For more details, see the Kubernetes documentation about [Creating a new namespace](https://kubernetes.io/docs/tasks/administer-cluster/namespaces/#creating-a-new-namespace).
 
 1. Set up a Helm repository using the following commands:
 
