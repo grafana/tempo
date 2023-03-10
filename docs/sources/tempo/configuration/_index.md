@@ -266,6 +266,9 @@ metrics_generator:
             # resource and span attributes and are added to the metrics if present.
             [dimensions: <list of string>]
 
+            # Attribute Key to multiply span metrics
+            [span_multiplier_key: <string> | default = ""]
+
         span_metrics:
 
             # Buckets for the latency histogram in seconds.
@@ -290,6 +293,9 @@ metrics_generator:
             # Dimensions are searched for in the resource and span attributes and are added to 
             # the metrics if present.
             [dimensions: <list of string>]
+            
+            # Attribute Key to multiply span metrics
+            [span_multiplier_key: <string> | default = ""]
           
 
     # Registry configuration

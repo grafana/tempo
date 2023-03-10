@@ -54,6 +54,43 @@ By default, the metrics processor adds the following labels to each metric: `ser
 Additional user defined labels can be created using the [`dimensions` configuration option]({{< relref "../configuration/#metrics-generator" >}}).
 When a configured dimension collides with one of the default labels (e.g. `status_code`), the label for the respective dimension is prefixed with double underscore (i.e. `__status_code`).
 
+If you use ratio based sampler you can use custom sampler below to not lose metric information, you also need to set `metrics_generator.processor.span_metrics.span_multiplier_key` to `"X-SampleRatio"`
+
+
+```go
+package tracer
+import (
+	"go.opentelemetry.io/otel/attribute"
+	tracesdk "go.opentelemetry.io/otel/sdk/trace"
+)
+
+type RatioBasedSampler struct {
+	innerSampler        tracesdk.Sampler
+	sampleRateAttribute attribute.KeyValue
+}
+
+func NewRatioBasedSampler(fraction float64) RatioBasedSampler {
+	innerSampler := tracesdk.TraceIDRatioBased(fraction)
+	return RatioBasedSampler{
+		innerSampler:        innerSampler,
+		sampleRateAttribute: attribute.Float64("X-SampleRatio", fraction),
+	}
+}
+
+func (ds RatioBasedSampler) ShouldSample(parameters tracesdk.SamplingParameters) tracesdk.SamplingResult {
+	sampler := ds.innerSampler
+	result := sampler.ShouldSample(parameters)
+	if result.Decision == tracesdk.RecordAndSample {
+		result.Attributes = append(result.Attributes, ds.sampleRateAttribute)
+	}
+	return result
+}
+
+func (ds RatioBasedSampler) Description() string {
+	return "Ratio Based Sampler which gives information about sampling ratio"
+}
+```
+
 ## Example
 
 <p align="center"><img src="../span-metrics-example.png" alt="Span metrics overview"></p>

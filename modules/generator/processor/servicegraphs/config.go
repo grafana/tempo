@@ -28,8 +28,8 @@ type Config struct {
 	// (either value could get used)
 	Dimensions []string `yaml:"dimensions"`
 
-	// If enabled X-SampleRatio attribute will be used for metric calculation
-	EnableSpanMultiplier bool `yaml:"enable_span_multiplier"`
+	// If enabled attribute value will be used for metric calculation
+	SpanMultiplierKey string `yaml:"span_multiplier_key"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -38,6 +38,4 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Workers = 10
 	// TODO: Revisit this default value.
 	cfg.HistogramBuckets = prometheus.ExponentialBuckets(0.1, 2, 8)
-	// disabled by default for backward compatibility
-	cfg.EnableSpanMultiplier = false
 }

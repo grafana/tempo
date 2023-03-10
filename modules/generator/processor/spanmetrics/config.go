@@ -28,8 +28,8 @@ type Config struct {
 	// from span attributes and are created along with the intrinsic dimensions.
 	Dimensions []string `yaml:"dimensions"`
 
-	// If enabled X-SampleRatio attribute will be used for metric calculation
-	EnableSpanMultiplier bool `yaml:"enable_span_multiplier"`
+	// If enabled attribute value will be used for metric calculation
+	SpanMultiplierKey string `yaml:"span_multiplier_key"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -38,8 +38,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.IntrinsicDimensions.SpanName = true
 	cfg.IntrinsicDimensions.SpanKind = true
 	cfg.IntrinsicDimensions.StatusCode = true
-	// disabled by default for backward compatibility
-	cfg.EnableSpanMultiplier = false
 }
 
 type IntrinsicDimensions struct {

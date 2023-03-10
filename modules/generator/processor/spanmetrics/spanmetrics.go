@@ -119,7 +119,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 		value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
 		labelValues = append(labelValues, value)
 	}
-	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.EnableSpanMultiplier, span)
+	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span)
 
 	registryLabelValues := p.registry.NewLabelValues(labelValues)
 

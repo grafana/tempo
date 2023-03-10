@@ -22,11 +22,11 @@ func FindAttributeValue(key string, attributes ...[]*v1_common.KeyValue) (string
 	return "", false
 }
 
-func GetSpanMultiplier(enableRatioCheck bool, span *v1.Span) float64 {
+func GetSpanMultiplier(ratioKey string, span *v1.Span) float64 {
 	spanMultiplier := 1.0
-	if enableRatioCheck {
+	if ratioKey != "" {
 		for _, kv := range span.Attributes {
-			if kv.Key == "X-SampleRatio" {
+			if kv.Key == ratioKey {
 				v := kv.Value.GetDoubleValue()
 				if v > 0 {
 					spanMultiplier = 1.0 / v

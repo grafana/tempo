@@ -357,3 +357,19 @@ func Test_histogram_concurrencyCorrectness(t *testing.T) {
 	}
 	collectMetricAndAssert(t, h, collectionTimeMs, nil, 5, expectedSamples, nil)
 }
+
+func Test_histogram_span_multiplier(t *testing.T) {
+	h := newHistogram("my_histogram", []string{"label"}, []float64{1.0, 2.0}, nil, nil)
+	h.ObserveWithExemplar(newLabelValues([]string{"value-1"}), 1.0, "", 1.5)
+	h.ObserveWithExemplar(newLabelValues([]string{"value-1"}), 2.0, "", 5)
+
+	collectionTimeMs := time.Now().UnixMilli()
+	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, collectionTimeMs, 11.5),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeMs, 6.5),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 1.5),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, 6.5),
+		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, 6.5),
+	}
+	collectMetricAndAssert(t, h, collectionTimeMs, nil, 5, expectedSamples, nil)
+}
