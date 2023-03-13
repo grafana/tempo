@@ -318,7 +318,7 @@ traces:
 
 You can use a YAML file, like `custom.yaml`, to store custom configuration options that override the defaults present in the Helm chart.
 The [tempo-distributed Helm chart's README](https://github.com/grafana/helm-charts/blob/main/charts/tempo-distributed/README.md) contains a list of available options.
-Any values that are enabled in `values.yaml` are on by default.
+The `values.yaml` files provides the defaults for the helm chart. 
 
 To see all of the configurable parameters for the `tempo-distributed` Helm chart, use the following command:
 
