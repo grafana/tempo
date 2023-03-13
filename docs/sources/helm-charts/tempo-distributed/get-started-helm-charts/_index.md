@@ -139,6 +139,7 @@ traces:
 ### Grafana Enterprise Traces helm chart values
 
 The values in the example below provide configuration values for GET.
+These values include an additional `admin` bucket, the `gateway` has been disabled, the `enterpriseGateway` has been enabled, and a license has been specified.
 
 ```yaml
 ---
@@ -189,15 +190,13 @@ license:
     LICENSEGOESHERE
 ```
 
-As noted above, please observe the additional `admin` bucket, the `gateway` has been disabled, the `enterpriseGateway` has been enabled, and a license has been specified.
-
 #### Enterprise license configuration
 
-If you are using Grafana Enterprise Traces, you need to configure a license, which may be done in one of two ways.
+If you are GET, you need to configure a license, by adding the license to the `custom.yaml` file or by using a secret that contains the license.
 
 > **NOTE**: The [Set up GET instructions](https://grafana.com/docs/enterprise-traces/latest/setup/#obtain-a-get-license) explain how to obtain a license.
 
-First, you may specify the license text in the `custom.yaml` values file created above, as shown in the following..
+First, you can specify the license text in the `custom.yaml` values file created above, in the `license:` section.
 
 ```yaml
 license:
@@ -244,7 +243,7 @@ However, you can use a other storage provides. Refer to the Optional storage sec
          insecure: true
    ```
 
-Enterprise users will also need to specify an additional bucket for `admin` resources.
+   Enterprise users will also need to specify an additional bucket for `admin` resources.
 
     ```yaml
     storage:
@@ -318,6 +317,7 @@ traces:
 
 You can use a YAML file, like `custom.yaml`, to store custom configuration options that override the defaults present in the Helm chart.
 The [tempo-distributed Helm chart's README](https://github.com/grafana/helm-charts/blob/main/charts/tempo-distributed/README.md) contains a list of available options.
+Any values that are enabled in `values.yaml` are on by default.
 
 To see all of the configurable parameters for the `tempo-distributed` Helm chart, use the following command:
 
@@ -439,13 +439,13 @@ tempo-tokengen-job-58jhs                    0/1     Completed   0             86
 
 Note that the `tempo-tokengen-job` has emitted a log message containing the initial admin token.
 
-Retrieve the token with this handy one-liner.
+Retrieve the token with this command:
 
 ```
 kubectl get pods | awk '/.*-tokengen-job-.*/ {print $1}' | xargs -I {} kubectl logs {} | awk '/Token:\s+/ {print $2}'
 ```
 
-Or simply get the logs for the `tokengen` pod, for example.
+To get the logs for the `tokengen` pod, you can use:
 
 ```
 kubectl logs tempo-tokengen-job-58jhs
