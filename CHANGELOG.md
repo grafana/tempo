@@ -9,6 +9,7 @@
   overrides:
     max_search_bytes_per_trace:
     search_tags_allow_list:
+    search_tags_deny_list:
   ```
   Removed metrics:
   `tempo_ingester_trace_search_bytes_discarded_total`
