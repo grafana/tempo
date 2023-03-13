@@ -197,7 +197,7 @@ If you are using Grafana Enterprise Traces, you need to configure a license, whi
 
 > **NOTE**: The [Set up GET instructions](https://grafana.com/docs/enterprise-traces/latest/setup/#obtain-a-get-license) explain how to obtain a license.
 
-First, you may specify the license text in the `custom.yaml` values file.
+First, you may specify the license text in the `custom.yaml` values file created above, as shown in the following..
 
 ```yaml
 license:
@@ -205,7 +205,7 @@ license:
     LICENSEGOESHERE
 ```
 
-Secondly, you may use a secret that contains the license content.
+Secondly, you may use a secret that contains the license content that is referenced.
 
 1. Create the secret.
 
@@ -213,7 +213,7 @@ Secondly, you may use a secret that contains the license content.
    kubectl create secret generic tempo-license --from-file=license.jwt
    ```
 
-1. Configure the `custom.yaml` to reference the secret.
+1. Configure the `custom.yaml` that you created above to reference the secret.
 
    ```yaml
    license:
