@@ -14,8 +14,8 @@ import (
 const (
 	TestStorageAccountName = "foobar"
 	TestStorageAccountKey  = "abc123"
-	TestAzureClientId      = "myClientId"
-	TestAzureTenantId      = "myTenantId"
+	TestAzureClientID      = "myClientId"
+	TestAzureTenantID      = "myTenantId"
 )
 
 // TestGetStorageAccountName* explicitly broken out into
@@ -115,9 +115,9 @@ func TestGetContainerURL(t *testing.T) {
 }
 
 func TestServicePrincipalTokenFromFederatedToken(t *testing.T) {
-	os.Setenv("AZURE_CLIENT_ID", TestAzureClientId)
+	os.Setenv("AZURE_CLIENT_ID", TestAzureClientID)
 	defer os.Unsetenv("AZURE_CLIENT_ID")
-	os.Setenv("AZURE_TENANT_ID", TestAzureTenantId)
+	os.Setenv("AZURE_TENANT_ID", TestAzureTenantID)
 	defer os.Unsetenv("AZURE_TENANT_ID")
 
 	mockOAuthConfig, _ := adal.NewOAuthConfig("foo", "bar")
@@ -130,7 +130,7 @@ func TestServicePrincipalTokenFromFederatedToken(t *testing.T) {
 
 	newOAuthConfigFunc := func(activeDirectoryEndpoint, tenantID string) (*adal.OAuthConfig, error) {
 		assert.Equal(t, azure.PublicCloud.ActiveDirectoryEndpoint, activeDirectoryEndpoint)
-		assert.Equal(t, TestAzureTenantId, tenantID)
+		assert.Equal(t, TestAzureTenantID, tenantID)
 
 		_, err := adal.NewOAuthConfig(activeDirectoryEndpoint, tenantID)
 		assert.NoError(t, err)
@@ -140,7 +140,7 @@ func TestServicePrincipalTokenFromFederatedToken(t *testing.T) {
 
 	servicePrincipalTokenFromFederatedTokenFunc := func(oauthConfig adal.OAuthConfig, clientID string, jwt string, resource string, callbacks ...adal.TokenRefreshCallback) (*adal.ServicePrincipalToken, error) {
 		assert.True(t, *mockOAuthConfig == oauthConfig, "should return the mocked object")
-		assert.Equal(t, TestAzureClientId, clientID)
+		assert.Equal(t, TestAzureClientID, clientID)
 		assert.Equal(t, "myJwtToken", jwt)
 		assert.Equal(t, "https://bar.blob.core.windows.net", resource)
 		return mockedServicePrincipalToken, nil
