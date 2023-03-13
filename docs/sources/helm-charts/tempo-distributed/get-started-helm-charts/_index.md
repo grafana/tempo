@@ -192,7 +192,7 @@ license:
 
 #### Enterprise license configuration
 
-If you are GET, you need to configure a license, by adding the license to the `custom.yaml` file or by using a secret that contains the license.
+If you are using GET, you need to configure a license, by adding the license to the `custom.yaml` file or by using a secret that contains the license.
 Only one of these options should be used. 
 
 > **NOTE**: The [Set up GET instructions](https://grafana.com/docs/enterprise-traces/latest/setup/#obtain-a-get-license) explain how to obtain a license.
