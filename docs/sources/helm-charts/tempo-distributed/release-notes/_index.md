@@ -12,7 +12,7 @@ keywords:
 
 <!-- 
 Helm chart release notes currently live in the helm-charts repo. 
-Use this short code if or when the release notes are moved to live with the doc. 
+Use this short code if or when the release notes are moved to live with the doc in the tempo repo. 
 {{< section menuTitle="true" >}} 
 -->
 
