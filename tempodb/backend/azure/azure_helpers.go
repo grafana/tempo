@@ -166,7 +166,7 @@ func getStorageAccountKey(cfg *Config) string {
 }
 
 func getOAuthToken(cfg *Config) (*blob.TokenCredential, error) {
-	spt, err := getServicePrincipalToken(cfg, defaultAuthFunctions)
+	spt, err := getServicePrincipalToken(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -194,19 +194,19 @@ func getOAuthToken(cfg *Config) (*blob.TokenCredential, error) {
 	return &tc, nil
 }
 
-func getServicePrincipalToken(cfg *Config, authFunctions authFunctions) (*adal.ServicePrincipalToken, error) {
+func getServicePrincipalToken(cfg *Config) (*adal.ServicePrincipalToken, error) {
 	endpoint := cfg.Endpoint
 
 	resource := fmt.Sprintf("https://%s.%s", cfg.StorageAccountName, endpoint)
 
 	if cfg.UseFederatedToken {
-		token, err := servicePrincipalTokenFromFederatedToken(resource, authFunctions.NewOAuthConfigFunc, authFunctions.NewServicePrincipalTokenFromFederatedTokenFunc)
+		token, err := servicePrincipalTokenFromFederatedToken(resource, defaultAuthFunctions)
 		if err != nil {
 			return nil, err
 		}
 
 		var customRefreshFunc adal.TokenRefresh = func(context context.Context, resource string) (*adal.Token, error) {
-			newToken, err := servicePrincipalTokenFromFederatedToken(resource, authFunctions.NewOAuthConfigFunc, authFunctions.NewServicePrincipalTokenFromFederatedTokenFunc)
+			newToken, err := servicePrincipalTokenFromFederatedToken(resource, defaultAuthFunctions)
 			if err != nil {
 				return nil, err
 			}
@@ -236,7 +236,7 @@ func getServicePrincipalToken(cfg *Config, authFunctions authFunctions) (*adal.S
 	return msiConfig.ServicePrincipalToken()
 }
 
-func servicePrincipalTokenFromFederatedToken(resource string, newOAuthConfigFunc func(activeDirectoryEndpoint, tenantID string) (*adal.OAuthConfig, error), newServicePrincipalTokenFromFederatedTokenFunc func(oauthConfig adal.OAuthConfig, clientID string, jwt string, resource string, callbacks ...adal.TokenRefreshCallback) (*adal.ServicePrincipalToken, error)) (*adal.ServicePrincipalToken, error) {
+func servicePrincipalTokenFromFederatedToken(resource string, authFunctions authFunctions) (*adal.ServicePrincipalToken, error) {
 	azClientID := os.Getenv("AZURE_CLIENT_ID")
 	azTenantID := os.Getenv("AZURE_TENANT_ID")
 
@@ -252,10 +252,10 @@ func servicePrincipalTokenFromFederatedToken(resource string, newOAuthConfigFunc
 
 	jwt := string(jwtBytes)
 
-	oauthConfig, err := newOAuthConfigFunc(azADEndpoint, azTenantID)
+	oauthConfig, err := authFunctions.NewOAuthConfigFunc(azADEndpoint, azTenantID)
 	if err != nil {
 		return nil, err
 	}
 
-	return newServicePrincipalTokenFromFederatedTokenFunc(*oauthConfig, azClientID, jwt, resource)
+	return authFunctions.NewServicePrincipalTokenFromFederatedTokenFunc(*oauthConfig, azClientID, jwt, resource)
 }

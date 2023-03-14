@@ -148,7 +148,10 @@ func TestServicePrincipalTokenFromFederatedToken(t *testing.T) {
 		return mockedServicePrincipalToken, nil
 	}
 
-	token, err := servicePrincipalTokenFromFederatedToken("https://bar.blob.core.windows.net", newOAuthConfigFunc, servicePrincipalTokenFromFederatedTokenFunc)
+	token, err := servicePrincipalTokenFromFederatedToken("https://bar.blob.core.windows.net", authFunctions{
+		newOAuthConfigFunc,
+		servicePrincipalTokenFromFederatedTokenFunc,
+	})
 
 	assert.NoError(t, err)
 	assert.True(t, mockedServicePrincipalToken == token, "should return the mocked object")
