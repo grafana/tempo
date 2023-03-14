@@ -21,13 +21,6 @@ import (
 
 const (
 	maxRetries = 1
-
-	// Environment
-	azureGlobal       = "AzureGlobal"
-	azurePublicCloud  = "AzurePublicCloud"
-	azureChinaCloud   = "AzureChinaCloud"
-	azureGermanCloud  = "AzureGermanCloud"
-	azureUSGovernment = "AzureUSGovernment"
 )
 
 var (
@@ -207,13 +200,13 @@ func getServicePrincipalToken(cfg *Config, authFunctions authFunctions) (*adal.S
 	resource := fmt.Sprintf("https://%s.%s", cfg.StorageAccountName, endpoint)
 
 	if cfg.UseFederatedToken {
-		token, err := servicePrincipalTokenFromFederatedToken(cfg.Environment, resource, authFunctions.NewOAuthConfigFunc, authFunctions.NewServicePrincipalTokenFromFederatedTokenFunc)
+		token, err := servicePrincipalTokenFromFederatedToken(resource, authFunctions.NewOAuthConfigFunc, authFunctions.NewServicePrincipalTokenFromFederatedTokenFunc)
 		if err != nil {
 			return nil, err
 		}
 
 		var customRefreshFunc adal.TokenRefresh = func(context context.Context, resource string) (*adal.Token, error) {
-			newToken, err := servicePrincipalTokenFromFederatedToken(cfg.Environment, resource, authFunctions.NewOAuthConfigFunc, authFunctions.NewServicePrincipalTokenFromFederatedTokenFunc)
+			newToken, err := servicePrincipalTokenFromFederatedToken(resource, authFunctions.NewOAuthConfigFunc, authFunctions.NewServicePrincipalTokenFromFederatedTokenFunc)
 			if err != nil {
 				return nil, err
 			}
@@ -243,19 +236,14 @@ func getServicePrincipalToken(cfg *Config, authFunctions authFunctions) (*adal.S
 	return msiConfig.ServicePrincipalToken()
 }
 
-func servicePrincipalTokenFromFederatedToken(environment string, resource string, newOAuthConfigFunc func(activeDirectoryEndpoint, tenantID string) (*adal.OAuthConfig, error), newServicePrincipalTokenFromFederatedTokenFunc func(oauthConfig adal.OAuthConfig, clientID string, jwt string, resource string, callbacks ...adal.TokenRefreshCallback) (*adal.ServicePrincipalToken, error)) (*adal.ServicePrincipalToken, error) {
-	environmentName := azurePublicCloud
-	if environment != azureGlobal {
-		environmentName = environment
-	}
-
-	env, err := azure.EnvironmentFromName(environmentName)
-	if err != nil {
-		return nil, err
-	}
-
+func servicePrincipalTokenFromFederatedToken(resource string, newOAuthConfigFunc func(activeDirectoryEndpoint, tenantID string) (*adal.OAuthConfig, error), newServicePrincipalTokenFromFederatedTokenFunc func(oauthConfig adal.OAuthConfig, clientID string, jwt string, resource string, callbacks ...adal.TokenRefreshCallback) (*adal.ServicePrincipalToken, error)) (*adal.ServicePrincipalToken, error) {
 	azClientID := os.Getenv("AZURE_CLIENT_ID")
 	azTenantID := os.Getenv("AZURE_TENANT_ID")
+
+	azADEndpoint, ok := os.LookupEnv("AZURE_AUTHORITY_HOST")
+	if !ok {
+		azADEndpoint = azure.PublicCloud.ActiveDirectoryEndpoint
+	}
 
 	jwtBytes, err := os.ReadFile(os.Getenv("AZURE_FEDERATED_TOKEN_FILE"))
 	if err != nil {
@@ -264,7 +252,7 @@ func servicePrincipalTokenFromFederatedToken(environment string, resource string
 
 	jwt := string(jwtBytes)
 
-	oauthConfig, err := newOAuthConfigFunc(env.ActiveDirectoryEndpoint, azTenantID)
+	oauthConfig, err := newOAuthConfigFunc(azADEndpoint, azTenantID)
 	if err != nil {
 		return nil, err
 	}

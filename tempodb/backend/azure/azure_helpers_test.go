@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/Azure/go-autorest/autorest/adal"
-	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/grafana/dskit/flagext"
 	"github.com/stretchr/testify/assert"
 )
@@ -16,6 +15,7 @@ const (
 	TestStorageAccountKey  = "abc123"
 	TestAzureClientID      = "myClientId"
 	TestAzureTenantID      = "myTenantId"
+	TestAzureADEndpoint    = "https://example.com/"
 )
 
 // TestGetStorageAccountName* explicitly broken out into
@@ -119,8 +119,10 @@ func TestServicePrincipalTokenFromFederatedToken(t *testing.T) {
 	defer os.Unsetenv("AZURE_CLIENT_ID")
 	os.Setenv("AZURE_TENANT_ID", TestAzureTenantID)
 	defer os.Unsetenv("AZURE_TENANT_ID")
+	os.Setenv("AZURE_AUTHORITY_HOST", TestAzureADEndpoint)
+	defer os.Unsetenv("AZURE_AUTHORITY_HOST")
 
-	mockOAuthConfig, _ := adal.NewOAuthConfig("foo", "bar")
+	mockOAuthConfig, _ := adal.NewOAuthConfig(TestAzureADEndpoint, "bar")
 	mockedServicePrincipalToken := new(adal.ServicePrincipalToken)
 
 	tmpDir := t.TempDir()
@@ -129,7 +131,7 @@ func TestServicePrincipalTokenFromFederatedToken(t *testing.T) {
 	defer os.Unsetenv("AZURE_FEDERATED_TOKEN_FILE")
 
 	newOAuthConfigFunc := func(activeDirectoryEndpoint, tenantID string) (*adal.OAuthConfig, error) {
-		assert.Equal(t, azure.PublicCloud.ActiveDirectoryEndpoint, activeDirectoryEndpoint)
+		assert.Equal(t, TestAzureADEndpoint, activeDirectoryEndpoint)
 		assert.Equal(t, TestAzureTenantID, tenantID)
 
 		_, err := adal.NewOAuthConfig(activeDirectoryEndpoint, tenantID)
@@ -146,7 +148,7 @@ func TestServicePrincipalTokenFromFederatedToken(t *testing.T) {
 		return mockedServicePrincipalToken, nil
 	}
 
-	token, err := servicePrincipalTokenFromFederatedToken("AzureGlobal", "https://bar.blob.core.windows.net", newOAuthConfigFunc, servicePrincipalTokenFromFederatedTokenFunc)
+	token, err := servicePrincipalTokenFromFederatedToken("https://bar.blob.core.windows.net", newOAuthConfigFunc, servicePrincipalTokenFromFederatedTokenFunc)
 
 	assert.NoError(t, err)
 	assert.True(t, mockedServicePrincipalToken == token, "should return the mocked object")
