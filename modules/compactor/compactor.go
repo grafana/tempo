@@ -62,7 +62,7 @@ func New(cfg Config, store storage.Store, overrides *overrides.Overrides, reg pr
 	}
 
 	if c.isSharded() {
-		reg = prometheus.WrapRegistererWithPrefix("cortex_", reg)
+		reg = prometheus.WrapRegistererWithPrefix("tempo+", reg)
 
 		lifecyclerStore, err := kv.NewClient(
 			cfg.ShardingRing.KVStore,
