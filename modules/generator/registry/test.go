@@ -103,22 +103,22 @@ type testHistogram struct {
 
 var _ Histogram = (*testHistogram)(nil)
 
-func (t testHistogram) ObserveWithExemplar(values *LabelValues, value float64, traceID string) {
+func (t testHistogram) ObserveWithExemplar(values *LabelValues, value float64, traceID string, multiplier float64) {
 	lbls := make(labels.Labels, len(t.labels))
 	for i, label := range t.labels {
 		lbls[i] = labels.Label{Name: label, Value: values.values[i]}
 	}
 	sort.Sort(lbls)
 
-	t.registry.addToMetric(t.nameCount, lbls, 1)
-	t.registry.addToMetric(t.nameSum, lbls, value)
+	t.registry.addToMetric(t.nameCount, lbls, 1*multiplier)
+	t.registry.addToMetric(t.nameSum, lbls, value*multiplier)
 
 	for _, bucket := range t.buckets {
 		if value <= bucket {
-			t.registry.addToMetric(t.nameBucket, withLe(lbls, bucket), 1)
+			t.registry.addToMetric(t.nameBucket, withLe(lbls, bucket), 1*multiplier)
 		}
 	}
-	t.registry.addToMetric(t.nameBucket, withLe(lbls, math.Inf(1)), 1)
+	t.registry.addToMetric(t.nameBucket, withLe(lbls, math.Inf(1)), 1*multiplier)
 }
 
 func withLe(lbls labels.Labels, le float64) labels.Labels {
