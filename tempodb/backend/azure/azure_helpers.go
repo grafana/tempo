@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	blob "github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest/adal"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/cristalhq/hedgedhttp"
 )
@@ -21,6 +22,18 @@ import (
 const (
 	maxRetries = 1
 )
+
+var (
+	defaultAuthFunctions = authFunctions{
+		NewOAuthConfigFunc: adal.NewOAuthConfig,
+		NewServicePrincipalTokenFromFederatedTokenFunc: adal.NewServicePrincipalTokenFromFederatedToken,
+	}
+)
+
+type authFunctions struct {
+	NewOAuthConfigFunc                             func(activeDirectoryEndpoint, tenantID string) (*adal.OAuthConfig, error)
+	NewServicePrincipalTokenFromFederatedTokenFunc func(oauthConfig adal.OAuthConfig, clientID string, jwt string, resource string, callbacks ...adal.TokenRefreshCallback) (*adal.ServicePrincipalToken, error)
+}
 
 func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.ContainerURL, error) {
 	var err error
@@ -71,7 +84,7 @@ func GetContainerURL(ctx context.Context, cfg *Config, hedge bool) (blob.Contain
 		HTTPSender: httpSender,
 	}
 
-	if !cfg.UseManagedIdentity && cfg.UserAssignedID == "" {
+	if !cfg.UseFederatedToken && !cfg.UseManagedIdentity && cfg.UserAssignedID == "" {
 		credential, err := blob.NewSharedKeyCredential(getStorageAccountName(cfg), getStorageAccountKey(cfg))
 		if err != nil {
 			return blob.ContainerURL{}, err
@@ -186,6 +199,32 @@ func getServicePrincipalToken(cfg *Config) (*adal.ServicePrincipalToken, error) 
 
 	resource := fmt.Sprintf("https://%s.%s", cfg.StorageAccountName, endpoint)
 
+	if cfg.UseFederatedToken {
+		token, err := servicePrincipalTokenFromFederatedToken(resource, defaultAuthFunctions)
+		if err != nil {
+			return nil, err
+		}
+
+		var customRefreshFunc adal.TokenRefresh = func(context context.Context, resource string) (*adal.Token, error) {
+			newToken, err := servicePrincipalTokenFromFederatedToken(resource, defaultAuthFunctions)
+			if err != nil {
+				return nil, err
+			}
+
+			err = newToken.Refresh()
+			if err != nil {
+				return nil, err
+			}
+
+			token := newToken.Token()
+
+			return &token, nil
+		}
+
+		token.SetCustomRefreshFunc(customRefreshFunc)
+		return token, err
+	}
+
 	msiConfig := auth.MSIConfig{
 		Resource: resource,
 	}
@@ -195,4 +234,28 @@ func getServicePrincipalToken(cfg *Config) (*adal.ServicePrincipalToken, error) 
 	}
 
 	return msiConfig.ServicePrincipalToken()
+}
+
+func servicePrincipalTokenFromFederatedToken(resource string, authFunctions authFunctions) (*adal.ServicePrincipalToken, error) {
+	azClientID := os.Getenv("AZURE_CLIENT_ID")
+	azTenantID := os.Getenv("AZURE_TENANT_ID")
+
+	azADEndpoint, ok := os.LookupEnv("AZURE_AUTHORITY_HOST")
+	if !ok {
+		azADEndpoint = azure.PublicCloud.ActiveDirectoryEndpoint
+	}
+
+	jwtBytes, err := os.ReadFile(os.Getenv("AZURE_FEDERATED_TOKEN_FILE"))
+	if err != nil {
+		return nil, err
+	}
+
+	jwt := string(jwtBytes)
+
+	oauthConfig, err := authFunctions.NewOAuthConfigFunc(azADEndpoint, azTenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	return authFunctions.NewServicePrincipalTokenFromFederatedTokenFunc(*oauthConfig, azClientID, jwt, resource)
 }
