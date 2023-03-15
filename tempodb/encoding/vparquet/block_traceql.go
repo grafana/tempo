@@ -102,7 +102,7 @@ const (
 	columnPathResourceK8sPodName       = "rs.Resource.K8sPodName"
 	columnPathResourceK8sContainerName = "rs.Resource.K8sContainerName"
 
-	columnPathSpanID             = "rs.ss.Spans.ID"
+	columnPathSpanID             = "rs.ss.Spans.SpanID"
 	columnPathSpanName           = "rs.ss.Spans.Name"
 	columnPathSpanStartTime      = "rs.ss.Spans.StartTimeUnixNano"
 	columnPathSpanDuration       = "rs.ss.Spans.DurationNano"

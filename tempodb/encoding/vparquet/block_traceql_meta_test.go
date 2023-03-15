@@ -48,13 +48,13 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 					wantTr.StartTimeUnixNano,
 					wantTr.DurationNano,
 					&span{
-						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
+						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID,
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartTimeUnixNano,
 						durationNanos:      wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].DurationNano,
 						attributes:         map[traceql.Attribute]traceql.Static{},
 					},
 					&span{
-						id:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].ID,
+						id:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].SpanID,
 						startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartTimeUnixNano,
 						durationNanos:      wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].DurationNano,
 						attributes:         map[traceql.Attribute]traceql.Static{},
@@ -77,7 +77,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 					wantTr.StartTimeUnixNano,
 					wantTr.DurationNano,
 					&span{
-						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
+						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID,
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartTimeUnixNano,
 						durationNanos:      wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].DurationNano,
 						attributes: map[traceql.Attribute]traceql.Static{
@@ -102,7 +102,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 					wantTr.StartTimeUnixNano,
 					wantTr.DurationNano,
 					&span{
-						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
+						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID,
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartTimeUnixNano,
 						durationNanos:      wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].DurationNano,
 						attributes: map[traceql.Attribute]traceql.Static{
@@ -130,7 +130,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 					wantTr.StartTimeUnixNano,
 					wantTr.DurationNano,
 					&span{
-						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
+						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID,
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartTimeUnixNano,
 						durationNanos:      wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].DurationNano,
 						attributes: map[traceql.Attribute]traceql.Static{
@@ -157,7 +157,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 					wantTr.StartTimeUnixNano,
 					wantTr.DurationNano,
 					&span{
-						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
+						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID,
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartTimeUnixNano,
 						durationNanos:      wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].DurationNano,
 						attributes: map[traceql.Attribute]traceql.Static{
@@ -192,7 +192,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 					wantTr.StartTimeUnixNano,
 					wantTr.DurationNano,
 					&span{
-						id:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].ID,
+						id:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].SpanID,
 						startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartTimeUnixNano,
 						durationNanos:      wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].DurationNano,
 						attributes: map[traceql.Attribute]traceql.Static{
@@ -214,7 +214,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 					wantTr.StartTimeUnixNano,
 					wantTr.DurationNano,
 					&span{
-						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
+						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID,
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartTimeUnixNano,
 						durationNanos:      wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].DurationNano,
 						attributes: map[traceql.Attribute]traceql.Static{
@@ -222,7 +222,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						},
 					},
 					&span{
-						id:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].ID,
+						id:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].SpanID,
 						startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartTimeUnixNano,
 						durationNanos:      wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].DurationNano,
 						attributes: map[traceql.Attribute]traceql.Static{

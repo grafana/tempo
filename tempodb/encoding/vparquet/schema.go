@@ -109,9 +109,9 @@ type Event struct {
 // nolint:revive
 // Ignore field naming warnings
 type Span struct {
-	// ID is []byte to save space. It doesn't need to be user
+	// SpanID is []byte to save space. It doesn't need to be user
 	// friendly like trace ID, and []byte is half the size of string.
-	ID                     []byte      `parquet:","`
+	SpanID                 []byte      `parquet:","`
 	ParentSpanID           []byte      `parquet:","`
 	ParentID               int32       `parquet:",delta"`
 	NestedSetLeft          int32       `parquet:",delta"`
@@ -316,7 +316,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 					eventToParquet(e, &ss.Events[ie])
 				}
 
-				ss.ID = s.SpanId
+				ss.SpanID = s.SpanId
 				ss.ParentSpanID = s.ParentSpanId
 				ss.Name = s.Name
 				ss.Kind = int(s.Kind)
@@ -556,7 +556,7 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 
 				protoSpan := &v1_trace.Span{
 					TraceId:           parquetTrace.TraceID,
-					SpanId:            span.ID,
+					SpanId:            span.SpanID,
 					TraceState:        span.TraceState,
 					Name:              span.Name,
 					Kind:              v1_trace.Span_SpanKind(span.Kind),
