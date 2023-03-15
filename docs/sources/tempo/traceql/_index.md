@@ -62,6 +62,7 @@ Intrinsic fields are fundamental to spans. These fields can be referenced when s
 
 The following table shows the current intrinsic fields:
 
+# jpe - kind
 
 | **Operation** | **Type** | **Definition**                        | **Example**            |
 |---------------|----------|---------------------------------------|------------------------|
