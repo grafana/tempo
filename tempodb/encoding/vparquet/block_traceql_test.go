@@ -438,8 +438,6 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 	}
 }
 
-// jpe operand is not int or status { kind = `bar`}
-
 func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	testCases := []struct {
 		name string
