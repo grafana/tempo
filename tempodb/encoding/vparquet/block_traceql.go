@@ -524,7 +524,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 			continue
 
 		case traceql.IntrinsicKind:
-			pred, err := createStatusKindPredicate(cond.Op, cond.Operands)
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, false, err
 			}
@@ -546,7 +546,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 			continue
 
 		case traceql.IntrinsicStatus:
-			pred, err := createStatusKindPredicate(cond.Op, cond.Operands)
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, false, err
 			}
@@ -834,55 +834,12 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (*parque
 		i = int64(operands[0].N)
 	case traceql.TypeDuration:
 		i = operands[0].D.Nanoseconds()
-	default:
-		return nil, fmt.Errorf("operand is not int or duration: %+v", operands[0])
-	}
-
-	var fn func(v int64) bool
-	var rangeFn func(min, max int64) bool
-
-	switch op {
-	case traceql.OpEqual:
-		fn = func(v int64) bool { return v == i }
-		rangeFn = func(min, max int64) bool { return min <= i && i <= max }
-	case traceql.OpNotEqual:
-		fn = func(v int64) bool { return v != i }
-		rangeFn = func(min, max int64) bool { return min != i || max != i }
-	case traceql.OpGreater:
-		fn = func(v int64) bool { return v > i }
-		rangeFn = func(min, max int64) bool { return max > i }
-	case traceql.OpGreaterEqual:
-		fn = func(v int64) bool { return v >= i }
-		rangeFn = func(min, max int64) bool { return max >= i }
-	case traceql.OpLess:
-		fn = func(v int64) bool { return v < i }
-		rangeFn = func(min, max int64) bool { return min < i }
-	case traceql.OpLessEqual:
-		fn = func(v int64) bool { return v <= i }
-		rangeFn = func(min, max int64) bool { return min <= i }
-	default:
-		return nil, fmt.Errorf("operand not supported for integers: %+v", op)
-	}
-
-	return parquetquery.NewIntPredicate(fn, rangeFn), nil
-}
-
-// jpe - ask grafana to support kind in autocomplete
-func createStatusKindPredicate(op traceql.Operator, operands traceql.Operands) (*parquetquery.GenericPredicate[int64], error) {
-	if op == traceql.OpNone {
-		return nil, nil
-	}
-
-	var i int64
-	switch operands[0].Type {
-	case traceql.TypeInt:
-		i = int64(operands[0].N)
 	case traceql.TypeStatus:
-		i = int64(StatusCodeMapping[operands[0].Status.String()]) // jpe ok to combine these?
+		i = int64(StatusCodeMapping[operands[0].Status.String()])
 	case traceql.TypeKind:
 		i = int64(KindMapping[operands[0].Kind.String()])
 	default:
-		return nil, fmt.Errorf("operand is not int or status: %+v", operands[0])
+		return nil, fmt.Errorf("operand is not int, duration, status or kind: %+v", operands[0])
 	}
 
 	var fn func(v int64) bool
