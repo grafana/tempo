@@ -114,7 +114,7 @@ func getPutObjectOptions(rw *readerWriter) minio.PutObjectOptions {
 
 // Write implements backend.Writer
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, _ bool) error {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Write")
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "s3.Write")
 	defer span.Finish()
 
 	span.SetTag("object", name)
