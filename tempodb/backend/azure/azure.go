@@ -77,7 +77,10 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 
 // Write implements backend.Writer
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
-	return rw.writer(ctx, bufio.NewReader(data), backend.ObjectFileName(keypath, name))
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Write")
+	defer span.Finish()
+
+	return rw.writer(derivedCtx, bufio.NewReader(data), backend.ObjectFileName(keypath, name))
 }
 
 // Append implements backend.Writer
@@ -142,7 +145,7 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 
 // Read implements backend.Reader
 func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Read")
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Read")
 	defer span.Finish()
 
 	object := backend.ObjectFileName(keypath, name)
