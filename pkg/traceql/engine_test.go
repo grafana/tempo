@@ -189,7 +189,8 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 				endTimeUnixNanos:   uint64(now.Add(10 * time.Second).UnixNano()),
 				attributes: map[Attribute]Static{
 					NewIntrinsic(IntrinsicName):     NewStaticString("HTTP GET"),
-					NewIntrinsic(IntrinsicStatus):   NewStaticStatus(StatusOk), // jpe ?? need
+					NewIntrinsic(IntrinsicStatus):   NewStaticStatus(StatusOk),
+					NewIntrinsic(IntrinsicKind):     NewStaticKind(KindClient),
 					NewAttribute("cluster"):         NewStaticString("prod"),
 					NewAttribute("count"):           NewStaticInt(5),
 					NewAttribute("count_but_float"): NewStaticFloat(5.0),
@@ -254,6 +255,14 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 							Value: &v1.AnyValue{
 								Value: &v1.AnyValue_BoolValue{
 									BoolValue: true,
+								},
+							},
+						},
+						{
+							Key: "kind",
+							Value: &v1.AnyValue{
+								Value: &v1.AnyValue_StringValue{
+									StringValue: KindClient.String(),
 								},
 							},
 						},

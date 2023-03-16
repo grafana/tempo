@@ -34,7 +34,7 @@ const (
 	LabelHTTPStatusCode = "http.status_code"
 	LabelStatusCode     = "status.code"
 	LabelStatus         = "status"
-	LabelKind           = "kind" // jpe chase down other uses of LabelStatus
+	LabelKind           = "kind"
 )
 
 // These definition levels match the schema below

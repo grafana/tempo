@@ -44,7 +44,7 @@ var StatusCodeMapping = map[string]int{
 	StatusCodeError: int(v1.Status_STATUS_CODE_ERROR),
 }
 
-var KindMapping = map[string]int{ // jpe should be used anywhere else?
+var KindMapping = map[string]int{
 	KindUnspecified: int(v1.Span_SPAN_KIND_UNSPECIFIED),
 	KindInternal:    int(v1.Span_SPAN_KIND_INTERNAL),
 	KindClient:      int(v1.Span_SPAN_KIND_CLIENT),

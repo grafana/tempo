@@ -905,7 +905,7 @@ func TestParseIdentifier(t *testing.T) {
 	testCases := map[string]Attribute{
 		"name":             NewIntrinsic(IntrinsicName),
 		"status":           NewIntrinsic(IntrinsicStatus),
-		"kind":             NewIntrinsic(IntrinsicKind), // jpe, different then TestParseAttributes?
+		"kind":             NewIntrinsic(IntrinsicKind),
 		".name":            NewAttribute("name"),
 		".status":          NewAttribute("status"),
 		".foo.bar":         NewAttribute("foo.bar"),

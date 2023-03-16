@@ -432,7 +432,7 @@ func (s Static) Equals(other Static) bool {
 	}
 
 	eitherIsTypeStatus := (s.Type == TypeStatus && other.Type == TypeInt) || (other.Type == TypeStatus && s.Type == TypeInt)
-	if eitherIsTypeStatus { // jpe needed for kind?
+	if eitherIsTypeStatus {
 		if s.Type == TypeStatus {
 			return s.Status == Status(other.N)
 		}

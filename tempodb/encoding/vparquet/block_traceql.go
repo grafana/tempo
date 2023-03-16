@@ -632,8 +632,10 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 	//  b/c it is extremely cheap to retrieve. retrieving matching spans in this case will allow aggregates such as "count" to be computed
 	//  how do we know to pull duration for things like | avg(duration) > 1s? look at avg(span.http.status_code) it pushes a column request down here
 	//  the entire engine is built around spans. we have to return at least one entry for every span to the layers above for things to work
+	// TODO: note that if the query is { kind = client } the fetch layer will actually create two iterators over the kind column. this is evidence
+	//  this spaniterator code could be tightened up
 	if len(required) == 0 {
-		required = []parquetquery.Iterator{makeIter(columnPathSpanKind, nil, "")} // jpe how does this interact with the kind specified above?
+		required = []parquetquery.Iterator{makeIter(columnPathSpanKind, nil, "")}
 	}
 
 	// Left join here means the span id/start/end iterators + 1 are required,
@@ -872,13 +874,13 @@ func createStatusKindPredicate(op traceql.Operator, operands traceql.Operands) (
 	}
 
 	var i int64
-	switch operands[0].Type { // jpe why only checking 0?
+	switch operands[0].Type {
 	case traceql.TypeInt:
 		i = int64(operands[0].N)
 	case traceql.TypeStatus:
 		i = int64(StatusCodeMapping[operands[0].Status.String()]) // jpe ok to combine these?
 	case traceql.TypeKind:
-		i = int64(KindMapping[operands[0].Kind.String()]) // jpe what happens when this lookup fails?
+		i = int64(KindMapping[operands[0].Kind.String()])
 	default:
 		return nil, fmt.Errorf("operand is not int or status: %+v", operands[0])
 	}
@@ -1119,7 +1121,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 				status = traceql.Status(kv.Value.Uint64())
 			}
 			span.attributes[traceql.NewIntrinsic(traceql.IntrinsicStatus)] = traceql.NewStaticStatus(status)
-		case columnPathSpanKind: // jpe test? better place to put these switch mappings?
+		case columnPathSpanKind:
 			var kind traceql.Kind
 			switch kv.Value.Uint64() {
 			case uint64(v1.Span_SPAN_KIND_UNSPECIFIED):
