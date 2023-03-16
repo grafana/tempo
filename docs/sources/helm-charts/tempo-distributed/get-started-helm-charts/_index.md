@@ -20,12 +20,12 @@ The Grafana Tempo Helm chart allows you to configure, install, and upgrade Grafa
 
 To learn more about Helm, read the [Helm documentation](https://helm.sh/).
 
-If you are using Helm to install Grafana Enterprise Traces, then you will also need to ensure that you:
+If you are using Helm to install Grafana Enterprise Traces (GET), then you will also need to ensure that you:
 
-- have created an additional storage bucket for the admin resources
-- Disable the gateway
-- Enable the enterpriseGateway
-- Obtain a GET license and configure the values
+- Install the GET license
+- Create an additional storage bucket for the admin resources
+- Disable the `gateway`
+- Enable the `enterpriseGateway`
 
 ## Before you begin
 
@@ -36,13 +36,14 @@ It also assumes that you have an understanding of what the `kubectl` command doe
 
 ### Hardware requirements
 
-- A single Kubernetes node with a minimum of 4 cores and 16GiB RAM
+- A single Kubernetes node with a minimum of 4 cores and 16 GB RAM
 
 ### Software requirements
 
 - Kubernetes 1.20 or later (see [Kubernetes installation documentation](https://kubernetes.io/docs/setup/))
 - The `kubectl` command for your version of Kubernetes
 - Helm 3 or later (see [Helm installation documentation](https://helm.sh/docs/intro/install/))
+- GET only: [An enterprise license](https://grafana.com/docs/enterprise-traces/latest/setup/#obtain-a-get-license)
 
 Verify that you have:
 
@@ -71,10 +72,10 @@ Using a custom namespace solves problems later on because you do not have to ove
 
 1. Create a unique Kubernetes namespace, for example `tempo-test`, and switch your local context to use it:
 
-```bash
-kubectl create namespace tempo-test
-kubens tempo-test
-```
+   ```bash
+   kubectl create namespace tempo-test
+   kubens tempo-test
+   ```
 
 For more details, see the Kubernetes documentation about [Creating a new namespace](https://kubernetes.io/docs/tasks/administer-cluster/namespaces/#creating-a-new-namespace).
 
@@ -98,6 +99,8 @@ Next, you will:
 3. Set your traces values to configure the receivers on the Tempo distributor
 
 ### Tempo helm chart values
+
+This sample file contains example values for installing Tempo using Helm.
 
 ```yaml
 ---
@@ -192,7 +195,7 @@ license:
 #### Enterprise license configuration
 
 If you are using GET, you need to configure a license, by adding the license to the `custom.yaml` file or by using a secret that contains the license.
-Only one of these options should be used. 
+Only one of these options should be used.
 
 > **NOTE**: The [Set up GET instructions](https://grafana.com/docs/enterprise-traces/latest/setup/#obtain-a-get-license) explain how to obtain a license.
 
@@ -317,7 +320,7 @@ traces:
 
 You can use a YAML file, like `custom.yaml`, to store custom configuration options that override the defaults present in the Helm chart.
 The [tempo-distributed Helm chart's README](https://github.com/grafana/helm-charts/blob/main/charts/tempo-distributed/README.md) contains a list of available options.
-The `values.yaml` files provides the defaults for the helm chart. 
+The `values.yaml` files provides the defaults for the helm chart.
 
 To see all of the configurable parameters for the `tempo-distributed` Helm chart, use the following command:
 
