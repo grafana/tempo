@@ -15,7 +15,7 @@
   Removed metrics:
   `tempo_ingester_trace_search_bytes_discarded_total`
 * [CHANGE] Stop caching parquet files for search [#2164](https://github.com/grafana/tempo/pull/2164) (@mapno)
-* [CHANGE] Add context to Read spans [#2220](https://github.com/grafana/tempo/pull/2220) (@ie-pham)
+* [CHANGE] Correctly connect context during compaction [#2220](https://github.com/grafana/tempo/pull/2220) (@ie-pham)
 * [ENHANCEMENT] Metrics generator to make use of counters earlier [#2068](https://github.com/grafana/tempo/pull/2068) (@zalegrala)
 * [ENHANCEMENT] Log when a trace is too large to compact [#2105](https://github.com/grafana/tempo/pull/2105) (@scalalang2)
 * [ENHANCEMENT] Add support for arbitrary arithemtic to TraceQL queries [#2146](https://github.com/grafana/tempo/pull/2146) (@joe-elliott)
