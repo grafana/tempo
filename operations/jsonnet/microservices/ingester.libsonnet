@@ -74,7 +74,7 @@
   tempo_ingester_service:
     kausal.util.serviceFor($.tempo_ingester_statefulset),
 
-  local podDisruptionBudget = k.policy.v1beta1.podDisruptionBudget,
+  local podDisruptionBudget = k.policy.v1.podDisruptionBudget,
   ingester_pdb:
     podDisruptionBudget.new(target_name) +
     podDisruptionBudget.mixin.metadata.withLabels({ name: target_name }) +
