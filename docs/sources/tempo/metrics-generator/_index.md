@@ -46,3 +46,9 @@ Dimensions can be the service name, the operation, the span kind, the status cod
 The more dimensions are enabled, the higher the cardinality of the generated metrics.
 
 To learn more about this processor, read the [documentation]({{< relref "span_metrics/" >}}).
+
+### Exporting metrics
+
+The metrics-generator runs a Prometheus Agent that periodically sends metrics to a remote_write endpoint.
+The remote_write endpoint is configurable and can be any Prometheus-compatible endpoint.
+In order to support multi-tenancy, the metrics-generator forwards the `X-Scope-OrgID` header to the remote_write endpoint.
