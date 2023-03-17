@@ -1,7 +1,8 @@
 {
-  local k = import 'ksonnet-util/kausal.libsonnet',
+  local k = import 'k.libsonnet',
+  local kausal = import 'ksonnet-util/kausal.libsonnet',
   local container = k.core.v1.container,
-  local containerPort = k.core.v1.containerPort,
+  local containerPort = kausal.core.v1.containerPort,
   local volumeMount = k.core.v1.volumeMount,
   local pvc = k.core.v1.persistentVolumeClaim,
   local statefulset = k.apps.v1.statefulSet,
@@ -22,8 +23,7 @@
   },
 
   tempo_ingester_pvc::
-    pvc.new()
-    + pvc.mixin.metadata.withName(tempo_data_volume)
+    pvc.new(tempo_data_volume)
     + pvc.mixin.spec.resources.withRequests({ storage: $._config.ingester.pvc_size })
     + pvc.mixin.spec.withAccessModes(['ReadWriteOnce'])
     + pvc.mixin.spec.withStorageClassName($._config.ingester.pvc_storage_class)
@@ -55,7 +55,7 @@
         [$._config.gossip_member_label]: 'true',
       },
     )
-    + k.util.antiAffinityStatefulSet
+    + kausal.util.antiAffinityStatefulSet
     + statefulset.mixin.spec.withServiceName(target_name)
     + statefulset.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.tempo_ingester_configmap.data['tempo.yaml'])),
@@ -72,12 +72,11 @@
   tempo_ingester_statefulset: $.newIngesterStatefulSet(target_name, self.tempo_ingester_container) + statefulset.mixin.spec.withReplicas($._config.ingester.replicas),
 
   tempo_ingester_service:
-    k.util.serviceFor($.tempo_ingester_statefulset),
+    kausal.util.serviceFor($.tempo_ingester_statefulset),
 
   local podDisruptionBudget = k.policy.v1beta1.podDisruptionBudget,
   ingester_pdb:
-    podDisruptionBudget.new() +
-    podDisruptionBudget.mixin.metadata.withName(target_name) +
+    podDisruptionBudget.new(target_name) +
     podDisruptionBudget.mixin.metadata.withLabels({ name: target_name }) +
     podDisruptionBudget.mixin.spec.selector.withMatchLabels({ name: target_name }) +
     podDisruptionBudget.mixin.spec.withMaxUnavailable(1),
