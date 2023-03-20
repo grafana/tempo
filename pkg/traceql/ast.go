@@ -403,7 +403,8 @@ type Static struct {
 	S      string
 	B      bool
 	D      time.Duration
-	Status Status
+	Status Status // todo: can we just use the N member for status and kind?
+	Kind   Kind
 }
 
 // nolint: revive
@@ -503,6 +504,13 @@ func NewStaticStatus(s Status) Static {
 	}
 }
 
+func NewStaticKind(k Kind) Static {
+	return Static{
+		Type: TypeKind,
+		Kind: k,
+	}
+}
+
 // **********************
 // Attributes
 // **********************
@@ -537,6 +545,8 @@ func (a Attribute) impliedType() StaticType {
 		return TypeString
 	case IntrinsicStatus:
 		return TypeStatus
+	case IntrinsicKind:
+		return TypeKind
 	case IntrinsicParent:
 		return TypeNil
 	}

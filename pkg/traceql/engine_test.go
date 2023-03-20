@@ -158,6 +158,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 				attributes: map[Attribute]Static{
 					NewIntrinsic(IntrinsicName):     NewStaticString("HTTP GET"),
 					NewIntrinsic(IntrinsicStatus):   NewStaticStatus(StatusOk),
+					NewIntrinsic(IntrinsicKind):     NewStaticKind(KindClient),
 					NewAttribute("cluster"):         NewStaticString("prod"),
 					NewAttribute("count"):           NewStaticInt(5),
 					NewAttribute("count_but_float"): NewStaticFloat(5.0),
@@ -222,6 +223,14 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 							Value: &v1.AnyValue{
 								Value: &v1.AnyValue_BoolValue{
 									BoolValue: true,
+								},
+							},
+						},
+						{
+							Key: "kind",
+							Value: &v1.AnyValue{
+								Value: &v1.AnyValue_StringValue{
+									StringValue: KindClient.String(),
 								},
 							},
 						},
@@ -319,6 +328,7 @@ func TestStatic_AsAnyValue(t *testing.T) {
 		{NewStaticBool(true), &v1.AnyValue{Value: &v1.AnyValue_BoolValue{BoolValue: true}}},
 		{NewStaticDuration(5 * time.Second), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "5s"}}},
 		{NewStaticStatus(StatusOk), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "ok"}}},
+		{NewStaticKind(KindInternal), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "internal"}}},
 		{NewStaticNil(), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "nil"}}},
 	}
 	for _, tc := range tt {
