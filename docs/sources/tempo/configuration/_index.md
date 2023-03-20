@@ -9,18 +9,25 @@ alias:
 
 This document explains the configuration options for Tempo as well as the details of what they impact. It includes:
 
-  - [server](#server)
-  - [distributor](#distributor)
-  - [ingester](#ingester)
-  - [metrics-generator](#metrics-generator)
-  - [query-frontend](#query-frontend)
-  - [querier](#querier)
-  - [compactor](#compactor)
-  - [storage](#storage)
-  - [memberlist](#memberlist)
-  - [overrides](#overrides)
-  - [search](#search)
-  - [usage-report](#usage-report)
+- [Configuration](#configuration)
+  - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
+  - [Server](#server)
+  - [Distributor](#distributor)
+  - [Ingester](#ingester)
+  - [Metrics-generator](#metrics-generator)
+  - [Query-frontend](#query-frontend)
+  - [Querier](#querier)
+  - [Compactor](#compactor)
+  - [Storage](#storage)
+    - [Local storage recommendations](#local-storage-recommendations)
+    - [Storage block configuration example](#storage-block-configuration-example)
+  - [Memberlist](#memberlist)
+  - [Overrides](#overrides)
+    - [Ingestion limits](#ingestion-limits)
+      - [Standard overrides](#standard-overrides)
+      - [Tenant-specific overrides](#tenant-specific-overrides)
+      - [Override strategies](#override-strategies)
+  - [Usage-report](#usage-report)
 
 Additionally, you may wish to review [TLS]({{< relref "tls/" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
@@ -137,7 +144,7 @@ distributor:
     # some traces. This feature works in a "best-effort" manner.
     forwarders:
 
-        # Forwarder name. Must be unique within the list of forwarders. 
+        # Forwarder name. Must be unique within the list of forwarders.
         # This name can be referenced in the overrides configuration to
         # enable forwarder for a tenant.
       - name: <string>
@@ -148,7 +155,7 @@ distributor:
 
         # otlpgrpc configuration. Will be used only if value of backend is "otlpgrpc".
         otlpgrpc:
-          
+
           # List of otlpgrpc compatible endpoints.
           endpoints: <list of string>
           tls:
@@ -280,18 +287,18 @@ metrics_generator:
                 [span_kind: <bool> | default = true]
                 # Whether to add the span status code.
                 [status_code: <bool> | default = true]
-                # Whether to add a status message. Important note: The span status message may 
+                # Whether to add a status message. Important note: The span status message may
                 # contain arbitrary strings and thus have a very high cardinality.
                 [status_message: <bool> | default = false]
 
             # Additional dimensions to add to the metrics along with the intrinsic dimensions.
-            # Dimensions are searched for in the resource and span attributes and are added to 
+            # Dimensions are searched for in the resource and span attributes and are added to
             # the metrics if present.
             [dimensions: <list of string>]
-            
+
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
-          
+
 
     # Registry configuration
     registry:
@@ -544,7 +551,7 @@ While you can use local storage, object storage is recommended for production wo
 A local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk.
 Tempo is designed for object storage more than local storage.
 
-At Grafana Labs, we have run Tempo with SSDs when using local storage. Hard drives have not been tested. 
+At Grafana Labs, we have run Tempo with SSDs when using local storage. Hard drives have not been tested.
 
 How much storage space you need can be estimated by considering the ingested bytes and retention. For example, ingested bytes per day *times* retention days = stored bytes.
 
@@ -1171,7 +1178,7 @@ overrides:
     [metrics_generator_processor_service_graphs_histogram_buckets: <list of float>]
     [metrics_generator_processor_service_graphs_dimensions: <list of string>]
     [metrics_generator_processor_span_metrics_histogram_buckets: <list of float>]
-    # Allowed keys for intrinsic dimensions are: service, span_name, span_kind, status_code, and status_message. 
+    # Allowed keys for intrinsic dimensions are: service, span_name, span_kind, status_code, and status_message.
     [metrics_generator_processor_span_metrics_intrinsic_dimensions: <map string to bool>]
     [metrics_generator_processor_span_metrics_dimensions: <list of string>]
 
@@ -1278,7 +1285,7 @@ overrides:
 
 ## Usage-report
 
-By default, Tempo will report anonymous usage data about the shape of a deployment to Grafana Labs. 
+By default, Tempo will report anonymous usage data about the shape of a deployment to Grafana Labs.
 This data is used to determine how common the deployment of certain features are, if a feature flag has been enabled,
 and which replication factor or compression levels are used.
 
@@ -1286,15 +1293,15 @@ By providing information on how people use Tempo, usage reporting helps the Temp
 
 Reporting is controlled by a configuration option.
 
-The following configuration values are used: 
+The following configuration values are used:
 
 - Receivers enabled
 - Frontend concurrency and version
 - Storage cache, backend, wal and block encodings
-- Ring replication factor, and `kvstore` 
+- Ring replication factor, and `kvstore`
 - Features toggles enabled
 
-No performance data is collected. 
+No performance data is collected.
 
 You can disable the automatic reporting of this generic information using the following
 configuration:
@@ -1302,4 +1309,12 @@ configuration:
 ```yaml
 usage_report:
   reporting_enabled: false
+```
+
+If you are using a Helm chart, you can enable or disable usage reporting by changing the `reportingEnabled` value.
+This value is available in the the [tempo-distributed](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed) and the [tempo](https://github.com/grafana/helm-charts/tree/main/charts/tempo) Helm charts.
+
+```yaml
+# -- If true, Tempo will report anonymous usage data about the shape of a deployment to Grafana Labs
+reportingEnabled: true
 ```
