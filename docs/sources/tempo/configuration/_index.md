@@ -1311,10 +1311,10 @@ usage_report:
   reporting_enabled: false
 ```
 
-If you are using a Helm chart, you can enable or disable usage reporting by changing the `reportingEnabled` value. This value is available in the the  [tempo-distributed](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed) and the [tempo](https://github.com/grafana/helm-charts/tree/main/charts/tempo) Helm charts.
+If you are using a Helm chart, you can enable or disable usage reporting by changing the `reportingEnabled` value.
+This value is available in the the [tempo-distributed](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed) and the [tempo](https://github.com/grafana/helm-charts/tree/main/charts/tempo) Helm charts.
 
 ```yaml
 # -- If true, Tempo will report anonymous usage data about the shape of a deployment to Grafana Labs
 reportingEnabled: true
-
 ```
