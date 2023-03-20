@@ -62,12 +62,12 @@ Intrinsic fields are fundamental to spans. These fields can be referenced when s
 
 The following table shows the current intrinsic fields:
 
-| **Field**     | **Type** | **Definition**                                                  | **Example**            |
-|---------------|----------|-----------------------------------------------------------------|------------------------|
-| status        | status   | status: error, ok, or unset                                     | { status = ok }        |
-| duration      | duration | end - start time of the span                                    | { duration > 100ms }   |
-| name          | string   | operation or span name                                          | { name = "HTTP POST" } |
-| kind          | kind     | kind: server, client, producer, consumer, internal, unspecified | { kind = server }      |
+| **Field**     | **Type**    | **Definition**                                                  | **Example**            |
+|---------------|-------------|-----------------------------------------------------------------|------------------------|
+| status        | status enum | status: error, ok, or unset                                     | { status = ok }        |
+| duration      | duration    | end - start time of the span                                    | { duration > 100ms }   |
+| name          | string      | operation or span name                                          | { name = "HTTP POST" } |
+| kind          | kind enum   | kind: server, client, producer, consumer, internal, unspecified | { kind = server }      |
 
 ### Attribute fields
 
