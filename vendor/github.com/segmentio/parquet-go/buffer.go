@@ -81,6 +81,11 @@ func (buf *Buffer) configure(schema *Schema) {
 			columnType = dictionary.Type()
 		}
 
+		sortingIndex := searchSortingColumn(sortingColumns, leaf.path)
+		if sortingIndex < len(sortingColumns) && sortingColumns[sortingIndex].NullsFirst() {
+			nullOrdering = nullsGoFirst
+		}
+
 		column := columnType.NewColumnBuffer(columnIndex, bufferCap)
 		switch {
 		case leaf.maxRepetitionLevel > 0:
@@ -90,12 +95,9 @@ func (buf *Buffer) configure(schema *Schema) {
 		}
 		buf.columns = append(buf.columns, column)
 
-		if sortingIndex := searchSortingColumn(sortingColumns, leaf.path); sortingIndex < len(sortingColumns) {
+		if sortingIndex < len(sortingColumns) {
 			if sortingColumns[sortingIndex].Descending() {
 				column = &reversedColumnBuffer{column}
-			}
-			if sortingColumns[sortingIndex].NullsFirst() {
-				nullOrdering = nullsGoFirst
 			}
 			buf.sorted[sortingIndex] = column
 		}

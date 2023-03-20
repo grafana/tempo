@@ -52,12 +52,6 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 
 		spansetsEvaluated++
 		if len(evalSS) == 0 {
-			// this is an easy place to release. the engine rejected every single span. just release
-			// them all back to the fetch layer
-			for _, s := range inSS.Spans {
-				s.Release()
-			}
-
 			return nil, nil
 		}
 
