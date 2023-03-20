@@ -35,6 +35,40 @@ With Tempo 2.0, you can use the TraceQL query editor in the Tempo data source to
 
 ## Construct a TraceQL query
 
+
+GOALS
+
+### Simple query to find traces of a specific operation
+
+```
+{.service.name="frontend" && name = "POST /api/orders"}
+```
+
+Then the more sophisticated
+
+```
+{.service.name = "frontend" && service.namespace = "ecommerce" && deployment.environment = "production" && name = "POST /api/orders"}
+```
+
+### Query to find traces having a particular outcome
+
+All traces on the operation `POST /api/orders` that return with an HTTP error:
+
+```
+{.service.name="frontend" && name = "POST /api/orders" && .http.status_code >= 500}
+```
+
+### Query to find traces that have a particuliar behavior
+
+All the traces of the `GET /api/products/{id}` operation that access the database. It's a convenient request to identify caching problems
+
+```
+{.service.name="frontend" && name = "GET /api/products/{id}"} && {.db.system="postgresql"}
+```
+
+----
+
+
 In TraceQL, a query is an expression that is evaluated on one trace at a time. The query is structured as a set of chained expressions (a pipeline). Each expression in the pipeline selects or discards spansets from being included in the results set. For example:
 
 ```
