@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSearchCompleteBlock(t *testing.T) {
+func TestIntegrationSearchCompleteBlock(t *testing.T) {
 	for _, v := range encoding.AllEncodings() {
 		vers := v.Version()
 		t.Run(vers, func(t *testing.T) {
@@ -59,9 +59,9 @@ func testSearchCompleteBlock(t *testing.T, blockVersion string) {
 	})
 }
 
-// TestTraceQLCompleteBlock tests basic traceql tag matching conditions and
+// TestIntegrationTraceQLCompleteBlock tests basic traceql tag matching conditions and
 // aligns with the feature set and testing of the tags search
-func TestTraceQLCompleteBlock(t *testing.T) {
+func TestIntegrationTraceQLCompleteBlock(t *testing.T) {
 	for _, v := range encoding.AllEncodings() {
 		vers := v.Version()
 		t.Run(vers, func(t *testing.T) {
@@ -101,9 +101,9 @@ func testTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 	})
 }
 
-// TestAdvancedTraceQLCompleteBlock uses the actual trace data to construct complex traceql queries
+// TestIntegrationAdvancedTraceQLCompleteBlock uses the actual trace data to construct complex traceql queries
 // it is supposed to cover all major traceql features. if you see one missing add it!
-func TestAdvancedTraceQLCompleteBlock(t *testing.T) {
+func TestIntegrationAdvancedTraceQLCompleteBlock(t *testing.T) {
 	for _, v := range encoding.AllEncodings() {
 		vers := v.Version()
 		t.Run(vers, func(t *testing.T) {

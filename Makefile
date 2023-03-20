@@ -34,8 +34,7 @@ ifeq ($(BUILD_DEBUG), 1)
 	GO_OPT+= -gcflags="all=-N -l"
 endif
 
-GOTEST_OPT?= -race -timeout 30m -count=1
-GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
+GOTEST_OPT?= -race -timeout 30m -count=1 -cover
 GOTEST=go test
 LINT=golangci-lint
 
@@ -73,37 +72,45 @@ exe:
 exe-debug:
 	BUILD_DEBUG=1 GOOS=linux $(MAKE) $(COMPONENT)
 
-### Testin' and Lintin'
+### Testing
 
+.PHONY: test-all
+test-all: test test-e2e test-e2e-serverless test-serverless
+
+# unit and integration tests
 .PHONY: test
-test:
+test: 
 	$(GOTEST) $(GOTEST_OPT) $(ALL_PKGS)
+
+.PHONY: test-unit
+test-unit:
+	$(GOTEST) $(GOTEST_OPT) -run '^Test[^Integration]' $(ALL_PKGS)
+
+.PHONY: test-integration
+test-integration:
+	$(GOTEST) $(GOTEST_OPT) -run '^TestIntegration' $(ALL_PKGS)
+
+# e2e tests
+.PHONY: test-e2e
+test-e2e: docker-tempo
+	$(GOTEST) $(GOTEST_OPT) ./integration/e2e
+
+# serverless e2e tests
+.PHONY: test-e2e-serverless
+test-e2e-serverless: docker-tempo docker-serverless
+	$(GOTEST) $(GOTEST_OPT) ./integration/e2e/serverless
+
+### Benchmarking
 
 .PHONY: benchmark
 benchmark:
 	$(GOTEST) -bench=. -run=notests $(ALL_PKGS)
 
-.PHONY: test-with-cover
-test-with-cover: test-serverless
-	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
-
-# runs e2e tests in the top level integration/e2e directory
-.PHONY: test-e2e
-test-e2e: docker-tempo
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
-
-# runs only serverless e2e tests
-.PHONY: test-e2e-serverless
-test-e2e-serverless: docker-tempo docker-serverless
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/serverless
-
-# test-all/bench use a docker image so build it first to make sure we're up to date
-.PHONY: test-all
-test-all: test-with-cover test-e2e test-e2e-serverless
-
 .PHONY: test-bench
 test-bench: docker-tempo
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/bench
+	$(GOTEST) $(GOTEST_OPT) ./integration/bench
+
+### Linting
 
 .PHONY: fmt check-fmt
 fmt:
