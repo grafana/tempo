@@ -17,6 +17,7 @@ This page highlights these steps; more detailed instructions are available on th
 
 Choose a method to deploy Tempo:
 
+- [Deploy on Kubernetes using Helm](/docs/helm-charts/tempo-distributed/next/)
 - [Deploy on Linux]({{< relref "linux">}})
 - [Deploy on Kubernetes using Tanka]({{< relref "tanka">}})
 
