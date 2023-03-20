@@ -3,7 +3,6 @@ title: "Grafana tempo-distributed Helm chart documentation"
 menuTitle: "Grafana tempo-distributed Helm chart"
 description: "Technical documentation for the tempo-distributed Helm chart"
 weight: 1
-draft: true
 keywords:
   - Grafana Tempo
   - Grafana Enterprise Traces

@@ -437,6 +437,12 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 		distinctValues.Collect(v)
 	}
 
+	// with v2 search we can confidently bail if GetVirtualTagValuesV2 gives us any hits. this doesn't work
+	// in v1 search b/c intrinsic tags like "status" are conflated with attributes named "status"
+	if distinctValues.TotalDataSize() > 0 {
+		return valuesToV2Response(distinctValues), nil
+	}
+
 	// Get results from all ingesters
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
@@ -458,14 +464,17 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
 	}
 
-	resp := &tempopb.SearchTagValuesV2Response{}
+	return valuesToV2Response(distinctValues), nil
+}
 
+func valuesToV2Response(distinctValues *util.DistinctValueCollector[tempopb.TagValue]) *tempopb.SearchTagValuesV2Response {
+	resp := &tempopb.SearchTagValuesV2Response{}
 	for _, v := range distinctValues.Values() {
 		v2 := v
 		resp.TagValues = append(resp.TagValues, &v2)
 	}
 
-	return resp, nil
+	return resp
 }
 
 // SearchBlock searches the specified subset of the block for the passed tags.

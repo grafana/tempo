@@ -14,7 +14,7 @@ import (
 type ReadMode int
 
 const (
-	ReadModeSync  ReadMode = iota // ReadModeSync reads pages synchronously on demand.
+	ReadModeSync  ReadMode = iota // ReadModeSync reads pages synchronously on demand (Default).
 	ReadModeAsync                 // ReadModeAsync reads pages asynchronously in the background.
 )
 
@@ -87,6 +87,7 @@ func formatCreatedBy(application, version, build string) string {
 //	f, err := parquet.OpenFile(reader, size, &parquet.FileConfig{
 //		SkipPageIndex:    true,
 //		SkipBloomFilters: true,
+//		ReadMode:         ReadModeAsync,
 //	})
 type FileConfig struct {
 	SkipPageIndex    bool
@@ -454,18 +455,21 @@ func SkipBloomFilters(skip bool) FileOption {
 }
 
 // FileReadMode is a file configuration option which controls the way pages
-// are read. Currently the only two options are PageReadModeAsync and PageReadModeSync
-// which control whether or not pages are loaded asynchronously.
+// are read. Currently the only two options are ReadModeAsync and ReadModeSync
+// which control whether or not pages are loaded asynchronously. It can be
+// advantageous to use ReadModeAsync if your reader is backed by network
+// storage.
 //
-// Defaults to ReadModeAsync.
+// Defaults to ReadModeSync.
 func FileReadMode(mode ReadMode) FileOption {
 	return fileOption(func(config *FileConfig) { config.ReadMode = mode })
 }
 
 // ReadBufferSize is a file configuration option which controls the default
 // buffer sizes for reads made to the provided io.Reader. The default of 4096
-// is appropriate for disk based access but if your reader is backed by something
-// like network storage it can be advantageous to increase this value.
+// is appropriate for disk based access but if your reader is backed by network
+// storage it can be advantageous to increase this value to something more like
+// 4 MiB.
 //
 // Defaults to 4096.
 func ReadBufferSize(size int) FileOption {

@@ -238,8 +238,6 @@ type mockSpan struct {
 	startTimeUnixNanos uint64
 	endTimeUnixNanos   uint64
 	attributes         map[Attribute]Static
-
-	wasReleased bool
 }
 
 func (m *mockSpan) Attributes() map[Attribute]Static {
@@ -253,7 +251,4 @@ func (m *mockSpan) StartTimeUnixNanos() uint64 {
 }
 func (m *mockSpan) EndtimeUnixNanos() uint64 {
 	return m.endTimeUnixNanos
-}
-func (m *mockSpan) Release() {
-	m.wasReleased = true
 }

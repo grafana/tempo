@@ -71,11 +71,17 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 
 // Write implements backend.Writer
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
-	w := rw.writer(ctx, backend.ObjectFileName(keypath, name))
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Write")
+	defer span.Finish()
+
+	span.SetTag("object", name)
+
+	w := rw.writer(derivedCtx, backend.ObjectFileName(keypath, name))
 
 	_, err := io.Copy(w, data)
 	if err != nil {
 		w.Close()
+		span.SetTag("error", true)
 		return errors.Wrap(err, "failed to write")
 	}
 

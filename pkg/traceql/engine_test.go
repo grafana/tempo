@@ -136,38 +136,6 @@ func TestEngine_Execute(t *testing.T) {
 	assert.Equal(t, expectedTraceSearchMetadata, response.Traces)
 }
 
-func TestEngine_ReleasesOnDrop(t *testing.T) {
-	e := Engine{}
-
-	req := &tempopb.SearchRequest{
-		Query: `{ false }`,
-	}
-	span := &mockSpan{}
-	spanSetFetcher := MockSpanSetFetcher{
-		iterator: &MockSpanSetIterator{
-			results: []*Spanset{
-				{
-					Spans: []Span{span},
-				},
-			},
-		},
-	}
-
-	// should release because all spans dropped
-	_, err := e.Execute(context.Background(), req, &spanSetFetcher)
-	require.NoError(t, err)
-	require.True(t, span.wasReleased)
-
-	// reset
-	req.Query = `{ true }`
-	span.wasReleased = false
-
-	// should keep because some spans kept
-	_, err = e.Execute(context.Background(), req, &spanSetFetcher)
-	require.NoError(t, err)
-	require.False(t, span.wasReleased)
-}
-
 func TestEngine_asTraceSearchMetadata(t *testing.T) {
 	now := time.Now()
 
