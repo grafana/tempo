@@ -33,10 +33,12 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			return nil, err
 		}
 
+		// { a } && { b } | count() = 10 - jpe issue or test
+		//   a and b potentially have the same spans
 		switch o.Op {
 		case OpSpansetAnd:
 			if len(lhs) > 0 && len(rhs) > 0 {
-				matchingSpanset := input[i]
+				matchingSpanset := input[i].clone()
 				matchingSpanset.Spans = appendSpans(nil, lhs)
 				matchingSpanset.Spans = appendSpans(matchingSpanset.Spans, rhs)
 				output = append(output, matchingSpanset)
@@ -44,7 +46,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 
 		case OpSpansetUnion:
 			if len(lhs) > 0 || len(rhs) > 0 {
-				matchingSpanset := input[i]
+				matchingSpanset := input[i].clone()
 				matchingSpanset.Spans = appendSpans(nil, lhs)
 				matchingSpanset.Spans = appendSpans(matchingSpanset.Spans, rhs)
 				output = append(output, matchingSpanset)

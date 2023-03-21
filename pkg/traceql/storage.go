@@ -68,6 +68,17 @@ type Spanset struct {
 	DurationNanos      uint64
 }
 
+func (s *Spanset) clone() *Spanset {
+	return &Spanset{
+		TraceID:            s.TraceID,
+		Scalar:             s.Scalar,
+		RootSpanName:       s.RootSpanName,
+		RootServiceName:    s.RootServiceName,
+		StartTimeUnixNanos: s.StartTimeUnixNanos,
+		DurationNanos:      s.DurationNanos,
+	}
+}
+
 type SpansetIterator interface {
 	Next(context.Context) (*Spanset, error)
 	Close()
