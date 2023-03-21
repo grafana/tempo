@@ -60,6 +60,7 @@ All traces on the operation `POST /api/orders` that return with an HTTP error:
 
 ### Query to find traces that have a particuliar behavior
 
+Query filtering on multiple spans of the traces.
 All the traces of the `GET /api/products/{id}` operation that access the database. It's a convenient request to identify caching problems
 
 ```
@@ -122,9 +123,9 @@ To find traces with the `GET HTTP` method, your query could look like this:
 For more information about attributes and resources, refer to the [OpenTelemetry Resource SDK](https://opentelemetry.io/docs/reference/specification/resource/sdk/).
 #### Examples
 
-Find traces that passed through the `prod` namespace:
+Find traces that passed through the `production` namespace:
 ```
-{ resource.namespace = "prod" }
+{ resource.namespace = "production" }
 ```
 
 Find any database connection string that goes to a Postgres or MySQL database:
@@ -136,14 +137,14 @@ Find any database connection string that goes to a Postgres or MySQL database:
 
 Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource. When possible, use scoped instead of unscoped attributes.
 
-For example, to find traces with an attribute of `http.status` set to `200`:
+For example, to find traces with an attribute of `http.status_code` set to `200`:
 ```
-{ .http.status = 200 }
+{ .http.status_code = 200 }
 ```
 
-To find traces where the `namespace` is set to `prod`:
+To find traces where the `namespace` is set to `production`:
 ```
-{ .namespace = "prod" }
+{ .namespace = "production" }
 ```
 
 
@@ -161,10 +162,10 @@ The implemented comparison operators are:
 - `<=` (less than or equal to)
 - `=~` (regular expression)
 
-For example, to find all traces where an `http.status` attribute in a span are greater than `400` but less than equal to `500`:
+For example, to find all traces where an `http.status_code` attribute in a span are greater than `400` but less than equal to `500`:
 
 ```
-{ span.http.status >= 400 && span.http.status < 500 }
+{ span.http.status_code >= 400 && span.http.status_code < 500 }
 ```
 
 Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
@@ -179,10 +180,10 @@ Fields can also be combined in various ways to allow more flexible search criter
 
 #### Examples
 
-Find traces with "success" `http.status` codes:
+Find traces with "success" `http.status_code` codes:
 
 ```
-{ span.http.status >= 200 && span.http.status < 300 }
+{ span.http.status_code >= 200 && span.http.status_code < 300 }
 ```
 
 Find traces where a `DELETE` HTTP method was used and the instrinsic span status was not OK:
@@ -203,19 +204,19 @@ Spanset operators let you combine two sets of spans using and (`&&`) as well as 
 - `{condA} || {condB}`
 
 
-For example, to find a trace that went through two specific regions:
+For example, to find a trace that went through two specific `cloud.region`:
 
 ```
-{ resource.region = "eu-west-0" } && { resource.region = "eu-west-1" }
+{ resource.cloud.region = "us-east-1" } && { resource.cloud.region = "us-west-1" }
 ```
 
 Note the difference between the previous example and this one:
 
 ```
-{ resource.region = "eu-west-0" && resource.region = "eu-west-1" }
+{ resource.cloud.region = "us-east-1" && resource.cloud.region = "us-west-1" }
 ```
 
-The second expression returns no traces because it's impossible for a single span to have a `resource.region` attribute that is set to both region values at the same time.
+The second expression returns no traces because it's impossible for a single span to have a `resource.cloud.region` attribute that is set to both region values at the same time.
 
 ## Aggregators
 
@@ -238,52 +239,52 @@ Find traces where the average duration of the spans in a trace is greater than `
 avg(duration) > 20ms
 ```
 
-For example, find traces that have more than 3 spans with an attribute `http.status` with a value of `200`:
+For example, find traces that have more than 3 spans with an attribute `http.status_code` with a value of `200`:
 
 ```
-{ span.http.status = 200 } | count() > 3
+{ span.http.status_code = 200 } | count() > 3
 ```
 
 ## Arithmetic
 
 TraceQL supports arbitrary arithmetic in your queries. This can be useful to make queries more human readable:
 ```
-{ span.bytesProcessed > 10 * 1024 * 1024 }
+{ span.http.request_content_length > 10 * 1024 * 1024 }
 ```
 to compare the ratios of two span attributes:
 ```
-{ span.bytesProcessed < span.jobsProcessed * 10 }
+{ span.bytes_processed < span.jobs_processed * 10 }
 ```
 or anything else that comes to mind.
 
 ## Examples
 
-Find any trace with a span attribute or resource attribute `namespace` set to `prod`:
+Find any trace with a span attribute or resource attribute `deployment.environment` set to `production`:
 
 ```
-{ .namespace = "prod" }
+{ .deployment.environment = "production" }
 ```
 
-Find any trace with a resource attribute `namespace` set to `prod`:
+Find any trace with a resource attribute `deployment.environment` set to `production`:
 
 ```
-{ resource.namespace = "prod" }
+{ resource.deployment.environment = "production" }
 ```
 
-Find any trace with a `namespace` attribute set to `prod` and `http.status` attribute set to `200`:
+Find any trace with a `deployment.environment` attribute set to `production` and `http.status_code` attribute set to `200`:
 
 ```
-{ .namespace = "prod" && .http.status = 200 }
+{ .deployment.environment = "production" && .http.status_code = 200 }
 ```
 
-Find any trace where spans within it have a `namespace` attribute set to `prod` and an `http.status` attribute set to `200`. In previous examples, all conditions had to be true on one span. These conditions can be true on either different spans or the same spans.
+Find any trace where spans within it have a `deployment.environment` resource attribute set to `production` and a span `http.status_code` attribute set to `200`. In previous examples, all conditions had to be true on one span. These conditions can be true on either different spans or the same spans.
 
 ```
-{ .namespace = "prod" } && { .http.status = 200 }
+{ resource.deployment.environment = "production" } && { span.http.status_code = 200 }
 ```
 
 Find any trace where any span has an `http.method` attribute set to `GET` as well as a `status` attribute set to `ok`, where any other span also exists that has an `http.method` attribute set to `DELETE`, but does not have a `status` attribute set to `ok`:
 
 ```
-{ .http.method = "GET" && status = ok } && { .http.method = "DELETE" && status != ok }
+{ span.http.method = "GET" && status = ok } && { span.http.method = "DELETE" && status != ok }
 ```
