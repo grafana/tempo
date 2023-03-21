@@ -446,7 +446,6 @@ func (rw *readerWriter) pollingLoop() {
 
 func (rw *readerWriter) pollBlocklist() {
 	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do()
-
 	if err != nil {
 		level.Error(rw.logger).Log("msg", "failed to poll blocklist. using previously polled lists", "err", err)
 		return
