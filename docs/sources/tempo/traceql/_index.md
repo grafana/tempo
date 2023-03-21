@@ -88,9 +88,9 @@ To find traces with the `GET HTTP` method, your query could look like this:
 For more information about attributes and resources, refer to the [OpenTelemetry Resource SDK](https://opentelemetry.io/docs/reference/specification/resource/sdk/).
 #### Examples
 
-Find traces that passed through the `production` namespace:
+Find traces that passed through the `production` environment:
 ```
-{ resource.namespace = "production" }
+{ resource.deployment.environment = "production" }
 ```
 
 Find any database connection string that goes to a Postgres or MySQL database:
@@ -100,18 +100,12 @@ Find any database connection string that goes to a Postgres or MySQL database:
 
 ### Unscoped attribute fields
 
-Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource. When possible, use scoped instead of unscoped attributes.
+Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource. When possible, use scoped instead of unscoped attributes for performance reasons.
 
-For example, to find traces with an attribute of `http.status_code` set to `200`:
+For example, to find traces with an attribute of `sla` set to `critical`:
 ```
-{ .http.status_code = 200 }
+{ .sla = "critical" }
 ```
-
-To find traces where the `namespace` is set to `production`:
-```
-{ .namespace = "production" }
-```
-
 
 ### Comparison operators
 
