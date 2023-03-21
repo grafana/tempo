@@ -530,6 +530,15 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 			columnSelectAs[columnPathSpanName] = columnPathSpanName
 			continue
 
+		case traceql.IntrinsicKind:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, false, err
+			}
+			addPredicate(columnPathSpanKind, pred)
+			columnSelectAs[columnPathSpanKind] = columnPathSpanKind
+			continue
+
 		case traceql.IntrinsicDuration:
 			spanStartEndRetreived = true
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
@@ -544,7 +553,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 			continue
 
 		case traceql.IntrinsicStatus:
-			pred, err := createStatusPredicate(cond.Op, cond.Operands)
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, false, err
 			}
@@ -630,6 +639,8 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 	//  b/c it is extremely cheap to retrieve. retrieving matching spans in this case will allow aggregates such as "count" to be computed
 	//  how do we know to pull duration for things like | avg(duration) > 1s? look at avg(span.http.status_code) it pushes a column request down here
 	//  the entire engine is built around spans. we have to return at least one entry for every span to the layers above for things to work
+	// TODO: note that if the query is { kind = client } the fetch layer will actually create two iterators over the kind column. this is evidence
+	//  this spaniterator code could be tightened up
 	if len(required) == 0 {
 		required = []parquetquery.Iterator{makeIter(columnPathSpanKind, nil, "")}
 	}
@@ -830,52 +841,12 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (*parque
 		i = int64(operands[0].N)
 	case traceql.TypeDuration:
 		i = operands[0].D.Nanoseconds()
-	default:
-		return nil, fmt.Errorf("operand is not int or duration: %+v", operands[0])
-	}
-
-	var fn func(v int64) bool
-	var rangeFn func(min, max int64) bool
-
-	switch op {
-	case traceql.OpEqual:
-		fn = func(v int64) bool { return v == i }
-		rangeFn = func(min, max int64) bool { return min <= i && i <= max }
-	case traceql.OpNotEqual:
-		fn = func(v int64) bool { return v != i }
-		rangeFn = func(min, max int64) bool { return min != i || max != i }
-	case traceql.OpGreater:
-		fn = func(v int64) bool { return v > i }
-		rangeFn = func(min, max int64) bool { return max > i }
-	case traceql.OpGreaterEqual:
-		fn = func(v int64) bool { return v >= i }
-		rangeFn = func(min, max int64) bool { return max >= i }
-	case traceql.OpLess:
-		fn = func(v int64) bool { return v < i }
-		rangeFn = func(min, max int64) bool { return min < i }
-	case traceql.OpLessEqual:
-		fn = func(v int64) bool { return v <= i }
-		rangeFn = func(min, max int64) bool { return min <= i }
-	default:
-		return nil, fmt.Errorf("operand not supported for integers: %+v", op)
-	}
-
-	return parquetquery.NewIntPredicate(fn, rangeFn), nil
-}
-
-func createStatusPredicate(op traceql.Operator, operands traceql.Operands) (*parquetquery.GenericPredicate[int64], error) {
-	if op == traceql.OpNone {
-		return nil, nil
-	}
-
-	var i int64
-	switch operands[0].Type {
-	case traceql.TypeInt:
-		i = int64(operands[0].N)
 	case traceql.TypeStatus:
 		i = int64(StatusCodeMapping[operands[0].Status.String()])
+	case traceql.TypeKind:
+		i = int64(KindMapping[operands[0].Kind.String()])
 	default:
-		return nil, fmt.Errorf("operand is not int or status: %+v", operands[0])
+		return nil, fmt.Errorf("operand is not int, duration, status or kind: %+v", operands[0])
 	}
 
 	var fn func(v int64) bool
@@ -1115,7 +1086,24 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			}
 			span.attributes[traceql.NewIntrinsic(traceql.IntrinsicStatus)] = traceql.NewStaticStatus(status)
 		case columnPathSpanKind:
-			span.attributes[newSpanAttr(columnPathSpanKind)] = traceql.NewStaticInt(int(kv.Value.Int64()))
+			var kind traceql.Kind
+			switch kv.Value.Uint64() {
+			case uint64(v1.Span_SPAN_KIND_UNSPECIFIED):
+				kind = traceql.KindUnspecified
+			case uint64(v1.Span_SPAN_KIND_INTERNAL):
+				kind = traceql.KindInternal
+			case uint64(v1.Span_SPAN_KIND_SERVER):
+				kind = traceql.KindServer
+			case uint64(v1.Span_SPAN_KIND_CLIENT):
+				kind = traceql.KindClient
+			case uint64(v1.Span_SPAN_KIND_PRODUCER):
+				kind = traceql.KindProducer
+			case uint64(v1.Span_SPAN_KIND_CONSUMER):
+				kind = traceql.KindConsumer
+			default:
+				kind = traceql.Kind(kv.Value.Uint64())
+			}
+			span.attributes[traceql.NewIntrinsic(traceql.IntrinsicKind)] = traceql.NewStaticKind(kind)
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?

@@ -70,7 +70,8 @@ import (
 %token <staticDuration> DURATION
 %token <val>            DOT OPEN_BRACE CLOSE_BRACE OPEN_PARENS CLOSE_PARENS
                         NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
-                        IDURATION CHILDCOUNT NAME STATUS PARENT
+                        KIND_UNSPECIFIED KIND_INTERNAL KIND_SERVER KIND_CLIENT KIND_PRODUCER KIND_CONSUMER
+                        IDURATION CHILDCOUNT NAME STATUS PARENT KIND
                         PARENT_DOT RESOURCE_DOT SPAN_DOT
                         COUNT AVG MAX MIN SUM
                         BY COALESCE
@@ -236,16 +237,22 @@ fieldExpression:
 // Statics
 // **********************
 static:
-    STRING        { $$ = NewStaticString($1)          }
-  | INTEGER       { $$ = NewStaticInt($1)             }
-  | FLOAT         { $$ = NewStaticFloat($1)           }
-  | TRUE          { $$ = NewStaticBool(true)          }
-  | FALSE         { $$ = NewStaticBool(false)         }
-  | NIL           { $$ = NewStaticNil()               }
-  | DURATION      { $$ = NewStaticDuration($1)        }
-  | STATUS_OK     { $$ = NewStaticStatus(StatusOk)    }
-  | STATUS_ERROR  { $$ = NewStaticStatus(StatusError) }
-  | STATUS_UNSET  { $$ = NewStaticStatus(StatusUnset) }
+    STRING           { $$ = NewStaticString($1)           }
+  | INTEGER          { $$ = NewStaticInt($1)              }
+  | FLOAT            { $$ = NewStaticFloat($1)            }
+  | TRUE             { $$ = NewStaticBool(true)           }
+  | FALSE            { $$ = NewStaticBool(false)          }
+  | NIL              { $$ = NewStaticNil()                }
+  | DURATION         { $$ = NewStaticDuration($1)         }
+  | STATUS_OK        { $$ = NewStaticStatus(StatusOk)     }
+  | STATUS_ERROR     { $$ = NewStaticStatus(StatusError)  }
+  | STATUS_UNSET     { $$ = NewStaticStatus(StatusUnset)  } 
+  | KIND_UNSPECIFIED { $$ = NewStaticKind(KindUnspecified)}
+  | KIND_INTERNAL    { $$ = NewStaticKind(KindInternal)   }
+  | KIND_SERVER      { $$ = NewStaticKind(KindServer)     }
+  | KIND_CLIENT      { $$ = NewStaticKind(KindClient)     }
+  | KIND_PRODUCER    { $$ = NewStaticKind(KindProducer)   }
+  | KIND_CONSUMER    { $$ = NewStaticKind(KindConsumer)   }
   ;
 
 intrinsicField:
@@ -253,6 +260,7 @@ intrinsicField:
   | CHILDCOUNT     { $$ = NewIntrinsic(IntrinsicChildCount) }
   | NAME           { $$ = NewIntrinsic(IntrinsicName)       }
   | STATUS         { $$ = NewIntrinsic(IntrinsicStatus)     }
+  | KIND           { $$ = NewIntrinsic(IntrinsicKind)       }
   | PARENT         { $$ = NewIntrinsic(IntrinsicParent)     }
   ;
 

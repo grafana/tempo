@@ -633,6 +633,12 @@ func TestSpansetFilterStatics(t *testing.T) {
 		{in: "{ error }", expected: NewStaticStatus(StatusError)},
 		{in: "{ ok }", expected: NewStaticStatus(StatusOk)},
 		{in: "{ unset }", expected: NewStaticStatus(StatusUnset)},
+		{in: "{ unspecified }", expected: NewStaticKind(KindUnspecified)},
+		{in: "{ internal }", expected: NewStaticKind(KindInternal)},
+		{in: "{ client }", expected: NewStaticKind(KindClient)},
+		{in: "{ server }", expected: NewStaticKind(KindServer)},
+		{in: "{ producer }", expected: NewStaticKind(KindProducer)},
+		{in: "{ consumer }", expected: NewStaticKind(KindConsumer)},
 	}
 
 	for _, tc := range tests {
@@ -719,9 +725,11 @@ func TestAttributes(t *testing.T) {
 		expected FieldExpression
 	}{
 		{in: "duration", expected: NewIntrinsic(IntrinsicDuration)},
+		{in: "kind", expected: NewIntrinsic(IntrinsicKind)},
 		{in: ".foo", expected: NewAttribute("foo")},
 		{in: ".max", expected: NewAttribute("max")},
 		{in: ".status", expected: NewAttribute("status")},
+		{in: ".kind", expected: NewAttribute("kind")},
 		{in: ".foo.bar", expected: NewAttribute("foo.bar")},
 		{in: ".foo.bar.baz", expected: NewAttribute("foo.bar.baz")},
 		{in: ".foo.3", expected: NewAttribute("foo.3")},
@@ -779,6 +787,7 @@ func TestIntrinsics(t *testing.T) {
 		{in: "childCount", expected: IntrinsicChildCount},
 		{in: "name", expected: IntrinsicName},
 		{in: "status", expected: IntrinsicStatus},
+		{in: "kind", expected: IntrinsicKind},
 		{in: "parent", expected: IntrinsicParent},
 	}
 
@@ -896,6 +905,7 @@ func TestParseIdentifier(t *testing.T) {
 	testCases := map[string]Attribute{
 		"name":             NewIntrinsic(IntrinsicName),
 		"status":           NewIntrinsic(IntrinsicStatus),
+		"kind":             NewIntrinsic(IntrinsicKind),
 		".name":            NewAttribute("name"),
 		".status":          NewAttribute("status"),
 		".foo.bar":         NewAttribute("foo.bar"),

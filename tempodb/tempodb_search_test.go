@@ -122,7 +122,7 @@ func testAdvancedTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 		trueConditionsBySpan := [][]string{}
 		falseConditions := []string{
 			fmt.Sprintf("name=`%v`", test.RandomString()),
-			fmt.Sprintf("duration>%dh", rand.Intn(10)),
+			fmt.Sprintf("duration>%dh", rand.Intn(10)+1),
 			// status? can't really construct a status condition that's false for all spans
 		}
 		totalSpans := 0
@@ -136,9 +136,11 @@ func testAdvancedTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 					trueC, falseC := conditionsForAttributes(s.Attributes, "span")
 
 					status := trace.StatusToString(s.Status.Code)
+					kind := trace.KindToString(s.Kind)
 					trueC = append(trueC, fmt.Sprintf("name=`%v`", s.Name))
 					trueC = append(trueC, fmt.Sprintf("duration=%dns", s.EndTimeUnixNano-s.StartTimeUnixNano))
 					trueC = append(trueC, fmt.Sprintf("status=%s", status))
+					trueC = append(trueC, fmt.Sprintf("kind=%s", kind))
 
 					trueConditionsBySpan = append(trueConditionsBySpan, trueC)
 					trueConditionsBySpan = append(trueConditionsBySpan, trueResourceC)

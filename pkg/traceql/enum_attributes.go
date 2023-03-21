@@ -31,6 +31,7 @@ const (
 	IntrinsicChildCount
 	IntrinsicName
 	IntrinsicStatus
+	IntrinsicKind
 	IntrinsicParent
 )
 
@@ -44,6 +45,8 @@ func (i Intrinsic) String() string {
 		return "name"
 	case IntrinsicStatus:
 		return "status"
+	case IntrinsicKind:
+		return "kind"
 	case IntrinsicChildCount:
 		return "childCount"
 	case IntrinsicParent:
@@ -62,6 +65,8 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicName
 	case "status":
 		return IntrinsicStatus
+	case "kind":
+		return IntrinsicKind
 	case "childCount":
 		return IntrinsicChildCount
 	case "parent":
