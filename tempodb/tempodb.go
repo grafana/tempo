@@ -85,7 +85,7 @@ type Reader interface {
 }
 
 type Compactor interface {
-	EnableCompaction(cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
+	EnableCompaction(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
 }
 
 type CompactorSharder interface {
@@ -376,7 +376,7 @@ func (rw *readerWriter) Shutdown() {
 }
 
 // EnableCompaction activates the compaction/retention loops
-func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) {
+func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) {
 	// Set default if needed. This is mainly for tests.
 	if cfg.RetentionConcurrency == 0 {
 		cfg.RetentionConcurrency = DefaultRetentionConcurrency
@@ -393,8 +393,8 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 
 	if cfg != nil {
 		level.Info(rw.logger).Log("msg", "compaction and retention enabled.")
-		go rw.compactionLoop()
-		go rw.retentionLoop()
+		go rw.compactionLoop(ctx)
+		go rw.retentionLoop(ctx)
 	}
 }
 

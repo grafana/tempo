@@ -69,7 +69,7 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 func TestDB(t *testing.T) {
 	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
@@ -174,7 +174,7 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 func TestBlockCleanup(t *testing.T) {
 	r, w, c, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
@@ -504,7 +504,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 func TestSearchCompactedBlocks(t *testing.T) {
 	r, w, c, _ := testConfig(t, backend.EncLZ4_256k, time.Hour)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,

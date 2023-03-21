@@ -1,6 +1,7 @@
 package tempodb
 
 import (
+	"context"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -9,13 +10,16 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-// todo: pass a context/chan in to cancel this cleanly
-// once a maintenance cycle cleanup any blocks
-func (rw *readerWriter) retentionLoop() {
+// retentionLoop watches a timer to clean up blocks that are past retention.
+func (rw *readerWriter) retentionLoop(ctx context.Context) {
 	ticker := time.NewTicker(rw.cfg.BlocklistPoll)
-	for range ticker.C {
+	select {
+	case <-ticker.C:
 		rw.doRetention()
+	case <-ctx.Done():
+		return
 	}
+
 }
 
 func (rw *readerWriter) doRetention() {

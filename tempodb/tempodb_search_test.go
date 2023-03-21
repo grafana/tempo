@@ -307,7 +307,7 @@ func runCompleteBlockSearchTest(t testing.TB, blockVersion string, runner runner
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,

@@ -42,7 +42,7 @@ func TestRetention(t *testing.T) {
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
@@ -105,7 +105,7 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 
 	r.EnablePolling(&mockJobSharder{})
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
@@ -172,7 +172,7 @@ func TestBlockRetentionOverride(t *testing.T) {
 
 	overrides := &mockOverrides{}
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          time.Hour,

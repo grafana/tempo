@@ -61,16 +61,18 @@ var (
 	}, []string{"tenant"})
 )
 
-// todo: pass a context/chan in to cancel this cleanly
-func (rw *readerWriter) compactionLoop() {
+func (rw *readerWriter) compactionLoop(ctx context.Context) {
 	compactionCycle := DefaultCompactionCycle
 	if rw.compactorCfg.CompactionCycle > 0 {
 		compactionCycle = rw.compactorCfg.CompactionCycle
 	}
 
 	ticker := time.NewTicker(compactionCycle)
-	for range ticker.C {
+	select {
+	case <-ticker.C:
 		rw.doCompaction()
+	case <-ctx.Done():
+		return
 	}
 }
 

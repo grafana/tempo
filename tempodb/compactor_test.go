@@ -98,7 +98,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10_000_000,
 		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
@@ -242,7 +242,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
@@ -383,7 +383,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
@@ -452,7 +452,7 @@ func TestCompactionMetrics(t *testing.T) {
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
@@ -524,7 +524,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		MaxCompactionObjects:    1000,
@@ -596,7 +596,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10_000_000,
 		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
@@ -726,7 +726,7 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 
 	rw := c.(*readerWriter)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:     10_000_000,
 		FlushSizeBytes:     10_000_000,
 		IteratorBufferSize: DefaultIteratorBufferSize,
