@@ -45,17 +45,17 @@ const (
 	DefinitionLevelResourceSpansILSSpan      = 3
 	DefinitionLevelResourceSpansILSSpanAttrs = 4
 
-	FieldResourceAttrKey       = "rs.Resource.Attrs.Key"
-	FieldResourceAttrVal       = "rs.Resource.Attrs.Value"
-	FieldResourceAttrValInt    = "rs.Resource.Attrs.ValueInt"
-	FieldResourceAttrValDouble = "rs.Resource.Attrs.ValueDouble"
-	FieldResourceAttrValBool   = "rs.Resource.Attrs.ValueBool"
+	FieldResourceAttrKey       = "rs.list.element.Resource.Attrs.list.element.Key"
+	FieldResourceAttrVal       = "rs.list.element.Resource.Attrs.list.element.Value"
+	FieldResourceAttrValInt    = "rs.list.element.Resource.Attrs.list.element.ValueInt"
+	FieldResourceAttrValDouble = "rs.list.element.Resource.Attrs.list.element.ValueDouble"
+	FieldResourceAttrValBool   = "rs.list.element.Resource.Attrs.list.element.ValueBool"
 
-	FieldSpanAttrKey       = "rs.ss.Spans.Attrs.Key"
-	FieldSpanAttrVal       = "rs.ss.Spans.Attrs.Value"
-	FieldSpanAttrValInt    = "rs.ss.Spans.Attrs.ValueInt"
-	FieldSpanAttrValDouble = "rs.ss.Spans.Attrs.ValueDouble"
-	FieldSpanAttrValBool   = "rs.ss.Spans.Attrs.ValueBool"
+	FieldSpanAttrKey       = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Key"
+	FieldSpanAttrVal       = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Value"
+	FieldSpanAttrValInt    = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt"
+	FieldSpanAttrValDouble = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueDouble"
+	FieldSpanAttrValBool   = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool"
 )
 
 var (
@@ -64,20 +64,20 @@ var (
 	labelMappings = map[string]string{
 		LabelRootSpanName:     "RootSpanName",
 		LabelRootServiceName:  "RootServiceName",
-		LabelServiceName:      "rs.Resource.ServiceName",
-		LabelCluster:          "rs.Resource.Cluster",
-		LabelNamespace:        "rs.Resource.Namespace",
-		LabelPod:              "rs.Resource.Pod",
-		LabelContainer:        "rs.Resource.Container",
-		LabelK8sClusterName:   "rs.Resource.K8sClusterName",
-		LabelK8sNamespaceName: "rs.Resource.K8sNamespaceName",
-		LabelK8sPodName:       "rs.Resource.K8sPodName",
-		LabelK8sContainerName: "rs.Resource.K8sContainerName",
-		LabelName:             "rs.ss.Spans.Name",
-		LabelHTTPMethod:       "rs.ss.Spans.HttpMethod",
-		LabelHTTPUrl:          "rs.ss.Spans.HttpUrl",
-		LabelHTTPStatusCode:   "rs.ss.Spans.HttpStatusCode",
-		LabelStatusCode:       "rs.ss.Spans.StatusCode",
+		LabelServiceName:      "rs.list.element.Resource.ServiceName",
+		LabelCluster:          "rs.list.element.Resource.Cluster",
+		LabelNamespace:        "rs.list.element.Resource.Namespace",
+		LabelPod:              "rs.list.element.Resource.Pod",
+		LabelContainer:        "rs.list.element.Resource.Container",
+		LabelK8sClusterName:   "rs.list.element.Resource.K8sClusterName",
+		LabelK8sNamespaceName: "rs.list.element.Resource.K8sNamespaceName",
+		LabelK8sPodName:       "rs.list.element.Resource.K8sPodName",
+		LabelK8sContainerName: "rs.list.element.Resource.K8sContainerName",
+		LabelName:             "rs.list.element.ss.list.element.Spans.list.element.Name",
+		LabelHTTPMethod:       "rs.list.element.ss.list.element.Spans.list.element.HttpMethod",
+		LabelHTTPUrl:          "rs.list.element.ss.list.element.Spans.list.element.HttpUrl",
+		LabelHTTPStatusCode:   "rs.list.element.ss.list.element.Spans.list.element.HttpStatusCode",
+		LabelStatusCode:       "rs.list.element.ss.list.element.Spans.list.element.StatusCode",
 	}
 )
 
@@ -101,7 +101,7 @@ type EventAttribute struct {
 type Event struct {
 	TimeUnixNano           uint64           `parquet:",delta"`
 	Name                   string           `parquet:",snappy"`
-	Attrs                  []EventAttribute `parquet:""`
+	Attrs                  []EventAttribute `parquet:",list"`
 	DroppedAttributesCount int32            `parquet:",snappy,delta"`
 	Test                   string           `parquet:",snappy,dict,optional"` // Always empty for testing
 }
@@ -123,9 +123,9 @@ type Span struct {
 	DurationNano           uint64      `parquet:",delta"`
 	StatusCode             int         `parquet:",delta"`
 	StatusMessage          string      `parquet:",snappy"`
-	Attrs                  []Attribute `parquet:""`
+	Attrs                  []Attribute `parquet:",list"`
 	DroppedAttributesCount int32       `parquet:",snappy"`
-	Events                 []Event     `parquet:""`
+	Events                 []Event     `parquet:",list"`
 	DroppedEventsCount     int32       `parquet:",snappy"`
 	Links                  []byte      `parquet:",snappy"` // proto encoded []*v1_trace.Span_Link
 	DroppedLinksCount      int32       `parquet:",snappy"`
@@ -143,11 +143,11 @@ type InstrumentationScope struct {
 
 type ScopeSpans struct {
 	Scope InstrumentationScope `parquet:""`
-	Spans []Span               `parquet:""`
+	Spans []Span               `parquet:",list"`
 }
 
 type Resource struct {
-	Attrs []Attribute
+	Attrs []Attribute `parquet:",list"`
 
 	// Known attributes
 	ServiceName      string  `parquet:",snappy,dict"`
@@ -165,13 +165,13 @@ type Resource struct {
 
 type ResourceSpans struct {
 	Resource   Resource     `parquet:""`
-	ScopeSpans []ScopeSpans `parquet:"ss"`
+	ScopeSpans []ScopeSpans `parquet:"ss,list"`
 }
 
 type Trace struct {
 	// TraceID is a byte slice as it helps maintain the sort order of traces within a parquet file
 	TraceID       []byte          `parquet:""`
-	ResourceSpans []ResourceSpans `parquet:"rs"`
+	ResourceSpans []ResourceSpans `parquet:"rs,list"`
 
 	// TraceIDText is for better usability on downstream systems i.e: something other than Tempo is reading these files.
 	// It will not be used as the primary traceID field within Tempo and is only helpful for debugging purposes.
