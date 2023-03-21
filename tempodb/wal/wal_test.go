@@ -28,6 +28,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 )
 
 const (
@@ -438,6 +439,7 @@ func BenchmarkAppendFlush(b *testing.B) {
 	encodings := []string{
 		v2.VersionString,
 		vparquet.VersionString,
+		vparquet2.VersionString,
 	}
 	for _, enc := range encodings {
 		b.Run(enc, func(b *testing.B) {
@@ -450,6 +452,7 @@ func BenchmarkFindTraceByID(b *testing.B) {
 	encodings := []string{
 		v2.VersionString,
 		vparquet.VersionString,
+		vparquet2.VersionString,
 	}
 	for _, enc := range encodings {
 		b.Run(enc, func(b *testing.B) {
@@ -471,6 +474,7 @@ func BenchmarkFindUnknownTraceID(b *testing.B) {
 	encodings := []string{
 		v2.VersionString,
 		vparquet.VersionString,
+		vparquet2.VersionString,
 	}
 	for _, enc := range encodings {
 		b.Run(enc, func(b *testing.B) {
@@ -488,6 +492,7 @@ func BenchmarkSearch(b *testing.B) {
 	encodings := []string{
 		v2.VersionString,
 		vparquet.VersionString,
+		vparquet2.VersionString,
 	}
 	for _, enc := range encodings {
 		b.Run(enc, func(b *testing.B) {

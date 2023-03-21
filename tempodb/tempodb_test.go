@@ -25,6 +25,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -630,7 +631,7 @@ func testCompleteBlock(t *testing.T, from, to string) {
 }
 
 func TestCompleteBlockHonorsStartStopTimes(t *testing.T) {
-	testEncodings := []string{v2.VersionString, vparquet.VersionString}
+	testEncodings := []string{v2.VersionString, vparquet.VersionString, vparquet2.VersionString}
 	for _, enc := range testEncodings {
 		t.Run(enc, func(t *testing.T) {
 			testCompleteBlockHonorsStartStopTimes(t, enc)
