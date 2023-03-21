@@ -176,7 +176,7 @@ func SortTrace(t *Trace) {
 			})
 		}
 		sort.Slice(b.ScopeSpans, func(i, j int) bool {
-			return compareIls(&b.ScopeSpans[i], &b.ScopeSpans[j])
+			return compareScopeSpans(&b.ScopeSpans[i], &b.ScopeSpans[j])
 		})
 	}
 	sort.Slice(t.ResourceSpans, func(i, j int) bool {
@@ -186,12 +186,12 @@ func SortTrace(t *Trace) {
 
 func compareBatches(a, b *ResourceSpans) bool {
 	if len(a.ScopeSpans) > 0 && len(b.ScopeSpans) > 0 {
-		return compareIls(&a.ScopeSpans[0], &b.ScopeSpans[0])
+		return compareScopeSpans(&a.ScopeSpans[0], &b.ScopeSpans[0])
 	}
 	return false
 }
 
-func compareIls(a, b *ScopeSpan) bool {
+func compareScopeSpans(a, b *ScopeSpans) bool {
 	if len(a.Spans) > 0 && len(b.Spans) > 0 {
 		return compareSpans(&a.Spans[0], &b.Spans[0])
 	}

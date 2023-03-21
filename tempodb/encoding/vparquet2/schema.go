@@ -51,11 +51,11 @@ const (
 	FieldResourceAttrValDouble = "rs.Resource.Attrs.ValueDouble"
 	FieldResourceAttrValBool   = "rs.Resource.Attrs.ValueBool"
 
-	FieldSpanAttrKey       = "rs.ils.Spans.Attrs.Key"
-	FieldSpanAttrVal       = "rs.ils.Spans.Attrs.Value"
-	FieldSpanAttrValInt    = "rs.ils.Spans.Attrs.ValueInt"
-	FieldSpanAttrValDouble = "rs.ils.Spans.Attrs.ValueDouble"
-	FieldSpanAttrValBool   = "rs.ils.Spans.Attrs.ValueBool"
+	FieldSpanAttrKey       = "rs.ss.Spans.Attrs.Key"
+	FieldSpanAttrVal       = "rs.ss.Spans.Attrs.Value"
+	FieldSpanAttrValInt    = "rs.ss.Spans.Attrs.ValueInt"
+	FieldSpanAttrValDouble = "rs.ss.Spans.Attrs.ValueDouble"
+	FieldSpanAttrValBool   = "rs.ss.Spans.Attrs.ValueBool"
 )
 
 var (
@@ -73,11 +73,11 @@ var (
 		LabelK8sNamespaceName: "rs.Resource.K8sNamespaceName",
 		LabelK8sPodName:       "rs.Resource.K8sPodName",
 		LabelK8sContainerName: "rs.Resource.K8sContainerName",
-		LabelName:             "rs.ils.Spans.Name",
-		LabelHTTPMethod:       "rs.ils.Spans.HttpMethod",
-		LabelHTTPUrl:          "rs.ils.Spans.HttpUrl",
-		LabelHTTPStatusCode:   "rs.ils.Spans.HttpStatusCode",
-		LabelStatusCode:       "rs.ils.Spans.StatusCode",
+		LabelName:             "rs.ss.Spans.Name",
+		LabelHTTPMethod:       "rs.ss.Spans.HttpMethod",
+		LabelHTTPUrl:          "rs.ss.Spans.HttpUrl",
+		LabelHTTPStatusCode:   "rs.ss.Spans.HttpStatusCode",
+		LabelStatusCode:       "rs.ss.Spans.StatusCode",
 	}
 )
 
@@ -133,14 +133,14 @@ type Span struct {
 	HttpStatusCode *int64  `parquet:",snappy,optional"`
 }
 
-type Scope struct {
+type InstrumentationScope struct {
 	Name    string `parquet:",snappy,dict"`
 	Version string `parquet:",snappy,dict"`
 }
 
-type ScopeSpan struct {
-	Scope Scope  `parquet:"il"`
-	Spans []Span `parquet:""`
+type ScopeSpans struct {
+	Scope InstrumentationScope `parquet:""`
+	Spans []Span               `parquet:""`
 }
 
 type Resource struct {
@@ -161,8 +161,8 @@ type Resource struct {
 }
 
 type ResourceSpans struct {
-	Resource   Resource    `parquet:""`
-	ScopeSpans []ScopeSpan `parquet:"ils"`
+	Resource   Resource     `parquet:""`
+	ScopeSpans []ScopeSpans `parquet:"ss"`
 }
 
 type Trace struct {
@@ -170,7 +170,7 @@ type Trace struct {
 	TraceID       []byte          `parquet:""`
 	ResourceSpans []ResourceSpans `parquet:"rs"`
 
-	// TraceIDText is for better useability on downstream systems i.e: something other than Tempo is reading these files.
+	// TraceIDText is for better usability on downstream systems i.e: something other than Tempo is reading these files.
 	// It will not be used as the primary traceID field within Tempo and is only helpful for debugging purposes.
 	TraceIDText string `parquet:",snappy"`
 
@@ -284,7 +284,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 		for iils, ils := range b.ScopeSpans {
 			oils := &ob.ScopeSpans[iils]
 			if ils.Scope != nil {
-				oils.Scope = Scope{
+				oils.Scope = InstrumentationScope{
 					Name:    ils.Scope.Name,
 					Version: ils.Scope.Version,
 				}

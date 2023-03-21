@@ -50,7 +50,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 					Resource: Resource{
 						ServiceName: "s",
 					},
-					ScopeSpans: []ScopeSpan{
+					ScopeSpans: []ScopeSpans{
 						{
 							Spans: []Span{
 								{
