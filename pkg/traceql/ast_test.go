@@ -249,6 +249,6 @@ func (m *mockSpan) ID() []byte {
 func (m *mockSpan) StartTimeUnixNanos() uint64 {
 	return m.startTimeUnixNanos
 }
-func (m *mockSpan) EndtimeUnixNanos() uint64 {
+func (m *mockSpan) EndTimeUnixNanos() uint64 {
 	return m.endTimeUnixNanos
 }

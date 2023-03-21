@@ -53,7 +53,7 @@ type Span interface {
 
 	ID() []byte
 	StartTimeUnixNanos() uint64
-	EndtimeUnixNanos() uint64
+	EndTimeUnixNanos() uint64
 }
 
 type Spanset struct {

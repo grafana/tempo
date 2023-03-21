@@ -36,7 +36,7 @@ func (s *span) ID() []byte {
 func (s *span) StartTimeUnixNanos() uint64 {
 	return s.startTimeUnixNanos
 }
-func (s *span) EndtimeUnixNanos() uint64 {
+func (s *span) EndTimeUnixNanos() uint64 {
 	return s.endtimeUnixNanos
 }
 func (s *span) Release() {
