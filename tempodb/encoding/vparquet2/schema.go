@@ -112,9 +112,12 @@ type Span struct {
 	// ID is []byte to save space. It doesn't need to be user
 	// friendly like trace ID, and []byte is half the size of string.
 	ID                     []byte      `parquet:","`
+	ParentSpanID           []byte      `parquet:","`
+	ParentID               int32       `parquet:",delta"`
+	NestedSetLeft          int32       `parquet:",delta"`
+	NestedSetRight         int32       `parquet:",delta"`
 	Name                   string      `parquet:",snappy,dict"`
 	Kind                   int         `parquet:",delta"`
-	ParentSpanID           []byte      `parquet:","`
 	TraceState             string      `parquet:",snappy"`
 	StartTimeUnixNano      uint64      `parquet:",delta"`
 	DurationNano           uint64      `parquet:",delta"`
