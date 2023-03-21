@@ -76,6 +76,7 @@ func (s *Spanset) clone() *Spanset {
 		RootServiceName:    s.RootServiceName,
 		StartTimeUnixNanos: s.StartTimeUnixNanos,
 		DurationNanos:      s.DurationNanos,
+		Spans:              s.Spans, // we're not deep cloning into the spans themselves
 	}
 }
 

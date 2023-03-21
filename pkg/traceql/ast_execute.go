@@ -113,7 +113,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 	for _, ss := range input {
 		switch a.op {
 		case aggregateCount:
-			copy := ss
+			copy := ss.clone()
 			copy.Scalar = NewStaticInt(len(ss.Spans))
 			output = append(output, copy)
 
@@ -130,7 +130,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				count++
 			}
 
-			copy := ss
+			copy := ss.clone()
 			copy.Scalar = NewStaticFloat(sum / float64(count))
 			output = append(output, copy)
 

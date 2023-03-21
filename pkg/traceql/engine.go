@@ -44,11 +44,25 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 			return nil, nil
 		}
 
+		/*
+			// debug code that confirms that inSS is unmodified
+			clone := inSS.clone()
+			clone.Spans = append([]Span(nil), inSS.Spans...)
+		*/
+
 		evalSS, err := rootExpr.Pipeline.evaluate([]*Spanset{inSS})
 		if err != nil {
 			span.LogKV("msg", "pipeline.evaluate", "err", err)
 			return nil, err
 		}
+
+		/*
+			// debug code that confirms that inSS is unmodified
+			diff := deep.Equal(clone, inSS)
+			if len(diff) > 0 {
+				panic(fmt.Sprintf("inSS was modified: %v", diff))
+			}
+		*/
 
 		spansetsEvaluated++
 		if len(evalSS) == 0 {
