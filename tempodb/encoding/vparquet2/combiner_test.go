@@ -51,7 +51,7 @@ func TestCombiner(t *testing.T) {
 				RootSpanName:      "spanNameB",
 				StartTimeUnixNano: 10,
 				EndTimeUnixNano:   20,
-				DurationNanos:     10,
+				DurationNano:      10,
 			},
 			expectedTrace: &Trace{
 				TraceID:           []byte{0x00, 0x01},
@@ -59,7 +59,7 @@ func TestCombiner(t *testing.T) {
 				RootSpanName:      "spanNameB",
 				StartTimeUnixNano: 10,
 				EndTimeUnixNano:   20,
-				DurationNanos:     10,
+				DurationNano:      10,
 			},
 		},
 		// if both set first root name wins
@@ -86,19 +86,19 @@ func TestCombiner(t *testing.T) {
 				TraceID:           []byte{0x00, 0x01},
 				StartTimeUnixNano: 10,
 				EndTimeUnixNano:   20,
-				DurationNanos:     10,
+				DurationNano:      10,
 			},
 			traceB: &Trace{
 				TraceID:           []byte{0x00, 0x01},
 				StartTimeUnixNano: 5,
 				EndTimeUnixNano:   25,
-				DurationNanos:     20,
+				DurationNano:      20,
 			},
 			expectedTrace: &Trace{
 				TraceID:           []byte{0x00, 0x01},
 				StartTimeUnixNano: 5,
 				EndTimeUnixNano:   25,
-				DurationNanos:     20,
+				DurationNano:      20,
 			},
 		},
 		// second trace start/end ignored
@@ -107,19 +107,19 @@ func TestCombiner(t *testing.T) {
 				TraceID:           []byte{0x00, 0x01},
 				StartTimeUnixNano: 10,
 				EndTimeUnixNano:   20,
-				DurationNanos:     10,
+				DurationNano:      10,
 			},
 			traceB: &Trace{
 				TraceID:           []byte{0x00, 0x01},
 				StartTimeUnixNano: 12,
 				EndTimeUnixNano:   18,
-				DurationNanos:     6,
+				DurationNano:      6,
 			},
 			expectedTrace: &Trace{
 				TraceID:           []byte{0x00, 0x01},
 				StartTimeUnixNano: 10,
 				EndTimeUnixNano:   20,
-				DurationNanos:     10,
+				DurationNano:      10,
 			},
 		},
 		{

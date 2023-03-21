@@ -112,7 +112,7 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 	if c.result.RootSpanName == "" {
 		c.result.RootSpanName = tr.RootSpanName
 	}
-	c.result.DurationNanos = c.result.EndTimeUnixNano - c.result.StartTimeUnixNano
+	c.result.DurationNano = c.result.EndTimeUnixNano - c.result.StartTimeUnixNano
 
 	// loop through every span and copy spans in B that don't exist to A
 	for _, b := range tr.ResourceSpans {
@@ -200,9 +200,9 @@ func compareIls(a, b *ScopeSpan) bool {
 
 func compareSpans(a, b *Span) bool {
 	// Sort by start time, then id
-	if a.StartUnixNanos == b.StartUnixNanos {
+	if a.StartTimeUnixNano == b.StartTimeUnixNano {
 		return bytes.Compare(a.ID, b.ID) == -1
 	}
 
-	return a.StartUnixNanos < b.StartUnixNanos
+	return a.StartTimeUnixNano < b.StartTimeUnixNano
 }

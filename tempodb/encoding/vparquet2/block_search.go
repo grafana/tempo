@@ -229,7 +229,7 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 			max = (time.Millisecond * time.Duration(req.MaxDurationMs)).Nanoseconds()
 		}
 		durFilter := pq.NewIntBetweenPredicate(min, max)
-		traceIters = append(traceIters, makeIter("DurationNanos", durFilter, "Duration"))
+		traceIters = append(traceIters, makeIter("DurationNano", durFilter, "Duration"))
 	}
 
 	// Time range filtering?
@@ -328,7 +328,7 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 		makeIter("RootServiceName", nil, "RootServiceName"),
 		makeIter("RootSpanName", nil, "RootSpanName"),
 		makeIter("StartTimeUnixNano", nil, "StartTimeUnixNano"),
-		makeIter("DurationNanos", nil, "DurationNanos"),
+		makeIter("DurationNano", nil, "DurationNano"),
 	}, nil)
 	defer iter2.Close()
 
@@ -347,7 +347,7 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 			RootServiceName:   matchMap["RootServiceName"][0].String(),
 			RootTraceName:     matchMap["RootSpanName"][0].String(),
 			StartTimeUnixNano: matchMap["StartTimeUnixNano"][0].Uint64(),
-			DurationMs:        uint32(matchMap["DurationNanos"][0].Int64() / int64(time.Millisecond)),
+			DurationMs:        uint32(matchMap["DurationNano"][0].Int64() / int64(time.Millisecond)),
 		}
 		results = append(results, result)
 	}
