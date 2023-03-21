@@ -35,41 +35,6 @@ With Tempo 2.0, you can use the TraceQL query editor in the Tempo data source to
 
 ## Construct a TraceQL query
 
-
-GOALS
-
-### Simple query to find traces of a specific operation
-
-```
-{.service.name="frontend" && name = "POST /api/orders"}
-```
-
-Then the more sophisticated
-
-```
-{.service.name = "frontend" && service.namespace = "ecommerce" && deployment.environment = "production" && name = "POST /api/orders"}
-```
-
-### Query to find traces having a particular outcome
-
-All traces on the operation `POST /api/orders` that return with an HTTP error:
-
-```
-{.service.name="frontend" && name = "POST /api/orders" && .http.status_code >= 500}
-```
-
-### Query to find traces that have a particuliar behavior
-
-Query filtering on multiple spans of the traces.
-All the traces of the `GET /api/products/{id}` operation that access the database. It's a convenient request to identify caching problems
-
-```
-{.service.name="frontend" && name = "GET /api/products/{id}"} && {.db.system="postgresql"}
-```
-
-----
-
-
 In TraceQL, a query is an expression that is evaluated on one trace at a time. The query is structured as a set of chained expressions (a pipeline). Each expression in the pipeline selects or discards spansets from being included in the results set. For example:
 
 ```
@@ -259,17 +224,65 @@ or anything else that comes to mind.
 
 ## Examples
 
-Find any trace with a span attribute or resource attribute `deployment.environment` set to `production`:
+### Simple query to find traces of a specific operation
 
 ```
-{ .deployment.environment = "production" }
+{resource.service.name = "frontend" && name = "POST /api/orders"}
 ```
 
-Find any trace with a resource attribute `deployment.environment` set to `production`:
+When using the same Grafana stack for multiple environment (e.g. `production`and `staging`) or having services that share the same name but are differentiated though their namespace, the query looks like:
 
 ```
-{ resource.deployment.environment = "production" }
+{
+  resource.service.namespace = "ecommerce" &&
+  resource.service.name = "frontend" &&  
+  resource.deployment.environment = "production" && 
+  name = "POST /api/orders"
+}
 ```
+
+### Query to find traces having a particular outcome
+
+All traces on the operation `POST /api/orders` that have an erroneous root span:
+
+```
+{
+  resource.service.name="frontend" && 
+  name = "POST /api/orders" && 
+  status = error
+}
+```
+
+All traces on the operation `POST /api/orders` that return with an HTTP 5xx error:
+
+```
+{
+  resource.service.name="frontend" && 
+  name = "POST /api/orders" && 
+  span.http.status_code >= 500
+}
+```
+
+### Query to find traces that have a particuliar behavior
+
+Query filtering on multiple spans of the traces.
+All the traces of the `GET /api/products/{id}` operation that access the database. It's a convenient request to identify caching problems:
+
+```
+{span.service.name="frontend" && name = "GET /api/products/{id}"} && {.db.system="postgresql"}
+```
+
+### Query to find traces going through a mix of "production" and "staging" instances
+
+Very convenient to identify misconfigurations and leaks across environments. 
+Find traces that go through "production" and "staging" instances.
+
+```
+{ resource.deployment.environment = "production" } && { resource.deployment.environment = "production" }
+```
+
+### Other examples
+
 
 Find any trace with a `deployment.environment` attribute set to `production` and `http.status_code` attribute set to `200`:
 
