@@ -58,7 +58,7 @@ func TestBackendBlockSearch(t *testing.T) {
 								HttpMethod:     strPtr("get"),
 								HttpUrl:        strPtr("url/hello/world"),
 								HttpStatusCode: intPtr(500),
-								ID:             []byte{},
+								SpanID:         []byte{},
 								ParentSpanID:   []byte{},
 								StatusCode:     int(v1.Status_STATUS_CODE_ERROR),
 								Attrs: []Attribute{

@@ -58,7 +58,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 									Attrs: []Attribute{
 										{Key: "foo", Value: &bar},
 									},
-									ID:           []byte{},
+									SpanID:       []byte{},
 									ParentSpanID: []byte{},
 								},
 							},

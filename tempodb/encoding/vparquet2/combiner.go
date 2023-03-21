@@ -92,7 +92,7 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 		for _, b := range c.result.ResourceSpans {
 			for _, ils := range b.ScopeSpans {
 				for _, s := range ils.Spans {
-					c.spans[tokenForID(h, buffer, int32(s.Kind), s.ID)] = struct{}{}
+					c.spans[tokenForID(h, buffer, int32(s.Kind), s.SpanID)] = struct{}{}
 				}
 			}
 		}
@@ -122,7 +122,7 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 			notFoundSpans := ils.Spans[:0]
 			for _, s := range ils.Spans {
 				// if not already encountered, then keep
-				token := tokenForID(h, buffer, int32(s.Kind), s.ID)
+				token := tokenForID(h, buffer, int32(s.Kind), s.SpanID)
 				_, ok := c.spans[token]
 				if !ok {
 					notFoundSpans = append(notFoundSpans, s)
@@ -201,7 +201,7 @@ func compareScopeSpans(a, b *ScopeSpans) bool {
 func compareSpans(a, b *Span) bool {
 	// Sort by start time, then id
 	if a.StartTimeUnixNano == b.StartTimeUnixNano {
-		return bytes.Compare(a.ID, b.ID) == -1
+		return bytes.Compare(a.SpanID, b.SpanID) == -1
 	}
 
 	return a.StartTimeUnixNano < b.StartTimeUnixNano

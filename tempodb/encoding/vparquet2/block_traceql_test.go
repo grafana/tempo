@@ -380,7 +380,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 					{
 						Spans: []Span{
 							{
-								ID:                     []byte("spanid"),
+								SpanID:                 []byte("spanid"),
 								Name:                   "hello",
 								StartTimeUnixNano:      uint64(100 * time.Second),
 								DurationNano:           uint64(100 * time.Second),
@@ -426,8 +426,8 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 					{
 						Spans: []Span{
 							{
-								ID:   []byte("spanid2"),
-								Name: "world",
+								SpanID: []byte("spanid2"),
+								Name:   "world",
 							},
 						},
 					},

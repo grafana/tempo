@@ -324,7 +324,7 @@ func countSpans(schema *parquet.Schema, row parquet.Row) (traceID string, spans 
 		return "", 0
 	}
 
-	spanID, found := schema.Lookup("rs", "ss", "Spans", "ID")
+	spanID, found := schema.Lookup("rs", "ss", "Spans", "SpanID")
 	if !found {
 		return "", 0
 	}
