@@ -33,8 +33,6 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			return nil, err
 		}
 
-		// { a } && { b } | count() = 10 - jpe issue or test
-		//   a and b potentially have the same spans
 		switch o.Op {
 		case OpSpansetAnd:
 			if len(lhs) > 0 && len(rhs) > 0 {
