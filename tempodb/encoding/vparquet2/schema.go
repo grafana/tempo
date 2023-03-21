@@ -117,7 +117,7 @@ type Span struct {
 	ParentSpanID           []byte      `parquet:","`
 	TraceState             string      `parquet:",snappy"`
 	StartTimeUnixNano      uint64      `parquet:",delta"`
-	EndTimeUnixNano        uint64      `parquet:",delta"`
+	DurationNano           uint64      `parquet:",delta"`
 	StatusCode             int         `parquet:",delta"`
 	StatusMessage          string      `parquet:",snappy"`
 	Attrs                  []Attribute `parquet:""`
@@ -326,7 +326,7 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 					ss.StatusMessage = ""
 				}
 				ss.StartTimeUnixNano = s.StartTimeUnixNano
-				ss.EndTimeUnixNano = s.EndTimeUnixNano
+				ss.DurationNano = s.EndTimeUnixNano - s.StartTimeUnixNano
 				ss.DroppedAttributesCount = int32(s.DroppedAttributesCount)
 				ss.DroppedEventsCount = int32(s.DroppedEventsCount)
 				ss.HttpMethod = nil
@@ -559,7 +559,7 @@ func parquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 					Kind:              v1_trace.Span_SpanKind(span.Kind),
 					ParentSpanId:      span.ParentSpanID,
 					StartTimeUnixNano: span.StartTimeUnixNano,
-					EndTimeUnixNano:   span.EndTimeUnixNano,
+					EndTimeUnixNano:   span.StartTimeUnixNano + span.DurationNano,
 					Status: &v1_trace.Status{
 						Message: span.StatusMessage,
 						Code:    v1_trace.Status_StatusCode(span.StatusCode),

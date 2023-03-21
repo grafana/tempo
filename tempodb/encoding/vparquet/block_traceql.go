@@ -37,8 +37,8 @@ func (s *span) ID() []byte {
 func (s *span) StartTimeUnixNanos() uint64 {
 	return s.startTimeUnixNanos
 }
-func (s *span) EndTimeUnixNanos() uint64 {
-	return s.endtimeUnixNanos
+func (s *span) DurationNanos() uint64 {
+	return s.endtimeUnixNanos - s.startTimeUnixNanos
 }
 
 // todo: this sync pool currently massively reduces allocations by pooling spans for certain queries.

@@ -10,14 +10,14 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
-func createSpansetMetaIterator(makeIter makeIterFn, ss *spansetIterator, spanStartEndRetreived bool) (*spansetMetadataIterator, error) {
+func createSpansetMetaIterator(makeIter makeIterFn, ss *spansetIterator, spanDurationRetrieved bool) (*spansetMetadataIterator, error) {
 	// span level iterator
 	iters := make([]parquetquery.Iterator, 0, 4)
 	iters = append(iters, &spansToMetaIterator{ss})
-	if !spanStartEndRetreived {
-		iters = append(iters, makeIter(columnPathSpanStartTime, nil, columnPathSpanStartTime))
-		iters = append(iters, makeIter(columnPathSpanEndTime, nil, columnPathSpanEndTime))
+	if !spanDurationRetrieved {
+		iters = append(iters, makeIter(columnPathSpanDuration, nil, columnPathSpanDuration))
 	}
+	iters = append(iters, makeIter(columnPathSpanStartTime, nil, columnPathSpanStartTime))
 	iters = append(iters, makeIter(columnPathSpanID, nil, columnPathSpanID))
 	spanIterator := parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpan, iters, &spanMetaCollector{})
 
@@ -105,8 +105,8 @@ func (c *spanMetaCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			span.id = kv.Value.ByteArray()
 		case columnPathSpanStartTime:
 			span.startTimeUnixNanos = kv.Value.Uint64()
-		case columnPathSpanEndTime:
-			span.endtimeUnixNanos = kv.Value.Uint64()
+		case columnPathSpanDuration:
+			span.durationNanos = kv.Value.Uint64()
 		}
 	}
 

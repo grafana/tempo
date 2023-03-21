@@ -380,11 +380,10 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 					{
 						Spans: []Span{
 							{
-								ID:                []byte("spanid"),
-								Name:              "hello",
-								StartTimeUnixNano: uint64(100 * time.Second),
-								EndTimeUnixNano:   uint64(200 * time.Second),
-								// DurationNano:  uint64(100 * time.Second),
+								ID:                     []byte("spanid"),
+								Name:                   "hello",
+								StartTimeUnixNano:      uint64(100 * time.Second),
+								DurationNano:           uint64(100 * time.Second),
 								HttpMethod:             strPtr("get"),
 								HttpUrl:                strPtr("url/hello/world"),
 								HttpStatusCode:         intPtr(500),
