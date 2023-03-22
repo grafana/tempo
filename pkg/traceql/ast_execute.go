@@ -5,10 +5,6 @@ import (
 	"fmt"
 	"math"
 	"regexp"
-
-	"github.com/go-kit/log/level"
-
-	"github.com/grafana/tempo/pkg/util/log"
 )
 
 func appendSpans(buffer []Span, input []*Spanset) []Span {
@@ -91,19 +87,6 @@ func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) 
 	}
 
 	return output, nil
-}
-
-func (f SpansetFilter) matches(span Span) (bool, error) {
-	static, err := f.Expression.execute(span)
-	if err != nil {
-		level.Debug(log.Logger).Log("msg", "SpanSetFilter.matches failed", "err", err)
-		return false, err
-	}
-	if static.Type != TypeBoolean {
-		level.Debug(log.Logger).Log("msg", "SpanSetFilter.matches did not return a boolean", "err", err)
-		return false, fmt.Errorf("result of SpanSetFilter (%v) is %v", f, static.Type)
-	}
-	return static.B, nil
 }
 
 func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {

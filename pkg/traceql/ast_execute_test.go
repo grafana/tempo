@@ -1,11 +1,9 @@
 package traceql
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,8 +39,6 @@ func TestSpansetFilter_matches(t *testing.T) {
 		query   string
 		span    Span
 		matches bool
-		// TODO do we actually care about the error mesasge?
-		err bool
 	}{
 		{
 			query: `{ ("foo" != "bar") && !("foo" = "bar") }`,
@@ -153,23 +149,19 @@ func TestSpansetFilter_matches(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.query, func(t *testing.T) {
-			expr, err := Parse(tt.query)
-			require.NoError(t, err)
-
-			spansetFilter := expr.Pipeline.Elements[0].(SpansetFilter)
-			matches, err := spansetFilter.matches(tt.span)
-
-			if tt.err {
-				fmt.Println(err)
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.matches, matches)
-			}
-		})
+		// create a evalTC and use testEvaluator
+		tc := evalTC{
+			query: tt.query,
+			input: []*Spanset{
+				{Spans: []Span{tt.span}},
+			},
+			output: []*Spanset{},
+		}
+		if tt.matches {
+			tc.output = tc.input
+		}
+		testEvaluator(t, tc)
 	}
-
 }
 
 func TestSpansetOperationEvaluate(t *testing.T) {
