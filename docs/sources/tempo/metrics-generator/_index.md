@@ -47,7 +47,7 @@ The more dimensions are enabled, the higher the cardinality of the generated met
 
 To learn more about this processor, read the [documentation]({{< relref "span_metrics/" >}}).
 
-### Exporting metrics
+### Remote writing metrics
 
 The metrics-generator runs a Prometheus Agent that periodically sends metrics to a `remote_write` endpoint.
 The `remote_write` endpoint is configurable and can be any [Prometheus-compatible endpoint](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write).
