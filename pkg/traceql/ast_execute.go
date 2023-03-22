@@ -5,10 +5,6 @@ import (
 	"fmt"
 	"math"
 	"regexp"
-
-	"github.com/go-kit/log/level"
-
-	"github.com/grafana/tempo/pkg/util/log"
 )
 
 func appendSpans(buffer []Span, input []*Spanset) []Span {
@@ -36,7 +32,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 		switch o.Op {
 		case OpSpansetAnd:
 			if len(lhs) > 0 && len(rhs) > 0 {
-				matchingSpanset := input[i]
+				matchingSpanset := input[i].clone()
 				matchingSpanset.Spans = appendSpans(nil, lhs)
 				matchingSpanset.Spans = appendSpans(matchingSpanset.Spans, rhs)
 				output = append(output, matchingSpanset)
@@ -44,7 +40,7 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 
 		case OpSpansetUnion:
 			if len(lhs) > 0 || len(rhs) > 0 {
-				matchingSpanset := input[i]
+				matchingSpanset := input[i].clone()
 				matchingSpanset.Spans = appendSpans(nil, lhs)
 				matchingSpanset.Spans = appendSpans(matchingSpanset.Spans, rhs)
 				output = append(output, matchingSpanset)
@@ -93,25 +89,12 @@ func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) 
 	return output, nil
 }
 
-func (f SpansetFilter) matches(span Span) (bool, error) {
-	static, err := f.Expression.execute(span)
-	if err != nil {
-		level.Debug(log.Logger).Log("msg", "SpanSetFilter.matches failed", "err", err)
-		return false, err
-	}
-	if static.Type != TypeBoolean {
-		level.Debug(log.Logger).Log("msg", "SpanSetFilter.matches did not return a boolean", "err", err)
-		return false, fmt.Errorf("result of SpanSetFilter (%v) is %v", f, static.Type)
-	}
-	return static.B, nil
-}
-
 func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 	for _, ss := range input {
 		switch a.op {
 		case aggregateCount:
-			copy := ss
+			copy := ss.clone()
 			copy.Scalar = NewStaticInt(len(ss.Spans))
 			output = append(output, copy)
 
@@ -128,7 +111,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				count++
 			}
 
-			copy := ss
+			copy := ss.clone()
 			copy.Scalar = NewStaticFloat(sum / float64(count))
 			output = append(output, copy)
 
