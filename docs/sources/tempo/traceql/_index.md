@@ -263,7 +263,7 @@ This example finds all traces on the operation `POST /api/orders` that return wi
 ### Find traces that have a particuliar behavior
 
 You can use query filtering on multiple spans of the traces.
-This example locates all the traces of the `GET /api/products/{id}` operation that access a database. It's a convenient request to identify abnormal access ratio to the database caused by caching problems.
+This example locates all the traces of the `GET /api/products/{id}` operation that access a database. It's a convenient request to identify abnormal access ratios to the database caused by caching problems.
 
 ```
 {span.service.name="frontend" && name = "GET /api/products/{id}"} && {.db.system="postgresql"}
@@ -271,7 +271,8 @@ This example locates all the traces of the `GET /api/products/{id}` operation th
 
 ### Find traces going through `production` and `staging` instances
 
-This example finds traces that go through `production` and `staging` instances. It convenient to identify misconfigurations and leaks across environments. 
+This example finds traces that go through `production` and `staging` instances. 
+It's a convenient request to identify misconfigurations and leaks across production and non-production environments. 
 
 ```
 { resource.deployment.environment = "production" } && { resource.deployment.environment = "staging" }
