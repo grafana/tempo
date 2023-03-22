@@ -218,7 +218,7 @@ or anything else that comes to mind.
 
 ## Examples
 
-### Simple query to find traces of a specific operation
+### Find traces of a specific operation
 
 Let's say that you want to find traces of a specific operation to find a resource with the `frontend` service name and using the name `POST /api/order`. In the example below, both the resource and the name must be present for any results to be returned.  
 
@@ -237,9 +237,9 @@ When using the same Grafana stack for multiple environments (e.g., `production` 
 }
 ```
 
-### Query to find traces having a particular outcome
+### Find traces having a particular outcome
 
-All traces on the operation `POST /api/orders` that have an erroneous root span:
+This example finds all traces on the operation `POST /api/orders` that have an erroneous root span:
 
 ```
 {
@@ -277,7 +277,6 @@ This example finds traces that go through `production` and `staging` instances. 
 ```
 
 ### Other examples
-
 
 Find any trace with a `deployment.environment` attribute set to `production` and `http.status_code` attribute set to `200`:
 
