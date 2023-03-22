@@ -220,7 +220,8 @@ or anything else that comes to mind.
 
 ### Find traces of a specific operation
 
-Let's say that you want to find traces of a specific operation to find a resource with the `frontend` service name and using the name `POST /api/order`. In the example below, both the resource and the name must be present for any results to be returned.  
+Let's say that you want to find traces of a specific operation, then both the operation name (the span attribute `name`) and the name of the service that holds this operation (the resource attribute `service.name`) should be specified for proper filtering.
+In the example below, traces are filtered on the `resource.service.name` value `frontend` and the span `name` value `POST /api/order`:
 
 ```
 {resource.service.name = "frontend" && name = "POST /api/orders"}
