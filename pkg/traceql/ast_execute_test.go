@@ -9,6 +9,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type evalTC struct {
+	query  string
+	input  []*Spanset
+	output []*Spanset
+}
+
+func testEvaluator(t *testing.T, tc evalTC) {
+	t.Helper()
+
+	t.Run(tc.query, func(t *testing.T) {
+		ast, err := Parse(tc.query)
+		require.NoError(t, err)
+
+		// clone input to confirm it doesn't get modified
+		cloneIn := make([]*Spanset, len(tc.input))
+		for i := range tc.input {
+			cloneIn[i] = tc.input[i].clone()
+			cloneIn[i].Spans = append([]Span(nil), tc.input[i].Spans...)
+		}
+
+		actual, err := ast.Pipeline.evaluate(tc.input)
+		require.NoError(t, err)
+		require.Equal(t, tc.output, actual)
+		require.Equal(t, cloneIn, tc.input)
+	})
+}
+
 func TestSpansetFilter_matches(t *testing.T) {
 	tests := []struct {
 		query   string
@@ -131,7 +158,6 @@ func TestSpansetFilter_matches(t *testing.T) {
 			require.NoError(t, err)
 
 			spansetFilter := expr.Pipeline.Elements[0].(SpansetFilter)
-
 			matches, err := spansetFilter.matches(tt.span)
 
 			if tt.err {
@@ -147,11 +173,7 @@ func TestSpansetFilter_matches(t *testing.T) {
 }
 
 func TestSpansetOperationEvaluate(t *testing.T) {
-	testCases := []struct {
-		query  string
-		input  []*Spanset
-		output []*Spanset
-	}{
+	testCases := []evalTC{
 		{
 			"{ .foo = `a` } && { .foo = `b` }",
 			[]*Spanset{
@@ -198,25 +220,12 @@ func TestSpansetOperationEvaluate(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.query, func(t *testing.T) {
-			ast, err := Parse(tc.query)
-			require.NoError(t, err)
-
-			filt := ast.Pipeline.Elements[0].(SpansetOperation)
-
-			actual, err := filt.evaluate(tc.input)
-			require.NoError(t, err)
-			require.Equal(t, tc.output, actual)
-		})
+		testEvaluator(t, tc)
 	}
 }
 
 func TestScalarFilterEvaluate(t *testing.T) {
-	testCases := []struct {
-		query  string
-		input  []*Spanset
-		output []*Spanset
-	}{
+	testCases := []evalTC{
 		{
 			"{ .foo = `a` } | count() > 1",
 			[]*Spanset{
@@ -288,23 +297,12 @@ func TestScalarFilterEvaluate(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.query, func(t *testing.T) {
-			ast, err := Parse(tc.query)
-			require.NoError(t, err)
-
-			actual, err := ast.Pipeline.evaluate(tc.input)
-			require.NoError(t, err)
-			require.Equal(t, tc.output, actual)
-		})
+		testEvaluator(t, tc)
 	}
 }
 
 func TestBinaryOperationsWorkAcrossNumberTypes(t *testing.T) {
-	testCases := []struct {
-		query  string
-		input  []*Spanset
-		output []*Spanset
-	}{
+	testCases := []evalTC{
 		{
 			"{ .foo > 0 }",
 			[]*Spanset{{Spans: []Span{
@@ -512,23 +510,12 @@ func TestBinaryOperationsWorkAcrossNumberTypes(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.query, func(t *testing.T) {
-			ast, err := Parse(tc.query)
-			require.NoError(t, err)
-
-			actual, err := ast.Pipeline.evaluate(tc.input)
-			require.NoError(t, err)
-			require.Equal(t, tc.output, actual)
-		})
+		testEvaluator(t, tc)
 	}
 }
 
 func TestArithmetic(t *testing.T) {
-	testCases := []struct {
-		query  string
-		input  []*Spanset
-		output []*Spanset
-	}{
+	testCases := []evalTC{
 		// static arithmetic works
 		{
 			"{ 1 + 1 = 2 }",
@@ -651,14 +638,7 @@ func TestArithmetic(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.query, func(t *testing.T) {
-			ast, err := Parse(tc.query)
-			require.NoError(t, err)
-
-			actual, err := ast.Pipeline.evaluate(tc.input)
-			require.NoError(t, err)
-			require.Equal(t, tc.output, actual)
-		})
+		testEvaluator(t, tc)
 	}
 }
 
