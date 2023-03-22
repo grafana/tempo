@@ -274,7 +274,7 @@ This example locates all the traces of the `GET /api/products/{id}` operation th
 This example finds traces that go through `production` and `staging` instances. It convenient to identify misconfigurations and leaks across environments. 
 
 ```
-{ resource.deployment.environment = "production" } && { resource.deployment.environment = "production" }
+{ resource.deployment.environment = "production" } && { resource.deployment.environment = "staging" }
 ```
 
 ### Other examples
