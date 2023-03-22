@@ -53,4 +53,4 @@ The metrics-generator runs a Prometheus Agent that periodically sends metrics to
 The `remote_write` endpoint is configurable and can be any [Prometheus-compatible endpoint](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write).
 To learn more about the endpoint configuration, refer to the [Metrics-generator]({{< relref "../configuration/#metrics-generator" >}}) section of the Tempo Configuration documentation. 
 
-To support multi-tenancy, the metrics-generator forwards the `X-Scope-OrgID` header to the remote_write endpoint.
+When multi-tenancy is enabled, the metrics-generator forwards the `X-Scope-OrgID` header of the original request to the remote_write endpoint.
