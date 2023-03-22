@@ -100,7 +100,7 @@ Find any database connection string that goes to a Postgres or MySQL database:
 
 ### Unscoped attribute fields
 
-Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource. When possible, use scoped instead of unscoped attributes for performance reasons.
+Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource. When possible, use scoped instead of unscoped attributes. Scoped attributes provide faster query results. 
 
 For example, to find traces with an attribute of `sla` set to `critical`:
 ```
@@ -220,11 +220,13 @@ or anything else that comes to mind.
 
 ### Simple query to find traces of a specific operation
 
+Let's say that you want to find traces of a specific operation to find a resource with the `frontend` service name and using the name `POST /api/order`. In the example below, both the resource and the name must be present for any results to be returned.  
+
 ```
 {resource.service.name = "frontend" && name = "POST /api/orders"}
 ```
 
-When using the same Grafana stack for multiple environment (e.g. `production`and `staging`) or having services that share the same name but are differentiated though their namespace, the query looks like:
+When using the same Grafana stack for multiple environments (e.g., `production` and `staging`) or having services that share the same name but are differentiated though their namespace, the query looks like:
 
 ```
 {
@@ -247,7 +249,7 @@ All traces on the operation `POST /api/orders` that have an erroneous root span:
 }
 ```
 
-All traces on the operation `POST /api/orders` that return with an HTTP 5xx error:
+This example finds all traces on the operation `POST /api/orders` that return with an HTTP 5xx error:
 
 ```
 {
@@ -257,19 +259,18 @@ All traces on the operation `POST /api/orders` that return with an HTTP 5xx erro
 }
 ```
 
-### Query to find traces that have a particuliar behavior
+### Find traces that have a particuliar behavior
 
-Query filtering on multiple spans of the traces.
-All the traces of the `GET /api/products/{id}` operation that access the database. It's a convenient request to identify caching problems:
+You can use query filtering on multiple spans of the traces.
+This example locates all the traces of the `GET /api/products/{id}` operation that access the database. It's a convenient request to identify caching problems.
 
 ```
 {span.service.name="frontend" && name = "GET /api/products/{id}"} && {.db.system="postgresql"}
 ```
 
-### Query to find traces going through a mix of "production" and "staging" instances
+### Find traces going through `production` and `staging` instances
 
-Very convenient to identify misconfigurations and leaks across environments. 
-Find traces that go through "production" and "staging" instances.
+This example finds traces that go through `production` and `staging` instances. It convenient to identify misconfigurations and leaks across environments. 
 
 ```
 { resource.deployment.environment = "production" } && { resource.deployment.environment = "production" }
