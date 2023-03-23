@@ -7,13 +7,6 @@ import (
 	"regexp"
 )
 
-func appendSpans(buffer []Span, input []*Spanset) []Span {
-	for _, i := range input {
-		buffer = append(buffer, i.Spans...)
-	}
-	return buffer
-}
-
 func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 	for i := range input {
@@ -33,16 +26,14 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 		case OpSpansetAnd:
 			if len(lhs) > 0 && len(rhs) > 0 {
 				matchingSpanset := input[i].clone()
-				matchingSpanset.Spans = appendSpans(nil, lhs)
-				matchingSpanset.Spans = appendSpans(matchingSpanset.Spans, rhs)
+				matchingSpanset.Spans = uniqueSpans(lhs, rhs)
 				output = append(output, matchingSpanset)
 			}
 
 		case OpSpansetUnion:
 			if len(lhs) > 0 || len(rhs) > 0 {
 				matchingSpanset := input[i].clone()
-				matchingSpanset.Spans = appendSpans(nil, lhs)
-				matchingSpanset.Spans = appendSpans(matchingSpanset.Spans, rhs)
+				matchingSpanset.Spans = uniqueSpans(lhs, rhs)
 				output = append(output, matchingSpanset)
 			}
 
@@ -273,4 +264,44 @@ func (a Attribute) execute(span Span) (Static, error) {
 	}
 
 	return NewStaticNil(), nil
+}
+
+func uniqueSpans(ss1 []*Spanset, ss2 []*Spanset) []Span {
+	ss1Count := 0
+	ss2Count := 0
+
+	for _, ss1 := range ss1 {
+		ss1Count += len(ss1.Spans)
+	}
+	for _, ss2 := range ss2 {
+		ss2Count += len(ss2.Spans)
+	}
+	output := make([]Span, 0, ss1Count+ss2Count)
+
+	ssSmaller := ss2
+	ssLarger := ss1
+	if ss1Count < ss2Count {
+		ssSmaller = ss1
+		ssLarger = ss2
+	}
+
+	// make the map with ssSmaller
+	spans := map[Span]struct{}{}
+	for _, ss := range ssSmaller {
+		for _, span := range ss.Spans {
+			spans[span] = struct{}{}
+			output = append(output, span)
+		}
+	}
+
+	// only add the spans from ssLarger that aren't in the map
+	for _, ss := range ssLarger {
+		for _, span := range ss.Spans {
+			if _, ok := spans[span]; !ok {
+				output = append(output, span)
+			}
+		}
+	}
+
+	return output
 }

@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -181,8 +182,8 @@ func TestSpansetOperationEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 				}},
 			},
 		},
@@ -201,11 +202,37 @@ func TestSpansetOperationEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 				}},
 				{Spans: []Span{
 					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				}},
+			},
+		},
+		{
+			"{ true } && { true } && { true }",
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+				}},
+			},
+		},
+		{
+			"{ true } || { true } || { true }",
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 				}},
 			},
 		},
@@ -674,5 +701,31 @@ func BenchmarkBinOp(b *testing.B) {
 				_, _ = o.op.execute(&mockSpan{})
 			}
 		})
+	}
+}
+
+// BenchmarkUniquespans benchmarks the performance of the uniqueSpans function using
+// different numbers of spansets and spans.
+func BenchmarkUniqueSpans(b *testing.B) {
+	sizes := []int{1, 10, 100, 1000, 10000}
+
+	for _, lhs := range sizes {
+		for i := len(sizes) - 1; i >= 0; i-- {
+			rhs := sizes[i]
+			b.Run(fmt.Sprintf("%d|%d", rhs, lhs), func(b *testing.B) {
+				lhsSpansets := []*Spanset{{Spans: make([]Span, lhs)}}
+				rhsSpansets := []*Spanset{{Spans: make([]Span, rhs)}}
+				for j := 0; j < lhs; j++ {
+					lhsSpansets[0].Spans[j] = &mockSpan{id: []byte{byte(j)}}
+				}
+				for j := 0; j < rhs; j++ {
+					rhsSpansets[0].Spans[j] = &mockSpan{id: []byte{byte(j)}}
+				}
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					uniqueSpans(lhsSpansets, rhsSpansets)
+				}
+			})
+		}
 	}
 }
