@@ -299,7 +299,7 @@ func (i *spansetIterator) Next() (*span, error) {
 		// spans returned from the filter are not guaranteed to be in file order
 		// we need them to be so that the meta iterators work correctly. sort here
 		sort.Slice(i.currentSpans, func(j, k int) bool {
-			return parquetquery.CompareRowNumbers(DefinitionLevelResourceSpans, i.currentSpans[k].rowNum, i.currentSpans[j].rowNum) == 1
+			return parquetquery.CompareRowNumbers(DefinitionLevelResourceSpans, i.currentSpans[j].rowNum, i.currentSpans[k].rowNum) == -1
 		})
 
 		// found something!
