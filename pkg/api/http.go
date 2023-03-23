@@ -61,6 +61,7 @@ const (
 	PathUsageStats      = "/status/usage-stats"
 
 	PathSearchTagValuesV2 = "/api/v2/search/tag/{tagName}/values"
+	tagName               = "tagName"
 
 	QueryModeKey       = "mode"
 	QueryModeIngesters = "ingesters"
@@ -305,6 +306,37 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 		return nil, fmt.Errorf("invalid footerSize %s: %w", f, err)
 	}
 	req.FooterSize = uint32(footerSize)
+
+	return req, nil
+}
+
+func ParseSearchTagValuesRequest(r *http.Request) (*tempopb.SearchTagValuesRequest, error) {
+	vars := mux.Vars(r)
+	tagName, ok := vars[tagName]
+	if !ok {
+		return nil, errors.New("please provide a tagName")
+	}
+
+	// TODO: Support non-traceql tags
+	if _, err := traceql.ParseIdentifier(tagName); err != nil {
+		return nil, fmt.Errorf("please provide a valid tagName: %w", err)
+	}
+
+	req := &tempopb.SearchTagValuesRequest{
+		TagName: tagName,
+	}
+
+	query, queryFound := extractQueryParam(r, urlParamQuery)
+	if queryFound {
+		// TODO hacky fix: we don't validate {} since this isn't handled correctly yet
+		if query != "{}" {
+			_, err := traceql.Parse(query)
+			if err != nil {
+				return nil, fmt.Errorf("invalid TraceQL query: %w", err)
+			}
+		}
+		req.Query = query
+	}
 
 	return req, nil
 }

@@ -8,7 +8,7 @@ type DistinctValueCollector[T comparable] struct {
 	totalLen int
 }
 
-// NewDistinctStringCollector with the given maximum data size. This is calculated
+// NewDistinctValueCollector with the given maximum data size. This is calculated
 // as the total length of the recorded strings. For ease of use, maximum=0
 // is interpreted as unlimited.
 func NewDistinctValueCollector[T comparable](maxDataSize int, len func(T) int) *DistinctValueCollector[T] {
@@ -41,7 +41,7 @@ func (d *DistinctValueCollector[T]) Collect(v T) (exceeded bool) {
 	return false
 }
 
-// Strings returns the final list of distinct values collected and sorted.
+// Values returns the final list of distinct values collected and sorted.
 func (d *DistinctValueCollector[T]) Values() []T {
 	ss := make([]T, 0, len(d.values))
 

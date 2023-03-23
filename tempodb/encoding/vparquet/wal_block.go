@@ -599,7 +599,7 @@ func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.Ta
 	return b.SearchTagValuesV2(ctx, att, cb2, opts)
 }
 
-func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
+func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, _ common.SearchOptions) error {
 	for i, page := range b.readFlushes() {
 		file, err := page.file()
 		if err != nil {

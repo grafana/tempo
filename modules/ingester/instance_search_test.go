@@ -203,6 +203,34 @@ func TestInstanceSearchTags(t *testing.T) {
 	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
 }
 
+func TestInstanceSearchTagAndValuesV2(t *testing.T) {
+	i, _ := defaultInstance(t)
+
+	// add dummy search data
+	var tagKey = "foo"
+	var tagValue = "bar"
+
+	_, expectedTagValues := writeTracesForSearch(t, i, tagKey, tagValue, true)
+
+	userCtx := user.InjectOrgID(context.Background(), "fake")
+
+	// Test after appending to WAL
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, expectedTagValues)
+
+	// Test after cutting new headblock
+	blockID, err := i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+	assert.NotEqual(t, blockID, uuid.Nil)
+
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, expectedTagValues)
+
+	// Test after completing a block
+	err = i.CompleteBlock(blockID)
+	require.NoError(t, err)
+
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, expectedTagValues)
+}
+
 // nolint:revive,unparam
 func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tagName string, expectedTagValues []string) {
 	sr, err := i.SearchTags(ctx)
@@ -214,6 +242,26 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 	sort.Strings(expectedTagValues)
 	assert.Contains(t, sr.TagNames, tagName)
 	assert.Equal(t, expectedTagValues, srv.TagValues)
+}
+
+func testSearchTagsAndValuesV2(t *testing.T, ctx context.Context, i *instance, tagName string, expectedTagValues []string) {
+	sr, err := i.SearchTags(ctx)
+	require.NoError(t, err)
+	srv, err := i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+		TagName: tagName,
+		Query:   `{ .service.name = "test-service" }`,
+	})
+	require.NoError(t, err)
+
+	tagValues := make([]string, 0, len(srv.TagValues))
+	for _, v := range srv.TagValues {
+		tagValues = append(tagValues, v.Value)
+	}
+
+	sort.Strings(tagValues)
+	sort.Strings(expectedTagValues)
+	assert.Contains(t, sr.TagNames, tagName)
+	assert.Equal(t, expectedTagValues, tagValues)
 }
 
 // TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns

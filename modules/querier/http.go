@@ -9,13 +9,10 @@ import (
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/golang/protobuf/proto"  //nolint:all //ProtoReflect
 	"github.com/gorilla/mux"
-	"github.com/opentracing/opentracing-go"
-	ot_log "github.com/opentracing/opentracing-go/log"
-	"github.com/pkg/errors"
-
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/opentracing/opentracing-go"
+	ot_log "github.com/opentracing/opentracing-go/log"
 )
 
 const (
@@ -219,21 +216,9 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagValuesHandler")
 	defer span.Finish()
 
-	vars := mux.Vars(r)
-	tagName, ok := vars["tagName"]
-	if !ok {
-		http.Error(w, "please provide a tagName", http.StatusBadRequest)
-		return
-	}
-
-	_, err := traceql.ParseIdentifier(tagName)
+	req, err := api.ParseSearchTagValuesRequest(r)
 	if err != nil {
-		http.Error(w, errors.Wrap(err, "please provide a valid tagName").Error(), http.StatusBadRequest)
-		return
-	}
-
-	req := &tempopb.SearchTagValuesRequest{
-		TagName: tagName,
+		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
 
 	resp, err := q.SearchTagValuesV2(ctx, req)

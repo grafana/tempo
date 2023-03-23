@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -97,6 +98,106 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 	span.SetTag("spansets_found", len(res.Traces))
 
 	return res, nil
+}
+
+func (e *Engine) ExecuteAnother(
+	ctx context.Context,
+	req *tempopb.SearchTagValuesRequest,
+	dv *util.DistinctValueCollector[tempopb.TagValue],
+	spanSetFetcher SpansetFetcher,
+) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteAnother")
+	defer span.Finish()
+
+	rootExpr, err := Parse(req.Query)
+	if err != nil {
+		return err
+	}
+	if err := rootExpr.validate(); err != nil {
+		return err
+	}
+
+	searchReq := &tempopb.SearchRequest{
+		Start: 0, // TODO: Should add Start and End
+		End:   math.MaxUint32,
+		Limit: 1,
+	}
+	fetchSpansRequest := e.createFetchSpansRequest(searchReq, rootExpr.Pipeline)
+	fetchSpansRequest.Conditions = append(fetchSpansRequest.Conditions, Condition{
+		Attribute: NewAttribute(req.TagName),
+		Op:        OpNone,
+	})
+
+	span.SetTag("pipeline", rootExpr.Pipeline)
+	span.SetTag("fetchSpansRequest", fetchSpansRequest)
+
+	cb := func(v Static) bool {
+		tv := tempopb.TagValue{}
+
+		switch v.Type {
+		case TypeString:
+			tv.Type = "string"
+			tv.Value = v.S // avoid formatting
+
+		case TypeBoolean:
+			tv.Type = "bool"
+			tv.Value = v.String()
+
+		case TypeInt:
+			tv.Type = "int"
+			tv.Value = v.String()
+
+		case TypeFloat:
+			tv.Type = "float"
+			tv.Value = v.String()
+
+		case TypeDuration:
+			tv.Type = "duration"
+			tv.Value = v.String()
+
+		case TypeStatus:
+			tv.Type = "keyword"
+			tv.Value = v.String()
+		}
+
+		return dv.Collect(tv)
+	}
+
+	// set up the expression evaluation as a filter to reduce data pulled
+	fetchSpansRequest.Filter = func(inSS *Spanset) ([]*Spanset, error) {
+		for _, s := range inSS.Spans {
+			atts := s.Attributes()
+
+			// TODO: Handle scope
+			for att, v := range atts {
+				if att.Name == req.TagName {
+					cb(v)
+				}
+			}
+		}
+
+		return nil, nil // We don't want to fetch metadata
+	}
+
+	fetchSpansResponse, err := spanSetFetcher.Fetch(ctx, fetchSpansRequest)
+	if err != nil {
+		return err
+	}
+	iterator := fetchSpansResponse.Results
+	defer iterator.Close()
+
+	for {
+		spanset, err := iterator.Next(ctx)
+		if err != nil && err != io.EOF {
+			span.LogKV("msg", "iterator.Next", "err", err)
+			return err
+		}
+		if spanset == nil {
+			break
+		}
+	}
+
+	return nil
 }
 
 func (e *Engine) parseQuery(searchReq *tempopb.SearchRequest) (*RootExpr, error) {
