@@ -112,8 +112,8 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, sr
 		opts := common.DefaultSearchOptions()
 		if api.IsTraceQLQuery(req) {
 			// note: we are creating new engine for each wal block,
-			// and engine.Execute is parsing the query for each block
-			resp, err = traceql.NewEngine().Execute(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			// and engine.ExecuteSearch is parsing the query for each block
+			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 				return b.Fetch(ctx, req, opts)
 			}))
 		} else {
@@ -173,8 +173,8 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 			opts := common.DefaultSearchOptions()
 			if api.IsTraceQLQuery(req) {
 				// note: we are creating new engine for each wal block,
-				// and engine.Execute is parsing the query for each block
-				resp, err = traceql.NewEngine().Execute(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				// and engine.ExecuteSearch is parsing the query for each block
+				resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 					return e.Fetch(ctx, req, opts)
 				}))
 			} else {
@@ -345,14 +345,17 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return distinctValues.Collect(tv)
 	}
 
+	engine := traceql.NewEngine()
+
 	search := func(s common.Searcher, dv *util.DistinctValueCollector[tempopb.TagValue]) error {
-		return traceql.NewEngine().ExecuteAnother(ctx, req, cb, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return engine.ExecuteTagValues(ctx, req, cb, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return s.Fetch(ctx, req, common.DefaultSearchOptions())
 		}))
 	}
 
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
+
 	// head block
 	if err = search(i.headBlock, distinctValues); err != nil {
 		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)

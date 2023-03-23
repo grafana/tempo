@@ -220,47 +220,53 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 	i, _ := defaultInstance(t)
 
 	// add dummy search data
-	var tagKey = "foo"
-	var tagValue = "bar"
+	var (
+		tagKey                = "foo"
+		tagValue              = "bar"
+		queryThatMatches      = `{ .service.name = "test-service" }`
+		queryThatDoesNotMatch = `{ .uuuuu = "aaaaa" }`
+	)
 
 	_, expectedTagValues := writeTracesForSearch(t, i, tagKey, tagValue, true)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 
 	// Test after appending to WAL
-	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, expectedTagValues)
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues) // Matches the expected tag values
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatDoesNotMatch, []string{})   // Does not match the expected tag values
 
 	// Test after cutting new headblock
 	blockID, err := i.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
 	assert.NotEqual(t, blockID, uuid.Nil)
 
-	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, expectedTagValues)
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues)
 
 	// Test after completing a block
 	err = i.CompleteBlock(blockID)
 	require.NoError(t, err)
 
-	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, expectedTagValues)
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues)
 }
 
-func testSearchTagsAndValuesV2(t *testing.T, ctx context.Context, i *instance, tagName string, expectedTagValues []string) {
-	sr, err := i.SearchTags(ctx)
+func testSearchTagsAndValuesV2(t *testing.T, ctx context.Context, i *instance, tagName, query string, expectedTagValues []string) {
+	tagsResp, err := i.SearchTags(ctx)
 	require.NoError(t, err)
-	srv, err := i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+
+	tagValuesResp, err := i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
 		TagName: fmt.Sprintf(".%s", tagName),
-		Query:   `{ .service.name = "test-service" }`,
+		Query:   query,
 	})
 	require.NoError(t, err)
 
-	tagValues := make([]string, 0, len(srv.TagValues))
-	for _, v := range srv.TagValues {
+	tagValues := make([]string, 0, len(tagValuesResp.TagValues))
+	for _, v := range tagValuesResp.TagValues {
 		tagValues = append(tagValues, v.Value)
 	}
 
 	sort.Strings(tagValues)
 	sort.Strings(expectedTagValues)
-	assert.Contains(t, sr.TagNames, tagName)
+	assert.Contains(t, tagsResp.TagNames, tagName)
 	assert.Equal(t, expectedTagValues, tagValues)
 }
 

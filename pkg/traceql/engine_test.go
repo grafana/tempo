@@ -67,7 +67,7 @@ func TestEngine_Execute(t *testing.T) {
 			},
 		},
 	}
-	response, err := e.Execute(context.Background(), req, &spanSetFetcher)
+	response, err := e.ExecuteSearch(context.Background(), req, &spanSetFetcher)
 
 	require.NoError(t, err)
 

@@ -24,8 +24,8 @@ func NewEngine() *Engine {
 	}
 }
 
-func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, spanSetFetcher SpansetFetcher) (*tempopb.SearchResponse, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.Execute")
+func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, spanSetFetcher SpansetFetcher) (*tempopb.SearchResponse, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteSearch")
 	defer span.Finish()
 
 	rootExpr, err := e.parseQuery(searchReq)
@@ -100,13 +100,13 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 	return res, nil
 }
 
-func (e *Engine) ExecuteAnother(
+func (e *Engine) ExecuteTagValues(
 	ctx context.Context,
 	req *tempopb.SearchTagValuesRequest,
 	cb func(v Static) bool,
-	spanSetFetcher SpansetFetcher,
+	fetcher SpansetFetcher,
 ) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteAnother")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteTagValues")
 	defer span.Finish()
 
 	rootExpr, err := Parse(req.Query)
@@ -138,20 +138,36 @@ func (e *Engine) ExecuteAnother(
 
 	// set up the expression evaluation as a filter to reduce data pulled
 	fetchSpansRequest.Filter = func(inSS *Spanset) ([]*Spanset, error) {
-		for _, s := range inSS.Spans {
-			switch attribute.Scope {
-			case AttributeScopeNone: // If tag is unscoped, we need to check all tags by name
-				for attr, v := range s.Attributes() {
-					if attr.Name == attribute.Name {
-						// TODO: Should we just quit if cb returns true?
-						cb(v) // Can't exit early because resource and span scoped tags may have the same name
+		if len(inSS.Spans) == 0 {
+			return nil, nil
+		}
+
+		evalSS, err := rootExpr.Pipeline.evaluate([]*Spanset{inSS})
+		if err != nil {
+			span.LogKV("msg", "pipeline.evaluate", "err", err)
+			return nil, err
+		}
+
+		if len(evalSS) == 0 {
+			return nil, nil
+		}
+
+		for _, ss := range evalSS {
+			for _, s := range ss.Spans {
+				switch attribute.Scope {
+				case AttributeScopeNone: // If tag is unscoped, we need to check all tags by name
+					for attr, v := range s.Attributes() {
+						if attr.Name == attribute.Name {
+							// TODO: Should we just quit if cb returns true?
+							cb(v) // Can't exit early because resource and span scoped tags may have the same name
+						}
 					}
-				}
-			case AttributeScopeResource,
-				AttributeScopeSpan: // If tag is scoped, we can check the map directly
-				if v, ok := s.Attributes()[attribute]; ok {
-					if cb(v) {
-						break
+				case AttributeScopeResource,
+					AttributeScopeSpan: // If tag is scoped, we can check the map directly
+					if v, ok := s.Attributes()[attribute]; ok {
+						if cb(v) {
+							break
+						}
 					}
 				}
 			}
@@ -160,7 +176,7 @@ func (e *Engine) ExecuteAnother(
 		return nil, nil // We don't want to fetch metadata
 	}
 
-	fetchSpansResponse, err := spanSetFetcher.Fetch(ctx, fetchSpansRequest)
+	fetchSpansResponse, err := fetcher.Fetch(ctx, fetchSpansRequest)
 	if err != nil {
 		return err
 	}
