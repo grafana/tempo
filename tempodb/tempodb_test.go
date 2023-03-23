@@ -532,7 +532,8 @@ func TestSearchCompactedBlocks(t *testing.T) {
 		ids = append(ids, id)
 	}
 
-	complete, err := w.CompleteBlock(context.Background(), head)
+	ctx := context.Background()
+	complete, err := w.CompleteBlock(ctx, head)
 	require.NoError(t, err)
 
 	blockID := complete.BlockMeta().BlockID.String()
@@ -544,7 +545,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, failedBlocks, err := r.Find(context.Background(), testTenantID, id, blockID, blockID, 0, 0)
+		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockID, blockID, 0, 0)
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
 		require.True(t, proto.Equal(bFound[0], reqs[i]))
@@ -553,7 +554,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	// compact
 	var blockMetas []*backend.BlockMeta
 	blockMetas = append(blockMetas, complete.BlockMeta())
-	require.NoError(t, rw.compact(blockMetas, testTenantID))
+	require.NoError(t, rw.compact(ctx, blockMetas, testTenantID))
 
 	// poll
 	rw.pollBlocklist()
@@ -568,7 +569,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	// find should succeed with old block range
 	for i, id := range ids {
-		bFound, failedBlocks, err := r.Find(context.Background(), testTenantID, id, blockID, blockID, 0, 0)
+		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockID, blockID, 0, 0)
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
 		require.True(t, proto.Equal(bFound[0], reqs[i]))
