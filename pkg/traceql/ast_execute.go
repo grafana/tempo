@@ -115,6 +115,49 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 			copy.Scalar = NewStaticFloat(sum / float64(count))
 			output = append(output, copy)
 
+		case aggregateMax:
+			max := math.Inf(-1)
+			for _, s := range ss.Spans {
+				val, err := a.e.execute(s)
+				if err != nil {
+					return nil, err
+				}
+				if val.asFloat() > max {
+					max = val.asFloat()
+				}
+			}
+			copy := ss.clone()
+			copy.Scalar = NewStaticFloat(max)
+			output = append(output, copy)
+
+		case aggregateMin:
+			min := math.Inf(1)
+			for _, s := range ss.Spans {
+				val, err := a.e.execute(s)
+				if err != nil {
+					return nil, err
+				}
+				if val.asFloat() < min {
+					min = val.asFloat()
+				}
+			}
+			copy := ss.clone()
+			copy.Scalar = NewStaticFloat(min)
+			output = append(output, copy)
+
+		case aggregateSum:
+			sum := 0.0
+			for _, s := range ss.Spans {
+				val, err := a.e.execute(s)
+				if err != nil {
+					return nil, err
+				}
+				sum += val.asFloat()
+			}
+			copy := ss.clone()
+			copy.Scalar = NewStaticFloat(sum)
+			output = append(output, copy)
+
 		default:
 			return nil, fmt.Errorf("aggregate operation (%v) not supported", a.op)
 		}
