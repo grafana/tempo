@@ -313,8 +313,40 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
+	cb := func(v traceql.Static) bool {
+		tv := tempopb.TagValue{}
+
+		switch v.Type {
+		case traceql.TypeString:
+			tv.Type = "string"
+			tv.Value = v.S // avoid formatting
+
+		case traceql.TypeBoolean:
+			tv.Type = "bool"
+			tv.Value = v.String()
+
+		case traceql.TypeInt:
+			tv.Type = "int"
+			tv.Value = v.String()
+
+		case traceql.TypeFloat:
+			tv.Type = "float"
+			tv.Value = v.String()
+
+		case traceql.TypeDuration:
+			tv.Type = "duration"
+			tv.Value = v.String()
+
+		case traceql.TypeStatus:
+			tv.Type = "keyword"
+			tv.Value = v.String()
+		}
+
+		return distinctValues.Collect(tv)
+	}
+
 	search := func(s common.Searcher, dv *util.DistinctValueCollector[tempopb.TagValue]) error {
-		return traceql.NewEngine().ExecuteAnother(ctx, req, dv, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return traceql.NewEngine().ExecuteAnother(ctx, req, cb, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return s.Fetch(ctx, req, common.DefaultSearchOptions())
 		}))
 	}

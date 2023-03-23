@@ -103,7 +103,7 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 func (e *Engine) ExecuteAnother(
 	ctx context.Context,
 	req *tempopb.SearchTagValuesRequest,
-	dv *util.DistinctValueCollector[tempopb.TagValue],
+	cb func(v Static) bool,
 	spanSetFetcher SpansetFetcher,
 ) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteAnother")
@@ -120,58 +120,39 @@ func (e *Engine) ExecuteAnother(
 	searchReq := &tempopb.SearchRequest{
 		Start: 0, // TODO: Should add Start and End
 		End:   math.MaxUint32,
-		Limit: 1,
 	}
+
+	attribute, err := ParseIdentifier(req.TagName)
+	if err != nil {
+		return err
+	}
+
 	fetchSpansRequest := e.createFetchSpansRequest(searchReq, rootExpr.Pipeline)
 	fetchSpansRequest.Conditions = append(fetchSpansRequest.Conditions, Condition{
-		Attribute: NewAttribute(req.TagName),
+		Attribute: attribute,
 		Op:        OpNone,
 	})
 
 	span.SetTag("pipeline", rootExpr.Pipeline)
 	span.SetTag("fetchSpansRequest", fetchSpansRequest)
 
-	cb := func(v Static) bool {
-		tv := tempopb.TagValue{}
-
-		switch v.Type {
-		case TypeString:
-			tv.Type = "string"
-			tv.Value = v.S // avoid formatting
-
-		case TypeBoolean:
-			tv.Type = "bool"
-			tv.Value = v.String()
-
-		case TypeInt:
-			tv.Type = "int"
-			tv.Value = v.String()
-
-		case TypeFloat:
-			tv.Type = "float"
-			tv.Value = v.String()
-
-		case TypeDuration:
-			tv.Type = "duration"
-			tv.Value = v.String()
-
-		case TypeStatus:
-			tv.Type = "keyword"
-			tv.Value = v.String()
-		}
-
-		return dv.Collect(tv)
-	}
-
 	// set up the expression evaluation as a filter to reduce data pulled
 	fetchSpansRequest.Filter = func(inSS *Spanset) ([]*Spanset, error) {
 		for _, s := range inSS.Spans {
-			atts := s.Attributes()
-
-			// TODO: Handle scope
-			for att, v := range atts {
-				if att.Name == req.TagName {
-					cb(v)
+			switch attribute.Scope {
+			case AttributeScopeNone: // If tag is unscoped, we need to check all tags by name
+				for attr, v := range s.Attributes() {
+					if attr.Name == attribute.Name {
+						// TODO: Should we just quit if cb returns true?
+						cb(v) // Can't exit early because resource and span scoped tags may have the same name
+					}
+				}
+			case AttributeScopeResource,
+				AttributeScopeSpan: // If tag is scoped, we can check the map directly
+				if v, ok := s.Attributes()[attribute]; ok {
+					if cb(v) {
+						break
+					}
 				}
 			}
 		}

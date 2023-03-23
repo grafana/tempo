@@ -203,6 +203,19 @@ func TestInstanceSearchTags(t *testing.T) {
 	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
 }
 
+// nolint:revive,unparam
+func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tagName string, expectedTagValues []string) {
+	sr, err := i.SearchTags(ctx)
+	require.NoError(t, err)
+	srv, err := i.SearchTagValues(ctx, tagName)
+	require.NoError(t, err)
+
+	sort.Strings(srv.TagValues)
+	sort.Strings(expectedTagValues)
+	assert.Contains(t, sr.TagNames, tagName)
+	assert.Equal(t, expectedTagValues, srv.TagValues)
+}
+
 func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 	i, _ := defaultInstance(t)
 
@@ -231,24 +244,11 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, expectedTagValues)
 }
 
-// nolint:revive,unparam
-func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tagName string, expectedTagValues []string) {
-	sr, err := i.SearchTags(ctx)
-	require.NoError(t, err)
-	srv, err := i.SearchTagValues(ctx, tagName)
-	require.NoError(t, err)
-
-	sort.Strings(srv.TagValues)
-	sort.Strings(expectedTagValues)
-	assert.Contains(t, sr.TagNames, tagName)
-	assert.Equal(t, expectedTagValues, srv.TagValues)
-}
-
 func testSearchTagsAndValuesV2(t *testing.T, ctx context.Context, i *instance, tagName string, expectedTagValues []string) {
 	sr, err := i.SearchTags(ctx)
 	require.NoError(t, err)
 	srv, err := i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
-		TagName: tagName,
+		TagName: fmt.Sprintf(".%s", tagName),
 		Query:   `{ .service.name = "test-service" }`,
 	})
 	require.NoError(t, err)
