@@ -278,15 +278,17 @@ func uniqueSpans(ss1 []*Spanset, ss2 []*Spanset) []Span {
 	}
 	output := make([]Span, 0, ss1Count+ss2Count)
 
+	ssCount := ss2Count
 	ssSmaller := ss2
 	ssLarger := ss1
 	if ss1Count < ss2Count {
+		ssCount = ss1Count
 		ssSmaller = ss1
 		ssLarger = ss2
 	}
 
 	// make the map with ssSmaller
-	spans := map[Span]struct{}{}
+	spans := make(map[Span]struct{}, ssCount)
 	for _, ss := range ssSmaller {
 		for _, span := range ss.Spans {
 			spans[span] = struct{}{}
