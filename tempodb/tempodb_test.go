@@ -23,9 +23,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -631,10 +628,10 @@ func testCompleteBlock(t *testing.T, from, to string) {
 }
 
 func TestCompleteBlockHonorsStartStopTimes(t *testing.T) {
-	testEncodings := []string{v2.VersionString, vparquet.VersionString, vparquet2.VersionString}
-	for _, enc := range testEncodings {
-		t.Run(enc, func(t *testing.T) {
-			testCompleteBlockHonorsStartStopTimes(t, enc)
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		t.Run(version, func(t *testing.T) {
+			testCompleteBlockHonorsStartStopTimes(t, version)
 		})
 	}
 }
@@ -766,11 +763,9 @@ func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDec
 }
 
 func BenchmarkCompleteBlock(b *testing.B) {
-	enc := encoding.AllEncodings()
-
-	for _, e := range enc {
-		b.Run(e.Version(), func(b *testing.B) {
-			benchmarkCompleteBlock(b, e)
+	for _, enc := range encoding.AllEncodings() {
+		b.Run(enc.Version(), func(b *testing.B) {
+			benchmarkCompleteBlock(b, enc)
 		})
 	}
 }
