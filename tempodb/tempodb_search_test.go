@@ -19,6 +19,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/math"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -120,6 +121,7 @@ func testAdvancedTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 
 		// collect some info about wantTr to use below
 		trueConditionsBySpan := [][]string{}
+		durationBySpan := []uint64{}
 		falseConditions := []string{
 			fmt.Sprintf("name=`%v`", test.RandomString()),
 			fmt.Sprintf("duration>%dh", rand.Intn(10)+1),
@@ -141,10 +143,11 @@ func testAdvancedTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 					trueC = append(trueC, fmt.Sprintf("duration=%dns", s.EndTimeUnixNano-s.StartTimeUnixNano))
 					trueC = append(trueC, fmt.Sprintf("status=%s", status))
 					trueC = append(trueC, fmt.Sprintf("kind=%s", kind))
+					trueC = append(trueC, trueResourceC...)
 
 					trueConditionsBySpan = append(trueConditionsBySpan, trueC)
-					trueConditionsBySpan = append(trueConditionsBySpan, trueResourceC)
 					falseConditions = append(falseConditions, falseC...)
+					durationBySpan = append(durationBySpan, s.EndTimeUnixNano-s.StartTimeUnixNano)
 				}
 			}
 		}
@@ -173,10 +176,24 @@ func testAdvancedTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 			// counts
 			{Query: fmt.Sprintf("{} | count() = %d", totalSpans)},
 			{Query: fmt.Sprintf("{} | count() != %d", totalSpans+1)},
-			{Query: fmt.Sprintf("{} | count() <= %d", totalSpans)},
-			{Query: fmt.Sprintf("{} | count() >= %d", totalSpans)},
-			// avgs
-			{Query: "{ } | avg(duration) > 0"}, // todo: make this better
+			{Query: fmt.Sprintf("{ %s && %s } | count() = 1", rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]))},
+			// avgs/min/max/sum
+			{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } | avg(duration) = %dns",
+				rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]),
+				rando(trueConditionsBySpan[1]), rando(trueConditionsBySpan[1]),
+				(durationBySpan[0]+durationBySpan[1])/2)},
+			{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } | min(duration) = %dns",
+				rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]),
+				rando(trueConditionsBySpan[1]), rando(trueConditionsBySpan[1]),
+				math.Min64(int64(durationBySpan[0]), int64(durationBySpan[1])))},
+			{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } | max(duration) = %dns",
+				rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]),
+				rando(trueConditionsBySpan[1]), rando(trueConditionsBySpan[1]),
+				math.Max64(int64(durationBySpan[0]), int64(durationBySpan[1])))},
+			{Query: fmt.Sprintf("{ %s && %s } && { %s && %s } | sum(duration) = %dns",
+				rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[0]),
+				rando(trueConditionsBySpan[1]), rando(trueConditionsBySpan[1]),
+				durationBySpan[0]+durationBySpan[1])},
 		}
 		searchesThatDontMatch := []*tempopb.SearchRequest{
 			// conditions
@@ -202,6 +219,9 @@ func testAdvancedTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 			// avgs
 			{Query: "{ } | avg(.dne) != 0"},
 			{Query: "{ } | avg(duration) < 0"},
+			{Query: "{ } | min(duration) < 0"},
+			{Query: "{ } | max(duration) < 0"},
+			{Query: "{ } | sum(duration) < 0"},
 		}
 
 		for _, req := range searchesThatMatch {
@@ -437,7 +457,6 @@ func searchTestSuite() (
 	searchesThatMatch []*tempopb.SearchRequest,
 	searchesThatDontMatch []*tempopb.SearchRequest,
 ) {
-
 	id = test.ValidTraceID(nil)
 
 	start = 1000
@@ -497,7 +516,7 @@ func searchTestSuite() (
 								TraceId:           id,
 								Name:              "RootSpan",
 								StartTimeUnixNano: uint64(1000 * time.Second),
-								EndTimeUnixNano:   uint64(1001 * time.Second),
+								EndTimeUnixNano:   uint64(1002 * time.Second),
 								Status:            &v1.Status{},
 							},
 						},
@@ -510,7 +529,7 @@ func searchTestSuite() (
 	expected = &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(id),
 		StartTimeUnixNano: uint64(1000 * time.Second),
-		DurationMs:        1000,
+		DurationMs:        2000,
 		RootServiceName:   "RootService",
 		RootTraceName:     "RootSpan",
 	}
