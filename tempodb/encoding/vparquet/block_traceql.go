@@ -295,6 +295,8 @@ func (i *spansetIterator) Next() (*span, error) {
 			}
 		}
 
+		// jpe, need to sort spansets in row order
+
 		// found something!
 		if len(i.currentSpans) > 0 {
 			ret := i.currentSpans[0]
