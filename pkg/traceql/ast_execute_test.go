@@ -214,7 +214,6 @@ func TestSpansetOperationEvaluate(t *testing.T) {
 			"{ true } && { true } && { true }",
 			[]*Spanset{
 				{Spans: []Span{
-					// This spanset will be kept because it satisfies both conditions
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 				}},
 			},
@@ -228,7 +227,6 @@ func TestSpansetOperationEvaluate(t *testing.T) {
 			"{ true } || { true } || { true }",
 			[]*Spanset{
 				{Spans: []Span{
-					// This spanset will be kept because it satisfies both conditions
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 				}},
 			},
