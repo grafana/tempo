@@ -11,6 +11,15 @@ func FindServiceName(attributes []*v1_common.KeyValue) (string, bool) {
 	return FindAttributeValue(semconv.AttributeServiceName, attributes)
 }
 
+func FindServiceNamespace(attributes []*v1_common.KeyValue) (string, bool) {
+	return FindAttributeValue(semconv.AttributeServiceNamespace, attributes)
+}
+
+func FindInstanceId(attributes []*v1_common.KeyValue) (string, bool) {
+	string, bool := FindAttributeValue(semconv.AttributeServiceInstanceID, attributes)
+	return string, bool
+}
+
 func FindAttributeValue(key string, attributes ...[]*v1_common.KeyValue) (string, bool) {
 	for _, attrs := range attributes {
 		for _, kv := range attrs {
@@ -35,4 +44,12 @@ func GetSpanMultiplier(ratioKey string, span *v1.Span) float64 {
 		}
 	}
 	return spanMultiplier
+}
+
+func GetJobValue(attributes []*v1_common.KeyValue) string {
+	svName, _ := FindServiceName(attributes)
+	if namespace, found := FindServiceNamespace(attributes); found != false {
+		return (namespace + "/" + svName)
+	}
+	return svName
 }

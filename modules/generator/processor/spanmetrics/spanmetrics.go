@@ -22,6 +22,7 @@ const (
 	metricCallsTotal      = "traces_spanmetrics_calls_total"
 	metricDurationSeconds = "traces_spanmetrics_latency"
 	metricSizeTotal       = "traces_spanmetrics_size_total"
+	targetInfo            = "traces_spanmetrics_target_info"
 )
 
 type Processor struct {
@@ -32,6 +33,7 @@ type Processor struct {
 	spanMetricsCallsTotal      registry.Counter
 	spanMetricsDurationSeconds registry.Histogram
 	spanMetricsSizeTotal       registry.Counter
+	spanMetricsTargetInfo      registry.Counter
 
 	filter               *spanfilter.SpanFilter
 	filteredSpansCounter prometheus.Counter
@@ -43,8 +45,8 @@ type Processor struct {
 func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.Counter) (gen.Processor, error) {
 	labels := make([]string, 0, 4+len(cfg.Dimensions))
 
-	if cfg.IntrinsicDimensions.Service {
-		labels = append(labels, dimService)
+	if cfg.IntrinsicDimensions.Job {
+		labels = append(labels, dimJob)
 	}
 	if cfg.IntrinsicDimensions.SpanName {
 		labels = append(labels, dimSpanName)
@@ -58,12 +60,21 @@ func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.C
 	if cfg.IntrinsicDimensions.StatusMessage {
 		labels = append(labels, dimStatusMessage)
 	}
+	if cfg.IntrinsicDimensions.Instance {
+		labels = append(labels, dimInstance)
+	}
 
 	for _, d := range cfg.Dimensions {
 		labels = append(labels, sanitizeLabelNameWithCollisions(d))
 	}
 
-	p := &Processor{}
+	p := &Processor{
+		Cfg:                        cfg,
+		registry:                   registry,
+		spanMetricsTargetInfo:      registry.NewCounter(targetInfo, labels),
+		now:                        time.Now,
+	}
+
 	if cfg.Subprocessors[Latency] {
 		p.spanMetricsDurationSeconds = registry.NewHistogram(metricDurationSeconds, labels, cfg.HistogramBuckets)
 	}
@@ -103,13 +114,13 @@ func (p *Processor) Shutdown(_ context.Context) {
 
 func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	for _, rs := range resourceSpans {
-		// already extract service name, so we only have to do it once per batch of spans
-		svcName, _ := processor_util.FindServiceName(rs.Resource.Attributes)
-
+		// already extract job name & instance id, so we only have to do it once per batch of spans
+		jobName := processor_util.GetJobValue(rs.Resource.Attributes)
+		instanceId, _ := processor_util.FindInstanceId(rs.Resource.Attributes)
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
 				if p.filter.ApplyFilterPolicy(rs.Resource, span) {
-					p.aggregateMetricsForSpan(svcName, rs.Resource, span)
+					p.aggregateMetricsForSpan(jobName, instanceId, rs.Resource, span)
 					continue
 				}
 				p.filteredSpansCounter.Inc()
@@ -118,13 +129,13 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	}
 }
 
-func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, span *v1_trace.Span) {
+func (p *Processor) aggregateMetricsForSpan(jobName string, instanceId string, rs *v1.Resource, span *v1_trace.Span) {
 	latencySeconds := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 
 	labelValues := make([]string, 0, 4+len(p.Cfg.Dimensions))
 	// important: the order of labelValues must correspond to the order of labels / intrinsic dimensions
-	if p.Cfg.IntrinsicDimensions.Service {
-		labelValues = append(labelValues, svcName)
+	if p.Cfg.IntrinsicDimensions.Job {
+		labelValues = append(labelValues, jobName)
 	}
 	if p.Cfg.IntrinsicDimensions.SpanName {
 		labelValues = append(labelValues, span.GetName())
@@ -137,6 +148,9 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 	}
 	if p.Cfg.IntrinsicDimensions.StatusMessage {
 		labelValues = append(labelValues, span.GetStatus().GetMessage())
+	}
+	if p.Cfg.IntrinsicDimensions.Instance {
+		labelValues = append(labelValues, instanceId)
 	}
 	for _, d := range p.Cfg.Dimensions {
 		value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
@@ -159,6 +173,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 	if p.Cfg.Subprocessors[Size] {
 		p.spanMetricsSizeTotal.Inc(registryLabelValues, float64(span.Size()))
 	}
+	p.spanMetricsTargetInfo.Inc(registryLabelValues, 0)
 }
 
 func sanitizeLabelNameWithCollisions(name string) string {
@@ -172,9 +187,10 @@ func sanitizeLabelNameWithCollisions(name string) string {
 }
 
 func isIntrinsicDimension(name string) bool {
-	return name == dimService ||
+	return name == dimJob ||
 		name == dimSpanName ||
 		name == dimSpanKind ||
 		name == dimStatusCode ||
-		name == dimStatusMessage
+		name == dimStatusMessage ||
+		name == dimInstance
 }

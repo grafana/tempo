@@ -11,18 +11,19 @@ import (
 const (
 	Name = "span-metrics"
 
-	dimService       = "service"
+	dimJob           = "job"
 	dimSpanName      = "span_name"
 	dimSpanKind      = "span_kind"
 	dimStatusCode    = "status_code"
 	dimStatusMessage = "status_message"
+	dimInstance      = "instance"
 )
 
 type Config struct {
 	// Buckets for latency histogram in seconds.
 	HistogramBuckets []float64 `yaml:"histogram_buckets"`
 	// Intrinsic dimensions (labels) added to the metric, that are generated from fixed span
-	// data. The dimensions service, span_name, span_kind, and status_code are enabled by
+	// data. The dimensions job, span_name, span_kind, status_code, and instance are enabled by
 	// default, whereas the dimension status_message must be enabled explicitly.
 	IntrinsicDimensions IntrinsicDimensions `yaml:"intrinsic_dimensions"`
 	// Additional dimensions (labels) to be added to the metric. The dimensions are generated
@@ -42,7 +43,7 @@ type Config struct {
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
-	cfg.IntrinsicDimensions.Service = true
+	cfg.IntrinsicDimensions.Job = true
 	cfg.IntrinsicDimensions.SpanName = true
 	cfg.IntrinsicDimensions.SpanKind = true
 	cfg.IntrinsicDimensions.StatusCode = true
@@ -50,21 +51,23 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Subprocessors[Latency] = true
 	cfg.Subprocessors[Count] = true
 	cfg.Subprocessors[Size] = true
+	cfg.IntrinsicDimensions.Instance = true
 }
 
 type IntrinsicDimensions struct {
-	Service       bool `yaml:"service"`
+	Job           bool `yaml:"job"`
 	SpanName      bool `yaml:"span_name"`
 	SpanKind      bool `yaml:"span_kind"`
 	StatusCode    bool `yaml:"status_code"`
 	StatusMessage bool `yaml:"status_message,omitempty"`
+	Instance      bool `yaml:"instance"`
 }
 
 func (ic *IntrinsicDimensions) ApplyFromMap(dimensions map[string]bool) error {
 	for label, active := range dimensions {
 		switch label {
-		case dimService:
-			ic.Service = active
+		case dimJob:
+			ic.Job = active
 		case dimSpanName:
 			ic.SpanName = active
 		case dimSpanKind:
@@ -73,6 +76,8 @@ func (ic *IntrinsicDimensions) ApplyFromMap(dimensions map[string]bool) error {
 			ic.StatusCode = active
 		case dimStatusMessage:
 			ic.StatusMessage = active
+		case dimInstance:
+			ic.Instance = active
 		default:
 			return errors.Errorf("%s is not a valid intrinsic dimension", label)
 		}
