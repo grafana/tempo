@@ -61,21 +61,23 @@ var (
 	}, []string{"tenant"})
 )
 
-// todo: pass a context/chan in to cancel this cleanly
-func (rw *readerWriter) compactionLoop() {
+func (rw *readerWriter) compactionLoop(ctx context.Context) {
 	compactionCycle := DefaultCompactionCycle
 	if rw.compactorCfg.CompactionCycle > 0 {
 		compactionCycle = rw.compactorCfg.CompactionCycle
 	}
 
 	ticker := time.NewTicker(compactionCycle)
-	for range ticker.C {
-		rw.doCompaction()
+	select {
+	case <-ticker.C:
+		rw.doCompaction(ctx)
+	case <-ctx.Done():
+		return
 	}
 }
 
 // doCompaction runs a compaction cycle every 30s
-func (rw *readerWriter) doCompaction() {
+func (rw *readerWriter) doCompaction(ctx context.Context) {
 	// List of all tenants in the block list
 	// The block list is updated by constant polling the storage for tenant indexes and/or tenant blocks (and building the index)
 	tenants := rw.blocklist.Tenants()
@@ -111,44 +113,48 @@ func (rw *readerWriter) doCompaction() {
 
 	level.Info(rw.logger).Log("msg", "starting compaction cycle", "tenantID", tenantID, "offset", rw.compactorTenantOffset)
 	for {
-		// Pick up to defaultMaxInputBlocks (4) blocks to compact into a single one
-		toBeCompacted, hashString := blockSelector.BlocksToCompact()
-		if len(toBeCompacted) == 0 {
-			measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			// Pick up to defaultMaxInputBlocks (4) blocks to compact into a single one
+			toBeCompacted, hashString := blockSelector.BlocksToCompact()
+			if len(toBeCompacted) == 0 {
+				measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
 
-			level.Info(rw.logger).Log("msg", "compaction cycle complete. No more blocks to compact", "tenantID", tenantID)
-			break
-		}
-		if !rw.compactorSharder.Owns(hashString) {
-			// continue on this tenant until we find something we own
-			continue
-		}
-		level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
-		// Compact selected blocks into a larger one
-		err := rw.compact(toBeCompacted, tenantID)
+				level.Info(rw.logger).Log("msg", "compaction cycle complete. No more blocks to compact", "tenantID", tenantID)
+				return
+			}
+			if !rw.compactorSharder.Owns(hashString) {
+				// continue on this tenant until we find something we own
+				continue
+			}
+			level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
+			// Compact selected blocks into a larger one
+			err := rw.compact(ctx, toBeCompacted, tenantID)
 
-		if err == backend.ErrDoesNotExist {
-			level.Warn(rw.logger).Log("msg", "unable to find meta during compaction.  trying again on this block list", "err", err)
-		} else if err != nil {
-			level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
-			metricCompactionErrors.Inc()
-		}
+			if err == backend.ErrDoesNotExist {
+				level.Warn(rw.logger).Log("msg", "unable to find meta during compaction.  trying again on this block list", "err", err)
+			} else if err != nil {
+				level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
+				metricCompactionErrors.Inc()
+			}
 
-		// after a maintenance cycle bail out
-		if start.Add(rw.compactorCfg.MaxTimePerTenant).Before(time.Now()) {
-			measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
+			// after a maintenance cycle bail out
+			if start.Add(rw.compactorCfg.MaxTimePerTenant).Before(time.Now()) {
+				measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
 
-			level.Info(rw.logger).Log("msg", "compacted blocks for a maintenance cycle, bailing out", "tenantID", tenantID)
-			break
+				level.Info(rw.logger).Log("msg", "compacted blocks for a maintenance cycle, bailing out", "tenantID", tenantID)
+				return
+			}
 		}
 	}
 }
 
-func (rw *readerWriter) compact(blockMetas []*backend.BlockMeta, tenantID string) error {
+func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string) error {
 	level.Debug(rw.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
 
 	// todo - add timeout?
-	ctx := context.Background()
 	span, ctx := opentracing.StartSpanFromContext(ctx, "rw.compact")
 	defer span.Finish()
 
