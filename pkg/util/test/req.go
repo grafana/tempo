@@ -117,6 +117,14 @@ func MakeBatch(spans int, traceID []byte) *v1_trace.ResourceSpans {
 						},
 					},
 				},
+				{
+					Key: "service.instance.id",
+					Value: &v1_common.AnyValue{
+						Value: &v1_common.AnyValue_StringValue{
+							StringValue: "abc-instance-id-test-def",
+						},
+					},
+				},
 			},
 		},
 	}

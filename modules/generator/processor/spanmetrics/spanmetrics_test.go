@@ -53,10 +53,11 @@ func TestSpanMetrics(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
-		"service":     "test-service",
+		"job":         "test-service",
 		"span_name":   "test",
 		"span_kind":   "SPAN_KIND_CLIENT",
 		"status_code": "STATUS_CODE_OK",
+		"instance":    "abc-instance-id-test-def",
 	})
 
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
@@ -66,6 +67,7 @@ func TestSpanMetrics(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
+	assert.Equal(t, 0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
 }
 
 func TestSpanMetrics_dimensions(t *testing.T) {
@@ -106,10 +108,11 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
-		"service":        "test-service",
+		"job":            "test-service",
 		"span_name":      "test",
 		"status_code":    "STATUS_CODE_OK",
 		"status_message": "OK",
+		"instance":       "abc-instance-id-test-def",
 		"foo":            "foo-value",
 		"bar":            "bar-value",
 		"does_not_exist": "",
@@ -122,6 +125,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
+	assert.Equal(t, 0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
 }
 
 func TestSpanMetrics_collisions(t *testing.T) {
@@ -158,9 +162,10 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
-		"service":     "test-service",
+		"job":         "test-service",
 		"span_name":   "test",
 		"status_code": "STATUS_CODE_OK",
+		"instance":    "abc-instance-id-test-def",
 		"__span_kind": "colliding_kind",
 		"__span_name": "colliding_name",
 	})
@@ -172,6 +177,49 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
+	assert.Equal(t, 0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
+}
+
+func TestJobLabelWithNamespace(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.HistogramBuckets = []float64{0.5, 1}
+
+	p := New(cfg, testRegistry)
+	defer p.Shutdown(context.Background())
+
+	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
+	batch := test.MakeBatch(10, nil)
+
+	// add namespace
+
+	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
+		Key:   "service.namespace",
+		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-namespace"}},
+	})
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	fmt.Println(testRegistry)
+
+	lbls := labels.FromMap(map[string]string{
+		"job":         "test-namespace/test-service",
+		"span_name":   "test",
+		"span_kind":   "SPAN_KIND_CLIENT",
+		"status_code": "STATUS_CODE_OK",
+		"instance":    "abc-instance-id-test-def",
+	})
+
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 0.5)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 1)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
+	assert.Equal(t, 0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
 }
 
 func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
