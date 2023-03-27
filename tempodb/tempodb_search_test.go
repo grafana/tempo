@@ -543,7 +543,7 @@ func searchTestSuite() (
 		},
 		{
 			MinDurationMs: 999,
-			MaxDurationMs: 1001,
+			MaxDurationMs: 2001,
 		},
 		{
 			Start: 1000,
@@ -598,7 +598,7 @@ func searchTestSuite() (
 	// Excludes
 	searchesThatDontMatch = []*tempopb.SearchRequest{
 		{
-			MinDurationMs: 1001,
+			MinDurationMs: 2001,
 		},
 		{
 			MaxDurationMs: 999,
