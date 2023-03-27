@@ -57,7 +57,7 @@ func TestSpanMetrics(t *testing.T) {
 		"span_name":   "test",
 		"span_kind":   "SPAN_KIND_CLIENT",
 		"status_code": "STATUS_CODE_OK",
-		"instance":    "abc-instance-id-test-def",
+		"instance":    "",
 	})
 
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
@@ -67,7 +67,7 @@ func TestSpanMetrics(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
-	assert.Equal(t, 0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
 }
 
 func TestSpanMetrics_dimensions(t *testing.T) {
@@ -112,7 +112,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 		"span_name":      "test",
 		"status_code":    "STATUS_CODE_OK",
 		"status_message": "OK",
-		"instance":       "abc-instance-id-test-def",
+		"instance":       "",
 		"foo":            "foo-value",
 		"bar":            "bar-value",
 		"does_not_exist": "",
@@ -125,7 +125,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
-	assert.Equal(t, 0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
 }
 
 func TestSpanMetrics_collisions(t *testing.T) {
@@ -165,7 +165,7 @@ func TestSpanMetrics_collisions(t *testing.T) {
 		"job":         "test-service",
 		"span_name":   "test",
 		"status_code": "STATUS_CODE_OK",
-		"instance":    "abc-instance-id-test-def",
+		"instance":    "",
 		"__span_kind": "colliding_kind",
 		"__span_name": "colliding_name",
 	})
@@ -177,10 +177,10 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
-	assert.Equal(t, 0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
 }
 
-func TestJobLabelWithNamespace(t *testing.T) {
+func TestJobLabelWithNamespaceAndInstanceID(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 
 	cfg := Config{}
@@ -198,6 +198,11 @@ func TestJobLabelWithNamespace(t *testing.T) {
 	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
 		Key:   "service.namespace",
 		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-namespace"}},
+	})
+
+	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
+		Key:   "service.instance.id",
+		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
 	})
 
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
@@ -219,7 +224,7 @@ func TestJobLabelWithNamespace(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
-	assert.Equal(t, 0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
 }
 
 func TestSpanMetrics_applyFilterPolicy(t *testing.T) {

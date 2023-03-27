@@ -116,11 +116,11 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	for _, rs := range resourceSpans {
 		// already extract job name & instance id, so we only have to do it once per batch of spans
 		jobName := processor_util.GetJobValue(rs.Resource.Attributes)
-		instanceId, _ := processor_util.FindInstanceId(rs.Resource.Attributes)
+		instanceID, _ := processor_util.FindInstanceID(rs.Resource.Attributes)
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
 				if p.filter.ApplyFilterPolicy(rs.Resource, span) {
-					p.aggregateMetricsForSpan(jobName, instanceId, rs.Resource, span)
+					p.aggregateMetricsForSpan(jobName, instanceID, rs.Resource, span)
 					continue
 				}
 				p.filteredSpansCounter.Inc()
@@ -129,7 +129,7 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	}
 }
 
-func (p *Processor) aggregateMetricsForSpan(jobName string, instanceId string, rs *v1.Resource, span *v1_trace.Span) {
+func (p *Processor) aggregateMetricsForSpan(jobName string, instanceID string, rs *v1.Resource, span *v1_trace.Span) {
 	latencySeconds := float64(span.GetEndTimeUnixNano()-span.GetStartTimeUnixNano()) / float64(time.Second.Nanoseconds())
 
 	labelValues := make([]string, 0, 4+len(p.Cfg.Dimensions))
@@ -150,7 +150,7 @@ func (p *Processor) aggregateMetricsForSpan(jobName string, instanceId string, r
 		labelValues = append(labelValues, span.GetStatus().GetMessage())
 	}
 	if p.Cfg.IntrinsicDimensions.Instance {
-		labelValues = append(labelValues, instanceId)
+		labelValues = append(labelValues, instanceID)
 	}
 	for _, d := range p.Cfg.Dimensions {
 		value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
