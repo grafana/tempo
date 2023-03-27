@@ -118,7 +118,7 @@ func (i *Ingester) ShutdownHandler(w http.ResponseWriter, _ *http.Request) {
 // mark all head blocks as ready to flush. It will either flush all instances or if an instance is specified,
 // just that one.
 func (i *Ingester) FlushHandler(w http.ResponseWriter, r *http.Request) {
-	queryParamInstance := "instance"
+	queryParamInstance := "tenant"
 
 	if r.URL.Query().Has(queryParamInstance) {
 		instance, ok := i.getInstanceByID(r.URL.Query().Get(queryParamInstance))
