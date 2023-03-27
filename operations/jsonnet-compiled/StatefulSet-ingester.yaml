@@ -34,7 +34,6 @@ spec:
         - -mem-ballast-size-mbs=1024
         - -target=ingester
         image: grafana/tempo:latest
-        imagePullPolicy: IfNotPresent
         name: ingester
         ports:
         - containerPort: 3200
@@ -67,8 +66,6 @@ spec:
       - configMap:
           name: tempo-overrides
         name: overrides
-  updateStrategy:
-    type: RollingUpdate
   volumeClaimTemplates:
   - apiVersion: v1
     kind: PersistentVolumeClaim
