@@ -182,7 +182,10 @@ The second expression returns no traces because it's impossible for a single spa
 So far, all of the example queries expressions have been about individual spans. You can use aggregate functions to ask questions about a set of spans. These currently consist of:
 
 - `count` - The count of spans in the spanset.
-- `avg` - The average of a given attribute or intrinsic for a spanset.
+- `avg` - The average of a given numeric attribute or intrinsic for a spanset.
+- `max` - The max value of a given numeric attribute or intrinsic for a spanset.
+- `min` - The min value of a given numeric attribute or intrinsic for a spanset.
+- `sum` - The sum value of a given numeric attribute or intrinsic for a spanset.
 
 Aggregate functions allow you to carry out operations on matching results to further refine the traces returned. For more information on planned future work, refer to [How TraceQL works]({{< relref "architecture" >}}).
 
