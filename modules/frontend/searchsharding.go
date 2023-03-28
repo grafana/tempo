@@ -33,7 +33,7 @@ const (
 var (
 	queryThroughput = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempo",
-		Name:      "query_frontend_bytes_processed_per_seconds",
+		Name:      "query_frontend_bytes_processed_per_second",
 		Help:      "Bytes processed per second in the query per tenant",
 		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
 	}, []string{"tenant", "op"})
@@ -236,14 +236,20 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	query, _ := url.PathUnescape(r.URL.RawQuery)
 	span.SetTag("query", query)
 	level.Info(s.logger).Log(
-		"msg", "sharded search query request stats",
+		"msg", "sharded search query request stats and SearchMetrics",
 		"query", query,
 		"duration_seconds", reqTime,
 		"request_throughput", throughput,
 		"total_requests", len(reqs),
 		"started_requests", startedReqs,
+		"cancelled_requests", cancelledReqs,
 		"finished_requests", overallResponse.finishedRequests,
-		"cancelled_requests", cancelledReqs)
+		"inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks,
+		"skippedBlocks", overallResponse.resultsMetrics.SkippedBlocks,
+		"inspectedBytes", overallResponse.resultsMetrics.InspectedBytes,
+		"inspectedTraces", overallResponse.resultsMetrics.InspectedTraces,
+		"skippedTraces", overallResponse.resultsMetrics.SkippedTraces,
+		"totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
 
 	// all goroutines have finished, we can safely access searchResults fields directly now
 	span.SetTag("inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks)
@@ -252,16 +258,6 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span.SetTag("inspectedTraces", overallResponse.resultsMetrics.InspectedTraces)
 	span.SetTag("skippedTraces", overallResponse.resultsMetrics.SkippedTraces)
 	span.SetTag("totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
-
-	level.Info(s.logger).Log(
-		"msg", "sharded search query SearchMetrics",
-		"query", query,
-		"inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks,
-		"skippedBlocks", overallResponse.resultsMetrics.SkippedBlocks,
-		"inspectedBytes", overallResponse.resultsMetrics.InspectedBytes,
-		"inspectedTraces", overallResponse.resultsMetrics.InspectedTraces,
-		"skippedTraces", overallResponse.resultsMetrics.SkippedTraces,
-		"totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
 
 	if overallResponse.err != nil {
 		return nil, overallResponse.err
