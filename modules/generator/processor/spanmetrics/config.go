@@ -29,6 +29,8 @@ type Config struct {
 	// Additional dimensions (labels) to be added to the metric. The dimensions are generated
 	// from span attributes and are created along with the intrinsic dimensions.
 	Dimensions []string `yaml:"dimensions"`
+	// Dimension label mapping to allow the user to rename attributes in their metrics
+	DimensionMappings []DimensionMappings `yaml:"dimension_mappings"`
 
 	// If enabled attribute value will be used for metric calculation
 	SpanMultiplierKey string `yaml:"span_multiplier_key"`
@@ -52,6 +54,11 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Subprocessors[Count] = true
 	cfg.Subprocessors[Size] = true
 	cfg.IntrinsicDimensions.Instance = true
+}
+
+type DimensionMappings struct {
+	Label       string `yaml:"label"`
+	Replacement string `yaml:"replacement"`
 }
 
 type IntrinsicDimensions struct {

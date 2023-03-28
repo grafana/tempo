@@ -65,7 +65,7 @@ func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.C
 	}
 
 	for _, d := range cfg.Dimensions {
-		labels = append(labels, sanitizeLabelNameWithCollisions(d))
+		labels = append(labels, sanitizeLabelNameWithCollisions(cfg, d))
 	}
 
 	p := &Processor{
@@ -176,7 +176,8 @@ func (p *Processor) aggregateMetricsForSpan(jobName string, instanceID string, r
 	p.spanMetricsTargetInfo.Inc(registryLabelValues, 0)
 }
 
-func sanitizeLabelNameWithCollisions(name string) string {
+func sanitizeLabelNameWithCollisions(cfg Config, name string) string {
+	name = customDimensionMapping(cfg, name)
 	sanitized := strutil.SanitizeLabelName(name)
 
 	if isIntrinsicDimension(sanitized) {
@@ -193,4 +194,15 @@ func isIntrinsicDimension(name string) bool {
 		name == dimStatusCode ||
 		name == dimStatusMessage ||
 		name == dimInstance
+}
+
+func customDimensionMapping(cfg Config, name string) string {
+	// if label is in mapping, return map value
+	for _, d := range cfg.DimensionMappings {
+		if d.Label == name {
+			return d.Replacement
+		}
+	}
+
+	return name
 }
