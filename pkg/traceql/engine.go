@@ -128,6 +128,12 @@ func (e *Engine) ExecuteTagValues(
 	}
 
 	fetchSpansRequest := e.createFetchSpansRequest(searchReq, rootExpr.Pipeline)
+	// TODO: remove other conditions for the attribute we're searching for
+	// for _, cond := range fetchSpansRequest.Conditions {
+	// 	if cond.Attribute == attribute {
+	// 		return fmt.Errorf("cannot search for tag values for tag that is already used in query")
+	// 	}
+	// }
 	fetchSpansRequest.Conditions = append(fetchSpansRequest.Conditions, Condition{
 		Attribute: attribute,
 		Op:        OpNone,

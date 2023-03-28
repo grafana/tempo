@@ -347,6 +347,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	engine := traceql.NewEngine()
 
+	// TODO: fallback to old approach if query is not supported or valid
 	search := func(s common.Searcher) error {
 		return engine.ExecuteTagValues(ctx, req, cb, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return s.Fetch(ctx, req, common.DefaultSearchOptions())
