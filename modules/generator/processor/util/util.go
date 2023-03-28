@@ -48,8 +48,11 @@ func GetSpanMultiplier(ratioKey string, span *v1.Span) float64 {
 
 func GetJobValue(attributes []*v1_common.KeyValue) string {
 	svName, _ := FindServiceName(attributes)
-	if namespace, found := FindServiceNamespace(attributes); found && namespace != "" {
-		return (namespace + "/" + svName)
+	namespace, _ := FindServiceNamespace(attributes)
+
+	if namespace != "" {
+		namespace = namespace + "/"
 	}
-	return svName
+
+	return namespace + svName
 }

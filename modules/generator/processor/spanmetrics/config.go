@@ -57,8 +57,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 type DimensionMappings struct {
-	Label       string `yaml:"label"`
-	Replacement string `yaml:"replacement"`
+	Name        string   `yaml:"name"`
+	SourceLabel []string `yaml:"source_labels"`
+	Join        string   `yaml:"join"`
 }
 
 type IntrinsicDimensions struct {

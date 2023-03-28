@@ -378,11 +378,11 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.IntrinsicDimensions.SpanKind = false
 	cfg.IntrinsicDimensions.StatusMessage = true
-	cfg.Dimensions = []string{"foo", "bar"}
 	cfg.DimensionMappings = []DimensionMappings{
 		{
-			Label:       "foo",
-			Replacement: "cat",
+			Name:        "foobar",
+			SourceLabel: []string{"foo", "bar"},
+			Join:        "/",
 		},
 	}
 
@@ -416,8 +416,85 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 		"status_code":    "STATUS_CODE_OK",
 		"status_message": "OK",
 		"instance":       "",
-		"cat":            "foo-value",
-		"bar":            "bar-value",
+		"foobar":         "foo-value/bar-value",
+	})
+
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 0.5)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 1)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
+}
+
+func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.HistogramBuckets = []float64{0.5, 1}
+	cfg.IntrinsicDimensions.SpanKind = false
+	cfg.IntrinsicDimensions.StatusMessage = true
+	cfg.DimensionMappings = []DimensionMappings{
+		// label "second" missing in attributes, correct label = "first"
+		{
+			Name:        "first_only",
+			SourceLabel: []string{"first", "second"},
+			Join:        "/",
+		},
+		// label "hello" missin in attributes, correct label = "world"
+		{
+			Name:        "world_only",
+			SourceLabel: []string{"hello", "world"},
+			Join:        "/",
+		},
+		// label "middle" missing in attributes, correct label = "first->last"
+		{
+			Name:        "first/last",
+			SourceLabel: []string{"first", "middle", "last"},
+			Join:        "->",
+		},
+	}
+
+	p := New(cfg, testRegistry)
+	defer p.Shutdown(context.Background())
+
+	// TODO create some spans that are missing the custom dimensions/tags
+	batch := test.MakeBatch(10, nil)
+
+	// Add some attributes
+	for _, rs := range batch.ScopeSpans {
+		for _, s := range rs.Spans {
+			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+				Key:   "first",
+				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "first-value"}},
+			})
+			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+				Key:   "world",
+				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "world-value"}},
+			})
+			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+				Key:   "last",
+				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "last-value"}},
+			})
+		}
+	}
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	fmt.Println(testRegistry)
+
+	lbls := labels.FromMap(map[string]string{
+		"job":            "test-service",
+		"span_name":      "test",
+		"status_code":    "STATUS_CODE_OK",
+		"status_message": "OK",
+		"instance":       "",
+		"first_only":     "first-value",
+		"world_only":     "world-value",
+		"first/last":     "first-value->last-value",
 	})
 
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))

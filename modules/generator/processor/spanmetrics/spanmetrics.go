@@ -68,6 +68,10 @@ func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.C
 		labels = append(labels, sanitizeLabelNameWithCollisions(cfg, d))
 	}
 
+	for _, m := range cfg.DimensionMappings {
+		labels = append(labels, m.Name)
+	}
+	
 	p := &Processor{
 		Cfg:                        cfg,
 		registry:                   registry,
@@ -156,6 +160,20 @@ func (p *Processor) aggregateMetricsForSpan(jobName string, instanceID string, r
 		value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
 		labelValues = append(labelValues, value)
 	}
+
+	for _, m := range p.Cfg.DimensionMappings {
+		values := ""
+		for _, s := range m.SourceLabel {
+			if value, _ := processor_util.FindAttributeValue(s, rs.Attributes, span.Attributes); value != "" {
+				if values == "" {
+					values += value
+				} else {
+					values = values + m.Join + value
+				}
+			}
+		}
+		labelValues = append(labelValues, values)
+	}
 	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span)
 
 	registryLabelValues := p.registry.NewLabelValues(labelValues)
@@ -177,7 +195,6 @@ func (p *Processor) aggregateMetricsForSpan(jobName string, instanceID string, r
 }
 
 func sanitizeLabelNameWithCollisions(cfg Config, name string) string {
-	name = customDimensionMapping(cfg, name)
 	sanitized := strutil.SanitizeLabelName(name)
 
 	if isIntrinsicDimension(sanitized) {
@@ -194,15 +211,4 @@ func isIntrinsicDimension(name string) bool {
 		name == dimStatusCode ||
 		name == dimStatusMessage ||
 		name == dimInstance
-}
-
-func customDimensionMapping(cfg Config, name string) string {
-	// if label is in mapping, return map value
-	for _, d := range cfg.DimensionMappings {
-		if d.Label == name {
-			return d.Replacement
-		}
-	}
-
-	return name
 }
