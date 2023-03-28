@@ -987,7 +987,7 @@ storage:
 
         # block configuration
         block:
-            # block format version. options: v2, vParquet
+            # block format version. options: v2, vParquet, vParquet2
             [version: <string> | default = vParquet]
 
             # bloom filter false positive rate.  lower values create larger filters but fewer false positives
