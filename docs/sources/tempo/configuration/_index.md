@@ -400,6 +400,16 @@ query_frontend:
         # (default: 30m)
         [query_ingesters_until: <duration>]
 
+        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
+        # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
+        # NOTE: `duration_slo` and `throughput_bytes_slo` both must be configured for it to work
+        [duration_slo: <duration> | default = 0s ]
+
+        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
+        # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
+        [throughput_bytes_slo: <float> | default = 0 ]
+
+
     # Trace by ID lookup configuration
     trace_by_id:
         # The number of shards to split a trace by id query into.
@@ -413,6 +423,10 @@ query_frontend:
         # The maximum number of requests to execute when hedging.
         # Requires hedge_requests_at to be set. Must be greater than 0.
         [hedge_requests_up_to: <int> | default = 2 ]
+
+        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
+        # Query is within SLO if it returned 200 within duration_slo seconds.
+        [duration_slo: <duration> | default = 0s ]
 ```
 
 ## Querier
