@@ -381,7 +381,7 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 	cfg.Dimensions = []string{"foo", "bar"}
 	cfg.DimensionMappings = []DimensionMappings{
 		{
-			Label: "foo",
+			Label:       "foo",
 			Replacement: "cat",
 		},
 	}
