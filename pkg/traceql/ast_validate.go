@@ -85,7 +85,7 @@ func (a Aggregate) validate() error {
 	}
 
 	switch a.op {
-	case aggregateCount, aggregateAvg:
+	case aggregateCount, aggregateAvg, aggregateMin, aggregateMax, aggregateSum:
 	default:
 		return newUnsupportedError(fmt.Sprintf("aggregate operation (%v)", a.op))
 	}

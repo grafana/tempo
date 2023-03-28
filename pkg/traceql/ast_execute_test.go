@@ -5,17 +5,41 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type evalTC struct {
+	query  string
+	input  []*Spanset
+	output []*Spanset
+}
+
+func testEvaluator(t *testing.T, tc evalTC) {
+	t.Helper()
+
+	t.Run(tc.query, func(t *testing.T) {
+		ast, err := Parse(tc.query)
+		require.NoError(t, err)
+
+		// clone input to confirm it doesn't get modified
+		cloneIn := make([]*Spanset, len(tc.input))
+		for i := range tc.input {
+			cloneIn[i] = tc.input[i].clone()
+			cloneIn[i].Spans = append([]Span(nil), tc.input[i].Spans...)
+		}
+
+		actual, err := ast.Pipeline.evaluate(tc.input)
+		require.NoError(t, err)
+		require.Equal(t, tc.output, actual)
+		require.Equal(t, cloneIn, tc.input)
+	})
+}
 
 func TestSpansetFilter_matches(t *testing.T) {
 	tests := []struct {
 		query   string
 		span    Span
 		matches bool
-		// TODO do we actually care about the error mesasge?
-		err bool
 	}{
 		{
 			query: `{ ("foo" != "bar") && !("foo" = "bar") }`,
@@ -126,32 +150,23 @@ func TestSpansetFilter_matches(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.query, func(t *testing.T) {
-			expr, err := Parse(tt.query)
-			require.NoError(t, err)
-
-			spansetFilter := expr.Pipeline.Elements[0].(SpansetFilter)
-
-			matches, err := spansetFilter.matches(tt.span)
-
-			if tt.err {
-				fmt.Println(err)
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.matches, matches)
-			}
-		})
+		// create a evalTC and use testEvaluator
+		tc := evalTC{
+			query: tt.query,
+			input: []*Spanset{
+				{Spans: []Span{tt.span}},
+			},
+			output: []*Spanset{},
+		}
+		if tt.matches {
+			tc.output = tc.input
+		}
+		testEvaluator(t, tc)
 	}
-
 }
 
 func TestSpansetOperationEvaluate(t *testing.T) {
-	testCases := []struct {
-		query  string
-		input  []*Spanset
-		output []*Spanset
-	}{
+	testCases := []evalTC{
 		{
 			"{ .foo = `a` } && { .foo = `b` }",
 			[]*Spanset{
@@ -167,8 +182,8 @@ func TestSpansetOperationEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 				}},
 			},
 		},
@@ -187,36 +202,49 @@ func TestSpansetOperationEvaluate(t *testing.T) {
 			},
 			[]*Spanset{
 				{Spans: []Span{
-					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
 				}},
 				{Spans: []Span{
 					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
 				}},
 			},
 		},
+		{
+			"{ true } && { true } && { true }",
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+				}},
+			},
+		},
+		{
+			"{ true } || { true } || { true }",
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}},
+				}},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.query, func(t *testing.T) {
-			ast, err := Parse(tc.query)
-			require.NoError(t, err)
-
-			filt := ast.Pipeline.Elements[0].(SpansetOperation)
-
-			actual, err := filt.evaluate(tc.input)
-			require.NoError(t, err)
-			require.Equal(t, tc.output, actual)
-		})
+		testEvaluator(t, tc)
 	}
 }
 
 func TestScalarFilterEvaluate(t *testing.T) {
-	testCases := []struct {
-		query  string
-		input  []*Spanset
-		output []*Spanset
-	}{
+	testCases := []evalTC{
 		{
 			"{ .foo = `a` } | count() > 1",
 			[]*Spanset{
@@ -285,26 +313,144 @@ func TestScalarFilterEvaluate(t *testing.T) {
 				},
 			},
 		},
+		// max
+		{
+			"{ .foo = `a` } | max(duration) >= 10ms",
+			[]*Spanset{
+				{Spans: []Span{
+					// max duration = 8ms
+					&mockSpan{attributes: map[Attribute]Static{
+						NewAttribute("foo"):             NewStaticString("a"),
+						NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond)},
+					},
+					&mockSpan{attributes: map[Attribute]Static{
+						NewAttribute("foo"):             NewStaticString("a"),
+						NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
+					},
+				}},
+				{Spans: []Span{
+					// max duration = 15ms
+					&mockSpan{attributes: map[Attribute]Static{
+						NewAttribute("foo"):             NewStaticString("a"),
+						NewIntrinsic(IntrinsicDuration): NewStaticDuration(5 * time.Millisecond)},
+					},
+					&mockSpan{attributes: map[Attribute]Static{
+						NewAttribute("foo"):             NewStaticString("a"),
+						NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
+					},
+				}},
+			},
+			[]*Spanset{
+				{
+					Scalar: NewStaticFloat(15.0 * float64(time.Millisecond)),
+					Spans: []Span{
+						&mockSpan{attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(5 * time.Millisecond)},
+						},
+						&mockSpan{attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
+						},
+					},
+				},
+			},
+		},
+		// min
+		{
+			"{ .foo = `a` } | min(duration) <= 10ms",
+			[]*Spanset{
+				{Spans: []Span{
+					// min duration = 2ms
+					&mockSpan{attributes: map[Attribute]Static{
+						NewAttribute("foo"):             NewStaticString("a"),
+						NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond)},
+					},
+					&mockSpan{attributes: map[Attribute]Static{
+						NewAttribute("foo"):             NewStaticString("a"),
+						NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
+					},
+				}},
+				{Spans: []Span{
+					// min duration = 5ms
+					&mockSpan{attributes: map[Attribute]Static{
+						NewAttribute("foo"):             NewStaticString("a"),
+						NewIntrinsic(IntrinsicDuration): NewStaticDuration(12 * time.Millisecond)},
+					},
+					&mockSpan{attributes: map[Attribute]Static{
+						NewAttribute("foo"):             NewStaticString("a"),
+						NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
+					},
+				}},
+			},
+			[]*Spanset{
+				{
+					Scalar: NewStaticFloat(2.0 * float64(time.Millisecond)),
+					Spans: []Span{
+						&mockSpan{attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond)},
+						},
+						&mockSpan{attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
+						},
+					},
+				},
+			},
+		},
+		// sum
+		{
+			"{ .foo = `a` } | sum(duration) = 10ms",
+			[]*Spanset{
+				{Spans: []Span{
+					// sum duration = 10ms
+					&mockSpan{attributes: map[Attribute]Static{
+						NewAttribute("foo"):             NewStaticString("a"),
+						NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond)},
+					},
+					&mockSpan{attributes: map[Attribute]Static{
+						NewAttribute("foo"):             NewStaticString("a"),
+						NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
+					},
+				}},
+				{Spans: []Span{
+					// sum duration = 27ms
+					&mockSpan{attributes: map[Attribute]Static{
+						NewAttribute("foo"):             NewStaticString("a"),
+						NewIntrinsic(IntrinsicDuration): NewStaticDuration(12 * time.Millisecond)},
+					},
+					&mockSpan{attributes: map[Attribute]Static{
+						NewAttribute("foo"):             NewStaticString("a"),
+						NewIntrinsic(IntrinsicDuration): NewStaticDuration(15 * time.Millisecond)},
+					},
+				}},
+			},
+			[]*Spanset{
+				{
+					Scalar: NewStaticFloat(10 * float64(time.Millisecond)),
+					Spans: []Span{
+						&mockSpan{attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(2 * time.Millisecond)},
+						},
+						&mockSpan{attributes: map[Attribute]Static{
+							NewAttribute("foo"):             NewStaticString("a"),
+							NewIntrinsic(IntrinsicDuration): NewStaticDuration(8 * time.Millisecond)},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.query, func(t *testing.T) {
-			ast, err := Parse(tc.query)
-			require.NoError(t, err)
-
-			actual, err := ast.Pipeline.evaluate(tc.input)
-			require.NoError(t, err)
-			require.Equal(t, tc.output, actual)
-		})
+		testEvaluator(t, tc)
 	}
 }
 
 func TestBinaryOperationsWorkAcrossNumberTypes(t *testing.T) {
-	testCases := []struct {
-		query  string
-		input  []*Spanset
-		output []*Spanset
-	}{
+	testCases := []evalTC{
 		{
 			"{ .foo > 0 }",
 			[]*Spanset{{Spans: []Span{
@@ -512,23 +658,12 @@ func TestBinaryOperationsWorkAcrossNumberTypes(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.query, func(t *testing.T) {
-			ast, err := Parse(tc.query)
-			require.NoError(t, err)
-
-			actual, err := ast.Pipeline.evaluate(tc.input)
-			require.NoError(t, err)
-			require.Equal(t, tc.output, actual)
-		})
+		testEvaluator(t, tc)
 	}
 }
 
 func TestArithmetic(t *testing.T) {
-	testCases := []struct {
-		query  string
-		input  []*Spanset
-		output []*Spanset
-	}{
+	testCases := []evalTC{
 		// static arithmetic works
 		{
 			"{ 1 + 1 = 2 }",
@@ -651,14 +786,7 @@ func TestArithmetic(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.query, func(t *testing.T) {
-			ast, err := Parse(tc.query)
-			require.NoError(t, err)
-
-			actual, err := ast.Pipeline.evaluate(tc.input)
-			require.NoError(t, err)
-			require.Equal(t, tc.output, actual)
-		})
+		testEvaluator(t, tc)
 	}
 }
 
@@ -702,5 +830,31 @@ func BenchmarkBinOp(b *testing.B) {
 				_, _ = o.op.execute(&mockSpan{})
 			}
 		})
+	}
+}
+
+// BenchmarkUniquespans benchmarks the performance of the uniqueSpans function using
+// different numbers of spansets and spans.
+func BenchmarkUniqueSpans(b *testing.B) {
+	sizes := []int{1, 10, 100, 1000, 10000}
+
+	for _, lhs := range sizes {
+		for i := len(sizes) - 1; i >= 0; i-- {
+			rhs := sizes[i]
+			b.Run(fmt.Sprintf("%d|%d", rhs, lhs), func(b *testing.B) {
+				lhsSpansets := []*Spanset{{Spans: make([]Span, lhs)}}
+				rhsSpansets := []*Spanset{{Spans: make([]Span, rhs)}}
+				for j := 0; j < lhs; j++ {
+					lhsSpansets[0].Spans[j] = &mockSpan{id: []byte{byte(j)}}
+				}
+				for j := 0; j < rhs; j++ {
+					rhsSpansets[0].Spans[j] = &mockSpan{id: []byte{byte(j)}}
+				}
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					uniqueSpans(lhsSpansets, rhsSpansets)
+				}
+			})
+		}
 	}
 }

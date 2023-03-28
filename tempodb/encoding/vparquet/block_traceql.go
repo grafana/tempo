@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"sort"
 	"sync"
 	"time"
 
@@ -38,9 +39,6 @@ func (s *span) StartTimeUnixNanos() uint64 {
 }
 func (s *span) EndtimeUnixNanos() uint64 {
 	return s.endtimeUnixNanos
-}
-func (s *span) Release() {
-	putSpan(s)
 }
 
 // todo: this sync pool currently massively reduces allocations by pooling spans for certain queries.
@@ -297,6 +295,12 @@ func (i *spansetIterator) Next() (*span, error) {
 				i.currentSpans = append(i.currentSpans, span)
 			}
 		}
+
+		// spans returned from the filter are not guaranteed to be in file order
+		// we need them to be so that the meta iterators work correctly. sort here
+		sort.Slice(i.currentSpans, func(j, k int) bool {
+			return parquetquery.CompareRowNumbers(DefinitionLevelResourceSpans, i.currentSpans[j].rowNum, i.currentSpans[k].rowNum) == -1
+		})
 
 		// found something!
 		if len(i.currentSpans) > 0 {
