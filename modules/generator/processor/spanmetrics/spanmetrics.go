@@ -65,7 +65,7 @@ func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.C
 	}
 
 	for _, d := range cfg.Dimensions {
-		labels = append(labels, sanitizeLabelNameWithCollisions(cfg, d))
+		labels = append(labels, sanitizeLabelNameWithCollisions(d))
 	}
 
 	for _, m := range cfg.DimensionMappings {
@@ -194,7 +194,7 @@ func (p *Processor) aggregateMetricsForSpan(jobName string, instanceID string, r
 	p.spanMetricsTargetInfo.Inc(registryLabelValues, 0)
 }
 
-func sanitizeLabelNameWithCollisions(cfg Config, name string) string {
+func sanitizeLabelNameWithCollisions(name string) string {
 	sanitized := strutil.SanitizeLabelName(name)
 
 	if isIntrinsicDimension(sanitized) {

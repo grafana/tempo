@@ -50,8 +50,8 @@ func GetJobValue(attributes []*v1_common.KeyValue) string {
 	svName, _ := FindServiceName(attributes)
 	namespace, _ := FindServiceNamespace(attributes)
 
-	if namespace != "" {
-		namespace = namespace + "/"
+	if namespace != "" && svName != "" {
+		namespace += "/"
 	}
 
 	return namespace + svName
