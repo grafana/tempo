@@ -370,6 +370,66 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 	}
 }
 
+func TestSpanMetricsDimensionMapping(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.HistogramBuckets = []float64{0.5, 1}
+	cfg.IntrinsicDimensions.SpanKind = false
+	cfg.IntrinsicDimensions.StatusMessage = true
+	cfg.Dimensions = []string{"foo", "bar"}
+	cfg.DimensionMappings = []DimensionMappings{
+		{
+			Label: "foo",
+			Replacement: "cat",
+		},
+	}
+
+	p := New(cfg, testRegistry)
+	defer p.Shutdown(context.Background())
+
+	// TODO create some spans that are missing the custom dimensions/tags
+	batch := test.MakeBatch(10, nil)
+
+	// Add some attributes
+	for _, rs := range batch.ScopeSpans {
+		for _, s := range rs.Spans {
+			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+				Key:   "foo",
+				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "foo-value"}},
+			})
+			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+				Key:   "bar",
+				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "bar-value"}},
+			})
+		}
+	}
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	fmt.Println(testRegistry)
+
+	lbls := labels.FromMap(map[string]string{
+		"job":            "test-service",
+		"span_name":      "test",
+		"status_code":    "STATUS_CODE_OK",
+		"status_message": "OK",
+		"instance":       "",
+		"cat":            "foo-value",
+		"bar":            "bar-value",
+	})
+
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 0.5)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 1)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
+}
+
 func withLe(lbls labels.Labels, le float64) labels.Labels {
 	lb := labels.NewBuilder(lbls)
 	lb = lb.Set(labels.BucketLabel, strconv.FormatFloat(le, 'f', -1, 64))
