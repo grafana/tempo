@@ -161,6 +161,8 @@ func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagsHandler")
 	defer span.Finish()
 
+	// jpe add and translate new parameter scope
+	// add api.ParseRequest()
 	req := &tempopb.SearchTagsRequest{}
 
 	resp, err := q.SearchTags(ctx, req)

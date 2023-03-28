@@ -108,6 +108,7 @@ message SearchMetrics {
 }
 
 message SearchTagsRequest {
+  string scope = 1;
 }
 
 message SearchTagsResponse {
