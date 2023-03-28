@@ -46,6 +46,9 @@ const (
 	// maxBytes (serverless only)
 	urlParamMaxBytes = "maxBytes"
 
+	// search tags
+	urlParamScope = "scope"
+
 	HeaderAccept         = "Accept"
 	HeaderContentType    = "Content-Type"
 	HeaderAcceptProtobuf = "application/protobuf"

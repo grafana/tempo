@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -43,4 +44,22 @@ func parseSearchTagValuesRequest(r *http.Request, enforceTraceQL bool) (*tempopb
 	}
 
 	return req, nil
+}
+
+func ParseSearchTagsRequest(r *http.Request) (*tempopb.SearchTagsRequest, error) {
+	scope, _ := extractQueryParam(r, urlParamScope)
+
+	// jpe - keep scope consts somewhere?
+	switch scope {
+	case "span":
+	case "resource":
+	case "": // empty scope is fine. Tempo will return all attributes
+	case "intrinsic": // intrinsic is a special case. Tempo will return span intrinsics instead of attributes
+	default:
+		return nil, fmt.Errorf("invalid scope: %s", scope)
+	}
+
+	return &tempopb.SearchTagsRequest{
+		Scope: scope,
+	}, nil
 }
