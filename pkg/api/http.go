@@ -56,11 +56,11 @@ const (
 	PathTraces          = "/api/traces/{traceID}"
 	PathSearch          = "/api/search"
 	PathSearchTags      = "/api/search/tags"
-	PathSearchTagValues = "/api/search/tag/{tagName}/values"
+	PathSearchTagValues = "/api/search/tag/{" + muxVarTagName + "}/values"
 	PathEcho            = "/api/echo"
 	PathUsageStats      = "/status/usage-stats"
 
-	PathSearchTagValuesV2 = "/api/v2/search/tag/{tagName}/values"
+	PathSearchTagValuesV2 = "/api/v2/search/tag/{" + muxVarTagName + "}/values"
 
 	QueryModeKey       = "mode"
 	QueryModeIngesters = "ingesters"
