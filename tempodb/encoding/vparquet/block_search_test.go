@@ -264,29 +264,33 @@ func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 	return b
 }
 
-func makeTraces() ([]*Trace, map[string]string) {
+func makeTraces() ([]*Trace, map[string]string, map[string]string, map[string]string) {
 	traces := []*Trace{}
-	attrVals := make(map[string]string)
+	intrinsicVals := map[string]string{}
+	resourceAttrVals := map[string]string{}
+	spanAttrVals := map[string]string{}
 
 	ptr := func(s string) *string { return &s }
 
-	attrVals[LabelCluster] = "cluster"
-	attrVals[LabelServiceName] = "servicename"
-	attrVals[LabelRootServiceName] = "rootsvc"
-	attrVals[LabelNamespace] = "ns"
-	attrVals[LabelPod] = "pod"
-	attrVals[LabelContainer] = "con"
-	attrVals[LabelK8sClusterName] = "kclust"
-	attrVals[LabelK8sNamespaceName] = "kns"
-	attrVals[LabelK8sPodName] = "kpod"
-	attrVals[LabelK8sContainerName] = "k8scon"
+	resourceAttrVals[LabelCluster] = "cluster"
+	resourceAttrVals[LabelServiceName] = "servicename"
+	resourceAttrVals[LabelNamespace] = "ns"
+	resourceAttrVals[LabelPod] = "pod"
+	resourceAttrVals[LabelContainer] = "con"
+	resourceAttrVals[LabelK8sClusterName] = "kclust"
+	resourceAttrVals[LabelK8sNamespaceName] = "kns"
+	resourceAttrVals[LabelK8sPodName] = "kpod"
+	resourceAttrVals[LabelK8sContainerName] = "k8scon"
 
-	attrVals[LabelName] = "span"
-	attrVals[LabelRootSpanName] = "rootspan"
-	attrVals[LabelHTTPMethod] = "method"
-	attrVals[LabelHTTPUrl] = "url"
-	attrVals[LabelHTTPStatusCode] = "404"
-	attrVals[LabelStatusCode] = "2"
+	intrinsicVals[LabelName] = "span"
+	// todo: the below 3 are not supported in traceql and should be removed when support for tags based search is removed
+	intrinsicVals[LabelRootServiceName] = "rootsvc"
+	intrinsicVals[LabelStatusCode] = "2"
+	intrinsicVals[LabelRootSpanName] = "rootspan"
+
+	spanAttrVals[LabelHTTPMethod] = "method"
+	spanAttrVals[LabelHTTPUrl] = "url"
+	spanAttrVals[LabelHTTPStatusCode] = "404"
 
 	for i := 0; i < 10; i++ {
 		tr := &Trace{
@@ -297,7 +301,7 @@ func makeTraces() ([]*Trace, map[string]string) {
 		for j := 0; j < 3; j++ {
 			key := test.RandomString()
 			val := test.RandomString()
-			attrVals[key] = val
+			resourceAttrVals[key] = val
 
 			rs := ResourceSpans{
 				Resource: Resource{
@@ -326,7 +330,7 @@ func makeTraces() ([]*Trace, map[string]string) {
 			for k := 0; k < 10; k++ {
 				key := test.RandomString()
 				val := test.RandomString()
-				attrVals[key] = val
+				spanAttrVals[key] = val
 
 				sts := int64(404)
 				span := Span{
@@ -351,7 +355,7 @@ func makeTraces() ([]*Trace, map[string]string) {
 		traces = append(traces, tr)
 	}
 
-	return traces, attrVals
+	return traces, intrinsicVals, resourceAttrVals, spanAttrVals
 }
 
 func BenchmarkBackendBlockSearchTraces(b *testing.B) {

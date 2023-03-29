@@ -98,7 +98,6 @@ var (
 		LabelHTTPMethod:     "rs.ils.Spans.HttpMethod",
 		LabelHTTPUrl:        "rs.ils.Spans.HttpUrl",
 		LabelHTTPStatusCode: "rs.ils.Spans.HttpStatusCode",
-		LabelStatusCode:     "rs.ils.Spans.StatusCode",
 	}
 )
 

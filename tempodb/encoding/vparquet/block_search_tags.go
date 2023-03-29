@@ -56,7 +56,6 @@ func (b *backendBlock) SearchTags(ctx context.Context, scope string, cb common.T
 	return searchTags(derivedCtx, scope, cb, pf)
 }
 
-// jpe do something with scope
 func searchTags(_ context.Context, scope string, cb common.TagCallback, pf *parquet.File) error {
 	standardAttrIdxs := make([]int, 0, 2) // the most we can have is 2, resource and span indexes depending on scope passed
 	specialAttrIdxs := map[int]string{}
