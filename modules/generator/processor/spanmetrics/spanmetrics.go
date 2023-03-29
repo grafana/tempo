@@ -2,6 +2,7 @@ package spanmetrics
 
 import (
 	"context"
+	"regexp"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -11,8 +12,10 @@ import (
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
@@ -95,7 +98,9 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
-				p.aggregateMetricsForSpan(svcName, rs.Resource, span)
+				if p.applyFilterPolicy(svcName, rs.Resource, span) {
+					p.aggregateMetricsForSpan(svcName, rs.Resource, span)
+				}
 			}
 		}
 	}
@@ -142,6 +147,102 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 	if p.Cfg.Subprocessors[Size] {
 		p.spanMetricsSizeTotal.Inc(registryLabelValues, float64(span.Size()))
 	}
+}
+
+// applyFilterPolicy returns true if the span should be included in the metrics.
+func (p *Processor) applyFilterPolicy(svcName string, rs *v1.Resource, span *v1_trace.Span) bool {
+	// With no filter policies specified, all spans are included.
+	if len(p.Cfg.FilterPolicies) == 0 {
+		return true
+	}
+
+	var match bool
+
+	for _, policy := range p.Cfg.FilterPolicies {
+		if !policyMatch(policy.Include, rs, span) {
+			return false
+		}
+
+		if policyMatch(policy.Exclude, rs, span) {
+			return false
+		}
+	}
+
+	return match
+}
+
+func policyMatch(policy *PolicyMatch, rs *v1.Resource, span *v1_trace.Span) bool {
+	// TODO die early if we have a scope None, probably on config check during startup
+
+	// A policy to match against the resource attributes
+	resourcePolicy := &PolicyMatch{
+		MatchType:  policy.MatchType,
+		Attributes: make([]MatchPolicyAttribute, 0),
+	}
+	// A policy to match against the span attributes
+	spanPolicy := &PolicyMatch{
+		MatchType:  policy.MatchType,
+		Attributes: make([]MatchPolicyAttribute, 0),
+	}
+
+	for _, pa := range policy.Attributes {
+		attr := traceql.MustParseIdentifier(pa.Key)
+
+		attribute := MatchPolicyAttribute{
+			Key:   attr.Name,
+			Value: pa.Value,
+		}
+
+		switch attr.Scope {
+		case traceql.AttributeScopeSpan:
+			spanPolicy.Attributes = append(spanPolicy.Attributes, attribute)
+		case traceql.AttributeScopeResource:
+			resourcePolicy.Attributes = append(resourcePolicy.Attributes, attribute)
+		}
+	}
+
+	return policyMatchAttrs(resourcePolicy, rs.Attributes) && policyMatchAttrs(spanPolicy, span.Attributes)
+}
+
+// policyMatchAttrs returns true if all attributes in the policy match the attributes in the span.  String, int, and floats are supported.  Regex MatchType may be applied to string span attributes.
+func policyMatchAttrs(policy *PolicyMatch, attrs []*v1_common.KeyValue) bool {
+
+	matches := 0
+	for _, pa := range policy.Attributes {
+		for _, attr := range attrs {
+			if attr.GetKey() == pa.Key {
+				v := attr.GetValue()
+
+				switch v.Value.(type) {
+				case *v1_common.AnyValue_StringValue:
+					switch policy.MatchType {
+					case Strict:
+						if v.GetStringValue() == pa.Value {
+							matches++
+						}
+					case Regex:
+						s := v.GetStringValue()
+						if s != "" {
+							re := regexp.MustCompile(pa.Value.(string))
+							if re.MatchString(s) {
+								matches++
+							}
+						}
+					}
+				case *v1_common.AnyValue_IntValue:
+					if v.GetIntValue() == int64(pa.Value.(int)) {
+						matches++
+					}
+				case *v1_common.AnyValue_DoubleValue:
+					if v.GetDoubleValue() == pa.Value {
+						matches++
+					}
+				}
+			}
+		}
+	}
+
+	return len(policy.Attributes) == matches
 }
 
 func sanitizeLabelNameWithCollisions(name string) string {

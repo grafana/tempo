@@ -9,10 +9,12 @@ import (
 
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
 )
@@ -148,6 +150,251 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
+}
+
+func TestSpanMetrics_policyMatch(t *testing.T) {
+	cases := []struct {
+		policy   *PolicyMatch
+		resource *v1.Resource
+		span     *trace_v1.Span
+		expect   bool
+	}{
+		{
+			expect: true,
+			policy: &PolicyMatch{
+				MatchType: Strict,
+				Attributes: []MatchPolicyAttribute{
+					{
+						Key:   "span.kind",
+						Value: "client",
+					},
+					{
+						Key:   "resource.location",
+						Value: "earth",
+					},
+					{
+						Key:   "resource.othervalue",
+						Value: "somethinginteresting",
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*common_v1.KeyValue{
+					{
+						Key: "location",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "earth",
+							},
+						},
+					},
+					{
+						Key: "othervalue",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "somethinginteresting",
+							},
+						},
+					},
+				},
+			},
+			span: &trace_v1.Span{
+				Attributes: []*common_v1.KeyValue{
+					{
+						Key: "kind",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "client",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		r := policyMatch(tc.policy, tc.resource, tc.span)
+		require.Equal(t, tc.expect, r)
+	}
+}
+
+func TestSpanMetrics_policyMatchAttrs(t *testing.T) {
+	cases := []struct {
+		policy *PolicyMatch
+		attrs  []*common_v1.KeyValue
+		expect bool
+	}{
+		// Single string match
+		{
+			expect: true,
+			policy: &PolicyMatch{
+				MatchType: Strict,
+				Attributes: []MatchPolicyAttribute{
+					{
+						Key:   "foo",
+						Value: "bar",
+					},
+				},
+			},
+			attrs: []*common_v1.KeyValue{
+				{
+					Key: "foo",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_StringValue{
+							StringValue: "bar",
+						},
+					},
+				},
+			},
+		},
+		// Multiple string match
+		{
+			expect: true,
+			policy: &PolicyMatch{
+				MatchType: Strict,
+				Attributes: []MatchPolicyAttribute{
+					{
+						Key:   "foo",
+						Value: "bar",
+					},
+					{
+						Key:   "otherfoo",
+						Value: "notbar",
+					},
+				},
+			},
+			attrs: []*common_v1.KeyValue{
+				{
+					Key: "foo",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_StringValue{
+							StringValue: "bar",
+						},
+					},
+				},
+				{
+					Key: "otherfoo",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_StringValue{
+							StringValue: "notbar",
+						},
+					},
+				},
+			},
+		},
+		// Multiple string non match
+		{
+			expect: false,
+			policy: &PolicyMatch{
+				MatchType: Strict,
+				Attributes: []MatchPolicyAttribute{
+					{
+						Key:   "foo",
+						Value: "bar",
+					},
+					{
+						Key:   "otherfoo",
+						Value: "nope",
+					},
+				},
+			},
+			attrs: []*common_v1.KeyValue{
+				{
+					Key: "foo",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_StringValue{
+							StringValue: "bar",
+						},
+					},
+				},
+				{
+					Key: "otherfoo",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_StringValue{
+							StringValue: "notbar",
+						},
+					},
+				},
+			},
+		},
+		// Combination match
+		{
+			expect: true,
+			policy: &PolicyMatch{
+				MatchType: Strict,
+				Attributes: []MatchPolicyAttribute{
+					{
+						Key:   "one",
+						Value: "1",
+					},
+					{
+						Key:   "oneone",
+						Value: 11,
+					},
+					{
+						Key:   "oneonepointone",
+						Value: 11.1,
+					},
+				},
+			},
+			attrs: []*common_v1.KeyValue{
+				{
+					Key: "one",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_StringValue{
+							StringValue: "1",
+						},
+					},
+				},
+				{
+					Key: "oneone",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_IntValue{
+							IntValue: 11,
+						},
+					},
+				},
+				{
+					Key: "oneonepointone",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_DoubleValue{
+							DoubleValue: 11.1,
+						},
+					},
+				},
+			},
+		},
+		// Regex basic match
+		{
+			expect: true,
+			policy: &PolicyMatch{
+				MatchType: Regex,
+				Attributes: []MatchPolicyAttribute{
+					{
+						Key:   "dd",
+						Value: `\d\d\w{5}`,
+					},
+				},
+			},
+			attrs: []*common_v1.KeyValue{
+				{
+					Key: "dd",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_StringValue{
+							StringValue: "11xxxxx",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		r := policyMatchAttrs(tc.policy, tc.attrs)
+		require.Equal(t, tc.expect, r)
+	}
+
 }
 
 func withLe(lbls labels.Labels, le float64) labels.Labels {

@@ -34,6 +34,9 @@ type Config struct {
 	// Subprocessor options for this Processor include Latency, Count, Size
 	// These are metrics categories that exist under the umbrella of Span Metrics
 	Subprocessors map[Subprocessor]bool
+
+	// FilterPolicies is a list of policies that will be applied to spans for inclusion or exlusion.
+	FilterPolicies []FilterPolicy `yaml:"filter_policies"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -74,4 +77,26 @@ func (ic *IntrinsicDimensions) ApplyFromMap(dimensions map[string]bool) error {
 		}
 	}
 	return nil
+}
+
+type FilterPolicy struct {
+	Include *PolicyMatch `yaml:"include"`
+	Exclude *PolicyMatch `yaml:"exclude"`
+}
+
+type MatchType string
+
+const (
+	Strict MatchType = "strict"
+	Regex  MatchType = "regex"
+)
+
+type PolicyMatch struct {
+	MatchType  MatchType              `yaml:"match_type"`
+	Attributes []MatchPolicyAttribute `yaml:"attributes"`
+}
+
+type MatchPolicyAttribute struct {
+	Key   string      `yaml:"key"`
+	Value interface{} `yaml:"value"`
 }
