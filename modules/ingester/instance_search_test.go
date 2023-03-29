@@ -203,9 +203,11 @@ func TestInstanceSearchTags(t *testing.T) {
 	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
 }
 
+// jpe extend tests to include scope
+
 // nolint:revive,unparam
 func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tagName string, expectedTagValues []string) {
-	sr, err := i.SearchTags(ctx)
+	sr, err := i.SearchTags(ctx, "")
 	require.NoError(t, err)
 	srv, err := i.SearchTagValues(ctx, tagName)
 	require.NoError(t, err)
@@ -385,7 +387,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	go concurrent(func() {
 		// SearchTags queries now require userID in ctx
 		ctx := user.InjectOrgID(context.Background(), "test")
-		_, err := i.SearchTags(ctx)
+		_, err := i.SearchTags(ctx, "")
 		require.NoError(t, err, "error getting search tags")
 	})
 

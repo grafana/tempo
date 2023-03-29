@@ -202,11 +202,13 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 	}
 }
 
-func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse, error) {
+func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.SearchTagsResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	// jpe - quick turn around for intrinsics?
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := util.NewDistinctStringCollector(limit)
@@ -218,7 +220,7 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 		if dv.Exceeded() {
 			return nil
 		}
-		err = s.SearchTags(ctx, dv.Collect, common.DefaultSearchOptions())
+		err = s.SearchTags(ctx, scope, dv.Collect, common.DefaultSearchOptions())
 		if err != nil && err != common.ErrUnsupported {
 			return fmt.Errorf("unexpected error searching tags: %w", err)
 		}

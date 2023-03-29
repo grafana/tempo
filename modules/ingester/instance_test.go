@@ -673,7 +673,7 @@ func benchmarkInstanceSearch(b testing.TB) {
 	if rt, ok := b.(*testing.B); ok {
 		rt.ResetTimer()
 		for i := 0; i < rt.N; i++ {
-			resp, err := instance.SearchTags(ctx)
+			resp, err := instance.SearchTags(ctx, "")
 			require.NoError(b, err)
 			require.NotNil(b, resp)
 		}
@@ -681,7 +681,7 @@ func benchmarkInstanceSearch(b testing.TB) {
 	}
 
 	for i := 0; i < 100; i++ {
-		resp, err := instance.SearchTags(ctx)
+		resp, err := instance.SearchTags(ctx, "")
 		require.NoError(b, err)
 		require.NotNil(b, resp)
 	}

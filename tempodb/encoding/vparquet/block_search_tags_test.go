@@ -26,7 +26,7 @@ func TestBackendBlockSearchTags(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	err := block.SearchTags(ctx, cb, common.DefaultSearchOptions())
+	err := block.SearchTags(ctx, "", cb, common.DefaultSearchOptions()) // jpe actually test
 	require.NoError(t, err)
 
 	// test that all attrs are in found attrs
@@ -146,7 +146,7 @@ func BenchmarkBackendBlockSearchTags(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		err := block.SearchTags(ctx, d.Collect, opts)
+		err := block.SearchTags(ctx, "", d.Collect, opts) // jpe - actually test
 		require.NoError(b, err)
 	}
 }

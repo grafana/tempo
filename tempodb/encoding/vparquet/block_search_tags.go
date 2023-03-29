@@ -38,7 +38,8 @@ var nonTraceQLAttributes = map[string]string{
 	LabelRootSpanName:    columnPathRootSpanName,
 }
 
-func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
+// jpe do something in with scope
+func (b *backendBlock) SearchTags(ctx context.Context, scope string, cb common.TagCallback, opts common.SearchOptions) error {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTags",
 		opentracing.Tags{
 			"blockID":   b.meta.BlockID,

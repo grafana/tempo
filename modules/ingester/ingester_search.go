@@ -36,7 +36,7 @@ func (i *Ingester) SearchTags(ctx context.Context, req *tempopb.SearchTagsReques
 		return &tempopb.SearchTagsResponse{}, nil
 	}
 
-	res, err := inst.SearchTags(ctx)
+	res, err := inst.SearchTags(ctx, req.Scope)
 	if err != nil {
 		return nil, err
 	}
