@@ -119,12 +119,13 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 		value, _ := processor_util.FindAttributeValue(d, rs.Attributes, span.Attributes)
 		labelValues = append(labelValues, value)
 	}
+	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span)
 
 	registryLabelValues := p.registry.NewLabelValues(labelValues)
 
-	p.spanMetricsCallsTotal.Inc(registryLabelValues, 1)
-	p.spanMetricsSizeTotal.Inc(registryLabelValues, float64(span.Size()))
-	p.spanMetricsDurationSeconds.ObserveWithExemplar(registryLabelValues, latencySeconds, tempo_util.TraceIDToHexString(span.TraceId))
+	p.spanMetricsCallsTotal.Inc(registryLabelValues, 1*spanMultiplier)
+	p.spanMetricsSizeTotal.Inc(registryLabelValues, float64(span.Size())*spanMultiplier)
+	p.spanMetricsDurationSeconds.ObserveWithExemplar(registryLabelValues, latencySeconds, tempo_util.TraceIDToHexString(span.TraceId), spanMultiplier)
 }
 
 func sanitizeLabelNameWithCollisions(name string) string {

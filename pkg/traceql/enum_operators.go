@@ -85,6 +85,8 @@ func binaryTypeValid(op Operator, t StaticType) bool {
 		fallthrough
 	case TypeStatus:
 		return op == OpEqual || op == OpNotEqual
+	case TypeKind:
+		return op == OpEqual || op == OpNotEqual
 	}
 
 	return false

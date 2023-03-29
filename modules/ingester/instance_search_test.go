@@ -19,12 +19,10 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/search"
 )
 
 func TestInstanceSearch(t *testing.T) {
@@ -32,7 +30,7 @@ func TestInstanceSearch(t *testing.T) {
 
 	var tagKey = "foo"
 	var tagValue = "bar"
-	ids, _ := writeTracesWithSearchData(t, i, tagKey, tagValue, false)
+	ids, _ := writeTracesForSearch(t, i, tagKey, tagValue, false)
 
 	var req = &tempopb.SearchRequest{
 		Tags: map[string]string{},
@@ -40,18 +38,8 @@ func TestInstanceSearch(t *testing.T) {
 	req.Tags[tagKey] = tagValue
 	req.Limit = uint32(len(ids)) + 1
 
+	// Test after appending to WAL. writeTracesforSearch() makes sure all traces are in the wal
 	sr, err := i.Search(context.Background(), req)
-	assert.NoError(t, err)
-	assert.Len(t, sr.Traces, len(ids))
-	// todo: test that returned results are in sorted time order, create order of id's beforehand
-	checkEqual(t, ids, sr)
-
-	// Test after appending to WAL
-	err = i.CutCompleteTraces(0, true)
-	require.NoError(t, err)
-	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
-
-	sr, err = i.Search(context.Background(), req)
 	assert.NoError(t, err)
 	assert.Len(t, sr.Traces, len(ids))
 	checkEqual(t, ids, sr)
@@ -194,16 +182,11 @@ func TestInstanceSearchTags(t *testing.T) {
 	var tagKey = "foo"
 	var tagValue = "bar"
 
-	_, expectedTagValues := writeTracesWithSearchData(t, i, tagKey, tagValue, true)
+	_, expectedTagValues := writeTracesForSearch(t, i, tagKey, tagValue, true)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
-	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
 
 	// Test after appending to WAL
-	err := i.CutCompleteTraces(0, true)
-	require.NoError(t, err)
-	assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
-
 	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
 
 	// Test after cutting new headblock
@@ -252,7 +235,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	var tagKey = "foo"
 	var tagValue = "bar"
 
-	_, _ = writeTracesWithSearchData(t, i, tagKey, tagValue, true)
+	_, _ = writeTracesForSearch(t, i, tagKey, tagValue, true)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 	resp, err := i.SearchTagValues(userCtx, tagKey)
@@ -264,7 +247,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 // ids expected to be returned from a tag search and strings expected to
 // be returned from a tag value search
 // nolint:revive,unparam
-func writeTracesWithSearchData(t *testing.T, i *instance, tagKey string, tagValue string, postFixValue bool) ([][]byte, []string) {
+func writeTracesForSearch(t *testing.T, i *instance, tagKey string, tagValue string, postFixValue bool) ([][]byte, []string) {
 	// This matches the encoding for live traces, since
 	// we are pushing to the instance directly it must match.
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -294,7 +277,7 @@ func writeTracesWithSearchData(t *testing.T, i *instance, tagKey string, tagValu
 		require.NoError(t, err)
 
 		// searchData will be nil if not
-		err = i.PushBytes(context.Background(), id, traceBytes, nil)
+		err = i.PushBytes(context.Background(), id, traceBytes)
 		require.NoError(t, err)
 
 		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
@@ -358,13 +341,8 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 		require.NoError(t, err)
 
-		searchData := &tempofb.SearchEntryMutable{}
-		searchData.TraceID = id
-		searchData.AddTag(tagKey, tagValue)
-		searchBytes := searchData.ToBytes()
-
 		// searchData will be nil if not
-		err = i.PushBytes(context.Background(), id, traceBytes, searchBytes)
+		err = i.PushBytes(context.Background(), id, traceBytes)
 		require.NoError(t, err)
 	})
 
@@ -454,12 +432,7 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 		require.NoError(t, err)
 
-		entry := &tempofb.SearchEntryMutable{}
-		entry.TraceID = id
-		entry.AddTag("foo", "bar")
-		searchBytes := entry.ToBytes()
-
-		err = i.PushBytes(context.Background(), id, traceBytes, searchBytes)
+		err = i.PushBytes(context.Background(), id, traceBytes)
 		require.NoError(t, err)
 	}
 
@@ -510,14 +483,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 		require.NoError(t, err)
 
-		data := &tempofb.SearchEntryMutable{}
-		data.TraceID = id
-		data.AddTag("foo", "bar")
-		searchData := data.ToBytes()
-
-		numBytes += uint64(len(searchData))
-
-		err = i.PushBytes(context.Background(), id, traceBytes, searchData)
+		err = i.PushBytes(context.Background(), id, traceBytes)
 		require.NoError(t, err)
 
 		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
@@ -525,8 +491,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 
 	search := func() *tempopb.SearchMetrics {
 		sr, err := i.Search(context.Background(), &tempopb.SearchRequest{
-			// Exhaustive search
-			Tags: map[string]string{search.SecretExhaustiveSearchTag: "!"},
+			Tags: map[string]string{"foo": "bar"},
 		})
 		require.NoError(t, err)
 		return sr.Metrics
@@ -534,8 +499,8 @@ func TestInstanceSearchMetrics(t *testing.T) {
 
 	// Live traces
 	m := search()
-	require.Equal(t, numTraces, m.InspectedTraces)
-	require.Equal(t, numBytes, m.InspectedBytes)
+	require.Equal(t, uint32(0), m.InspectedTraces) // we don't search live traces
+	require.Equal(t, uint64(0), m.InspectedBytes)  // we don't search live traces
 	require.Equal(t, uint32(1), m.InspectedBlocks) // 1 head block
 
 	// Test after appending to WAL
@@ -596,16 +561,8 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 			traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 			require.NoError(b, err)
 
-			searchData := &tempofb.SearchEntryMutable{}
-			searchData.TraceID = id
-			searchData.AddTag("foo", "bar")
-			searchData.AddTag("foo", "baz")
-			searchData.AddTag("bar", "bar")
-			searchData.AddTag("bar", "baz")
-			searchBytes := searchData.ToBytes()
-
 			// searchData will be nil if not
-			err = i.PushBytes(context.Background(), id, traceBytes, searchBytes)
+			err = i.PushBytes(context.Background(), id, traceBytes)
 			require.NoError(b, err)
 
 			tracesPushed.Inc()
@@ -634,9 +591,7 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 	for j := 0; j < 2; j++ {
 		go concurrent(func() {
 			// time.Sleep(1 * time.Millisecond)
-			var req = &tempopb.SearchRequest{
-				Tags: map[string]string{search.SecretExhaustiveSearchTag: "!"},
-			}
+			var req = &tempopb.SearchRequest{}
 			resp, err := i.Search(ctx, req)
 			require.NoError(b, err)
 			searches.Inc()

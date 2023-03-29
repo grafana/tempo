@@ -1,13 +1,48 @@
 ## main / unreleased
 
+* [FEATURE] Add support for Azure Workload Identity authentication [#2195](https://github.com/grafana/tempo/pull/2195) (@LambArchie)
+* [ENHANCEMENT] Add Throughput and SLO Metrics with SLOConfig in Query Frontend [#2008](https://github.com/grafana/tempo/pull/2008) (@electron0zero)
+  - **BREAKING CHANGE** `query_frontend_result_metrics_inspected_bytes` metric removed in favour of `query_frontend_bytes_processed_per_second`
+* [FEATURE] Add flag to check configuration [#2131](https://github.com/grafana/tempo/issues/2131) (@robertscherbarth @agrib-01)
 * [FEATURE] Add flag to optionally enable all available Go runtime metrics [#2005](https://github.com/grafana/tempo/pull/2005) (@andreasgerstmayr)
-* [ENHANCEMENT] Metrics generator to make use of counters earlier [#2068](https://github.com/grafana/tempo/pull/2068) (@zalegrala)
+* [FEATURE] Add support for span `kind` to TraceQL [#2217](https://github.com/grafana/tempo/pull/2217) (@joe-elliott)
+* [FEATURE] Add support for min/max/avg aggregates to TraceQL[#2255](https://github.com/grafana/tempo/pull/2255) (@joe-elliott)
 * [CHANGE] Add support for s3 session token in static config [#2093](https://github.com/grafana/tempo/pull/2093) (@farodin91)
+* [CHANGE] **Breaking Change** Remove support for search on v2 blocks. [#2159](https://github.com/grafana/tempo/pull/2062) (@joe-elliott)
+  Removed config options:
+  ```
+  overrides:
+    max_search_bytes_per_trace:
+    search_tags_allow_list:
+    search_tags_deny_list:
+  ```
+  Removed metrics:
+  `tempo_ingester_trace_search_bytes_discarded_total`
+* [CHANGE] Stop caching parquet files for search [#2164](https://github.com/grafana/tempo/pull/2164) (@mapno)
+* [CHANGE] Correctly connect context during compaction [#2220](https://github.com/grafana/tempo/pull/2220) (@ie-pham)
+* [ENHANCEMENT] Metrics generator to make use of counters earlier [#2068](https://github.com/grafana/tempo/pull/2068) (@zalegrala)
+* [ENHANCEMENT] Log when a trace is too large to compact [#2105](https://github.com/grafana/tempo/pull/2105) (@scalalang2)
+* [ENHANCEMENT] Add support for arbitrary arithemtic to TraceQL queries [#2146](https://github.com/grafana/tempo/pull/2146) (@joe-elliott)
+* [ENHANCEMENT] tempo-cli: add command to migrate a tenant [#2130](https://github.com/grafana/tempo/pull/2130) (@kvrhdn)
+* [ENHANCEMENT] Added the ability to multiple span metrics by an attribute such as `X-SampleRatio` [#2172](https://github.com/grafana/tempo/pull/2172) (@altanozlu)
+* [BUGFIX] Apply `rate()` to bytes/s panel in tenant's dashboard. [#2081](https://github.com/grafana/tempo/pull/2081) (@mapno)
+* [CHANGE] Update Go to 1.20 [#2079](https://github.com/grafana/tempo/pull/2079) (@scalalang2)
+* [BUGFIX] Retry copy operations during compaction in GCS backend [#2111](https://github.com/grafana/tempo/pull/2111) (@mapno)
+* [BUGFIX] Fix float/int comparisons in TraceQL. [#2139](https://github.com/grafana/tempo/issues/2139) (@joe-elliott)
+* [BUGFIX] Improve locking and search head block in SearchTagValuesV2 [#2164](https://github.com/grafana/tempo/pull/2164) (@mapno)
+* [BUGFIX] Fix not closing WAL block file before attempting to delete the folder. [#2139](https://github.com/grafana/tempo/pull/2152) (@kostya9)
+* [BUGFIX] Stop searching for virtual tags if there are any hits.
+  This prevents invalid values from showing up for intrinsics like `status` [#2219](https://github.com/grafana/tempo/pull/2152) (@joe-elliott)
+* [BUGFIX] Correctly return unique spans when &&ing and ||ing spansets. [#2254](https://github.com/grafana/tempo/pull/2254) (@joe-elliott)
+
+## v2.0.1 / 2023-03-03
+
+* [CHANGE] No longer return `status.code` from /api/search/tags unless it is an attribute present in the data [#2059](https://github.com/grafana/tempo/issues/2059) (@mdisibio)
 * [BUGFIX] Suppress logspam in single binary mode when metrics generator is disabled. [#2058](https://github.com/grafana/tempo/pull/2058) (@joe-elliott)
 * [BUGFIX] Error more gracefully while reading some blocks written by an interim commit between 1.5 and 2.0 [#2055](https://github.com/grafana/tempo/pull/2055) (@mdisibio)
-* [BUGFIX] Apply `rate()` to bytes/s panel in tenant's dashboard. [#2081](https://github.com/grafana/tempo/pull/2081) (@mapno)
 * [BUGFIX] Correctly coalesce trace level data when combining Parquet traces. [#2095](https://github.com/grafana/tempo/pull/2095) (@joe-elliott)
-* [CHANGE] Update Go to 1.20 [#2079](https://github.com/grafana/tempo/pull/2079) (@scalalang2)
+* [BUGFIX] Unescape query parameters in AWS Lambda to allow TraceQL queries to work. [#2114](https://github.com/grafana/tempo/issues/2114) (@joe-elliott)
+* [CHANGE] Pad leading zeroes in span id to always be 16 chars [#2062](https://github.com/grafana/tempo/pull/2062) (@ie-pham)
 
 ## v2.0.0 / 2023-01-31
 

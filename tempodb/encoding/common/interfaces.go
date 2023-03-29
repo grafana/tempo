@@ -25,6 +25,7 @@ type Searcher interface {
 	SearchTags(ctx context.Context, cb TagCallback, opts SearchOptions) error
 	SearchTagValues(ctx context.Context, tag string, cb TagCallback, opts SearchOptions) error
 	SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb TagCallbackV2, opts SearchOptions) error
+
 	Fetch(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansResponse, error)
 }
 
@@ -74,7 +75,7 @@ type CompactionOptions struct {
 	ObjectsCombined func(compactionLevel, objects int)
 	ObjectsWritten  func(compactionLevel, objects int)
 	BytesWritten    func(compactionLevel, bytes int)
-	SpansDiscarded  func(spans int)
+	SpansDiscarded  func(traceID string, spans int)
 }
 
 type Iterator interface {

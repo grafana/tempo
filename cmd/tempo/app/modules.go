@@ -39,7 +39,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 // The various modules that make up tempo.
@@ -88,7 +87,7 @@ func (t *App) initServer() (services.Service, error) {
 		svs := []services.Service(nil)
 		for m, s := range t.serviceMap {
 			// Server should not wait for itself.
-			if m != Server {
+			if m != Server && m != InternalServer {
 				svs = append(svs, s)
 			}
 		}
@@ -186,9 +185,6 @@ func (t *App) initDistributor() (services.Service, error) {
 }
 
 func (t *App) initIngester() (services.Service, error) {
-	// always use flatbuffer search if we're using the v2 blocks. todo: in 2.1 remove flatbuffer search altogether
-	t.cfg.Ingester.UseFlatbufferSearch = (t.cfg.StorageConfig.Trace.Block.Version == v2.VersionString)
-
 	t.cfg.Ingester.LifecyclerConfig.ListenPort = t.cfg.Server.GRPCListenPort
 	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.overrides, prometheus.DefaultRegisterer)
 	if err != nil {

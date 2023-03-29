@@ -252,11 +252,6 @@ func (o *Overrides) MaxBytesPerTrace(userID string) int {
 	return o.getOverridesForUser(userID).MaxBytesPerTrace
 }
 
-// MaxSearchBytesPerTrace returns the maximum size of search data for trace (in bytes) allowed for a user.
-func (o *Overrides) MaxSearchBytesPerTrace(userID string) int {
-	return o.getOverridesForUser(userID).MaxSearchBytesPerTrace
-}
-
 // Forwarders returns the list of forwarder IDs for a user.
 func (o *Overrides) Forwarders(userID string) []string {
 	return o.getOverridesForUser(userID).Forwarders
@@ -275,11 +270,6 @@ func (o *Overrides) IngestionRateLimitBytes(userID string) float64 {
 // IngestionBurstSizeBytes is the burst size in spans allowed for this tenant.
 func (o *Overrides) IngestionBurstSizeBytes(userID string) int {
 	return o.getOverridesForUser(userID).IngestionBurstSizeBytes
-}
-
-// SearchTagsAllowList is the list of tags to be extracted for search, for this tenant.
-func (o *Overrides) SearchTagsAllowList(userID string) map[string]struct{} {
-	return o.getOverridesForUser(userID).SearchTagsAllowList.GetMap()
 }
 
 // MetricsGeneratorRingSize is the desired size of the metrics-generator ring for this tenant.
@@ -391,7 +381,6 @@ func (o *Overrides) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.MaxLocalTracesPerUser), MetricMaxLocalTracesPerUser, tenant)
 		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.MaxGlobalTracesPerUser), MetricMaxGlobalTracesPerUser, tenant)
 		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.MaxBytesPerTrace), MetricMaxBytesPerTrace, tenant)
-		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.MaxSearchBytesPerTrace), MetricMaxSearchBytesPerTrace, tenant)
 		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.IngestionRateLimitBytes), MetricIngestionRateLimitBytes, tenant)
 		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.IngestionBurstSizeBytes), MetricIngestionBurstSizeBytes, tenant)
 		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.BlockRetention), MetricBlockRetention, tenant)

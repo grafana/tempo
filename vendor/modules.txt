@@ -461,9 +461,6 @@ github.com/golang/snappy
 # github.com/google/btree v1.0.1
 ## explicit; go 1.12
 github.com/google/btree
-# github.com/google/flatbuffers v22.10.26+incompatible
-## explicit
-github.com/google/flatbuffers/go
 # github.com/google/gnostic v0.6.9
 ## explicit; go 1.12
 github.com/google/gnostic/compiler
@@ -1116,7 +1113,7 @@ github.com/segmentio/encoding/thrift
 # github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
 ## explicit
 github.com/segmentio/fasthash/fnv1a
-# github.com/segmentio/parquet-go v0.0.0-20230201213121-e1109e2f6a20
+# github.com/segmentio/parquet-go v0.0.0-20230309140036-b6d0a6236da6
 ## explicit; go 1.19
 github.com/segmentio/parquet-go
 github.com/segmentio/parquet-go/bloom
@@ -1545,7 +1542,7 @@ golang.org/x/exp/slices
 # golang.org/x/mod v0.8.0
 ## explicit; go 1.17
 golang.org/x/mod/semver
-# golang.org/x/net v0.7.0
+# golang.org/x/net v0.8.0
 ## explicit; go 1.17
 golang.org/x/net/bpf
 golang.org/x/net/context
@@ -1578,7 +1575,7 @@ golang.org/x/oauth2/jwt
 ## explicit
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.5.0
+# golang.org/x/sys v0.6.0
 ## explicit; go 1.17
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
@@ -1589,10 +1586,10 @@ golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
 golang.org/x/sys/windows/svc
 golang.org/x/sys/windows/svc/eventlog
-# golang.org/x/term v0.5.0
+# golang.org/x/term v0.6.0
 ## explicit; go 1.17
 golang.org/x/term
-# golang.org/x/text v0.7.0
+# golang.org/x/text v0.8.0
 ## explicit; go 1.17
 golang.org/x/text/runes
 golang.org/x/text/secure/bidirule

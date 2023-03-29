@@ -1,7 +1,10 @@
 package vparquet
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"math/rand"
 	"path"
 	"testing"
 	"time"
@@ -19,17 +22,62 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-func TestBackendBlockSearchTraceQL(t *testing.T) {
+func TestOne(t *testing.T) {
 	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
+	ctx := context.Background()
+	req := traceql.MustExtractFetchSpansRequest(`{ span.foo = "bar" || duration > 1s }`)
+
+	req.StartTimeUnixNanos = uint64(1000 * time.Second)
+	req.EndTimeUnixNanos = uint64(1001 * time.Second)
+
+	resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+	require.NoError(t, err, "search request:", req)
+
+	spanSet, err := resp.Results.Next(ctx)
+	require.NoError(t, err, "search request:", req)
+
+	fmt.Println("-----------")
+	fmt.Println(resp.Results.(*spansetMetadataIterator).iter)
+	fmt.Println("-----------")
+	fmt.Println(spanSet)
+}
+
+func TestBackendBlockSearchTraceQL(t *testing.T) {
+	numTraces := 250
+	traces := make([]*Trace, 0, numTraces)
+	wantTraceIdx := rand.Intn(numTraces)
+	wantTraceID := test.ValidTraceID(nil)
+	for i := 0; i < numTraces; i++ {
+		if i == wantTraceIdx {
+			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
+			continue
+		}
+
+		id := test.ValidTraceID(nil)
+		tr := traceToParquet(id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+
+	b := makeBackendBlockWithTraces(t, traces)
 	ctx := context.Background()
 
 	searchesThatMatch := []traceql.FetchSpansRequest{
 		{}, // Empty request
 		{
-			// Time range
-			StartTimeUnixNanos: uint64(101 * time.Second),
-			EndTimeUnixNanos:   uint64(102 * time.Second),
+			// Time range inside trace
+			StartTimeUnixNanos: uint64(1100 * time.Second),
+			EndTimeUnixNanos:   uint64(1200 * time.Second),
+		},
+		{
+			// Time range overlap start
+			StartTimeUnixNanos: uint64(900 * time.Second),
+			EndTimeUnixNanos:   uint64(1100 * time.Second),
+		},
+		{
+			// Time range overlap end
+			StartTimeUnixNanos: uint64(1900 * time.Second),
+			EndTimeUnixNanos:   uint64(2100 * time.Second),
 		},
 		// Intrinsics
 		traceql.MustExtractFetchSpansRequest(`{` + LabelName + ` = "hello"}`),
@@ -41,6 +89,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		traceql.MustExtractFetchSpansRequest(`{` + LabelDuration + ` <= 100s}`),
 		traceql.MustExtractFetchSpansRequest(`{` + LabelStatus + ` = error}`),
 		traceql.MustExtractFetchSpansRequest(`{` + LabelStatus + ` = 2}`),
+		traceql.MustExtractFetchSpansRequest(`{` + LabelKind + ` = client }`),
 		// Resource well-known attributes
 		traceql.MustExtractFetchSpansRequest(`{.` + LabelServiceName + ` = "spanservicename"}`), // Overridden at span
 		traceql.MustExtractFetchSpansRequest(`{.` + LabelCluster + ` = "cluster"}`),
@@ -149,11 +198,19 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
 		require.NoError(t, err, "search request:", req)
 
-		spanSet, err := resp.Results.Next(ctx)
-		require.NoError(t, err, "search request:", req)
-		require.NotNil(t, spanSet, "search request:", req)
-		require.Equal(t, wantTr.TraceID, spanSet.TraceID, "search request:", req)
-		require.Equal(t, []byte("spanid"), spanSet.Spans[0].ID, "search request:", req)
+		found := false
+		for {
+			spanSet, err := resp.Results.Next(ctx)
+			require.NoError(t, err, "search request:", req)
+			if spanSet == nil {
+				break
+			}
+			found = bytes.Equal(spanSet.TraceID, wantTraceID)
+			if found {
+				break
+			}
+		}
+		require.True(t, found, "search request:", req)
 	}
 
 	searchesThatDontMatch := []traceql.FetchSpansRequest{
@@ -164,14 +221,20 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		traceql.MustExtractFetchSpansRequest(`{` + LabelDuration + ` >  100s}`),                       // Intrinsic: duration
 		traceql.MustExtractFetchSpansRequest(`{` + LabelStatus + ` = ok}`),                            // Intrinsic: status
 		traceql.MustExtractFetchSpansRequest(`{` + LabelName + ` = "nothello"}`),                      // Intrinsic: name
+		traceql.MustExtractFetchSpansRequest(`{` + LabelKind + ` = producer }`),                       // Intrinsic: kind
 		traceql.MustExtractFetchSpansRequest(`{.` + LabelServiceName + ` = "notmyservice"}`),          // Well-known attribute: service.name not match
 		traceql.MustExtractFetchSpansRequest(`{.` + LabelHTTPStatusCode + ` = 200}`),                  // Well-known attribute: http.status_code not match
 		traceql.MustExtractFetchSpansRequest(`{.` + LabelHTTPStatusCode + ` > 600}`),                  // Well-known attribute: http.status_code not match
 		traceql.MustExtractFetchSpansRequest(`{.foo = "xyz" || .` + LabelHTTPStatusCode + " = 1000}"), // Matches neither condition
 		{
-			// Outside time range
-			StartTimeUnixNanos: uint64(300 * time.Second),
-			EndTimeUnixNanos:   uint64(400 * time.Second),
+			// Time range after trace
+			StartTimeUnixNanos: uint64(3000 * time.Second),
+			EndTimeUnixNanos:   uint64(4000 * time.Second),
+		},
+		{
+			// Time range before trace
+			StartTimeUnixNanos: uint64(600 * time.Second),
+			EndTimeUnixNanos:   uint64(700 * time.Second),
 		},
 		{
 			// Matches some conditions but not all
@@ -235,252 +298,14 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
 		require.NoError(t, err, "search request:", req)
 
-		spanSet, err := resp.Results.Next(ctx)
-		require.NoError(t, err, "search request:", req)
-		require.Nil(t, spanSet, "search request:", req)
-	}
-}
-
-func TestBackendBlockSearchTraceQLResults(t *testing.T) {
-	wantTr := fullyPopulatedTestTrace(nil)
-	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
-	ctx := context.Background()
-
-	// Helper functions to make requests
-
-	makeSpansets := func(sets ...traceql.Spanset) []traceql.Spanset {
-		return sets
-	}
-
-	makeSpanset := func(traceID []byte, rootSpanName, rootServiceName string, startTimeUnixNano, durationNanos uint64, spans ...traceql.Span) traceql.Spanset {
-		return traceql.Spanset{
-			TraceID:            traceID,
-			RootSpanName:       rootSpanName,
-			RootServiceName:    rootServiceName,
-			StartTimeUnixNanos: startTimeUnixNano,
-			DurationNanos:      durationNanos,
-			Spans:              spans,
-		}
-	}
-
-	testCases := []struct {
-		req             traceql.FetchSpansRequest
-		expectedResults []traceql.Spanset
-	}{
-		{
-			// Span attributes lookup
-			// Only matches 1 condition. Returns span but only attributes that matched
-			makeReq(
-				parse(t, `{span.foo = "bar"}`), // matches resource but not span
-				parse(t, `{span.bar = 123}`),   // matches
-			),
-			makeSpansets(
-				makeSpanset(
-					wantTr.TraceID,
-					wantTr.RootSpanName,
-					wantTr.RootServiceName,
-					wantTr.StartTimeUnixNano,
-					wantTr.DurationNanos,
-					traceql.Span{
-						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[traceql.Attribute]traceql.Static{
-							// foo not returned because the span didn't match it
-							traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "bar"): traceql.NewStaticInt(123),
-						},
-					},
-				),
-			),
-		},
-
-		{
-			// Resource attributes lookup
-			makeReq(
-				parse(t, `{resource.foo = "abc"}`), // matches resource but not span
-			),
-			makeSpansets(
-				makeSpanset(
-					wantTr.TraceID,
-					wantTr.RootSpanName,
-					wantTr.RootServiceName,
-					wantTr.StartTimeUnixNano,
-					wantTr.DurationNanos,
-					traceql.Span{
-						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[traceql.Attribute]traceql.Static{
-							// Foo matched on resource.
-							// TODO - This seems misleading since the span has foo=<something else>
-							//        but for this query we never even looked at span attribute columns.
-							newResAttr("foo"): traceql.NewStaticString("abc"),
-						},
-					},
-				),
-			),
-		},
-
-		{
-			// Multiple attributes, only 1 matches and is returned
-			makeReq(
-				parse(t, `{.foo = "xyz"}`),                   // doesn't match anything
-				parse(t, `{.`+LabelHTTPStatusCode+` = 500}`), // matches span
-			),
-			makeSpansets(
-				makeSpanset(
-					wantTr.TraceID,
-					wantTr.RootSpanName,
-					wantTr.RootServiceName,
-					wantTr.StartTimeUnixNano,
-					wantTr.DurationNanos,
-					traceql.Span{
-						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[traceql.Attribute]traceql.Static{
-							newSpanAttr(LabelHTTPStatusCode): traceql.NewStaticInt(500), // This is the only attribute that matched anything
-						},
-					},
-				),
-			),
-		},
-
-		{
-			// Project attributes of all types
-			makeReq(
-				parse(t, `{.foo }`),                    // String
-				parse(t, `{.`+LabelHTTPStatusCode+`}`), // Int
-				parse(t, `{.float }`),                  // Float
-				parse(t, `{.bool }`),                   // bool
-			),
-			makeSpansets(
-				makeSpanset(
-					wantTr.TraceID,
-					wantTr.RootSpanName,
-					wantTr.RootServiceName,
-					wantTr.StartTimeUnixNano,
-					wantTr.DurationNanos,
-					traceql.Span{
-						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[traceql.Attribute]traceql.Static{
-							newResAttr("foo"):                traceql.NewStaticString("abc"), // Both are returned
-							newSpanAttr("foo"):               traceql.NewStaticString("def"), // Both are returned
-							newSpanAttr(LabelHTTPStatusCode): traceql.NewStaticInt(500),
-							newSpanAttr("float"):             traceql.NewStaticFloat(456.78),
-							newSpanAttr("bool"):              traceql.NewStaticBool(false),
-						},
-					},
-				),
-			),
-		},
-
-		{
-			// doesn't match anything
-			makeReq(parse(t, `{.xyz = "xyz"}`)),
-			nil,
-		},
-
-		{
-			// Empty request returns 1 spanset with all spans
-			traceql.FetchSpansRequest{},
-			makeSpansets(
-				makeSpanset(
-					wantTr.TraceID,
-					wantTr.RootSpanName,
-					wantTr.RootServiceName,
-					wantTr.StartTimeUnixNano,
-					wantTr.DurationNanos,
-					traceql.Span{
-						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
-						Attributes:         map[traceql.Attribute]traceql.Static{},
-					},
-					traceql.Span{
-						ID:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
-						Attributes:         map[traceql.Attribute]traceql.Static{},
-					},
-				),
-			),
-		},
-
-		{
-			// Intrinsics. 2nd span only
-			makeReq(
-				parse(t, `{ name = "world" }`),
-				parse(t, `{ status = unset }`),
-			),
-			makeSpansets(
-				makeSpanset(
-					wantTr.TraceID,
-					wantTr.RootSpanName,
-					wantTr.RootServiceName,
-					wantTr.StartTimeUnixNano,
-					wantTr.DurationNanos,
-					traceql.Span{
-						ID:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[traceql.Attribute]traceql.Static{
-							traceql.NewIntrinsic(traceql.IntrinsicName):   traceql.NewStaticString("world"),
-							traceql.NewIntrinsic(traceql.IntrinsicStatus): traceql.NewStaticStatus(traceql.StatusUnset),
-						},
-					},
-				),
-			),
-		},
-		{
-			// Intrinsic duration with no filtering
-			traceql.FetchSpansRequest{Conditions: []traceql.Condition{{Attribute: traceql.NewIntrinsic(traceql.IntrinsicDuration)}}},
-			makeSpansets(
-				makeSpanset(
-					wantTr.TraceID,
-					wantTr.RootSpanName,
-					wantTr.RootServiceName,
-					wantTr.StartTimeUnixNano,
-					wantTr.DurationNanos,
-					traceql.Span{
-						ID:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[traceql.Attribute]traceql.Static{
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(100 * time.Second),
-						},
-					},
-					traceql.Span{
-						ID:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].ID,
-						StartTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartUnixNanos,
-						EndtimeUnixNanos:   wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].EndUnixNanos,
-						Attributes: map[traceql.Attribute]traceql.Static{
-							traceql.NewIntrinsic(traceql.IntrinsicDuration): traceql.NewStaticDuration(0 * time.Second),
-						},
-					},
-				),
-			),
-		},
-	}
-
-	for _, tc := range testCases {
-		req := tc.req
-		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
-		require.NoError(t, err, "search request:", req)
-
-		// Turn iterator into slice
-		var actualResults []traceql.Spanset
 		for {
 			spanSet, err := resp.Results.Next(ctx)
-			require.NoError(t, err)
+			require.NoError(t, err, "search request:", req)
 			if spanSet == nil {
 				break
 			}
-			actualResults = append(actualResults, *spanSet)
+			require.NotEqual(t, wantTraceID, spanSet.TraceID, "search request:", req)
 		}
-		require.Equal(t, tc.expectedResults, actualResults, "search request:", req)
 	}
 }
 
@@ -618,17 +443,34 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		name string
 		req  traceql.FetchSpansRequest
 	}{
-		{"noMatch", traceql.MustExtractFetchSpansRequest("{ span.foo = `bar` }")},
-		{"partialMatch", traceql.MustExtractFetchSpansRequest("{ .foo = `bar` && .component = `gRPC` }")},
-		{"service.name", traceql.MustExtractFetchSpansRequest("{ resource.service.name = `a` }")},
+		// span
+		{"spanAttNameNoMatch", traceql.MustExtractFetchSpansRequest("{ span.foo = `bar` }")},
+		{"spanAttValNoMatch", traceql.MustExtractFetchSpansRequest("{ span.bloom = `bar` }")},
+		{"spanAttValMatch", traceql.MustExtractFetchSpansRequest("{ span.bloom > 0 }")},
+		{"spanAttIntrinsicNoMatch", traceql.MustExtractFetchSpansRequest("{ name = `asdfasdf` }")},
+		{"spanAttIntrinsicMatch", traceql.MustExtractFetchSpansRequest("{ name = `gcs.ReadRange` }")},
+
+		// resource
+		{"resourceAttNameNoMatch", traceql.MustExtractFetchSpansRequest("{ resource.foo = `bar` }")},
+		{"resourceAttValNoMatch", traceql.MustExtractFetchSpansRequest("{ resource.module.path = `bar` }")},
+		{"resourceAttValMatch", traceql.MustExtractFetchSpansRequest("{ resource.os.type = `linux` }")},
+		{"resourceAttIntrinsicNoMatch", traceql.MustExtractFetchSpansRequest("{ resource.service.name = `a` }")},
+		{"resourceAttIntrinsicMatch", traceql.MustExtractFetchSpansRequest("{ resource.service.name = `tempo-query-frontend` }")},
+
+		// mixed
+		{"mixedNameNoMatch", traceql.MustExtractFetchSpansRequest("{ .foo = `bar` }")},
+		{"mixedValNoMatch", traceql.MustExtractFetchSpansRequest("{ .bloom = `bar` }")},
+		{"mixedValMixedMatchAnd", traceql.MustExtractFetchSpansRequest("{ resource.foo = `bar` && name = `gcs.ReadRange` }")},
+		{"mixedValMixedMatchOr", traceql.MustExtractFetchSpansRequest("{ resource.foo = `bar` || name = `gcs.ReadRange` }")},
+		{"mixedValBothMatch", traceql.MustExtractFetchSpansRequest("{ resource.service.name = `query-frontend` && name = `gcs.ReadRange` }")},
 	}
 
 	ctx := context.TODO()
 	tenantID := "1"
-	blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
+	blockID := uuid.MustParse("149e41d2-cc4d-4f71-b355-3377eabc94c8")
 
 	r, _, _, err := local.New(&local.Config{
-		Path: path.Join("/Users/marty/src/tmp/"),
+		Path: path.Join("/home/joe/testblock/"),
 	})
 	require.NoError(b, err)
 

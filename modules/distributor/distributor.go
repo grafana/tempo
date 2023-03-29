@@ -122,9 +122,6 @@ type Distributor struct {
 	overrides       *overrides.Overrides
 	traceEncoder    model.SegmentDecoder
 
-	// search
-	globalTagsToDrop map[string]struct{}
-
 	// metrics-generator
 	generatorClientCfg generator_client.Config
 	generatorsRing     ring.ReadRing
@@ -187,12 +184,6 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	subservices = append(subservices, pool)
 
-	// turn list into map for efficient checking
-	tagsToDrop := map[string]struct{}{}
-	for _, tag := range cfg.SearchTagsDenyList {
-		tagsToDrop[tag] = struct{}{}
-	}
-
 	d := &Distributor{
 		cfg:                  cfg,
 		clientCfg:            clientCfg,
@@ -202,7 +193,6 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
 		generatorClientCfg:   generatorClientCfg,
 		generatorsRing:       generatorsRing,
-		globalTagsToDrop:     tagsToDrop,
 		overrides:            o,
 		traceEncoder:         model.MustNewSegmentDecoder(model.CurrentEncoding),
 		logger:               logger,
@@ -346,22 +336,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		return nil, err
 	}
 
-	var searchData [][]byte
-	perTenantAllowedTags := d.overrides.SearchTagsAllowList(userID)
-	searchData = extractSearchDataAll(rebatchedTraces, func(tag string) bool {
-		// if in per tenant override, extract
-		if _, ok := perTenantAllowedTags[tag]; ok {
-			return true
-		}
-		// if in global deny list, drop
-		if _, ok := d.globalTagsToDrop[tag]; ok {
-			return false
-		}
-		// allow otherwise
-		return true
-	})
-
-	err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, searchData, keys)
+	err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, keys)
 	if err != nil {
 		recordDiscaredSpans(err, userID, spanCount)
 		return nil, err
@@ -378,7 +353,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	return nil, nil // PushRequest is ignored, so no reason to create one
 }
 
-func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*rebatchedTrace, searchData [][]byte, keys []uint32) error {
+func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*rebatchedTrace, keys []uint32) error {
 	// Marshal to bytes once
 	marshalledTraces := make([][]byte, len(traces))
 	for i, t := range traces {
@@ -402,17 +377,12 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		req := tempopb.PushBytesRequest{
 			Traces:     make([]tempopb.PreallocBytes, len(indexes)),
 			Ids:        make([]tempopb.PreallocBytes, len(indexes)),
-			SearchData: make([]tempopb.PreallocBytes, len(indexes)),
+			SearchData: nil, // support for flatbuffer/v2 search has been removed. todo: cleanup the proto
 		}
 
 		for i, j := range indexes {
 			req.Traces[i].Slice = marshalledTraces[j][0:]
 			req.Ids[i].Slice = traces[j].id
-
-			// Search data optional
-			if len(searchData) > j {
-				req.SearchData[i].Slice = searchData[j]
-			}
 		}
 
 		c, err := d.pool.GetClientFor(ingester.Addr)

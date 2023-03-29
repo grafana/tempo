@@ -12,7 +12,6 @@ distributor:
 overrides:
   max_bytes_per_trace: 100
   max_traces_per_user: 1
-  max_search_bytes_per_trace: 50_000
   ingestion_rate_limit_bytes: 500
   ingestion_burst_size_bytes: 500
 

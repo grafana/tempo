@@ -42,7 +42,8 @@ func TestRetention(t *testing.T) {
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	ctx := context.Background()
+	c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
@@ -68,11 +69,11 @@ func TestRetention(t *testing.T) {
 	checkBlocklists(t, blockID, 1, 0, rw)
 
 	// retention should mark it compacted
-	r.(*readerWriter).doRetention()
+	r.(*readerWriter).doRetention(ctx)
 	checkBlocklists(t, blockID, 0, 1, rw)
 
 	// retention again should clear it
-	r.(*readerWriter).doRetention()
+	r.(*readerWriter).doRetention(ctx)
 	checkBlocklists(t, blockID, 0, 0, rw)
 }
 
@@ -105,7 +106,7 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 
 	r.EnablePolling(&mockJobSharder{})
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
@@ -120,7 +121,8 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
 	assert.NoError(t, err)
 
-	complete, err := w.CompleteBlock(context.Background(), head)
+	ctx := context.Background()
+	complete, err := w.CompleteBlock(ctx, head)
 	assert.NoError(t, err)
 	blockID = complete.BlockMeta().BlockID
 
@@ -132,7 +134,7 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 	// Mark it compacted
 	r.(*readerWriter).compactorCfg.BlockRetention = 0 // Immediately delete
 	r.(*readerWriter).compactorCfg.CompactedBlockRetention = time.Hour
-	r.(*readerWriter).doRetention()
+	r.(*readerWriter).doRetention(ctx)
 
 	// Immediately compacted
 	require.Empty(t, rw.blocklist.Metas(testTenantID))
@@ -141,7 +143,7 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 	// Now delete it permanently
 	r.(*readerWriter).compactorCfg.BlockRetention = time.Hour
 	r.(*readerWriter).compactorCfg.CompactedBlockRetention = 0 // Immediately delete
-	r.(*readerWriter).doRetention()
+	r.(*readerWriter).doRetention(ctx)
 
 	require.Empty(t, rw.blocklist.Metas(testTenantID))
 	require.Empty(t, rw.blocklist.CompactedMetas(testTenantID))
@@ -172,7 +174,8 @@ func TestBlockRetentionOverride(t *testing.T) {
 
 	overrides := &mockOverrides{}
 
-	c.EnableCompaction(&CompactorConfig{
+	ctx := context.Background()
+	c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          time.Hour,
@@ -193,19 +196,19 @@ func TestBlockRetentionOverride(t *testing.T) {
 
 	// Retention = 1 hour, does nothing
 	overrides.blockRetention = time.Hour
-	r.(*readerWriter).doRetention()
+	r.(*readerWriter).doRetention(ctx)
 	rw.pollBlocklist()
 	require.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
 
 	// Retention = 1 minute, still does nothing
 	overrides.blockRetention = time.Minute
-	r.(*readerWriter).doRetention()
+	r.(*readerWriter).doRetention(ctx)
 	rw.pollBlocklist()
 	require.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
 
 	// Retention = 1ns, deletes everything
 	overrides.blockRetention = time.Nanosecond
-	r.(*readerWriter).doRetention()
+	r.(*readerWriter).doRetention(ctx)
 	rw.pollBlocklist()
 	require.Equal(t, 0, len(rw.blocklist.Metas(testTenantID)))
 }

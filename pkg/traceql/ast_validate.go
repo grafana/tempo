@@ -85,7 +85,7 @@ func (a Aggregate) validate() error {
 	}
 
 	switch a.op {
-	case aggregateCount, aggregateAvg:
+	case aggregateCount, aggregateAvg, aggregateMin, aggregateMax, aggregateSum:
 	default:
 		return newUnsupportedError(fmt.Sprintf("aggregate operation (%v)", a.op))
 	}
@@ -177,13 +177,7 @@ func (o BinaryOperation) validate() error {
 	}
 
 	switch o.Op {
-	case OpAdd,
-		OpSub,
-		OpMult,
-		OpDiv,
-		OpMod,
-		OpNotRegex,
-		OpPower,
+	case OpNotRegex,
 		OpSpansetChild,
 		OpSpansetDescendant,
 		OpSpansetSibling:

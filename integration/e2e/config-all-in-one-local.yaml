@@ -42,6 +42,3 @@ storage:
     pool:
       max_workers: 10
       queue_depth: 100
-
-overrides:
-  max_search_bytes_per_trace: 50_000

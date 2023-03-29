@@ -12,7 +12,6 @@ GORELEASER := $(GOPATH)/bin/goreleaser
 
 # Build Images
 DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.14.0
-FLATBUFFERS_IMAGE ?= neomantra/flatbuffers
 LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.21.0
 DOCS_IMAGE ?= grafana/docs-base:latest
 
@@ -35,7 +34,7 @@ ifeq ($(BUILD_DEBUG), 1)
 	GO_OPT+= -gcflags="all=-N -l"
 endif
 
-GOTEST_OPT?= -race -timeout 20m -count=1
+GOTEST_OPT?= -race -timeout 30m -count=1
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=go test
 LINT=golangci-lint
@@ -144,6 +143,10 @@ docker-tempo:
 docker-tempo-debug:
 	COMPONENT=tempo $(MAKE) docker-component-debug
 
+.PHONY: docker-cli
+docker-tempo-cli:
+	COMPONENT=tempo-cli $(MAKE) docker-component
+
 .PHONY: docker-tempo-query
 docker-tempo-query:
 	COMPONENT=tempo-query $(MAKE) docker-component
@@ -215,14 +218,6 @@ gen-proto:
 	rm -rf $(PROTO_INTERMEDIATE_DIR)
 
 # ##############
-# Gen Flatbuffer
-# ##############
-.PHONY: gen-flat
-gen-flat:
-	# -o /pkg generates into same folder as tempo.fbs for simpler imports.
-	docker run --rm -v${PWD}:/opt/src ${FLATBUFFERS_IMAGE} flatc --go -o /opt/src/pkg /opt/src/pkg/tempofb/tempo.fbs
-
-# ##############
 # Gen Traceql
 # ##############
 .PHONY: gen-traceql
@@ -235,8 +230,8 @@ gen-traceql-local:
 
 ### Check vendored and generated files are up to date
 .PHONY: vendor-check
-vendor-check: gen-proto gen-flat update-mod gen-traceql
-	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/tempofb/ pkg/traceql/
+vendor-check: gen-proto update-mod gen-traceql
+	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/traceql/
 
 ### Tidy dependencies for tempo and tempo-serverless modules
 .PHONY: update-mod
@@ -262,12 +257,12 @@ release-snapshot: $(GORELEASER)
 .PHONY: docs
 docs:
 	docker pull ${DOCS_IMAGE}
-	docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest:z -p 3002:3002 --rm $(DOCS_IMAGE) /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make server'
+	docker run -v ${PWD}/docs/sources/tempo:/hugo/content/docs/tempo/latest:z -p 3002:3002 --rm $(DOCS_IMAGE) /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make server'
 
 .PHONY: docs-test
 docs-test:
 	docker pull ${DOCS_IMAGE}
-	docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest:z -p 3002:3002 --rm $(DOCS_IMAGE) /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make prod'
+	docker run -v ${PWD}/docs/sources/tempo:/hugo/content/docs/tempo/latest:z -p 3002:3002 --rm $(DOCS_IMAGE) /bin/bash -c 'mkdir -p content/docs/grafana/latest/ && touch content/docs/grafana/latest/menu.yaml && make prod'
 
 ### jsonnet
 .PHONY: jsonnet jsonnet-check

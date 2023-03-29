@@ -78,7 +78,7 @@ func TestManagedRegistry_histogram(t *testing.T) {
 
 	histogram := registry.NewHistogram("histogram", []string{"label"}, []float64{1.0, 2.0})
 
-	histogram.ObserveWithExemplar(newLabelValues([]string{"value-1"}), 1.0, "")
+	histogram.ObserveWithExemplar(newLabelValues([]string{"value-1"}), 1.0, "", 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
@@ -209,7 +209,7 @@ func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
 	histogram := registry.NewHistogram("histogram", []string{"another_very_lengthy_label"}, []float64{1.0})
 
 	counter.Inc(registry.NewLabelValues([]string{"very_length_value"}), 1.0)
-	histogram.ObserveWithExemplar(registry.NewLabelValues([]string{"another_very_lengthy_value"}), 1.0, "")
+	histogram.ObserveWithExemplar(registry.NewLabelValues([]string{"another_very_lengthy_value"}), 1.0, "", 1.0)
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "counter", "very_len": "very_", "__metrics_gen_instance": mustGetHostname()}, 0, 0.0),

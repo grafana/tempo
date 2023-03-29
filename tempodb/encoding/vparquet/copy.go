@@ -4,34 +4,32 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pkg/errors"
+
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/pkg/errors"
 )
 
-func CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error {
-	blockID := meta.BlockID
-	tenantID := meta.TenantID
-
+func CopyBlock(ctx context.Context, fromMeta, toMeta *backend.BlockMeta, from backend.Reader, to backend.Writer) error {
 	// Copy streams, efficient but can't cache.
 	copyStream := func(name string) error {
-		reader, size, err := from.StreamReader(ctx, name, blockID, tenantID)
+		reader, size, err := from.StreamReader(ctx, name, fromMeta.BlockID, fromMeta.TenantID)
 		if err != nil {
 			return errors.Wrapf(err, "error reading %s", name)
 		}
 		defer reader.Close()
 
-		return to.StreamWriter(ctx, name, blockID, tenantID, reader, size)
+		return to.StreamWriter(ctx, name, toMeta.BlockID, toMeta.TenantID, reader, size)
 	}
 
 	// Read entire object and attempt to cache
 	copy := func(name string) error {
-		b, err := from.Read(ctx, name, blockID, tenantID, true)
+		b, err := from.Read(ctx, name, fromMeta.BlockID, fromMeta.TenantID, true)
 		if err != nil {
 			return errors.Wrapf(err, "error reading %s", name)
 		}
 
-		return to.Write(ctx, name, blockID, tenantID, b, true)
+		return to.Write(ctx, name, toMeta.BlockID, toMeta.TenantID, b, true)
 	}
 
 	// Data
@@ -41,7 +39,7 @@ func CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader
 	}
 
 	// Bloom
-	for i := 0; i < common.ValidateShardCount(int(meta.BloomShardCount)); i++ {
+	for i := 0; i < common.ValidateShardCount(int(fromMeta.BloomShardCount)); i++ {
 		err = copy(common.BloomName(i))
 		if err != nil {
 			return err
@@ -49,7 +47,7 @@ func CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader
 	}
 
 	// Meta
-	err = to.WriteBlockMeta(ctx, meta)
+	err = to.WriteBlockMeta(ctx, toMeta)
 	return err
 }
 

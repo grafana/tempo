@@ -152,7 +152,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
 				connectionType := store.Unknown
-
+				spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span)
 				switch span.Kind {
 				case v1_trace.Span_SPAN_KIND_PRODUCER:
 					// override connection type and continue processing as span kind client
@@ -167,6 +167,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.ClientLatencySec = spanDurationSec(span)
 						e.Failed = e.Failed || p.spanFailed(span)
 						p.upsertDimensions(e.Dimensions, rs.Resource.Attributes, span.Attributes)
+						e.SpanMultiplier = spanMultiplier
 
 						// A database request will only have one span, we don't wait for the server
 						// span but just copy details from the client span
@@ -190,6 +191,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.ServerLatencySec = spanDurationSec(span)
 						e.Failed = e.Failed || p.spanFailed(span)
 						p.upsertDimensions(e.Dimensions, rs.Resource.Attributes, span.Attributes)
+						e.SpanMultiplier = spanMultiplier
 					})
 				default:
 					// this span is not part of an edge
@@ -245,13 +247,13 @@ func (p *Processor) onComplete(e *store.Edge) {
 
 	registryLabelValues := p.registry.NewLabelValues(labelValues)
 
-	p.serviceGraphRequestTotal.Inc(registryLabelValues, 1)
+	p.serviceGraphRequestTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
 	if e.Failed {
-		p.serviceGraphRequestFailedTotal.Inc(registryLabelValues, 1)
+		p.serviceGraphRequestFailedTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
 	}
 
-	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID)
-	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID)
+	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.SpanMultiplier)
+	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
 }
 
 func (p *Processor) onExpire(e *store.Edge) {

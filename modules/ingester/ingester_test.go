@@ -22,7 +22,6 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	model_v1 "github.com/grafana/tempo/pkg/model/v1"
 	model_v2 "github.com/grafana/tempo/pkg/model/v2"
-	"github.com/grafana/tempo/pkg/tempofb"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -153,6 +152,7 @@ func TestWal(t *testing.T) {
 			TraceID: traceID,
 		})
 		require.NoError(t, err, "unexpected error querying")
+		require.NotNil(t, foundTrace.Trace)
 		trace.SortTrace(foundTrace.Trace)
 		equal := proto.Equal(traces[i], foundTrace.Trace)
 		require.True(t, equal)
@@ -225,13 +225,8 @@ func TestSearchWAL(t *testing.T) {
 	b1, err := dec.PrepareForWrite(trace, 0, 0)
 	require.NoError(t, err)
 
-	entry := &tempofb.SearchEntryMutable{}
-	entry.TraceID = id
-	entry.AddTag("foo", "bar")
-	searchBytes := entry.ToBytes()
-
 	// push to instance
-	require.NoError(t, inst.PushBytes(context.Background(), id, b1, searchBytes))
+	require.NoError(t, inst.PushBytes(context.Background(), id, b1))
 
 	// Write wal
 	require.NoError(t, inst.CutCompleteTraces(0, true))
@@ -431,7 +426,6 @@ func defaultIngesterTestConfig() Config {
 	cfg.LifecyclerConfig.Addr = "localhost"
 	cfg.LifecyclerConfig.ID = "localhost"
 	cfg.LifecyclerConfig.FinalSleep = 0
-	cfg.UseFlatbufferSearch = false
 
 	return cfg
 }

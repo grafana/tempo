@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/sources/logo_and_name.png" alt="Tempo Logo"></p>
+<p align="center"><img src="docs/sources/tempo/logo_and_name.png" alt="Tempo Logo"></p>
 <p align="center">
   <a href="https://github.com/grafana/tempo/releases"><img src="https://img.shields.io/github/v/release/grafana/tempo?display_name=tag&sort=semver" alt="Latest Release"/></a>
   <img src="https://img.shields.io/github/license/grafana/tempo" alt="License" />
@@ -14,7 +14,7 @@ Tempo is Jaeger, Zipkin, Kafka, OpenCensus and OpenTelemetry compatible.  It ing
 
 Tempo implements [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), a traces-first query language inspired by LogQL and PromQL. This query language allows users to very precisely and easily select spans and jump directly to the spans fulfilling the specified conditions:
 
-<p align="center"><img src="docs/sources/getting-started/assets/grafana-query.png" alt="Tempo Screenshot"></p>
+<p align="center"><img src="docs/sources/tempo/getting-started/assets/grafana-query.png" alt="Tempo Screenshot"></p>
 
 ## Getting Started
 
@@ -28,9 +28,11 @@ Tempo implements [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), a tr
 
 To learn more about Tempo, consult the following documents & talks:
 
-- TraceQL ObservabilityCON 2022 Annoucement: "[TraceQL: a first-of-its-kind query language to accelerate trace analysis in Tempo 2.0][traceql-obscon-post]"
+- [New in Grafana Tempo 2.0: Apache Parquet as the default storage format, support for TraceQL][tempo_20_announce]
+- [Get to know TraceQL: A powerful new query language for distributed tracing][traceql-post]
 
-[traceql-obscon-post]: https://grafana.com/blog/2022/11/30/traceql-a-first-of-its-kind-query-language-to-accelerate-trace-analysis-in-tempo-2.0/
+[tempo_20_announce]: https://grafana.com/blog/2023/02/01/new-in-grafana-tempo-2.0-apache-parquet-as-the-default-storage-format-support-for-traceql/
+[traceql-post]: https://grafana.com/blog/2023/02/07/get-to-know-traceql-a-powerful-new-query-language-for-distributed-tracing/
 
 ## Getting Help
 

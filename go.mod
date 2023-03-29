@@ -28,7 +28,6 @@ require (
 	github.com/gogo/status v1.1.1
 	github.com/golang/protobuf v1.5.2
 	github.com/golang/snappy v0.0.4
-	github.com/google/flatbuffers v22.10.26+incompatible
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
@@ -65,7 +64,7 @@ require (
 	github.com/prometheus/prometheus v1.8.2-0.20221021121301-51a44e6657c3
 	github.com/prometheus/statsd_exporter v0.22.7 // indirect
 	github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
-	github.com/segmentio/parquet-go v0.0.0-20230201213121-e1109e2f6a20
+	github.com/segmentio/parquet-go v0.0.0-20230309140036-b6d0a6236da6
 	github.com/sirupsen/logrus v1.8.1
 	github.com/sony/gobreaker v0.4.1
 	github.com/spf13/viper v1.14.0
@@ -110,7 +109,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	cloud.google.com/go/iam v0.11.0 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
-	github.com/Azure/go-autorest/autorest v0.11.28 // indirect
+	github.com/Azure/go-autorest/autorest v0.11.28
 	github.com/Azure/go-autorest/autorest/azure/cli v0.4.5 // indirect
 	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
@@ -183,7 +182,7 @@ require (
 	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
-	github.com/googleapis/gax-go/v2 v2.7.0 // indirect
+	github.com/googleapis/gax-go/v2 v2.7.0
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/grafana/regexp v0.0.0-20221005093135-b4c2bcb0a4b6 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.15.0 // indirect
@@ -305,11 +304,11 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v0.36.0 // indirect
 	golang.org/x/crypto v0.1.0 // indirect
 	golang.org/x/mod v0.8.0 // indirect
-	golang.org/x/net v0.7.0 // indirect
+	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/oauth2 v0.5.0 // indirect
-	golang.org/x/sys v0.5.0 // indirect
-	golang.org/x/term v0.5.0 // indirect
-	golang.org/x/text v0.7.0 // indirect
+	golang.org/x/sys v0.6.0 // indirect
+	golang.org/x/term v0.6.0 // indirect
+	golang.org/x/text v0.8.0 // indirect
 	golang.org/x/tools v0.6.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	gonum.org/v1/gonum v0.12.0 // indirect
