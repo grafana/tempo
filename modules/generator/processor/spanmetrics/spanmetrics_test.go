@@ -152,6 +152,143 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
 }
 
+func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
+	cases := []struct {
+		filterPolicies  []FilterPolicy
+		expectedMatches float64
+	}{
+		{
+			expectedMatches: 10.0,
+			filterPolicies: []FilterPolicy{
+				{
+
+					Include: &PolicyMatch{
+						MatchType: Strict,
+						Attributes: []MatchPolicyAttribute{
+							{
+								Key:   "span.foo",
+								Value: "foo-value",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			expectedMatches: 0.0,
+			filterPolicies: []FilterPolicy{
+				{
+
+					Include: &PolicyMatch{
+						MatchType: Strict,
+						Attributes: []MatchPolicyAttribute{
+							{
+								Key:   "span.nope",
+								Value: "nothere",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			expectedMatches: 0.0,
+			filterPolicies: []FilterPolicy{
+				{
+					Exclude: &PolicyMatch{
+						MatchType: Strict,
+						Attributes: []MatchPolicyAttribute{
+							{
+								Key:   "status",
+								Value: "STATUS_CODE_OK",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			expectedMatches: 10.0,
+			filterPolicies: []FilterPolicy{
+				{
+					Include: &PolicyMatch{
+						MatchType: Regex,
+						Attributes: []MatchPolicyAttribute{
+							{
+								Key:   "kind",
+								Value: "SPAN_KIND_.*",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for i, tc := range cases {
+		testName := fmt.Sprintf("filter_policy_%d", i)
+		t.Run(testName, func(t *testing.T) {
+			t.Logf("test case: %s", testName)
+
+			cfg := Config{}
+			cfg.RegisterFlagsAndApplyDefaults("", nil)
+			cfg.HistogramBuckets = []float64{0.5, 1}
+			cfg.IntrinsicDimensions.SpanKind = false
+			cfg.IntrinsicDimensions.StatusMessage = true
+			cfg.Dimensions = []string{"foo", "bar", "does-not-exist"}
+			cfg.FilterPolicies = tc.filterPolicies
+
+			testRegistry := registry.NewTestRegistry()
+			p := New(cfg, testRegistry)
+			defer p.Shutdown(context.Background())
+
+			// TODO create some spans that are missing the custom dimensions/tags
+			batch := test.MakeBatch(10, nil)
+
+			// Add some attributes
+			for _, rs := range batch.ScopeSpans {
+				for _, s := range rs.Spans {
+					s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+						Key:   "foo",
+						Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "foo-value"}},
+					})
+
+					s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+						Key:   "bar",
+						Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "bar-value"}},
+					})
+				}
+			}
+
+			t.Logf("batch: %v", batch)
+
+			p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+			t.Logf("%s", testRegistry)
+
+			lbls := labels.FromMap(map[string]string{
+				"service":        "test-service",
+				"span_name":      "test",
+				"status_code":    "STATUS_CODE_OK",
+				"status_message": "OK",
+				"foo":            "foo-value",
+				"bar":            "bar-value",
+				"does_not_exist": "",
+			})
+
+			assert.Equal(t, tc.expectedMatches, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+
+			assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 0.5)))
+			assert.Equal(t, tc.expectedMatches, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 1)))
+			assert.Equal(t, tc.expectedMatches, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
+			assert.Equal(t, tc.expectedMatches, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
+			assert.Equal(t, tc.expectedMatches, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
+
+		})
+	}
+
+}
+
 func TestSpanMetrics_policyMatch(t *testing.T) {
 	cases := []struct {
 		policy   *PolicyMatch
@@ -211,12 +348,141 @@ func TestSpanMetrics_policyMatch(t *testing.T) {
 				},
 			},
 		},
+		{
+			expect: true,
+			policy: &PolicyMatch{
+				MatchType: Strict,
+				Attributes: []MatchPolicyAttribute{
+					{
+						Key:   "span.kind",
+						Value: "client",
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*common_v1.KeyValue{
+					{
+						Key: "location",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "earth",
+							},
+						},
+					},
+					{
+						Key: "othervalue",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "somethinginteresting",
+							},
+						},
+					},
+				},
+			},
+			span: &trace_v1.Span{
+				Attributes: []*common_v1.KeyValue{
+					{
+						Key: "kind",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "client",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			expect: true,
+			policy: &PolicyMatch{
+				MatchType: Strict,
+				Attributes: []MatchPolicyAttribute{
+					{
+						Key:   "resource.location",
+						Value: "earth",
+					},
+					{
+						Key:   "resource.othervalue",
+						Value: "somethinginteresting",
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*common_v1.KeyValue{
+					{
+						Key: "location",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "earth",
+							},
+						},
+					},
+					{
+						Key: "othervalue",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "somethinginteresting",
+							},
+						},
+					},
+				},
+			},
+			span: &trace_v1.Span{
+				Attributes: []*common_v1.KeyValue{
+					{
+						Key: "kind",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "client",
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
 		r := policyMatch(tc.policy, tc.resource, tc.span)
 		require.Equal(t, tc.expect, r)
 	}
+}
+
+func TestSpanMetrics_policyMatchIntrinsicAttrs(t *testing.T) {
+	cases := []struct {
+		policy *PolicyMatch
+		span   *trace_v1.Span
+		expect bool
+	}{
+		{
+			expect: true,
+			policy: &PolicyMatch{
+				MatchType: Strict,
+				Attributes: []MatchPolicyAttribute{
+					{
+						Key:   "kind",
+						Value: "SPAN_KIND_SERVER",
+					},
+					{
+						Key:   "status",
+						Value: "STATUS_CODE_OK",
+					},
+				},
+			},
+			span: &trace_v1.Span{
+				Kind: trace_v1.Span_SPAN_KIND_SERVER,
+				Status: &trace_v1.Status{
+					Code: trace_v1.Status_STATUS_CODE_OK,
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		r := policyMatchIntrinsicAttrs(tc.policy, tc.span)
+		require.Equal(t, tc.expect, r)
+	}
+
 }
 
 func TestSpanMetrics_policyMatchAttrs(t *testing.T) {

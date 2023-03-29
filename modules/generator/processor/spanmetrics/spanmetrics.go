@@ -156,23 +156,24 @@ func (p *Processor) applyFilterPolicy(rs *v1.Resource, span *v1_trace.Span) bool
 		return true
 	}
 
-	var match bool
-
 	for _, policy := range p.Cfg.FilterPolicies {
-		if !policyMatch(policy.Include, rs, span) {
-			return false
+		if policy.Include != nil {
+			if !policyMatch(policy.Include, rs, span) {
+				return false
+			}
 		}
 
-		if policyMatch(policy.Exclude, rs, span) {
-			return false
+		if policy.Exclude != nil {
+			if policyMatch(policy.Exclude, rs, span) {
+				return false
+			}
 		}
-
-		match = true
 	}
 
-	return match
+	return true
 }
 
+// policyMatch returns true when the resource attribtues and span attributes match the policy.
 func policyMatch(policy *PolicyMatch, rs *v1.Resource, span *v1_trace.Span) bool {
 	// A policy to match against the resource attributes
 	resourcePolicy := &PolicyMatch{
@@ -185,6 +186,11 @@ func policyMatch(policy *PolicyMatch, rs *v1.Resource, span *v1_trace.Span) bool
 		Attributes: make([]MatchPolicyAttribute, 0),
 	}
 
+	intrinsicPolicy := &PolicyMatch{
+		MatchType:  policy.MatchType,
+		Attributes: make([]MatchPolicyAttribute, 0),
+	}
+
 	for _, pa := range policy.Attributes {
 		attr := traceql.MustParseIdentifier(pa.Key)
 
@@ -193,15 +199,47 @@ func policyMatch(policy *PolicyMatch, rs *v1.Resource, span *v1_trace.Span) bool
 			Value: pa.Value,
 		}
 
-		switch attr.Scope {
-		case traceql.AttributeScopeSpan:
-			spanPolicy.Attributes = append(spanPolicy.Attributes, attribute)
-		case traceql.AttributeScopeResource:
-			resourcePolicy.Attributes = append(resourcePolicy.Attributes, attribute)
+		if attr.Intrinsic > 0 {
+			intrinsicPolicy.Attributes = append(intrinsicPolicy.Attributes, attribute)
+		} else {
+			switch attr.Scope {
+			case traceql.AttributeScopeSpan:
+				spanPolicy.Attributes = append(spanPolicy.Attributes, attribute)
+			case traceql.AttributeScopeResource:
+				resourcePolicy.Attributes = append(resourcePolicy.Attributes, attribute)
+			}
 		}
 	}
 
-	return policyMatchAttrs(resourcePolicy, rs.Attributes) && policyMatchAttrs(spanPolicy, span.Attributes)
+	return policyMatchAttrs(resourcePolicy, rs.Attributes) &&
+		policyMatchAttrs(spanPolicy, span.Attributes) &&
+		policyMatchIntrinsicAttrs(intrinsicPolicy, span)
+}
+
+func policyMatchIntrinsicAttrs(policy *PolicyMatch, span *v1_trace.Span) bool {
+	matches := 0
+	for _, pa := range policy.Attributes {
+		attr := traceql.MustParseIdentifier(pa.Key)
+		switch attr.Intrinsic {
+		// case traceql.IntrinsicDuration:
+		// case traceql.IntrinsicChildCount:
+		// case traceql.IntrinsicParent:
+		case traceql.IntrinsicName:
+			if stringMatch(policy.MatchType, span.GetName(), pa.Value.(string)) {
+				matches++
+			}
+		case traceql.IntrinsicStatus:
+			if stringMatch(policy.MatchType, span.GetStatus().GetCode().String(), pa.Value.(string)) {
+				matches++
+			}
+		case traceql.IntrinsicKind:
+			if stringMatch(policy.MatchType, span.GetKind().String(), pa.Value.(string)) {
+				matches++
+			}
+		}
+	}
+
+	return len(policy.Attributes) == matches
 }
 
 // policyMatchAttrs returns true if all attributes in the policy match the attributes in the span.  String, int, and floats are supported.  Regex MatchType may be applied to string span attributes.
@@ -215,19 +253,8 @@ func policyMatchAttrs(policy *PolicyMatch, attrs []*v1_common.KeyValue) bool {
 
 				switch v.Value.(type) {
 				case *v1_common.AnyValue_StringValue:
-					switch policy.MatchType {
-					case Strict:
-						if v.GetStringValue() == pa.Value {
-							matches++
-						}
-					case Regex:
-						s := v.GetStringValue()
-						if s != "" {
-							re := regexp.MustCompile(pa.Value.(string))
-							if re.MatchString(s) {
-								matches++
-							}
-						}
+					if stringMatch(policy.MatchType, v.GetStringValue(), pa.Value.(string)) {
+						matches++
 					}
 				case *v1_common.AnyValue_IntValue:
 					if v.GetIntValue() == int64(pa.Value.(int)) {
@@ -261,4 +288,16 @@ func isIntrinsicDimension(name string) bool {
 		name == dimSpanKind ||
 		name == dimStatusCode ||
 		name == dimStatusMessage
+}
+
+func stringMatch(matchType MatchType, s, pattern string) bool {
+	switch matchType {
+	case Strict:
+		return s == pattern
+	case Regex:
+		re := regexp.MustCompile(pattern)
+		return re.MatchString(s)
+	default:
+		return false
+	}
 }
