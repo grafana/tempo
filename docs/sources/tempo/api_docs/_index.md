@@ -318,8 +318,15 @@ $ curl -G -s http://localhost:3200/api/search/tag/service.name/values  | jq
 This endpoint retrieves all discovered values and their data types for the given TraceQL identifier.  The endpoint is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. This endpoint is similar to `/api/search/tag/<tag>/values` but operates on TraceQL identifiers and types. See [TraceQL](../traceql/) documention for more information. The following request returns all discovered service names.
 
+The URL query parameters support the following values:
+
+- `q = (TraceQL query)`: Url encoded [TraceQL query](https://grafana.com/docs/tempo/latest/traceql/).
+  - If a query is provided, results are filtered down to only those traces that match the query.
+  - Queries can be incomplete (eg. `{ .cluster = }`).
+    Tempo will extract only the valid matchers and build a valid query.
+
 ```
-GET /api/v2/search/tag/.service.name/values
+GET /api/v2/search/tag/.service.name/values?q="{.http.method='GET'}"
 ```
 
 #### Example
