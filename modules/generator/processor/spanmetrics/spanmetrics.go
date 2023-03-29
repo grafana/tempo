@@ -166,6 +166,8 @@ func (p *Processor) applyFilterPolicy(svcName string, rs *v1.Resource, span *v1_
 		if policyMatch(policy.Exclude, rs, span) {
 			return false
 		}
+
+		match = true
 	}
 
 	return match
