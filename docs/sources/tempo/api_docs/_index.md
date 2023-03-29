@@ -324,6 +324,7 @@ The URL query parameters support the following values:
   - If a query is provided, results are filtered down to only those traces that match the query.
   - Queries can be incomplete (eg. `{ .cluster = }`).
     Tempo will extract only the valid matchers and build a valid query.
+  - Only queries with a single selector `{}` and AND `&&` operators are supported.
 
 ```
 GET /api/v2/search/tag/.service.name/values?q="{.http.method='GET'}"
