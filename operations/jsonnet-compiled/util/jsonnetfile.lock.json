@@ -24,6 +24,16 @@
     {
       "source": {
         "git": {
+          "remote": "https://github.com/jsonnet-libs/k8s-libsonnet.git",
+          "subdir": "1.21"
+        }
+      },
+      "version": "9e5b48eee32913938d3cac30f183b49ecd9fe13a",
+      "sum": "b8GtKWztbpnnMojHt8A9sfkEgs+2t2rtvZcpDteuLFo="
+    },
+    {
+      "source": {
+        "git": {
           "remote": "https://github.com/ksonnet/ksonnet-lib.git",
           "subdir": "ksonnet.beta.4"
         }

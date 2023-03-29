@@ -41,6 +41,8 @@ To learn how to set up a Tempo cluster, see [Deploy on Kubernetes with Tanka]({{
 The Helm [example](https://github.com/grafana/tempo/tree/main/example/helm) shows a complete microservice based deployment.
 There are monolithic mode and microservices examples.
 
+To install Tempo on Kubernetes, use the [Deploy on Kubernetes using Helm](/docs/helm-charts/tempo-distributed/next/) procedure.
+
 ## The New Stack demo
 
 The [New Stack (TNS) demo](https://github.com/grafana/tns) demonstrates a fully instrumented three-tier application and the integration of Grafana, Prometheus, Loki, and Tempo [features](https://github.com/grafana/tns#demoable-things), including metrics to traces (exemplars), logs to traces, and traces to logs.

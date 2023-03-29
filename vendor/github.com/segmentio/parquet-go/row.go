@@ -126,8 +126,10 @@ type RowSeeker interface {
 
 // RowReader reads a sequence of parquet rows.
 type RowReader interface {
-	// Read rows from the reader, returning the number of rows read into the
-	// buffer, and any error that occurred.
+	// ReadRows reads rows from the reader, returning the number of rows read
+	// into the buffer, and any error that occurred. Note that the rows read
+	// into the buffer are not safe for reuse after a subsequent call to
+	// ReadRows. Callers that want to reuse rows must copy the rows using Clone.
 	//
 	// When all rows have been read, the reader returns io.EOF to indicate the
 	// end of the sequence. It is valid for the reader to return both a non-zero

@@ -12,13 +12,6 @@
     },
     {
       "source": {
-        "local": {
-          "directory": "../../jsonnet/microservices"
-        }
-      }
-    },
-    {
-      "source": {
         "git": {
           "remote": "https://github.com/grafana/jsonnet-libs.git",
           "subdir": "memcached"
@@ -29,11 +22,28 @@
     {
       "source": {
         "git": {
+          "remote": "https://github.com/jsonnet-libs/k8s-libsonnet.git",
+          "subdir": "1.21"
+        }
+      },
+      "version": "main"
+    },
+    {
+      "source": {
+        "git": {
           "remote": "https://github.com/ksonnet/ksonnet-lib.git",
           "subdir": "ksonnet.beta.4"
         }
       },
       "version": "master"
+    },
+    {
+      "source": {
+        "local": {
+          "directory": "../../jsonnet/microservices"
+        }
+      },
+      "version": ""
     }
   ],
   "legacyImports": true

@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/grafana/dskit/flagext"
 	"github.com/stretchr/testify/assert"
 )
@@ -12,6 +13,9 @@ import (
 const (
 	TestStorageAccountName = "foobar"
 	TestStorageAccountKey  = "abc123"
+	TestAzureClientID      = "myClientId"
+	TestAzureTenantID      = "myTenantId"
+	TestAzureADEndpoint    = "https://example.com/"
 )
 
 // TestGetStorageAccountName* explicitly broken out into
@@ -108,4 +112,47 @@ func TestGetContainerURL(t *testing.T) {
 			assert.Equal(t, tc.expectedURL, url.String())
 		})
 	}
+}
+
+func TestServicePrincipalTokenFromFederatedToken(t *testing.T) {
+	os.Setenv("AZURE_CLIENT_ID", TestAzureClientID)
+	defer os.Unsetenv("AZURE_CLIENT_ID")
+	os.Setenv("AZURE_TENANT_ID", TestAzureTenantID)
+	defer os.Unsetenv("AZURE_TENANT_ID")
+	os.Setenv("AZURE_AUTHORITY_HOST", TestAzureADEndpoint)
+	defer os.Unsetenv("AZURE_AUTHORITY_HOST")
+
+	mockOAuthConfig, _ := adal.NewOAuthConfig(TestAzureADEndpoint, "bar")
+	mockedServicePrincipalToken := new(adal.ServicePrincipalToken)
+
+	tmpDir := t.TempDir()
+	_ = os.WriteFile(tmpDir+"/jwtToken", []byte("myJwtToken"), 0666)
+	os.Setenv("AZURE_FEDERATED_TOKEN_FILE", tmpDir+"/jwtToken")
+	defer os.Unsetenv("AZURE_FEDERATED_TOKEN_FILE")
+
+	newOAuthConfigFunc := func(activeDirectoryEndpoint, tenantID string) (*adal.OAuthConfig, error) {
+		assert.Equal(t, TestAzureADEndpoint, activeDirectoryEndpoint)
+		assert.Equal(t, TestAzureTenantID, tenantID)
+
+		_, err := adal.NewOAuthConfig(activeDirectoryEndpoint, tenantID)
+		assert.NoError(t, err)
+
+		return mockOAuthConfig, nil
+	}
+
+	servicePrincipalTokenFromFederatedTokenFunc := func(oauthConfig adal.OAuthConfig, clientID string, jwt string, resource string, callbacks ...adal.TokenRefreshCallback) (*adal.ServicePrincipalToken, error) {
+		assert.True(t, *mockOAuthConfig == oauthConfig, "should return the mocked object")
+		assert.Equal(t, TestAzureClientID, clientID)
+		assert.Equal(t, "myJwtToken", jwt)
+		assert.Equal(t, "https://bar.blob.core.windows.net", resource)
+		return mockedServicePrincipalToken, nil
+	}
+
+	token, err := servicePrincipalTokenFromFederatedToken("https://bar.blob.core.windows.net", authFunctions{
+		newOAuthConfigFunc,
+		servicePrincipalTokenFromFederatedTokenFunc,
+	})
+
+	assert.NoError(t, err)
+	assert.True(t, mockedServicePrincipalToken == token, "should return the mocked object")
 }
