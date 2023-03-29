@@ -98,7 +98,7 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
-				if p.applyFilterPolicy(svcName, rs.Resource, span) {
+				if p.applyFilterPolicy(rs.Resource, span) {
 					p.aggregateMetricsForSpan(svcName, rs.Resource, span)
 				}
 			}
@@ -150,7 +150,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 }
 
 // applyFilterPolicy returns true if the span should be included in the metrics.
-func (p *Processor) applyFilterPolicy(svcName string, rs *v1.Resource, span *v1_trace.Span) bool {
+func (p *Processor) applyFilterPolicy(rs *v1.Resource, span *v1_trace.Span) bool {
 	// With no filter policies specified, all spans are included.
 	if len(p.Cfg.FilterPolicies) == 0 {
 		return true
