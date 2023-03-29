@@ -187,24 +187,24 @@ func TestInstanceSearchTags(t *testing.T) {
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 
 	// Test after appending to WAL
-	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
+	testSearchTagsAndValues(userCtx, t, i, tagKey, expectedTagValues)
 
 	// Test after cutting new headblock
 	blockID, err := i.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
 	assert.NotEqual(t, blockID, uuid.Nil)
 
-	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
+	testSearchTagsAndValues(userCtx, t, i, tagKey, expectedTagValues)
 
 	// Test after completing a block
 	err = i.CompleteBlock(blockID)
 	require.NoError(t, err)
 
-	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
+	testSearchTagsAndValues(userCtx, t, i, tagKey, expectedTagValues)
 }
 
 // nolint:revive,unparam
-func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tagName string, expectedTagValues []string) {
+func testSearchTagsAndValues(ctx context.Context, t *testing.T, i *instance, tagName string, expectedTagValues []string) {
 	sr, err := i.SearchTags(ctx)
 	require.NoError(t, err)
 	srv, err := i.SearchTagValues(ctx, tagName)
