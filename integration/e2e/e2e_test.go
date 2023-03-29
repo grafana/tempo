@@ -416,18 +416,21 @@ func makeThriftBatch() *thrift.Batch {
 }
 
 func makeThriftBatchWithSpanCount(n int) *thrift.Batch {
+	return makeThriftBatchWithSpanCountAttributeAndName(n, "my operation", "y")
+}
+
+func makeThriftBatchWithSpanCountAttributeAndName(n int, name, tagValue string) *thrift.Batch {
 	var spans []*thrift.Span
 
 	traceIDLow := rand.Int63()
 	traceIDHigh := rand.Int63()
-	tagValue := "y"
 	for i := 0; i < n; i++ {
 		spans = append(spans, &thrift.Span{
 			TraceIdLow:    traceIDLow,
 			TraceIdHigh:   traceIDHigh,
 			SpanId:        rand.Int63(),
 			ParentSpanId:  0,
-			OperationName: "my operation",
+			OperationName: name,
 			References:    nil,
 			Flags:         0,
 			StartTime:     time.Now().Unix(),

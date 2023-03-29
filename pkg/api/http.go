@@ -311,8 +311,6 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 }
 
 func ParseSearchTagValuesRequest(r *http.Request) (*tempopb.SearchTagValuesRequest, error) {
-	fmt.Println(r.URL)
-
 	vars := mux.Vars(r)
 	tag, ok := vars[tagName]
 	if !ok {
@@ -330,11 +328,13 @@ func ParseSearchTagValuesRequest(r *http.Request) (*tempopb.SearchTagValuesReque
 
 	query, queryFound := extractQueryParam(r, urlParamQuery)
 	if queryFound {
-		if query != "{}" { // TODO hacky fix: we don't validate {} since this isn't handled correctly yet
-			if _, err := traceql.Parse(query); err != nil {
-				return nil, fmt.Errorf("invalid TraceQL query: %w", err)
-			}
-		}
+		// TODO: Validation is left to the engine layer. Should we validate here?
+		//
+		// if query != "{}" { // TODO hacky fix: we don't validate {} since this isn't handled correctly yet
+		// 	if _, err := traceql.Parse(query); err != nil {
+		// 		return nil, fmt.Errorf("invalid TraceQL query: %w", err)
+		// 	}
+		// }
 	}
 	req.Query = query
 
