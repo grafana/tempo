@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -109,7 +111,9 @@ func (e *Engine) ExecuteTagValues(
 	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteTagValues")
 	defer span.Finish()
 
-	rootExpr, err := Parse(req.Query)
+	query := extractMatchers(req.Query)
+
+	rootExpr, err := Parse(query)
 	if err != nil {
 		return err
 	}
@@ -335,4 +339,32 @@ func (s Static) asAnyValue() *common_v1.AnyValue {
 			StringValue: fmt.Sprintf("error formatting val: static has unexpected type %v", s.Type),
 		},
 	}
+}
+
+// Regex to extract matchers from a query string
+// This regular expression matches a string that contains three groups separated by operators.
+// The first group is a string of alphabetical characters, dots, and underscores.
+// The second group is a comparison operator, which can be one of several possibilities, including =, >, <, and !=.
+// The third group is either a string of alphabetical characters or a number.
+// Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
+var re = regexp.MustCompile(`([a-zA-Z._]+)\s*(=|=>|=<|=~|!=|>|<|!~)\s*("([a-zA-Z._]+)"|([0-9]+))`)
+
+func extractMatchers(query string) string {
+	if len(query) == 0 {
+		return "{}"
+	}
+
+	matchers := re.FindAllString(query, -1)
+
+	var q strings.Builder
+	q.WriteString("{")
+	for i, m := range matchers {
+		if i > 0 {
+			q.WriteString(" && ")
+		}
+		q.WriteString(m)
+	}
+	q.WriteString("}")
+
+	return q.String()
 }

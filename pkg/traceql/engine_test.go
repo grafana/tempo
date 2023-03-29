@@ -386,3 +386,60 @@ func TestExamplesInEngine(t *testing.T) {
 		})
 	}
 }
+
+func TestSanitizeQuery(t *testing.T) {
+	testCases := []struct {
+		name, query, expected string
+	}{
+		{
+			name:     "empty query",
+			query:    "",
+			expected: "{}",
+		},
+		{
+			name:     "empty query with spaces",
+			query:    " { } ",
+			expected: "{}",
+		},
+		{
+			name:     "simple query",
+			query:    `{.service_name = "foo"}`,
+			expected: `{.service_name = "foo"}`,
+		},
+		{
+			name:     "incomplete query",
+			query:    `{ .http.status_code = 200 && .http.method = }`,
+			expected: "{.http.status_code = 200}",
+		},
+		{
+			name:     "foo",
+			query:    "{ 2 = .b ",
+			expected: "{}",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, extractMatchers(tc.query))
+		})
+	}
+}
+
+func BenchmarkSanitizeQuery(b *testing.B) {
+	queries := []string{
+		`{.service_name = "foo"}`,
+		`{.service_name = "foo" && .http.status_code = 200}`,
+		`{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET"}`,
+		`{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET" && .http.url = "/foo"}`,
+		`{.service_name = "foo" && .cluster = }`,
+		`{.service_name = "foo" && .http.status_code = 200 && .cluster = }`,
+		`{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET" && .cluster = }`,
+		`{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET" && .http.url = "/foo" && .cluster = }`,
+	}
+	for _, query := range queries {
+		b.Run(query, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				_ = extractMatchers(query)
+			}
+		})
+	}
+}
