@@ -249,7 +249,7 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues)
 }
 
-// nolint:revive
+// nolint:revive,unparam
 func testSearchTagsAndValuesV2(t *testing.T, ctx context.Context, i *instance, tagName, query string, expectedTagValues []string) {
 	tagsResp, err := i.SearchTags(ctx)
 	require.NoError(t, err)
