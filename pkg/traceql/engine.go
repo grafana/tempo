@@ -347,8 +347,10 @@ func (s Static) asAnyValue() *common_v1.AnyValue {
 // The second group is a comparison operator, which can be one of several possibilities, including =, >, <, and !=.
 // The third group is either a string of alphabetical characters or a number.
 // Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
+// TODO: Support booleans (true|false) and durations
 var re = regexp.MustCompile(`([a-zA-Z._]+)\s*(=|=>|=<|=~|!=|>|<|!~)\s*("([a-zA-Z._]+)"|([0-9]+))`)
 
+// extractMatchers extracts matchers from a query string and returns a string that can be parsed by the storage layer.
 func extractMatchers(query string) string {
 	if len(query) == 0 {
 		return "{}"

@@ -424,7 +424,7 @@ func TestSanitizeQuery(t *testing.T) {
 	}
 }
 
-func BenchmarkSanitizeQuery(b *testing.B) {
+func BenchmarkExtractMatchers(b *testing.B) {
 	queries := []string{
 		`{.service_name = "foo"}`,
 		`{.service_name = "foo" && .http.status_code = 200}`,
