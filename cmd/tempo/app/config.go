@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
 	internalserver "github.com/grafana/tempo/pkg/server"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
@@ -176,6 +177,18 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, newV2Warning("v2_prefetch_traces_count"))
 	}
 
+	for _, x := range c.Generator.Processor.SpanMetrics.FilterPolicies {
+		for _, attr := range x.Include.Attributes {
+			a, w := traceql.ParseIdentifier(attr.Key)
+			if w != nil {
+				warnings = append(warnings, newMetricsGeneratorProcessorSpanMetricsFilterPoliciesWarning(w.Error()))
+			}
+			if a.Scope == traceql.AttributeScopeNone {
+				warnings = append(warnings, newMetricsGeneratorProcessorSpanMetricsFilterPoliciesWarning(fmt.Sprintf("invalid attribute scope: %s", attr.Key)))
+			}
+		}
+	}
+
 	return warnings
 }
 
@@ -237,5 +250,12 @@ func newV2Warning(setting string) ConfigWarning {
 	return ConfigWarning{
 		Message: "c.StorageConfig.Trace.Block.Version != \"v2\" but " + setting + " is set",
 		Explain: "This setting is only used in v2 blocks",
+	}
+}
+
+func newMetricsGeneratorProcessorSpanMetricsFilterPoliciesWarning(setting string) ConfigWarning {
+	return ConfigWarning{
+		Message: "c.Generator.Processor.SpanMetrics.FilterPolicies attribute is invalid: " + setting,
+		Explain: "FilterPolicy attributes must be `resource` or `span` scopped.",
 	}
 }

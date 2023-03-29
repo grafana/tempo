@@ -172,8 +172,6 @@ func (p *Processor) applyFilterPolicy(svcName string, rs *v1.Resource, span *v1_
 }
 
 func policyMatch(policy *PolicyMatch, rs *v1.Resource, span *v1_trace.Span) bool {
-	// TODO die early if we have a scope None, probably on config check during startup
-
 	// A policy to match against the resource attributes
 	resourcePolicy := &PolicyMatch{
 		MatchType:  policy.MatchType,
