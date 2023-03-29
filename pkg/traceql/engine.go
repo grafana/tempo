@@ -113,6 +113,11 @@ func (e *Engine) ExecuteTagValues(
 
 	query := extractMatchers(req.Query)
 
+	fmt.Println("query: ", query, "req.Query: ", req.Query)
+
+	span.SetTag("query", req.Query)
+	span.SetTag("sanitized query", query)
+
 	rootExpr, err := Parse(query)
 	if err != nil {
 		return err
@@ -349,7 +354,7 @@ func (s Static) asAnyValue() *common_v1.AnyValue {
 // a number with an optional time unit (such as "ns", "ms", "s", "m", or "h"),
 // a plain number, or the boolean values "true" or "false".
 // Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
-var re = regexp.MustCompile(`[a-zA-Z._]+\s*[=|=>|=<|=~|!=|>|<|!~]\s*(?:"[a-zA-Z._]+"|[0-9]+(?:ns|ms|s|m|h)|[0-9]+|true|false)`)
+var re = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|<=|=~|!=|>|<|!~]\s*(?:"[a-zA-Z._]+"|[0-9smh]+|true|false)`)
 
 // extractMatchers extracts matchers from a query string and returns a string that can be parsed by the storage layer.
 func extractMatchers(query string) string {

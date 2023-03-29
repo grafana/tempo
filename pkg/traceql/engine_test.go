@@ -387,7 +387,7 @@ func TestExamplesInEngine(t *testing.T) {
 	}
 }
 
-func TestSanitizeQuery(t *testing.T) {
+func TestExtractMatchers(t *testing.T) {
 	testCases := []struct {
 		name, query, expected string
 	}{

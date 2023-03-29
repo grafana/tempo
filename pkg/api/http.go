@@ -311,32 +311,32 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 }
 
 func ParseSearchTagValuesRequest(r *http.Request) (*tempopb.SearchTagValuesRequest, error) {
+	fmt.Println(r.URL)
+
 	vars := mux.Vars(r)
-	tagName, ok := vars[tagName]
+	tag, ok := vars[tagName]
 	if !ok {
-		return nil, errors.New("please provide a tagName")
+		return nil, errors.New("please provide a tag")
 	}
 
 	// TODO: Support non-traceql tags
-	if _, err := traceql.ParseIdentifier(tagName); err != nil {
-		return nil, fmt.Errorf("please provide a valid tagName: %w", err)
+	if _, err := traceql.ParseIdentifier(tag); err != nil {
+		return nil, fmt.Errorf("please provide a valid tag: %w", err)
 	}
 
 	req := &tempopb.SearchTagValuesRequest{
-		TagName: tagName,
+		TagName: tag,
 	}
 
 	query, queryFound := extractQueryParam(r, urlParamQuery)
 	if queryFound {
-		// TODO hacky fix: we don't validate {} since this isn't handled correctly yet
-		if query != "{}" {
-			_, err := traceql.Parse(query)
-			if err != nil {
+		if query != "{}" { // TODO hacky fix: we don't validate {} since this isn't handled correctly yet
+			if _, err := traceql.Parse(query); err != nil {
 				return nil, fmt.Errorf("invalid TraceQL query: %w", err)
 			}
 		}
-		req.Query = query
 	}
+	req.Query = query
 
 	return req, nil
 }
