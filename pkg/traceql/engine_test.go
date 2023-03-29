@@ -412,7 +412,7 @@ func TestSanitizeQuery(t *testing.T) {
 			expected: "{.http.status_code = 200}",
 		},
 		{
-			name:     "foo",
+			name:     "invalid query",
 			query:    "{ 2 = .b ",
 			expected: "{}",
 		},
