@@ -113,8 +113,6 @@ func (e *Engine) ExecuteTagValues(
 
 	query := extractMatchers(req.Query)
 
-	fmt.Println("query: ", query, "req.Query: ", req.Query)
-
 	span.SetTag("query", req.Query)
 	span.SetTag("sanitized query", query)
 
