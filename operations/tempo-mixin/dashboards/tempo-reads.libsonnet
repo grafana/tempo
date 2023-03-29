@@ -65,11 +65,11 @@ dashboard_utils {
         g.row('Memcached')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('cortex_memcache_request_duration_seconds_count{%s,method=~"Memcache.Get|Memcache.GetMulti"}' % $.jobMatcher($._config.jobs.querier))
+          $.qpsPanel('tempo_memcache_request_duration_seconds_count{%s,method=~"Memcache.Get|Memcache.GetMulti"}' % $.jobMatcher($._config.jobs.querier))
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('cortex_memcache_request_duration_seconds', '{%s,method=~"Memcache.Get|Memcache.GetMulti"}' % $.jobMatcher($._config.jobs.querier))
+          $.latencyPanel('tempo_memcache_request_duration_seconds', '{%s,method=~"Memcache.Get|Memcache.GetMulti"}' % $.jobMatcher($._config.jobs.querier))
         )
       )
       .addRow(

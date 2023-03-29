@@ -226,7 +226,9 @@ local util(k) = {
 
   manifestYaml(value):: (
     local f = std.native('manifestYamlFromJson');
-    f(std.toString(value))
+    if f != null
+    then f(std.toString(value))
+    else std.manifestYamlDoc(value)
   ),
 
   resourcesRequests(cpu, memory)::

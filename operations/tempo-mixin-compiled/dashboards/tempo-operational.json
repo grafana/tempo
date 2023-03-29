@@ -4174,7 +4174,7 @@
      "pluginVersion": "9.0.0-d373beebpre",
      "targets": [
       {
-       "expr": "sum(rate(cortex_memcache_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (status_code, method)",
+       "expr": "sum(rate(tempo_memcache_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (status_code, method)",
        "interval": "",
        "legendFormat": "{{status_code}}-{{method}}",
        "refId": "A"
@@ -4267,19 +4267,19 @@
      "pluginVersion": "9.0.0-d373beebpre",
      "targets": [
       {
-       "expr": "histogram_quantile(.99, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (method, le))",
+       "expr": "histogram_quantile(.99, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (method, le))",
        "interval": "",
        "legendFormat": ".99-{{method}}",
        "refId": "A"
       },
       {
-       "expr": "histogram_quantile(.9, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (method, le))",
+       "expr": "histogram_quantile(.9, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (method, le))",
        "interval": "",
        "legendFormat": ".9-{{method}}",
        "refId": "B"
       },
       {
-       "expr": "histogram_quantile(.5, sum(rate(cortex_memcache_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (method, le))",
+       "expr": "histogram_quantile(.5, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (method, le))",
        "interval": "",
        "legendFormat": ".5-{{method}}",
        "refId": "C"

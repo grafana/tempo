@@ -158,14 +158,14 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	if o.IngestionRateStrategy() == overrides.GlobalIngestionRateStrategy {
 		lifecyclerCfg := cfg.DistributorRing.ToLifecyclerConfig()
-		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, nil, "distributor", cfg.OverrideRingKey, false, logger, prometheus.WrapRegistererWithPrefix("tempo+", reg))
+		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, nil, "distributor", cfg.OverrideRingKey, false, logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
 		if err != nil {
 			return nil, err
 		}
 		subservices = append(subservices, lifecycler)
 		ingestionRateStrategy = newGlobalIngestionRateStrategy(o, lifecycler)
 
-		ring, err := ring.New(lifecyclerCfg.RingConfig, "distributor", cfg.OverrideRingKey, logger, prometheus.WrapRegistererWithPrefix("tempo+", reg))
+		ring, err := ring.New(lifecyclerCfg.RingConfig, "distributor", cfg.OverrideRingKey, logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize distributor ring")
 		}
