@@ -345,10 +345,11 @@ func (s Static) asAnyValue() *common_v1.AnyValue {
 // This regular expression matches a string that contains three groups separated by operators.
 // The first group is a string of alphabetical characters, dots, and underscores.
 // The second group is a comparison operator, which can be one of several possibilities, including =, >, <, and !=.
-// The third group is either a string of alphabetical characters or a number.
+// The third group is one of several possible values: a string enclosed in double quotes,
+// a number with an optional time unit (such as "ns", "ms", "s", "m", or "h"),
+// a plain number, or the boolean values "true" or "false".
 // Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
-// TODO: Support booleans (true|false) and durations
-var re = regexp.MustCompile(`([a-zA-Z._]+)\s*(=|=>|=<|=~|!=|>|<|!~)\s*("([a-zA-Z._]+)"|([0-9]+))`)
+var re = regexp.MustCompile(`[a-zA-Z._]+\s*[=|=>|=<|=~|!=|>|<|!~]\s*(?:"[a-zA-Z._]+"|[0-9]+(?:ns|ms|s|m|h)|[0-9]+|true|false)`)
 
 // extractMatchers extracts matchers from a query string and returns a string that can be parsed by the storage layer.
 func extractMatchers(query string) string {

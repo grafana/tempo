@@ -416,6 +416,16 @@ func TestSanitizeQuery(t *testing.T) {
 			query:    "{ 2 = .b ",
 			expected: "{}",
 		},
+		{
+			name:     "long query",
+			query:    `{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET" && .cluster = }`,
+			expected: `{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET"}`,
+		},
+		{
+			name:     "query with duration a boolean",
+			query:    `{ duration > 5s && .success = true && .cluster = }`,
+			expected: `{duration > 5s && .success = true}`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
