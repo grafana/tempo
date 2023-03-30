@@ -2,7 +2,9 @@
 title: Set up a Tempo server or cluster
 menuTitle: Set up a Tempo server or cluster
 description: Learn how to set up a Tempo server or cluster and visualize data
-weight: 150
+aliases:
+- /docs/tempo/setup
+weight: 300
 ---
 
 # Set up a Tempo server or cluster

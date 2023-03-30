@@ -10,7 +10,7 @@ aliases:
 
 Grafana Tempo is an open source, easy-to-use, and high-volume distributed tracing backend. Tempo is cost-efficient, and only requires an object storage to operate. Tempo is deeply integrated with Grafana, Mimir, Prometheus, and Loki. You can use Tempo with open-source tracing protocols, including Jaeger, Zipkin, or OpenTelemetry.
 
-Tempo integrates well with a number of existing open source tools: 
+Tempo integrates well with a number of existing open source tools:
 
 - **Grafana** ships with native support for Tempo using the built-in [Tempo data source](https://grafana.com/docs/grafana/latest/datasources/tempo/).
 - **Grafana Loki**, with its powerful query language [LogQL v2](https://grafana.com/blog/2020/10/28/loki-2.0-released-transform-logs-as-youre-querying-them-and-set-up-alerts-within-loki/) allows you to filter requests that you care about, and jump to traces using the [Derived fields support in Grafana](https://grafana.com/docs/grafana/latest/datasources/loki/#derived-fields).
@@ -18,7 +18,7 @@ Tempo integrates well with a number of existing open source tools:
 
 <p align="center"><img src="getting-started/assets/trace_custom_metrics_dash.png" alt="Trace visualization in Grafana "></p>
 
-Grafana Tempo builds an index from the high-cardinality trace-id field. Because Tempo uses an object store as a backend, Tempo can query many blocks simultaneously, so queries are highly parallelized. 
+Grafana Tempo builds an index from the high-cardinality trace-id field. Because Tempo uses an object store as a backend, Tempo can query many blocks simultaneously, so queries are highly parallelized.
 For more information, see [Architecture](https://grafana.com/docs/tempo/latest/operations/architecture/).
 
 ## Learn more about Tempo

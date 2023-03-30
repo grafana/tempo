@@ -1,6 +1,6 @@
 ---
 title: Configuration
-weight: 200
+weight: 400
 alias:
 - /docs/tempo/latest/configuration/
 ---
