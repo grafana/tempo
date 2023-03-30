@@ -9,7 +9,18 @@
  "graphTooltip": 0,
  "hideControls": false,
  "links": [
-
+  {
+   "asDropdown": true,
+   "icon": "external link",
+   "includeVars": true,
+   "keepTime": true,
+   "tags": [
+    "tempo"
+   ],
+   "targetBlank": false,
+   "title": "Tempo Dashboards",
+   "type": "dashboards"
+  }
  ],
  "refresh": "10s",
  "rows": [
@@ -1029,7 +1040,7 @@
  "schemaVersion": 14,
  "style": "dark",
  "tags": [
-
+  "tempo"
  ],
  "templating": {
   "list": [
@@ -1052,14 +1063,15 @@
    {
     "allValue": null,
     "current": {
-     "text": "prod",
-     "value": "prod"
+     "selected": true,
+     "text": "All",
+     "value": "$__all"
     },
     "datasource": "$datasource",
     "hide": 0,
-    "includeAll": false,
+    "includeAll": true,
     "label": "cluster",
-    "multi": false,
+    "multi": true,
     "name": "cluster",
     "options": [
 
@@ -1079,14 +1091,15 @@
    {
     "allValue": null,
     "current": {
-     "text": "prod",
-     "value": "prod"
+     "selected": true,
+     "text": "All",
+     "value": "$__all"
     },
     "datasource": "$datasource",
     "hide": 0,
-    "includeAll": false,
+    "includeAll": true,
     "label": "namespace",
-    "multi": false,
+    "multi": true,
     "name": "namespace",
     "options": [
 
