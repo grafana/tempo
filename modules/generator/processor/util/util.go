@@ -50,9 +50,25 @@ func GetJobValue(attributes []*v1_common.KeyValue) string {
 	svName, _ := FindServiceName(attributes)
 	namespace, _ := FindServiceNamespace(attributes)
 
-	if namespace != "" && svName != "" {
+	// if service name is not present, consider job value empty
+	if svName == "" {
+		return ""
+	} else if namespace != "" {
 		namespace += "/"
 	}
 
 	return namespace + svName
+}
+
+func GetTargetInfoAttributes(attributes []*v1_common.KeyValue) []string {
+	keys := make([]string, 0)
+	for _, attrs := range attributes {
+		// ignoring job and instance
+		key := attrs.Key
+		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" {
+			keys = append(keys, key)
+		}
+	}
+
+	return keys
 }

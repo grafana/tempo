@@ -66,6 +66,10 @@ func newCounter(name string, labels []string, onAddSeries func(uint32) bool, onR
 	}
 }
 
+func (c *counter) UpdateLabels(labels []string) {
+	c.labels = labels
+}
+
 func (c *counter) Inc(labelValues *LabelValues, value float64) {
 	if value < 0 {
 		panic("counter can only increase")

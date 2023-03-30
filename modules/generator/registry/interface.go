@@ -11,6 +11,7 @@ type Registry interface {
 // https://prometheus.io/docs/concepts/metric_types/#counter
 type Counter interface {
 	Inc(values *LabelValues, value float64)
+	UpdateLabels(labels []string)
 }
 
 // Histogram
@@ -18,6 +19,7 @@ type Counter interface {
 type Histogram interface {
 	// ObserveWithExemplar observes a datapoint with the given values. traceID will be added as exemplar.
 	ObserveWithExemplar(values *LabelValues, value float64, traceID string, multiplier float64)
+	UpdateLabels(labels []string)
 }
 
 // LabelValues is a wrapper around a slice of label values. It has the ability to cache the hash of

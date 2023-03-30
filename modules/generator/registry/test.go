@@ -78,7 +78,7 @@ type testCounter struct {
 
 var _ Counter = (*testCounter)(nil)
 
-func (t testCounter) Inc(values *LabelValues, value float64) {
+func (t *testCounter) Inc(values *LabelValues, value float64) {
 	if value < 0 {
 		panic("counter can only increase")
 	}
@@ -92,6 +92,10 @@ func (t testCounter) Inc(values *LabelValues, value float64) {
 	t.registry.addToMetric(t.name, lbls, value)
 }
 
+func (t *testCounter) UpdateLabels(labels []string) {
+	t.labels = labels
+}
+
 type testHistogram struct {
 	nameSum    string
 	nameCount  string
@@ -103,7 +107,7 @@ type testHistogram struct {
 
 var _ Histogram = (*testHistogram)(nil)
 
-func (t testHistogram) ObserveWithExemplar(values *LabelValues, value float64, traceID string, multiplier float64) {
+func (t *testHistogram) ObserveWithExemplar(values *LabelValues, value float64, traceID string, multiplier float64) {
 	lbls := make(labels.Labels, len(t.labels))
 	for i, label := range t.labels {
 		lbls[i] = labels.Label{Name: label, Value: values.values[i]}
@@ -119,6 +123,10 @@ func (t testHistogram) ObserveWithExemplar(values *LabelValues, value float64, t
 		}
 	}
 	t.registry.addToMetric(t.nameBucket, withLe(lbls, math.Inf(1)), 1*multiplier)
+}
+
+func (t *testHistogram) UpdateLabels(labels []string) {
+	t.labels = labels
 }
 
 func withLe(lbls labels.Labels, le float64) labels.Labels {
