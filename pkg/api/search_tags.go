@@ -10,7 +10,11 @@ import (
 	"github.com/pkg/errors"
 )
 
-const muxVarTagName = "tagName"
+const (
+	muxVarTagName = "tagName"
+
+	ParamScopeIntrinsic = "intrinsic"
+)
 
 // ParseSearchTagValuesRequest handles parsing of requests from /api/search/tags/{tagName}/values and /api/v2/search/tags/{tagName}/values
 func ParseSearchTagValuesRequest(r *http.Request) (*tempopb.SearchTagValuesRequest, error) {
@@ -50,7 +54,7 @@ func ParseSearchTagsRequest(r *http.Request) (*tempopb.SearchTagsRequest, error)
 	scope, _ := extractQueryParam(r, urlParamScope)
 
 	attScope := traceql.AttributeScopeFromString(scope)
-	if attScope == traceql.AttributeScopeUnknown && scope != "intrinsic" { // jpe keep const somewhere
+	if attScope == traceql.AttributeScopeUnknown && scope != ParamScopeIntrinsic {
 		return nil, fmt.Errorf("invalid scope: %s", scope)
 	}
 

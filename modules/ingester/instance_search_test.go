@@ -203,19 +203,41 @@ func TestInstanceSearchTags(t *testing.T) {
 	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
 }
 
-// jpe extend tests to include scope
-
 // nolint:revive,unparam
 func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tagName string, expectedTagValues []string) {
 	sr, err := i.SearchTags(ctx, "")
 	require.NoError(t, err)
+	assert.Contains(t, sr.TagNames, tagName)
+
+	sr, err = i.SearchTags(ctx, "span")
+	require.NoError(t, err)
+	assert.Contains(t, sr.TagNames, tagName)
+
+	sr, err = i.SearchTags(ctx, "resource")
+	require.NoError(t, err)
+	assert.NotContains(t, sr.TagNames, tagName) // tags are added to h the spans and not resources so they should not be returned
+
 	srv, err := i.SearchTagValues(ctx, tagName)
 	require.NoError(t, err)
 
-	sort.Strings(srv.TagValues)
 	sort.Strings(expectedTagValues)
-	assert.Contains(t, sr.TagNames, tagName)
+	sort.Strings(srv.TagValues)
 	assert.Equal(t, expectedTagValues, srv.TagValues)
+}
+
+// TestInstanceSearchTagsSpecialCases tess that SearchTags errors on an unknown scope and
+// returns known instrinics for the "intrinsic" scope
+func TestInstanceSearchTagsSpecialCases(t *testing.T) {
+	i, _ := defaultInstance(t)
+	userCtx := user.InjectOrgID(context.Background(), "fake")
+
+	resp, err := i.SearchTags(userCtx, "foo")
+	require.Error(t, err)
+	require.Nil(t, resp)
+
+	resp, err = i.SearchTags(userCtx, "intrinsic")
+	require.NoError(t, err)
+	require.Equal(t, []string{"duration", "kind", "name", "status"}, resp.TagNames)
 }
 
 // TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns

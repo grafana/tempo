@@ -51,6 +51,15 @@ func GetVirtualTagValuesV2(tagName string) []tempopb.TagValue {
 	return nil
 }
 
+func GetVirtualIntrinsicValues() []string {
+	return []string{
+		traceql.IntrinsicDuration.String(),
+		traceql.IntrinsicKind.String(),
+		traceql.IntrinsicName.String(),
+		traceql.IntrinsicStatus.String(),
+	}
+}
+
 // CombineSearchResults overlays the incoming search result with the existing result. This is required
 // for the following reason:  a trace may be present in multiple blocks, or in partial segments
 // in live traces.  The results should reflect elements of all segments.

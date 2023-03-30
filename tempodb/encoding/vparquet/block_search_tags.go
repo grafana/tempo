@@ -56,7 +56,7 @@ func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeSc
 	return searchTags(derivedCtx, scope, cb, pf)
 }
 
-func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCallback, pf *parquet.File) error { // jpe - don't take a string, take a traceql.AttributeScope
+func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCallback, pf *parquet.File) error {
 	standardAttrIdxs := make([]int, 0, 2) // the most we can have is 2, resource and span indexes depending on scope passed
 	specialAttrIdxs := map[int]string{}
 

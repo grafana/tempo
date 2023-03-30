@@ -208,11 +208,15 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 		return nil, err
 	}
 
-	// jpe - quick turn around for intrinsics?
-	attributeScope := traceql.AttributeScopeFromString(scope)
-	if attributeScope == traceql.AttributeScopeUnknown && scope == "intrinsic" {
-		// jpe quick turn around on intrinsics here
+	// check if it's the special intrinsic scope
+	if scope == api.ParamScopeIntrinsic {
+		return &tempopb.SearchTagsResponse{
+			TagNames: search.GetVirtualIntrinsicValues(),
+		}, nil
 	}
+
+	// parse for normal scopes
+	attributeScope := traceql.AttributeScopeFromString(scope)
 	if attributeScope == traceql.AttributeScopeUnknown {
 		return nil, fmt.Errorf("unknown scope: %s", scope)
 	}
