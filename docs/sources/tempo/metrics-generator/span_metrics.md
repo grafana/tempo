@@ -97,9 +97,9 @@ In some cases, you may want to reduce the number of metrics produced by the `spa
 
 Currently, only filtering by resource and span attributes with the following value types is supported.
 
-- string
-- int
-- double
+- `string`
+- `int`
+- `double`
 
 Additionally, these intrinsic span attributes may be filtered upon:
 
