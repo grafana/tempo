@@ -103,9 +103,9 @@ Currently, only filtering by resource and span attributes with the following val
 
 Additionally, the following intrinsic span attributes may be filtered upon.
 
-- name
-- status (code)
-- kind
+- `name`
+- `status` (code)
+- `kind`
 
 Intrinsic keys can be acted on directly when implementing a filter policy. For example: 
 
