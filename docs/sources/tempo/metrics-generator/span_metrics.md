@@ -101,7 +101,7 @@ Currently, only filtering by resource and span attributes with the following val
 - int
 - double
 
-Additionally, the following intrinsic span attributes may be filtered upon.
+Additionally, these intrinsic span attributes may be filtered upon:
 
 - `name`
 - `status` (code)
