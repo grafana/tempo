@@ -280,8 +280,7 @@ func removeLabel(labelName string, labels []string) []string {
 
 	if found {
 		return append(labels[:index], labels[index+1:]...)
-	} else {
-		return labels
 	}
 
+	return labels
 }
