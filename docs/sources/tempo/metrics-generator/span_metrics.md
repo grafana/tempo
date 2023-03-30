@@ -107,7 +107,7 @@ Additionally, the following intrinsic span attributes may be filtered upon.
 - status (code)
 - kind
 
-When implementing a filter policy, intrinsic keys to act on may be used directly, as in the following snippet.
+Intrinsic keys can be acted on directly when implementing a filter policy. For example: 
 
 ```yaml
 ---
