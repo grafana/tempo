@@ -81,9 +81,10 @@ func (r *Retrier) DoWithRetries(ctx context.Context, fn func(context.Context) er
 
 		backoffDelayStr := backoffDelay.String()
 		r.logger.Info(
-			"Request failed. Will retry the request after interval.",
+			"Request failed with retriable errors. Will retry the request after interval.",
 			zap.Error(err),
 			zap.String("interval", backoffDelayStr),
+			zap.Int64("retry attempts", retryNum),
 		)
 		retryNum++
 

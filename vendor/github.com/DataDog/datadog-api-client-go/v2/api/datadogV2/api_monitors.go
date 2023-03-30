@@ -16,40 +16,16 @@ import (
 // MonitorsApi service type
 type MonitorsApi datadog.Service
 
-type apiCreateMonitorConfigPolicyRequest struct {
-	ctx  _context.Context
-	body *MonitorConfigPolicyCreateRequest
-}
-
-func (a *MonitorsApi) buildCreateMonitorConfigPolicyRequest(ctx _context.Context, body MonitorConfigPolicyCreateRequest) (apiCreateMonitorConfigPolicyRequest, error) {
-	req := apiCreateMonitorConfigPolicyRequest{
-		ctx:  ctx,
-		body: &body,
-	}
-	return req, nil
-}
-
 // CreateMonitorConfigPolicy Create a monitor configuration policy.
 // Create a monitor configuration policy.
 func (a *MonitorsApi) CreateMonitorConfigPolicy(ctx _context.Context, body MonitorConfigPolicyCreateRequest) (MonitorConfigPolicyResponse, *_nethttp.Response, error) {
-	req, err := a.buildCreateMonitorConfigPolicyRequest(ctx, body)
-	if err != nil {
-		var localVarReturnValue MonitorConfigPolicyResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.createMonitorConfigPolicyExecute(req)
-}
-
-// createMonitorConfigPolicyExecute executes the request.
-func (a *MonitorsApi) createMonitorConfigPolicyExecute(r apiCreateMonitorConfigPolicyRequest) (MonitorConfigPolicyResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue MonitorConfigPolicyResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.MonitorsApi.CreateMonitorConfigPolicy")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.MonitorsApi.CreateMonitorConfigPolicy")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -59,21 +35,18 @@ func (a *MonitorsApi) createMonitorConfigPolicyExecute(r apiCreateMonitorConfigP
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -116,44 +89,21 @@ func (a *MonitorsApi) createMonitorConfigPolicyExecute(r apiCreateMonitorConfigP
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiDeleteMonitorConfigPolicyRequest struct {
-	ctx      _context.Context
-	policyId string
-}
-
-func (a *MonitorsApi) buildDeleteMonitorConfigPolicyRequest(ctx _context.Context, policyId string) (apiDeleteMonitorConfigPolicyRequest, error) {
-	req := apiDeleteMonitorConfigPolicyRequest{
-		ctx:      ctx,
-		policyId: policyId,
-	}
-	return req, nil
-}
-
 // DeleteMonitorConfigPolicy Delete a monitor configuration policy.
 // Delete a monitor configuration policy.
 func (a *MonitorsApi) DeleteMonitorConfigPolicy(ctx _context.Context, policyId string) (*_nethttp.Response, error) {
-	req, err := a.buildDeleteMonitorConfigPolicyRequest(ctx, policyId)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.deleteMonitorConfigPolicyExecute(req)
-}
-
-// deleteMonitorConfigPolicyExecute executes the request.
-func (a *MonitorsApi) deleteMonitorConfigPolicyExecute(r apiDeleteMonitorConfigPolicyRequest) (*_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod = _nethttp.MethodDelete
 		localVarPostBody   interface{}
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.MonitorsApi.DeleteMonitorConfigPolicy")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.MonitorsApi.DeleteMonitorConfigPolicy")
 	if err != nil {
 		return nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/monitor/policy/{policy_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"policy_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.policyId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"policy_id"+"}", _neturl.PathEscape(datadog.ParameterToString(policyId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -161,12 +111,12 @@ func (a *MonitorsApi) deleteMonitorConfigPolicyExecute(r apiDeleteMonitorConfigP
 	localVarHeaderParams["Accept"] = "*/*"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -200,46 +150,22 @@ func (a *MonitorsApi) deleteMonitorConfigPolicyExecute(r apiDeleteMonitorConfigP
 	return localVarHTTPResponse, nil
 }
 
-type apiGetMonitorConfigPolicyRequest struct {
-	ctx      _context.Context
-	policyId string
-}
-
-func (a *MonitorsApi) buildGetMonitorConfigPolicyRequest(ctx _context.Context, policyId string) (apiGetMonitorConfigPolicyRequest, error) {
-	req := apiGetMonitorConfigPolicyRequest{
-		ctx:      ctx,
-		policyId: policyId,
-	}
-	return req, nil
-}
-
 // GetMonitorConfigPolicy Get a monitor configuration policy.
 // Get a monitor configuration policy by `policy_id`.
 func (a *MonitorsApi) GetMonitorConfigPolicy(ctx _context.Context, policyId string) (MonitorConfigPolicyResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetMonitorConfigPolicyRequest(ctx, policyId)
-	if err != nil {
-		var localVarReturnValue MonitorConfigPolicyResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getMonitorConfigPolicyExecute(req)
-}
-
-// getMonitorConfigPolicyExecute executes the request.
-func (a *MonitorsApi) getMonitorConfigPolicyExecute(r apiGetMonitorConfigPolicyRequest) (MonitorConfigPolicyResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue MonitorConfigPolicyResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.MonitorsApi.GetMonitorConfigPolicy")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.MonitorsApi.GetMonitorConfigPolicy")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/monitor/policy/{policy_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"policy_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.policyId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"policy_id"+"}", _neturl.PathEscape(datadog.ParameterToString(policyId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -247,12 +173,12 @@ func (a *MonitorsApi) getMonitorConfigPolicyExecute(r apiGetMonitorConfigPolicyR
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -295,38 +221,16 @@ func (a *MonitorsApi) getMonitorConfigPolicyExecute(r apiGetMonitorConfigPolicyR
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiListMonitorConfigPoliciesRequest struct {
-	ctx _context.Context
-}
-
-func (a *MonitorsApi) buildListMonitorConfigPoliciesRequest(ctx _context.Context) (apiListMonitorConfigPoliciesRequest, error) {
-	req := apiListMonitorConfigPoliciesRequest{
-		ctx: ctx,
-	}
-	return req, nil
-}
-
 // ListMonitorConfigPolicies Get all monitor configuration policies.
 // Get all monitor configuration policies.
 func (a *MonitorsApi) ListMonitorConfigPolicies(ctx _context.Context) (MonitorConfigPolicyListResponse, *_nethttp.Response, error) {
-	req, err := a.buildListMonitorConfigPoliciesRequest(ctx)
-	if err != nil {
-		var localVarReturnValue MonitorConfigPolicyListResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.listMonitorConfigPoliciesExecute(req)
-}
-
-// listMonitorConfigPoliciesExecute executes the request.
-func (a *MonitorsApi) listMonitorConfigPoliciesExecute(r apiListMonitorConfigPoliciesRequest) (MonitorConfigPolicyListResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue MonitorConfigPolicyListResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.MonitorsApi.ListMonitorConfigPolicies")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.MonitorsApi.ListMonitorConfigPolicies")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -339,12 +243,12 @@ func (a *MonitorsApi) listMonitorConfigPoliciesExecute(r apiListMonitorConfigPol
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -387,67 +291,38 @@ func (a *MonitorsApi) listMonitorConfigPoliciesExecute(r apiListMonitorConfigPol
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiUpdateMonitorConfigPolicyRequest struct {
-	ctx      _context.Context
-	policyId string
-	body     *MonitorConfigPolicyEditRequest
-}
-
-func (a *MonitorsApi) buildUpdateMonitorConfigPolicyRequest(ctx _context.Context, policyId string, body MonitorConfigPolicyEditRequest) (apiUpdateMonitorConfigPolicyRequest, error) {
-	req := apiUpdateMonitorConfigPolicyRequest{
-		ctx:      ctx,
-		policyId: policyId,
-		body:     &body,
-	}
-	return req, nil
-}
-
 // UpdateMonitorConfigPolicy Edit a monitor configuration policy.
 // Edit a monitor configuration policy.
 func (a *MonitorsApi) UpdateMonitorConfigPolicy(ctx _context.Context, policyId string, body MonitorConfigPolicyEditRequest) (MonitorConfigPolicyResponse, *_nethttp.Response, error) {
-	req, err := a.buildUpdateMonitorConfigPolicyRequest(ctx, policyId, body)
-	if err != nil {
-		var localVarReturnValue MonitorConfigPolicyResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.updateMonitorConfigPolicyExecute(req)
-}
-
-// updateMonitorConfigPolicyExecute executes the request.
-func (a *MonitorsApi) updateMonitorConfigPolicyExecute(r apiUpdateMonitorConfigPolicyRequest) (MonitorConfigPolicyResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPatch
 		localVarPostBody    interface{}
 		localVarReturnValue MonitorConfigPolicyResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.MonitorsApi.UpdateMonitorConfigPolicy")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.MonitorsApi.UpdateMonitorConfigPolicy")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/monitor/policy/{policy_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"policy_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.policyId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"policy_id"+"}", _neturl.PathEscape(datadog.ParameterToString(policyId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}

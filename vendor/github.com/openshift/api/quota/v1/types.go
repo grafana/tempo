@@ -12,7 +12,8 @@ import (
 // ClusterResourceQuota mirrors ResourceQuota at a cluster scope.  This object is easily convertible to
 // synthetic ResourceQuota object to allow quota evaluation re-use.
 type ClusterResourceQuota struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+	// Standard object's metadata.
 	metav1.ObjectMeta `json:"metadata" protobuf:"bytes,1,opt,name=metadata"`
 
 	// Spec defines the desired quota
@@ -39,13 +40,9 @@ type ClusterResourceQuotaSpec struct {
 // the project must match both restrictions.
 type ClusterResourceQuotaSelector struct {
 	// LabelSelector is used to select projects by label.
-	// +optional
-	// +nullable
 	LabelSelector *metav1.LabelSelector `json:"labels" protobuf:"bytes,1,opt,name=labels"`
 
 	// AnnotationSelector is used to select projects by annotation.
-	// +optional
-	// +nullable
 	AnnotationSelector map[string]string `json:"annotations" protobuf:"bytes,2,rep,name=annotations"`
 }
 
@@ -57,8 +54,6 @@ type ClusterResourceQuotaStatus struct {
 	// Namespaces slices the usage by project.  This division allows for quick resolution of
 	// deletion reconciliation inside of a single project without requiring a recalculation
 	// across all projects.  This can be used to pull the deltas for a given project.
-	// +optional
-	// +nullable
 	Namespaces ResourceQuotasStatusByNamespace `json:"namespaces" protobuf:"bytes,2,rep,name=namespaces"`
 }
 
@@ -67,6 +62,7 @@ type ClusterResourceQuotaStatus struct {
 // ClusterResourceQuotaList is a collection of ClusterResourceQuotas
 type ClusterResourceQuotaList struct {
 	metav1.TypeMeta `json:",inline"`
+	// Standard object's metadata.
 	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
 	// Items is a list of ClusterResourceQuotas
@@ -93,7 +89,8 @@ type ResourceQuotaStatusByNamespace struct {
 // into a project.  It allows a project-admin to know which ClusterResourceQuotas are applied to
 // his project and their associated usage.
 type AppliedClusterResourceQuota struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+	// Standard object's metadata.
 	metav1.ObjectMeta `json:"metadata" protobuf:"bytes,1,opt,name=metadata"`
 
 	// Spec defines the desired quota
@@ -108,6 +105,7 @@ type AppliedClusterResourceQuota struct {
 // AppliedClusterResourceQuotaList is a collection of AppliedClusterResourceQuotas
 type AppliedClusterResourceQuotaList struct {
 	metav1.TypeMeta `json:",inline"`
+	// Standard object's metadata.
 	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
 	// Items is a list of AppliedClusterResourceQuota

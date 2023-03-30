@@ -17,40 +17,16 @@ import (
 // RUMApi service type
 type RUMApi datadog.Service
 
-type apiAggregateRUMEventsRequest struct {
-	ctx  _context.Context
-	body *RUMAggregateRequest
-}
-
-func (a *RUMApi) buildAggregateRUMEventsRequest(ctx _context.Context, body RUMAggregateRequest) (apiAggregateRUMEventsRequest, error) {
-	req := apiAggregateRUMEventsRequest{
-		ctx:  ctx,
-		body: &body,
-	}
-	return req, nil
-}
-
 // AggregateRUMEvents Aggregate RUM events.
 // The API endpoint to aggregate RUM events into buckets of computed metrics and timeseries.
 func (a *RUMApi) AggregateRUMEvents(ctx _context.Context, body RUMAggregateRequest) (RUMAnalyticsAggregateResponse, *_nethttp.Response, error) {
-	req, err := a.buildAggregateRUMEventsRequest(ctx, body)
-	if err != nil {
-		var localVarReturnValue RUMAnalyticsAggregateResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.aggregateRUMEventsExecute(req)
-}
-
-// aggregateRUMEventsExecute executes the request.
-func (a *RUMApi) aggregateRUMEventsExecute(r apiAggregateRUMEventsRequest) (RUMAnalyticsAggregateResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue RUMAnalyticsAggregateResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.RUMApi.AggregateRUMEvents")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.RUMApi.AggregateRUMEvents")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -60,21 +36,18 @@ func (a *RUMApi) aggregateRUMEventsExecute(r apiAggregateRUMEventsRequest) (RUMA
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -117,40 +90,16 @@ func (a *RUMApi) aggregateRUMEventsExecute(r apiAggregateRUMEventsRequest) (RUMA
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiCreateRUMApplicationRequest struct {
-	ctx  _context.Context
-	body *RUMApplicationCreateRequest
-}
-
-func (a *RUMApi) buildCreateRUMApplicationRequest(ctx _context.Context, body RUMApplicationCreateRequest) (apiCreateRUMApplicationRequest, error) {
-	req := apiCreateRUMApplicationRequest{
-		ctx:  ctx,
-		body: &body,
-	}
-	return req, nil
-}
-
 // CreateRUMApplication Create a new RUM application.
 // Create a new RUM application in your organization.
 func (a *RUMApi) CreateRUMApplication(ctx _context.Context, body RUMApplicationCreateRequest) (RUMApplicationResponse, *_nethttp.Response, error) {
-	req, err := a.buildCreateRUMApplicationRequest(ctx, body)
-	if err != nil {
-		var localVarReturnValue RUMApplicationResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.createRUMApplicationExecute(req)
-}
-
-// createRUMApplicationExecute executes the request.
-func (a *RUMApi) createRUMApplicationExecute(r apiCreateRUMApplicationRequest) (RUMApplicationResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue RUMApplicationResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.RUMApi.CreateRUMApplication")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.RUMApi.CreateRUMApplication")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -160,21 +109,18 @@ func (a *RUMApi) createRUMApplicationExecute(r apiCreateRUMApplicationRequest) (
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -217,44 +163,21 @@ func (a *RUMApi) createRUMApplicationExecute(r apiCreateRUMApplicationRequest) (
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiDeleteRUMApplicationRequest struct {
-	ctx _context.Context
-	id  string
-}
-
-func (a *RUMApi) buildDeleteRUMApplicationRequest(ctx _context.Context, id string) (apiDeleteRUMApplicationRequest, error) {
-	req := apiDeleteRUMApplicationRequest{
-		ctx: ctx,
-		id:  id,
-	}
-	return req, nil
-}
-
 // DeleteRUMApplication Delete a RUM application.
 // Delete an existing RUM application in your organization.
 func (a *RUMApi) DeleteRUMApplication(ctx _context.Context, id string) (*_nethttp.Response, error) {
-	req, err := a.buildDeleteRUMApplicationRequest(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.deleteRUMApplicationExecute(req)
-}
-
-// deleteRUMApplicationExecute executes the request.
-func (a *RUMApi) deleteRUMApplicationExecute(r apiDeleteRUMApplicationRequest) (*_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod = _nethttp.MethodDelete
 		localVarPostBody   interface{}
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.RUMApi.DeleteRUMApplication")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.RUMApi.DeleteRUMApplication")
 	if err != nil {
 		return nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/rum/applications/{id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.id, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", _neturl.PathEscape(datadog.ParameterToString(id, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -262,12 +185,12 @@ func (a *RUMApi) deleteRUMApplicationExecute(r apiDeleteRUMApplicationRequest) (
 	localVarHeaderParams["Accept"] = "*/*"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -301,46 +224,22 @@ func (a *RUMApi) deleteRUMApplicationExecute(r apiDeleteRUMApplicationRequest) (
 	return localVarHTTPResponse, nil
 }
 
-type apiGetRUMApplicationRequest struct {
-	ctx _context.Context
-	id  string
-}
-
-func (a *RUMApi) buildGetRUMApplicationRequest(ctx _context.Context, id string) (apiGetRUMApplicationRequest, error) {
-	req := apiGetRUMApplicationRequest{
-		ctx: ctx,
-		id:  id,
-	}
-	return req, nil
-}
-
 // GetRUMApplication Get a RUM application.
 // Get the RUM application with given ID in your organization.
 func (a *RUMApi) GetRUMApplication(ctx _context.Context, id string) (RUMApplicationResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetRUMApplicationRequest(ctx, id)
-	if err != nil {
-		var localVarReturnValue RUMApplicationResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getRUMApplicationExecute(req)
-}
-
-// getRUMApplicationExecute executes the request.
-func (a *RUMApi) getRUMApplicationExecute(r apiGetRUMApplicationRequest) (RUMApplicationResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue RUMApplicationResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.RUMApi.GetRUMApplication")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.RUMApi.GetRUMApplication")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/rum/applications/{id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.id, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", _neturl.PathEscape(datadog.ParameterToString(id, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -348,12 +247,12 @@ func (a *RUMApi) getRUMApplicationExecute(r apiGetRUMApplicationRequest) (RUMApp
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -396,38 +295,16 @@ func (a *RUMApi) getRUMApplicationExecute(r apiGetRUMApplicationRequest) (RUMApp
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiGetRUMApplicationsRequest struct {
-	ctx _context.Context
-}
-
-func (a *RUMApi) buildGetRUMApplicationsRequest(ctx _context.Context) (apiGetRUMApplicationsRequest, error) {
-	req := apiGetRUMApplicationsRequest{
-		ctx: ctx,
-	}
-	return req, nil
-}
-
 // GetRUMApplications List all the RUM applications.
 // List all the RUM applications in your organization.
 func (a *RUMApi) GetRUMApplications(ctx _context.Context) (RUMApplicationsResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetRUMApplicationsRequest(ctx)
-	if err != nil {
-		var localVarReturnValue RUMApplicationsResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getRUMApplicationsExecute(req)
-}
-
-// getRUMApplicationsExecute executes the request.
-func (a *RUMApi) getRUMApplicationsExecute(r apiGetRUMApplicationsRequest) (RUMApplicationsResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue RUMApplicationsResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.RUMApi.GetRUMApplications")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.RUMApi.GetRUMApplications")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -440,12 +317,12 @@ func (a *RUMApi) getRUMApplicationsExecute(r apiGetRUMApplicationsRequest) (RUMA
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -486,16 +363,6 @@ func (a *RUMApi) getRUMApplicationsExecute(r apiGetRUMApplicationsRequest) (RUMA
 	}
 
 	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiListRUMEventsRequest struct {
-	ctx         _context.Context
-	filterQuery *string
-	filterFrom  *time.Time
-	filterTo    *time.Time
-	sort        *RUMSort
-	pageCursor  *string
-	pageLimit   *int32
 }
 
 // ListRUMEventsOptionalParameters holds optional parameters for ListRUMEvents.
@@ -550,26 +417,6 @@ func (r *ListRUMEventsOptionalParameters) WithPageLimit(pageLimit int32) *ListRU
 	return r
 }
 
-func (a *RUMApi) buildListRUMEventsRequest(ctx _context.Context, o ...ListRUMEventsOptionalParameters) (apiListRUMEventsRequest, error) {
-	req := apiListRUMEventsRequest{
-		ctx: ctx,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type ListRUMEventsOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.filterQuery = o[0].FilterQuery
-		req.filterFrom = o[0].FilterFrom
-		req.filterTo = o[0].FilterTo
-		req.sort = o[0].Sort
-		req.pageCursor = o[0].PageCursor
-		req.pageLimit = o[0].PageLimit
-	}
-	return req, nil
-}
-
 // ListRUMEvents Get a list of RUM events.
 // List endpoint returns events that match a RUM search query.
 // [Results are paginated][1].
@@ -578,13 +425,97 @@ func (a *RUMApi) buildListRUMEventsRequest(ctx _context.Context, o ...ListRUMEve
 //
 // [1]: https://docs.datadoghq.com/logs/guide/collect-multiple-logs-with-pagination
 func (a *RUMApi) ListRUMEvents(ctx _context.Context, o ...ListRUMEventsOptionalParameters) (RUMEventsResponse, *_nethttp.Response, error) {
-	req, err := a.buildListRUMEventsRequest(ctx, o...)
+	var (
+		localVarHTTPMethod  = _nethttp.MethodGet
+		localVarPostBody    interface{}
+		localVarReturnValue RUMEventsResponse
+		optionalParams      ListRUMEventsOptionalParameters
+	)
+
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type ListRUMEventsOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.RUMApi.ListRUMEvents")
 	if err != nil {
-		var localVarReturnValue RUMEventsResponse
+		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/api/v2/rum/events"
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := _neturl.Values{}
+	localVarFormParams := _neturl.Values{}
+	if optionalParams.FilterQuery != nil {
+		localVarQueryParams.Add("filter[query]", datadog.ParameterToString(*optionalParams.FilterQuery, ""))
+	}
+	if optionalParams.FilterFrom != nil {
+		localVarQueryParams.Add("filter[from]", datadog.ParameterToString(*optionalParams.FilterFrom, ""))
+	}
+	if optionalParams.FilterTo != nil {
+		localVarQueryParams.Add("filter[to]", datadog.ParameterToString(*optionalParams.FilterTo, ""))
+	}
+	if optionalParams.Sort != nil {
+		localVarQueryParams.Add("sort", datadog.ParameterToString(*optionalParams.Sort, ""))
+	}
+	if optionalParams.PageCursor != nil {
+		localVarQueryParams.Add("page[cursor]", datadog.ParameterToString(*optionalParams.PageCursor, ""))
+	}
+	if optionalParams.PageLimit != nil {
+		localVarQueryParams.Add("page[limit]", datadog.ParameterToString(*optionalParams.PageLimit, ""))
+	}
+	localVarHeaderParams["Accept"] = "application/json"
+
+	datadog.SetAuthKeys(
+		ctx,
+		&localVarHeaderParams,
+		[2]string{"apiKeyAuth", "DD-API-KEY"},
+		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
+	)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	if err != nil {
 		return localVarReturnValue, nil, err
 	}
 
-	return a.listRUMEventsExecute(req)
+	localVarHTTPResponse, err := a.Client.CallAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := datadog.ReadBody(localVarHTTPResponse)
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := datadog.GenericOpenAPIError{
+			ErrorBody:    localVarBody,
+			ErrorMessage: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 || localVarHTTPResponse.StatusCode == 403 || localVarHTTPResponse.StatusCode == 429 {
+			var v APIErrorResponse
+			err = a.Client.Decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.ErrorModel = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.Client.Decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := datadog.GenericOpenAPIError{
+			ErrorBody:    localVarBody,
+			ErrorMessage: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
 // ListRUMEventsWithPagination provides a paginated version of ListRUMEvents returning a channel with all items.
@@ -602,14 +533,7 @@ func (a *RUMApi) ListRUMEventsWithPagination(ctx _context.Context, o ...ListRUME
 	items := make(chan datadog.PaginationResult[RUMEvent], pageSize_)
 	go func() {
 		for {
-			req, err := a.buildListRUMEventsRequest(ctx, o...)
-			if err != nil {
-				var returnItem RUMEvent
-				items <- datadog.PaginationResult[RUMEvent]{returnItem, err}
-				break
-			}
-
-			resp, _, err := a.listRUMEventsExecute(req)
+			resp, _, err := a.ListRUMEvents(ctx, o...)
 			if err != nil {
 				var returnItem RUMEvent
 				items <- datadog.PaginationResult[RUMEvent]{returnItem, err}
@@ -652,51 +576,42 @@ func (a *RUMApi) ListRUMEventsWithPagination(ctx _context.Context, o ...ListRUME
 	return items, cancel
 }
 
-// listRUMEventsExecute executes the request.
-func (a *RUMApi) listRUMEventsExecute(r apiListRUMEventsRequest) (RUMEventsResponse, *_nethttp.Response, error) {
+// SearchRUMEvents Search RUM events.
+// List endpoint returns RUM events that match a RUM search query.
+// [Results are paginated][1].
+//
+// Use this endpoint to build complex RUM events filtering and search.
+//
+// [1]: https://docs.datadoghq.com/logs/guide/collect-multiple-logs-with-pagination
+func (a *RUMApi) SearchRUMEvents(ctx _context.Context, body RUMSearchEventsRequest) (RUMEventsResponse, *_nethttp.Response, error) {
 	var (
-		localVarHTTPMethod  = _nethttp.MethodGet
+		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue RUMEventsResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.RUMApi.ListRUMEvents")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.RUMApi.SearchRUMEvents")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/api/v2/rum/events"
+	localVarPath := localBasePath + "/api/v2/rum/events/search"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.filterQuery != nil {
-		localVarQueryParams.Add("filter[query]", datadog.ParameterToString(*r.filterQuery, ""))
-	}
-	if r.filterFrom != nil {
-		localVarQueryParams.Add("filter[from]", datadog.ParameterToString(*r.filterFrom, ""))
-	}
-	if r.filterTo != nil {
-		localVarQueryParams.Add("filter[to]", datadog.ParameterToString(*r.filterTo, ""))
-	}
-	if r.sort != nil {
-		localVarQueryParams.Add("sort", datadog.ParameterToString(*r.sort, ""))
-	}
-	if r.pageCursor != nil {
-		localVarQueryParams.Add("page[cursor]", datadog.ParameterToString(*r.pageCursor, ""))
-	}
-	if r.pageLimit != nil {
-		localVarQueryParams.Add("page[limit]", datadog.ParameterToString(*r.pageLimit, ""))
-	}
+	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
+	// body params
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -739,36 +654,6 @@ func (a *RUMApi) listRUMEventsExecute(r apiListRUMEventsRequest) (RUMEventsRespo
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiSearchRUMEventsRequest struct {
-	ctx  _context.Context
-	body *RUMSearchEventsRequest
-}
-
-func (a *RUMApi) buildSearchRUMEventsRequest(ctx _context.Context, body RUMSearchEventsRequest) (apiSearchRUMEventsRequest, error) {
-	req := apiSearchRUMEventsRequest{
-		ctx:  ctx,
-		body: &body,
-	}
-	return req, nil
-}
-
-// SearchRUMEvents Search RUM events.
-// List endpoint returns RUM events that match a RUM search query.
-// [Results are paginated][1].
-//
-// Use this endpoint to build complex RUM events filtering and search.
-//
-// [1]: https://docs.datadoghq.com/logs/guide/collect-multiple-logs-with-pagination
-func (a *RUMApi) SearchRUMEvents(ctx _context.Context, body RUMSearchEventsRequest) (RUMEventsResponse, *_nethttp.Response, error) {
-	req, err := a.buildSearchRUMEventsRequest(ctx, body)
-	if err != nil {
-		var localVarReturnValue RUMEventsResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.searchRUMEventsExecute(req)
-}
-
 // SearchRUMEventsWithPagination provides a paginated version of SearchRUMEvents returning a channel with all items.
 func (a *RUMApi) SearchRUMEventsWithPagination(ctx _context.Context, body RUMSearchEventsRequest) (<-chan datadog.PaginationResult[RUMEvent], func()) {
 	ctx, cancel := _context.WithCancel(ctx)
@@ -786,14 +671,7 @@ func (a *RUMApi) SearchRUMEventsWithPagination(ctx _context.Context, body RUMSea
 	items := make(chan datadog.PaginationResult[RUMEvent], pageSize_)
 	go func() {
 		for {
-			req, err := a.buildSearchRUMEventsRequest(ctx, body)
-			if err != nil {
-				var returnItem RUMEvent
-				items <- datadog.PaginationResult[RUMEvent]{returnItem, err}
-				break
-			}
-
-			resp, _, err := a.searchRUMEventsExecute(req)
+			resp, _, err := a.SearchRUMEvents(ctx, body)
 			if err != nil {
 				var returnItem RUMEvent
 				items <- datadog.PaginationResult[RUMEvent]{returnItem, err}
@@ -836,142 +714,38 @@ func (a *RUMApi) SearchRUMEventsWithPagination(ctx _context.Context, body RUMSea
 	return items, cancel
 }
 
-// searchRUMEventsExecute executes the request.
-func (a *RUMApi) searchRUMEventsExecute(r apiSearchRUMEventsRequest) (RUMEventsResponse, *_nethttp.Response, error) {
-	var (
-		localVarHTTPMethod  = _nethttp.MethodPost
-		localVarPostBody    interface{}
-		localVarReturnValue RUMEventsResponse
-	)
-
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.RUMApi.SearchRUMEvents")
-	if err != nil {
-		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
-	}
-
-	localVarPath := localBasePath + "/api/v2/rum/events/search"
-
-	localVarHeaderParams := make(map[string]string)
-	localVarQueryParams := _neturl.Values{}
-	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
-	localVarHeaderParams["Content-Type"] = "application/json"
-	localVarHeaderParams["Accept"] = "application/json"
-
-	// body params
-	localVarPostBody = r.body
-	datadog.SetAuthKeys(
-		r.ctx,
-		&localVarHeaderParams,
-		[2]string{"apiKeyAuth", "DD-API-KEY"},
-		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
-	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
-	if err != nil {
-		return localVarReturnValue, nil, err
-	}
-
-	localVarHTTPResponse, err := a.Client.CallAPI(req)
-	if err != nil || localVarHTTPResponse == nil {
-		return localVarReturnValue, localVarHTTPResponse, err
-	}
-
-	localVarBody, err := datadog.ReadBody(localVarHTTPResponse)
-	if err != nil {
-		return localVarReturnValue, localVarHTTPResponse, err
-	}
-
-	if localVarHTTPResponse.StatusCode >= 300 {
-		newErr := datadog.GenericOpenAPIError{
-			ErrorBody:    localVarBody,
-			ErrorMessage: localVarHTTPResponse.Status,
-		}
-		if localVarHTTPResponse.StatusCode == 400 || localVarHTTPResponse.StatusCode == 403 || localVarHTTPResponse.StatusCode == 429 {
-			var v APIErrorResponse
-			err = a.Client.Decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-			if err != nil {
-				return localVarReturnValue, localVarHTTPResponse, newErr
-			}
-			newErr.ErrorModel = v
-		}
-		return localVarReturnValue, localVarHTTPResponse, newErr
-	}
-
-	err = a.Client.Decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-	if err != nil {
-		newErr := datadog.GenericOpenAPIError{
-			ErrorBody:    localVarBody,
-			ErrorMessage: err.Error(),
-		}
-		return localVarReturnValue, localVarHTTPResponse, newErr
-	}
-
-	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiUpdateRUMApplicationRequest struct {
-	ctx  _context.Context
-	id   string
-	body *RUMApplicationUpdateRequest
-}
-
-func (a *RUMApi) buildUpdateRUMApplicationRequest(ctx _context.Context, id string, body RUMApplicationUpdateRequest) (apiUpdateRUMApplicationRequest, error) {
-	req := apiUpdateRUMApplicationRequest{
-		ctx:  ctx,
-		id:   id,
-		body: &body,
-	}
-	return req, nil
-}
-
 // UpdateRUMApplication Update a RUM application.
 // Update the RUM application with given ID in your organization.
 func (a *RUMApi) UpdateRUMApplication(ctx _context.Context, id string, body RUMApplicationUpdateRequest) (RUMApplicationResponse, *_nethttp.Response, error) {
-	req, err := a.buildUpdateRUMApplicationRequest(ctx, id, body)
-	if err != nil {
-		var localVarReturnValue RUMApplicationResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.updateRUMApplicationExecute(req)
-}
-
-// updateRUMApplicationExecute executes the request.
-func (a *RUMApi) updateRUMApplicationExecute(r apiUpdateRUMApplicationRequest) (RUMApplicationResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPatch
 		localVarPostBody    interface{}
 		localVarReturnValue RUMApplicationResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.RUMApi.UpdateRUMApplication")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.RUMApi.UpdateRUMApplication")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/rum/applications/{id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.id, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", _neturl.PathEscape(datadog.ParameterToString(id, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}

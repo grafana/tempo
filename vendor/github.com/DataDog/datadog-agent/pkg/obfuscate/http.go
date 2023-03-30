@@ -10,12 +10,21 @@ import (
 	"strings"
 )
 
-// ObfuscateURLString obfuscates the given URL. It must be a valid URL and at least one
-// HTTP obfuscation option must be enabled at Obfuscator instantiation time.
+// obfuscateUserInfo returns a URL string that obfuscates any userinfo by setting url.User to nil.
+func obfuscateUserInfo(val string) string {
+	u, err := url.Parse(val)
+	if err != nil {
+		return val
+	}
+	u.User = nil
+	return u.String()
+}
+
+// ObfuscateURLString obfuscates the given URL. It must be a valid URL.
 func (o *Obfuscator) ObfuscateURLString(val string) string {
 	if !o.opts.HTTP.RemoveQueryString && !o.opts.HTTP.RemovePathDigits {
 		// nothing to do
-		return val
+		return obfuscateUserInfo(val)
 	}
 	u, err := url.Parse(val)
 	if err != nil {
@@ -23,6 +32,7 @@ func (o *Obfuscator) ObfuscateURLString(val string) string {
 		// rather than expose sensitive information when this option is on.
 		return "?"
 	}
+	u.User = nil
 	if o.opts.HTTP.RemoveQueryString && u.RawQuery != "" {
 		u.ForceQuery = true // add the '?'
 		u.RawQuery = ""

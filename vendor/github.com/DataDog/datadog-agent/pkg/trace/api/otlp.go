@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"strconv"
@@ -17,8 +18,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -29,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -41,9 +42,12 @@ import (
 // computed for the resource spans.
 const keyStatsComputed = "_dd.stats_computed"
 
+var _ (ptraceotlp.GRPCServer) = (*OTLPReceiver)(nil)
+
 // OTLPReceiver implements an OpenTelemetry Collector receiver which accepts incoming
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
+	ptraceotlp.UnimplementedGRPCServer
 	wg          sync.WaitGroup      // waits for a graceful shutdown
 	grpcsrv     *grpc.Server        // the running GRPC server on a started receiver, if enabled
 	out         chan<- *Payload     // the outgoing payload channel
@@ -133,6 +137,39 @@ func (o *OTLPReceiver) processRequest(ctx context.Context, header http.Header, i
 	}
 }
 
+// knuthFactor represents a large, prime number ideal for Knuth's Multiplicative Hashing.
+// Warning: do not change this number. It is shared with other probabilistic samplers
+// in the agent, the Datadog libraries, and in OpenTelemetry. This ensures consistency
+// in a distributed system.
+const knuthFactor = uint64(1111111111111111111)
+
+// samplingRate returns the rate as defined by the probabilistic sampler.
+func (o *OTLPReceiver) samplingRate() float64 {
+	rate := o.conf.OTLPReceiver.ProbabilisticSampling / 100
+	if rate <= 0 || rate >= 1 {
+		// assume that the user wants to keep the trace since he has sent it from
+		// his SDK and introduced no sampling mechanisms anywhere else.
+		return 1
+	}
+	return rate
+}
+
+// sample returns the sampling priority to apply to a trace with the trace ID tid.
+func (o *OTLPReceiver) sample(tid uint64) sampler.SamplingPriority {
+	rate := o.samplingRate()
+	if rate == 1 {
+		return sampler.PriorityAutoKeep
+	}
+	// the trace ID (tid) is hashed using Knuth's multiplicative hash
+	hash := tid * knuthFactor
+	if hash < uint64(rate*math.MaxUint64) {
+		// if the hash result falls into the rate percentage of the entire distribution
+		// of possibly trace IDs (uint64), we sample it.
+		return sampler.PriorityAutoKeep
+	}
+	return sampler.PriorityAutoDrop
+}
+
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
 	// each rspans is coming from a different resource and should be considered
@@ -178,7 +215,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		Stats: info.NewStats(),
 	}
 	tracesByID := make(map[uint64]pb.Trace)
-	priorityByID := make(map[uint64]float64)
+	priorityByID := make(map[uint64]sampler.SamplingPriority)
 	var spancount int64
 	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
 		libspans := rspans.ScopeSpans().At(i)
@@ -212,7 +249,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 				}
 			}
 			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
-				priorityByID[traceID] = p
+				priorityByID[traceID] = sampler.SamplingPriority(p)
 			}
 			tracesByID[traceID] = append(tracesByID[traceID], ddspan)
 		}
@@ -220,20 +257,9 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	tags := tagstats.AsTags()
 	metrics.Count("datadog.trace_agent.otlp.spans", spancount, tags, 1)
 	metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
-	traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
 	p := Payload{
 		Source:              tagstats,
 		ClientComputedStats: rattr[keyStatsComputed] != "",
-	}
-	for k, spans := range tracesByID {
-		prio := int32(sampler.PriorityAutoKeep)
-		if p, ok := priorityByID[k]; ok {
-			prio = int32(p)
-		}
-		traceChunks = append(traceChunks, &pb.TraceChunk{
-			Priority: prio,
-			Spans:    spans,
-		})
 	}
 	if env == "" {
 		env = o.conf.DefaultEnv
@@ -256,7 +282,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	}
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
-		Chunks:          traceChunks,
+		Chunks:          o.createChunks(tracesByID, priorityByID),
 		Env:             traceutil.NormalizeTag(env),
 		ContainerID:     containerID,
 		LanguageName:    tagstats.Lang,
@@ -283,6 +309,34 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		log.Warn("Payload in channel full. Dropped 1 payload.")
 	}
 	return src
+}
+
+// createChunks creates a set of pb.TraceChunk's based on two maps:
+// - a map from trace ID to the spans sharing that trace ID
+// - a map of user-set sampling priorities by trace ID, if set
+func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesByID map[uint64]sampler.SamplingPriority) []*pb.TraceChunk {
+	traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
+	for k, spans := range tracesByID {
+		if len(spans) == 0 {
+			continue
+		}
+		rate := strconv.FormatFloat(o.samplingRate(), 'f', 2, 64)
+		chunk := &pb.TraceChunk{
+			Tags:  map[string]string{"_dd.otlp_sr": rate},
+			Spans: spans,
+		}
+		if p, ok := prioritiesByID[k]; ok {
+			// a manual decision has been made by the user
+			chunk.Priority = int32(p)
+			traceutil.SetMeta(spans[0], "_dd.p.dm", "-4")
+		} else {
+			// we use the probabilistic sampler to decide
+			chunk.Priority = int32(o.sample(k))
+			traceutil.SetMeta(spans[0], "_dd.p.dm", "-9")
+		}
+		traceChunks = append(traceChunks, chunk)
+	}
+	return traceChunks
 }
 
 // marshalEvents marshals events into JSON.

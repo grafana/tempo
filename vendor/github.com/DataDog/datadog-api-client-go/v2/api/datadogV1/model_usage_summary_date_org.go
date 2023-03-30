@@ -106,6 +106,8 @@ type UsageSummaryDateOrg struct {
 	MobileRumLiteSessionCountSum *int64 `json:"mobile_rum_lite_session_count_sum,omitempty"`
 	// Shows the sum of all mobile RUM Sessions on Android over all hours in the current date for the given org.
 	MobileRumSessionCountAndroidSum *int64 `json:"mobile_rum_session_count_android_sum,omitempty"`
+	// Shows the sum of all mobile RUM Sessions on Flutter over all hours in the current date for the given org.
+	MobileRumSessionCountFlutterSum *int64 `json:"mobile_rum_session_count_flutter_sum,omitempty"`
 	// Shows the sum of all mobile RUM Sessions on iOS over all hours in the current date for the given org.
 	MobileRumSessionCountIosSum *int64 `json:"mobile_rum_session_count_ios_sum,omitempty"`
 	// Shows the sum of all mobile RUM Sessions on React Native over all hours in the current date for the given org.
@@ -1530,6 +1532,34 @@ func (o *UsageSummaryDateOrg) SetMobileRumSessionCountAndroidSum(v int64) {
 	o.MobileRumSessionCountAndroidSum = &v
 }
 
+// GetMobileRumSessionCountFlutterSum returns the MobileRumSessionCountFlutterSum field value if set, zero value otherwise.
+func (o *UsageSummaryDateOrg) GetMobileRumSessionCountFlutterSum() int64 {
+	if o == nil || o.MobileRumSessionCountFlutterSum == nil {
+		var ret int64
+		return ret
+	}
+	return *o.MobileRumSessionCountFlutterSum
+}
+
+// GetMobileRumSessionCountFlutterSumOk returns a tuple with the MobileRumSessionCountFlutterSum field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *UsageSummaryDateOrg) GetMobileRumSessionCountFlutterSumOk() (*int64, bool) {
+	if o == nil || o.MobileRumSessionCountFlutterSum == nil {
+		return nil, false
+	}
+	return o.MobileRumSessionCountFlutterSum, true
+}
+
+// HasMobileRumSessionCountFlutterSum returns a boolean if a field has been set.
+func (o *UsageSummaryDateOrg) HasMobileRumSessionCountFlutterSum() bool {
+	return o != nil && o.MobileRumSessionCountFlutterSum != nil
+}
+
+// SetMobileRumSessionCountFlutterSum gets a reference to the given int64 and assigns it to the MobileRumSessionCountFlutterSum field.
+func (o *UsageSummaryDateOrg) SetMobileRumSessionCountFlutterSum(v int64) {
+	o.MobileRumSessionCountFlutterSum = &v
+}
+
 // GetMobileRumSessionCountIosSum returns the MobileRumSessionCountIosSum field value if set, zero value otherwise.
 func (o *UsageSummaryDateOrg) GetMobileRumSessionCountIosSum() int64 {
 	if o == nil || o.MobileRumSessionCountIosSum == nil {
@@ -2492,6 +2522,9 @@ func (o UsageSummaryDateOrg) MarshalJSON() ([]byte, error) {
 	if o.MobileRumSessionCountAndroidSum != nil {
 		toSerialize["mobile_rum_session_count_android_sum"] = o.MobileRumSessionCountAndroidSum
 	}
+	if o.MobileRumSessionCountFlutterSum != nil {
+		toSerialize["mobile_rum_session_count_flutter_sum"] = o.MobileRumSessionCountFlutterSum
+	}
 	if o.MobileRumSessionCountIosSum != nil {
 		toSerialize["mobile_rum_session_count_ios_sum"] = o.MobileRumSessionCountIosSum
 	}
@@ -2638,6 +2671,7 @@ func (o *UsageSummaryDateOrg) UnmarshalJSON(bytes []byte) (err error) {
 		IotDeviceTop99pSum                      *int64  `json:"iot_device_top99p_sum,omitempty"`
 		MobileRumLiteSessionCountSum            *int64  `json:"mobile_rum_lite_session_count_sum,omitempty"`
 		MobileRumSessionCountAndroidSum         *int64  `json:"mobile_rum_session_count_android_sum,omitempty"`
+		MobileRumSessionCountFlutterSum         *int64  `json:"mobile_rum_session_count_flutter_sum,omitempty"`
 		MobileRumSessionCountIosSum             *int64  `json:"mobile_rum_session_count_ios_sum,omitempty"`
 		MobileRumSessionCountReactnativeSum     *int64  `json:"mobile_rum_session_count_reactnative_sum,omitempty"`
 		MobileRumSessionCountSum                *int64  `json:"mobile_rum_session_count_sum,omitempty"`
@@ -2725,6 +2759,7 @@ func (o *UsageSummaryDateOrg) UnmarshalJSON(bytes []byte) (err error) {
 	o.IotDeviceTop99pSum = all.IotDeviceTop99pSum
 	o.MobileRumLiteSessionCountSum = all.MobileRumLiteSessionCountSum
 	o.MobileRumSessionCountAndroidSum = all.MobileRumSessionCountAndroidSum
+	o.MobileRumSessionCountFlutterSum = all.MobileRumSessionCountFlutterSum
 	o.MobileRumSessionCountIosSum = all.MobileRumSessionCountIosSum
 	o.MobileRumSessionCountReactnativeSum = all.MobileRumSessionCountReactnativeSum
 	o.MobileRumSessionCountSum = all.MobileRumSessionCountSum

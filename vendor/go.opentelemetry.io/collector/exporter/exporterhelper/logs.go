@@ -56,7 +56,7 @@ func newLogsRequestUnmarshalerFunc(pusher consumer.ConsumeLogsFunc) internal.Req
 func (req *logsRequest) OnError(err error) internal.Request {
 	var logError consumererror.Logs
 	if errors.As(err, &logError) {
-		return newLogsRequest(req.ctx, logError.GetLogs(), req.pusher)
+		return newLogsRequest(req.ctx, logError.Data(), req.pusher)
 	}
 	return req
 }
@@ -78,7 +78,7 @@ type logsExporter struct {
 	consumer.Logs
 }
 
-// NewLogsExporter creates a exporter.Logs that records observability metrics and wraps every request with a Span.
+// NewLogsExporter creates an exporter.Logs that records observability metrics and wraps every request with a Span.
 func NewLogsExporter(
 	_ context.Context,
 	set exporter.CreateSettings,

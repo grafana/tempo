@@ -23,6 +23,13 @@ import (
 type Replacer struct {
 	// Regex must match the sensitive information
 	Regex *regexp.Regexp
+	// YAMLKeyRegex matches the key of sensitive information in a dict/map. This is used when iterating over a
+	// map[string]interface{} to scrub data for all matching key before being serialized.
+	YAMLKeyRegex *regexp.Regexp
+	// ProcessValue is a callback to be executed when YAMLKeyRegex matches the key of a map/dict in a YAML object. The
+	// value is passed to the function and replaced by the returned interface. This is useful to produce custom
+	// scrubbing. Example: keeping the last 5 digit of an api key.
+	ProcessValue func(data interface{}) interface{}
 	// Hints, if given, are strings which must also be present in the text for the regexp to match.
 	// Especially in single-line replacers, this can be used to limit the contexts where an otherwise
 	// very broad Regex is actually replaced.
@@ -114,7 +121,7 @@ func (c *Scrubber) ScrubBytes(file []byte) ([]byte, error) {
 }
 
 // ScrubLine scrubs credentials from a single line of text.  It can be safely
-// applied to URLs or to strings containing URLs.  It does not run multi-line
+// applied to URLs or to strings containing URLs. It does not run multi-line
 // replacers, and should not be used on multi-line inputs.
 func (c *Scrubber) ScrubLine(message string) string {
 	return string(c.scrub([]byte(message), c.singleLineReplacers))
@@ -160,6 +167,11 @@ func (c *Scrubber) scrubReader(file io.Reader, sizeHint int) ([]byte, error) {
 // scrub applies the given replacers to the given data.
 func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 	for _, repl := range replacers {
+		if repl.Regex == nil {
+			// ignoring YAML only replacers
+			continue
+		}
+
 		containsHint := false
 		for _, hint := range repl.Hints {
 			if bytes.Contains(data, []byte(hint)) {

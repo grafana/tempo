@@ -7,10 +7,10 @@ package api
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
@@ -25,6 +25,18 @@ func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 			http.Error(w, "503 Status Unavailable", http.StatusServiceUnavailable)
 		})
 	}
+	if r.conf.StatsdPort == 0 {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "Agent dogstatsd UDP port not configured, but required for dogstatsd proxy.", http.StatusServiceUnavailable)
+		})
+	}
+	addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(r.conf.StatsdHost, strconv.Itoa(r.conf.StatsdPort)))
+	if err != nil {
+		log.Errorf("Error resolving dogstatsd proxy addr to %s endpoint at %q: %v", "udp", addr, err)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "Failed to resolve dogstatsd address", http.StatusInternalServerError)
+		})
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		body, err := io.ReadAll(req.Body)
 		if err != nil {
@@ -33,15 +45,9 @@ func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 		}
 		payloads := bytes.Split(body, []byte("\n"))
 
-		var network, address string
-		if r.conf.StatsdPort == 0 {
-			http.Error(w, "Agent dogstatsd UDP port not configured, but required for dogstatsd proxy.", http.StatusServiceUnavailable)
-			return
-		}
-		network, address = "udp", fmt.Sprintf("%s:%d", r.conf.StatsdHost, r.conf.StatsdPort)
-		conn, err := net.Dial(network, address)
+		conn, err := net.DialUDP("udp", nil, addr)
 		if err != nil {
-			log.Errorf("Error connecting to %s endpoint at %q: %v", network, address, err)
+			log.Errorf("Error connecting to %s endpoint at %q: %v", "udp", addr, err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

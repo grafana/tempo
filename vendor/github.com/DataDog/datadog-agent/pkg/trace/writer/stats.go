@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
 	"github.com/tinylib/msgp/msgp"
 )
@@ -54,7 +55,7 @@ type StatsWriter struct {
 }
 
 // NewStatsWriter returns a new StatsWriter. It must be started using Run.
-func NewStatsWriter(cfg *config.AgentConfig, in <-chan pb.StatsPayload) *StatsWriter {
+func NewStatsWriter(cfg *config.AgentConfig, in <-chan pb.StatsPayload, telemetryCollector telemetry.TelemetryCollector) *StatsWriter {
 	sw := &StatsWriter{
 		in:        in,
 		stats:     &info.StatsWriterInfo{},
@@ -82,7 +83,7 @@ func NewStatsWriter(cfg *config.AgentConfig, in <-chan pb.StatsPayload) *StatsWr
 		qsize = int(math.Max(1, maxmem/payloadSize))
 	}
 	log.Debugf("Stats writer initialized (climit=%d qsize=%d)", climit, qsize)
-	sw.senders = newSenders(cfg, sw, pathStats, climit, qsize)
+	sw.senders = newSenders(cfg, sw, pathStats, climit, qsize, telemetryCollector)
 	return sw
 }
 

@@ -1,5 +1,6 @@
 Component,Origin,License,Copyright
 go.sum,cloud.google.com/go,Apache-2.0,Google LLC
+go.sum,cloud.google.com/go/compute/metadata,Apache-2.0,Google LLC
 go.sum,github.com/aslakhellesoy/gox,MPL-2.0,The gox authors
 go.sum,github.com/creack/pty,MIT,2011 Keith Rarick
 go.sum,github.com/cucumber/gherkin-go/v13,MIT,Cucumber Ltd + Gaspar Nagy + Björn Rasmusson + Peter Sergeant

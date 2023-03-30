@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	agentmetricspb "github.com/census-instrumentation/opencensus-proto/gen-go/agent/metrics/v1"
 	agenttracepb "github.com/census-instrumentation/opencensus-proto/gen-go/agent/trace/v1"
@@ -215,7 +216,7 @@ func (ocr *ocReceiver) httpServer() *http.Server {
 			co := cors.Options{AllowedOrigins: ocr.corsOrigins}
 			mux = cors.New(co).Handler(mux)
 		}
-		ocr.serverHTTP = &http.Server{Handler: mux}
+		ocr.serverHTTP = &http.Server{Handler: mux, ReadHeaderTimeout: 20 * time.Second}
 	}
 
 	return ocr.serverHTTP

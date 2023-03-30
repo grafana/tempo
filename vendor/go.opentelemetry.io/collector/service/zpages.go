@@ -26,17 +26,23 @@ import (
 )
 
 const (
-	servicezPath   = "servicez"
-	pipelinezPath  = "pipelinez"
-	extensionzPath = "extensionz"
-	featurezPath   = "featurez"
+	// Paths
+	zServicePath   = "servicez"
+	zPipelinePath  = "pipelinez"
+	zExtensionPath = "extensionz"
+	zFeaturePath   = "featurez"
+
+	// URL Params
+	zPipelineName  = "pipelinenamez"
+	zComponentName = "componentnamez"
+	zComponentKind = "componentkindz"
 )
 
 func (host *serviceHost) RegisterZPages(mux *http.ServeMux, pathPrefix string) {
-	mux.HandleFunc(path.Join(pathPrefix, servicezPath), host.zPagesRequest)
-	mux.HandleFunc(path.Join(pathPrefix, pipelinezPath), host.pipelines.HandleZPages)
-	mux.HandleFunc(path.Join(pathPrefix, extensionzPath), host.serviceExtensions.HandleZPages)
-	mux.HandleFunc(path.Join(pathPrefix, featurezPath), handleFeaturezRequest)
+	mux.HandleFunc(path.Join(pathPrefix, zServicePath), host.zPagesRequest)
+	mux.HandleFunc(path.Join(pathPrefix, zPipelinePath), host.pipelines.HandleZPages)
+	mux.HandleFunc(path.Join(pathPrefix, zExtensionPath), host.serviceExtensions.HandleZPages)
+	mux.HandleFunc(path.Join(pathPrefix, zFeaturePath), handleFeaturezRequest)
 }
 
 func (host *serviceHost) zPagesRequest(w http.ResponseWriter, r *http.Request) {
@@ -46,17 +52,17 @@ func (host *serviceHost) zPagesRequest(w http.ResponseWriter, r *http.Request) {
 	zpages.WriteHTMLPropertiesTable(w, zpages.PropertiesTableData{Name: "Runtime Info", Properties: runtimeinfo.Info()})
 	zpages.WriteHTMLComponentHeader(w, zpages.ComponentHeaderData{
 		Name:              "Pipelines",
-		ComponentEndpoint: pipelinezPath,
+		ComponentEndpoint: zPipelinePath,
 		Link:              true,
 	})
 	zpages.WriteHTMLComponentHeader(w, zpages.ComponentHeaderData{
 		Name:              "Extensions",
-		ComponentEndpoint: extensionzPath,
+		ComponentEndpoint: zExtensionPath,
 		Link:              true,
 	})
 	zpages.WriteHTMLComponentHeader(w, zpages.ComponentHeaderData{
 		Name:              "Features",
-		ComponentEndpoint: featurezPath,
+		ComponentEndpoint: zFeaturePath,
 		Link:              true,
 	})
 	zpages.WriteHTMLPageFooter(w)
@@ -92,14 +98,7 @@ func getBuildInfoProperties(buildInfo component.BuildInfo) [][2]string {
 	}
 }
 
-type zpagesPipeline interface {
-	receiverIDs() []string
-	processorIDs() []string
-	exporterIDs() []string
-	mutatesData() bool
-}
-
-func handleZPages[V zpagesPipeline](w http.ResponseWriter, r *http.Request, pipes map[component.ID]V) {
+func (g *pipelinesGraph) HandleZPages(w http.ResponseWriter, r *http.Request) {
 	qValues := r.URL.Query()
 	pipelineName := qValues.Get(zPipelineName)
 	componentName := qValues.Get(zComponentName)
@@ -109,15 +108,38 @@ func handleZPages[V zpagesPipeline](w http.ResponseWriter, r *http.Request, pipe
 	zpages.WriteHTMLPageHeader(w, zpages.HeaderData{Title: "builtPipelines"})
 
 	sumData := zpages.SummaryPipelinesTableData{}
-	sumData.Rows = make([]zpages.SummaryPipelinesTableRowData, 0, len(pipes))
-	for c, p := range pipes {
+	sumData.Rows = make([]zpages.SummaryPipelinesTableRowData, 0, len(g.pipelines))
+	for c, p := range g.pipelines {
+		recvIDs := make([]string, 0, len(p.receivers))
+		for _, c := range p.receivers {
+			switch n := c.(type) {
+			case *receiverNode:
+				recvIDs = append(recvIDs, n.componentID.String())
+			case *connectorNode:
+				recvIDs = append(recvIDs, n.componentID.String()+" (connector)")
+			}
+		}
+		procIDs := make([]string, 0, len(p.processors))
+		for _, c := range p.processors {
+			procIDs = append(procIDs, c.componentID.String())
+		}
+		exprIDs := make([]string, 0, len(p.exporters))
+		for _, c := range p.exporters {
+			switch n := c.(type) {
+			case *exporterNode:
+				exprIDs = append(exprIDs, n.componentID.String())
+			case *connectorNode:
+				exprIDs = append(exprIDs, n.componentID.String()+" (connector)")
+			}
+		}
+
 		sumData.Rows = append(sumData.Rows, zpages.SummaryPipelinesTableRowData{
 			FullName:    c.String(),
 			InputType:   string(c.Type()),
-			MutatesData: p.mutatesData(),
-			Receivers:   p.receiverIDs(),
-			Processors:  p.processorIDs(),
-			Exporters:   p.exporterIDs(),
+			MutatesData: p.capabilitiesNode.getConsumer().Capabilities().MutatesData,
+			Receivers:   recvIDs,
+			Processors:  procIDs,
+			Exporters:   exprIDs,
 		})
 	}
 	sort.Slice(sumData.Rows, func(i, j int) bool {

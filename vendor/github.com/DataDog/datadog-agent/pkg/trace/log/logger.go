@@ -21,6 +21,13 @@ func SetLogger(l Logger) {
 	mu.Unlock()
 }
 
+// IsSet returns whether the logger has been set up.
+func IsSet() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	return logger != NoopLogger
+}
+
 // Logger implements the core logger interface.
 type Logger interface {
 	Trace(v ...interface{})

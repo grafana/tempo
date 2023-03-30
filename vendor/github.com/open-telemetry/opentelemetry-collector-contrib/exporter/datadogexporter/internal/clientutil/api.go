@@ -20,11 +20,15 @@ import (
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.uber.org/zap"
 	zorkian "gopkg.in/zorkian/go-datadog-api.v2"
 )
+
+// GZipSubmitMetricsOptionalParameters is used to enable gzip compression for metric payloads submitted by native datadog client
+var GZipSubmitMetricsOptionalParameters = datadogV2.NewSubmitMetricsOptionalParameters().WithContentEncoding(datadogV2.METRICCONTENTENCODING_GZIP)
 
 // CreateAPIClient creates a new Datadog API client
 func CreateAPIClient(buildInfo component.BuildInfo, endpoint string, settings exporterhelper.TimeoutSettings, insecureSkipVerify bool) *datadog.APIClient {

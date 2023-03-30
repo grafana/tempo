@@ -88,21 +88,30 @@ func toTraces(payload *pb.TracerPayload, req *http.Request) ptrace.Traces {
 				}
 			}
 
-			switch span.Type {
-			case "web":
-			case "server":
-				newSpan.SetKind(ptrace.SpanKindServer)
-			case "client":
-				newSpan.SetKind(ptrace.SpanKindClient)
-			case "producer":
-				newSpan.SetKind(ptrace.SpanKindProducer)
-			case "consumer":
-				newSpan.SetKind(ptrace.SpanKindConsumer)
-			case "internal":
-				newSpan.SetKind(ptrace.SpanKindInternal)
-			case "custom":
-			default:
-				newSpan.SetKind(ptrace.SpanKindUnspecified)
+			if span.Meta["span.kind"] != "" {
+				switch span.Meta["span.kind"] {
+				case "server":
+					newSpan.SetKind(ptrace.SpanKindServer)
+				case "client":
+					newSpan.SetKind(ptrace.SpanKindClient)
+				case "producer":
+					newSpan.SetKind(ptrace.SpanKindProducer)
+				case "consumer":
+					newSpan.SetKind(ptrace.SpanKindConsumer)
+				case "internal":
+					newSpan.SetKind(ptrace.SpanKindInternal)
+				default:
+					newSpan.SetKind(ptrace.SpanKindUnspecified)
+				}
+			} else {
+				switch span.Type {
+				case "web":
+					newSpan.SetKind(ptrace.SpanKindServer)
+				case "http":
+					newSpan.SetKind(ptrace.SpanKindClient)
+				default:
+					newSpan.SetKind(ptrace.SpanKindUnspecified)
+				}
 			}
 		}
 		spans.MoveAndAppendTo(ils.Spans())

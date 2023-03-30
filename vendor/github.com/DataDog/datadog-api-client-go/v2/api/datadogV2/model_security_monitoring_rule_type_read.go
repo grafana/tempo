@@ -18,6 +18,7 @@ const (
 	SECURITYMONITORINGRULETYPEREAD_INFRASTRUCTURE_CONFIGURATION SecurityMonitoringRuleTypeRead = "infrastructure_configuration"
 	SECURITYMONITORINGRULETYPEREAD_WORKLOAD_SECURITY            SecurityMonitoringRuleTypeRead = "workload_security"
 	SECURITYMONITORINGRULETYPEREAD_CLOUD_CONFIGURATION          SecurityMonitoringRuleTypeRead = "cloud_configuration"
+	SECURITYMONITORINGRULETYPEREAD_APPLICATION_SECURITY         SecurityMonitoringRuleTypeRead = "application_security"
 )
 
 var allowedSecurityMonitoringRuleTypeReadEnumValues = []SecurityMonitoringRuleTypeRead{
@@ -25,6 +26,7 @@ var allowedSecurityMonitoringRuleTypeReadEnumValues = []SecurityMonitoringRuleTy
 	SECURITYMONITORINGRULETYPEREAD_INFRASTRUCTURE_CONFIGURATION,
 	SECURITYMONITORINGRULETYPEREAD_WORKLOAD_SECURITY,
 	SECURITYMONITORINGRULETYPEREAD_CLOUD_CONFIGURATION,
+	SECURITYMONITORINGRULETYPEREAD_APPLICATION_SECURITY,
 }
 
 // GetAllowedValues reeturns the list of possible values.

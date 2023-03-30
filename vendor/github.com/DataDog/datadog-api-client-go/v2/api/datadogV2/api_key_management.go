@@ -16,40 +16,16 @@ import (
 // KeyManagementApi service type
 type KeyManagementApi datadog.Service
 
-type apiCreateAPIKeyRequest struct {
-	ctx  _context.Context
-	body *APIKeyCreateRequest
-}
-
-func (a *KeyManagementApi) buildCreateAPIKeyRequest(ctx _context.Context, body APIKeyCreateRequest) (apiCreateAPIKeyRequest, error) {
-	req := apiCreateAPIKeyRequest{
-		ctx:  ctx,
-		body: &body,
-	}
-	return req, nil
-}
-
 // CreateAPIKey Create an API key.
 // Create an API key.
 func (a *KeyManagementApi) CreateAPIKey(ctx _context.Context, body APIKeyCreateRequest) (APIKeyResponse, *_nethttp.Response, error) {
-	req, err := a.buildCreateAPIKeyRequest(ctx, body)
-	if err != nil {
-		var localVarReturnValue APIKeyResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.createAPIKeyExecute(req)
-}
-
-// createAPIKeyExecute executes the request.
-func (a *KeyManagementApi) createAPIKeyExecute(r apiCreateAPIKeyRequest) (APIKeyResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue APIKeyResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.KeyManagementApi.CreateAPIKey")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.KeyManagementApi.CreateAPIKey")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -59,21 +35,18 @@ func (a *KeyManagementApi) createAPIKeyExecute(r apiCreateAPIKeyRequest) (APIKey
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -116,40 +89,16 @@ func (a *KeyManagementApi) createAPIKeyExecute(r apiCreateAPIKeyRequest) (APIKey
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiCreateCurrentUserApplicationKeyRequest struct {
-	ctx  _context.Context
-	body *ApplicationKeyCreateRequest
-}
-
-func (a *KeyManagementApi) buildCreateCurrentUserApplicationKeyRequest(ctx _context.Context, body ApplicationKeyCreateRequest) (apiCreateCurrentUserApplicationKeyRequest, error) {
-	req := apiCreateCurrentUserApplicationKeyRequest{
-		ctx:  ctx,
-		body: &body,
-	}
-	return req, nil
-}
-
 // CreateCurrentUserApplicationKey Create an application key for current user.
 // Create an application key for current user
 func (a *KeyManagementApi) CreateCurrentUserApplicationKey(ctx _context.Context, body ApplicationKeyCreateRequest) (ApplicationKeyResponse, *_nethttp.Response, error) {
-	req, err := a.buildCreateCurrentUserApplicationKeyRequest(ctx, body)
-	if err != nil {
-		var localVarReturnValue ApplicationKeyResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.createCurrentUserApplicationKeyExecute(req)
-}
-
-// createCurrentUserApplicationKeyExecute executes the request.
-func (a *KeyManagementApi) createCurrentUserApplicationKeyExecute(r apiCreateCurrentUserApplicationKeyRequest) (ApplicationKeyResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue ApplicationKeyResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.KeyManagementApi.CreateCurrentUserApplicationKey")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.KeyManagementApi.CreateCurrentUserApplicationKey")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -159,21 +108,18 @@ func (a *KeyManagementApi) createCurrentUserApplicationKeyExecute(r apiCreateCur
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -216,44 +162,21 @@ func (a *KeyManagementApi) createCurrentUserApplicationKeyExecute(r apiCreateCur
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiDeleteAPIKeyRequest struct {
-	ctx      _context.Context
-	apiKeyId string
-}
-
-func (a *KeyManagementApi) buildDeleteAPIKeyRequest(ctx _context.Context, apiKeyId string) (apiDeleteAPIKeyRequest, error) {
-	req := apiDeleteAPIKeyRequest{
-		ctx:      ctx,
-		apiKeyId: apiKeyId,
-	}
-	return req, nil
-}
-
 // DeleteAPIKey Delete an API key.
 // Delete an API key.
 func (a *KeyManagementApi) DeleteAPIKey(ctx _context.Context, apiKeyId string) (*_nethttp.Response, error) {
-	req, err := a.buildDeleteAPIKeyRequest(ctx, apiKeyId)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.deleteAPIKeyExecute(req)
-}
-
-// deleteAPIKeyExecute executes the request.
-func (a *KeyManagementApi) deleteAPIKeyExecute(r apiDeleteAPIKeyRequest) (*_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod = _nethttp.MethodDelete
 		localVarPostBody   interface{}
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.KeyManagementApi.DeleteAPIKey")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.KeyManagementApi.DeleteAPIKey")
 	if err != nil {
 		return nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/api_keys/{api_key_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"api_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.apiKeyId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"api_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(apiKeyId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -261,12 +184,12 @@ func (a *KeyManagementApi) deleteAPIKeyExecute(r apiDeleteAPIKeyRequest) (*_neth
 	localVarHeaderParams["Accept"] = "*/*"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -298,46 +221,23 @@ func (a *KeyManagementApi) deleteAPIKeyExecute(r apiDeleteAPIKeyRequest) (*_neth
 	}
 
 	return localVarHTTPResponse, nil
-}
-
-type apiDeleteApplicationKeyRequest struct {
-	ctx      _context.Context
-	appKeyId string
-}
-
-func (a *KeyManagementApi) buildDeleteApplicationKeyRequest(ctx _context.Context, appKeyId string) (apiDeleteApplicationKeyRequest, error) {
-	req := apiDeleteApplicationKeyRequest{
-		ctx:      ctx,
-		appKeyId: appKeyId,
-	}
-	return req, nil
 }
 
 // DeleteApplicationKey Delete an application key.
 // Delete an application key
 func (a *KeyManagementApi) DeleteApplicationKey(ctx _context.Context, appKeyId string) (*_nethttp.Response, error) {
-	req, err := a.buildDeleteApplicationKeyRequest(ctx, appKeyId)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.deleteApplicationKeyExecute(req)
-}
-
-// deleteApplicationKeyExecute executes the request.
-func (a *KeyManagementApi) deleteApplicationKeyExecute(r apiDeleteApplicationKeyRequest) (*_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod = _nethttp.MethodDelete
 		localVarPostBody   interface{}
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.KeyManagementApi.DeleteApplicationKey")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.KeyManagementApi.DeleteApplicationKey")
 	if err != nil {
 		return nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/application_keys/{app_key_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"app_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.appKeyId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"app_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(appKeyId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -345,12 +245,12 @@ func (a *KeyManagementApi) deleteApplicationKeyExecute(r apiDeleteApplicationKey
 	localVarHeaderParams["Accept"] = "*/*"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -382,46 +282,23 @@ func (a *KeyManagementApi) deleteApplicationKeyExecute(r apiDeleteApplicationKey
 	}
 
 	return localVarHTTPResponse, nil
-}
-
-type apiDeleteCurrentUserApplicationKeyRequest struct {
-	ctx      _context.Context
-	appKeyId string
-}
-
-func (a *KeyManagementApi) buildDeleteCurrentUserApplicationKeyRequest(ctx _context.Context, appKeyId string) (apiDeleteCurrentUserApplicationKeyRequest, error) {
-	req := apiDeleteCurrentUserApplicationKeyRequest{
-		ctx:      ctx,
-		appKeyId: appKeyId,
-	}
-	return req, nil
 }
 
 // DeleteCurrentUserApplicationKey Delete an application key owned by current user.
 // Delete an application key owned by current user
 func (a *KeyManagementApi) DeleteCurrentUserApplicationKey(ctx _context.Context, appKeyId string) (*_nethttp.Response, error) {
-	req, err := a.buildDeleteCurrentUserApplicationKeyRequest(ctx, appKeyId)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.deleteCurrentUserApplicationKeyExecute(req)
-}
-
-// deleteCurrentUserApplicationKeyExecute executes the request.
-func (a *KeyManagementApi) deleteCurrentUserApplicationKeyExecute(r apiDeleteCurrentUserApplicationKeyRequest) (*_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod = _nethttp.MethodDelete
 		localVarPostBody   interface{}
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.KeyManagementApi.DeleteCurrentUserApplicationKey")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.KeyManagementApi.DeleteCurrentUserApplicationKey")
 	if err != nil {
 		return nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/current_user/application_keys/{app_key_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"app_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.appKeyId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"app_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(appKeyId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -429,12 +306,12 @@ func (a *KeyManagementApi) deleteCurrentUserApplicationKeyExecute(r apiDeleteCur
 	localVarHeaderParams["Accept"] = "*/*"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -466,12 +343,6 @@ func (a *KeyManagementApi) deleteCurrentUserApplicationKeyExecute(r apiDeleteCur
 	}
 
 	return localVarHTTPResponse, nil
-}
-
-type apiGetAPIKeyRequest struct {
-	ctx      _context.Context
-	apiKeyId string
-	include  *string
 }
 
 // GetAPIKeyOptionalParameters holds optional parameters for GetAPIKey.
@@ -491,65 +362,46 @@ func (r *GetAPIKeyOptionalParameters) WithInclude(include string) *GetAPIKeyOpti
 	return r
 }
 
-func (a *KeyManagementApi) buildGetAPIKeyRequest(ctx _context.Context, apiKeyId string, o ...GetAPIKeyOptionalParameters) (apiGetAPIKeyRequest, error) {
-	req := apiGetAPIKeyRequest{
-		ctx:      ctx,
-		apiKeyId: apiKeyId,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type GetAPIKeyOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.include = o[0].Include
-	}
-	return req, nil
-}
-
 // GetAPIKey Get API key.
 // Get an API key.
 func (a *KeyManagementApi) GetAPIKey(ctx _context.Context, apiKeyId string, o ...GetAPIKeyOptionalParameters) (APIKeyResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetAPIKeyRequest(ctx, apiKeyId, o...)
-	if err != nil {
-		var localVarReturnValue APIKeyResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getAPIKeyExecute(req)
-}
-
-// getAPIKeyExecute executes the request.
-func (a *KeyManagementApi) getAPIKeyExecute(r apiGetAPIKeyRequest) (APIKeyResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue APIKeyResponse
+		optionalParams      GetAPIKeyOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.KeyManagementApi.GetAPIKey")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type GetAPIKeyOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.KeyManagementApi.GetAPIKey")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/api_keys/{api_key_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"api_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.apiKeyId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"api_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(apiKeyId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.include != nil {
-		localVarQueryParams.Add("include", datadog.ParameterToString(*r.include, ""))
+	if optionalParams.Include != nil {
+		localVarQueryParams.Add("include", datadog.ParameterToString(*optionalParams.Include, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -592,12 +444,6 @@ func (a *KeyManagementApi) getAPIKeyExecute(r apiGetAPIKeyRequest) (APIKeyRespon
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiGetApplicationKeyRequest struct {
-	ctx      _context.Context
-	appKeyId string
-	include  *string
-}
-
 // GetApplicationKeyOptionalParameters holds optional parameters for GetApplicationKey.
 type GetApplicationKeyOptionalParameters struct {
 	Include *string
@@ -615,65 +461,46 @@ func (r *GetApplicationKeyOptionalParameters) WithInclude(include string) *GetAp
 	return r
 }
 
-func (a *KeyManagementApi) buildGetApplicationKeyRequest(ctx _context.Context, appKeyId string, o ...GetApplicationKeyOptionalParameters) (apiGetApplicationKeyRequest, error) {
-	req := apiGetApplicationKeyRequest{
-		ctx:      ctx,
-		appKeyId: appKeyId,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type GetApplicationKeyOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.include = o[0].Include
-	}
-	return req, nil
-}
-
 // GetApplicationKey Get an application key.
 // Get an application key for your org.
 func (a *KeyManagementApi) GetApplicationKey(ctx _context.Context, appKeyId string, o ...GetApplicationKeyOptionalParameters) (ApplicationKeyResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetApplicationKeyRequest(ctx, appKeyId, o...)
-	if err != nil {
-		var localVarReturnValue ApplicationKeyResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getApplicationKeyExecute(req)
-}
-
-// getApplicationKeyExecute executes the request.
-func (a *KeyManagementApi) getApplicationKeyExecute(r apiGetApplicationKeyRequest) (ApplicationKeyResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue ApplicationKeyResponse
+		optionalParams      GetApplicationKeyOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.KeyManagementApi.GetApplicationKey")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type GetApplicationKeyOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.KeyManagementApi.GetApplicationKey")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/application_keys/{app_key_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"app_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.appKeyId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"app_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(appKeyId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.include != nil {
-		localVarQueryParams.Add("include", datadog.ParameterToString(*r.include, ""))
+	if optionalParams.Include != nil {
+		localVarQueryParams.Add("include", datadog.ParameterToString(*optionalParams.Include, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -716,46 +543,22 @@ func (a *KeyManagementApi) getApplicationKeyExecute(r apiGetApplicationKeyReques
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiGetCurrentUserApplicationKeyRequest struct {
-	ctx      _context.Context
-	appKeyId string
-}
-
-func (a *KeyManagementApi) buildGetCurrentUserApplicationKeyRequest(ctx _context.Context, appKeyId string) (apiGetCurrentUserApplicationKeyRequest, error) {
-	req := apiGetCurrentUserApplicationKeyRequest{
-		ctx:      ctx,
-		appKeyId: appKeyId,
-	}
-	return req, nil
-}
-
 // GetCurrentUserApplicationKey Get one application key owned by current user.
 // Get an application key owned by current user
 func (a *KeyManagementApi) GetCurrentUserApplicationKey(ctx _context.Context, appKeyId string) (ApplicationKeyResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetCurrentUserApplicationKeyRequest(ctx, appKeyId)
-	if err != nil {
-		var localVarReturnValue ApplicationKeyResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getCurrentUserApplicationKeyExecute(req)
-}
-
-// getCurrentUserApplicationKeyExecute executes the request.
-func (a *KeyManagementApi) getCurrentUserApplicationKeyExecute(r apiGetCurrentUserApplicationKeyRequest) (ApplicationKeyResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue ApplicationKeyResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.KeyManagementApi.GetCurrentUserApplicationKey")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.KeyManagementApi.GetCurrentUserApplicationKey")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/current_user/application_keys/{app_key_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"app_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.appKeyId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"app_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(appKeyId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -763,12 +566,12 @@ func (a *KeyManagementApi) getCurrentUserApplicationKeyExecute(r apiGetCurrentUs
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -809,19 +612,6 @@ func (a *KeyManagementApi) getCurrentUserApplicationKeyExecute(r apiGetCurrentUs
 	}
 
 	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiListAPIKeysRequest struct {
-	ctx                   _context.Context
-	pageSize              *int64
-	pageNumber            *int64
-	sort                  *APIKeysSort
-	filter                *string
-	filterCreatedAtStart  *string
-	filterCreatedAtEnd    *string
-	filterModifiedAtStart *string
-	filterModifiedAtEnd   *string
-	include               *string
 }
 
 // ListAPIKeysOptionalParameters holds optional parameters for ListAPIKeys.
@@ -897,50 +687,24 @@ func (r *ListAPIKeysOptionalParameters) WithInclude(include string) *ListAPIKeys
 	return r
 }
 
-func (a *KeyManagementApi) buildListAPIKeysRequest(ctx _context.Context, o ...ListAPIKeysOptionalParameters) (apiListAPIKeysRequest, error) {
-	req := apiListAPIKeysRequest{
-		ctx: ctx,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type ListAPIKeysOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.pageSize = o[0].PageSize
-		req.pageNumber = o[0].PageNumber
-		req.sort = o[0].Sort
-		req.filter = o[0].Filter
-		req.filterCreatedAtStart = o[0].FilterCreatedAtStart
-		req.filterCreatedAtEnd = o[0].FilterCreatedAtEnd
-		req.filterModifiedAtStart = o[0].FilterModifiedAtStart
-		req.filterModifiedAtEnd = o[0].FilterModifiedAtEnd
-		req.include = o[0].Include
-	}
-	return req, nil
-}
-
 // ListAPIKeys Get all API keys.
 // List all API keys available for your account.
 func (a *KeyManagementApi) ListAPIKeys(ctx _context.Context, o ...ListAPIKeysOptionalParameters) (APIKeysResponse, *_nethttp.Response, error) {
-	req, err := a.buildListAPIKeysRequest(ctx, o...)
-	if err != nil {
-		var localVarReturnValue APIKeysResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.listAPIKeysExecute(req)
-}
-
-// listAPIKeysExecute executes the request.
-func (a *KeyManagementApi) listAPIKeysExecute(r apiListAPIKeysRequest) (APIKeysResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue APIKeysResponse
+		optionalParams      ListAPIKeysOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.KeyManagementApi.ListAPIKeys")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type ListAPIKeysOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.KeyManagementApi.ListAPIKeys")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -950,42 +714,42 @@ func (a *KeyManagementApi) listAPIKeysExecute(r apiListAPIKeysRequest) (APIKeysR
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.pageSize != nil {
-		localVarQueryParams.Add("page[size]", datadog.ParameterToString(*r.pageSize, ""))
+	if optionalParams.PageSize != nil {
+		localVarQueryParams.Add("page[size]", datadog.ParameterToString(*optionalParams.PageSize, ""))
 	}
-	if r.pageNumber != nil {
-		localVarQueryParams.Add("page[number]", datadog.ParameterToString(*r.pageNumber, ""))
+	if optionalParams.PageNumber != nil {
+		localVarQueryParams.Add("page[number]", datadog.ParameterToString(*optionalParams.PageNumber, ""))
 	}
-	if r.sort != nil {
-		localVarQueryParams.Add("sort", datadog.ParameterToString(*r.sort, ""))
+	if optionalParams.Sort != nil {
+		localVarQueryParams.Add("sort", datadog.ParameterToString(*optionalParams.Sort, ""))
 	}
-	if r.filter != nil {
-		localVarQueryParams.Add("filter", datadog.ParameterToString(*r.filter, ""))
+	if optionalParams.Filter != nil {
+		localVarQueryParams.Add("filter", datadog.ParameterToString(*optionalParams.Filter, ""))
 	}
-	if r.filterCreatedAtStart != nil {
-		localVarQueryParams.Add("filter[created_at][start]", datadog.ParameterToString(*r.filterCreatedAtStart, ""))
+	if optionalParams.FilterCreatedAtStart != nil {
+		localVarQueryParams.Add("filter[created_at][start]", datadog.ParameterToString(*optionalParams.FilterCreatedAtStart, ""))
 	}
-	if r.filterCreatedAtEnd != nil {
-		localVarQueryParams.Add("filter[created_at][end]", datadog.ParameterToString(*r.filterCreatedAtEnd, ""))
+	if optionalParams.FilterCreatedAtEnd != nil {
+		localVarQueryParams.Add("filter[created_at][end]", datadog.ParameterToString(*optionalParams.FilterCreatedAtEnd, ""))
 	}
-	if r.filterModifiedAtStart != nil {
-		localVarQueryParams.Add("filter[modified_at][start]", datadog.ParameterToString(*r.filterModifiedAtStart, ""))
+	if optionalParams.FilterModifiedAtStart != nil {
+		localVarQueryParams.Add("filter[modified_at][start]", datadog.ParameterToString(*optionalParams.FilterModifiedAtStart, ""))
 	}
-	if r.filterModifiedAtEnd != nil {
-		localVarQueryParams.Add("filter[modified_at][end]", datadog.ParameterToString(*r.filterModifiedAtEnd, ""))
+	if optionalParams.FilterModifiedAtEnd != nil {
+		localVarQueryParams.Add("filter[modified_at][end]", datadog.ParameterToString(*optionalParams.FilterModifiedAtEnd, ""))
 	}
-	if r.include != nil {
-		localVarQueryParams.Add("include", datadog.ParameterToString(*r.include, ""))
+	if optionalParams.Include != nil {
+		localVarQueryParams.Add("include", datadog.ParameterToString(*optionalParams.Include, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -1026,16 +790,6 @@ func (a *KeyManagementApi) listAPIKeysExecute(r apiListAPIKeysRequest) (APIKeysR
 	}
 
 	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiListApplicationKeysRequest struct {
-	ctx                  _context.Context
-	pageSize             *int64
-	pageNumber           *int64
-	sort                 *ApplicationKeysSort
-	filter               *string
-	filterCreatedAtStart *string
-	filterCreatedAtEnd   *string
 }
 
 // ListApplicationKeysOptionalParameters holds optional parameters for ListApplicationKeys.
@@ -1090,47 +844,24 @@ func (r *ListApplicationKeysOptionalParameters) WithFilterCreatedAtEnd(filterCre
 	return r
 }
 
-func (a *KeyManagementApi) buildListApplicationKeysRequest(ctx _context.Context, o ...ListApplicationKeysOptionalParameters) (apiListApplicationKeysRequest, error) {
-	req := apiListApplicationKeysRequest{
-		ctx: ctx,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type ListApplicationKeysOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.pageSize = o[0].PageSize
-		req.pageNumber = o[0].PageNumber
-		req.sort = o[0].Sort
-		req.filter = o[0].Filter
-		req.filterCreatedAtStart = o[0].FilterCreatedAtStart
-		req.filterCreatedAtEnd = o[0].FilterCreatedAtEnd
-	}
-	return req, nil
-}
-
 // ListApplicationKeys Get all application keys.
 // List all application keys available for your org
 func (a *KeyManagementApi) ListApplicationKeys(ctx _context.Context, o ...ListApplicationKeysOptionalParameters) (ListApplicationKeysResponse, *_nethttp.Response, error) {
-	req, err := a.buildListApplicationKeysRequest(ctx, o...)
-	if err != nil {
-		var localVarReturnValue ListApplicationKeysResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.listApplicationKeysExecute(req)
-}
-
-// listApplicationKeysExecute executes the request.
-func (a *KeyManagementApi) listApplicationKeysExecute(r apiListApplicationKeysRequest) (ListApplicationKeysResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue ListApplicationKeysResponse
+		optionalParams      ListApplicationKeysOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.KeyManagementApi.ListApplicationKeys")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type ListApplicationKeysOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.KeyManagementApi.ListApplicationKeys")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -1140,33 +871,33 @@ func (a *KeyManagementApi) listApplicationKeysExecute(r apiListApplicationKeysRe
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.pageSize != nil {
-		localVarQueryParams.Add("page[size]", datadog.ParameterToString(*r.pageSize, ""))
+	if optionalParams.PageSize != nil {
+		localVarQueryParams.Add("page[size]", datadog.ParameterToString(*optionalParams.PageSize, ""))
 	}
-	if r.pageNumber != nil {
-		localVarQueryParams.Add("page[number]", datadog.ParameterToString(*r.pageNumber, ""))
+	if optionalParams.PageNumber != nil {
+		localVarQueryParams.Add("page[number]", datadog.ParameterToString(*optionalParams.PageNumber, ""))
 	}
-	if r.sort != nil {
-		localVarQueryParams.Add("sort", datadog.ParameterToString(*r.sort, ""))
+	if optionalParams.Sort != nil {
+		localVarQueryParams.Add("sort", datadog.ParameterToString(*optionalParams.Sort, ""))
 	}
-	if r.filter != nil {
-		localVarQueryParams.Add("filter", datadog.ParameterToString(*r.filter, ""))
+	if optionalParams.Filter != nil {
+		localVarQueryParams.Add("filter", datadog.ParameterToString(*optionalParams.Filter, ""))
 	}
-	if r.filterCreatedAtStart != nil {
-		localVarQueryParams.Add("filter[created_at][start]", datadog.ParameterToString(*r.filterCreatedAtStart, ""))
+	if optionalParams.FilterCreatedAtStart != nil {
+		localVarQueryParams.Add("filter[created_at][start]", datadog.ParameterToString(*optionalParams.FilterCreatedAtStart, ""))
 	}
-	if r.filterCreatedAtEnd != nil {
-		localVarQueryParams.Add("filter[created_at][end]", datadog.ParameterToString(*r.filterCreatedAtEnd, ""))
+	if optionalParams.FilterCreatedAtEnd != nil {
+		localVarQueryParams.Add("filter[created_at][end]", datadog.ParameterToString(*optionalParams.FilterCreatedAtEnd, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -1207,16 +938,6 @@ func (a *KeyManagementApi) listApplicationKeysExecute(r apiListApplicationKeysRe
 	}
 
 	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiListCurrentUserApplicationKeysRequest struct {
-	ctx                  _context.Context
-	pageSize             *int64
-	pageNumber           *int64
-	sort                 *ApplicationKeysSort
-	filter               *string
-	filterCreatedAtStart *string
-	filterCreatedAtEnd   *string
 }
 
 // ListCurrentUserApplicationKeysOptionalParameters holds optional parameters for ListCurrentUserApplicationKeys.
@@ -1271,47 +992,24 @@ func (r *ListCurrentUserApplicationKeysOptionalParameters) WithFilterCreatedAtEn
 	return r
 }
 
-func (a *KeyManagementApi) buildListCurrentUserApplicationKeysRequest(ctx _context.Context, o ...ListCurrentUserApplicationKeysOptionalParameters) (apiListCurrentUserApplicationKeysRequest, error) {
-	req := apiListCurrentUserApplicationKeysRequest{
-		ctx: ctx,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type ListCurrentUserApplicationKeysOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.pageSize = o[0].PageSize
-		req.pageNumber = o[0].PageNumber
-		req.sort = o[0].Sort
-		req.filter = o[0].Filter
-		req.filterCreatedAtStart = o[0].FilterCreatedAtStart
-		req.filterCreatedAtEnd = o[0].FilterCreatedAtEnd
-	}
-	return req, nil
-}
-
 // ListCurrentUserApplicationKeys Get all application keys owned by current user.
 // List all application keys available for current user
 func (a *KeyManagementApi) ListCurrentUserApplicationKeys(ctx _context.Context, o ...ListCurrentUserApplicationKeysOptionalParameters) (ListApplicationKeysResponse, *_nethttp.Response, error) {
-	req, err := a.buildListCurrentUserApplicationKeysRequest(ctx, o...)
-	if err != nil {
-		var localVarReturnValue ListApplicationKeysResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.listCurrentUserApplicationKeysExecute(req)
-}
-
-// listCurrentUserApplicationKeysExecute executes the request.
-func (a *KeyManagementApi) listCurrentUserApplicationKeysExecute(r apiListCurrentUserApplicationKeysRequest) (ListApplicationKeysResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue ListApplicationKeysResponse
+		optionalParams      ListCurrentUserApplicationKeysOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.KeyManagementApi.ListCurrentUserApplicationKeys")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type ListCurrentUserApplicationKeysOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.KeyManagementApi.ListCurrentUserApplicationKeys")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -1321,33 +1019,33 @@ func (a *KeyManagementApi) listCurrentUserApplicationKeysExecute(r apiListCurren
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.pageSize != nil {
-		localVarQueryParams.Add("page[size]", datadog.ParameterToString(*r.pageSize, ""))
+	if optionalParams.PageSize != nil {
+		localVarQueryParams.Add("page[size]", datadog.ParameterToString(*optionalParams.PageSize, ""))
 	}
-	if r.pageNumber != nil {
-		localVarQueryParams.Add("page[number]", datadog.ParameterToString(*r.pageNumber, ""))
+	if optionalParams.PageNumber != nil {
+		localVarQueryParams.Add("page[number]", datadog.ParameterToString(*optionalParams.PageNumber, ""))
 	}
-	if r.sort != nil {
-		localVarQueryParams.Add("sort", datadog.ParameterToString(*r.sort, ""))
+	if optionalParams.Sort != nil {
+		localVarQueryParams.Add("sort", datadog.ParameterToString(*optionalParams.Sort, ""))
 	}
-	if r.filter != nil {
-		localVarQueryParams.Add("filter", datadog.ParameterToString(*r.filter, ""))
+	if optionalParams.Filter != nil {
+		localVarQueryParams.Add("filter", datadog.ParameterToString(*optionalParams.Filter, ""))
 	}
-	if r.filterCreatedAtStart != nil {
-		localVarQueryParams.Add("filter[created_at][start]", datadog.ParameterToString(*r.filterCreatedAtStart, ""))
+	if optionalParams.FilterCreatedAtStart != nil {
+		localVarQueryParams.Add("filter[created_at][start]", datadog.ParameterToString(*optionalParams.FilterCreatedAtStart, ""))
 	}
-	if r.filterCreatedAtEnd != nil {
-		localVarQueryParams.Add("filter[created_at][end]", datadog.ParameterToString(*r.filterCreatedAtEnd, ""))
+	if optionalParams.FilterCreatedAtEnd != nil {
+		localVarQueryParams.Add("filter[created_at][end]", datadog.ParameterToString(*optionalParams.FilterCreatedAtEnd, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -1390,67 +1088,38 @@ func (a *KeyManagementApi) listCurrentUserApplicationKeysExecute(r apiListCurren
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiUpdateAPIKeyRequest struct {
-	ctx      _context.Context
-	apiKeyId string
-	body     *APIKeyUpdateRequest
-}
-
-func (a *KeyManagementApi) buildUpdateAPIKeyRequest(ctx _context.Context, apiKeyId string, body APIKeyUpdateRequest) (apiUpdateAPIKeyRequest, error) {
-	req := apiUpdateAPIKeyRequest{
-		ctx:      ctx,
-		apiKeyId: apiKeyId,
-		body:     &body,
-	}
-	return req, nil
-}
-
 // UpdateAPIKey Edit an API key.
 // Update an API key.
 func (a *KeyManagementApi) UpdateAPIKey(ctx _context.Context, apiKeyId string, body APIKeyUpdateRequest) (APIKeyResponse, *_nethttp.Response, error) {
-	req, err := a.buildUpdateAPIKeyRequest(ctx, apiKeyId, body)
-	if err != nil {
-		var localVarReturnValue APIKeyResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.updateAPIKeyExecute(req)
-}
-
-// updateAPIKeyExecute executes the request.
-func (a *KeyManagementApi) updateAPIKeyExecute(r apiUpdateAPIKeyRequest) (APIKeyResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPatch
 		localVarPostBody    interface{}
 		localVarReturnValue APIKeyResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.KeyManagementApi.UpdateAPIKey")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.KeyManagementApi.UpdateAPIKey")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/api_keys/{api_key_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"api_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.apiKeyId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"api_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(apiKeyId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -1491,69 +1160,40 @@ func (a *KeyManagementApi) updateAPIKeyExecute(r apiUpdateAPIKeyRequest) (APIKey
 	}
 
 	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiUpdateApplicationKeyRequest struct {
-	ctx      _context.Context
-	appKeyId string
-	body     *ApplicationKeyUpdateRequest
-}
-
-func (a *KeyManagementApi) buildUpdateApplicationKeyRequest(ctx _context.Context, appKeyId string, body ApplicationKeyUpdateRequest) (apiUpdateApplicationKeyRequest, error) {
-	req := apiUpdateApplicationKeyRequest{
-		ctx:      ctx,
-		appKeyId: appKeyId,
-		body:     &body,
-	}
-	return req, nil
 }
 
 // UpdateApplicationKey Edit an application key.
 // Edit an application key
 func (a *KeyManagementApi) UpdateApplicationKey(ctx _context.Context, appKeyId string, body ApplicationKeyUpdateRequest) (ApplicationKeyResponse, *_nethttp.Response, error) {
-	req, err := a.buildUpdateApplicationKeyRequest(ctx, appKeyId, body)
-	if err != nil {
-		var localVarReturnValue ApplicationKeyResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.updateApplicationKeyExecute(req)
-}
-
-// updateApplicationKeyExecute executes the request.
-func (a *KeyManagementApi) updateApplicationKeyExecute(r apiUpdateApplicationKeyRequest) (ApplicationKeyResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPatch
 		localVarPostBody    interface{}
 		localVarReturnValue ApplicationKeyResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.KeyManagementApi.UpdateApplicationKey")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.KeyManagementApi.UpdateApplicationKey")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/application_keys/{app_key_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"app_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.appKeyId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"app_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(appKeyId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -1596,67 +1236,38 @@ func (a *KeyManagementApi) updateApplicationKeyExecute(r apiUpdateApplicationKey
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiUpdateCurrentUserApplicationKeyRequest struct {
-	ctx      _context.Context
-	appKeyId string
-	body     *ApplicationKeyUpdateRequest
-}
-
-func (a *KeyManagementApi) buildUpdateCurrentUserApplicationKeyRequest(ctx _context.Context, appKeyId string, body ApplicationKeyUpdateRequest) (apiUpdateCurrentUserApplicationKeyRequest, error) {
-	req := apiUpdateCurrentUserApplicationKeyRequest{
-		ctx:      ctx,
-		appKeyId: appKeyId,
-		body:     &body,
-	}
-	return req, nil
-}
-
 // UpdateCurrentUserApplicationKey Edit an application key owned by current user.
 // Edit an application key owned by current user
 func (a *KeyManagementApi) UpdateCurrentUserApplicationKey(ctx _context.Context, appKeyId string, body ApplicationKeyUpdateRequest) (ApplicationKeyResponse, *_nethttp.Response, error) {
-	req, err := a.buildUpdateCurrentUserApplicationKeyRequest(ctx, appKeyId, body)
-	if err != nil {
-		var localVarReturnValue ApplicationKeyResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.updateCurrentUserApplicationKeyExecute(req)
-}
-
-// updateCurrentUserApplicationKeyExecute executes the request.
-func (a *KeyManagementApi) updateCurrentUserApplicationKeyExecute(r apiUpdateCurrentUserApplicationKeyRequest) (ApplicationKeyResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPatch
 		localVarPostBody    interface{}
 		localVarReturnValue ApplicationKeyResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.KeyManagementApi.UpdateCurrentUserApplicationKey")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.KeyManagementApi.UpdateCurrentUserApplicationKey")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/current_user/application_keys/{app_key_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"app_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.appKeyId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"app_key_id"+"}", _neturl.PathEscape(datadog.ParameterToString(appKeyId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}

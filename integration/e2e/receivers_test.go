@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
@@ -101,10 +102,14 @@ func TestReceivers(t *testing.T) {
 			"datadog",
 			datadogexporter.NewFactory(),
 			func(factory exporter.Factory, endpoint string) component.Config {
-				exporterCfg := factory.CreateDefaultConfig()
-				ddCfg := exporterCfg.(*datadogexporter.Config)
-				ddCfg.Traces.Endpoint = endpoint
-				ddCfg.TLSSetting = datadogexporter.LimitedTLSClientSettings{InsecureSkipVerify: true}
+				ddCfg := &datadogexporter.Config{
+					LimitedHTTPClientSettings: datadogexporter.LimitedHTTPClientSettings{},
+					Traces: datadogexporter.TracesConfig{
+						TCPAddr: confignet.TCPAddr{Endpoint: endpoint},
+					},
+					API: datadogexporter.APIConfig{Key: "fake"},
+				}
+				require.NoError(t, ddCfg.Validate())
 				return ddCfg
 			},
 			"http://" + tempo.Endpoint(8126),

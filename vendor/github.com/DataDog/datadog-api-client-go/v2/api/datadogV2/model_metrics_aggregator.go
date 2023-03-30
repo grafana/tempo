@@ -14,11 +14,15 @@ type MetricsAggregator string
 
 // List of MetricsAggregator.
 const (
-	METRICSAGGREGATOR_AVG  MetricsAggregator = "avg"
-	METRICSAGGREGATOR_MIN  MetricsAggregator = "min"
-	METRICSAGGREGATOR_MAX  MetricsAggregator = "max"
-	METRICSAGGREGATOR_SUM  MetricsAggregator = "sum"
-	METRICSAGGREGATOR_LAST MetricsAggregator = "last"
+	METRICSAGGREGATOR_AVG        MetricsAggregator = "avg"
+	METRICSAGGREGATOR_MIN        MetricsAggregator = "min"
+	METRICSAGGREGATOR_MAX        MetricsAggregator = "max"
+	METRICSAGGREGATOR_SUM        MetricsAggregator = "sum"
+	METRICSAGGREGATOR_LAST       MetricsAggregator = "last"
+	METRICSAGGREGATOR_PERCENTILE MetricsAggregator = "percentile"
+	METRICSAGGREGATOR_MEAN       MetricsAggregator = "mean"
+	METRICSAGGREGATOR_L2NORM     MetricsAggregator = "l2norm"
+	METRICSAGGREGATOR_AREA       MetricsAggregator = "area"
 )
 
 var allowedMetricsAggregatorEnumValues = []MetricsAggregator{
@@ -27,6 +31,10 @@ var allowedMetricsAggregatorEnumValues = []MetricsAggregator{
 	METRICSAGGREGATOR_MAX,
 	METRICSAGGREGATOR_SUM,
 	METRICSAGGREGATOR_LAST,
+	METRICSAGGREGATOR_PERCENTILE,
+	METRICSAGGREGATOR_MEAN,
+	METRICSAGGREGATOR_L2NORM,
+	METRICSAGGREGATOR_AREA,
 }
 
 // GetAllowedValues reeturns the list of possible values.

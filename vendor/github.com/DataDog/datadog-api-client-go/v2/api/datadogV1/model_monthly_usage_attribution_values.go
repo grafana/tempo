@@ -114,6 +114,10 @@ type MonthlyUsageAttributionValues struct {
 	ProfiledContainerPercentage *float64 `json:"profiled_container_percentage,omitempty"`
 	// The profiled container usage by tag(s).
 	ProfiledContainerUsage *float64 `json:"profiled_container_usage,omitempty"`
+	// The percentage of profiled Fargate task usage by tag(s).
+	ProfiledFargatePercentage *float64 `json:"profiled_fargate_percentage,omitempty"`
+	// The profiled Fargate task usage by tag(s).
+	ProfiledFargateUsage *float64 `json:"profiled_fargate_usage,omitempty"`
 	// The percentage of profiled hosts usage by tag(s).
 	ProfiledHostPercentage *float64 `json:"profiled_host_percentage,omitempty"`
 	// The profiled hosts usage by tag(s).
@@ -1600,6 +1604,62 @@ func (o *MonthlyUsageAttributionValues) SetProfiledContainerUsage(v float64) {
 	o.ProfiledContainerUsage = &v
 }
 
+// GetProfiledFargatePercentage returns the ProfiledFargatePercentage field value if set, zero value otherwise.
+func (o *MonthlyUsageAttributionValues) GetProfiledFargatePercentage() float64 {
+	if o == nil || o.ProfiledFargatePercentage == nil {
+		var ret float64
+		return ret
+	}
+	return *o.ProfiledFargatePercentage
+}
+
+// GetProfiledFargatePercentageOk returns a tuple with the ProfiledFargatePercentage field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MonthlyUsageAttributionValues) GetProfiledFargatePercentageOk() (*float64, bool) {
+	if o == nil || o.ProfiledFargatePercentage == nil {
+		return nil, false
+	}
+	return o.ProfiledFargatePercentage, true
+}
+
+// HasProfiledFargatePercentage returns a boolean if a field has been set.
+func (o *MonthlyUsageAttributionValues) HasProfiledFargatePercentage() bool {
+	return o != nil && o.ProfiledFargatePercentage != nil
+}
+
+// SetProfiledFargatePercentage gets a reference to the given float64 and assigns it to the ProfiledFargatePercentage field.
+func (o *MonthlyUsageAttributionValues) SetProfiledFargatePercentage(v float64) {
+	o.ProfiledFargatePercentage = &v
+}
+
+// GetProfiledFargateUsage returns the ProfiledFargateUsage field value if set, zero value otherwise.
+func (o *MonthlyUsageAttributionValues) GetProfiledFargateUsage() float64 {
+	if o == nil || o.ProfiledFargateUsage == nil {
+		var ret float64
+		return ret
+	}
+	return *o.ProfiledFargateUsage
+}
+
+// GetProfiledFargateUsageOk returns a tuple with the ProfiledFargateUsage field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MonthlyUsageAttributionValues) GetProfiledFargateUsageOk() (*float64, bool) {
+	if o == nil || o.ProfiledFargateUsage == nil {
+		return nil, false
+	}
+	return o.ProfiledFargateUsage, true
+}
+
+// HasProfiledFargateUsage returns a boolean if a field has been set.
+func (o *MonthlyUsageAttributionValues) HasProfiledFargateUsage() bool {
+	return o != nil && o.ProfiledFargateUsage != nil
+}
+
+// SetProfiledFargateUsage gets a reference to the given float64 and assigns it to the ProfiledFargateUsage field.
+func (o *MonthlyUsageAttributionValues) SetProfiledFargateUsage(v float64) {
+	o.ProfiledFargateUsage = &v
+}
+
 // GetProfiledHostPercentage returns the ProfiledHostPercentage field value if set, zero value otherwise.
 func (o *MonthlyUsageAttributionValues) GetProfiledHostPercentage() float64 {
 	if o == nil || o.ProfiledHostPercentage == nil {
@@ -1874,6 +1934,12 @@ func (o MonthlyUsageAttributionValues) MarshalJSON() ([]byte, error) {
 	if o.ProfiledContainerUsage != nil {
 		toSerialize["profiled_container_usage"] = o.ProfiledContainerUsage
 	}
+	if o.ProfiledFargatePercentage != nil {
+		toSerialize["profiled_fargate_percentage"] = o.ProfiledFargatePercentage
+	}
+	if o.ProfiledFargateUsage != nil {
+		toSerialize["profiled_fargate_usage"] = o.ProfiledFargateUsage
+	}
 	if o.ProfiledHostPercentage != nil {
 		toSerialize["profiled_host_percentage"] = o.ProfiledHostPercentage
 	}
@@ -1949,6 +2015,8 @@ func (o *MonthlyUsageAttributionValues) UnmarshalJSON(bytes []byte) (err error) 
 		NpmHostUsage                     *float64 `json:"npm_host_usage,omitempty"`
 		ProfiledContainerPercentage      *float64 `json:"profiled_container_percentage,omitempty"`
 		ProfiledContainerUsage           *float64 `json:"profiled_container_usage,omitempty"`
+		ProfiledFargatePercentage        *float64 `json:"profiled_fargate_percentage,omitempty"`
+		ProfiledFargateUsage             *float64 `json:"profiled_fargate_usage,omitempty"`
 		ProfiledHostPercentage           *float64 `json:"profiled_host_percentage,omitempty"`
 		ProfiledHostUsage                *float64 `json:"profiled_host_usage,omitempty"`
 		SnmpPercentage                   *float64 `json:"snmp_percentage,omitempty"`
@@ -2015,6 +2083,8 @@ func (o *MonthlyUsageAttributionValues) UnmarshalJSON(bytes []byte) (err error) 
 	o.NpmHostUsage = all.NpmHostUsage
 	o.ProfiledContainerPercentage = all.ProfiledContainerPercentage
 	o.ProfiledContainerUsage = all.ProfiledContainerUsage
+	o.ProfiledFargatePercentage = all.ProfiledFargatePercentage
+	o.ProfiledFargateUsage = all.ProfiledFargateUsage
 	o.ProfiledHostPercentage = all.ProfiledHostPercentage
 	o.ProfiledHostUsage = all.ProfiledHostUsage
 	o.SnmpPercentage = all.SnmpPercentage

@@ -16,40 +16,16 @@ import (
 // AuthNMappingsApi service type
 type AuthNMappingsApi datadog.Service
 
-type apiCreateAuthNMappingRequest struct {
-	ctx  _context.Context
-	body *AuthNMappingCreateRequest
-}
-
-func (a *AuthNMappingsApi) buildCreateAuthNMappingRequest(ctx _context.Context, body AuthNMappingCreateRequest) (apiCreateAuthNMappingRequest, error) {
-	req := apiCreateAuthNMappingRequest{
-		ctx:  ctx,
-		body: &body,
-	}
-	return req, nil
-}
-
 // CreateAuthNMapping Create an AuthN Mapping.
 // Create an AuthN Mapping.
 func (a *AuthNMappingsApi) CreateAuthNMapping(ctx _context.Context, body AuthNMappingCreateRequest) (AuthNMappingResponse, *_nethttp.Response, error) {
-	req, err := a.buildCreateAuthNMappingRequest(ctx, body)
-	if err != nil {
-		var localVarReturnValue AuthNMappingResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.createAuthNMappingExecute(req)
-}
-
-// createAuthNMappingExecute executes the request.
-func (a *AuthNMappingsApi) createAuthNMappingExecute(r apiCreateAuthNMappingRequest) (AuthNMappingResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue AuthNMappingResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.AuthNMappingsApi.CreateAuthNMapping")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.AuthNMappingsApi.CreateAuthNMapping")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -59,21 +35,18 @@ func (a *AuthNMappingsApi) createAuthNMappingExecute(r apiCreateAuthNMappingRequ
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -116,44 +89,21 @@ func (a *AuthNMappingsApi) createAuthNMappingExecute(r apiCreateAuthNMappingRequ
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiDeleteAuthNMappingRequest struct {
-	ctx            _context.Context
-	authnMappingId string
-}
-
-func (a *AuthNMappingsApi) buildDeleteAuthNMappingRequest(ctx _context.Context, authnMappingId string) (apiDeleteAuthNMappingRequest, error) {
-	req := apiDeleteAuthNMappingRequest{
-		ctx:            ctx,
-		authnMappingId: authnMappingId,
-	}
-	return req, nil
-}
-
 // DeleteAuthNMapping Delete an AuthN Mapping.
 // Delete an AuthN Mapping specified by AuthN Mapping UUID.
 func (a *AuthNMappingsApi) DeleteAuthNMapping(ctx _context.Context, authnMappingId string) (*_nethttp.Response, error) {
-	req, err := a.buildDeleteAuthNMappingRequest(ctx, authnMappingId)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.deleteAuthNMappingExecute(req)
-}
-
-// deleteAuthNMappingExecute executes the request.
-func (a *AuthNMappingsApi) deleteAuthNMappingExecute(r apiDeleteAuthNMappingRequest) (*_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod = _nethttp.MethodDelete
 		localVarPostBody   interface{}
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.AuthNMappingsApi.DeleteAuthNMapping")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.AuthNMappingsApi.DeleteAuthNMapping")
 	if err != nil {
 		return nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/authn_mappings/{authn_mapping_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"authn_mapping_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.authnMappingId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"authn_mapping_id"+"}", _neturl.PathEscape(datadog.ParameterToString(authnMappingId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -161,12 +111,12 @@ func (a *AuthNMappingsApi) deleteAuthNMappingExecute(r apiDeleteAuthNMappingRequ
 	localVarHeaderParams["Accept"] = "*/*"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -200,46 +150,22 @@ func (a *AuthNMappingsApi) deleteAuthNMappingExecute(r apiDeleteAuthNMappingRequ
 	return localVarHTTPResponse, nil
 }
 
-type apiGetAuthNMappingRequest struct {
-	ctx            _context.Context
-	authnMappingId string
-}
-
-func (a *AuthNMappingsApi) buildGetAuthNMappingRequest(ctx _context.Context, authnMappingId string) (apiGetAuthNMappingRequest, error) {
-	req := apiGetAuthNMappingRequest{
-		ctx:            ctx,
-		authnMappingId: authnMappingId,
-	}
-	return req, nil
-}
-
 // GetAuthNMapping Get an AuthN Mapping by UUID.
 // Get an AuthN Mapping specified by the AuthN Mapping UUID.
 func (a *AuthNMappingsApi) GetAuthNMapping(ctx _context.Context, authnMappingId string) (AuthNMappingResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetAuthNMappingRequest(ctx, authnMappingId)
-	if err != nil {
-		var localVarReturnValue AuthNMappingResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getAuthNMappingExecute(req)
-}
-
-// getAuthNMappingExecute executes the request.
-func (a *AuthNMappingsApi) getAuthNMappingExecute(r apiGetAuthNMappingRequest) (AuthNMappingResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue AuthNMappingResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.AuthNMappingsApi.GetAuthNMapping")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.AuthNMappingsApi.GetAuthNMapping")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/authn_mappings/{authn_mapping_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"authn_mapping_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.authnMappingId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"authn_mapping_id"+"}", _neturl.PathEscape(datadog.ParameterToString(authnMappingId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -247,12 +173,12 @@ func (a *AuthNMappingsApi) getAuthNMappingExecute(r apiGetAuthNMappingRequest) (
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -295,14 +221,6 @@ func (a *AuthNMappingsApi) getAuthNMappingExecute(r apiGetAuthNMappingRequest) (
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiListAuthNMappingsRequest struct {
-	ctx        _context.Context
-	pageSize   *int64
-	pageNumber *int64
-	sort       *AuthNMappingsSort
-	filter     *string
-}
-
 // ListAuthNMappingsOptionalParameters holds optional parameters for ListAuthNMappings.
 type ListAuthNMappingsOptionalParameters struct {
 	PageSize   *int64
@@ -341,45 +259,24 @@ func (r *ListAuthNMappingsOptionalParameters) WithFilter(filter string) *ListAut
 	return r
 }
 
-func (a *AuthNMappingsApi) buildListAuthNMappingsRequest(ctx _context.Context, o ...ListAuthNMappingsOptionalParameters) (apiListAuthNMappingsRequest, error) {
-	req := apiListAuthNMappingsRequest{
-		ctx: ctx,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type ListAuthNMappingsOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.pageSize = o[0].PageSize
-		req.pageNumber = o[0].PageNumber
-		req.sort = o[0].Sort
-		req.filter = o[0].Filter
-	}
-	return req, nil
-}
-
 // ListAuthNMappings List all AuthN Mappings.
 // List all AuthN Mappings in the org.
 func (a *AuthNMappingsApi) ListAuthNMappings(ctx _context.Context, o ...ListAuthNMappingsOptionalParameters) (AuthNMappingsResponse, *_nethttp.Response, error) {
-	req, err := a.buildListAuthNMappingsRequest(ctx, o...)
-	if err != nil {
-		var localVarReturnValue AuthNMappingsResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.listAuthNMappingsExecute(req)
-}
-
-// listAuthNMappingsExecute executes the request.
-func (a *AuthNMappingsApi) listAuthNMappingsExecute(r apiListAuthNMappingsRequest) (AuthNMappingsResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue AuthNMappingsResponse
+		optionalParams      ListAuthNMappingsOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.AuthNMappingsApi.ListAuthNMappings")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type ListAuthNMappingsOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.AuthNMappingsApi.ListAuthNMappings")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -389,27 +286,27 @@ func (a *AuthNMappingsApi) listAuthNMappingsExecute(r apiListAuthNMappingsReques
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.pageSize != nil {
-		localVarQueryParams.Add("page[size]", datadog.ParameterToString(*r.pageSize, ""))
+	if optionalParams.PageSize != nil {
+		localVarQueryParams.Add("page[size]", datadog.ParameterToString(*optionalParams.PageSize, ""))
 	}
-	if r.pageNumber != nil {
-		localVarQueryParams.Add("page[number]", datadog.ParameterToString(*r.pageNumber, ""))
+	if optionalParams.PageNumber != nil {
+		localVarQueryParams.Add("page[number]", datadog.ParameterToString(*optionalParams.PageNumber, ""))
 	}
-	if r.sort != nil {
-		localVarQueryParams.Add("sort", datadog.ParameterToString(*r.sort, ""))
+	if optionalParams.Sort != nil {
+		localVarQueryParams.Add("sort", datadog.ParameterToString(*optionalParams.Sort, ""))
 	}
-	if r.filter != nil {
-		localVarQueryParams.Add("filter", datadog.ParameterToString(*r.filter, ""))
+	if optionalParams.Filter != nil {
+		localVarQueryParams.Add("filter", datadog.ParameterToString(*optionalParams.Filter, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -452,67 +349,38 @@ func (a *AuthNMappingsApi) listAuthNMappingsExecute(r apiListAuthNMappingsReques
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiUpdateAuthNMappingRequest struct {
-	ctx            _context.Context
-	authnMappingId string
-	body           *AuthNMappingUpdateRequest
-}
-
-func (a *AuthNMappingsApi) buildUpdateAuthNMappingRequest(ctx _context.Context, authnMappingId string, body AuthNMappingUpdateRequest) (apiUpdateAuthNMappingRequest, error) {
-	req := apiUpdateAuthNMappingRequest{
-		ctx:            ctx,
-		authnMappingId: authnMappingId,
-		body:           &body,
-	}
-	return req, nil
-}
-
 // UpdateAuthNMapping Edit an AuthN Mapping.
 // Edit an AuthN Mapping.
 func (a *AuthNMappingsApi) UpdateAuthNMapping(ctx _context.Context, authnMappingId string, body AuthNMappingUpdateRequest) (AuthNMappingResponse, *_nethttp.Response, error) {
-	req, err := a.buildUpdateAuthNMappingRequest(ctx, authnMappingId, body)
-	if err != nil {
-		var localVarReturnValue AuthNMappingResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.updateAuthNMappingExecute(req)
-}
-
-// updateAuthNMappingExecute executes the request.
-func (a *AuthNMappingsApi) updateAuthNMappingExecute(r apiUpdateAuthNMappingRequest) (AuthNMappingResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPatch
 		localVarPostBody    interface{}
 		localVarReturnValue AuthNMappingResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.AuthNMappingsApi.UpdateAuthNMapping")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.AuthNMappingsApi.UpdateAuthNMapping")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v2/authn_mappings/{authn_mapping_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"authn_mapping_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.authnMappingId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"authn_mapping_id"+"}", _neturl.PathEscape(datadog.ParameterToString(authnMappingId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}

@@ -16,44 +16,21 @@ import (
 // DowntimesApi service type
 type DowntimesApi datadog.Service
 
-type apiCancelDowntimeRequest struct {
-	ctx        _context.Context
-	downtimeId int64
-}
-
-func (a *DowntimesApi) buildCancelDowntimeRequest(ctx _context.Context, downtimeId int64) (apiCancelDowntimeRequest, error) {
-	req := apiCancelDowntimeRequest{
-		ctx:        ctx,
-		downtimeId: downtimeId,
-	}
-	return req, nil
-}
-
 // CancelDowntime Cancel a downtime.
 // Cancel a downtime.
 func (a *DowntimesApi) CancelDowntime(ctx _context.Context, downtimeId int64) (*_nethttp.Response, error) {
-	req, err := a.buildCancelDowntimeRequest(ctx, downtimeId)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.cancelDowntimeExecute(req)
-}
-
-// cancelDowntimeExecute executes the request.
-func (a *DowntimesApi) cancelDowntimeExecute(r apiCancelDowntimeRequest) (*_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod = _nethttp.MethodDelete
 		localVarPostBody   interface{}
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.DowntimesApi.CancelDowntime")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.DowntimesApi.CancelDowntime")
 	if err != nil {
 		return nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/downtime/{downtime_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"downtime_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.downtimeId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"downtime_id"+"}", _neturl.PathEscape(datadog.ParameterToString(downtimeId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -61,12 +38,12 @@ func (a *DowntimesApi) cancelDowntimeExecute(r apiCancelDowntimeRequest) (*_neth
 	localVarHeaderParams["Accept"] = "*/*"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -100,40 +77,16 @@ func (a *DowntimesApi) cancelDowntimeExecute(r apiCancelDowntimeRequest) (*_neth
 	return localVarHTTPResponse, nil
 }
 
-type apiCancelDowntimesByScopeRequest struct {
-	ctx  _context.Context
-	body *CancelDowntimesByScopeRequest
-}
-
-func (a *DowntimesApi) buildCancelDowntimesByScopeRequest(ctx _context.Context, body CancelDowntimesByScopeRequest) (apiCancelDowntimesByScopeRequest, error) {
-	req := apiCancelDowntimesByScopeRequest{
-		ctx:  ctx,
-		body: &body,
-	}
-	return req, nil
-}
-
 // CancelDowntimesByScope Cancel downtimes by scope.
 // Delete all downtimes that match the scope of `X`.
 func (a *DowntimesApi) CancelDowntimesByScope(ctx _context.Context, body CancelDowntimesByScopeRequest) (CanceledDowntimesIds, *_nethttp.Response, error) {
-	req, err := a.buildCancelDowntimesByScopeRequest(ctx, body)
-	if err != nil {
-		var localVarReturnValue CanceledDowntimesIds
-		return localVarReturnValue, nil, err
-	}
-
-	return a.cancelDowntimesByScopeExecute(req)
-}
-
-// cancelDowntimesByScopeExecute executes the request.
-func (a *DowntimesApi) cancelDowntimesByScopeExecute(r apiCancelDowntimesByScopeRequest) (CanceledDowntimesIds, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue CanceledDowntimesIds
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.DowntimesApi.CancelDowntimesByScope")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.DowntimesApi.CancelDowntimesByScope")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -143,21 +96,18 @@ func (a *DowntimesApi) cancelDowntimesByScopeExecute(r apiCancelDowntimesByScope
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -200,40 +150,16 @@ func (a *DowntimesApi) cancelDowntimesByScopeExecute(r apiCancelDowntimesByScope
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiCreateDowntimeRequest struct {
-	ctx  _context.Context
-	body *Downtime
-}
-
-func (a *DowntimesApi) buildCreateDowntimeRequest(ctx _context.Context, body Downtime) (apiCreateDowntimeRequest, error) {
-	req := apiCreateDowntimeRequest{
-		ctx:  ctx,
-		body: &body,
-	}
-	return req, nil
-}
-
 // CreateDowntime Schedule a downtime.
 // Schedule a downtime.
 func (a *DowntimesApi) CreateDowntime(ctx _context.Context, body Downtime) (Downtime, *_nethttp.Response, error) {
-	req, err := a.buildCreateDowntimeRequest(ctx, body)
-	if err != nil {
-		var localVarReturnValue Downtime
-		return localVarReturnValue, nil, err
-	}
-
-	return a.createDowntimeExecute(req)
-}
-
-// createDowntimeExecute executes the request.
-func (a *DowntimesApi) createDowntimeExecute(r apiCreateDowntimeRequest) (Downtime, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue Downtime
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.DowntimesApi.CreateDowntime")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.DowntimesApi.CreateDowntime")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -243,21 +169,18 @@ func (a *DowntimesApi) createDowntimeExecute(r apiCreateDowntimeRequest) (Downti
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -300,46 +223,22 @@ func (a *DowntimesApi) createDowntimeExecute(r apiCreateDowntimeRequest) (Downti
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiGetDowntimeRequest struct {
-	ctx        _context.Context
-	downtimeId int64
-}
-
-func (a *DowntimesApi) buildGetDowntimeRequest(ctx _context.Context, downtimeId int64) (apiGetDowntimeRequest, error) {
-	req := apiGetDowntimeRequest{
-		ctx:        ctx,
-		downtimeId: downtimeId,
-	}
-	return req, nil
-}
-
 // GetDowntime Get a downtime.
 // Get downtime detail by `downtime_id`.
 func (a *DowntimesApi) GetDowntime(ctx _context.Context, downtimeId int64) (Downtime, *_nethttp.Response, error) {
-	req, err := a.buildGetDowntimeRequest(ctx, downtimeId)
-	if err != nil {
-		var localVarReturnValue Downtime
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getDowntimeExecute(req)
-}
-
-// getDowntimeExecute executes the request.
-func (a *DowntimesApi) getDowntimeExecute(r apiGetDowntimeRequest) (Downtime, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue Downtime
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.DowntimesApi.GetDowntime")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.DowntimesApi.GetDowntime")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/downtime/{downtime_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"downtime_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.downtimeId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"downtime_id"+"}", _neturl.PathEscape(datadog.ParameterToString(downtimeId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -347,12 +246,12 @@ func (a *DowntimesApi) getDowntimeExecute(r apiGetDowntimeRequest) (Downtime, *_
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -395,11 +294,6 @@ func (a *DowntimesApi) getDowntimeExecute(r apiGetDowntimeRequest) (Downtime, *_
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiListDowntimesRequest struct {
-	ctx         _context.Context
-	currentOnly *bool
-}
-
 // ListDowntimesOptionalParameters holds optional parameters for ListDowntimes.
 type ListDowntimesOptionalParameters struct {
 	CurrentOnly *bool
@@ -417,42 +311,24 @@ func (r *ListDowntimesOptionalParameters) WithCurrentOnly(currentOnly bool) *Lis
 	return r
 }
 
-func (a *DowntimesApi) buildListDowntimesRequest(ctx _context.Context, o ...ListDowntimesOptionalParameters) (apiListDowntimesRequest, error) {
-	req := apiListDowntimesRequest{
-		ctx: ctx,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type ListDowntimesOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.currentOnly = o[0].CurrentOnly
-	}
-	return req, nil
-}
-
 // ListDowntimes Get all downtimes.
 // Get all scheduled downtimes.
 func (a *DowntimesApi) ListDowntimes(ctx _context.Context, o ...ListDowntimesOptionalParameters) ([]Downtime, *_nethttp.Response, error) {
-	req, err := a.buildListDowntimesRequest(ctx, o...)
-	if err != nil {
-		var localVarReturnValue []Downtime
-		return localVarReturnValue, nil, err
-	}
-
-	return a.listDowntimesExecute(req)
-}
-
-// listDowntimesExecute executes the request.
-func (a *DowntimesApi) listDowntimesExecute(r apiListDowntimesRequest) ([]Downtime, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue []Downtime
+		optionalParams      ListDowntimesOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.DowntimesApi.ListDowntimes")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type ListDowntimesOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.DowntimesApi.ListDowntimes")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -462,18 +338,18 @@ func (a *DowntimesApi) listDowntimesExecute(r apiListDowntimesRequest) ([]Downti
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.currentOnly != nil {
-		localVarQueryParams.Add("current_only", datadog.ParameterToString(*r.currentOnly, ""))
+	if optionalParams.CurrentOnly != nil {
+		localVarQueryParams.Add("current_only", datadog.ParameterToString(*optionalParams.CurrentOnly, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -516,46 +392,22 @@ func (a *DowntimesApi) listDowntimesExecute(r apiListDowntimesRequest) ([]Downti
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiListMonitorDowntimesRequest struct {
-	ctx       _context.Context
-	monitorId int64
-}
-
-func (a *DowntimesApi) buildListMonitorDowntimesRequest(ctx _context.Context, monitorId int64) (apiListMonitorDowntimesRequest, error) {
-	req := apiListMonitorDowntimesRequest{
-		ctx:       ctx,
-		monitorId: monitorId,
-	}
-	return req, nil
-}
-
 // ListMonitorDowntimes Get all downtimes for a monitor.
 // Get all active downtimes for the specified monitor.
 func (a *DowntimesApi) ListMonitorDowntimes(ctx _context.Context, monitorId int64) ([]Downtime, *_nethttp.Response, error) {
-	req, err := a.buildListMonitorDowntimesRequest(ctx, monitorId)
-	if err != nil {
-		var localVarReturnValue []Downtime
-		return localVarReturnValue, nil, err
-	}
-
-	return a.listMonitorDowntimesExecute(req)
-}
-
-// listMonitorDowntimesExecute executes the request.
-func (a *DowntimesApi) listMonitorDowntimesExecute(r apiListMonitorDowntimesRequest) ([]Downtime, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue []Downtime
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.DowntimesApi.ListMonitorDowntimes")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.DowntimesApi.ListMonitorDowntimes")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/monitor/{monitor_id}/downtimes"
-	localVarPath = strings.Replace(localVarPath, "{"+"monitor_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.monitorId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"monitor_id"+"}", _neturl.PathEscape(datadog.ParameterToString(monitorId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -563,12 +415,12 @@ func (a *DowntimesApi) listMonitorDowntimesExecute(r apiListMonitorDowntimesRequ
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -611,67 +463,38 @@ func (a *DowntimesApi) listMonitorDowntimesExecute(r apiListMonitorDowntimesRequ
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiUpdateDowntimeRequest struct {
-	ctx        _context.Context
-	downtimeId int64
-	body       *Downtime
-}
-
-func (a *DowntimesApi) buildUpdateDowntimeRequest(ctx _context.Context, downtimeId int64, body Downtime) (apiUpdateDowntimeRequest, error) {
-	req := apiUpdateDowntimeRequest{
-		ctx:        ctx,
-		downtimeId: downtimeId,
-		body:       &body,
-	}
-	return req, nil
-}
-
 // UpdateDowntime Update a downtime.
 // Update a single downtime by `downtime_id`.
 func (a *DowntimesApi) UpdateDowntime(ctx _context.Context, downtimeId int64, body Downtime) (Downtime, *_nethttp.Response, error) {
-	req, err := a.buildUpdateDowntimeRequest(ctx, downtimeId, body)
-	if err != nil {
-		var localVarReturnValue Downtime
-		return localVarReturnValue, nil, err
-	}
-
-	return a.updateDowntimeExecute(req)
-}
-
-// updateDowntimeExecute executes the request.
-func (a *DowntimesApi) updateDowntimeExecute(r apiUpdateDowntimeRequest) (Downtime, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPut
 		localVarPostBody    interface{}
 		localVarReturnValue Downtime
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.DowntimesApi.UpdateDowntime")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.DowntimesApi.UpdateDowntime")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/downtime/{downtime_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"downtime_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.downtimeId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"downtime_id"+"}", _neturl.PathEscape(datadog.ParameterToString(downtimeId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}

@@ -21,11 +21,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -34,7 +35,7 @@ import (
 	zorkian "gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/clientutil"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/metadata"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/hostmetadata"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/metrics"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/scrub"
 )
@@ -102,7 +103,7 @@ func (exp *traceExporter) consumeTraces(
 			if td.ResourceSpans().Len() > 0 {
 				attrs = td.ResourceSpans().At(0).Resource().Attributes()
 			}
-			go metadata.Pusher(exp.ctx, exp.params, newMetadataConfigfromConfig(exp.cfg), exp.sourceProvider, attrs)
+			go hostmetadata.Pusher(exp.ctx, exp.params, newMetadataConfigfromConfig(exp.cfg), exp.sourceProvider, attrs)
 		})
 	}
 	rspans := td.ResourceSpans()
@@ -140,7 +141,7 @@ func (exp *traceExporter) exportUsageMetrics(ctx context.Context, hosts map[stri
 		}
 		_, err = exp.retrier.DoWithRetries(ctx, func(context.Context) error {
 			ctx2 := clientutil.GetRequestContext(ctx, string(exp.cfg.API.Key))
-			_, httpresp, merr := exp.metricsAPI.SubmitMetrics(ctx2, datadogV2.MetricPayload{Series: series})
+			_, httpresp, merr := exp.metricsAPI.SubmitMetrics(ctx2, datadogV2.MetricPayload{Series: series}, *clientutil.GZipSubmitMetricsOptionalParameters)
 			return clientutil.WrapError(merr, httpresp)
 		})
 	} else {
@@ -175,7 +176,7 @@ func newTraceAgent(ctx context.Context, params exporter.CreateSettings, cfg *Con
 	}
 	acfg.OTLPReceiver.SpanNameRemappings = cfg.Traces.SpanNameRemappings
 	acfg.OTLPReceiver.SpanNameAsResourceName = cfg.Traces.SpanNameAsResourceName
-	acfg.OTLPReceiver.UsePreviewHostnameLogic = metadata.HostnamePreviewFeatureGate.IsEnabled()
+	acfg.OTLPReceiver.UsePreviewHostnameLogic = hostmetadata.HostnamePreviewFeatureGate.IsEnabled()
 	acfg.Endpoints[0].APIKey = string(cfg.API.Key)
 	acfg.Ignore["resource"] = cfg.Traces.IgnoreResources
 	acfg.ReceiverPort = 0 // disable HTTP receiver
@@ -187,5 +188,5 @@ func newTraceAgent(ctx context.Context, params exporter.CreateSettings, cfg *Con
 		acfg.Endpoints[0].Host = addr
 	}
 	tracelog.SetLogger(&zaplogger{params.Logger})
-	return agent.NewAgent(ctx, acfg), nil
+	return agent.NewAgent(ctx, acfg, telemetry.NewNoopCollector()), nil
 }

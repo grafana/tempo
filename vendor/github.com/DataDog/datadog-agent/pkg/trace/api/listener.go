@@ -73,6 +73,7 @@ func (ln *measuredListener) flushMetrics() {
 func (ln *measuredListener) Accept() (net.Conn, error) {
 	conn, err := ln.Listener.Accept()
 	if err != nil {
+		log.Debugf("Error connection named %q: %s", ln.name, err)
 		if ne, ok := err.(net.Error); ok && ne.Timeout() && !ne.Temporary() {
 			ln.timedout.Inc()
 		} else {
@@ -80,8 +81,8 @@ func (ln *measuredListener) Accept() (net.Conn, error) {
 		}
 	} else {
 		ln.accepted.Inc()
+		log.Tracef("Accepted connection named %q.", ln.name)
 	}
-	log.Tracef("Accepted connection named %q.", ln.name)
 	return conn, err
 }
 

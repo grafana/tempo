@@ -76,8 +76,8 @@ func (c APIConfig) Validate() error {
 	return nil
 }
 
-// createRestConfig creates an Kubernetes API config from user configuration.
-func createRestConfig(apiConf APIConfig) (*rest.Config, error) {
+// CreateRestConfig creates an Kubernetes API config from user configuration.
+func CreateRestConfig(apiConf APIConfig) (*rest.Config, error) {
 	var authConf *rest.Config
 	var err error
 
@@ -133,7 +133,7 @@ func MakeClient(apiConf APIConfig) (k8s.Interface, error) {
 		return nil, err
 	}
 
-	authConf, err := createRestConfig(apiConf)
+	authConf, err := CreateRestConfig(apiConf)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +152,7 @@ func MakeDynamicClient(apiConf APIConfig) (dynamic.Interface, error) {
 		return nil, err
 	}
 
-	authConf, err := createRestConfig(apiConf)
+	authConf, err := CreateRestConfig(apiConf)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +172,7 @@ func MakeOpenShiftQuotaClient(apiConf APIConfig) (quotaclientset.Interface, erro
 		return nil, err
 	}
 
-	authConf, err := createRestConfig(apiConf)
+	authConf, err := CreateRestConfig(apiConf)
 	if err != nil {
 		return nil, err
 	}

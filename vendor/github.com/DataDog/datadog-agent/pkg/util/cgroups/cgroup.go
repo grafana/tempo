@@ -16,9 +16,6 @@ type Cgroup interface {
 	Identifier() string
 	// GetParent returns parent Cgroup (will fail if used on root cgroup)
 	GetParent() (Cgroup, error)
-	// GetStats returns all cgroup statistics at once. Each call triggers a read from filesystem (no cache)
-	// The given Stats object is filled with new values. If re-using object, old values are not cleared on read failure.
-	GetStats(*Stats) error
 	// GetCPUStats returns all cgroup statistics at once. Each call triggers a read from filesystem (no cache)
 	// The given CPUStats object is filled with new values. If re-using object, old values are not cleared on read failure.
 	GetCPUStats(*CPUStats) error
@@ -35,4 +32,50 @@ type Cgroup interface {
 	// - When running in host PID namespace, no cache is used (cacheValidity is discarded)
 	// - When running in a different PID namespace, cache is used
 	GetPIDs(cacheValidity time.Duration) ([]int, error)
+}
+
+// GetStats allows to extract all available stats from cgroup
+func GetStats(c Cgroup, stats *Stats) (allFailed bool, errs []error) {
+	allFailed = true
+	if stats == nil {
+		return true, []error{&InvalidInputError{Desc: "input stats cannot be nil"}}
+	}
+
+	cpuStats := &CPUStats{}
+	err := c.GetCPUStats(cpuStats)
+	if err == nil {
+		stats.CPU = cpuStats
+		allFailed = false
+	} else {
+		errs = append(errs, err)
+	}
+
+	memoryStats := &MemoryStats{}
+	err = c.GetMemoryStats(memoryStats)
+	if err == nil {
+		stats.Memory = memoryStats
+		allFailed = false
+	} else {
+		errs = append(errs, err)
+	}
+
+	ioStats := &IOStats{}
+	err = c.GetIOStats(ioStats)
+	if err == nil {
+		stats.IO = ioStats
+		allFailed = false
+	} else {
+		errs = append(errs, err)
+	}
+
+	pidStats := &PIDStats{}
+	err = c.GetPIDStats(pidStats)
+	if err == nil {
+		stats.PID = pidStats
+		allFailed = false
+	} else {
+		errs = append(errs, err)
+	}
+
+	return
 }

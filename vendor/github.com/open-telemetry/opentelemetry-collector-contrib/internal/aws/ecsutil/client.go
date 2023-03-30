@@ -119,7 +119,7 @@ func (c *clientImpl) Get(path string) ([]byte, error) {
 
 func (c *clientImpl) buildReq(path string) (*http.Request, error) {
 	url := c.baseURL.String() + path
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}

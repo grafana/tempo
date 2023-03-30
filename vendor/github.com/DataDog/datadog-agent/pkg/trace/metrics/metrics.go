@@ -12,7 +12,8 @@ package metrics
 
 import (
 	"errors"
-	"fmt"
+	"net"
+	"strconv"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -23,7 +24,7 @@ import (
 func findAddr(conf *config.AgentConfig) (string, error) {
 	if conf.StatsdPort > 0 {
 		// UDP enabled
-		return fmt.Sprintf("%s:%d", conf.StatsdHost, conf.StatsdPort), nil
+		return net.JoinHostPort(conf.StatsdHost, strconv.Itoa(conf.StatsdPort)), nil
 	}
 	if conf.StatsdPipeName != "" {
 		// Windows Pipes can be used

@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"expvar"
 	"fmt"
 	"io"
 	stdlog "log"
@@ -17,9 +16,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
-	"net/http/pprof"
 	"os"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,13 +29,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
@@ -76,6 +73,8 @@ type HTTPReceiver struct {
 	statsProcessor      StatsProcessor
 	containerIDProvider IDProvider
 
+	telemetryCollector telemetry.TelemetryCollector
+
 	rateLimiterResponse int // HTTP status code when refusing
 
 	wg   sync.WaitGroup // waits for all requests to be processed
@@ -86,9 +85,9 @@ type HTTPReceiver struct {
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
-func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor) *HTTPReceiver {
+func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor, telemetryCollector telemetry.TelemetryCollector) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
-	if features.Has("429") {
+	if conf.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
 	return &HTTPReceiver{
@@ -100,6 +99,8 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		conf:                conf,
 		dynConf:             dynConf,
 		containerIDProvider: NewIDProvider(conf.ContainerProcRoot),
+
+		telemetryCollector: telemetryCollector,
 
 		rateLimiterResponse: rateLimiterResponse,
 
@@ -113,7 +114,6 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	hash, infoHandler := r.makeInfoHandler()
-	r.attachDebugHandlers(mux)
 	for _, e := range endpoints {
 		if e.IsEnabled != nil && !e.IsEnabled(r.conf) {
 			continue
@@ -155,15 +155,17 @@ func (r *HTTPReceiver) Start() {
 		ConnContext:  connContext,
 	}
 
-	addr := fmt.Sprintf("%s:%d", r.conf.ReceiverHost, r.conf.ReceiverPort)
+	addr := net.JoinHostPort(r.conf.ReceiverHost, strconv.Itoa(r.conf.ReceiverPort))
 	ln, err := r.listenTCP(addr)
 	if err != nil {
+		r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
 		killProcess("Error creating tcp listener: %v", err)
 	}
 	go func() {
 		defer watchdog.LogOnPanic()
 		if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
 			log.Errorf("Could not start HTTP server: %v. HTTP receiver disabled.", err)
+			r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
 		}
 	}()
 	log.Infof("Listening for traces at http://%s", addr)
@@ -171,12 +173,14 @@ func (r *HTTPReceiver) Start() {
 	if path := r.conf.ReceiverSocket; path != "" {
 		ln, err := r.listenUnix(path)
 		if err != nil {
+			r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
 			killProcess("Error creating UDS listener: %v", err)
 		}
 		go func() {
 			defer watchdog.LogOnPanic()
 			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
 				log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
+				r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
 			}
 		}()
 		log.Infof("Listening for traces at unix://%s", path)
@@ -188,12 +192,14 @@ func (r *HTTPReceiver) Start() {
 		secdec := r.conf.PipeSecurityDescriptor
 		ln, err := listenPipe(pipepath, secdec, bufferSize)
 		if err != nil {
+			r.telemetryCollector.SendStartupError(telemetry.CantStartWindowsPipeServer, err)
 			killProcess("Error creating %q named pipe: %v", pipepath, err)
 		}
 		go func() {
 			defer watchdog.LogOnPanic()
 			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
 				log.Errorf("Could not start Windows Pipes server: %v. Windows Pipes receiver disabled.", err)
+				r.telemetryCollector.SendStartupError(telemetry.CantStartWindowsPipeServer, err)
 			}
 		}()
 		log.Infof("Listening for traces on Windowes pipe %q. Security descriptor is %q", pipepath, secdec)
@@ -205,43 +211,6 @@ func (r *HTTPReceiver) Start() {
 		defer watchdog.LogOnPanic()
 		r.loop()
 	}()
-}
-
-func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-
-	mux.HandleFunc("/debug/blockrate", func(w http.ResponseWriter, r *http.Request) {
-		// this endpoint calls runtime.SetBlockProfileRate(v), where v is an optional
-		// query string parameter defaulting to 10000 (1 sample per 10μs blocked).
-		rate := 10000
-		v := r.URL.Query().Get("v")
-		if v != "" {
-			n, err := strconv.Atoi(v)
-			if err != nil {
-				http.Error(w, "v must be an integer", http.StatusBadRequest)
-				return
-			}
-			rate = n
-		}
-		runtime.SetBlockProfileRate(rate)
-		fmt.Fprintf(w, "Block profile rate set to %d. It will automatically be disabled again after calling /debug/pprof/block\n", rate)
-	})
-
-	mux.HandleFunc("/debug/pprof/block", func(w http.ResponseWriter, r *http.Request) {
-		// serve the block profile and reset the rate to 0.
-		pprof.Handler("block").ServeHTTP(w, r)
-		runtime.SetBlockProfileRate(0)
-	})
-
-	mux.Handle("/debug/vars", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		// allow the GUI to call this endpoint so that the status can be reported
-		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:"+r.conf.GUIPort)
-		expvar.Handler().ServeHTTP(w, req)
-	}))
 }
 
 // listenUnix returns a net.Listener listening on the given "unix" socket path.

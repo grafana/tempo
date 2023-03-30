@@ -119,6 +119,8 @@ type UsageSummaryResponse struct {
 	MobileRumSessionCountAggSum *int64 `json:"mobile_rum_session_count_agg_sum,omitempty"`
 	// Shows the sum of all mobile RUM Sessions on Android over all hours in the current months for all organizations.
 	MobileRumSessionCountAndroidAggSum *int64 `json:"mobile_rum_session_count_android_agg_sum,omitempty"`
+	// Shows the sum of all mobile RUM Sessions on Flutter over all hours in the current months for all organizations.
+	MobileRumSessionCountFlutterAggSum *int64 `json:"mobile_rum_session_count_flutter_agg_sum,omitempty"`
 	// Shows the sum of all mobile RUM Sessions on iOS over all hours in the current months for all organizations.
 	MobileRumSessionCountIosAggSum *int64 `json:"mobile_rum_session_count_ios_agg_sum,omitempty"`
 	// Shows the sum of all mobile RUM Sessions on React Native over all hours in the current months for all organizations.
@@ -1713,6 +1715,34 @@ func (o *UsageSummaryResponse) SetMobileRumSessionCountAndroidAggSum(v int64) {
 	o.MobileRumSessionCountAndroidAggSum = &v
 }
 
+// GetMobileRumSessionCountFlutterAggSum returns the MobileRumSessionCountFlutterAggSum field value if set, zero value otherwise.
+func (o *UsageSummaryResponse) GetMobileRumSessionCountFlutterAggSum() int64 {
+	if o == nil || o.MobileRumSessionCountFlutterAggSum == nil {
+		var ret int64
+		return ret
+	}
+	return *o.MobileRumSessionCountFlutterAggSum
+}
+
+// GetMobileRumSessionCountFlutterAggSumOk returns a tuple with the MobileRumSessionCountFlutterAggSum field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *UsageSummaryResponse) GetMobileRumSessionCountFlutterAggSumOk() (*int64, bool) {
+	if o == nil || o.MobileRumSessionCountFlutterAggSum == nil {
+		return nil, false
+	}
+	return o.MobileRumSessionCountFlutterAggSum, true
+}
+
+// HasMobileRumSessionCountFlutterAggSum returns a boolean if a field has been set.
+func (o *UsageSummaryResponse) HasMobileRumSessionCountFlutterAggSum() bool {
+	return o != nil && o.MobileRumSessionCountFlutterAggSum != nil
+}
+
+// SetMobileRumSessionCountFlutterAggSum gets a reference to the given int64 and assigns it to the MobileRumSessionCountFlutterAggSum field.
+func (o *UsageSummaryResponse) SetMobileRumSessionCountFlutterAggSum(v int64) {
+	o.MobileRumSessionCountFlutterAggSum = &v
+}
+
 // GetMobileRumSessionCountIosAggSum returns the MobileRumSessionCountIosAggSum field value if set, zero value otherwise.
 func (o *UsageSummaryResponse) GetMobileRumSessionCountIosAggSum() int64 {
 	if o == nil || o.MobileRumSessionCountIosAggSum == nil {
@@ -2729,6 +2759,9 @@ func (o UsageSummaryResponse) MarshalJSON() ([]byte, error) {
 	if o.MobileRumSessionCountAndroidAggSum != nil {
 		toSerialize["mobile_rum_session_count_android_agg_sum"] = o.MobileRumSessionCountAndroidAggSum
 	}
+	if o.MobileRumSessionCountFlutterAggSum != nil {
+		toSerialize["mobile_rum_session_count_flutter_agg_sum"] = o.MobileRumSessionCountFlutterAggSum
+	}
 	if o.MobileRumSessionCountIosAggSum != nil {
 		toSerialize["mobile_rum_session_count_ios_agg_sum"] = o.MobileRumSessionCountIosAggSum
 	}
@@ -2888,6 +2921,7 @@ func (o *UsageSummaryResponse) UnmarshalJSON(bytes []byte) (err error) {
 		MobileRumLiteSessionCountAggSum            *int64             `json:"mobile_rum_lite_session_count_agg_sum,omitempty"`
 		MobileRumSessionCountAggSum                *int64             `json:"mobile_rum_session_count_agg_sum,omitempty"`
 		MobileRumSessionCountAndroidAggSum         *int64             `json:"mobile_rum_session_count_android_agg_sum,omitempty"`
+		MobileRumSessionCountFlutterAggSum         *int64             `json:"mobile_rum_session_count_flutter_agg_sum,omitempty"`
 		MobileRumSessionCountIosAggSum             *int64             `json:"mobile_rum_session_count_ios_agg_sum,omitempty"`
 		MobileRumSessionCountReactnativeAggSum     *int64             `json:"mobile_rum_session_count_reactnative_agg_sum,omitempty"`
 		MobileRumUnitsAggSum                       *int64             `json:"mobile_rum_units_agg_sum,omitempty"`
@@ -2989,6 +3023,7 @@ func (o *UsageSummaryResponse) UnmarshalJSON(bytes []byte) (err error) {
 	o.MobileRumLiteSessionCountAggSum = all.MobileRumLiteSessionCountAggSum
 	o.MobileRumSessionCountAggSum = all.MobileRumSessionCountAggSum
 	o.MobileRumSessionCountAndroidAggSum = all.MobileRumSessionCountAndroidAggSum
+	o.MobileRumSessionCountFlutterAggSum = all.MobileRumSessionCountFlutterAggSum
 	o.MobileRumSessionCountIosAggSum = all.MobileRumSessionCountIosAggSum
 	o.MobileRumSessionCountReactnativeAggSum = all.MobileRumSessionCountReactnativeAggSum
 	o.MobileRumUnitsAggSum = all.MobileRumUnitsAggSum

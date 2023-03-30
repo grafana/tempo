@@ -16,41 +16,17 @@ import (
 // EventsApi service type
 type EventsApi datadog.Service
 
-type apiCreateEventRequest struct {
-	ctx  _context.Context
-	body *EventCreateRequest
-}
-
-func (a *EventsApi) buildCreateEventRequest(ctx _context.Context, body EventCreateRequest) (apiCreateEventRequest, error) {
-	req := apiCreateEventRequest{
-		ctx:  ctx,
-		body: &body,
-	}
-	return req, nil
-}
-
 // CreateEvent Post an event.
 // This endpoint allows you to post events to the stream.
 // Tag them, set priority and event aggregate them with other events.
 func (a *EventsApi) CreateEvent(ctx _context.Context, body EventCreateRequest) (EventCreateResponse, *_nethttp.Response, error) {
-	req, err := a.buildCreateEventRequest(ctx, body)
-	if err != nil {
-		var localVarReturnValue EventCreateResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.createEventExecute(req)
-}
-
-// createEventExecute executes the request.
-func (a *EventsApi) createEventExecute(r apiCreateEventRequest) (EventCreateResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue EventCreateResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.EventsApi.CreateEvent")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.EventsApi.CreateEvent")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -60,20 +36,17 @@ func (a *EventsApi) createEventExecute(r apiCreateEventRequest) (EventCreateResp
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -116,49 +89,25 @@ func (a *EventsApi) createEventExecute(r apiCreateEventRequest) (EventCreateResp
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiGetEventRequest struct {
-	ctx     _context.Context
-	eventId int64
-}
-
-func (a *EventsApi) buildGetEventRequest(ctx _context.Context, eventId int64) (apiGetEventRequest, error) {
-	req := apiGetEventRequest{
-		ctx:     ctx,
-		eventId: eventId,
-	}
-	return req, nil
-}
-
 // GetEvent Get an event.
 // This endpoint allows you to query for event details.
 //
 // **Note**: If the event you’re querying contains markdown formatting of any kind,
 // you may see characters such as `%`,`\`,`n` in your output.
 func (a *EventsApi) GetEvent(ctx _context.Context, eventId int64) (EventResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetEventRequest(ctx, eventId)
-	if err != nil {
-		var localVarReturnValue EventResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getEventExecute(req)
-}
-
-// getEventExecute executes the request.
-func (a *EventsApi) getEventExecute(r apiGetEventRequest) (EventResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue EventResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.EventsApi.GetEvent")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.EventsApi.GetEvent")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/events/{event_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"event_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.eventId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"event_id"+"}", _neturl.PathEscape(datadog.ParameterToString(eventId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -166,12 +115,12 @@ func (a *EventsApi) getEventExecute(r apiGetEventRequest) (EventResponse, *_neth
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -212,18 +161,6 @@ func (a *EventsApi) getEventExecute(r apiGetEventRequest) (EventResponse, *_neth
 	}
 
 	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiListEventsRequest struct {
-	ctx              _context.Context
-	start            *int64
-	end              *int64
-	priority         *EventPriority
-	sources          *string
-	tags             *string
-	unaggregated     *bool
-	excludeAggregate *bool
-	page             *int32
 }
 
 // ListEventsOptionalParameters holds optional parameters for ListEvents.
@@ -278,28 +215,6 @@ func (r *ListEventsOptionalParameters) WithPage(page int32) *ListEventsOptionalP
 	return r
 }
 
-func (a *EventsApi) buildListEventsRequest(ctx _context.Context, start int64, end int64, o ...ListEventsOptionalParameters) (apiListEventsRequest, error) {
-	req := apiListEventsRequest{
-		ctx:   ctx,
-		start: &start,
-		end:   &end,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type ListEventsOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.priority = o[0].Priority
-		req.sources = o[0].Sources
-		req.tags = o[0].Tags
-		req.unaggregated = o[0].Unaggregated
-		req.excludeAggregate = o[0].ExcludeAggregate
-		req.page = o[0].Page
-	}
-	return req, nil
-}
-
 // ListEvents Get a list of events.
 // The event stream can be queried and filtered by time, priority, sources and tags.
 //
@@ -311,24 +226,21 @@ func (a *EventsApi) buildListEventsRequest(ctx _context.Context, start int64, en
 // identify the last timestamp of the last result and set that as the `end` query time to
 // paginate the results. You can also use the page parameter to specify which set of `1000` results to return.
 func (a *EventsApi) ListEvents(ctx _context.Context, start int64, end int64, o ...ListEventsOptionalParameters) (EventListResponse, *_nethttp.Response, error) {
-	req, err := a.buildListEventsRequest(ctx, start, end, o...)
-	if err != nil {
-		var localVarReturnValue EventListResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.listEventsExecute(req)
-}
-
-// listEventsExecute executes the request.
-func (a *EventsApi) listEventsExecute(r apiListEventsRequest) (EventListResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue EventListResponse
+		optionalParams      ListEventsOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.EventsApi.ListEvents")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type ListEventsOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.EventsApi.ListEvents")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -338,41 +250,35 @@ func (a *EventsApi) listEventsExecute(r apiListEventsRequest) (EventListResponse
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.start == nil {
-		return localVarReturnValue, nil, datadog.ReportError("start is required and must be specified")
+	localVarQueryParams.Add("start", datadog.ParameterToString(start, ""))
+	localVarQueryParams.Add("end", datadog.ParameterToString(end, ""))
+	if optionalParams.Priority != nil {
+		localVarQueryParams.Add("priority", datadog.ParameterToString(*optionalParams.Priority, ""))
 	}
-	if r.end == nil {
-		return localVarReturnValue, nil, datadog.ReportError("end is required and must be specified")
+	if optionalParams.Sources != nil {
+		localVarQueryParams.Add("sources", datadog.ParameterToString(*optionalParams.Sources, ""))
 	}
-	localVarQueryParams.Add("start", datadog.ParameterToString(*r.start, ""))
-	localVarQueryParams.Add("end", datadog.ParameterToString(*r.end, ""))
-	if r.priority != nil {
-		localVarQueryParams.Add("priority", datadog.ParameterToString(*r.priority, ""))
+	if optionalParams.Tags != nil {
+		localVarQueryParams.Add("tags", datadog.ParameterToString(*optionalParams.Tags, ""))
 	}
-	if r.sources != nil {
-		localVarQueryParams.Add("sources", datadog.ParameterToString(*r.sources, ""))
+	if optionalParams.Unaggregated != nil {
+		localVarQueryParams.Add("unaggregated", datadog.ParameterToString(*optionalParams.Unaggregated, ""))
 	}
-	if r.tags != nil {
-		localVarQueryParams.Add("tags", datadog.ParameterToString(*r.tags, ""))
+	if optionalParams.ExcludeAggregate != nil {
+		localVarQueryParams.Add("exclude_aggregate", datadog.ParameterToString(*optionalParams.ExcludeAggregate, ""))
 	}
-	if r.unaggregated != nil {
-		localVarQueryParams.Add("unaggregated", datadog.ParameterToString(*r.unaggregated, ""))
-	}
-	if r.excludeAggregate != nil {
-		localVarQueryParams.Add("exclude_aggregate", datadog.ParameterToString(*r.excludeAggregate, ""))
-	}
-	if r.page != nil {
-		localVarQueryParams.Add("page", datadog.ParameterToString(*r.page, ""))
+	if optionalParams.Page != nil {
+		localVarQueryParams.Add("page", datadog.ParameterToString(*optionalParams.Page, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}

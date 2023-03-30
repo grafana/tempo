@@ -56,7 +56,7 @@ func newMetricsRequestUnmarshalerFunc(pusher consumer.ConsumeMetricsFunc) intern
 func (req *metricsRequest) OnError(err error) internal.Request {
 	var metricsError consumererror.Metrics
 	if errors.As(err, &metricsError) {
-		return newMetricsRequest(req.ctx, metricsError.GetMetrics(), req.pusher)
+		return newMetricsRequest(req.ctx, metricsError.Data(), req.pusher)
 	}
 	return req
 }
@@ -79,7 +79,7 @@ type metricsExporter struct {
 	consumer.Metrics
 }
 
-// NewMetricsExporter creates a exporter.Metrics that records observability metrics and wraps every request with a Span.
+// NewMetricsExporter creates an exporter.Metrics that records observability metrics and wraps every request with a Span.
 func NewMetricsExporter(
 	_ context.Context,
 	set exporter.CreateSettings,

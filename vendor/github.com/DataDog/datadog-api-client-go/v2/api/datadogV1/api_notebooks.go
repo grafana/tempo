@@ -16,40 +16,16 @@ import (
 // NotebooksApi service type
 type NotebooksApi datadog.Service
 
-type apiCreateNotebookRequest struct {
-	ctx  _context.Context
-	body *NotebookCreateRequest
-}
-
-func (a *NotebooksApi) buildCreateNotebookRequest(ctx _context.Context, body NotebookCreateRequest) (apiCreateNotebookRequest, error) {
-	req := apiCreateNotebookRequest{
-		ctx:  ctx,
-		body: &body,
-	}
-	return req, nil
-}
-
 // CreateNotebook Create a notebook.
 // Create a notebook using the specified options.
 func (a *NotebooksApi) CreateNotebook(ctx _context.Context, body NotebookCreateRequest) (NotebookResponse, *_nethttp.Response, error) {
-	req, err := a.buildCreateNotebookRequest(ctx, body)
-	if err != nil {
-		var localVarReturnValue NotebookResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.createNotebookExecute(req)
-}
-
-// createNotebookExecute executes the request.
-func (a *NotebooksApi) createNotebookExecute(r apiCreateNotebookRequest) (NotebookResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue NotebookResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.NotebooksApi.CreateNotebook")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.NotebooksApi.CreateNotebook")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -59,21 +35,18 @@ func (a *NotebooksApi) createNotebookExecute(r apiCreateNotebookRequest) (Notebo
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -116,44 +89,21 @@ func (a *NotebooksApi) createNotebookExecute(r apiCreateNotebookRequest) (Notebo
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiDeleteNotebookRequest struct {
-	ctx        _context.Context
-	notebookId int64
-}
-
-func (a *NotebooksApi) buildDeleteNotebookRequest(ctx _context.Context, notebookId int64) (apiDeleteNotebookRequest, error) {
-	req := apiDeleteNotebookRequest{
-		ctx:        ctx,
-		notebookId: notebookId,
-	}
-	return req, nil
-}
-
 // DeleteNotebook Delete a notebook.
 // Delete a notebook using the specified ID.
 func (a *NotebooksApi) DeleteNotebook(ctx _context.Context, notebookId int64) (*_nethttp.Response, error) {
-	req, err := a.buildDeleteNotebookRequest(ctx, notebookId)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.deleteNotebookExecute(req)
-}
-
-// deleteNotebookExecute executes the request.
-func (a *NotebooksApi) deleteNotebookExecute(r apiDeleteNotebookRequest) (*_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod = _nethttp.MethodDelete
 		localVarPostBody   interface{}
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.NotebooksApi.DeleteNotebook")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.NotebooksApi.DeleteNotebook")
 	if err != nil {
 		return nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/notebooks/{notebook_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"notebook_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.notebookId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"notebook_id"+"}", _neturl.PathEscape(datadog.ParameterToString(notebookId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -161,12 +111,12 @@ func (a *NotebooksApi) deleteNotebookExecute(r apiDeleteNotebookRequest) (*_neth
 	localVarHeaderParams["Accept"] = "*/*"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -200,46 +150,22 @@ func (a *NotebooksApi) deleteNotebookExecute(r apiDeleteNotebookRequest) (*_neth
 	return localVarHTTPResponse, nil
 }
 
-type apiGetNotebookRequest struct {
-	ctx        _context.Context
-	notebookId int64
-}
-
-func (a *NotebooksApi) buildGetNotebookRequest(ctx _context.Context, notebookId int64) (apiGetNotebookRequest, error) {
-	req := apiGetNotebookRequest{
-		ctx:        ctx,
-		notebookId: notebookId,
-	}
-	return req, nil
-}
-
 // GetNotebook Get a notebook.
 // Get a notebook using the specified notebook ID.
 func (a *NotebooksApi) GetNotebook(ctx _context.Context, notebookId int64) (NotebookResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetNotebookRequest(ctx, notebookId)
-	if err != nil {
-		var localVarReturnValue NotebookResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getNotebookExecute(req)
-}
-
-// getNotebookExecute executes the request.
-func (a *NotebooksApi) getNotebookExecute(r apiGetNotebookRequest) (NotebookResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue NotebookResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.NotebooksApi.GetNotebook")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.NotebooksApi.GetNotebook")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/notebooks/{notebook_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"notebook_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.notebookId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"notebook_id"+"}", _neturl.PathEscape(datadog.ParameterToString(notebookId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -247,12 +173,12 @@ func (a *NotebooksApi) getNotebookExecute(r apiGetNotebookRequest) (NotebookResp
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -293,20 +219,6 @@ func (a *NotebooksApi) getNotebookExecute(r apiGetNotebookRequest) (NotebookResp
 	}
 
 	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiListNotebooksRequest struct {
-	ctx                 _context.Context
-	authorHandle        *string
-	excludeAuthorHandle *string
-	start               *int64
-	count               *int64
-	sortField           *string
-	sortDir             *string
-	query               *string
-	includeCells        *bool
-	isTemplate          *bool
-	typeVar             *string
 }
 
 // ListNotebooksOptionalParameters holds optional parameters for ListNotebooks.
@@ -389,52 +301,25 @@ func (r *ListNotebooksOptionalParameters) WithType(typeVar string) *ListNotebook
 	return r
 }
 
-func (a *NotebooksApi) buildListNotebooksRequest(ctx _context.Context, o ...ListNotebooksOptionalParameters) (apiListNotebooksRequest, error) {
-	req := apiListNotebooksRequest{
-		ctx: ctx,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type ListNotebooksOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.authorHandle = o[0].AuthorHandle
-		req.excludeAuthorHandle = o[0].ExcludeAuthorHandle
-		req.start = o[0].Start
-		req.count = o[0].Count
-		req.sortField = o[0].SortField
-		req.sortDir = o[0].SortDir
-		req.query = o[0].Query
-		req.includeCells = o[0].IncludeCells
-		req.isTemplate = o[0].IsTemplate
-		req.typeVar = o[0].Type
-	}
-	return req, nil
-}
-
 // ListNotebooks Get all notebooks.
 // Get all notebooks. This can also be used to search for notebooks with a particular `query` in the notebook
 // `name` or author `handle`.
 func (a *NotebooksApi) ListNotebooks(ctx _context.Context, o ...ListNotebooksOptionalParameters) (NotebooksResponse, *_nethttp.Response, error) {
-	req, err := a.buildListNotebooksRequest(ctx, o...)
-	if err != nil {
-		var localVarReturnValue NotebooksResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.listNotebooksExecute(req)
-}
-
-// listNotebooksExecute executes the request.
-func (a *NotebooksApi) listNotebooksExecute(r apiListNotebooksRequest) (NotebooksResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue NotebooksResponse
+		optionalParams      ListNotebooksOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.NotebooksApi.ListNotebooks")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type ListNotebooksOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.NotebooksApi.ListNotebooks")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -444,45 +329,45 @@ func (a *NotebooksApi) listNotebooksExecute(r apiListNotebooksRequest) (Notebook
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.authorHandle != nil {
-		localVarQueryParams.Add("author_handle", datadog.ParameterToString(*r.authorHandle, ""))
+	if optionalParams.AuthorHandle != nil {
+		localVarQueryParams.Add("author_handle", datadog.ParameterToString(*optionalParams.AuthorHandle, ""))
 	}
-	if r.excludeAuthorHandle != nil {
-		localVarQueryParams.Add("exclude_author_handle", datadog.ParameterToString(*r.excludeAuthorHandle, ""))
+	if optionalParams.ExcludeAuthorHandle != nil {
+		localVarQueryParams.Add("exclude_author_handle", datadog.ParameterToString(*optionalParams.ExcludeAuthorHandle, ""))
 	}
-	if r.start != nil {
-		localVarQueryParams.Add("start", datadog.ParameterToString(*r.start, ""))
+	if optionalParams.Start != nil {
+		localVarQueryParams.Add("start", datadog.ParameterToString(*optionalParams.Start, ""))
 	}
-	if r.count != nil {
-		localVarQueryParams.Add("count", datadog.ParameterToString(*r.count, ""))
+	if optionalParams.Count != nil {
+		localVarQueryParams.Add("count", datadog.ParameterToString(*optionalParams.Count, ""))
 	}
-	if r.sortField != nil {
-		localVarQueryParams.Add("sort_field", datadog.ParameterToString(*r.sortField, ""))
+	if optionalParams.SortField != nil {
+		localVarQueryParams.Add("sort_field", datadog.ParameterToString(*optionalParams.SortField, ""))
 	}
-	if r.sortDir != nil {
-		localVarQueryParams.Add("sort_dir", datadog.ParameterToString(*r.sortDir, ""))
+	if optionalParams.SortDir != nil {
+		localVarQueryParams.Add("sort_dir", datadog.ParameterToString(*optionalParams.SortDir, ""))
 	}
-	if r.query != nil {
-		localVarQueryParams.Add("query", datadog.ParameterToString(*r.query, ""))
+	if optionalParams.Query != nil {
+		localVarQueryParams.Add("query", datadog.ParameterToString(*optionalParams.Query, ""))
 	}
-	if r.includeCells != nil {
-		localVarQueryParams.Add("include_cells", datadog.ParameterToString(*r.includeCells, ""))
+	if optionalParams.IncludeCells != nil {
+		localVarQueryParams.Add("include_cells", datadog.ParameterToString(*optionalParams.IncludeCells, ""))
 	}
-	if r.isTemplate != nil {
-		localVarQueryParams.Add("is_template", datadog.ParameterToString(*r.isTemplate, ""))
+	if optionalParams.IsTemplate != nil {
+		localVarQueryParams.Add("is_template", datadog.ParameterToString(*optionalParams.IsTemplate, ""))
 	}
-	if r.typeVar != nil {
-		localVarQueryParams.Add("type", datadog.ParameterToString(*r.typeVar, ""))
+	if optionalParams.Type != nil {
+		localVarQueryParams.Add("type", datadog.ParameterToString(*optionalParams.Type, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -525,67 +410,38 @@ func (a *NotebooksApi) listNotebooksExecute(r apiListNotebooksRequest) (Notebook
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiUpdateNotebookRequest struct {
-	ctx        _context.Context
-	notebookId int64
-	body       *NotebookUpdateRequest
-}
-
-func (a *NotebooksApi) buildUpdateNotebookRequest(ctx _context.Context, notebookId int64, body NotebookUpdateRequest) (apiUpdateNotebookRequest, error) {
-	req := apiUpdateNotebookRequest{
-		ctx:        ctx,
-		notebookId: notebookId,
-		body:       &body,
-	}
-	return req, nil
-}
-
 // UpdateNotebook Update a notebook.
 // Update a notebook using the specified ID.
 func (a *NotebooksApi) UpdateNotebook(ctx _context.Context, notebookId int64, body NotebookUpdateRequest) (NotebookResponse, *_nethttp.Response, error) {
-	req, err := a.buildUpdateNotebookRequest(ctx, notebookId, body)
-	if err != nil {
-		var localVarReturnValue NotebookResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.updateNotebookExecute(req)
-}
-
-// updateNotebookExecute executes the request.
-func (a *NotebooksApi) updateNotebookExecute(r apiUpdateNotebookRequest) (NotebookResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPut
 		localVarPostBody    interface{}
 		localVarReturnValue NotebookResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.NotebooksApi.UpdateNotebook")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.NotebooksApi.UpdateNotebook")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/notebooks/{notebook_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"notebook_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.notebookId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"notebook_id"+"}", _neturl.PathEscape(datadog.ParameterToString(notebookId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}

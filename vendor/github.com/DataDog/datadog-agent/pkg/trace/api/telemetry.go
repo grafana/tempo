@@ -21,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 )
 
+const functionARNKey = "function_arn"
+
 // telemetryMultiTransport sends HTTP requests to multiple targets using an
 // underlying http.RoundTripper. API keys are set separately for each target.
 // The target hostname
@@ -91,6 +93,9 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		}
 		req.Header.Set("DD-Agent-Hostname", r.conf.Hostname)
 		req.Header.Set("DD-Agent-Env", r.conf.DefaultEnv)
+		if arn, ok := r.conf.GlobalTags[functionARNKey]; ok {
+			req.Header.Set("DD-Function-ARN", arn)
+		}
 	}
 	return &httputil.ReverseProxy{
 		Director:  director,

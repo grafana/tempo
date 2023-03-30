@@ -23,11 +23,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 )
 
 // newSenders returns a list of senders based on the given agent configuration, using climit
 // as the maximum number of concurrent outgoing connections, writing to path.
-func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, qsize int) []*sender {
+func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, qsize int, telemetryCollector telemetry.TelemetryCollector) []*sender {
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
 		panic(errors.New("config was not properly validated"))
 	}
@@ -37,6 +38,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 	for i, endpoint := range cfg.Endpoints {
 		url, err := url.Parse(endpoint.Host + path)
 		if err != nil {
+			telemetryCollector.SendStartupError(telemetry.InvalidIntakeEndpoint, err)
 			log.Criticalf("Invalid host endpoint: %q", endpoint.Host)
 			os.Exit(1)
 		}

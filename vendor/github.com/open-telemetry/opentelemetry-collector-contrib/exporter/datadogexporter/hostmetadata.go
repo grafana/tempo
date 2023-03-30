@@ -15,12 +15,12 @@
 package datadogexporter // import "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
 
 import (
-	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/metadata"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/hostmetadata"
 )
 
 // newMetadataConfigfromConfig creates a new metadata pusher config from the main
-func newMetadataConfigfromConfig(cfg *Config) metadata.PusherConfig {
-	return metadata.PusherConfig{
+func newMetadataConfigfromConfig(cfg *Config) hostmetadata.PusherConfig {
+	return hostmetadata.PusherConfig{
 		ConfigHostname:      cfg.Hostname,
 		ConfigTags:          cfg.HostMetadata.Tags,
 		MetricsEndpoint:     cfg.Metrics.Endpoint,

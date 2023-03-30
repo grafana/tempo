@@ -22,11 +22,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
+	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -35,7 +35,7 @@ import (
 	zorkian "gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/clientutil"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/metadata"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/hostmetadata"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/metrics"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/metrics/sketches"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/scrub"
@@ -47,7 +47,7 @@ type metricsExporter struct {
 	ctx            context.Context
 	client         *zorkian.Client
 	metricsAPI     *datadogV2.MetricsApi
-	tr             *translator.Translator
+	tr             *otlpmetrics.Translator
 	scrubber       scrub.Scrubber
 	retrier        *clientutil.Retrier
 	onceMetadata   *sync.Once
@@ -59,45 +59,45 @@ type metricsExporter struct {
 }
 
 // translatorFromConfig creates a new metrics translator from the exporter
-func translatorFromConfig(logger *zap.Logger, cfg *Config, sourceProvider source.Provider) (*translator.Translator, error) {
-	options := []translator.Option{
-		translator.WithDeltaTTL(cfg.Metrics.DeltaTTL),
-		translator.WithFallbackSourceProvider(sourceProvider),
+func translatorFromConfig(logger *zap.Logger, cfg *Config, sourceProvider source.Provider) (*otlpmetrics.Translator, error) {
+	options := []otlpmetrics.TranslatorOption{
+		otlpmetrics.WithDeltaTTL(cfg.Metrics.DeltaTTL),
+		otlpmetrics.WithFallbackSourceProvider(sourceProvider),
 	}
 
 	if cfg.Metrics.HistConfig.SendCountSum {
-		options = append(options, translator.WithCountSumMetrics())
+		options = append(options, otlpmetrics.WithCountSumMetrics())
 	}
 
 	if cfg.Metrics.SummaryConfig.Mode == SummaryModeGauges {
-		options = append(options, translator.WithQuantiles())
+		options = append(options, otlpmetrics.WithQuantiles())
 	}
 
 	if cfg.Metrics.ExporterConfig.ResourceAttributesAsTags {
-		options = append(options, translator.WithResourceAttributesAsTags())
+		options = append(options, otlpmetrics.WithResourceAttributesAsTags())
 	}
 
 	if cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {
-		options = append(options, translator.WithInstrumentationScopeMetadataAsTags())
+		options = append(options, otlpmetrics.WithInstrumentationScopeMetadataAsTags())
 	}
 
-	options = append(options, translator.WithHistogramMode(translator.HistogramMode(cfg.Metrics.HistConfig.Mode)))
+	options = append(options, otlpmetrics.WithHistogramMode(otlpmetrics.HistogramMode(cfg.Metrics.HistConfig.Mode)))
 
-	var numberMode translator.NumberMode
+	var numberMode otlpmetrics.NumberMode
 	switch cfg.Metrics.SumConfig.CumulativeMonotonicMode {
 	case CumulativeMonotonicSumModeRawValue:
-		numberMode = translator.NumberModeRawValue
+		numberMode = otlpmetrics.NumberModeRawValue
 	case CumulativeMonotonicSumModeToDelta:
-		numberMode = translator.NumberModeCumulativeToDelta
+		numberMode = otlpmetrics.NumberModeCumulativeToDelta
 	}
 
-	options = append(options, translator.WithNumberMode(numberMode))
+	options = append(options, otlpmetrics.WithNumberMode(numberMode))
 
-	if metadata.HostnamePreviewFeatureGate.IsEnabled() {
-		options = append(options, translator.WithPreviewHostnameFromAttributes())
+	if hostmetadata.HostnamePreviewFeatureGate.IsEnabled() {
+		options = append(options, otlpmetrics.WithPreviewHostnameFromAttributes())
 	}
 
-	return translator.New(logger, options...)
+	return otlpmetrics.NewTranslator(logger, options...)
 }
 
 func newMetricsExporter(ctx context.Context, params exporter.CreateSettings, cfg *Config, onceMetadata *sync.Once, sourceProvider source.Provider, apmStatsProcessor api.StatsProcessor) (*metricsExporter, error) {
@@ -192,10 +192,10 @@ func (exp *metricsExporter) PushMetricsData(ctx context.Context, md pmetric.Metr
 			if md.ResourceMetrics().Len() > 0 {
 				attrs = md.ResourceMetrics().At(0).Resource().Attributes()
 			}
-			go metadata.Pusher(exp.ctx, exp.params, newMetadataConfigfromConfig(exp.cfg), exp.sourceProvider, attrs)
+			go hostmetadata.Pusher(exp.ctx, exp.params, newMetadataConfigfromConfig(exp.cfg), exp.sourceProvider, attrs)
 		})
 	}
-	var consumer translator.Consumer
+	var consumer otlpmetrics.Consumer
 	if isMetricExportV2Enabled() {
 		consumer = metrics.NewConsumer()
 	} else {
@@ -226,7 +226,7 @@ func (exp *metricsExporter) PushMetricsData(ctx context.Context, md pmetric.Metr
 			exp.params.Logger.Debug("exporting native Datadog payload", zap.Any("metric", ms))
 			_, experr := exp.retrier.DoWithRetries(ctx, func(context.Context) error {
 				ctx = clientutil.GetRequestContext(ctx, string(exp.cfg.API.Key))
-				_, httpresp, merr := exp.metricsAPI.SubmitMetrics(ctx, datadogV2.MetricPayload{Series: ms})
+				_, httpresp, merr := exp.metricsAPI.SubmitMetrics(ctx, datadogV2.MetricPayload{Series: ms}, *clientutil.GZipSubmitMetricsOptionalParameters)
 				return clientutil.WrapError(merr, httpresp)
 			})
 			err = multierr.Append(err, experr)

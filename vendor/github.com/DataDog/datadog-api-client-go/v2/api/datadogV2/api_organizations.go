@@ -17,11 +17,6 @@ import (
 // OrganizationsApi service type
 type OrganizationsApi datadog.Service
 
-type apiUploadIdPMetadataRequest struct {
-	ctx     _context.Context
-	idpFile **os.File
-}
-
 // UploadIdPMetadataOptionalParameters holds optional parameters for UploadIdPMetadata.
 type UploadIdPMetadataOptionalParameters struct {
 	IdpFile **os.File
@@ -39,42 +34,25 @@ func (r *UploadIdPMetadataOptionalParameters) WithIdpFile(idpFile *os.File) *Upl
 	return r
 }
 
-func (a *OrganizationsApi) buildUploadIdPMetadataRequest(ctx _context.Context, o ...UploadIdPMetadataOptionalParameters) (apiUploadIdPMetadataRequest, error) {
-	req := apiUploadIdPMetadataRequest{
-		ctx: ctx,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type UploadIdPMetadataOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.idpFile = o[0].IdpFile
-	}
-	return req, nil
-}
-
 // UploadIdPMetadata Upload IdP metadata.
 // Endpoint for uploading IdP metadata for SAML setup.
 //
 // Use this endpoint to upload or replace IdP metadata for SAML login configuration.
 func (a *OrganizationsApi) UploadIdPMetadata(ctx _context.Context, o ...UploadIdPMetadataOptionalParameters) (*_nethttp.Response, error) {
-	req, err := a.buildUploadIdPMetadataRequest(ctx, o...)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.uploadIdPMetadataExecute(req)
-}
-
-// uploadIdPMetadataExecute executes the request.
-func (a *OrganizationsApi) uploadIdPMetadataExecute(r apiUploadIdPMetadataRequest) (*_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod = _nethttp.MethodPost
 		localVarPostBody   interface{}
+		optionalParams     UploadIdPMetadataOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.OrganizationsApi.UploadIdPMetadata")
+	if len(o) > 1 {
+		return nil, datadog.ReportError("only one argument of type UploadIdPMetadataOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.OrganizationsApi.UploadIdPMetadata")
 	if err != nil {
 		return nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -90,8 +68,8 @@ func (a *OrganizationsApi) uploadIdPMetadataExecute(r apiUploadIdPMetadataReques
 	formFile := datadog.FormFile{}
 	formFile.FormFileName = "idp_file"
 	var localVarFile *os.File
-	if r.idpFile != nil {
-		localVarFile = *r.idpFile
+	if optionalParams.IdpFile != nil {
+		localVarFile = *optionalParams.IdpFile
 	}
 	if localVarFile != nil {
 		fbs, _ := _io.ReadAll(localVarFile)
@@ -100,12 +78,12 @@ func (a *OrganizationsApi) uploadIdPMetadataExecute(r apiUploadIdPMetadataReques
 		localVarFile.Close()
 	}
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, &formFile)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, &formFile)
 	if err != nil {
 		return nil, err
 	}

@@ -16,40 +16,16 @@ import (
 // LogsApi service type
 type LogsApi datadog.Service
 
-type apiAggregateLogsRequest struct {
-	ctx  _context.Context
-	body *LogsAggregateRequest
-}
-
-func (a *LogsApi) buildAggregateLogsRequest(ctx _context.Context, body LogsAggregateRequest) (apiAggregateLogsRequest, error) {
-	req := apiAggregateLogsRequest{
-		ctx:  ctx,
-		body: &body,
-	}
-	return req, nil
-}
-
 // AggregateLogs Aggregate events.
 // The API endpoint to aggregate events into buckets and compute metrics and timeseries.
 func (a *LogsApi) AggregateLogs(ctx _context.Context, body LogsAggregateRequest) (LogsAggregateResponse, *_nethttp.Response, error) {
-	req, err := a.buildAggregateLogsRequest(ctx, body)
-	if err != nil {
-		var localVarReturnValue LogsAggregateResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.aggregateLogsExecute(req)
-}
-
-// aggregateLogsExecute executes the request.
-func (a *LogsApi) aggregateLogsExecute(r apiAggregateLogsRequest) (LogsAggregateResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue LogsAggregateResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.LogsApi.AggregateLogs")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.LogsApi.AggregateLogs")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -59,21 +35,18 @@ func (a *LogsApi) aggregateLogsExecute(r apiAggregateLogsRequest) (LogsAggregate
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -116,11 +89,6 @@ func (a *LogsApi) aggregateLogsExecute(r apiAggregateLogsRequest) (LogsAggregate
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiListLogsRequest struct {
-	ctx  _context.Context
-	body *LogsListRequest
-}
-
 // ListLogsOptionalParameters holds optional parameters for ListLogs.
 type ListLogsOptionalParameters struct {
 	Body *LogsListRequest
@@ -138,21 +106,6 @@ func (r *ListLogsOptionalParameters) WithBody(body LogsListRequest) *ListLogsOpt
 	return r
 }
 
-func (a *LogsApi) buildListLogsRequest(ctx _context.Context, o ...ListLogsOptionalParameters) (apiListLogsRequest, error) {
-	req := apiListLogsRequest{
-		ctx: ctx,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type ListLogsOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.body = o[0].Body
-	}
-	return req, nil
-}
-
 // ListLogs Search logs.
 // List endpoint returns logs that match a log search query.
 // [Results are paginated][1].
@@ -166,13 +119,82 @@ func (a *LogsApi) buildListLogsRequest(ctx _context.Context, o ...ListLogsOption
 // [1]: /logs/guide/collect-multiple-logs-with-pagination
 // [2]: https://docs.datadoghq.com/logs/archives
 func (a *LogsApi) ListLogs(ctx _context.Context, o ...ListLogsOptionalParameters) (LogsListResponse, *_nethttp.Response, error) {
-	req, err := a.buildListLogsRequest(ctx, o...)
+	var (
+		localVarHTTPMethod  = _nethttp.MethodPost
+		localVarPostBody    interface{}
+		localVarReturnValue LogsListResponse
+		optionalParams      ListLogsOptionalParameters
+	)
+
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type ListLogsOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.LogsApi.ListLogs")
 	if err != nil {
-		var localVarReturnValue LogsListResponse
+		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/api/v2/logs/events/search"
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := _neturl.Values{}
+	localVarFormParams := _neturl.Values{}
+	localVarHeaderParams["Content-Type"] = "application/json"
+	localVarHeaderParams["Accept"] = "application/json"
+
+	// body params
+	localVarPostBody = &optionalParams.Body
+	datadog.SetAuthKeys(
+		ctx,
+		&localVarHeaderParams,
+		[2]string{"apiKeyAuth", "DD-API-KEY"},
+		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
+	)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	if err != nil {
 		return localVarReturnValue, nil, err
 	}
 
-	return a.listLogsExecute(req)
+	localVarHTTPResponse, err := a.Client.CallAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := datadog.ReadBody(localVarHTTPResponse)
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := datadog.GenericOpenAPIError{
+			ErrorBody:    localVarBody,
+			ErrorMessage: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 || localVarHTTPResponse.StatusCode == 403 || localVarHTTPResponse.StatusCode == 429 {
+			var v APIErrorResponse
+			err = a.Client.Decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.ErrorModel = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.Client.Decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := datadog.GenericOpenAPIError{
+			ErrorBody:    localVarBody,
+			ErrorMessage: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
 // ListLogsWithPagination provides a paginated version of ListLogs returning a channel with all items.
@@ -196,14 +218,7 @@ func (a *LogsApi) ListLogsWithPagination(ctx _context.Context, o ...ListLogsOpti
 	items := make(chan datadog.PaginationResult[Log], pageSize_)
 	go func() {
 		for {
-			req, err := a.buildListLogsRequest(ctx, o...)
-			if err != nil {
-				var returnItem Log
-				items <- datadog.PaginationResult[Log]{returnItem, err}
-				break
-			}
-
-			resp, _, err := a.listLogsExecute(req)
+			resp, _, err := a.ListLogs(ctx, o...)
 			if err != nil {
 				var returnItem Log
 				items <- datadog.PaginationResult[Log]{returnItem, err}
@@ -244,90 +259,6 @@ func (a *LogsApi) ListLogsWithPagination(ctx _context.Context, o ...ListLogsOpti
 		close(items)
 	}()
 	return items, cancel
-}
-
-// listLogsExecute executes the request.
-func (a *LogsApi) listLogsExecute(r apiListLogsRequest) (LogsListResponse, *_nethttp.Response, error) {
-	var (
-		localVarHTTPMethod  = _nethttp.MethodPost
-		localVarPostBody    interface{}
-		localVarReturnValue LogsListResponse
-	)
-
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.LogsApi.ListLogs")
-	if err != nil {
-		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
-	}
-
-	localVarPath := localBasePath + "/api/v2/logs/events/search"
-
-	localVarHeaderParams := make(map[string]string)
-	localVarQueryParams := _neturl.Values{}
-	localVarFormParams := _neturl.Values{}
-	localVarHeaderParams["Content-Type"] = "application/json"
-	localVarHeaderParams["Accept"] = "application/json"
-
-	// body params
-	localVarPostBody = r.body
-	datadog.SetAuthKeys(
-		r.ctx,
-		&localVarHeaderParams,
-		[2]string{"apiKeyAuth", "DD-API-KEY"},
-		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
-	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
-	if err != nil {
-		return localVarReturnValue, nil, err
-	}
-
-	localVarHTTPResponse, err := a.Client.CallAPI(req)
-	if err != nil || localVarHTTPResponse == nil {
-		return localVarReturnValue, localVarHTTPResponse, err
-	}
-
-	localVarBody, err := datadog.ReadBody(localVarHTTPResponse)
-	if err != nil {
-		return localVarReturnValue, localVarHTTPResponse, err
-	}
-
-	if localVarHTTPResponse.StatusCode >= 300 {
-		newErr := datadog.GenericOpenAPIError{
-			ErrorBody:    localVarBody,
-			ErrorMessage: localVarHTTPResponse.Status,
-		}
-		if localVarHTTPResponse.StatusCode == 400 || localVarHTTPResponse.StatusCode == 403 || localVarHTTPResponse.StatusCode == 429 {
-			var v APIErrorResponse
-			err = a.Client.Decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-			if err != nil {
-				return localVarReturnValue, localVarHTTPResponse, newErr
-			}
-			newErr.ErrorModel = v
-		}
-		return localVarReturnValue, localVarHTTPResponse, newErr
-	}
-
-	err = a.Client.Decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-	if err != nil {
-		newErr := datadog.GenericOpenAPIError{
-			ErrorBody:    localVarBody,
-			ErrorMessage: err.Error(),
-		}
-		return localVarReturnValue, localVarHTTPResponse, newErr
-	}
-
-	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiListLogsGetRequest struct {
-	ctx               _context.Context
-	filterQuery       *string
-	filterIndex       *string
-	filterFrom        *time.Time
-	filterTo          *time.Time
-	filterStorageTier *LogsStorageTier
-	sort              *LogsSort
-	pageCursor        *string
-	pageLimit         *int32
 }
 
 // ListLogsGetOptionalParameters holds optional parameters for ListLogsGet.
@@ -396,28 +327,6 @@ func (r *ListLogsGetOptionalParameters) WithPageLimit(pageLimit int32) *ListLogs
 	return r
 }
 
-func (a *LogsApi) buildListLogsGetRequest(ctx _context.Context, o ...ListLogsGetOptionalParameters) (apiListLogsGetRequest, error) {
-	req := apiListLogsGetRequest{
-		ctx: ctx,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type ListLogsGetOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.filterQuery = o[0].FilterQuery
-		req.filterIndex = o[0].FilterIndex
-		req.filterFrom = o[0].FilterFrom
-		req.filterTo = o[0].FilterTo
-		req.filterStorageTier = o[0].FilterStorageTier
-		req.sort = o[0].Sort
-		req.pageCursor = o[0].PageCursor
-		req.pageLimit = o[0].PageLimit
-	}
-	return req, nil
-}
-
 // ListLogsGet Get a list of logs.
 // List endpoint returns logs that match a log search query.
 // [Results are paginated][1].
@@ -431,89 +340,21 @@ func (a *LogsApi) buildListLogsGetRequest(ctx _context.Context, o ...ListLogsGet
 // [1]: /logs/guide/collect-multiple-logs-with-pagination
 // [2]: https://docs.datadoghq.com/logs/archives
 func (a *LogsApi) ListLogsGet(ctx _context.Context, o ...ListLogsGetOptionalParameters) (LogsListResponse, *_nethttp.Response, error) {
-	req, err := a.buildListLogsGetRequest(ctx, o...)
-	if err != nil {
-		var localVarReturnValue LogsListResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.listLogsGetExecute(req)
-}
-
-// ListLogsGetWithPagination provides a paginated version of ListLogsGet returning a channel with all items.
-func (a *LogsApi) ListLogsGetWithPagination(ctx _context.Context, o ...ListLogsGetOptionalParameters) (<-chan datadog.PaginationResult[Log], func()) {
-	ctx, cancel := _context.WithCancel(ctx)
-	pageSize_ := int32(10)
-	if len(o) == 0 {
-		o = append(o, ListLogsGetOptionalParameters{})
-	}
-	if o[0].PageLimit != nil {
-		pageSize_ = *o[0].PageLimit
-	}
-	o[0].PageLimit = &pageSize_
-
-	items := make(chan datadog.PaginationResult[Log], pageSize_)
-	go func() {
-		for {
-			req, err := a.buildListLogsGetRequest(ctx, o...)
-			if err != nil {
-				var returnItem Log
-				items <- datadog.PaginationResult[Log]{returnItem, err}
-				break
-			}
-
-			resp, _, err := a.listLogsGetExecute(req)
-			if err != nil {
-				var returnItem Log
-				items <- datadog.PaginationResult[Log]{returnItem, err}
-				break
-			}
-			respData, ok := resp.GetDataOk()
-			if !ok {
-				break
-			}
-			results := *respData
-
-			for _, item := range results {
-				select {
-				case items <- datadog.PaginationResult[Log]{item, nil}:
-				case <-ctx.Done():
-					close(items)
-					return
-				}
-			}
-			if len(results) < int(pageSize_) {
-				break
-			}
-			cursorMeta, ok := resp.GetMetaOk()
-			if !ok {
-				break
-			}
-			cursorMetaPage, ok := cursorMeta.GetPageOk()
-			if !ok {
-				break
-			}
-			cursorMetaPageAfter, ok := cursorMetaPage.GetAfterOk()
-			if !ok {
-				break
-			}
-
-			o[0].PageCursor = cursorMetaPageAfter
-		}
-		close(items)
-	}()
-	return items, cancel
-}
-
-// listLogsGetExecute executes the request.
-func (a *LogsApi) listLogsGetExecute(r apiListLogsGetRequest) (LogsListResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue LogsListResponse
+		optionalParams      ListLogsGetOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.LogsApi.ListLogsGet")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type ListLogsGetOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.LogsApi.ListLogsGet")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -523,39 +364,39 @@ func (a *LogsApi) listLogsGetExecute(r apiListLogsGetRequest) (LogsListResponse,
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.filterQuery != nil {
-		localVarQueryParams.Add("filter[query]", datadog.ParameterToString(*r.filterQuery, ""))
+	if optionalParams.FilterQuery != nil {
+		localVarQueryParams.Add("filter[query]", datadog.ParameterToString(*optionalParams.FilterQuery, ""))
 	}
-	if r.filterIndex != nil {
-		localVarQueryParams.Add("filter[index]", datadog.ParameterToString(*r.filterIndex, ""))
+	if optionalParams.FilterIndex != nil {
+		localVarQueryParams.Add("filter[index]", datadog.ParameterToString(*optionalParams.FilterIndex, ""))
 	}
-	if r.filterFrom != nil {
-		localVarQueryParams.Add("filter[from]", datadog.ParameterToString(*r.filterFrom, ""))
+	if optionalParams.FilterFrom != nil {
+		localVarQueryParams.Add("filter[from]", datadog.ParameterToString(*optionalParams.FilterFrom, ""))
 	}
-	if r.filterTo != nil {
-		localVarQueryParams.Add("filter[to]", datadog.ParameterToString(*r.filterTo, ""))
+	if optionalParams.FilterTo != nil {
+		localVarQueryParams.Add("filter[to]", datadog.ParameterToString(*optionalParams.FilterTo, ""))
 	}
-	if r.filterStorageTier != nil {
-		localVarQueryParams.Add("filter[storage_tier]", datadog.ParameterToString(*r.filterStorageTier, ""))
+	if optionalParams.FilterStorageTier != nil {
+		localVarQueryParams.Add("filter[storage_tier]", datadog.ParameterToString(*optionalParams.FilterStorageTier, ""))
 	}
-	if r.sort != nil {
-		localVarQueryParams.Add("sort", datadog.ParameterToString(*r.sort, ""))
+	if optionalParams.Sort != nil {
+		localVarQueryParams.Add("sort", datadog.ParameterToString(*optionalParams.Sort, ""))
 	}
-	if r.pageCursor != nil {
-		localVarQueryParams.Add("page[cursor]", datadog.ParameterToString(*r.pageCursor, ""))
+	if optionalParams.PageCursor != nil {
+		localVarQueryParams.Add("page[cursor]", datadog.ParameterToString(*optionalParams.PageCursor, ""))
 	}
-	if r.pageLimit != nil {
-		localVarQueryParams.Add("page[limit]", datadog.ParameterToString(*r.pageLimit, ""))
+	if optionalParams.PageLimit != nil {
+		localVarQueryParams.Add("page[limit]", datadog.ParameterToString(*optionalParams.PageLimit, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -598,11 +439,62 @@ func (a *LogsApi) listLogsGetExecute(r apiListLogsGetRequest) (LogsListResponse,
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiSubmitLogRequest struct {
-	ctx             _context.Context
-	body            *[]HTTPLogItem
-	contentEncoding *ContentEncoding
-	ddtags          *string
+// ListLogsGetWithPagination provides a paginated version of ListLogsGet returning a channel with all items.
+func (a *LogsApi) ListLogsGetWithPagination(ctx _context.Context, o ...ListLogsGetOptionalParameters) (<-chan datadog.PaginationResult[Log], func()) {
+	ctx, cancel := _context.WithCancel(ctx)
+	pageSize_ := int32(10)
+	if len(o) == 0 {
+		o = append(o, ListLogsGetOptionalParameters{})
+	}
+	if o[0].PageLimit != nil {
+		pageSize_ = *o[0].PageLimit
+	}
+	o[0].PageLimit = &pageSize_
+
+	items := make(chan datadog.PaginationResult[Log], pageSize_)
+	go func() {
+		for {
+			resp, _, err := a.ListLogsGet(ctx, o...)
+			if err != nil {
+				var returnItem Log
+				items <- datadog.PaginationResult[Log]{returnItem, err}
+				break
+			}
+			respData, ok := resp.GetDataOk()
+			if !ok {
+				break
+			}
+			results := *respData
+
+			for _, item := range results {
+				select {
+				case items <- datadog.PaginationResult[Log]{item, nil}:
+				case <-ctx.Done():
+					close(items)
+					return
+				}
+			}
+			if len(results) < int(pageSize_) {
+				break
+			}
+			cursorMeta, ok := resp.GetMetaOk()
+			if !ok {
+				break
+			}
+			cursorMetaPage, ok := cursorMeta.GetPageOk()
+			if !ok {
+				break
+			}
+			cursorMetaPageAfter, ok := cursorMetaPage.GetAfterOk()
+			if !ok {
+				break
+			}
+
+			o[0].PageCursor = cursorMetaPageAfter
+		}
+		close(items)
+	}()
+	return items, cancel
 }
 
 // SubmitLogOptionalParameters holds optional parameters for SubmitLog.
@@ -629,23 +521,6 @@ func (r *SubmitLogOptionalParameters) WithDdtags(ddtags string) *SubmitLogOption
 	return r
 }
 
-func (a *LogsApi) buildSubmitLogRequest(ctx _context.Context, body []HTTPLogItem, o ...SubmitLogOptionalParameters) (apiSubmitLogRequest, error) {
-	req := apiSubmitLogRequest{
-		ctx:  ctx,
-		body: &body,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type SubmitLogOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.contentEncoding = o[0].ContentEncoding
-		req.ddtags = o[0].Ddtags
-	}
-	return req, nil
-}
-
 // SubmitLog Send logs.
 // Send your logs to your Datadog platform over HTTP. Limits per HTTP request are:
 //
@@ -659,6 +534,7 @@ func (a *LogsApi) buildSubmitLogRequest(ctx _context.Context, body []HTTPLogItem
 //
 // Datadog recommends sending your logs compressed.
 // Add the `Content-Encoding: gzip` header to the request when sending compressed logs.
+// Log events can be submitted up to 18 hours in the past and 2 hours in the future.
 //
 // The status codes answered by the HTTP API are:
 // - 202: Accepted: the request has been accepted for processing
@@ -671,24 +547,21 @@ func (a *LogsApi) buildSubmitLogRequest(ctx _context.Context, body []HTTPLogItem
 // - 500: Internal Server Error, the server encountered an unexpected condition that prevented it from fulfilling the request, request should be retried after some time
 // - 503: Service Unavailable, the server is not ready to handle the request probably because it is overloaded, request should be retried after some time
 func (a *LogsApi) SubmitLog(ctx _context.Context, body []HTTPLogItem, o ...SubmitLogOptionalParameters) (interface{}, *_nethttp.Response, error) {
-	req, err := a.buildSubmitLogRequest(ctx, body, o...)
-	if err != nil {
-		var localVarReturnValue interface{}
-		return localVarReturnValue, nil, err
-	}
-
-	return a.submitLogExecute(req)
-}
-
-// submitLogExecute executes the request.
-func (a *LogsApi) submitLogExecute(r apiSubmitLogRequest) (interface{}, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue interface{}
+		optionalParams      SubmitLogOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.LogsApi.SubmitLog")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type SubmitLogOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.LogsApi.SubmitLog")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -698,27 +571,24 @@ func (a *LogsApi) submitLogExecute(r apiSubmitLogRequest) (interface{}, *_nethtt
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
-	if r.ddtags != nil {
-		localVarQueryParams.Add("ddtags", datadog.ParameterToString(*r.ddtags, ""))
+	if optionalParams.Ddtags != nil {
+		localVarQueryParams.Add("ddtags", datadog.ParameterToString(*optionalParams.Ddtags, ""))
 	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
-	if r.contentEncoding != nil {
-		localVarHeaderParams["Content-Encoding"] = datadog.ParameterToString(*r.contentEncoding, "")
+	if optionalParams.ContentEncoding != nil {
+		localVarHeaderParams["Content-Encoding"] = datadog.ParameterToString(*optionalParams.ContentEncoding, "")
 	}
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}

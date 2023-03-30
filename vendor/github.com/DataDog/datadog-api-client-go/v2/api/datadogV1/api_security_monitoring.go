@@ -16,67 +16,38 @@ import (
 // SecurityMonitoringApi service type
 type SecurityMonitoringApi datadog.Service
 
-type apiAddSecurityMonitoringSignalToIncidentRequest struct {
-	ctx      _context.Context
-	signalId string
-	body     *AddSignalToIncidentRequest
-}
-
-func (a *SecurityMonitoringApi) buildAddSecurityMonitoringSignalToIncidentRequest(ctx _context.Context, signalId string, body AddSignalToIncidentRequest) (apiAddSecurityMonitoringSignalToIncidentRequest, error) {
-	req := apiAddSecurityMonitoringSignalToIncidentRequest{
-		ctx:      ctx,
-		signalId: signalId,
-		body:     &body,
-	}
-	return req, nil
-}
-
 // AddSecurityMonitoringSignalToIncident Add a security signal to an incident.
 // Add a security signal to an incident. This makes it possible to search for signals by incident within the signal explorer and to view the signals on the incident timeline.
 func (a *SecurityMonitoringApi) AddSecurityMonitoringSignalToIncident(ctx _context.Context, signalId string, body AddSignalToIncidentRequest) (SuccessfulSignalUpdateResponse, *_nethttp.Response, error) {
-	req, err := a.buildAddSecurityMonitoringSignalToIncidentRequest(ctx, signalId, body)
-	if err != nil {
-		var localVarReturnValue SuccessfulSignalUpdateResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.addSecurityMonitoringSignalToIncidentExecute(req)
-}
-
-// addSecurityMonitoringSignalToIncidentExecute executes the request.
-func (a *SecurityMonitoringApi) addSecurityMonitoringSignalToIncidentExecute(r apiAddSecurityMonitoringSignalToIncidentRequest) (SuccessfulSignalUpdateResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPatch
 		localVarPostBody    interface{}
 		localVarReturnValue SuccessfulSignalUpdateResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.SecurityMonitoringApi.AddSecurityMonitoringSignalToIncident")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.SecurityMonitoringApi.AddSecurityMonitoringSignalToIncident")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/security_analytics/signals/{signal_id}/add_to_incident"
-	localVarPath = strings.Replace(localVarPath, "{"+"signal_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.signalId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"signal_id"+"}", _neturl.PathEscape(datadog.ParameterToString(signalId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -117,69 +88,40 @@ func (a *SecurityMonitoringApi) addSecurityMonitoringSignalToIncidentExecute(r a
 	}
 
 	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiEditSecurityMonitoringSignalAssigneeRequest struct {
-	ctx      _context.Context
-	signalId string
-	body     *SignalAssigneeUpdateRequest
-}
-
-func (a *SecurityMonitoringApi) buildEditSecurityMonitoringSignalAssigneeRequest(ctx _context.Context, signalId string, body SignalAssigneeUpdateRequest) (apiEditSecurityMonitoringSignalAssigneeRequest, error) {
-	req := apiEditSecurityMonitoringSignalAssigneeRequest{
-		ctx:      ctx,
-		signalId: signalId,
-		body:     &body,
-	}
-	return req, nil
 }
 
 // EditSecurityMonitoringSignalAssignee Modify the triage assignee of a security signal.
 // Modify the triage assignee of a security signal.
 func (a *SecurityMonitoringApi) EditSecurityMonitoringSignalAssignee(ctx _context.Context, signalId string, body SignalAssigneeUpdateRequest) (SuccessfulSignalUpdateResponse, *_nethttp.Response, error) {
-	req, err := a.buildEditSecurityMonitoringSignalAssigneeRequest(ctx, signalId, body)
-	if err != nil {
-		var localVarReturnValue SuccessfulSignalUpdateResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.editSecurityMonitoringSignalAssigneeExecute(req)
-}
-
-// editSecurityMonitoringSignalAssigneeExecute executes the request.
-func (a *SecurityMonitoringApi) editSecurityMonitoringSignalAssigneeExecute(r apiEditSecurityMonitoringSignalAssigneeRequest) (SuccessfulSignalUpdateResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPatch
 		localVarPostBody    interface{}
 		localVarReturnValue SuccessfulSignalUpdateResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.SecurityMonitoringApi.EditSecurityMonitoringSignalAssignee")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.SecurityMonitoringApi.EditSecurityMonitoringSignalAssignee")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/security_analytics/signals/{signal_id}/assignee"
-	localVarPath = strings.Replace(localVarPath, "{"+"signal_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.signalId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"signal_id"+"}", _neturl.PathEscape(datadog.ParameterToString(signalId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -222,67 +164,38 @@ func (a *SecurityMonitoringApi) editSecurityMonitoringSignalAssigneeExecute(r ap
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiEditSecurityMonitoringSignalStateRequest struct {
-	ctx      _context.Context
-	signalId string
-	body     *SignalStateUpdateRequest
-}
-
-func (a *SecurityMonitoringApi) buildEditSecurityMonitoringSignalStateRequest(ctx _context.Context, signalId string, body SignalStateUpdateRequest) (apiEditSecurityMonitoringSignalStateRequest, error) {
-	req := apiEditSecurityMonitoringSignalStateRequest{
-		ctx:      ctx,
-		signalId: signalId,
-		body:     &body,
-	}
-	return req, nil
-}
-
 // EditSecurityMonitoringSignalState Change the triage state of a security signal.
 // Change the triage state of a security signal.
 func (a *SecurityMonitoringApi) EditSecurityMonitoringSignalState(ctx _context.Context, signalId string, body SignalStateUpdateRequest) (SuccessfulSignalUpdateResponse, *_nethttp.Response, error) {
-	req, err := a.buildEditSecurityMonitoringSignalStateRequest(ctx, signalId, body)
-	if err != nil {
-		var localVarReturnValue SuccessfulSignalUpdateResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.editSecurityMonitoringSignalStateExecute(req)
-}
-
-// editSecurityMonitoringSignalStateExecute executes the request.
-func (a *SecurityMonitoringApi) editSecurityMonitoringSignalStateExecute(r apiEditSecurityMonitoringSignalStateRequest) (SuccessfulSignalUpdateResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPatch
 		localVarPostBody    interface{}
 		localVarReturnValue SuccessfulSignalUpdateResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.SecurityMonitoringApi.EditSecurityMonitoringSignalState")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.SecurityMonitoringApi.EditSecurityMonitoringSignalState")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/security_analytics/signals/{signal_id}/state"
-	localVarPath = strings.Replace(localVarPath, "{"+"signal_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.signalId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"signal_id"+"}", _neturl.PathEscape(datadog.ParameterToString(signalId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}

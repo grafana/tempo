@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -38,7 +37,7 @@ var (
 
 // normalize makes sure a Span is properly initialized and encloses the minimum required info, returning error if it
 // is invalid beyond repair
-func normalize(ts *info.TagStats, s *pb.Span) error {
+func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	if s.TraceID == 0 {
 		ts.TracesDropped.TraceIDZero.Inc()
 		return fmt.Errorf("TraceID is zero (reason:trace_id_zero): %s", s)
@@ -61,7 +60,7 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	}
 	s.Service = svc
 
-	if features.Has("component2name") {
+	if a.conf.HasFeature("component2name") {
 		// This feature flag determines the component tag to become the span name.
 		//
 		// It works around the incompatibility between Opentracing and Datadog where the
@@ -174,7 +173,7 @@ func normalizeChunk(chunk *pb.TraceChunk, root *pb.Span) {
 // * return the normalized trace and an error:
 //   - nil if the trace can be accepted
 //   - a reason tag explaining the reason the traces failed normalization
-func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
+func (a *Agent) normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	if len(t) == 0 {
 		ts.TracesDropped.EmptyTrace.Inc()
 		return errors.New("trace is empty (reason:empty_trace)")
@@ -194,7 +193,7 @@ func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 			ts.TracesDropped.ForeignSpan.Inc()
 			return fmt.Errorf("trace has foreign span (reason:foreign_span): %s", span)
 		}
-		if err := normalize(ts, span); err != nil {
+		if err := a.normalize(ts, span); err != nil {
 			return err
 		}
 		if _, ok := spanIDs[span.SpanID]; ok {
@@ -207,13 +206,13 @@ func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	return nil
 }
 
-func normalizeStatsGroup(b *pb.ClientGroupedStats, lang string) {
+func (a *Agent) normalizeStatsGroup(b *pb.ClientGroupedStats, lang string) {
 	b.Name, _ = traceutil.NormalizeName(b.Name)
 	b.Service, _ = traceutil.NormalizeService(b.Service, lang)
 	if b.Resource == "" {
 		b.Resource = b.Name
 	}
-	b.Resource, _ = traceutil.TruncateResource(b.Resource)
+	b.Resource, _ = a.TruncateResource(b.Resource)
 }
 
 func isValidStatusCode(sc string) bool {

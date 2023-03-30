@@ -11,7 +11,7 @@ import (
 
 // RelationshipToIncidentIntegrationMetadatas A relationship reference for multiple integration metadata objects.
 type RelationshipToIncidentIntegrationMetadatas struct {
-	// The integration metadata relationship array
+	// Integration metadata relationship array
 	Data []RelationshipToIncidentIntegrationMetadataData `json:"data"`
 	// UnparsedObject contains the raw value of the object if there was an error when deserializing into the struct
 	UnparsedObject       map[string]interface{} `json:"-"`

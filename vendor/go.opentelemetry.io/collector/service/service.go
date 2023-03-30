@@ -28,7 +28,6 @@ import (
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/extension"
-	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/internal/obsreportconfig"
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver"
@@ -36,12 +35,6 @@ import (
 	"go.opentelemetry.io/collector/service/internal/proctelemetry"
 	"go.opentelemetry.io/collector/service/telemetry"
 )
-
-var graphFeatureGate = featuregate.GlobalRegistry().MustRegister(
-	"service.graph",
-	featuregate.StageBeta,
-	featuregate.WithRegisterDescription("Enables the new graph based implementations for pipelines."),
-	featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector/issues/2336"))
 
 // Settings holds configuration for building a new service.
 type Settings struct {
@@ -70,8 +63,7 @@ type Settings struct {
 	LoggingOptions []zap.Option
 
 	// For testing purpose only.
-	useOtel  *bool
-	useGraph *bool
+	useOtel *bool
 }
 
 // Service represents the implementation of a component.Host.
@@ -87,10 +79,6 @@ func New(ctx context.Context, set Settings, cfg Config) (*Service, error) {
 	useOtel := obsreportconfig.UseOtelForInternalMetricsfeatureGate.IsEnabled()
 	if set.useOtel != nil {
 		useOtel = *set.useOtel
-	}
-	useGraph := graphFeatureGate.IsEnabled()
-	if set.useGraph != nil {
-		useGraph = *set.useGraph
 	}
 	srv := &Service{
 		buildInfo: set.BuildInfo,
@@ -123,7 +111,7 @@ func New(ctx context.Context, set Settings, cfg Config) (*Service, error) {
 	srv.telemetrySettings.MeterProvider = srv.telemetryInitializer.mp
 
 	// process the configuration and initialize the pipeline
-	if err = srv.initExtensionsAndPipeline(ctx, set, cfg, useGraph); err != nil {
+	if err = srv.initExtensionsAndPipeline(ctx, set, cfg); err != nil {
 		// If pipeline initialization fails then shut down the telemetry server
 		if shutdownErr := srv.telemetryInitializer.shutdown(); shutdownErr != nil {
 			err = multierr.Append(err, fmt.Errorf("failed to shutdown collector telemetry: %w", shutdownErr))
@@ -189,7 +177,7 @@ func (srv *Service) Shutdown(ctx context.Context) error {
 	return errs
 }
 
-func (srv *Service) initExtensionsAndPipeline(ctx context.Context, set Settings, cfg Config, useGraph bool) error {
+func (srv *Service) initExtensionsAndPipeline(ctx context.Context, set Settings, cfg Config) error {
 	var err error
 	extensionsSettings := extensions.Settings{
 		Telemetry:  srv.telemetrySettings,
@@ -200,7 +188,7 @@ func (srv *Service) initExtensionsAndPipeline(ctx context.Context, set Settings,
 		return fmt.Errorf("failed to build extensions: %w", err)
 	}
 
-	pSet := pipelinesSettings{
+	pSet := graphSettings{
 		Telemetry:        srv.telemetrySettings,
 		BuildInfo:        srv.buildInfo,
 		ReceiverBuilder:  set.Receivers,
@@ -210,14 +198,8 @@ func (srv *Service) initExtensionsAndPipeline(ctx context.Context, set Settings,
 		PipelineConfigs:  cfg.Pipelines,
 	}
 
-	if useGraph {
-		if srv.host.pipelines, err = buildPipelinesGraph(ctx, pSet); err != nil {
-			return fmt.Errorf("failed to build pipelines: %w", err)
-		}
-	} else {
-		if srv.host.pipelines, err = buildPipelines(ctx, pSet); err != nil {
-			return fmt.Errorf("failed to build pipelines: %w", err)
-		}
+	if srv.host.pipelines, err = buildPipelinesGraph(ctx, pSet); err != nil {
+		return fmt.Errorf("failed to build pipelines: %w", err)
 	}
 
 	if cfg.Telemetry.Metrics.Level != configtelemetry.LevelNone && cfg.Telemetry.Metrics.Address != "" {

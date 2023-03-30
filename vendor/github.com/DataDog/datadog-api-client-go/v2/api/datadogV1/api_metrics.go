@@ -16,46 +16,22 @@ import (
 // MetricsApi service type
 type MetricsApi datadog.Service
 
-type apiGetMetricMetadataRequest struct {
-	ctx        _context.Context
-	metricName string
-}
-
-func (a *MetricsApi) buildGetMetricMetadataRequest(ctx _context.Context, metricName string) (apiGetMetricMetadataRequest, error) {
-	req := apiGetMetricMetadataRequest{
-		ctx:        ctx,
-		metricName: metricName,
-	}
-	return req, nil
-}
-
 // GetMetricMetadata Get metric metadata.
 // Get metadata about a specific metric.
 func (a *MetricsApi) GetMetricMetadata(ctx _context.Context, metricName string) (MetricMetadata, *_nethttp.Response, error) {
-	req, err := a.buildGetMetricMetadataRequest(ctx, metricName)
-	if err != nil {
-		var localVarReturnValue MetricMetadata
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getMetricMetadataExecute(req)
-}
-
-// getMetricMetadataExecute executes the request.
-func (a *MetricsApi) getMetricMetadataExecute(r apiGetMetricMetadataRequest) (MetricMetadata, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue MetricMetadata
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.MetricsApi.GetMetricMetadata")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.MetricsApi.GetMetricMetadata")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/metrics/{metric_name}"
-	localVarPath = strings.Replace(localVarPath, "{"+"metric_name"+"}", _neturl.PathEscape(datadog.ParameterToString(r.metricName, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"metric_name"+"}", _neturl.PathEscape(datadog.ParameterToString(metricName, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -63,12 +39,12 @@ func (a *MetricsApi) getMetricMetadataExecute(r apiGetMetricMetadataRequest) (Me
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -111,13 +87,6 @@ func (a *MetricsApi) getMetricMetadataExecute(r apiGetMetricMetadataRequest) (Me
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiListActiveMetricsRequest struct {
-	ctx       _context.Context
-	from      *int64
-	host      *string
-	tagFilter *string
-}
-
 // ListActiveMetricsOptionalParameters holds optional parameters for ListActiveMetrics.
 type ListActiveMetricsOptionalParameters struct {
 	Host      *string
@@ -142,44 +111,24 @@ func (r *ListActiveMetricsOptionalParameters) WithTagFilter(tagFilter string) *L
 	return r
 }
 
-func (a *MetricsApi) buildListActiveMetricsRequest(ctx _context.Context, from int64, o ...ListActiveMetricsOptionalParameters) (apiListActiveMetricsRequest, error) {
-	req := apiListActiveMetricsRequest{
-		ctx:  ctx,
-		from: &from,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type ListActiveMetricsOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.host = o[0].Host
-		req.tagFilter = o[0].TagFilter
-	}
-	return req, nil
-}
-
 // ListActiveMetrics Get active metrics list.
 // Get the list of actively reporting metrics from a given time until now.
 func (a *MetricsApi) ListActiveMetrics(ctx _context.Context, from int64, o ...ListActiveMetricsOptionalParameters) (MetricsListResponse, *_nethttp.Response, error) {
-	req, err := a.buildListActiveMetricsRequest(ctx, from, o...)
-	if err != nil {
-		var localVarReturnValue MetricsListResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.listActiveMetricsExecute(req)
-}
-
-// listActiveMetricsExecute executes the request.
-func (a *MetricsApi) listActiveMetricsExecute(r apiListActiveMetricsRequest) (MetricsListResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue MetricsListResponse
+		optionalParams      ListActiveMetricsOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.MetricsApi.ListActiveMetrics")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type ListActiveMetricsOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.MetricsApi.ListActiveMetrics")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -189,25 +138,22 @@ func (a *MetricsApi) listActiveMetricsExecute(r apiListActiveMetricsRequest) (Me
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.from == nil {
-		return localVarReturnValue, nil, datadog.ReportError("from is required and must be specified")
+	localVarQueryParams.Add("from", datadog.ParameterToString(from, ""))
+	if optionalParams.Host != nil {
+		localVarQueryParams.Add("host", datadog.ParameterToString(*optionalParams.Host, ""))
 	}
-	localVarQueryParams.Add("from", datadog.ParameterToString(*r.from, ""))
-	if r.host != nil {
-		localVarQueryParams.Add("host", datadog.ParameterToString(*r.host, ""))
-	}
-	if r.tagFilter != nil {
-		localVarQueryParams.Add("tag_filter", datadog.ParameterToString(*r.tagFilter, ""))
+	if optionalParams.TagFilter != nil {
+		localVarQueryParams.Add("tag_filter", datadog.ParameterToString(*optionalParams.TagFilter, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -250,40 +196,16 @@ func (a *MetricsApi) listActiveMetricsExecute(r apiListActiveMetricsRequest) (Me
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiListMetricsRequest struct {
-	ctx _context.Context
-	q   *string
-}
-
-func (a *MetricsApi) buildListMetricsRequest(ctx _context.Context, q string) (apiListMetricsRequest, error) {
-	req := apiListMetricsRequest{
-		ctx: ctx,
-		q:   &q,
-	}
-	return req, nil
-}
-
 // ListMetrics Search metrics.
 // Search for metrics from the last 24 hours in Datadog.
 func (a *MetricsApi) ListMetrics(ctx _context.Context, q string) (MetricSearchResponse, *_nethttp.Response, error) {
-	req, err := a.buildListMetricsRequest(ctx, q)
-	if err != nil {
-		var localVarReturnValue MetricSearchResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.listMetricsExecute(req)
-}
-
-// listMetricsExecute executes the request.
-func (a *MetricsApi) listMetricsExecute(r apiListMetricsRequest) (MetricSearchResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue MetricSearchResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.MetricsApi.ListMetrics")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.MetricsApi.ListMetrics")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -293,19 +215,16 @@ func (a *MetricsApi) listMetricsExecute(r apiListMetricsRequest) (MetricSearchRe
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.q == nil {
-		return localVarReturnValue, nil, datadog.ReportError("q is required and must be specified")
-	}
-	localVarQueryParams.Add("q", datadog.ParameterToString(*r.q, ""))
+	localVarQueryParams.Add("q", datadog.ParameterToString(q, ""))
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -348,44 +267,16 @@ func (a *MetricsApi) listMetricsExecute(r apiListMetricsRequest) (MetricSearchRe
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiQueryMetricsRequest struct {
-	ctx   _context.Context
-	from  *int64
-	to    *int64
-	query *string
-}
-
-func (a *MetricsApi) buildQueryMetricsRequest(ctx _context.Context, from int64, to int64, query string) (apiQueryMetricsRequest, error) {
-	req := apiQueryMetricsRequest{
-		ctx:   ctx,
-		from:  &from,
-		to:    &to,
-		query: &query,
-	}
-	return req, nil
-}
-
 // QueryMetrics Query timeseries points.
 // Query timeseries points.
 func (a *MetricsApi) QueryMetrics(ctx _context.Context, from int64, to int64, query string) (MetricsQueryResponse, *_nethttp.Response, error) {
-	req, err := a.buildQueryMetricsRequest(ctx, from, to, query)
-	if err != nil {
-		var localVarReturnValue MetricsQueryResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.queryMetricsExecute(req)
-}
-
-// queryMetricsExecute executes the request.
-func (a *MetricsApi) queryMetricsExecute(r apiQueryMetricsRequest) (MetricsQueryResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue MetricsQueryResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.MetricsApi.QueryMetrics")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.MetricsApi.QueryMetrics")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -395,27 +286,18 @@ func (a *MetricsApi) queryMetricsExecute(r apiQueryMetricsRequest) (MetricsQuery
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.from == nil {
-		return localVarReturnValue, nil, datadog.ReportError("from is required and must be specified")
-	}
-	if r.to == nil {
-		return localVarReturnValue, nil, datadog.ReportError("to is required and must be specified")
-	}
-	if r.query == nil {
-		return localVarReturnValue, nil, datadog.ReportError("query is required and must be specified")
-	}
-	localVarQueryParams.Add("from", datadog.ParameterToString(*r.from, ""))
-	localVarQueryParams.Add("to", datadog.ParameterToString(*r.to, ""))
-	localVarQueryParams.Add("query", datadog.ParameterToString(*r.query, ""))
+	localVarQueryParams.Add("from", datadog.ParameterToString(from, ""))
+	localVarQueryParams.Add("to", datadog.ParameterToString(to, ""))
+	localVarQueryParams.Add("query", datadog.ParameterToString(query, ""))
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -456,12 +338,6 @@ func (a *MetricsApi) queryMetricsExecute(r apiQueryMetricsRequest) (MetricsQuery
 	}
 
 	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiSubmitDistributionPointsRequest struct {
-	ctx             _context.Context
-	body            *DistributionPointsPayload
-	contentEncoding *DistributionPointsContentEncoding
 }
 
 // SubmitDistributionPointsOptionalParameters holds optional parameters for SubmitDistributionPoints.
@@ -481,43 +357,24 @@ func (r *SubmitDistributionPointsOptionalParameters) WithContentEncoding(content
 	return r
 }
 
-func (a *MetricsApi) buildSubmitDistributionPointsRequest(ctx _context.Context, body DistributionPointsPayload, o ...SubmitDistributionPointsOptionalParameters) (apiSubmitDistributionPointsRequest, error) {
-	req := apiSubmitDistributionPointsRequest{
-		ctx:  ctx,
-		body: &body,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type SubmitDistributionPointsOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.contentEncoding = o[0].ContentEncoding
-	}
-	return req, nil
-}
-
 // SubmitDistributionPoints Submit distribution points.
 // The distribution points end-point allows you to post distribution data that can be graphed on Datadog’s dashboards.
 func (a *MetricsApi) SubmitDistributionPoints(ctx _context.Context, body DistributionPointsPayload, o ...SubmitDistributionPointsOptionalParameters) (IntakePayloadAccepted, *_nethttp.Response, error) {
-	req, err := a.buildSubmitDistributionPointsRequest(ctx, body, o...)
-	if err != nil {
-		var localVarReturnValue IntakePayloadAccepted
-		return localVarReturnValue, nil, err
-	}
-
-	return a.submitDistributionPointsExecute(req)
-}
-
-// submitDistributionPointsExecute executes the request.
-func (a *MetricsApi) submitDistributionPointsExecute(r apiSubmitDistributionPointsRequest) (IntakePayloadAccepted, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue IntakePayloadAccepted
+		optionalParams      SubmitDistributionPointsOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.MetricsApi.SubmitDistributionPoints")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type SubmitDistributionPointsOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.MetricsApi.SubmitDistributionPoints")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -527,24 +384,21 @@ func (a *MetricsApi) submitDistributionPointsExecute(r apiSubmitDistributionPoin
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "text/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
-	if r.contentEncoding != nil {
-		localVarHeaderParams["Content-Encoding"] = datadog.ParameterToString(*r.contentEncoding, "")
+	if optionalParams.ContentEncoding != nil {
+		localVarHeaderParams["Content-Encoding"] = datadog.ParameterToString(*optionalParams.ContentEncoding, "")
 	}
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -585,12 +439,6 @@ func (a *MetricsApi) submitDistributionPointsExecute(r apiSubmitDistributionPoin
 	}
 
 	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiSubmitMetricsRequest struct {
-	ctx             _context.Context
-	body            *MetricsPayload
-	contentEncoding *MetricContentEncoding
 }
 
 // SubmitMetricsOptionalParameters holds optional parameters for SubmitMetrics.
@@ -610,22 +458,6 @@ func (r *SubmitMetricsOptionalParameters) WithContentEncoding(contentEncoding Me
 	return r
 }
 
-func (a *MetricsApi) buildSubmitMetricsRequest(ctx _context.Context, body MetricsPayload, o ...SubmitMetricsOptionalParameters) (apiSubmitMetricsRequest, error) {
-	req := apiSubmitMetricsRequest{
-		ctx:  ctx,
-		body: &body,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type SubmitMetricsOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.contentEncoding = o[0].ContentEncoding
-	}
-	return req, nil
-}
-
 // SubmitMetrics Submit metrics.
 // The metrics end-point allows you to post time-series data that can be graphed on Datadog’s dashboards.
 // The maximum payload size is 3.2 megabytes (3200000 bytes). Compressed payloads must have a decompressed size of less than 62 megabytes (62914560 bytes).
@@ -639,24 +471,21 @@ func (a *MetricsApi) buildSubmitMetricsRequest(ctx _context.Context, body Metric
 // - The full payload is approximately 100 bytes. However, with the DogStatsD API,
 // compression is applied, which reduces the payload size.
 func (a *MetricsApi) SubmitMetrics(ctx _context.Context, body MetricsPayload, o ...SubmitMetricsOptionalParameters) (IntakePayloadAccepted, *_nethttp.Response, error) {
-	req, err := a.buildSubmitMetricsRequest(ctx, body, o...)
-	if err != nil {
-		var localVarReturnValue IntakePayloadAccepted
-		return localVarReturnValue, nil, err
-	}
-
-	return a.submitMetricsExecute(req)
-}
-
-// submitMetricsExecute executes the request.
-func (a *MetricsApi) submitMetricsExecute(r apiSubmitMetricsRequest) (IntakePayloadAccepted, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue IntakePayloadAccepted
+		optionalParams      SubmitMetricsOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.MetricsApi.SubmitMetrics")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type SubmitMetricsOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.MetricsApi.SubmitMetrics")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -666,24 +495,21 @@ func (a *MetricsApi) submitMetricsExecute(r apiSubmitMetricsRequest) (IntakePayl
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "text/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
-	if r.contentEncoding != nil {
-		localVarHeaderParams["Content-Encoding"] = datadog.ParameterToString(*r.contentEncoding, "")
+	if optionalParams.ContentEncoding != nil {
+		localVarHeaderParams["Content-Encoding"] = datadog.ParameterToString(*optionalParams.ContentEncoding, "")
 	}
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -726,67 +552,38 @@ func (a *MetricsApi) submitMetricsExecute(r apiSubmitMetricsRequest) (IntakePayl
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiUpdateMetricMetadataRequest struct {
-	ctx        _context.Context
-	metricName string
-	body       *MetricMetadata
-}
-
-func (a *MetricsApi) buildUpdateMetricMetadataRequest(ctx _context.Context, metricName string, body MetricMetadata) (apiUpdateMetricMetadataRequest, error) {
-	req := apiUpdateMetricMetadataRequest{
-		ctx:        ctx,
-		metricName: metricName,
-		body:       &body,
-	}
-	return req, nil
-}
-
 // UpdateMetricMetadata Edit metric metadata.
 // Edit metadata of a specific metric. Find out more about [supported types](https://docs.datadoghq.com/developers/metrics).
 func (a *MetricsApi) UpdateMetricMetadata(ctx _context.Context, metricName string, body MetricMetadata) (MetricMetadata, *_nethttp.Response, error) {
-	req, err := a.buildUpdateMetricMetadataRequest(ctx, metricName, body)
-	if err != nil {
-		var localVarReturnValue MetricMetadata
-		return localVarReturnValue, nil, err
-	}
-
-	return a.updateMetricMetadataExecute(req)
-}
-
-// updateMetricMetadataExecute executes the request.
-func (a *MetricsApi) updateMetricMetadataExecute(r apiUpdateMetricMetadataRequest) (MetricMetadata, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPut
 		localVarPostBody    interface{}
 		localVarReturnValue MetricMetadata
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.MetricsApi.UpdateMetricMetadata")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.MetricsApi.UpdateMetricMetadata")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/metrics/{metric_name}"
-	localVarPath = strings.Replace(localVarPath, "{"+"metric_name"+"}", _neturl.PathEscape(datadog.ParameterToString(r.metricName, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"metric_name"+"}", _neturl.PathEscape(datadog.ParameterToString(metricName, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}

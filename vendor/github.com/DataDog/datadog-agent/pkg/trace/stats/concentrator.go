@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -126,8 +125,10 @@ func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, 
 		return Input{}
 	}
 	in := Input{Traces: make([]traceutil.ProcessedTrace, 0, numChunks)}
-	enableContainers := features.Has("enable_cid_stats") || (conf.FargateOrchestrator != config.OrchestratorUnknown)
-	if enableContainers && !features.Has("disable_cid_stats") {
+	_, enabledCIDStats := conf.Features["enable_cid_stats"]
+	_, disabledCIDStats := conf.Features["disable_cid_stats"]
+	enableContainers := enabledCIDStats || (conf.FargateOrchestrator != config.OrchestratorUnknown)
+	if enableContainers && !disabledCIDStats {
 		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
 		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.
 		in.ContainerID = containerID

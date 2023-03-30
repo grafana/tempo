@@ -18,19 +18,6 @@ import (
 // OrganizationsApi service type
 type OrganizationsApi datadog.Service
 
-type apiCreateChildOrgRequest struct {
-	ctx  _context.Context
-	body *OrganizationCreateBody
-}
-
-func (a *OrganizationsApi) buildCreateChildOrgRequest(ctx _context.Context, body OrganizationCreateBody) (apiCreateChildOrgRequest, error) {
-	req := apiCreateChildOrgRequest{
-		ctx:  ctx,
-		body: &body,
-	}
-	return req, nil
-}
-
 // CreateChildOrg Create a child organization.
 // Create a child organization.
 //
@@ -43,24 +30,13 @@ func (a *OrganizationsApi) buildCreateChildOrgRequest(ctx _context.Context, body
 // by using the `org.public_id`, `api_key.key`, and
 // `application_key.hash` provided in the response.
 func (a *OrganizationsApi) CreateChildOrg(ctx _context.Context, body OrganizationCreateBody) (OrganizationCreateResponse, *_nethttp.Response, error) {
-	req, err := a.buildCreateChildOrgRequest(ctx, body)
-	if err != nil {
-		var localVarReturnValue OrganizationCreateResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.createChildOrgExecute(req)
-}
-
-// createChildOrgExecute executes the request.
-func (a *OrganizationsApi) createChildOrgExecute(r apiCreateChildOrgRequest) (OrganizationCreateResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue OrganizationCreateResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.OrganizationsApi.CreateChildOrg")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.OrganizationsApi.CreateChildOrg")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -70,21 +46,18 @@ func (a *OrganizationsApi) createChildOrgExecute(r apiCreateChildOrgRequest) (Or
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -127,46 +100,22 @@ func (a *OrganizationsApi) createChildOrgExecute(r apiCreateChildOrgRequest) (Or
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiDowngradeOrgRequest struct {
-	ctx      _context.Context
-	publicId string
-}
-
-func (a *OrganizationsApi) buildDowngradeOrgRequest(ctx _context.Context, publicId string) (apiDowngradeOrgRequest, error) {
-	req := apiDowngradeOrgRequest{
-		ctx:      ctx,
-		publicId: publicId,
-	}
-	return req, nil
-}
-
 // DowngradeOrg Spin-off Child Organization.
 // Only available for MSP customers. Removes a child organization from the hierarchy of the master organization and places the child organization on a 30-day trial.
 func (a *OrganizationsApi) DowngradeOrg(ctx _context.Context, publicId string) (OrgDowngradedResponse, *_nethttp.Response, error) {
-	req, err := a.buildDowngradeOrgRequest(ctx, publicId)
-	if err != nil {
-		var localVarReturnValue OrgDowngradedResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.downgradeOrgExecute(req)
-}
-
-// downgradeOrgExecute executes the request.
-func (a *OrganizationsApi) downgradeOrgExecute(r apiDowngradeOrgRequest) (OrgDowngradedResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue OrgDowngradedResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.OrganizationsApi.DowngradeOrg")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.OrganizationsApi.DowngradeOrg")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/org/{public_id}/downgrade"
-	localVarPath = strings.Replace(localVarPath, "{"+"public_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.publicId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"public_id"+"}", _neturl.PathEscape(datadog.ParameterToString(publicId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -174,12 +123,12 @@ func (a *OrganizationsApi) downgradeOrgExecute(r apiDowngradeOrgRequest) (OrgDow
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -222,46 +171,22 @@ func (a *OrganizationsApi) downgradeOrgExecute(r apiDowngradeOrgRequest) (OrgDow
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiGetOrgRequest struct {
-	ctx      _context.Context
-	publicId string
-}
-
-func (a *OrganizationsApi) buildGetOrgRequest(ctx _context.Context, publicId string) (apiGetOrgRequest, error) {
-	req := apiGetOrgRequest{
-		ctx:      ctx,
-		publicId: publicId,
-	}
-	return req, nil
-}
-
 // GetOrg Get organization information.
 // Get organization information.
 func (a *OrganizationsApi) GetOrg(ctx _context.Context, publicId string) (OrganizationResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetOrgRequest(ctx, publicId)
-	if err != nil {
-		var localVarReturnValue OrganizationResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getOrgExecute(req)
-}
-
-// getOrgExecute executes the request.
-func (a *OrganizationsApi) getOrgExecute(r apiGetOrgRequest) (OrganizationResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue OrganizationResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.OrganizationsApi.GetOrg")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.OrganizationsApi.GetOrg")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/org/{public_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"public_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.publicId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"public_id"+"}", _neturl.PathEscape(datadog.ParameterToString(publicId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
@@ -269,12 +194,12 @@ func (a *OrganizationsApi) getOrgExecute(r apiGetOrgRequest) (OrganizationRespon
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -317,38 +242,16 @@ func (a *OrganizationsApi) getOrgExecute(r apiGetOrgRequest) (OrganizationRespon
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiListOrgsRequest struct {
-	ctx _context.Context
-}
-
-func (a *OrganizationsApi) buildListOrgsRequest(ctx _context.Context) (apiListOrgsRequest, error) {
-	req := apiListOrgsRequest{
-		ctx: ctx,
-	}
-	return req, nil
-}
-
 // ListOrgs List your managed organizations.
 // This endpoint returns data on your top-level organization.
 func (a *OrganizationsApi) ListOrgs(ctx _context.Context) (OrganizationListResponse, *_nethttp.Response, error) {
-	req, err := a.buildListOrgsRequest(ctx)
-	if err != nil {
-		var localVarReturnValue OrganizationListResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.listOrgsExecute(req)
-}
-
-// listOrgsExecute executes the request.
-func (a *OrganizationsApi) listOrgsExecute(r apiListOrgsRequest) (OrganizationListResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue OrganizationListResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.OrganizationsApi.ListOrgs")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.OrganizationsApi.ListOrgs")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -361,12 +264,12 @@ func (a *OrganizationsApi) listOrgsExecute(r apiListOrgsRequest) (OrganizationLi
 	localVarHeaderParams["Accept"] = "application/json"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -409,67 +312,38 @@ func (a *OrganizationsApi) listOrgsExecute(r apiListOrgsRequest) (OrganizationLi
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiUpdateOrgRequest struct {
-	ctx      _context.Context
-	publicId string
-	body     *Organization
-}
-
-func (a *OrganizationsApi) buildUpdateOrgRequest(ctx _context.Context, publicId string, body Organization) (apiUpdateOrgRequest, error) {
-	req := apiUpdateOrgRequest{
-		ctx:      ctx,
-		publicId: publicId,
-		body:     &body,
-	}
-	return req, nil
-}
-
 // UpdateOrg Update your organization.
 // Update your organization.
 func (a *OrganizationsApi) UpdateOrg(ctx _context.Context, publicId string, body Organization) (OrganizationResponse, *_nethttp.Response, error) {
-	req, err := a.buildUpdateOrgRequest(ctx, publicId, body)
-	if err != nil {
-		var localVarReturnValue OrganizationResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.updateOrgExecute(req)
-}
-
-// updateOrgExecute executes the request.
-func (a *OrganizationsApi) updateOrgExecute(r apiUpdateOrgRequest) (OrganizationResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPut
 		localVarPostBody    interface{}
 		localVarReturnValue OrganizationResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.OrganizationsApi.UpdateOrg")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.OrganizationsApi.UpdateOrg")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/org/{public_id}"
-	localVarPath = strings.Replace(localVarPath, "{"+"public_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.publicId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"public_id"+"}", _neturl.PathEscape(datadog.ParameterToString(publicId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.body == nil {
-		return localVarReturnValue, nil, datadog.ReportError("body is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "application/json"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	// body params
-	localVarPostBody = r.body
+	localVarPostBody = &body
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -512,21 +386,6 @@ func (a *OrganizationsApi) updateOrgExecute(r apiUpdateOrgRequest) (Organization
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiUploadIdPForOrgRequest struct {
-	ctx      _context.Context
-	publicId string
-	idpFile  **os.File
-}
-
-func (a *OrganizationsApi) buildUploadIdPForOrgRequest(ctx _context.Context, publicId string, idpFile *os.File) (apiUploadIdPForOrgRequest, error) {
-	req := apiUploadIdPForOrgRequest{
-		ctx:      ctx,
-		publicId: publicId,
-		idpFile:  &idpFile,
-	}
-	return req, nil
-}
-
 // UploadIdPForOrg Upload IdP metadata.
 // There are a couple of options for updating the Identity Provider (IdP)
 // metadata from your SAML IdP.
@@ -535,43 +394,29 @@ func (a *OrganizationsApi) buildUploadIdPForOrgRequest(ctx _context.Context, pub
 //
 // * **XML Body:** Post the IdP metadata file as the body of the request.
 func (a *OrganizationsApi) UploadIdPForOrg(ctx _context.Context, publicId string, idpFile *os.File) (IdpResponse, *_nethttp.Response, error) {
-	req, err := a.buildUploadIdPForOrgRequest(ctx, publicId, idpFile)
-	if err != nil {
-		var localVarReturnValue IdpResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.uploadIdPForOrgExecute(req)
-}
-
-// uploadIdPForOrgExecute executes the request.
-func (a *OrganizationsApi) uploadIdPForOrgExecute(r apiUploadIdPForOrgRequest) (IdpResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodPost
 		localVarPostBody    interface{}
 		localVarReturnValue IdpResponse
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v1.OrganizationsApi.UploadIdPForOrg")
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v1.OrganizationsApi.UploadIdPForOrg")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/api/v1/org/{public_id}/idp_metadata"
-	localVarPath = strings.Replace(localVarPath, "{"+"public_id"+"}", _neturl.PathEscape(datadog.ParameterToString(r.publicId, "")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"public_id"+"}", _neturl.PathEscape(datadog.ParameterToString(publicId, "")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.idpFile == nil {
-		return localVarReturnValue, nil, datadog.ReportError("idpFile is required and must be specified")
-	}
 	localVarHeaderParams["Content-Type"] = "multipart/form-data"
 	localVarHeaderParams["Accept"] = "application/json"
 
 	formFile := datadog.FormFile{}
 	formFile.FormFileName = "idp_file"
-	localVarFile := *r.idpFile
+	localVarFile := idpFile
 	if localVarFile != nil {
 		fbs, _ := _io.ReadAll(localVarFile)
 		formFile.FileBytes = fbs
@@ -579,12 +424,12 @@ func (a *OrganizationsApi) uploadIdPForOrgExecute(r apiUploadIdPForOrgRequest) (
 		localVarFile.Close()
 	}
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, &formFile)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, &formFile)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}

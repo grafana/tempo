@@ -20,8 +20,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/consumer"
@@ -33,7 +33,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/metadata"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/hostmetadata"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry"
 )
 
@@ -77,7 +77,7 @@ type factory struct {
 
 func (f *factory) SourceProvider(set component.TelemetrySettings, configHostname string) (source.Provider, error) {
 	f.onceProvider.Do(func() {
-		f.sourceProvider, f.providerErr = metadata.GetSourceProvider(set, configHostname)
+		f.sourceProvider, f.providerErr = hostmetadata.GetSourceProvider(set, configHostname)
 	})
 	return f.sourceProvider, f.providerErr
 }
@@ -120,7 +120,7 @@ func defaulttimeoutSettings() exporterhelper.TimeoutSettings {
 // createDefaultConfig creates the default exporter configuration
 func (f *factory) createDefaultConfig() component.Config {
 	hostnameSource := HostnameSourceFirstResource
-	if metadata.HostnamePreviewFeatureGate.IsEnabled() {
+	if hostmetadata.HostnamePreviewFeatureGate.IsEnabled() {
 		hostnameSource = HostnameSourceConfigOrSystem
 	}
 
@@ -213,7 +213,7 @@ func (f *factory) createMetricsExporter(
 				if md.ResourceMetrics().Len() > 0 {
 					attrs = md.ResourceMetrics().At(0).Resource().Attributes()
 				}
-				go metadata.Pusher(ctx, set, newMetadataConfigfromConfig(cfg), hostProvider, attrs)
+				go hostmetadata.Pusher(ctx, set, newMetadataConfigfromConfig(cfg), hostProvider, attrs)
 			})
 
 			return nil
@@ -282,7 +282,7 @@ func (f *factory) createTracesExporter(
 				if td.ResourceSpans().Len() > 0 {
 					attrs = td.ResourceSpans().At(0).Resource().Attributes()
 				}
-				go metadata.Pusher(ctx, set, newMetadataConfigfromConfig(cfg), hostProvider, attrs)
+				go hostmetadata.Pusher(ctx, set, newMetadataConfigfromConfig(cfg), hostProvider, attrs)
 			})
 			return nil
 		}
@@ -294,12 +294,12 @@ func (f *factory) createTracesExporter(
 		tracex, err2 := newTracesExporter(ctx, set, cfg, &f.onceMetadata, hostProvider, traceagent)
 		if err2 != nil {
 			cancel()
+			f.wg.Wait() // then wait for shutdown
 			return nil, err2
 		}
 		pusher = tracex.consumeTraces
 		stop = func(context.Context) error {
-			cancel()    // first cancel context
-			f.wg.Wait() // then wait for shutdown
+			cancel() // first cancel context
 			return nil
 		}
 	}
@@ -338,7 +338,7 @@ func (f *factory) createLogsExporter(
 		pusher = func(_ context.Context, td plog.Logs) error {
 			f.onceMetadata.Do(func() {
 				attrs := pcommon.NewMap()
-				go metadata.Pusher(ctx, set, newMetadataConfigfromConfig(cfg), hostProvider, attrs)
+				go hostmetadata.Pusher(ctx, set, newMetadataConfigfromConfig(cfg), hostProvider, attrs)
 			})
 			return nil
 		}
@@ -346,6 +346,7 @@ func (f *factory) createLogsExporter(
 		exp, err := newLogsExporter(ctx, set, cfg, &f.onceMetadata, hostProvider)
 		if err != nil {
 			cancel()
+			f.wg.Wait() // then wait for shutdown
 			return nil, err
 		}
 		pusher = exp.consumeLogs

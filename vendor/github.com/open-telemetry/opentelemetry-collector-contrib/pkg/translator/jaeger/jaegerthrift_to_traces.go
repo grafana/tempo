@@ -106,11 +106,11 @@ func jThriftSpanToInternal(span *jaeger.Span, dest ptrace.Span) {
 	attrs := dest.Attributes()
 	attrs.EnsureCapacity(len(span.Tags))
 	jThriftTagsToInternalAttributes(span.Tags, attrs)
-	setInternalSpanStatus(attrs, dest)
 	if spanKindAttr, ok := attrs.Get(tracetranslator.TagSpanKind); ok {
 		dest.SetKind(jSpanKindToInternal(spanKindAttr.Str()))
 		attrs.Remove(tracetranslator.TagSpanKind)
 	}
+	setInternalSpanStatus(attrs, dest)
 
 	// drop the attributes slice if all of them were replaced during translation
 	if attrs.Len() == 0 {

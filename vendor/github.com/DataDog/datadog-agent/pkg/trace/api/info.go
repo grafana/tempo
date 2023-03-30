@@ -12,7 +12,6 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 )
 
 // makeInfoHandler returns a new handler for handling the discovery endpoint.
@@ -75,7 +74,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		Version:          r.conf.AgentVersion,
 		GitCommit:        r.conf.GitCommit,
 		Endpoints:        all,
-		FeatureFlags:     features.All(),
+		FeatureFlags:     r.conf.AllFeatures(),
 		ClientDropP0s:    true,
 		SpanMetaStructs:  true,
 		LongRunningSpans: true,

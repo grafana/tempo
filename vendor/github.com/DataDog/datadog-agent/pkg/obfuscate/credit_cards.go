@@ -154,9 +154,9 @@ func validCardPrefix(n int) (maybe, yes bool) {
 			// 34-39, 51-55, 62, 65 are valid IIN
 			return false, true
 		}
-		if n == 30 || n == 63 || n == 64 || n == 35 || n == 50 || n == 60 ||
+		if n == 30 || n == 63 || n == 64 || n == 50 || n == 60 ||
 			(n >= 22 && n <= 27) || (n >= 56 && n <= 58) || (n >= 60 && n <= 69) {
-			// 30, 63, 64, 35, 50, 60, 22-27, 56-58, 60-69 may end up as valid IIN
+			// 30, 63, 64, 50, 60, 22-27, 56-58, 60-69 may end up as valid IIN
 			return true, false
 		}
 	}

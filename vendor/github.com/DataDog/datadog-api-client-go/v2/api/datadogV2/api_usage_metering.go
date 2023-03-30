@@ -16,12 +16,6 @@ import (
 // UsageMeteringApi service type
 type UsageMeteringApi datadog.Service
 
-type apiGetCostByOrgRequest struct {
-	ctx        _context.Context
-	startMonth *time.Time
-	endMonth   *time.Time
-}
-
 // GetCostByOrgOptionalParameters holds optional parameters for GetCostByOrg.
 type GetCostByOrgOptionalParameters struct {
 	EndMonth *time.Time
@@ -39,22 +33,6 @@ func (r *GetCostByOrgOptionalParameters) WithEndMonth(endMonth time.Time) *GetCo
 	return r
 }
 
-func (a *UsageMeteringApi) buildGetCostByOrgRequest(ctx _context.Context, startMonth time.Time, o ...GetCostByOrgOptionalParameters) (apiGetCostByOrgRequest, error) {
-	req := apiGetCostByOrgRequest{
-		ctx:        ctx,
-		startMonth: &startMonth,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type GetCostByOrgOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.endMonth = o[0].EndMonth
-	}
-	return req, nil
-}
-
 // GetCostByOrg Get cost across multi-org account.
 // Get cost across multi-org account.
 // Cost by org data for a given month becomes available no later than the 16th of the following month.
@@ -64,24 +42,21 @@ func (a *UsageMeteringApi) buildGetCostByOrgRequest(ctx _context.Context, startM
 //
 // Deprecated: This API is deprecated.
 func (a *UsageMeteringApi) GetCostByOrg(ctx _context.Context, startMonth time.Time, o ...GetCostByOrgOptionalParameters) (CostByOrgResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetCostByOrgRequest(ctx, startMonth, o...)
-	if err != nil {
-		var localVarReturnValue CostByOrgResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getCostByOrgExecute(req)
-}
-
-// getCostByOrgExecute executes the request.
-func (a *UsageMeteringApi) getCostByOrgExecute(r apiGetCostByOrgRequest) (CostByOrgResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue CostByOrgResponse
+		optionalParams      GetCostByOrgOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.UsageMeteringApi.GetCostByOrg")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type GetCostByOrgOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.UsageMeteringApi.GetCostByOrg")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -91,22 +66,19 @@ func (a *UsageMeteringApi) getCostByOrgExecute(r apiGetCostByOrgRequest) (CostBy
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.startMonth == nil {
-		return localVarReturnValue, nil, datadog.ReportError("startMonth is required and must be specified")
-	}
-	localVarQueryParams.Add("start_month", datadog.ParameterToString(*r.startMonth, ""))
-	if r.endMonth != nil {
-		localVarQueryParams.Add("end_month", datadog.ParameterToString(*r.endMonth, ""))
+	localVarQueryParams.Add("start_month", datadog.ParameterToString(startMonth, ""))
+	if optionalParams.EndMonth != nil {
+		localVarQueryParams.Add("end_month", datadog.ParameterToString(*optionalParams.EndMonth, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json;datetime-format=rfc3339"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -147,15 +119,6 @@ func (a *UsageMeteringApi) getCostByOrgExecute(r apiGetCostByOrgRequest) (CostBy
 	}
 
 	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiGetEstimatedCostByOrgRequest struct {
-	ctx        _context.Context
-	view       *string
-	startMonth *time.Time
-	endMonth   *time.Time
-	startDate  *time.Time
-	endDate    *time.Time
 }
 
 // GetEstimatedCostByOrgOptionalParameters holds optional parameters for GetEstimatedCostByOrg.
@@ -203,49 +166,27 @@ func (r *GetEstimatedCostByOrgOptionalParameters) WithEndDate(endDate time.Time)
 	return r
 }
 
-func (a *UsageMeteringApi) buildGetEstimatedCostByOrgRequest(ctx _context.Context, o ...GetEstimatedCostByOrgOptionalParameters) (apiGetEstimatedCostByOrgRequest, error) {
-	req := apiGetEstimatedCostByOrgRequest{
-		ctx: ctx,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type GetEstimatedCostByOrgOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.view = o[0].View
-		req.startMonth = o[0].StartMonth
-		req.endMonth = o[0].EndMonth
-		req.startDate = o[0].StartDate
-		req.endDate = o[0].EndDate
-	}
-	return req, nil
-}
-
 // GetEstimatedCostByOrg Get estimated cost across your account.
 // Get estimated cost across multi-org and single root-org accounts.
 // Estimated cost data is only available for the current month and previous month
 // and is delayed by up to 72 hours from when it was incurred.
 // To access historical costs prior to this, use the `/historical_cost` endpoint.
 func (a *UsageMeteringApi) GetEstimatedCostByOrg(ctx _context.Context, o ...GetEstimatedCostByOrgOptionalParameters) (CostByOrgResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetEstimatedCostByOrgRequest(ctx, o...)
-	if err != nil {
-		var localVarReturnValue CostByOrgResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getEstimatedCostByOrgExecute(req)
-}
-
-// getEstimatedCostByOrgExecute executes the request.
-func (a *UsageMeteringApi) getEstimatedCostByOrgExecute(r apiGetEstimatedCostByOrgRequest) (CostByOrgResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue CostByOrgResponse
+		optionalParams      GetEstimatedCostByOrgOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.UsageMeteringApi.GetEstimatedCostByOrg")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type GetEstimatedCostByOrgOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.UsageMeteringApi.GetEstimatedCostByOrg")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -255,30 +196,30 @@ func (a *UsageMeteringApi) getEstimatedCostByOrgExecute(r apiGetEstimatedCostByO
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.view != nil {
-		localVarQueryParams.Add("view", datadog.ParameterToString(*r.view, ""))
+	if optionalParams.View != nil {
+		localVarQueryParams.Add("view", datadog.ParameterToString(*optionalParams.View, ""))
 	}
-	if r.startMonth != nil {
-		localVarQueryParams.Add("start_month", datadog.ParameterToString(*r.startMonth, ""))
+	if optionalParams.StartMonth != nil {
+		localVarQueryParams.Add("start_month", datadog.ParameterToString(*optionalParams.StartMonth, ""))
 	}
-	if r.endMonth != nil {
-		localVarQueryParams.Add("end_month", datadog.ParameterToString(*r.endMonth, ""))
+	if optionalParams.EndMonth != nil {
+		localVarQueryParams.Add("end_month", datadog.ParameterToString(*optionalParams.EndMonth, ""))
 	}
-	if r.startDate != nil {
-		localVarQueryParams.Add("start_date", datadog.ParameterToString(*r.startDate, ""))
+	if optionalParams.StartDate != nil {
+		localVarQueryParams.Add("start_date", datadog.ParameterToString(*optionalParams.StartDate, ""))
 	}
-	if r.endDate != nil {
-		localVarQueryParams.Add("end_date", datadog.ParameterToString(*r.endDate, ""))
+	if optionalParams.EndDate != nil {
+		localVarQueryParams.Add("end_date", datadog.ParameterToString(*optionalParams.EndDate, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json;datetime-format=rfc3339"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -319,13 +260,6 @@ func (a *UsageMeteringApi) getEstimatedCostByOrgExecute(r apiGetEstimatedCostByO
 	}
 
 	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiGetHistoricalCostByOrgRequest struct {
-	ctx        _context.Context
-	startMonth *time.Time
-	view       *string
-	endMonth   *time.Time
 }
 
 // GetHistoricalCostByOrgOptionalParameters holds optional parameters for GetHistoricalCostByOrg.
@@ -352,45 +286,25 @@ func (r *GetHistoricalCostByOrgOptionalParameters) WithEndMonth(endMonth time.Ti
 	return r
 }
 
-func (a *UsageMeteringApi) buildGetHistoricalCostByOrgRequest(ctx _context.Context, startMonth time.Time, o ...GetHistoricalCostByOrgOptionalParameters) (apiGetHistoricalCostByOrgRequest, error) {
-	req := apiGetHistoricalCostByOrgRequest{
-		ctx:        ctx,
-		startMonth: &startMonth,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type GetHistoricalCostByOrgOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.view = o[0].View
-		req.endMonth = o[0].EndMonth
-	}
-	return req, nil
-}
-
 // GetHistoricalCostByOrg Get historical cost across your account.
 // Get historical cost across multi-org and single root-org accounts.
 // Cost data for a given month becomes available no later than the 16th of the following month.
 func (a *UsageMeteringApi) GetHistoricalCostByOrg(ctx _context.Context, startMonth time.Time, o ...GetHistoricalCostByOrgOptionalParameters) (CostByOrgResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetHistoricalCostByOrgRequest(ctx, startMonth, o...)
-	if err != nil {
-		var localVarReturnValue CostByOrgResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getHistoricalCostByOrgExecute(req)
-}
-
-// getHistoricalCostByOrgExecute executes the request.
-func (a *UsageMeteringApi) getHistoricalCostByOrgExecute(r apiGetHistoricalCostByOrgRequest) (CostByOrgResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue CostByOrgResponse
+		optionalParams      GetHistoricalCostByOrgOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.UsageMeteringApi.GetHistoricalCostByOrg")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type GetHistoricalCostByOrgOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.UsageMeteringApi.GetHistoricalCostByOrg")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -400,25 +314,22 @@ func (a *UsageMeteringApi) getHistoricalCostByOrgExecute(r apiGetHistoricalCostB
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.startMonth == nil {
-		return localVarReturnValue, nil, datadog.ReportError("startMonth is required and must be specified")
+	localVarQueryParams.Add("start_month", datadog.ParameterToString(startMonth, ""))
+	if optionalParams.View != nil {
+		localVarQueryParams.Add("view", datadog.ParameterToString(*optionalParams.View, ""))
 	}
-	localVarQueryParams.Add("start_month", datadog.ParameterToString(*r.startMonth, ""))
-	if r.view != nil {
-		localVarQueryParams.Add("view", datadog.ParameterToString(*r.view, ""))
-	}
-	if r.endMonth != nil {
-		localVarQueryParams.Add("end_month", datadog.ParameterToString(*r.endMonth, ""))
+	if optionalParams.EndMonth != nil {
+		localVarQueryParams.Add("end_month", datadog.ParameterToString(*optionalParams.EndMonth, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json;datetime-format=rfc3339"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -459,17 +370,6 @@ func (a *UsageMeteringApi) getHistoricalCostByOrgExecute(r apiGetHistoricalCostB
 	}
 
 	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiGetHourlyUsageRequest struct {
-	ctx                      _context.Context
-	filterTimestampStart     *time.Time
-	filterProductFamilies    *string
-	filterTimestampEnd       *time.Time
-	filterIncludeDescendants *bool
-	filterVersions           *string
-	pageLimit                *int32
-	pageNextRecordId         *string
 }
 
 // GetHourlyUsageOptionalParameters holds optional parameters for GetHourlyUsage.
@@ -517,48 +417,24 @@ func (r *GetHourlyUsageOptionalParameters) WithPageNextRecordId(pageNextRecordId
 	return r
 }
 
-func (a *UsageMeteringApi) buildGetHourlyUsageRequest(ctx _context.Context, filterTimestampStart time.Time, filterProductFamilies string, o ...GetHourlyUsageOptionalParameters) (apiGetHourlyUsageRequest, error) {
-	req := apiGetHourlyUsageRequest{
-		ctx:                   ctx,
-		filterTimestampStart:  &filterTimestampStart,
-		filterProductFamilies: &filterProductFamilies,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type GetHourlyUsageOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.filterTimestampEnd = o[0].FilterTimestampEnd
-		req.filterIncludeDescendants = o[0].FilterIncludeDescendants
-		req.filterVersions = o[0].FilterVersions
-		req.pageLimit = o[0].PageLimit
-		req.pageNextRecordId = o[0].PageNextRecordId
-	}
-	return req, nil
-}
-
 // GetHourlyUsage Get hourly usage by product family.
 // Get hourly usage by product family.
 func (a *UsageMeteringApi) GetHourlyUsage(ctx _context.Context, filterTimestampStart time.Time, filterProductFamilies string, o ...GetHourlyUsageOptionalParameters) (HourlyUsageResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetHourlyUsageRequest(ctx, filterTimestampStart, filterProductFamilies, o...)
-	if err != nil {
-		var localVarReturnValue HourlyUsageResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getHourlyUsageExecute(req)
-}
-
-// getHourlyUsageExecute executes the request.
-func (a *UsageMeteringApi) getHourlyUsageExecute(r apiGetHourlyUsageRequest) (HourlyUsageResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue HourlyUsageResponse
+		optionalParams      GetHourlyUsageOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.UsageMeteringApi.GetHourlyUsage")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type GetHourlyUsageOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.UsageMeteringApi.GetHourlyUsage")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -568,38 +444,32 @@ func (a *UsageMeteringApi) getHourlyUsageExecute(r apiGetHourlyUsageRequest) (Ho
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.filterTimestampStart == nil {
-		return localVarReturnValue, nil, datadog.ReportError("filterTimestampStart is required and must be specified")
+	localVarQueryParams.Add("filter[timestamp][start]", datadog.ParameterToString(filterTimestampStart, ""))
+	localVarQueryParams.Add("filter[product_families]", datadog.ParameterToString(filterProductFamilies, ""))
+	if optionalParams.FilterTimestampEnd != nil {
+		localVarQueryParams.Add("filter[timestamp][end]", datadog.ParameterToString(*optionalParams.FilterTimestampEnd, ""))
 	}
-	if r.filterProductFamilies == nil {
-		return localVarReturnValue, nil, datadog.ReportError("filterProductFamilies is required and must be specified")
+	if optionalParams.FilterIncludeDescendants != nil {
+		localVarQueryParams.Add("filter[include_descendants]", datadog.ParameterToString(*optionalParams.FilterIncludeDescendants, ""))
 	}
-	localVarQueryParams.Add("filter[timestamp][start]", datadog.ParameterToString(*r.filterTimestampStart, ""))
-	localVarQueryParams.Add("filter[product_families]", datadog.ParameterToString(*r.filterProductFamilies, ""))
-	if r.filterTimestampEnd != nil {
-		localVarQueryParams.Add("filter[timestamp][end]", datadog.ParameterToString(*r.filterTimestampEnd, ""))
+	if optionalParams.FilterVersions != nil {
+		localVarQueryParams.Add("filter[versions]", datadog.ParameterToString(*optionalParams.FilterVersions, ""))
 	}
-	if r.filterIncludeDescendants != nil {
-		localVarQueryParams.Add("filter[include_descendants]", datadog.ParameterToString(*r.filterIncludeDescendants, ""))
+	if optionalParams.PageLimit != nil {
+		localVarQueryParams.Add("page[limit]", datadog.ParameterToString(*optionalParams.PageLimit, ""))
 	}
-	if r.filterVersions != nil {
-		localVarQueryParams.Add("filter[versions]", datadog.ParameterToString(*r.filterVersions, ""))
-	}
-	if r.pageLimit != nil {
-		localVarQueryParams.Add("page[limit]", datadog.ParameterToString(*r.pageLimit, ""))
-	}
-	if r.pageNextRecordId != nil {
-		localVarQueryParams.Add("page[next_record_id]", datadog.ParameterToString(*r.pageNextRecordId, ""))
+	if optionalParams.PageNextRecordId != nil {
+		localVarQueryParams.Add("page[next_record_id]", datadog.ParameterToString(*optionalParams.PageNextRecordId, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json;datetime-format=rfc3339"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -640,12 +510,6 @@ func (a *UsageMeteringApi) getHourlyUsageExecute(r apiGetHourlyUsageRequest) (Ho
 	}
 
 	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiGetUsageApplicationSecurityMonitoringRequest struct {
-	ctx     _context.Context
-	startHr *time.Time
-	endHr   *time.Time
 }
 
 // GetUsageApplicationSecurityMonitoringOptionalParameters holds optional parameters for GetUsageApplicationSecurityMonitoring.
@@ -665,44 +529,25 @@ func (r *GetUsageApplicationSecurityMonitoringOptionalParameters) WithEndHr(endH
 	return r
 }
 
-func (a *UsageMeteringApi) buildGetUsageApplicationSecurityMonitoringRequest(ctx _context.Context, startHr time.Time, o ...GetUsageApplicationSecurityMonitoringOptionalParameters) (apiGetUsageApplicationSecurityMonitoringRequest, error) {
-	req := apiGetUsageApplicationSecurityMonitoringRequest{
-		ctx:     ctx,
-		startHr: &startHr,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type GetUsageApplicationSecurityMonitoringOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.endHr = o[0].EndHr
-	}
-	return req, nil
-}
-
 // GetUsageApplicationSecurityMonitoring Get hourly usage for application security.
 // Get hourly usage for application security .
 // **Note:** hourly usage data for all products is now available in the [Get hourly usage by product family API](https://docs.datadoghq.com/api/latest/usage-metering/#get-hourly-usage-by-product-family)
 func (a *UsageMeteringApi) GetUsageApplicationSecurityMonitoring(ctx _context.Context, startHr time.Time, o ...GetUsageApplicationSecurityMonitoringOptionalParameters) (UsageApplicationSecurityMonitoringResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetUsageApplicationSecurityMonitoringRequest(ctx, startHr, o...)
-	if err != nil {
-		var localVarReturnValue UsageApplicationSecurityMonitoringResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getUsageApplicationSecurityMonitoringExecute(req)
-}
-
-// getUsageApplicationSecurityMonitoringExecute executes the request.
-func (a *UsageMeteringApi) getUsageApplicationSecurityMonitoringExecute(r apiGetUsageApplicationSecurityMonitoringRequest) (UsageApplicationSecurityMonitoringResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue UsageApplicationSecurityMonitoringResponse
+		optionalParams      GetUsageApplicationSecurityMonitoringOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.UsageMeteringApi.GetUsageApplicationSecurityMonitoring")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type GetUsageApplicationSecurityMonitoringOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.UsageMeteringApi.GetUsageApplicationSecurityMonitoring")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -712,22 +557,19 @@ func (a *UsageMeteringApi) getUsageApplicationSecurityMonitoringExecute(r apiGet
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.startHr == nil {
-		return localVarReturnValue, nil, datadog.ReportError("startHr is required and must be specified")
-	}
-	localVarQueryParams.Add("start_hr", datadog.ParameterToString(*r.startHr, ""))
-	if r.endHr != nil {
-		localVarQueryParams.Add("end_hr", datadog.ParameterToString(*r.endHr, ""))
+	localVarQueryParams.Add("start_hr", datadog.ParameterToString(startHr, ""))
+	if optionalParams.EndHr != nil {
+		localVarQueryParams.Add("end_hr", datadog.ParameterToString(*optionalParams.EndHr, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json;datetime-format=rfc3339"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -768,12 +610,6 @@ func (a *UsageMeteringApi) getUsageApplicationSecurityMonitoringExecute(r apiGet
 	}
 
 	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type apiGetUsageLambdaTracedInvocationsRequest struct {
-	ctx     _context.Context
-	startHr *time.Time
-	endHr   *time.Time
 }
 
 // GetUsageLambdaTracedInvocationsOptionalParameters holds optional parameters for GetUsageLambdaTracedInvocations.
@@ -793,44 +629,25 @@ func (r *GetUsageLambdaTracedInvocationsOptionalParameters) WithEndHr(endHr time
 	return r
 }
 
-func (a *UsageMeteringApi) buildGetUsageLambdaTracedInvocationsRequest(ctx _context.Context, startHr time.Time, o ...GetUsageLambdaTracedInvocationsOptionalParameters) (apiGetUsageLambdaTracedInvocationsRequest, error) {
-	req := apiGetUsageLambdaTracedInvocationsRequest{
-		ctx:     ctx,
-		startHr: &startHr,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type GetUsageLambdaTracedInvocationsOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.endHr = o[0].EndHr
-	}
-	return req, nil
-}
-
 // GetUsageLambdaTracedInvocations Get hourly usage for lambda traced invocations.
 // Get hourly usage for lambda traced invocations.
 // **Note:** hourly usage data for all products is now available in the [Get hourly usage by product family API](https://docs.datadoghq.com/api/latest/usage-metering/#get-hourly-usage-by-product-family)
 func (a *UsageMeteringApi) GetUsageLambdaTracedInvocations(ctx _context.Context, startHr time.Time, o ...GetUsageLambdaTracedInvocationsOptionalParameters) (UsageLambdaTracedInvocationsResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetUsageLambdaTracedInvocationsRequest(ctx, startHr, o...)
-	if err != nil {
-		var localVarReturnValue UsageLambdaTracedInvocationsResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getUsageLambdaTracedInvocationsExecute(req)
-}
-
-// getUsageLambdaTracedInvocationsExecute executes the request.
-func (a *UsageMeteringApi) getUsageLambdaTracedInvocationsExecute(r apiGetUsageLambdaTracedInvocationsRequest) (UsageLambdaTracedInvocationsResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue UsageLambdaTracedInvocationsResponse
+		optionalParams      GetUsageLambdaTracedInvocationsOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.UsageMeteringApi.GetUsageLambdaTracedInvocations")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type GetUsageLambdaTracedInvocationsOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.UsageMeteringApi.GetUsageLambdaTracedInvocations")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -840,22 +657,19 @@ func (a *UsageMeteringApi) getUsageLambdaTracedInvocationsExecute(r apiGetUsageL
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.startHr == nil {
-		return localVarReturnValue, nil, datadog.ReportError("startHr is required and must be specified")
-	}
-	localVarQueryParams.Add("start_hr", datadog.ParameterToString(*r.startHr, ""))
-	if r.endHr != nil {
-		localVarQueryParams.Add("end_hr", datadog.ParameterToString(*r.endHr, ""))
+	localVarQueryParams.Add("start_hr", datadog.ParameterToString(startHr, ""))
+	if optionalParams.EndHr != nil {
+		localVarQueryParams.Add("end_hr", datadog.ParameterToString(*optionalParams.EndHr, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json;datetime-format=rfc3339"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}
@@ -898,12 +712,6 @@ func (a *UsageMeteringApi) getUsageLambdaTracedInvocationsExecute(r apiGetUsageL
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type apiGetUsageObservabilityPipelinesRequest struct {
-	ctx     _context.Context
-	startHr *time.Time
-	endHr   *time.Time
-}
-
 // GetUsageObservabilityPipelinesOptionalParameters holds optional parameters for GetUsageObservabilityPipelines.
 type GetUsageObservabilityPipelinesOptionalParameters struct {
 	EndHr *time.Time
@@ -921,44 +729,25 @@ func (r *GetUsageObservabilityPipelinesOptionalParameters) WithEndHr(endHr time.
 	return r
 }
 
-func (a *UsageMeteringApi) buildGetUsageObservabilityPipelinesRequest(ctx _context.Context, startHr time.Time, o ...GetUsageObservabilityPipelinesOptionalParameters) (apiGetUsageObservabilityPipelinesRequest, error) {
-	req := apiGetUsageObservabilityPipelinesRequest{
-		ctx:     ctx,
-		startHr: &startHr,
-	}
-
-	if len(o) > 1 {
-		return req, datadog.ReportError("only one argument of type GetUsageObservabilityPipelinesOptionalParameters is allowed")
-	}
-
-	if o != nil {
-		req.endHr = o[0].EndHr
-	}
-	return req, nil
-}
-
 // GetUsageObservabilityPipelines Get hourly usage for observability pipelines.
 // Get hourly usage for observability pipelines.
 // **Note:** hourly usage data for all products is now available in the [Get hourly usage by product family API](https://docs.datadoghq.com/api/latest/usage-metering/#get-hourly-usage-by-product-family)
 func (a *UsageMeteringApi) GetUsageObservabilityPipelines(ctx _context.Context, startHr time.Time, o ...GetUsageObservabilityPipelinesOptionalParameters) (UsageObservabilityPipelinesResponse, *_nethttp.Response, error) {
-	req, err := a.buildGetUsageObservabilityPipelinesRequest(ctx, startHr, o...)
-	if err != nil {
-		var localVarReturnValue UsageObservabilityPipelinesResponse
-		return localVarReturnValue, nil, err
-	}
-
-	return a.getUsageObservabilityPipelinesExecute(req)
-}
-
-// getUsageObservabilityPipelinesExecute executes the request.
-func (a *UsageMeteringApi) getUsageObservabilityPipelinesExecute(r apiGetUsageObservabilityPipelinesRequest) (UsageObservabilityPipelinesResponse, *_nethttp.Response, error) {
 	var (
 		localVarHTTPMethod  = _nethttp.MethodGet
 		localVarPostBody    interface{}
 		localVarReturnValue UsageObservabilityPipelinesResponse
+		optionalParams      GetUsageObservabilityPipelinesOptionalParameters
 	)
 
-	localBasePath, err := a.Client.Cfg.ServerURLWithContext(r.ctx, "v2.UsageMeteringApi.GetUsageObservabilityPipelines")
+	if len(o) > 1 {
+		return localVarReturnValue, nil, datadog.ReportError("only one argument of type GetUsageObservabilityPipelinesOptionalParameters is allowed")
+	}
+	if len(o) == 1 {
+		optionalParams = o[0]
+	}
+
+	localBasePath, err := a.Client.Cfg.ServerURLWithContext(ctx, "v2.UsageMeteringApi.GetUsageObservabilityPipelines")
 	if err != nil {
 		return localVarReturnValue, nil, datadog.GenericOpenAPIError{ErrorMessage: err.Error()}
 	}
@@ -968,22 +757,19 @@ func (a *UsageMeteringApi) getUsageObservabilityPipelinesExecute(r apiGetUsageOb
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := _neturl.Values{}
 	localVarFormParams := _neturl.Values{}
-	if r.startHr == nil {
-		return localVarReturnValue, nil, datadog.ReportError("startHr is required and must be specified")
-	}
-	localVarQueryParams.Add("start_hr", datadog.ParameterToString(*r.startHr, ""))
-	if r.endHr != nil {
-		localVarQueryParams.Add("end_hr", datadog.ParameterToString(*r.endHr, ""))
+	localVarQueryParams.Add("start_hr", datadog.ParameterToString(startHr, ""))
+	if optionalParams.EndHr != nil {
+		localVarQueryParams.Add("end_hr", datadog.ParameterToString(*optionalParams.EndHr, ""))
 	}
 	localVarHeaderParams["Accept"] = "application/json;datetime-format=rfc3339"
 
 	datadog.SetAuthKeys(
-		r.ctx,
+		ctx,
 		&localVarHeaderParams,
 		[2]string{"apiKeyAuth", "DD-API-KEY"},
 		[2]string{"appKeyAuth", "DD-APPLICATION-KEY"},
 	)
-	req, err := a.Client.PrepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
+	req, err := a.Client.PrepareRequest(ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, nil)
 	if err != nil {
 		return localVarReturnValue, nil, err
 	}

@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
@@ -73,6 +72,12 @@ type OTLP struct {
 	// The 'preview' rules change the canonical hostname chosen in cloud providers to be consistent with the
 	// one sent by Datadog cloud integrations.
 	UsePreviewHostnameLogic bool `mapstructure:"-"`
+
+	// ProbabilisticSampling specifies the percentage of traces to ingest. Exceptions are made for errors
+	// and rare traces (outliers) if "RareSamplerEnabled" is true. Invalid values are equivalent to 100.
+	// If spans have the "sampling.priority" attribute set, probabilistic sampling is skipped and the user's
+	// decision is followed.
+	ProbabilisticSampling float64
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
@@ -111,14 +116,14 @@ type ObfuscationConfig struct {
 }
 
 // Export returns an obfuscate.Config matching o.
-func (o *ObfuscationConfig) Export() obfuscate.Config {
+func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 	return obfuscate.Config{
 		SQL: obfuscate.SQLConfig{
-			TableNames:       features.Has("table_names"),
-			ReplaceDigits:    features.Has("quantize_sql_tables") || features.Has("replace_sql_digits"),
-			KeepSQLAlias:     features.Has("keep_sql_alias"),
-			DollarQuotedFunc: features.Has("dollar_quoted_func"),
-			Cache:            features.Has("sql_cache"),
+			TableNames:       conf.HasFeature("table_names"),
+			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
+			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
+			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
+			Cache:            conf.HasFeature("sql_cache"),
 		},
 		ES: obfuscate.JSONConfig{
 			Enabled:            o.ES.Enabled,
@@ -261,9 +266,9 @@ type EVPProxy struct {
 	// DDURL is the Datadog site to forward payloads to (defaults to the Site setting if not set).
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
-	APIKey string
+	APIKey string `json:"-"` // Never marshal this field
 	// ApplicationKey to be used for requests with the X-Datadog-NeedsAppKey set (defaults to the top-level Application Key).
-	ApplicationKey string
+	ApplicationKey string `json:"-"` // Never marshal this field
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
@@ -275,7 +280,7 @@ type DebuggerProxyConfig struct {
 	// DDURL ...
 	DDURL string
 	// APIKey ...
-	APIKey string
+	APIKey string `json:"-"` // Never marshal this field
 }
 
 // AgentConfig handles the interpretation of the configuration (with default
@@ -284,6 +289,8 @@ type DebuggerProxyConfig struct {
 // It is exposed with expvar, so make sure to exclude any sensible field
 // from JSON encoding. Use New() to create an instance.
 type AgentConfig struct {
+	Features map[string]struct{}
+
 	Enabled      bool
 	AgentVersion string
 	GitCommit    string
@@ -380,6 +387,9 @@ type AgentConfig struct {
 	// Obfuscation holds sensitive data obufscator's configuration.
 	Obfuscation *ObfuscationConfig
 
+	// MaxResourceLen the maximum length the resource can have
+	MaxResourceLen int
+
 	// RequireTags specifies a list of tags which must be present on the root span in order for a trace to be accepted.
 	RequireTags []*Tag
 
@@ -420,6 +430,9 @@ type AgentConfig struct {
 
 	// Azure App Services
 	InAzureAppServices bool
+
+	// DebugServerPort defines the port used by the debug server
+	DebugServerPort int
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -483,6 +496,7 @@ func New() *AgentConfig {
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
 		Obfuscation:                 &ObfuscationConfig{},
+		MaxResourceLen:              5000,
 
 		GlobalTags: make(map[string]string),
 
@@ -498,6 +512,8 @@ func New() *AgentConfig {
 		},
 
 		InAzureAppServices: inAzureAppServices(os.Getenv),
+
+		Features: make(map[string]struct{}),
 	}
 }
 
@@ -542,6 +558,19 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 	return transport
+}
+
+func (c *AgentConfig) HasFeature(feat string) bool {
+	_, ok := c.Features[feat]
+	return ok
+}
+
+func (c *AgentConfig) AllFeatures() []string {
+	feats := []string{}
+	for feat := range c.Features {
+		feats = append(feats, feat)
+	}
+	return feats
 }
 
 func inAzureAppServices(getenv func(string) string) bool {

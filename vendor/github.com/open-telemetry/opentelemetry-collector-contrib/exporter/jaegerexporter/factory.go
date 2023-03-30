@@ -16,26 +16,28 @@ package jaegerexporter // import "github.com/open-telemetry/opentelemetry-collec
 
 import (
 	"context"
+	"sync"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+	"go.uber.org/zap"
 )
 
 const (
 	// The value of "type" key in configuration.
 	typeStr = "jaeger"
-	// The stability level of the exporter.
-	stability = component.StabilityLevelBeta
 )
+
+var once sync.Once
 
 // NewFactory creates a factory for Jaeger exporter
 func NewFactory() exporter.Factory {
 	return exporter.NewFactory(
 		typeStr,
 		createDefaultConfig,
-		exporter.WithTraces(createTracesExporter, stability))
+		exporter.WithTraces(createTracesExporter, component.StabilityLevelDeprecated))
 }
 
 func createDefaultConfig() component.Config {
@@ -50,12 +52,18 @@ func createDefaultConfig() component.Config {
 	}
 }
 
+func logDeprecation(logger *zap.Logger) {
+	once.Do(func() {
+		logger.Warn("jaeger exporter is deprecated and will be removed in July 2023. See https://github.com/open-telemetry/opentelemetry-specification/pull/2858 for more details.")
+	})
+}
+
 func createTracesExporter(
 	_ context.Context,
 	set exporter.CreateSettings,
 	config component.Config,
 ) (exporter.Traces, error) {
-
+	logDeprecation(set.Logger)
 	expCfg := config.(*Config)
 	return newTracesExporter(expCfg, set)
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
 	"github.com/gogo/protobuf/proto"
 )
@@ -81,7 +82,7 @@ type TraceWriter struct {
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
 // will accept incoming spans via the in channel.
-func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, errorsSampler samplerTPSReader, rareSampler samplerEnabledReader) *TraceWriter {
+func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, errorsSampler samplerTPSReader, rareSampler samplerEnabledReader, telemetryCollector telemetry.TelemetryCollector) *TraceWriter {
 	tw := &TraceWriter{
 		In:              make(chan *SampledChunks, 1000),
 		prioritySampler: prioritySampler,
@@ -118,7 +119,7 @@ func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, e
 		tw.tick = time.Duration(s*1000) * time.Millisecond
 	}
 	log.Debugf("Trace writer initialized (climit=%d qsize=%d)", climit, qsize)
-	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize)
+	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize, telemetryCollector)
 	return tw
 }
 

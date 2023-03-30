@@ -107,6 +107,9 @@ func NewRepository(embeddedRoot []byte) (*Repository, error) {
 
 // NewUnverifiedRepository creates a new remote config repository that will
 // track config files for a client WITHOUT verifying any TUF related metadata.
+//
+// When creating this we pretend we have a root version of 1, as the backend expects
+// to not have to send the initial "embedded" root.
 func NewUnverifiedRepository() (*Repository, error) {
 	configs := make(map[string]map[string]interface{})
 	for _, product := range allProducts {
@@ -118,6 +121,7 @@ func NewUnverifiedRepository() (*Repository, error) {
 		metadata:               make(map[string]Metadata),
 		configs:                configs,
 		tufVerificationEnabled: false,
+		latestRootVersion:      1, // The backend expects us to start with a root version of 1.
 	}, nil
 }
 

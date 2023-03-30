@@ -13,7 +13,7 @@ import (
 type IncidentUpdateData struct {
 	// The incident's attributes for an update request.
 	Attributes *IncidentUpdateAttributes `json:"attributes,omitempty"`
-	// The team's ID.
+	// The incident's ID.
 	Id string `json:"id"`
 	// The incident's relationships for an update request.
 	Relationships *IncidentUpdateRelationships `json:"relationships,omitempty"`

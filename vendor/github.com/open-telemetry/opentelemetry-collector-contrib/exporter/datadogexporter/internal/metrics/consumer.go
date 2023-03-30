@@ -17,22 +17,22 @@ package metrics // import "github.com/open-telemetry/opentelemetry-collector-con
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
-	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 	"go.opentelemetry.io/collector/component"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/metrics/sketches"
 )
 
-var _ translator.Consumer = (*Consumer)(nil)
-var _ translator.HostConsumer = (*Consumer)(nil)
-var _ translator.TagsConsumer = (*Consumer)(nil)
-var _ translator.APMStatsConsumer = (*Consumer)(nil)
+var _ metrics.Consumer = (*Consumer)(nil)
+var _ metrics.HostConsumer = (*Consumer)(nil)
+var _ metrics.TagsConsumer = (*Consumer)(nil)
+var _ metrics.APMStatsConsumer = (*Consumer)(nil)
 
-// Consumer implements translator.Consumer. It records consumed metrics, sketches and
+// Consumer implements metrics.Consumer. It records consumed metrics, sketches and
 // APM stats payloads. It provides them to the caller using the All method.
 type Consumer struct {
 	ms        []datadogV2.MetricSeries
@@ -42,7 +42,7 @@ type Consumer struct {
 	seenTags  map[string]struct{}
 }
 
-// NewConsumer creates a new Datadog consumer. It implements translator.Consumer.
+// NewConsumer creates a new Datadog consumer. It implements metrics.Consumer.
 func NewConsumer() *Consumer {
 	return &Consumer{
 		seenHosts: make(map[string]struct{}),
@@ -51,13 +51,13 @@ func NewConsumer() *Consumer {
 }
 
 // toDataType maps translator datatypes to DatadogV2's datatypes.
-func (c *Consumer) toDataType(dt translator.MetricDataType) (out datadogV2.MetricIntakeType) {
+func (c *Consumer) toDataType(dt metrics.DataType) (out datadogV2.MetricIntakeType) {
 	out = datadogV2.METRICINTAKETYPE_UNSPECIFIED
 
 	switch dt {
-	case translator.Count:
+	case metrics.Count:
 		out = datadogV2.METRICINTAKETYPE_COUNT
-	case translator.Gauge:
+	case metrics.Gauge:
 		out = datadogV2.METRICINTAKETYPE_GAUGE
 	}
 
@@ -102,16 +102,16 @@ func (c *Consumer) All(timestamp uint64, buildInfo component.BuildInfo, tags []s
 	return series, c.sl, c.as
 }
 
-// ConsumeAPMStats implements translator.APMStatsConsumer.
+// ConsumeAPMStats implements metrics.APMStatsConsumer.
 func (c *Consumer) ConsumeAPMStats(s pb.ClientStatsPayload) {
 	c.as = append(c.as, s)
 }
 
-// ConsumeTimeSeries implements the translator.Consumer interface.
+// ConsumeTimeSeries implements the metrics.Consumer interface.
 func (c *Consumer) ConsumeTimeSeries(
 	_ context.Context,
-	dims *translator.Dimensions,
-	typ translator.MetricDataType,
+	dims *metrics.Dimensions,
+	typ metrics.DataType,
 	timestamp uint64,
 	value float64,
 ) {
@@ -126,10 +126,10 @@ func (c *Consumer) ConsumeTimeSeries(
 	c.ms = append(c.ms, met)
 }
 
-// ConsumeSketch implements the translator.Consumer interface.
+// ConsumeSketch implements the metrics.Consumer interface.
 func (c *Consumer) ConsumeSketch(
 	_ context.Context,
-	dims *translator.Dimensions,
+	dims *metrics.Dimensions,
 	timestamp uint64,
 	sketch *quantile.Sketch,
 ) {
@@ -145,12 +145,12 @@ func (c *Consumer) ConsumeSketch(
 	})
 }
 
-// ConsumeHost implements the translator.HostConsumer interface.
+// ConsumeHost implements the metrics.HostConsumer interface.
 func (c *Consumer) ConsumeHost(host string) {
 	c.seenHosts[host] = struct{}{}
 }
 
-// ConsumeTag implements the translator.TagsConsumer interface.
+// ConsumeTag implements the metrics.TagsConsumer interface.
 func (c *Consumer) ConsumeTag(tag string) {
 	c.seenTags[tag] = struct{}{}
 }

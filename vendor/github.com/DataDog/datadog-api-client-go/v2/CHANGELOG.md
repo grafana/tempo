@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## 2.10.0 / 2023-03-07
+
+### Added
+* Add restriction policy APIs by @api-clients-generation-pipeline in https://github.com/DataDog/datadog-api-client-go/pull/1866
+* Support RUM data source in Query API and fix aggregators by @api-clients-generation-pipeline in https://github.com/DataDog/datadog-api-client-go/pull/1874
+* Add endpoint to get and set on demand concurrency cap for Synthetics by @api-clients-generation-pipeline in https://github.com/DataDog/datadog-api-client-go/pull/1870
+* Publish IP allowlist APIs by @api-clients-generation-pipeline in https://github.com/DataDog/datadog-api-client-go/pull/1859
+* Expose Flutter fields to rum product in the meter usage API by @api-clients-generation-pipeline in https://github.com/DataDog/datadog-api-client-go/pull/1881
+* Add profiled fargate tasks to usage attribution by @api-clients-generation-pipeline in https://github.com/DataDog/datadog-api-client-go/pull/1886
+* Add cipipeline stream to ListStreamSource by @api-clients-generation-pipeline in https://github.com/DataDog/datadog-api-client-go/pull/1847
+* Add application_security to security monitoring rule type enum by @api-clients-generation-pipeline in https://github.com/DataDog/datadog-api-client-go/pull/1884
+* Add `ci_pipelines` enum to `FormulaAndFunctionEventsDataSource` by @api-clients-generation-pipeline in https://github.com/DataDog/datadog-api-client-go/pull/1894
+* Add citest stream to ListStreamSource by @api-clients-generation-pipeline in https://github.com/DataDog/datadog-api-client-go/pull/1889
+* Add `logs_issue_stream` enum to `ListStreamSource` by @api-clients-generation-pipeline in https://github.com/DataDog/datadog-api-client-go/pull/1895
+* Add support for Incident Integration Metadata APIs by @api-clients-generation-pipeline in https://github.com/DataDog/datadog-api-client-go/pull/1887
+### Changed
+* Refactor api request execution by @skarimo in https://github.com/DataDog/datadog-api-client-go/pull/1879
+### Security
+* Resolve Dependabot alert by @skarimo in https://github.com/DataDog/datadog-api-client-go/pull/1880
+
+
+**Full Changelog**: https://github.com/DataDog/datadog-api-client-go/compare/v2.9.0...v2.10.0
+
 ## 2.9.0 / 2023-02-15
 
 ### Fixed

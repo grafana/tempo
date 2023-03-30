@@ -25,6 +25,8 @@ type UsageRumSessionsHour struct {
 	SessionCount datadog.NullableInt64 `json:"session_count,omitempty"`
 	// Contains the number of mobile RUM Sessions on Android (data available beginning December 1, 2020).
 	SessionCountAndroid datadog.NullableInt64 `json:"session_count_android,omitempty"`
+	// Contains the number of mobile RUM Sessions on Flutter (data available beginning March 1, 2023).
+	SessionCountFlutter datadog.NullableInt64 `json:"session_count_flutter,omitempty"`
 	// Contains the number of mobile RUM Sessions on iOS (data available beginning December 1, 2020).
 	SessionCountIos datadog.NullableInt64 `json:"session_count_ios,omitempty"`
 	// Contains the number of mobile RUM Sessions on React Native (data available beginning May 1, 2022).
@@ -241,6 +243,45 @@ func (o *UsageRumSessionsHour) UnsetSessionCountAndroid() {
 	o.SessionCountAndroid.Unset()
 }
 
+// GetSessionCountFlutter returns the SessionCountFlutter field value if set, zero value otherwise (both if not set or set to explicit null).
+func (o *UsageRumSessionsHour) GetSessionCountFlutter() int64 {
+	if o == nil || o.SessionCountFlutter.Get() == nil {
+		var ret int64
+		return ret
+	}
+	return *o.SessionCountFlutter.Get()
+}
+
+// GetSessionCountFlutterOk returns a tuple with the SessionCountFlutter field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+// NOTE: If the value is an explicit nil, `nil, true` will be returned.
+func (o *UsageRumSessionsHour) GetSessionCountFlutterOk() (*int64, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return o.SessionCountFlutter.Get(), o.SessionCountFlutter.IsSet()
+}
+
+// HasSessionCountFlutter returns a boolean if a field has been set.
+func (o *UsageRumSessionsHour) HasSessionCountFlutter() bool {
+	return o != nil && o.SessionCountFlutter.IsSet()
+}
+
+// SetSessionCountFlutter gets a reference to the given datadog.NullableInt64 and assigns it to the SessionCountFlutter field.
+func (o *UsageRumSessionsHour) SetSessionCountFlutter(v int64) {
+	o.SessionCountFlutter.Set(&v)
+}
+
+// SetSessionCountFlutterNil sets the value for SessionCountFlutter to be an explicit nil.
+func (o *UsageRumSessionsHour) SetSessionCountFlutterNil() {
+	o.SessionCountFlutter.Set(nil)
+}
+
+// UnsetSessionCountFlutter ensures that no value is present for SessionCountFlutter, not even an explicit nil.
+func (o *UsageRumSessionsHour) UnsetSessionCountFlutter() {
+	o.SessionCountFlutter.Unset()
+}
+
 // GetSessionCountIos returns the SessionCountIos field value if set, zero value otherwise (both if not set or set to explicit null).
 func (o *UsageRumSessionsHour) GetSessionCountIos() int64 {
 	if o == nil || o.SessionCountIos.Get() == nil {
@@ -347,6 +388,9 @@ func (o UsageRumSessionsHour) MarshalJSON() ([]byte, error) {
 	if o.SessionCountAndroid.IsSet() {
 		toSerialize["session_count_android"] = o.SessionCountAndroid.Get()
 	}
+	if o.SessionCountFlutter.IsSet() {
+		toSerialize["session_count_flutter"] = o.SessionCountFlutter.Get()
+	}
 	if o.SessionCountIos.IsSet() {
 		toSerialize["session_count_ios"] = o.SessionCountIos.Get()
 	}
@@ -370,6 +414,7 @@ func (o *UsageRumSessionsHour) UnmarshalJSON(bytes []byte) (err error) {
 		ReplaySessionCount      *int64                `json:"replay_session_count,omitempty"`
 		SessionCount            datadog.NullableInt64 `json:"session_count,omitempty"`
 		SessionCountAndroid     datadog.NullableInt64 `json:"session_count_android,omitempty"`
+		SessionCountFlutter     datadog.NullableInt64 `json:"session_count_flutter,omitempty"`
 		SessionCountIos         datadog.NullableInt64 `json:"session_count_ios,omitempty"`
 		SessionCountReactnative datadog.NullableInt64 `json:"session_count_reactnative,omitempty"`
 	}{}
@@ -388,6 +433,7 @@ func (o *UsageRumSessionsHour) UnmarshalJSON(bytes []byte) (err error) {
 	o.ReplaySessionCount = all.ReplaySessionCount
 	o.SessionCount = all.SessionCount
 	o.SessionCountAndroid = all.SessionCountAndroid
+	o.SessionCountFlutter = all.SessionCountFlutter
 	o.SessionCountIos = all.SessionCountIos
 	o.SessionCountReactnative = all.SessionCountReactnative
 	return nil

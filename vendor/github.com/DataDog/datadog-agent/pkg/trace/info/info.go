@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var (
@@ -91,7 +92,7 @@ const (
 {{.Program}}
 {{.Banner}}
 
-  Not running (port {{.ReceiverPort}})
+  Not running or unreachable on 127.0.0.1:{{.DebugPort}}
 
 `
 
@@ -213,72 +214,11 @@ func (s infoString) String() string { return string(s) }
 // InitInfo initializes the info structure. It should be called only once.
 func InitInfo(conf *config.AgentConfig) error {
 	var err error
-
-	publishVersion := func() interface{} {
-		return struct {
-			Version   string
-			GitCommit string
-		}{
-			Version:   conf.AgentVersion,
-			GitCommit: conf.GitCommit,
-		}
-	}
-	funcMap := template.FuncMap{
-		"add": func(a, b int64) int64 {
-			return a + b
-		},
-		"percent": func(v float64) string {
-			return fmt.Sprintf("%02.1f", v*100)
-		},
-	}
-
 	once.Do(func() {
-		expvar.NewInt("pid").Set(int64(os.Getpid()))
-		expvar.Publish("uptime", expvar.Func(publishUptime))
-		expvar.Publish("version", expvar.Func(publishVersion))
-		expvar.Publish("receiver", expvar.Func(publishReceiverStats))
-		expvar.Publish("trace_writer", expvar.Func(publishTraceWriterInfo))
-		expvar.Publish("stats_writer", expvar.Func(publishStatsWriterInfo))
-		expvar.Publish("ratebyservice", expvar.Func(publishRateByService))
-		expvar.Publish("ratebyservice_filtered", expvar.Func(publishRateByServiceFiltered))
-		expvar.Publish("watchdog", expvar.Func(publishWatchdogInfo))
-		expvar.Publish("ratelimiter", expvar.Func(publishRateLimiterStats))
-
-		// copy the config to ensure we don't expose sensitive data such as API keys
-		c := *conf
-		c.Endpoints = make([]*config.Endpoint, len(conf.Endpoints))
-		for i, e := range conf.Endpoints {
-			c.Endpoints[i] = &config.Endpoint{Host: e.Host, NoProxy: e.NoProxy}
-		}
-
-		var buf []byte
-		buf, err = json.Marshal(&c)
-		if err != nil {
-			return
-		}
-
-		// We keep a static copy of the config, already marshalled and stored
-		// as a plain string. This saves the hassle of rebuilding it all the time
-		// and avoids race issues as the source object is never used again.
-		// Config is parsed at the beginning and never changed again, anyway.
-		expvar.Publish("config", infoString(string(buf)))
-
-		infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
-		if err != nil {
-			return
-		}
-
-		notRunningTmpl, err = template.New("infoNotRunning").Parse(notRunningTmplSrc)
-		if err != nil {
-			return
-		}
-
-		errorTmpl, err = template.New("infoError").Parse(errorTmplSrc)
-		if err != nil {
-			return
-		}
+		// Use the same error declared outside of once.Do and don't declare a new one.
+		// See https://go.dev/play/p/K7sxXE2xvLp
+		err = initInfo(conf)
 	})
-
 	return err
 }
 
@@ -320,7 +260,7 @@ func getProgramBanner(version string) (string, string) {
 // If error is nil, means the program is running.
 // If not, it displays a pretty-printed message anyway (for support)
 func Info(w io.Writer, conf *config.AgentConfig) error {
-	url := fmt.Sprintf("http://%s:%d/debug/vars", conf.ReceiverHost, conf.ReceiverPort)
+	url := fmt.Sprintf("http://127.0.0.1:%d/debug/vars", conf.DebugServerPort)
 	client := http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {
@@ -330,13 +270,13 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 		// debug further, this is where the expvar JSON should come from.
 		program, banner := getProgramBanner(conf.AgentVersion)
 		_ = notRunningTmpl.Execute(w, struct {
-			Banner       string
-			Program      string
-			ReceiverPort int
+			Banner    string
+			Program   string
+			DebugPort int
 		}{
-			Banner:       banner,
-			Program:      program,
-			ReceiverPort: conf.ReceiverPort,
+			Banner:    banner,
+			Program:   program,
+			DebugPort: conf.DebugServerPort,
 		})
 		return err
 	}
@@ -391,4 +331,71 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 func CleanInfoExtraLines(info string) string {
 	var indentedEmptyLines = regexp.MustCompile("\n( +\n)+")
 	return indentedEmptyLines.ReplaceAllString(info, "\n")
+}
+
+func initInfo(conf *config.AgentConfig) error {
+	publishVersion := func() interface{} {
+		return struct {
+			Version   string
+			GitCommit string
+		}{
+			Version:   conf.AgentVersion,
+			GitCommit: conf.GitCommit,
+		}
+	}
+	funcMap := template.FuncMap{
+		"add": func(a, b int64) int64 {
+			return a + b
+		},
+		"percent": func(v float64) string {
+			return fmt.Sprintf("%02.1f", v*100)
+		},
+	}
+	expvar.NewInt("pid").Set(int64(os.Getpid()))
+	expvar.Publish("uptime", expvar.Func(publishUptime))
+	expvar.Publish("version", expvar.Func(publishVersion))
+	expvar.Publish("receiver", expvar.Func(publishReceiverStats))
+	expvar.Publish("trace_writer", expvar.Func(publishTraceWriterInfo))
+	expvar.Publish("stats_writer", expvar.Func(publishStatsWriterInfo))
+	expvar.Publish("ratebyservice", expvar.Func(publishRateByService))
+	expvar.Publish("ratebyservice_filtered", expvar.Func(publishRateByServiceFiltered))
+	expvar.Publish("watchdog", expvar.Func(publishWatchdogInfo))
+	expvar.Publish("ratelimiter", expvar.Func(publishRateLimiterStats))
+
+	// copy the config to ensure we don't expose sensitive data such as API keys
+	c := *conf
+	c.Endpoints = make([]*config.Endpoint, len(conf.Endpoints))
+	for i, e := range conf.Endpoints {
+		c.Endpoints[i] = &config.Endpoint{Host: e.Host, NoProxy: e.NoProxy}
+	}
+
+	var buf []byte
+	buf, err := json.Marshal(&c)
+	if err != nil {
+		return err
+	}
+
+	scrubbed, err := scrubber.ScrubBytes(buf)
+	if err != nil {
+		return err
+	}
+
+	// We keep a static copy of the config, already marshalled and stored
+	// as a plain string. This saves the hassle of rebuilding it all the time
+	// and avoids race issues as the source object is never used again.
+	// Config is parsed at the beginning and never changed again, anyway.
+	expvar.Publish("config", infoString(string(scrubbed)))
+
+	infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
+	if err != nil {
+		return err
+	}
+
+	notRunningTmpl, err = template.New("infoNotRunning").Parse(notRunningTmplSrc)
+	if err != nil {
+		return err
+	}
+
+	errorTmpl, err = template.New("infoError").Parse(errorTmplSrc)
+	return err
 }
