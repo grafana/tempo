@@ -95,7 +95,7 @@ func (ds RatioBasedSampler) Description() string {
 
 In some cases it may be desirable to reduce the number of metrics produced by the `spanmetrics` processor. This can be accomplished by configuring the processor to use a filter. An `include` filter is used to match criteria that must be present in the span in order to be included. Following the include filter, an `exclude` filter may be used to reject portions of what was previously included by the filter policy.
 
-Currently supported is filtering by resource and span attributes with the following value types.
+Currently, only filtering by resource and span attributes with the following value types is supported.
 
 - string
 - int
