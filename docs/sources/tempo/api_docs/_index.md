@@ -248,10 +248,11 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.nam
 Ingester configuration `complete_block_timeout` affects how long tags are available for search.
 
 This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
-a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
+a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. The tags endpoint takes a scope that controls the kinds 
+of tags or attributes returned. If nothing is provided the endpoint will return all resource and span tags.
 
 ```
-GET /api/search/tags
+GET /api/search/tags?scope=<resource|span|intrinsic>
 ```
 
 #### Example
@@ -260,7 +261,7 @@ Example of how to query Tempo using curl.
 This query will return all discovered tag names.
 
 ```bash
-$ curl -G -s http://localhost:3200/api/search/tags  | jq
+$ curl -G -s http://localhost:3200/api/search/tags?scope=span  | jq
 {
   "tagNames": [
     "host.name",
@@ -270,10 +271,7 @@ $ curl -G -s http://localhost:3200/api/search/tags  | jq
     "ip",
     "load_generator.seq_num",
     "name",
-    "opencensus.exporterversion",
     "region",
-    "root.name",
-    "root.service.name",
     "root_cause_error",
     "sampler.param",
     "sampler.type",
