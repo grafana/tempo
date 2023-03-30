@@ -9,7 +9,11 @@ Tempo ingesters make heavy use of local disks to store write-ahead logs and bloc
 
 Therefore it may be necessary to increase the disk space for ingesters as usage increases.
 
-## Deploying
+We recommend using SSDs for local storage.
+
+<!-- Wr>
+
+## Increase VCC size
 
 When deployed as a StatefulSet with Persistent Volume Claims (PVC), some manual steps are required. The following configuration has worked successfully on GKE with GCS:
 

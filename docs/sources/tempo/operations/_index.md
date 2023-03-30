@@ -1,6 +1,6 @@
 ---
 title: Deployment and operations
-weight: 300
+weight: 600
 ---
 
 # Deployment and operations
