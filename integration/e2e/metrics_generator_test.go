@@ -172,7 +172,7 @@ func TestMetricsGenerator(t *testing.T) {
 	assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_service_graph_dropped_spans_total", nil))
 
 	// Span metrics
-	lbls = []string{"job", "lb", "span_name", "lb-get", "span_kind", "SPAN_KIND_CLIENT", "status_code", "STATUS_CODE_UNSET"}
+	lbls = []string{"service", "lb", "span_name", "lb-get", "span_kind", "SPAN_KIND_CLIENT", "status_code", "STATUS_CODE_UNSET", "job", "app"}
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
 	assert.NotEqual(t, 0, sumValues(metricFamilies, "traces_spanmetrics_size_total", lbls))
 	assert.Equal(t, 0.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "1")))
@@ -181,7 +181,7 @@ func TestMetricsGenerator(t *testing.T) {
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_count", lbls))
 	assert.Equal(t, 2.0, sumValues(metricFamilies, "traces_spanmetrics_latency_sum", lbls))
 
-	lbls = []string{"job", "app", "span_name", "app-handle", "span_kind", "SPAN_KIND_SERVER", "status_code", "STATUS_CODE_UNSET"}
+	lbls = []string{"service", "app", "span_name", "app-handle", "span_kind", "SPAN_KIND_SERVER", "status_code", "STATUS_CODE_UNSET", "job", "app"}
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_calls_total", lbls))
 	assert.NotEqual(t, 0, sumValues(metricFamilies, "traces_spanmetrics_size_total", lbls))
 	assert.Equal(t, 1.0, sumValues(metricFamilies, "traces_spanmetrics_latency_bucket", append(lbls, "le", "1")))

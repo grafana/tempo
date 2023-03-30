@@ -31,6 +31,14 @@ func (t *TestRegistry) NewCounter(name string, labels []string) Counter {
 	}
 }
 
+func (t *TestRegistry) NewGauge(name string, labels []string) Gauge {
+	return &testGauge{
+		name:     name,
+		labels:   labels,
+		registry: t,
+	}
+}
+
 func (t *TestRegistry) NewLabelValues(values []string) *LabelValues {
 	return newLabelValues(values)
 }
@@ -51,6 +59,13 @@ func (t *TestRegistry) addToMetric(name string, lbls labels.Labels, value float6
 		return
 	}
 	t.metrics[name+lbls.String()] += value
+}
+
+func (t *TestRegistry) setMetric(name string, lbls labels.Labels, value float64) {
+	if t == nil || t.metrics == nil {
+		return
+	}
+	t.metrics[name+lbls.String()] = value
 }
 
 // Query returns the value of the given metric. Note this is a rather naive query engine, it's only
@@ -96,6 +111,42 @@ func (t *testCounter) UpdateLabels(labels []string) {
 	t.labels = labels
 }
 
+type testGauge struct {
+	name     string
+	labels   []string
+	registry *TestRegistry
+}
+
+var _ Gauge = (*testGauge)(nil)
+
+func (t *testGauge) Inc(values *LabelValues, value float64) {
+	if value < 0 {
+		panic("counter can only increase")
+	}
+
+	lbls := make(labels.Labels, len(t.labels))
+	for i, label := range t.labels {
+		lbls[i] = labels.Label{Name: label, Value: values.values[i]}
+	}
+	sort.Sort(lbls)
+
+	t.registry.addToMetric(t.name, lbls, value)
+}
+
+func (t *testGauge) Set(values *LabelValues, value float64) {
+	if value < 0 {
+		panic("counter can only increase")
+	}
+
+	lbls := make(labels.Labels, len(t.labels))
+	for i, label := range t.labels {
+		lbls[i] = labels.Label{Name: label, Value: values.values[i]}
+	}
+	sort.Sort(lbls)
+
+	t.registry.setMetric(t.name, lbls, value)
+}
+
 type testHistogram struct {
 	nameSum    string
 	nameCount  string
@@ -126,6 +177,10 @@ func (t *testHistogram) ObserveWithExemplar(values *LabelValues, value float64, 
 }
 
 func (t *testHistogram) UpdateLabels(labels []string) {
+	t.labels = labels
+}
+
+func (t *testGauge) UpdateLabels(labels []string) {
 	t.labels = labels
 }
 

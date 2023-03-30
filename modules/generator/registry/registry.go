@@ -145,6 +145,14 @@ func (r *ManagedRegistry) NewHistogram(name string, labels []string, buckets []f
 	return h
 }
 
+func (r *ManagedRegistry) NewGauge(name string, labels []string) Gauge {
+	truncateLength(labels, r.cfg.MaxLabelNameLength)
+
+	g := newGauge(name, labels, r.onAddMetricSeries, r.onRemoveMetricSeries)
+	r.registerMetric(g)
+	return g
+}
+
 func (r *ManagedRegistry) registerMetric(m metric) {
 	r.metricsMtx.Lock()
 	defer r.metricsMtx.Unlock()

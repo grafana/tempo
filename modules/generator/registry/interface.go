@@ -5,6 +5,7 @@ type Registry interface {
 	NewLabelValues(values []string) *LabelValues
 	NewCounter(name string, labels []string) Counter
 	NewHistogram(name string, labels []string, buckets []float64) Histogram
+	NewGauge(name string, labels []string) Gauge
 }
 
 // Counter
@@ -19,6 +20,16 @@ type Counter interface {
 type Histogram interface {
 	// ObserveWithExemplar observes a datapoint with the given values. traceID will be added as exemplar.
 	ObserveWithExemplar(values *LabelValues, value float64, traceID string, multiplier float64)
+	UpdateLabels(labels []string)
+}
+
+// Gauge
+// https://prometheus.io/docs/concepts/metric_types/#gauge
+// https://pkg.go.dev/github.com/prometheus/client_golang/prometheus#Gauge
+type Gauge interface {
+	// Set sets the Gauge to an arbitrary value.
+	Set(values *LabelValues, value float64)
+	Inc(values *LabelValues, value float64)
 	UpdateLabels(labels []string)
 }
 

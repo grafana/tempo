@@ -54,10 +54,11 @@ func TestSpanMetrics(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
-		"job":         "test-service",
+		"service":     "test-service",
 		"span_name":   "test",
 		"span_kind":   "SPAN_KIND_CLIENT",
 		"status_code": "STATUS_CODE_OK",
+		"job":         "test-service",
 	})
 
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
@@ -107,10 +108,11 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
-		"job":            "test-service",
+		"service":        "test-service",
 		"span_name":      "test",
 		"status_code":    "STATUS_CODE_OK",
 		"status_message": "OK",
+		"job":            "test-service",
 		"foo":            "foo-value",
 		"bar":            "bar-value",
 		"does_not_exist": "",
@@ -159,9 +161,10 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
-		"job":         "test-service",
+		"service":     "test-service",
 		"span_name":   "test",
 		"status_code": "STATUS_CODE_OK",
+		"job":         "test-service",
 		"__span_kind": "colliding_kind",
 		"__span_name": "colliding_name",
 	})
@@ -205,10 +208,11 @@ func TestJobLabelWithNamespaceAndInstanceID(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
-		"job":         "test-namespace/test-service",
+		"service":     "test-service",
 		"span_name":   "test",
 		"span_kind":   "SPAN_KIND_CLIENT",
 		"status_code": "STATUS_CODE_OK",
+		"job":         "test-namespace/test-service",
 		"instance":    "abc-instance-id-test-def",
 	})
 
@@ -366,6 +370,7 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 
 func TestJobLabelWithNamespaceAndNoServiceName(t *testing.T) {
 	// no service.name = no job label/dimension
+	// but service will still be there
 	testRegistry := registry.NewTestRegistry()
 
 	cfg := Config{}
@@ -399,6 +404,7 @@ func TestJobLabelWithNamespaceAndNoServiceName(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
+		"service":     "",
 		"span_name":   "test",
 		"span_kind":   "SPAN_KIND_CLIENT",
 		"status_code": "STATUS_CODE_OK",
@@ -412,13 +418,14 @@ func TestJobLabelWithNamespaceAndNoServiceName(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
 }
-func TestTargetInfo(t *testing.T) {
+func TestTargetInfoEnabled(t *testing.T) {
 	// no service.name = no job label/dimension
 	// if the only labels are job and instance then target_info should not exist
 	testRegistry := registry.NewTestRegistry()
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.EnableTargetInfo = true
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
 	p := New(cfg, testRegistry)
@@ -455,7 +462,50 @@ func TestTargetInfo(t *testing.T) {
 		"ip":       "1.1.1.1",
 	})
 
-	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
+	assert.Equal(t, 1.0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
+}
+
+func TestTargetInfoDisabled(t *testing.T) {
+	// no service.name = no job label/dimension
+	// if the only labels are job and instance then target_info should not exist
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.EnableTargetInfo = false
+	cfg.HistogramBuckets = []float64{0.5, 1}
+
+	p := New(cfg, testRegistry)
+	defer p.Shutdown(context.Background())
+
+	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
+	batch := test.MakeBatch(10, nil)
+
+	// add instance
+	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
+		Key:   "service.instance.id",
+		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
+	})
+
+	// add additional source attributes
+	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
+		Key:   "cluster",
+		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
+	})
+
+	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
+		Key:   "ip",
+		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "1.1.1.1"}},
+	})
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	fmt.Println(testRegistry)
+
+	registry := fmt.Sprint(testRegistry)
+	targetInfoExist := strings.Contains(registry, "traces_spanmetrics_target_info")
+
+	assert.Equal(t, false, targetInfoExist)
 }
 
 func TestTargetInfoWithJobAndInstanceOnly(t *testing.T) {
@@ -515,6 +565,17 @@ func TestTargetInfoNoJobAndNoInstance(t *testing.T) {
 	copy(batch.Resource.Attributes[serviceNameIndex:], batch.Resource.Attributes[serviceNameIndex+1:])
 	batch.Resource.Attributes = batch.Resource.Attributes[:len(batch.Resource.Attributes)-1]
 
+	// add additional source attributes
+	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
+		Key:   "cluster",
+		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
+	})
+
+	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
+		Key:   "ip",
+		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "1.1.1.1"}},
+	})
+
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
 
 	fmt.Println(testRegistry)
@@ -566,10 +627,11 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
-		"job":            "test-service",
+		"service":        "test-service",
 		"span_name":      "test",
 		"status_code":    "STATUS_CODE_OK",
 		"status_message": "OK",
+		"job":            "test-service",
 		"foobar":         "foo-value/bar-value",
 	})
 
@@ -580,7 +642,6 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
-	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
 }
 
 func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
@@ -641,10 +702,11 @@ func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
-		"job":            "test-service",
+		"service":        "test-service",
 		"span_name":      "test",
 		"status_code":    "STATUS_CODE_OK",
 		"status_message": "OK",
+		"job":            "test-service",
 		"first_only":     "first-value",
 		"world_only":     "world-value",
 		"first/last":     "first-value->last-value",
@@ -657,7 +719,6 @@ func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
-	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
 }
 
 func withLe(lbls labels.Labels, le float64) labels.Labels {
