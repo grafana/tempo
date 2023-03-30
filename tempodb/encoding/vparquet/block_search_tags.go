@@ -38,7 +38,7 @@ var nonTraceQLAttributes = map[string]string{
 	LabelRootSpanName:    columnPathRootSpanName,
 }
 
-func (b *backendBlock) SearchTags(ctx context.Context, scope string, cb common.TagCallback, opts common.SearchOptions) error {
+func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, opts common.SearchOptions) error {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTags",
 		opentracing.Tags{
 			"blockID":   b.meta.BlockID,
@@ -56,7 +56,7 @@ func (b *backendBlock) SearchTags(ctx context.Context, scope string, cb common.T
 	return searchTags(derivedCtx, scope, cb, pf)
 }
 
-func searchTags(_ context.Context, scope string, cb common.TagCallback, pf *parquet.File) error {
+func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCallback, pf *parquet.File) error { // jpe - don't take a string, take a traceql.AttributeScope
 	standardAttrIdxs := make([]int, 0, 2) // the most we can have is 2, resource and span indexes depending on scope passed
 	specialAttrIdxs := map[int]string{}
 
@@ -81,14 +81,14 @@ func searchTags(_ context.Context, scope string, cb common.TagCallback, pf *parq
 	}
 
 	// resource
-	if scope == "" || scope == traceql.AttributeScopeResource.String() { // jpe better way to get the const?
+	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeResource {
 		err := addToIndexes(FieldResourceAttrKey, traceqlResourceLabelMappings)
 		if err != nil {
 			return err
 		}
 	}
 	// span
-	if scope == "" || scope == traceql.AttributeScopeSpan.String() { // jpe better way to get the const?
+	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeSpan {
 		err := addToIndexes(FieldSpanAttrKey, traceqlSpanLabelMappings)
 		if err != nil {
 			return err

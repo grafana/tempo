@@ -22,7 +22,7 @@ type TagCallbackV2 func(traceql.Static) (stop bool)
 
 type Searcher interface {
 	Search(ctx context.Context, req *tempopb.SearchRequest, opts SearchOptions) (*tempopb.SearchResponse, error)
-	SearchTags(ctx context.Context, scope string, cb TagCallback, opts SearchOptions) error
+	SearchTags(ctx context.Context, scope traceql.AttributeScope, cb TagCallback, opts SearchOptions) error
 	SearchTagValues(ctx context.Context, tag string, cb TagCallback, opts SearchOptions) error
 	SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb TagCallbackV2, opts SearchOptions) error
 

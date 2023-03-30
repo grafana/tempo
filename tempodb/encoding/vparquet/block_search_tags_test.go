@@ -19,7 +19,7 @@ func TestBackendBlockSearchTags(t *testing.T) {
 	traces, _, resourceAttrVals, spanAttrVals := makeTraces()
 	block := makeBackendBlockWithTraces(t, traces)
 
-	testVals := func(scope string, attrs map[string]string) {
+	testVals := func(scope traceql.AttributeScope, attrs map[string]string) {
 		foundAttrs := map[string]struct{}{}
 		cb := func(s string) {
 			foundAttrs[s] = struct{}{}
@@ -36,15 +36,15 @@ func TestBackendBlockSearchTags(t *testing.T) {
 			delete(foundAttrs, k)
 		}
 		// if our scope is specific, we can also assert that SearchTags returned only exactly what we expected
-		if scope != "" {
+		if scope != traceql.AttributeScopeNone {
 			require.Len(t, foundAttrs, 0, "scope: %s", scope)
 		}
 	}
 
-	testVals("", resourceAttrVals)
-	testVals("resource", resourceAttrVals)
-	testVals("", spanAttrVals)
-	testVals("span", spanAttrVals)
+	testVals(traceql.AttributeScopeNone, resourceAttrVals)
+	testVals(traceql.AttributeScopeResource, resourceAttrVals)
+	testVals(traceql.AttributeScopeNone, spanAttrVals)
+	testVals(traceql.AttributeScopeSpan, spanAttrVals)
 }
 
 func TestBackendBlockSearchTagValues(t *testing.T) {
@@ -166,7 +166,7 @@ func BenchmarkBackendBlockSearchTags(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		err := block.SearchTags(ctx, "", d.Collect, opts)
+		err := block.SearchTags(ctx, traceql.AttributeScopeNone, d.Collect, opts)
 		require.NoError(b, err)
 	}
 }

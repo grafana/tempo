@@ -565,7 +565,7 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 	return results, nil
 }
 
-func (b *walBlock) SearchTags(ctx context.Context, scope string, cb common.TagCallback, opts common.SearchOptions) error {
+func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, opts common.SearchOptions) error {
 	for i, page := range b.readFlushes() {
 		file, err := page.file()
 		if err != nil {

@@ -209,6 +209,13 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 	}
 
 	// jpe - quick turn around for intrinsics?
+	attributeScope := traceql.AttributeScopeFromString(scope)
+	if attributeScope == traceql.AttributeScopeUnknown && scope == "intrinsic" {
+		// jpe quick turn around on intrinsics here
+	}
+	if attributeScope == traceql.AttributeScopeUnknown {
+		return nil, fmt.Errorf("unknown scope: %s", scope)
+	}
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := util.NewDistinctStringCollector(limit)
@@ -220,7 +227,7 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 		if dv.Exceeded() {
 			return nil
 		}
-		err = s.SearchTags(ctx, scope, dv.Collect, common.DefaultSearchOptions())
+		err = s.SearchTags(ctx, attributeScope, dv.Collect, common.DefaultSearchOptions())
 		if err != nil && err != common.ErrUnsupported {
 			return fmt.Errorf("unexpected error searching tags: %w", err)
 		}

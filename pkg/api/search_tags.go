@@ -49,13 +49,8 @@ func parseSearchTagValuesRequest(r *http.Request, enforceTraceQL bool) (*tempopb
 func ParseSearchTagsRequest(r *http.Request) (*tempopb.SearchTagsRequest, error) {
 	scope, _ := extractQueryParam(r, urlParamScope)
 
-	// jpe - keep scope consts somewhere?
-	switch scope {
-	case "span":
-	case "resource":
-	case "": // empty scope is fine. Tempo will return all attributes
-	case "intrinsic": // intrinsic is a special case. Tempo will return span intrinsics instead of attributes
-	default:
+	attScope := traceql.AttributeScopeFromString(scope)
+	if attScope == traceql.AttributeScopeUnknown && scope != "intrinsic" { // jpe keep const somewhere
 		return nil, fmt.Errorf("invalid scope: %s", scope)
 	}
 
