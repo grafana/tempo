@@ -1,7 +1,7 @@
 ---
 aliases:
-- /docs/tempo/latest/server_side_metrics/span_metrics/
-- /docs/tempo/latest/metrics-generator/span_metrics/
+  - /docs/tempo/latest/server_side_metrics/span_metrics/
+  - /docs/tempo/latest/metrics-generator/span_metrics/
 title: Generate metrics from spans
 weight: 400
 ---
@@ -11,8 +11,9 @@ weight: 400
 The span metrics processor generates metrics from ingested tracing data, including request, error, and duration (RED) metrics.
 
 Span metrics generate two metrics:
-* A counter that computes requests
-* A histogram that tracks the distribution of durations of all requests
+
+- A counter that computes requests
+- A histogram that tracks the distribution of durations of all requests
 
 Span metrics are of particular interest if your system is not monitored with metrics,
 but it has distributed tracing implemented.
@@ -43,7 +44,7 @@ This processor is designed with the goal to mirror the implementation from the O
 The following metrics are exported:
 
 | Metric                         | Type      | Labels     | Description                  |
-|--------------------------------|-----------|------------|------------------------------|
+| ------------------------------ | --------- | ---------- | ---------------------------- |
 | traces_spanmetrics_latency     | Histogram | Dimensions | Duration of the span         |
 | traces_spanmetrics_calls_total | Counter   | Dimensions | Total count of the span      |
 | traces_spanmetrics_size_total  | Counter   | Dimensions | Total size of spans ingested |
@@ -55,7 +56,6 @@ Additional user defined labels can be created using the [`dimensions` configurat
 When a configured dimension collides with one of the default labels (e.g. `status_code`), the label for the respective dimension is prefixed with double underscore (i.e. `__status_code`).
 
 If you use ratio based sampler you can use custom sampler below to not lose metric information, you also need to set `metrics_generator.processor.span_metrics.span_multiplier_key` to `"X-SampleRatio"`
-
 
 ```go
 package tracer
@@ -90,6 +90,67 @@ func (ds RatioBasedSampler) Description() string {
 	return "Ratio Based Sampler which gives information about sampling ratio"
 }
 ```
+
+### Filtering
+
+In some cases it may be desirable to reduce the number of metrics produced by the `spanmetrics` processor. This can be accomplished by configuring the processor to use a filter. An `include` filter is used to match criteria that must be present in the span in order to be included. Following the include filter, an `exclude` filter may be used to reject portions of what was previously included by the filter policy.
+
+Currently supported is filtering by resource and span attributes with the following value types.
+
+- string
+- int
+- double
+
+Additionally, the following intrinsic span attributes may be filtered upon.
+
+- name
+- status (code)
+- kind
+
+When implementing a filter policy, intrinsic keys to act on may be used directly, as in the following snippet.
+
+```yaml
+---
+filter_policies:
+  - include:
+      match_type: strict
+      attributes:
+        - key: kind
+          value: SPAN_KIND_SERVER
+```
+
+In this example, spans which are of `kind` "server" are included for metrics export.
+
+When selecting spans based on non-intrinsic attributes, it is required to specify the scope of the attribute, similar to how it is specified in TraceQL. For example, if the `resource` contains a `location` attribute which is to be used in a filter policy, then the reference needs to be specified as `resource.location`. This requires users to know and specify which scope an attribute is to be found and avoids the ambiguity of conflicting values at differing scopes. The following may help illustrate.
+
+```yaml
+---
+filter_policies:
+  - include:
+      match_type: strict
+      attributes:
+        - key: resource.location
+          value: earth
+```
+
+In the above examples, we are using `match_type` of `strict`, which is a direct comparison of values. An additional option for `match_type` is `regex`. This allows users to build a regular expression to match against.
+
+```yaml
+---
+filter_policies:
+  - include:
+      match_type: regex
+      attributes:
+        - key: resource.location
+          value: eu-.*
+  - exclude:
+      match_type: regex
+      attributes:
+        - key: resource.tier
+          value: dev-.*
+```
+
+In the above, we first include all spans which have a `resource.location` that begins with `eu-` with the `include` statement, and then exclude those with begin with `dev-`. In this way, a flexible approach to filtering can be achieved to ensure that only metrics which are important are generated.
 
 ## Example
 

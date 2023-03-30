@@ -216,6 +216,7 @@ func policyMatch(policy *PolicyMatch, rs *v1.Resource, span *v1_trace.Span) bool
 		policyMatchIntrinsicAttrs(intrinsicPolicy, span)
 }
 
+// policyMatchIntrinsicAttrs returns true when all intrinsic values in the polciy match the span.
 func policyMatchIntrinsicAttrs(policy *PolicyMatch, span *v1_trace.Span) bool {
 	matches := 0
 	for _, pa := range policy.Attributes {
