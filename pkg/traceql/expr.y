@@ -194,7 +194,12 @@ scalarExpression: // shares the same operators as scalarPipelineExpression. spli
   | scalarExpression MOD scalarExpression      { $$ = newScalarOperation(OpMod, $1, $3) }
   | scalarExpression POW scalarExpression      { $$ = newScalarOperation(OpPower, $1, $3) }
   | aggregate                                  { $$ = $1 }
-  | static                                     { $$ = $1 }
+  | INTEGER                                    { $$ = NewStaticInt($1)              }
+  | FLOAT                                      { $$ = NewStaticFloat($1)            }
+  | DURATION                                   { $$ = NewStaticDuration($1)         }
+  | SUB INTEGER                                { $$ = NewStaticInt(-$2)             }
+  | SUB FLOAT                                  { $$ = NewStaticFloat(-$2)           }
+  | SUB DURATION                               { $$ = NewStaticDuration(-$2)        }
   ;
 
 aggregate:
