@@ -326,16 +326,16 @@ func ParseSearchTagValuesRequest(r *http.Request) (*tempopb.SearchTagValuesReque
 		TagName: tag,
 	}
 
-	query, queryFound := extractQueryParam(r, urlParamQuery)
-	if queryFound {
-		// TODO: Validation is left to the engine layer. Should we validate here?
-		//
-		// if query != "{}" { // TODO hacky fix: we don't validate {} since this isn't handled correctly yet
-		// 	if _, err := traceql.Parse(query); err != nil {
-		// 		return nil, fmt.Errorf("invalid TraceQL query: %w", err)
-		// 	}
-		// }
-	}
+	query, _ := extractQueryParam(r, urlParamQuery)
+	// if queryFound {
+	// 	TODO: Validation is left to the engine layer. Should we validate here?
+	//
+	// 	if query != "{}" { // TODO hacky fix: we don't validate {} since this isn't handled correctly yet
+	// 		if _, err := traceql.Parse(query); err != nil {
+	// 			return nil, fmt.Errorf("invalid TraceQL query: %w", err)
+	// 		}
+	// 	}
+	// }
 	req.Query = query
 
 	return req, nil
