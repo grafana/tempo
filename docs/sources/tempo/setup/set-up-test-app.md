@@ -2,7 +2,7 @@
 title: Set up a test app for a Tempo cluster
 menuTitle: Set up a test application for a Tempo cluster
 description: Learn how to set up a test app for your Tempo cluster and visualize data.
-weight: 400
+weight: 50
 ---
 
 # Set up a test application for a Tempo cluster

@@ -1,6 +1,6 @@
 ---
 title: Deploy on Kubernetes with Tanka
-weight: 200
+weight: 40
 ---
 
 # Deploy on Kubernetes with Tanka

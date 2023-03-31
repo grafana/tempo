@@ -5,7 +5,7 @@ aliases:
   - /docs/tempo/latest/deployment
   - /docs/tempo/latest/deployment/deployment
   - /docs/tempo/latest/setup/deployment
-weight: 30
+weight: 10
 ---
 
 # Plan your Tempo deployment

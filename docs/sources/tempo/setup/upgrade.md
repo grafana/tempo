@@ -2,7 +2,7 @@
 title: Upgrade your Tempo installation
 menuTitle: Upgrade
 description: Upgrade your Tempo installation to the latest version.
-weight: 75
+weight: 20
 ---
 
 # Upgrade Tempo
@@ -33,7 +33,7 @@ Once you upgrade to Tempo 2.0, there is no path to downgrade.
 
 ### Check Tempo installation resource allocation
 
-Parquet provides faster search and is required to enable TraceQL. However, the Tempo installation will require additional CPU and memory resources to use Parquet efficiently. Parquet is more costly due to the extra work of building the columnar blocks, and operators should expect at least 1.5x increase in required resources to run a Tempo 2.0 cluster. Most users will find these extra resources are negligible compared to the benefits that come from the additional features of TraceQL and from storing traces in an open format. 
+Parquet provides faster search and is required to enable TraceQL. However, the Tempo installation will require additional CPU and memory resources to use Parquet efficiently. Parquet is more costly due to the extra work of building the columnar blocks, and operators should expect at least 1.5x increase in required resources to run a Tempo 2.0 cluster. Most users will find these extra resources are negligible compared to the benefits that come from the additional features of TraceQL and from storing traces in an open format.
 
 You can can continue using the previous `v2` block format using the instructions provided in the [Parquet configuration documentation]({{< relref "../configuration/parquet/" >}}). Tempo will continue to support trace by id lookup on the `v2` format for the foreseeable future.
 
