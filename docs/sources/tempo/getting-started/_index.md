@@ -60,7 +60,7 @@ First, check out the [examples]({{< relref "example-demo-app.md" >}}) for ideas 
 
 Next, review the [Setup documentation]({{< relref "../setup/" >}}) for step-by-step instructions for setting up a Tempo cluster and creating a test application.
 
-For production workloads, refer to the [deployment]({{< relref "../operations/deployment" >}}) section.
+For production workloads, refer to the [deployment]({{< relref "../setup/deployment" >}}) section.
 
 > **Note:** The Grafana Agent is already set up to use Tempo. Refer to the [configuration](https://grafana.com/docs/agent/latest/configuration/traces-config/) and [example](https://github.com/grafana/agent/blob/main/example/docker-compose/agent/config/agent.yaml) for details.
 

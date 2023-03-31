@@ -1,12 +1,14 @@
 ---
-title: Deploying Tempo
+title: Plan your Tempo deployment
+menuTitle: Plan your deployment
 aliases:
   - /docs/tempo/latest/deployment
   - /docs/tempo/latest/deployment/deployment
+  - /docs/tempo/latest/setup/deployment
 weight: 30
 ---
 
-# Deploying Tempo
+# Plan your Tempo deployment
 
 Tempo can be easily deployed through a number of tools as explained in this document.
 
@@ -55,7 +57,7 @@ which is the monolithic deployment mode.
 Monolithic mode deployment runs all top-level components in a single
 process, forming an instance of Tempo.  The monolithic mode is the simplest
 to deploy, but can not horizontally scale out by increasing the quantity of
-components.  Refer to [Architecture]({{< relref "./architecture" >}}) for
+components.  Refer to [Architecture]({{< relref "../operations/architecture" >}}) for
 descriptions of the components.
 
 To enable this mode, `-target=all` is used, which is the default.
@@ -87,13 +89,13 @@ Find a docker-compose deployment example at:
 In microservices mode, components are deployed in distinct processes.  Scaling
 is per component, which allows for greater flexibility in scaling and more
 granular failure domains. This is the preferred method for a production
-deployment, but it is also the most complex
+deployment, but it is also the most complex.
 
 The configuration associated with each component's deployment specifies a
 `target`.  For example, to deploy a `querier`, the configuration would contain
 `target: querier`.  A command-line deployment may specify the `-target=querier`
 flag. Each of the components referenced in [Architecture]({{< relref
-"./architecture" >}}) must be deployed in order to get a working Tempo
+"../operations/architecture" >}}) must be deployed in order to get a working Tempo
 instance.
 
 Find a docker-compose deployment example at:

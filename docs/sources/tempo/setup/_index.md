@@ -1,25 +1,30 @@
 ---
-title: Set up a Tempo server or cluster
-menuTitle: Set up a Tempo server or cluster
-description: Learn how to set up a Tempo server or cluster and visualize data
+title: Set up Tempo
+menuTitle: Set up Tempo
+description: Learn how to set up a Tempo server or cluster and visualize data.
 aliases:
 - /docs/tempo/setup
 weight: 300
 ---
 
-# Set up a Tempo server or cluster
+# Set up
 
-Tempo is available as a pre-compiled binary, a Docker image, and as common OS-specific packaging.
+Tempo can deployed in one of three modes:
 
-This section describes how to set up Tempo on a single Linux node or as a cluster using Kubernetes and Tanka. Tempo can also be set up as a distributed set of services.
+- monolithic
+- scalable monolithic
+- microservices
 
-This page highlights these steps; more detailed instructions are available on the procedures for installing Tempo.
+Grafana Tempo is available as a pre-compiled binary, a Docker image, and as common OS-specific packaging.
 
 ## Deploy Tempo
 
-Choose a method to deploy Tempo:
+How you choose to deploy Tempo depends upon your tracing needs.
+Read [Plan your deployment]({{< relref "./deployment" >}}) to determine the best method to deploy Tempo.
 
-- [Deploy on Kubernetes using Helm](/docs/helm-charts/tempo-distributed/next/)
+THe following procedures provide example Tempo deployments that you can use as a starting point:
+
+- Microservices: [Deploy on Kubernetes using Helm](/docs/helm-charts/tempo-distributed/next/)
 - [Deploy on Linux]({{< relref "linux">}})
 - [Deploy on Kubernetes using Tanka]({{< relref "tanka">}})
 
