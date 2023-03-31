@@ -24,7 +24,7 @@ type Config struct {
 	// Buckets for latency histogram in seconds.
 	HistogramBuckets []float64 `yaml:"histogram_buckets"`
 	// Intrinsic dimensions (labels) added to the metric, that are generated from fixed span
-	// data. The dimensions serivce, span_name, span_kind, status_code, job and instance are enabled by
+	// data. The dimensions service, span_name, span_kind, status_code, job and instance are enabled by
 	// default, whereas the dimension status_message must be enabled explicitly.
 	IntrinsicDimensions IntrinsicDimensions `yaml:"intrinsic_dimensions"`
 	// Additional dimensions (labels) to be added to the metric. The dimensions are generated

@@ -134,7 +134,7 @@ func (p *Processor) Shutdown(_ context.Context) {
 func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 	for _, rs := range resourceSpans {
 		// already extract job name & instance id, so we only have to do it once per batch of spans
-		svName, _ := processor_util.FindServiceName(rs.Resource.Attributes)
+		svcName, _ := processor_util.FindServiceName(rs.Resource.Attributes)
 		jobName := processor_util.GetJobValue(rs.Resource.Attributes)
 		instanceID, _ := processor_util.FindInstanceID(rs.Resource.Attributes)
 		if p.Cfg.EnableTargetInfo {
@@ -144,7 +144,7 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
 				if p.filter.ApplyFilterPolicy(rs.Resource, span) {
-					p.aggregateMetricsForSpan(svName, jobName, instanceID, rs.Resource, span)
+					p.aggregateMetricsForSpan(svcName, jobName, instanceID, rs.Resource, span)
 					continue
 				}
 				p.filteredSpansCounter.Inc()
