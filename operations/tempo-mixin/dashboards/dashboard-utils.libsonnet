@@ -5,10 +5,12 @@ grafana {
   // Override the dashboard constructor to add:
   // - default tags,
   // - some links that propagate the selected cluster.
+  // - disable auto refresh every 10 seconds
   dashboard(title)::
     super.dashboard(title) + {
       addClusterSelectorTemplates()::
         local d = self {
+          refresh: '',
           tags: ['tempo'],
           links: [
             {
