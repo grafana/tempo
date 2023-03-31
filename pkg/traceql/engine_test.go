@@ -426,6 +426,16 @@ func TestExtractMatchers(t *testing.T) {
 			query:    `{ duration > 5s && .success = true && .cluster = }`,
 			expected: `{duration > 5s && .success = true}`,
 		},
+		{
+			name:     "query with three selectors with AND",
+			query:    `{ .foo = "bar" && .baz = "qux" } && { duration > 1s } || { .foo = "bar" && .baz = "qux" }`,
+			expected: "{}",
+		},
+		{
+			name:     "query with OR conditions",
+			query:    `{ (.foo = "bar" || .baz = "qux") && duration > 1s }`,
+			expected: "{}",
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
