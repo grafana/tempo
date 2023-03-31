@@ -171,7 +171,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	if p.Cfg.IntrinsicDimensions.StatusMessage {
 		labelValues = append(labelValues, span.GetStatus().GetMessage())
 	}
-	
+
 	// if job is not present, remove label
 	if jobName != "" {
 		labelValues = append(labelValues, jobName)
@@ -185,7 +185,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		p.labels = removeLabel(dimInstance, p.labels)
 	}
 
-	if p.Cfg.EnableTargetInfo{
+	if p.Cfg.EnableTargetInfo {
 		// if job is not present, remove label
 		if jobName != "" {
 			targetInfoLabelValues = append(targetInfoLabelValues, jobName)
@@ -194,7 +194,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		}
 	}
 
-	if p.Cfg.EnableTargetInfo{
+	if p.Cfg.EnableTargetInfo {
 		// if instance is not present, remove label
 		if instanceID != "" {
 			targetInfoLabelValues = append(targetInfoLabelValues, instanceID)
