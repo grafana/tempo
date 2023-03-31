@@ -50,4 +50,3 @@ spec:
           name: http-metrics
   updateStrategy:
     type: RollingUpdate
-  volumeClaimTemplates: []

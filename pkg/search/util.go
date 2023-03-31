@@ -37,6 +37,15 @@ func GetVirtualTagValuesV2(tagName string) []tempopb.TagValue {
 			{Type: "keyword", Value: traceql.StatusError.String()},
 			{Type: "keyword", Value: traceql.StatusUnset.String()},
 		}
+	case traceql.IntrinsicKind.String():
+		return []tempopb.TagValue{
+			{Type: "keyword", Value: traceql.KindClient.String()},
+			{Type: "keyword", Value: traceql.KindServer.String()},
+			{Type: "keyword", Value: traceql.KindProducer.String()},
+			{Type: "keyword", Value: traceql.KindConsumer.String()},
+			{Type: "keyword", Value: traceql.KindInternal.String()},
+			{Type: "keyword", Value: traceql.KindUnspecified.String()},
+		}
 	}
 
 	return nil

@@ -82,7 +82,8 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	ctx := context.Background()
+	c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
@@ -100,7 +101,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	rw.pollBlocklist()
 
 	// compact everything
-	err = rw.compact(rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	require.NoError(t, err)
 
 	// New blocklist contains 1 compacted block with everything
@@ -151,7 +152,8 @@ func TestCompactionMetrics(t *testing.T) {
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	ctx := context.Background()
+	c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
@@ -179,7 +181,7 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.NoError(t, err)
 
 	// compact everything
-	err = rw.compact(rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	assert.NoError(t, err)
 
 	// Check metric
@@ -223,7 +225,8 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	ctx := context.Background()
+	c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		MaxCompactionObjects:    1000,
@@ -246,12 +249,12 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 
 	// Verify that tenant 2 compacted, tenant 1 is not
 	// Compaction starts at index 1 for simplicity
-	rw.doCompaction()
+	rw.doCompaction(ctx)
 	assert.Equal(t, 2, len(rw.blocklist.Metas(testTenantID)))
 	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID2)))
 
 	// Verify both tenants compacted after second run
-	rw.doCompaction()
+	rw.doCompaction(ctx)
 	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID)))
 	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID2)))
 }
@@ -350,7 +353,8 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 
 	rw := c.(*readerWriter)
 
-	c.EnableCompaction(&CompactorConfig{
+	ctx := context.Background()
+	c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:     10_000_000,
 		FlushSizeBytes:     10_000_000,
 		IteratorBufferSize: DefaultIteratorBufferSize,
@@ -368,6 +372,6 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 
 	b.ResetTimer()
 
-	err = rw.compact(metas, testTenantID)
+	err = rw.compact(ctx, metas, testTenantID)
 	require.NoError(b, err)
 }

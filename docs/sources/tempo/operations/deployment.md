@@ -28,7 +28,7 @@ They display the full range of configurations available to Tempo.
 Helm charts are available in the grafana/helm-charts repo:
 
 - [monolithic mode](https://github.com/grafana/helm-charts/tree/main/charts/tempo)
-- [microservices mode](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed)
+- [microservices mode](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed) and [`tempo-distributed` documentation](/docs/helm-charts/tempo-distributed/next/)
 
 ## Kubernetes manifests
 

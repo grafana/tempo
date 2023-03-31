@@ -2,7 +2,9 @@
 title: Set up a Tempo server or cluster
 menuTitle: Set up a Tempo server or cluster
 description: Learn how to set up a Tempo server or cluster and visualize data
-weight: 150
+aliases:
+- /docs/tempo/setup
+weight: 300
 ---
 
 # Set up a Tempo server or cluster
@@ -17,6 +19,7 @@ This page highlights these steps; more detailed instructions are available on th
 
 Choose a method to deploy Tempo:
 
+- [Deploy on Kubernetes using Helm](/docs/helm-charts/tempo-distributed/next/)
 - [Deploy on Linux]({{< relref "linux">}})
 - [Deploy on Kubernetes using Tanka]({{< relref "tanka">}})
 

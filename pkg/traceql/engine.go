@@ -218,6 +218,12 @@ func (s Static) asAnyValue() *common_v1.AnyValue {
 				StringValue: "nil",
 			},
 		}
+	case TypeKind:
+		return &common_v1.AnyValue{
+			Value: &common_v1.AnyValue_StringValue{
+				StringValue: s.Kind.String(),
+			},
+		}
 	}
 
 	return &common_v1.AnyValue{

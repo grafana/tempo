@@ -14,6 +14,7 @@ const (
 	TypeBoolean
 	TypeDuration
 	TypeStatus
+	TypeKind
 )
 
 // isMatchingOperand returns whether two types can be combined with a binary operator. the kind of operator is
@@ -59,4 +60,34 @@ func (s Status) String() string {
 	}
 
 	return fmt.Sprintf("status(%d)", s)
+}
+
+type Kind int
+
+const (
+	KindUnspecified Kind = iota
+	KindInternal
+	KindClient
+	KindServer
+	KindProducer
+	KindConsumer
+)
+
+func (k Kind) String() string {
+	switch k {
+	case KindUnspecified:
+		return "unspecified"
+	case KindInternal:
+		return "internal"
+	case KindClient:
+		return "client"
+	case KindServer:
+		return "server"
+	case KindProducer:
+		return "producer"
+	case KindConsumer:
+		return "consumer"
+	}
+
+	return fmt.Sprintf("kind(%d)", k)
 }

@@ -34,6 +34,7 @@ const (
 	LabelHTTPStatusCode = "http.status_code"
 	LabelStatusCode     = "status.code"
 	LabelStatus         = "status"
+	LabelKind           = "kind"
 )
 
 // These definition levels match the schema below

@@ -1,6 +1,7 @@
 ---
 aliases:
 - /docs/tempo/getting-started/traces
+- /docs/tempo/traces
 description: "What are traces?"
 keywords:
 - Grafana

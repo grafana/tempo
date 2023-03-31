@@ -66,7 +66,7 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 func TestDB(t *testing.T) {
 	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
@@ -171,7 +171,7 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 func TestBlockCleanup(t *testing.T) {
 	r, w, c, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
@@ -501,7 +501,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 func TestSearchCompactedBlocks(t *testing.T) {
 	r, w, c, _ := testConfig(t, backend.EncLZ4_256k, time.Hour)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
@@ -529,7 +529,8 @@ func TestSearchCompactedBlocks(t *testing.T) {
 		ids = append(ids, id)
 	}
 
-	complete, err := w.CompleteBlock(context.Background(), head)
+	ctx := context.Background()
+	complete, err := w.CompleteBlock(ctx, head)
 	require.NoError(t, err)
 
 	blockID := complete.BlockMeta().BlockID.String()
@@ -541,7 +542,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, failedBlocks, err := r.Find(context.Background(), testTenantID, id, blockID, blockID, 0, 0)
+		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockID, blockID, 0, 0)
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
 		require.True(t, proto.Equal(bFound[0], reqs[i]))
@@ -550,7 +551,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	// compact
 	var blockMetas []*backend.BlockMeta
 	blockMetas = append(blockMetas, complete.BlockMeta())
-	require.NoError(t, rw.compact(blockMetas, testTenantID))
+	require.NoError(t, rw.compact(ctx, blockMetas, testTenantID))
 
 	// poll
 	rw.pollBlocklist()
@@ -565,7 +566,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	// find should succeed with old block range
 	for i, id := range ids {
-		bFound, failedBlocks, err := r.Find(context.Background(), testTenantID, id, blockID, blockID, 0, 0)
+		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockID, blockID, 0, 0)
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
 		require.True(t, proto.Equal(bFound[0], reqs[i]))

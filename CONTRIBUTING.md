@@ -26,7 +26,7 @@ Before submitting please run the following to verify that all dependencies and p
 make vendor-check
 ```
 
-# Project Structure
+# Project structure
 
 ```
 cmd/
@@ -102,7 +102,7 @@ A CI job runs these tests on every PR.
 
 ### Debugging
 
-Using a debugger can be useful to find errors in Tempo code. This [example](./example/docker-compose/debug) 
+Using a debugger can be useful to find errors in Tempo code. This [example](./example/docker-compose/debug)
 shows how to debug Tempo inside docker-compose.
 
 ### Linting
@@ -141,13 +141,39 @@ This requires `jsonnet`, `jsonnet-bundler` and `tanka` binaries in `$PATH`.
 
 ## Documentation
 
-Use the [Writer's Toolkit](https://grafana.com/docs/writers-toolkit/writing-guide/contribute-documentation/) for information and templates to contribute to [Tempo documentation](https://grafana.com/docs/tempo/latest/). 
+Anyone can help with Tempo's documentation by writing new content, updating existing content, or creating an issue.
+Current documentation projects are tracked in GitHub issues. Browsing through issues is a good way to find something to work on.
+
+### Directory structure
+
+Tempo documentation is located in the `docs` directory. The `docs` directory has three folders:
+
+- `design-proposals`: Used for project and feature proposals. This content is not published with the product documentation.
+- `internal`: Used for internal process-related conteint, including diagrams.
+- `sources`: All of the product documentation resides here.
+   - The `helm-charts` folder contains the documentation for the `tempo-distributed` Helm chart, https://grafana.com/docs/helm-charts/tempo-distributed/next/
+   - The `tempo` folder contains the product documentation, https://grafana.com/docs/tempo/latest/
+
+### Contribute to documentation
+
+Once you know what you would like to write, use the [Writer's Toolkit](https://grafana.com/docs/writers-toolkit/writing-guide/contribute-documentation/) for information on creating good documentation.
+The toolkit also provides [document templates](https://github.com/grafana/writers-toolkit/tree/main/docs/static/templates) to help get started.
+
+When you create a PR for documentation, add the `types/doc` label to identify the PR as contributing documentation. 
+
+If your content needs to be added to a previous release, use the `backport` label for the version. When your PR is merged, the backport label triggers an automatic process to create an additional PR to merge the content into the version's branch. Check the PR for content that might not be appropriate for the version. For example, if you fix a broken link on a page and then backport to Tempo 1.5, you would not want any TraceQL information to appear.  
+
+### Preview documentation
+
+To preview the documentation locally, run `make docs` from the root folder of the Tempo repository. This uses
+the `grafana/docs` image which internally uses Hugo to generate the static site. The site is available on `localhost:3002/docs/`.
+
+> **Note** The `make docs` command uses a lot of memory. If its crashing make sure to increase the memory allocated to Docker
+and try again.
+
+### Publishing process
 
 Tempo uses a CI action to sync documentation to the [Grafana website](https://grafana.com/docs/tempo/latest). The CI is
 triggered on every merge to main in the `docs` subfolder.
 
-To get a preview of the documentation locally, run `make docs` from the root folder of the Tempo repository. This uses
-the `grafana/docs` image which internally uses Hugo to generate the static site.
-
-> Note that `make docs` uses a lot of memory and so if its crashing make sure to increase the memory allocated to Docker
-and try again.
+The `helm-charts` folder is published from Tempo's next branch. The Tempo documentation is published from the `latest` branch.

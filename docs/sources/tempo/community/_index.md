@@ -1,6 +1,6 @@
 ---
 title: Community
-weight: 700
+weight: 800
 ---
 
 ## Communicate

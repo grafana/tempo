@@ -62,7 +62,8 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	ctx := context.Background()
+	c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10_000_000,
 		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
@@ -98,7 +99,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			allIds = append(allIds, id)
 		}
 
-		_, err = w.CompleteBlock(context.Background(), head)
+		_, err = w.CompleteBlock(ctx, head)
 		require.NoError(t, err)
 	}
 
@@ -125,7 +126,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 		require.Len(t, blocks, inputBlocks)
 
 		compactions++
-		err := rw.compact(blocks, testTenantID)
+		err := rw.compact(context.Background(), blocks, testTenantID)
 		require.NoError(t, err)
 
 		expectedBlockCount -= blocksPerCompaction
@@ -205,7 +206,8 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	ctx := context.Background()
+	c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
@@ -283,7 +285,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	combinedStart, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
 	require.NoError(t, err)
 
-	err = rw.compact(blocks, testTenantID)
+	err = rw.compact(ctx, blocks, testTenantID)
 	require.NoError(t, err)
 
 	checkBlocklists(t, uuid.Nil, 1, blockCount, rw)
@@ -356,7 +358,8 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	ctx := context.Background()
+	c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10_000_000,
 		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
@@ -379,7 +382,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	rw.pollBlocklist()
 
 	// compact everything
-	err = rw.compact(rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	require.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
