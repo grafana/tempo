@@ -72,6 +72,8 @@ type Limits struct {
 	MetricsGeneratorProcessorSpanMetricsDimensions           []string                    `yaml:"metrics_generator_processor_span_metrics_dimensions" json:"metrics_generator_processor_span_metrics_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions  map[string]bool             `yaml:"metrics_generator_processor_span_metrics_intrinsic_dimensions" json:"metrics_generator_processor_span_metrics_intrinsic_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsFilterPolicies       []filterconfig.FilterPolicy `yaml:"metrics_generator_processor_span_metrics_filter_policies" json:"metrics_generator_processor_span_metrics_filter_policies"`
+	MetricsGeneratorProcessorSpanMetricsDimensionMappings   []map[string]string `yaml:"metrics_generator_processor_span_metrics_dimension_mappings" json:"metrics_generator_processor_span_metrics_dimension_mapings"`
+	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo    bool                `yaml:"metrics_generator_processor_span_metrics_enable_target_info" json:"metrics_generator_processor_span_metrics_enable_target_info"`
 	MetricsGeneratorProcessorLocalBlocksMaxLiveTraces        uint64                      `yaml:"metrics_generator_processor_local_blocks_max_live_traces" json:"metrics_generator_processor_local_blocks_max_live_traces"`
 	MetricsGeneratorProcessorLocalBlocksMaxBlockDuration     time.Duration               `yaml:"metrics_generator_processor_local_blocks_max_block_duration" json:"metrics_generator_processor_local_blocks_max_block_duration"`
 	MetricsGeneratorProcessorLocalBlocksMaxBlockBytes        uint64                      `yaml:"metrics_generator_processor_local_blocks_max_block_bytes" json:"metrics_generator_processor_local_blocks_max_block_bytes"`

@@ -376,6 +376,16 @@ func (o *Overrides) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(use
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout
 }
 
+// MetricsGeneratorProcessorSpanMetricsDimensionMappings controls custom dimension mapping
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []map[string]string {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsDimensionMappings
+}
+
+// MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsEnableTargetInfo
+}
+
 // BlockRetention is the duration of the block retention for this tenant.
 func (o *Overrides) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).BlockRetention)

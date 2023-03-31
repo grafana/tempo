@@ -14,6 +14,8 @@ type mockOverrides struct {
 	spanMetricsDimensions           []string
 	spanMetricsIntrinsicDimensions  map[string]bool
 	spanMetricsFilterPolicies       []filterconfig.FilterPolicy
+	spanMetricsDimensionMappings   []map[string]string
+	spanMetricsEnableTargetInfo    bool
 	localBlocksMaxLiveTraces        uint64
 	localBlocksMaxBlockDuration     time.Duration
 	localBlocksMaxBlockBytes        uint64
@@ -86,4 +88,14 @@ func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(use
 
 func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration {
 	return m.localBlocksCompleteBlockTimeout
+}
+
+// MetricsGeneratorProcessorSpanMetricsDimensionMappings controls custom dimension mapping
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []map[string]string {
+	return m.spanMetricsDimensionMappings
+}
+
+// MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool {
+	return m.spanMetricsEnableTargetInfo
 }

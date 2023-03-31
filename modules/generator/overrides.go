@@ -24,6 +24,8 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID string) time.Duration
 	MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID string) time.Duration
 	MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration
+	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []map[string]string
+	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool
 }
 
 var _ metricsGeneratorOverrides = (*overrides.Overrides)(nil)

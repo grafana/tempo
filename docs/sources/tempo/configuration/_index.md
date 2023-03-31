@@ -302,6 +302,14 @@ metrics_generator:
             # the metrics if present.
             [dimensions: <list of string>]
 
+            # Custom labeling of dimensions is possible via a list of maps consisting of 
+            # 'name' <string>, source_labels <list of string>, join <string> 
+            # 'name' will be what appears in the metrics, 'source_labels' are the actual
+            # attributes that will make up the value of the label and 'join' is the
+            # separator if multiple source_labels are provided
+            [MetricsGeneratorProcessorSpanMetricsDimensionMappings: <list of map>]
+            # Enable target_info metrics
+            [MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: <bool>]
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
 
@@ -1248,6 +1256,9 @@ overrides:
     # Allowed keys for intrinsic dimensions are: service, span_name, span_kind, status_code, and status_message.
     [metrics_generator_processor_span_metrics_intrinsic_dimensions: <map string to bool>]
     [metrics_generator_processor_span_metrics_dimensions: <list of string>]
+    [MetricsGeneratorProcessorSpanMetricsDimensionMappings: <list of map>]
+    # Enable target_info metrics
+    [MetricsGeneratorProcessorSpanMetricsEnableTargetInfo: <bool>]
 
     # Maximum number of active series in the registry, per instance of the metrics-generator. A
     # value of 0 disables this check.
