@@ -4,6 +4,8 @@ on:
     types: [labeled]
 jobs:
   main:
+    # only run in grafana/tempo.
+    if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Actions

@@ -9,6 +9,8 @@ on:
  workflow_dispatch:
 
 jobs:
+  # only run in grafana/tempo.
+  if: github.repository == 'grafana/tempo'
   snyk-scan-ci:
     uses: 'grafana/security-github-actions/.github/workflows/snyk_monitor.yml@main'
     secrets:
