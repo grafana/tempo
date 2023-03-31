@@ -62,6 +62,11 @@
        "alias": "limit",
        "color": "#E02F44",
        "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
       }
      ],
      "spaceLength": 10,
@@ -84,6 +89,15 @@
        "interval": "1m",
        "intervalFactor": 2,
        "legendFormat": "limit",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"cortex-gw(-internal)?\", resource=\"cpu\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "request",
        "legendLink": null,
        "step": 10
       }
@@ -162,6 +176,11 @@
        "alias": "limit",
        "color": "#E02F44",
        "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
       }
      ],
      "spaceLength": 10,
@@ -184,6 +203,15 @@
        "interval": "1m",
        "intervalFactor": 2,
        "legendFormat": "limit",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"cortex-gw(-internal)?\", resource=\"memory\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "request",
        "legendLink": null,
        "step": 10
       }
@@ -361,6 +389,11 @@
        "alias": "limit",
        "color": "#E02F44",
        "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
       }
      ],
      "spaceLength": 10,
@@ -383,6 +416,15 @@
        "interval": "1m",
        "intervalFactor": 2,
        "legendFormat": "limit",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"distributor\", resource=\"cpu\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "request",
        "legendLink": null,
        "step": 10
       }
@@ -461,6 +503,11 @@
        "alias": "limit",
        "color": "#E02F44",
        "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
       }
      ],
      "spaceLength": 10,
@@ -483,6 +530,15 @@
        "interval": "1m",
        "intervalFactor": 2,
        "legendFormat": "limit",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"distributor\", resource=\"memory\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "request",
        "legendLink": null,
        "step": 10
       }
@@ -660,6 +716,11 @@
        "alias": "limit",
        "color": "#E02F44",
        "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
       }
      ],
      "spaceLength": 10,
@@ -682,6 +743,15 @@
        "interval": "1m",
        "intervalFactor": 2,
        "legendFormat": "limit",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"ingester\", resource=\"cpu\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "request",
        "legendLink": null,
        "step": 10
       }
@@ -760,6 +830,11 @@
        "alias": "limit",
        "color": "#E02F44",
        "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
       }
      ],
      "spaceLength": 10,
@@ -782,6 +857,15 @@
        "interval": "1m",
        "intervalFactor": 2,
        "legendFormat": "limit",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"ingester\", resource=\"memory\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "request",
        "legendLink": null,
        "step": 10
       }
@@ -959,6 +1043,11 @@
        "alias": "limit",
        "color": "#E02F44",
        "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
       }
      ],
      "spaceLength": 10,
@@ -981,6 +1070,15 @@
        "interval": "1m",
        "intervalFactor": 2,
        "legendFormat": "limit",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"metrics-generator\", resource=\"cpu\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "request",
        "legendLink": null,
        "step": 10
       }
@@ -1059,6 +1157,11 @@
        "alias": "limit",
        "color": "#E02F44",
        "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
       }
      ],
      "spaceLength": 10,
@@ -1081,6 +1184,15 @@
        "interval": "1m",
        "intervalFactor": 2,
        "legendFormat": "limit",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"metrics-generator\", resource=\"memory\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "request",
        "legendLink": null,
        "step": 10
       }
@@ -1258,6 +1370,11 @@
        "alias": "limit",
        "color": "#E02F44",
        "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
       }
      ],
      "spaceLength": 10,
@@ -1280,6 +1397,15 @@
        "interval": "1m",
        "intervalFactor": 2,
        "legendFormat": "limit",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"query-frontend\", resource=\"cpu\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "request",
        "legendLink": null,
        "step": 10
       }
@@ -1358,6 +1484,11 @@
        "alias": "limit",
        "color": "#E02F44",
        "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
       }
      ],
      "spaceLength": 10,
@@ -1380,6 +1511,15 @@
        "interval": "1m",
        "intervalFactor": 2,
        "legendFormat": "limit",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"query-frontend\", resource=\"memory\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "request",
        "legendLink": null,
        "step": 10
       }
@@ -1557,6 +1697,11 @@
        "alias": "limit",
        "color": "#E02F44",
        "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
       }
      ],
      "spaceLength": 10,
@@ -1579,6 +1724,15 @@
        "interval": "1m",
        "intervalFactor": 2,
        "legendFormat": "limit",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"querier\", resource=\"cpu\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "request",
        "legendLink": null,
        "step": 10
       }
@@ -1657,6 +1811,11 @@
        "alias": "limit",
        "color": "#E02F44",
        "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
       }
      ],
      "spaceLength": 10,
@@ -1679,6 +1838,15 @@
        "interval": "1m",
        "intervalFactor": 2,
        "legendFormat": "limit",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"querier\", resource=\"memory\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "request",
        "legendLink": null,
        "step": 10
       }
@@ -1856,6 +2024,11 @@
        "alias": "limit",
        "color": "#E02F44",
        "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
       }
      ],
      "spaceLength": 10,
@@ -1878,6 +2051,15 @@
        "interval": "1m",
        "intervalFactor": 2,
        "legendFormat": "limit",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"compactor\", resource=\"cpu\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "request",
        "legendLink": null,
        "step": 10
       }
@@ -1956,6 +2138,11 @@
        "alias": "limit",
        "color": "#E02F44",
        "fill": 0
+      },
+      {
+       "alias": "request",
+       "color": "#FCE300",
+       "fill": 0
       }
      ],
      "spaceLength": 10,
@@ -1978,6 +2165,15 @@
        "interval": "1m",
        "intervalFactor": 2,
        "legendFormat": "limit",
+       "legendLink": null,
+       "step": 10
+      },
+      {
+       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"compactor\", resource=\"memory\"} > 0)",
+       "format": "time_series",
+       "interval": "1m",
+       "intervalFactor": 2,
+       "legendFormat": "request",
        "legendLink": null,
        "step": 10
       }
