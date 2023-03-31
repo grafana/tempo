@@ -59,7 +59,7 @@ When a configured dimension collides with one of the default labels (e.g. `statu
 
 Custom labeling of dimensions is also supported using the [`dimension_mapping` configuration option]({{< relref "../configuration/#metrics-generator" >}}).
 
-An optional metric called `traces_spanmetrics_target_info` using all resource level attributes as dimensions can be enabled in the [`enable_target_info` configuration option]({{< relref "../configuration/#metrics-generator" >}}).
+An optional metric called `target_info` using all resource level attributes as dimensions can be enabled in the [`enable_target_info` configuration option]({{< relref "../configuration/#metrics-generator" >}}).
 
 If you use ratio based sampler you can use custom sampler below to not lose metric information, you also need to set `metrics_generator.processor.span_metrics.span_multiplier_key` to `"X-SampleRatio"`
 

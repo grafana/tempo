@@ -462,7 +462,7 @@ func TestTargetInfoEnabled(t *testing.T) {
 		"ip":       "1.1.1.1",
 	})
 
-	assert.Equal(t, 1.0, testRegistry.Query("traces_spanmetrics_target_info", lbls))
+	assert.Equal(t, 1.0, testRegistry.Query("target_info", lbls))
 }
 
 func TestTargetInfoDisabled(t *testing.T) {
@@ -503,7 +503,7 @@ func TestTargetInfoDisabled(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	registry := fmt.Sprint(testRegistry)
-	targetInfoExist := strings.Contains(registry, "traces_spanmetrics_target_info")
+	targetInfoExist := strings.Contains(registry, "target_info")
 
 	assert.Equal(t, false, targetInfoExist)
 }
@@ -534,7 +534,7 @@ func TestTargetInfoWithJobAndInstanceOnly(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	registry := fmt.Sprint(testRegistry)
-	targetInfoExist := strings.Contains(registry, "traces_spanmetrics_target_info")
+	targetInfoExist := strings.Contains(registry, "target_info")
 
 	assert.Equal(t, false, targetInfoExist)
 }
@@ -581,7 +581,7 @@ func TestTargetInfoNoJobAndNoInstance(t *testing.T) {
 	fmt.Println(testRegistry)
 
 	registry := fmt.Sprint(testRegistry)
-	targetInfoExist := strings.Contains(registry, "traces_spanmetrics_target_info")
+	targetInfoExist := strings.Contains(registry, "target_info")
 
 	assert.Equal(t, false, targetInfoExist)
 }

@@ -52,8 +52,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.IntrinsicDimensions.SpanName = true
 	cfg.IntrinsicDimensions.SpanKind = true
 	cfg.IntrinsicDimensions.StatusCode = true
-	cfg.IntrinsicDimensions.Job = true
-	cfg.IntrinsicDimensions.Instance = true
 	cfg.Subprocessors = make(map[Subprocessor]bool)
 	cfg.Subprocessors[Latency] = true
 	cfg.Subprocessors[Count] = true
@@ -72,8 +70,6 @@ type IntrinsicDimensions struct {
 	SpanKind      bool `yaml:"span_kind"`
 	StatusCode    bool `yaml:"status_code"`
 	StatusMessage bool `yaml:"status_message,omitempty"`
-	Job           bool `yaml:"job"`
-	Instance      bool `yaml:"instance"`
 }
 
 func (ic *IntrinsicDimensions) ApplyFromMap(dimensions map[string]bool) error {
@@ -89,10 +85,6 @@ func (ic *IntrinsicDimensions) ApplyFromMap(dimensions map[string]bool) error {
 			ic.StatusCode = active
 		case dimStatusMessage:
 			ic.StatusMessage = active
-		case dimJob:
-			ic.Job = active
-		case dimInstance:
-			ic.Instance = active
 		default:
 			return errors.Errorf("%s is not a valid intrinsic dimension", label)
 		}

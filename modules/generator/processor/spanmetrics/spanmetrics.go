@@ -22,7 +22,7 @@ const (
 	metricCallsTotal      = "traces_spanmetrics_calls_total"
 	metricDurationSeconds = "traces_spanmetrics_latency"
 	metricSizeTotal       = "traces_spanmetrics_size_total"
-	targetInfo            = "traces_spanmetrics_target_info"
+	targetInfo            = "target_info"
 )
 
 type Processor struct {
@@ -64,13 +64,9 @@ func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.C
 		labels = append(labels, dimStatusMessage)
 	}
 
-	if cfg.IntrinsicDimensions.Job {
-		labels = append(labels, dimJob)
-	}
-
-	if cfg.IntrinsicDimensions.Instance {
-		labels = append(labels, dimInstance)
-	}
+	// add job & instance labels
+	labels = append(labels, dimJob)
+	labels = append(labels, dimInstance)
 
 	if cfg.EnableTargetInfo {
 		targetInfoLabels = append(targetInfoLabels, dimJob)
@@ -175,24 +171,21 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	if p.Cfg.IntrinsicDimensions.StatusMessage {
 		labelValues = append(labelValues, span.GetStatus().GetMessage())
 	}
-	if p.Cfg.IntrinsicDimensions.Job {
-		// if job is not present, remove label
-		if jobName != "" {
-			labelValues = append(labelValues, jobName)
-		} else {
-			p.labels = removeLabel(dimJob, p.labels)
-		}
+	
+	// if job is not present, remove label
+	if jobName != "" {
+		labelValues = append(labelValues, jobName)
+	} else {
+		p.labels = removeLabel(dimJob, p.labels)
 	}
-	if p.Cfg.IntrinsicDimensions.Instance {
-		// if instance is not present, remove label
-		if instanceID != "" {
-			labelValues = append(labelValues, instanceID)
-		} else {
-			p.labels = removeLabel(dimInstance, p.labels)
-		}
+	// if instance is not present, remove label
+	if instanceID != "" {
+		labelValues = append(labelValues, instanceID)
+	} else {
+		p.labels = removeLabel(dimInstance, p.labels)
 	}
 
-	if p.Cfg.EnableTargetInfo && p.Cfg.IntrinsicDimensions.Job {
+	if p.Cfg.EnableTargetInfo{
 		// if job is not present, remove label
 		if jobName != "" {
 			targetInfoLabelValues = append(targetInfoLabelValues, jobName)
@@ -201,7 +194,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		}
 	}
 
-	if p.Cfg.EnableTargetInfo && p.Cfg.IntrinsicDimensions.Instance {
+	if p.Cfg.EnableTargetInfo{
 		// if instance is not present, remove label
 		if instanceID != "" {
 			targetInfoLabelValues = append(targetInfoLabelValues, instanceID)
@@ -210,7 +203,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		}
 	}
 
-	//update labels
+	//update labels to remove job and/or instance if they're blank
 	p.spanMetricsCallsTotal.UpdateLabels(p.labels)
 	p.spanMetricsDurationSeconds.UpdateLabels(p.labels)
 	p.spanMetricsSizeTotal.UpdateLabels(p.labels)
