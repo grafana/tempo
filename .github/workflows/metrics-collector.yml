@@ -5,6 +5,9 @@ on:
 
 jobs:
   main:
+    # this action keeps failing in all forks, only run in grafana/tempo.
+    # stats collection action is only useful in main repo.
+    if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Actions
