@@ -544,7 +544,11 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 			if err != nil {
 				return nil, false, err
 			}
-			durationPredicates = append(durationPredicates, pred)
+			if pred, ok := pred.(*parquetquery.GenericPredicate[int64]); ok {
+				durationPredicates = append(durationPredicates, pred)
+			} else {
+				durationPredicates = append(durationPredicates, nil)
+			}
 			addPredicate(columnPathSpanDuration, nil)
 			columnSelectAs[columnPathSpanDuration] = columnPathSpanDuration
 			continue
@@ -827,7 +831,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 
 }
 
-func createIntPredicate(op traceql.Operator, operands traceql.Operands) (*parquetquery.GenericPredicate[int64], error) {
+func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
 	}
