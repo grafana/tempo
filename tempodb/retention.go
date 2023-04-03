@@ -13,11 +13,19 @@ import (
 // retentionLoop watches a timer to clean up blocks that are past retention.
 func (rw *readerWriter) retentionLoop(ctx context.Context) {
 	ticker := time.NewTicker(rw.cfg.BlocklistPoll)
-	select {
-	case <-ticker.C:
-		rw.doRetention(ctx)
-	case <-ctx.Done():
-		return
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		select {
+		case <-ticker.C:
+			rw.doRetention(ctx)
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
