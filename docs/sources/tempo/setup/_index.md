@@ -7,7 +7,7 @@ aliases:
 weight: 300
 ---
 
-# Set up
+# Set up Tempo
 
 Tempo can deployed in one of three modes:
 
@@ -17,14 +17,18 @@ Tempo can deployed in one of three modes:
 
 Grafana Tempo is available as a pre-compiled binary, a Docker image, and as common OS-specific packaging.
 
-## Deploy Tempo
+## Plan your deployment
 
 How you choose to deploy Tempo depends upon your tracing needs.
 Read [Plan your deployment]({{< relref "./deployment" >}}) to determine the best method to deploy Tempo.
 
-THe following procedures provide example Tempo deployments that you can use as a starting point:
+## Deploy Tempo
 
-- Microservices: [Deploy on Kubernetes using Helm](/docs/helm-charts/tempo-distributed/next/)
+Once you have decided how to deploy Tempo to best meet your needs, you can install and set up Tempo. The Plan your deployment topic links to multiple examples for installing Tempo in
+
+The following procedures provide example Tempo deployments that you can use as a starting point:
+
+- [Deploy on Kubernetes using Helm](/docs/helm-charts/tempo-distributed/next/)
 - [Deploy on Linux]({{< relref "linux">}})
 - [Deploy on Kubernetes using Tanka]({{< relref "tanka">}})
 
