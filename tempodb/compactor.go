@@ -68,11 +68,19 @@ func (rw *readerWriter) compactionLoop(ctx context.Context) {
 	}
 
 	ticker := time.NewTicker(compactionCycle)
-	select {
-	case <-ticker.C:
-		rw.doCompaction(ctx)
-	case <-ctx.Done():
-		return
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		select {
+		case <-ticker.C:
+			rw.doCompaction(ctx)
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
