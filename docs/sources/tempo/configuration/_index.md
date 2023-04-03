@@ -303,9 +303,9 @@ metrics_generator:
             [dimensions: <list of string>]
 
             # Custom labeling of dimensions is possible via a list of maps consisting of 
-            # 'name' <string>, source_labels <list of string>, join <string> 
-            # 'name' will be what appears in the metrics, 'source_labels' are the actual
-            # attributes that will make up the value of the label and 'join' is the
+            # "name" <string>, "source_labels" <list of string>, "join" <string> 
+            # "name" will be what appears in the metrics, "source_labels" are the actual
+            # attributes that will make up the value of the label and "join" is the
             # separator if multiple source_labels are provided
             [MetricsGeneratorProcessorSpanMetricsDimensionMappings: <list of map>]
             # Enable target_info metrics

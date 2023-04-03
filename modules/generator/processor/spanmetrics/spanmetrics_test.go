@@ -17,6 +17,7 @@ import (
 
 	"github.com/grafana/tempo/modules/generator/registry"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -594,7 +595,7 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.IntrinsicDimensions.SpanKind = false
 	cfg.IntrinsicDimensions.StatusMessage = true
-	cfg.DimensionMappings = []DimensionMappings{
+	cfg.DimensionMappings = []sharedconfig.DimensionMappings{
 		{
 			Name:        "foobar",
 			SourceLabel: []string{"foo", "bar"},
@@ -652,7 +653,7 @@ func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.IntrinsicDimensions.SpanKind = false
 	cfg.IntrinsicDimensions.StatusMessage = true
-	cfg.DimensionMappings = []DimensionMappings{
+	cfg.DimensionMappings = []sharedconfig.DimensionMappings{
 		// label "second" missing in attributes, correct label = "first"
 		{
 			Name:        "first_only",

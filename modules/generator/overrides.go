@@ -6,6 +6,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/overrides"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 )
 
 type metricsGeneratorOverrides interface {
@@ -24,7 +25,7 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorLocalBlocksTraceIdlePeriod(userID string) time.Duration
 	MetricsGeneratorProcessorLocalBlocksFlushCheckPeriod(userID string) time.Duration
 	MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID string) time.Duration
-	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []map[string]string
+	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) bool
 }
 

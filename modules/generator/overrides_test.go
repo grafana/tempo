@@ -4,17 +4,18 @@ import (
 	"time"
 
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 )
 
 type mockOverrides struct {
-	processors                      map[string]struct{}
-	serviceGraphsHistogramBuckets   []float64
-	serviceGraphsDimensions         []string
-	spanMetricsHistogramBuckets     []float64
-	spanMetricsDimensions           []string
-	spanMetricsIntrinsicDimensions  map[string]bool
-	spanMetricsFilterPolicies       []filterconfig.FilterPolicy
-	spanMetricsDimensionMappings   []map[string]string
+	processors                     map[string]struct{}
+	serviceGraphsHistogramBuckets  []float64
+	serviceGraphsDimensions        []string
+	spanMetricsHistogramBuckets    []float64
+	spanMetricsDimensions          []string
+	spanMetricsIntrinsicDimensions map[string]bool
+	spanMetricsFilterPolicies      []filterconfig.FilterPolicy
+	spanMetricsDimensionMappings   []sharedconfig.DimensionMappings
 	spanMetricsEnableTargetInfo    bool
 	localBlocksMaxLiveTraces        uint64
 	localBlocksMaxBlockDuration     time.Duration
@@ -91,7 +92,7 @@ func (m *mockOverrides) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout
 }
 
 // MetricsGeneratorProcessorSpanMetricsDimensionMappings controls custom dimension mapping
-func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []map[string]string {
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings {
 	return m.spanMetricsDimensionMappings
 }
 

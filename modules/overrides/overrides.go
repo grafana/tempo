@@ -9,10 +9,12 @@ import (
 
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/yaml.v2"
 
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 )
@@ -377,7 +379,7 @@ func (o *Overrides) MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(use
 }
 
 // MetricsGeneratorProcessorSpanMetricsDimensionMappings controls custom dimension mapping
-func (o *Overrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []map[string]string {
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings {
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsDimensionMappings
 }
 

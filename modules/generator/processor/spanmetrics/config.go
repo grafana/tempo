@@ -4,6 +4,7 @@ import (
 	"flag"
 
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -31,7 +32,7 @@ type Config struct {
 	// from span attributes and are created along with the intrinsic dimensions.
 	Dimensions []string `yaml:"dimensions"`
 	// Dimension label mapping to allow the user to rename attributes in their metrics
-	DimensionMappings []DimensionMappings `yaml:"dimension_mappings"`
+	DimensionMappings []sharedconfig.DimensionMappings `yaml:"dimension_mappings"`
 	// Enable target_info as a metrics
 	EnableTargetInfo bool `yaml:"enable_target_info"`
 
@@ -56,12 +57,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Subprocessors[Latency] = true
 	cfg.Subprocessors[Count] = true
 	cfg.Subprocessors[Size] = true
-}
-
-type DimensionMappings struct {
-	Name        string   `yaml:"name"`
-	SourceLabel []string `yaml:"source_labels"`
-	Join        string   `yaml:"join"`
 }
 
 type IntrinsicDimensions struct {
