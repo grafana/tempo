@@ -507,7 +507,6 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 		columnPredicates      = map[string][]parquetquery.Predicate{}
 		iters                 []parquetquery.Iterator
 		genericConditions     []traceql.Condition
-		durationPredicates    []*parquetquery.GenericPredicate[int64]
 		spanDurationRetrieved bool
 	)
 
@@ -544,12 +543,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 			if err != nil {
 				return nil, false, err
 			}
-			if pred, ok := pred.(*parquetquery.GenericPredicate[int64]); ok {
-				durationPredicates = append(durationPredicates, pred)
-			} else {
-				durationPredicates = append(durationPredicates, nil)
-			}
-			addPredicate(columnPathSpanDuration, nil)
+			addPredicate(columnPathSpanDuration, pred)
 			columnSelectAs[columnPathSpanDuration] = columnPathSpanDuration
 			continue
 
@@ -615,8 +609,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 		minCount = len(distinct)
 	}
 	spanCol := &spanCollector{
-		minCount,
-		durationPredicates,
+		minAttributes: minCount,
 	}
 
 	// This is an optimization for when all of the span conditions must be met.
@@ -631,7 +624,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 	// Wrap up the individual conditions with a union and move it into the required list.
 	// This skips over static columns like ID that are omnipresent. This is also only
 	// possible when there isn't a duration filter because it's computed from start/end.
-	if requireAtLeastOneMatch && len(iters) > 0 && len(durationPredicates) == 0 {
+	if requireAtLeastOneMatch && len(iters) > 0 {
 		required = append(required, parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpan, iters, nil))
 		iters = nil
 	}
@@ -1038,14 +1031,13 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 
 // This turns groups of span values into Span objects
 type spanCollector struct {
-	minAttributes   int
-	durationFilters []*parquetquery.GenericPredicate[int64]
+	minAttributes int
 }
 
 var _ parquetquery.GroupPredicate = (*spanCollector)(nil)
 
 func (c *spanCollector) String() string {
-	return fmt.Sprintf("spanCollector(%d, %v)", c.minAttributes, c.durationFilters)
+	return fmt.Sprintf("spanCollector(%d)", c.minAttributes)
 }
 
 func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
@@ -1066,10 +1058,9 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case columnPathSpanDuration:
 			durationNanos = kv.Value.Uint64()
 			span.durationNanos = durationNanos
+			span.attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(durationNanos))
 		case columnPathSpanName:
 			span.attributes[traceql.NewIntrinsic(traceql.IntrinsicName)] = traceql.NewStaticString(kv.Value.String())
-		//case columnPathSpanDuration:
-		//	span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(kv.Value.Uint64()))
 		case columnPathSpanStatusCode:
 			// Map OTLP status code back to TraceQL enum.
 			// For other values, use the raw integer.
@@ -1116,16 +1107,6 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 				span.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticFloat(kv.Value.Double())
 			case parquet.ByteArray:
 				span.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticString(kv.Value.String())
-			}
-		}
-	}
-
-	// Save computed duration if any filters present and at least one is passed.
-	if len(c.durationFilters) > 0 {
-		for _, f := range c.durationFilters {
-			if f == nil || f.Fn(int64(durationNanos)) {
-				span.attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(durationNanos))
-				break
 			}
 		}
 	}
