@@ -142,7 +142,7 @@ Find traces where a `DELETE` HTTP method was used and the instrinsic span status
 
 Both expressions require all conditions to be true on the same span. The entire expression inside of a pair of `{}` must be evaluated as true on a single span for it to be included in the result set.
 
-In the above example, if a span includes an `.http.method` attribute set to `DELETE` where the span also includes a `status` attribute set to `ok`, the trace would not be included in the returned results.
+In the preceding example, if a span includes an `.http.method` attribute set to `DELETE` where the span also includes a `status` attribute set to `ok`, the trace would not be included in the returned results.
 
 ## Combining spansets
 
