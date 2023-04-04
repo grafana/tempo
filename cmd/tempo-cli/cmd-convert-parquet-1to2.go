@@ -178,7 +178,7 @@ func vparquetSpan1to2(span *vparquet.Span, v2span *vparquet2.Span) {
 	v2span.ParentSpanID = span.ParentSpanID
 	v2span.TraceState = span.TraceState
 	v2span.StartTimeUnixNano = span.StartUnixNanos
-	v2span.DurationNano = span.StartUnixNanos - span.EndUnixNanos
+	v2span.DurationNano = span.EndUnixNanos - span.StartUnixNanos
 	v2span.StatusCode = span.StatusCode
 	v2span.StatusMessage = span.StatusMessage
 	v2span.DroppedAttributesCount = span.DroppedAttributesCount
