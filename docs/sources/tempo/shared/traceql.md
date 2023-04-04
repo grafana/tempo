@@ -1,6 +1,7 @@
 # TraceQL
 
-Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo. Currently, TraceQL query can select traces based on the following:
+Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo.
+Currently, TraceQL query can select traces based on the following:
 
 - Span and resource attributes, timing, and duration
 - Basic aggregates: `count()` and `avg()`
@@ -12,17 +13,23 @@ Read the blog post, "[Get to know TraceQL](/blog/2023/02/07/get-to-know-traceql-
 For information on where the language is headed, see [future work]({{< relref "/docs/tempo/latest/traceql/architecture" >}}).
 The TraceQL language uses similar syntax and semantics as [PromQL](/blog/2020/02/04/introduction-to-promql-the-prometheus-query-language/) and [LogQL]({{< relref "/docs/loki/latest/logql" >}}), where possible.
 
-TraceQL requires Tempo’s Parquet columnar format to be enabled. For information on enabling Parquet, refer to the [Apache Parquet backend]({{< relref "/docs/tempo/latest/configuration/parquet" >}}) Tempo documentation.
+TraceQL requires Tempo’s Parquet columnar format to be enabled.
+For information on enabling Parquet, refer to the [Apache Parquet backend]({{< relref "/docs/tempo/latest/configuration/parquet" >}}) Tempo documentation.
 
 ## TraceQL query editor
 
-With Tempo 2.0, you can use the TraceQL query editor in the Tempo data source to build queries and drill-down into result sets. The editor is available in Grafana’s Explore interface. For more information, refer to [TraceQL query editor]({{< relref "/docs/tempo/latest/traceql/query-editor" >}}).
+With Tempo 2.0, you can use the TraceQL query editor in the Tempo data source to build queries and drill-down into result sets.
+The editor is available in Grafana’s Explore interface.
+For more information, refer to [TraceQL query editor]({{< relref "/docs/tempo/latest/traceql/query-editor" >}}).
 
 <p align="center"><img src="assets/query-editor-http-method.png" alt="Query editor showing request for http.method" /></p>
 
 ## Construct a TraceQL query
 
-In TraceQL, a query is an expression that is evaluated on one trace at a time. The query is structured as a set of chained expressions (a pipeline). Each expression in the pipeline selects or discards spansets from being included in the results set. For example:
+In TraceQL, a query is an expression that is evaluated on one trace at a time.
+The query is structured as a set of chained expressions (a pipeline).
+Each expression in the pipeline selects or discards spansets from being included in the results set.
+For example:
 
 ```
 { span.http.status_code >= 200 && span.http.status_code < 300 } | count() > 2
@@ -33,19 +40,24 @@ In this example, the search reduces traces to those spans where:
 * `http.status_code` is in the range of `200` to `299` and
 * the number of matching spans within a trace is greater than two.
 
-Queries select sets of spans and filter them through a pipeline of aggregators and conditions. If, for a given trace, this pipeline produces a spanset then it is included in the results of the query.
+Queries select sets of spans and filter them through a pipeline of aggregators and conditions.
+If, for a given trace, this pipeline produces a spanset then it is included in the results of the query.
 
 
 ## Selecting spans
 
-TraceQL differentiates between two types of span data: intrinsics, which are fundamental to spans, and attributes, which are customizable key-value pairs. You can use intrinsics and attributes to build filters and select spans.
+TraceQL differentiates between two types of span data: intrinsics, which are fundamental to spans, and attributes, which are customizable key-value pairs.
+You can use intrinsics and attributes to build filters and select spans.
 
-In TraceQL, curly brackets `{}` always select a set of spans from the current trace. They are commonly paired with a condition to reduce the spans being passed in.
+In TraceQL, curly brackets `{}` always select a set of spans from the current trace.
+They are commonly paired with a condition to reduce the spans being passed in.
 
 
 ### Intrinsic fields
 
-Intrinsic fields are fundamental to spans. These fields can be referenced when selecting spans. Note that custom attributes are prefixed with `.`, `span.` or `resource.` whereas intrinsics are typed directly.
+Intrinsic fields are fundamental to spans.
+These fields can be referenced when selecting spans.
+Note that custom attributes are prefixed with `.`, `span.` or `resource.` whereas intrinsics are typed directly.
 
 The following table shows the current intrinsic fields:
 
@@ -58,13 +70,17 @@ The following table shows the current intrinsic fields:
 
 ### Attribute fields
 
-There are two types of attributes: span attributes and resource attributes. By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
+There are two types of attributes: span attributes and resource attributes.
+By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
 
 <p align="center"><img src="assets/span-resource-attributes.png" alt="Example of span and resource  attributes." /></p>
 
-Attribute fields are derived from the span and can be customized. Process and span attribute types are [defined by the attribute itself](https://github.com/open-telemetry/opentelemetry-proto/blob/b43e9b18b76abf3ee040164b55b9c355217151f3/opentelemetry/proto/common/v1/common.proto#L30-L38), whereas intrinsic fields have a built-in type. You can refer to dynamic attributes (also known as tags) on the span or the span's resource.
+Attribute fields are derived from the span and can be customized.
+Process and span attribute types are [defined by the attribute itself](https://github.com/open-telemetry/opentelemetry-proto/blob/b43e9b18b76abf3ee040164b55b9c355217151f3/opentelemetry/proto/common/v1/common.proto#L30-L38), whereas intrinsic fields have a built-in type.
+You can refer to dynamic attributes (also known as tags) on the span or the span's resource.
 
-Attributes in a query start with a span scope (for example, `span.http`) or resource scope (for example, `resource.namespace`)  depending on what you want to query. This provides significant performance benefits because it allows Tempo to only scan the data you are interested in.
+Attributes in a query start with a span scope (for example, `span.http`) or resource scope (for example, `resource.namespace`)  depending on what you want to query.
+This provides significant performance benefits because it allows Tempo to only scan the data you are interested in.
 
 To find traces with the `GET HTTP` method, your query could look like this:
 
@@ -87,7 +103,9 @@ Find any database connection string that goes to a Postgres or MySQL database:
 
 ### Unscoped attribute fields
 
-Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource. When possible, use scoped instead of unscoped attributes. Scoped attributes provide faster query results.
+Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource.
+When possible, use scoped instead of unscoped attributes.
+Scoped attributes provide faster query results.
 
 For example, to find traces with an attribute of `sla` set to `critical`:
 ```
@@ -108,7 +126,8 @@ The implemented comparison operators are:
 - `<=` (less than or equal to)
 - `=~` (regular expression)
 
-TraceQL uses Golang regular expressions. Online regular expression testing sites like https://regex101.com/ are convenient to validate regular expressions used in TraceQL queries.
+TraceQL uses Golang regular expressions.
+Online regular expression testing sites like https://regex101.com/ are convenient to validate regular expressions used in TraceQL queries.
 
 For example, to find all traces where an `http.status_code` attribute in a span are greater than `400` but less than equal to `500`:
 
@@ -124,7 +143,8 @@ Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
 
 ### Field expressions
 
-Fields can also be combined in various ways to allow more flexible search criteria. A field expression is a composite of multiple fields that define all of the criteria that must be matched to return results.
+Fields can also be combined in various ways to allow more flexible search criteria.
+A field expression is a composite of multiple fields that define all of the criteria that must be matched to return results.
 
 #### Examples
 
@@ -140,7 +160,8 @@ Find traces where a `DELETE` HTTP method was used and the instrinsic span status
 { span.http.method = "DELETE" && status != ok }
 ```
 
-Both expressions require all conditions to be true on the same span. The entire expression inside of a pair of `{}` must be evaluated as true on a single span for it to be included in the result set.
+Both expressions require all conditions to be true on the same span.
+The entire expression inside of a pair of `{}` must be evaluated as true on a single span for it to be included in the result set.
 
 In the preceding example, if a span includes an `.http.method` attribute set to `DELETE` where the span also includes a `status` attribute set to `ok`, the trace would not be included in the returned results.
 
@@ -168,7 +189,9 @@ The second expression returns no traces because it's impossible for a single spa
 
 ## Aggregators
 
-So far, all of the example queries expressions have been about individual spans. You can use aggregate functions to ask questions about a set of spans. These currently consist of:
+So far, all of the example queries expressions have been about individual spans.
+You can use aggregate functions to ask questions about a set of spans.
+These currently consist of:
 
 - `count` - The count of spans in the spanset.
 - `avg` - The average of a given numeric attribute or intrinsic for a spanset.
@@ -176,7 +199,8 @@ So far, all of the example queries expressions have been about individual spans.
 - `min` - The min value of a given numeric attribute or intrinsic for a spanset.
 - `sum` - The sum value of a given numeric attribute or intrinsic for a spanset.
 
-Aggregate functions allow you to carry out operations on matching results to further refine the traces returned. For more information on planned future work, refer to [How TraceQL works]({{< relref "/docs/tempo/latest/traceql/architecture" >}}).
+Aggregate functions allow you to carry out operations on matching results to further refine the traces returned.
+For more information on planned future work, refer to [How TraceQL works]({{< relref "/docs/tempo/latest/traceql/architecture" >}}).
 
 For example, to find traces where the total number of spans is greater than `10`:
 
@@ -198,7 +222,8 @@ For example, find traces that have more than 3 spans with an attribute `http.sta
 
 ## Arithmetic
 
-TraceQL supports arbitrary arithmetic in your queries. This can be useful to make queries more human readable:
+TraceQL supports arbitrary arithmetic in your queries.
+This can be useful to make queries more human readable:
 ```
 { span.http.request_content_length > 10 * 1024 * 1024 }
 ```
@@ -255,7 +280,8 @@ This example finds all traces on the operation `POST /api/orders` that return wi
 ### Find traces that have a particular behavior
 
 You can use query filtering on multiple spans of the traces.
-This example locates all the traces of the `GET /api/products/{id}` operation that access a database. It's a convenient request to identify abnormal access ratios to the database caused by caching problems.
+This example locates all the traces of the `GET /api/products/{id}` operation that access a database.
+It's a convenient request to identify abnormal access ratios to the database caused by caching problems.
 
 ```
 {span.service.name="frontend" && name = "GET /api/products/{id}"} && {.db.system="postgresql"}
@@ -278,7 +304,9 @@ Find any trace with a `deployment.environment` attribute set to `production` and
 { .deployment.environment = "production" && .http.status_code = 200 }
 ```
 
-Find any trace where spans within it have a `deployment.environment` resource attribute set to `production` and a span `http.status_code` attribute set to `200`. In previous examples, all conditions had to be true on one span. These conditions can be true on either different spans or the same spans.
+Find any trace where spans within it have a `deployment.environment` resource attribute set to `production` and a span `http.status_code` attribute set to `200`.
+In previous examples, all conditions had to be true on one span.
+These conditions can be true on either different spans or the same spans.
 
 ```
 { resource.deployment.environment = "production" } && { span.http.status_code = 200 }
