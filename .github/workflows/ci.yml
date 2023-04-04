@@ -204,4 +204,4 @@ jobs:
       - name: Build Website
         run: |
           cd tempo/docs/
-          ./make-docs tempo loki
+          WEBSITE_EXEC='make hugo' ./make-docs tempo loki
