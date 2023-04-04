@@ -25,8 +25,6 @@ import (
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -62,10 +60,10 @@ func (m *mockOverrides) MaxBytesPerTraceForTenant(_ string) int {
 }
 
 func TestCompactionRoundtrip(t *testing.T) {
-	testEncodings := []string{v2.VersionString, vparquet.VersionString}
-	for _, enc := range testEncodings {
-		t.Run(enc, func(t *testing.T) {
-			testCompactionRoundtrip(t, enc)
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		t.Run(version, func(t *testing.T) {
+			testCompactionRoundtrip(t, version)
 		})
 	}
 }
@@ -205,10 +203,10 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 }
 
 func TestSameIDCompaction(t *testing.T) {
-	testEncodings := []string{v2.VersionString, vparquet.VersionString}
-	for _, enc := range testEncodings {
-		t.Run(enc, func(t *testing.T) {
-			testSameIDCompaction(t, enc)
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		t.Run(version, func(t *testing.T) {
+			testSameIDCompaction(t, version)
 		})
 	}
 }
@@ -563,11 +561,10 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 }
 
 func TestCompactionHonorsBlockStartEndTimes(t *testing.T) {
-
-	testEncodings := []string{v2.VersionString, vparquet.VersionString}
-	for _, enc := range testEncodings {
-		t.Run(enc, func(t *testing.T) {
-			testCompactionHonorsBlockStartEndTimes(t, enc)
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		t.Run(version, func(t *testing.T) {
+			testCompactionHonorsBlockStartEndTimes(t, version)
 		})
 	}
 }
@@ -694,10 +691,10 @@ func makeTraceID(i int, j int) []byte {
 }
 
 func BenchmarkCompaction(b *testing.B) {
-	testEncodings := []string{v2.VersionString, vparquet.VersionString}
-	for _, enc := range testEncodings {
-		b.Run(enc, func(b *testing.B) {
-			benchmarkCompaction(b, enc)
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		b.Run(version, func(b *testing.B) {
+			benchmarkCompaction(b, version)
 		})
 	}
 }
