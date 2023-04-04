@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-kit/log" //nolint:all
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/model"
@@ -300,6 +301,9 @@ func testFetch(t *testing.T, e encoding.VersionedEncoding) {
 			expectedID := ids[i]
 			require.NotNil(t, ss)
 			require.Equal(t, ss.TraceID, expectedID)
+
+			// ensure Bytes callback is set and correct
+			assert.Equal(t, block.FlushedSize(), resp.Bytes())
 
 			// confirm no more matches
 			ss, err = resp.Results.Next(ctx)

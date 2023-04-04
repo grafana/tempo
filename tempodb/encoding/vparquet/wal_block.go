@@ -220,6 +220,7 @@ func (w *walBlockFlush) file() (*pageFile, error) {
 		return nil, fmt.Errorf("error getting file info: %w", err)
 	}
 	sz := info.Size()
+	// OpenFile takes io.ReaderAt as first arg., we can actually wrap it???
 	pf, err := parquet.OpenFile(file, sz, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true), parquet.FileSchema(walSchema))
 	if err != nil {
 		return nil, fmt.Errorf("error opening parquet file: %w", err)
@@ -549,12 +550,16 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 		defer file.Close()
 		pf := file.parquetFile
 
+		// same code is used for WAL Search
 		r, err := searchParquetFile(ctx, pf, req, pf.RowGroups())
 		if err != nil {
 			return nil, fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
 
 		results.Traces = append(results.Traces, r.Traces...)
+		// we are already setting InspectedBytes here??
+		// FIXME: InspectedBytes is set to total wal block size, which is incorrect.
+		// we only read some pages when searching, so this is overestimating the size.
 		results.Metrics.InspectedBytes += uint64(pf.Size())
 		results.Metrics.InspectedTraces += uint32(pf.NumRows())
 		if len(results.Traces) >= int(req.Limit) {
@@ -648,6 +653,10 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 	return traceql.FetchSpansResponse{
 		Results: &mergeSpansetIterator{
 			iters: iters,
+		},
+		Bytes: func() uint64 {
+			// FIXME: report the correct size of data reading during Fetch Call
+			return 0
 		},
 	}, nil
 }
