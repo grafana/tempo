@@ -187,7 +187,21 @@ jobs:
     name: Build technical documentation
     runs-on: ubuntu-latest
     steps:
-      - name: Check out code
+      - name: Checkout Tempo
         uses: actions/checkout@v3
+        with:
+          path: tempo
+      - name: Checkout Loki
+        uses: actions/checkout@v3
+        with:
+          repository: grafana/loki
+          path: loki
+      - name: Fetch make-docs script
+        run: |
+          cd tempo/docs
+          curl -s -LO https://raw.githubusercontent.com/grafana/writers-toolkit/main/scripts/make-docs
+          chmod +x make-docs
       - name: Build Website
-        run: docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod
+        run: |
+          cd tempo/docs/
+          ./make-docs tempo loki
