@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/atomic"
@@ -155,11 +156,14 @@ func (p *Poller) Do() (PerTenant, PerTenantCompacted, error) {
 }
 
 func (p *Poller) pollTenantAndCreateIndex(ctx context.Context, tenantID string) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "poll tenant index")
+	defer span.Finish()
+
 	// are we a tenant index builder?
 	if !p.buildTenantIndex(tenantID) {
 		metricTenantIndexBuilder.WithLabelValues(tenantID).Set(0)
 
-		i, err := p.reader.TenantIndex(ctx, tenantID)
+		i, err := p.reader.TenantIndex(derivedCtx, tenantID)
 		err = p.tenantIndexPollError(i, err)
 		if err == nil {
 			// success! return the retrieved index
@@ -182,14 +186,14 @@ func (p *Poller) pollTenantAndCreateIndex(ctx context.Context, tenantID string) 
 	// if we're here then we have been configured to be a tenant index builder OR there was a failure to pull
 	// the tenant index and we are configured to fall back to polling
 	metricTenantIndexBuilder.WithLabelValues(tenantID).Set(1)
-	blocklist, compactedBlocklist, err := p.pollTenantBlocks(ctx, tenantID)
+	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// everything is happy, write this tenant index
 	level.Info(p.logger).Log("msg", "writing tenant index", "tenant", tenantID, "metas", len(blocklist), "compactedMetas", len(compactedBlocklist))
-	err = p.writer.WriteTenantIndex(ctx, tenantID, blocklist, compactedBlocklist)
+	err = p.writer.WriteTenantIndex(derivedCtx, tenantID, blocklist, compactedBlocklist)
 	if err != nil {
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 		level.Error(p.logger).Log("msg", "failed to write tenant index", "tenant", tenantID, "err", err)

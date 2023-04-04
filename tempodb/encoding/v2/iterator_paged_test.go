@@ -3,9 +3,9 @@ package v2
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"io"
-	"math/rand"
 	"strconv"
 	"testing"
 

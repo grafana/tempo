@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grafana/tempo/tempodb/search"
-
 	"github.com/go-kit/log/level"
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/ring"
@@ -284,7 +282,7 @@ func (i *Ingester) getOrCreateInstance(instanceID string) (*instance, error) {
 	inst, ok = i.instances[instanceID]
 	if !ok {
 		var err error
-		inst, err = newInstance(instanceID, i.limiter, i.store, i.local, i.cfg.UseFlatbufferSearch)
+		inst, err = newInstance(instanceID, i.limiter, i.store, i.local)
 		if err != nil {
 			return nil, err
 		}
@@ -337,30 +335,6 @@ func (i *Ingester) replayWal() error {
 		return fmt.Errorf("fatal error replaying wal: %w", err)
 	}
 
-	searchBlocks, err := search.RescanBlocks(i.store.WAL().GetFilepath())
-	if err != nil {
-		return fmt.Errorf("fatal error replaying search wal: %w", err)
-	}
-
-	// clear any searchBlock that does not have a matching wal block
-	for j := len(searchBlocks) - 1; j >= 0; j-- {
-		clear := true
-		for _, tracesBlock := range blocks {
-			if searchBlocks[j].BlockID() == tracesBlock.BlockMeta().BlockID {
-				clear = false
-				break
-			}
-		}
-
-		if clear {
-			err := searchBlocks[j].Clear()
-			if err != nil { // just log the error
-				level.Warn(log.Logger).Log("msg", "error clearing search WAL file", "blockID", searchBlocks[j].BlockID, "err", err)
-			}
-			searchBlocks = append(searchBlocks[:j], searchBlocks[j+1:]...)
-		}
-	}
-
 	for _, b := range blocks {
 		tenantID := b.BlockMeta().TenantID
 
@@ -379,15 +353,7 @@ func (i *Ingester) replayWal() error {
 		if err != nil {
 			return err
 		}
-
-		var searchWALBlock *search.StreamingSearchBlock
-		for _, s := range searchBlocks {
-			if b.BlockMeta().BlockID == s.BlockID() {
-				searchWALBlock = s
-				break
-			}
-		}
-		instance.AddCompletingBlock(b, searchWALBlock)
+		instance.AddCompletingBlock(b)
 
 		i.enqueue(&flushOp{
 			kind:    opKindComplete,

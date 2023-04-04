@@ -40,6 +40,88 @@ func TestCombiner(t *testing.T) {
 			traceB:        &Trace{},
 			expectedTotal: 0,
 		},
+		// root meta from second overrides empty first
+		{
+			traceA: &Trace{
+				TraceID: []byte{0x00, 0x01},
+			},
+			traceB: &Trace{
+				TraceID:           []byte{0x00, 0x01},
+				RootServiceName:   "serviceNameB",
+				RootSpanName:      "spanNameB",
+				StartTimeUnixNano: 10,
+				EndTimeUnixNano:   20,
+				DurationNanos:     10,
+			},
+			expectedTrace: &Trace{
+				TraceID:           []byte{0x00, 0x01},
+				RootServiceName:   "serviceNameB",
+				RootSpanName:      "spanNameB",
+				StartTimeUnixNano: 10,
+				EndTimeUnixNano:   20,
+				DurationNanos:     10,
+			},
+		},
+		// if both set first root name wins
+		{
+			traceA: &Trace{
+				TraceID:         []byte{0x00, 0x01},
+				RootServiceName: "serviceNameA",
+				RootSpanName:    "spanNameA",
+			},
+			traceB: &Trace{
+				TraceID:         []byte{0x00, 0x01},
+				RootServiceName: "serviceNameB",
+				RootSpanName:    "spanNameB",
+			},
+			expectedTrace: &Trace{
+				TraceID:         []byte{0x00, 0x01},
+				RootServiceName: "serviceNameA",
+				RootSpanName:    "spanNameA",
+			},
+		},
+		// second trace start/end override
+		{
+			traceA: &Trace{
+				TraceID:           []byte{0x00, 0x01},
+				StartTimeUnixNano: 10,
+				EndTimeUnixNano:   20,
+				DurationNanos:     10,
+			},
+			traceB: &Trace{
+				TraceID:           []byte{0x00, 0x01},
+				StartTimeUnixNano: 5,
+				EndTimeUnixNano:   25,
+				DurationNanos:     20,
+			},
+			expectedTrace: &Trace{
+				TraceID:           []byte{0x00, 0x01},
+				StartTimeUnixNano: 5,
+				EndTimeUnixNano:   25,
+				DurationNanos:     20,
+			},
+		},
+		// second trace start/end ignored
+		{
+			traceA: &Trace{
+				TraceID:           []byte{0x00, 0x01},
+				StartTimeUnixNano: 10,
+				EndTimeUnixNano:   20,
+				DurationNanos:     10,
+			},
+			traceB: &Trace{
+				TraceID:           []byte{0x00, 0x01},
+				StartTimeUnixNano: 12,
+				EndTimeUnixNano:   18,
+				DurationNanos:     6,
+			},
+			expectedTrace: &Trace{
+				TraceID:           []byte{0x00, 0x01},
+				StartTimeUnixNano: 10,
+				EndTimeUnixNano:   20,
+				DurationNanos:     10,
+			},
+		},
 		{
 			traceA: &Trace{
 				TraceID:         []byte{0x00, 0x01},

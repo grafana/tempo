@@ -2,6 +2,7 @@ package ingester
 
 import (
 	"context"
+	crand "crypto/rand"
 	"encoding/binary"
 	"math/rand"
 	"testing"
@@ -88,7 +89,7 @@ func TestInstanceFind(t *testing.T) {
 		traceBytes, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(traces[j], 0, 0)
 		require.NoError(t, err)
 
-		err = i.PushBytes(context.Background(), ids[j], traceBytes, nil)
+		err = i.PushBytes(context.Background(), ids[j], traceBytes)
 		require.NoError(t, err)
 	}
 
@@ -127,14 +128,15 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 
 	for j := 0; j < numTraces; j++ {
 		id := make([]byte, 16)
-		rand.Read(id)
+		_, err := crand.Read(id)
+		require.NoError(t, err)
 
 		testTrace := test.MakeTrace(10, id)
 		trace.SortTrace(testTrace)
 		traceBytes, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(testTrace, 0, 0)
 		require.NoError(t, err)
 
-		err = i.PushBytes(context.Background(), id, traceBytes, nil)
+		err = i.PushBytes(context.Background(), id, traceBytes)
 		require.NoError(t, err)
 		require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
@@ -307,14 +309,18 @@ func TestInstanceLimits(t *testing.T) {
 
 func TestInstanceCutCompleteTraces(t *testing.T) {
 	id := make([]byte, 16)
-	rand.Read(id)
+	_, err := crand.Read(id)
+	require.NoError(t, err)
+
 	pastTrace := &liveTrace{
 		traceID:    id,
 		lastAppend: time.Now().Add(-time.Hour),
 	}
 
 	id = make([]byte, 16)
-	rand.Read(id)
+	_, err = crand.Read(id)
+	require.NoError(t, err)
+
 	nowTrace := &liveTrace{
 		traceID:    id,
 		lastAppend: time.Now().Add(time.Hour),
@@ -431,7 +437,7 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 				tr := test.MakeTrace(1, uuid.Nil[:])
 				bytes, err := dec.PrepareForWrite(tr, 0, 0)
 				require.NoError(t, err)
-				err = instance.PushBytes(context.Background(), uuid.Nil[:], bytes, nil)
+				err = instance.PushBytes(context.Background(), uuid.Nil[:], bytes)
 				require.NoError(t, err)
 			}
 
@@ -543,7 +549,7 @@ func TestSortByteSlices(t *testing.T) {
 	}
 	for i := range traceBytes.Traces {
 		traceBytes.Traces[i] = make([]byte, rand.Intn(10))
-		_, err := rand.Read(traceBytes.Traces[i])
+		_, err := crand.Read(traceBytes.Traces[i])
 		require.NoError(t, err)
 	}
 

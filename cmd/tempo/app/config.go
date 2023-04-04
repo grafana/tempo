@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
+	internalserver "github.com/grafana/tempo/pkg/server"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
@@ -26,13 +27,15 @@ import (
 
 // Config is the root config for App.
 type Config struct {
-	Target              string `yaml:"target,omitempty"`
-	AuthEnabled         bool   `yaml:"auth_enabled,omitempty"`
-	MultitenancyEnabled bool   `yaml:"multitenancy_enabled,omitempty"`
-	HTTPAPIPrefix       string `yaml:"http_api_prefix"`
-	UseOTelTracer       bool   `yaml:"use_otel_tracer,omitempty"`
+	Target                 string `yaml:"target,omitempty"`
+	AuthEnabled            bool   `yaml:"auth_enabled,omitempty"`
+	MultitenancyEnabled    bool   `yaml:"multitenancy_enabled,omitempty"`
+	HTTPAPIPrefix          string `yaml:"http_api_prefix"`
+	UseOTelTracer          bool   `yaml:"use_otel_tracer,omitempty"`
+	EnableGoRuntimeMetrics bool   `yaml:"enable_go_runtime_metrics,omitempty"`
 
 	Server          server.Config           `yaml:"server,omitempty"`
+	InternalServer  internalserver.Config   `yaml:"internal_server,omitempty"`
 	Distributor     distributor.Config      `yaml:"distributor,omitempty"`
 	IngesterClient  ingester_client.Config  `yaml:"ingester_client,omitempty"`
 	GeneratorClient generator_client.Config `yaml:"metrics_generator_client,omitempty"`
@@ -63,10 +66,14 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.BoolVar(&c.MultitenancyEnabled, "multitenancy.enabled", false, "Set to true to enable multitenancy.")
 	f.StringVar(&c.HTTPAPIPrefix, "http-api-prefix", "", "String prefix for all http api endpoints.")
 	f.BoolVar(&c.UseOTelTracer, "use-otel-tracer", false, "Set to true to replace the OpenTracing tracer with the OpenTelemetry tracer")
+	f.BoolVar(&c.EnableGoRuntimeMetrics, "enable-go-runtime-metrics", false, "Set to true to enable all Go runtime metrics")
 
 	// Server settings
 	flagext.DefaultValues(&c.Server)
 	c.Server.LogLevel.RegisterFlags(f)
+
+	// Internal server settings
+	flagext.DefaultValues(&c.InternalServer)
 
 	// Increase max message size to 16MB
 	c.Server.GPRCServerMaxRecvMsgSize = 16 * 1024 * 1024

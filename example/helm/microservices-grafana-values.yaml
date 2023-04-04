@@ -1,8 +1,19 @@
+grafana.ini:
+  server:
+    domain: grafana.cluster.local
+    root_url: '%(protocol)s://%(domain)s/grafana'
+    serve_from_sub_path: true
+ingress:
+  enabled: true
+  hosts:
+    - 'localhost'
+  path: '/grafana'
+
 env:
   GF_AUTH_ANONYMOUS_ENABLED: true
   GF_AUTH_ANONYMOUS_ORG_ROLE: 'Admin'
   GF_AUTH_DISABLE_LOGIN_FORM: true
-  GF_FEATURE_TOGGLES_ENABLE: tempoSearch tempoBackendSearch
+  GF_FEATURE_TOGGLES_ENABLE: tempoSearch,tempoServiceGraph,tempoApmTable,traceqlEditor
 
 datasources:
   datasources.yaml:
@@ -13,7 +24,7 @@ datasources:
         type: tempo
         access: proxy
         orgId: 1
-        url: http://tempo-tempo-distributed-query-frontend:3100
+        url: http://tempo-gateway
         basicAuth: false
         isDefault: true
         version: 1

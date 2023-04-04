@@ -113,11 +113,13 @@ func TestCountSpans(t *testing.T) {
 	b1 := encode(t, t1)
 	b2 := encode(t, t2)
 
-	assert.Equal(t, t1ExpectedSpans, countSpans(model.CurrentEncoding, b1))
-	assert.Equal(t, t2ExpectedSpans, countSpans(model.CurrentEncoding, b2))
-	assert.Equal(t,
-		t1ExpectedSpans+t2ExpectedSpans,
-		countSpans(model.CurrentEncoding, b1, b2))
+	b1Total := countSpans(model.CurrentEncoding, b1)
+	b2Total := countSpans(model.CurrentEncoding, b2)
+	total := countSpans(model.CurrentEncoding, b1, b2)
+
+	assert.Equal(t, t1ExpectedSpans, b1Total)
+	assert.Equal(t, t2ExpectedSpans, b2Total)
+	assert.Equal(t, t1ExpectedSpans+t2ExpectedSpans, total)
 }
 
 func encode(t *testing.T, tr *tempopb.Trace) []byte {

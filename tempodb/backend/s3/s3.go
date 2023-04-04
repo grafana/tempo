@@ -114,12 +114,17 @@ func getPutObjectOptions(rw *readerWriter) minio.PutObjectOptions {
 
 // Write implements backend.Writer
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, _ bool) error {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "s3.Write")
+	defer span.Finish()
+
+	span.SetTag("object", name)
+
 	objName := backend.ObjectFileName(keypath, name)
 
 	putObjectOptions := getPutObjectOptions(rw)
 
 	info, err := rw.core.Client.PutObject(
-		ctx,
+		derivedCtx,
 		rw.cfg.Bucket,
 		objName,
 		data,
@@ -127,6 +132,7 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 		putObjectOptions,
 	)
 	if err != nil {
+		span.SetTag("error", true)
 		return errors.Wrapf(err, "error writing object to s3 backend, object %s", objName)
 	}
 	level.Debug(rw.logger).Log("msg", "object uploaded to s3", "objectName", objName, "size", info.Size)
@@ -247,7 +253,7 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 
 // Read implements backend.Reader
 func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "Read")
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "s3.Read")
 	defer span.Finish()
 
 	b, err := rw.readAll(derivedCtx, backend.ObjectFileName(keypath, name))
@@ -343,6 +349,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 			Value: credentials.Value{
 				AccessKeyID:     cfg.AccessKey,
 				SecretAccessKey: cfg.SecretKey.String(),
+				SessionToken:    cfg.SessionToken.String(),
 			},
 		}),
 		wrapCredentialsProvider(&credentials.EnvMinio{}),
@@ -385,6 +392,8 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 
 	if cfg.ForcePathStyle {
 		opts.BucketLookup = minio.BucketLookupPath
+	} else {
+		opts.BucketLookup = minio.BucketLookupType(cfg.BucketLookupType)
 	}
 
 	return minio.NewCore(cfg.Endpoint, opts)

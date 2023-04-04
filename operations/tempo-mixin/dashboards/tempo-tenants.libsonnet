@@ -22,8 +22,7 @@ dashboard_utils {
   grafanaDashboards+: {
     'tempo-tenants.json':
       $.dashboard('Tempo / Tenants')
-      .addTemplate('cluster', 'tempo_build_info', $._config.per_cluster_label)
-      .addTemplate('namespace', 'tempo_build_info{' + $._config.per_cluster_label + "=~'$cluster'}", 'namespace')
+      .addClusterSelectorTemplates()
       .addTemplate('tenant', 'tempodb_blocklist_length{%s}' % $.jobMatcher($._config.jobs.compactor), 'tenant')
       .addRow(
         g.row('Tenant info')
@@ -133,7 +132,7 @@ dashboard_utils {
         .addPanel(
           $.panel('Bytes/s') +
           $.queryPanel(
-            'sum(tempo_metrics_generator_bytes_received_total{%s,tenant="$tenant"})' % $.jobMatcher($._config.jobs.metrics_generator),
+            'sum(rate(tempo_metrics_generator_bytes_received_total{%s,tenant="$tenant"}[$__rate_interval]))' % $.jobMatcher($._config.jobs.metrics_generator),
             'rate',
           ) + {
             legend: { show: false },

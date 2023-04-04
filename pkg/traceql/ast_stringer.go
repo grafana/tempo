@@ -81,6 +81,8 @@ func (n Static) EncodeToString(quotes bool) string {
 		return n.D.String()
 	case TypeStatus:
 		return n.Status.String()
+	case TypeKind:
+		return n.Kind.String()
 	}
 
 	return fmt.Sprintf("static(%d)", n.Type)

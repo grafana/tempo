@@ -59,19 +59,20 @@ var (
 type App struct {
 	cfg Config
 
-	Server        *server.Server
-	ring          *ring.Ring
-	generatorRing *ring.Ring
-	overrides     *overrides.Overrides
-	distributor   *distributor.Distributor
-	querier       *querier.Querier
-	frontend      *frontend_v1.Frontend
-	compactor     *compactor.Compactor
-	ingester      *ingester.Ingester
-	generator     *generator.Generator
-	store         storage.Store
-	usageReport   *usagestats.Reporter
-	MemberlistKV  *memberlist.KVInitService
+	Server         *server.Server
+	InternalServer *server.Server
+	ring           *ring.Ring
+	generatorRing  *ring.Ring
+	overrides      *overrides.Overrides
+	distributor    *distributor.Distributor
+	querier        *querier.Querier
+	frontend       *frontend_v1.Frontend
+	compactor      *compactor.Compactor
+	ingester       *ingester.Ingester
+	generator      *generator.Generator
+	store          storage.Store
+	usageReport    *usagestats.Reporter
+	MemberlistKV   *memberlist.KVInitService
 
 	HTTPAuthMiddleware       middleware.Interface
 	TracesConsumerMiddleware receiver.Middleware
@@ -174,6 +175,10 @@ func (t *App) Run() error {
 	}
 
 	// before starting servers, register /ready handler and gRPC health check service.
+	if t.cfg.InternalServer.Enable {
+		t.InternalServer.HTTP.Path("/ready").Methods("GET").Handler(t.readyHandler(sm))
+	}
+
 	t.Server.HTTP.Path("/ready").Handler(t.readyHandler(sm))
 	t.Server.HTTP.Path("/status").Handler(t.statusHandler()).Methods("GET")
 	t.Server.HTTP.Path("/status/{endpoint}").Handler(t.statusHandler()).Methods("GET")

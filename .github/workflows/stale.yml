@@ -8,6 +8,8 @@ permissions:
   pull-requests: write
 jobs:
   stale:
+    # only run in grafana/tempo.
+    if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/stale@v6.0.1

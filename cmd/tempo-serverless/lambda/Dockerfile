@@ -13,7 +13,7 @@
 #
 # build the lambda and retrive the lambda-local-proxy
 #
-FROM golang:1.19-buster AS build
+FROM golang:1.20-buster AS build
 
 # copy in the lambda. todo: build in container
 COPY lambda /

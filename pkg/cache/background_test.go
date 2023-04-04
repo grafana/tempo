@@ -2,6 +2,7 @@ package cache_test
 
 import (
 	"context"
+	crand "crypto/rand"
 	"math/rand"
 	"strconv"
 	"testing"
@@ -32,7 +33,10 @@ func fillCache(cache cache.Cache) ([]string, [][]byte) {
 	for i := 0; i < 111; i++ {
 
 		buf := make([]byte, rand.Intn(100))
-		rand.Read(buf)
+		_, err := crand.Read(buf)
+		if err != nil {
+			panic(err)
+		}
 
 		keys = append(keys, strconv.Itoa(i))
 		bufs = append(bufs, buf)

@@ -1,7 +1,7 @@
 package v2
 
 import (
-	"math/rand"
+	crand "crypto/rand"
 	"testing"
 
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -39,7 +39,7 @@ func benchmarkAppender(b *testing.B, appendRecords int) {
 
 		for j := 0; j < appendRecords; j++ {
 			id := make([]byte, 16)
-			_, err := rand.Read(id)
+			_, err := crand.Read(id)
 			require.NoError(b, err)
 
 			err = appender.Append(id, nil)

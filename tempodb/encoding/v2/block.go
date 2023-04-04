@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pkg/errors"
+
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/pkg/errors"
 )
 
 // writeBlockMeta writes the bloom filter, meta and index to the passed in backend.Writer
@@ -46,29 +47,26 @@ func appendBlockData(ctx context.Context, w backend.Writer, meta *backend.BlockM
 }
 
 // CopyBlock copies a block from one backend to another.   It is done at a low level, all encoding/formatting is preserved.
-func CopyBlock(ctx context.Context, meta *backend.BlockMeta, src backend.Reader, dest backend.Writer) error {
-	blockID := meta.BlockID
-	tenantID := meta.TenantID
-
+func CopyBlock(ctx context.Context, srcMeta, destMeta *backend.BlockMeta, src backend.Reader, dest backend.Writer) error {
 	// Copy streams, efficient but can't cache.
 	copyStream := func(name string) error {
-		reader, size, err := src.StreamReader(ctx, name, blockID, tenantID)
+		reader, size, err := src.StreamReader(ctx, name, srcMeta.BlockID, srcMeta.TenantID)
 		if err != nil {
 			return errors.Wrapf(err, "error reading %s", name)
 		}
 		defer reader.Close()
 
-		return dest.StreamWriter(ctx, name, blockID, tenantID, reader, size)
+		return dest.StreamWriter(ctx, name, destMeta.BlockID, destMeta.TenantID, reader, size)
 	}
 
 	// Read entire object and attempt to cache
 	copy := func(name string) error {
-		b, err := src.Read(ctx, name, blockID, tenantID, true)
+		b, err := src.Read(ctx, name, srcMeta.BlockID, srcMeta.TenantID, true)
 		if err != nil {
 			return errors.Wrapf(err, "error reading %s", name)
 		}
 
-		return dest.Write(ctx, name, blockID, tenantID, b, true)
+		return dest.Write(ctx, name, destMeta.BlockID, destMeta.TenantID, b, true)
 	}
 
 	// Data
@@ -78,7 +76,7 @@ func CopyBlock(ctx context.Context, meta *backend.BlockMeta, src backend.Reader,
 	}
 
 	// Bloom
-	for i := 0; i < common.ValidateShardCount(int(meta.BloomShardCount)); i++ {
+	for i := 0; i < common.ValidateShardCount(int(srcMeta.BloomShardCount)); i++ {
 		err = copy(common.BloomName(i))
 		if err != nil {
 			return err
@@ -92,6 +90,6 @@ func CopyBlock(ctx context.Context, meta *backend.BlockMeta, src backend.Reader,
 	}
 
 	// Meta
-	err = dest.WriteBlockMeta(ctx, meta)
+	err = dest.WriteBlockMeta(ctx, destMeta)
 	return err
 }

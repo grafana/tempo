@@ -2,6 +2,7 @@ package v2
 
 import (
 	"context"
+	crand "crypto/rand"
 	"encoding/binary"
 	"io"
 	"math/rand"
@@ -196,7 +197,7 @@ func TestPartialBlock(t *testing.T) {
 	// append garbage data
 	v2Block := block.(*walBlock)
 	garbo := make([]byte, 100)
-	_, err = rand.Read(garbo)
+	_, err = crand.Read(garbo)
 	require.NoError(t, err)
 
 	appendFile, err := os.OpenFile(v2Block.fullFilename(), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)

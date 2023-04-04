@@ -3,21 +3,11 @@ package traceql
 import (
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
-
-	"github.com/go-kit/log/level"
-
-	"github.com/grafana/tempo/pkg/util/log"
 )
 
-func appendSpans(buffer []Span, input []Spanset) []Span {
-	for _, i := range input {
-		buffer = append(buffer, i.Spans...)
-	}
-	return buffer
-}
-
-func (o SpansetOperation) evaluate(input []Spanset) (output []Spanset, err error) {
+func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 	for i := range input {
 		curr := input[i : i+1]
@@ -35,17 +25,15 @@ func (o SpansetOperation) evaluate(input []Spanset) (output []Spanset, err error
 		switch o.Op {
 		case OpSpansetAnd:
 			if len(lhs) > 0 && len(rhs) > 0 {
-				matchingSpanset := input[i]
-				matchingSpanset.Spans = appendSpans(nil, lhs)
-				matchingSpanset.Spans = appendSpans(matchingSpanset.Spans, rhs)
+				matchingSpanset := input[i].clone()
+				matchingSpanset.Spans = uniqueSpans(lhs, rhs)
 				output = append(output, matchingSpanset)
 			}
 
 		case OpSpansetUnion:
 			if len(lhs) > 0 || len(rhs) > 0 {
-				matchingSpanset := input[i]
-				matchingSpanset.Spans = appendSpans(nil, lhs)
-				matchingSpanset.Spans = appendSpans(matchingSpanset.Spans, rhs)
+				matchingSpanset := input[i].clone()
+				matchingSpanset.Spans = uniqueSpans(lhs, rhs)
 				output = append(output, matchingSpanset)
 			}
 
@@ -57,7 +45,7 @@ func (o SpansetOperation) evaluate(input []Spanset) (output []Spanset, err error
 	return output, nil
 }
 
-func (f ScalarFilter) evaluate(input []Spanset) (output []Spanset, err error) {
+func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 	// TODO we solve this gap where pipeline elements and scalar binary
 	// operations meet in a generic way. For now we only support well-defined
@@ -92,25 +80,12 @@ func (f ScalarFilter) evaluate(input []Spanset) (output []Spanset, err error) {
 	return output, nil
 }
 
-func (f SpansetFilter) matches(span Span) (bool, error) {
-	static, err := f.Expression.execute(span)
-	if err != nil {
-		level.Debug(log.Logger).Log("msg", "SpanSetFilter.matches failed", "err", err)
-		return false, err
-	}
-	if static.Type != TypeBoolean {
-		level.Debug(log.Logger).Log("msg", "SpanSetFilter.matches did not return a boolean", "err", err)
-		return false, fmt.Errorf("result of SpanSetFilter (%v) is %v", f, static.Type)
-	}
-	return static.B, nil
-}
-
-func (a Aggregate) evaluate(input []Spanset) (output []Spanset, err error) {
+func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 
 	for _, ss := range input {
 		switch a.op {
 		case aggregateCount:
-			copy := ss
+			copy := ss.clone()
 			copy.Scalar = NewStaticInt(len(ss.Spans))
 			output = append(output, copy)
 
@@ -127,8 +102,51 @@ func (a Aggregate) evaluate(input []Spanset) (output []Spanset, err error) {
 				count++
 			}
 
-			copy := ss
+			copy := ss.clone()
 			copy.Scalar = NewStaticFloat(sum / float64(count))
+			output = append(output, copy)
+
+		case aggregateMax:
+			max := math.Inf(-1)
+			for _, s := range ss.Spans {
+				val, err := a.e.execute(s)
+				if err != nil {
+					return nil, err
+				}
+				if val.asFloat() > max {
+					max = val.asFloat()
+				}
+			}
+			copy := ss.clone()
+			copy.Scalar = NewStaticFloat(max)
+			output = append(output, copy)
+
+		case aggregateMin:
+			min := math.Inf(1)
+			for _, s := range ss.Spans {
+				val, err := a.e.execute(s)
+				if err != nil {
+					return nil, err
+				}
+				if val.asFloat() < min {
+					min = val.asFloat()
+				}
+			}
+			copy := ss.clone()
+			copy.Scalar = NewStaticFloat(min)
+			output = append(output, copy)
+
+		case aggregateSum:
+			sum := 0.0
+			for _, s := range ss.Spans {
+				val, err := a.e.execute(s)
+				if err != nil {
+					return nil, err
+				}
+				sum += val.asFloat()
+			}
+			copy := ss.clone()
+			copy.Scalar = NewStaticFloat(sum)
 			output = append(output, copy)
 
 		default:
@@ -162,12 +180,16 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 	}
 
 	switch o.Op {
-	// TODO implement arithmetics
 	case OpAdd:
+		return NewStaticFloat(lhs.asFloat() + rhs.asFloat()), nil
 	case OpSub:
+		return NewStaticFloat(lhs.asFloat() - rhs.asFloat()), nil
 	case OpDiv:
+		return NewStaticFloat(lhs.asFloat() / rhs.asFloat()), nil
 	case OpMod:
+		return NewStaticFloat(math.Mod(lhs.asFloat(), rhs.asFloat())), nil
 	case OpMult:
+		return NewStaticFloat(lhs.asFloat() * rhs.asFloat()), nil
 	case OpGreater:
 		return NewStaticBool(lhs.asFloat() > rhs.asFloat()), nil
 	case OpGreaterEqual:
@@ -177,6 +199,7 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 	case OpLessEqual:
 		return NewStaticBool(lhs.asFloat() <= rhs.asFloat()), nil
 	case OpPower:
+		return NewStaticFloat(math.Pow(lhs.asFloat(), rhs.asFloat())), nil
 	case OpEqual:
 		return NewStaticBool(lhs.Equals(rhs)), nil
 	case OpNotEqual:
@@ -194,10 +217,9 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 	default:
 		return NewStaticNil(), errors.New("unexpected operator " + o.Op.String())
 	}
-
-	return NewStaticNil(), errors.New("operator " + o.Op.String() + " is not yet implemented")
 }
 
+// why does this and the above exist?
 func binOp(op Operator, lhs, rhs Static) (bool, error) {
 	lhsT := lhs.impliedType()
 	rhsT := rhs.impliedType()
@@ -265,18 +287,19 @@ func (s Static) execute(span Span) (Static, error) {
 }
 
 func (a Attribute) execute(span Span) (Static, error) {
-	static, ok := span.Attributes[a]
+	atts := span.Attributes()
+	static, ok := atts[a]
 	if ok {
 		return static, nil
 	}
 
 	if a.Scope == AttributeScopeNone {
-		for attribute, static := range span.Attributes {
+		for attribute, static := range atts {
 			if a.Name == attribute.Name && attribute.Scope == AttributeScopeSpan {
 				return static, nil
 			}
 		}
-		for attribute, static := range span.Attributes {
+		for attribute, static := range atts {
 			if a.Name == attribute.Name {
 				return static, nil
 			}
@@ -284,4 +307,46 @@ func (a Attribute) execute(span Span) (Static, error) {
 	}
 
 	return NewStaticNil(), nil
+}
+
+func uniqueSpans(ss1 []*Spanset, ss2 []*Spanset) []Span {
+	ss1Count := 0
+	ss2Count := 0
+
+	for _, ss1 := range ss1 {
+		ss1Count += len(ss1.Spans)
+	}
+	for _, ss2 := range ss2 {
+		ss2Count += len(ss2.Spans)
+	}
+	output := make([]Span, 0, ss1Count+ss2Count)
+
+	ssCount := ss2Count
+	ssSmaller := ss2
+	ssLarger := ss1
+	if ss1Count < ss2Count {
+		ssCount = ss1Count
+		ssSmaller = ss1
+		ssLarger = ss2
+	}
+
+	// make the map with ssSmaller
+	spans := make(map[Span]struct{}, ssCount)
+	for _, ss := range ssSmaller {
+		for _, span := range ss.Spans {
+			spans[span] = struct{}{}
+			output = append(output, span)
+		}
+	}
+
+	// only add the spans from ssLarger that aren't in the map
+	for _, ss := range ssLarger {
+		for _, span := range ss.Spans {
+			if _, ok := spans[span]; !ok {
+				output = append(output, span)
+			}
+		}
+	}
+
+	return output
 }

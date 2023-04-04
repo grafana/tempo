@@ -54,42 +54,6 @@ func (d *ObjectDecoder) PrepareForRead(obj []byte) (*tempopb.Trace, error) {
 	return trace, nil
 }
 
-func (d *ObjectDecoder) Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
-	// FastRange allows us to quickly filter out traces that do not intersect with the requested time range
-	start, end, err := d.FastRange(obj)
-	if err != nil {
-		return nil, err
-	}
-
-	if req.Start > 0 || req.End > 0 {
-		if !(req.Start <= end && req.End >= start) {
-			return nil, nil
-		}
-	}
-
-	// assert duration before we unmarshal
-	duration := end - start
-	if req.MaxDurationMs != 0 {
-		maxDuration := (req.MaxDurationMs / 1000) + 1
-		if duration > maxDuration {
-			return nil, nil
-		}
-	}
-	if req.MinDurationMs != 0 {
-		minDuration := req.MinDurationMs / 1000
-		if duration < minDuration {
-			return nil, nil
-		}
-	}
-
-	t, err := d.PrepareForRead(obj)
-	if err != nil {
-		return nil, err
-	}
-
-	return trace.MatchesProto(id, t, req)
-}
-
 func (d *ObjectDecoder) Combine(objs ...[]byte) ([]byte, error) {
 	var minStart, maxEnd uint32
 	minStart = math.MaxUint32

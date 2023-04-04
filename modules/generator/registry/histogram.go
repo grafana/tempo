@@ -79,7 +79,7 @@ func newHistogram(name string, labels []string, buckets []float64, onAddSeries f
 	}
 }
 
-func (h *histogram) ObserveWithExemplar(labelValues *LabelValues, value float64, traceID string) {
+func (h *histogram) ObserveWithExemplar(labelValues *LabelValues, value float64, traceID string, multiplier float64) {
 	if len(h.labels) != len(labelValues.getValues()) {
 		panic(fmt.Sprintf("length of given label values does not match with labels, labels: %v, label values: %v", h.labels, labelValues))
 	}
@@ -91,7 +91,7 @@ func (h *histogram) ObserveWithExemplar(labelValues *LabelValues, value float64,
 	h.seriesMtx.RUnlock()
 
 	if ok {
-		h.updateSeries(s, value, traceID)
+		h.updateSeries(s, value, traceID, multiplier)
 		return
 	}
 
@@ -99,20 +99,20 @@ func (h *histogram) ObserveWithExemplar(labelValues *LabelValues, value float64,
 		return
 	}
 
-	newSeries := h.newSeries(labelValues, value, traceID)
+	newSeries := h.newSeries(labelValues, value, traceID, multiplier)
 
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
 	s, ok = h.series[hash]
 	if ok {
-		h.updateSeries(s, value, traceID)
+		h.updateSeries(s, value, traceID, multiplier)
 		return
 	}
 	h.series[hash] = newSeries
 }
 
-func (h *histogram) newSeries(labelValues *LabelValues, value float64, traceID string) *histogramSeries {
+func (h *histogram) newSeries(labelValues *LabelValues, value float64, traceID string, multiplier float64) *histogramSeries {
 	newSeries := &histogramSeries{
 		labelValues: labelValues.getValuesCopy(),
 		count:       atomic.NewFloat64(0),
@@ -127,18 +127,18 @@ func (h *histogram) newSeries(labelValues *LabelValues, value float64, traceID s
 		newSeries.exemplarValues = append(newSeries.exemplarValues, atomic.NewFloat64(0))
 	}
 
-	h.updateSeries(newSeries, value, traceID)
+	h.updateSeries(newSeries, value, traceID, multiplier)
 
 	return newSeries
 }
 
-func (h *histogram) updateSeries(s *histogramSeries, value float64, traceID string) {
-	s.count.Add(1)
-	s.sum.Add(value)
+func (h *histogram) updateSeries(s *histogramSeries, value float64, traceID string, multiplier float64) {
+	s.count.Add(1 * multiplier)
+	s.sum.Add(value * multiplier)
 
 	for i, bucket := range h.buckets {
 		if value <= bucket {
-			s.buckets[i].Add(1)
+			s.buckets[i].Add(1 * multiplier)
 		}
 	}
 

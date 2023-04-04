@@ -3,6 +3,7 @@ package v2
 import (
 	"bytes"
 	"context"
+	crand "crypto/rand"
 	"math/rand"
 	"testing"
 
@@ -70,7 +71,7 @@ func randomOrderedRecords(t *testing.T, num int) []Record {
 
 	for i := 0; i < num; i++ {
 		id := make([]byte, 16)
-		_, err := rand.Read(id)
+		_, err := crand.Read(id)
 		require.NoError(t, err)
 
 		rec := Record{

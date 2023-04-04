@@ -15,6 +15,7 @@ import (
 	"github.com/grafana/dskit/services"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
 
@@ -38,7 +39,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 )
 
 // The various modules that make up tempo.
@@ -47,6 +47,7 @@ const (
 	MetricsGeneratorRing string = "metrics-generator-ring"
 	Overrides            string = "overrides"
 	Server               string = "server"
+	InternalServer       string = "internal-server"
 	Distributor          string = "distributor"
 	Ingester             string = "ingester"
 	MetricsGenerator     string = "metrics-generator"
@@ -66,6 +67,15 @@ func (t *App) initServer() (services.Service, error) {
 
 	prometheus.MustRegister(&t.cfg)
 
+	if t.cfg.EnableGoRuntimeMetrics {
+		// unregister default Go collector
+		prometheus.Unregister(collectors.NewGoCollector())
+		// register Go collector with all available runtime metrics
+		prometheus.MustRegister(collectors.NewGoCollector(
+			collectors.WithGoCollectorRuntimeMetrics(collectors.MetricsAll),
+		))
+	}
+
 	DisableSignalHandling(&t.cfg.Server)
 
 	server, err := server.New(t.cfg.Server)
@@ -77,7 +87,7 @@ func (t *App) initServer() (services.Service, error) {
 		svs := []services.Service(nil)
 		for m, s := range t.serviceMap {
 			// Server should not wait for itself.
-			if m != Server {
+			if m != Server && m != InternalServer {
 				svs = append(svs, s)
 			}
 		}
@@ -86,6 +96,35 @@ func (t *App) initServer() (services.Service, error) {
 
 	t.Server = server
 	s := NewServerService(server, servicesToWaitFor)
+
+	return s, nil
+}
+
+func (t *App) initInternalServer() (services.Service, error) {
+
+	if !t.cfg.InternalServer.Enable {
+		return services.NewIdleService(nil, nil), nil
+	}
+
+	DisableSignalHandling(&t.cfg.InternalServer.Config)
+	serv, err := server.New(t.cfg.InternalServer.Config)
+	if err != nil {
+		return nil, err
+	}
+
+	servicesToWaitFor := func() []services.Service {
+		svs := []services.Service(nil)
+		for m, s := range t.serviceMap {
+			// Server should not wait for itself or the server
+			if m != InternalServer && m != Server {
+				svs = append(svs, s)
+			}
+		}
+		return svs
+	}
+
+	t.InternalServer = serv
+	s := NewServerService(t.InternalServer, servicesToWaitFor)
 
 	return s, nil
 }
@@ -146,9 +185,6 @@ func (t *App) initDistributor() (services.Service, error) {
 }
 
 func (t *App) initIngester() (services.Service, error) {
-	// always use flatbuffer search if we're using the v2 blocks. todo: in 2.1 remove flatbuffer search altogether
-	t.cfg.Ingester.UseFlatbufferSearch = (t.cfg.StorageConfig.Trace.Block.Version == v2.VersionString)
-
 	t.cfg.Ingester.LifecyclerConfig.ListenPort = t.cfg.Server.GRPCListenPort
 	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.overrides, prometheus.DefaultRegisterer)
 	if err != nil {
@@ -380,6 +416,7 @@ func (t *App) setupModuleManager() error {
 	mm := modules.NewManager(log.Logger)
 
 	mm.RegisterModule(Server, t.initServer, modules.UserInvisibleModule)
+	mm.RegisterModule(InternalServer, t.initInternalServer, modules.UserInvisibleModule)
 	mm.RegisterModule(MemberlistKV, t.initMemberlistKV, modules.UserInvisibleModule)
 	mm.RegisterModule(Ring, t.initRing, modules.UserInvisibleModule)
 	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
@@ -396,7 +433,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(UsageReport, t.initUsageReport)
 
 	deps := map[string][]string{
-		// Server:       nil,
+		Server: {InternalServer},
 		// Store:        nil,
 		Overrides:            {Server},
 		MemberlistKV:         {Server},
@@ -420,6 +457,7 @@ func (t *App) setupModuleManager() error {
 	}
 
 	t.ModuleManager = mm
+
 	t.deps = deps
 
 	return nil

@@ -14,7 +14,7 @@ type Element interface {
 type pipelineElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)
-	evaluate([]Spanset) ([]Spanset, error)
+	evaluate([]*Spanset) ([]*Spanset, error)
 }
 
 type typedExpression interface {
@@ -85,7 +85,7 @@ func (p Pipeline) extractConditions(req *FetchSpansRequest) {
 	}
 }
 
-func (p Pipeline) evaluate(input []Spanset) (result []Spanset, err error) {
+func (p Pipeline) evaluate(input []*Spanset) (result []*Spanset, err error) {
 	result = input
 
 	for _, element := range p.Elements {
@@ -95,7 +95,7 @@ func (p Pipeline) evaluate(input []Spanset) (result []Spanset, err error) {
 		}
 
 		if len(result) == 0 {
-			return []Spanset{}, nil
+			return []*Spanset{}, nil
 		}
 	}
 
@@ -116,7 +116,7 @@ func (o GroupOperation) extractConditions(request *FetchSpansRequest) {
 	o.Expression.extractConditions(request)
 }
 
-func (GroupOperation) evaluate(ss []Spanset) ([]Spanset, error) {
+func (GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 	return ss, nil
 }
 
@@ -130,7 +130,7 @@ func newCoalesceOperation() CoalesceOperation {
 func (o CoalesceOperation) extractConditions(request *FetchSpansRequest) {
 }
 
-func (CoalesceOperation) evaluate(ss []Spanset) ([]Spanset, error) {
+func (CoalesceOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 	return ss, nil
 }
 
@@ -257,8 +257,8 @@ func newSpansetFilter(e FieldExpression) SpansetFilter {
 // nolint: revive
 func (SpansetFilter) __spansetExpression() {}
 
-func (f SpansetFilter) evaluate(input []Spanset) ([]Spanset, error) {
-	var output []Spanset
+func (f SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
+	var output []*Spanset
 
 	for _, ss := range input {
 		if len(ss.Spans) == 0 {
@@ -287,9 +287,9 @@ func (f SpansetFilter) evaluate(input []Spanset) ([]Spanset, error) {
 			continue
 		}
 
-		matchingSpanset := ss
+		matchingSpanset := *ss
 		matchingSpanset.Spans = matchingSpans
-		output = append(output, matchingSpanset)
+		output = append(output, &matchingSpanset)
 	}
 
 	return output, nil
@@ -403,7 +403,8 @@ type Static struct {
 	S      string
 	B      bool
 	D      time.Duration
-	Status Status
+	Status Status // todo: can we just use the N member for status and kind?
+	Kind   Kind
 }
 
 // nolint: revive
@@ -421,14 +422,25 @@ func (s Static) impliedType() StaticType {
 }
 
 func (s Static) Equals(other Static) bool {
+	// if they are different number types. compare them as floats. however, if they are the same type just fall through to
+	// a normal comparison which should be more efficient
+	differentNumberTypes := (s.Type == TypeInt || s.Type == TypeFloat || s.Type == TypeDuration) &&
+		(other.Type == TypeInt || other.Type == TypeFloat || other.Type == TypeDuration) &&
+		s.Type != other.Type
+	if differentNumberTypes {
+		return s.asFloat() == other.asFloat()
+	}
+
 	eitherIsTypeStatus := (s.Type == TypeStatus && other.Type == TypeInt) || (other.Type == TypeStatus && s.Type == TypeInt)
-	if !eitherIsTypeStatus {
-		return s == other
+	if eitherIsTypeStatus {
+		if s.Type == TypeStatus {
+			return s.Status == Status(other.N)
+		}
+		return Status(s.N) == other.Status
 	}
-	if s.Type == TypeStatus {
-		return s.Status == Status(other.N)
-	}
-	return Status(s.N) == other.Status
+
+	// no special cases, just compare directly
+	return s == other
 }
 
 func (s Static) asFloat() float64 {
@@ -492,6 +504,13 @@ func NewStaticStatus(s Status) Static {
 	}
 }
 
+func NewStaticKind(k Kind) Static {
+	return Static{
+		Type: TypeKind,
+		Kind: k,
+	}
+}
+
 // **********************
 // Attributes
 // **********************
@@ -526,6 +545,8 @@ func (a Attribute) impliedType() StaticType {
 		return TypeString
 	case IntrinsicStatus:
 		return TypeStatus
+	case IntrinsicKind:
+		return TypeKind
 	case IntrinsicParent:
 		return TypeNil
 	}

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -140,6 +141,39 @@ func TestObjectConfigAttributes(t *testing.T) {
 			assert.Equal(t, tc.expectedObject, rawObject)
 		})
 	}
+}
+
+func TestRetry_MarkBlockCompacted(t *testing.T) {
+	var count int32
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/b/blerg":
+			_, _ = w.Write([]byte(`{}`))
+		default:
+			// First two requests fail, third succeeds.
+			if atomic.LoadInt32(&count) < 2 {
+				atomic.AddInt32(&count, 1)
+				w.WriteHeader(503)
+				return
+			}
+			_, _ = w.Write([]byte(`{"done": true}`))
+		}
+	}))
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	_, _, c, err := New(&Config{
+		BucketName: "blerg",
+		Insecure:   true,
+		Endpoint:   server.URL,
+	})
+	require.NoError(t, err)
+
+	id, err := uuid.NewUUID()
+	require.NoError(t, err)
+
+	require.NoError(t, c.MarkBlockCompacted(id, "tenant"))
+	require.Equal(t, int32(2), atomic.LoadInt32(&count))
 }
 
 func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.Server {

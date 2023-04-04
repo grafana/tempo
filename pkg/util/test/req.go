@@ -1,6 +1,7 @@
 package test
 
 import (
+	crand "crypto/rand"
 	"encoding/json"
 	"math/rand"
 	"testing"
@@ -44,7 +45,10 @@ func MakeSpanWithAttributeCount(traceID []byte, count int) *v1_trace.Span {
 		DroppedLinksCount:      rand.Uint32(),
 		DroppedAttributesCount: rand.Uint32(),
 	}
-	rand.Read(s.SpanId)
+	_, err := crand.Read(s.SpanId)
+	if err != nil {
+		panic(err)
+	}
 
 	// add link
 	if rand.Intn(5) == 0 {
@@ -186,7 +190,10 @@ func MakeTraceWithSpanCount(requests int, spansEach int, traceID []byte) *tempop
 func ValidTraceID(traceID []byte) []byte {
 	if len(traceID) == 0 {
 		traceID = make([]byte, 16)
-		rand.Read(traceID)
+		_, err := crand.Read(traceID)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	for len(traceID) < 16 {
