@@ -22,7 +22,7 @@ With Tempo 2.0, you can use the TraceQL query editor in the Tempo data source to
 The editor is available in Grafana’s Explore interface.
 For more information, refer to [TraceQL query editor]({{< relref "/docs/tempo/latest/traceql/query-editor" >}}).
 
-<p align="center"><img src="assets/query-editor-http-method.png" alt="Query editor showing request for http.method" /></p>
+{{< figure src="/media/docs/tempo/traceql/screenshot-traceql-query-editor.png" >}}
 
 ## Construct a TraceQL query
 
@@ -73,7 +73,7 @@ The following table shows the current intrinsic fields:
 There are two types of attributes: span attributes and resource attributes.
 By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
 
-<p align="center"><img src="assets/span-resource-attributes.png" alt="Example of span and resource  attributes." /></p>
+{{< figure src="/media/docs/tempo/traceql/screenshot-span-resource-attributes.png" >}}
 
 Attribute fields are derived from the span and can be customized.
 Process and span attribute types are [defined by the attribute itself](https://github.com/open-telemetry/opentelemetry-proto/blob/b43e9b18b76abf3ee040164b55b9c355217151f3/opentelemetry/proto/common/v1/common.proto#L30-L38), whereas intrinsic fields have a built-in type.

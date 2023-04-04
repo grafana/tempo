@@ -18,7 +18,7 @@ With Tempo 2.0, you can use the TraceQL viewer and query editor in the Tempo dat
 >**NOTE**: To use the TraceQL query editor, you need to enable the `traceqlEditor` feature flag. This feature is available starting in Grafana 9.3.2.
 
 
-<p align="center"><img src="../assets/query-editor-http-method.png" alt="Query editor showing request for http.method" /></p>
+{{< figure src="/media/docs/tempo/traceql/screenshot-traceql-query-editor.png" >}}
 
 Using the query editor, you can use the editor’s autocomplete suggestions to write queries. The editor detects span sets to provide relevant autocomplete options. It uses regular expressions (regex) to detect where it is inside a spanset and provide attribute names, scopes, intrinsic names, logic operators, or attribute values from Tempo's API, depending on what is expected for the current situation.
 
