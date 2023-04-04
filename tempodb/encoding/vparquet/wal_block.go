@@ -211,6 +211,8 @@ func newWalBlockFlush(path string, ids *common.IDMap[int64]) *walBlockFlush {
 // file() opens the parquet file and returns it. previously this method cached the file on first open
 // but the memory cost of this was quite high. so instead we open it fresh every time
 func (w *walBlockFlush) file() (*pageFile, error) {
+	// here the reader is always reading file from local disk
+	// we need a reader that wraps os io.Reader, wraps ReadAt, and accounts for size of data read
 	file, err := os.OpenFile(w.path, os.O_RDONLY, 0644)
 	if err != nil {
 		return nil, fmt.Errorf("error opening file: %w", err)
@@ -219,14 +221,16 @@ func (w *walBlockFlush) file() (*pageFile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error getting file info: %w", err)
 	}
-	sz := info.Size()
-	// OpenFile takes io.ReaderAt as first arg., we can actually wrap it???
-	pf, err := parquet.OpenFile(file, sz, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true), parquet.FileSchema(walSchema))
+	size := info.Size()
+	// OpenFile takes io.ReaderAt as first arg.
+
+	wr := NewWalReaderAt(file)
+	pf, err := parquet.OpenFile(wr, size, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true), parquet.FileSchema(walSchema))
 	if err != nil {
 		return nil, fmt.Errorf("error opening parquet file: %w", err)
 	}
 
-	f := &pageFile{parquetFile: pf, osFile: file}
+	f := &pageFile{parquetFile: pf, osFile: file, wr: wr}
 
 	return f, nil
 
@@ -247,7 +251,9 @@ func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
 
 type pageFile struct {
 	parquetFile *parquet.File
-	osFile      *os.File
+	// replace this with a WalFile type that has
+	osFile *os.File
+	wr     *WalReaderAt
 }
 
 func (b *pageFile) Close() error {
@@ -541,26 +547,24 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 		},
 	}
 
-	for i, page := range b.readFlushes() {
-		file, err := page.file()
+	for i, blockFlush := range b.readFlushes() {
+		file, err := blockFlush.file()
 		if err != nil {
-			return nil, fmt.Errorf("error opening file %s: %w", page.path, err)
+			return nil, fmt.Errorf("error opening file %s: %w", blockFlush.path, err)
 		}
 
 		defer file.Close()
 		pf := file.parquetFile
 
-		// same code is used for WAL Search
 		r, err := searchParquetFile(ctx, pf, req, pf.RowGroups())
 		if err != nil {
 			return nil, fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
 
 		results.Traces = append(results.Traces, r.Traces...)
-		// we are already setting InspectedBytes here??
-		// FIXME: InspectedBytes is set to total wal block size, which is incorrect.
-		// we only read some pages when searching, so this is overestimating the size.
-		results.Metrics.InspectedBytes += uint64(pf.Size())
+		// TODO: test and see if this works
+		// TODO: Add a test to see total file size and TotalBytesRead...
+		results.Metrics.InspectedBytes += file.wr.TotalBytesRead.Load()
 		results.Metrics.InspectedTraces += uint32(pf.NumRows())
 		if len(results.Traces) >= int(req.Limit) {
 			break
@@ -571,10 +575,10 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 }
 
 func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
-	for i, page := range b.readFlushes() {
-		file, err := page.file()
+	for i, blockFlush := range b.readFlushes() {
+		file, err := blockFlush.file()
 		if err != nil {
-			return fmt.Errorf("error opening file %s: %w", page.path, err)
+			return fmt.Errorf("error opening file %s: %w", blockFlush.path, err)
 		}
 
 		defer file.Close()
@@ -605,10 +609,10 @@ func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.Ta
 }
 
 func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
-	for i, page := range b.readFlushes() {
-		file, err := page.file()
+	for i, blockFlush := range b.readFlushes() {
+		file, err := blockFlush.file()
 		if err != nil {
-			return fmt.Errorf("error opening file %s: %w", page.path, err)
+			return fmt.Errorf("error opening file %s: %w", blockFlush.path, err)
 		}
 
 		defer file.Close()
@@ -630,9 +634,10 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "conditions invalid")
 	}
 
-	pages := b.readFlushes()
-	iters := make([]traceql.SpansetIterator, 0, len(pages))
-	for _, page := range pages {
+	blockFlushes := b.readFlushes()
+	var totalBytesRead uint64
+	iters := make([]traceql.SpansetIterator, 0, len(blockFlushes))
+	for _, page := range blockFlushes {
 		file, err := page.file()
 		if err != nil {
 			return traceql.FetchSpansResponse{}, fmt.Errorf("error opening file %s: %w", page.path, err)
@@ -647,6 +652,9 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 
 		wrappedIterator := &pageFileClosingIterator{iter: iter, pageFile: file}
 		iters = append(iters, wrappedIterator)
+		// sums up total data read by WAL blocks
+		// TODO: add a test to see if this works??
+		totalBytesRead += file.wr.TotalBytesRead.Load()
 	}
 
 	// combine iters?
@@ -655,8 +663,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 			iters: iters,
 		},
 		Bytes: func() uint64 {
-			// FIXME: report the correct size of data reading during Fetch Call
-			return 0
+			return totalBytesRead
 		},
 	}, nil
 }

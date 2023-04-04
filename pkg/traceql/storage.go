@@ -87,8 +87,8 @@ type SpansetIterator interface {
 
 type FetchSpansResponse struct {
 	Results SpansetIterator
-	// TODO(suraj): find a better way to pass SearchMetrics back from the Fetch call on a block
-	Bytes func() uint64 // callback to get the size of data processed
+	// callback to get the size of data read during Fetch
+	Bytes func() uint64
 }
 
 type SpansetFetcher interface {

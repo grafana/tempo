@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
+	"os"
 
 	"github.com/google/uuid"
 	"go.uber.org/atomic"
@@ -37,6 +38,10 @@ func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, bloc
 }
 
 func (b *BackendReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	// this is where Reader is account for data read...
+	// parquet-go will call ReadAt when reading data from a parquet file...
+	// replicate BackendReaderAt, and rename is WalReaderAt
+	// or maybe we can just use BackendReaderAt for WAL??
 	b.TotalBytesRead.Add(uint64(len(p)))
 	err := b.r.ReadRange(b.ctx, b.name, b.blockID, b.tenantID, uint64(off), p, false)
 	if err != nil {
@@ -127,4 +132,26 @@ func (r *cachedReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	}
 
 	return r.r.ReadAt(p, off)
+}
+
+// WalReaderAt is used compute to total amount of data read when searching walBlock
+type WalReaderAt struct {
+	f *os.File
+
+	TotalBytesRead atomic.Uint64
+}
+
+var _ io.ReaderAt = (*WalReaderAt)(nil)
+
+func NewWalReaderAt(f *os.File) *WalReaderAt {
+	return &WalReaderAt{f, atomic.Uint64{}}
+}
+
+func (b *WalReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	// this is where Reader is account for data read...
+	// parquet-go will call ReadAt when reading data from a parquet file...
+	// replicate BackendReaderAt, and rename is WalReaderAt
+	// or maybe we can just use BackendReaderAt for WAL??
+	b.TotalBytesRead.Add(uint64(len(p)))
+	return b.f.ReadAt(p, off)
 }

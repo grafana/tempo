@@ -54,6 +54,7 @@ var KindMapping = map[string]int{
 }
 
 // openForSearch consolidates all the logic for opening a parquet file
+// maybe add a similar openForSearch logic for wal block??
 func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions) (*parquet.File, *BackendReaderAt, error) {
 	b.openMtx.Lock()
 	defer b.openMtx.Unlock()
@@ -286,7 +287,6 @@ func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.Searc
 	return &tempopb.SearchResponse{
 		Traces:  results,
 		Metrics: &tempopb.SearchMetrics{},
-		// FIXME: SearchMetrics is empty here????
 	}, nil
 }
 

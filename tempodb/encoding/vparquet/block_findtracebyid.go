@@ -75,7 +75,6 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
 	defer func() {
-		// TODO: TotalBytesRead can be used to pass data throughput info up the stack in findTraceByID
 		span.SetTag("inspectedBytes", rr.TotalBytesRead.Load())
 	}()
 
