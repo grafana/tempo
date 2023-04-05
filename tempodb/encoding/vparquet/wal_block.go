@@ -557,8 +557,6 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 		}
 
 		results.Traces = append(results.Traces, r.Traces...)
-		// TODO: test and see if this works
-		// TODO: Add a test to see total file size and TotalBytesRead...
 		results.Metrics.InspectedBytes += file.r.TotalBytesRead.Load()
 		results.Metrics.InspectedTraces += uint32(pf.NumRows())
 		if len(results.Traces) >= int(req.Limit) {
@@ -647,8 +645,6 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 
 		wrappedIterator := &pageFileClosingIterator{iter: iter, pageFile: file}
 		iters = append(iters, wrappedIterator)
-		// sums up total data read by WAL blocks
-		// TODO: add a test to see if this works??
 		totalBytesRead += file.r.TotalBytesRead.Load()
 	}
 
