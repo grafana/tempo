@@ -17,7 +17,7 @@ You can run a TraceQL query either by issuing it to Tempo’s `q` parameter of t
 
 For details about how queries are constructed, read the [TraceQL documentation]({{< relref "../traceql" >}}).
 
-<p align="center"><img src="../../traceql/assets/query-editor-results-span.png" alt="Query editor showing span results" /></p>
+{{< figure src="/media/docs/tempo/traceql/screenshot-query-editor-results-span.png" >}}
 
 ## View trace by ID
 
