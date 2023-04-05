@@ -1,3 +1,0 @@
-Component,Origin,License
-import (test),github.com/google/gofuzz,Apache-2.0
-import (test),github.com/stretchr/testify,MIT

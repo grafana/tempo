@@ -17,9 +17,6 @@ distributor:
       protocols:
         grpc:
     zipkin:
-    datadog:
-      endpoint: localhost:8126
-      read_timeout: 60s
   log_received_spans:
     enabled: true
 

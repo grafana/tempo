@@ -9,7 +9,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/datadogreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver"
@@ -59,7 +58,6 @@ var (
 	statReceiverZipkin     = usagestats.NewInt("receiver_enabled_zipkin")
 	statReceiverOpencensus = usagestats.NewInt("receiver_enabled_opencensus")
 	statReceiverKafka      = usagestats.NewInt("receiver_enabled_kafka")
-	statReceiverDatadog    = usagestats.NewInt("receiver_enabled_datadog")
 )
 
 type TracesPusher interface {
@@ -119,7 +117,6 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		opencensusreceiver.NewFactory(),
 		otlpreceiver.NewFactory(),
 		kafkareceiver.NewFactory(),
-		datadogreceiver.NewFactory(),
 	)
 	if err != nil {
 		return nil, err
@@ -137,8 +134,6 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 			statReceiverOpencensus.Set(1)
 		case "kafka":
 			statReceiverKafka.Set(1)
-		case "datadog":
-			statReceiverDatadog.Set(1)
 		}
 	}
 
@@ -220,12 +215,6 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 			}
 
 			cfg = jaegerRecvCfg
-
-		case "datadog":
-			ddRecvCfg := cfg.(*datadogreceiver.Config)
-			ddRecvCfg.IncludeMetadata = true
-
-			cfg = ddRecvCfg
 		}
 
 		receiver, err := factoryBase.CreateTracesReceiver(ctx, params, cfg, middleware.Wrap(shim))

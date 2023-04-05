@@ -5,7 +5,6 @@ import (
 	crand "crypto/rand"
 	"testing"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +14,6 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
-	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
@@ -97,22 +95,6 @@ func TestReceivers(t *testing.T) {
 				return zipkinCfg
 			},
 			"http://" + tempo.Endpoint(9411),
-		},
-		{
-			"datadog",
-			datadogexporter.NewFactory(),
-			func(factory exporter.Factory, endpoint string) component.Config {
-				ddCfg := &datadogexporter.Config{
-					LimitedHTTPClientSettings: datadogexporter.LimitedHTTPClientSettings{},
-					Traces: datadogexporter.TracesConfig{
-						TCPAddr: confignet.TCPAddr{Endpoint: endpoint},
-					},
-					API: datadogexporter.APIConfig{Key: "fake"},
-				}
-				require.NoError(t, ddCfg.Validate())
-				return ddCfg
-			},
-			"http://" + tempo.Endpoint(8126),
 		},
 	}
 
