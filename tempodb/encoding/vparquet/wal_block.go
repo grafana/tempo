@@ -211,8 +211,6 @@ func newWalBlockFlush(path string, ids *common.IDMap[int64]) *walBlockFlush {
 // file() opens the parquet file and returns it. previously this method cached the file on first open
 // but the memory cost of this was quite high. so instead we open it fresh every time
 func (w *walBlockFlush) file() (*pageFile, error) {
-	// here the reader is always reading file from local disk
-	// we need a reader that wraps os io.Reader, wraps ReadAt, and accounts for size of data read
 	file, err := os.OpenFile(w.path, os.O_RDONLY, 0644)
 	if err != nil {
 		return nil, fmt.Errorf("error opening file: %w", err)
@@ -222,7 +220,6 @@ func (w *walBlockFlush) file() (*pageFile, error) {
 		return nil, fmt.Errorf("error getting file info: %w", err)
 	}
 	size := info.Size()
-	// OpenFile takes io.ReaderAt as first arg.
 
 	wr := NewWalReaderAt(file)
 	pf, err := parquet.OpenFile(wr, size, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true), parquet.FileSchema(walSchema))

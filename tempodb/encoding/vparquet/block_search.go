@@ -54,7 +54,6 @@ var KindMapping = map[string]int{
 }
 
 // openForSearch consolidates all the logic for opening a parquet file
-// maybe add a similar openForSearch logic for wal block??
 func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions) (*parquet.File, *BackendReaderAt, error) {
 	b.openMtx.Lock()
 	defer b.openMtx.Unlock()
@@ -83,7 +82,6 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 		}
 	}
 
-	// this is where we decide on a reader to use when opening a block for search...
 	// optimized reader
 	readerAt = newParquetOptimizedReaderAt(readerAt, int64(b.meta.Size), b.meta.FooterSize)
 

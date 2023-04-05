@@ -260,6 +260,11 @@ func testSearch(t *testing.T, e encoding.VersionedEncoding) {
 				return
 			}
 			require.NoError(t, err)
+			require.NotNil(t, resp.Metrics.InspectedBytes)
+			require.NotZero(t, resp.Metrics.InspectedBytes)
+			// we don't read whole block
+			require.Less(t, resp.Metrics.InspectedBytes, block.DataLength())
+
 			require.Equal(t, 1, len(resp.Traces))
 			require.Equal(t, util.TraceIDToHexString(ids[i]), resp.Traces[0].TraceID)
 		}
@@ -301,9 +306,11 @@ func testFetch(t *testing.T, e encoding.VersionedEncoding) {
 			require.NotNil(t, ss)
 			require.Equal(t, ss.TraceID, expectedID)
 
-			// ensure Bytes callback is set and correct
-			// FIXME: fix this test??
-			// assert.Equal(t, block.FlushedSize(), resp.Bytes())
+			// ensure Bytes callback is set
+			require.NotNil(t, resp.Bytes())
+			require.NotZero(t, resp.Bytes())
+			// we don't read whole block
+			require.Less(t, resp.Bytes(), block.DataLength())
 
 			// confirm no more matches
 			ss, err = resp.Results.Next(ctx)
