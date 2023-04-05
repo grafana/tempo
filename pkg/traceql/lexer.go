@@ -150,7 +150,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 			lval.staticDuration = duration
 			return DURATION
 		}
-		
+
 		var err error
 		lval.staticFloat, err = strconv.ParseFloat(numberText, 64)
 		if err != nil {
