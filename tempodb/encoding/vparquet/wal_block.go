@@ -230,10 +230,9 @@ func (w *walBlockFlush) file() (*pageFile, error) {
 		return nil, fmt.Errorf("error opening parquet file: %w", err)
 	}
 
-	f := &pageFile{parquetFile: pf, osFile: file, wr: wr}
+	f := &pageFile{parquetFile: pf, osFile: file, r: wr}
 
 	return f, nil
-
 }
 
 func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
@@ -251,9 +250,8 @@ func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
 
 type pageFile struct {
 	parquetFile *parquet.File
-	// replace this with a WalFile type that has
-	osFile *os.File
-	wr     *WalReaderAt
+	r           *WalReaderAt
+	osFile      *os.File
 }
 
 func (b *pageFile) Close() error {
@@ -564,7 +562,7 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 		results.Traces = append(results.Traces, r.Traces...)
 		// TODO: test and see if this works
 		// TODO: Add a test to see total file size and TotalBytesRead...
-		results.Metrics.InspectedBytes += file.wr.TotalBytesRead.Load()
+		results.Metrics.InspectedBytes += file.r.TotalBytesRead.Load()
 		results.Metrics.InspectedTraces += uint32(pf.NumRows())
 		if len(results.Traces) >= int(req.Limit) {
 			break
@@ -654,7 +652,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 		iters = append(iters, wrappedIterator)
 		// sums up total data read by WAL blocks
 		// TODO: add a test to see if this works??
-		totalBytesRead += file.wr.TotalBytesRead.Load()
+		totalBytesRead += file.r.TotalBytesRead.Load()
 	}
 
 	// combine iters?
