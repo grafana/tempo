@@ -35,6 +35,9 @@ export DOCS_HOST_PORT := 3002
 # Container image used to perform Hugo build.
 export DOCS_IMAGE := grafana/docs-base:latest
 
+# Container image used for doc-validator linting.
+export DOC_VALIDATOR_IMAGE := grafana/doc-validator:latest
+
 # PATH-like list of directories within which to find projects.
 # If all projects are checked out into the same directory, ~/repos/ for example, then the default should work.
 export REPOS_PATH := $(realpath $(GIT_ROOT)/..)
@@ -62,12 +65,12 @@ docs: make-docs
 
 .PHONY: doc-validator
 doc-validator: ## Run docs-validator on the entire docs folder.
-	DOCS_IMAGE=grafana/doc-validator:latest $(PWD)/make-docs $(PROJECTS)
+	DOCS_IMAGE=$(DOC_VALIDATOR_IMAGE) $(PWD)/make-docs $(PROJECTS)
 
 .PHONY: doc-validator/%
 doc-validator/%: ## Run doc-validator on a specific path. To lint the path /docs/sources/administration, run 'make doc-validator/administration'.
 doc-validator/%:
-	DOCS_IMAGE=grafana/doc-validator:latest DOC_VALIDATOR_INCLUDE=$(subst doc-validator/,,$@) $(PWD)/make-docs $(PROJECTS)
+	DOCS_IMAGE=$(DOC_VALIDATOR_IMAGE) DOC_VALIDATOR_INCLUDE=$(subst doc-validator/,,$@) $(PWD)/make-docs $(PROJECTS)
 
 docs.mk: ## Fetch the latest version of this Makefile from Writers' Toolkit.
 	curl -s -LO https://raw.githubusercontent.com/grafana/writers-toolkit/main/docs/docs.mk
