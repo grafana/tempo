@@ -435,25 +435,19 @@ func runWALTest(t testing.TB, encoding string, runner func([][]byte, []*tempopb.
 }
 
 func BenchmarkAppendFlush(b *testing.B) {
-	encodings := []string{
-		v2.VersionString,
-		vparquet.VersionString,
-	}
-	for _, enc := range encodings {
-		b.Run(enc, func(b *testing.B) {
-			runWALBenchmark(b, enc, b.N, nil)
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		b.Run(version, func(b *testing.B) {
+			runWALBenchmark(b, version, b.N, nil)
 		})
 	}
 }
 
 func BenchmarkFindTraceByID(b *testing.B) {
-	encodings := []string{
-		v2.VersionString,
-		vparquet.VersionString,
-	}
-	for _, enc := range encodings {
-		b.Run(enc, func(b *testing.B) {
-			runWALBenchmark(b, enc, 1, func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		b.Run(version, func(b *testing.B) {
+			runWALBenchmark(b, version, 1, func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
 				ctx := context.Background()
 				for i := 0; i < b.N; i++ {
 					j := i % len(ids)
@@ -468,13 +462,10 @@ func BenchmarkFindTraceByID(b *testing.B) {
 }
 
 func BenchmarkFindUnknownTraceID(b *testing.B) {
-	encodings := []string{
-		v2.VersionString,
-		vparquet.VersionString,
-	}
-	for _, enc := range encodings {
-		b.Run(enc, func(b *testing.B) {
-			runWALBenchmark(b, enc, 1, func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		b.Run(version, func(b *testing.B) {
+			runWALBenchmark(b, version, 1, func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
 				for i := 0; i < b.N; i++ {
 					_, err := block.FindTraceByID(context.Background(), common.ID{}, common.DefaultSearchOptions())
 					require.NoError(b, err)
@@ -485,13 +476,10 @@ func BenchmarkFindUnknownTraceID(b *testing.B) {
 }
 
 func BenchmarkSearch(b *testing.B) {
-	encodings := []string{
-		v2.VersionString,
-		vparquet.VersionString,
-	}
-	for _, enc := range encodings {
-		b.Run(enc, func(b *testing.B) {
-			runWALBenchmark(b, enc, 1, func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		b.Run(version, func(b *testing.B) {
+			runWALBenchmark(b, version, 1, func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
 				ctx := context.Background()
 
 				for i := 0; i < b.N; i++ {

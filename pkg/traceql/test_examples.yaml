@@ -106,6 +106,15 @@ parse_fails:
   - '{ true } <= { true }'
   - '{ true } >= { true }'
   - '{ true } < { true }'
+  # scalar expressions must evaluate to a number
+  - 'max(name) = "foo"'
+  - 'avg("foo") = "bar"'
+  - 'max(status) = ok'
+  - 'max(kind) = consumer'
+  - 'max(duration) < ok'
+  - 'min(1) = "foo"'
+  - 'min(parent) = nil'
+  - 'avg(childCount) > "foo"'
   # scalar filters
   - 'avg(.field) + 1'             # scalar filters must resolve to boolean
   - 'sum(3) - 2'
@@ -167,12 +176,7 @@ validate_fails:
   - '{ !1h = 1 }'
   - '{ !1.1 = 1.1 }'
   # scalar expressions must evaluate to a number
-  - 'max(name) = "foo"'
-  - 'avg("foo") = "bar"'
-  - 'max(status) = ok'
-  - 'max(kind) = consumer'
   - 'min(1 = 3) = 1'
-  - 'max(duration) < ok'
   # scalar expressions must reference the span
   - 'sum(3) = 2'
   - 'sum(3) = min(14)'
@@ -181,8 +185,6 @@ validate_fails:
   - 'min(1) = max(2) + 3'
   - 'min(1.1 - 3) > 1'
   - 'max(1h + 2h) > 1'
-  # scalar filters have to match types
-  - 'min(1) = "foo"'
 
 # unsupported parse correctly and return an unsupported error when calling .validate()
 unsupported:
@@ -223,7 +225,6 @@ unsupported:
   - '{ 1 >= parent }'
   - '{ -parent = nil }'
   - '{ !parent = nil }'
-  - 'min(parent) = nil'
   # nil - will be valid when supported
   - '{ .foo = nil }'
   # binary operations - will be valid when supported
@@ -233,7 +234,6 @@ unsupported:
   - '{ 1 = childCount }'
   # childCount - will be invalid when supported
   - '{ "foo" = childCount }'
-  - 'avg(childCount) > "foo"'
   # spanset operations - will be valid when supported
   - '{ true } >> { true }'
   - '{ true } > { true }'

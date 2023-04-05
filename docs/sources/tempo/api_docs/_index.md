@@ -2,7 +2,7 @@
 title: Tempo API
 description: Grafana Tempo exposes an API for pushing and querying traces, and operating the cluster itself.
 menuTitle: Tempo API
-weight: 500
+weight: 700
 ---
 
 # Tempo API
@@ -11,6 +11,7 @@ Tempo exposes an API for pushing and querying traces, and operating the cluster 
 
 For the sake of clarity, API endpoints are grouped by service.
 These endpoints are exposed both when running Tempo in microservices and monolithic mode:
+
 - **microservices**: each service exposes its own endpoints
 - **monolithic**: the Tempo process exposes all API endpoints for the services running internally
 

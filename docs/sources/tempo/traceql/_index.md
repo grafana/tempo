@@ -121,6 +121,8 @@ The implemented comparison operators are:
 - `<=` (less than or equal to)
 - `=~` (regular expression)
 
+TraceQL uses Golang regular expressions. Online regular expression testing sites like https://regex101.com/ are convenient to validate regular expressions used in TraceQL queries.
+
 For example, to find all traces where an `http.status_code` attribute in a span are greater than `400` but less than equal to `500`:
 
 ```

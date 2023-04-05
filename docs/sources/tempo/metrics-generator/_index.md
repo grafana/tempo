@@ -3,7 +3,7 @@ aliases:
 - /docs/tempo/latest/server_side_metrics/
 - /docs/tempo/latest/metrics-generator/
 title: Metrics-generator
-weight: 400
+weight: 500
 ---
 
 # Metrics-generator

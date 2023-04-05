@@ -4,6 +4,8 @@ on:
     types: [labeled]
 jobs:
   main:
+    # only run in grafana/tempo.
+    if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Actions
@@ -16,6 +18,6 @@ jobs:
         run: npm install --production --prefix ./actions
       - name: Run Commands
         uses: ./actions/commands
-        with:          
-          token: ${{secrets.GH_BOT_ACCESS_TOKEN}}
+        with:
+          token: ${{secrets.ISSUE_COMMANDS_TOKEN}}
           configPath: issue_commands

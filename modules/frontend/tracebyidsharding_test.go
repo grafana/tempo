@@ -264,7 +264,7 @@ func TestShardingWareDoRequest(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			sharder := newTraceByIDSharder(2, 2, log.NewNopLogger())
+			sharder := newTraceByIDSharder(2, 2, testSLOcfg, log.NewNopLogger())
 
 			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 				var testTrace *tempopb.Trace

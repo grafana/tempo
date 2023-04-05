@@ -5,10 +5,12 @@ grafana {
   // Override the dashboard constructor to add:
   // - default tags,
   // - some links that propagate the selected cluster.
+  // - disable auto refresh every 10 seconds
   dashboard(title)::
     super.dashboard(title) + {
       addClusterSelectorTemplates()::
         local d = self {
+          refresh: '',
           tags: ['tempo'],
           links: [
             {
@@ -104,12 +106,18 @@ grafana {
     $.queryPanel([
       'sum by(pod) (rate(container_cpu_usage_seconds_total{%s,container=~"%s"}[$__interval]))' % [$.namespaceMatcher(), containerName],
       'min(container_spec_cpu_quota{%s,container=~"%s"} / container_spec_cpu_period{%s,container=~"%s"})' % [$.namespaceMatcher(), containerName, $.namespaceMatcher(), containerName],
-    ], ['{{pod}}', 'limit']) +
+      'min(kube_pod_container_resource_requests{%s,container=~"%s", resource="cpu"} > 0)' % [$.namespaceMatcher(), containerName],
+    ], ['{{pod}}', 'limit', 'request']) +
     {
       seriesOverrides: [
         {
           alias: 'limit',
           color: '#E02F44',
+          fill: 0,
+        },
+        {
+          alias: 'request',
+          color: '#FCE300',
           fill: 0,
         },
       ],
@@ -120,12 +128,18 @@ grafana {
     $.queryPanel([
       'sum by(pod) (container_memory_working_set_bytes{%s,container=~"%s"})' % [$.namespaceMatcher(), containerName],
       'min(container_spec_memory_limit_bytes{%s,container=~"%s"} > 0)' % [$.namespaceMatcher(), containerName],
-    ], ['{{pod}}', 'limit']) +
+      'min(kube_pod_container_resource_requests{%s,container=~"%s", resource="memory"} > 0)' % [$.namespaceMatcher(), containerName],
+    ], ['{{pod}}', 'limit', 'request']) +
     {
       seriesOverrides: [
         {
           alias: 'limit',
           color: '#E02F44',
+          fill: 0,
+        },
+        {
+          alias: 'request',
+          color: '#FCE300',
           fill: 0,
         },
       ],

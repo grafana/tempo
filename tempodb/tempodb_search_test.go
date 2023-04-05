@@ -174,6 +174,7 @@ func testAdvancedTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 			{Query: fmt.Sprintf("({%s} | count() > 0) && ({%s} | count() > 0)", rando(trueConditionsBySpan[0]), rando(trueConditionsBySpan[1]))},
 			{Query: fmt.Sprintf("({%s} | count() > 0) || ({%s} | count() > 0)", rando(trueConditionsBySpan[0]), rando(falseConditions))},
 			// counts
+			{Query: "{} | count() > -1"},
 			{Query: fmt.Sprintf("{} | count() = %d", totalSpans)},
 			{Query: fmt.Sprintf("{} | count() != %d", totalSpans+1)},
 			{Query: fmt.Sprintf("{ true } && { true } | count() = %d", totalSpans)},

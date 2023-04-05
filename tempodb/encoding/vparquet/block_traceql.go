@@ -37,8 +37,8 @@ func (s *span) ID() []byte {
 func (s *span) StartTimeUnixNanos() uint64 {
 	return s.startTimeUnixNanos
 }
-func (s *span) EndtimeUnixNanos() uint64 {
-	return s.endtimeUnixNanos
+func (s *span) DurationNanos() uint64 {
+	return s.endtimeUnixNanos - s.startTimeUnixNanos
 }
 
 // todo: this sync pool currently massively reduces allocations by pooling spans for certain queries.
@@ -549,7 +549,11 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 			if err != nil {
 				return nil, false, err
 			}
-			durationPredicates = append(durationPredicates, pred)
+			if pred, ok := pred.(*parquetquery.GenericPredicate[int64]); ok {
+				durationPredicates = append(durationPredicates, pred)
+			} else {
+				durationPredicates = append(durationPredicates, nil)
+			}
 			addPredicate(columnPathSpanStartTime, nil)
 			columnSelectAs[columnPathSpanStartTime] = columnPathSpanStartTime
 			addPredicate(columnPathSpanEndTime, nil)
@@ -834,7 +838,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 
 }
 
-func createIntPredicate(op traceql.Operator, operands traceql.Operands) (*parquetquery.GenericPredicate[int64], error) {
+func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
 	}

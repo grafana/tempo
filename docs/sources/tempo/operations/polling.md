@@ -1,5 +1,5 @@
 ---
-title: Polling and monitoring
+title: Polling
 weight: 80
 ---
 

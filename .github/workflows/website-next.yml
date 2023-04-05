@@ -10,6 +10,8 @@ on:
 
 jobs:
   test:
+    # only run in grafana/tempo.
+    if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
@@ -25,6 +27,8 @@ jobs:
                 /bin/bash -c 'make hugo'
 
   sync:
+    # only run in grafana/tempo.
+    if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-latest
     needs: test
     steps:
