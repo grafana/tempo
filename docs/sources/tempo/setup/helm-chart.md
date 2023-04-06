@@ -6,9 +6,9 @@ weight: 350
 
 # Deploy Tempo with Helm
 
-The Helm charts for for Grafana Tempo and Grafana Enterprise Traces (GET) allows you to configure, install, and upgrade Grafana Tempo or Grafana Enterprise Traces within a Kubernetes cluster.
+The Helm charts for Grafana Tempo and Grafana Enterprise Traces allows you to configure, install, and upgrade Grafana Tempo or Grafana Enterprise Traces within a Kubernetes cluster.
 
-The Helm [example](https://github.com/grafana/tempo/tree/main/example/helm) shows a complete microservice based deployment.
+The Tempo repository has an [example Helm chart](https://github.com/grafana/tempo/tree/main/example/helm) that shows a complete microservice-based deployment.
 
 Tempo has two primary charts used for deployment:
 
