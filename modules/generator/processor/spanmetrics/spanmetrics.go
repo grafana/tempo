@@ -2,6 +2,7 @@ package spanmetrics
 
 import (
 	"context"
+	"reflect"
 	"regexp"
 	"time"
 
@@ -34,8 +35,22 @@ type Processor struct {
 	spanMetricsDurationSeconds registry.Histogram
 	spanMetricsSizeTotal       registry.Counter
 
+	filterPolicies []*filterPolicy
+
 	// for testing
 	now func() time.Time
+}
+
+type filterPolicy struct {
+	Include *splitPolicy
+	Exclude *splitPolicy
+}
+
+// SplitPolicy is the result of parsing a policy from the config file to be specific about the area the given policy is applied to.
+type splitPolicy struct {
+	ResourceMatch  *PolicyMatch
+	SpanMatch      *PolicyMatch
+	IntrinsicMatch *PolicyMatch
 }
 
 func New(cfg Config, registry registry.Registry) gen.Processor {
@@ -71,9 +86,24 @@ func New(cfg Config, registry registry.Registry) gen.Processor {
 	if cfg.Subprocessors[Size] {
 		p.spanMetricsSizeTotal = registry.NewCounter(metricSizeTotal, labels)
 	}
+
+	var filterPolicies []*filterPolicy
+
+	for _, policy := range cfg.FilterPolicies {
+		p := &filterPolicy{
+			Include: getSplitPolicy(policy.Include),
+			Exclude: getSplitPolicy(policy.Exclude),
+		}
+
+		if p.Include != nil || p.Exclude != nil {
+			filterPolicies = append(filterPolicies, p)
+		}
+	}
+
 	p.Cfg = cfg
 	p.registry = registry
 	p.now = time.Now
+	p.filterPolicies = filterPolicies
 	return p
 }
 
@@ -156,7 +186,7 @@ func (p *Processor) applyFilterPolicy(rs *v1.Resource, span *v1_trace.Span) bool
 		return true
 	}
 
-	for _, policy := range p.Cfg.FilterPolicies {
+	for _, policy := range p.filterPolicies {
 		if policy.Include != nil {
 			if !policyMatch(policy.Include, rs, span) {
 				return false
@@ -174,46 +204,10 @@ func (p *Processor) applyFilterPolicy(rs *v1.Resource, span *v1_trace.Span) bool
 }
 
 // policyMatch returns true when the resource attribtues and span attributes match the policy.
-func policyMatch(policy *PolicyMatch, rs *v1.Resource, span *v1_trace.Span) bool {
-	// A policy to match against the resource attributes
-	resourcePolicy := &PolicyMatch{
-		MatchType:  policy.MatchType,
-		Attributes: make([]MatchPolicyAttribute, 0),
-	}
-	// A policy to match against the span attributes
-	spanPolicy := &PolicyMatch{
-		MatchType:  policy.MatchType,
-		Attributes: make([]MatchPolicyAttribute, 0),
-	}
-
-	intrinsicPolicy := &PolicyMatch{
-		MatchType:  policy.MatchType,
-		Attributes: make([]MatchPolicyAttribute, 0),
-	}
-
-	for _, pa := range policy.Attributes {
-		attr := traceql.MustParseIdentifier(pa.Key)
-
-		attribute := MatchPolicyAttribute{
-			Key:   attr.Name,
-			Value: pa.Value,
-		}
-
-		if attr.Intrinsic > 0 {
-			intrinsicPolicy.Attributes = append(intrinsicPolicy.Attributes, attribute)
-		} else {
-			switch attr.Scope {
-			case traceql.AttributeScopeSpan:
-				spanPolicy.Attributes = append(spanPolicy.Attributes, attribute)
-			case traceql.AttributeScopeResource:
-				resourcePolicy.Attributes = append(resourcePolicy.Attributes, attribute)
-			}
-		}
-	}
-
-	return policyMatchAttrs(resourcePolicy, rs.Attributes) &&
-		policyMatchAttrs(spanPolicy, span.Attributes) &&
-		policyMatchIntrinsicAttrs(intrinsicPolicy, span)
+func policyMatch(policy *splitPolicy, rs *v1.Resource, span *v1_trace.Span) bool {
+	return policyMatchAttrs(policy.ResourceMatch, rs.Attributes) &&
+		policyMatchAttrs(policy.SpanMatch, span.Attributes) &&
+		policyMatchIntrinsicAttrs(policy.IntrinsicMatch, span)
 }
 
 // policyMatchIntrinsicAttrs returns true when all intrinsic values in the polciy match the span.
@@ -243,26 +237,50 @@ func policyMatchIntrinsicAttrs(policy *PolicyMatch, span *v1_trace.Span) bool {
 	return len(policy.Attributes) == matches
 }
 
-// policyMatchAttrs returns true if all attributes in the policy match the attributes in the span.  String, int, and floats are supported.  Regex MatchType may be applied to string span attributes.
+// policyMatchAttrs returns true if all attributes in the policy match the attributes in the span.  String, bool, int, and floats are supported.  Regex MatchType may be applied to string span attributes.
 func policyMatchAttrs(policy *PolicyMatch, attrs []*v1_common.KeyValue) bool {
 
 	matches := 0
+	var v *v1_common.AnyValue
+
 	for _, pa := range policy.Attributes {
+		pAttrValueType := reflect.TypeOf(pa.Value).String()
+
 		for _, attr := range attrs {
 			if attr.GetKey() == pa.Key {
-				v := attr.GetValue()
+				v = attr.GetValue()
 
 				switch v.Value.(type) {
 				case *v1_common.AnyValue_StringValue:
+					if pAttrValueType != "string" {
+						continue
+					}
+
 					if stringMatch(policy.MatchType, v.GetStringValue(), pa.Value.(string)) {
 						matches++
 					}
 				case *v1_common.AnyValue_IntValue:
+					if pAttrValueType != "int" {
+						continue
+					}
+
 					if v.GetIntValue() == int64(pa.Value.(int)) {
 						matches++
 					}
 				case *v1_common.AnyValue_DoubleValue:
-					if v.GetDoubleValue() == pa.Value {
+					if pAttrValueType != "float64" {
+						continue
+					}
+
+					if v.GetDoubleValue() == pa.Value.(float64) {
+						matches++
+					}
+				case *v1_common.AnyValue_BoolValue:
+					if pAttrValueType != "bool" {
+						continue
+					}
+
+					if v.GetBoolValue() == pa.Value.(bool) {
 						matches++
 					}
 				}
@@ -300,5 +318,54 @@ func stringMatch(matchType MatchType, s, pattern string) bool {
 		return re.MatchString(s)
 	default:
 		return false
+	}
+}
+
+func getSplitPolicy(policy *PolicyMatch) *splitPolicy {
+	if policy == nil {
+		return nil
+	}
+
+	// A policy to match against the resource attributes
+	resourcePolicy := &PolicyMatch{
+		MatchType:  policy.MatchType,
+		Attributes: make([]MatchPolicyAttribute, 0),
+	}
+
+	// A policy to match against the span attributes
+	spanPolicy := &PolicyMatch{
+		MatchType:  policy.MatchType,
+		Attributes: make([]MatchPolicyAttribute, 0),
+	}
+
+	intrinsicPolicy := &PolicyMatch{
+		MatchType:  policy.MatchType,
+		Attributes: make([]MatchPolicyAttribute, 0),
+	}
+
+	for _, pa := range policy.Attributes {
+		attr := traceql.MustParseIdentifier(pa.Key)
+
+		attribute := MatchPolicyAttribute{
+			Key:   attr.Name,
+			Value: pa.Value,
+		}
+
+		if attr.Intrinsic > 0 {
+			intrinsicPolicy.Attributes = append(intrinsicPolicy.Attributes, attribute)
+		} else {
+			switch attr.Scope {
+			case traceql.AttributeScopeSpan:
+				spanPolicy.Attributes = append(spanPolicy.Attributes, attribute)
+			case traceql.AttributeScopeResource:
+				resourcePolicy.Attributes = append(resourcePolicy.Attributes, attribute)
+			}
+		}
+	}
+
+	return &splitPolicy{
+		ResourceMatch:  resourcePolicy,
+		SpanMatch:      spanPolicy,
+		IntrinsicMatch: intrinsicPolicy,
 	}
 }

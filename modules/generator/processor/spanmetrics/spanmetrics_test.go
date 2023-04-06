@@ -310,6 +310,10 @@ func TestSpanMetrics_policyMatch(t *testing.T) {
 						Value: "earth",
 					},
 					{
+						Key:   "resource.name",
+						Value: "goodiegoodie",
+					},
+					{
 						Key:   "resource.othervalue",
 						Value: "somethinginteresting",
 					},
@@ -317,6 +321,14 @@ func TestSpanMetrics_policyMatch(t *testing.T) {
 			},
 			resource: &v1.Resource{
 				Attributes: []*common_v1.KeyValue{
+					{
+						Key: "name",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "goodiegoodie",
+							},
+						},
+					},
 					{
 						Key: "location",
 						Value: &common_v1.AnyValue{
@@ -443,7 +455,7 @@ func TestSpanMetrics_policyMatch(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		r := policyMatch(tc.policy, tc.resource, tc.span)
+		r := policyMatch(getSplitPolicy(tc.policy), tc.resource, tc.span)
 		require.Equal(t, tc.expect, r)
 	}
 }
@@ -466,6 +478,10 @@ func TestSpanMetrics_policyMatchIntrinsicAttrs(t *testing.T) {
 					{
 						Key:   "status",
 						Value: "STATUS_CODE_OK",
+					},
+					{
+						Key:   "name",
+						Value: "goodiegoodie",
 					},
 				},
 			},
@@ -602,6 +618,10 @@ func TestSpanMetrics_policyMatchAttrs(t *testing.T) {
 						Key:   "oneonepointone",
 						Value: 11.1,
 					},
+					{
+						Key:   "matching",
+						Value: true,
+					},
 				},
 			},
 			attrs: []*common_v1.KeyValue{
@@ -626,6 +646,14 @@ func TestSpanMetrics_policyMatchAttrs(t *testing.T) {
 					Value: &common_v1.AnyValue{
 						Value: &common_v1.AnyValue_DoubleValue{
 							DoubleValue: 11.1,
+						},
+					},
+				},
+				{
+					Key: "matching",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_BoolValue{
+							BoolValue: true,
 						},
 					},
 				},
@@ -658,6 +686,34 @@ func TestSpanMetrics_policyMatchAttrs(t *testing.T) {
 
 	for _, tc := range cases {
 		r := policyMatchAttrs(tc.policy, tc.attrs)
+		require.Equal(t, tc.expect, r)
+	}
+
+}
+
+func TestSpanMetrics_stringMatch(t *testing.T) {
+	cases := []struct {
+		matchType MatchType
+		s         string
+		pattern   string
+		expect    bool
+	}{
+		{
+			matchType: Strict,
+			s:         "foo",
+			pattern:   "foo",
+			expect:    true,
+		},
+		{
+			matchType: Strict,
+			s:         "foo",
+			pattern:   "bar",
+			expect:    false,
+		},
+	}
+
+	for _, tc := range cases {
+		r := stringMatch(tc.matchType, tc.s, tc.pattern)
 		require.Equal(t, tc.expect, r)
 	}
 
