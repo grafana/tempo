@@ -13,9 +13,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
-	"github.com/segmentio/parquet-go"
-
 	"github.com/grafana/dskit/multierror"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
@@ -25,6 +22,8 @@ import (
 	"github.com/grafana/tempo/pkg/warnings"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/pkg/errors"
+	"github.com/segmentio/parquet-go"
 )
 
 var _ common.WALBlock = (*walBlock)(nil)
@@ -628,7 +627,8 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 	}
 
 	blockFlushes := b.readFlushes()
-	var totalBytesRead uint64
+	// collect page readers to compute totalBytesRead
+	readers := make([]*WalReaderAt, 0, len(blockFlushes))
 	iters := make([]traceql.SpansetIterator, 0, len(blockFlushes))
 	for _, page := range blockFlushes {
 		file, err := page.file()
@@ -645,7 +645,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 
 		wrappedIterator := &pageFileClosingIterator{iter: iter, pageFile: file}
 		iters = append(iters, wrappedIterator)
-		totalBytesRead += file.r.TotalBytesRead.Load()
+		readers = append(readers, file.r)
 	}
 
 	// combine iters?
@@ -654,6 +654,11 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 			iters: iters,
 		},
 		Bytes: func() uint64 {
+			// read value when callback is called
+			var totalBytesRead uint64
+			for _, r := range readers {
+				totalBytesRead += r.TotalBytesRead.Load()
+			}
 			return totalBytesRead
 		},
 	}, nil
