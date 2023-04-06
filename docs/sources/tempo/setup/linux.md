@@ -2,7 +2,7 @@
 title: Deploy on Linux
 menuTitle: Deploy on Linux
 description: Learn how to deploy Tempo on Linux
-weight: 25
+weight: 400
 ---
 
 # Deploy on Linux

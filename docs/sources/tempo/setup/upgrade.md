@@ -2,7 +2,7 @@
 title: Upgrade your Tempo installation
 menuTitle: Upgrade
 description: Upgrade your Tempo installation to the latest version.
-weight: 20
+weight: 310
 ---
 
 # Upgrade Tempo

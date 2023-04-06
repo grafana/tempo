@@ -31,9 +31,9 @@ Grafana Tempo is available as a [pre-compiled binary, OS_specific packaging](htt
 
 The following procedures provide example Tempo deployments that you can use as a starting point:
 
-- [Deploy on Kubernetes using Helm](/docs/helm-charts/tempo-distributed/next/) (microservices)
+- [Deploy with Helm]({{< relref "helm-chart" >}}) (microservices and monolithic)
 - [Deploy on Linux]({{< relref "linux">}}) (monolithic)
-- [Deploy on Kubernetes using Tanka]({{< relref "tanka">}})
+- [Deploy on Kubernetes using Tanka]({{< relref "tanka">}}) (microservices)
 
 You can also use Docker to deploy Tempo using [the Docker examples](https://github.com/grafana/tempo/tree/main/example/docker-compose).
 

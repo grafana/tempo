@@ -2,10 +2,10 @@
 title: Plan your Tempo deployment
 menuTitle: Plan your deployment
 aliases:
-  - /docs/tempo/latest/deployment
-  - /docs/tempo/latest/deployment/deployment
-  - /docs/tempo/latest/setup/deployment
-weight: 10
+  - /docs/tempo/deployment
+  - /docs/tempo/deployment/deployment
+  - /docs/tempo/setup/deployment
+weight: 200
 ---
 
 # Plan your Tempo deployment
