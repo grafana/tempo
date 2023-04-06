@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"testing"
 
@@ -726,4 +727,103 @@ func withLe(lbls labels.Labels, le float64) labels.Labels {
 	lb := labels.NewBuilder(lbls)
 	lb = lb.Set(labels.BucketLabel, strconv.FormatFloat(le, 'f', -1, 64))
 	return lb.Labels(nil)
+}
+
+func BenchmarkSpanMetrics_applyFilterPolicyNone(b *testing.B) {
+	// Generate a batch of 100k spans
+	// r, done := test.NewRandomBatcher()
+	// defer done()
+	// batch := r.GenerateBatch(1e6)
+	// data, _ := batch.Marshal()
+	// _ = ioutil.WriteFile("testbatch100k", data, 0600)
+
+	// Read the file generated above
+	data, err := os.ReadFile("testbatch100k")
+	require.NoError(b, err)
+	batch := &trace_v1.ResourceSpans{}
+	err = batch.Unmarshal(data)
+	require.NoError(b, err)
+
+	// b.Logf("size: %s", humanize.Bytes(uint64(batch.Size())))
+	// b.Logf("span count: %d", len(batch.ScopeSpans))
+
+	policies := []FilterPolicy{}
+
+	benchmarkFilterPolicy(b, policies, batch)
+}
+
+func BenchmarkSpanMetrics_applyFilterPolicySmall(b *testing.B) {
+	// Read the file generated above
+	data, err := os.ReadFile("testbatch100k")
+	require.NoError(b, err)
+	batch := &trace_v1.ResourceSpans{}
+	err = batch.Unmarshal(data)
+	require.NoError(b, err)
+
+	policies := []FilterPolicy{
+		{
+			Include: &PolicyMatch{
+				MatchType: Strict,
+				Attributes: []MatchPolicyAttribute{
+					{
+						Key:   "span.foo",
+						Value: "foo-value",
+					},
+				},
+			},
+		},
+	}
+
+	benchmarkFilterPolicy(b, policies, batch)
+}
+
+func BenchmarkSpanMetrics_applyFilterPolicyMedium(b *testing.B) {
+	// Read the file generated above
+	data, err := os.ReadFile("testbatch100k")
+	require.NoError(b, err)
+	batch := &trace_v1.ResourceSpans{}
+	err = batch.Unmarshal(data)
+	require.NoError(b, err)
+
+	policies := []FilterPolicy{
+		{
+			Include: &PolicyMatch{
+				MatchType: Strict,
+				Attributes: []MatchPolicyAttribute{
+					{
+						Key:   "span.foo",
+						Value: "foo-value",
+					},
+					{
+						Key:   "span.x",
+						Value: "foo-value",
+					},
+					{
+						Key:   "span.y",
+						Value: "foo-value",
+					},
+					{
+						Key:   "span.z",
+						Value: "foo-value",
+					},
+				},
+			},
+		},
+	}
+
+	benchmarkFilterPolicy(b, policies, batch)
+}
+
+func benchmarkFilterPolicy(b *testing.B, policies []FilterPolicy, batch *trace_v1.ResourceSpans) {
+	testRegistry := registry.NewTestRegistry()
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.FilterPolicies = policies
+	p := New(cfg, testRegistry)
+	defer p.Shutdown(context.Background())
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+	}
 }
