@@ -9,27 +9,30 @@ weight: 300
 
 # Set up Tempo
 
-Tempo can deployed in one of three modes:
+To set up Tempo, you need to:
 
-- monolithic
-- scalable monolithic
-- microservices
-
-Grafana Tempo is available as a pre-compiled binary, a Docker image, and as common OS-specific packaging.
+1. Plan your deployment
+1. Deploy Tempo
+1. Test your installation
+1. (Optional) Configure Tempo services
 
 ## Plan your deployment
 
 How you choose to deploy Tempo depends upon your tracing needs.
+Tempo has two deployment modes: monolithic or microservices.
+
 Read [Plan your deployment]({{< relref "./deployment" >}}) to determine the best method to deploy Tempo.
 
 ## Deploy Tempo
 
-Once you have decided how to deploy Tempo to best meet your needs, you can install and set up Tempo. The Plan your deployment topic links to multiple examples for installing Tempo in
+Once you have decided how to deploy Tempo, you can install and set up Tempo. For additional samples, refer to the [Example setups]({{< relref "../getting-started/example-demo-app" >}}) topic.
+
+Grafana Tempo is available as a [pre-compiled binary, OS_specific packaging](https://github.com/grafana/tempo/releases), and [Docker image](https://github.com/grafana/tempo/tree/main/example/docker-compose).
 
 The following procedures provide example Tempo deployments that you can use as a starting point:
 
-- [Deploy on Kubernetes using Helm](/docs/helm-charts/tempo-distributed/next/)
-- [Deploy on Linux]({{< relref "linux">}})
+- [Deploy on Kubernetes using Helm](/docs/helm-charts/tempo-distributed/next/) (microservices)
+- [Deploy on Linux]({{< relref "linux">}}) (monolithic)
 - [Deploy on Kubernetes using Tanka]({{< relref "tanka">}})
 
 You can also use Docker to deploy Tempo using [the Docker examples](https://github.com/grafana/tempo/tree/main/example/docker-compose).
@@ -40,3 +43,9 @@ Once Tempo is deployed, you can test Tempo by visualizing traces data:
 
 - Using a [test application for a Tempo cluster]({{< relref "set-up-test-app" >}}) for the Kubernetes with Tanka setup
 - Using a [Docker example]({{< relref "linux">}}) to test the Linux setup
+
+These visualizations test Kubernetes with Tanka and Linux procedures. They do not check optional configuration you have enabled.
+
+## (Optional) Configure Tempo services
+
+Explore Tempo's features by learning about [available features and configurations]({{< relref "../configuration" >}}).

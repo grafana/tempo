@@ -12,7 +12,7 @@ The following examples show various deployment and configuration options using t
 
 For more information about Tempo setup and configuration, see:
 
-* [Set up a Tempo cluster]({{< relref "../setup">}})
+* [Set up Tempo]({{< relref "../setup">}})
 * [Tempo configuration]({{< relref "../configuration" >}})
 
 If you are interested in instrumentation, see [Tempo instrumentation]({{< relref "instrumentation" >}}).
