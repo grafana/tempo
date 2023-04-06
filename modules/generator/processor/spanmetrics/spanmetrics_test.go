@@ -29,6 +29,8 @@ func TestSpanMetrics(t *testing.T) {
 	p := New(cfg, testRegistry)
 	defer p.Shutdown(context.Background())
 
+	require.Equal(t, p.Name(), "span-metrics")
+
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
 	batch := test.MakeBatch(10, nil)
 
@@ -490,6 +492,7 @@ func TestSpanMetrics_policyMatchIntrinsicAttrs(t *testing.T) {
 				Status: &trace_v1.Status{
 					Code: trace_v1.Status_STATUS_CODE_OK,
 				},
+				Name: "goodiegoodie",
 			},
 		},
 	}
