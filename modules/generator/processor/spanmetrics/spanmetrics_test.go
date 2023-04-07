@@ -157,11 +157,13 @@ func TestSpanMetrics_collisions(t *testing.T) {
 
 func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 	cases := []struct {
-		filterPolicies  []FilterPolicy
-		expectedMatches float64
+		filterPolicies     []FilterPolicy
+		expectedMatches    float64
+		expectedRejections float64
 	}{
 		{
-			expectedMatches: 10.0,
+			expectedMatches:    10.0,
+			expectedRejections: 0.0,
 			filterPolicies: []FilterPolicy{
 				{
 
@@ -178,7 +180,8 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			},
 		},
 		{
-			expectedMatches: 0.0,
+			expectedMatches:    0.0,
+			expectedRejections: 10.0,
 			filterPolicies: []FilterPolicy{
 				{
 
@@ -195,7 +198,8 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			},
 		},
 		{
-			expectedMatches: 0.0,
+			expectedMatches:    0.0,
+			expectedRejections: 10.0,
 			filterPolicies: []FilterPolicy{
 				{
 					Exclude: &PolicyMatch{
@@ -211,7 +215,8 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			},
 		},
 		{
-			expectedMatches: 10.0,
+			expectedMatches:    10.0,
+			expectedRejections: 0.0,
 			filterPolicies: []FilterPolicy{
 				{
 					Include: &PolicyMatch{
@@ -286,6 +291,7 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			assert.Equal(t, tc.expectedMatches, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
 			assert.Equal(t, tc.expectedMatches, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 			assert.Equal(t, tc.expectedMatches, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
+			assert.Equal(t, tc.expectedRejections, testRegistry.Query(metricFilterDropsTotal, nil))
 
 		})
 	}

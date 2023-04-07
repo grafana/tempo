@@ -1,4 +1,5 @@
-package spanmetrics
+pt st
+ackage spanmetrics
 
 import (
 	"context"
@@ -21,9 +22,10 @@ import (
 )
 
 const (
-	metricCallsTotal      = "traces_spanmetrics_calls_total"
-	metricDurationSeconds = "traces_spanmetrics_latency"
-	metricSizeTotal       = "traces_spanmetrics_size_total"
+	metricCallsTotal       = "traces_spanmetrics_calls_total"
+	metricDurationSeconds  = "traces_spanmetrics_latency"
+	metricSizeTotal        = "traces_spanmetrics_size_total"
+	metricFilterDropsTotal = "traces_spanmetrics_filter_drops_total"
 )
 
 type Processor struct {
@@ -31,9 +33,10 @@ type Processor struct {
 
 	registry registry.Registry
 
-	spanMetricsCallsTotal      registry.Counter
-	spanMetricsDurationSeconds registry.Histogram
-	spanMetricsSizeTotal       registry.Counter
+	spanMetricsCallsTotal       registry.Counter
+	spanMetricsDurationSeconds  registry.Histogram
+	spanMetricsSizeTotal        registry.Countetr
+	spanMetricsFilterDropsTotal registry.Counter
 
 	filterPolicies []*filterPolicy
 
@@ -130,6 +133,8 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 			for _, span := range ils.Spans {
 				if p.applyFilterPolicy(rs.Resource, span) {
 					p.aggregateMetricsForSpan(svcName, rs.Resource, span)
+				} else {
+					p.spanMetricsFilterDropsTotal.Inc(nil, 1)
 				}
 			}
 		}
