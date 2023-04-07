@@ -58,6 +58,7 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	b.openMtx.Lock()
 	defer b.openMtx.Unlock()
 
+	// TODO: ctx is also cached when we cache backendReaderAt, not ideal but leaving it as is for now
 	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
 
 	// no searches currently require bloom filters or the page index. so just add them statically
@@ -92,11 +93,6 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	span, _ := opentracing.StartSpanFromContext(ctx, "parquet.OpenFile")
 	defer span.Finish()
 	pf, err := parquet.OpenFile(readerAt, int64(b.meta.Size), o...)
-
-	if err == nil {
-		b.pf = pf
-		b.readerAt = backendReaderAt
-	}
 
 	return pf, backendReaderAt, err
 }

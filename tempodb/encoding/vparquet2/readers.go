@@ -128,3 +128,22 @@ func (r *cachedReaderAt) ReadAt(p []byte, off int64) (int, error) {
 
 	return r.r.ReadAt(p, off)
 }
+
+// WalReaderAt is wrapper over io.ReaderAt, and is used to measure the total bytes read when searching walBlock.
+type WalReaderAt struct {
+	r io.ReaderAt
+
+	TotalBytesRead atomic.Uint64
+}
+
+var _ io.ReaderAt = (*WalReaderAt)(nil)
+
+func NewWalReaderAt(r io.ReaderAt) *WalReaderAt {
+	return &WalReaderAt{r, atomic.Uint64{}}
+}
+
+func (wr *WalReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	// parquet-go will call ReadAt when reading data from a parquet file.
+	wr.TotalBytesRead.Add(uint64(len(p)))
+	return wr.r.ReadAt(p, off)
+}
