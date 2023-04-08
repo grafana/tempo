@@ -18,17 +18,20 @@ package fanoutconsumer // import "go.opentelemetry.io/collector/service/internal
 
 import (
 	"context"
+	"fmt"
 
 	"go.uber.org/multierr"
 
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/plog"
 )
 
 // NewLogs wraps multiple log consumers in a single one.
 // It fanouts the incoming data to all the consumers, and does smart routing:
-//  * Clones only to the consumer that needs to mutate the data.
-//  * If all consumers needs to mutate the data one will get the original data.
+//   - Clones only to the consumer that needs to mutate the data.
+//   - If all consumers needs to mutate the data one will get the original data.
 func NewLogs(lcs []consumer.Logs) consumer.Logs {
 	if len(lcs) == 1 {
 		// Don't wrap if no need to do it.
@@ -71,10 +74,59 @@ func (lsc *logsConsumer) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
 	// the incoming data to a mutating consumer is used that may change the incoming data before
 	// cloning.
 	for _, lc := range lsc.clone {
-		errs = multierr.Append(errs, lc.ConsumeLogs(ctx, ld.Clone()))
+		clonedLogs := plog.NewLogs()
+		ld.CopyTo(clonedLogs)
+		errs = multierr.Append(errs, lc.ConsumeLogs(ctx, clonedLogs))
 	}
 	for _, lc := range lsc.pass {
 		errs = multierr.Append(errs, lc.ConsumeLogs(ctx, ld))
 	}
 	return errs
+}
+
+var _ connector.LogsRouter = (*logsRouter)(nil)
+
+type logsRouter struct {
+	consumer.Logs
+	consumers map[component.ID]consumer.Logs
+}
+
+func NewLogsRouter(cm map[component.ID]consumer.Logs) consumer.Logs {
+	consumers := make([]consumer.Logs, 0, len(cm))
+	for _, consumer := range cm {
+		consumers = append(consumers, consumer)
+	}
+	return &logsRouter{
+		Logs:      NewLogs(consumers),
+		consumers: cm,
+	}
+}
+
+func (r *logsRouter) PipelineIDs() []component.ID {
+	ids := make([]component.ID, 0, len(r.consumers))
+	for id := range r.consumers {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func (r *logsRouter) Consumer(pipelineIDs ...component.ID) (consumer.Logs, error) {
+	if len(pipelineIDs) == 0 {
+		return nil, fmt.Errorf("missing consumers")
+	}
+	consumers := make([]consumer.Logs, 0, len(pipelineIDs))
+	var errors error
+	for _, pipelineID := range pipelineIDs {
+		c, ok := r.consumers[pipelineID]
+		if ok {
+			consumers = append(consumers, c)
+		} else {
+			errors = multierr.Append(errors, fmt.Errorf("missing consumer: %q", pipelineID))
+		}
+	}
+	if errors != nil {
+		// TODO potentially this could return a NewLogs with the valid consumers
+		return nil, errors
+	}
+	return NewLogs(consumers), nil
 }

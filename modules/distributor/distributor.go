@@ -275,7 +275,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	// Convert to bytes and back. This is unfortunate for efficiency, but it works
 	// around the otel-collector internalization of otel-proto which Tempo also uses.
-	convert, err := ptrace.NewProtoMarshaler().MarshalTraces(traces)
+	convert, err := (&ptrace.ProtoMarshaler{}).MarshalTraces(traces)
 	if err != nil {
 		return nil, err
 	}

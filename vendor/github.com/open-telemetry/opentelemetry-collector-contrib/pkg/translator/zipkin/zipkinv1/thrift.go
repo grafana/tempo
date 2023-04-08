@@ -23,11 +23,10 @@ import (
 	"math"
 	"net"
 
-	tracepb "github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1"
 	jaegerzipkin "github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils"
 )
@@ -40,11 +39,7 @@ func (t thriftUnmarshaler) UnmarshalTraces(buf []byte) (ptrace.Traces, error) {
 	if err != nil {
 		return ptrace.Traces{}, err
 	}
-	tds, err := v1ThriftBatchToOCProto(spans)
-	if err != nil {
-		return ptrace.Traces{}, err
-	}
-	return toTraces(tds)
+	return thriftBatchToTraces(spans)
 }
 
 // NewThriftTracesUnmarshaler returns an unmarshaler for Zipkin Thrift.
@@ -52,80 +47,58 @@ func NewThriftTracesUnmarshaler() ptrace.Unmarshaler {
 	return thriftUnmarshaler{}
 }
 
-// v1ThriftBatchToOCProto converts Zipkin v1 spans to OC Proto.
-func v1ThriftBatchToOCProto(zSpans []*zipkincore.Span) ([]traceData, error) {
-	ocSpansAndParsedAnnotations := make([]ocSpanAndParsedAnnotations, 0, len(zSpans))
+// thriftBatchToTraces converts Zipkin v1 spans to ptrace.Traces.
+func thriftBatchToTraces(zSpans []*zipkincore.Span) (ptrace.Traces, error) {
+	spanAndEndpoints := make([]spanAndEndpoint, 0, len(zSpans))
 	for _, zSpan := range zSpans {
-		ocSpan, parsedAnnotations := zipkinV1ThriftToOCSpan(zSpan)
-		ocSpansAndParsedAnnotations = append(ocSpansAndParsedAnnotations, ocSpanAndParsedAnnotations{
-			ocSpan:            ocSpan,
-			parsedAnnotations: parsedAnnotations,
-		})
+		spanAndEndpoints = append(spanAndEndpoints, thriftToSpanAndEndpoint(zSpan))
 	}
 
-	return zipkinToOCProtoBatch(ocSpansAndParsedAnnotations)
+	return zipkinToTraces(spanAndEndpoints)
 }
 
-func zipkinV1ThriftToOCSpan(zSpan *zipkincore.Span) (*tracepb.Span, *annotationParseResult) {
+func thriftToSpanAndEndpoint(zSpan *zipkincore.Span) spanAndEndpoint {
 	traceIDHigh := int64(0)
 	if zSpan.TraceIDHigh != nil {
 		traceIDHigh = *zSpan.TraceIDHigh
 	}
 
-	// TODO: (@pjanotti) ideally we should error here instead of generating invalid OC proto
+	// TODO: (@pjanotti) ideally we should error here instead of generating invalid Traces
 	// however per https://go.opentelemetry.io/collector/issues/349
 	// failures on the receivers in general are silent at this moment, so letting them
 	// proceed for now. We should validate the traceID, spanID and parentID are good with
-	// OC proto requirements.
-	traceID := idutils.UInt64ToTraceID(uint64(traceIDHigh), uint64(zSpan.TraceID)).Bytes()
-	spanID := idutils.UInt64ToSpanID(uint64(zSpan.ID)).Bytes()
-	var parentID []byte
+	// OTLP requirements.
+	traceID := idutils.UInt64ToTraceID(uint64(traceIDHigh), uint64(zSpan.TraceID))
+	spanID := idutils.UInt64ToSpanID(uint64(zSpan.ID))
+	var parentID pcommon.SpanID
 	if zSpan.ParentID != nil {
-		parentIDBytes := idutils.UInt64ToSpanID(uint64(*zSpan.ParentID)).Bytes()
-		parentID = parentIDBytes[:]
+		parentID = idutils.UInt64ToSpanID(uint64(*zSpan.ParentID))
 	}
 
-	parsedAnnotations := parseZipkinV1ThriftAnnotations(zSpan.Annotations)
-	attributes, ocStatus, localComponent := zipkinV1ThriftBinAnnotationsToOCAttributes(zSpan.BinaryAnnotations)
-	if parsedAnnotations.Endpoint.ServiceName == unknownServiceName && localComponent != "" {
-		parsedAnnotations.Endpoint.ServiceName = localComponent
+	span, edpt := thriftAnnotationsToSpanAndEndpoint(zSpan.Annotations)
+	localComponent := thriftBinAnnotationsToSpanAttributes(span, zSpan.BinaryAnnotations)
+	if edpt.ServiceName == unknownServiceName && localComponent != "" {
+		edpt.ServiceName = localComponent
 	}
 
-	var startTime, endTime *timestamppb.Timestamp
-	if zSpan.Timestamp == nil {
-		startTime = parsedAnnotations.EarlyAnnotationTime
-		endTime = parsedAnnotations.LateAnnotationTime
-	} else {
-		startTime = epochMicrosecondsToTimestamp(*zSpan.Timestamp)
+	if zSpan.Timestamp != nil {
+		span.SetStartTimestamp(epochMicrosecondsToTimestamp(*zSpan.Timestamp))
 		var duration int64
 		if zSpan.Duration != nil {
 			duration = *zSpan.Duration
 		}
-		endTime = epochMicrosecondsToTimestamp(*zSpan.Timestamp + duration)
+		span.SetEndTimestamp(epochMicrosecondsToTimestamp(*zSpan.Timestamp + duration))
 	}
 
-	ocSpan := &tracepb.Span{
-		TraceId:      traceID[:],
-		SpanId:       spanID[:],
-		ParentSpanId: parentID,
-		Status:       ocStatus,
-		Kind:         parsedAnnotations.Kind,
-		TimeEvents:   parsedAnnotations.TimeEvents,
-		StartTime:    startTime,
-		EndTime:      endTime,
-		Attributes:   attributes,
-	}
+	span.SetName(zSpan.Name)
+	span.SetTraceID(traceID)
+	span.SetSpanID(spanID)
+	span.SetParentSpanID(parentID)
 
-	if zSpan.Name != "" {
-		ocSpan.Name = &tracepb.TruncatableString{Value: zSpan.Name}
-	}
-
-	setSpanKind(ocSpan, parsedAnnotations.Kind, parsedAnnotations.ExtendedKind)
-
-	return ocSpan, parsedAnnotations
+	return spanAndEndpoint{span: span, endpoint: edpt}
 }
 
-func parseZipkinV1ThriftAnnotations(ztAnnotations []*zipkincore.Annotation) *annotationParseResult {
+func thriftAnnotationsToSpanAndEndpoint(ztAnnotations []*zipkincore.Annotation) (ptrace.Span, *endpoint) {
 	annotations := make([]*annotation, 0, len(ztAnnotations))
 	for _, ztAnnot := range ztAnnotations {
 		annot := &annotation{
@@ -135,7 +108,7 @@ func parseZipkinV1ThriftAnnotations(ztAnnotations []*zipkincore.Annotation) *ann
 		}
 		annotations = append(annotations, annot)
 	}
-	return parseZipkinV1Annotations(annotations)
+	return jsonAnnotationsToSpanAndEndpoint(annotations)
 }
 
 func toTranslatorEndpoint(e *zipkincore.Endpoint) *endpoint {
@@ -160,16 +133,16 @@ func toTranslatorEndpoint(e *zipkincore.Endpoint) *endpoint {
 
 var trueByteSlice = []byte{1}
 
-func zipkinV1ThriftBinAnnotationsToOCAttributes(ztBinAnnotations []*zipkincore.BinaryAnnotation) (attributes *tracepb.Span_Attributes, status *tracepb.Status, fallbackServiceName string) {
+func thriftBinAnnotationsToSpanAttributes(span ptrace.Span, ztBinAnnotations []*zipkincore.BinaryAnnotation) string {
+	var fallbackServiceName string
 	if len(ztBinAnnotations) == 0 {
-		return nil, nil, ""
+		return fallbackServiceName
 	}
 
 	sMapper := &statusMapper{}
 	var localComponent string
-	attributeMap := make(map[string]*tracepb.AttributeValue)
 	for _, binaryAnnotation := range ztBinAnnotations {
-		pbAttrib := &tracepb.AttributeValue{}
+		val := pcommon.NewValueEmpty()
 		binAnnotationType := binaryAnnotation.AnnotationType
 		if binaryAnnotation.Host != nil {
 			fallbackServiceName = binaryAnnotation.Host.ServiceName
@@ -177,41 +150,38 @@ func zipkinV1ThriftBinAnnotationsToOCAttributes(ztBinAnnotations []*zipkincore.B
 		switch binaryAnnotation.AnnotationType {
 		case zipkincore.AnnotationType_BOOL:
 			isTrue := bytes.Equal(binaryAnnotation.Value, trueByteSlice)
-			pbAttrib.Value = &tracepb.AttributeValue_BoolValue{BoolValue: isTrue}
+			val.SetBool(isTrue)
 		case zipkincore.AnnotationType_BYTES:
 			bytesStr := base64.StdEncoding.EncodeToString(binaryAnnotation.Value)
-			pbAttrib.Value = &tracepb.AttributeValue_StringValue{
-				StringValue: &tracepb.TruncatableString{Value: bytesStr}}
+			val.SetStr(bytesStr)
 		case zipkincore.AnnotationType_DOUBLE:
 			if d, err := bytesFloat64ToFloat64(binaryAnnotation.Value); err != nil {
-				pbAttrib.Value = strAttributeForError(err)
+				strAttributeForError(val, err)
 			} else {
-				pbAttrib.Value = &tracepb.AttributeValue_DoubleValue{DoubleValue: d}
+				val.SetDouble(d)
 			}
 		case zipkincore.AnnotationType_I16:
 			if i, err := bytesInt16ToInt64(binaryAnnotation.Value); err != nil {
-				pbAttrib.Value = strAttributeForError(err)
+				strAttributeForError(val, err)
 			} else {
-				pbAttrib.Value = &tracepb.AttributeValue_IntValue{IntValue: i}
+				val.SetInt(i)
 			}
 		case zipkincore.AnnotationType_I32:
 			if i, err := bytesInt32ToInt64(binaryAnnotation.Value); err != nil {
-				pbAttrib.Value = strAttributeForError(err)
+				strAttributeForError(val, err)
 			} else {
-				pbAttrib.Value = &tracepb.AttributeValue_IntValue{IntValue: i}
+				val.SetInt(i)
 			}
 		case zipkincore.AnnotationType_I64:
 			if i, err := bytesInt64ToInt64(binaryAnnotation.Value); err != nil {
-				pbAttrib.Value = strAttributeForError(err)
+				strAttributeForError(val, err)
 			} else {
-				pbAttrib.Value = &tracepb.AttributeValue_IntValue{IntValue: i}
+				val.SetInt(i)
 			}
 		case zipkincore.AnnotationType_STRING:
-			pbAttrib.Value = &tracepb.AttributeValue_StringValue{
-				StringValue: &tracepb.TruncatableString{Value: string(binaryAnnotation.Value)}}
+			val.SetStr(string(binaryAnnotation.Value))
 		default:
-			err := fmt.Errorf("unknown zipkin v1 binary annotation type (%d)", int(binAnnotationType))
-			pbAttrib.Value = strAttributeForError(err)
+			strAttributeForError(val, fmt.Errorf("unknown zipkin v1 binary annotation type (%d)", int(binAnnotationType)))
 		}
 
 		key := binaryAnnotation.Key
@@ -221,27 +191,19 @@ func zipkinV1ThriftBinAnnotationsToOCAttributes(ztBinAnnotations []*zipkincore.B
 			localComponent = string(binaryAnnotation.Value)
 		}
 
-		if drop := sMapper.fromAttribute(key, pbAttrib); drop {
+		if drop := sMapper.fromAttribute(key, val); drop {
 			continue
 		}
 
-		attributeMap[key] = pbAttrib
-	}
-
-	status = sMapper.ocStatus()
-
-	if len(attributeMap) == 0 {
-		return nil, status, ""
+		val.CopyTo(span.Attributes().PutEmpty(key))
 	}
 
 	if fallbackServiceName == "" {
 		fallbackServiceName = localComponent
 	}
 
-	attributes = &tracepb.Span_Attributes{
-		AttributeMap: attributeMap,
-	}
-	return attributes, status, fallbackServiceName
+	sMapper.status(span.Status())
+	return fallbackServiceName
 }
 
 var errNotEnoughBytes = errors.New("not enough bytes representing the number")
@@ -279,10 +241,6 @@ func bytesFloat64ToFloat64(b []byte) (float64, error) {
 	return math.Float64frombits(bits), nil
 }
 
-func strAttributeForError(err error) *tracepb.AttributeValue_StringValue {
-	return &tracepb.AttributeValue_StringValue{
-		StringValue: &tracepb.TruncatableString{
-			Value: "<" + err.Error() + ">",
-		},
-	}
+func strAttributeForError(dest pcommon.Value, err error) {
+	dest.SetStr("<" + err.Error() + ">")
 }

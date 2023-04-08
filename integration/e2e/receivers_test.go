@@ -12,10 +12,10 @@ import (
 	"github.com/weaveworks/common/user"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel/metric"
@@ -43,14 +43,14 @@ func TestReceivers(t *testing.T) {
 
 	testReceivers := []struct {
 		name     string
-		factory  component.ExporterFactory
-		config   func(component.ExporterFactory, string) config.Exporter
+		factory  exporter.Factory
+		config   func(exporter.Factory, string) component.Config
 		endpoint string
 	}{
 		{
 			"jaeger gRPC",
 			jaegerexporter.NewFactory(),
-			func(factory component.ExporterFactory, endpoint string) config.Exporter {
+			func(factory exporter.Factory, endpoint string) component.Config {
 				exporterCfg := factory.CreateDefaultConfig()
 				jaegerCfg := exporterCfg.(*jaegerexporter.Config)
 				jaegerCfg.GRPCClientSettings = configgrpc.GRPCClientSettings{
@@ -66,7 +66,7 @@ func TestReceivers(t *testing.T) {
 		{
 			"otlp gRPC",
 			otlpexporter.NewFactory(),
-			func(factory component.ExporterFactory, endpoint string) config.Exporter {
+			func(factory exporter.Factory, endpoint string) component.Config {
 				exporterCfg := factory.CreateDefaultConfig()
 				otlpCfg := exporterCfg.(*otlpexporter.Config)
 				otlpCfg.GRPCClientSettings = configgrpc.GRPCClientSettings{
@@ -82,7 +82,7 @@ func TestReceivers(t *testing.T) {
 		{
 			"zipkin",
 			zipkinexporter.NewFactory(),
-			func(factory component.ExporterFactory, endpoint string) config.Exporter {
+			func(factory exporter.Factory, endpoint string) component.Config {
 				exporterCfg := factory.CreateDefaultConfig()
 				zipkinCfg := exporterCfg.(*zipkinexporter.Config)
 				zipkinCfg.HTTPClientSettings = confighttp.HTTPClientSettings{
@@ -104,7 +104,7 @@ func TestReceivers(t *testing.T) {
 			logger, _ := zap.NewDevelopment()
 			exporter, err := tc.factory.CreateTracesExporter(
 				context.Background(),
-				component.ExporterCreateSettings{
+				exporter.CreateSettings{
 					TelemetrySettings: component.TelemetrySettings{
 						Logger:         logger,
 						TracerProvider: trace.NewNoopTracerProvider(),
@@ -141,7 +141,7 @@ func TestReceivers(t *testing.T) {
 			require.NoError(t, err)
 
 			// unmarshal into otlp proto
-			traces, err := ptrace.NewProtoUnmarshaler().UnmarshalTraces(b)
+			traces, err := (&ptrace.ProtoUnmarshaler{}).UnmarshalTraces(b)
 			require.NoError(t, err)
 			require.NotNil(t, traces)
 

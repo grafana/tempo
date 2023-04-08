@@ -15,6 +15,7 @@
 package zipkinv1 // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv1"
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,15 +23,11 @@ import (
 	"strconv"
 	"time"
 
-	commonpb "github.com/census-instrumentation/opencensus-proto/gen-go/agent/common/v1"
-	tracepb "github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/internal/zipkin"
 )
 
@@ -42,10 +39,8 @@ var (
 	msgZipkinV1ParentIDError      = "zipkinV1 span parentId"
 	// Generic hex to ID conversion errors
 	errHexTraceIDWrongLen = errors.New("hex traceId span has wrong length (expected 16 or 32)")
-	errHexTraceIDParsing  = errors.New("failed to parse hex traceId")
 	errHexTraceIDZero     = errors.New("traceId is zero")
 	errHexIDWrongLen      = errors.New("hex Id has wrong length (expected 16)")
-	errHexIDParsing       = errors.New("failed to parse hex Id")
 	errHexIDZero          = errors.New("ID is zero")
 )
 
@@ -56,11 +51,7 @@ type jsonUnmarshaler struct {
 
 // UnmarshalTraces from JSON bytes.
 func (j jsonUnmarshaler) UnmarshalTraces(buf []byte) (ptrace.Traces, error) {
-	tds, err := v1JSONBatchToOCProto(buf, j.ParseStringTags)
-	if err != nil {
-		return ptrace.Traces{}, err
-	}
-	return toTraces(tds)
+	return jsonBatchToTraces(buf, j.ParseStringTags)
 }
 
 // NewJSONTracesUnmarshaler returns an unmarshaler for Zipkin JSON.
@@ -70,9 +61,9 @@ func NewJSONTracesUnmarshaler(parseStringTags bool) ptrace.Unmarshaler {
 
 // Trace translation from Zipkin V1 is a bit of special case since there is no model
 // defined in golang for Zipkin V1 spans and there is no need to define one here, given
-// that the zipkinV1Span defined below is as defined at:
+// that the jsonSpan defined below is as defined at:
 // https://zipkin.io/zipkin-api/zipkin-api.yaml
-type zipkinV1Span struct {
+type jsonSpan struct {
 	TraceID           string              `json:"traceId"`
 	Name              string              `json:"name,omitempty"`
 	ParentID          string              `json:"parentId,omitempty"`
@@ -84,7 +75,7 @@ type zipkinV1Span struct {
 	BinaryAnnotations []*binaryAnnotation `json:"binaryAnnotations,omitempty"`
 }
 
-// endpoint structure used by zipkinV1Span.
+// endpoint structure used by jsonSpan.
 type endpoint struct {
 	ServiceName string `json:"serviceName"`
 	IPv4        string `json:"ipv4"`
@@ -92,229 +83,158 @@ type endpoint struct {
 	Port        int32  `json:"port"`
 }
 
-// annotation struct used by zipkinV1Span.
+// annotation struct used by jsonSpan.
 type annotation struct {
 	Timestamp int64     `json:"timestamp"`
 	Value     string    `json:"value"`
 	Endpoint  *endpoint `json:"endpoint"`
 }
 
-// binaryAnnotation used by zipkinV1Span.
+// binaryAnnotation used by jsonSpan.
 type binaryAnnotation struct {
 	Key      string    `json:"key"`
 	Value    string    `json:"value"`
 	Endpoint *endpoint `json:"endpoint"`
 }
 
-// v1JSONBatchToOCProto converts a JSON blob with a list of Zipkin v1 spans to OC Proto.
-func v1JSONBatchToOCProto(blob []byte, parseStringTags bool) ([]traceData, error) {
-	var zSpans []*zipkinV1Span
+// jsonBatchToTraces converts a JSON blob with a list of Zipkin v1 spans to ptrace.Traces.
+func jsonBatchToTraces(blob []byte, parseStringTags bool) (ptrace.Traces, error) {
+	var zSpans []*jsonSpan
 	if err := json.Unmarshal(blob, &zSpans); err != nil {
-		return nil, fmt.Errorf("%s: %w", msgZipkinV1JSONUnmarshalError, err)
+		return ptrace.Traces{}, fmt.Errorf("%s: %w", msgZipkinV1JSONUnmarshalError, err)
 	}
 
-	ocSpansAndParsedAnnotations := make([]ocSpanAndParsedAnnotations, 0, len(zSpans))
+	spanAndEndpoints := make([]spanAndEndpoint, 0, len(zSpans))
 	for _, zSpan := range zSpans {
-		ocSpan, parsedAnnotations, err := zipkinV1ToOCSpan(zSpan, parseStringTags)
+		sae, err := jsonToSpanAndEndpoint(zSpan, parseStringTags)
 		if err != nil {
 			// error from internal package function, it already wraps the error to give better context.
-			return nil, err
+			return ptrace.Traces{}, err
 		}
-		ocSpansAndParsedAnnotations = append(ocSpansAndParsedAnnotations, ocSpanAndParsedAnnotations{
-			ocSpan:            ocSpan,
-			parsedAnnotations: parsedAnnotations,
-		})
+		spanAndEndpoints = append(spanAndEndpoints, sae)
 	}
 
-	return zipkinToOCProtoBatch(ocSpansAndParsedAnnotations)
+	return zipkinToTraces(spanAndEndpoints)
 }
 
-type ocSpanAndParsedAnnotations struct {
-	ocSpan            *tracepb.Span
-	parsedAnnotations *annotationParseResult
+type spanAndEndpoint struct {
+	span     ptrace.Span
+	endpoint *endpoint
 }
 
-func zipkinToOCProtoBatch(ocSpansAndParsedAnnotations []ocSpanAndParsedAnnotations) ([]traceData, error) {
+func zipkinToTraces(spanAndEndpoints []spanAndEndpoint) (ptrace.Traces, error) {
+	td := ptrace.NewTraces()
 	// Service to batch maps the service name to the trace request with the corresponding node.
-	svcToTD := make(map[string]*traceData)
-	for _, curr := range ocSpansAndParsedAnnotations {
-		req := getOrCreateNodeRequest(svcToTD, curr.parsedAnnotations.Endpoint)
-		req.Spans = append(req.Spans, curr.ocSpan)
+	svcToTD := make(map[string]ptrace.SpanSlice)
+	for _, curr := range spanAndEndpoints {
+		ss := getOrCreateNodeRequest(svcToTD, td, curr.endpoint)
+		curr.span.MoveTo(ss.AppendEmpty())
 	}
-
-	tds := make([]traceData, 0, len(svcToTD))
-	for _, v := range svcToTD {
-		tds = append(tds, *v)
-	}
-	return tds, nil
+	return td, nil
 }
 
-func zipkinV1ToOCSpan(zSpan *zipkinV1Span, parseStringTags bool) (*tracepb.Span, *annotationParseResult, error) {
-	traceID, err := hexTraceIDToOCTraceID(zSpan.TraceID)
+func jsonToSpanAndEndpoint(zSpan *jsonSpan, parseStringTags bool) (spanAndEndpoint, error) {
+	traceID, err := hexToTraceID(zSpan.TraceID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%s: %w", msgZipkinV1TraceIDError, err)
+		return spanAndEndpoint{}, fmt.Errorf("%s: %w", msgZipkinV1TraceIDError, err)
 	}
-	spanID, err := hexIDToOCID(zSpan.ID)
+	spanID, err := hexToSpanID(zSpan.ID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%s: %w", msgZipkinV1SpanIDError, err)
+		return spanAndEndpoint{}, fmt.Errorf("%s: %w", msgZipkinV1SpanIDError, err)
 	}
-	var parentID []byte
+	var parentID [8]byte
 	if zSpan.ParentID != "" {
-		id, err := hexIDToOCID(zSpan.ParentID)
+		parentID, err = hexToSpanID(zSpan.ParentID)
 		if err != nil {
-			return nil, nil, fmt.Errorf("%s: %w", msgZipkinV1ParentIDError, err)
+			return spanAndEndpoint{}, fmt.Errorf("%s: %w", msgZipkinV1ParentIDError, err)
 		}
-		parentID = id
 	}
 
-	parsedAnnotations := parseZipkinV1Annotations(zSpan.Annotations)
-	attributes, ocStatus, localComponent := zipkinV1BinAnnotationsToOCAttributes(zSpan.BinaryAnnotations, parseStringTags)
-	if parsedAnnotations.Endpoint.ServiceName == unknownServiceName && localComponent != "" {
-		parsedAnnotations.Endpoint.ServiceName = localComponent
+	span, edpt := jsonAnnotationsToSpanAndEndpoint(zSpan.Annotations)
+	localComponent := jsonBinAnnotationsToSpanAttributes(span, zSpan.BinaryAnnotations, parseStringTags)
+	if edpt.ServiceName == unknownServiceName && localComponent != "" {
+		edpt.ServiceName = localComponent
 	}
-	var startTime, endTime *timestamppb.Timestamp
-	if zSpan.Timestamp == 0 {
-		startTime = parsedAnnotations.EarlyAnnotationTime
-		endTime = parsedAnnotations.LateAnnotationTime
-	} else {
-		startTime = epochMicrosecondsToTimestamp(zSpan.Timestamp)
-		endTime = epochMicrosecondsToTimestamp(zSpan.Timestamp + zSpan.Duration)
+	if zSpan.Timestamp != 0 {
+		span.SetStartTimestamp(epochMicrosecondsToTimestamp(zSpan.Timestamp))
+		span.SetEndTimestamp(epochMicrosecondsToTimestamp(zSpan.Timestamp + zSpan.Duration))
 	}
 
-	ocSpan := &tracepb.Span{
-		TraceId:      traceID,
-		SpanId:       spanID,
-		ParentSpanId: parentID,
-		Status:       ocStatus,
-		Kind:         parsedAnnotations.Kind,
-		TimeEvents:   parsedAnnotations.TimeEvents,
-		StartTime:    startTime,
-		EndTime:      endTime,
-		Attributes:   attributes,
-	}
+	span.SetName(zSpan.Name)
+	span.SetTraceID(traceID)
+	span.SetSpanID(spanID)
+	span.SetParentSpanID(parentID)
+	setTimestampsIfUnset(span)
 
-	if zSpan.Name != "" {
-		ocSpan.Name = &tracepb.TruncatableString{Value: zSpan.Name}
-	}
-
-	setSpanKind(ocSpan, parsedAnnotations.Kind, parsedAnnotations.ExtendedKind)
-	setTimestampsIfUnset(ocSpan)
-
-	return ocSpan, parsedAnnotations, nil
+	return spanAndEndpoint{span: span, endpoint: edpt}, nil
 }
 
-func setSpanKind(ocSpan *tracepb.Span, kind tracepb.Span_SpanKind, extendedKind tracetranslator.OpenTracingSpanKind) {
-	if kind == tracepb.Span_SPAN_KIND_UNSPECIFIED &&
-		extendedKind != tracetranslator.OpenTracingSpanKindUnspecified {
-		// Span kind has no equivalent in OC, so we cannot represent it in the Kind field.
-		// We will set a TagSpanKind attribute in the span. This will successfully transfer
-		// in the pipeline until it reaches the exporter which is responsible for
-		// reverse translation.
-		if ocSpan.Attributes == nil {
-			ocSpan.Attributes = &tracepb.Span_Attributes{}
-		}
-		if ocSpan.Attributes.AttributeMap == nil {
-			ocSpan.Attributes.AttributeMap = make(map[string]*tracepb.AttributeValue, 1)
-		}
-		ocSpan.Attributes.AttributeMap[tracetranslator.TagSpanKind] =
-			&tracepb.AttributeValue{Value: &tracepb.AttributeValue_StringValue{
-				StringValue: &tracepb.TruncatableString{Value: string(extendedKind)},
-			}}
-	}
-}
-
-func zipkinV1BinAnnotationsToOCAttributes(binAnnotations []*binaryAnnotation, parseStringTags bool) (attributes *tracepb.Span_Attributes, status *tracepb.Status, fallbackServiceName string) {
+func jsonBinAnnotationsToSpanAttributes(span ptrace.Span, binAnnotations []*binaryAnnotation, parseStringTags bool) string {
+	var fallbackServiceName string
 	if len(binAnnotations) == 0 {
-		return nil, nil, ""
+		return fallbackServiceName
 	}
 
 	sMapper := &statusMapper{}
 	var localComponent string
-	attributeMap := make(map[string]*tracepb.AttributeValue)
 	for _, binAnnotation := range binAnnotations {
 
 		if binAnnotation.Endpoint != nil && binAnnotation.Endpoint.ServiceName != "" {
 			fallbackServiceName = binAnnotation.Endpoint.ServiceName
 		}
 
-		pbAttrib := parseAnnotationValue(binAnnotation.Value, parseStringTags)
-
 		key := binAnnotation.Key
-
 		if key == zipkincore.LOCAL_COMPONENT {
 			// TODO: (@pjanotti) add reference to OpenTracing and change related tags to use them
 			key = "component"
 			localComponent = binAnnotation.Value
 		}
 
-		if drop := sMapper.fromAttribute(key, pbAttrib); drop {
+		val := parseAnnotationValue(binAnnotation.Value, parseStringTags)
+		if drop := sMapper.fromAttribute(key, val); drop {
 			continue
 		}
 
-		attributeMap[key] = pbAttrib
-	}
-
-	status = sMapper.ocStatus()
-
-	if len(attributeMap) == 0 {
-		return nil, status, ""
+		val.CopyTo(span.Attributes().PutEmpty(key))
 	}
 
 	if fallbackServiceName == "" {
 		fallbackServiceName = localComponent
 	}
 
-	attributes = &tracepb.Span_Attributes{
-		AttributeMap: attributeMap,
-	}
-
-	return attributes, status, fallbackServiceName
+	sMapper.status(span.Status())
+	return fallbackServiceName
 }
 
-func parseAnnotationValue(value string, parseStringTags bool) *tracepb.AttributeValue {
-	pbAttrib := &tracepb.AttributeValue{}
-
+func parseAnnotationValue(value string, parseStringTags bool) pcommon.Value {
 	if parseStringTags {
 		switch zipkin.DetermineValueType(value) {
 		case pcommon.ValueTypeInt:
 			iValue, _ := strconv.ParseInt(value, 10, 64)
-			pbAttrib.Value = &tracepb.AttributeValue_IntValue{IntValue: iValue}
+			return pcommon.NewValueInt(iValue)
 		case pcommon.ValueTypeDouble:
 			fValue, _ := strconv.ParseFloat(value, 64)
-			pbAttrib.Value = &tracepb.AttributeValue_DoubleValue{DoubleValue: fValue}
+			return pcommon.NewValueDouble(fValue)
 		case pcommon.ValueTypeBool:
 			bValue, _ := strconv.ParseBool(value)
-			pbAttrib.Value = &tracepb.AttributeValue_BoolValue{BoolValue: bValue}
+			return pcommon.NewValueBool(bValue)
 		default:
-			pbAttrib.Value = &tracepb.AttributeValue_StringValue{StringValue: &tracepb.TruncatableString{Value: value}}
+			return pcommon.NewValueStr(value)
 		}
-	} else {
-		pbAttrib.Value = &tracepb.AttributeValue_StringValue{StringValue: &tracepb.TruncatableString{Value: value}}
 	}
 
-	return pbAttrib
-}
-
-// annotationParseResult stores the results of examining the original annotations,
-// this way multiple passes on the annotations are not needed.
-type annotationParseResult struct {
-	Endpoint            *endpoint
-	TimeEvents          *tracepb.Span_TimeEvents
-	Kind                tracepb.Span_SpanKind
-	ExtendedKind        tracetranslator.OpenTracingSpanKind
-	EarlyAnnotationTime *timestamppb.Timestamp
-	LateAnnotationTime  *timestamppb.Timestamp
+	return pcommon.NewValueStr(value)
 }
 
 // Unknown service name works both as a default value and a flag to indicate that a valid endpoint was found.
 const unknownServiceName = "unknown-service"
 
-func parseZipkinV1Annotations(annotations []*annotation) *annotationParseResult {
-	// Zipkin V1 annotations have a timestamp so they fit well with OC TimeEvent
+func jsonAnnotationsToSpanAndEndpoint(annotations []*annotation) (ptrace.Span, *endpoint) {
+	// Zipkin V1 annotations have a timestamp so they fit well with ptrace.SpanEvent
 	earlyAnnotationTimestamp := int64(math.MaxInt64)
 	lateAnnotationTimestamp := int64(math.MinInt64)
-	res := &annotationParseResult{}
-	timeEvents := make([]*tracepb.Span_TimeEvent, 0, len(annotations))
+	var edpt *endpoint
+	span := ptrace.NewSpan()
 
 	// We want to set the span kind from the first annotation that contains information
 	// about the span kind. This flags ensures we only set span kind once from
@@ -340,8 +260,8 @@ func parseZipkinV1Annotations(annotations []*annotation) *annotationParseResult 
 
 		// Populate the endpoint if it is not already populated and current endpoint
 		// has a service name and span kind.
-		if res.Endpoint == nil && endpointName != unknownServiceName && annotationHasSpanKind {
-			res.Endpoint = currAnnotation.Endpoint
+		if edpt == nil && endpointName != unknownServiceName && annotationHasSpanKind {
+			edpt = currAnnotation.Endpoint
 		}
 
 		if !spanKindIsSet && annotationHasSpanKind {
@@ -350,21 +270,13 @@ func parseZipkinV1Annotations(annotations []*annotation) *annotationParseResult 
 			// pair of internal fields.
 			switch currAnnotation.Value {
 			case "cs", "cr":
-				res.Kind = tracepb.Span_CLIENT
-				res.ExtendedKind = tracetranslator.OpenTracingSpanKindClient
-
+				span.SetKind(ptrace.SpanKindClient)
 			case "ms":
-				// "ms" and "mr" are PRODUCER and CONSUMER kinds which have no equivalent
-				// representation in OC. We keep res.Kind unspecified and will use
-				// ExtendedKind for translations.
-				res.ExtendedKind = tracetranslator.OpenTracingSpanKindProducer
-
+				span.SetKind(ptrace.SpanKindProducer)
 			case "mr":
-				res.ExtendedKind = tracetranslator.OpenTracingSpanKindConsumer
-
+				span.SetKind(ptrace.SpanKindConsumer)
 			case "ss", "sr":
-				res.Kind = tracepb.Span_SERVER
-				res.ExtendedKind = tracetranslator.OpenTracingSpanKindServer
+				span.SetKind(ptrace.SpanKindServer)
 			}
 
 			// Remember that we populated the span kind, so that we don't do it again.
@@ -374,11 +286,11 @@ func parseZipkinV1Annotations(annotations []*annotation) *annotationParseResult 
 		ts := epochMicrosecondsToTimestamp(currAnnotation.Timestamp)
 		if currAnnotation.Timestamp < earlyAnnotationTimestamp {
 			earlyAnnotationTimestamp = currAnnotation.Timestamp
-			res.EarlyAnnotationTime = ts
+			span.SetStartTimestamp(ts)
 		}
 		if currAnnotation.Timestamp > lateAnnotationTimestamp {
 			lateAnnotationTimestamp = currAnnotation.Timestamp
-			res.LateAnnotationTime = ts
+			span.SetEndTimestamp(ts)
 		}
 
 		if annotationHasSpanKind {
@@ -386,153 +298,114 @@ func parseZipkinV1Annotations(annotations []*annotation) *annotationParseResult 
 			continue
 		}
 
-		timeEvent := &tracepb.Span_TimeEvent{
-			Time: ts,
-			// More economically we could use a tracepb.Span_TimeEvent_Message, however, it will mean the loss of some information.
-			// Using the more expensive annotation until/if something cheaper is needed.
-			Value: &tracepb.Span_TimeEvent_Annotation_{
-				Annotation: &tracepb.Span_TimeEvent_Annotation{
-					Description: &tracepb.TruncatableString{Value: currAnnotation.Value},
-				},
-			},
-		}
-
-		timeEvents = append(timeEvents, timeEvent)
+		ev := span.Events().AppendEmpty()
+		ev.SetTimestamp(ts)
+		ev.SetName(currAnnotation.Value)
 	}
 
-	if len(timeEvents) > 0 {
-		res.TimeEvents = &tracepb.Span_TimeEvents{TimeEvent: timeEvents}
-	}
-
-	if res.Endpoint == nil {
-		res.Endpoint = &endpoint{
+	if edpt == nil {
+		edpt = &endpoint{
 			ServiceName: unknownServiceName,
 		}
 	}
 
-	return res
+	return span, edpt
 }
 
-func hexTraceIDToOCTraceID(hex string) ([]byte, error) {
+func hexToTraceID(hexStr string) (pcommon.TraceID, error) {
 	// Per info at https://zipkin.io/zipkin-api/zipkin-api.yaml it should be 16 or 32 characters
-	hexLen := len(hex)
+	hexLen := len(hexStr)
 	if hexLen != 16 && hexLen != 32 {
-		return nil, errHexTraceIDWrongLen
+		return pcommon.NewTraceIDEmpty(), errHexTraceIDWrongLen
 	}
 
-	var high, low uint64
-	var err error
-	if hexLen == 32 {
-		if high, err = strconv.ParseUint(hex[:16], 16, 64); err != nil {
-			return nil, errHexTraceIDParsing
+	var id [16]byte
+	if hexLen == 16 {
+		if _, err := hex.Decode(id[8:], []byte(hexStr)); err != nil {
+			return pcommon.NewTraceIDEmpty(), err
 		}
+		if pcommon.TraceID(id).IsEmpty() {
+			return pcommon.NewTraceIDEmpty(), errHexTraceIDZero
+		}
+		return id, nil
 	}
 
-	if low, err = strconv.ParseUint(hex[hexLen-16:], 16, 64); err != nil {
-		return nil, errHexTraceIDParsing
+	if _, err := hex.Decode(id[:], []byte(hexStr)); err != nil {
+		return pcommon.NewTraceIDEmpty(), err
 	}
-
-	if high == 0 && low == 0 {
-		return nil, errHexTraceIDZero
+	if pcommon.TraceID(id).IsEmpty() {
+		return pcommon.NewTraceIDEmpty(), errHexTraceIDZero
 	}
-
-	tidBytes := idutils.UInt64ToTraceID(high, low).Bytes()
-	return tidBytes[:], nil
+	return id, nil
 }
 
-func hexIDToOCID(hex string) ([]byte, error) {
+func hexToSpanID(hexStr string) (pcommon.SpanID, error) {
 	// Per info at https://zipkin.io/zipkin-api/zipkin-api.yaml it should be 16 characters
-	if len(hex) != 16 {
-		return nil, errHexIDWrongLen
+	if len(hexStr) != 16 {
+		return pcommon.NewSpanIDEmpty(), errHexIDWrongLen
 	}
 
-	idValue, err := strconv.ParseUint(hex, 16, 64)
-	if err != nil {
-		return nil, errHexIDParsing
+	var id [8]byte
+	if _, err := hex.Decode(id[:], []byte(hexStr)); err != nil {
+		return pcommon.NewSpanIDEmpty(), err
 	}
-
-	if idValue == 0 {
-		return nil, errHexIDZero
+	if pcommon.SpanID(id).IsEmpty() {
+		return pcommon.NewSpanIDEmpty(), errHexIDZero
 	}
-
-	idBytes := idutils.UInt64ToSpanID(idValue).Bytes()
-	return idBytes[:], nil
+	return id, nil
 }
 
-func epochMicrosecondsToTimestamp(msecs int64) *timestamppb.Timestamp {
+func epochMicrosecondsToTimestamp(msecs int64) pcommon.Timestamp {
 	if msecs <= 0 {
-		return nil
+		return pcommon.Timestamp(0)
 	}
-	t := &timestamppb.Timestamp{}
-	t.Seconds = msecs / 1e6
-	t.Nanos = int32(msecs%1e6) * 1e3
-	return t
+	return pcommon.Timestamp(uint64(msecs) * 1e3)
 }
 
-func getOrCreateNodeRequest(m map[string]*traceData, endpoint *endpoint) *traceData {
+func getOrCreateNodeRequest(m map[string]ptrace.SpanSlice, td ptrace.Traces, endpoint *endpoint) ptrace.SpanSlice {
 	// this private function assumes that the caller never passes an nil endpoint
 	nodeKey := endpoint.string()
-	req := m[nodeKey]
-
-	if req != nil {
-		return req
+	ss, found := m[nodeKey]
+	if found {
+		return ss
 	}
 
-	req = &traceData{
-		Node: &commonpb.Node{
-			ServiceInfo: &commonpb.ServiceInfo{Name: endpoint.ServiceName},
-		},
-	}
-
-	if attributeMap := endpoint.createAttributeMap(); attributeMap != nil {
-		req.Node.Attributes = attributeMap
-	}
-
-	m[nodeKey] = req
-
-	return req
+	rs := td.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr(conventions.AttributeServiceName, endpoint.ServiceName)
+	endpoint.setAttributes(rs.Resource().Attributes())
+	ss = rs.ScopeSpans().AppendEmpty().Spans()
+	m[nodeKey] = ss
+	return ss
 }
 
 func (ep *endpoint) string() string {
 	return fmt.Sprintf("%s-%s-%s-%d", ep.ServiceName, ep.IPv4, ep.IPv6, ep.Port)
 }
 
-func (ep *endpoint) createAttributeMap() map[string]string {
+func (ep *endpoint) setAttributes(dest pcommon.Map) {
 	if ep.IPv4 == "" && ep.IPv6 == "" && ep.Port == 0 {
-		return nil
+		return
 	}
 
-	attributeMap := make(map[string]string, 3)
 	if ep.IPv4 != "" {
-		attributeMap["ipv4"] = ep.IPv4
+		dest.PutStr("ipv4", ep.IPv4)
 	}
 	if ep.IPv6 != "" {
-		attributeMap["ipv6"] = ep.IPv6
+		dest.PutStr("ipv6", ep.IPv6)
 	}
 	if ep.Port != 0 {
-		attributeMap["port"] = strconv.Itoa(int(ep.Port))
+		dest.PutStr("port", strconv.Itoa(int(ep.Port)))
 	}
-	return attributeMap
 }
 
-func setTimestampsIfUnset(span *tracepb.Span) {
+func setTimestampsIfUnset(span ptrace.Span) {
 	// zipkin allows timestamp to be unset, but opentelemetry-collector expects it to have a value.
 	// If this is unset, the conversion from open census to the internal trace format breaks
 	// what should be an identity transformation oc -> internal -> oc
-	if span.StartTime == nil {
-		now := timestamppb.New(time.Now())
-		span.StartTime = now
-		span.EndTime = now
-
-		if span.Attributes == nil {
-			span.Attributes = &tracepb.Span_Attributes{}
-		}
-		if span.Attributes.AttributeMap == nil {
-			span.Attributes.AttributeMap = make(map[string]*tracepb.AttributeValue, 1)
-		}
-		span.Attributes.AttributeMap[zipkin.StartTimeAbsent] = &tracepb.AttributeValue{
-			Value: &tracepb.AttributeValue_BoolValue{
-				BoolValue: true,
-			}}
+	if span.StartTimestamp() == 0 {
+		now := time.Now()
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(now))
+		span.SetEndTimestamp(pcommon.NewTimestampFromTime(now))
+		span.Attributes().PutBool(zipkin.StartTimeAbsent, true)
 	}
 }
