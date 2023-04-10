@@ -6,11 +6,11 @@ aliases:
 - /docs/tempo/latest/configuration/
 ---
 
-# Configre Tempo
+# Configure Tempo
 
 This document explains the configuration options for Tempo as well as the details of what they impact. It includes:
 
-- [Configre Tempo](#configre-tempo)
+- [Configure Tempo](#configure-tempo)
   - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
   - [Server](#server)
   - [Distributor](#distributor)
