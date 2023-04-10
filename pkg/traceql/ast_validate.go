@@ -166,8 +166,6 @@ func (o BinaryOperation) validate() error {
 		return err
 	}
 
-	fmt.Println(o.Op)
-
 	lhsT := o.LHS.impliedType()
 	rhsT := o.RHS.impliedType()
 
