@@ -13,7 +13,7 @@ steps:
   image: alpine/git:v2.30.2
   name: image-tag
 - commands:
-  - apk add make git
+  - apk --update --no-cache add make git bash
   - COMPONENT=tempo GOARCH=amd64 make exe
   - COMPONENT=tempo-vulture GOARCH=amd64 make exe
   - COMPONENT=tempo-query GOARCH=amd64 make exe
@@ -73,7 +73,7 @@ steps:
   image: alpine/git:v2.30.2
   name: image-tag
 - commands:
-  - apk add make git
+  - apk --update --no-cache add make git bash
   - COMPONENT=tempo GOARCH=arm64 make exe
   - COMPONENT=tempo-vulture GOARCH=arm64 make exe
   - COMPONENT=tempo-query GOARCH=arm64 make exe
@@ -422,6 +422,6 @@ kind: secret
 name: gpg_passphrase
 ---
 kind: signature
-hmac: 66d14ceba8885ceea66b6ab4274103b80ee5aff0323b6c5a496a844a2ce998ae
+hmac: d92429ebb30ec062362d88387f0e22d2b3c1dc9c6ac5ae5960494f4ab4089a7c
 
 ...
