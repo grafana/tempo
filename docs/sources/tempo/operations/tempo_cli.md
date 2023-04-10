@@ -24,7 +24,7 @@ tempo-cli -h
 tempo-cli command [subcommand] -h
 ```
 
-## Running Tempo CLI
+## Run Tempo CLI
 
 Tempo CLI is currently available as source code. A working Go installation is required to build it. It can be compiled to a native binary and executed normally, or it can be executed using the `go run` command.
 It can be packaged as a Docker container using `make docker-tempo-cli`.
@@ -46,13 +46,13 @@ Tempo CLI connects directly to the storage backend for some commands, meaning th
 The backend can be configured in a few ways:
 
 * Load an existing tempo configuration file using the `--config-file` (`-c`) option. This is the recommended option
-  for frequent usage. Refer to [Configuration]({{< relref "../configuration/" >}}) documentation for more information.
+  for frequent usage. Refer to [Configuration]({{< relref "../configuration" >}}) documentation for more information.
 * Specify individual settings:
     * `--backend <value>` The storage backend type, one of `s3`, `gcs`, `azure`, and `local`.
-    * `--bucket <value>` The bucket name. The meaning of this value is backend-specific. Refer to [Configuration]({{< relref "../configuration/" >}}) documentation for more information.
+    * `--bucket <value>` The bucket name. The meaning of this value is backend-specific. Refer to [Configuration]({{< relref "../configuration" >}}) documentation for more information.
     * `--s3-endpoint <value>` The S3 API endpoint (i.e. s3.dualstack.us-east-2.amazonaws.com).
     * `--s3-user <value>`, `--s3-password <value>` The S3 user name and password (or access key and secret key).
-      Optional, as Tempo CLI supports the same authentication mechanisms as Tempo. See [S3 permissions documentation]({{< relref "../configuration/s3/" >}}) for more information.
+      Optional, as Tempo CLI supports the same authentication mechanisms as Tempo. See [S3 permissions documentation]({{< relref "../configuration/s3" >}}) for more information.
 
 Each option applies only to the command in which it is used. For example, `--backend <value>` does not permanently change where Tempo stores data. It only changes it for command in which you apply the option.
 
@@ -292,7 +292,7 @@ tempo-cli migrate tenant <source tenant> <dest tenant>
 ```
 
 Arguments:
-- `source tenant` Tenant to copy blocks from 
+- `source tenant` Tenant to copy blocks from
 - `dest tenant` Tenant to copy blocks into
 
 Options:

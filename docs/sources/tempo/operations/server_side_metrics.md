@@ -1,5 +1,6 @@
 ---
 title: Server-side metrics
+menuTitle: Server-side metrics
 weight: 110
 ---
 

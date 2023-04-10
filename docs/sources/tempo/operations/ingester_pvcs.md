@@ -1,9 +1,10 @@
 ---
-title: Ingester PVCs
+title: Resize PVCs
+menuTitle: Resize PVCs
 weight: 50
 ---
 
-# Ingester persistent volume operations
+# Resize ingester persistent volume operations
 
 Tempo ingesters make heavy use of local disks to store write-ahead logs and blocks before being flushed to the backend (GCS, S3, etc.).  It is important to monitor the free volume space as full disks can lead to data loss and other errors. The amount of disk space available affects how much volume a Tempo ingester can process and the length of time an outage to the backend can be tolerated.
 
@@ -11,15 +12,16 @@ Therefore it may be necessary to increase the disk space for ingesters as usage 
 
 We recommend using SSDs for local storage.
 
-<!-- Wr>
+<!-- Wr -->
 
 ## Increase VCC size
 
-When deployed as a StatefulSet with Persistent Volume Claims (PVC), some manual steps are required. The following configuration has worked successfully on GKE with GCS:
+When deployed as a StatefulSet with Persistent Volume Claims (PVC), some manual steps are required.
+The following configuration has worked successfully on GKE with GCS:
 
 1. Edit the persistent volume claim (pvc) for each ingester to the new size.
 
-   ```
+   ```bash
    kubectl patch pvc -n <namespace> -p '{"spec": {"resources": {"requests": {"storage": "'15Gi'"}}}}' <pod-name>
    ```
 
@@ -29,11 +31,11 @@ When deployed as a StatefulSet with Persistent Volume Claims (PVC), some manual 
 
    A restart is not necessary as the pods will automatically detect the increased disk space.
 
-2. Delete the StatefulSet but leave the pods running:
+1. Delete the StatefulSet but leave the pods running:
 
    `kubectl delete sts --cascade=false -n <namespace> ingester`
 
-3. Edit and recreate the Statefulset with the new size. This covers new pods.  There are many ways to deploy Tempo to kubernetes, these are examples for the popular ones:
-    * Raw yaml: `kubectl apply -f <something>.yaml`
+1. Edit and recreate the Statefulset with the new size. This covers new pods.  There are many ways to deploy Tempo to kubernetes, these are examples for the popular ones:
+    * Raw YAML: `kubectl apply -f <something>.yaml`
     * Helm: `helm upgrade ... tempo ...`
     * Tanka: `tk apply ...`

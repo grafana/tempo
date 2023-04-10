@@ -1,5 +1,9 @@
 ---
-title: "Tail-based sampling"
+title: Tail-based sampling
+menuTItle: Tail-based sampling
+weight:
+aliases:
+- /docs/tempo/grafana-agent/tail-based-sampling
 ---
 
 # Tail-based sampling
@@ -109,7 +113,7 @@ traces:
         policies:
         - attributes:
           - name: http.endpoint
-            values: 
+            values:
               - /status
               - /metrics
             invert_match: true

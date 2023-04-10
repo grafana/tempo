@@ -1,6 +1,8 @@
 ---
 title: Polling
-weight: 80
+weight: 55
+aliases:
+- /docs/tempo/operations/polling
 ---
 
 # Polling
@@ -10,14 +12,16 @@ only two components that need this knowledge and, consequently, only two that po
 and queriers.
 
 To reduce calls to the backend, only a small subset of compactors actually list all blocks and build
-what's called a tenant index. The tenant index is a gzip'ed json file located at `/<tenant>/index.json.gz` containing
-an entry for every block and compacted block for that tenant. This is done once every `blocklist_poll` duration.
+what's called a tenant index.
+The tenant index is a gzip'ed JSON file located at `/<tenant>/index.json.gz` containing
+an entry for every block and compacted block for that tenant.
+This is done once every `blocklist_poll` duration.
 
 All other compactors and all queriers then rely on downloading this file, unzipping it and using the contained list.
 Again, this is done once every `blocklist_poll` duration.
 
-Due to this behavior, a given compactor or querier will often have an out of date blocklist.
-During normal operation, it will stale by at most 2x the configured `blocklist_poll`.
+Due to this behavior, a given compactor or querier will often have an out-of-date blocklist.
+During normal operation, it will stale by at most twice the configured `blocklist_poll`.
 
 >**Note**: For details about configuring polling, see [polling configuration]({{< relref "../configuration/polling" >}}).
 
@@ -26,7 +30,7 @@ During normal operation, it will stale by at most 2x the configured `blocklist_p
 See our Jsonnet for example [alerts](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/alerts.libsonnet) and [runbook entries](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/runbook.md)
 related to polling.
 
-If you are building your own dashboards/alerts here are a few relevant metrics:
+If you are building your own dashboards or alerts, here are a few relevant metrics:
 
 - `tempodb_blocklist_poll_errors_total`
   A holistic metric that increments for any error with polling the blocklist. Any increase in this metric should be reviewed.

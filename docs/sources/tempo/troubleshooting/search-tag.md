@@ -1,6 +1,8 @@
 ---
 title: Tag search
 weight: 476
+aliases:
+- /docs/tempo/troubleshooting/search-tag
 ---
 
 # Tag search

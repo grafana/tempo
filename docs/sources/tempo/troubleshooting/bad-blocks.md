@@ -1,6 +1,8 @@
 ---
 title: Bad blocks
 weight: 475
+aliases:
+- /docs/tempo/troubleshooting/bad-blocks
 ---
 
 # Bad blocks

@@ -1,9 +1,12 @@
 ---
-title: Troubleshooting
+title: Troubleshoot Tempo
+menuTitle: Troubleshoot Tempo
 weight: 700
+aliases:
+- /docs/tempo/troubleshooting/
 ---
 
-# Troubleshooting
+# Troubleshoot Tempo
 
 This section helps with day zero operational issues that may come up when getting started with Tempo.
 The documents walk you through debugging each part of the ingestion and query pipeline to diagnose issues.

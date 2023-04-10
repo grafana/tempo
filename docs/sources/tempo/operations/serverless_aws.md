@@ -1,15 +1,16 @@
 ---
-title: Backend search - serverless AWS setup
+title: Search with AWS setup
+menuTitle: Search with AWS setup
 alias:
 - /docs/tempo/latest/operations/backend_search/serverless_aws/
 - /docs/tempo/latest/operations/serverless_aws/
 weight: 95
 ---
 
-# AWS Lambda for serverless backend search
+# Search with AWS Lambda
 
 This document will walk you through setting up an AWS Lambda for serverless backend search.
-For more guidance on configuration options for full backend search [check here]({{< relref "backend_search/" >}}).
+Read [improve search performance]({{< relref "backend_search" >}}) for more guidance on configuration options for backend search.
 
 1. Build the code package:
 

@@ -1,24 +1,27 @@
 ---
-title: Monitoring Tempo
+title: Monitor Tempo
+menuTitle: Monitor Tempo
+description: Use alerts and dashboards to monitor Tempo in production.
 weight: 40
 ---
 
-# Monitoring Tempo
+# Monitor Tempo
 
-Tempo is instrumented to expose metrics, logs and traces.
+Tempo is instrumented to expose metrics, logs, and traces.
 Additionally, the Tempo repository has a [mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) that includes a
-set of dashboards, rules and alerts.
+set of dashboards, rules, and alerts.
 Together, these can be used to monitor Tempo in production.
 
 ## Instrumentation
 
-Tempo is already instrumented with metrics, logs and traces.
+Tempo is already instrumented with metrics, logs, and traces.
 These can be collected to observe Tempo.
 
 ### Metrics
 
 Tempo is instrumented with [Prometheus metrics](https://prometheus.io/).
 It emits RED metrics for most services and backends.
+
 The [Tempo mixin](#dashboards) provides several dashboards using these metrics.
 
 ### Logs

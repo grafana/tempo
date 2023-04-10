@@ -1,14 +1,15 @@
 ---
-title: Architecture
+title: Tempo Architecture
 aliases:
  - /docs/tempo/latest/architecture/architecture
  - /docs/tempo/latest/architecture
+ - /docs/tempo/operations/architecture
 weight: 10
 ---
 
 A collection of documents that detail Tempo architectural decisions and operational implications.
 
-# Architecture
+# Tempo architecture
 
 This topic provides an overview of the major components of Tempo. Refer to the [example setups]({{< relref "../getting-started/example-demo-app" >}})
 or [deployment options]({{< relref "../setup/deployment" >}}) for help deploying.
@@ -69,10 +70,4 @@ The Compactors stream blocks to and from the backend storage to reduce the total
 
 ### Metrics generator
 
-This is an **optional** component that derives metrics from ingested traces and writes them to a metrics storage.
-
-### Using older versions of Grafana
-
-When using older versions of Grafana (7.4.x), you must also use `tempo-query` in order to visualize traces. The
-`tempo-query` is [Jaeger Query](https://www.jaegertracing.io/docs/1.19/deployment/#query-service--ui) with a [GRPC Plugin](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc) that allows it to query Tempo.
-For more information, refer to [these example](https://github.com/grafana/tempo/tree/main/example/docker-compose/grafana7.4) and [these docs]({{< relref "../configuration/querying/" >}}).
+This is an **optional** component that derives metrics from ingested traces and writes them to a metrics storage. Refer to the [metrics-generator documentation]({{< relref "../metrics-generator" >}}) to learn more.
