@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"strings"
 )
 
 func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err error) {
@@ -177,6 +178,20 @@ func (o BinaryOperation) execute(span Span) (Static, error) {
 
 	if !o.Op.binaryTypesValid(lhsT, rhsT) {
 		return NewStaticBool(false), nil
+	}
+
+	if lhsT == TypeString && rhsT == TypeString {
+		switch o.Op {
+		case OpGreater:
+			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) > 0), nil
+		case OpGreaterEqual:
+			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) >= 0), nil
+		case OpLess:
+			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) < 0), nil
+		case OpLessEqual:
+			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) <= 0), nil
+		default:
+		}
 	}
 
 	switch o.Op {
