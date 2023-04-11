@@ -274,7 +274,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.Sea
 	if scope == "" {
 		// start with intrinsic scope and all traceql attribute scopes
 		atts := traceql.AllAttributeScopes()
-		scopes := make([]string, 0, len(atts)+1) // +1 for intrinsic
+		scopes = make([]string, 0, len(atts)+1) // +1 for intrinsic
 
 		scopes = append(scopes, api.ParamScopeIntrinsic)
 		for _, att := range atts {
