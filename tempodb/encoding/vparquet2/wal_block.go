@@ -220,7 +220,7 @@ func (w *walBlockFlush) file() (*pageFile, error) {
 	}
 	size := info.Size()
 
-	wr := NewWalReaderAt(file)
+	wr := newWalReaderAt(file)
 	pf, err := parquet.OpenFile(wr, size, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true), parquet.FileSchema(walSchema))
 	if err != nil {
 		return nil, fmt.Errorf("error opening parquet file: %w", err)

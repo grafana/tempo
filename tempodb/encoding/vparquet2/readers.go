@@ -142,7 +142,7 @@ type walReaderAt struct {
 
 var _ io.ReaderAt = (*walReaderAt)(nil)
 
-func NewWalReaderAt(r io.ReaderAt) *walReaderAt {
+func newWalReaderAt(r io.ReaderAt) *walReaderAt {
 	return &walReaderAt{r, atomic.Uint64{}}
 }
 
