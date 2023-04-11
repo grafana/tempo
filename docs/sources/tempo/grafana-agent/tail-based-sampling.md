@@ -1,6 +1,10 @@
 ---
-title: "Tail-based sampling"
+title: Tail-based sampling
+menuTItle: Tail-based sampling
+draft: true
 ---
+
+<!-- April 11, 2023. Page is not published, per https://github.com/grafana/tempo/issues/2305. -->
 
 # Tail-based sampling
 
