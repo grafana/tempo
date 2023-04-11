@@ -201,10 +201,15 @@ func Test_Forwarder_Dial_ReturnsErrorWithCancelledContext(t *testing.T) {
 	l := newListener(t, nil)
 	d := newContextDialer(l)
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Ensure the server is ready
+	err := f.Dial(ctx, grpc.WithContextDialer(d), grpc.WithBlock(), grpc.FailOnNonTempDialError(true))
+	require.NoError(t, err)
+
 	cancel()
 
 	// When
-	err := f.Dial(ctx, grpc.WithContextDialer(d), grpc.WithBlock(), grpc.FailOnNonTempDialError(true))
+	err = f.Dial(ctx, grpc.WithContextDialer(d), grpc.WithBlock(), grpc.FailOnNonTempDialError(true))
 
 	// Then
 	require.Error(t, err)

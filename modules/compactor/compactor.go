@@ -62,7 +62,7 @@ func New(cfg Config, store storage.Store, overrides *overrides.Overrides, reg pr
 	}
 
 	if c.isSharded() {
-		reg = prometheus.WrapRegistererWithPrefix("cortex_", reg)
+		reg = prometheus.WrapRegistererWithPrefix("tempo_", reg)
 
 		lifecyclerStore, err := kv.NewClient(
 			cfg.ShardingRing.KVStore,
@@ -116,7 +116,7 @@ func (c *Compactor) starting(ctx context.Context) (err error) {
 	if c.isSharded() {
 		c.subservices, err = services.NewManager(c.ringLifecycler, c.Ring)
 		if err != nil {
-			return fmt.Errorf("failed to create subservices: %w", err)
+			return fmt.Errorf("failed to create subservices %w", err)
 		}
 		c.subservicesWatcher = services.NewFailureWatcher()
 		c.subservicesWatcher.WatchManager(c.subservices)

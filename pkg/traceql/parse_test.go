@@ -630,6 +630,7 @@ func TestSpansetFilterStatics(t *testing.T) {
 		{in: "{ 1.234 }", expected: NewStaticFloat(1.234)},
 		{in: "{ nil }", expected: NewStaticNil()},
 		{in: "{ 3h }", expected: NewStaticDuration(3 * time.Hour)},
+		{in: "{ 1.5m }", expected: NewStaticDuration(1*time.Minute + 30*time.Second)},
 		{in: "{ error }", expected: NewStaticStatus(StatusError)},
 		{in: "{ ok }", expected: NewStaticStatus(StatusOk)},
 		{in: "{ unset }", expected: NewStaticStatus(StatusUnset)},
