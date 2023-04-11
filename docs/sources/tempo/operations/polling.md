@@ -1,11 +1,13 @@
 ---
-title: Polling
+title: Use polling to monitor backend
+menuTitle: Use polling to monitor backend
+description: Monitor Tempo's backend using polling
 weight: 55
 aliases:
 - /docs/tempo/operations/polling
 ---
 
-# Polling
+# Use polling to monitor Temppo's backend status
 
 Tempo maintains knowledge of the state of the backend by polling it on regular intervals. There are currently
 only two components that need this knowledge and, consequently, only two that poll the backend: compactors

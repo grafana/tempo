@@ -27,9 +27,9 @@ For more guidance on configuration options for full backend search [check here](
     tempo-serverless                                                           latest                          146c9d9fa63c   58 seconds ago   47.9MB
     ```
 
-2. Push the image to a Google Container Registry repo.
+1. Push the image to a Google Container Registry repo.
 
-3. Provision the Google Cloud Run service. This example uses Terraform. Configuration values
+1. Provision the Google Cloud Run service. This example uses Terraform. Configuration values
    should be adjusted to meet the needs of your installation.
 
     ```
@@ -100,9 +100,8 @@ For more guidance on configuration options for full backend search [check here](
     }
     ```
 
-4. Add the newly-created cloud run service as external endpoints in your querier
-configuration.
-The endpoint can be retrieved from the "details" tab in Google Cloud Run:
+1. Add the newly-created cloud run service as external endpoints in your querier
+configuration. The endpoint can be retrieved from the Details tab in Google Cloud Run:
 
     ```
     querier:

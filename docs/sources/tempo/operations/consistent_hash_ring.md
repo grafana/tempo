@@ -1,28 +1,31 @@
 ---
-title: Consistent Hash Ring
+title: Consistent hash ring
+menuTitle: Consistent hash ring
 weight: 20
 ---
 
-## Consistent Hash Ring
+## Consistent hash ring
 
 Tempo uses the [Consistent Hash Ring](https://cortexmetrics.io/docs/architecture/#the-hash-ring) implementation from Cortex.
-By default the ring is gossiped between all Tempo components.  However, it can be configured to use [Consul](https://www.consul.io/) or [Etcd](https://etcd.io/), if desired.
+By default, the ring is gossiped between all Tempo components.
+However, it can be configured to use [Consul](https://www.consul.io/) or [Etcd](https://etcd.io/), if desired.
 
-There are four consistent hash rings: distributor, ingester, metrics-generator, and compactor. Each hash ring exists for a distinct reason.
+There are four consistent hash rings: distributor, ingester, metrics-generator, and compactor.
+Each hash ring exists for a distinct reason.
 
 ### Distributor
 
 **Participants:** Distributors
 **Used by:** Distributors
 
-Unless you are running with limits this ring does not impact Tempo operation.
+Unless you are running with limits, this ring does not impact Tempo operation.
 
-This ring is only used when "global" rate limits are used. The distributors use it to count the other active distributors. Incoming traffic is assumed to be evenly spread across all distributors and (global_rate_limit / # of distributors) is used to rate limit locally.
+This ring is only used when `global` rate limits are used. The distributors use it to count the other active distributors. Incoming traffic is assumed to be evenly spread across all distributors and (global_rate_limit / # of distributors) is used to rate limit locally.
 
 ### Ingester
 
 **Participants:** Ingesters
-**Used by:** Distributors,Queriers
+**Used by:** Distributors, Queriers
 
 This ring is used by the distributors to load balance traffic into the ingesters. When spans are received the trace id is hashed and they are sent to the appropriate ingesters based on token ownership in the ring. Queriers also use this ring to find the ingesters for querying recent traces.
 

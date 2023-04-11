@@ -9,7 +9,7 @@ weight: 95
 
 # Search with AWS Lambda
 
-This document will walk you through setting up an AWS Lambda for serverless backend search.
+This document explains how to set up AWS Lambda for serverless backend search.
 Read [improve search performance]({{< relref "backend_search" >}}) for more guidance on configuration options for backend search.
 
 1. Build the code package:
@@ -27,15 +27,15 @@ Read [improve search performance]({{< relref "backend_search" >}}) for more guid
     lambda/tempo-serverless-backend-search-297172a.zip
     ```
 
-2. Provision an S3 bucket.
+1. Provision an S3 bucket.
 
-3. Copy the ZIP file into your bucket.
+1. Copy the ZIP file into your bucket.
 
     ```
     aws s3 cp lambda/tempo-serverless-backend-search-297172a.zip gs://<newly provisioned gcs bucket>
     ```
 
-4. Provision the Lambda. For a Lambda function to be invoked via HTTP, we also need to create an
+1. Provision the Lambda. For a Lambda function to be invoked via HTTP, we also need to create an
    ALB and some other resources. This example uses Terraform and only includes the function definition.
    Additionally, you will need a VPC, security groups, IAM roles, an ALB, target groups, etc., but that is
    beyond the scope of this guide.
@@ -76,7 +76,7 @@ Read [improve search performance]({{< relref "backend_search" >}}) for more guid
     }
     ```
 
-5. Add the hostname of the newly-created ALB to the querier config:
+1. Add the hostname of the newly-created ALB to the querier config:
 
     ```
     querier:

@@ -15,13 +15,13 @@ In addition, the [Tempo runbook](https://github.com/grafana/tempo/blob/main/oper
 
 ## Sending traces
 
-- [Spans are being refused with "pusher failed to consume trace data"]({{< relref "max-trace-limit-reached/" >}})
-- [Is the Grafana Agent sending to the backend?]({{< relref "agent/" >}})
+- [Spans are being refused with "pusher failed to consume trace data"]({{< relref "max-trace-limit-reached" >}})
+- [Is the Grafana Agent sending to the backend?]({{< relref "agent" >}})
 
 ## Querying
 
-- [Unable to find my traces in Tempo]({{< relref "unable-to-see-trace/" >}})
-- [Error message "Too many jobs in the queue"]({{< relref "too-many-jobs-in-queue/" >}})
-- [Queries fail with 500 and "error using pageFinder"]({{< relref "bad-blocks/" >}})
+- [Unable to find my traces in Tempo]({{< relref "unable-to-see-trace" >}})
+- [Error message "Too many jobs in the queue"]({{< relref "too-many-jobs-in-queue" >}})
+- [Queries fail with 500 and "error using pageFinder"]({{< relref "bad-blocks" >}})
 - [I can search traces, but there are no service name or span name values available]({{< relref "search-tag" >}})
-- [Error message "response larger than the max (<number> vs <limit>)]({{< relref "response-too-large/" >}})
+- [Error message "response larger than the max (<number> vs <limit>)]({{< relref "response-too-large" >}})

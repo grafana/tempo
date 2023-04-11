@@ -7,7 +7,7 @@ weight: 70
 
 # Tempo CLI
 
-Tempo CLI is a separate executable that contains utility functions related to the tempo software.
+Tempo CLI is a separate executable that contains utility functions related to the Tempo software.
 Although it is not required for a working installation, Tempo CLI can be helpful for deeper analysis or for troubleshooting.
 
 ## Tempo CLI command syntax

@@ -70,6 +70,4 @@ Tempo offers different deployment options, depending upon your needs. Refer to t
 Grafana has a built-in Tempo data source that can be used to query Tempo and visualize traces.
 For more information, refer to the [Tempo data source]({{< relref "/docs/grafana/latest/datasources/tempo" >}}) and the [Tempo in Grafana]({{< relref "./tempo-in-grafana" >}}) topics.
 
-For details about Grafana configuration, refer to [querying configuration]({{< relref "../configuration/querying" >}}).
-
 For more information, refer to the [Tempo in Grafana]({{< relref "tempo-in-grafana" >}}) documentation.
