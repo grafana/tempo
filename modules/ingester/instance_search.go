@@ -272,8 +272,14 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.SearchTagsV2Response, error) {
 	scopes := []string{scope}
 	if scope == "" {
-		// todo: define all scopes somewhere? jpe
-		scopes = []string{"span", "resource", "intrinsic"}
+		// start with intrinsic scope and all traceql attribute scopes
+		atts := traceql.AllAttributeScopes()
+		scopes := make([]string, 0, len(atts)+1) // +1 for intrinsic
+
+		scopes = append(scopes, api.ParamScopeIntrinsic)
+		for _, att := range atts {
+			scopes = append(scopes, att.String())
+		}
 	}
 	resps := make([]*tempopb.SearchTagsResponse, len(scopes))
 

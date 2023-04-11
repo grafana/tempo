@@ -11,6 +11,10 @@ const (
 	AttributeScopeUnknown
 )
 
+func AllAttributeScopes() []AttributeScope {
+	return []AttributeScope{AttributeScopeResource, AttributeScopeSpan}
+}
+
 func (s AttributeScope) String() string {
 	switch s {
 	case AttributeScopeNone:
