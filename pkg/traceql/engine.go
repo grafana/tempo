@@ -73,8 +73,7 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 	defer iterator.Close()
 
 	res := &tempopb.SearchResponse{
-		Traces: nil,
-		// TODO capture and update metrics
+		Traces:  nil,
 		Metrics: &tempopb.SearchMetrics{},
 	}
 	for {
@@ -95,6 +94,13 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 
 	span.SetTag("spansets_evaluated", spansetsEvaluated)
 	span.SetTag("spansets_found", len(res.Traces))
+
+	// Bytes can be nil when callback is no set
+	if fetchSpansResponse.Bytes != nil {
+		// InspectedBytes is used to compute query throughput and SLO metrics
+		res.Metrics.InspectedBytes = fetchSpansResponse.Bytes()
+		span.SetTag("inspectedBytes", res.Metrics.InspectedBytes)
+	}
 
 	return res, nil
 }

@@ -176,7 +176,7 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 
 	return traceql.FetchSpansResponse{
 		Results: iter,
-		Bytes:   func() uint64 { return rr.TotalBytesRead.Load() },
+		Bytes:   func() uint64 { return rr.BytesRead() },
 	}, nil
 }
 
