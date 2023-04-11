@@ -25,27 +25,27 @@ local filename = 'tempo-rollout-progress.json';
         $.panel('Rollout progress') +
         $.barGauge([
           // Multi-zone deployments are grouped together removing the "zone-X" suffix.
-          // After the grouping, the resulting label is called "cortex_service".
+          // After the grouping, the resulting label is called "tempo_service".
           |||
             (
-              sum by(cortex_service) (
+              sum by(tempo_service) (
                 label_replace(
                   kube_statefulset_status_replicas_updated{%(namespace_matcher)s,statefulset=~"%(all_services_regex)s"},
-                  "cortex_service", "$1", "statefulset", "(.*?)(?:-zone-[a-z])?"
+                  "tempo_service", "$1", "statefulset", "(.*?)(?:-zone-[a-z])?"
                 )
               )
               /
-              sum by(cortex_service) (
+              sum by(tempo_service) (
                 label_replace(
                   kube_statefulset_replicas{%(namespace_matcher)s},
-                  "cortex_service", "$1", "statefulset", "(.*?)(?:-zone-[a-z])?"
+                  "tempo_service", "$1", "statefulset", "(.*?)(?:-zone-[a-z])?"
                 )
               )
             ) and (
-              sum by(cortex_service) (
+              sum by(tempo_service) (
                 label_replace(
                   kube_statefulset_replicas{%(namespace_matcher)s},
-                  "cortex_service", "$1", "statefulset", "(.*?)(?:-zone-[a-z])?"
+                  "tempo_service", "$1", "statefulset", "(.*?)(?:-zone-[a-z])?"
                 )
               )
               > 0
@@ -53,32 +53,32 @@ local filename = 'tempo-rollout-progress.json';
           ||| % config,
           |||
             (
-              sum by(cortex_service) (
+              sum by(tempo_service) (
                 label_replace(
                   kube_deployment_status_replicas_updated{%(namespace_matcher)s,deployment=~"%(all_services_regex)s"},
-                  "cortex_service", "$1", "deployment", "(.*?)(?:-zone-[a-z])?"
+                  "tempo_service", "$1", "deployment", "(.*?)(?:-zone-[a-z])?"
                 )
               )
               /
-              sum by(cortex_service) (
+              sum by(tempo_service) (
                 label_replace(
                   kube_deployment_spec_replicas{%(namespace_matcher)s},
-                  "cortex_service", "$1", "deployment", "(.*?)(?:-zone-[a-z])?"
+                  "tempo_service", "$1", "deployment", "(.*?)(?:-zone-[a-z])?"
                 )
               )
             ) and (
-              sum by(cortex_service) (
+              sum by(tempo_service) (
                 label_replace(
                   kube_deployment_spec_replicas{%(namespace_matcher)s},
-                  "cortex_service", "$1", "deployment", "(.*?)(?:-zone-[a-z])?"
+                  "tempo_service", "$1", "deployment", "(.*?)(?:-zone-[a-z])?"
                 )
               )
               > 0
             )
           ||| % config,
         ], legends=[
-          '{{cortex_service}}',
-          '{{cortex_service}}',
+          '{{tempo_service}}',
+          '{{tempo_service}}',
         ], thresholds=[
           { color: 'yellow', value: null },
           { color: 'yellow', value: 0.999 },

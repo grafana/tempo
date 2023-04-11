@@ -30,6 +30,7 @@
 * [ENHANCEMENT] Added the ability to multiple span metrics by an attribute such as `X-SampleRatio` [#2172](https://github.com/grafana/tempo/pull/2172) (@altanozlu)
 * [BUGFIX] Apply `rate()` to bytes/s panel in tenant's dashboard. [#2081](https://github.com/grafana/tempo/pull/2081) (@mapno)
 * [CHANGE] Update Go to 1.20 [#2079](https://github.com/grafana/tempo/pull/2079) (@scalalang2)
+* [CHANGE] **BREAKING CHANGE** Change metrics prefixed with `cortex_` to `tempo_` [#2204](https://github.com/grafana/tempo/pull/2204) (@mapno)
 * [BUGFIX] Retry copy operations during compaction in GCS backend [#2111](https://github.com/grafana/tempo/pull/2111) (@mapno)
 * [BUGFIX] Fix float/int comparisons in TraceQL. [#2139](https://github.com/grafana/tempo/issues/2139) (@joe-elliott)
 * [BUGFIX] Improve locking and search head block in SearchTagValuesV2 [#2164](https://github.com/grafana/tempo/pull/2164) (@mapno)

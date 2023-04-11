@@ -107,7 +107,7 @@ func NewMemcachedClient(cfg MemcachedClientConfig, name string, r prometheus.Reg
 	client.Timeout = cfg.Timeout
 	client.MaxIdleConns = cfg.MaxIdleConns
 
-	dnsProviderRegisterer := prometheus.WrapRegistererWithPrefix("cortex_", prometheus.WrapRegistererWith(prometheus.Labels{
+	dnsProviderRegisterer := prometheus.WrapRegistererWithPrefix("tempo_", prometheus.WrapRegistererWith(prometheus.Labels{
 		"name": name,
 	}, r))
 
@@ -127,14 +127,14 @@ func NewMemcachedClient(cfg MemcachedClientConfig, name string, r prometheus.Reg
 		quit:        make(chan struct{}),
 
 		numServers: promauto.With(r).NewGauge(prometheus.GaugeOpts{
-			Namespace:   "cortex",
+			Namespace:   "tempo",
 			Name:        "memcache_client_servers",
 			Help:        "The number of memcache servers discovered.",
 			ConstLabels: prometheus.Labels{"name": name},
 		}),
 
 		skipped: promauto.With(r).NewCounter(prometheus.CounterOpts{
-			Namespace:   "cortex",
+			Namespace:   "tempo",
 			Name:        "memcache_client_set_skip_total",
 			Help:        "Total number of skipped set operations because of the value is larger than the max-item-size.",
 			ConstLabels: prometheus.Labels{"name": name},

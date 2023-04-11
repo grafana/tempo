@@ -23,7 +23,7 @@
           {
             alert: 'TempoCompactorUnhealthy',
             expr: |||
-              max by (%s) (cortex_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
+              max by (%s) (tempo_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
             ||| % [$._config.group_by_cluster, $._config.jobs.compactor, $._config.namespace],
             'for': '15m',
             labels: {
@@ -38,7 +38,7 @@
             alert: 'TempoDistributorUnhealthy',
             'for': '15m',
             expr: |||
-              max by (%s) (cortex_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
+              max by (%s) (tempo_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
             ||| % [$._config.group_by_cluster, $._config.jobs.distributor, $._config.namespace],
             labels: {
               severity: 'warning',
