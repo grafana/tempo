@@ -38,7 +38,7 @@ var nonTraceQLAttributes = map[string]string{
 	LabelRootSpanName:    columnPathRootSpanName,
 }
 
-func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
+func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, opts common.SearchOptions) error {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTags",
 		opentracing.Tags{
 			"blockID":   b.meta.BlockID,
@@ -53,35 +53,46 @@ func (b *backendBlock) SearchTags(ctx context.Context, cb common.TagCallback, op
 	}
 	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
 
-	return searchTags(derivedCtx, cb, pf)
+	return searchTags(derivedCtx, scope, cb, pf)
 }
 
-func searchTags(_ context.Context, cb common.TagCallback, pf *parquet.File) error {
-	// find indexes of generic attribute columns
-	resourceKeyIdx, _ := pq.GetColumnIndexByPath(pf, FieldResourceAttrKey)
-	spanKeyIdx, _ := pq.GetColumnIndexByPath(pf, FieldSpanAttrKey)
-	if resourceKeyIdx == -1 || spanKeyIdx == -1 {
-		return fmt.Errorf("resource or span attributes col not found (%d, %d)", resourceKeyIdx, spanKeyIdx)
-	}
-	standardAttrIdxs := []int{
-		resourceKeyIdx,
-		spanKeyIdx,
-	}
-
-	// find indexes of all special columns
+func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCallback, pf *parquet.File) error {
+	standardAttrIdxs := make([]int, 0, 2) // the most we can have is 2, resource and span indexes depending on scope passed
 	specialAttrIdxs := map[int]string{}
-	for lbl, col := range labelMappings {
-		if lbl == LabelStatusCode {
-			// Don't include this in the list of tags (but it can still be used in SearchTagValues)
-			continue
-		}
 
-		idx, _ := pq.GetColumnIndexByPath(pf, col)
-		if idx == -1 {
-			continue
+	addToIndexes := func(standardKeyPath string, specialMappings map[string]string) error {
+		// standard resource attributes
+		resourceKeyIdx, _ := pq.GetColumnIndexByPath(pf, standardKeyPath)
+		if resourceKeyIdx == -1 {
+			return fmt.Errorf("resource attributes col not found (%d)", resourceKeyIdx)
 		}
+		standardAttrIdxs = append(standardAttrIdxs, resourceKeyIdx)
 
-		specialAttrIdxs[idx] = lbl
+		// special resource attributes
+		for lbl, col := range specialMappings {
+			idx, _ := pq.GetColumnIndexByPath(pf, col)
+			if idx == -1 {
+				continue
+			}
+
+			specialAttrIdxs[idx] = lbl
+		}
+		return nil
+	}
+
+	// resource
+	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeResource {
+		err := addToIndexes(FieldResourceAttrKey, traceqlResourceLabelMappings)
+		if err != nil {
+			return err
+		}
+	}
+	// span
+	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeSpan {
+		err := addToIndexes(FieldSpanAttrKey, traceqlSpanLabelMappings)
+		if err != nil {
+			return err
+		}
 	}
 
 	// now search all row groups
