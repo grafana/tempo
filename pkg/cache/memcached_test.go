@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/bradfitz/gomemcache/memcache"
 	"github.com/go-kit/log"
+	"github.com/grafana/gomemcache/memcache"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 

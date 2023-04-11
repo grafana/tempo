@@ -5,9 +5,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/bradfitz/gomemcache/memcache"
 	"github.com/cespare/xxhash"
 	"github.com/facette/natsort"
+	"github.com/grafana/gomemcache/memcache"
 )
 
 // MemcachedJumpHashSelector implements the memcache.ServerSelector
