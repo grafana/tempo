@@ -99,19 +99,8 @@ func (enc *logfmtEncoder) AddInt64(key string, value int64) {
 }
 
 func (enc *logfmtEncoder) AddReflected(key string, value interface{}) error {
-	rvalue := reflect.ValueOf(value)
-	switch rvalue.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Map, reflect.Struct:
-		return ErrUnsupportedValueType
-	case reflect.Array, reflect.Slice, reflect.Ptr:
-		if rvalue.IsNil() {
-			enc.AddByteString(key, nil)
-			return nil
-		}
-		return enc.AddReflected(key, rvalue.Elem().Interface())
-	}
-	enc.AddString(key, fmt.Sprint(value))
-	return nil
+	enc.addKey(key)
+	return enc.AppendReflected(value)
 }
 
 func (enc *logfmtEncoder) OpenNamespace(key string) {
@@ -197,8 +186,26 @@ func (enc *logfmtEncoder) AppendInt64(value int64) {
 func (enc *logfmtEncoder) AppendReflected(value interface{}) error {
 	rvalue := reflect.ValueOf(value)
 	switch rvalue.Kind() {
-	case reflect.Array, reflect.Chan, reflect.Func, reflect.Map, reflect.Slice, reflect.Struct:
+	case reflect.Chan, reflect.Func, reflect.Map, reflect.Struct:
 		return ErrUnsupportedValueType
+	case reflect.Slice:
+		if rvalue.IsNil() {
+			enc.AppendByteString(nil)
+			return nil
+		}
+		// A non-nil slice is handled identically to an array.
+		fallthrough
+	case reflect.Array:
+		marshal := zapcore.ArrayMarshalerFunc(func(aenc zapcore.ArrayEncoder) error {
+			for i := 0; i < rvalue.Len(); i++ {
+				v := rvalue.Index(i).Interface()
+				if err := aenc.AppendReflected(v); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		return enc.AppendArray(marshal)
 	case reflect.Ptr:
 		if rvalue.IsNil() {
 			enc.AppendByteString(nil)
@@ -519,7 +526,35 @@ func (enc *literalEncoder) AppendObject(zapcore.ObjectMarshaler) error {
 }
 
 func (enc *literalEncoder) AppendReflected(value interface{}) error {
-	return ErrUnsupportedValueType
+	rvalue := reflect.ValueOf(value)
+	switch rvalue.Kind() {
+	case reflect.Bool:
+		enc.AppendBool(value.(bool))
+		return nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		enc.AppendInt64(rvalue.Int())
+		return nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		enc.AppendUint64(rvalue.Uint())
+		return nil
+	case reflect.Float32:
+		enc.AppendFloat32(value.(float32))
+		return nil
+	case reflect.Float64:
+		enc.AppendFloat64(value.(float64))
+		return nil
+	case reflect.Complex64:
+		enc.AppendComplex64(value.(complex64))
+		return nil
+	case reflect.Complex128:
+		enc.AppendComplex128(value.(complex128))
+		return nil
+	case reflect.String:
+		enc.AppendString(value.(string))
+		return nil
+	default:
+		return ErrUnsupportedValueType
+	}
 }
 
 func (enc *literalEncoder) addSeparator() {
