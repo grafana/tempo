@@ -22,6 +22,15 @@ ALL_SRC := $(shell find . -name '*.go' \
 								-not -path './cmd/tempo-serverless/*' \
                                 -type f | sort)
 
+# ALL_SRC but without pkg and tempodb packages
+OTHERS_SRC := $(shell find . -name '*.go' \
+								-not -path './vendor*/*' \
+								-not -path './integration/*' \
+								-not -path './cmd/tempo-serverless/*' \
+								-not -path './pkg*/*' \
+								-not -path './tempodb*/*' \
+                                -type f | sort)
+
 # All source code and documents. Used in spell check.
 ALL_DOC := $(shell find . \( -name "*.md" -o -name "*.yaml" \) \
                                 -type f | sort)
@@ -83,9 +92,22 @@ test:
 benchmark:
 	$(GOTEST) -bench=. -run=notests $(ALL_PKGS)
 
+# Not using it in CI, tests are split in pkg, tempodb and others
 .PHONY: test-with-cover
 test-with-cover: test-serverless
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
+
+.PHONY: test-with-cover-pkg
+test-with-cover:
+	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './pkg*/*' -type f | sort))))
+
+.PHONY: test-with-cover-tempodb
+test-with-cover:
+	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb*/*' -type f | sort))))
+
+.PHONY: test-with-cover-others
+test-with-cover: test-serverless
+	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(OTHERS_SRC))))
 
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
