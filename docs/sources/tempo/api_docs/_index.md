@@ -301,7 +301,7 @@ Example of how to query Tempo using curl.
 This query will return all discovered tag names.
 
 ```bash
-$ curl -G -s http://localhost:3200/api/search/tags  | jq
+$ curl -G -s http://localhost:3200/api/v2/search/tags  | jq
 {
   "scopes": [
     {
