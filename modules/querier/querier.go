@@ -381,6 +381,58 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	return resp, nil
 }
 
+func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsV2Response, error) {
+	userID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "error extracting org id in Querier.SearchTags")
+	}
+
+	// Get results from all ingesters
+	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
+	if err != nil {
+		return nil, errors.Wrap(err, "error finding ingesters in Querier.SearchTags")
+	}
+	lookupResults, err := q.forGivenIngesters(ctx, replicationSet, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
+		return client.SearchTagsV2(ctx, req)
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "error querying ingesters in Querier.SearchTags")
+	}
+
+	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
+	distinctValues := map[string]*util.DistinctStringCollector{}
+
+	for _, resp := range lookupResults {
+		for _, res := range resp.response.(*tempopb.SearchTagsV2Response).TagNames {
+			dvc := distinctValues[res.Scope]
+			if dvc == nil {
+				dvc = util.NewDistinctStringCollector(limit)
+				distinctValues[res.Scope] = dvc
+			}
+
+			for _, tag := range res.TagNames {
+				dvc.Collect(tag)
+			}
+		}
+	}
+
+	for scope, dvc := range distinctValues {
+		if dvc.Exceeded() {
+			level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "limit", limit, "scope", scope, "total", dvc.TotalDataSize())
+		}
+	}
+
+	resp := &tempopb.SearchTagsV2Response{}
+	for scope, dvc := range distinctValues {
+		resp.TagNames = append(resp.TagNames, &tempopb.SearchTagsV2TagNames{
+			Scope:    scope,
+			TagNames: dvc.Strings(),
+		})
+	}
+
+	return resp, nil
+}
+
 func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {

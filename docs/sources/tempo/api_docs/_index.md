@@ -15,6 +15,7 @@ These endpoints are exposed both when running Tempo in microservices and monolit
 - **microservices**: each service exposes its own endpoints
 - **monolithic**: the Tempo process exposes all API endpoints for the services running internally
 
+jpe - add docs
 ## Endpoints
 
 | API | Service | Type | Endpoint |

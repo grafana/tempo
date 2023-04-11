@@ -64,6 +64,7 @@ const (
 	PathUsageStats      = "/status/usage-stats"
 
 	PathSearchTagValuesV2 = "/api/v2/search/tag/{" + muxVarTagName + "}/values"
+	PathSearchTagsV2      = "/api/v2/search/tags"
 
 	QueryModeKey       = "mode"
 	QueryModeIngesters = "ingesters"

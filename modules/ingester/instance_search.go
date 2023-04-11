@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"sync"
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/api"
@@ -15,6 +16,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
+	"github.com/uber-go/atomic"
 	"github.com/weaveworks/common/user"
 )
 
@@ -264,6 +266,52 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 	return &tempopb.SearchTagsResponse{
 		TagNames: distinctValues.Strings(),
 	}, nil
+}
+
+// SearchTagsV2 calls SearchTags for each scope and returns the results.
+func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.SearchTagsV2Response, error) {
+	scopes := []string{scope}
+	resps := make([]*tempopb.SearchTagsResponse, len(scopes))
+	if scope == "" {
+		// todo: define all scopes somewhere? jpe
+		scopes = []string{"span", "resource", "intrinsic"}
+	}
+
+	overallError := atomic.NewError(nil)
+	wg := sync.WaitGroup{}
+	for idx := range scopes {
+		resps[idx] = &tempopb.SearchTagsResponse{}
+
+		wg.Add(1)
+		go func(scope string, ret **tempopb.SearchTagsResponse) {
+			defer wg.Done()
+
+			resp, err := i.SearchTags(ctx, scope)
+			if err != nil {
+				overallError.Store(fmt.Errorf("error searching tags: %s, %w", scope, err))
+				return
+			}
+
+			*ret = resp
+		}(scopes[idx], &resps[idx])
+	}
+	wg.Wait()
+
+	err := overallError.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	// build response
+	resp := &tempopb.SearchTagsV2Response{}
+	for idx := range resps {
+		resp.TagNames = append(resp.TagNames, &tempopb.SearchTagsV2TagNames{
+			Scope:    scopes[idx],
+			TagNames: resps[idx].TagNames,
+		})
+	}
+
+	return resp, nil
 }
 
 func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempopb.SearchTagValuesResponse, error) {
