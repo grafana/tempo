@@ -1,6 +1,10 @@
 package generator
 
-import "time"
+import (
+	"time"
+
+	"github.com/grafana/tempo/pkg/sharedconfig"
+)
 
 type mockOverrides struct {
 	processors                     map[string]struct{}
@@ -9,6 +13,7 @@ type mockOverrides struct {
 	spanMetricsHistogramBuckets    []float64
 	spanMetricsDimensions          []string
 	spanMetricsIntrinsicDimensions map[string]bool
+	spanMetricsFilterPolicies      []sharedconfig.FilterPolicy
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -47,4 +52,8 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDimensions(userID st
 
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID string) map[string]bool {
 	return m.spanMetricsIntrinsicDimensions
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []sharedconfig.FilterPolicy {
+	return m.spanMetricsFilterPolicies
 }

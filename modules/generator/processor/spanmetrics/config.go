@@ -3,6 +3,7 @@ package spanmetrics
 import (
 	"flag"
 
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -36,7 +37,7 @@ type Config struct {
 	Subprocessors map[Subprocessor]bool
 
 	// FilterPolicies is a list of policies that will be applied to spans for inclusion or exlusion.
-	FilterPolicies []FilterPolicy `yaml:"filter_policies"`
+	FilterPolicies []sharedconfig.FilterPolicy `yaml:"filter_policies"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -77,26 +78,4 @@ func (ic *IntrinsicDimensions) ApplyFromMap(dimensions map[string]bool) error {
 		}
 	}
 	return nil
-}
-
-type FilterPolicy struct {
-	Include *PolicyMatch `yaml:"include"`
-	Exclude *PolicyMatch `yaml:"exclude"`
-}
-
-type MatchType string
-
-const (
-	Strict MatchType = "strict"
-	Regex  MatchType = "regex"
-)
-
-type PolicyMatch struct {
-	MatchType  MatchType              `yaml:"match_type"`
-	Attributes []MatchPolicyAttribute `yaml:"attributes"`
-}
-
-type MatchPolicyAttribute struct {
-	Key   string      `yaml:"key"`
-	Value interface{} `yaml:"value"`
 }

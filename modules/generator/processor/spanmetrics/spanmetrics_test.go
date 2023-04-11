@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/generator/registry"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
@@ -157,19 +158,19 @@ func TestSpanMetrics_collisions(t *testing.T) {
 
 func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 	cases := []struct {
-		filterPolicies     []FilterPolicy
+		filterPolicies     []sharedconfig.FilterPolicy
 		expectedMatches    float64
 		expectedRejections float64
 	}{
 		{
 			expectedMatches:    10.0,
 			expectedRejections: 0.0,
-			filterPolicies: []FilterPolicy{
+			filterPolicies: []sharedconfig.FilterPolicy{
 				{
 
-					Include: &PolicyMatch{
-						MatchType: Strict,
-						Attributes: []MatchPolicyAttribute{
+					Include: &sharedconfig.PolicyMatch{
+						MatchType: sharedconfig.Strict,
+						Attributes: []sharedconfig.MatchPolicyAttribute{
 							{
 								Key:   "span.foo",
 								Value: "foo-value",
@@ -182,12 +183,12 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 		{
 			expectedMatches:    0.0,
 			expectedRejections: 10.0,
-			filterPolicies: []FilterPolicy{
+			filterPolicies: []sharedconfig.FilterPolicy{
 				{
 
-					Include: &PolicyMatch{
-						MatchType: Strict,
-						Attributes: []MatchPolicyAttribute{
+					Include: &sharedconfig.PolicyMatch{
+						MatchType: sharedconfig.Strict,
+						Attributes: []sharedconfig.MatchPolicyAttribute{
 							{
 								Key:   "span.nope",
 								Value: "nothere",
@@ -200,11 +201,11 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 		{
 			expectedMatches:    0.0,
 			expectedRejections: 10.0,
-			filterPolicies: []FilterPolicy{
+			filterPolicies: []sharedconfig.FilterPolicy{
 				{
-					Exclude: &PolicyMatch{
-						MatchType: Strict,
-						Attributes: []MatchPolicyAttribute{
+					Exclude: &sharedconfig.PolicyMatch{
+						MatchType: sharedconfig.Strict,
+						Attributes: []sharedconfig.MatchPolicyAttribute{
 							{
 								Key:   "status",
 								Value: "STATUS_CODE_OK",
@@ -217,11 +218,11 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 		{
 			expectedMatches:    10.0,
 			expectedRejections: 0.0,
-			filterPolicies: []FilterPolicy{
+			filterPolicies: []sharedconfig.FilterPolicy{
 				{
-					Include: &PolicyMatch{
-						MatchType: Regex,
-						Attributes: []MatchPolicyAttribute{
+					Include: &sharedconfig.PolicyMatch{
+						MatchType: sharedconfig.Regex,
+						Attributes: []sharedconfig.MatchPolicyAttribute{
 							{
 								Key:   "kind",
 								Value: "SPAN_KIND_.*",
@@ -300,16 +301,16 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 
 func TestSpanMetrics_policyMatch(t *testing.T) {
 	cases := []struct {
-		policy   *PolicyMatch
+		policy   *sharedconfig.PolicyMatch
 		resource *v1.Resource
 		span     *trace_v1.Span
 		expect   bool
 	}{
 		{
 			expect: true,
-			policy: &PolicyMatch{
-				MatchType: Strict,
-				Attributes: []MatchPolicyAttribute{
+			policy: &sharedconfig.PolicyMatch{
+				MatchType: sharedconfig.Strict,
+				Attributes: []sharedconfig.MatchPolicyAttribute{
 					{
 						Key:   "span.kind",
 						Value: "client",
@@ -371,9 +372,9 @@ func TestSpanMetrics_policyMatch(t *testing.T) {
 		},
 		{
 			expect: true,
-			policy: &PolicyMatch{
-				MatchType: Strict,
-				Attributes: []MatchPolicyAttribute{
+			policy: &sharedconfig.PolicyMatch{
+				MatchType: sharedconfig.Strict,
+				Attributes: []sharedconfig.MatchPolicyAttribute{
 					{
 						Key:   "span.kind",
 						Value: "client",
@@ -415,9 +416,9 @@ func TestSpanMetrics_policyMatch(t *testing.T) {
 		},
 		{
 			expect: true,
-			policy: &PolicyMatch{
-				MatchType: Strict,
-				Attributes: []MatchPolicyAttribute{
+			policy: &sharedconfig.PolicyMatch{
+				MatchType: sharedconfig.Strict,
+				Attributes: []sharedconfig.MatchPolicyAttribute{
 					{
 						Key:   "resource.location",
 						Value: "earth",
@@ -471,15 +472,15 @@ func TestSpanMetrics_policyMatch(t *testing.T) {
 
 func TestSpanMetrics_policyMatchIntrinsicAttrs(t *testing.T) {
 	cases := []struct {
-		policy *PolicyMatch
+		policy *sharedconfig.PolicyMatch
 		span   *trace_v1.Span
 		expect bool
 	}{
 		{
 			expect: true,
-			policy: &PolicyMatch{
-				MatchType: Strict,
-				Attributes: []MatchPolicyAttribute{
+			policy: &sharedconfig.PolicyMatch{
+				MatchType: sharedconfig.Strict,
+				Attributes: []sharedconfig.MatchPolicyAttribute{
 					{
 						Key:   "kind",
 						Value: "SPAN_KIND_SERVER",
@@ -513,16 +514,16 @@ func TestSpanMetrics_policyMatchIntrinsicAttrs(t *testing.T) {
 
 func TestSpanMetrics_policyMatchAttrs(t *testing.T) {
 	cases := []struct {
-		policy *PolicyMatch
+		policy *sharedconfig.PolicyMatch
 		attrs  []*common_v1.KeyValue
 		expect bool
 	}{
 		// Single string match
 		{
 			expect: true,
-			policy: &PolicyMatch{
-				MatchType: Strict,
-				Attributes: []MatchPolicyAttribute{
+			policy: &sharedconfig.PolicyMatch{
+				MatchType: sharedconfig.Strict,
+				Attributes: []sharedconfig.MatchPolicyAttribute{
 					{
 						Key:   "foo",
 						Value: "bar",
@@ -543,9 +544,9 @@ func TestSpanMetrics_policyMatchAttrs(t *testing.T) {
 		// Multiple string match
 		{
 			expect: true,
-			policy: &PolicyMatch{
-				MatchType: Strict,
-				Attributes: []MatchPolicyAttribute{
+			policy: &sharedconfig.PolicyMatch{
+				MatchType: sharedconfig.Strict,
+				Attributes: []sharedconfig.MatchPolicyAttribute{
 					{
 						Key:   "foo",
 						Value: "bar",
@@ -578,9 +579,9 @@ func TestSpanMetrics_policyMatchAttrs(t *testing.T) {
 		// Multiple string non match
 		{
 			expect: false,
-			policy: &PolicyMatch{
-				MatchType: Strict,
-				Attributes: []MatchPolicyAttribute{
+			policy: &sharedconfig.PolicyMatch{
+				MatchType: sharedconfig.Strict,
+				Attributes: []sharedconfig.MatchPolicyAttribute{
 					{
 						Key:   "foo",
 						Value: "bar",
@@ -613,9 +614,9 @@ func TestSpanMetrics_policyMatchAttrs(t *testing.T) {
 		// Combination match
 		{
 			expect: true,
-			policy: &PolicyMatch{
-				MatchType: Strict,
-				Attributes: []MatchPolicyAttribute{
+			policy: &sharedconfig.PolicyMatch{
+				MatchType: sharedconfig.Strict,
+				Attributes: []sharedconfig.MatchPolicyAttribute{
 					{
 						Key:   "one",
 						Value: "1",
@@ -672,9 +673,9 @@ func TestSpanMetrics_policyMatchAttrs(t *testing.T) {
 		// Regex basic match
 		{
 			expect: true,
-			policy: &PolicyMatch{
-				MatchType: Regex,
-				Attributes: []MatchPolicyAttribute{
+			policy: &sharedconfig.PolicyMatch{
+				MatchType: sharedconfig.Regex,
+				Attributes: []sharedconfig.MatchPolicyAttribute{
 					{
 						Key:   "dd",
 						Value: `\d\d\w{5}`,
@@ -703,19 +704,19 @@ func TestSpanMetrics_policyMatchAttrs(t *testing.T) {
 
 func TestSpanMetrics_stringMatch(t *testing.T) {
 	cases := []struct {
-		matchType MatchType
+		matchType sharedconfig.MatchType
 		s         string
 		pattern   string
 		expect    bool
 	}{
 		{
-			matchType: Strict,
+			matchType: sharedconfig.Strict,
 			s:         "foo",
 			pattern:   "foo",
 			expect:    true,
 		},
 		{
-			matchType: Strict,
+			matchType: sharedconfig.Strict,
 			s:         "foo",
 			pattern:   "bar",
 			expect:    false,
@@ -753,7 +754,7 @@ func BenchmarkSpanMetrics_applyFilterPolicyNone(b *testing.B) {
 	// b.Logf("size: %s", humanize.Bytes(uint64(batch.Size())))
 	// b.Logf("span count: %d", len(batch.ScopeSpans))
 
-	policies := []FilterPolicy{}
+	policies := []sharedconfig.FilterPolicy{}
 
 	benchmarkFilterPolicy(b, policies, batch)
 }
@@ -766,11 +767,11 @@ func BenchmarkSpanMetrics_applyFilterPolicySmall(b *testing.B) {
 	err = batch.Unmarshal(data)
 	require.NoError(b, err)
 
-	policies := []FilterPolicy{
+	policies := []sharedconfig.FilterPolicy{
 		{
-			Include: &PolicyMatch{
-				MatchType: Strict,
-				Attributes: []MatchPolicyAttribute{
+			Include: &sharedconfig.PolicyMatch{
+				MatchType: sharedconfig.Strict,
+				Attributes: []sharedconfig.MatchPolicyAttribute{
 					{
 						Key:   "span.foo",
 						Value: "foo-value",
@@ -791,11 +792,11 @@ func BenchmarkSpanMetrics_applyFilterPolicyMedium(b *testing.B) {
 	err = batch.Unmarshal(data)
 	require.NoError(b, err)
 
-	policies := []FilterPolicy{
+	policies := []sharedconfig.FilterPolicy{
 		{
-			Include: &PolicyMatch{
-				MatchType: Strict,
-				Attributes: []MatchPolicyAttribute{
+			Include: &sharedconfig.PolicyMatch{
+				MatchType: sharedconfig.Strict,
+				Attributes: []sharedconfig.MatchPolicyAttribute{
 					{
 						Key:   "span.foo",
 						Value: "foo-value",
@@ -820,7 +821,7 @@ func BenchmarkSpanMetrics_applyFilterPolicyMedium(b *testing.B) {
 	benchmarkFilterPolicy(b, policies, batch)
 }
 
-func benchmarkFilterPolicy(b *testing.B, policies []FilterPolicy, batch *trace_v1.ResourceSpans) {
+func benchmarkFilterPolicy(b *testing.B, policies []sharedconfig.FilterPolicy, batch *trace_v1.ResourceSpans) {
 	testRegistry := registry.NewTestRegistry()
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)

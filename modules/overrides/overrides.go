@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/yaml.v2"
 
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 )
@@ -344,6 +345,11 @@ func (o *Overrides) MetricsGeneratorProcessorSpanMetricsDimensions(userID string
 // span_name that are activated or deactivated on the span metrics processor.
 func (o *Overrides) MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID string) map[string]bool {
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions
+}
+
+// MetricsGeneratorProcessorSpanMetricsFilterPolicies controls the filter policies that are added to the spanmetrics processor.
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []sharedconfig.FilterPolicy {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsFilterPolicies
 }
 
 // BlockRetention is the duration of the block retention for this tenant.

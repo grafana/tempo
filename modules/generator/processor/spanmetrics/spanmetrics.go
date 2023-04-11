@@ -13,6 +13,7 @@ import (
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
 	"github.com/grafana/tempo/modules/generator/registry"
+	"github.com/grafana/tempo/pkg/sharedconfig"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
@@ -51,9 +52,9 @@ type filterPolicy struct {
 
 // SplitPolicy is the result of parsing a policy from the config file to be specific about the area the given policy is applied to.
 type splitPolicy struct {
-	ResourceMatch  *PolicyMatch
-	SpanMatch      *PolicyMatch
-	IntrinsicMatch *PolicyMatch
+	ResourceMatch  *sharedconfig.PolicyMatch
+	SpanMatch      *sharedconfig.PolicyMatch
+	IntrinsicMatch *sharedconfig.PolicyMatch
 }
 
 func New(cfg Config, registry registry.Registry) gen.Processor {
@@ -216,7 +217,7 @@ func policyMatch(policy *splitPolicy, rs *v1.Resource, span *v1_trace.Span) bool
 }
 
 // policyMatchIntrinsicAttrs returns true when all intrinsic values in the polciy match the span.
-func policyMatchIntrinsicAttrs(policy *PolicyMatch, span *v1_trace.Span) bool {
+func policyMatchIntrinsicAttrs(policy *sharedconfig.PolicyMatch, span *v1_trace.Span) bool {
 	matches := 0
 	for _, pa := range policy.Attributes {
 		attr := traceql.MustParseIdentifier(pa.Key)
@@ -243,7 +244,7 @@ func policyMatchIntrinsicAttrs(policy *PolicyMatch, span *v1_trace.Span) bool {
 }
 
 // policyMatchAttrs returns true if all attributes in the policy match the attributes in the span.  String, bool, int, and floats are supported.  Regex MatchType may be applied to string span attributes.
-func policyMatchAttrs(policy *PolicyMatch, attrs []*v1_common.KeyValue) bool {
+func policyMatchAttrs(policy *sharedconfig.PolicyMatch, attrs []*v1_common.KeyValue) bool {
 
 	matches := 0
 	var v *v1_common.AnyValue
@@ -314,11 +315,11 @@ func isIntrinsicDimension(name string) bool {
 		name == dimStatusMessage
 }
 
-func stringMatch(matchType MatchType, s, pattern string) bool {
+func stringMatch(matchType sharedconfig.MatchType, s, pattern string) bool {
 	switch matchType {
-	case Strict:
+	case sharedconfig.Strict:
 		return s == pattern
-	case Regex:
+	case sharedconfig.Regex:
 		re := regexp.MustCompile(pattern)
 		return re.MatchString(s)
 	default:
@@ -326,32 +327,32 @@ func stringMatch(matchType MatchType, s, pattern string) bool {
 	}
 }
 
-func getSplitPolicy(policy *PolicyMatch) *splitPolicy {
+func getSplitPolicy(policy *sharedconfig.PolicyMatch) *splitPolicy {
 	if policy == nil {
 		return nil
 	}
 
 	// A policy to match against the resource attributes
-	resourcePolicy := &PolicyMatch{
+	resourcePolicy := &sharedconfig.PolicyMatch{
 		MatchType:  policy.MatchType,
-		Attributes: make([]MatchPolicyAttribute, 0),
+		Attributes: make([]sharedconfig.MatchPolicyAttribute, 0),
 	}
 
 	// A policy to match against the span attributes
-	spanPolicy := &PolicyMatch{
+	spanPolicy := &sharedconfig.PolicyMatch{
 		MatchType:  policy.MatchType,
-		Attributes: make([]MatchPolicyAttribute, 0),
+		Attributes: make([]sharedconfig.MatchPolicyAttribute, 0),
 	}
 
-	intrinsicPolicy := &PolicyMatch{
+	intrinsicPolicy := &sharedconfig.PolicyMatch{
 		MatchType:  policy.MatchType,
-		Attributes: make([]MatchPolicyAttribute, 0),
+		Attributes: make([]sharedconfig.MatchPolicyAttribute, 0),
 	}
 
 	for _, pa := range policy.Attributes {
 		attr := traceql.MustParseIdentifier(pa.Key)
 
-		attribute := MatchPolicyAttribute{
+		attribute := sharedconfig.MatchPolicyAttribute{
 			Key:   attr.Name,
 			Value: pa.Value,
 		}
