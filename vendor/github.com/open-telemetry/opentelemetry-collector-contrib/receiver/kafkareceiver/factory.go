@@ -20,8 +20,8 @@ import (
 
 	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/receiver"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter"
 )
@@ -80,7 +80,7 @@ func WithLogsUnmarshalers(logsUnmarshalers ...LogsUnmarshaler) FactoryOption {
 }
 
 // NewFactory creates Kafka receiver factory.
-func NewFactory(options ...FactoryOption) component.ReceiverFactory {
+func NewFactory(options ...FactoryOption) receiver.Factory {
 	_ = view.Register(MetricViews()...)
 
 	f := &kafkaReceiverFactory{
@@ -91,23 +91,22 @@ func NewFactory(options ...FactoryOption) component.ReceiverFactory {
 	for _, o := range options {
 		o(f)
 	}
-	return component.NewReceiverFactory(
+	return receiver.NewFactory(
 		typeStr,
 		createDefaultConfig,
-		component.WithTracesReceiver(f.createTracesReceiver, stability),
-		component.WithMetricsReceiver(f.createMetricsReceiver, stability),
-		component.WithLogsReceiver(f.createLogsReceiver, stability),
+		receiver.WithTraces(f.createTracesReceiver, stability),
+		receiver.WithMetrics(f.createMetricsReceiver, stability),
+		receiver.WithLogs(f.createLogsReceiver, stability),
 	)
 }
 
-func createDefaultConfig() config.Receiver {
+func createDefaultConfig() component.Config {
 	return &Config{
-		ReceiverSettings: config.NewReceiverSettings(config.NewComponentID(typeStr)),
-		Topic:            defaultTopic,
-		Encoding:         defaultEncoding,
-		Brokers:          []string{defaultBroker},
-		ClientID:         defaultClientID,
-		GroupID:          defaultGroupID,
+		Topic:    defaultTopic,
+		Encoding: defaultEncoding,
+		Brokers:  []string{defaultBroker},
+		ClientID: defaultClientID,
+		GroupID:  defaultGroupID,
 		Metadata: kafkaexporter.Metadata{
 			Full: defaultMetadataFull,
 			Retry: kafkaexporter.MetadataRetry{
@@ -134,10 +133,10 @@ type kafkaReceiverFactory struct {
 
 func (f *kafkaReceiverFactory) createTracesReceiver(
 	_ context.Context,
-	set component.ReceiverCreateSettings,
-	cfg config.Receiver,
+	set receiver.CreateSettings,
+	cfg component.Config,
 	nextConsumer consumer.Traces,
-) (component.TracesReceiver, error) {
+) (receiver.Traces, error) {
 	c := cfg.(*Config)
 	r, err := newTracesReceiver(*c, set, f.tracesUnmarshalers, nextConsumer)
 	if err != nil {
@@ -148,10 +147,10 @@ func (f *kafkaReceiverFactory) createTracesReceiver(
 
 func (f *kafkaReceiverFactory) createMetricsReceiver(
 	_ context.Context,
-	set component.ReceiverCreateSettings,
-	cfg config.Receiver,
+	set receiver.CreateSettings,
+	cfg component.Config,
 	nextConsumer consumer.Metrics,
-) (component.MetricsReceiver, error) {
+) (receiver.Metrics, error) {
 	c := cfg.(*Config)
 	r, err := newMetricsReceiver(*c, set, f.metricsUnmarshalers, nextConsumer)
 	if err != nil {
@@ -162,10 +161,10 @@ func (f *kafkaReceiverFactory) createMetricsReceiver(
 
 func (f *kafkaReceiverFactory) createLogsReceiver(
 	_ context.Context,
-	set component.ReceiverCreateSettings,
-	cfg config.Receiver,
+	set receiver.CreateSettings,
+	cfg component.Config,
 	nextConsumer consumer.Logs,
-) (component.LogsReceiver, error) {
+) (receiver.Logs, error) {
 	c := cfg.(*Config)
 	r, err := newLogsReceiver(*c, set, f.logsUnmarshalers, nextConsumer)
 	if err != nil {

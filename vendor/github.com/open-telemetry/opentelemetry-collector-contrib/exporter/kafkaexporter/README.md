@@ -21,7 +21,9 @@ The following settings can be optionally configured:
   - `otlp_json`:  ** EXPERIMENTAL ** payload is JSON serialized from `ExportTraceServiceRequest` if set as a traces exporter or `ExportMetricsServiceRequest` for metrics or `ExportLogsServiceRequest` for logs. 
   - The following encodings are valid *only* for **traces**.
     - `jaeger_proto`: the payload is serialized to a single Jaeger proto `Span`, and keyed by TraceID.
-    - `jaeger_json`: the payload is serialized to a single Jaeger JSON Span using `jsonpb`, and keyed by TraceID.
+    - `jaeger_json`: the payload is serialized to a single Jaeger JSON Span using `jsonpb`, and keyed by TraceID.\
+  - The following encodings are valid *only* for **logs**.
+    - `raw`: if the log record body is a byte array, it is sent as is. Otherwise, it is serialized to JSON. Resource and record attributes are discarded.
 - `auth`
   - `plain_text`
     - `username`: The username to use.
@@ -29,7 +31,9 @@ The following settings can be optionally configured:
   - `sasl`
     - `username`: The username to use.
     - `password`: The password to use
-    - `mechanism`: The sasl mechanism to use (SCRAM-SHA-256, SCRAM-SHA-512 or PLAIN)
+    - `mechanism`: The sasl mechanism to use (SCRAM-SHA-256, SCRAM-SHA-512, AWS_MSK_IAM or PLAIN)
+    - `aws_msk.region`: AWS Region in case of AWS_MSK_IAM mechanism
+    - `aws_msk.broker_addr`: MSK Broker address in case of AWS_MSK_IAM mechanism
   - `tls`
     - `ca_file`: path to the CA cert. For a client this verifies the server certificate. Should
       only be used if `insecure` is set to true.

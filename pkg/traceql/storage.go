@@ -87,7 +87,8 @@ type SpansetIterator interface {
 
 type FetchSpansResponse struct {
 	Results SpansetIterator
-	Bytes   func() uint64
+	// callback to get the size of data read during Fetch
+	Bytes func() uint64
 }
 
 type SpansetFetcher interface {

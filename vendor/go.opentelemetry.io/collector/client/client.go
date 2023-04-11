@@ -21,7 +21,7 @@
 // propagated down the pipeline, with the values being produced by
 // authenticators and/or receivers, and consumed by processors and exporters.
 //
-// Producers
+// # Producers
 //
 // Receivers are responsible for obtaining a client.Info from the current
 // context and enhancing the client.Info with the net.Addr from the peer,
@@ -40,7 +40,7 @@
 // attribute names should be documented with their return types and considered
 // part of the public API for the authenticator.
 //
-// Consumers
+// # Consumers
 //
 // Provided that the pipeline does not contain processors that would discard or
 // rewrite the context, such as the batch processor, processors and exporters
@@ -64,28 +64,28 @@
 // the "username" to the console, this is how an OpenTelemetry Collector
 // configuration would look like:
 //
-//   extensions:
-//     oidc:
-//       issuer_url: http://localhost:8080/auth/realms/opentelemetry
-//       audience: collector
-//   receivers:
-//     otlp:
-//       protocols:
-//         grpc:
-//           auth:
-//             authenticator: oidc
-//   processors:
-//     authprinter:
-//       attribute: subject
-//   exporters:
-//     logging:
-//   service:
-//     extensions: [oidc]
-//     pipelines:
-//       traces:
-//         receivers: [otlp]
-//         processors: [authprinter]
-//         exporters: [logging]
+//	extensions:
+//	  oidc:
+//	    issuer_url: http://localhost:8080/auth/realms/opentelemetry
+//	    audience: collector
+//	receivers:
+//	  otlp:
+//	    protocols:
+//	      grpc:
+//	        auth:
+//	          authenticator: oidc
+//	processors:
+//	  authprinter:
+//	    attribute: subject
+//	exporters:
+//	  logging:
+//	service:
+//	  extensions: [oidc]
+//	  pipelines:
+//	    traces:
+//	      receivers: [otlp]
+//	      processors: [authprinter]
+//	      exporters: [logging]
 package client // import "go.opentelemetry.io/collector/client"
 
 import (
@@ -125,7 +125,7 @@ type AuthData interface {
 	// implementations might define different data types for different
 	// attributes. While "string" is used most of the time, a key named
 	// "membership" might return a list of strings.
-	GetAttribute(string) interface{}
+	GetAttribute(string) any
 
 	// GetAttributes returns the names of all attributes in this authentication
 	// data.

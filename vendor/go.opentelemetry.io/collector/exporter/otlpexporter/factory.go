@@ -18,10 +18,11 @@ import (
 	"context"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configcompression"
 	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 )
 
@@ -31,24 +32,23 @@ const (
 )
 
 // NewFactory creates a factory for OTLP exporter.
-func NewFactory() component.ExporterFactory {
-	return component.NewExporterFactory(
+func NewFactory() exporter.Factory {
+	return exporter.NewFactory(
 		typeStr,
 		createDefaultConfig,
-		component.WithTracesExporter(createTracesExporter, component.StabilityLevelStable),
-		component.WithMetricsExporter(createMetricsExporter, component.StabilityLevelStable),
-		component.WithLogsExporter(createLogsExporter, component.StabilityLevelBeta),
+		exporter.WithTraces(createTracesExporter, component.StabilityLevelStable),
+		exporter.WithMetrics(createMetricsExporter, component.StabilityLevelStable),
+		exporter.WithLogs(createLogsExporter, component.StabilityLevelBeta),
 	)
 }
 
-func createDefaultConfig() config.Exporter {
+func createDefaultConfig() component.Config {
 	return &Config{
-		ExporterSettings: config.NewExporterSettings(config.NewComponentID(typeStr)),
-		TimeoutSettings:  exporterhelper.NewDefaultTimeoutSettings(),
-		RetrySettings:    exporterhelper.NewDefaultRetrySettings(),
-		QueueSettings:    exporterhelper.NewDefaultQueueSettings(),
+		TimeoutSettings: exporterhelper.NewDefaultTimeoutSettings(),
+		RetrySettings:   exporterhelper.NewDefaultRetrySettings(),
+		QueueSettings:   exporterhelper.NewDefaultQueueSettings(),
 		GRPCClientSettings: configgrpc.GRPCClientSettings{
-			Headers: map[string]string{},
+			Headers: map[string]configopaque.String{},
 			// Default to gzip compression
 			Compression: configcompression.Gzip,
 			// We almost read 0 bytes, so no need to tune ReadBufferSize.
@@ -58,18 +58,16 @@ func createDefaultConfig() config.Exporter {
 }
 
 func createTracesExporter(
-	_ context.Context,
-	set component.ExporterCreateSettings,
-	cfg config.Exporter,
-) (component.TracesExporter, error) {
+	ctx context.Context,
+	set exporter.CreateSettings,
+	cfg component.Config,
+) (exporter.Traces, error) {
 	oce, err := newExporter(cfg, set)
 	if err != nil {
 		return nil, err
 	}
 	oCfg := cfg.(*Config)
-	return exporterhelper.NewTracesExporter(
-		cfg,
-		set,
+	return exporterhelper.NewTracesExporter(ctx, set, cfg,
 		oce.pushTraces,
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
 		exporterhelper.WithTimeout(oCfg.TimeoutSettings),
@@ -80,18 +78,16 @@ func createTracesExporter(
 }
 
 func createMetricsExporter(
-	_ context.Context,
-	set component.ExporterCreateSettings,
-	cfg config.Exporter,
-) (component.MetricsExporter, error) {
+	ctx context.Context,
+	set exporter.CreateSettings,
+	cfg component.Config,
+) (exporter.Metrics, error) {
 	oce, err := newExporter(cfg, set)
 	if err != nil {
 		return nil, err
 	}
 	oCfg := cfg.(*Config)
-	return exporterhelper.NewMetricsExporter(
-		cfg,
-		set,
+	return exporterhelper.NewMetricsExporter(ctx, set, cfg,
 		oce.pushMetrics,
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
 		exporterhelper.WithTimeout(oCfg.TimeoutSettings),
@@ -103,18 +99,16 @@ func createMetricsExporter(
 }
 
 func createLogsExporter(
-	_ context.Context,
-	set component.ExporterCreateSettings,
-	cfg config.Exporter,
-) (component.LogsExporter, error) {
+	ctx context.Context,
+	set exporter.CreateSettings,
+	cfg component.Config,
+) (exporter.Logs, error) {
 	oce, err := newExporter(cfg, set)
 	if err != nil {
 		return nil, err
 	}
 	oCfg := cfg.(*Config)
-	return exporterhelper.NewLogsExporter(
-		cfg,
-		set,
+	return exporterhelper.NewLogsExporter(ctx, set, cfg,
 		oce.pushLogs,
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
 		exporterhelper.WithTimeout(oCfg.TimeoutSettings),
