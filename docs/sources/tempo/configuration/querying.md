@@ -2,7 +2,6 @@
 title: Query Tempo with Grafana
 menuTitle: Query Tempo with Grafana
 weight: 40
-draft: true
 ---
 
 <!-- Page is being deprecated because it describes versions of Grafana that are no longer supported. -->
@@ -16,7 +15,7 @@ Grafana Cloud comes pre-configured with a Tempo data source.
 
 If you are using Grafana on-prem, you need to [set up the Tempo data source]({{< relref "/docs/grafana/latest/datasources/tempo" >}}).
 
-## Query Tempo
+## Configure the data source
 
 To query Tempo with Grafana:
 
@@ -25,5 +24,5 @@ To query Tempo with Grafana:
 
 The port of 3200 is a common port used in our examples. Tempo default HTTP port is 80.
 
-Prior to Grafana 7.4.x, Grafana was not able to query Tempo directly and required an intermediary, Tempoo-Query.
+Prior to Grafana 7.5.x, Grafana was not able to query Tempo directly and required an intermediary, Tempoo-Query.
 This [the Grafana 7.4.x example](https://github.com/grafana/tempo/tree/main/example/docker-compose/grafana7.4) to explains  configuration. The url entered will be `http://<tempo-query hostname>:16686/`.

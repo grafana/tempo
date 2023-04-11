@@ -1,12 +1,12 @@
 ---
-title: Enable multi-tenancy in Tempo
+title: Enable multi-tenancy
 menuTitle: Enable multi-tenancy
 weight: 60
 aliases:
 - /docs/tempo/configuratioon/multitenancy
 - /docs/tempo/operations/multitenancy
 ---
-# Enable multi-tenancy in Tempo
+# Enable multi-tenancy
 
 Tempo is a multi-tenant distributed tracing backend. It supports multi-tenancy through the use
 of a header: `X-Scope-OrgID`.

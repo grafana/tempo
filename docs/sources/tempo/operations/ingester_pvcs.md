@@ -1,6 +1,6 @@
 ---
-title: Resize PVCs
-menuTitle: Resize PVCs
+title: Resize ingester PVCs
+menuTitle: Resize ingester PVCs
 weight: 50
 ---
 

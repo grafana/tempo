@@ -1,13 +1,13 @@
 ---
-title: Use polling to monitor backend
-menuTitle: Use polling to monitor backend
+title: Use polling to monitor backend status
+menuTitle: Use polling to monitor backend status
 description: Monitor Tempo's backend using polling
 weight: 55
 aliases:
 - /docs/tempo/operations/polling
 ---
 
-# Use polling to monitor Temppo's backend status
+# Use polling to monitor Tempo's backend status
 
 Tempo maintains knowledge of the state of the backend by polling it on regular intervals. There are currently
 only two components that need this knowledge and, consequently, only two that poll the backend: compactors
@@ -27,7 +27,7 @@ During normal operation, it will stale by at most twice the configured `blocklis
 
 >**Note**: For details about configuring polling, see [polling configuration]({{< relref "../configuration/polling" >}}).
 
-## Monitoring
+## Monitor polling with dashboards and alerts
 
 See our Jsonnet for example [alerts](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/alerts.libsonnet) and [runbook entries](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/runbook.md)
 related to polling.

@@ -1,10 +1,10 @@
 ---
-title: Improve search performance
-menutitle: Improve search performance
+title: Tune search performance
+menutitle: Tune search performance
 weight: 90
 ---
 
-# Improve search performance
+# Tune search performance
 
 Regardless of whether or not you are using TraceQL or the original search API, Tempo will search all of the blocks
 in the specified time range.
