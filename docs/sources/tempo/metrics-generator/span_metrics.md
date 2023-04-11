@@ -97,9 +97,10 @@ In some cases, you may want to reduce the number of metrics produced by the `spa
 
 Currently, only filtering by resource and span attributes with the following value types is supported.
 
-- `string`
-- `int`
+- `bool`
 - `double`
+- `int`
+- `string`
 
 Additionally, these intrinsic span attributes may be filtered upon:
 
@@ -107,7 +108,7 @@ Additionally, these intrinsic span attributes may be filtered upon:
 - `status` (code)
 - `kind`
 
-Intrinsic keys can be acted on directly when implementing a filter policy. For example: 
+Intrinsic keys can be acted on directly when implementing a filter policy. For example:
 
 ```yaml
 ---

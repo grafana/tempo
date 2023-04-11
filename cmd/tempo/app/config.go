@@ -186,6 +186,13 @@ func (c *Config) CheckConfig() []ConfigWarning {
 			if a.Scope == traceql.AttributeScopeNone {
 				warnings = append(warnings, newMetricsGeneratorProcessorSpanMetricsFilterPoliciesWarning(fmt.Sprintf("invalid attribute scope: %s", attr.Key)))
 			}
+
+			switch a.Intrinsic.String() {
+			case "name", "status", "kind": // currently supported
+			default:
+				warnings = append(warnings, newMetricsGeneratorProcessorSpanMetricsFilterPoliciesWarning(fmt.Sprintf("currently unsupported intrinsic: %s", a.Intrinsic)))
+			}
+
 		}
 	}
 
@@ -256,6 +263,6 @@ func newV2Warning(setting string) ConfigWarning {
 func newMetricsGeneratorProcessorSpanMetricsFilterPoliciesWarning(setting string) ConfigWarning {
 	return ConfigWarning{
 		Message: "c.Generator.Processor.SpanMetrics.FilterPolicies attribute is invalid: " + setting,
-		Explain: "FilterPolicy attributes must be `resource` or `span` scopped.",
+		Explain: "FilterPolicy attributes must be `resource` or `span` scopped, or a supported intrinic attribute",
 	}
 }
