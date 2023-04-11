@@ -110,7 +110,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
-	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
+	defer func() { span.SetTag("inspectedBytes", rr.BytesRead()) }()
 
 	// Get list of row groups to inspect. Ideally we use predicate pushdown
 	// here to keep only row groups that can potentially satisfy the request
@@ -121,7 +121,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 		return nil, err
 	}
 	results.Metrics.InspectedBlocks++
-	results.Metrics.InspectedBytes += rr.TotalBytesRead.Load()
+	results.Metrics.InspectedBytes += rr.BytesRead()
 	results.Metrics.InspectedTraces += uint32(b.meta.TotalObjects)
 
 	return results, nil

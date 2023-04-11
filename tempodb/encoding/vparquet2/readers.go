@@ -53,6 +53,10 @@ func (b *BackendReaderAt) ReadAtWithCache(p []byte, off int64) (int, error) {
 	return len(p), err
 }
 
+func (b *BackendReaderAt) BytesRead() uint64 {
+	return b.TotalBytesRead.Load()
+}
+
 // parquetOptimizedReaderAt is used to cheat a few parquet calls. By default when opening a
 // file parquet always requests the magic number and then the footer length. We can save
 // both of these calls from going to the backend.
