@@ -246,7 +246,7 @@ func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
 
 type pageFile struct {
 	parquetFile *parquet.File
-	r           *WalReaderAt
+	r           *walReaderAt
 	osFile      *os.File
 }
 
@@ -556,7 +556,7 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 		}
 
 		results.Traces = append(results.Traces, r.Traces...)
-		results.Metrics.InspectedBytes += file.r.TotalBytesRead.Load()
+		results.Metrics.InspectedBytes += file.r.BytesRead()
 		results.Metrics.InspectedTraces += uint32(pf.NumRows())
 		if len(results.Traces) >= int(req.Limit) {
 			break
@@ -628,7 +628,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 
 	blockFlushes := b.readFlushes()
 	// collect page readers to compute totalBytesRead
-	readers := make([]*WalReaderAt, 0, len(blockFlushes))
+	readers := make([]*walReaderAt, 0, len(blockFlushes))
 	iters := make([]traceql.SpansetIterator, 0, len(blockFlushes))
 	for _, page := range blockFlushes {
 		file, err := page.file()
@@ -657,7 +657,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 			// read value when callback is called
 			var totalBytesRead uint64
 			for _, r := range readers {
-				totalBytesRead += r.TotalBytesRead.Load()
+				totalBytesRead += r.BytesRead()
 			}
 			return totalBytesRead
 		},
