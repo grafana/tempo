@@ -15,7 +15,6 @@ These endpoints are exposed both when running Tempo in microservices and monolit
 - **microservices**: each service exposes its own endpoints
 - **monolithic**: the Tempo process exposes all API endpoints for the services running internally
 
-jpe - add docs
 ## Endpoints
 
 | API | Service | Type | Endpoint |
@@ -27,6 +26,7 @@ jpe - add docs
 | [Querying traces by id](#query) | Query-frontend |  HTTP | `GET /api/traces/<traceID>` |
 | [Searching traces](#search) | Query-frontend | HTTP | `GET /api/search?<params>` |
 | [Search tag names](#search-tags) | Query-frontend | HTTP | `GET /api/search/tags` |
+| [Search tag names V2](#search-tags-v2) | Query-frontend | HTTP | `GET /api/v2/search/tags` |
 | [Search tag values](#search-tag-values) | Query-frontend | HTTP | `GET /api/search/tag/<tag>/values` |
 | [Search tag values V2](#search-tag-values-v2) | Query-frontend | HTTP | `GET /api/v2/search/tag/<tag>/values` |
 | [Query Echo Endpoint](#query-echo-endpoint) | Query-frontend |  HTTP | `GET /api/echo` |
@@ -279,6 +279,55 @@ $ curl -G -s http://localhost:3200/api/search/tags?scope=span  | jq
     "service.name",
     "starter",
     "version"
+  ]
+}
+```
+
+### Search tags V2
+
+Ingester configuration `complete_block_timeout` affects how long tags are available for search.
+
+This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
+a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. The tags endpoint takes a scope that controls the kinds 
+of tags or attributes returned. If nothing is provided, the endpoint will return all resource and span tags.
+
+```
+GET /api/v2/search/tags?scope=<resource|span|intrinsic>
+```
+
+#### Example
+
+Example of how to query Tempo using curl.
+This query will return all discovered tag names.
+
+```bash
+$ curl -G -s http://localhost:3200/api/search/tags  | jq
+{
+  "scopes": [
+    {
+      "name": "span",
+      "tags": [
+        "article.count",
+        "http.flavor",
+        "http.method",
+      ]
+    },
+    {
+      "name": "resource",
+      "tags": [
+        "k6",
+        "service.name"
+      ]
+    },
+    {
+      "name": "intrinsic",
+      "tags": [
+        "duration",
+        "kind",
+        "name",
+        "status"
+      ]
+    }
   ]
 }
 ```

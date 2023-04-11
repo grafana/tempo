@@ -271,11 +271,11 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 // SearchTagsV2 calls SearchTags for each scope and returns the results.
 func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.SearchTagsV2Response, error) {
 	scopes := []string{scope}
-	resps := make([]*tempopb.SearchTagsResponse, len(scopes))
 	if scope == "" {
 		// todo: define all scopes somewhere? jpe
 		scopes = []string{"span", "resource", "intrinsic"}
 	}
+	resps := make([]*tempopb.SearchTagsResponse, len(scopes))
 
 	overallError := atomic.NewError(nil)
 	wg := sync.WaitGroup{}
@@ -305,9 +305,9 @@ func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.Sea
 	// build response
 	resp := &tempopb.SearchTagsV2Response{}
 	for idx := range resps {
-		resp.TagNames = append(resp.TagNames, &tempopb.SearchTagsV2TagNames{
-			Scope:    scopes[idx],
-			TagNames: resps[idx].TagNames,
+		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
+			Name: scopes[idx],
+			Tags: resps[idx].TagNames,
 		})
 	}
 

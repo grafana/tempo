@@ -117,12 +117,12 @@ message SearchTagsResponse {
 }
 
 message SearchTagsV2Response {
-  repeated SearchTagsV2TagNames tagNames = 1;
+  repeated SearchTagsV2Scope scopes = 1;
 }
 
-message SearchTagsV2TagNames {
-  string scope = 1;
-  repeated string tagNames = 2;
+message SearchTagsV2Scope {
+  string name = 1;
+  repeated string tags = 2;
 }
 
 message SearchTagValuesRequest {

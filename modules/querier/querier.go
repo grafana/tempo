@@ -403,14 +403,14 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 	distinctValues := map[string]*util.DistinctStringCollector{}
 
 	for _, resp := range lookupResults {
-		for _, res := range resp.response.(*tempopb.SearchTagsV2Response).TagNames {
-			dvc := distinctValues[res.Scope]
+		for _, res := range resp.response.(*tempopb.SearchTagsV2Response).Scopes {
+			dvc := distinctValues[res.Name]
 			if dvc == nil {
 				dvc = util.NewDistinctStringCollector(limit)
-				distinctValues[res.Scope] = dvc
+				distinctValues[res.Name] = dvc
 			}
 
-			for _, tag := range res.TagNames {
+			for _, tag := range res.Tags {
 				dvc.Collect(tag)
 			}
 		}
@@ -424,9 +424,9 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 
 	resp := &tempopb.SearchTagsV2Response{}
 	for scope, dvc := range distinctValues {
-		resp.TagNames = append(resp.TagNames, &tempopb.SearchTagsV2TagNames{
-			Scope:    scope,
-			TagNames: dvc.Strings(),
+		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
+			Name: scope,
+			Tags: dvc.Strings(),
 		})
 	}
 
