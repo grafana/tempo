@@ -83,7 +83,7 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 	ringStore, err := kv.NewClient(
 		cfg.Ring.KVStore,
 		ring.GetCodec(),
-		kv.RegistererWithKVName(prometheus.WrapRegistererWithPrefix("cortex_", reg), "metrics-generator"),
+		kv.RegistererWithKVName(prometheus.WrapRegistererWithPrefix("tempo_", reg), "metrics-generator"),
 		g.logger,
 	)
 	if err != nil {
@@ -101,7 +101,7 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 	delegate = ring.NewLeaveOnStoppingDelegate(delegate, g.logger)
 	delegate = ring.NewAutoForgetDelegate(ringAutoForgetUnhealthyPeriods*cfg.Ring.HeartbeatTimeout, delegate, g.logger)
 
-	g.ringLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, ringNameForServer, RingKey, ringStore, delegate, g.logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
+	g.ringLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, ringNameForServer, RingKey, ringStore, delegate, g.logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
 	if err != nil {
 		return nil, fmt.Errorf("create ring lifecycler: %w", err)
 	}

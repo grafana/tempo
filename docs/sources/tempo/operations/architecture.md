@@ -11,7 +11,7 @@ A collection of documents that detail Tempo architectural decisions and operatio
 # Architecture
 
 This topic provides an overview of the major components of Tempo. Refer to the [example setups]({{< relref "../getting-started/example-demo-app" >}})
-or [deployment options]({{< relref "./deployment" >}}) for help deploying.
+or [deployment options]({{< relref "../setup/deployment" >}}) for help deploying.
 
 <p align="center"><img src="../tempo_arch.png" alt="Tempo Architecture"></p>
 

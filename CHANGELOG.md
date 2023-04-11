@@ -12,7 +12,7 @@
 * [FEATURE] Add support for min/max/avg aggregates to TraceQL[#2255](https://github.com/grafana/tempo/pull/2255) (@joe-elliott)
 * [FEATURE] Add support for `q` query param in `/api/v2/search/<tag.name>/values` to filter results based on a TraceQL query [#2253](https://github.com/grafana/tempo/pull/2253) (@mapno)
 * [CHANGE] Add support for s3 session token in static config [#2093](https://github.com/grafana/tempo/pull/2093) (@farodin91)
-* [CHANGE] **Breaking Change** Remove support for search on v2 blocks. [#2159](https://github.com/grafana/tempo/pull/2062) (@joe-elliott)
+* [CHANGE] **Breaking Change** Remove support for search on v2 blocks. [#2159](https://github.com/grafana/tempo/pull/2159) (@joe-elliott)
   Removed config options:
   ```
   overrides:
@@ -31,6 +31,7 @@
 * [ENHANCEMENT] Added the ability to multiple span metrics by an attribute such as `X-SampleRatio` [#2172](https://github.com/grafana/tempo/pull/2172) (@altanozlu)
 * [BUGFIX] Apply `rate()` to bytes/s panel in tenant's dashboard. [#2081](https://github.com/grafana/tempo/pull/2081) (@mapno)
 * [CHANGE] Update Go to 1.20 [#2079](https://github.com/grafana/tempo/pull/2079) (@scalalang2)
+* [CHANGE] **BREAKING CHANGE** Change metrics prefixed with `cortex_` to `tempo_` [#2204](https://github.com/grafana/tempo/pull/2204) (@mapno)
 * [BUGFIX] Retry copy operations during compaction in GCS backend [#2111](https://github.com/grafana/tempo/pull/2111) (@mapno)
 * [BUGFIX] Fix float/int comparisons in TraceQL. [#2139](https://github.com/grafana/tempo/issues/2139) (@joe-elliott)
 * [BUGFIX] Improve locking and search head block in SearchTagValuesV2 [#2164](https://github.com/grafana/tempo/pull/2164) (@mapno)
@@ -39,6 +40,7 @@
   This prevents invalid values from showing up for intrinsics like `status` [#2219](https://github.com/grafana/tempo/pull/2152) (@joe-elliott)
 * [BUGFIX] Correctly return unique spans when &&ing and ||ing spansets. [#2254](https://github.com/grafana/tempo/pull/2254) (@joe-elliott)
 * [BUGFIX] Support negative values on aggregate filters like `count() > -1`. [#2289](https://github.com/grafana/tempo/pull/2289) (@joe-elliott)
+* [BUGFIX] Support float as duration like `{duration > 1.5s}` [#2304]https://github.com/grafana/tempo/pull/2304 (@ie-pham)
 
 ## v2.0.1 / 2023-03-03
 

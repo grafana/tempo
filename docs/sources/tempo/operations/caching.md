@@ -13,7 +13,7 @@ The supported implementations are [Memcached](https://memcached.org/) and [Redis
 ## Memcached
 
 Memcached is one of the cache implementations supported by Tempo.
-It is used by default in the Tanka and Helm examples, see [Deploying Tempo]({{< relref "deployment/" >}}).
+It is used by default in the Tanka and Helm examples, see [Deploying Tempo]({{< relref "../setup/deployment/" >}}).
 
 ### Connection limit
 
