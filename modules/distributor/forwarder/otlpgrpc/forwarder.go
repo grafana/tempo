@@ -23,7 +23,7 @@ type Forwarder struct {
 	cfg         Config
 	logger      log.Logger
 	connections map[string]*grpc.ClientConn
-	clients     map[string]ptraceotlp.Client
+	clients     map[string]ptraceotlp.GRPCClient
 	initialized bool
 	mu          *sync.RWMutex
 }
@@ -37,7 +37,7 @@ func NewForwarder(cfg Config, logger log.Logger) (*Forwarder, error) {
 		cfg:         cfg,
 		logger:      logger,
 		connections: make(map[string]*grpc.ClientConn),
-		clients:     make(map[string]ptraceotlp.Client),
+		clients:     make(map[string]ptraceotlp.GRPCClient),
 		initialized: false,
 		mu:          &sync.RWMutex{},
 	}, nil
@@ -54,7 +54,7 @@ func (f *Forwarder) Dial(ctx context.Context, opts ...grpc.DialOption) error {
 	}
 
 	connections := make(map[string]*grpc.ClientConn)
-	clients := make(map[string]ptraceotlp.Client, len(f.cfg.Endpoints))
+	clients := make(map[string]ptraceotlp.GRPCClient, len(f.cfg.Endpoints))
 	for _, endpoint := range f.cfg.Endpoints {
 		client, conn, err := f.newTraceOTLPGRPCClientAndConn(ctx, endpoint, f.cfg.TLS, opts...)
 		if err != nil {
@@ -73,7 +73,7 @@ func (f *Forwarder) Dial(ctx context.Context, opts ...grpc.DialOption) error {
 }
 
 func (f *Forwarder) ForwardTraces(ctx context.Context, traces ptrace.Traces) error {
-	req := ptraceotlp.NewRequestFromTraces(traces)
+	req := ptraceotlp.NewExportRequestFromTraces(traces)
 
 	var errs []error
 	f.mu.RLock()
@@ -103,7 +103,7 @@ func (f *Forwarder) Shutdown(_ context.Context) error {
 	return multierr.Combine(errs...)
 }
 
-func (f *Forwarder) newTraceOTLPGRPCClientAndConn(ctx context.Context, endpoint string, cfg TLSConfig, opts ...grpc.DialOption) (ptraceotlp.Client, *grpc.ClientConn, error) {
+func (f *Forwarder) newTraceOTLPGRPCClientAndConn(ctx context.Context, endpoint string, cfg TLSConfig, opts ...grpc.DialOption) (ptraceotlp.GRPCClient, *grpc.ClientConn, error) {
 	var creds credentials.TransportCredentials
 	if cfg.Insecure {
 		creds = insecure.NewCredentials()
@@ -129,7 +129,7 @@ func (f *Forwarder) newTraceOTLPGRPCClientAndConn(ctx context.Context, endpoint 
 		return nil, nil, err
 	}
 
-	return ptraceotlp.NewClient(grpcClientConn), grpcClientConn, nil
+	return ptraceotlp.NewGRPCClient(grpcClientConn), grpcClientConn, nil
 }
 
 func instrumentation() ([]grpc.UnaryClientInterceptor, []grpc.StreamClientInterceptor) {

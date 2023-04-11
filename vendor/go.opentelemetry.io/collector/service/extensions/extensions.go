@@ -21,10 +21,9 @@ import (
 	"sort"
 
 	"go.uber.org/multierr"
-	"go.uber.org/zap"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/service/internal/components"
 	"go.opentelemetry.io/collector/service/internal/zpages"
 )
@@ -34,14 +33,14 @@ const zExtensionName = "zextensionname"
 // Extensions is a map of extensions created from extension configs.
 type Extensions struct {
 	telemetry component.TelemetrySettings
-	extMap    map[config.ComponentID]component.Extension
+	extMap    map[component.ID]extension.Extension
 }
 
 // Start starts all extensions.
 func (bes *Extensions) Start(ctx context.Context, host component.Host) error {
 	bes.telemetry.Logger.Info("Starting extensions...")
 	for extID, ext := range bes.extMap {
-		extLogger := extensionLogger(bes.telemetry.Logger, extID)
+		extLogger := components.ExtensionLogger(bes.telemetry.Logger, extID)
 		extLogger.Info("Extension is starting...")
 		if err := ext.Start(ctx, components.NewHostWrapper(host, extLogger)); err != nil {
 			return err
@@ -64,7 +63,7 @@ func (bes *Extensions) Shutdown(ctx context.Context) error {
 
 func (bes *Extensions) NotifyPipelineReady() error {
 	for extID, ext := range bes.extMap {
-		if pw, ok := ext.(component.PipelineWatcher); ok {
+		if pw, ok := ext.(extension.PipelineWatcher); ok {
 			if err := pw.Ready(); err != nil {
 				return fmt.Errorf("failed to notify extension %q: %w", extID, err)
 			}
@@ -77,15 +76,15 @@ func (bes *Extensions) NotifyPipelineNotReady() error {
 	// Notify extensions in reverse order.
 	var errs error
 	for _, ext := range bes.extMap {
-		if pw, ok := ext.(component.PipelineWatcher); ok {
+		if pw, ok := ext.(extension.PipelineWatcher); ok {
 			errs = multierr.Append(errs, pw.NotReady())
 		}
 	}
 	return errs
 }
 
-func (bes *Extensions) GetExtensions() map[config.ComponentID]component.Extension {
-	result := make(map[config.ComponentID]component.Extension, len(bes.extMap))
+func (bes *Extensions) GetExtensions() map[component.ID]component.Component {
+	result := make(map[component.ID]component.Component, len(bes.extMap))
 	for extID, v := range bes.extMap {
 		result[extID] = v
 	}
@@ -123,37 +122,34 @@ type Settings struct {
 	Telemetry component.TelemetrySettings
 	BuildInfo component.BuildInfo
 
-	// Configs is a map of config.ComponentID to config.Extension.
-	Configs map[config.ComponentID]config.Extension
+	// Drepecated: [v0.68.0] use Extensions.
+	Configs map[component.ID]component.Config
 
-	// Factories maps extension type names in the config to the respective component.ExtensionFactory.
-	Factories map[config.Type]component.ExtensionFactory
+	// Drepecated: [v0.68.0] use Extensions.
+	Factories map[component.Type]extension.Factory
+
+	// Extensions builder for extensions.
+	Extensions *extension.Builder
 }
 
 // New creates a new Extensions from Config.
 func New(ctx context.Context, set Settings, cfg Config) (*Extensions, error) {
+	if set.Extensions == nil {
+		set.Extensions = extension.NewBuilder(set.Configs, set.Factories)
+	}
 	exts := &Extensions{
 		telemetry: set.Telemetry,
-		extMap:    make(map[config.ComponentID]component.Extension),
+		extMap:    make(map[component.ID]extension.Extension),
 	}
 	for _, extID := range cfg {
-		extCfg, existsCfg := set.Configs[extID]
-		if !existsCfg {
-			return nil, fmt.Errorf("extension %q is not configured", extID)
-		}
-
-		factory, existsFactory := set.Factories[extID.Type()]
-		if !existsFactory {
-			return nil, fmt.Errorf("extension factory for type %q is not configured", extID.Type())
-		}
-
-		extSet := component.ExtensionCreateSettings{
+		extSet := extension.CreateSettings{
+			ID:                extID,
 			TelemetrySettings: set.Telemetry,
 			BuildInfo:         set.BuildInfo,
 		}
-		extSet.TelemetrySettings.Logger = extensionLogger(set.Telemetry.Logger, extID)
+		extSet.TelemetrySettings.Logger = components.ExtensionLogger(set.Telemetry.Logger, extID)
 
-		ext, err := factory.CreateExtension(ctx, extSet, extCfg)
+		ext, err := set.Extensions.Create(ctx, extSet)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create extension %q: %w", extID, err)
 		}
@@ -167,10 +163,4 @@ func New(ctx context.Context, set Settings, cfg Config) (*Extensions, error) {
 	}
 
 	return exts, nil
-}
-
-func extensionLogger(logger *zap.Logger, id config.ComponentID) *zap.Logger {
-	return logger.With(
-		zap.String(components.ZapKindKey, components.ZapKindExtension),
-		zap.String(components.ZapNameKey, id.String()))
 }

@@ -20,6 +20,7 @@ package transport
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -44,8 +45,14 @@ import (
 const (
 	// http2MaxFrameLen specifies the max length of a HTTP2 frame.
 	http2MaxFrameLen = 16384 // 16KB frame
-	// https://httpwg.org/specs/rfc7540.html#SettingValues
+	// http://http2.github.io/http2-spec/#SettingValues
 	http2InitHeaderTableSize = 4096
+	// baseContentType is the base content-type for gRPC.  This is a valid
+	// content-type on it's own, but can also include a content-subtype such as
+	// "proto" as a suffix after "+" or ";".  See
+	// https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md#requests
+	// for more details.
+
 )
 
 var (
@@ -250,13 +257,13 @@ func encodeGrpcMessage(msg string) string {
 }
 
 func encodeGrpcMessageUnchecked(msg string) string {
-	var sb strings.Builder
+	var buf bytes.Buffer
 	for len(msg) > 0 {
 		r, size := utf8.DecodeRuneInString(msg)
 		for _, b := range []byte(string(r)) {
 			if size > 1 {
 				// If size > 1, r is not ascii. Always do percent encoding.
-				fmt.Fprintf(&sb, "%%%02X", b)
+				buf.WriteString(fmt.Sprintf("%%%02X", b))
 				continue
 			}
 
@@ -265,14 +272,14 @@ func encodeGrpcMessageUnchecked(msg string) string {
 			//
 			// fmt.Sprintf("%%%02X", utf8.RuneError) gives "%FFFD".
 			if b >= spaceByte && b <= tildeByte && b != percentByte {
-				sb.WriteByte(b)
+				buf.WriteByte(b)
 			} else {
-				fmt.Fprintf(&sb, "%%%02X", b)
+				buf.WriteString(fmt.Sprintf("%%%02X", b))
 			}
 		}
 		msg = msg[size:]
 	}
-	return sb.String()
+	return buf.String()
 }
 
 // decodeGrpcMessage decodes the msg encoded by encodeGrpcMessage.
@@ -290,23 +297,23 @@ func decodeGrpcMessage(msg string) string {
 }
 
 func decodeGrpcMessageUnchecked(msg string) string {
-	var sb strings.Builder
+	var buf bytes.Buffer
 	lenMsg := len(msg)
 	for i := 0; i < lenMsg; i++ {
 		c := msg[i]
 		if c == percentByte && i+2 < lenMsg {
 			parsed, err := strconv.ParseUint(msg[i+1:i+3], 16, 8)
 			if err != nil {
-				sb.WriteByte(c)
+				buf.WriteByte(c)
 			} else {
-				sb.WriteByte(byte(parsed))
+				buf.WriteByte(byte(parsed))
 				i += 2
 			}
 		} else {
-			sb.WriteByte(c)
+			buf.WriteByte(c)
 		}
 	}
-	return sb.String()
+	return buf.String()
 }
 
 type bufWriter struct {
@@ -315,6 +322,8 @@ type bufWriter struct {
 	batchSize int
 	conn      net.Conn
 	err       error
+
+	onFlush func()
 }
 
 func newBufWriter(conn net.Conn, batchSize int) *bufWriter {
@@ -350,6 +359,9 @@ func (w *bufWriter) Flush() error {
 	}
 	if w.offset == 0 {
 		return nil
+	}
+	if w.onFlush != nil {
+		w.onFlush()
 	}
 	_, w.err = w.conn.Write(w.buf[:w.offset])
 	w.offset = 0
