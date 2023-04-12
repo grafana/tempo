@@ -48,7 +48,7 @@ jobs:
         with:
           version: v1.51.0
 
-  unit-tests:
+  unit-tests-pkg:
     name: Test packages - pkg
     runs-on: ubuntu-latest
     steps:
@@ -63,7 +63,7 @@ jobs:
       - name: Test
         run: make test-with-cover-pkg
 
-  unit-tests:
+  unit-tests-tempodb:
     name: Test packages - tempodb
     runs-on: ubuntu-latest
     steps:
@@ -78,7 +78,7 @@ jobs:
       - name: Test
         run: make test-with-cover-tempodb
 
-  unit-tests:
+  unit-tests-others:
     name: Test packages - others
     runs-on: ubuntu-latest
     steps:
