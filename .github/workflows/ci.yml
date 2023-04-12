@@ -64,7 +64,7 @@ jobs:
         run: make test-with-cover-pkg
 
   unit-tests-tempodb:
-    name: Test packages - tempodb (excluding tempodb/wal)
+    name: Test packages - tempodb
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.20
