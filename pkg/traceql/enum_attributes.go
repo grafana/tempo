@@ -35,6 +35,8 @@ func AttributeScopeFromString(s string) AttributeScope {
 	case "resource":
 		return AttributeScopeResource
 	case "":
+		fallthrough
+	case "none":
 		return AttributeScopeNone
 	}
 
