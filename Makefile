@@ -98,15 +98,15 @@ test-with-cover: test-serverless
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
 
 .PHONY: test-with-cover-pkg
-test-with-cover:
+test-with-cover-pkg:
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './pkg*/*' -type f | sort))))
 
 .PHONY: test-with-cover-tempodb
-test-with-cover:
+test-with-cover-tempodb:
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb*/*' -type f | sort))))
 
 .PHONY: test-with-cover-others
-test-with-cover: test-serverless
+test-with-cover-others: test-serverless
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(OTHERS_SRC))))
 
 # runs e2e tests in the top level integration/e2e directory
