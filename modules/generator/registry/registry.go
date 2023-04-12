@@ -129,16 +129,14 @@ func (r *ManagedRegistry) NewLabelValues(values []string) *LabelValues {
 	return newLabelValuesWithMax(values, r.cfg.MaxLabelValueLength)
 }
 
-func (r *ManagedRegistry) NewCounter(name string, labels []string) Counter {
-	truncateLength(labels, r.cfg.MaxLabelNameLength)
+func (r *ManagedRegistry) NewCounter(name string) Counter {
 
-	c := newCounter(name, labels, r.onAddMetricSeries, r.onRemoveMetricSeries)
+	c := newCounter(name, r.onAddMetricSeries, r.onRemoveMetricSeries)
 	r.registerMetric(c)
 	return c
 }
 
 func (r *ManagedRegistry) NewHistogram(name string, labels []string, buckets []float64) Histogram {
-	truncateLength(labels, r.cfg.MaxLabelNameLength)
 
 	h := newHistogram(name, labels, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries)
 	r.registerMetric(h)
