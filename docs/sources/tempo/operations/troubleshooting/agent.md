@@ -1,11 +1,12 @@
 ---
-title: Agent troubleshooting
+title: Troubleshoot Grafana Agent
+menuTitle: Grafana Agent
 weight: 472
 aliases:
 - /docs/tempo/troubleshooting/agent
 ---
 
-# Agent troubleshooting
+# Troubleshoot Grafana Agent
 
 Sometimes it can be difficult to tell what, if anything, the Grafana Agent is sending along to the backend. This document focuses
 on a few techniques to gain visibility on how many traces are being pushed to the Agent and if they're making it to the
@@ -28,9 +29,9 @@ traces_exporter_send_failed_spans
 
 ## Automatic logging
 
-If metrics and logs are looking good, but you are still unable to find traces in Grafana Cloud then we can turn on [Automatic Logging]({{< relref "../configuration/grafana-agent/automatic-logging" >}}). A recommend debug setup is:
+If metrics and logs are looking good, but you are still unable to find traces in Grafana Cloud then we can turn on [Automatic Logging]({{< relref "../../configuration/grafana-agent/automatic-logging" >}}). A recommend debug setup is:
 
-```
+```yaml
 traces:
   configs:
   - name: default
