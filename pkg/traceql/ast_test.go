@@ -236,6 +236,23 @@ func TestSpansetFilterEvaluate(t *testing.T) {
 			},
 		},
 		{
+			"{ .http.status > `200` }",
+			[]*Spanset{
+				{Spans: []Span{
+					// This entire spanset will be dropped because mismatch type
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticInt(200)}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticInt(201)}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticInt(300)}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticInt(301)}},
+				}},
+				{Spans: []Span{
+					// This entire spanset will be dropped because mismatch type
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticInt(100)}},
+				}},
+			},
+			nil,
+		},
+		{
 			"{ .foo = 1 || (.foo >= 4 && .foo < 6) }",
 			[]*Spanset{
 				{Spans: []Span{
