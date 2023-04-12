@@ -1,7 +1,7 @@
 ---
 title: Improve performance with caching
 menuTitle: Improve performance with caching
-weight: 60
+weight: 65
 ---
 
 # Improve performance with caching

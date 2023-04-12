@@ -1,7 +1,7 @@
 ---
 title: Server-side metrics architecture
 menuTitle: Server-side metrics architecture
-weight: 110
+weight: 15
 ---
 
 # Server-side metrics architecture

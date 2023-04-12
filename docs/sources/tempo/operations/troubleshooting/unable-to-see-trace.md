@@ -44,7 +44,7 @@ There are three possible solutions: protocol or port problems, sampling issues, 
 To fix protocol or port problems:
 
 - Find out which communication protocol is being used by the application to emit traces. This is unique to every client SDK. For instance: Jaeger Golang Client uses `Thrift Compact over UDP` by default.
-- Check the list of supported protocols and their ports and ensure that the correct combination is being used. You will find the list of supported protocols and ports here: https://grafana.com/docs/tempo/latest/getting-started/#step-1-spin-up-tempo-backend
+- Check the list of supported protocols and their ports and ensure that the correct combination is being used.
 
 To fix sampling issues:
 
@@ -99,7 +99,7 @@ If the pipeline is not reporting any dropped spans, check whether application sp
   The rate limiting may be appropriate and does not need to be fixed. The metric simply explained the cause of the missing spans, and there is nothing more to be done.
 - If more ingestion volume is needed, increase the configuration for the rate limiting, by adding this CLI flag to Tempo at startup - https://github.com/grafana/tempo/blob/78f3554ca30bd5a4dec01629b8b7b2b0b2b489be/modules/overrides/limits.go#L42
 
-> **Note**: Check the [ingestion limits page]({{< relref "../configuration/#ingestion-limits" >}}) for further information on limits.
+> **Note**: Check the [ingestion limits page]({{< relref "../../configuration/#ingestion-limits" >}}) for further information on limits.
 
 ## Section 3: Diagnose and fix issues with querying traces
 

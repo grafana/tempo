@@ -1,7 +1,7 @@
 ---
 title: Tune the consistent hash rings
 menuTitle: Tune the consistent hash rings
-weight: 20
+weight: 40
 ---
 
 # Tune the consistent hash rings

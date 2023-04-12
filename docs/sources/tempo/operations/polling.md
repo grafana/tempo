@@ -2,7 +2,7 @@
 title: Use polling to monitor backend status
 menuTitle: Use polling to monitor backend status
 description: Monitor Tempo's backend using polling
-weight: 55
+weight: 30
 aliases:
 - /docs/tempo/operations/polling
 ---

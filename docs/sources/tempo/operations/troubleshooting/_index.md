@@ -1,7 +1,7 @@
 ---
 title: Troubleshoot Tempo
 menuTitle: Troubleshoot Tempo
-weight: 700
+weight: 200
 aliases:
 - /docs/tempo/troubleshooting/
 ---

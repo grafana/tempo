@@ -18,7 +18,7 @@ look something like:
 msg="pusher failed to consume trace data" err="at least 2 live replicas required, could only find 1"
 ```
 
-In this case you may need to visit the ingester [ring page]({{< relref "../operations/consistent_hash_ring" >}}) at `/ingester/ring` on the Distributors
+In this case you may need to visit the ingester [ring page]({{< relref "../../operations/consistent_hash_ring" >}}) at `/ingester/ring` on the Distributors
 and "Forget" the unhealthy ingesters. This will work in the short term, but the long term fix is to stabilize your ingesters.
 
 ## Trace limits reached

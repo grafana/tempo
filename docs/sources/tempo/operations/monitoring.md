@@ -2,7 +2,7 @@
 title: Monitor Tempo
 menuTitle: Monitor Tempo
 description: Use alerts and dashboards to monitor Tempo in production.
-weight: 40
+weight: 20
 ---
 
 # Monitor Tempo
