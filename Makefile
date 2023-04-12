@@ -92,19 +92,27 @@ test:
 benchmark:
 	$(GOTEST) -bench=. -run=notests $(ALL_PKGS)
 
-# Not using it in CI, tests are split in pkg, tempodb and others
+# Not used in CI, tests are split in pkg, tempodb, tempodb-wal and others in CI jobs
 .PHONY: test-with-cover
 test-with-cover: test-serverless
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
 
+# tests in pkg
 .PHONY: test-with-cover-pkg
 test-with-cover-pkg:
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './pkg*/*' -type f | sort))))
 
+# tests in tempodb (excluding tempodb/wal)
 .PHONY: test-with-cover-tempodb
 test-with-cover-tempodb:
-	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb*/*' -type f | sort))))
+	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go'  -not -path './tempodb/wal*/*' -path './tempodb*/*' -type f | sort))))
 
+# tests in tempodb/wal
+.PHONY: test-with-cover-tempodb-wal
+test-with-cover-tempodb-wal:
+	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb/wal*/*' -type f | sort))))
+
+# all other tests (excluding pkg & tempodb)
 .PHONY: test-with-cover-others
 test-with-cover-others: test-serverless
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(OTHERS_SRC))))

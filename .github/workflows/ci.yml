@@ -78,6 +78,21 @@ jobs:
       - name: Test
         run: make test-with-cover-tempodb
 
+  unit-tests-tempodb-wal:
+    name: Test packages - tempodb/wal
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go 1.20
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.20.x
+
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Test
+        run: make test-with-cover-tempodb-wal
+
   unit-tests-others:
     name: Test packages - others
     runs-on: ubuntu-latest
