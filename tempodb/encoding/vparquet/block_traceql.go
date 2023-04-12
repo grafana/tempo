@@ -813,9 +813,6 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 	s := operands[0].S
 
 	switch op {
-	case traceql.OpEqual:
-		return parquetquery.NewStringInPredicate([]string{s}), nil
-
 	case traceql.OpNotEqual:
 		return parquetquery.NewGenericPredicate(
 			func(v string) bool {
@@ -831,9 +828,9 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 
 	case traceql.OpRegex:
 		return parquetquery.NewRegexInPredicate([]string{s})
-
+	
 	default:
-		return nil, fmt.Errorf("operand not supported for strings: %+v", op)
+		return parquetquery.NewStringInPredicate([]string{s}), nil
 	}
 
 }

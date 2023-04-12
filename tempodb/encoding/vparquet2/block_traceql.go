@@ -648,6 +648,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 // one batch each. It builds on top of the span iterator, and turns the groups of spans and resource-level values into
 // spansets.  Spansets are returned that match any of the given conditions.
 func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, requireAtLeastOneMatchOverall, allConditions bool) (parquetquery.Iterator, error) {
+
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
@@ -786,6 +787,7 @@ func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetque
 }
 
 func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
+
 	if op == traceql.OpNone {
 		return nil, nil
 	}
@@ -799,9 +801,6 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 	s := operands[0].S
 
 	switch op {
-	case traceql.OpEqual:
-		return parquetquery.NewStringInPredicate([]string{s}), nil
-
 	case traceql.OpNotEqual:
 		return parquetquery.NewGenericPredicate(
 			func(v string) bool {
@@ -819,7 +818,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 		return parquetquery.NewRegexInPredicate([]string{s})
 
 	default:
-		return nil, fmt.Errorf("operand not supported for strings: %+v", op)
+		return parquetquery.NewStringInPredicate([]string{s}), nil
 	}
 
 }
