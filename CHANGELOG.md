@@ -15,23 +15,23 @@
   Removed metrics:
   `tempo_ingester_trace_search_bytes_discarded_total`
 * [CHANGE] Stop caching parquet files for search [#2164](https://github.com/grafana/tempo/pull/2164) (@mapno)
-* [CHANGE] Correctly connect context during compaction [#2220](https://github.com/grafana/tempo/pull/2220) (@ie-pham)
 * [CHANGE] Update Go to 1.20 [#2079](https://github.com/grafana/tempo/pull/2079) (@scalalang2)
 * [CHANGE] **BREAKING CHANGE** Change metrics prefixed with `cortex_` to `tempo_` [#2204](https://github.com/grafana/tempo/pull/2204) (@mapno)
 * [CHANGE] Upgrade OTel to v0.74.0 [#2317](https://github.com/grafana/tempo/pull/2317) (@mapno)
 * [FEATURE] New parquet based block format vParquet2 [#2244](https://github.com/grafana/tempo/pull/2244) (@stoewer)
 * [FEATURE] Add support for Azure Workload Identity authentication [#2195](https://github.com/grafana/tempo/pull/2195) (@LambArchie)
-  - **BREAKING CHANGE** `query_frontend_result_metrics_inspected_bytes` metric removed in favour of `query_frontend_bytes_processed_per_second`
 * [FEATURE] Add flag to check configuration [#2131](https://github.com/grafana/tempo/issues/2131) (@robertscherbarth @agrib-01)
 * [FEATURE] Add flag to optionally enable all available Go runtime metrics [#2005](https://github.com/grafana/tempo/pull/2005) (@andreasgerstmayr)
 * [FEATURE] Add support for span `kind` to TraceQL [#2217](https://github.com/grafana/tempo/pull/2217) (@joe-elliott)
 * [FEATURE] Add support for min/max/avg aggregates to TraceQL[#2255](https://github.com/grafana/tempo/pull/2255) (@joe-elliott)
 * [ENHANCEMENT] Add Throughput and SLO Metrics with SLOConfig in Query Frontend [#2008](https://github.com/grafana/tempo/pull/2008) (@electron0zero)
+  - **BREAKING CHANGE** `query_frontend_result_metrics_inspected_bytes` metric removed in favour of `query_frontend_bytes_processed_per_second`
 * [ENHANCEMENT] Metrics generator to make use of counters earlier [#2068](https://github.com/grafana/tempo/pull/2068) (@zalegrala)
 * [ENHANCEMENT] Log when a trace is too large to compact [#2105](https://github.com/grafana/tempo/pull/2105) (@scalalang2)
 * [ENHANCEMENT] Add support for arbitrary arithemtic to TraceQL queries [#2146](https://github.com/grafana/tempo/pull/2146) (@joe-elliott)
 * [ENHANCEMENT] tempo-cli: add command to migrate a tenant [#2130](https://github.com/grafana/tempo/pull/2130) (@kvrhdn)
 * [ENHANCEMENT] Added the ability to multiple span metrics by an attribute such as `X-SampleRatio` [#2172](https://github.com/grafana/tempo/pull/2172) (@altanozlu)
+* [BUGFIX] Correctly connect context during compaction [#2220](https://github.com/grafana/tempo/pull/2220) (@ie-pham)
 * [BUGFIX] Apply `rate()` to bytes/s panel in tenant's dashboard. [#2081](https://github.com/grafana/tempo/pull/2081) (@mapno)
 * [BUGFIX] Retry copy operations during compaction in GCS backend [#2111](https://github.com/grafana/tempo/pull/2111) (@mapno)
 * [BUGFIX] Fix float/int comparisons in TraceQL. [#2139](https://github.com/grafana/tempo/issues/2139) (@joe-elliott)
