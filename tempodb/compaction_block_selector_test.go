@@ -727,4 +727,9 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			assert.Equal(t, tt.expectedHash2, hash)
 		})
 	}
+
+	selector := newTimeWindowBlockSelector(tests[2].blocklist, 0, 100, uint64(1024*1024), defaultMinInputBlocks, defaultMaxInputBlocks)
+	actual, hash := selector.BlocksToCompact()
+	assert.Equal(t, []*backend.BlockMeta(nil), actual)
+	assert.Equal(t, "", hash)
 }

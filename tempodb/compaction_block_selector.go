@@ -5,6 +5,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -52,6 +54,11 @@ func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 		MaxCompactionRange:   maxCompactionRange,
 		MaxCompactionObjects: maxCompactionObjects,
 		MaxBlockBytes:        maxBlockBytes,
+	}
+
+	if maxCompactionRange == 0 {
+		level.Warn(log.Logger).Log("Compaction window can't be 0")
+		return twbs
 	}
 
 	now := time.Now()
