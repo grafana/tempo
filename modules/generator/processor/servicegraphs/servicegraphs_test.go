@@ -41,19 +41,22 @@ func TestServiceGraphs(t *testing.T) {
 		"client":          "mythical-requester",
 		"server":          "mythical-server",
 		"connection_type": "",
-		"beast":           "manticore",
+		"client_beast":    "manticore",
+		"server_beast":    "manticore",
 	})
 	serverToDatabaseLabels := labels.FromMap(map[string]string{
 		"client":          "mythical-server",
 		"server":          "postgres",
 		"connection_type": "database",
-		"beast":           "",
+		"client_beast":    "",
+		"server_beast":    "",
 	})
 	requesterToRecorderLabels := labels.FromMap(map[string]string{
 		"client":          "mythical-requester",
 		"server":          "mythical-recorder",
 		"connection_type": "messaging_system",
-		"beast":           "",
+		"client_beast":    "",
+		"server_beast":    "",
 	})
 
 	fmt.Println(testRegistry)
