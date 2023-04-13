@@ -9,6 +9,8 @@ const (
 	AttributeScopeResource
 	AttributeScopeSpan
 	AttributeScopeUnknown
+
+	none = "none"
 )
 
 func AllAttributeScopes() []AttributeScope {
@@ -18,7 +20,7 @@ func AllAttributeScopes() []AttributeScope {
 func (s AttributeScope) String() string {
 	switch s {
 	case AttributeScopeNone:
-		return "none"
+		return none
 	case AttributeScopeSpan:
 		return "span"
 	case AttributeScopeResource:
@@ -36,7 +38,7 @@ func AttributeScopeFromString(s string) AttributeScope {
 		return AttributeScopeResource
 	case "":
 		fallthrough
-	case "none":
+	case none:
 		return AttributeScopeNone
 	}
 
@@ -58,7 +60,7 @@ const (
 func (i Intrinsic) String() string {
 	switch i {
 	case IntrinsicNone:
-		return "none"
+		return none
 	case IntrinsicDuration:
 		return "duration"
 	case IntrinsicName:
