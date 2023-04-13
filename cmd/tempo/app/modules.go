@@ -284,11 +284,12 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 		httpGzipMiddleware(),
 	)
 
-	traceByIDHandler := middleware.Wrap(queryFrontend.TraceByID)
-	searchHandler := middleware.Wrap(queryFrontend.Search)
+	traceByIDHandler := middleware.Wrap(queryFrontend.TraceByIDHandler)
+	searchHandler := middleware.Wrap(queryFrontend.SearchHandler)
 
 	// register grpc server for queriers to connect to
 	frontend_v1pb.RegisterFrontendServer(t.Server.GRPC, t.frontend)
+	tempopb.RegisterStreamingQuerierServer(t.Server.GRPC, queryFrontend)
 
 	// http trace by id endpoint
 	t.Server.HTTP.Handle(addHTTPAPIPrefix(&t.cfg, api.PathTraces), traceByIDHandler)

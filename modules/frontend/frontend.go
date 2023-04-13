@@ -32,9 +32,9 @@ const (
 )
 
 type QueryFrontend struct {
-	TraceByID, Search http.Handler
-	logger            log.Logger
-	store             storage.Store
+	TraceByIDHandler, SearchHandler http.Handler
+	logger                          log.Logger
+	store                           storage.Store
 }
 
 // New returns a new QueryFrontend
@@ -75,11 +75,15 @@ func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store stora
 	traces := traceByIDMiddleware.Wrap(next)
 	search := searchMiddleware.Wrap(next)
 	return &QueryFrontend{
-		TraceByID: newHandler(traces, traceByIDCounter, logger),
-		Search:    newHandler(search, searchCounter, logger),
-		logger:    logger,
-		store:     store,
+		TraceByIDHandler: newHandler(traces, traceByIDCounter, logger),
+		SearchHandler:    newHandler(search, searchCounter, logger),
+		logger:           logger,
+		store:            store,
 	}, nil
+}
+
+func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
+	return nil
 }
 
 // newTraceByIDMiddleware creates a new frontend middleware responsible for handling get traces requests.

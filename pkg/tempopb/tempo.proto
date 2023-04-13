@@ -25,6 +25,10 @@ service Querier {
   rpc SearchTagValuesV2(SearchTagValuesRequest) returns (SearchTagValuesV2Response) {};
 }
 
+service StreamingQuerier {
+  rpc Search(SearchRequest) returns (stream SearchResponse); // jpe - stream something different back or add new fields to SearchMetrics? for %age done
+}
+
 // Read
 message TraceByIDRequest {
   bytes traceID = 1;
