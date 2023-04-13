@@ -2,12 +2,10 @@
 title: Tail-based sampling
 menuTItle: Tail-based sampling
 weight:
-draft: true
 aliases:
 - /docs/tempo/grafana-agent/tail-based-sampling
 ---
 
-<!-- April 11, 2023. Page is not published, per https://github.com/grafana/tempo/issues/2305. -->
 # Tail-based sampling
 
 Tempo aims to provide an inexpensive solution that makes 100% sampling possible.

@@ -29,7 +29,7 @@ You will need these components to fully use service graphs.
 
 To start using service graphs, enable the feature in the Grafana Agent config.
 
-```
+```yaml
 traces:
   configs:
     - name: default
@@ -44,7 +44,7 @@ Metrics are registered in the Agent's default registerer.
 Therefore, they are exposed at `/metrics` in the Agent's server port (default 12345).
 One option is to use the Agent self-scrape capabilities to export the metrics to a Prometheus-compatible backend.
 
-```
+```yaml
 metrics:
   configs:
     - name: default

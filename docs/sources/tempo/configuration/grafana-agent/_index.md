@@ -103,7 +103,7 @@ For a closer look into the feature, visit [Automatic logging]({{< relref "automa
 The Agent implements tail-based sampling for distributed tracing systems and multi-instance Agent deployments.
 With this feature, sampling decisions can be made based on data from a trace, rather than exclusively with probabilistic methods.
 
-For a detailed description, go to [Tail-based sampling]({{< relref "tail-based-sampling" >}}).
+For a detailed description, go to [Tail-based sampling]({{< relref "./tail-based-sampling" >}}).
 
 #### Generating metrics from spans
 
