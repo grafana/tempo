@@ -5,7 +5,7 @@ weight: 600
 
 # Manage Tempo
 
-Resources for deploying and running Tempo:
+This section provides resources for managing and tuning Tempo.
 
 {{< section >}}
 

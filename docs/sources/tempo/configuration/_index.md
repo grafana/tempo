@@ -1,6 +1,6 @@
 ---
-title: Configure Tempo
-menuTitle: Configure Tempo
+title: Configure
+menuTitle: Configure
 weight: 400
 aliases:
 - /docs/tempo/latest/configuration/
