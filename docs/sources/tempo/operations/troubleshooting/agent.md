@@ -29,7 +29,7 @@ traces_exporter_send_failed_spans
 
 ## Automatic logging
 
-If metrics and logs are looking good, but you are still unable to find traces in Grafana Cloud then we can turn on [Automatic Logging]({{< relref "../../configuration/grafana-agent/automatic-logging" >}}). A recommend debug setup is:
+If metrics and logs are looking good, but you are still unable to find traces in Grafana Cloud, you can turn on [Automatic Logging]({{< relref "../../configuration/grafana-agent/automatic-logging" >}}). A recommend debug setup is:
 
 ```yaml
 traces:

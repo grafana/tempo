@@ -101,7 +101,7 @@ For more guidance on configuration options for full backend search [check here](
     ```
 
 1. Add the newly-created cloud run service as external endpoints in your querier
-configuration. The endpoint can be retrieved from the Details tab in Google Cloud Run:
+configuration. The endpoint can be retrieved from the **Details** tab in Google Cloud Run:
 
     ```
     querier:

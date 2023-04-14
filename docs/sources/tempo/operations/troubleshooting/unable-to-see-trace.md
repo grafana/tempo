@@ -80,7 +80,7 @@ If you are using the Grafana Agent, continue reading the following section for m
 
 ### Diagnose the issue
 
-Check if the pipeline is dropping spans. The following metrics on the _Grafana Agent_ help determine this:
+Check if the pipeline is dropping spans. The following metrics on Grafana Agent help determine this:
 - `tempo_exporter_send_failed_spans`. The value of this metric should be 0.
 - `tempo_receiver_refused_spans`. This value of this metric should be 0.
 - `tempo_processor_dropped_spans`. The value of this metric should be 0.
@@ -88,7 +88,7 @@ Check if the pipeline is dropping spans. The following metrics on the _Grafana A
 If the pipeline is not reporting any dropped spans, check whether application spans are being dropped by Tempo. The following metrics help determine this:
 - `tempo_receiver_refused_spans`. The value of `tempo_receiver_refused_spans` should be 0.
 
-  The Grafana Agent and Tempo share the same metric. Make sure to check the value of the metric from both services.
+  Grafana Agent and Tempo share the same metric. Make sure to check the value of the metric from both services.
   If the value of `tempo_receiver_refused_spans` is greater than 0, then the possible reason is the application spans are being dropped due to rate limiting.
 
 ### Solution
@@ -121,7 +121,7 @@ The presence of the following errors in the log may explain issues with querying
 Possible reasons for the above errors are:
 - Tempo Querier is not connected to Tempo Query Frontend. Check the value of the metric `cortex_query_frontend_connected_clients` exposed by the Query Frontend.
   It should be > 0, which indicates that Queriers are connected to the Query Frontend.
-- Grafana Tempo Data source not configured to pass `tenant-id` in the Authorization header (only applicable to multi-tenant deployments).
+- Grafana Tempo data source is not configured to pass `tenant-id` in the Authorization header (only applicable to multi-tenant deployments).
 - Not connected to Tempo Querier correctly.
 - Insufficient permissions.
 

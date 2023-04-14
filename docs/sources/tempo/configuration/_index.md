@@ -30,7 +30,7 @@ This document explains the configuration options for Tempo as well as the detail
       - [Override strategies](#override-strategies)
   - [Usage-report](#usage-report)
 
-Additionally, you may wish to review [TLS]({{< relref "tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
+Additionally, you can review [TLS]({{< relref "tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
 ## Use environment variables in the configuration
 
