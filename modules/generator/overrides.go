@@ -3,7 +3,7 @@ package generator
 import (
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 )
 
 type metricsGeneratorOverrides interface {
@@ -15,7 +15,7 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID string) []float64
 	MetricsGeneratorProcessorSpanMetricsDimensions(userID string) []string
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID string) map[string]bool
-	MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []sharedconfig.FilterPolicy
+	MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []filterconfig.FilterPolicy
 }
 
 var _ metricsGeneratorOverrides = (*overrides.Overrides)(nil)

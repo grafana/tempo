@@ -1,4 +1,4 @@
-package sharedconfig
+package config
 
 type FilterPolicy struct {
 	Include *PolicyMatch `yaml:"include"`

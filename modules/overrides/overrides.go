@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/yaml.v2"
 
-	"github.com/grafana/tempo/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 )
@@ -348,7 +348,7 @@ func (o *Overrides) MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(user
 }
 
 // MetricsGeneratorProcessorSpanMetricsFilterPolicies controls the filter policies that are added to the spanmetrics processor.
-func (o *Overrides) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []sharedconfig.FilterPolicy {
+func (o *Overrides) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []filterconfig.FilterPolicy {
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessorSpanMetricsFilterPolicies
 }
 

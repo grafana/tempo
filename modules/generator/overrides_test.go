@@ -3,7 +3,7 @@ package generator
 import (
 	"time"
 
-	"github.com/grafana/tempo/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 )
 
 type mockOverrides struct {
@@ -13,7 +13,7 @@ type mockOverrides struct {
 	spanMetricsHistogramBuckets    []float64
 	spanMetricsDimensions          []string
 	spanMetricsIntrinsicDimensions map[string]bool
-	spanMetricsFilterPolicies      []sharedconfig.FilterPolicy
+	spanMetricsFilterPolicies      []filterconfig.FilterPolicy
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -54,6 +54,6 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(
 	return m.spanMetricsIntrinsicDimensions
 }
 
-func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []sharedconfig.FilterPolicy {
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []filterconfig.FilterPolicy {
 	return m.spanMetricsFilterPolicies
 }
