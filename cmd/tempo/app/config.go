@@ -239,10 +239,3 @@ func newV2Warning(setting string) ConfigWarning {
 		Explain: "This setting is only used in v2 blocks",
 	}
 }
-
-func newMetricsGeneratorProcessorSpanMetricsFilterPoliciesWarning(setting string) ConfigWarning {
-	return ConfigWarning{
-		Message: "c.Generator.Processor.SpanMetrics.FilterPolicies attribute is invalid: " + setting,
-		Explain: "FilterPolicy attributes must be `resource` or `span` scopped, or a supported intrinic attribute",
-	}
-}
