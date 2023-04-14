@@ -18,7 +18,6 @@ import (
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
 	internalserver "github.com/grafana/tempo/pkg/server"
-	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
@@ -175,24 +174,6 @@ func (c *Config) CheckConfig() []ConfigWarning {
 
 	if c.StorageConfig.Trace.Block.Version != "v2" && c.Compactor.Compactor.IteratorBufferSize != tempodb.DefaultIteratorBufferSize {
 		warnings = append(warnings, newV2Warning("v2_prefetch_traces_count"))
-	}
-
-	for _, x := range c.Generator.Processor.SpanMetrics.FilterPolicies {
-		for _, attr := range x.Include.Attributes {
-			a, w := traceql.ParseIdentifier(attr.Key)
-			if w != nil {
-				warnings = append(warnings, newMetricsGeneratorProcessorSpanMetricsFilterPoliciesWarning(w.Error()))
-			}
-			if a.Scope == traceql.AttributeScopeNone {
-				warnings = append(warnings, newMetricsGeneratorProcessorSpanMetricsFilterPoliciesWarning(fmt.Sprintf("invalid attribute scope: %s", attr.Key)))
-			}
-
-			switch a.Intrinsic.String() {
-			case "name", "status", "kind": // currently supported
-			default:
-				warnings = append(warnings, newMetricsGeneratorProcessorSpanMetricsFilterPoliciesWarning(fmt.Sprintf("currently unsupported intrinsic: %s", a.Intrinsic)))
-			}
-		}
 	}
 
 	return warnings

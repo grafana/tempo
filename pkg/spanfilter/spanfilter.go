@@ -1,7 +1,6 @@
 package spanfilter
 
 import (
-	"fmt"
 	"reflect"
 	"regexp"
 
@@ -32,14 +31,16 @@ type splitPolicy struct {
 func NewSpanFilter(filterPolicies []config.FilterPolicy) (*SpanFilter, error) {
 	var policies []*filterPolicy
 
+	var err error
 	for _, policy := range filterPolicies {
+		err = config.ValidateFilterPolicy(policy)
+		if err != nil {
+			return nil, err
+		}
+
 		p := &filterPolicy{
 			Include: getSplitPolicy(policy.Include),
 			Exclude: getSplitPolicy(policy.Exclude),
-		}
-
-		if p.Include == nil && p.Exclude == nil {
-			return nil, fmt.Errorf("invalid filter policy: %v", policy)
 		}
 
 		if p.Include != nil || p.Exclude != nil {
