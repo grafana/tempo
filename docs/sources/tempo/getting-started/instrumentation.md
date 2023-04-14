@@ -15,7 +15,7 @@ Client instrumentation is the process of adding instrumentation points in the ap
 Check out these resources for help instrumenting tracing with your favorite languages.
 Most of these guides include complete end-to-end examples with Grafana, Loki, and Tempo.
 
-### Instrumentaiton frameworks
+### Instrumentation frameworks
 
 Most of the popular client instrumentation frameworks
 have SDKs in the most commonly used programming languages.
