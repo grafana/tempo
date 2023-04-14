@@ -7,8 +7,14 @@ var separatorByte = []byte{255}
 
 // hashLabelValues generates a unique hash for the label values of a metric series. It expects that
 // labelValues will always have the same length.
-func hashLabelValues(labelValues []string) uint64 {
+func hashLabelValues(labels []string, labelValues []string) uint64 {
 	h := xxhash.New()
+
+	for _, v := range labels {
+		_, _ = h.WriteString(v)
+		_, _ = h.Write(separatorByte)
+	}
+
 	for _, v := range labelValues {
 		_, _ = h.WriteString(v)
 		_, _ = h.Write(separatorByte)

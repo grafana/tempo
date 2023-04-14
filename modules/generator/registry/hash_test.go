@@ -22,7 +22,7 @@ func Test_hashLabelValues(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(fmt.Sprintf("%s - %s", strings.Join(testCase.v1, ","), strings.Join(testCase.v2, ",")), func(t *testing.T) {
-			assert.NotEqual(t, hashLabelValues(testCase.v1), hashLabelValues(testCase.v2))
+			assert.NotEqual(t, hashLabelValues(testCase.v1, []string{}), hashLabelValues(testCase.v2, []string{}))
 		})
 	}
 }

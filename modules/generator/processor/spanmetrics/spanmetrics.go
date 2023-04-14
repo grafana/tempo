@@ -73,19 +73,19 @@ func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.C
 	p := &Processor{
 		Cfg:                        cfg,
 		registry:                   registry,
-		spanMetricsTargetInfo:      registry.NewGauge(targetInfo, []string{}),
+		spanMetricsTargetInfo:      registry.NewGauge(targetInfo),
 		now:                        time.Now,
 		labels:                     labels,
 	}
 
 	if cfg.Subprocessors[Latency] {
-		p.spanMetricsDurationSeconds = registry.NewHistogram(metricDurationSeconds, labels, cfg.HistogramBuckets)
+		p.spanMetricsDurationSeconds = registry.NewHistogram(metricDurationSeconds, cfg.HistogramBuckets)
 	}
 	if cfg.Subprocessors[Count] {
-		p.spanMetricsCallsTotal = registry.NewCounter(metricCallsTotal, labels)
+		p.spanMetricsCallsTotal = registry.NewCounter(metricCallsTotal)
 	}
 	if cfg.Subprocessors[Size] {
-		p.spanMetricsSizeTotal = registry.NewCounter(metricSizeTotal, labels)
+		p.spanMetricsSizeTotal = registry.NewCounter(metricSizeTotal)
 	}
 
 	filter, err := spanfilter.NewSpanFilter(cfg.FilterPolicies)
@@ -194,14 +194,9 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		labelValues = append(labelValues, instanceID)
 	}
 
-	//update labels to add job and/or instance if they're not blank
-	p.spanMetricsCallsTotal.UpdateLabels(labels)
-	p.spanMetricsDurationSeconds.UpdateLabels(labels)
-	p.spanMetricsSizeTotal.UpdateLabels(labels)
-
 	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span)
 
-	registryLabelValues := p.registry.NewLabelValues(labelValues)
+	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
 
 	if p.Cfg.Subprocessors[Count] {
 		p.spanMetricsCallsTotal.Inc(registryLabelValues, 1*spanMultiplier)
@@ -236,10 +231,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 			targetInfoLabelValues = append(targetInfoLabelValues, instanceID)
 		}
 
-		//update labels to add job and/or instance if they're not blank
-		p.spanMetricsTargetInfo.UpdateLabels(targetInfoLabels)
-
-		targetInfoRegistryLabelValues := p.registry.NewLabelValues(targetInfoLabelValues)
+		targetInfoRegistryLabelValues := p.registry.NewLabelValueCombo(targetInfoLabels, targetInfoLabelValues)
 
 		// only register target info if at least (job or instance) AND one other attribute are present
 		if resourceAttributesCount > 0 && len(targetInfoLabels) > resourceAttributesCount {

@@ -2,25 +2,23 @@ package registry
 
 // Registry is a metrics store.
 type Registry interface {
-	NewLabelValues(values []string) *LabelValues
-	NewCounter(name string, labels []string) Counter
-	NewHistogram(name string, labels []string, buckets []float64) Histogram
-	NewGauge(name string, labels []string) Gauge
+	NewLabelValueCombo(labels []string, values []string) *LabelValueCombo
+	NewCounter(name string) Counter
+	NewHistogram(name string, buckets []float64) Histogram
+	NewGauge(name string) Gauge
 }
 
 // Counter
 // https://prometheus.io/docs/concepts/metric_types/#counter
 type Counter interface {
-	Inc(values *LabelValues, value float64)
-	UpdateLabels(labels []string)
+	Inc(labelValueCombo *LabelValueCombo, value float64)
 }
 
 // Histogram
 // https://prometheus.io/docs/concepts/metric_types/#histogram
 type Histogram interface {
 	// ObserveWithExemplar observes a datapoint with the given values. traceID will be added as exemplar.
-	ObserveWithExemplar(values *LabelValues, value float64, traceID string, multiplier float64)
-	UpdateLabels(labels []string)
+	ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64)
 }
 
 // Gauge
@@ -28,51 +26,66 @@ type Histogram interface {
 // https://pkg.go.dev/github.com/prometheus/client_golang/prometheus#Gauge
 type Gauge interface {
 	// Set sets the Gauge to an arbitrary value.
-	Set(values *LabelValues, value float64)
-	Inc(values *LabelValues, value float64)
-	UpdateLabels(labels []string)
+	Set(labelValueCombo *LabelValueCombo, value float64)
+	Inc(labelValueCombo *LabelValueCombo, value float64)
 }
 
-// LabelValues is a wrapper around a slice of label values. It has the ability to cache the hash of
-// the label values. When passing the same label values to multiple metrics, create LabelValues once
+// LabelValueCombo is a wrapper around a slice of label values. It has the ability to cache the hash of
+// the label values. When passing the same label values to multiple metrics, create LabelValueCombo once
 // and pass it to all of them.
-type LabelValues struct {
+type LabelValueCombo struct {
+	labels []string
 	values []string
 	hash   uint64
 }
 
-func newLabelValues(values []string) *LabelValues {
-	return &LabelValues{
+func newLabelValueCombo(labels []string, values []string) *LabelValueCombo {
+	return &LabelValueCombo{
+		labels: labels,
 		values: values,
 		hash:   0,
 	}
 }
 
-func newLabelValuesWithMax(values []string, maxLengthLabelValue int) *LabelValues {
+func newLabelValueComboWithMax(labels []string, values []string, maxLabelLength int, maxLengthLabelValue int) *LabelValueCombo {
+	truncateLength(labels, maxLabelLength)
 	truncateLength(values, maxLengthLabelValue)
-	return newLabelValues(values)
+	return newLabelValueCombo(labels, values)
 }
 
-func (l *LabelValues) getValues() []string {
+func (l *LabelValueCombo) getValues() []string {
 	if l == nil {
 		return nil
 	}
 	return l.values
 }
 
-func (l *LabelValues) getValuesCopy() []string {
-	labelValuesCopy := make([]string, len(l.getValues()))
-	copy(labelValuesCopy, l.getValues())
-	return labelValuesCopy
+func (l *LabelValueCombo) getLabels() []string {
+	if l == nil {
+		return nil
+	}
+	return l.labels
 }
 
-func (l *LabelValues) getHash() uint64 {
+func (l *LabelValueCombo) getValuesCopy() []string {
+	valuesCopy := make([]string, len(l.getValues()))
+	copy(valuesCopy, l.getValues())
+	return valuesCopy
+}
+
+func (l *LabelValueCombo) getLabelsCopy() []string {
+	labelsCopy := make([]string, len(l.getLabels()))
+	copy(labelsCopy, l.getLabels())
+	return labelsCopy
+}
+
+func (l *LabelValueCombo) getHash() uint64 {
 	if l == nil {
 		return 0
 	}
 	if l.hash != 0 {
 		return l.hash
 	}
-	l.hash = hashLabelValues(l.values)
+	l.hash = hashLabelValues(l.labels, l.values)
 	return l.hash
 }

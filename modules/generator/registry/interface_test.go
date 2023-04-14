@@ -7,13 +7,15 @@ import (
 )
 
 func Test_newLabelValuesWithMax(t *testing.T) {
-	labelValues := newLabelValuesWithMax([]string{"abc", "abcdef"}, 5)
+	labelValues := newLabelValueComboWithMax([]string{"service", "name"}, []string{"abc", "abcdef"}, 5, 5)
 
 	assert.Equal(t, []string{"abc", "abcde"}, labelValues.getValues())
+	assert.Equal(t, []string{"servi", "name"}, labelValues.getLabels())
 }
 
 func Test_newLabelValuesWithMax_zeroLength(t *testing.T) {
-	labelValues := newLabelValuesWithMax([]string{"abc", "abcdef"}, 0)
+	labelValues := newLabelValueComboWithMax([]string{"service", "name"}, []string{"abc", "abcdef"}, 0, 0)
 
 	assert.Equal(t, []string{"abc", "abcdef"}, labelValues.getValues())
+	assert.Equal(t, []string{"service", "name"}, labelValues.getLabels())
 }

@@ -23,32 +23,29 @@ func NewTestRegistry() *TestRegistry {
 	}
 }
 
-func (t *TestRegistry) NewCounter(name string, labels []string) Counter {
+func (t *TestRegistry) NewCounter(name string) Counter {
 	return &testCounter{
 		name:     name,
-		labels:   labels,
 		registry: t,
 	}
 }
 
-func (t *TestRegistry) NewGauge(name string, labels []string) Gauge {
+func (t *TestRegistry) NewGauge(name string) Gauge {
 	return &testGauge{
 		name:     name,
-		labels:   labels,
 		registry: t,
 	}
 }
 
-func (t *TestRegistry) NewLabelValues(values []string) *LabelValues {
-	return newLabelValues(values)
+func (t *TestRegistry) NewLabelValueCombo(labels []string, values []string) *LabelValueCombo {
+	return newLabelValueCombo(labels, values)
 }
 
-func (t *TestRegistry) NewHistogram(name string, labels []string, buckets []float64) Histogram {
+func (t *TestRegistry) NewHistogram(name string, buckets []float64) Histogram {
 	return &testHistogram{
 		nameSum:    name + "_sum",
 		nameCount:  name + "_count",
 		nameBucket: name + "_bucket",
-		labels:     labels,
 		buckets:    buckets,
 		registry:   t,
 	}
@@ -87,60 +84,54 @@ func (t *TestRegistry) String() string {
 
 type testCounter struct {
 	name     string
-	labels   []string
 	registry *TestRegistry
 }
 
 var _ Counter = (*testCounter)(nil)
 
-func (t *testCounter) Inc(values *LabelValues, value float64) {
+func (t *testCounter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	if value < 0 {
 		panic("counter can only increase")
 	}
 
-	lbls := make(labels.Labels, len(t.labels))
-	for i, label := range t.labels {
-		lbls[i] = labels.Label{Name: label, Value: values.values[i]}
+	lbls := make(labels.Labels, len(labelValueCombo.labels))
+	for i, label := range labelValueCombo.labels {
+		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.values[i]}
 	}
 	sort.Sort(lbls)
 
 	t.registry.addToMetric(t.name, lbls, value)
 }
 
-func (t *testCounter) UpdateLabels(labels []string) {
-	t.labels = labels
-}
-
 type testGauge struct {
 	name     string
-	labels   []string
 	registry *TestRegistry
 }
 
 var _ Gauge = (*testGauge)(nil)
 
-func (t *testGauge) Inc(values *LabelValues, value float64) {
+func (t *testGauge) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	if value < 0 {
 		panic("counter can only increase")
 	}
 
-	lbls := make(labels.Labels, len(t.labels))
-	for i, label := range t.labels {
-		lbls[i] = labels.Label{Name: label, Value: values.values[i]}
+	lbls := make(labels.Labels, len(labelValueCombo.labels))
+	for i, label := range labelValueCombo.labels {
+		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.values[i]}
 	}
 	sort.Sort(lbls)
 
 	t.registry.addToMetric(t.name, lbls, value)
 }
 
-func (t *testGauge) Set(values *LabelValues, value float64) {
+func (t *testGauge) Set(labelValueCombo *LabelValueCombo, value float64) {
 	if value < 0 {
 		panic("counter can only increase")
 	}
 
-	lbls := make(labels.Labels, len(t.labels))
-	for i, label := range t.labels {
-		lbls[i] = labels.Label{Name: label, Value: values.values[i]}
+	lbls := make(labels.Labels, len(labelValueCombo.labels))
+	for i, label := range labelValueCombo.labels {
+		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.values[i]}
 	}
 	sort.Sort(lbls)
 
@@ -151,17 +142,16 @@ type testHistogram struct {
 	nameSum    string
 	nameCount  string
 	nameBucket string
-	labels     []string
 	buckets    []float64
 	registry   *TestRegistry
 }
 
 var _ Histogram = (*testHistogram)(nil)
 
-func (t *testHistogram) ObserveWithExemplar(values *LabelValues, value float64, traceID string, multiplier float64) {
-	lbls := make(labels.Labels, len(t.labels))
-	for i, label := range t.labels {
-		lbls[i] = labels.Label{Name: label, Value: values.values[i]}
+func (t *testHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) {
+	lbls := make(labels.Labels, len(labelValueCombo.labels))
+	for i, label := range labelValueCombo.labels {
+		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.values[i]}
 	}
 	sort.Sort(lbls)
 
@@ -174,14 +164,6 @@ func (t *testHistogram) ObserveWithExemplar(values *LabelValues, value float64, 
 		}
 	}
 	t.registry.addToMetric(t.nameBucket, withLe(lbls, math.Inf(1)), 1*multiplier)
-}
-
-func (t *testHistogram) UpdateLabels(labels []string) {
-	t.labels = labels
-}
-
-func (t *testGauge) UpdateLabels(labels []string) {
-	t.labels = labels
 }
 
 func withLe(lbls labels.Labels, le float64) labels.Labels {

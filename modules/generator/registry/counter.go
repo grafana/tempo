@@ -1,7 +1,6 @@
 package registry
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -22,7 +21,7 @@ type counter struct {
 }
 
 type counterSeries struct {
-	labels      []string
+	labels []string
 	// labelValues should not be modified after creation
 	labelValues []string
 	value       *atomic.Float64
@@ -65,16 +64,12 @@ func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(
 	}
 }
 
-func (c *counter) Inc(labels []string, labelValues *LabelValues, value float64) {
-	truncateLength(labels, r.cfg.MaxLabelNameLength)
+func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	if value < 0 {
 		panic("counter can only increase")
 	}
-	if len(labels) != len(labelValues.getValues()) {
-		panic(fmt.Sprintf("length of given label values does not match with labels, labels: %v, label values: %v", labels, labelValues))
-	}
 
-	hash := labelValues.getHash()
+	hash := labelValueCombo.getHash()
 
 	c.seriesMtx.RLock()
 	s, ok := c.series[hash]
@@ -89,7 +84,7 @@ func (c *counter) Inc(labels []string, labelValues *LabelValues, value float64) 
 		return
 	}
 
-	newSeries := c.newSeries(labels, labelValues, value)
+	newSeries := c.newSeries(labelValueCombo, value)
 
 	c.seriesMtx.Lock()
 	defer c.seriesMtx.Unlock()
@@ -102,10 +97,10 @@ func (c *counter) Inc(labels []string, labelValues *LabelValues, value float64) 
 	c.series[hash] = newSeries
 }
 
-func (c *counter) newSeries(labels []string, labelValues *LabelValues, value float64) *counterSeries {
+func (c *counter) newSeries(labelValueCombo *LabelValueCombo, value float64) *counterSeries {
 	return &counterSeries{
-		labels:      labels,
-		labelValues: labelValues.getValuesCopy(),
+		labels:      labelValueCombo.getLabelsCopy(),
+		labelValues: labelValueCombo.getValuesCopy(),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
 		firstSeries: atomic.NewBool(true),

@@ -1,7 +1,6 @@
 package registry
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 
 type gauge struct {
 	metricName string
-	labels     []string
 
 	// seriesMtx is used to sync modifications to the map, not to the data in series
 	seriesMtx sync.RWMutex
@@ -25,10 +23,11 @@ type gauge struct {
 }
 
 type gaugeSeries struct {
-	// labelValues should not be modified after creation
-	labelValues []string
-	value       *atomic.Float64
-	lastUpdated *atomic.Int64
+	// labelValueCombo should not be modified after creation
+	labels          []string
+	labelValueCombo []string
+	value           *atomic.Float64
+	lastUpdated     *atomic.Int64
 	// firstSeries is used to track if this series is new to the gauge.  This
 	// is used to ensure that new gauges being with 0, and then are incremented
 	// to the desired value.  This avoids Prometheus throwing away the first
@@ -50,7 +49,7 @@ func (gs *gaugeSeries) registerSeenSeries() {
 	gs.firstSeries.Store(false)
 }
 
-func newGauge(name string, labels []string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) *gauge {
+func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) *gauge {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -62,31 +61,23 @@ func newGauge(name string, labels []string, onAddSeries func(uint32) bool, onRem
 
 	return &gauge{
 		metricName:     name,
-		labels:         labels,
 		series:         make(map[uint64]*gaugeSeries),
 		onAddSeries:    onAddSeries,
 		onRemoveSeries: onRemoveSeries,
 	}
 }
 
-func (g *gauge) UpdateLabels(labels []string) {
-	g.labels = labels
+func (g *gauge) Set(labelValueCombo *LabelValueCombo, value float64) {
+	g.change(labelValueCombo, value, set)
 }
 
-func (g *gauge) Set(labelValues *LabelValues, value float64) {
-	g.change(labelValues, value, set)
+func (g *gauge) Inc(labelValueCombo *LabelValueCombo, value float64) {
+	g.change(labelValueCombo, value, add)
 }
 
-func (g *gauge) Inc(labelValues *LabelValues, value float64) {
-	g.change(labelValues, value, add)
-}
+func (g *gauge) change(labelValueCombo *LabelValueCombo, value float64, operation string) {
 
-func (g *gauge) change(labelValues *LabelValues, value float64, operation string) {
-	if len(g.labels) != len(labelValues.getValues()) {
-		panic(fmt.Sprintf("length of given label values does not match with labels, labels: %v, label values: %v", g.labels, labelValues))
-	}
-
-	hash := labelValues.getHash()
+	hash := labelValueCombo.getHash()
 
 	g.seriesMtx.RLock()
 	s, ok := g.series[hash]
@@ -101,7 +92,7 @@ func (g *gauge) change(labelValues *LabelValues, value float64, operation string
 		return
 	}
 
-	newSeries := g.newSeries(labelValues, value)
+	newSeries := g.newSeries(labelValueCombo, value)
 
 	g.seriesMtx.Lock()
 	defer g.seriesMtx.Unlock()
@@ -114,12 +105,13 @@ func (g *gauge) change(labelValues *LabelValues, value float64, operation string
 	g.series[hash] = newSeries
 }
 
-func (g *gauge) newSeries(labelValues *LabelValues, value float64) *gaugeSeries {
+func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaugeSeries {
 	return &gaugeSeries{
-		labelValues: labelValues.getValuesCopy(),
-		value:       atomic.NewFloat64(value),
-		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
-		firstSeries: atomic.NewBool(true),
+		labels:          labelValueCombo.getLabels(),
+		labelValueCombo: labelValueCombo.getValuesCopy(),
+		value:           atomic.NewFloat64(value),
+		lastUpdated:     atomic.NewInt64(time.Now().UnixMilli()),
+		firstSeries:     atomic.NewBool(true),
 	}
 }
 
@@ -142,7 +134,7 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64, external
 
 	activeSeries = len(g.series)
 
-	lbls := make(labels.Labels, 1+len(externalLabels)+len(g.labels))
+	lbls := make(labels.Labels, 1+len(externalLabels)+4)
 	lb := labels.NewBuilder(lbls)
 
 	// set metric name
@@ -155,8 +147,8 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64, external
 	for _, s := range g.series {
 		t := time.UnixMilli(timeMs)
 		// set series-specific labels
-		for i, name := range g.labels {
-			lb.Set(name, s.labelValues[i])
+		for i, name := range s.labels {
+			lb.Set(name, s.labelValueCombo[i])
 		}
 
 		// If we are about to call Append for the first time on a series, we need
