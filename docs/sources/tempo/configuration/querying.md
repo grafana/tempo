@@ -13,7 +13,7 @@ Grafana can query Tempo directly. This feature has been enabled since Grafana 7.
 
 Grafana Cloud comes pre-configured with a Tempo data source.
 
-If you are using Grafana on-prem, you need to [set up the Tempo data source]({{< relref "/docs/grafana/latest/datasources/tempo" >}}).
+If you are using Grafana on-prem, you need to [set up the Tempo data source](/docs/grafana/latest/datasources/tempo).
 
 ## Configure the data source
 
