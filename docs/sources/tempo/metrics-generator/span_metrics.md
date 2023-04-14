@@ -112,12 +112,15 @@ Intrinsic keys can be acted on directly when implementing a filter policy. For e
 
 ```yaml
 ---
-filter_policies:
-  - include:
-      match_type: strict
-      attributes:
-        - key: kind
-          value: SPAN_KIND_SERVER
+metrics_generator:
+  processor:
+    span_metrics:
+      filter_policies:
+        - include:
+            match_type: strict
+            attributes:
+              - key: kind
+                value: SPAN_KIND_SERVER
 ```
 
 In this example, spans which are of `kind` "server" are included for metrics export.
@@ -126,29 +129,35 @@ When selecting spans based on non-intrinsic attributes, it is required to specif
 
 ```yaml
 ---
-filter_policies:
-  - include:
-      match_type: strict
-      attributes:
-        - key: resource.location
-          value: earth
+metrics_generator:
+  processor:
+    span_metrics:
+      filter_policies:
+        - include:
+            match_type: strict
+            attributes:
+              - key: resource.location
+                value: earth
 ```
 
 In the above examples, we are using `match_type` of `strict`, which is a direct comparison of values. An additional option for `match_type` is `regex`. This allows users to build a regular expression to match against.
 
 ```yaml
 ---
-filter_policies:
-  - include:
-      match_type: regex
-      attributes:
-        - key: resource.location
-          value: eu-.*
-  - exclude:
-      match_type: regex
-      attributes:
-        - key: resource.tier
-          value: dev-.*
+metrics_generator:
+  processor:
+    span_metrics:
+      filter_policies:
+        - include:
+            match_type: regex
+            attributes:
+              - key: resource.location
+                value: eu-.*
+        - exclude:
+            match_type: regex
+            attributes:
+              - key: resource.tier
+                value: dev-.*
 ```
 
 In the above, we first include all spans which have a `resource.location` that begins with `eu-` with the `include` statement, and then exclude those with begin with `dev-`. In this way, a flexible approach to filtering can be achieved to ensure that only metrics which are important are generated.
