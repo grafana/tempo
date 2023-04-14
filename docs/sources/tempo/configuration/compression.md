@@ -3,6 +3,8 @@ title: Compression and encoding
 weight: 50
 ---
 
+<!-- Page needs to be updated. -->
+
 # Compression and encoding
 
 Tempo can compress traces that it pushes to backend storage. This requires extra
@@ -12,7 +14,7 @@ default `zstd`.
 
 Compression is configured under storage like so:
 
-```
+```yaml
 storage:
   trace:
     block:
@@ -32,7 +34,7 @@ The following options are supported:
 - s2
 
 It is important to note that although all of these compression formats are supported in Tempo, at Grafana
-we use `zstd` and it's possible/probable that the other compression algorithms may have issue at scale.  
+we use `zstd` and it's possible/probable that the other compression algorithms may have issue at scale.
 File an issue if you have any problems.
 
 ## WAL
