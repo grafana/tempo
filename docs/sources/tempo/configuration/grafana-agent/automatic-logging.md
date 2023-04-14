@@ -29,7 +29,7 @@ This allows searching by those key-value pairs in Loki.
 
 To configure automatic logging, you need to select your preferred backend and the trace data to log.
 
-To see all the available config options, refer to the [configuration reference]({{< relref "/docs/agent/latest/configuration/traces-config" >}}).
+To see all the available config options, refer to the [configuration reference](/docs/agent/latest/configuration/traces-config).
 
 This simple example logs trace roots to stdout and is a good way to get started using automatic logging:
 ```yaml

@@ -27,7 +27,7 @@ leverages all the data that is processed in the pipeline.
 The Grafana Agent can be configured to run a set of tracing pipelines to collect data from your applications and write it to Tempo.
 Pipelines are built using OpenTelemetry,
 and consist of `receivers`, `processors` and `exporters`. The architecture mirrors that of the OTel Collector's [design](https://github.com/open-telemetry/opentelemetry-collector/blob/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/design.md).
-See the [configuration reference]({{< relref "/docs/agent/latest/configuration/traces-config" >}}) for all available configuration options.
+See the [configuration reference](/docs/agent/latest/configuration/traces-config) for all available configuration options.
 For a quick start, refer to this [blog post](/blog/2020/11/17/tracing-with-the-grafana-cloud-agent-and-grafana-tempo/).
 
 <p align="center"><img src="https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/images/design-pipelines.png" alt="Tracing pipeline architecture"></p>
@@ -52,13 +52,13 @@ The Grafana Agent processes tracing data as it flows through the pipeline to mak
 
 The Agent supports batching of traces.
 Batching helps better compress the data, reduces the number of outgoing connections, and is a recommended best practice.
-To configure it, refer to the `batch` block in the [config reference]({{< relref "/docs/agent/latest/configuration/traces-config" >}}).
+To configure it, refer to the `batch` block in the [configuration reference](/docs/agent/latest/configuration/traces-config).
 
 #### Attributes manipulation
 
 The Grafana Agent allows for general manipulation of attributes on spans that pass through this agent.
 A common use may be to add an environment or cluster variable.
-To configure it, refer to the `attributes` block in the [config reference]({{< relref "/docs/agent/latest/configuration/traces-config" >}}).
+To configure it, refer to the `attributes` block in the [configuration reference](/docs/agent/latest/configuration/traces-config).
 
 #### Attaching metadata with Prometheus Service Discovery
 
@@ -90,13 +90,13 @@ All of Prometheus' [various service discovery mechanisms](https://prometheus.io/
 This means you can use the same scrape_configs between your metrics, logs, and traces to get the same set of labels,
 and easily transition between your observability data when moving from your metrics, logs, and traces.
 
-To configure it, refer to the `scrape_configs` block in the [config reference]({{< relref "/docs/agent/latest/configuration/traces-config" >}}).
+To configure it, refer to the `scrape_configs` block in the [configuration reference](/docs/agent/latest/configuration/traces-config).
 
 #### Trace discovery through automatic logging
 
 Automatic logging writes well formatted log lines to help with trace discovery.
 
-For a closer look into the feature, visit [Automatic logging]({{< relref "automatic-logging" >}}).
+For a closer look into the feature, visit [Automatic logging]({{< relref "./automatic-logging" >}}).
 
 #### Tail-based sampling
 
@@ -119,7 +119,7 @@ This service graphs processor builds a map of services by analyzing traces, with
 Edges are spans with a parent-child relationship, that represent a jump (e.g. a request) between two services.
 The amount of requests and their duration are recorded as metrics, which are used to represent the graph.
 
-To read more about this processor, go to its [section]({{< relref "service-graphs" >}}).
+To read more about this processor, go to its [section]({{< relref "./service-graphs" >}}).
 
 ### Exporting spans
 
@@ -131,4 +131,4 @@ Aside from endpoint and authentication, the exporter also provides mechanisms fo
 and implements a queue buffering mechanism for transient failures, such as networking issues.
 
 To see all available options,
-refer to the `remote_write` block in the [Agent configuration reference]({{< relref "/docs/agent/latest/configuration/traces-config" >}}).
+refer to the `remote_write` block in the [Agent configuration reference](/docs/agent/latest/configuration/traces-config).
