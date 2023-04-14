@@ -20,19 +20,17 @@ type searchResponse struct {
 
 	resultsMap       map[string]*tempopb.TraceSearchMetadata
 	resultsMetrics   *tempopb.SearchMetrics
-	cancelFunc       context.CancelFunc
 	finishedRequests int
 
 	limit int
 	mtx   sync.Mutex
 }
 
-func newSearchResponse(ctx context.Context, limit int, cancelFunc context.CancelFunc) *searchResponse {
+func newSearchResponse(ctx context.Context, limit int) *searchResponse {
 	return &searchResponse{
 		ctx:              ctx,
 		statusCode:       http.StatusOK,
 		limit:            limit,
-		cancelFunc:       cancelFunc,
 		resultsMetrics:   &tempopb.SearchMetrics{},
 		finishedRequests: 0,
 		resultsMap:       map[string]*tempopb.TraceSearchMetadata{},
@@ -45,11 +43,6 @@ func (r *searchResponse) setStatus(statusCode int, statusMsg string) {
 
 	r.statusCode = statusCode
 	r.statusMsg = statusMsg
-
-	if r.internalShouldQuit() {
-		// cancel currently running requests, and bail
-		r.cancelFunc()
-	}
 }
 
 func (r *searchResponse) setError(err error) {
@@ -57,11 +50,6 @@ func (r *searchResponse) setError(err error) {
 	defer r.mtx.Unlock()
 
 	r.err = err
-
-	if r.internalShouldQuit() {
-		// cancel currently running requests, and bail
-		r.cancelFunc()
-	}
 }
 
 func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
@@ -84,11 +72,6 @@ func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
 
 	// count this request as finished
 	r.finishedRequests++
-
-	if r.internalShouldQuit() {
-		// cancel currently running requests, and bail
-		r.cancelFunc()
-	}
 }
 
 // shouldQuit locks and checks if we should quit from current execution or not
@@ -96,13 +79,7 @@ func (r *searchResponse) shouldQuit() bool {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	quit := r.internalShouldQuit()
-	if quit {
-		// cancel currently running requests, and bail
-		r.cancelFunc()
-	}
-
-	return quit
+	return r.internalShouldQuit()
 }
 
 // internalShouldQuit check if we should quit but without locking,
