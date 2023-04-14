@@ -40,7 +40,7 @@ type Processor struct {
 	now func() time.Time
 }
 
-func New(cfg Config, registry registry.Registry) gen.Processor {
+func New(cfg Config, registry registry.Registry) (gen.Processor, error) {
 	labels := make([]string, 0, 4+len(cfg.Dimensions))
 
 	if cfg.IntrinsicDimensions.Service {
@@ -77,14 +77,14 @@ func New(cfg Config, registry registry.Registry) gen.Processor {
 	filter, err := spanfilter.NewSpanFilter(cfg.FilterPolicies)
 	if err != nil {
 		// TODO: handle this better
-		panic(err)
+		return nil, err
 	}
 
 	p.Cfg = cfg
 	p.registry = registry
 	p.now = time.Now
 	p.filter = filter
-	return p
+	return p, nil
 }
 
 func (p *Processor) Name() string {

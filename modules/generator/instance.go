@@ -256,9 +256,13 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 	level.Debug(i.logger).Log("msg", "adding processor", "processorName", processorName)
 
 	var newProcessor processor.Processor
+	var err error
 	switch processorName {
 	case spanmetrics.Name:
-		newProcessor = spanmetrics.New(cfg.SpanMetrics, i.registry)
+		newProcessor, err = spanmetrics.New(cfg.SpanMetrics, i.registry)
+		if err != nil {
+			return err
+		}
 	case servicegraphs.Name:
 		newProcessor = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger)
 	default:
