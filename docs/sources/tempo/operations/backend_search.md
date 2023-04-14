@@ -8,7 +8,7 @@ weight: 90
 
 Regardless of whether or not you are using TraceQL or the original search API, Tempo will search all of the blocks
 in the specified time range.
-Depending on your volume, this may result in quite slow queries.
+Depending on your volume, this may result in slow queries.
 This document contains suggestions for tuning your backend to improve performance.
 
 General advice is to scale your compactors and queriers. Additional queriers can more effectively run jobs in parallel
