@@ -26,8 +26,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 )
 
 const (
@@ -55,11 +53,7 @@ func TestCompletedDirIsRemoved(t *testing.T) {
 }
 
 func TestAppendBlockStartEnd(t *testing.T) {
-	encodings := []encoding.VersionedEncoding{
-		v2.Encoding{},
-		vparquet.Encoding{},
-	}
-	for _, e := range encodings {
+	for _, e := range encoding.AllEncodings() {
 		t.Run(e.Version(), func(t *testing.T) {
 			testAppendBlockStartEnd(t, e)
 		})
@@ -116,11 +110,7 @@ func testAppendBlockStartEnd(t *testing.T, e encoding.VersionedEncoding) {
 }
 
 func TestIngestionSlack(t *testing.T) {
-	encodings := []encoding.VersionedEncoding{
-		v2.Encoding{},
-		vparquet.Encoding{},
-	}
-	for _, e := range encodings {
+	for _, e := range encoding.AllEncodings() {
 		t.Run(e.Version(), func(t *testing.T) {
 			testIngestionSlack(t, e)
 		})
