@@ -25,10 +25,6 @@ You should pick one according to your application needs.
 * [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
 * [OpenTelemetry](https://opentelemetry.io/docs/concepts/instrumenting/)
 
-
-> **Note**: Check out the [instrumentation references]({{< relref "./instrumentation" >}}) to learn how to instrument your
-> favorite language for distributed tracing.
-
 ### OpenTelemetry auto-instrumentation
 
 Some languages have support for auto-instrumentation. These libraries capture telemetry
