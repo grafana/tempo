@@ -192,7 +192,6 @@ func (c *Config) CheckConfig() []ConfigWarning {
 			default:
 				warnings = append(warnings, newMetricsGeneratorProcessorSpanMetricsFilterPoliciesWarning(fmt.Sprintf("currently unsupported intrinsic: %s", a.Intrinsic)))
 			}
-
 		}
 	}
 

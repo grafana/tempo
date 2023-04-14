@@ -1,6 +1,7 @@
 package spanfilter
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -11,6 +12,43 @@ import (
 	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSpanFilter_NewSpanFilter(t *testing.T) {
+
+	cases := []struct {
+		name   string
+		cfg    []config.FilterPolicy
+		filter *SpanFilter
+		err    error
+	}{
+		{
+			name:   "empty config",
+			cfg:    []config.FilterPolicy{},
+			filter: &SpanFilter{},
+			err:    nil,
+		},
+		{
+			name:   "nil config",
+			cfg:    nil,
+			filter: &SpanFilter{},
+			err:    nil,
+		},
+		{
+			name:   "nil config",
+			cfg:    nil,
+			filter: &SpanFilter{},
+			err:    nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := NewSpanFilter(tc.cfg)
+			require.NoError(t, err)
+		})
+	}
+
+}
 
 func TestSpanFilter_policyMatch(t *testing.T) {
 	cases := []struct {
@@ -412,6 +450,231 @@ func TestSpanFilter_policyMatchAttrs(t *testing.T) {
 		r := policyMatchAttrs(tc.policy, tc.attrs)
 		require.Equal(t, tc.expect, r)
 	}
+}
+
+func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
+	cases := []struct {
+		name           string
+		err            error
+		filterPolicies []config.FilterPolicy
+		expect         bool
+		resource       *v1.Resource
+		span           *trace_v1.Span
+	}{
+		{
+			name:           "no policies matches",
+			err:            nil,
+			expect:         true,
+			filterPolicies: []config.FilterPolicy{},
+		},
+		{
+			name:           "nil policies matches",
+			err:            nil,
+			expect:         true,
+			filterPolicies: nil,
+		},
+		{
+			name:   "non nil policy with nil include/exclude fails",
+			err:    fmt.Errorf("invalid filter policy: {<nil> <nil>}"),
+			expect: false,
+			filterPolicies: []config.FilterPolicy{{
+				Include: nil,
+				Exclude: nil,
+			}},
+		},
+		{
+			name:   "a matching policy",
+			err:    nil,
+			expect: true,
+			filterPolicies: []config.FilterPolicy{
+				{
+					Include: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "kind",
+								Value: "SPAN_KIND_SERVER",
+							},
+							{
+								Key:   "resource.location",
+								Value: "earth",
+							},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*common_v1.KeyValue{
+					{
+						Key: "name",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "goodiegoodie",
+							},
+						},
+					},
+					{
+						Key: "location",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "earth",
+							},
+						},
+					},
+					{
+						Key: "othervalue",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "somethinginteresting",
+							},
+						},
+					},
+				},
+			},
+			span: &trace_v1.Span{
+				Kind: trace_v1.Span_SPAN_KIND_SERVER,
+				Status: &trace_v1.Status{
+					Code: trace_v1.Status_STATUS_CODE_OK,
+				},
+				Name: "goodiegoodie",
+			},
+		},
+		{
+			name:   "a non-matching include policy",
+			err:    nil,
+			expect: false,
+			filterPolicies: []config.FilterPolicy{
+				{
+					Include: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "kind",
+								Value: "SPAN_KIND_CLIENT",
+							},
+							{
+								Key:   "resource.location",
+								Value: "earth",
+							},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*common_v1.KeyValue{
+					{
+						Key: "name",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "goodiegoodie",
+							},
+						},
+					},
+					{
+						Key: "location",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "earth",
+							},
+						},
+					},
+					{
+						Key: "othervalue",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "somethinginteresting",
+							},
+						},
+					},
+				},
+			},
+			span: &trace_v1.Span{
+				Kind: trace_v1.Span_SPAN_KIND_SERVER,
+				Status: &trace_v1.Status{
+					Code: trace_v1.Status_STATUS_CODE_OK,
+				},
+				Name: "goodiegoodie",
+			},
+		},
+		{
+			name:   "a matching include with rejecting exclude policy",
+			err:    nil,
+			expect: false,
+			filterPolicies: []config.FilterPolicy{
+				{
+					Include: &config.PolicyMatch{
+						MatchType: config.Strict,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "kind",
+								Value: "SPAN_KIND_SERVER",
+							},
+							{
+								Key:   "resource.location",
+								Value: "earth",
+							},
+						},
+					},
+					Exclude: &config.PolicyMatch{
+						MatchType: config.Regex,
+						Attributes: []config.MatchPolicyAttribute{
+							{
+								Key:   "resource.othervalue",
+								Value: "something.*",
+							},
+						},
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*common_v1.KeyValue{
+					{
+						Key: "name",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "goodiegoodie",
+							},
+						},
+					},
+					{
+						Key: "location",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "earth",
+							},
+						},
+					},
+					{
+						Key: "othervalue",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "somethinginteresting",
+							},
+						},
+					},
+				},
+			},
+			span: &trace_v1.Span{
+				Kind: trace_v1.Span_SPAN_KIND_SERVER,
+				Status: &trace_v1.Status{
+					Code: trace_v1.Status_STATUS_CODE_OK,
+				},
+				Name: "goodiegoodie",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sf, err := NewSpanFilter(tc.filterPolicies)
+			require.Equal(t, tc.err, err)
+			if err != nil {
+				return
+			}
+			x := sf.ApplyFilterPolicy(tc.resource, tc.span)
+			require.Equal(t, tc.expect, x)
+		})
+	}
 
 }
 
@@ -440,7 +703,6 @@ func TestSpanFilter_stringMatch(t *testing.T) {
 		r := stringMatch(tc.matchType, tc.s, tc.pattern)
 		require.Equal(t, tc.expect, r)
 	}
-
 }
 
 func BenchmarkSpanFilter_applyFilterPolicyNone(b *testing.B) {
