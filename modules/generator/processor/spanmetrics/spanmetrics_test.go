@@ -27,7 +27,8 @@ func TestSpanMetrics(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry)
+	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
 	require.Equal(t, p.Name(), "span-metrics")
@@ -65,7 +66,8 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	cfg.IntrinsicDimensions.StatusMessage = true
 	cfg.Dimensions = []string{"foo", "bar", "does-not-exist"}
 
-	p := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry)
+	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
 	// TODO create some spans that are missing the custom dimensions/tags
@@ -117,7 +119,8 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	cfg.Dimensions = []string{"span.kind", "span_name"}
 	cfg.IntrinsicDimensions.SpanKind = false
 
-	p := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry)
+	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
 	batch := test.MakeBatch(10, nil)
@@ -247,7 +250,8 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			cfg.FilterPolicies = tc.filterPolicies
 
 			testRegistry := registry.NewTestRegistry()
-			p := New(cfg, testRegistry)
+			p, err := New(cfg, testRegistry)
+			require.NoError(t, err)
 			defer p.Shutdown(context.Background())
 
 			// TODO create some spans that are missing the custom dimensions/tags
@@ -393,7 +397,8 @@ func benchmarkFilterPolicy(b *testing.B, policies []filterconfig.FilterPolicy, b
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 
 	cfg.FilterPolicies = policies
-	p := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry)
+	require.NoError(b, err)
 	defer p.Shutdown(context.Background())
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
