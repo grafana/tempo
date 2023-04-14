@@ -34,9 +34,11 @@ The tracer can be configured [using environment variables](https://github.com/ja
 To enable tracing, set one of the following: `JAEGER_AGENT_HOST` and `JAEGER_AGENT_PORT`, or `JAEGER_ENDPOINT`.
 
 The Jaeger client uses remote sampling by default, if the management server is not available no traces will be sent.
+Only Jaeger Thrift HTTP protocol is supported for traces format (default port: 14268).
 To always send traces (no sampling), set the following environment variables:
 
 ```
+JAEGER_ENDPOINT=http://<tempo_endpoint>:14268/api/traces
 JAEGER_SAMPLER_TYPE=const
 JAEGER_SAMPLER_PARAM=1
 ```
