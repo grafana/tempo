@@ -5,7 +5,6 @@ import (
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/segmentio/parquet-go"
 )
 
 const (
@@ -16,9 +15,7 @@ type backendBlock struct {
 	meta *backend.BlockMeta
 	r    backend.Reader
 
-	openMtx  sync.Mutex
-	pf       *parquet.File
-	readerAt *BackendReaderAt
+	openMtx sync.Mutex
 }
 
 var _ common.BackendBlock = (*backendBlock)(nil)

@@ -116,6 +116,14 @@ type CompactorConfig struct {
 	CompactionCycle         time.Duration `yaml:"compaction_cycle"`
 }
 
+func (compactorConfig CompactorConfig) validateCompactorConfig() error {
+	if compactorConfig.MaxCompactionRange == 0 {
+		return errors.New("Compaction window can't be 0")
+	}
+
+	return nil
+}
+
 func validateConfig(cfg *Config) error {
 	if cfg == nil {
 		return errors.New("config should be non-nil")

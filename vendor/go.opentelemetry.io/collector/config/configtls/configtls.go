@@ -19,11 +19,18 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
 )
+
+// We should avoid that users unknowingly use a vulnerable TLS version.
+// The defaults should be a safe configuration
+const defaultMinTLSVersion = tls.VersionTLS12
+
+// Uses the default MaxVersion from "crypto/tls" which is the maximum supported version
+const defaultMaxTLSVersion = 0
 
 // TLSSetting exposes the common client and server TLS configurations.
 // Note: Since there isn't anything specific to a server connection. Components
@@ -41,7 +48,7 @@ type TLSSetting struct {
 	KeyFile string `mapstructure:"key_file"`
 
 	// MinVersion sets the minimum TLS version that is acceptable.
-	// If not set, refer to crypto/tls for defaults. (optional)
+	// If not set, TLS 1.2 will be used. (optional)
 	MinVersion string `mapstructure:"min_version"`
 
 	// MaxVersion sets the maximum TLS version that is acceptable.
@@ -176,11 +183,11 @@ func (c TLSSetting) loadTLSConfig() (*tls.Config, error) {
 		getClientCertificate = func(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) { return certReloader.GetCertificate() }
 	}
 
-	minTLS, err := convertVersion(c.MinVersion)
+	minTLS, err := convertVersion(c.MinVersion, defaultMinTLSVersion)
 	if err != nil {
 		return nil, fmt.Errorf("invalid TLS min_version: %w", err)
 	}
-	maxTLS, err := convertVersion(c.MaxVersion)
+	maxTLS, err := convertVersion(c.MaxVersion, defaultMaxTLSVersion)
 	if err != nil {
 		return nil, fmt.Errorf("invalid TLS max_version: %w", err)
 	}
@@ -195,7 +202,7 @@ func (c TLSSetting) loadTLSConfig() (*tls.Config, error) {
 }
 
 func (c TLSSetting) loadCert(caPath string) (*x509.CertPool, error) {
-	caPEM, err := ioutil.ReadFile(filepath.Clean(caPath))
+	caPEM, err := os.ReadFile(filepath.Clean(caPath))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load CA %s: %w", caPath, err)
 	}
@@ -239,10 +246,10 @@ func (c TLSServerSetting) LoadTLSConfig() (*tls.Config, error) {
 	return tlsCfg, nil
 }
 
-func convertVersion(v string) (uint16, error) {
-	// Defaults will be handled by go/crypto/tls
+func convertVersion(v string, defaultVersion uint16) (uint16, error) {
+	// Use a default that is explicitly defined
 	if v == "" {
-		return 0, nil
+		return defaultVersion, nil
 	}
 	val, ok := tlsVersions[v]
 	if !ok {

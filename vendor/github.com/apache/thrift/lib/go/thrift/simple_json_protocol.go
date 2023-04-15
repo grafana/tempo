@@ -93,7 +93,6 @@ var errEmptyJSONContextStack = NewTProtocolExceptionWithType(INVALID_DATA, error
 // This protocol produces/consumes a simple output format
 // suitable for parsing by scripting languages.  It should not be
 // confused with the full-featured TJSONProtocol.
-//
 type TSimpleJSONProtocol struct {
 	trans TTransport
 
@@ -121,8 +120,7 @@ func NewTSimpleJSONProtocolConf(t TTransport, conf *TConfiguration) *TSimpleJSON
 		writer: bufio.NewWriter(t),
 		reader: bufio.NewReader(t),
 	}
-	v.parseContextStack.push(_CONTEXT_IN_TOPLEVEL)
-	v.dumpContext.push(_CONTEXT_IN_TOPLEVEL)
+	v.resetContextStack()
 	return v
 }
 
@@ -340,6 +338,10 @@ func (p *TSimpleJSONProtocol) WriteBinary(ctx context.Context, v []byte) error {
 		return NewTProtocolException(e)
 	}
 	return p.OutputPostValue()
+}
+
+func (p *TSimpleJSONProtocol) WriteUUID(ctx context.Context, v Tuuid) error {
+	return p.OutputString(v.String())
 }
 
 // Reading methods.
@@ -594,6 +596,16 @@ func (p *TSimpleJSONProtocol) ReadBinary(ctx context.Context) ([]byte, error) {
 	}
 
 	return v, p.ParsePostValue()
+}
+
+func (p *TSimpleJSONProtocol) ReadUUID(ctx context.Context) (v Tuuid, err error) {
+	var s string
+	s, err = p.ReadString(ctx)
+	if err != nil {
+		return v, err
+	}
+	v, err = ParseTuuid(s)
+	return v, NewTProtocolExceptionWithType(INVALID_DATA, err)
 }
 
 func (p *TSimpleJSONProtocol) Flush(ctx context.Context) (err error) {
@@ -1326,6 +1338,17 @@ func (p *TSimpleJSONProtocol) write(b []byte) (int, error) {
 func (p *TSimpleJSONProtocol) SetTConfiguration(conf *TConfiguration) {
 	PropagateTConfiguration(p.trans, conf)
 	p.cfg = conf
+}
+
+// Reset resets this protocol's internal state.
+//
+// It's useful when a single protocol instance is reused after errors, to make
+// sure the next use will not be in a bad state to begin with. An example is
+// when it's used in serializer/deserializer pools.
+func (p *TSimpleJSONProtocol) Reset() {
+	p.resetContextStack()
+	p.writer.Reset(p.trans)
+	p.reader.Reset(p.trans)
 }
 
 var (

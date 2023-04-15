@@ -20,7 +20,7 @@ import (
 	"strconv"
 	"time"
 
-	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
@@ -79,13 +79,12 @@ func DefaultServerConfigUDP() ServerConfigUDP {
 
 // Config defines configuration for Jaeger receiver.
 type Config struct {
-	config.ReceiverSettings `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct
-	Protocols               `mapstructure:"protocols"`
-	RemoteSampling          *RemoteSamplingConfig `mapstructure:"remote_sampling"`
+	Protocols      `mapstructure:"protocols"`
+	RemoteSampling *RemoteSamplingConfig `mapstructure:"remote_sampling"`
 }
 
-var _ config.Receiver = (*Config)(nil)
-var _ config.Unmarshallable = (*Config)(nil)
+var _ component.Config = (*Config)(nil)
+var _ confmap.Unmarshaler = (*Config)(nil)
 
 // Validate checks the receiver configuration is valid
 func (cfg *Config) Validate() error {
@@ -145,7 +144,7 @@ func (cfg *Config) Unmarshal(componentParser *confmap.Conf) error {
 
 	// UnmarshalExact will not set struct properties to nil even if no key is provided,
 	// so set the protocol structs to nil where the keys were omitted.
-	err := componentParser.UnmarshalExact(cfg)
+	err := componentParser.Unmarshal(cfg, confmap.WithErrorUnused())
 	if err != nil {
 		return err
 	}

@@ -18,24 +18,47 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
-	"sync"
 
 	"go.uber.org/multierr"
+
+	"go.opentelemetry.io/collector/featuregate"
 )
 
-// follows drive-letter specification:
-// https://tools.ietf.org/id/draft-kerwin-file-scheme-07.html#syntax
-var driverLetterRegexp = regexp.MustCompile("^[A-z]:")
+// schemePattern defines the regexp pattern for scheme names.
+// Scheme name consist of a sequence of characters beginning with a letter and followed by any
+// combination of letters, digits, plus ("+"), period ("."), or hyphen ("-").
+const schemePattern = `[A-Za-z][A-Za-z0-9+.-]+`
+
+var (
+	// follows drive-letter specification:
+	// https://datatracker.ietf.org/doc/html/draft-kerwin-file-scheme-07.html#section-2.2
+	driverLetterRegexp = regexp.MustCompile("^[A-z]:")
+
+	// Need to match new line as well in the OpaqueValue, so setting the "s" flag. See https://pkg.go.dev/regexp/syntax.
+	uriRegexp = regexp.MustCompile(`(?s:^(?P<Scheme>` + schemePattern + `):(?P<OpaqueValue>.*)$)`)
+
+	// embeddedURI matches "embedded" provider uris into a string value.
+	embeddedURI = regexp.MustCompile(`\${` + schemePattern + `:.*?}`)
+
+	errTooManyRecursiveExpansions = errors.New("too many recursive expansions")
+)
+
+var _ = featuregate.GlobalRegistry().MustRegister(
+	"confmap.expandEnabled",
+	featuregate.StageStable,
+	featuregate.WithRegisterRemovalVersion("v0.75.0"),
+	featuregate.WithRegisterDescription("controls whether expanding embedded external config providers URIs"))
 
 // Resolver resolves a configuration as a Conf.
 type Resolver struct {
-	uris       []string
+	uris       []location
 	providers  map[string]Provider
 	converters []Converter
 
-	sync.Mutex
 	closers []CloseFunc
 	watcher chan error
 }
@@ -57,19 +80,19 @@ type ResolverSettings struct {
 // NewResolver returns a new Resolver that resolves configuration from multiple URIs.
 //
 // To resolve a configuration the following steps will happen:
-//   1. Retrieves individual configurations from all given "URIs", and merge them in the retrieve order.
-//   2. Once the Conf is merged, apply the converters in the given order.
+//  1. Retrieves individual configurations from all given "URIs", and merge them in the retrieve order.
+//  2. Once the Conf is merged, apply the converters in the given order.
 //
 // After the configuration was resolved the `Resolver` can be used as a single point to watch for updates in
 // the configuration data retrieved via the config providers used to process the "initial" configuration and to generate
 // the "effective" one. The typical usage is the following:
 //
-//		Resolver.Resolve(ctx)
-//		Resolver.Watch() // wait for an event.
-//		Resolver.Resolve(ctx)
-//		Resolver.Watch() // wait for an event.
-//		// repeat Resolve/Watch cycle until it is time to shut down the Collector process.
-//		Resolver.Shutdown(ctx)
+//	Resolver.Resolve(ctx)
+//	Resolver.Watch() // wait for an event.
+//	Resolver.Resolve(ctx)
+//	Resolver.Watch() // wait for an event.
+//	// repeat Resolve/Watch cycle until it is time to shut down the Collector process.
+//	Resolver.Shutdown(ctx)
 //
 // `uri` must follow the "<scheme>:<opaque_data>" format. This format is compatible with the URI definition
 // (see https://datatracker.ietf.org/doc/html/rfc3986). An empty "<scheme>" defaults to "file" schema.
@@ -83,8 +106,24 @@ func NewResolver(set ResolverSettings) (*Resolver, error) {
 	}
 
 	// Safe copy, ensures the slices and maps cannot be changed from the caller.
-	urisCopy := make([]string, len(set.URIs))
-	copy(urisCopy, set.URIs)
+	uris := make([]location, len(set.URIs))
+	for i, uri := range set.URIs {
+		// For backwards compatibility:
+		// - empty url scheme means "file".
+		// - "^[A-z]:" also means "file"
+		if driverLetterRegexp.MatchString(uri) || !strings.Contains(uri, ":") {
+			uris[i] = location{scheme: "file", opaqueValue: uri}
+			continue
+		}
+		lURI, err := newLocation(uri)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := set.Providers[lURI.scheme]; !ok {
+			return nil, fmt.Errorf("unsupported scheme on URI %q", uri)
+		}
+		uris[i] = lURI
+	}
 	providersCopy := make(map[string]Provider, len(set.Providers))
 	for k, v := range set.Providers {
 		providersCopy[k] = v
@@ -93,7 +132,7 @@ func NewResolver(set ResolverSettings) (*Resolver, error) {
 	copy(convertersCopy, set.Converters)
 
 	return &Resolver{
-		uris:       urisCopy,
+		uris:       uris,
 		providers:  providersCopy,
 		converters: convertersCopy,
 		watcher:    make(chan error, 1),
@@ -112,23 +151,11 @@ func (mr *Resolver) Resolve(ctx context.Context) (*Conf, error) {
 	// Retrieves individual configurations from all URIs in the given order, and merge them in retMap.
 	retMap := New()
 	for _, uri := range mr.uris {
-		// For backwards compatibility:
-		// - empty url scheme means "file".
-		// - "^[A-z]:" also means "file"
-		scheme := "file"
-		if idx := strings.Index(uri, ":"); idx != -1 && !driverLetterRegexp.MatchString(uri) {
-			scheme = uri[:idx]
-		} else {
-			uri = scheme + ":" + uri
-		}
-		p, ok := mr.providers[scheme]
-		if !ok {
-			return nil, fmt.Errorf("scheme %q is not supported for uri %q", scheme, uri)
-		}
-		ret, err := p.Retrieve(ctx, uri, mr.onChange)
+		ret, err := mr.retrieveValue(ctx, uri)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot retrieve the configuration: %w", err)
 		}
+		mr.closers = append(mr.closers, ret.Close)
 		retCfgMap, err := ret.AsConf()
 		if err != nil {
 			return nil, err
@@ -136,8 +163,17 @@ func (mr *Resolver) Resolve(ctx context.Context) (*Conf, error) {
 		if err = retMap.Merge(retCfgMap); err != nil {
 			return nil, err
 		}
-		mr.closers = append(mr.closers, ret.Close)
 	}
+
+	cfgMap := make(map[string]any)
+	for _, k := range retMap.AllKeys() {
+		val, err := mr.expandValueRecursively(ctx, retMap.Get(k))
+		if err != nil {
+			return nil, err
+		}
+		cfgMap[k] = val
+	}
+	retMap = NewFromStringMap(cfgMap)
 
 	// Apply the converters in the given order.
 	for _, confConv := range mr.converters {
@@ -185,5 +221,131 @@ func (mr *Resolver) closeIfNeeded(ctx context.Context) error {
 	for _, ret := range mr.closers {
 		err = multierr.Append(err, ret(ctx))
 	}
+	mr.closers = nil
 	return err
+}
+
+func (mr *Resolver) expandValueRecursively(ctx context.Context, value any) (any, error) {
+	for i := 0; i < 100; i++ {
+		val, changed, err := mr.expandValue(ctx, value)
+		if err != nil {
+			return nil, err
+		}
+		if !changed {
+			return val, nil
+		}
+		value = val
+	}
+	return nil, errTooManyRecursiveExpansions
+}
+
+func (mr *Resolver) expandValue(ctx context.Context, value any) (any, bool, error) {
+	switch v := value.(type) {
+	case string:
+		// If no embedded "uris" no need to expand. embeddedURI regexp matches uriRegexp as well.
+		if !embeddedURI.MatchString(v) {
+			return value, false, nil
+		}
+
+		// If the value is a single URI, then the return value can be anything.
+		// This is the case `foo: ${file:some_extra_config.yml}`.
+		if embeddedURI.FindString(v) == v {
+			return mr.expandStringURI(ctx, v)
+		}
+
+		// If the URI is embedded into the string, return value must be a string, and we have to concatenate all strings.
+		var nerr error
+		var nchanged bool
+		nv := embeddedURI.ReplaceAllStringFunc(v, func(s string) string {
+			ret, changed, err := mr.expandStringURI(ctx, s)
+			nchanged = nchanged || changed
+			nerr = multierr.Append(nerr, err)
+			if err != nil {
+				return ""
+			}
+			// This list must be kept in sync with checkRawConfType.
+			val := reflect.ValueOf(ret)
+			switch val.Kind() {
+			case reflect.String:
+				return val.String()
+			case reflect.Int, reflect.Int32, reflect.Int64:
+				return strconv.FormatInt(val.Int(), 10)
+			case reflect.Float32, reflect.Float64:
+				return strconv.FormatFloat(val.Float(), 'f', -1, 64)
+			case reflect.Bool:
+				return strconv.FormatBool(val.Bool())
+			default:
+				nerr = multierr.Append(nerr, fmt.Errorf("expanding %v, expected string value type, got %T", s, ret))
+				return v
+			}
+		})
+		return nv, nchanged, nerr
+	case []any:
+		nslice := make([]any, 0, len(v))
+		nchanged := false
+		for _, vint := range v {
+			val, changed, err := mr.expandValue(ctx, vint)
+			if err != nil {
+				return nil, false, err
+			}
+			nslice = append(nslice, val)
+			nchanged = nchanged || changed
+		}
+		return nslice, nchanged, nil
+	case map[string]any:
+		nmap := map[string]any{}
+		nchanged := false
+		for mk, mv := range v {
+			val, changed, err := mr.expandValue(ctx, mv)
+			if err != nil {
+				return nil, false, err
+			}
+			nmap[mk] = val
+			nchanged = nchanged || changed
+		}
+		return nmap, nchanged, nil
+	}
+	return value, false, nil
+}
+
+func (mr *Resolver) expandStringURI(ctx context.Context, uri string) (any, bool, error) {
+	lURI, err := newLocation(uri[2 : len(uri)-1])
+	if err != nil {
+		return nil, false, err
+	}
+	if strings.Contains(lURI.opaqueValue, "$") {
+		return nil, false, fmt.Errorf("the uri %q contains unsupported characters ('$')", lURI.asString())
+	}
+	ret, err := mr.retrieveValue(ctx, lURI)
+	if err != nil {
+		return nil, false, err
+	}
+	mr.closers = append(mr.closers, ret.Close)
+	val, err := ret.AsRaw()
+	return val, true, err
+}
+
+type location struct {
+	scheme      string
+	opaqueValue string
+}
+
+func (c location) asString() string {
+	return c.scheme + ":" + c.opaqueValue
+}
+
+func newLocation(uri string) (location, error) {
+	submatches := uriRegexp.FindStringSubmatch(uri)
+	if len(submatches) != 3 {
+		return location{}, fmt.Errorf("invalid uri: %q", uri)
+	}
+	return location{scheme: submatches[1], opaqueValue: submatches[2]}, nil
+}
+
+func (mr *Resolver) retrieveValue(ctx context.Context, uri location) (*Retrieved, error) {
+	p, ok := mr.providers[uri.scheme]
+	if !ok {
+		return nil, fmt.Errorf("scheme %q is not supported for uri %q", uri.scheme, uri.asString())
+	}
+	return p.Retrieve(ctx, uri.asString(), mr.onChange)
 }

@@ -4,7 +4,7 @@
 
 **koanf** (pronounced _conf_; a play on the Japanese _Koan_) is a library for reading configuration from different sources in different formats in Go applications. It is a cleaner, lighter [alternative to spf13/viper](#alternative-to-viper) with better abstractions and extensibility and fewer dependencies.
 
-koanf comes with built in support for reading configuration from files, command line flags, and environment variables, and can parse JSON, YAML, TOML, and Hashicorp HCL.
+koanf comes with built in support for reading configuration from files, command line flags, and environment variables, and can parse JSON, YAML, TOML, and Hashicorp HCL. Any external dependencies are detatched from the core into sub-packages, so only the ones that are explicitly referenced get compiled into an application.
 
 [![Run Tests](https://github.com/knadh/koanf/actions/workflows/test.yml/badge.svg)](https://github.com/knadh/koanf/actions/workflows/test.yml) [![GoDoc](https://godoc.org/github.com/knadh/koanf?status.svg)](https://godoc.org/github.com/knadh/koanf) 
 
@@ -64,7 +64,7 @@ func main() {
 	}
 
 	// Load YAML config and merge into the previously loaded config (because we can).
-	k.Load(file.Provider("mock/mock.yaml"), yaml.Parser())
+	k.Load(file.Provider("mock/mock.yml"), yaml.Parser())
 
 	fmt.Println("parent's name is = ", k.String("parent1.name"))
 	fmt.Println("parent's ID is = ", k.Int("parent1.id"))
@@ -73,13 +73,12 @@ func main() {
 ```
 
 ### Watching files for changes
-The `koanf.Provider` interface has a `Watch(cb)` method that asks a provider
-to watch for changes and trigger the given callback that can live reload the
-configuration. This is not goroutine safe if there are concurrent `*Get()`
-calls happening on the koanf object while it is doing a `Load()`. Such
-scenarios will need mutex locking.
+Some providers expose a `Watch()` method that makes the provider watch for changes
+in configuration and trigger a callback to reload the configuration.
+This is not goroutine safe if there are concurrent `*Get()` calls happening on the
+koanf object while it is doing a `Load()`. Such scenarios will need mutex locking.
 
-Currently, `file.Provider` supports this.
+`file, appconfig, vault, consul` providers have a `Watch()` method.
 
 
 ```go
@@ -106,7 +105,7 @@ func main() {
 	}
 
 	// Load YAML config and merge into the previously loaded config (because we can).
-	k.Load(file.Provider("mock/mock.yaml"), yaml.Parser())
+	k.Load(file.Provider("mock/mock.yml"), yaml.Parser())
 
 	fmt.Println("parent's name is = ", k.String("parent1.name"))
 	fmt.Println("parent's ID is = ", k.Int("parent1.id"))
@@ -455,7 +454,7 @@ func main() {
 	}
 
 	// Load YAML config and merge into the previously loaded config (because we can).
-	k.Load(file.Provider("mock/mock.yaml"), yaml.Parser())
+	k.Load(file.Provider("mock/mock.yml"), yaml.Parser())
 
 	fmt.Println("parent's name is = ", k.String("parent1.name"))
 	fmt.Println("parent's ID is = ", k.Int("parent1.id"))
@@ -662,6 +661,14 @@ func main() {
 | providers/rawbytes  | `rawbytes.Provider(b []byte)`                                 | Takes a raw `[]byte` slice to be parsed with a koanf.Parser                                                                                                                           |
 | providers/vault     | `vault.Provider(vault.Config{})`                              | Hashicorp Vault provider                                                                                                                           |
 | providers/appconfig     | `vault.AppConfig(appconfig.Config{})`                              | AWS AppConfig provider                                                                                                                           |
+| providers/etcd     | `etcd.Provider(etcd.Config{})`                              | CNCF etcd provider                                                                                                                           |
+| providers/consul     | `consul.Provider(consul.Config{})`                              | Hashicorp Consul provider                                                                                                                           |
+
+### Third-party providers
+| Package             | Provider                                                      | Description                                                                                                                                                                           |
+| ------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| github.com/defensestation/koanf/providers/secretsmanager     | `vault.SecretsMananger(secretsmanager.Config{}, f func(s string) string)`                              | AWS Secrets Manager provider, takes map or string as a value from store                                                						  |
+| github.com/defensestation/koanf/providers/parameterstore     | `vault.ParameterStore(parameterstore.Config{}, f func(s string) string)`                              | AWS ParameterStore provider, an optional function that takes and returns a string to transform env variables                                                 						  |
 
 ### Bundled parsers
 
@@ -673,6 +680,8 @@ func main() {
 | parsers/dotenv     | `dotenv.Parser()`              | Parses DotEnv bytes into a flat map                                                                                                                       |
 | parsers/hcl        | `hcl.Parser(flattenSlices bool)` | Parses Hashicorp HCL bytes into a nested map. `flattenSlices` is recommended to be set to true. [Read more](https://github.com/hashicorp/hcl/issues/162). |
 | parsers/nestedtext | `nestedtext.Parser()`              | Parses NestedText bytes into a flat map                                                                                                                 |
+| parsers/hjson		 | `hjson.Parser()`					| Parses HJSON bytes into a nested map
+																							|
 
 ### Instance functions
 
@@ -688,8 +697,9 @@ func main() {
 | `Cut(path string) *Koanf`                                              | Cuts the loaded nested conf map at the given path and returns a new Koanf instance with the children |
 | `Copy() *Koanf`                                                        | Returns a copy of the Koanf instance                         |
 | `Merge(*Koanf)`                                                        | Merges the config map of a Koanf instance into the current instance |
-| `Delete(path string)`                                                  | Delete the value at the given path, and does nothing if path doesn't exist. |
 | `MergeAt(in *Koanf, path string)`                                      | Merges the config map of a Koanf instance into the current instance, at the given key path. |
+| `Set(path string, val interface{})`                                    | Shorthand wrapper around `Merge()` for directly overriding the value of a given key path. |
+| `Delete(path string)`                                                  | Delete the value at the given path, and does nothing if path doesn't exist. |
 | `Unmarshal(path string, o interface{}) error`                          | Scans the given nested key path into a given struct (like json.Unmarshal) where fields are denoted by the `koanf` tag |
 | `UnmarshalWithConf(path string, o interface{}, c UnmarshalConf) error` | Like Unmarshal but with customizable options                 |
 

@@ -105,7 +105,7 @@ const (
 	columnPathSpanStartTime = "rs.ils.Spans.StartUnixNanos"
 	columnPathSpanEndTime   = "rs.ils.Spans.EndUnixNanos"
 	columnPathSpanKind      = "rs.ils.Spans.Kind"
-	//columnPathSpanDuration       = "rs.ils.Spans.DurationNanos"
+	// columnPathSpanDuration       = "rs.ils.Spans.DurationNanos"
 	columnPathSpanStatusCode     = "rs.ils.Spans.StatusCode"
 	columnPathSpanAttrKey        = "rs.ils.Spans.Attrs.Key"
 	columnPathSpanAttrString     = "rs.ils.Spans.Attrs.Value"
@@ -175,7 +175,7 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 
 	return traceql.FetchSpansResponse{
 		Results: iter,
-		Bytes:   func() uint64 { return rr.TotalBytesRead.Load() },
+		Bytes:   func() uint64 { return rr.BytesRead() },
 	}, nil
 }
 
@@ -1076,7 +1076,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			span.endtimeUnixNanos = endTimeUnixNanos
 		case columnPathSpanName:
 			span.attributes[traceql.NewIntrinsic(traceql.IntrinsicName)] = traceql.NewStaticString(kv.Value.String())
-		//case columnPathSpanDuration:
+		// case columnPathSpanDuration:
 		//	span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(kv.Value.Uint64()))
 		case columnPathSpanStatusCode:
 			// Map OTLP status code back to TraceQL enum.

@@ -1,6 +1,7 @@
 ---
 title: Deploy on Kubernetes with Tanka
-weight: 200
+menuTitle: Deploy on Kubernetes with Tanka
+weight: 500
 ---
 
 # Deploy on Kubernetes with Tanka
@@ -313,12 +314,6 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
          },
        },
 
-       tempo_ingester_container+:: {
-         securityContext+: {
-           runAsUser: 0,
-         },
-       },
-
        local statefulSet = $.apps.v1.statefulSet,
        tempo_ingester_statefulset+:
            statefulSet.mixin.spec.withPodManagementPolicy('Parallel'),
@@ -399,4 +394,4 @@ The Tempo instance will now accept the two configured trace protocols (OTLP gRPC
 
 You can query Tempo using the `query-frontend.tempo.svc.cluster.local` service on port `3200` for Tempo queries or port `16686` or `16687` for Jaeger type queries.
 
-Now that you've configured a Tempo cluster, you'll need to get data into it.
+Now that you've configured a Tempo cluster, you'll need to get data into it. Read the [Set up a test app]({{< relref "./set-up-test-app">}}) for instructions.

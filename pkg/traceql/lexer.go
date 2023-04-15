@@ -142,8 +142,17 @@ func (l *lexer) Lex(lval *yySymType) int {
 		return INTEGER
 
 	case scanner.Float:
+		numberText := l.TokenText()
+
+		// first try to parse as duration
+		duration, ok := tryScanDuration(numberText, &l.Scanner)
+		if ok {
+			lval.staticDuration = duration
+			return DURATION
+		}
+
 		var err error
-		lval.staticFloat, err = strconv.ParseFloat(l.TokenText(), 64)
+		lval.staticFloat, err = strconv.ParseFloat(numberText, 64)
 		if err != nil {
 			l.Error(err.Error())
 			return 0

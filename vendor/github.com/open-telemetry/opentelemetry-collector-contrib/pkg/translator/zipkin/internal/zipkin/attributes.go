@@ -56,5 +56,5 @@ func DetermineValueType(value string) pcommon.ValueType {
 			return desc.attrType
 		}
 	}
-	return pcommon.ValueTypeString
+	return pcommon.ValueTypeStr
 }

@@ -106,7 +106,7 @@ local build_binaries(arch) = {
   name: 'build-tempo-binaries',
   image: 'golang:1.20-alpine',
   commands: [
-    'apk add make git',
+    'apk --update --no-cache add make git bash',
   ] + [
     'COMPONENT=%s GOARCH=%s make exe' % [app, arch]
     for app in apps

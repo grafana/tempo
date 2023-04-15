@@ -2,12 +2,14 @@
 title: Set up a test app for a Tempo cluster
 menuTitle: Set up a test application for a Tempo cluster
 description: Learn how to set up a test app for your Tempo cluster and visualize data.
-weight: 400
+weight: 600
 ---
 
 # Set up a test application for a Tempo cluster
 
 Once you've set up a Grafana Tempo cluster, you need to write some traces to it and then query the traces from within Grafana.
+This procedure uses Tempo in microservices mode.
+For example, if you [set up Tempo using the Kubernetes with Tanka procedure]({{< relref "./tanka" >}}), then you can use this procedure to test your set up.
 
 ## Before you begin
 
