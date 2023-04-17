@@ -377,6 +377,13 @@ func (rw *readerWriter) Shutdown() {
 
 // EnableCompaction activates the compaction/retention loops
 func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) {
+	// If compactor configuration is not as expected, no need to go any further
+	err := cfg.validate()
+	if err != nil {
+		level.Error(log.Logger).Log(err.Error())
+		return
+	}
+
 	// Set default if needed. This is mainly for tests.
 	if cfg.RetentionConcurrency == 0 {
 		cfg.RetentionConcurrency = DefaultRetentionConcurrency

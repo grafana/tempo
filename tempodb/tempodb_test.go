@@ -110,6 +110,19 @@ func TestDB(t *testing.T) {
 	}
 }
 
+func TestNoCompactionWhenCompactionRange0(t *testing.T) {
+	_, _, c, _ := testConfig(t, backend.EncGZIP, 0)
+
+	c.EnableCompaction(context.Background(), &CompactorConfig{
+		MaxCompactionRange: 0,
+	}, &mockSharder{}, &mockOverrides{})
+
+	rw := c.(*readerWriter)
+
+	assert.Equal(t, 0, len(rw.blocklist.Tenants()))
+	assert.Equal(t, 0, len(rw.blocklist.Metas(testTenantID)))
+}
+
 func TestBlockSharding(t *testing.T) {
 	// push a req with some traceID
 	// cut headblock & write to backend
