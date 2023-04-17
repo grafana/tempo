@@ -18,18 +18,18 @@ import (
 	"context"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/extension"
 )
 
 // Extension is the interface that storage extensions must implement
 type Extension interface {
-	component.Extension
+	extension.Extension
 
 	// GetClient will create a client for use by the specified component.
 	// Each component can have multiple storages (e.g. one for each signal),
 	// which can be identified using storageName parameter.
 	// The component can use the client to manage state
-	GetClient(ctx context.Context, kind component.Kind, id config.ComponentID, storageName string) (Client, error)
+	GetClient(ctx context.Context, kind component.Kind, id component.ID, storageName string) (Client, error)
 }
 
 // Client is the interface that storage clients must implement
@@ -38,10 +38,13 @@ type Extension interface {
 //   - Set doesn't error if a key already exists - it just overwrites the value.
 //   - Get doesn't error if a key is not found - it just returns nil.
 //   - Delete doesn't error if the key doesn't exist - it just no-ops.
+//
 // Similarly:
 //   - Batch doesn't error if any of the above happens for either retrieved or updated keys
+//
 // This also provides a way to differentiate data operations
-//   [overwrite | not-found | no-op] from "real" problems
+//
+//	[overwrite | not-found | no-op] from "real" problems
 type Client interface {
 
 	// Get will retrieve data from storage that corresponds to the

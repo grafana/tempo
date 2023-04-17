@@ -37,8 +37,8 @@ func (s *span) ID() []byte {
 func (s *span) StartTimeUnixNanos() uint64 {
 	return s.startTimeUnixNanos
 }
-func (s *span) EndtimeUnixNanos() uint64 {
-	return s.endtimeUnixNanos
+func (s *span) DurationNanos() uint64 {
+	return s.endtimeUnixNanos - s.startTimeUnixNanos
 }
 
 // todo: this sync pool currently massively reduces allocations by pooling spans for certain queries.
@@ -105,7 +105,7 @@ const (
 	columnPathSpanStartTime = "rs.ils.Spans.StartUnixNanos"
 	columnPathSpanEndTime   = "rs.ils.Spans.EndUnixNanos"
 	columnPathSpanKind      = "rs.ils.Spans.Kind"
-	//columnPathSpanDuration       = "rs.ils.Spans.DurationNanos"
+	// columnPathSpanDuration       = "rs.ils.Spans.DurationNanos"
 	columnPathSpanStatusCode     = "rs.ils.Spans.StatusCode"
 	columnPathSpanAttrKey        = "rs.ils.Spans.Attrs.Key"
 	columnPathSpanAttrString     = "rs.ils.Spans.Attrs.Value"
@@ -175,7 +175,7 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 
 	return traceql.FetchSpansResponse{
 		Results: iter,
-		Bytes:   func() uint64 { return rr.TotalBytesRead.Load() },
+		Bytes:   func() uint64 { return rr.BytesRead() },
 	}, nil
 }
 
@@ -549,7 +549,11 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 			if err != nil {
 				return nil, false, err
 			}
-			durationPredicates = append(durationPredicates, pred)
+			if pred, ok := pred.(*parquetquery.GenericPredicate[int64]); ok {
+				durationPredicates = append(durationPredicates, pred)
+			} else {
+				durationPredicates = append(durationPredicates, nil)
+			}
 			addPredicate(columnPathSpanStartTime, nil)
 			columnSelectAs[columnPathSpanStartTime] = columnPathSpanStartTime
 			addPredicate(columnPathSpanEndTime, nil)
@@ -834,7 +838,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 
 }
 
-func createIntPredicate(op traceql.Operator, operands traceql.Operands) (*parquetquery.GenericPredicate[int64], error) {
+func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
 	}
@@ -1072,7 +1076,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			span.endtimeUnixNanos = endTimeUnixNanos
 		case columnPathSpanName:
 			span.attributes[traceql.NewIntrinsic(traceql.IntrinsicName)] = traceql.NewStaticString(kv.Value.String())
-		//case columnPathSpanDuration:
+		// case columnPathSpanDuration:
 		//	span.Attributes[traceql.NewIntrinsic(traceql.IntrinsicDuration)] = traceql.NewStaticDuration(time.Duration(kv.Value.Uint64()))
 		case columnPathSpanStatusCode:
 			// Map OTLP status code back to TraceQL enum.

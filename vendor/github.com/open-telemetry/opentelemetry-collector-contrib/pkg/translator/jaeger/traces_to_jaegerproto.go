@@ -15,10 +15,12 @@
 package jaeger // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 
 import (
+	"encoding/base64"
+
 	"github.com/jaegertracing/jaeger/model"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/collector/semconv/v1.9.0"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator"
@@ -91,7 +93,7 @@ func resourceToJaegerProtoProcess(resource pcommon.Resource) *model.Process {
 	}
 	attrsCount := attrs.Len()
 	if serviceName, ok := attrs.Get(conventions.AttributeServiceName); ok {
-		process.ServiceName = serviceName.StringVal()
+		process.ServiceName = serviceName.Str()
 		attrsCount--
 	}
 	if attrsCount == 0 {
@@ -133,20 +135,23 @@ func appendTagsFromAttributes(dest []model.KeyValue, attrs pcommon.Map) []model.
 func attributeToJaegerProtoTag(key string, attr pcommon.Value) model.KeyValue {
 	tag := model.KeyValue{Key: key}
 	switch attr.Type() {
-	case pcommon.ValueTypeString:
+	case pcommon.ValueTypeStr:
 		// Jaeger-to-Internal maps binary tags to string attributes and encodes them as
 		// base64 strings. Blindingly attempting to decode base64 seems too much.
 		tag.VType = model.ValueType_STRING
-		tag.VStr = attr.StringVal()
+		tag.VStr = attr.Str()
 	case pcommon.ValueTypeInt:
 		tag.VType = model.ValueType_INT64
-		tag.VInt64 = attr.IntVal()
+		tag.VInt64 = attr.Int()
 	case pcommon.ValueTypeBool:
 		tag.VType = model.ValueType_BOOL
-		tag.VBool = attr.BoolVal()
+		tag.VBool = attr.Bool()
 	case pcommon.ValueTypeDouble:
 		tag.VType = model.ValueType_FLOAT64
-		tag.VFloat64 = attr.DoubleVal()
+		tag.VFloat64 = attr.Double()
+	case pcommon.ValueTypeBytes:
+		tag.VType = model.ValueType_STRING
+		tag.VStr = base64.StdEncoding.EncodeToString(attr.Bytes().AsRaw())
 	case pcommon.ValueTypeMap, pcommon.ValueTypeSlice:
 		tag.VType = model.ValueType_STRING
 		tag.VStr = attr.AsString()
@@ -199,7 +204,7 @@ func getJaegerProtoSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope
 		tagsCount++
 	}
 
-	traceStateTags, traceStateTagsFound := getTagsFromTraceState(span.TraceState())
+	traceStateTags, traceStateTagsFound := getTagsFromTraceState(span.TraceState().AsRaw())
 	if traceStateTagsFound {
 		tagsCount += len(traceStateTags)
 	}
@@ -272,11 +277,7 @@ func makeJaegerProtoReferences(links ptrace.SpanLinkSlice, parentSpanID pcommon.
 		refs = append(refs, model.SpanRef{
 			TraceID: traceIDToJaegerProto(link.TraceID()),
 			SpanID:  spanIDToJaegerProto(link.SpanID()),
-
-			// Since Jaeger RefType is not captured in internal data,
-			// use SpanRefType_FOLLOWS_FROM by default.
-			// SpanRefType_CHILD_OF supposed to be set only from parentSpanID.
-			RefType: model.SpanRefType_FOLLOWS_FROM,
+			RefType: refTypeFromLink(link),
 		})
 	}
 
@@ -375,14 +376,14 @@ func getTagFromStatusMsg(statusMsg string) (model.KeyValue, bool) {
 	}, true
 }
 
-func getTagsFromTraceState(traceState ptrace.TraceState) ([]model.KeyValue, bool) {
-	keyValues := make([]model.KeyValue, 0)
-	exists := traceState != ptrace.TraceStateEmpty
+func getTagsFromTraceState(traceState string) ([]model.KeyValue, bool) {
+	var keyValues []model.KeyValue
+	exists := traceState != ""
 	if exists {
 		// TODO Bring this inline with solution for jaegertracing/jaeger-client-java #702 once available
 		kv := model.KeyValue{
 			Key:   tracetranslator.TagW3CTraceState,
-			VStr:  string(traceState),
+			VStr:  traceState,
 			VType: model.ValueType_STRING,
 		}
 		keyValues = append(keyValues, kv)
@@ -391,7 +392,7 @@ func getTagsFromTraceState(traceState ptrace.TraceState) ([]model.KeyValue, bool
 }
 
 func getTagsFromInstrumentationLibrary(il pcommon.InstrumentationScope) ([]model.KeyValue, bool) {
-	keyValues := make([]model.KeyValue, 0)
+	var keyValues []model.KeyValue
 	if ilName := il.Name(); ilName != "" {
 		kv := model.KeyValue{
 			Key:   conventions.OtelLibraryName,
@@ -410,4 +411,21 @@ func getTagsFromInstrumentationLibrary(il pcommon.InstrumentationScope) ([]model
 	}
 
 	return keyValues, true
+}
+
+func refTypeFromLink(link ptrace.SpanLink) model.SpanRefType {
+	refTypeAttr, ok := link.Attributes().Get(conventions.AttributeOpentracingRefType)
+	if !ok {
+		return model.SpanRefType_FOLLOWS_FROM
+	}
+	return strToJRefType(refTypeAttr.Str())
+}
+
+func strToJRefType(attr string) model.SpanRefType {
+	if attr == conventions.AttributeOpentracingRefTypeChildOf {
+		return model.ChildOf
+	}
+	// There are only 2 types of SpanRefType we assume that everything
+	// that's not a model.ChildOf is a model.FollowsFrom
+	return model.FollowsFrom
 }

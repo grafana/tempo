@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -27,11 +28,12 @@ const (
 	maxQueryShards = 256
 )
 
-func newTraceByIDSharder(queryShards, maxFailedBlocks int, logger log.Logger) Middleware {
+func newTraceByIDSharder(queryShards, maxFailedBlocks int, sloCfg SLOConfig, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return shardQuery{
 			next:            next,
 			queryShards:     queryShards,
+			sloCfg:          sloCfg,
 			logger:          logger,
 			blockBoundaries: createBlockBoundaries(queryShards - 1), // one shard will be used to query ingesters
 			maxFailedBlocks: uint32(maxFailedBlocks),
@@ -42,6 +44,7 @@ func newTraceByIDSharder(queryShards, maxFailedBlocks int, logger log.Logger) Mi
 type shardQuery struct {
 	next            http.RoundTripper
 	queryShards     int
+	sloCfg          SLOConfig
 	logger          log.Logger
 	blockBoundaries [][]byte
 	maxFailedBlocks uint32
@@ -52,6 +55,16 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	ctx := r.Context()
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardQuery")
 	defer span.Finish()
+
+	tenantID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Body:       io.NopCloser(strings.NewReader(err.Error())),
+		}, nil
+	}
+
+	reqStart := time.Now()
 
 	// context propagation
 	r = r.WithContext(ctx)
@@ -146,6 +159,8 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	wg.Wait()
 
+	reqTime := time.Since(reqStart)
+
 	if overallError != nil {
 		return nil, overallError
 	}
@@ -179,6 +194,15 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	if err != nil {
 		_ = level.Error(s.logger).Log("msg", "error marshalling response to proto", "err", err)
 		return nil, err
+	}
+
+	// only record metric when it's enabled and within slo
+	if s.sloCfg.DurationSLO != 0 {
+		if reqTime < s.sloCfg.DurationSLO {
+			// we are within SLO if query returned 200 within DurationSLO seconds
+			// TODO: we don't have throughput metrics for TraceByID.
+			sloTraceByIDCounter.WithLabelValues(tenantID).Inc()
+		}
 	}
 
 	return &http.Response{

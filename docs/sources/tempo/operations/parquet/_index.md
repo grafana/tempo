@@ -1,17 +1,15 @@
 ---
-title: Query and inspect Apache Parquet
-menuTitle: Query Parquet
+title: Inspect Apache Parquet data
+menuTitle: Inspect Parquet data
 weight: 75
 ---
 
-# Query and inspect Apache Parquet data
+# Inspect Apache Parquet data
 
 Apache Parquet is a column-oriented format and is the default block format for Tempo 2.0.
 Refer to the [Parquet configuration options]({{< relref "../../configuration/parquet.md" >}}) for more information.
 
 You can use `parquet-tools` to query and inspect Parquet files. There are multiple distributions of parquet-tools available. Most of the examples on this page should work with different distributions.
-
-
 
 ## Examples
 

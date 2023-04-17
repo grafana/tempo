@@ -1,15 +1,16 @@
 ---
-title: Configuration
-weight: 200
-alias:
+title: Configure
+menuTitle: Configure
+weight: 400
+aliases:
 - /docs/tempo/latest/configuration/
 ---
 
-# Configuration
+# Configure Tempo
 
 This document explains the configuration options for Tempo as well as the details of what they impact. It includes:
 
-- [Configuration](#configuration)
+- [Configure Tempo](#configure-tempo)
   - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
   - [Server](#server)
   - [Distributor](#distributor)
@@ -29,7 +30,7 @@ This document explains the configuration options for Tempo as well as the detail
       - [Override strategies](#override-strategies)
   - [Usage-report](#usage-report)
 
-Additionally, you may wish to review [TLS]({{< relref "tls/" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
+Additionally, you can review [TLS]({{< relref "tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
 ## Use environment variables in the configuration
 
@@ -400,6 +401,16 @@ query_frontend:
         # (default: 30m)
         [query_ingesters_until: <duration>]
 
+        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
+        # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
+        # NOTE: `duration_slo` and `throughput_bytes_slo` both must be configured for it to work
+        [duration_slo: <duration> | default = 0s ]
+
+        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
+        # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
+        [throughput_bytes_slo: <float> | default = 0 ]
+
+
     # Trace by ID lookup configuration
     trace_by_id:
         # The number of shards to split a trace by id query into.
@@ -413,6 +424,10 @@ query_frontend:
         # The maximum number of requests to execute when hedging.
         # Requires hedge_requests_at to be set. Must be greater than 0.
         [hedge_requests_up_to: <int> | default = 2 ]
+
+        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
+        # Query is within SLO if it returned 200 within duration_slo seconds.
+        [duration_slo: <duration> | default = 0s ]
 ```
 
 ## Querier
@@ -562,10 +577,10 @@ You can not use both local and object storage in the same Tempo deployment.
 The storage block is used to configure TempoDB.
 The following example shows common options. For further platform-specific information, refer to the following:
 
-* [GCS]({{< relref "gcs/" >}})
-* [S3]({{< relref "s3/" >}})
-* [Azure]({{< relref "azure/" >}})
-* [Parquet]({{< relref "parquet/" >}})
+* [GCS]({{< relref "gcs" >}})
+* [S3]({{< relref "s3" >}})
+* [Azure]({{< relref "azure" >}})
+* [Parquet]({{< relref "parquet" >}})
 
 ```yaml
 # Storage configuration for traces
@@ -973,7 +988,7 @@ storage:
 
         # block configuration
         block:
-            # block format version. options: v2, vParquet
+            # block format version. options: v2, vParquet, vParquet2
             [version: <string> | default = vParquet]
 
             # bloom filter false positive rate.  lower values create larger filters but fewer false positives

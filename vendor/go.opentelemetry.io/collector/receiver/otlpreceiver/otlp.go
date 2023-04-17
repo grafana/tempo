@@ -22,15 +22,18 @@ import (
 	"net/http"
 	"sync"
 
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/obsreport"
 	"go.opentelemetry.io/collector/pdata/plog/plogotlp"
 	"go.opentelemetry.io/collector/pdata/pmetric/pmetricotlp"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
+	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver/internal/logs"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver/internal/metrics"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver/internal/trace"
@@ -43,31 +46,52 @@ type otlpReceiver struct {
 	httpMux    *http.ServeMux
 	serverHTTP *http.Server
 
-	traceReceiver   *trace.Receiver
+	tracesReceiver  *trace.Receiver
 	metricsReceiver *metrics.Receiver
-	logReceiver     *logs.Receiver
+	logsReceiver    *logs.Receiver
 	shutdownWG      sync.WaitGroup
 
-	settings component.ReceiverCreateSettings
+	obsrepGRPC *obsreport.Receiver
+	obsrepHTTP *obsreport.Receiver
+
+	settings receiver.CreateSettings
 }
 
 // newOtlpReceiver just creates the OpenTelemetry receiver services. It is the caller's
 // responsibility to invoke the respective Start*Reception methods as well
 // as the various Stop*Reception methods to end it.
-func newOtlpReceiver(cfg *Config, settings component.ReceiverCreateSettings) *otlpReceiver {
+func newOtlpReceiver(cfg *Config, set receiver.CreateSettings) (*otlpReceiver, error) {
 	r := &otlpReceiver{
 		cfg:      cfg,
-		settings: settings,
+		settings: set,
 	}
 	if cfg.HTTP != nil {
 		r.httpMux = http.NewServeMux()
 	}
 
-	return r
+	var err error
+	r.obsrepGRPC, err = obsreport.NewReceiver(obsreport.ReceiverSettings{
+		ReceiverID:             set.ID,
+		Transport:              "grpc",
+		ReceiverCreateSettings: set,
+	})
+	if err != nil {
+		return nil, err
+	}
+	r.obsrepHTTP, err = obsreport.NewReceiver(obsreport.ReceiverSettings{
+		ReceiverID:             set.ID,
+		Transport:              "http",
+		ReceiverCreateSettings: set,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return r, nil
 }
 
 func (r *otlpReceiver) startGRPCServer(cfg *configgrpc.GRPCServerSettings, host component.Host) error {
-	r.settings.Logger.Info("Starting GRPC server on endpoint " + cfg.NetAddr.Endpoint)
+	r.settings.Logger.Info("Starting GRPC server", zap.String("endpoint", cfg.NetAddr.Endpoint))
 
 	gln, err := cfg.ToListener()
 	if err != nil {
@@ -85,7 +109,7 @@ func (r *otlpReceiver) startGRPCServer(cfg *configgrpc.GRPCServerSettings, host 
 }
 
 func (r *otlpReceiver) startHTTPServer(cfg *confighttp.HTTPServerSettings, host component.Host) error {
-	r.settings.Logger.Info("Starting HTTP server on endpoint " + cfg.Endpoint)
+	r.settings.Logger.Info("Starting HTTP server", zap.String("endpoint", cfg.Endpoint))
 	var hln net.Listener
 	hln, err := cfg.ToListener()
 	if err != nil {
@@ -105,23 +129,21 @@ func (r *otlpReceiver) startHTTPServer(cfg *confighttp.HTTPServerSettings, host 
 func (r *otlpReceiver) startProtocolServers(host component.Host) error {
 	var err error
 	if r.cfg.GRPC != nil {
-		var opts []grpc.ServerOption
-		opts, err = r.cfg.GRPC.ToServerOption(host, r.settings.TelemetrySettings)
+		r.serverGRPC, err = r.cfg.GRPC.ToServer(host, r.settings.TelemetrySettings)
 		if err != nil {
 			return err
 		}
-		r.serverGRPC = grpc.NewServer(opts...)
 
-		if r.traceReceiver != nil {
-			ptraceotlp.RegisterServer(r.serverGRPC, r.traceReceiver)
+		if r.tracesReceiver != nil {
+			ptraceotlp.RegisterGRPCServer(r.serverGRPC, r.tracesReceiver)
 		}
 
 		if r.metricsReceiver != nil {
-			pmetricotlp.RegisterServer(r.serverGRPC, r.metricsReceiver)
+			pmetricotlp.RegisterGRPCServer(r.serverGRPC, r.metricsReceiver)
 		}
 
-		if r.logReceiver != nil {
-			plogotlp.RegisterServer(r.serverGRPC, r.logReceiver)
+		if r.logsReceiver != nil {
+			plogotlp.RegisterGRPCServer(r.serverGRPC, r.logsReceiver)
 		}
 
 		err = r.startGRPCServer(r.cfg.GRPC, host)
@@ -175,7 +197,8 @@ func (r *otlpReceiver) registerTraceConsumer(tc consumer.Traces) error {
 	if tc == nil {
 		return component.ErrNilNextConsumer
 	}
-	r.traceReceiver = trace.New(r.cfg.ID(), tc, r.settings)
+	r.tracesReceiver = trace.New(tc, r.obsrepGRPC)
+	httpTracesReceiver := trace.New(tc, r.obsrepHTTP)
 	if r.httpMux != nil {
 		r.httpMux.HandleFunc("/v1/traces", func(resp http.ResponseWriter, req *http.Request) {
 			if req.Method != http.MethodPost {
@@ -184,9 +207,9 @@ func (r *otlpReceiver) registerTraceConsumer(tc consumer.Traces) error {
 			}
 			switch req.Header.Get("Content-Type") {
 			case pbContentType:
-				handleTraces(resp, req, r.traceReceiver, pbEncoder)
+				handleTraces(resp, req, httpTracesReceiver, pbEncoder)
 			case jsonContentType:
-				handleTraces(resp, req, r.traceReceiver, jsEncoder)
+				handleTraces(resp, req, httpTracesReceiver, jsEncoder)
 			default:
 				handleUnmatchedContentType(resp)
 			}
@@ -199,7 +222,8 @@ func (r *otlpReceiver) registerMetricsConsumer(mc consumer.Metrics) error {
 	if mc == nil {
 		return component.ErrNilNextConsumer
 	}
-	r.metricsReceiver = metrics.New(r.cfg.ID(), mc, r.settings)
+	r.metricsReceiver = metrics.New(mc, r.obsrepGRPC)
+	httpMetricsReceiver := metrics.New(mc, r.obsrepHTTP)
 	if r.httpMux != nil {
 		r.httpMux.HandleFunc("/v1/metrics", func(resp http.ResponseWriter, req *http.Request) {
 			if req.Method != http.MethodPost {
@@ -208,9 +232,9 @@ func (r *otlpReceiver) registerMetricsConsumer(mc consumer.Metrics) error {
 			}
 			switch req.Header.Get("Content-Type") {
 			case pbContentType:
-				handleMetrics(resp, req, r.metricsReceiver, pbEncoder)
+				handleMetrics(resp, req, httpMetricsReceiver, pbEncoder)
 			case jsonContentType:
-				handleMetrics(resp, req, r.metricsReceiver, jsEncoder)
+				handleMetrics(resp, req, httpMetricsReceiver, jsEncoder)
 			default:
 				handleUnmatchedContentType(resp)
 			}
@@ -223,7 +247,8 @@ func (r *otlpReceiver) registerLogsConsumer(lc consumer.Logs) error {
 	if lc == nil {
 		return component.ErrNilNextConsumer
 	}
-	r.logReceiver = logs.New(r.cfg.ID(), lc, r.settings)
+	r.logsReceiver = logs.New(lc, r.obsrepGRPC)
+	httpLogsReceiver := logs.New(lc, r.obsrepHTTP)
 	if r.httpMux != nil {
 		r.httpMux.HandleFunc("/v1/logs", func(resp http.ResponseWriter, req *http.Request) {
 			if req.Method != http.MethodPost {
@@ -232,9 +257,9 @@ func (r *otlpReceiver) registerLogsConsumer(lc consumer.Logs) error {
 			}
 			switch req.Header.Get("Content-Type") {
 			case pbContentType:
-				handleLogs(resp, req, r.logReceiver, pbEncoder)
+				handleLogs(resp, req, httpLogsReceiver, pbEncoder)
 			case jsonContentType:
-				handleLogs(resp, req, r.logReceiver, jsEncoder)
+				handleLogs(resp, req, httpLogsReceiver, jsEncoder)
 			default:
 				handleUnmatchedContentType(resp)
 			}

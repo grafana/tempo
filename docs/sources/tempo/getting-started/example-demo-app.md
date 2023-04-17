@@ -12,10 +12,11 @@ The following examples show various deployment and configuration options using t
 
 For more information about Tempo setup and configuration, see:
 
-* [Set up a Tempo cluster]({{< relref "../setup">}})
+* [Set up Tempo]({{< relref "../setup">}})
 * [Tempo configuration]({{< relref "../configuration" >}})
 
 If you are interested in instrumentation, see [Tempo instrumentation]({{< relref "instrumentation" >}}).
+
 ## Docker Compose
 
 The [docker-compose examples](https://github.com/grafana/tempo/tree/main/example/docker-compose) are simpler and designed to show minimal configuration.
@@ -29,19 +30,19 @@ Some of the examples include:
 
 This is a great place to get started with Tempo and learn about various trace discovery flows.
 
-## Tanka
-
-To view an example of a complete microservice-based deployment, this [Jsonnet based example](https://github.com/grafana/tempo/tree/main/example/tk) shows a complete microservice based deployment.
-There are monolithic mode and microservices examples.
-
-To learn how to set up a Tempo cluster, see [Deploy on Kubernetes with Tanka]({{< relref "../setup/tanka" >}}).
-
 ## Helm
 
 The Helm [example](https://github.com/grafana/tempo/tree/main/example/helm) shows a complete microservice based deployment.
 There are monolithic mode and microservices examples.
 
 To install Tempo on Kubernetes, use the [Deploy on Kubernetes using Helm](/docs/helm-charts/tempo-distributed/next/) procedure.
+
+## Tanka
+
+To view an example of a complete microservice-based deployment, this [Jsonnet based example](https://github.com/grafana/tempo/tree/main/example/tk) shows a complete microservice based deployment.
+There are monolithic mode and microservices examples.
+
+To learn how to set up a Tempo cluster, see [Deploy on Kubernetes with Tanka]({{< relref "../setup/tanka" >}}).
 
 ## The New Stack demo
 

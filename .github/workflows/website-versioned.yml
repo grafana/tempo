@@ -12,6 +12,8 @@ on:
 
 jobs:
   test:
+    # only run in grafana/tempo.
+    if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
@@ -19,6 +21,8 @@ jobs:
       - name: Build Website
         run: docker run -v ${PWD}/docs/sources/tempo:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod
   sync:
+    # only run in grafana/tempo.
+    if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-latest
     needs: test
     steps:

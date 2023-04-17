@@ -17,51 +17,32 @@ package plog // import "go.opentelemetry.io/collector/pdata/plog"
 import (
 	"bytes"
 
-	"github.com/gogo/protobuf/jsonpb"
-
 	"go.opentelemetry.io/collector/pdata/internal"
 	otlplogs "go.opentelemetry.io/collector/pdata/internal/data/protogen/logs/v1"
-	"go.opentelemetry.io/collector/pdata/internal/otlp"
+	"go.opentelemetry.io/collector/pdata/plog/internal/plogjson"
 )
 
-// NewJSONMarshaler returns a Marshaler. Marshals to OTLP json bytes.
-func NewJSONMarshaler() Marshaler {
-	return newJSONMarshaler()
-}
+var delegate = plogjson.JSONMarshaler
 
-type jsonMarshaler struct {
-	delegate jsonpb.Marshaler
-}
+var _ Marshaler = (*JSONMarshaler)(nil)
 
-func newJSONMarshaler() *jsonMarshaler {
-	return &jsonMarshaler{delegate: jsonpb.Marshaler{}}
-}
+type JSONMarshaler struct{}
 
-func (e *jsonMarshaler) MarshalLogs(ld Logs) ([]byte, error) {
+func (*JSONMarshaler) MarshalLogs(ld Logs) ([]byte, error) {
 	buf := bytes.Buffer{}
-	pb := internal.LogsToProto(ld)
-	err := e.delegate.Marshal(&buf, &pb)
+	pb := internal.LogsToProto(internal.Logs(ld))
+	err := delegate.Marshal(&buf, &pb)
 	return buf.Bytes(), err
 }
 
-type jsonUnmarshaler struct {
-	delegate jsonpb.Unmarshaler
-}
+var _ Unmarshaler = (*JSONUnmarshaler)(nil)
 
-// NewJSONUnmarshaler returns a model.Unmarshaler. Unmarshals from OTLP json bytes.
-func NewJSONUnmarshaler() Unmarshaler {
-	return newJSONUnmarshaler()
-}
+type JSONUnmarshaler struct{}
 
-func newJSONUnmarshaler() *jsonUnmarshaler {
-	return &jsonUnmarshaler{delegate: jsonpb.Unmarshaler{}}
-}
-
-func (d *jsonUnmarshaler) UnmarshalLogs(buf []byte) (Logs, error) {
-	ld := otlplogs.LogsData{}
-	if err := d.delegate.Unmarshal(bytes.NewReader(buf), &ld); err != nil {
+func (*JSONUnmarshaler) UnmarshalLogs(buf []byte) (Logs, error) {
+	var ld otlplogs.LogsData
+	if err := plogjson.UnmarshalLogsData(buf, &ld); err != nil {
 		return Logs{}, err
 	}
-	otlp.InstrumentationLibraryLogsToScope(ld.ResourceLogs)
-	return internal.LogsFromProto(ld), nil
+	return Logs(internal.LogsFromProto(ld)), nil
 }

@@ -2,7 +2,7 @@
 title: Deploy on Linux
 menuTitle: Deploy on Linux
 description: Learn how to deploy Tempo on Linux
-weight: 100
+weight: 400
 ---
 
 # Deploy on Linux
@@ -11,7 +11,7 @@ This guide provides a step-by-step process for installing Tempo on Linux.
 It assumes you have access to a Linux system and the permissions required to deploy a service with network and file system access.
 At the end of this guide, you will have deployed a single Tempo instance on a single node.
 
-These instructions focus on a single binary install. You can also run Tempo in distributed mode by deploying multiple binaries and using a distributed configuration.
+These instructions focus on a [monolithic installation]({{< relref "./deployment" >}}). You can also run Tempo in distributed mode by deploying multiple binaries and using a distributed configuration.
 
 ## Before you begin
 

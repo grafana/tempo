@@ -104,6 +104,7 @@ type consumer struct {
 	children        map[string]map[int32]*partitionConsumer
 	brokerConsumers map[*Broker]*brokerConsumer
 	client          Client
+	metricRegistry  metrics.Registry
 	lock            sync.Mutex
 }
 
@@ -136,12 +137,14 @@ func newConsumer(client Client) (Consumer, error) {
 		conf:            client.Config(),
 		children:        make(map[string]map[int32]*partitionConsumer),
 		brokerConsumers: make(map[*Broker]*brokerConsumer),
+		metricRegistry:  newCleanupRegistry(client.Config().MetricRegistry),
 	}
 
 	return c, nil
 }
 
 func (c *consumer) Close() error {
+	c.metricRegistry.UnregisterAll()
 	return c.client.Close()
 }
 
@@ -162,6 +165,7 @@ func (c *consumer) ConsumePartition(topic string, partition int32, offset int64)
 		messages:             make(chan *ConsumerMessage, c.conf.ChannelBufferSize),
 		errors:               make(chan *ConsumerError, c.conf.ChannelBufferSize),
 		feeder:               make(chan *FetchResponse, 1),
+		leaderEpoch:          invalidLeaderEpoch,
 		preferredReadReplica: invalidPreferredReplicaID,
 		trigger:              make(chan none, 1),
 		dying:                make(chan none),
@@ -172,9 +176,8 @@ func (c *consumer) ConsumePartition(topic string, partition int32, offset int64)
 		return nil, err
 	}
 
-	var leader *Broker
-	var err error
-	if leader, err = c.client.Leader(child.topic, child.partition); err != nil {
+	leader, epoch, err := c.client.LeaderAndEpoch(child.topic, child.partition)
+	if err != nil {
 		return nil, err
 	}
 
@@ -185,6 +188,7 @@ func (c *consumer) ConsumePartition(topic string, partition int32, offset int64)
 	go withRecover(child.dispatcher)
 	go withRecover(child.responseFeeder)
 
+	child.leaderEpoch = epoch
 	child.broker = c.refBrokerConsumer(leader)
 	child.broker.input <- child
 
@@ -397,6 +401,7 @@ type partitionConsumer struct {
 	errors   chan *ConsumerError
 	feeder   chan *FetchResponse
 
+	leaderEpoch          int32
 	preferredReadReplica int32
 
 	trigger, dying chan none
@@ -460,11 +465,11 @@ func (child *partitionConsumer) dispatcher() {
 	close(child.feeder)
 }
 
-func (child *partitionConsumer) preferredBroker() (*Broker, error) {
+func (child *partitionConsumer) preferredBroker() (*Broker, int32, error) {
 	if child.preferredReadReplica >= 0 {
 		broker, err := child.consumer.client.Broker(child.preferredReadReplica)
 		if err == nil {
-			return broker, nil
+			return broker, child.leaderEpoch, nil
 		}
 		Logger.Printf(
 			"consumer/%s/%d failed to find active broker for preferred read replica %d - will fallback to leader",
@@ -477,7 +482,7 @@ func (child *partitionConsumer) preferredBroker() (*Broker, error) {
 	}
 
 	// if preferred replica cannot be found fallback to leader
-	return child.consumer.client.Leader(child.topic, child.partition)
+	return child.consumer.client.LeaderAndEpoch(child.topic, child.partition)
 }
 
 func (child *partitionConsumer) dispatch() error {
@@ -485,13 +490,13 @@ func (child *partitionConsumer) dispatch() error {
 		return err
 	}
 
-	broker, err := child.preferredBroker()
+	broker, epoch, err := child.preferredBroker()
 	if err != nil {
 		return err
 	}
 
+	child.leaderEpoch = epoch
 	child.broker = child.consumer.refBrokerConsumer(broker)
-
 	child.broker.input <- child
 
 	return nil
@@ -678,13 +683,9 @@ func (child *partitionConsumer) parseRecords(batch *RecordBatch) ([]*ConsumerMes
 }
 
 func (child *partitionConsumer) parseResponse(response *FetchResponse) ([]*ConsumerMessage, error) {
-	var (
-		metricRegistry          = child.conf.MetricRegistry
-		consumerBatchSizeMetric metrics.Histogram
-	)
-
-	if metricRegistry != nil {
-		consumerBatchSizeMetric = getOrRegisterHistogram("consumer-batch-size", metricRegistry)
+	var consumerBatchSizeMetric metrics.Histogram
+	if child.consumer != nil && child.consumer.metricRegistry != nil {
+		consumerBatchSizeMetric = getOrRegisterHistogram("consumer-batch-size", child.consumer.metricRegistry)
 	}
 
 	// If request was throttled and empty we log and return without error
@@ -709,7 +710,9 @@ func (child *partitionConsumer) parseResponse(response *FetchResponse) ([]*Consu
 		return nil, err
 	}
 
-	consumerBatchSizeMetric.Update(int64(nRecs))
+	if consumerBatchSizeMetric != nil {
+		consumerBatchSizeMetric.Update(int64(nRecs))
+	}
 
 	if block.PreferredReadReplica != invalidPreferredReplicaID {
 		child.preferredReadReplica = block.PreferredReadReplica
@@ -936,8 +939,24 @@ func (bc *brokerConsumer) subscriptionConsumer() {
 			return
 		}
 
+		// if there isn't response, it means that not fetch was made
+		// so we don't need to handle any response
+		if response == nil {
+			continue
+		}
+
 		bc.acks.Add(len(bc.subscriptions))
 		for child := range bc.subscriptions {
+			if _, ok := response.Blocks[child.topic]; !ok {
+				bc.acks.Done()
+				continue
+			}
+
+			if _, ok := response.Blocks[child.topic][child.partition]; !ok {
+				bc.acks.Done()
+				continue
+			}
+
 			child.feeder <- response
 		}
 		bc.acks.Wait()
@@ -970,7 +989,7 @@ func (bc *brokerConsumer) handleResponses() {
 		child.responseResult = nil
 
 		if result == nil {
-			if preferredBroker, err := child.preferredBroker(); err == nil {
+			if preferredBroker, _, err := child.preferredBroker(); err == nil {
 				if bc.broker.ID() != preferredBroker.ID() {
 					// not an error but needs redispatching to consume from preferred replica
 					Logger.Printf(
@@ -997,7 +1016,12 @@ func (bc *brokerConsumer) handleResponses() {
 			Logger.Printf("consumer/%s/%d shutting down because %s\n", child.topic, child.partition, result)
 			close(child.trigger)
 			delete(bc.subscriptions, child)
-		} else if errors.Is(result, ErrUnknownTopicOrPartition) || errors.Is(result, ErrNotLeaderForPartition) || errors.Is(result, ErrLeaderNotAvailable) || errors.Is(result, ErrReplicaNotAvailable) {
+		} else if errors.Is(result, ErrUnknownTopicOrPartition) ||
+			errors.Is(result, ErrNotLeaderForPartition) ||
+			errors.Is(result, ErrLeaderNotAvailable) ||
+			errors.Is(result, ErrReplicaNotAvailable) ||
+			errors.Is(result, ErrFencedLeaderEpoch) ||
+			errors.Is(result, ErrUnknownLeaderEpoch) {
 			// not an error, but does need redispatching
 			Logger.Printf("consumer/broker/%d abandoned subscription to %s/%d because %s\n",
 				bc.broker.ID(), child.topic, child.partition, result)
@@ -1036,6 +1060,8 @@ func (bc *brokerConsumer) abort(err error) {
 	}
 }
 
+// fetchResponse can be nil if no fetch is made, it can occur when
+// all partitions are paused
 func (bc *brokerConsumer) fetchNewMessages() (*FetchResponse, error) {
 	request := &FetchRequest{
 		MinBytes:    bc.consumer.conf.Consumer.Fetch.Min,
@@ -1073,8 +1099,13 @@ func (bc *brokerConsumer) fetchNewMessages() (*FetchResponse, error) {
 
 	for child := range bc.subscriptions {
 		if !child.IsPaused() {
-			request.AddBlock(child.topic, child.partition, child.offset, child.fetchSize)
+			request.AddBlock(child.topic, child.partition, child.offset, child.fetchSize, child.leaderEpoch)
 		}
+	}
+
+	// avoid to fetch when there is no block
+	if len(request.blocks) == 0 {
+		return nil, nil
 	}
 
 	return bc.broker.Fetch(request)

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/bradfitz/gomemcache/memcache"
 	"github.com/facette/natsort"
+	"github.com/grafana/gomemcache/memcache"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/cache"

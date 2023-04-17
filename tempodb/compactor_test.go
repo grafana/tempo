@@ -25,8 +25,6 @@ import (
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -62,10 +60,10 @@ func (m *mockOverrides) MaxBytesPerTraceForTenant(_ string) int {
 }
 
 func TestCompactionRoundtrip(t *testing.T) {
-	testEncodings := []string{v2.VersionString, vparquet.VersionString}
-	for _, enc := range testEncodings {
-		t.Run(enc, func(t *testing.T) {
-			testCompactionRoundtrip(t, enc)
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		t.Run(version, func(t *testing.T) {
+			testCompactionRoundtrip(t, version)
 		})
 	}
 }
@@ -98,7 +96,8 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	ctx := context.Background()
+	c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10_000_000,
 		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
@@ -134,7 +133,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			allIds = append(allIds, id)
 		}
 
-		_, err = w.CompleteBlock(context.Background(), head)
+		_, err = w.CompleteBlock(ctx, head)
 		require.NoError(t, err)
 	}
 
@@ -161,7 +160,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 		require.Len(t, blocks, inputBlocks)
 
 		compactions++
-		err := rw.compact(blocks, testTenantID)
+		err := rw.compact(context.Background(), blocks, testTenantID)
 		require.NoError(t, err)
 
 		expectedBlockCount -= blocksPerCompaction
@@ -204,10 +203,10 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 }
 
 func TestSameIDCompaction(t *testing.T) {
-	testEncodings := []string{v2.VersionString, vparquet.VersionString}
-	for _, enc := range testEncodings {
-		t.Run(enc, func(t *testing.T) {
-			testSameIDCompaction(t, enc)
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		t.Run(version, func(t *testing.T) {
+			testSameIDCompaction(t, version)
 		})
 	}
 }
@@ -242,7 +241,8 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	ctx := context.Background()
+	c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
@@ -320,7 +320,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	combinedStart, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
 	require.NoError(t, err)
 
-	err = rw.compact(blocks, testTenantID)
+	err = rw.compact(ctx, blocks, testTenantID)
 	require.NoError(t, err)
 
 	checkBlocklists(t, uuid.Nil, 1, blockCount, rw)
@@ -383,7 +383,8 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	ctx := context.Background()
+	c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
@@ -401,7 +402,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	rw.pollBlocklist()
 
 	// compact everything
-	err = rw.compact(rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	require.NoError(t, err)
 
 	// New blocklist contains 1 compacted block with everything
@@ -452,7 +453,8 @@ func TestCompactionMetrics(t *testing.T) {
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	ctx := context.Background()
+	c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
@@ -480,7 +482,7 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.NoError(t, err)
 
 	// compact everything
-	err = rw.compact(rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	assert.NoError(t, err)
 
 	// Check metric
@@ -524,7 +526,8 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	}, log.NewNopLogger())
 	assert.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	ctx := context.Background()
+	c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		MaxCompactionObjects:    1000,
@@ -547,22 +550,21 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 
 	// Verify that tenant 2 compacted, tenant 1 is not
 	// Compaction starts at index 1 for simplicity
-	rw.doCompaction()
+	rw.doCompaction(ctx)
 	assert.Equal(t, 2, len(rw.blocklist.Metas(testTenantID)))
 	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID2)))
 
 	// Verify both tenants compacted after second run
-	rw.doCompaction()
+	rw.doCompaction(ctx)
 	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID)))
 	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID2)))
 }
 
 func TestCompactionHonorsBlockStartEndTimes(t *testing.T) {
-
-	testEncodings := []string{v2.VersionString, vparquet.VersionString}
-	for _, enc := range testEncodings {
-		t.Run(enc, func(t *testing.T) {
-			testCompactionHonorsBlockStartEndTimes(t, enc)
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		t.Run(version, func(t *testing.T) {
+			testCompactionHonorsBlockStartEndTimes(t, version)
 		})
 	}
 }
@@ -596,7 +598,8 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 
-	c.EnableCompaction(&CompactorConfig{
+	ctx := context.Background()
+	c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10_000_000,
 		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
@@ -619,7 +622,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	rw.pollBlocklist()
 
 	// compact everything
-	err = rw.compact(rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	require.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
@@ -688,10 +691,10 @@ func makeTraceID(i int, j int) []byte {
 }
 
 func BenchmarkCompaction(b *testing.B) {
-	testEncodings := []string{v2.VersionString, vparquet.VersionString}
-	for _, enc := range testEncodings {
-		b.Run(enc, func(b *testing.B) {
-			benchmarkCompaction(b, enc)
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		b.Run(version, func(b *testing.B) {
+			benchmarkCompaction(b, version)
 		})
 	}
 }
@@ -726,7 +729,8 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 
 	rw := c.(*readerWriter)
 
-	c.EnableCompaction(&CompactorConfig{
+	ctx := context.Background()
+	c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:     10_000_000,
 		FlushSizeBytes:     10_000_000,
 		IteratorBufferSize: DefaultIteratorBufferSize,
@@ -744,6 +748,6 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 
 	b.ResetTimer()
 
-	err = rw.compact(metas, testTenantID)
+	err = rw.compact(ctx, metas, testTenantID)
 	require.NoError(b, err)
 }

@@ -158,14 +158,14 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 
 	if o.IngestionRateStrategy() == overrides.GlobalIngestionRateStrategy {
 		lifecyclerCfg := cfg.DistributorRing.ToLifecyclerConfig()
-		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, nil, "distributor", cfg.OverrideRingKey, false, logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
+		lifecycler, err := ring.NewLifecycler(lifecyclerCfg, nil, "distributor", cfg.OverrideRingKey, false, logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
 		if err != nil {
 			return nil, err
 		}
 		subservices = append(subservices, lifecycler)
 		ingestionRateStrategy = newGlobalIngestionRateStrategy(o, lifecycler)
 
-		ring, err := ring.New(lifecyclerCfg.RingConfig, "distributor", cfg.OverrideRingKey, logger, prometheus.WrapRegistererWithPrefix("cortex_", reg))
+		ring, err := ring.New(lifecyclerCfg.RingConfig, "distributor", cfg.OverrideRingKey, logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to initialize distributor ring")
 		}
@@ -275,7 +275,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	// Convert to bytes and back. This is unfortunate for efficiency, but it works
 	// around the otel-collector internalization of otel-proto which Tempo also uses.
-	convert, err := ptrace.NewProtoMarshaler().MarshalTraces(traces)
+	convert, err := (&ptrace.ProtoMarshaler{}).MarshalTraces(traces)
 	if err != nil {
 		return nil, err
 	}

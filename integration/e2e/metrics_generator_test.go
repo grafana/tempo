@@ -46,8 +46,8 @@ func TestMetricsGenerator(t *testing.T) {
 			labels.MustNewMatcher(labels.MatchEqual, "state", "ACTIVE"),
 		}
 	}
-	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(isServiceActiveMatcher("ingester")...), e2e.WaitMissingMetrics))
-	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(isServiceActiveMatcher("metrics-generator")...), e2e.WaitMissingMetrics))
+	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(isServiceActiveMatcher("ingester")...), e2e.WaitMissingMetrics))
+	require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(1), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(isServiceActiveMatcher("metrics-generator")...), e2e.WaitMissingMetrics))
 
 	// Get port for the Jaeger gRPC receiver endpoint
 	c, err := util.NewJaegerGRPCClient(tempoDistributor.Endpoint(14250))
@@ -94,7 +94,7 @@ func TestMetricsGenerator(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	//also send one with 5 minutes old timestamp
+	// also send one with 5 minutes old timestamp
 	err = c.EmitBatch(context.Background(), &thrift.Batch{
 		Process: &thrift.Process{ServiceName: "app"},
 		Spans: []*thrift.Span{
@@ -112,7 +112,7 @@ func TestMetricsGenerator(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	//also send one with timestamp 10 days in the future
+	// also send one with timestamp 10 days in the future
 	err = c.EmitBatch(context.Background(), &thrift.Batch{
 		Process: &thrift.Process{ServiceName: "app"},
 		Spans: []*thrift.Span{

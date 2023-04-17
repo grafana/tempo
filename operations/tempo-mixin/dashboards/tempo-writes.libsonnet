@@ -95,11 +95,11 @@ dashboard_utils {
         g.row('Memcached - Ingester')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('cortex_memcache_request_duration_seconds_count{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.ingester))
+          $.qpsPanel('tempo_memcache_request_duration_seconds_count{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.ingester))
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('cortex_memcache_request_duration_seconds', '{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.ingester))
+          $.latencyPanel('tempo_memcache_request_duration_seconds', '{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.ingester))
         )
       )
       .addRow(
@@ -117,11 +117,11 @@ dashboard_utils {
         g.row('Memcached - Compactor')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('cortex_memcache_request_duration_seconds_count{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.compactor))
+          $.qpsPanel('tempo_memcache_request_duration_seconds_count{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.compactor))
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('cortex_memcache_request_duration_seconds', '{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.compactor))
+          $.latencyPanel('tempo_memcache_request_duration_seconds', '{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.compactor))
         )
       )
       .addRow(

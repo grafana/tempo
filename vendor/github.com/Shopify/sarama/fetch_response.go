@@ -4,9 +4,14 @@ import (
 	"errors"
 	"sort"
 	"time"
+
+	"github.com/rcrowley/go-metrics"
 )
 
-const invalidPreferredReplicaID = -1
+const (
+	invalidLeaderEpoch        = -1
+	invalidPreferredReplicaID = -1
+)
 
 type AbortedTransaction struct {
 	// ProducerID contains the producer id associated with the aborted transaction.
@@ -60,6 +65,12 @@ type FetchResponseBlock struct {
 }
 
 func (b *FetchResponseBlock) decode(pd packetDecoder, version int16) (err error) {
+	metricRegistry := pd.metricRegistry()
+	var sizeMetric metrics.Histogram
+	if metricRegistry != nil {
+		sizeMetric = getOrRegisterHistogram("consumer-fetch-response-size", metricRegistry)
+	}
+
 	tmp, err := pd.getInt16()
 	if err != nil {
 		return err
@@ -114,6 +125,9 @@ func (b *FetchResponseBlock) decode(pd packetDecoder, version int16) (err error)
 	recordsSize, err := pd.getInt32()
 	if err != nil {
 		return err
+	}
+	if sizeMetric != nil {
+		sizeMetric.Update(int64(recordsSize))
 	}
 
 	recordsDecoder, err := pd.getSubset(int(recordsSize))

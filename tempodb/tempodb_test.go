@@ -23,8 +23,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -69,7 +67,7 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 func TestDB(t *testing.T) {
 	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
@@ -174,7 +172,7 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 func TestBlockCleanup(t *testing.T) {
 	r, w, c, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
@@ -504,7 +502,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 func TestSearchCompactedBlocks(t *testing.T) {
 	r, w, c, _ := testConfig(t, backend.EncLZ4_256k, time.Hour)
 
-	c.EnableCompaction(&CompactorConfig{
+	c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
@@ -532,7 +530,8 @@ func TestSearchCompactedBlocks(t *testing.T) {
 		ids = append(ids, id)
 	}
 
-	complete, err := w.CompleteBlock(context.Background(), head)
+	ctx := context.Background()
+	complete, err := w.CompleteBlock(ctx, head)
 	require.NoError(t, err)
 
 	blockID := complete.BlockMeta().BlockID.String()
@@ -544,7 +543,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, failedBlocks, err := r.Find(context.Background(), testTenantID, id, blockID, blockID, 0, 0)
+		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockID, blockID, 0, 0)
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
 		require.True(t, proto.Equal(bFound[0], reqs[i]))
@@ -553,7 +552,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	// compact
 	var blockMetas []*backend.BlockMeta
 	blockMetas = append(blockMetas, complete.BlockMeta())
-	require.NoError(t, rw.compact(blockMetas, testTenantID))
+	require.NoError(t, rw.compact(ctx, blockMetas, testTenantID))
 
 	// poll
 	rw.pollBlocklist()
@@ -568,7 +567,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	// find should succeed with old block range
 	for i, id := range ids {
-		bFound, failedBlocks, err := r.Find(context.Background(), testTenantID, id, blockID, blockID, 0, 0)
+		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockID, blockID, 0, 0)
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
 		require.True(t, proto.Equal(bFound[0], reqs[i]))
@@ -629,10 +628,10 @@ func testCompleteBlock(t *testing.T, from, to string) {
 }
 
 func TestCompleteBlockHonorsStartStopTimes(t *testing.T) {
-	testEncodings := []string{v2.VersionString, vparquet.VersionString}
-	for _, enc := range testEncodings {
-		t.Run(enc, func(t *testing.T) {
-			testCompleteBlockHonorsStartStopTimes(t, enc)
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		t.Run(version, func(t *testing.T) {
+			testCompleteBlockHonorsStartStopTimes(t, version)
 		})
 	}
 }
@@ -764,11 +763,9 @@ func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDec
 }
 
 func BenchmarkCompleteBlock(b *testing.B) {
-	enc := encoding.AllEncodings()
-
-	for _, e := range enc {
-		b.Run(e.Version(), func(b *testing.B) {
-			benchmarkCompleteBlock(b, e)
+	for _, enc := range encoding.AllEncodings() {
+		b.Run(enc.Version(), func(b *testing.B) {
+			benchmarkCompleteBlock(b, enc)
 		})
 	}
 }

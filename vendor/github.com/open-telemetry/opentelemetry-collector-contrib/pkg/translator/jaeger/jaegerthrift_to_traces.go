@@ -22,7 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/collector/semconv/v1.9.0"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator"
@@ -64,10 +64,9 @@ func jThriftProcessToInternalResource(process *jaeger.Process, dest pcommon.Reso
 	}
 
 	attrs := dest.Attributes()
-	attrs.Clear()
 	if serviceName != "" {
 		attrs.EnsureCapacity(len(tags) + 1)
-		attrs.UpsertString(conventions.AttributeServiceName, serviceName)
+		attrs.PutStr(conventions.AttributeServiceName, serviceName)
 	} else {
 		attrs.EnsureCapacity(len(tags))
 	}
@@ -107,11 +106,11 @@ func jThriftSpanToInternal(span *jaeger.Span, dest ptrace.Span) {
 	attrs := dest.Attributes()
 	attrs.EnsureCapacity(len(span.Tags))
 	jThriftTagsToInternalAttributes(span.Tags, attrs)
-	setInternalSpanStatus(attrs, dest.Status())
 	if spanKindAttr, ok := attrs.Get(tracetranslator.TagSpanKind); ok {
-		dest.SetKind(jSpanKindToInternal(spanKindAttr.StringVal()))
+		dest.SetKind(jSpanKindToInternal(spanKindAttr.Str()))
 		attrs.Remove(tracetranslator.TagSpanKind)
 	}
+	setInternalSpanStatus(attrs, dest)
 
 	// drop the attributes slice if all of them were replaced during translation
 	if attrs.Len() == 0 {
@@ -127,17 +126,17 @@ func jThriftTagsToInternalAttributes(tags []*jaeger.Tag, dest pcommon.Map) {
 	for _, tag := range tags {
 		switch tag.GetVType() {
 		case jaeger.TagType_STRING:
-			dest.UpsertString(tag.Key, tag.GetVStr())
+			dest.PutStr(tag.Key, tag.GetVStr())
 		case jaeger.TagType_BOOL:
-			dest.UpsertBool(tag.Key, tag.GetVBool())
+			dest.PutBool(tag.Key, tag.GetVBool())
 		case jaeger.TagType_LONG:
-			dest.UpsertInt(tag.Key, tag.GetVLong())
+			dest.PutInt(tag.Key, tag.GetVLong())
 		case jaeger.TagType_DOUBLE:
-			dest.UpsertDouble(tag.Key, tag.GetVDouble())
+			dest.PutDouble(tag.Key, tag.GetVDouble())
 		case jaeger.TagType_BINARY:
-			dest.UpsertString(tag.Key, base64.StdEncoding.EncodeToString(tag.GetVBinary()))
+			dest.PutStr(tag.Key, base64.StdEncoding.EncodeToString(tag.GetVBinary()))
 		default:
-			dest.UpsertString(tag.Key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.GetVType()))
+			dest.PutStr(tag.Key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.GetVType()))
 		}
 	}
 }
@@ -158,11 +157,10 @@ func jThriftLogsToSpanEvents(logs []*jaeger.Log, dest ptrace.SpanEventSlice) {
 		}
 
 		attrs := event.Attributes()
-		attrs.Clear()
 		attrs.EnsureCapacity(len(log.Fields))
 		jThriftTagsToInternalAttributes(log.Fields, attrs)
 		if name, ok := attrs.Get(eventNameAttr); ok {
-			event.SetName(name.StringVal())
+			event.SetName(name.Str())
 			attrs.Remove(eventNameAttr)
 		}
 	}
@@ -182,10 +180,18 @@ func jThriftReferencesToSpanLinks(refs []*jaeger.SpanRef, excludeParentID int64,
 		link := dest.AppendEmpty()
 		link.SetTraceID(idutils.UInt64ToTraceID(uint64(ref.TraceIdHigh), uint64(ref.TraceIdLow)))
 		link.SetSpanID(idutils.UInt64ToSpanID(uint64(ref.SpanId)))
+		link.Attributes().PutStr(conventions.AttributeOpentracingRefType, jThriftRefTypeToAttribute(ref.RefType))
 	}
 }
 
 // microsecondsToUnixNano converts epoch microseconds to pcommon.Timestamp
 func microsecondsToUnixNano(ms int64) pcommon.Timestamp {
 	return pcommon.Timestamp(uint64(ms) * 1000)
+}
+
+func jThriftRefTypeToAttribute(ref jaeger.SpanRefType) string {
+	if ref == jaeger.SpanRefType_CHILD_OF {
+		return conventions.AttributeOpentracingRefTypeChildOf
+	}
+	return conventions.AttributeOpentracingRefTypeFollowsFrom
 }

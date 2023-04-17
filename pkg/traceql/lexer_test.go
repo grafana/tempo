@@ -61,7 +61,7 @@ func TestLexerAttributes(t *testing.T) {
 		{`. foo`, []int{DOT, END_ATTRIBUTE, IDENTIFIER}},
 		// not attributes
 		{`.3`, []int{FLOAT}},
-		{`.24h`, []int{FLOAT, IDENTIFIER}},
+		{`.24h`, []int{DURATION}},
 	}))
 }
 
