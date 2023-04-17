@@ -10,6 +10,7 @@ import (
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
+// RandomBatcher is a helper for generating random batches of spans.
 type RandomBatcher struct {
 	stringReceiverChan    chan string
 	attributeReceiverChan chan *v1_common.KeyValue
