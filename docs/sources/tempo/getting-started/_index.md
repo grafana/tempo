@@ -1,6 +1,6 @@
 ---
 title: Get started
-menuTitle: Get started with Grafana Tempo
+menuTitle: Get started
 weight: 200
 aliases:
 - /docs/tempo/getting-started
