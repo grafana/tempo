@@ -239,7 +239,8 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			// happy path
 			overallResponse.addResponse(results)
-			// update progress only on success, if we failed for some reason above it will bubble up immediately
+			// update progress only on success, if we failed for some reason above it will bubble up immediately b/c the
+			// request failed
 			if s.progress != nil {
 				s.progress.jobComplete(overallResponse)
 			}
