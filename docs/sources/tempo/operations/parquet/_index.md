@@ -2,7 +2,10 @@
 title: Inspect Apache Parquet data
 menuTitle: Inspect Parquet data
 weight: 75
+draft: true
 ---
+
+<!-- Page unpublished until updated. -->
 
 # Inspect Apache Parquet data
 
