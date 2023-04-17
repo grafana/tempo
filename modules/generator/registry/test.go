@@ -94,9 +94,9 @@ func (t *testCounter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 		panic("counter can only increase")
 	}
 
-	lbls := make(labels.Labels, len(labelValueCombo.labels))
-	for i, label := range labelValueCombo.labels {
-		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.values[i]}
+	lbls := make(labels.Labels, len(labelValueCombo.labels.names))
+	for i, label := range labelValueCombo.labels.names {
+		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.labels.values[i]}
 	}
 	sort.Sort(lbls)
 
@@ -115,9 +115,9 @@ func (t *testGauge) Inc(labelValueCombo *LabelValueCombo, value float64) {
 		panic("counter can only increase")
 	}
 
-	lbls := make(labels.Labels, len(labelValueCombo.labels))
-	for i, label := range labelValueCombo.labels {
-		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.values[i]}
+	lbls := make(labels.Labels, len(labelValueCombo.labels.names))
+	for i, label := range labelValueCombo.labels.names {
+		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.labels.values[i]}
 	}
 	sort.Sort(lbls)
 
@@ -125,13 +125,9 @@ func (t *testGauge) Inc(labelValueCombo *LabelValueCombo, value float64) {
 }
 
 func (t *testGauge) Set(labelValueCombo *LabelValueCombo, value float64) {
-	if value < 0 {
-		panic("counter can only increase")
-	}
-
-	lbls := make(labels.Labels, len(labelValueCombo.labels))
-	for i, label := range labelValueCombo.labels {
-		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.values[i]}
+	lbls := make(labels.Labels, len(labelValueCombo.labels.names))
+	for i, label := range labelValueCombo.labels.names {
+		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.labels.values[i]}
 	}
 	sort.Sort(lbls)
 
@@ -149,9 +145,9 @@ type testHistogram struct {
 var _ Histogram = (*testHistogram)(nil)
 
 func (t *testHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) {
-	lbls := make(labels.Labels, len(labelValueCombo.labels))
-	for i, label := range labelValueCombo.labels {
-		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.values[i]}
+	lbls := make(labels.Labels, len(labelValueCombo.labels.names))
+	for i, label := range labelValueCombo.labels.names {
+		lbls[i] = labels.Label{Name: label, Value: labelValueCombo.labels.values[i]}
 	}
 	sort.Sort(lbls)
 

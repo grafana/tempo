@@ -34,15 +34,26 @@ type Gauge interface {
 // the label values. When passing the same label values to multiple metrics, create LabelValueCombo once
 // and pass it to all of them.
 type LabelValueCombo struct {
-	labels []string
-	values []string
+	labels LabelPair
 	hash   uint64
 }
 
-func newLabelValueCombo(labels []string, values []string) *LabelValueCombo {
-	return &LabelValueCombo{
-		labels: labels,
+type LabelPair struct {
+	names  []string
+	values []string
+}
+
+func newLabelPair(labels []string, values []string) LabelPair {
+	return LabelPair{
+		names:  labels,
 		values: values,
+	}
+}
+
+func newLabelValueCombo(labels []string, values []string) *LabelValueCombo {
+	labelPair := newLabelPair(labels, values)
+	return &LabelValueCombo{
+		labels: labelPair,
 		hash:   0,
 	}
 }
@@ -57,25 +68,27 @@ func (l *LabelValueCombo) getValues() []string {
 	if l == nil {
 		return nil
 	}
-	return l.values
+	return l.labels.values
 }
 
-func (l *LabelValueCombo) getLabels() []string {
+func (l *LabelValueCombo) getNames() []string {
 	if l == nil {
 		return nil
 	}
-	return l.labels
+	return l.labels.names
 }
 
 func (l *LabelValueCombo) getValuesCopy() []string {
-	valuesCopy := make([]string, len(l.getValues()))
-	copy(valuesCopy, l.getValues())
+	values := l.getValues()
+	valuesCopy := make([]string, len(values))
+	copy(valuesCopy, values)
 	return valuesCopy
 }
 
-func (l *LabelValueCombo) getLabelsCopy() []string {
-	labelsCopy := make([]string, len(l.getLabels()))
-	copy(labelsCopy, l.getLabels())
+func (l *LabelValueCombo) getNamesCopy() []string {
+	names := l.getNames()
+	labelsCopy := make([]string, len(names))
+	copy(labelsCopy, names)
 	return labelsCopy
 }
 
@@ -86,6 +99,16 @@ func (l *LabelValueCombo) getHash() uint64 {
 	if l.hash != 0 {
 		return l.hash
 	}
-	l.hash = hashLabelValues(l.labels, l.values)
+	l.hash = hashLabelValues(l.labels)
 	return l.hash
+}
+
+func (l *LabelValueCombo) getLabelPair() LabelPair {
+	if l == nil {
+		return LabelPair{}
+	}
+	return LabelPair{
+		names:  l.getNamesCopy(),
+		values: l.getValuesCopy(),
+	}
 }

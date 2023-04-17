@@ -21,9 +21,7 @@ type counter struct {
 }
 
 type counterSeries struct {
-	labels []string
-	// labelValues should not be modified after creation
-	labelValues []string
+	labels      LabelPair
 	value       *atomic.Float64
 	lastUpdated *atomic.Int64
 	// firstSeries is used to track if this series is new to the counter.  This
@@ -99,8 +97,7 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 
 func (c *counter) newSeries(labelValueCombo *LabelValueCombo, value float64) *counterSeries {
 	return &counterSeries{
-		labels:      labelValueCombo.getLabelsCopy(),
-		labelValues: labelValueCombo.getValuesCopy(),
+		labels:      labelValueCombo.getLabelPair(),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
 		firstSeries: atomic.NewBool(true),
@@ -135,8 +132,8 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 	for _, s := range c.series {
 		t := time.UnixMilli(timeMs)
 		// set series-specific labels
-		for i, name := range s.labels {
-			lb.Set(name, s.labelValues[i])
+		for i, name := range s.labels.names {
+			lb.Set(name, s.labels.values[i])
 		}
 
 		// If we are about to call Append for the first time on a series, we need

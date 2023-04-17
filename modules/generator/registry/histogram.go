@@ -32,8 +32,7 @@ type histogram struct {
 
 type histogramSeries struct {
 	// labelValueCombo should not be modified after creation
-	labels []string
-	values []string
+	labels LabelPair
 	count  *atomic.Float64
 	sum    *atomic.Float64
 	// buckets includes the +Inf bucket
@@ -109,8 +108,7 @@ func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value 
 
 func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *histogramSeries {
 	newSeries := &histogramSeries{
-		labels:      labelValueCombo.getLabels(),
-		values:      labelValueCombo.getValuesCopy(),
+		labels:      labelValueCombo.getLabelPair(),
 		count:       atomic.NewFloat64(0),
 		sum:         atomic.NewFloat64(0),
 		buckets:     nil,
@@ -165,8 +163,8 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 
 	for _, s := range h.series {
 		// set series-specific labels
-		for i, name := range s.labels {
-			lb.Set(name, s.values[i])
+		for i, name := range s.labels.names {
+			lb.Set(name, s.labels.values[i])
 		}
 
 		// sum

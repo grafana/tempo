@@ -24,10 +24,9 @@ type gauge struct {
 
 type gaugeSeries struct {
 	// labelValueCombo should not be modified after creation
-	labels          []string
-	labelValueCombo []string
-	value           *atomic.Float64
-	lastUpdated     *atomic.Int64
+	labels      LabelPair
+	value       *atomic.Float64
+	lastUpdated *atomic.Int64
 	// firstSeries is used to track if this series is new to the gauge.  This
 	// is used to ensure that new gauges being with 0, and then are incremented
 	// to the desired value.  This avoids Prometheus throwing away the first
@@ -68,14 +67,14 @@ func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(co
 }
 
 func (g *gauge) Set(labelValueCombo *LabelValueCombo, value float64) {
-	g.change(labelValueCombo, value, set)
+	g.updateSeries(labelValueCombo, value, set)
 }
 
 func (g *gauge) Inc(labelValueCombo *LabelValueCombo, value float64) {
-	g.change(labelValueCombo, value, add)
+	g.updateSeries(labelValueCombo, value, add)
 }
 
-func (g *gauge) change(labelValueCombo *LabelValueCombo, value float64, operation string) {
+func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, operation string) {
 
 	hash := labelValueCombo.getHash()
 
@@ -84,7 +83,7 @@ func (g *gauge) change(labelValueCombo *LabelValueCombo, value float64, operatio
 	g.seriesMtx.RUnlock()
 
 	if ok {
-		g.updateSeries(s, value, operation)
+		g.updateSeriesValue(s, value, operation)
 		return
 	}
 
@@ -99,7 +98,7 @@ func (g *gauge) change(labelValueCombo *LabelValueCombo, value float64, operatio
 
 	s, ok = g.series[hash]
 	if ok {
-		g.updateSeries(s, value, operation)
+		g.updateSeriesValue(s, value, operation)
 		return
 	}
 	g.series[hash] = newSeries
@@ -107,15 +106,14 @@ func (g *gauge) change(labelValueCombo *LabelValueCombo, value float64, operatio
 
 func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaugeSeries {
 	return &gaugeSeries{
-		labels:          labelValueCombo.getLabels(),
-		labelValueCombo: labelValueCombo.getValuesCopy(),
-		value:           atomic.NewFloat64(value),
-		lastUpdated:     atomic.NewInt64(time.Now().UnixMilli()),
-		firstSeries:     atomic.NewBool(true),
+		labels:      labelValueCombo.getLabelPair(),
+		value:       atomic.NewFloat64(value),
+		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
+		firstSeries: atomic.NewBool(true),
 	}
 }
 
-func (g *gauge) updateSeries(s *gaugeSeries, value float64, operation string) {
+func (g *gauge) updateSeriesValue(s *gaugeSeries, value float64, operation string) {
 	if operation == add {
 		s.value.Add(value)
 	} else {
@@ -147,8 +145,8 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64, external
 	for _, s := range g.series {
 		t := time.UnixMilli(timeMs)
 		// set series-specific labels
-		for i, name := range s.labels {
-			lb.Set(name, s.labelValueCombo[i])
+		for i, name := range s.labels.names {
+			lb.Set(name, s.labels.values[i])
 		}
 
 		// If we are about to call Append for the first time on a series, we need
