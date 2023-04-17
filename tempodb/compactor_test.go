@@ -741,7 +741,7 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 		FlushSizeBytes:     10_000_000,
 		IteratorBufferSize: DefaultIteratorBufferSize,
 	}, &mockSharder{}, &mockOverrides{})
-	require.NoError(t, err)
+	require.NoError(b, err)
 
 	traceCount := 20_000
 	blockCount := 8
