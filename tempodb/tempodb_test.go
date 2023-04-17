@@ -117,12 +117,7 @@ func TestNoCompactionWhenCompactionRange0(t *testing.T) {
 	err := c.EnableCompaction(context.Background(), &CompactorConfig{
 		MaxCompactionRange: 0,
 	}, &mockSharder{}, &mockOverrides{})
-	require.NoError(t, err)
-
-	rw := c.(*readerWriter)
-
-	assert.Equal(t, 0, len(rw.blocklist.Tenants()))
-	assert.Equal(t, 0, len(rw.blocklist.Metas(testTenantID)))
+	require.Error(t, err)
 }
 
 func TestBlockSharding(t *testing.T) {
