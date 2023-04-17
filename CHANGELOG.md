@@ -2,6 +2,7 @@
 
 * [ENHANCEMENT] Add `scope` parameter to `/api/search/tags` [#2282](https://github.com/grafana/tempo/pull/2282) (@joe-elliott)
   Create new endpoint `/api/v2/search/tags` that returns all tags organized by scope.
+* [ENHANCEMENT] Extend `/flush` to support flushing a single tenant [#2260](https://github.com/grafana/tempo/pull/2260) (@kvrhdn)
 
 ## v2.1.0-rc.0 / 2023-04-12
 

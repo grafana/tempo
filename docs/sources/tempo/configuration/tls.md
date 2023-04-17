@@ -1,5 +1,7 @@
 ---
-title: Configure TLS Communication
+title: Configure TLS communication
+menuTitle: Configure TLS
+description: Configure Tempo components to communicate using TLS.
 weight: 35
 ---
 

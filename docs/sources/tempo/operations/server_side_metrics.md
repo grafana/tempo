@@ -1,13 +1,14 @@
 ---
-title: Server-side metrics
-weight: 110
+title: Server-side metrics architecture
+menuTitle: Server-side metrics architecture
+weight: 15
 ---
 
-# Server-side metrics
+# Server-side metrics architecture
 
 Server-side metrics is a feature that derive metrics from ingested traces.
 
-To generate metrics, it uses an additional component: the metrics-generator.
+To generate metrics, it uses an additional component: the [metrics-generator]({{< relref "../metrics-generator" >}}).
 If present, the distributor will write received spans to both the ingester and the metrics-generator.
 The metrics-generator processes spans and writes metrics to a Prometheus datasource using the Prometheus remote write protocol.
 

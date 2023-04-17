@@ -1,6 +1,6 @@
 ---
-title: Inspect Apache Parquet
-menuTitle: Inspect Parquet
+title: Inspect Apache Parquet data
+menuTitle: Inspect Parquet data
 weight: 75
 ---
 
