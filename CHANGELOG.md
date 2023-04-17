@@ -1,11 +1,6 @@
 ## main / unreleased
 
-<<<<<<< HEAD
-=======
 * [ENHANCEMENT] Extend `/flush` to support flushing a single tenant [#2260](https://github.com/grafana/tempo/pull/2260) (@kvrhdn)
-
-## v2.1.0-rc.0 / 2023-04-12
->>>>>>> main
 
 ## v2.1.0-rc.0 / 2023-04-12
 * [BUGFIX] tempodb integer divide by zero error [#2167](https://github.com/grafana/tempo/issues/2167)
