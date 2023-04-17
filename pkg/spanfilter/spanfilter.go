@@ -136,39 +136,44 @@ func policyMatchAttrs(policy *config.PolicyMatch, attrs []*v1_common.KeyValue) b
 			if attr.GetKey() == pa.Key {
 				v = attr.GetValue()
 
+				// For each type of value, check if the policy attribute value matches the span attribute value.
 				switch v.Value.(type) {
 				case *v1_common.AnyValue_StringValue:
 					if pAttrValueType != "string" {
-						continue
+						return false
 					}
 
-					if stringMatch(policy.MatchType, v.GetStringValue(), pa.Value.(string)) {
-						matches++
+					if !stringMatch(policy.MatchType, v.GetStringValue(), pa.Value.(string)) {
+						return false
 					}
+					matches++
 				case *v1_common.AnyValue_IntValue:
 					if pAttrValueType != "int" {
-						continue
+						return false
 					}
 
-					if v.GetIntValue() == int64(pa.Value.(int)) {
-						matches++
+					if v.GetIntValue() != int64(pa.Value.(int)) {
+						return false
 					}
+					matches++
 				case *v1_common.AnyValue_DoubleValue:
 					if pAttrValueType != "float64" {
-						continue
+						return false
 					}
 
-					if v.GetDoubleValue() == pa.Value.(float64) {
-						matches++
+					if v.GetDoubleValue() != pa.Value.(float64) {
+						return false
 					}
+					matches++
 				case *v1_common.AnyValue_BoolValue:
 					if pAttrValueType != "bool" {
-						continue
+						return false
 					}
 
-					if v.GetBoolValue() == pa.Value.(bool) {
-						matches++
+					if v.GetBoolValue() != pa.Value.(bool) {
+						return false
 					}
+					matches++
 				}
 			}
 		}

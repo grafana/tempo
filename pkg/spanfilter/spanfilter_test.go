@@ -444,6 +444,190 @@ func TestSpanFilter_policyMatchAttrs(t *testing.T) {
 				},
 			},
 		},
+		// Value type mismatch string
+		{
+			expect: false,
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "dd",
+						Value: true,
+					},
+				},
+			},
+			attrs: []*common_v1.KeyValue{
+				{
+					Key: "dd",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_StringValue{
+							StringValue: "11xxxxx",
+						},
+					},
+				},
+			},
+		},
+		// Value type mismatch string/int
+		{
+			expect: false,
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "dd",
+						Value: "value",
+					},
+				},
+			},
+			attrs: []*common_v1.KeyValue{
+				{
+					Key: "dd",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_IntValue{
+							IntValue: 11,
+						},
+					},
+				},
+			},
+		},
+		// Value type mismatch string/float
+		{
+			expect: false,
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "11",
+						Value: "eleven",
+					},
+				},
+			},
+			attrs: []*common_v1.KeyValue{
+				{
+					Key: "11",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_DoubleValue{
+							DoubleValue: 11.1,
+						},
+					},
+				},
+			},
+		},
+		// Value type mismatch string/bool
+		{
+			expect: false,
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "11",
+						Value: "eleven",
+					},
+				},
+			},
+			attrs: []*common_v1.KeyValue{
+				{
+					Key: "11",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_BoolValue{
+							BoolValue: false,
+						},
+					},
+				},
+			},
+		},
+		// Value type mismatch int/string
+		{
+			expect: false,
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "11",
+						Value: 11,
+					},
+				},
+			},
+			attrs: []*common_v1.KeyValue{
+				{
+					Key: "11",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_StringValue{
+							StringValue: "11",
+						},
+					},
+				},
+			},
+		},
+		// Value mismatch int
+		{
+			expect: false,
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "11",
+						Value: 11,
+					},
+				},
+			},
+			attrs: []*common_v1.KeyValue{
+				{
+					Key: "11",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_IntValue{
+							IntValue: 12,
+						},
+					},
+				},
+			},
+		},
+		// Value mismatch bool
+		{
+			expect: false,
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "11",
+						Value: true,
+					},
+				},
+			},
+			attrs: []*common_v1.KeyValue{
+				{
+					Key: "11",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_BoolValue{
+							BoolValue: false,
+						},
+					},
+				},
+			},
+		},
+		// Value mismatch bool
+		{
+			expect: false,
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "11",
+						Value: 11.0,
+					},
+				},
+			},
+			attrs: []*common_v1.KeyValue{
+				{
+					Key: "11",
+					Value: &common_v1.AnyValue{
+						Value: &common_v1.AnyValue_DoubleValue{
+							DoubleValue: 11.1,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
