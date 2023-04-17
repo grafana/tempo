@@ -560,7 +560,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			}, o, SearchSharderConfig{
 				ConcurrentRequests:    1, // 1 concurrent request to force order
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			}, testSLOcfg, log.NewNopLogger())
+			}, testSLOcfg, nil, log.NewNopLogger())
 			testRT := NewRoundTripper(next, sharder)
 
 			req := httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -606,7 +606,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, testSLOcfg, log.NewNopLogger())
+	}, testSLOcfg, nil, log.NewNopLogger())
 	testRT := NewRoundTripper(next, sharder)
 
 	// no org id
@@ -635,7 +635,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
-	}, testSLOcfg, log.NewNopLogger())
+	}, testSLOcfg, nil, log.NewNopLogger())
 	testRT = NewRoundTripper(next, sharder)
 
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -686,6 +686,7 @@ func TestMaxDuration(t *testing.T) {
 	assert.Equal(t, 10*time.Minute, actual)
 }
 
+// jpe - super double check this works in prod before PRing. i.e. deploy to ops, test and then PR
 func TestSubRequestsCancelled(t *testing.T) {
 	totalJobs := 5
 
@@ -760,7 +761,7 @@ func TestSubRequestsCancelled(t *testing.T) {
 		ConcurrentRequests:    10,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		DefaultLimit:          2,
-	}, testSLOcfg, log.NewNopLogger())
+	}, testSLOcfg, nil, log.NewNopLogger())
 
 	// return some things and assert the right subrequests are cancelled
 	// 500, err, limit
@@ -810,4 +811,63 @@ func TestSubRequestsCancelled(t *testing.T) {
 			_, _ = testRT.RoundTrip(req)
 		})
 	}
+}
+
+type mockProgress struct {
+	total    atomic.Int32
+	complete atomic.Int32
+}
+
+func (p *mockProgress) totalJobs(j int)             { p.total.Store(int32(j)) }
+func (p *mockProgress) jobComplete(*searchResponse) { p.complete.Inc() }
+
+func TestProgressUpdated(t *testing.T) {
+	totalJobs := 5
+
+	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{
+			Traces: []*tempopb.TraceSearchMetadata{{
+				TraceID: test.RandomString(),
+			}},
+			Metrics: &tempopb.SearchMetrics{},
+		})
+		require.NoError(t, err)
+
+		return &http.Response{
+			Body:       io.NopCloser(strings.NewReader(resString)),
+			StatusCode: 200,
+		}, nil
+	})
+
+	progress := &mockProgress{}
+
+	o, err := overrides.NewOverrides(overrides.Limits{})
+	require.NoError(t, err)
+
+	sharder := newSearchSharder(&mockReader{
+		metas: []*backend.BlockMeta{
+			{
+				StartTime:    time.Unix(1100, 0),
+				EndTime:      time.Unix(1200, 0),
+				Size:         uint64(defaultTargetBytesPerRequest * totalJobs),
+				TotalRecords: uint32(totalJobs),
+				BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+			},
+		},
+	}, o, SearchSharderConfig{
+		ConcurrentRequests:    10,
+		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		DefaultLimit:          2,
+	}, testSLOcfg, progress, log.NewNopLogger())
+
+	req := httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
+	ctx := req.Context()
+	ctx = user.InjectOrgID(ctx, "blerg")
+	req = req.WithContext(ctx)
+
+	testRT := NewRoundTripper(next, sharder)
+	_, _ = testRT.RoundTrip(req)
+
+	require.Equal(t, totalJobs, int(progress.total.Load()))
+	require.Equal(t, totalJobs, int(progress.complete.Load()))
 }

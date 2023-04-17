@@ -50,10 +50,18 @@ var (
 	sloSearchCounter    = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
 )
 
+// searchProgress is an interface that allows us to get progress
+// events from the search sharding handler.
+type searchProgress interface {
+	totalJobs(int)
+	jobComplete(*searchResponse)
+}
+
 type searchSharder struct {
 	next      http.RoundTripper
 	reader    tempodb.Reader
 	overrides *overrides.Overrides
+	progress  searchProgress
 
 	cfg    SearchSharderConfig
 	sloCfg SLOConfig
@@ -71,7 +79,7 @@ type SearchSharderConfig struct {
 }
 
 // newSearchSharder creates a sharding middleware for search
-func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchSharderConfig, sloCfg SLOConfig, logger log.Logger) Middleware {
+func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchSharderConfig, sloCfg SLOConfig, progress searchProgress, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
 			next:      next,
@@ -80,6 +88,8 @@ func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchS
 			cfg:       cfg,
 			sloCfg:    sloCfg,
 			logger:    logger,
+
+			progress: progress,
 		}
 	})
 }
@@ -158,6 +168,9 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		reqs = append([]*http.Request{ingesterReq}, reqs...)
 	}
 	span.SetTag("request-count", len(reqs))
+	if s.progress != nil {
+		s.progress.totalJobs(len(reqs))
+	}
 
 	// execute requests
 	wg := boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
@@ -226,6 +239,10 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 			// happy path
 			overallResponse.addResponse(results)
+			// update progress only on success, if we failed for some reason above it will bubble up immediately
+			if s.progress != nil {
+				s.progress.jobComplete(overallResponse)
+			}
 		}(req)
 	}
 
