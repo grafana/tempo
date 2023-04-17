@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Extend `/flush` to support flushing a single tenant [#2260](https://github.com/grafana/tempo/pull/2260) (@kvrhdn)
+
 ## v2.1.0-rc.0 / 2023-04-12
 
 * [CHANGE] Capture and update search metrics for TraceQL [#2087](https://github.com/grafana/tempo/pull/2087) (@electron0zero)

@@ -374,6 +374,12 @@ GET,POST /flush
 
 Triggers a flush of all in-memory traces to the WAL. Useful at the time of rollout restarts and unexpected crashes.
 
+Specify the `tenant` parameter to flush data of a single tenant only.
+
+```
+GET,POST /flush?tenant=dev
+```
+
 ### Shutdown
 
 ```
