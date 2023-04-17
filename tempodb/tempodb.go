@@ -85,7 +85,7 @@ type Reader interface {
 }
 
 type Compactor interface {
-	EnableCompaction(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
+	EnableCompaction(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) error
 }
 
 type CompactorSharder interface {
@@ -376,12 +376,11 @@ func (rw *readerWriter) Shutdown() {
 }
 
 // EnableCompaction activates the compaction/retention loops
-func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) {
+func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) error {
 	// If compactor configuration is not as expected, no need to go any further
 	err := cfg.validate()
 	if err != nil {
-		level.Error(log.Logger).Log(err.Error())
-		return
+		return err
 	}
 
 	// Set default if needed. This is mainly for tests.

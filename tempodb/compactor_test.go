@@ -97,13 +97,14 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	c.EnableCompaction(ctx, &CompactorConfig{
+	err = c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10_000_000,
 		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
 
 	r.EnablePolling(&mockJobSharder{})
 
@@ -242,13 +243,14 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	c.EnableCompaction(ctx, &CompactorConfig{
+	err = c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 		FlushSizeBytes:          10_000_000,
 	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
 
 	r.EnablePolling(&mockJobSharder{})
 
@@ -384,12 +386,13 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	c.EnableCompaction(ctx, &CompactorConfig{
+	err = c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
 
 	r.EnablePolling(&mockJobSharder{})
 
@@ -454,12 +457,13 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.NoError(t, err)
 
 	ctx := context.Background()
-	c.EnableCompaction(ctx, &CompactorConfig{
+	err = c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
 
 	r.EnablePolling(&mockJobSharder{})
 
@@ -527,7 +531,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	assert.NoError(t, err)
 
 	ctx := context.Background()
-	c.EnableCompaction(ctx, &CompactorConfig{
+	err = c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      24 * time.Hour,
 		MaxCompactionObjects:    1000,
@@ -535,6 +539,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
 
 	r.EnablePolling(&mockJobSharder{})
 
@@ -599,13 +604,14 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	c.EnableCompaction(ctx, &CompactorConfig{
+	err = c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10_000_000,
 		FlushSizeBytes:          10_000_000,
 		MaxCompactionRange:      24 * time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
 
 	r.EnablePolling(&mockJobSharder{})
 
@@ -730,11 +736,12 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 	rw := c.(*readerWriter)
 
 	ctx := context.Background()
-	c.EnableCompaction(ctx, &CompactorConfig{
+	err = c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:     10_000_000,
 		FlushSizeBytes:     10_000_000,
 		IteratorBufferSize: DefaultIteratorBufferSize,
 	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
 
 	traceCount := 20_000
 	blockCount := 8
