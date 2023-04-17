@@ -35,7 +35,7 @@ This service graphs processor builds a map of services by analyzing traces, with
 Edges are spans with a parent-child relationship, that represent a jump (e.g. a request) between two services.
 The amount of request and their duration are recorded as metrics, which are used to represent the graph.
 
-To learn more about this processor, read the [documentation]({{< relref "service_graphs/" >}}).
+To learn more about this processor, read the [documentation]({{< relref "service_graphs" >}}).
 
 ### Span metrics
 
@@ -45,7 +45,7 @@ The span metrics processor will compute the total count and the duration of span
 Dimensions can be the service name, the operation, the span kind, the status code and any tag or attribute present in the span.
 The more dimensions are enabled, the higher the cardinality of the generated metrics.
 
-To learn more about this processor, read the [documentation]({{< relref "span_metrics/" >}}).
+To learn more about this processor, read the [documentation]({{< relref "span_metrics" >}}).
 
 ### Remote writing metrics
 

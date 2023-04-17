@@ -133,7 +133,7 @@ func TestValidateCompactorConfig(t *testing.T) {
 	}
 
 	expected := errors.New("Compaction window can't be 0")
-	actual := compactorConfig.validateCompactorConfig()
+	actual := compactorConfig.validate()
 
 	require.Equal(t, expected, actual)
 }

@@ -378,9 +378,9 @@ func (rw *readerWriter) Shutdown() {
 // EnableCompaction activates the compaction/retention loops
 func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) {
 	// If compactor configuration is not as expected, no need to go any further
-	err := cfg.validateCompactorConfig()
+	err := cfg.validate()
 	if err != nil {
-		level.Warn(log.Logger).Log(err.Error())
+		level.Error(log.Logger).Log(err.Error())
 		return
 	}
 
