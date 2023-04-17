@@ -254,6 +254,87 @@ func TestSpanFilter_policyMatchIntrinsicAttrs(t *testing.T) {
 				Name: "goodiegoodie",
 			},
 		},
+		{
+			expect: false,
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "kind",
+						Value: "SPAN_KIND_SERVER",
+					},
+					{
+						Key:   "status",
+						Value: "STATUS_CODE_OK",
+					},
+					{
+						Key:   "name",
+						Value: "goodiegoodie",
+					},
+				},
+			},
+			span: &trace_v1.Span{
+				Kind: trace_v1.Span_SPAN_KIND_SERVER,
+				Status: &trace_v1.Status{
+					Code: trace_v1.Status_STATUS_CODE_OK,
+				},
+				Name: "goodiegoodie2",
+			},
+		},
+		{
+			expect: false,
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "kind",
+						Value: "SPAN_KIND_SERVER",
+					},
+					{
+						Key:   "status",
+						Value: "STATUS_CODE_OK",
+					},
+					{
+						Key:   "name",
+						Value: "goodiegoodie",
+					},
+				},
+			},
+			span: &trace_v1.Span{
+				Kind: trace_v1.Span_SPAN_KIND_SERVER,
+				Status: &trace_v1.Status{
+					Code: trace_v1.Status_STATUS_CODE_ERROR,
+				},
+				Name: "goodiegoodie",
+			},
+		},
+		{
+			expect: false,
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "kind",
+						Value: "SPAN_KIND_SERVER",
+					},
+					{
+						Key:   "status",
+						Value: "STATUS_CODE_OK",
+					},
+					{
+						Key:   "name",
+						Value: "goodiegoodie",
+					},
+				},
+			},
+			span: &trace_v1.Span{
+				Kind: trace_v1.Span_SPAN_KIND_CLIENT,
+				Status: &trace_v1.Status{
+					Code: trace_v1.Status_STATUS_CODE_OK,
+				},
+				Name: "goodiegoodie",
+			},
+		},
 	}
 
 	for _, tc := range cases {

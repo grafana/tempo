@@ -106,17 +106,20 @@ func policyMatchIntrinsicAttrs(policy *config.PolicyMatch, span *v1_trace.Span) 
 		// case traceql.IntrinsicChildCount:
 		// case traceql.IntrinsicParent:
 		case traceql.IntrinsicName:
-			if stringMatch(policy.MatchType, span.GetName(), pa.Value.(string)) {
-				matches++
+			if !stringMatch(policy.MatchType, span.GetName(), pa.Value.(string)) {
+				return false
 			}
+			matches++
 		case traceql.IntrinsicStatus:
-			if stringMatch(policy.MatchType, span.GetStatus().GetCode().String(), pa.Value.(string)) {
-				matches++
+			if !stringMatch(policy.MatchType, span.GetStatus().GetCode().String(), pa.Value.(string)) {
+				return false
 			}
+			matches++
 		case traceql.IntrinsicKind:
-			if stringMatch(policy.MatchType, span.GetKind().String(), pa.Value.(string)) {
-				matches++
+			if !stringMatch(policy.MatchType, span.GetKind().String(), pa.Value.(string)) {
+				return false
 			}
+			matches++
 		}
 	}
 
