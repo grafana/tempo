@@ -363,15 +363,9 @@ func TestScalableSingleBinary(t *testing.T) {
 
 	t.Logf("tempo1.Endpoint(): %+v", tempo1.Endpoint(3200))
 
-<<<<<<< HEAD
 	require.NoError(t, tempo1.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
 	require.NoError(t, tempo2.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
 	require.NoError(t, tempo3.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
-=======
-	require.NoError(t, tempo1.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
-	require.NoError(t, tempo2.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
-	require.NoError(t, tempo3.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
->>>>>>> 8332014f0 (oops)
 
 	c1, err := util.NewJaegerGRPCClient(tempo1.Endpoint(14250))
 	require.NoError(t, err)
