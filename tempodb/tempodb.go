@@ -394,7 +394,7 @@ func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConf
 
 	if rw.cfg.BlocklistPoll == 0 {
 		level.Info(rw.logger).Log("msg", "polling cycle unset. compaction and retention disabled")
-		return
+		return nil
 	}
 
 	if cfg != nil {
@@ -402,6 +402,8 @@ func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConf
 		go rw.compactionLoop(ctx)
 		go rw.retentionLoop(ctx)
 	}
+
+	return nil
 }
 
 // EnablePolling activates the polling loop. Pass nil if this component
