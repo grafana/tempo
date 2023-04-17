@@ -99,8 +99,10 @@ func policyMatch(policy *splitPolicy, rs *v1.Resource, span *v1_trace.Span) bool
 // policyMatchIntrinsicAttrs returns true when all intrinsic values in the policy match the span.
 func policyMatchIntrinsicAttrs(policy *config.PolicyMatch, span *v1_trace.Span) bool {
 	matches := 0
+
+	var attr traceql.Attribute
 	for _, pa := range policy.Attributes {
-		attr := traceql.MustParseIdentifier(pa.Key)
+		attr = traceql.MustParseIdentifier(pa.Key)
 		switch attr.Intrinsic {
 		// case traceql.IntrinsicDuration:
 		// case traceql.IntrinsicChildCount:
@@ -131,9 +133,10 @@ func policyMatchAttrs(policy *config.PolicyMatch, attrs []*v1_common.KeyValue) b
 
 	matches := 0
 	var v *v1_common.AnyValue
+	var pAttrValueType string
 
 	for _, pa := range policy.Attributes {
-		pAttrValueType := reflect.TypeOf(pa.Value).String()
+		pAttrValueType = reflect.TypeOf(pa.Value).String()
 
 		for _, attr := range attrs {
 			if attr.GetKey() == pa.Key {
