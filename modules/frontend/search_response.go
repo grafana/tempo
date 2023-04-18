@@ -29,11 +29,11 @@ type shardedSearchResults struct {
 	finishedRequests int
 }
 
-var _ shardedSearchProgress = (*searchResponse)(nil)
+var _ shardedSearchProgress = (*searchProgress)(nil)
 
-// searchResponse is a thread safe struct used to aggregate the responses from all downstream
+// searchProgress is a thread safe struct used to aggregate the responses from all downstream
 // queriers
-type searchResponse struct {
+type searchProgress struct {
 	err        error
 	statusCode int
 	statusMsg  string
@@ -48,7 +48,7 @@ type searchResponse struct {
 }
 
 func newSearchResponse(ctx context.Context, limit, _, totalBlocks, totalBlockBytes int) shardedSearchProgress {
-	return &searchResponse{
+	return &searchProgress{
 		ctx:        ctx,
 		statusCode: http.StatusOK,
 		limit:      limit,
@@ -61,7 +61,7 @@ func newSearchResponse(ctx context.Context, limit, _, totalBlocks, totalBlockByt
 	}
 }
 
-func (r *searchResponse) setStatus(statusCode int, statusMsg string) {
+func (r *searchProgress) setStatus(statusCode int, statusMsg string) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
@@ -69,14 +69,14 @@ func (r *searchResponse) setStatus(statusCode int, statusMsg string) {
 	r.statusMsg = statusMsg
 }
 
-func (r *searchResponse) setError(err error) {
+func (r *searchProgress) setError(err error) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
 	r.err = err
 }
 
-func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
+func (r *searchProgress) addResponse(res *tempopb.SearchResponse) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
@@ -99,7 +99,7 @@ func (r *searchResponse) addResponse(res *tempopb.SearchResponse) {
 }
 
 // shouldQuit locks and checks if we should quit from current execution or not
-func (r *searchResponse) shouldQuit() bool {
+func (r *searchProgress) shouldQuit() bool {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
@@ -108,7 +108,7 @@ func (r *searchResponse) shouldQuit() bool {
 
 // internalShouldQuit check if we should quit but without locking,
 // NOTE: only use internally where we already hold lock on searchResponse
-func (r *searchResponse) internalShouldQuit() bool {
+func (r *searchProgress) internalShouldQuit() bool {
 	if r.err != nil {
 		return true
 	}
@@ -125,7 +125,7 @@ func (r *searchResponse) internalShouldQuit() bool {
 	return false
 }
 
-func (r *searchResponse) result() *shardedSearchResults {
+func (r *searchProgress) result() *shardedSearchResults {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
