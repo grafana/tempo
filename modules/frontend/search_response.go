@@ -10,6 +10,27 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
+// shardedSearchProgress is an interface that allows us to get progress
+// events from the search sharding handler.
+type shardedSearchProgress interface {
+	setStatus(statusCode int, statusMsg string)
+	setError(err error)
+	addResponse(res *tempopb.SearchResponse)
+	shouldQuit() bool
+	result() *shardedSearchResults
+}
+
+// shardedSearchResults is the overall response from the shardedSearchProgress
+type shardedSearchResults struct {
+	response         *tempopb.SearchResponse
+	statusCode       int
+	statusMsg        string
+	err              error
+	finishedRequests int
+}
+
+var _ shardedSearchProgress = (*searchResponse)(nil)
+
 // searchResponse is a thread safe struct used to aggregate the responses from all downstream
 // queriers
 type searchResponse struct {
@@ -26,12 +47,15 @@ type searchResponse struct {
 	mtx   sync.Mutex
 }
 
-func newSearchResponse(ctx context.Context, limit int) *searchResponse {
+func newSearchResponse(ctx context.Context, limit, _, totalBlocks, totalBlockBytes int) shardedSearchProgress {
 	return &searchResponse{
-		ctx:              ctx,
-		statusCode:       http.StatusOK,
-		limit:            limit,
-		resultsMetrics:   &tempopb.SearchMetrics{},
+		ctx:        ctx,
+		statusCode: http.StatusOK,
+		limit:      limit,
+		resultsMetrics: &tempopb.SearchMetrics{
+			InspectedBlocks: uint32(totalBlocks),
+			TotalBlockBytes: uint64(totalBlockBytes),
+		},
 		finishedRequests: 0,
 		resultsMap:       map[string]*tempopb.TraceSearchMetadata{},
 	}
@@ -101,20 +125,29 @@ func (r *searchResponse) internalShouldQuit() bool {
 	return false
 }
 
-func (r *searchResponse) result() *tempopb.SearchResponse {
+func (r *searchResponse) result() *shardedSearchResults {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	res := &tempopb.SearchResponse{
+	res := &shardedSearchResults{
+		statusCode:       r.statusCode,
+		statusMsg:        r.statusMsg,
+		err:              r.err,
+		finishedRequests: r.finishedRequests,
+	}
+
+	searchRes := &tempopb.SearchResponse{
 		Metrics: r.resultsMetrics,
 	}
 
 	for _, t := range r.resultsMap {
-		res.Traces = append(res.Traces, t)
+		searchRes.Traces = append(searchRes.Traces, t)
 	}
-	sort.Slice(res.Traces, func(i, j int) bool {
-		return res.Traces[i].StartTimeUnixNano > res.Traces[j].StartTimeUnixNano
+	sort.Slice(searchRes.Traces, func(i, j int) bool {
+		return searchRes.Traces[i].StartTimeUnixNano > searchRes.Traces[j].StartTimeUnixNano
 	})
+
+	res.response = searchRes
 
 	return res
 }

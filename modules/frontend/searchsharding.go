@@ -50,18 +50,13 @@ var (
 	sloSearchCounter    = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
 )
 
-// searchProgress is an interface that allows us to get progress
-// events from the search sharding handler.
-type searchProgress interface {
-	totalJobs(int)
-	jobComplete(*searchResponse)
-}
+type newSearchProgress func(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) shardedSearchProgress
 
 type searchSharder struct {
-	next      http.RoundTripper
-	reader    tempodb.Reader
-	overrides *overrides.Overrides
-	progress  searchProgress
+	next       http.RoundTripper
+	reader     tempodb.Reader
+	overrides  *overrides.Overrides
+	progressFn newSearchProgress
 
 	cfg    SearchSharderConfig
 	sloCfg SLOConfig
@@ -79,7 +74,7 @@ type SearchSharderConfig struct {
 }
 
 // newSearchSharder creates a sharding middleware for search
-func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchSharderConfig, sloCfg SLOConfig, progress searchProgress, logger log.Logger) Middleware {
+func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchSharderConfig, sloCfg SLOConfig, progress newSearchProgress, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
 			next:      next,
@@ -89,7 +84,7 @@ func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchS
 			sloCfg:    sloCfg,
 			logger:    logger,
 
-			progress: progress,
+			progressFn: progress,
 		}
 	})
 }
@@ -168,25 +163,20 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		reqs = append([]*http.Request{ingesterReq}, reqs...)
 	}
 	span.SetTag("request-count", len(reqs))
-	if s.progress != nil {
-		s.progress.totalJobs(len(reqs))
-	}
 
 	// execute requests
 	wg := boundedwaitgroup.New(uint(s.cfg.ConcurrentRequests))
-	overallResponse := newSearchResponse(ctx, int(searchReq.Limit))
-	overallResponse.resultsMetrics.InspectedBlocks = uint32(len(blocks))
 
 	totalBlockBytes := uint64(0)
 	for _, b := range blocks {
 		totalBlockBytes += b.Size
 	}
-	overallResponse.resultsMetrics.TotalBlockBytes = totalBlockBytes
+	progress := s.progressFn(ctx, int(searchReq.Limit), len(reqs), len(blocks), int(totalBlockBytes))
 
 	startedReqs := 0
 	for _, req := range reqs {
 		// if shouldQuit is true, terminate and abandon requests
-		if overallResponse.shouldQuit() {
+		if progress.shouldQuit() {
 			break
 		}
 
@@ -196,7 +186,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 		go func(innerR *http.Request) {
 			defer func() {
-				if overallResponse.shouldQuit() {
+				if progress.shouldQuit() {
 					subCancel()
 				}
 				wg.Done()
@@ -212,7 +202,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 				}
 
 				_ = level.Error(s.logger).Log("msg", "error executing sharded query", "url", innerR.RequestURI, "err", err)
-				overallResponse.setError(err)
+				progress.setError(err)
 				return
 			}
 
@@ -224,7 +214,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 					_ = level.Error(s.logger).Log("msg", "error reading response body status != ok", "url", innerR.RequestURI, "err", err)
 				}
 				statusMsg := fmt.Sprintf("upstream: (%d) %s", statusCode, string(bytesMsg))
-				overallResponse.setStatus(statusCode, statusMsg)
+				progress.setStatus(statusCode, statusMsg)
 				return
 			}
 
@@ -233,17 +223,12 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 			err = jsonpb.Unmarshal(resp.Body, results)
 			if err != nil {
 				_ = level.Error(s.logger).Log("msg", "error reading response body status == ok", "url", innerR.RequestURI, "err", err)
-				overallResponse.setError(err)
+				progress.setError(err)
 				return
 			}
 
 			// happy path
-			overallResponse.addResponse(results)
-			// update progress only on success, if we failed for some reason above it will bubble up immediately b/c the
-			// request failed
-			if s.progress != nil {
-				s.progress.jobComplete(overallResponse)
-			}
+			progress.addResponse(results)
 		}(req)
 	}
 
@@ -251,9 +236,11 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	wg.Wait()
 
 	// print out request metrics
+	overallResponse := progress.result()
+
 	cancelledReqs := startedReqs - overallResponse.finishedRequests
 	reqTime := time.Since(reqStart)
-	throughput := float64(overallResponse.resultsMetrics.InspectedBytes) / reqTime.Seconds()
+	throughput := float64(overallResponse.response.Metrics.InspectedBytes) / reqTime.Seconds()
 	searchThroughput.WithLabelValues(tenantID).Observe(throughput)
 
 	query, _ := url.PathUnescape(r.URL.RawQuery)
@@ -267,20 +254,20 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 		"started_requests", startedReqs,
 		"cancelled_requests", cancelledReqs,
 		"finished_requests", overallResponse.finishedRequests,
-		"inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks,
-		"skippedBlocks", overallResponse.resultsMetrics.SkippedBlocks,
-		"inspectedBytes", overallResponse.resultsMetrics.InspectedBytes,
-		"inspectedTraces", overallResponse.resultsMetrics.InspectedTraces,
-		"skippedTraces", overallResponse.resultsMetrics.SkippedTraces,
-		"totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
+		"inspectedBlocks", overallResponse.response.Metrics.InspectedBlocks,
+		"skippedBlocks", overallResponse.response.Metrics.SkippedBlocks,
+		"inspectedBytes", overallResponse.response.Metrics.InspectedBytes,
+		"inspectedTraces", overallResponse.response.Metrics.InspectedTraces,
+		"skippedTraces", overallResponse.response.Metrics.SkippedTraces,
+		"totalBlockBytes", overallResponse.response.Metrics.TotalBlockBytes)
 
 	// all goroutines have finished, we can safely access searchResults fields directly now
-	span.SetTag("inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks)
-	span.SetTag("skippedBlocks", overallResponse.resultsMetrics.SkippedBlocks)
-	span.SetTag("inspectedBytes", overallResponse.resultsMetrics.InspectedBytes)
-	span.SetTag("inspectedTraces", overallResponse.resultsMetrics.InspectedTraces)
-	span.SetTag("skippedTraces", overallResponse.resultsMetrics.SkippedTraces)
-	span.SetTag("totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
+	span.SetTag("inspectedBlocks", overallResponse.response.Metrics.InspectedBlocks)
+	span.SetTag("skippedBlocks", overallResponse.response.Metrics.SkippedBlocks)
+	span.SetTag("inspectedBytes", overallResponse.response.Metrics.InspectedBytes)
+	span.SetTag("inspectedTraces", overallResponse.response.Metrics.InspectedTraces)
+	span.SetTag("skippedTraces", overallResponse.response.Metrics.SkippedTraces)
+	span.SetTag("totalBlockBytes", overallResponse.response.Metrics.TotalBlockBytes)
 
 	if overallResponse.err != nil {
 		return nil, overallResponse.err
@@ -298,7 +285,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	m := &jsonpb.Marshaler{}
-	bodyString, err := m.MarshalToString(overallResponse.result())
+	bodyString, err := m.MarshalToString(overallResponse.response)
 	if err != nil {
 		return nil, err
 	}
