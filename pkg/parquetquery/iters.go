@@ -442,10 +442,14 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, d int) (done bool, err error)
 
 		for c.currPage == nil {
 			pg, err := c.currPages.ReadPage()
-			if err == io.EOF {
-				return true, nil
-			}
-			if err != nil {
+			if pg == nil || err != nil {
+				// No more pages in this column chunk,
+				// cleanup and exit.
+				if err == io.EOF {
+					err = nil
+				}
+				pq.Release(pg)
+				c.closeCurrRowGroup()
 				return true, err
 			}
 
