@@ -129,6 +129,12 @@ For example, to find all traces where an `http.status_code` attribute in a span 
 { span.http.status_code >= 400 && span.http.status_code < 500 }
 ```
 
+This works for `http.status_code` values that are strings as well:
+
+```
+{ span.http.status_code >= "400"}
+```
+
 Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
 
 ```
