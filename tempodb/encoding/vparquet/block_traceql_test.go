@@ -109,6 +109,11 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelK8sClusterName + ` = "k8scluster"}`),
 		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelK8sPodName + ` = "k8spod"}`),
 		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelK8sContainerName + ` = "k8scontainer"}`),
+		// Comparing strings
+		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelServiceName + ` > "myservic"}`),
+		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelServiceName + ` >= "myservic"}`),
+		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelServiceName + ` < "myservice1"}`),
+		traceql.MustExtractFetchSpansRequest(`{resource.` + LabelServiceName + ` <= "myservice1"}`),
 		// Span well-known attributes
 		traceql.MustExtractFetchSpansRequest(`{.` + LabelHTTPStatusCode + ` = 500}`),
 		traceql.MustExtractFetchSpansRequest(`{.` + LabelHTTPMethod + ` = "get"}`),
