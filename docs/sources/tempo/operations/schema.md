@@ -2,6 +2,8 @@
 title: Parquet schema
 menuTitle: Parquet schema
 weight: 75
+aliases:
+- /docs/tempo/parquet/schema
 ---
 
 # Apache Parquet schema

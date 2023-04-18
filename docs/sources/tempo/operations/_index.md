@@ -1,11 +1,12 @@
 ---
-title: Deployment and operations
+title: Manage
+menuTitle: Manage
 weight: 600
 ---
 
-# Deployment and operations
+# Manage Tempo
 
-Resources for deploying and running Tempo:
+This section provides resources for managing and tuning Tempo.
 
 {{< section >}}
 
