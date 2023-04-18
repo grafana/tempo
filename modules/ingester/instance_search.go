@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -347,33 +348,43 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	engine := traceql.NewEngine()
 
-	search := func(s common.Searcher) error {
-		return engine.ExecuteTagValues(ctx, req, cb, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-			return s.Fetch(ctx, req, common.DefaultSearchOptions())
-		}))
+	wg := boundedwaitgroup.New(20) // TODO: Make configurable
+	searchBlock := func(s common.Searcher) (err error) {
+		wg.Add(1)
+		defer wg.Done()
+
+		go func() {
+			err = engine.ExecuteTagValues(ctx, req, cb, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return s.Fetch(ctx, req, common.DefaultSearchOptions())
+			}))
+		}()
+
+		return err
 	}
 
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
 	// head block
-	if err = search(i.headBlock); err != nil {
+	if err = searchBlock(i.headBlock); err != nil {
 		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
 	}
 
 	// completing blocks
 	for _, b := range i.completingBlocks {
-		if err = search(b); err != nil {
+		if err = searchBlock(b); err != nil {
 			return nil, fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err)
 		}
 	}
 
 	// completed blocks
 	for _, b := range i.completeBlocks {
-		if err = search(b); err != nil {
+		if err = searchBlock(b); err != nil {
 			return nil, fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err)
 		}
 	}
+
+	wg.Wait()
 
 	if distinctValues.Exceeded() {
 		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
