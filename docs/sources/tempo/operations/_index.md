@@ -1,5 +1,6 @@
 ---
-title: Manage Tempo
+title: Manage
+menuTitle: Manage
 weight: 600
 ---
 
