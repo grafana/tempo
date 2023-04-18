@@ -449,7 +449,7 @@ func TestExecuteTagValues(t *testing.T) {
 	cb := func(v Static) bool { return distinctValues.Collect(tempopb.TagValue{Type: "String", Value: v.S}) }
 	assert.NoError(t, e.ExecuteTagValues(context.Background(), req, cb, &spanSetFetcher))
 
-	assert.Equal(t, []tempopb.TagValue{{"String", "my-service"}}, distinctValues.Values())
+	assert.Equal(t, []tempopb.TagValue{{Type: "String", Value: "my-service"}}, distinctValues.Values())
 }
 
 func TestExtractMatchers(t *testing.T) {
