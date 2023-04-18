@@ -15,6 +15,8 @@
 package telemetry // import "go.opentelemetry.io/collector/service/telemetry"
 
 import (
+	"fmt"
+
 	"go.uber.org/zap/zapcore"
 
 	"go.opentelemetry.io/collector/config/configtelemetry"
@@ -24,6 +26,7 @@ import (
 type Config struct {
 	Logs    LogsConfig    `mapstructure:"logs"`
 	Metrics MetricsConfig `mapstructure:"metrics"`
+	Traces  TracesConfig  `mapstructure:"traces"`
 
 	// Resource specifies user-defined attributes to include with all emitted telemetry.
 	// Note that some attributes are added automatically (e.g. service.version) even
@@ -60,6 +63,9 @@ type LogsConfig struct {
 	// (default = false)
 	DisableStacktrace bool `mapstructure:"disable_stacktrace"`
 
+	// Sampling sets a sampling policy. A nil SamplingConfig disables sampling.
+	Sampling *LogsSamplingConfig `mapstructure:"sampling"`
+
 	// OutputPaths is a list of URLs or file paths to write logging output to.
 	// The URLs could only be with "file" schema or without schema.
 	// The URLs with "file" schema must be an absolute path.
@@ -87,7 +93,15 @@ type LogsConfig struct {
 	//	   		foo: "bar"
 	//
 	// By default, there is no initial field.
-	InitialFields map[string]interface{} `mapstructure:"initial_fields"`
+	InitialFields map[string]any `mapstructure:"initial_fields"`
+}
+
+// LogsSamplingConfig sets a sampling strategy for the logger. Sampling caps the
+// global CPU and I/O load that logging puts on your process while attempting
+// to preserve a representative subset of your logs.
+type LogsSamplingConfig struct {
+	Initial    int `mapstructure:"initial"`
+	Thereafter int `mapstructure:"thereafter"`
 }
 
 // MetricsConfig exposes the common Telemetry configuration for one component.
@@ -102,4 +116,24 @@ type MetricsConfig struct {
 
 	// Address is the [address]:port that metrics exposition should be bound to.
 	Address string `mapstructure:"address"`
+}
+
+// TracesConfig exposes the common Telemetry configuration for collector's internal spans.
+// Experimental: *NOTE* this structure is subject to change or removal in the future.
+type TracesConfig struct {
+	// Propagators is a list of TextMapPropagators from the supported propagators list. Currently,
+	// tracecontext and  b3 are supported. By default, the value is set to empty list and
+	// context propagation is disabled.
+	Propagators []string `mapstructure:"propagators"`
+}
+
+// Validate checks whether the current configuration is valid
+func (c *Config) Validate() error {
+
+	// Check when service telemetry metric level is not none, the metrics address should not be empty
+	if c.Metrics.Level != configtelemetry.LevelNone && c.Metrics.Address == "" {
+		return fmt.Errorf("collector telemetry metric address should exist when metric level is not none")
+	}
+
+	return nil
 }

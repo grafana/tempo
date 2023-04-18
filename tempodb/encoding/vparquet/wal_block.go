@@ -13,9 +13,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
-	"github.com/segmentio/parquet-go"
-
 	"github.com/grafana/dskit/multierror"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
@@ -25,6 +22,8 @@ import (
 	"github.com/grafana/tempo/pkg/warnings"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/pkg/errors"
+	"github.com/segmentio/parquet-go"
 )
 
 var _ common.WALBlock = (*walBlock)(nil)
@@ -219,16 +218,17 @@ func (w *walBlockFlush) file() (*pageFile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error getting file info: %w", err)
 	}
-	sz := info.Size()
-	pf, err := parquet.OpenFile(file, sz, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true), parquet.FileSchema(walSchema))
+	size := info.Size()
+
+	wr := newWalReaderAt(file)
+	pf, err := parquet.OpenFile(wr, size, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true), parquet.FileSchema(walSchema))
 	if err != nil {
 		return nil, fmt.Errorf("error opening parquet file: %w", err)
 	}
 
-	f := &pageFile{parquetFile: pf, osFile: file}
+	f := &pageFile{parquetFile: pf, osFile: file, r: wr}
 
 	return f, nil
-
 }
 
 func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
@@ -246,6 +246,7 @@ func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
 
 type pageFile struct {
 	parquetFile *parquet.File
+	r           *walReaderAt
 	osFile      *os.File
 }
 
@@ -540,10 +541,10 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 		},
 	}
 
-	for i, page := range b.readFlushes() {
-		file, err := page.file()
+	for i, blockFlush := range b.readFlushes() {
+		file, err := blockFlush.file()
 		if err != nil {
-			return nil, fmt.Errorf("error opening file %s: %w", page.path, err)
+			return nil, fmt.Errorf("error opening file %s: %w", blockFlush.path, err)
 		}
 
 		defer file.Close()
@@ -555,7 +556,7 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 		}
 
 		results.Traces = append(results.Traces, r.Traces...)
-		results.Metrics.InspectedBytes += uint64(pf.Size())
+		results.Metrics.InspectedBytes += file.r.BytesRead()
 		results.Metrics.InspectedTraces += uint32(pf.NumRows())
 		if len(results.Traces) >= int(req.Limit) {
 			break
@@ -566,10 +567,10 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 }
 
 func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
-	for i, page := range b.readFlushes() {
-		file, err := page.file()
+	for i, blockFlush := range b.readFlushes() {
+		file, err := blockFlush.file()
 		if err != nil {
-			return fmt.Errorf("error opening file %s: %w", page.path, err)
+			return fmt.Errorf("error opening file %s: %w", blockFlush.path, err)
 		}
 
 		defer file.Close()
@@ -600,10 +601,10 @@ func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.Ta
 }
 
 func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, _ common.SearchOptions) error {
-	for i, page := range b.readFlushes() {
-		file, err := page.file()
+	for i, blockFlush := range b.readFlushes() {
+		file, err := blockFlush.file()
 		if err != nil {
-			return fmt.Errorf("error opening file %s: %w", page.path, err)
+			return fmt.Errorf("error opening file %s: %w", blockFlush.path, err)
 		}
 
 		defer file.Close()
@@ -625,9 +626,11 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 		return traceql.FetchSpansResponse{}, errors.Wrap(err, "conditions invalid")
 	}
 
-	pages := b.readFlushes()
-	iters := make([]traceql.SpansetIterator, 0, len(pages))
-	for _, page := range pages {
+	blockFlushes := b.readFlushes()
+	// collect page readers to compute totalBytesRead
+	readers := make([]*walReaderAt, 0, len(blockFlushes))
+	iters := make([]traceql.SpansetIterator, 0, len(blockFlushes))
+	for _, page := range blockFlushes {
 		file, err := page.file()
 		if err != nil {
 			return traceql.FetchSpansResponse{}, fmt.Errorf("error opening file %s: %w", page.path, err)
@@ -642,12 +645,21 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 
 		wrappedIterator := &pageFileClosingIterator{iter: iter, pageFile: file}
 		iters = append(iters, wrappedIterator)
+		readers = append(readers, file.r)
 	}
 
 	// combine iters?
 	return traceql.FetchSpansResponse{
 		Results: &mergeSpansetIterator{
 			iters: iters,
+		},
+		Bytes: func() uint64 {
+			// read value when callback is called
+			var totalBytesRead uint64
+			for _, r := range readers {
+				totalBytesRead += r.BytesRead()
+			}
+			return totalBytesRead
 		},
 	}, nil
 }

@@ -134,6 +134,8 @@ func TestEngine_Execute(t *testing.T) {
 	sort(response.Traces)
 
 	assert.Equal(t, expectedTraceSearchMetadata, response.Traces)
+
+	assert.Equal(t, uint64(100_00), response.Metrics.InspectedBytes)
 }
 
 func TestEngine_asTraceSearchMetadata(t *testing.T) {
@@ -274,6 +276,9 @@ func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansReques
 	m.iterator.(*MockSpanSetIterator).filter = request.Filter
 	return FetchSpansResponse{
 		Results: m.iterator,
+		Bytes: func() uint64 {
+			return 100_00 // hardcoded in tests
+		},
 	}, nil
 }
 

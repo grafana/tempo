@@ -129,7 +129,7 @@ func ocSpanToInternal(src *octrace.Span, dest ptrace.Span) {
 
 	dest.SetTraceID(traceIDToInternal(src.TraceId))
 	dest.SetSpanID(spanIDToInternal(src.SpanId))
-	dest.SetTraceState(ocTraceStateToInternal(src.Tracestate))
+	dest.TraceState().FromRaw(ocTraceStateToInternal(src.Tracestate))
 	dest.SetParentSpanID(spanIDToInternal(src.ParentSpanId))
 
 	dest.SetName(src.Name.GetValue())
@@ -150,7 +150,7 @@ func ocSpanToInternal(src *octrace.Span, dest ptrace.Span) {
 func traceIDToInternal(traceID []byte) pcommon.TraceID {
 	tid := [16]byte{}
 	copy(tid[:], traceID)
-	return pcommon.NewTraceID(tid)
+	return pcommon.TraceID(tid)
 }
 
 // Transforms the byte slice span ID into a [8]byte internal pcommon.SpanID.
@@ -158,10 +158,10 @@ func traceIDToInternal(traceID []byte) pcommon.TraceID {
 func spanIDToInternal(spanID []byte) pcommon.SpanID {
 	sid := [8]byte{}
 	copy(sid[:], spanID)
-	return pcommon.NewSpanID(sid)
+	return pcommon.SpanID(sid)
 }
 
-func ocStatusToInternal(ocStatus *octrace.Status, ocAttrs *octrace.Span_Attributes, dest ptrace.SpanStatus) {
+func ocStatusToInternal(ocStatus *octrace.Status, ocAttrs *octrace.Span_Attributes, dest ptrace.Status) {
 	if ocStatus == nil {
 		return
 	}
@@ -189,7 +189,7 @@ func ocStatusToInternal(ocStatus *octrace.Status, ocAttrs *octrace.Span_Attribut
 }
 
 // Convert tracestate to W3C format. See the https://w3c.github.io/trace-context/
-func ocTraceStateToInternal(ocTracestate *octrace.Span_Tracestate) ptrace.TraceState {
+func ocTraceStateToInternal(ocTracestate *octrace.Span_Tracestate) string {
 	if ocTracestate == nil {
 		return ""
 	}
@@ -203,7 +203,7 @@ func ocTraceStateToInternal(ocTracestate *octrace.Span_Tracestate) ptrace.TraceS
 		sb.WriteString("=")
 		sb.WriteString(entry.Value)
 	}
-	return ptrace.TraceState(sb.String())
+	return sb.String()
 }
 
 func ocAttrsToDroppedAttributes(ocAttrs *octrace.Span_Attributes) uint32 {
@@ -219,20 +219,19 @@ func initAttributeMapFromOC(ocAttrs *octrace.Span_Attributes, dest pcommon.Map) 
 		return
 	}
 
-	dest.Clear()
 	dest.EnsureCapacity(len(ocAttrs.AttributeMap))
 	for key, ocAttr := range ocAttrs.AttributeMap {
 		switch attribValue := ocAttr.Value.(type) {
 		case *octrace.AttributeValue_StringValue:
-			dest.UpsertString(key, attribValue.StringValue.GetValue())
+			dest.PutStr(key, attribValue.StringValue.GetValue())
 		case *octrace.AttributeValue_IntValue:
-			dest.UpsertInt(key, attribValue.IntValue)
+			dest.PutInt(key, attribValue.IntValue)
 		case *octrace.AttributeValue_BoolValue:
-			dest.UpsertBool(key, attribValue.BoolValue)
+			dest.PutBool(key, attribValue.BoolValue)
 		case *octrace.AttributeValue_DoubleValue:
-			dest.UpsertDouble(key, attribValue.DoubleValue)
+			dest.PutDouble(key, attribValue.DoubleValue)
 		default:
-			dest.UpsertString(key, "<Unknown OpenCensus attribute value type>")
+			dest.PutStr(key, "<Unknown OpenCensus attribute value type>")
 		}
 	}
 }
@@ -342,7 +341,7 @@ func ocLinksToInternal(ocLinks *octrace.Span_Links, dest ptrace.Span) {
 		link := links.AppendEmpty()
 		link.SetTraceID(traceIDToInternal(ocLink.TraceId))
 		link.SetSpanID(spanIDToInternal(ocLink.SpanId))
-		link.SetTraceState(ocTraceStateToInternal(ocLink.Tracestate))
+		link.TraceState().FromRaw(ocTraceStateToInternal(ocLink.Tracestate))
 		initAttributeMapFromOC(ocLink.Attributes, link.Attributes())
 		link.SetDroppedAttributesCount(ocAttrsToDroppedAttributes(ocLink.Attributes))
 	}
@@ -353,15 +352,15 @@ func ocMessageEventToInternalAttrs(msgEvent *octrace.Span_TimeEvent_MessageEvent
 		return
 	}
 
-	dest.UpsertString("message.type", msgEvent.Type.String())
-	dest.UpsertInt(conventions.AttributeMessagingMessageID, int64(msgEvent.Id))
-	dest.UpsertInt(conventions.AttributeMessagingMessagePayloadSizeBytes, int64(msgEvent.UncompressedSize))
-	dest.UpsertInt(conventions.AttributeMessagingMessagePayloadCompressedSizeBytes, int64(msgEvent.CompressedSize))
+	dest.PutStr("message.type", msgEvent.Type.String())
+	dest.PutInt(conventions.AttributeMessagingMessageID, int64(msgEvent.Id))
+	dest.PutInt(conventions.AttributeMessagingMessagePayloadSizeBytes, int64(msgEvent.UncompressedSize))
+	dest.PutInt(conventions.AttributeMessagingMessagePayloadCompressedSizeBytes, int64(msgEvent.CompressedSize))
 }
 
 func ocSameProcessAsParentSpanToInternal(spaps *wrapperspb.BoolValue, dest ptrace.Span) {
 	if spaps == nil {
 		return
 	}
-	dest.Attributes().UpsertBool(occonventions.AttributeSameProcessAsParentSpan, spaps.Value)
+	dest.Attributes().PutBool(occonventions.AttributeSameProcessAsParentSpan, spaps.Value)
 }

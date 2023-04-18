@@ -11,8 +11,11 @@ The Tempo repository provides [multiple examples](https://github.com/grafana/tem
 
 Every example has a `docker-compose.yaml` manifest that includes all of the options needed to explore trace data in Grafana, including resource configuration and trace data generation. The Tempo examples running with docker-compose all include a version of Tempo and a storage configuration like Amazon S3 and GCS.
 
-This quick start guide uses the `local` example. Any data is stored locally in the `tempo-data` folder. To learn more, read the [local storage example README](https://github.com/grafana/tempo/blob/main/example/docker-compose/local).
+This quick start guide uses the `local` example running Tempo as a single binary (monolithic). Any data is stored locally in the `tempo-data` folder. To learn more, read the [local storage example README](https://github.com/grafana/tempo/blob/main/example/docker-compose/local).
 
+## Alternative: Complete MLT example
+
+If you would like to use a demo with Tempo, Mimir, Loki and Grafana, then try the [Introduction to Metrics, Logs and Traces in Grafana](https://github.com/grafana/intro-to-mlt). Intro-to-mlt provides a self-contained environment for learning about Mimir, Loki, Tempo, and Grafana. It includes detailed explanations of each component and annotated configurations for a single-instance deployment. Data from intro-to-mlt can also be pushed to Grafana Cloud.
 
 ## Before you begin
 

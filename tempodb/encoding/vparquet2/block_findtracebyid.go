@@ -75,7 +75,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
 	defer func() {
-		span.SetTag("inspectedBytes", rr.TotalBytesRead.Load())
+		span.SetTag("inspectedBytes", rr.BytesRead())
 	}()
 
 	return findTraceByID(derivedCtx, traceID, b.meta, pf)

@@ -158,9 +158,7 @@ func (gd *GroupDescription) decode(pd packetDecoder, version int16) (err error) 
 			if err := block.decode(pd, gd.Version); err != nil {
 				return err
 			}
-			if block != nil {
-				gd.Members[block.MemberId] = block
-			}
+			gd.Members[block.MemberId] = block
 		}
 	}
 
@@ -252,7 +250,7 @@ func (gmd *GroupMemberDescription) GetMemberAssignment() (*ConsumerGroupMemberAs
 		return nil, nil
 	}
 	assignment := new(ConsumerGroupMemberAssignment)
-	err := decode(gmd.MemberAssignment, assignment)
+	err := decode(gmd.MemberAssignment, assignment, nil)
 	return assignment, err
 }
 
@@ -261,6 +259,6 @@ func (gmd *GroupMemberDescription) GetMemberMetadata() (*ConsumerGroupMemberMeta
 		return nil, nil
 	}
 	metadata := new(ConsumerGroupMemberMetadata)
-	err := decode(gmd.MemberMetadata, metadata)
+	err := decode(gmd.MemberMetadata, metadata, nil)
 	return metadata, err
 }

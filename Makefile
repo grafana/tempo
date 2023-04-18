@@ -22,6 +22,15 @@ ALL_SRC := $(shell find . -name '*.go' \
 								-not -path './cmd/tempo-serverless/*' \
                                 -type f | sort)
 
+# ALL_SRC but without pkg and tempodb packages
+OTHERS_SRC := $(shell find . -name '*.go' \
+								-not -path './vendor*/*' \
+								-not -path './integration/*' \
+								-not -path './cmd/tempo-serverless/*' \
+								-not -path './pkg*/*' \
+								-not -path './tempodb*/*' \
+                                -type f | sort)
+
 # All source code and documents. Used in spell check.
 ALL_DOC := $(shell find . \( -name "*.md" -o -name "*.yaml" \) \
                                 -type f | sort)
@@ -34,7 +43,7 @@ ifeq ($(BUILD_DEBUG), 1)
 	GO_OPT+= -gcflags="all=-N -l"
 endif
 
-GOTEST_OPT?= -race -timeout 30m -count=1
+GOTEST_OPT?= -race -timeout 20m -count=1 -v
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=go test
 LINT=golangci-lint
@@ -83,9 +92,30 @@ test:
 benchmark:
 	$(GOTEST) -bench=. -run=notests $(ALL_PKGS)
 
+# Not used in CI, tests are split in pkg, tempodb, tempodb-wal and others in CI jobs
 .PHONY: test-with-cover
 test-with-cover: test-serverless
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
+
+# tests in pkg
+.PHONY: test-with-cover-pkg
+test-with-cover-pkg:
+	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './pkg*/*' -type f | sort))))
+
+# tests in tempodb (excluding tempodb/wal)
+.PHONY: test-with-cover-tempodb
+test-with-cover-tempodb:
+	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go'  -not -path './tempodb/wal*/*' -path './tempodb*/*' -type f | sort))))
+
+# tests in tempodb/wal
+.PHONY: test-with-cover-tempodb-wal
+test-with-cover-tempodb-wal:
+	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb/wal*/*' -type f | sort))))
+
+# all other tests (excluding pkg & tempodb)
+.PHONY: test-with-cover-others
+test-with-cover-others: test-serverless
+	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(OTHERS_SRC))))
 
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e

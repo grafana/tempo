@@ -314,12 +314,6 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
          },
        },
 
-       tempo_ingester_container+:: {
-         securityContext+: {
-           runAsUser: 0,
-         },
-       },
-
        local statefulSet = $.apps.v1.statefulSet,
        tempo_ingester_statefulset+:
            statefulSet.mixin.spec.withPodManagementPolicy('Parallel'),
