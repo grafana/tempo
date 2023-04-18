@@ -326,9 +326,11 @@ The URL query parameters support the following values:
   - Queries can be incomplete (eg. `{ .cluster = }`).
     Tempo will extract only the valid matchers and build a valid query.
   - Only queries with a single selector `{}` and AND `&&` operators are supported.
+    - Example supported: `{ .cluster = "us-east-1" && .service = "frontend" }`
+    - Example unsupported: `{ .cluster = "us-east-1" || .service = "frontend" } && { .cluster = "us-east-2" }`
 
 ```
-GET /api/v2/search/tag/.service.name/values?q="{.http.method='GET'}"
+GET /api/v2/search/tag/.service.name/values?q="{span.http.method='GET'}"
 ```
 
 #### Example
