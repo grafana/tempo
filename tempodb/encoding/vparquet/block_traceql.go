@@ -698,6 +698,10 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		genericConditions = append(genericConditions, cond)
 	}
 
+	for columnPath, predicates := range columnPredicates {
+		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
+	}
+
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceAttrs,
 		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool, allConditions)
 	if err != nil {
