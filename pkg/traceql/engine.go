@@ -135,20 +135,20 @@ func (e *Engine) ExecuteTagValues(
 		End:   math.MaxUint32,
 	}
 
-	attribute, err := ParseIdentifier(req.TagName)
+	wantAttr, err := ParseIdentifier(req.TagName)
 	if err != nil {
 		return err
 	}
 
 	fetchSpansRequest := e.createFetchSpansRequest(searchReq, rootExpr.Pipeline)
-	// TODO: remove other conditions for the attribute we're searching for
+	// TODO: remove other conditions for the wantAttr we're searching for
 	// for _, cond := range fetchSpansRequest.Conditions {
-	// 	if cond.Attribute == attribute {
+	// 	if cond.Attribute == wantAttr {
 	// 		return fmt.Errorf("cannot search for tag values for tag that is already used in query")
 	// 	}
 	// }
 	fetchSpansRequest.Conditions = append(fetchSpansRequest.Conditions, Condition{
-		Attribute: attribute,
+		Attribute: wantAttr,
 		Op:        OpNone,
 	})
 
@@ -171,25 +171,29 @@ func (e *Engine) ExecuteTagValues(
 			return nil, nil
 		}
 
+		collectAttributeValue := func(s Span) bool {
+			switch wantAttr.Scope {
+			case AttributeScopeResource,
+				AttributeScopeSpan: // If tag is scoped, we can check the map directly
+				if v, ok := s.Attributes()[wantAttr]; ok {
+					return cb(v)
+				}
+			case AttributeScopeNone: // If tag is unscoped, let's check all scopes manually
+				for _, scope := range []AttributeScope{AttributeScopeResource, AttributeScopeSpan} {
+					scopedAttr := Attribute{Scope: scope, Parent: wantAttr.Parent, Name: wantAttr.Name, Intrinsic: wantAttr.Intrinsic}
+					if v, ok := s.Attributes()[scopedAttr]; ok {
+						return cb(v)
+					}
+				}
+			}
+			return false
+		}
+
 	evalLoop:
 		for _, ss := range evalSS {
 			for _, s := range ss.Spans {
-				switch attribute.Scope {
-				case AttributeScopeNone: // If tag is unscoped, we need to check all tags by name
-					for attr, v := range s.Attributes() {
-						if attr.Name == attribute.Name {
-							if cb(v) {
-								break evalLoop
-							}
-						}
-					}
-				case AttributeScopeResource,
-					AttributeScopeSpan: // If tag is scoped, we can check the map directly
-					if v, ok := s.Attributes()[attribute]; ok {
-						if cb(v) {
-							break evalLoop
-						}
-					}
+				if collectAttributeValue(s) {
+					break evalLoop // Exit early if we have enough data
 				}
 			}
 		}
