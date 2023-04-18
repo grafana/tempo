@@ -165,21 +165,23 @@ func (e *Engine) ExecuteTagValues(
 			return nil, nil
 		}
 
+	evalLoop:
 		for _, ss := range evalSS {
 			for _, s := range ss.Spans {
 				switch attribute.Scope {
 				case AttributeScopeNone: // If tag is unscoped, we need to check all tags by name
 					for attr, v := range s.Attributes() {
 						if attr.Name == attribute.Name {
-							// TODO: Should we just quit if cb returns true?
-							cb(v) // Can't exit early because resource and span scoped tags may have the same name
+							if cb(v) {
+								break evalLoop
+							}
 						}
 					}
 				case AttributeScopeResource,
 					AttributeScopeSpan: // If tag is scoped, we can check the map directly
 					if v, ok := s.Attributes()[attribute]; ok {
 						if cb(v) {
-							break
+							break evalLoop
 						}
 					}
 				}

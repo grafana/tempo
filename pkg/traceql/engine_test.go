@@ -387,6 +387,66 @@ func TestExamplesInEngine(t *testing.T) {
 	}
 }
 
+func TestExecuteTagValues(t *testing.T) {
+	now := time.Now()
+	e := Engine{}
+
+	req := &tempopb.SearchTagValuesRequest{
+		TagName: "resource.service.name",
+		Query:   "{}",
+	}
+
+	spanSetFetcher := MockSpanSetFetcher{
+		iterator: &MockSpanSetIterator{
+			results: []*Spanset{
+				{
+					TraceID:         []byte{1},
+					RootSpanName:    "HTTP GET",
+					RootServiceName: "my-service",
+					Spans: []Span{
+						&mockSpan{
+							id: []byte{1},
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"): NewStaticString("value"),
+								NewScopedAttribute(AttributeScopeResource, false, "service.name"): NewStaticString("my-service"),
+							},
+						},
+						&mockSpan{
+							id:                 []byte{2},
+							startTimeUnixNanos: uint64(now.UnixNano()),
+							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"): NewStaticString("value"),
+								NewAttribute("bar"): NewStaticString("value"),
+								NewScopedAttribute(AttributeScopeResource, false, "service.name"): NewStaticString("my-service"),
+							},
+						},
+					},
+				},
+				{
+					TraceID:         []byte{2},
+					RootSpanName:    "HTTP POST",
+					RootServiceName: "my-service",
+					Spans: []Span{
+						&mockSpan{
+							id: []byte{3},
+							attributes: map[Attribute]Static{
+								NewAttribute("bar"): NewStaticString("value"),
+								NewScopedAttribute(AttributeScopeResource, false, "service.name"): NewStaticString("my-service"),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](100, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	cb := func(v Static) bool { return distinctValues.Collect(tempopb.TagValue{Type: "String", Value: v.S}) }
+	assert.NoError(t, e.ExecuteTagValues(context.Background(), req, cb, &spanSetFetcher))
+
+	assert.Equal(t, []tempopb.TagValue{{"String", "my-service"}}, distinctValues.Values())
+}
+
 func TestExtractMatchers(t *testing.T) {
 	testCases := []struct {
 		name, query, expected string
