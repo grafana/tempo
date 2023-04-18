@@ -160,7 +160,10 @@ func (c *Compactor) starting(ctx context.Context) (err error) {
 func (c *Compactor) running(ctx context.Context) error {
 	if !c.cfg.Disabled {
 		level.Info(log.Logger).Log("msg", "enabling compaction")
-		c.store.EnableCompaction(ctx, &c.cfg.Compactor, c, c)
+		err := c.store.EnableCompaction(ctx, &c.cfg.Compactor, c, c)
+		if err != nil {
+			return fmt.Errorf("failed to enable compaction: %w", err)
+		}
 	}
 
 	if c.subservices != nil {
