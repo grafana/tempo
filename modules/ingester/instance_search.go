@@ -17,6 +17,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/weaveworks/common/user"
+	"go.uber.org/atomic"
 )
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
@@ -348,43 +349,61 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	engine := traceql.NewEngine()
 
-	wg := boundedwaitgroup.New(20) // TODO: Make configurable
-	searchBlock := func(s common.Searcher) (err error) {
-		wg.Add(1)
-		defer wg.Done()
-
-		go func() {
-			err = engine.ExecuteTagValues(ctx, req, cb, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-				return s.Fetch(ctx, req, common.DefaultSearchOptions())
-			}))
-		}()
-
-		return err
-	}
-
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
+	wg := boundedwaitgroup.New(20) // TODO: Make configurable
+	anyErr := atomic.Error{}
+
+	searchBlock := func(s common.Searcher) error {
+		if anyErr.Load() != nil {
+			return nil // Early exit if any error has occurred
+		}
+
+		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return s.Fetch(ctx, req, common.DefaultSearchOptions())
+		})
+		return engine.ExecuteTagValues(ctx, req, cb, fetcher)
+	}
+
 	// head block
-	if err = searchBlock(i.headBlock); err != nil {
-		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
+	if i.headBlock != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := searchBlock(i.headBlock); err != nil {
+				anyErr.Store(fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err))
+			}
+		}()
 	}
 
 	// completing blocks
 	for _, b := range i.completingBlocks {
-		if err = searchBlock(b); err != nil {
-			return nil, fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err)
-		}
+		wg.Add(1)
+		go func(b common.WALBlock) {
+			defer wg.Done()
+			if err := searchBlock(b); err != nil {
+				anyErr.Store(fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err))
+			}
+		}(b)
 	}
 
 	// completed blocks
 	for _, b := range i.completeBlocks {
-		if err = searchBlock(b); err != nil {
-			return nil, fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err)
-		}
+		wg.Add(1)
+		go func(b *localBlock) {
+			defer wg.Done()
+			if err := searchBlock(b); err != nil {
+				anyErr.Store(fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err))
+			}
+		}(b)
 	}
 
 	wg.Wait()
+
+	if err := anyErr.Load(); err != nil {
+		return nil, err
+	}
 
 	if distinctValues.Exceeded() {
 		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
