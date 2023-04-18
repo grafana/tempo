@@ -477,7 +477,7 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, d int) (done bool, err error)
 
 			// Skip based on row number?
 			newRN := c.curr
-			newRN.Skip(pg.NumRows())
+			newRN.Skip(pg.NumRows() + 1)
 			if CompareRowNumbers(d, seekTo, newRN) >= 0 {
 				c.curr.Skip(pg.NumRows())
 				pq.Release(pg)
