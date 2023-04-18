@@ -317,7 +317,6 @@ func ParseSearchTagValuesRequest(r *http.Request) (*tempopb.SearchTagValuesReque
 		return nil, errors.New("please provide a tag")
 	}
 
-	// TODO: Support non-traceql tags
 	if _, err := traceql.ParseIdentifier(tag); err != nil {
 		return nil, fmt.Errorf("please provide a valid tag: %w", err)
 	}

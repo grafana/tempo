@@ -501,6 +501,11 @@ func TestExtractMatchers(t *testing.T) {
 			query:    `{ (.foo = "bar" || .baz = "qux") && duration > 1s }`,
 			expected: "{}",
 		},
+		{
+			name:     "query with multiple selectors and pipelines",
+			query:    `{ .foo = "bar" && .baz = "qux" } && { duration > 1s } || { .foo = "bar" && .baz = "qux" } | count() > 4`,
+			expected: "{}",
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

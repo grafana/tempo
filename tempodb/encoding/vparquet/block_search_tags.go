@@ -181,11 +181,11 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 		return false
 	}
 
-	return b.SearchTagValuesV2(ctx, att, cb2, opts)
+	return b.searchTagValuesV2(ctx, att, cb2, opts)
 }
 
-func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTagValuesV2",
+func (b *backendBlock) searchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
+	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.searchTagValuesV2",
 		opentracing.Tags{
 			"blockID":   b.meta.BlockID,
 			"tenantID":  b.meta.TenantID,
