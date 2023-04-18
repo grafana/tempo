@@ -112,6 +112,26 @@ func (t *RowNumber) Skip(numRows int64) {
 	}
 }
 
+// Preceeding returns the largest representable row number that is immediately prior to this
+// one. Think of it like math.NextAfter but for segmented row numbers. Examples:
+//
+//		RowNumber 1000.0.0 (defined at 3 levels) is preceeded by 999.max.max
+//	    RowNumber 1000.-1.-1 (defined at 1 level) is preceeded by 999.-1.-1
+func (t RowNumber) Preceeding() RowNumber {
+	for i := len(t) - 1; i >= 0; i-- {
+		switch t[i] {
+		case -1:
+			continue
+		case 0:
+			t[i] = math.MaxInt64
+		default:
+			t[i]--
+			return t
+		}
+	}
+	return t
+}
+
 // IteratorResult is a row of data with a row number and named columns of data.
 // Internally it has an unstructured list for efficient collection. The ToMap()
 // function can be used to make inspection easier.
@@ -360,13 +380,15 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 		return nil, nil
 	}
 
+	// The row group and page have been aligned to where this value is possibly
+	// located. Now scan through and look for it.
 	for {
 		rn, v, err := c.next()
 		if err != nil {
 			return nil, err
 		}
 		if !rn.Valid() {
-			return nil, err
+			return nil, nil
 		}
 
 		if CompareRowNumbers(definitionLevel, rn, to) >= 0 {
@@ -453,6 +475,16 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, d int) (done bool, err error)
 				return true, err
 			}
 
+			// Skip based on row number?
+			newRN := c.curr
+			newRN.Skip(pg.NumRows())
+			if CompareRowNumbers(d, seekTo, newRN) >= 0 {
+				c.curr.Skip(pg.NumRows())
+				pq.Release(pg)
+				continue
+			}
+
+			// Skip based on filter?
 			if c.filter != nil && !c.filter.KeepPage(pg) {
 				c.curr.Skip(pg.NumRows())
 				pq.Release(pg)
@@ -553,10 +585,13 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 }
 
 func (c *SyncIterator) setPage(pg pq.Page) {
+
+	// Handle an outgoing page
 	if c.currPage != nil {
+		c.curr = c.currPageMax.Preceeding() // Reposition current row number to end of this page.
 		pq.Release(c.currPage)
+		c.currPage = nil
 	}
-	c.currPage = pg
 
 	// Reset value buffers
 	c.currValues = nil
@@ -570,9 +605,11 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 		c.currBuf = nil
 	}
 
+	// Handle an incoming page
 	if pg != nil {
 		rn := c.curr
 		rn.Skip(pg.NumRows() + 1) // Exclusive upper bound, points at the first rownumber in the next page
+		c.currPage = pg
 		c.currPageMax = rn
 		c.currValues = pg.Values()
 	}

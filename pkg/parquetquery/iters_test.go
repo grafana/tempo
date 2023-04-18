@@ -2,6 +2,7 @@ package parquetquery
 
 import (
 	"context"
+	"math"
 	"os"
 	"testing"
 
@@ -60,7 +61,20 @@ func TestCompareRowNumbers(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		require.Equal(t, tc.expected, CompareRowNumbers(5, tc.a, tc.b))
+		require.Equal(t, tc.expected, CompareRowNumbers(MaxDefinitionLevel, tc.a, tc.b))
+	}
+}
+
+func TestRowNumberPreceeding(t *testing.T) {
+	testCases := []struct {
+		start, preceeding RowNumber
+	}{
+		{RowNumber{1000, -1, -1, -1, -1, -1}, RowNumber{999, -1, -1, -1, -1, -1}},
+		{RowNumber{1000, 0, 0, 0, 0, 0}, RowNumber{999, math.MaxInt64, math.MaxInt64, math.MaxInt64, math.MaxInt64, math.MaxInt64}},
+	}
+
+	for _, tc := range testCases {
+		require.Equal(t, tc.preceeding, tc.start.Preceeding())
 	}
 }
 
