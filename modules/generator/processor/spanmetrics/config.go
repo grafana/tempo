@@ -27,6 +27,9 @@ type Config struct {
 	// Additional dimensions (labels) to be added to the metric. The dimensions are generated
 	// from span attributes and are created along with the intrinsic dimensions.
 	Dimensions []string `yaml:"dimensions"`
+
+	// If enabled attribute value will be used for metric calculation
+	SpanMultiplierKey string `yaml:"span_multiplier_key"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {

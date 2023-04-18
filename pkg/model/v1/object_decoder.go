@@ -40,15 +40,6 @@ func (d *ObjectDecoder) PrepareForRead(obj []byte) (*tempopb.Trace, error) {
 	return trace, err
 }
 
-func (d *ObjectDecoder) Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error) {
-	t, err := d.PrepareForRead(obj)
-	if err != nil {
-		return nil, err
-	}
-
-	return trace.MatchesProto(id, t, req)
-}
-
 func (d *ObjectDecoder) Combine(objs ...[]byte) ([]byte, error) {
 	c := trace.NewCombiner()
 	for i, obj := range objs {

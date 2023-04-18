@@ -72,7 +72,8 @@ var cli struct {
 	} `cmd:""`
 
 	Parquet struct {
-		Convert convertParquet `cmd:"" help:"convert from an existing file to tempodb parquet schema"`
+		Convert     convertParquet     `cmd:"" help:"convert from an existing file to tempodb parquet schema"`
+		Convert1to2 convertParquet1to2 `cmd:"" help:"convert an exiting vParquet file to vParquet2 schema"`
 	} `cmd:""`
 
 	Migrate struct {

@@ -23,8 +23,6 @@ type ObjectDecoder interface {
 	//  and should only be used when surfacing a byte slice from tempodb and preparing it for reads.
 	PrepareForRead(obj []byte) (*tempopb.Trace, error)
 
-	// Matches tests the passed byte slice and id to determine if it matches the criteria in tempopb.SearchRequest
-	Matches(id []byte, obj []byte, req *tempopb.SearchRequest) (*tempopb.TraceSearchMetadata, error)
 	// Combine combines the passed byte slice
 	Combine(objs ...[]byte) ([]byte, error)
 	// FastRange returns the start and end unix epoch timestamp of the trace. If its not possible to efficiently get these

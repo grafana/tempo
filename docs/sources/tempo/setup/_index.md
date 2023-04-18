@@ -1,24 +1,39 @@
 ---
-title: Set up a Tempo server or cluster
-menuTitle: Set up a Tempo server or cluster
-description: Learn how to set up a Tempo server or cluster and visualize data
-weight: 150
+title: Set up
+menuTitle: Set up
+description: Learn how to set up a Tempo server or cluster and visualize data.
+aliases:
+- /docs/tempo/setup
+weight: 300
 ---
 
-# Set up a Tempo server or cluster
+# Set up Tempo
 
-Tempo is available as a pre-compiled binary, a Docker image, and as common OS-specific packaging.
+To set up Tempo, you need to:
 
-This section describes how to set up Tempo on a single Linux node or as a cluster using Kubernetes and Tanka. Tempo can also be set up as a distributed set of services.
+1. Plan your deployment
+1. Deploy Tempo
+1. Test your installation
+1. (Optional) Configure Tempo services
 
-This page highlights these steps; more detailed instructions are available on the procedures for installing Tempo.
+## Plan your deployment
+
+How you choose to deploy Tempo depends upon your tracing needs.
+Tempo has two deployment modes: monolithic or microservices.
+
+Read [Plan your deployment]({{< relref "./deployment" >}}) to determine the best method to deploy Tempo.
 
 ## Deploy Tempo
 
-Choose a method to deploy Tempo:
+Once you have decided how to deploy Tempo, you can install and set up Tempo. For additional samples, refer to the [Example setups]({{< relref "../getting-started/example-demo-app" >}}) topic.
 
-- [Deploy on Linux]({{< relref "linux">}})
-- [Deploy on Kubernetes using Tanka]({{< relref "tanka">}})
+Grafana Tempo is available as a [pre-compiled binary, OS_specific packaging](https://github.com/grafana/tempo/releases), and [Docker image](https://github.com/grafana/tempo/tree/main/example/docker-compose).
+
+The following procedures provide example Tempo deployments that you can use as a starting point:
+
+- [Deploy with Helm]({{< relref "helm-chart" >}}) (microservices and monolithic)
+- [Deploy on Linux]({{< relref "linux">}}) (monolithic)
+- [Deploy on Kubernetes using Tanka]({{< relref "tanka">}}) (microservices)
 
 You can also use Docker to deploy Tempo using [the Docker examples](https://github.com/grafana/tempo/tree/main/example/docker-compose).
 
@@ -28,3 +43,11 @@ Once Tempo is deployed, you can test Tempo by visualizing traces data:
 
 - Using a [test application for a Tempo cluster]({{< relref "set-up-test-app" >}}) for the Kubernetes with Tanka setup
 - Using a [Docker example]({{< relref "linux">}}) to test the Linux setup
+
+These visualizations test Kubernetes with Tanka and Linux procedures. They do not check optional configuration you have enabled.
+
+## (Optional) Configure Tempo services
+
+Explore Tempo's features by learning about [available features and configurations]({{< relref "../configuration" >}}).
+
+If you would to see a simplied, annotated example configuration for Tempo, the [Introduction To MLT](https://github.com/grafana/intro-to-mlt) example repository contains a [configuration](https://github.com/grafana/intro-to-mlt/blob/main/tempo/tempo.yaml) for a monolithic instance.

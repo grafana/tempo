@@ -43,7 +43,7 @@ func TestEngine_Execute(t *testing.T) {
 						&mockSpan{
 							id:                 []byte{2},
 							startTimeUnixNanos: uint64(now.UnixNano()),
-							endTimeUnixNanos:   uint64(now.Add(100 * time.Millisecond).UnixNano()),
+							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
 							attributes: map[Attribute]Static{
 								NewAttribute("foo"): NewStaticString("value"),
 								NewAttribute("bar"): NewStaticString("value"),
@@ -134,6 +134,8 @@ func TestEngine_Execute(t *testing.T) {
 	sort(response.Traces)
 
 	assert.Equal(t, expectedTraceSearchMetadata, response.Traces)
+
+	assert.Equal(t, uint64(100_00), response.Metrics.InspectedBytes)
 }
 
 func TestEngine_asTraceSearchMetadata(t *testing.T) {
@@ -154,10 +156,11 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 			&mockSpan{
 				id:                 spanID1,
 				startTimeUnixNanos: uint64(now.UnixNano()),
-				endTimeUnixNanos:   uint64(now.Add(10 * time.Second).UnixNano()),
+				durationNanos:      uint64((10 * time.Second).Nanoseconds()),
 				attributes: map[Attribute]Static{
 					NewIntrinsic(IntrinsicName):     NewStaticString("HTTP GET"),
 					NewIntrinsic(IntrinsicStatus):   NewStaticStatus(StatusOk),
+					NewIntrinsic(IntrinsicKind):     NewStaticKind(KindClient),
 					NewAttribute("cluster"):         NewStaticString("prod"),
 					NewAttribute("count"):           NewStaticInt(5),
 					NewAttribute("count_but_float"): NewStaticFloat(5.0),
@@ -168,7 +171,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 			&mockSpan{
 				id:                 spanID2,
 				startTimeUnixNanos: uint64(now.Add(2 * time.Second).UnixNano()),
-				endTimeUnixNanos:   uint64(now.Add(20 * time.Second).UnixNano()),
+				durationNanos:      uint64((20 * time.Second).Nanoseconds()),
 				attributes:         map[Attribute]Static{},
 			},
 		},
@@ -226,6 +229,14 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 							},
 						},
 						{
+							Key: "kind",
+							Value: &v1.AnyValue{
+								Value: &v1.AnyValue_StringValue{
+									StringValue: KindClient.String(),
+								},
+							},
+						},
+						{
 							Key: "status",
 							Value: &v1.AnyValue{
 								Value: &v1.AnyValue_StringValue{
@@ -238,7 +249,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 				{
 					SpanID:            util.SpanIDToHexString(spanID2),
 					StartTimeUnixNano: uint64(now.Add(2 * time.Second).UnixNano()),
-					DurationNanos:     18_000_000_000,
+					DurationNanos:     20_000_000_000,
 					Attributes:        nil,
 				},
 			},
@@ -265,6 +276,9 @@ func (m *MockSpanSetFetcher) Fetch(ctx context.Context, request FetchSpansReques
 	m.iterator.(*MockSpanSetIterator).filter = request.Filter
 	return FetchSpansResponse{
 		Results: m.iterator,
+		Bytes: func() uint64 {
+			return 100_00 // hardcoded in tests
+		},
 	}, nil
 }
 
@@ -292,6 +306,8 @@ func (m *MockSpanSetIterator) Next(ctx context.Context) (*Spanset, error) {
 	return r, nil
 }
 
+func (m *MockSpanSetIterator) Close() {}
+
 func newCondition(attr Attribute, op Operator, operands ...Static) Condition {
 	return Condition{
 		Attribute: attr,
@@ -317,6 +333,7 @@ func TestStatic_AsAnyValue(t *testing.T) {
 		{NewStaticBool(true), &v1.AnyValue{Value: &v1.AnyValue_BoolValue{BoolValue: true}}},
 		{NewStaticDuration(5 * time.Second), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "5s"}}},
 		{NewStaticStatus(StatusOk), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "ok"}}},
+		{NewStaticKind(KindInternal), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "internal"}}},
 		{NewStaticNil(), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "nil"}}},
 	}
 	for _, tc := range tt {

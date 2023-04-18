@@ -89,6 +89,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		traceql.MustExtractFetchSpansRequest(`{` + LabelDuration + ` <= 100s}`),
 		traceql.MustExtractFetchSpansRequest(`{` + LabelStatus + ` = error}`),
 		traceql.MustExtractFetchSpansRequest(`{` + LabelStatus + ` = 2}`),
+		traceql.MustExtractFetchSpansRequest(`{` + LabelKind + ` = client }`),
 		// Resource well-known attributes
 		traceql.MustExtractFetchSpansRequest(`{.` + LabelServiceName + ` = "spanservicename"}`), // Overridden at span
 		traceql.MustExtractFetchSpansRequest(`{.` + LabelCluster + ` = "cluster"}`),
@@ -220,6 +221,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		traceql.MustExtractFetchSpansRequest(`{` + LabelDuration + ` >  100s}`),                       // Intrinsic: duration
 		traceql.MustExtractFetchSpansRequest(`{` + LabelStatus + ` = ok}`),                            // Intrinsic: status
 		traceql.MustExtractFetchSpansRequest(`{` + LabelName + ` = "nothello"}`),                      // Intrinsic: name
+		traceql.MustExtractFetchSpansRequest(`{` + LabelKind + ` = producer }`),                       // Intrinsic: kind
 		traceql.MustExtractFetchSpansRequest(`{.` + LabelServiceName + ` = "notmyservice"}`),          // Well-known attribute: service.name not match
 		traceql.MustExtractFetchSpansRequest(`{.` + LabelHTTPStatusCode + ` = 200}`),                  // Well-known attribute: http.status_code not match
 		traceql.MustExtractFetchSpansRequest(`{.` + LabelHTTPStatusCode + ` > 600}`),                  // Well-known attribute: http.status_code not match

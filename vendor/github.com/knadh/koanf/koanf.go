@@ -218,6 +218,16 @@ func (ko *Koanf) MergeAt(in *Koanf, path string) error {
 	return ko.merge(n, new(options))
 }
 
+// Set sets the value at a specific key.
+func (ko *Koanf) Set(key string, val interface{}) error {
+	// Unflatten the config map with the given key path.
+	n := maps.Unflatten(map[string]interface{}{
+		key: val,
+	}, ko.conf.Delim)
+
+	return ko.merge(n, new(options))
+}
+
 // Marshal takes a Parser implementation and marshals the config map into bytes,
 // for example, to TOML or JSON bytes.
 func (ko *Koanf) Marshal(p Parser) ([]byte, error) {
@@ -239,7 +249,9 @@ func (ko *Koanf) UnmarshalWithConf(path string, o interface{}, c UnmarshalConf) 
 	if c.DecoderConfig == nil {
 		c.DecoderConfig = &mapstructure.DecoderConfig{
 			DecodeHook: mapstructure.ComposeDecodeHookFunc(
-				mapstructure.StringToTimeDurationHookFunc()),
+				mapstructure.StringToTimeDurationHookFunc(),
+				mapstructure.StringToSliceHookFunc(","),
+				mapstructure.TextUnmarshallerHookFunc()),
 			Metadata:         nil,
 			Result:           o,
 			WeaklyTypedInput: true,

@@ -31,6 +31,13 @@ const (
 	StatusCodeOK    = "ok"
 	StatusCodeError = "error"
 
+	KindUnspecified = "unspecified"
+	KindInternal    = "internal"
+	KindClient      = "client"
+	KindServer      = "server"
+	KindProducer    = "producer"
+	KindConsumer    = "consumer"
+
 	EnvVarSyncIteratorName  = "VPARQUET_SYNC_ITERATOR"
 	EnvVarSyncIteratorValue = "1"
 )
@@ -41,20 +48,21 @@ var StatusCodeMapping = map[string]int{
 	StatusCodeError: int(v1.Status_STATUS_CODE_ERROR),
 }
 
+var KindMapping = map[string]int{
+	KindUnspecified: int(v1.Span_SPAN_KIND_UNSPECIFIED),
+	KindInternal:    int(v1.Span_SPAN_KIND_INTERNAL),
+	KindClient:      int(v1.Span_SPAN_KIND_CLIENT),
+	KindServer:      int(v1.Span_SPAN_KIND_SERVER),
+	KindProducer:    int(v1.Span_SPAN_KIND_PRODUCER),
+	KindConsumer:    int(v1.Span_SPAN_KIND_CONSUMER),
+}
+
 // openForSearch consolidates all the logic for opening a parquet file
 func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOptions) (*parquet.File, *BackendReaderAt, error) {
 	b.openMtx.Lock()
 	defer b.openMtx.Unlock()
 
-	// if this backend block is repeatedly used for search/searchtags/findtracebyid/etc then this is a nice
-	// performance improvement. this does not happen currently for full backend search, but does happen
-	// if this is a complete block held on disk by the ingester
-	if b.pf != nil && b.readerAt != nil {
-		// Reset metrics, is there a better way to do this?
-		b.readerAt.TotalBytesRead.Store(0)
-		return b.pf, b.readerAt, nil
-	}
-
+	// TODO: ctx is also cached when we cache backendReaderAt, not ideal but leaving it as is for now
 	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta.BlockID, b.meta.TenantID)
 
 	// no searches currently require bloom filters or the page index. so just add them statically
@@ -90,11 +98,6 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	defer span.Finish()
 	pf, err := parquet.OpenFile(readerAt, int64(b.meta.Size), o...)
 
-	if err == nil {
-		b.pf = pf
-		b.readerAt = backendReaderAt
-	}
-
 	return pf, backendReaderAt, err
 }
 
@@ -111,7 +114,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
-	defer func() { span.SetTag("inspectedBytes", rr.TotalBytesRead.Load()) }()
+	defer func() { span.SetTag("inspectedBytes", rr.BytesRead()) }()
 
 	// Get list of row groups to inspect. Ideally we use predicate pushdown
 	// here to keep only row groups that can potentially satisfy the request
@@ -122,7 +125,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 		return nil, err
 	}
 	results.Metrics.InspectedBlocks++
-	results.Metrics.InspectedBytes += rr.TotalBytesRead.Load()
+	results.Metrics.InspectedBytes += rr.BytesRead()
 	results.Metrics.InspectedTraces += uint32(b.meta.TotalObjects)
 
 	return results, nil

@@ -31,7 +31,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
-	"github.com/grafana/tempo/tempodb/search"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -70,7 +69,6 @@ type Writer interface {
 	WriteBlock(ctx context.Context, block WriteableBlock) error
 	CompleteBlock(ctx context.Context, block common.WALBlock) (common.BackendBlock, error)
 	CompleteBlockWithBackend(ctx context.Context, block common.WALBlock, r backend.Reader, w backend.Writer) (common.BackendBlock, error)
-	CompleteSearchBlockWithBackend(block *search.StreamingSearchBlock, blockID uuid.UUID, tenantID string, r backend.Reader, w backend.Writer) (*search.BackendSearchBlock, error)
 	WAL() *wal.WAL
 }
 
@@ -87,7 +85,7 @@ type Reader interface {
 }
 
 type Compactor interface {
-	EnableCompaction(cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
+	EnableCompaction(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) error
 }
 
 type CompactorSharder interface {
@@ -258,15 +256,6 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 	return backendBlock, nil
 }
 
-func (rw *readerWriter) CompleteSearchBlockWithBackend(block *search.StreamingSearchBlock, blockID uuid.UUID, tenantID string, r backend.Reader, w backend.Writer) (*search.BackendSearchBlock, error) {
-	err := search.NewBackendSearchBlock(block, w, blockID, tenantID, rw.cfg.Block.SearchEncoding, rw.cfg.Block.SearchPageSizeBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return search.OpenBackendSearchBlock(blockID, tenantID, r)
-}
-
 func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
 }
@@ -387,7 +376,13 @@ func (rw *readerWriter) Shutdown() {
 }
 
 // EnableCompaction activates the compaction/retention loops
-func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) {
+func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) error {
+	// If compactor configuration is not as expected, no need to go any further
+	err := cfg.validate()
+	if err != nil {
+		return err
+	}
+
 	// Set default if needed. This is mainly for tests.
 	if cfg.RetentionConcurrency == 0 {
 		cfg.RetentionConcurrency = DefaultRetentionConcurrency
@@ -399,14 +394,16 @@ func (rw *readerWriter) EnableCompaction(cfg *CompactorConfig, c CompactorSharde
 
 	if rw.cfg.BlocklistPoll == 0 {
 		level.Info(rw.logger).Log("msg", "polling cycle unset. compaction and retention disabled")
-		return
+		return nil
 	}
 
 	if cfg != nil {
 		level.Info(rw.logger).Log("msg", "compaction and retention enabled.")
-		go rw.compactionLoop()
-		go rw.retentionLoop()
+		go rw.compactionLoop(ctx)
+		go rw.retentionLoop(ctx)
 	}
+
+	return nil
 }
 
 // EnablePolling activates the polling loop. Pass nil if this component
@@ -457,7 +454,6 @@ func (rw *readerWriter) pollingLoop() {
 
 func (rw *readerWriter) pollBlocklist() {
 	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do()
-
 	if err != nil {
 		level.Error(rw.logger).Log("msg", "failed to poll blocklist. using previously polled lists", "err", err)
 		return

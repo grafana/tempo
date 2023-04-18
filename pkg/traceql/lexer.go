@@ -11,52 +11,59 @@ import (
 )
 
 var tokens = map[string]int{
-	".":          DOT,
-	"{":          OPEN_BRACE,
-	"}":          CLOSE_BRACE,
-	"(":          OPEN_PARENS,
-	")":          CLOSE_PARENS,
-	"=":          EQ,
-	"!=":         NEQ,
-	"=~":         RE,
-	"!~":         NRE,
-	">":          GT,
-	">=":         GTE,
-	"<":          LT,
-	"<=":         LTE,
-	"+":          ADD,
-	"-":          SUB,
-	"/":          DIV,
-	"%":          MOD,
-	"*":          MUL,
-	"^":          POW,
-	"true":       TRUE,
-	"false":      FALSE,
-	"nil":        NIL,
-	"ok":         STATUS_OK,
-	"error":      STATUS_ERROR,
-	"unset":      STATUS_UNSET,
-	"&&":         AND,
-	"||":         OR,
-	"!":          NOT,
-	"|":          PIPE,
-	">>":         DESC,
-	"~":          TILDE,
-	"duration":   IDURATION,
-	"childCount": CHILDCOUNT,
-	"name":       NAME,
-	"status":     STATUS,
-	"parent":     PARENT,
-	"parent.":    PARENT_DOT,
-	"resource.":  RESOURCE_DOT,
-	"span.":      SPAN_DOT,
-	"count":      COUNT,
-	"avg":        AVG,
-	"max":        MAX,
-	"min":        MIN,
-	"sum":        SUM,
-	"by":         BY,
-	"coalesce":   COALESCE,
+	".":           DOT,
+	"{":           OPEN_BRACE,
+	"}":           CLOSE_BRACE,
+	"(":           OPEN_PARENS,
+	")":           CLOSE_PARENS,
+	"=":           EQ,
+	"!=":          NEQ,
+	"=~":          RE,
+	"!~":          NRE,
+	">":           GT,
+	">=":          GTE,
+	"<":           LT,
+	"<=":          LTE,
+	"+":           ADD,
+	"-":           SUB,
+	"/":           DIV,
+	"%":           MOD,
+	"*":           MUL,
+	"^":           POW,
+	"true":        TRUE,
+	"false":       FALSE,
+	"nil":         NIL,
+	"ok":          STATUS_OK,
+	"error":       STATUS_ERROR,
+	"unset":       STATUS_UNSET,
+	"unspecified": KIND_UNSPECIFIED,
+	"internal":    KIND_INTERNAL,
+	"server":      KIND_SERVER,
+	"client":      KIND_CLIENT,
+	"producer":    KIND_PRODUCER,
+	"consumer":    KIND_CONSUMER,
+	"&&":          AND,
+	"||":          OR,
+	"!":           NOT,
+	"|":           PIPE,
+	">>":          DESC,
+	"~":           TILDE,
+	"duration":    IDURATION,
+	"childCount":  CHILDCOUNT,
+	"name":        NAME,
+	"status":      STATUS,
+	"kind":        KIND,
+	"parent":      PARENT,
+	"parent.":     PARENT_DOT,
+	"resource.":   RESOURCE_DOT,
+	"span.":       SPAN_DOT,
+	"count":       COUNT,
+	"avg":         AVG,
+	"max":         MAX,
+	"min":         MIN,
+	"sum":         SUM,
+	"by":          BY,
+	"coalesce":    COALESCE,
 }
 
 type lexer struct {
@@ -135,8 +142,17 @@ func (l *lexer) Lex(lval *yySymType) int {
 		return INTEGER
 
 	case scanner.Float:
+		numberText := l.TokenText()
+
+		// first try to parse as duration
+		duration, ok := tryScanDuration(numberText, &l.Scanner)
+		if ok {
+			lval.staticDuration = duration
+			return DURATION
+		}
+
 		var err error
-		lval.staticFloat, err = strconv.ParseFloat(l.TokenText(), 64)
+		lval.staticFloat, err = strconv.ParseFloat(numberText, 64)
 		if err != nil {
 			l.Error(err.Error())
 			return 0

@@ -20,6 +20,7 @@ func TestStatic_Equals(t *testing.T) {
 		{NewStaticBool(true), NewStaticBool(true)},
 		{NewStaticDuration(1 * time.Second), NewStaticDuration(1000 * time.Millisecond)},
 		{NewStaticStatus(StatusOk), NewStaticStatus(StatusOk)},
+		{NewStaticKind(KindClient), NewStaticKind(KindClient)},
 		{NewStaticDuration(0), NewStaticInt(0)},
 		// Status and int comparison
 		{NewStaticStatus(StatusError), NewStaticInt(0)},
@@ -32,6 +33,7 @@ func TestStatic_Equals(t *testing.T) {
 		{NewStaticInt(1), NewStaticInt(2)},
 		{NewStaticBool(true), NewStaticInt(1)},
 		{NewStaticString("foo"), NewStaticString("bar")},
+		{NewStaticKind(KindClient), NewStaticKind(KindConsumer)},
 		{NewStaticStatus(StatusError), NewStaticStatus(StatusOk)},
 		{NewStaticStatus(StatusOk), NewStaticInt(0)},
 		{NewStaticStatus(StatusError), NewStaticFloat(0)},
@@ -234,7 +236,7 @@ var _ Span = (*mockSpan)(nil)
 type mockSpan struct {
 	id                 []byte
 	startTimeUnixNanos uint64
-	endTimeUnixNanos   uint64
+	durationNanos      uint64
 	attributes         map[Attribute]Static
 }
 
@@ -247,6 +249,6 @@ func (m *mockSpan) ID() []byte {
 func (m *mockSpan) StartTimeUnixNanos() uint64 {
 	return m.startTimeUnixNanos
 }
-func (m *mockSpan) EndtimeUnixNanos() uint64 {
-	return m.endTimeUnixNanos
+func (m *mockSpan) DurationNanos() uint64 {
+	return m.durationNanos
 }

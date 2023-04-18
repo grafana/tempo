@@ -1,13 +1,15 @@
 ---
 title: Get started
-menuTitle: Get started with Grafana Tempo
-weight: 150
+menuTitle: Get started
+weight: 200
+aliases:
+- /docs/tempo/getting-started
 ---
 
 # Get started with Grafana Tempo
 
 Distributed tracing visualizes the lifecycle of a request as it passes through a set of applications.
-For more information about traces, refer to [What are traces?]({{< relref "traces" >}}).
+For more information about traces, refer to [What are traces?]({{< relref "../traces" >}}).
 
 Grafana Tempo is an open-source, easy-to-use, and high-scale distributed tracing backend. Tempo lets you search for traces, generate metrics from spans, and link your tracing data with logs and metrics.
 
@@ -24,24 +26,7 @@ Client instrumentation (1 in the diagram) is the first building block to a funct
 Client instrumentation is the process of adding instrumentation points in the application that
 create and offload spans.
 
-Most of the popular client instrumentation frameworks
-have SDKs in the most commonly used programming languages.
-You should pick one according to your application needs.
-
-* [OpenTracing/Jaeger](https://www.jaegertracing.io/docs/latest/client-libraries/)
-* [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
-* [OpenTelemetry](https://opentelemetry.io/docs/concepts/instrumenting/)
-
-### OpenTelemetry auto-instrumentation
-
-Some languages have support for auto-instrumentation. These libraries capture telemetry
-information from a client application with minimal manual instrumentation of the codebase.
-
-* [OpenTelemetry Java auto-instrumentation](https://github.com/open-telemetry/opentelemetry-java-instrumentation)
-* [OpenTelemetry .NET auto-instrumentation](https://github.com/open-telemetry/opentelemetry-dotnet-instrumentation)
-* [OpenTelemetry Python auto-instrumentation](https://github.com/open-telemetry/opentelemetry-python-contrib)
-
-> **Note**: Check out the [instrumentation references]({{< relref "./instrumentation" >}}) to learn how to instrument your
+> **Note**: To learn more about instrumentation, read [instrumentation references]({{< relref "./instrumentation" >}}) to learn how to instrument your
 > favorite language for distributed tracing.
 
 ## Pipeline (Grafana Agent)
@@ -73,9 +58,9 @@ Getting started with Tempo is easy.
 
 First, check out the [examples]({{< relref "example-demo-app.md" >}}) for ideas on how to get started with Tempo.
 
-Next, review the [Setup documentation]({{< relref "../setup/" >}}) for step-by-step instructions for setting up a Tempo cluster and creating a test application.
+Next, review the [Setup documentation]({{< relref "../setup" >}}) for step-by-step instructions for setting up Tempo and creating a test application.
 
-For production workloads, refer to the [deployment]({{< relref "../operations/deployment" >}}) section.
+Tempo offers different deployment options, depending upon your needs. Refer to the [plan your deployment]({{< relref "../setup/deployment" >}}) section for more information
 
 > **Note:** The Grafana Agent is already set up to use Tempo. Refer to the [configuration](https://grafana.com/docs/agent/latest/configuration/traces-config/) and [example](https://github.com/grafana/agent/blob/main/example/docker-compose/agent/config/agent.yaml) for details.
 
@@ -83,8 +68,6 @@ For production workloads, refer to the [deployment]({{< relref "../operations/de
 ## Visualization (Grafana)
 
 Grafana has a built-in Tempo data source that can be used to query Tempo and visualize traces.
-For more information, refer to the [Tempo data source](https://grafana.com/docs/grafana/latest/datasources/tempo/) and the [Tempo in Grafana]({{< relref "./tempo-in-grafana/" >}}) topics.
+For more information, refer to the [Tempo data source](/docs/grafana/latest/datasources/tempo) and the [Tempo in Grafana]({{< relref "./tempo-in-grafana" >}}) topics.
 
-For details about Grafana configuration, refer to [querying configuration]({{< relref "../configuration/querying" >}}).
-
-For more information, refer to the [Tempo in Grafana]({{< relref "tempo-in-grafana" >}}) documentation.
+For more information, refer to the [Tempo in Grafana]({{< relref "./tempo-in-grafana" >}}) documentation.

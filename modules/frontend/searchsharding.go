@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -30,12 +31,23 @@ const (
 )
 
 var (
-	metricInspectedBytes = promauto.NewHistogram(prometheus.HistogramOpts{
+	queryThroughput = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "tempo",
-		Name:      "query_frontend_result_metrics_inspected_bytes",
-		Help:      "Inspected Bytes in a search query",
+		Name:      "query_frontend_bytes_processed_per_second",
+		Help:      "Bytes processed per second in the query per tenant",
 		Buckets:   prometheus.ExponentialBuckets(1024*1024, 2, 10), // from 1MB up to 1GB
-	})
+	}, []string{"tenant", "op"})
+
+	searchThroughput = queryThroughput.MustCurryWith(prometheus.Labels{"op": searchOp})
+
+	sloQueriesPerTenant = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "query_frontend_queries_within_slo_total",
+		Help:      "Total Queries within SLO per tenant",
+	}, []string{"tenant", "op"})
+
+	sloTraceByIDCounter = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
+	sloSearchCounter    = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
 )
 
 type searchSharder struct {
@@ -44,6 +56,7 @@ type searchSharder struct {
 	overrides *overrides.Overrides
 
 	cfg    SearchSharderConfig
+	sloCfg SLOConfig
 	logger log.Logger
 }
 
@@ -58,14 +71,15 @@ type SearchSharderConfig struct {
 }
 
 // newSearchSharder creates a sharding middleware for search
-func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchSharderConfig, logger log.Logger) Middleware {
+func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchSharderConfig, sloCfg SLOConfig, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
 			next:      next,
 			reader:    reader,
 			overrides: o,
-			logger:    logger,
 			cfg:       cfg,
+			sloCfg:    sloCfg,
+			logger:    logger,
 		}
 	})
 }
@@ -78,8 +92,6 @@ func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchS
 // start=<unix epoch seconds>
 // end=<unix epoch seconds>
 func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
-	// create search related query metrics here??
-	// this is the place where we agg search response.
 	searchReq, err := api.ParseSearchRequest(r)
 	if err != nil {
 		return &http.Response{
@@ -102,6 +114,7 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.ShardSearch")
 	defer span.Finish()
 
+	reqStart := time.Now()
 	// sub context to cancel in-progress sub requests
 	subCtx, subCancel := context.WithCancel(ctx)
 	defer subCancel()
@@ -216,13 +229,27 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// print out request metrics
 	cancelledReqs := startedReqs - overallResponse.finishedRequests
+	reqTime := time.Since(reqStart)
+	throughput := float64(overallResponse.resultsMetrics.InspectedBytes) / reqTime.Seconds()
+	searchThroughput.WithLabelValues(tenantID).Observe(throughput)
+
+	query, _ := url.PathUnescape(r.URL.RawQuery)
+	span.SetTag("query", query)
 	level.Info(s.logger).Log(
-		"msg", "sharded search query request stats",
-		"raw_query", r.URL.RawQuery,
-		"total", len(reqs),
-		"started", startedReqs,
-		"finished", overallResponse.finishedRequests,
-		"cancelled", cancelledReqs)
+		"msg", "sharded search query request stats and SearchMetrics",
+		"query", query,
+		"duration_seconds", reqTime,
+		"request_throughput", throughput,
+		"total_requests", len(reqs),
+		"started_requests", startedReqs,
+		"cancelled_requests", cancelledReqs,
+		"finished_requests", overallResponse.finishedRequests,
+		"inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks,
+		"skippedBlocks", overallResponse.resultsMetrics.SkippedBlocks,
+		"inspectedBytes", overallResponse.resultsMetrics.InspectedBytes,
+		"inspectedTraces", overallResponse.resultsMetrics.InspectedTraces,
+		"skippedTraces", overallResponse.resultsMetrics.SkippedTraces,
+		"totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
 
 	// all goroutines have finished, we can safely access searchResults fields directly now
 	span.SetTag("inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks)
@@ -231,19 +258,6 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	span.SetTag("inspectedTraces", overallResponse.resultsMetrics.InspectedTraces)
 	span.SetTag("skippedTraces", overallResponse.resultsMetrics.SkippedTraces)
 	span.SetTag("totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
-
-	level.Info(s.logger).Log(
-		"msg", "sharded search query SearchMetrics",
-		"raw_query", r.URL.RawQuery,
-		"inspectedBlocks", overallResponse.resultsMetrics.InspectedBlocks,
-		"skippedBlocks", overallResponse.resultsMetrics.SkippedBlocks,
-		"inspectedBytes", overallResponse.resultsMetrics.InspectedBytes,
-		"inspectedTraces", overallResponse.resultsMetrics.InspectedTraces,
-		"skippedTraces", overallResponse.resultsMetrics.SkippedTraces,
-		"totalBlockBytes", overallResponse.resultsMetrics.TotalBlockBytes)
-
-	// Collect inspectedBytes metrics
-	metricInspectedBytes.Observe(float64(overallResponse.resultsMetrics.InspectedBytes))
 
 	if overallResponse.err != nil {
 		return nil, overallResponse.err
@@ -264,6 +278,15 @@ func (s searchSharder) RoundTrip(r *http.Request) (*http.Response, error) {
 	bodyString, err := m.MarshalToString(overallResponse.result())
 	if err != nil {
 		return nil, err
+	}
+
+	// only record metric when it's enabled and within slo
+	if s.sloCfg.DurationSLO != 0 && s.sloCfg.ThroughputBytesSLO != 0 {
+		if reqTime < s.sloCfg.DurationSLO || throughput > s.sloCfg.ThroughputBytesSLO {
+			// query is within SLO if query returned 200 within DurationSLO seconds OR
+			// processed ThroughputBytesSLO bytes/s data
+			sloSearchCounter.WithLabelValues(tenantID).Inc()
+		}
 	}
 
 	return &http.Response{

@@ -166,27 +166,6 @@ func (w *WAL) newBlock(id uuid.UUID, tenantID string, dataEncoding string, block
 	return v.CreateWALBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.IngestionSlack)
 }
 
-func (w *WAL) NewFile(blockid uuid.UUID, tenantid string, dir string) (*os.File, backend.Encoding, error) {
-	// This is only used for flatbuffer search.
-	// pinned to v2 because vParquet doesn't need it.
-	walFileVersion := "v2"
-
-	p := filepath.Join(w.c.Filepath, dir)
-	err := os.MkdirAll(p, os.ModePerm)
-	if err != nil {
-		return nil, backend.EncNone, err
-	}
-
-	// blockID, tenantID, version, encoding (compression), dataEncoding
-	filename := fmt.Sprintf("%v+%v+%v+%v+%v", blockid, tenantid, walFileVersion, w.c.SearchEncoding, "")
-	file, err := os.OpenFile(filepath.Join(p, filename), os.O_CREATE|os.O_RDWR, 0644)
-	if err != nil {
-		return nil, backend.EncNone, err
-	}
-
-	return file, w.c.SearchEncoding, nil
-}
-
 func (w *WAL) GetFilepath() string {
 	return w.c.Filepath
 }

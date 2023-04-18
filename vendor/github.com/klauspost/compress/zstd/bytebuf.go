@@ -7,7 +7,6 @@ package zstd
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 )
 
 type byteBuffer interface {
@@ -55,7 +54,7 @@ func (b *byteBuf) readBig(n int, dst []byte) ([]byte, error) {
 func (b *byteBuf) readByte() (byte, error) {
 	bb := *b
 	if len(bb) < 1 {
-		return 0, nil
+		return 0, io.ErrUnexpectedEOF
 	}
 	r := bb[0]
 	*b = bb[1:]
@@ -124,7 +123,7 @@ func (r *readerWrapper) readByte() (byte, error) {
 }
 
 func (r *readerWrapper) skipN(n int64) error {
-	n2, err := io.CopyN(ioutil.Discard, r.r, n)
+	n2, err := io.CopyN(io.Discard, r.r, n)
 	if n2 != n {
 		err = io.ErrUnexpectedEOF
 	}

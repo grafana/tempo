@@ -36,6 +36,9 @@ valid:
   - '{ status = unset }'
   - '{ status = error }'
   - '{ status != error }'
+  - '{ kind = internal }'
+  - '{ kind = client }'
+  - '{ kind = consumer }'
   - '{ duration > 1s }'
   - '{ 1 < 1h }'
   - '{ 1 <= 1.1 }'
@@ -58,6 +61,17 @@ valid:
   - '{ true } || { true }'
   # scalar filters
   - 'avg(.field) > 1'
+  - 'max(duration) >= 1s'
+  - 'max(duration) > 1'            # same note as above for int, float and duration
+  - '{ true } | max(duration) = 1h'
+  - '{ true } | min(duration) = 1h'
+  - '{ true } | sum(duration) = 1h'
+  - '{ true } | max(.a) = 1'
+  - '{ true } | max(span.a) = 1'
+  - '{ true } | max(resource.a) = 1'
+  - '{ true } | max(1 + .a) = 1'
+  - '{ true } | max((1 + .a) * 2) = 1'
+  - 'max(duration) > 3s | { status = error || .http.status = 500 }'
   # pipelines
   - '{ true } | { .a }'
   - '{ true } | count() = 1'
@@ -92,6 +106,15 @@ parse_fails:
   - '{ true } <= { true }'
   - '{ true } >= { true }'
   - '{ true } < { true }'
+  # scalar expressions must evaluate to a number
+  - 'max(name) = "foo"'
+  - 'avg("foo") = "bar"'
+  - 'max(status) = ok'
+  - 'max(kind) = consumer'
+  - 'max(duration) < ok'
+  - 'min(1) = "foo"'
+  - 'min(parent) = nil'
+  - 'avg(childCount) > "foo"'
   # scalar filters
   - 'avg(.field) + 1'             # scalar filters must resolve to boolean
   - 'sum(3) - 2'
@@ -119,6 +142,7 @@ parse_fails:
 validate_fails:
   # span expressions must evaluate to a boolean
   - '{ status }'
+  - '{ kind }'
   - '{ ok }'
   - '{ 1.1 }'
   - '{ 1h }'
@@ -138,6 +162,7 @@ validate_fails:
   - '{ 1 || ok }'
   - '{ true || 1.1 }'
   - '{ status > ok }'
+  - '{ kind < consumer }'
   # unary operators - incorrect types
   - '{ -true }'
   - '{ -"foo" = "bar" }'
@@ -145,14 +170,12 @@ validate_fails:
   - '{ -name = "foo" }'
   - '{ !"foo" = "bar" }'
   - '{ !ok = status }'
+  - '{ !consumer = kind }'
   - '{ !name = "foo" }'
   - '{ !1 = 1 }'
   - '{ !1h = 1 }'
   - '{ !1.1 = 1.1 }'
   # scalar expressions must evaluate to a number
-  - 'max(name) = "foo"'
-  - 'avg("foo") = "bar"'
-  - 'max(status) = ok'
   - 'min(1 = 3) = 1'
   # scalar expressions must reference the span
   - 'sum(3) = 2'
@@ -162,8 +185,6 @@ validate_fails:
   - 'min(1) = max(2) + 3'
   - 'min(1.1 - 3) > 1'
   - 'max(1h + 2h) > 1'
-  # scalar filters have to match types
-  - 'min(1) = "foo"'
 
 # unsupported parse correctly and return an unsupported error when calling .validate()
 unsupported:
@@ -179,30 +200,18 @@ unsupported:
   # by - will *not* be valid when supported - group expressions must reference the span
   - '{ true } | by(1)'
   - '{ true } | by("foo")'
-  # aggregates - will be valid when supported
-  - 'min(childCount) < 2'
-  - 'max(duration) >= 1s'
+  # complex scalar filters - will be valid when supported
   - 'min(.field) < max(duration)'
   - 'sum(.field) = min(.field)'
-  - 'max(duration) > 1'            # same note as above for int, float and duration
   - 'min(.field) + max(.field) > 1'
   - 'min(.field) + max(childCount) > max(duration) - min(.field)'
   - 'min(childCount) < 2 / 6'
   - 'max(1 - (2 + .field)) < avg(3 * duration ^ 2)'
-  - '{ true } | max(duration) = 1h'
-  - '{ true } | min(duration) = 1h'
-  - '{ true } | sum(duration) = 1h'
-  - '{ true } | max(.a) = 1'
+  # aggregates - will be valid when supported
+  - 'min(childCount) < 2'
   - '{ true } | max(parent.a) = 1'
-  - '{ true } | max(span.a) = 1'
-  - '{ true } | max(resource.a) = 1'
-  - '{ true } | max(1 + .a) = 1'
-  - '{ true } | max((1 + .a) * 2) = 1'
   - '{ true } | by(3 * .field - 2) | max(duration) < 1s'
-  - 'max(duration) > 3s | { status = error || .http.status = 500 }'
   - '{ .http.status = 200 } | max(.field) - min(.field) > 3'
-  # aggregates - will *not* be valid when supported - comparing number type to status type
-  - 'max(duration) < ok'
   # parent - will be valid when supported
   - '{ parent.a != 3 }'
   - '{ parent.resource.a && true }'
@@ -216,7 +225,6 @@ unsupported:
   - '{ 1 >= parent }'
   - '{ -parent = nil }'
   - '{ !parent = nil }'
-  - 'min(parent) = nil'
   # nil - will be valid when supported
   - '{ .foo = nil }'
   # binary operations - will be valid when supported
@@ -226,7 +234,6 @@ unsupported:
   - '{ 1 = childCount }'
   # childCount - will be invalid when supported
   - '{ "foo" = childCount }'
-  - 'avg(childCount) > "foo"'
   # spanset operations - will be valid when supported
   - '{ true } >> { true }'
   - '{ true } > { true }'

@@ -38,9 +38,6 @@ func TestLimitsYamlMatchJson(t *testing.T) {
 ingestion_rate_strategy: global
 ingestion_rate_limit_bytes: 100_000
 ingestion_burst_size_bytes: 100_000
-search_tags_allow_list:
-- a
-- b
 
 max_traces_per_user: 1000
 max_global_traces_per_user: 1000
@@ -61,9 +58,6 @@ max_search_duration: 5m
 	"ingestion_rate_strategy": "global",
 	"ingestion_rate_limit_bytes": 100000,
 	"ingestion_burst_size_bytes": 100000,
-	"search_tags_allow_list" : [
-	  "a", "b"
-	],
 
 	"max_traces_per_user": 1000,
 	"max_global_traces_per_user": 1000,

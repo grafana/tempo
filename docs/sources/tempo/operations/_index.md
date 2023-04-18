@@ -1,12 +1,13 @@
 ---
-title: Deployment and operations
-weight: 300
+title: Manage
+menuTitle: Manage
+weight: 600
 ---
 
-# Deployment and operations
+# Manage Tempo
 
-Resources for deploying and running Tempo:
+This section provides resources for managing and tuning Tempo.
 
 {{< section >}}
 
-In addition, the [Tempo runbook](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/runbook.md) can help with remediating operational issues.
+In addition, the [Tempo runbooks](https://github.com/grafana/tempo/blob/main/operations/tempo-mixin/runbook.md) can help with remediating operational issues.

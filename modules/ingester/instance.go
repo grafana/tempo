@@ -32,8 +32,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/search"
 )
 
 type traceTooLargeError struct {
@@ -63,8 +61,7 @@ var (
 )
 
 const (
-	traceDataType  = "trace"
-	searchDataType = "search"
+	traceDataType = "trace"
 )
 
 var (
@@ -106,11 +103,6 @@ type instance struct {
 	completingBlocks []common.WALBlock
 	completeBlocks   []*localBlock
 
-	useFlatbufferSearch  bool
-	searchHeadBlock      *searchStreamingBlockEntry
-	searchAppendBlocks   map[string]*searchStreamingBlockEntry // maps append block uuid string -> *searchStreamingBlockEntry
-	searchCompleteBlocks map[*localBlock]*searchLocalBlockEntry
-
 	lastBlockCut time.Time
 
 	instanceID         string
@@ -126,23 +118,10 @@ type instance struct {
 	hash hash.Hash32
 }
 
-type searchStreamingBlockEntry struct {
-	b   *search.StreamingSearchBlock
-	mtx sync.RWMutex
-}
-
-type searchLocalBlockEntry struct {
-	b   *search.BackendSearchBlock
-	mtx sync.RWMutex
-}
-
-func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend, useFlatbufferSearch bool) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *local.Backend) (*instance, error) {
 	i := &instance{
-		traces:               map[uint32]*liveTrace{},
-		traceSizes:           map[uint32]uint32{},
-		searchAppendBlocks:   map[string]*searchStreamingBlockEntry{},
-		searchCompleteBlocks: map[*localBlock]*searchLocalBlockEntry{},
-		useFlatbufferSearch:  useFlatbufferSearch,
+		traces:     map[uint32]*liveTrace{},
+		traceSizes: map[uint32]uint32{},
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
@@ -165,13 +144,7 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 
 func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) error {
 	for j := range req.Traces {
-		// Search data is optional.
-		var searchData []byte
-		if len(req.SearchData) > j && len(req.SearchData[j].Slice) > 0 {
-			searchData = req.SearchData[j].Slice
-		}
-
-		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice, searchData)
+		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
 		if err != nil {
 			return err
 		}
@@ -180,8 +153,8 @@ func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesR
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
-func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, searchData []byte) error {
-	i.measureReceivedBytes(traceBytes, searchData)
+func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte) error {
+	i.measureReceivedBytes(traceBytes)
 
 	if !validation.ValidTraceID(id) {
 		return status.Errorf(codes.InvalidArgument, "%s is not a valid traceid", hex.EncodeToString(id))
@@ -193,10 +166,10 @@ func (i *instance) PushBytes(ctx context.Context, id []byte, traceBytes []byte, 
 		return status.Errorf(codes.FailedPrecondition, "%s max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, i.instanceID, err)
 	}
 
-	return i.push(ctx, id, traceBytes, searchData)
+	return i.push(ctx, id, traceBytes)
 }
 
-func (i *instance) push(ctx context.Context, id, traceBytes, searchData []byte) error {
+func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
@@ -213,7 +186,7 @@ func (i *instance) push(ctx context.Context, id, traceBytes, searchData []byte) 
 
 	trace := i.getOrCreateTrace(id, tkn, maxBytes)
 
-	err := trace.Push(ctx, i.instanceID, traceBytes, searchData)
+	err := trace.Push(ctx, i.instanceID, traceBytes)
 	if err != nil {
 		if e, ok := err.(*traceTooLargeError); ok {
 			return status.Errorf(codes.FailedPrecondition, e.Error())
@@ -228,12 +201,11 @@ func (i *instance) push(ctx context.Context, id, traceBytes, searchData []byte) 
 	return nil
 }
 
-func (i *instance) measureReceivedBytes(traceBytes []byte, searchData []byte) {
+func (i *instance) measureReceivedBytes(traceBytes []byte) {
 	// measure received bytes as sum of slice lengths
 	// type byte is guaranteed to be 1 byte in size
 	// ref: https://golang.org/ref/spec#Size_and_alignment_guarantees
 	i.bytesReceivedTotal.WithLabelValues(i.instanceID, traceDataType).Add(float64(len(traceBytes)))
-	i.bytesReceivedTotal.WithLabelValues(i.instanceID, searchDataType).Add(float64(len(searchData)))
 }
 
 // CutCompleteTraces moves any complete traces out of the map to complete traces.
@@ -255,7 +227,7 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 			return err
 		}
 
-		err = i.writeTraceToHeadBlock(t.traceID, out, t.searchData, t.start, t.end)
+		err = i.writeTraceToHeadBlock(t.traceID, out, t.start, t.end)
 		if err != nil {
 			return err
 		}
@@ -333,33 +305,6 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	i.completeBlocks = append(i.completeBlocks, ingesterBlock)
 	i.blocksMtx.Unlock()
 
-	// only build flatbuffer search structures if we are configured to
-	if !i.useFlatbufferSearch {
-		return nil
-	}
-
-	// Search data (optional)
-	i.blocksMtx.RLock()
-	oldSearch := i.searchAppendBlocks[completingBlock.BlockMeta().BlockID.String()]
-	i.blocksMtx.RUnlock()
-
-	var newSearch *search.BackendSearchBlock
-	if oldSearch != nil {
-		newSearch, err = i.writer.CompleteSearchBlockWithBackend(oldSearch.b, backendBlock.BlockMeta().BlockID, backendBlock.BlockMeta().TenantID, i.localReader, i.localWriter)
-		if err != nil {
-			return err
-		}
-	}
-
-	i.blocksMtx.Lock()
-	defer i.blocksMtx.Unlock()
-
-	if newSearch != nil {
-		i.searchCompleteBlocks[ingesterBlock] = &searchLocalBlockEntry{
-			b: newSearch,
-		}
-	}
-
 	return nil
 }
 
@@ -377,17 +322,6 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 	}
 
 	if completingBlock != nil {
-		uuid := completingBlock.BlockMeta().BlockID.String()
-
-		entry := i.searchAppendBlocks[uuid]
-		if entry != nil {
-			// Take write lock to ensure no searches are reading.
-			entry.mtx.Lock()
-			defer entry.mtx.Unlock()
-			_ = entry.b.Clear()
-			delete(i.searchAppendBlocks, uuid)
-		}
-
 		return completingBlock.Clear()
 	}
 
@@ -422,13 +356,6 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 
 		if flushedTime.Add(completeBlockTimeout).Before(time.Now()) {
 			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
-
-			searchEntry := i.searchCompleteBlocks[b]
-			if searchEntry != nil {
-				searchEntry.mtx.Lock()
-				defer searchEntry.mtx.Unlock()
-				delete(i.searchCompleteBlocks, b)
-			}
 
 			err = i.local.ClearBlock(b.BlockMeta().BlockID, i.instanceID)
 			if err == nil {
@@ -497,17 +424,11 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 // AddCompletingBlock adds an AppendBlock directly to the slice of completing blocks.
 // This is used during wal replay. It is expected that calling code will add the appropriate
 // jobs to the queue to eventually flush these.
-func (i *instance) AddCompletingBlock(b common.WALBlock, s *search.StreamingSearchBlock) {
+func (i *instance) AddCompletingBlock(b common.WALBlock) {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
 	i.completingBlocks = append(i.completingBlocks, b)
-
-	// search WAL
-	if s == nil {
-		return
-	}
-	i.searchAppendBlocks[b.BlockMeta().BlockID.String()] = &searchStreamingBlockEntry{b: s}
 }
 
 // getOrCreateTrace will return a new trace object for the given request
@@ -519,8 +440,7 @@ func (i *instance) getOrCreateTrace(traceID []byte, fp uint32, maxBytes int) *li
 		return trace
 	}
 
-	maxSearchBytes := i.limiter.limits.MaxSearchBytesPerTrace(i.instanceID)
-	trace = newTrace(traceID, maxBytes, maxSearchBytes)
+	trace = newTrace(traceID, maxBytes)
 	i.traces[fp] = trace
 	i.tracesCreatedTotal.Inc()
 	i.traceCount.Inc()
@@ -543,8 +463,6 @@ func (i *instance) resetHeadBlock() error {
 	i.traceSizes = make(map[uint32]uint32, len(i.traceSizes))
 	i.tracesMtx.Unlock()
 
-	oldHeadBlock := i.headBlock
-	var err error
 	newHeadBlock, err := i.writer.WAL().NewBlock(uuid.New(), i.instanceID, model.CurrentEncoding)
 	if err != nil {
 		return err
@@ -553,24 +471,6 @@ func (i *instance) resetHeadBlock() error {
 	i.headBlock = newHeadBlock
 	i.lastBlockCut = time.Now()
 
-	// Create search data wal file if needed
-	if i.useFlatbufferSearch || i.headBlock.BlockMeta().Version == v2.VersionString {
-		f, enc, err := i.writer.WAL().NewFile(i.headBlock.BlockMeta().BlockID, i.instanceID, searchDir)
-		if err != nil {
-			return err
-		}
-
-		b, err := search.NewStreamingSearchBlockForFile(f, i.headBlock.BlockMeta().BlockID, enc)
-		if err != nil {
-			return err
-		}
-		if i.searchHeadBlock != nil {
-			i.searchAppendBlocks[oldHeadBlock.BlockMeta().BlockID.String()] = i.searchHeadBlock
-		}
-		i.searchHeadBlock = &searchStreamingBlockEntry{
-			b: b,
-		}
-	}
 	return nil
 }
 
@@ -595,23 +495,12 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*liveTrac
 	return tracesToCut
 }
 
-func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, searchData [][]byte, start, end uint32) error {
+func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, start, end uint32) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
 	err := i.headBlock.Append(id, b, start, end)
 	if err != nil {
-		return err
-	}
-
-	entry := i.searchHeadBlock
-	if entry != nil {
-		// Don't take a write lock on the block here. It is safe
-		// for the appender to write to its file while a search
-		// is reading it. This prevents stalling the write path
-		// while a search is happening. There are mutexes internally
-		// for the parts that aren't.
-		err := entry.b.Append(context.TODO(), id, searchData)
 		return err
 	}
 
@@ -674,18 +563,6 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*localBlock, er
 		rediscoveredBlocks = append(rediscoveredBlocks, ib)
 
 		level.Info(log.Logger).Log("msg", "reloaded local block", "tenantID", i.instanceID, "block", id.String(), "flushed", ib.FlushedTime())
-
-		sb, err := search.OpenBackendSearchBlock(b.BlockMeta().BlockID, b.BlockMeta().TenantID, i.localReader)
-		if err != nil {
-			if errors.Is(err, search.ErrSearchNotSupported) {
-				continue
-			}
-			return nil, err
-		}
-
-		i.blocksMtx.Lock()
-		i.searchCompleteBlocks[ib] = &searchLocalBlockEntry{b: sb}
-		i.blocksMtx.Unlock()
 	}
 
 	i.blocksMtx.Lock()

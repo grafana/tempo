@@ -35,7 +35,7 @@ receivers:
 
 ## Advanced Configuration
 
-UDP protocols (currently `thrift_binary` and `thrift_compact`) allow setting additional 
+UDP protocols (currently `thrift_binary` and `thrift_compact`) allow setting additional
 server options:
 
 - `queue_size` (default 1000) sets max not yet handled requests to server
@@ -62,45 +62,7 @@ Several helper files are leveraged to provide additional capabilities automatica
 
 ## Remote Sampling
 
-The Jaeger receiver also supports fetching sampling configuration from a remote
-collector. It works by proxying client requests for remote sampling
-configuration to the configured collector.
-
-        +------------+                   +-----------+              +---------------+
-        |            |       get         |           |    proxy     |               |
-        |   client   +---  sampling ---->+   agent   +------------->+   collector   |
-        |            |     strategy      |           |              |               |
-        +------------+                   +-----------+              +---------------+
-
-Remote sample proxying can be enabled by specifying the following lines in the
-jaeger receiver config:
-
-```yaml
-receivers:
-  jaeger:
-    protocols:
-      grpc:
-    remote_sampling:
-      endpoint: "jaeger-collector:14250"
-      tls:
-        insecure: true
-```
-
-Remote sampling can also be directly served by the collector by providing a
-sampling json file:
-
-```yaml
-receivers:
-  jaeger:
-    protocols:
-      grpc:
-    remote_sampling:
-      strategy_file: "/etc/strategy.json"
-      strategy_file_reload_interval: 10s
-```
-
-Note: the `grpc` protocol must be enabled for this to work as Jaeger serves its
-remote sampling strategies over gRPC.
+Since version [v0.61.0](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.61.0), remote sampling is no longer supported by the jaeger receiver. Since version [v0.59.0](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.59.0), the [jaegerremotesapmpling](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.61.0/extension/jaegerremotesampling/README.md) extension is available that can be used instead.
 
 [beta]:https://github.com/open-telemetry/opentelemetry-collector#beta
 [contrib]:https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol-contrib

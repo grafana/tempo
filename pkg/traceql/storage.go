@@ -53,7 +53,7 @@ type Span interface {
 
 	ID() []byte
 	StartTimeUnixNanos() uint64
-	EndtimeUnixNanos() uint64
+	DurationNanos() uint64
 }
 
 type Spanset struct {
@@ -68,13 +68,27 @@ type Spanset struct {
 	DurationNanos      uint64
 }
 
+func (s *Spanset) clone() *Spanset {
+	return &Spanset{
+		TraceID:            s.TraceID,
+		Scalar:             s.Scalar,
+		RootSpanName:       s.RootSpanName,
+		RootServiceName:    s.RootServiceName,
+		StartTimeUnixNanos: s.StartTimeUnixNanos,
+		DurationNanos:      s.DurationNanos,
+		Spans:              s.Spans, // we're not deep cloning into the spans themselves
+	}
+}
+
 type SpansetIterator interface {
 	Next(context.Context) (*Spanset, error)
+	Close()
 }
 
 type FetchSpansResponse struct {
 	Results SpansetIterator
-	Bytes   func() uint64
+	// callback to get the size of data read during Fetch
+	Bytes func() uint64
 }
 
 type SpansetFetcher interface {

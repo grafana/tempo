@@ -1,8 +1,8 @@
 ---
-title: Tempo API
+title: API
 description: Grafana Tempo exposes an API for pushing and querying traces, and operating the cluster itself.
-menuTitle: Tempo API
-weight: 500
+menuTitle: API
+weight: 800
 ---
 
 # Tempo API
@@ -11,6 +11,7 @@ Tempo exposes an API for pushing and querying traces, and operating the cluster 
 
 For the sake of clarity, API endpoints are grouped by service.
 These endpoints are exposed both when running Tempo in microservices and monolithic mode:
+
 - **microservices**: each service exposes its own endpoints
 - **monolithic**: the Tempo process exposes all API endpoints for the services running internally
 
@@ -87,7 +88,7 @@ Agent, OpenTelemetry Collector, or Jaeger Agent.
 |  Jaeger | GRPC | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 |  Zipkin | HTTP | [Link](https://zipkin.io/zipkin-api/) |
 
-For information on how to use the Zipkin endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP]({{< relref "pushing-spans-with-http/" >}}).
+For information on how to use the Zipkin endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP]({{< relref "pushing-spans-with-http" >}}).
 
 ### Query
 
@@ -134,7 +135,8 @@ but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is
 
 ### Search
 
-Tempo's Search API finds traces based on span and process attributes (tags and values).
+Tempo's Search API finds traces based on span and process attributes (tags and values). Note that search functionality is **not** available on
+[v2 blocks]({{< relref "../configuration/parquet#disable-parquet" >}}).
 
 When performing a search, Tempo does a massively parallel search over the given time range, and takes the first N results. Even identical searches will differ due to things like machine load and network latency. TraceQL follows the same behavior.
 
@@ -371,6 +373,12 @@ GET,POST /flush
 ```
 
 Triggers a flush of all in-memory traces to the WAL. Useful at the time of rollout restarts and unexpected crashes.
+
+Specify the `tenant` parameter to flush data of a single tenant only.
+
+```
+GET,POST /flush?tenant=dev
+```
 
 ### Shutdown
 

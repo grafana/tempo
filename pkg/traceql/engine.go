@@ -70,10 +70,10 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 		return nil, err
 	}
 	iterator := fetchSpansResponse.Results
+	defer iterator.Close()
 
 	res := &tempopb.SearchResponse{
-		Traces: nil,
-		// TODO capture and update metrics
+		Traces:  nil,
 		Metrics: &tempopb.SearchMetrics{},
 	}
 	for {
@@ -94,6 +94,13 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 
 	span.SetTag("spansets_evaluated", spansetsEvaluated)
 	span.SetTag("spansets_found", len(res.Traces))
+
+	// Bytes can be nil when callback is no set
+	if fetchSpansResponse.Bytes != nil {
+		// InspectedBytes is used to compute query throughput and SLO metrics
+		res.Metrics.InspectedBytes = fetchSpansResponse.Bytes()
+		span.SetTag("inspectedBytes", res.Metrics.InspectedBytes)
+	}
 
 	return res, nil
 }
@@ -138,7 +145,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 		tempopbSpan := &tempopb.Span{
 			SpanID:            util.SpanIDToHexString(span.ID()),
 			StartTimeUnixNano: span.StartTimeUnixNanos(),
-			DurationNanos:     span.EndtimeUnixNanos() - span.StartTimeUnixNanos(),
+			DurationNanos:     span.DurationNanos(),
 			Attributes:        nil,
 		}
 
@@ -215,6 +222,12 @@ func (s Static) asAnyValue() *common_v1.AnyValue {
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_StringValue{
 				StringValue: "nil",
+			},
+		}
+	case TypeKind:
+		return &common_v1.AnyValue{
+			Value: &common_v1.AnyValue_StringValue{
+				StringValue: s.Kind.String(),
 			},
 		}
 	}

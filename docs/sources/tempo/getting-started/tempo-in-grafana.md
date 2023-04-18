@@ -7,18 +7,6 @@ weight: 400
 
 Grafana has a built-in Tempo datasource that can be used to query Tempo and visualize traces.  This page describes the high-level features and their availability.  Use the latest versions for best compatibility and stability.
 
-## View trace by ID
-
-The most basic functionality is to visualize a trace using its ID.  Select the Trace ID tab and enter the ID to view it. This functionality is enabled by default and is available in all versions of Grafana.
-<p align="center"><img src="../assets/grafana-query.png" alt="View trace by ID"></p>
-
-## Log search
-
-Traces can be discovered by searching logs for entries containing trace IDs.  This is most useful when your application also logs relevant information about the trace that can also be searched, such as HTTP status code, customer ID, etc.  This feature requires Grafana 7.5 or later, with a linked Loki data source, and a [traceID derived field](https://grafana.com/docs/grafana/latest/datasources/loki/#derived-fields).
-
-<p align="center"><img src="../assets/log-search.png" alt="Log Search"></p>
-
-
 ## Use TraceQL to dig deep into trace data
 
 Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo.
@@ -29,13 +17,19 @@ You can run a TraceQL query either by issuing it to Tempo’s `q` parameter of t
 
 For details about how queries are constructed, read the [TraceQL documentation]({{< relref "../traceql" >}}).
 
-## Find traces using Tempo search
+<p align="center"><img src="../../traceql/assets/query-editor-results-span.png" alt="Query editor showing span results" /></p>
+
+## View trace by ID
+
+The most basic functionality is to visualize a trace using its ID.  Select the Trace ID tab and enter the ID to view it. This functionality is enabled by default and is available in all versions of Grafana.
+
+## Log search
+
+Traces can be discovered by searching logs for entries containing trace IDs.  This is most useful when your application also logs relevant information about the trace that can also be searched, such as HTTP status code, customer ID, etc.  This feature requires Grafana 7.5 or later, with a linked Loki data source, and a [traceID derived field](https://grafana.com/docs/grafana/latest/datasources/loki/#derived-fields).
+
+## Find traces using Tempo tags search
 
 Search for traces using common dimensions such as time range, duration, span tags, service names, and more. Use the trace view to quickly diagnose errors and high-latency events in your system.
-
-Tempo includes the ability to search recent traces held in ingesters.
-Traces can be searched for data originating from a specific service,
-duration range, span, or process-level attributes included in your application's instrumentation, such as HTTP status code and customer ID.
 
 ### Non-deterministic search
 
@@ -46,41 +40,13 @@ If you perform the same search twice, you’ll get different lists, assuming the
 
 When performing a search, Tempo does a massively parallel search over the given time range, and takes the first N results. Even identical searches will differ due to things like machine load and network latency. This approach values speed over predictability and is quite simple; enforcing that the search results are consistent would introduce additional complexity (and increase the time the user spends waiting for results). TraceQL follows the same behavior.
 
-### Search of recent traces
-
-Search of recent traces is disabled by default.
-Ingesters default to storing the last 15 minutes of traces.
-
-To enable recent traces search:
-
--  Run Tempo, enabling search in the YAML configuration.
-Refer to the [search]({{< relref "../configuration#search" >}}) configuration documentation.
--  Run Grafana 8.2 or a more recent version. Enable the `tempoSearch` [feature toggle](https://github.com/grafana/tempo/blob/main/example/docker-compose/tempo-search/grafana.ini).
-
-<p align="center"><img src="../assets/tempo-search.png" alt="Tempo Search"></p>
-
-### Search of the backend datastore
-
-Tempo includes the the ability to search the entire backend datastore.
-
-To enable search of the backend datastore:
-
--  Run Tempo, enabling search in the YAML configuration.
-Refer to the [search]({{< relref "../configuration#search" >}}) configuration documentation.
-Further configuration information is in [backend search]({{< relref "../operations/backend_search" >}}).
-The Tempo configuration is the same for searching recent traces or
-for search of the backend datastore.
-
--  Run Grafana 8.3.6 or a more recent version. Enable the `tempoBackendSearch` [feature toggle](https://github.com/grafana/tempo/blob/main/example/docker-compose/tempo-search/grafana.ini). This will cause Grafana to pass the `start` and `end` parameters necessary for the backend datastore search.
-
-
 ## Service graph view
 
 Grafana provides a built-in service graph view available in Grafana Cloud and Grafana 9.1.
 The service graph view visualizes the span metrics (traces data for rates, error rates, and durations (RED)) and service graphs.
 Once the requirements are set up, this pre-configured view is immediately available in **Explore > Service Graphs**.
 
-For more information, refer to the [service graph view]({{< relref "../metrics-generator/service-graph-view/" >}}).
+For more information, refer to the [service graph view]({{< relref "../metrics-generator/service-graph-view" >}}).
 
 <p align="center"><img src="../assets/apm-overview.png" alt="Service graph view overview"></p>
 

@@ -115,9 +115,23 @@ func (i *Ingester) ShutdownHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 // FlushHandler calls sweepAllInstances(true) which will force push all traces into the WAL and force
-// mark all head blocks as ready to flush.
-func (i *Ingester) FlushHandler(w http.ResponseWriter, _ *http.Request) {
-	i.sweepAllInstances(true)
+// mark all head blocks as ready to flush. It will either flush all instances or if an instance is specified,
+// just that one.
+func (i *Ingester) FlushHandler(w http.ResponseWriter, r *http.Request) {
+	queryParamInstance := "tenant"
+
+	if r.URL.Query().Has(queryParamInstance) {
+		instance, ok := i.getInstanceByID(r.URL.Query().Get(queryParamInstance))
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		level.Info(log.Logger).Log("msg", "flushing instance", "instance", instance.instanceID)
+		i.sweepInstance(instance, true)
+	} else {
+		i.sweepAllInstances(true)
+	}
+
 	w.WriteHeader(http.StatusNoContent)
 }
 

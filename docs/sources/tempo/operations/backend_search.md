@@ -1,16 +1,21 @@
 ---
-title: Backend search
+title: Tune search performance
+menutitle: Tune search performance
 weight: 90
 ---
 
-# Backend search
+# Tune search performance
 
-Regardless of whether or not you are using TraceQL or the original search api Tempo will search all of the blocks
-in the specified time range. Depending on your volume this may result in quite slow queries. This document contains
-some suggestions for tuning your backend to improve performance.
+Regardless of whether or not you are using TraceQL or the original search API, Tempo will search all of the blocks
+in the specified time range.
+Depending on your volume, this may result in slow queries.
+This document contains suggestions for tuning your backend to improve performance.
 
 General advice is to scale your compactors and queriers. Additional queriers can more effectively run jobs in parallel
 while additional compactors will more aggressively reduce the length of your blocklist and copies of data (if using RF=3).
+
+>**Note:** All forms of search (TraceQL and tags based) are only supported on the `vParquet` and forward blocks. [v2 blocks]({{< relref "../configuration/parquet#disable-parquet" >}})
+can only be used for trace by id lookup.
 
 ## Configuration
 
@@ -116,8 +121,8 @@ querier:
 
 See here for cloud-specific details:
 
-- [AWS Lambda]({{< relref "serverless_aws/" >}})
-- [Google Cloud Run]({{< relref "serverless_gcp/" >}})
+- [AWS Lambda]({{< relref "serverless_aws" >}})
+- [Google Cloud Run]({{< relref "serverless_gcp" >}})
 
 ## Caching
 

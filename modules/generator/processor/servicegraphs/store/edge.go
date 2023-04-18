@@ -28,6 +28,9 @@ type Edge struct {
 
 	// expiration is the time at which the Edge expires, expressed as Unix time
 	expiration int64
+
+	// Span multiplier is used for multiplying metrics
+	SpanMultiplier float64
 }
 
 func newEdge(key string, ttl time.Duration) *Edge {

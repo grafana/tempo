@@ -62,7 +62,7 @@ func New(cfg Config, store storage.Store, overrides *overrides.Overrides, reg pr
 	}
 
 	if c.isSharded() {
-		reg = prometheus.WrapRegistererWithPrefix("cortex_", reg)
+		reg = prometheus.WrapRegistererWithPrefix("tempo_", reg)
 
 		lifecyclerStore, err := kv.NewClient(
 			cfg.ShardingRing.KVStore,
@@ -123,7 +123,7 @@ func (c *Compactor) starting(ctx context.Context) (err error) {
 
 		err := services.StartManagerAndAwaitHealthy(ctx, c.subservices)
 		if err != nil {
-			return fmt.Errorf("failed to start subservices %w", err)
+			return fmt.Errorf("failed to start subservices: %w", err)
 		}
 
 		// Wait until the ring client detected this instance in the ACTIVE state.
@@ -160,7 +160,10 @@ func (c *Compactor) starting(ctx context.Context) (err error) {
 func (c *Compactor) running(ctx context.Context) error {
 	if !c.cfg.Disabled {
 		level.Info(log.Logger).Log("msg", "enabling compaction")
-		c.store.EnableCompaction(&c.cfg.Compactor, c, c)
+		err := c.store.EnableCompaction(ctx, &c.cfg.Compactor, c, c)
+		if err != nil {
+			return fmt.Errorf("failed to enable compaction: %w", err)
+		}
 	}
 
 	if c.subservices != nil {
@@ -168,7 +171,7 @@ func (c *Compactor) running(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case err := <-c.subservicesWatcher.Chan():
-			return fmt.Errorf("distributor subservices failed %w", err)
+			return fmt.Errorf("compactor subservices failed: %w", err)
 		}
 	} else {
 		<-ctx.Done()
@@ -177,7 +180,7 @@ func (c *Compactor) running(ctx context.Context) error {
 	return nil
 }
 
-// Called after distributor is asked to stop via StopAsync.
+// Called after compactor is asked to stop via StopAsync.
 func (c *Compactor) stopping(_ error) error {
 	if c.subservices != nil {
 		return services.StopManagerAndAwaitStopped(context.Background(), c.subservices)
@@ -186,7 +189,7 @@ func (c *Compactor) stopping(_ error) error {
 	return nil
 }
 
-// Owns implements CompactorSharder
+// Owns implements tempodb.CompactorSharder
 func (c *Compactor) Owns(hash string) bool {
 	if !c.isSharded() {
 		return true
@@ -242,6 +245,7 @@ func (c *Compactor) Combine(dataEncoding string, tenantID string, objs ...[]byte
 	return objs[0], wasCombined, nil
 }
 
+// RecordDiscardedSpans implements tempodb.CompactorSharder
 func (c *Compactor) RecordDiscardedSpans(count int, tenantID string, traceID string) {
 	level.Warn(log.Logger).Log("msg", "max size of trace exceeded", "tenant", tenantID, "traceId", traceID, "discarded_span_count", count)
 	overrides.RecordDiscardedSpans(count, reasonCompactorDiscardedSpans, tenantID)

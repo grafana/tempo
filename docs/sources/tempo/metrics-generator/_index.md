@@ -3,7 +3,7 @@ aliases:
 - /docs/tempo/latest/server_side_metrics/
 - /docs/tempo/latest/metrics-generator/
 title: Metrics-generator
-weight: 400
+weight: 500
 ---
 
 # Metrics-generator
@@ -35,7 +35,7 @@ This service graphs processor builds a map of services by analyzing traces, with
 Edges are spans with a parent-child relationship, that represent a jump (e.g. a request) between two services.
 The amount of request and their duration are recorded as metrics, which are used to represent the graph.
 
-To learn more about this processor, read the [documentation]({{< relref "service_graphs/" >}}).
+To learn more about this processor, read the [documentation]({{< relref "service_graphs" >}}).
 
 ### Span metrics
 
@@ -45,4 +45,13 @@ The span metrics processor will compute the total count and the duration of span
 Dimensions can be the service name, the operation, the span kind, the status code and any tag or attribute present in the span.
 The more dimensions are enabled, the higher the cardinality of the generated metrics.
 
-To learn more about this processor, read the [documentation]({{< relref "span_metrics/" >}}).
+To learn more about this processor, read the [documentation]({{< relref "span_metrics" >}}).
+
+### Remote writing metrics
+
+The metrics-generator runs a Prometheus Agent that periodically sends metrics to a `remote_write` endpoint.
+The `remote_write` endpoint is configurable and can be any [Prometheus-compatible endpoint](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write).
+To learn more about the endpoint configuration, refer to the [Metrics-generator]({{< relref "../configuration/#metrics-generator" >}}) section of the Tempo Configuration documentation.
+Writing interval can be controlled via `metrics_generator.registry.collection_interval`.
+
+When multi-tenancy is enabled, the metrics-generator forwards the `X-Scope-OrgID` header of the original request to the remote_write endpoint.

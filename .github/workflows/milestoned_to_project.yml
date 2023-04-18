@@ -7,6 +7,8 @@ on:
     
 jobs:
   build:
+    # only run in grafana/tempo.
+    if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-latest
 
     steps:

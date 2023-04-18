@@ -1,28 +1,36 @@
 ---
-title: Configuration
-weight: 200
-alias:
+title: Configure
+menuTitle: Configure
+weight: 400
+aliases:
 - /docs/tempo/latest/configuration/
 ---
 
-# Configuration
+# Configure Tempo
 
 This document explains the configuration options for Tempo as well as the details of what they impact. It includes:
 
-  - [server](#server)
-  - [distributor](#distributor)
-  - [ingester](#ingester)
-  - [metrics-generator](#metrics-generator)
-  - [query-frontend](#query-frontend)
-  - [querier](#querier)
-  - [compactor](#compactor)
-  - [storage](#storage)
-  - [memberlist](#memberlist)
-  - [overrides](#overrides)
-  - [search](#search)
-  - [usage-report](#usage-report)
+- [Configure Tempo](#configure-tempo)
+  - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
+  - [Server](#server)
+  - [Distributor](#distributor)
+  - [Ingester](#ingester)
+  - [Metrics-generator](#metrics-generator)
+  - [Query-frontend](#query-frontend)
+  - [Querier](#querier)
+  - [Compactor](#compactor)
+  - [Storage](#storage)
+    - [Local storage recommendations](#local-storage-recommendations)
+    - [Storage block configuration example](#storage-block-configuration-example)
+  - [Memberlist](#memberlist)
+  - [Overrides](#overrides)
+    - [Ingestion limits](#ingestion-limits)
+      - [Standard overrides](#standard-overrides)
+      - [Tenant-specific overrides](#tenant-specific-overrides)
+      - [Override strategies](#override-strategies)
+  - [Usage-report](#usage-report)
 
-Additionally, you may wish to review [TLS]({{< relref "tls/" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
+Additionally, you can review [TLS]({{< relref "tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
 ## Use environment variables in the configuration
 
@@ -137,7 +145,7 @@ distributor:
     # some traces. This feature works in a "best-effort" manner.
     forwarders:
 
-        # Forwarder name. Must be unique within the list of forwarders. 
+        # Forwarder name. Must be unique within the list of forwarders.
         # This name can be referenced in the overrides configuration to
         # enable forwarder for a tenant.
       - name: <string>
@@ -148,7 +156,7 @@ distributor:
 
         # otlpgrpc configuration. Will be used only if value of backend is "otlpgrpc".
         otlpgrpc:
-          
+
           # List of otlpgrpc compatible endpoints.
           endpoints: <list of string>
           tls:
@@ -179,11 +187,6 @@ distributor:
     # Disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
     #  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
     [extend_writes: <bool>]
-
-    # Optional.
-    # List of tags that will **not** be extracted from trace data for search lookups
-    # This is a global config that will apply to all tenants
-    [search_tags_deny_list: <list of string> | default = ]
 ```
 
 ## Ingester
@@ -266,6 +269,9 @@ metrics_generator:
             # resource and span attributes and are added to the metrics if present.
             [dimensions: <list of string>]
 
+            # Attribute Key to multiply span metrics
+            [span_multiplier_key: <string> | default = ""]
+
         span_metrics:
 
             # Buckets for the latency histogram in seconds.
@@ -282,15 +288,18 @@ metrics_generator:
                 [span_kind: <bool> | default = true]
                 # Whether to add the span status code.
                 [status_code: <bool> | default = true]
-                # Whether to add a status message. Important note: The span status message may 
+                # Whether to add a status message. Important note: The span status message may
                 # contain arbitrary strings and thus have a very high cardinality.
                 [status_message: <bool> | default = false]
 
             # Additional dimensions to add to the metrics along with the intrinsic dimensions.
-            # Dimensions are searched for in the resource and span attributes and are added to 
+            # Dimensions are searched for in the resource and span attributes and are added to
             # the metrics if present.
             [dimensions: <list of string>]
-          
+
+            # Attribute Key to multiply span metrics
+            [span_multiplier_key: <string> | default = ""]
+
 
     # Registry configuration
     registry:
@@ -392,6 +401,16 @@ query_frontend:
         # (default: 30m)
         [query_ingesters_until: <duration>]
 
+        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
+        # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
+        # NOTE: `duration_slo` and `throughput_bytes_slo` both must be configured for it to work
+        [duration_slo: <duration> | default = 0s ]
+
+        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
+        # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
+        [throughput_bytes_slo: <float> | default = 0 ]
+
+
     # Trace by ID lookup configuration
     trace_by_id:
         # The number of shards to split a trace by id query into.
@@ -405,6 +424,10 @@ query_frontend:
         # The maximum number of requests to execute when hedging.
         # Requires hedge_requests_at to be set. Must be greater than 0.
         [hedge_requests_up_to: <int> | default = 2 ]
+
+        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
+        # Query is within SLO if it returned 200 within duration_slo seconds.
+        [duration_slo: <duration> | default = 0s ]
 ```
 
 ## Querier
@@ -543,7 +566,7 @@ While you can use local storage, object storage is recommended for production wo
 A local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk.
 Tempo is designed for object storage more than local storage.
 
-At Grafana Labs, we have run Tempo with SSDs when using local storage. Hard drives have not been tested. 
+At Grafana Labs, we have run Tempo with SSDs when using local storage. Hard drives have not been tested.
 
 How much storage space you need can be estimated by considering the ingested bytes and retention. For example, ingested bytes per day *times* retention days = stored bytes.
 
@@ -554,10 +577,10 @@ You can not use both local and object storage in the same Tempo deployment.
 The storage block is used to configure TempoDB.
 The following example shows common options. For further platform-specific information, refer to the following:
 
-* [GCS]({{< relref "gcs/" >}})
-* [S3]({{< relref "s3/" >}})
-* [Azure]({{< relref "azure/" >}})
-* [Parquet]({{< relref "parquet/" >}})
+* [GCS]({{< relref "gcs" >}})
+* [S3]({{< relref "s3" >}})
+* [Azure]({{< relref "azure" >}})
+* [Parquet]({{< relref "parquet" >}})
 
 ```yaml
 # Storage configuration for traces
@@ -713,6 +736,13 @@ storage:
             # optional.
             # use Azure Managed Identity to access Azure storage.
             [use_managed_identity: <bool>]
+
+            # optional.
+            # Use a Federated Token to authenticate to the Azure storage account.
+            # Enable if you want to use Azure Workload Identity. Expects AZURE_CLIENT_ID,
+            # AZURE_TENANT_ID, AZURE_AUTHORITY_HOST and AZURE_FEDERATED_TOKEN_FILE envs to be present
+            # (these are set automatically when using Azure Workload Identity).
+            [use_federated_token: <bool>]
 
             # optional.
             # The Client ID for the user-assigned Azure Managed Identity used to access Azure storage.
@@ -958,7 +988,7 @@ storage:
 
         # block configuration
         block:
-            # block format version. options: v2, vParquet
+            # block format version. options: v2, vParquet, vParquet2
             [version: <string> | default = vParquet]
 
             # bloom filter false positive rate.  lower values create larger filters but fewer false positives
@@ -1127,11 +1157,6 @@ overrides:
     # This override limit is used by the ingester.
     [max_traces_per_user: <int> | default = 10000]
 
-    # Maximum size of search data for a single trace in bytes. A value of 0
-    # disables the check. From an operational perspective, the size of search
-    # data is proportional to the total size of all tags in a trace.
-    [max_search_bytes_per_trace: <int> | default = 5000]
-
     # Maximum size in bytes of a tag-values query. Tag-values query is used mainly
     # to populate the autocomplete dropdown. This limit protects the system from
     # tags with high cardinality or large values such as HTTP URLs or SQL queries.
@@ -1168,7 +1193,7 @@ overrides:
     [metrics_generator_processor_service_graphs_histogram_buckets: <list of float>]
     [metrics_generator_processor_service_graphs_dimensions: <list of string>]
     [metrics_generator_processor_span_metrics_histogram_buckets: <list of float>]
-    # Allowed keys for intrinsic dimensions are: service, span_name, span_kind, status_code, and status_message. 
+    # Allowed keys for intrinsic dimensions are: service, span_name, span_kind, status_code, and status_message.
     [metrics_generator_processor_span_metrics_intrinsic_dimensions: <map string to bool>]
     [metrics_generator_processor_span_metrics_dimensions: <list of string>]
 
@@ -1275,7 +1300,7 @@ overrides:
 
 ## Usage-report
 
-By default, Tempo will report anonymous usage data about the shape of a deployment to Grafana Labs. 
+By default, Tempo will report anonymous usage data about the shape of a deployment to Grafana Labs.
 This data is used to determine how common the deployment of certain features are, if a feature flag has been enabled,
 and which replication factor or compression levels are used.
 
@@ -1283,15 +1308,15 @@ By providing information on how people use Tempo, usage reporting helps the Temp
 
 Reporting is controlled by a configuration option.
 
-The following configuration values are used: 
+The following configuration values are used:
 
 - Receivers enabled
 - Frontend concurrency and version
 - Storage cache, backend, wal and block encodings
-- Ring replication factor, and `kvstore` 
+- Ring replication factor, and `kvstore`
 - Features toggles enabled
 
-No performance data is collected. 
+No performance data is collected.
 
 You can disable the automatic reporting of this generic information using the following
 configuration:
@@ -1299,4 +1324,12 @@ configuration:
 ```yaml
 usage_report:
   reporting_enabled: false
+```
+
+If you are using a Helm chart, you can enable or disable usage reporting by changing the `reportingEnabled` value.
+This value is available in the the [tempo-distributed](https://github.com/grafana/helm-charts/tree/main/charts/tempo-distributed) and the [tempo](https://github.com/grafana/helm-charts/tree/main/charts/tempo) Helm charts.
+
+```yaml
+# -- If true, Tempo will report anonymous usage data about the shape of a deployment to Grafana Labs
+reportingEnabled: true
 ```

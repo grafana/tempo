@@ -72,7 +72,7 @@ func TestServerless(t *testing.T) {
 					Value: "ACTIVE",
 				},
 			}
-			require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`cortex_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
+			require.NoError(t, tempoDistributor.WaitSumMetricsWithOptions(e2e.Equals(3), []string{`tempo_ring_members`}, e2e.WithLabelMatchers(matchers...), e2e.WaitMissingMetrics))
 
 			// Get port for the Jaeger gRPC receiver endpoint
 			c, err := util.NewJaegerGRPCClient(tempoDistributor.Endpoint(14250))
