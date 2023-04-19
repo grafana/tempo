@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"path"
 	"strings"
@@ -375,6 +376,11 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	if cfg.InsecureSkipVerify {
 		customTransport.TLSClientConfig.InsecureSkipVerify = true
 	}
+
+	customTransport.DialContext = (&net.Dialer{
+		Timeout:   cfg.DialTimeout,
+		KeepAlive: cfg.DialKeepAlive,
+	}).DialContext
 
 	// add instrumentation
 	transport := instrumentation.NewTransport(customTransport)

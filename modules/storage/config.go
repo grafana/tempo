@@ -81,6 +81,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.Var(&cfg.Trace.S3.SecretKey, util.PrefixConfig(prefix, "trace.s3.secret_key"), "s3 secret key.")
 	f.Var(&cfg.Trace.S3.SessionToken, util.PrefixConfig(prefix, "trace.s3.session_token"), "s3 session token.")
 	cfg.Trace.S3.HedgeRequestsUpTo = 2
+	f.DurationVar(&cfg.Trace.S3.DialTimeout, util.PrefixConfig(prefix, "trace.s3.dial_timeout"), 30*time.Second, "s3 dial timeout.")
+	f.DurationVar(&cfg.Trace.S3.DialKeepAlive, util.PrefixConfig(prefix, "trace.s3.dial_keepalive"), 30*time.Second, "s3 dial keepalive.")
 
 	cfg.Trace.GCS = &gcs.Config{}
 	f.StringVar(&cfg.Trace.GCS.BucketName, util.PrefixConfig(prefix, "trace.gcs.bucket"), "", "gcs bucket to store traces in.")
