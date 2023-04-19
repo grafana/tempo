@@ -119,8 +119,7 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 
 	activeSeries = len(c.series)
 
-	lbls := make(labels.Labels, 1+len(externalLabels)+4)
-	lb := labels.NewBuilder(lbls)
+	lb := labels.NewBuilder(nil)
 
 	// set metric name
 	lb.Set(labels.MetricName, c.metricName)

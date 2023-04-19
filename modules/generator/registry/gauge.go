@@ -132,8 +132,7 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64, external
 
 	activeSeries = len(g.series)
 
-	lbls := make(labels.Labels, 1+len(externalLabels)+4)
-	lb := labels.NewBuilder(lbls)
+	lb := labels.NewBuilder(nil)
 
 	// set metric name
 	lb.Set(labels.MetricName, g.metricName)

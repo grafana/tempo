@@ -59,6 +59,40 @@ func TestSpanMetrics(t *testing.T) {
 		"span_name":   "test",
 		"span_kind":   "SPAN_KIND_CLIENT",
 		"status_code": "STATUS_CODE_OK",
+	})
+
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 0.5)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 1)))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
+	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
+}
+
+func TestSpanMetricsTargetInfoEnabled(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.HistogramBuckets = []float64{0.5, 1}
+	cfg.EnableTargetInfo = true
+
+	p := New(cfg, testRegistry)
+	defer p.Shutdown(context.Background())
+
+	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
+	batch := test.MakeBatch(10, nil)
+
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+	fmt.Println(testRegistry)
+
+	lbls := labels.FromMap(map[string]string{
+		"service":     "test-service",
+		"span_name":   "test",
+		"span_kind":   "SPAN_KIND_CLIENT",
+		"status_code": "STATUS_CODE_OK",
 		"job":         "test-service",
 	})
 
@@ -113,7 +147,6 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 		"span_name":      "test",
 		"status_code":    "STATUS_CODE_OK",
 		"status_message": "OK",
-		"job":            "test-service",
 		"foo":            "foo-value",
 		"bar":            "bar-value",
 		"does_not_exist": "",
@@ -165,7 +198,6 @@ func TestSpanMetrics_collisions(t *testing.T) {
 		"service":     "test-service",
 		"span_name":   "test",
 		"status_code": "STATUS_CODE_OK",
-		"job":         "test-service",
 		"__span_kind": "colliding_kind",
 		"__span_name": "colliding_name",
 	})
@@ -185,6 +217,7 @@ func TestJobLabelWithNamespaceAndInstanceID(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
+	cfg.EnableTargetInfo = true
 
 	p := New(cfg, testRegistry)
 	defer p.Shutdown(context.Background())
@@ -377,6 +410,7 @@ func TestJobLabelWithNamespaceAndNoServiceName(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
+	cfg.EnableTargetInfo = true
 
 	p := New(cfg, testRegistry)
 	defer p.Shutdown(context.Background())
@@ -426,6 +460,7 @@ func TestLabelsWithDifferentBatches(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
+	cfg.EnableTargetInfo = true
 
 	p := New(cfg, testRegistry)
 	defer p.Shutdown(context.Background())
@@ -589,6 +624,7 @@ func TestTargetInfoWithJobAndInstanceOnly(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
+	cfg.EnableTargetInfo = true
 
 	p := New(cfg, testRegistry)
 	defer p.Shutdown(context.Background())
