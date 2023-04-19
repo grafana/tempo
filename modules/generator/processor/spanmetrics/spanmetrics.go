@@ -69,13 +69,13 @@ func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.C
 	for _, m := range cfg.DimensionMappings {
 		labels = append(labels, m.Name)
 	}
-	
+
 	p := &Processor{
-		Cfg:                        cfg,
-		registry:                   registry,
-		spanMetricsTargetInfo:      registry.NewGauge(targetInfo),
-		now:                        time.Now,
-		labels:                     labels,
+		Cfg:                   cfg,
+		registry:              registry,
+		spanMetricsTargetInfo: registry.NewGauge(targetInfo),
+		now:                   time.Now,
+		labels:                labels,
 	}
 
 	if cfg.Subprocessors[Latency] {
@@ -201,8 +201,6 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	if p.Cfg.Subprocessors[Count] {
 		p.spanMetricsCallsTotal.Inc(registryLabelValues, 1*spanMultiplier)
 	}
-
-	p.spanMetricsSizeTotal.Inc(registryLabelValues, float64(span.Size())*spanMultiplier)
 
 	if p.Cfg.Subprocessors[Latency] {
 		p.spanMetricsDurationSeconds.ObserveWithExemplar(registryLabelValues, latencySeconds, tempo_util.TraceIDToHexString(span.TraceId), spanMultiplier)

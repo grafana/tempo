@@ -808,7 +808,6 @@ func TestSpanMetricsDimensionMapping(t *testing.T) {
 		"span_name":      "test",
 		"status_code":    "STATUS_CODE_OK",
 		"status_message": "OK",
-		"job":            "test-service",
 		"foobar":         "foo-value/bar-value",
 	})
 
@@ -883,7 +882,6 @@ func TestSpanMetricsDimensionMappingMissingLabels(t *testing.T) {
 		"span_name":      "test",
 		"status_code":    "STATUS_CODE_OK",
 		"status_message": "OK",
-		"job":            "test-service",
 		"first_only":     "first-value",
 		"world_only":     "world-value",
 		"first/last":     "first-value->last-value",
