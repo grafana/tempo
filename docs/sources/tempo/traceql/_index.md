@@ -283,6 +283,14 @@ It's a convenient request to identify misconfigurations and leaks across product
 { resource.deployment.environment = "production" } && { resource.deployment.environment = "staging" }
 ```
 
+### Find traces by trace ID
+
+Find any trace with trace ID `1a2b3c4e5f678901`:
+
+```
+1a2b3c4e5f678901
+```
+
 ### Other examples
 
 Find any trace with a `deployment.environment` attribute set to `production` and `http.status_code` attribute set to `200`:
