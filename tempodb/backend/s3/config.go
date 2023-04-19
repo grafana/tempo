@@ -26,7 +26,6 @@ type Config struct {
 	Tags             map[string]string `yaml:"tags"`
 	StorageClass     string            `yaml:"storage_class"`
 	Metadata         map[string]string `yaml:"metadata"`
-
-	DialTimeout   time.Duration `yaml:"dial_timeout"`
-	DialKeepAlive time.Duration `yaml:"dial_keepalive"`
+	DialTimeout      time.Duration     `yaml:"dial_timeout"`
+	DialKeepAlive    time.Duration     `yaml:"dial_keepalive"`
 }

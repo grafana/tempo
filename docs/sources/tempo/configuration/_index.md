@@ -716,6 +716,17 @@ storage:
             # See the [S3 documentation on object tagging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) for more detail.
             [tags: <map[string]string>]
 
+            # Optional
+            # Example: "dial_timeout: 30s"
+            # The HTTP transport configuration for dial timeout.  Timeout is the maximum amount of time a dial will wait for a connection to complete.
+            [dial_timeout: <duration>]
+
+            # Optional
+            # Example: "dial_keepalive: 30s"
+            # The HTTP transport configuration for dial keepalive.  Keepaliave specifies the interval between keep-aliave probes for an active network connection.
+            [dial_keepalive: <duration>]
+
+
         # azure configuration. Will be used only if value of backend is "azure"
         # EXPERIMENTAL
         azure:
