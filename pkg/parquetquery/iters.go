@@ -112,12 +112,12 @@ func (t *RowNumber) Skip(numRows int64) {
 	}
 }
 
-// Preceeding returns the largest representable row number that is immediately prior to this
+// Preceding returns the largest representable row number that is immediately prior to this
 // one. Think of it like math.NextAfter but for segmented row numbers. Examples:
 //
-//		RowNumber 1000.0.0 (defined at 3 levels) is preceeded by 999.max.max
-//	    RowNumber 1000.-1.-1 (defined at 1 level) is preceeded by 999.-1.-1
-func (t RowNumber) Preceeding() RowNumber {
+//		RowNumber 1000.0.0 (defined at 3 levels) is preceded by 999.max.max
+//	    RowNumber 1000.-1.-1 (defined at 1 level) is preceded by 999.-1.-1
+func (t RowNumber) Preceding() RowNumber {
 	for i := len(t) - 1; i >= 0; i-- {
 		switch t[i] {
 		case -1:
@@ -588,7 +588,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 
 	// Handle an outgoing page
 	if c.currPage != nil {
-		c.curr = c.currPageMax.Preceeding() // Reposition current row number to end of this page.
+		c.curr = c.currPageMax.Preceding() // Reposition current row number to end of this page.
 		pq.Release(c.currPage)
 		c.currPage = nil
 	}

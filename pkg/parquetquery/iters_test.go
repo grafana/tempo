@@ -65,16 +65,16 @@ func TestCompareRowNumbers(t *testing.T) {
 	}
 }
 
-func TestRowNumberPreceeding(t *testing.T) {
+func TestRowNumberPreceding(t *testing.T) {
 	testCases := []struct {
-		start, preceeding RowNumber
+		start, preceding RowNumber
 	}{
 		{RowNumber{1000, -1, -1, -1, -1, -1}, RowNumber{999, -1, -1, -1, -1, -1}},
 		{RowNumber{1000, 0, 0, 0, 0, 0}, RowNumber{999, math.MaxInt64, math.MaxInt64, math.MaxInt64, math.MaxInt64, math.MaxInt64}},
 	}
 
 	for _, tc := range testCases {
-		require.Equal(t, tc.preceeding, tc.start.Preceeding())
+		require.Equal(t, tc.preceding, tc.start.Preceding())
 	}
 }
 
