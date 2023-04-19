@@ -272,7 +272,7 @@ func syncIteratorPoolPut(b []pq.Value) {
 	for i := range b {
 		b[i] = pq.Value{}
 	}
-	syncIteratorPool.Put(b)
+	syncIteratorPool.Put(b) // nolint: staticcheck
 }
 
 var columnIteratorResultPool = sync.Pool{
