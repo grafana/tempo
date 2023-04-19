@@ -16,8 +16,7 @@ func FindServiceNamespace(attributes []*v1_common.KeyValue) (string, bool) {
 }
 
 func FindInstanceID(attributes []*v1_common.KeyValue) (string, bool) {
-	string, bool := FindAttributeValue(semconv.AttributeServiceInstanceID, attributes)
-	return string, bool
+	return FindAttributeValue(semconv.AttributeServiceInstanceID, attributes)
 }
 
 func FindAttributeValue(key string, attributes ...[]*v1_common.KeyValue) (string, bool) {
