@@ -296,6 +296,9 @@ func columnIteratorResultPoolPut(r *IteratorResult) {
 	}
 }
 
+// SyncIterator is like ColumnIterator but synchronous. It scans through the given row
+// groups and column, and applies the optional predicate to each chunk, page, and value.
+// Results are read by calling Next() until it returns nil.
 type SyncIterator struct {
 	// Config
 	column     int
@@ -325,14 +328,17 @@ var _ Iterator = (*SyncIterator)(nil)
 
 func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string) *SyncIterator {
 
+	// Assign row group bounds.
+	// Lower bound is inclusive
+	// Upper bound is exclusive, points at the first row of the next group
 	rn := EmptyRowNumber()
 	rgsMin := make([]RowNumber, len(rgs))
 	rgsMax := make([]RowNumber, len(rgs))
-	for i := range rgs {
+	for i, rg := range rgs {
 		rgsMin[i] = rn
-		rn.Skip(rgs[i].NumRows())
 		rgsMax[i] = rn
-		rgsMax[i][0]++ // Exclusive upper bound, points at the first row of the next group
+		rgsMax[i].Skip(rg.NumRows() + 1)
+		rn.Skip(rg.NumRows())
 	}
 
 	return &SyncIterator{
@@ -345,12 +351,15 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		rgsMax:     rgsMax,
 		filter:     filter,
 		curr:       EmptyRowNumber(),
-		//currBuf:    columnIteratorPoolGet(readSize, 0), // Don't alloc the buffer until actually needed
 	}
 }
 
 func (c *SyncIterator) String() string {
-	return fmt.Sprintf("SyncIterator: %s \n\t%s", c.columnName, util.TabOut(c.filter))
+	filter := "nil"
+	if c.filter != nil {
+		filter = util.TabOut(c.filter)
+	}
+	return fmt.Sprintf("SyncIterator: %s \n\t%s", c.columnName, filter)
 }
 
 func (c *SyncIterator) Next() (*IteratorResult, error) {
@@ -380,8 +389,8 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 		return nil, nil
 	}
 
-	// The row group and page have been aligned to where this value is possibly
-	// located. Now scan through and look for it.
+	// The row group and page have been selected to where this value is possibly
+	// located. Now scan through the page and look for it.
 	for {
 		rn, v, err := c.next()
 		if err != nil {
@@ -397,48 +406,57 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 	}
 }
 
-func (c *SyncIterator) seekRowGroup(seekTo RowNumber, d int) (done bool) {
-	if c.currRowGroup != nil && CompareRowNumbers(d, seekTo, c.currRowGroupMax) >= 0 {
+func (c *SyncIterator) popRowGroup() (pq.RowGroup, RowNumber, RowNumber) {
+	if len(c.rgs) == 0 {
+		return nil, EmptyRowNumber(), EmptyRowNumber()
+	}
+
+	rg := c.rgs[0]
+	min := c.rgsMin[0]
+	max := c.rgsMax[0]
+
+	c.rgs = c.rgs[1:]
+	c.rgsMin = c.rgsMin[1:]
+	c.rgsMax = c.rgsMax[1:]
+
+	return rg, min, max
+}
+
+// seekRowGroup skips ahead to the row group that could contain the value at the
+// desired row number. Does nothing if the current row group is already the correct one.
+func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done bool) {
+	if c.currRowGroup != nil && CompareRowNumbers(definitionLevel, seekTo, c.currRowGroupMax) >= 0 {
 		// Done with this row group
 		c.closeCurrRowGroup()
 	}
 
 	for c.currRowGroup == nil {
-		if len(c.rgs) == 0 {
+
+		rg, min, max := c.popRowGroup()
+		if rg == nil {
 			return true
 		}
 
-		rg := c.rgs[0]
-		c.rgs = c.rgs[1:]
-
-		max := c.rgsMax[0]
-		min := c.rgsMin[0]
-		c.rgsMax = c.rgsMax[1:]
-		c.rgsMin = c.rgsMin[1:]
-
-		if CompareRowNumbers(d, seekTo, max) < 0 {
-			// Value is inside this row group
-
-			cc := rg.ColumnChunks()[c.column]
-			if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
-				continue
-			}
-
-			c.curr = min
-			c.currRowGroup = rg
-			c.currRowGroupMin = min
-			c.currRowGroupMax = max
-			c.currChunk = cc
-			c.currPages = c.currChunk.Pages()
-
+		if CompareRowNumbers(definitionLevel, seekTo, max) != -1 {
+			continue
 		}
+
+		cc := rg.ColumnChunks()[c.column]
+		if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
+			continue
+		}
+
+		// This row group matches both row number and filter.
+		c.setRowGroup(rg, min, max)
 	}
 
 	return c.currRowGroup == nil
 }
 
-func (c *SyncIterator) seekPages(seekTo RowNumber, d int) (done bool, err error) {
-	if c.currPage != nil && CompareRowNumbers(d, seekTo, c.currPageMax) >= 0 {
+// seekPages skips ahead in the current row group to the page that could contain the value at
+// the desired row number. Does nothing if the current page is already the correct one.
+func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bool, err error) {
+	if c.currPage != nil && CompareRowNumbers(definitionLevel, seekTo, c.currPageMax) >= 0 {
 		// Value not in this page
 		c.setPage(nil)
 	}
@@ -478,7 +496,7 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, d int) (done bool, err error)
 			// Skip based on row number?
 			newRN := c.curr
 			newRN.Skip(pg.NumRows() + 1)
-			if CompareRowNumbers(d, seekTo, newRN) >= 0 {
+			if CompareRowNumbers(definitionLevel, seekTo, newRN) >= 0 {
 				c.curr.Skip(pg.NumRows())
 				pq.Release(pg)
 				continue
@@ -498,39 +516,30 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, d int) (done bool, err error)
 	return false, nil
 }
 
+// next is the core functionality of this iterator and returns the next matching result. This
+// may involve inspecting multiple row groups, pages, and values until a match is found. When
+// we run out of things to inspect, it returns nil. The reason this method is distinct from
+// Next() is because it doesn't wrap the results in an IteratorResult, which is more efficient
+// when being called multiple times and throwing away the results like in SeekTo().
 func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 	for {
 		if c.currRowGroup == nil {
-			// Pop next row group
-			if len(c.rgs) == 0 {
-				// No more row groups
+			rg, min, max := c.popRowGroup()
+			if rg == nil {
 				return EmptyRowNumber(), nil, nil
 			}
-			rg := c.rgs[0]
-			max := c.rgsMax[0]
-			min := c.rgsMin[0]
-			c.rgs = c.rgs[1:]
-			c.rgsMax = c.rgsMax[1:]
-			c.rgsMin = c.rgsMin[1:]
 
 			cc := rg.ColumnChunks()[c.column]
 			if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
-				c.curr.Skip(rg.NumRows())
 				continue
 			}
 
-			c.curr = min
-			c.currRowGroup = rg
-			c.currRowGroupMin = min
-			c.currRowGroupMax = max
-			c.currChunk = cc
-			c.currPages = c.currChunk.Pages()
-			c.setPage(nil)
+			c.setRowGroup(rg, min, max)
 		}
 
 		if c.currPage == nil {
 			pg, err := c.currPages.ReadPage()
-			if err == io.EOF {
+			if pg == nil || err == io.EOF {
 				// This row group is exhausted
 				c.closeCurrRowGroup()
 				continue
@@ -582,6 +591,16 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			return c.curr, v, nil
 		}
 	}
+}
+
+func (c *SyncIterator) setRowGroup(rg pq.RowGroup, min, max RowNumber) {
+	c.closeCurrRowGroup()
+	c.curr = min
+	c.currRowGroup = rg
+	c.currRowGroupMin = min
+	c.currRowGroupMax = max
+	c.currChunk = rg.ColumnChunks()[c.column]
+	c.currPages = c.currChunk.Pages()
 }
 
 func (c *SyncIterator) setPage(pg pq.Page) {
