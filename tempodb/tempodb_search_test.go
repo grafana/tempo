@@ -330,12 +330,13 @@ func runCompleteBlockSearchTest(t testing.TB, blockVersion string, runner runner
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 
-	c.EnableCompaction(context.Background(), &CompactorConfig{
+	err = c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
 
 	r.EnablePolling(&mockJobSharder{})
 	rw := r.(*readerWriter)
