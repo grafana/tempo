@@ -1,6 +1,7 @@
 ## main / unreleased
 
 * [ENHANCEMENT] Extend `/flush` to support flushing a single tenant [#2260](https://github.com/grafana/tempo/pull/2260) (@kvrhdn)
+* [ENHANCEMENT] Add synchronous read mode to vParquet and vParquet2 optionally enabled by env vars  [#2165](https://github.com/grafana/tempo/pull/2165) (@mdisibio)
 
 ## v2.1.0-rc.0 / 2023-04-12
 * [BUGFIX] tempodb integer divide by zero error [#2167](https://github.com/grafana/tempo/issues/2167)
