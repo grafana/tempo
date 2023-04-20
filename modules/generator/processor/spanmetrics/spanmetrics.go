@@ -79,6 +79,10 @@ func New(cfg Config, registry registry.Registry) (gen.Processor, error) {
 		return nil, err
 	}
 
+	if filter != nil {
+		p.spanMetricsFilterDropsTotal = registry.NewCounter(metricFilterDropsTotal, nil)
+	}
+
 	p.Cfg = cfg
 	p.registry = registry
 	p.now = time.Now
