@@ -302,3 +302,9 @@ Find any trace where any span has an `http.method` attribute set to `GET` as wel
 ```
 { span.http.method = "GET" && status = ok } && { span.http.method = "DELETE" && status != ok }
 ```
+
+Find any trace with a `deployment.environment` attribute that matches the regex `prod-.*` and `http.status_code` attribute set to `200`:
+
+```
+{ .deployment.environment = "prod-.*" && .http.status_code = 200 }
+```
