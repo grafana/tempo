@@ -161,6 +161,9 @@ func (e *Engine) ExecuteTagValues(
 			return nil, nil
 		}
 
+		// Filter out spans that we have already collected and are identical to the incoming ones
+		// Bloom filters?
+
 		evalSS, err := rootExpr.Pipeline.evaluate([]*Spanset{inSS})
 		if err != nil {
 			span.LogKV("msg", "pipeline.evaluate", "err", err)
@@ -364,13 +367,13 @@ func (s Static) asAnyValue() *common_v1.AnyValue {
 // a number with an optional time unit (such as "ns", "ms", "s", "m", or "h"),
 // a plain number, or the boolean values "true" or "false".
 // Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
-var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[a-zA-Z._]+"|[0-9smh]+|true|false)`)
+var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[a-zA-Z._-]+"|[0-9smh]+|true|false)`)
 
 // TODO: Merge into a single regular expression
 
 // Regex to extract selectors from a query string
-// This regular expression matches a string that contains a selector with all AND `&&` conditions enclosed in curly braces.
-var singleSelectorRegexp = regexp.MustCompile(`^{[a-zA-Z._\s()&=<>~!0-9"]*}$`)
+// This regular expression matches a string that contains a single selector and no OR `||` conditions.
+var singleSelectorRegexp = regexp.MustCompile(`^{[^|]*}$`)
 
 // extractMatchers extracts matchers from a query string and returns a string that can be parsed by the storage layer.
 func extractMatchers(query string) string {
