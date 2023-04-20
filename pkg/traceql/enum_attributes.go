@@ -8,12 +8,19 @@ const (
 	AttributeScopeNone AttributeScope = iota
 	AttributeScopeResource
 	AttributeScopeSpan
+	AttributeScopeUnknown
+
+	none = "none"
 )
+
+func AllAttributeScopes() []AttributeScope {
+	return []AttributeScope{AttributeScopeResource, AttributeScopeSpan}
+}
 
 func (s AttributeScope) String() string {
 	switch s {
 	case AttributeScopeNone:
-		return "none"
+		return none
 	case AttributeScopeSpan:
 		return "span"
 	case AttributeScopeResource:
@@ -21,6 +28,21 @@ func (s AttributeScope) String() string {
 	}
 
 	return fmt.Sprintf("att(%d).", s)
+}
+
+func AttributeScopeFromString(s string) AttributeScope {
+	switch s {
+	case "span":
+		return AttributeScopeSpan
+	case "resource":
+		return AttributeScopeResource
+	case "":
+		fallthrough
+	case none:
+		return AttributeScopeNone
+	}
+
+	return AttributeScopeUnknown
 }
 
 type Intrinsic int
@@ -38,7 +60,7 @@ const (
 func (i Intrinsic) String() string {
 	switch i {
 	case IntrinsicNone:
-		return "none"
+		return none
 	case IntrinsicDuration:
 		return "duration"
 	case IntrinsicName:
