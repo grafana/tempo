@@ -67,12 +67,13 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 func TestDB(t *testing.T) {
 	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
 
-	c.EnableCompaction(context.Background(), &CompactorConfig{
+	err := c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
 
 	r.EnablePolling(&mockJobSharder{})
 
@@ -108,6 +109,15 @@ func TestDB(t *testing.T) {
 		assert.Nil(t, failedBlocks)
 		assert.True(t, proto.Equal(bFound[0], reqs[i]))
 	}
+}
+
+func TestNoCompactionWhenCompactionRange0(t *testing.T) {
+	_, _, c, _ := testConfig(t, backend.EncGZIP, 0)
+
+	err := c.EnableCompaction(context.Background(), &CompactorConfig{
+		MaxCompactionRange: 0,
+	}, &mockSharder{}, &mockOverrides{})
+	require.Error(t, err)
 }
 
 func TestBlockSharding(t *testing.T) {
@@ -172,12 +182,13 @@ func TestNilOnUnknownTenantID(t *testing.T) {
 func TestBlockCleanup(t *testing.T) {
 	r, w, c, tempDir := testConfig(t, backend.EncLZ4_256k, 0)
 
-	c.EnableCompaction(context.Background(), &CompactorConfig{
+	err := c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
 
 	r.EnablePolling(&mockJobSharder{})
 
@@ -502,12 +513,13 @@ func TestIncludeCompactedBlock(t *testing.T) {
 func TestSearchCompactedBlocks(t *testing.T) {
 	r, w, c, _ := testConfig(t, backend.EncLZ4_256k, time.Hour)
 
-	c.EnableCompaction(context.Background(), &CompactorConfig{
+	err := c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
 
 	r.EnablePolling(&mockJobSharder{})
 
