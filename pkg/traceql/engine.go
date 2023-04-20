@@ -161,9 +161,6 @@ func (e *Engine) ExecuteTagValues(
 			return nil, nil
 		}
 
-		// Filter out spans that we have already collected and are identical to the incoming ones
-		// Bloom filters?
-
 		evalSS, err := rootExpr.Pipeline.evaluate([]*Spanset{inSS})
 		if err != nil {
 			span.LogKV("msg", "pipeline.evaluate", "err", err)
@@ -373,7 +370,7 @@ var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*
 
 // Regex to extract selectors from a query string
 // This regular expression matches a string that contains a single selector and no OR `||` conditions.
-var singleSelectorRegexp = regexp.MustCompile(`^{[^|]*}$`)
+var singleSelectorRegexp = regexp.MustCompile(`^{[a-zA-Z._\s\-()&=<>~!0-9"]*}$`)
 
 // extractMatchers extracts matchers from a query string and returns a string that can be parsed by the storage layer.
 func extractMatchers(query string) string {
