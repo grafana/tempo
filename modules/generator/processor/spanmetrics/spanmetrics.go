@@ -76,7 +76,6 @@ func New(cfg Config, registry registry.Registry) (gen.Processor, error) {
 
 	filter, err := spanfilter.NewSpanFilter(cfg.FilterPolicies)
 	if err != nil {
-		// TODO: handle this better
 		return nil, err
 	}
 
