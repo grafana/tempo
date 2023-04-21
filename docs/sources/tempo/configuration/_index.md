@@ -1169,7 +1169,7 @@ overrides:
     # protects the system from long block lists in the ingesters.
     # This override limit is used by the ingester.
     # A value of 0 disables the limit.
-    [max_bytes_per_tag_values_query: <int> | default = 0 (disabled) ]
+    [max_blocks_per_tag_values_query: <int> | default = 0 (disabled) ]
 
     # Generic forwarding configuration
 
