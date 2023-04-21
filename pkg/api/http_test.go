@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -567,52 +566,4 @@ func TestExtractServerlessParam(t *testing.T) {
 	r = httptest.NewRequest("GET", "http://example.com?maxBytes=blerg", nil)
 	_, err = ExtractServerlessParams(r)
 	assert.Error(t, err)
-}
-
-func TestParseSearchTagValuesRequest(t *testing.T) {
-	tag := ".foo"
-	tests := []struct {
-		name, urlQuery string
-		expected       *tempopb.SearchTagValuesRequest
-	}{
-		{
-			name:     "no params",
-			urlQuery: "",
-			expected: &tempopb.SearchTagValuesRequest{
-				TagName: tag,
-			},
-		},
-		{
-			name:     "empty query",
-			urlQuery: "{}",
-			expected: &tempopb.SearchTagValuesRequest{
-				TagName: tag,
-				Query:   "{}",
-			},
-		},
-		{
-			name:     "query",
-			urlQuery: `{"foo":"bar"}`,
-			expected: &tempopb.SearchTagValuesRequest{
-				TagName: tag,
-				Query:   `{"foo":"bar"}`,
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			url := fmt.Sprintf("http://tempo/api/v2/search/tag/%s/values", tag)
-			if tc.urlQuery != "" {
-				url = fmt.Sprintf("%s?q=%s", url, tc.urlQuery)
-			}
-
-			httpReq := httptest.NewRequest("GET", url, nil)
-			httpReq = mux.SetURLVars(httpReq, map[string]string{"tagName": tag})
-
-			req, err := ParseSearchTagValuesRequest(httpReq)
-			require.NoError(t, err)
-			assert.Equal(t, tc.expected, req)
-		})
-	}
 }

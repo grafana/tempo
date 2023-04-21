@@ -17,7 +17,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
-	"github.com/uber-go/atomic"
 	"github.com/weaveworks/common/user"
 	"go.uber.org/atomic"
 )
