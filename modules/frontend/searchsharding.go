@@ -50,13 +50,13 @@ var (
 	sloSearchCounter    = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
 )
 
-type newSearchProgress func(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) shardedSearchProgress
+type searchProgressFactory func(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) shardedSearchProgress
 
 type searchSharder struct {
 	next       http.RoundTripper
 	reader     tempodb.Reader
 	overrides  *overrides.Overrides
-	progressFn newSearchProgress
+	progressFn searchProgressFactory
 
 	cfg    SearchSharderConfig
 	sloCfg SLOConfig
@@ -74,7 +74,7 @@ type SearchSharderConfig struct {
 }
 
 // newSearchSharder creates a sharding middleware for search
-func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchSharderConfig, sloCfg SLOConfig, progress newSearchProgress, logger log.Logger) Middleware {
+func newSearchSharder(reader tempodb.Reader, o *overrides.Overrides, cfg SearchSharderConfig, sloCfg SLOConfig, progress searchProgressFactory, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return searchSharder{
 			next:      next,

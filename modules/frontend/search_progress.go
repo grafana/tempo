@@ -47,7 +47,7 @@ type searchProgress struct {
 	mtx   sync.Mutex
 }
 
-func newSearchResponse(ctx context.Context, limit, _, totalBlocks, totalBlockBytes int) shardedSearchProgress {
+func newSearchProgress(ctx context.Context, limit, _, totalBlocks, totalBlockBytes int) shardedSearchProgress {
 	return &searchProgress{
 		ctx:        ctx,
 		statusCode: http.StatusOK,
