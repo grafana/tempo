@@ -137,7 +137,7 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64, external
 		// adding the 2 just in case some series do not have job + instance
 		labelsCount = len(g.series[0].labels.names) + 2
 	}
-	lbls := make(labels.Labels, 1+len(externalLabels)+ labelsCount)
+	lbls := make(labels.Labels, 1+len(externalLabels)+labelsCount)
 	lb := labels.NewBuilder(lbls)
 
 	// set metric name
