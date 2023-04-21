@@ -2,12 +2,14 @@ package frontend
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -35,6 +37,11 @@ type QueryFrontend struct {
 	TraceByIDHandler, SearchHandler http.Handler
 	logger                          log.Logger
 	store                           storage.Store
+
+	// saved so that we can call it in the Search grpc streaming method
+	downstream http.RoundTripper
+	cfg        Config
+	o          *overrides.Overrides
 }
 
 // New returns a new QueryFrontend
@@ -79,11 +86,73 @@ func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store stora
 		SearchHandler:    newHandler(search, searchCounter, logger),
 		logger:           logger,
 		store:            store,
+		downstream:       retryWare.Wrap(next),
 	}, nil
 }
 
+// jpe test this shit
 func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
-	return nil
+	httpReq, err := api.BuildSearchRequest(nil, req)
+	if err != nil {
+		return err // jpe all errors wrapped
+	}
+
+	if api.IsBackendSearch(httpReq) {
+		return errors.New("request must contain a start/end date for streaming search")
+	}
+
+	var p *searchProgress
+	var totalJobs int
+
+	progressFn := func(ctx context.Context, limit, jobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
+		p = newSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes).(*searchProgress)
+		totalJobs = jobs
+		return p
+	}
+
+	// build roundtripper
+	rt := NewRoundTripper(q.downstream, newSearchSharder(q.store, q.o, q.cfg.Search.Sharder, q.cfg.Search.SLO, progressFn, q.logger))
+
+	// propagate context
+	ctx := srv.Context() // this is weird, does it work?
+	orgID, ctx, err := user.ExtractFromGRPCRequest(ctx)
+	if err != nil {
+		return err
+	}
+	httpReq = httpReq.WithContext(ctx)
+	httpReq.Header.Set(user.OrgIDHeaderName, orgID)
+
+	// initiate http pipeline
+	go func() {
+		_, _ = rt.RoundTrip(httpReq)
+	}()
+
+	// collect and return results
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-srv.Context().Done():
+			return srv.Context().Err()
+		case <-time.After(time.Second):
+			result := p.result()
+
+			if result.err != nil {
+				return result.err
+			}
+
+			if result.statusCode != http.StatusOK {
+				return fmt.Errorf("unexpected status code: %d", result.statusCode)
+			}
+
+			// jpe - on success when does this loop exit?
+			if result.finishedRequests == totalJobs {
+				return nil
+			}
+
+			srv.Send(result.response) // jpe handle %age done?
+		}
+	}
 }
 
 // newTraceByIDMiddleware creates a new frontend middleware responsible for handling get traces requests.
