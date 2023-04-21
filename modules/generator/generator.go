@@ -237,12 +237,29 @@ func (g *Generator) getInstanceByID(id string) (*instance, bool) {
 }
 
 func (g *Generator) createInstance(id string) (*instance, error) {
-	wal, err := storage.New(&g.cfg.Storage, id, g.reg, g.logger)
+	// Duplicate metrics generation errors occur when creating
+	// the wal for a tenant twice. This happens if the wal is
+	// create successfully, but the instance is not. On the
+	// next push it will panic.
+	// We prevent the panic by using a temporary registry
+	// for wal and instance creation, and merge it with the
+	// main registry only if successful.
+	reg := prometheus.NewRegistry()
+
+	wal, err := storage.New(&g.cfg.Storage, id, reg, g.logger)
 	if err != nil {
 		return nil, err
 	}
 
-	return newInstance(g.cfg, id, g.overrides, wal, g.reg, g.logger)
+	inst, err := newInstance(g.cfg, id, g.overrides, wal, reg, g.logger)
+	if err != nil {
+		wal.Close()
+		return nil, err
+	}
+
+	g.reg.Register(reg)
+
+	return inst, nil
 }
 
 func (g *Generator) CheckReady(_ context.Context) error {

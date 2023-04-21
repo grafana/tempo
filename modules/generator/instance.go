@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/tempo/modules/generator/processor"
+	"github.com/grafana/tempo/modules/generator/processor/localblocks"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
@@ -23,7 +24,7 @@ import (
 )
 
 var (
-	allSupportedProcessors = []string{servicegraphs.Name, spanmetrics.Name}
+	allSupportedProcessors = []string{servicegraphs.Name, spanmetrics.Name, localblocks.Name}
 
 	metricActiveProcessors = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
@@ -238,6 +239,10 @@ func (i *instance) diffProcessors(desiredProcessors map[string]struct{}, desired
 			if !reflect.DeepEqual(p.Cfg, desiredCfg.ServiceGraphs) {
 				toReplace = append(toReplace, processorName)
 			}
+		case *localblocks.Processor:
+			if !reflect.DeepEqual(p.Cfg, desiredCfg.LocalBlocks) {
+				toReplace = append(toReplace, processorName)
+			}
 		default:
 			level.Error(i.logger).Log(
 				"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(allSupportedProcessors, ", ")),
@@ -261,6 +266,12 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 		newProcessor = spanmetrics.New(cfg.SpanMetrics, i.registry)
 	case servicegraphs.Name:
 		newProcessor = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger)
+	case localblocks.Name:
+		p, err := localblocks.New(cfg.LocalBlocks, i.instanceID)
+		if err != nil {
+			return err
+		}
+		newProcessor = p
 	default:
 		level.Error(i.logger).Log(
 			"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(allSupportedProcessors, ", ")),

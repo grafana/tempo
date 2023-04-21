@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/grafana/tempo/modules/generator/processor/localblocks"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
@@ -44,11 +45,13 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 type ProcessorConfig struct {
 	ServiceGraphs servicegraphs.Config `yaml:"service_graphs"`
 	SpanMetrics   spanmetrics.Config   `yaml:"span_metrics"`
+	LocalBlocks   localblocks.Config   `yaml:"local_blocks"`
 }
 
 func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.ServiceGraphs.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.SpanMetrics.RegisterFlagsAndApplyDefaults(prefix, f)
+	cfg.LocalBlocks.RegisterFlagsAndApplyDefaults(prefix, f)
 }
 
 // copyWithOverrides creates a copy of the config using values set in the overrides.
