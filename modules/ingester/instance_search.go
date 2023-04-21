@@ -329,13 +329,24 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := util.NewDistinctStringCollector(limit)
 
+	var inspectedBlocks, maxBlocks int
+	if limit := i.limiter.limits.MaxBlocksPerTagValuesQuery(userID); limit > 0 {
+		maxBlocks = limit
+	}
+
 	search := func(s common.Searcher, dv *util.DistinctStringCollector) error {
+		if maxBlocks > 0 && inspectedBlocks >= maxBlocks {
+			return nil
+		}
+
 		if s == nil {
 			return nil
 		}
 		if dv.Exceeded() {
 			return nil
 		}
+
+		inspectedBlocks++
 		err = s.SearchTagValues(ctx, tagName, dv.Collect, common.DefaultSearchOptions())
 		if err != nil && err != common.ErrUnsupported {
 			return fmt.Errorf("unexpected error searching tag values (%s): %w", tagName, err)
@@ -417,10 +428,21 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return distinctValues.Collect(tv)
 	}
 
+	var inspectedBlocks, maxBlocks int
+	if limit := i.limiter.limits.MaxBlocksPerTagValuesQuery(userID); limit > 0 {
+		maxBlocks = limit
+	}
+
 	search := func(s common.Searcher, dv *util.DistinctValueCollector[tempopb.TagValue]) error {
+		if maxBlocks > 0 && inspectedBlocks >= maxBlocks {
+			return nil
+		}
+
 		if s == nil || dv.Exceeded() {
 			return nil
 		}
+
+		inspectedBlocks++
 
 		err = s.SearchTagValuesV2(ctx, tag, cb, common.DefaultSearchOptions())
 		if err != nil && err != common.ErrUnsupported {
