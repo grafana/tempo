@@ -24,7 +24,7 @@ import (
 
 const (
 	configMetricsGenerator           = "config-metrics-generator.yaml"
-	configMetricsGeneratorTargetInfo = "config-metrics-generator-targetinfoyaml"
+	configMetricsGeneratorTargetInfo = "config-metrics-generator-targetinfo.yaml"
 	prometheusImage                  = "prom/prometheus:latest"
 )
 

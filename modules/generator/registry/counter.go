@@ -119,7 +119,13 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 
 	activeSeries = len(c.series)
 
-	lb := labels.NewBuilder(nil)
+	labelsCount := 0
+	if activeSeries > 0 && c.series[0] != nil {
+		// adding the 2 just in case first series do not have job + instance
+		labelsCount = len(c.series[0].labels.names) + 2
+	}
+	lbls := make(labels.Labels, 1+len(externalLabels)+ labelsCount)
+	lb := labels.NewBuilder(lbls)
 
 	// set metric name
 	lb.Set(labels.MetricName, c.metricName)

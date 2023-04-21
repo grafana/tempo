@@ -153,7 +153,13 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 
 	activeSeries = len(h.series) * int(h.activeSeriesPerHistogramSerie())
 
-	lb := labels.NewBuilder(nil)
+	labelsCount := 0
+	if activeSeries > 0 && h.series[0] != nil {
+		// adding the 2 just in case the first series do not have job + instance
+		labelsCount = len(h.series[0].labels.names) + 2
+	}
+	lbls := make(labels.Labels, 1+len(externalLabels)+ labelsCount)
+	lb := labels.NewBuilder(lbls)
 
 	// set external labels
 	for name, value := range externalLabels {

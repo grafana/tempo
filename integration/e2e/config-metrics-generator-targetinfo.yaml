@@ -20,7 +20,6 @@ metrics_generator:
       histogram_buckets: [1, 2]  # seconds
     span_metrics:
       histogram_buckets: [1, 2]
-      enable_target_info: true  # seconds
   registry:
     collection_interval: 1s
   storage:
@@ -45,3 +44,4 @@ memberlist:
 overrides:
   metrics_generator_processors: [service-graphs, span-metrics]
   metrics_generator_max_active_series: 1000
+  metrics_generator_processor_span_metrics_enable_target_info: true  # seconds
