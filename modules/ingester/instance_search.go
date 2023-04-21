@@ -330,13 +330,24 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := util.NewDistinctStringCollector(limit)
 
+	var inspectedBlocks, maxBlocks int
+	if limit := i.limiter.limits.MaxBlocksPerTagValuesQuery(userID); limit > 0 {
+		maxBlocks = limit
+	}
+
 	search := func(s common.Searcher, dv *util.DistinctStringCollector) error {
+		if maxBlocks > 0 && inspectedBlocks >= maxBlocks {
+			return nil
+		}
+
 		if s == nil {
 			return nil
 		}
 		if dv.Exceeded() {
 			return nil
 		}
+
+		inspectedBlocks++
 		err = s.SearchTagValues(ctx, tagName, dv.Collect, common.DefaultSearchOptions())
 		if err != nil && err != common.ErrUnsupported {
 			return fmt.Errorf("unexpected error searching tag values (%s): %w", tagName, err)
@@ -415,17 +426,27 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	engine := traceql.NewEngine()
 
+	wg := boundedwaitgroup.New(20) // TODO: Make configurable
+	var anyErr atomic.Error
+	var inspectedBlocks atomic.Int32
+	var maxBlocks int32
+	if limit := i.limiter.limits.MaxBlocksPerTagValuesQuery(userID); limit > 0 {
+		maxBlocks = int32(limit)
+	}
+
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
-
-	wg := boundedwaitgroup.New(20) // TODO: Make configurable
-	anyErr := atomic.Error{}
 
 	searchBlock := func(s common.Searcher) error {
 		if anyErr.Load() != nil {
 			return nil // Early exit if any error has occurred
 		}
 
+		if maxBlocks > 0 && inspectedBlocks.Load() >= maxBlocks {
+			return nil
+		}
+
+		inspectedBlocks.Inc()
 		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return s.Fetch(ctx, req, common.DefaultSearchOptions())
 		})

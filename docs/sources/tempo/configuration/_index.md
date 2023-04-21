@@ -1164,6 +1164,13 @@ overrides:
     # A value of 0 disables the limit.
     [max_bytes_per_tag_values_query: <int> | default = 5000000 (5MB) ]
 
+    # Maximum number of blocks to be inspected for a tag values query. Tag-values
+    # query is used mainly to populate the autocomplete dropdown. This limit
+    # protects the system from long block lists in the ingesters.
+    # This override limit is used by the ingester.
+    # A value of 0 disables the limit.
+    [max_blocks_per_tag_values_query: <int> | default = 0 (disabled) ]
+
     # Generic forwarding configuration
 
     # Per-user configuration of generic forwarder feature. Each forwarder in the list
