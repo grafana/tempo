@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"sync"
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/api"
@@ -16,6 +17,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
+	"github.com/uber-go/atomic"
 	"github.com/weaveworks/common/user"
 	"go.uber.org/atomic"
 )
@@ -204,10 +206,23 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 	}
 }
 
-func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse, error) {
+func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.SearchTagsResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	// check if it's the special intrinsic scope
+	if scope == api.ParamScopeIntrinsic {
+		return &tempopb.SearchTagsResponse{
+			TagNames: search.GetVirtualIntrinsicValues(),
+		}, nil
+	}
+
+	// parse for normal scopes
+	attributeScope := traceql.AttributeScopeFromString(scope)
+	if attributeScope == traceql.AttributeScopeUnknown {
+		return nil, fmt.Errorf("unknown scope: %s", scope)
 	}
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
@@ -220,7 +235,7 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 		if dv.Exceeded() {
 			return nil
 		}
-		err = s.SearchTags(ctx, dv.Collect, common.DefaultSearchOptions())
+		err = s.SearchTags(ctx, attributeScope, dv.Collect, common.DefaultSearchOptions())
 		if err != nil && err != common.ErrUnsupported {
 			return fmt.Errorf("unexpected error searching tags: %w", err)
 		}
@@ -253,6 +268,58 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 	return &tempopb.SearchTagsResponse{
 		TagNames: distinctValues.Strings(),
 	}, nil
+}
+
+// SearchTagsV2 calls SearchTags for each scope and returns the results.
+func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.SearchTagsV2Response, error) {
+	scopes := []string{scope}
+	if scope == "" {
+		// start with intrinsic scope and all traceql attribute scopes
+		atts := traceql.AllAttributeScopes()
+		scopes = make([]string, 0, len(atts)+1) // +1 for intrinsic
+
+		scopes = append(scopes, api.ParamScopeIntrinsic)
+		for _, att := range atts {
+			scopes = append(scopes, att.String())
+		}
+	}
+	resps := make([]*tempopb.SearchTagsResponse, len(scopes))
+
+	overallError := atomic.NewError(nil)
+	wg := sync.WaitGroup{}
+	for idx := range scopes {
+		resps[idx] = &tempopb.SearchTagsResponse{}
+
+		wg.Add(1)
+		go func(scope string, ret **tempopb.SearchTagsResponse) {
+			defer wg.Done()
+
+			resp, err := i.SearchTags(ctx, scope)
+			if err != nil {
+				overallError.Store(fmt.Errorf("error searching tags: %s, %w", scope, err))
+				return
+			}
+
+			*ret = resp
+		}(scopes[idx], &resps[idx])
+	}
+	wg.Wait()
+
+	err := overallError.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	// build response
+	resp := &tempopb.SearchTagsV2Response{}
+	for idx := range resps {
+		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
+			Name: scopes[idx],
+			Tags: resps[idx].TagNames,
+		})
+	}
+
+	return resp, nil
 }
 
 func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempopb.SearchTagValuesResponse, error) {

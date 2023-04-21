@@ -145,7 +145,7 @@ func (b *BackendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	return nil, common.ErrUnsupported
 }
 
-func (b *BackendBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
+func (b *BackendBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, opts common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 

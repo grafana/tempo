@@ -566,7 +566,7 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 	return results, nil
 }
 
-func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
+func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, opts common.SearchOptions) error {
 	for i, blockFlush := range b.readFlushes() {
 		file, err := blockFlush.file()
 		if err != nil {
@@ -576,7 +576,7 @@ func (b *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts c
 		defer file.Close()
 		pf := file.parquetFile
 
-		err = searchTags(ctx, cb, pf)
+		err = searchTags(ctx, scope, cb, pf)
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}

@@ -36,7 +36,25 @@ func (i *Ingester) SearchTags(ctx context.Context, req *tempopb.SearchTagsReques
 		return &tempopb.SearchTagsResponse{}, nil
 	}
 
-	res, err := inst.SearchTags(ctx)
+	res, err := inst.SearchTags(ctx, req.Scope)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func (i *Ingester) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsV2Response, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	inst, ok := i.getInstanceByID(instanceID)
+	if !ok || inst == nil {
+		return &tempopb.SearchTagsV2Response{}, nil
+	}
+
+	res, err := inst.SearchTagsV2(ctx, req.Scope)
 	if err != nil {
 		return nil, err
 	}

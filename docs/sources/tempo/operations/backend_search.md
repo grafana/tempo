@@ -131,6 +131,8 @@ parquet footers using the following configuration:
 
 ```
 storage:
-  cache_control:
-    footer: true
+  trace:
+    search:
+      cache_control:
+        footer: true
 ```

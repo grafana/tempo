@@ -46,6 +46,9 @@ const (
 	// maxBytes (serverless only)
 	urlParamMaxBytes = "maxBytes"
 
+	// search tags
+	urlParamScope = "scope"
+
 	HeaderAccept         = "Accept"
 	HeaderContentType    = "Content-Type"
 	HeaderAcceptProtobuf = "application/protobuf"
@@ -56,12 +59,12 @@ const (
 	PathTraces          = "/api/traces/{traceID}"
 	PathSearch          = "/api/search"
 	PathSearchTags      = "/api/search/tags"
-	PathSearchTagValues = "/api/search/tag/{tagName}/values"
+	PathSearchTagValues = "/api/search/tag/{" + muxVarTagName + "}/values"
 	PathEcho            = "/api/echo"
 	PathUsageStats      = "/status/usage-stats"
 
-	PathSearchTagValuesV2 = "/api/v2/search/tag/{tagName}/values"
-	tagName               = "tagName"
+	PathSearchTagValuesV2 = "/api/v2/search/tag/{" + muxVarTagName + "}/values"
+	PathSearchTagsV2      = "/api/v2/search/tags"
 
 	QueryModeKey       = "mode"
 	QueryModeIngesters = "ingesters"
@@ -306,36 +309,6 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 		return nil, fmt.Errorf("invalid footerSize %s: %w", f, err)
 	}
 	req.FooterSize = uint32(footerSize)
-
-	return req, nil
-}
-
-func ParseSearchTagValuesRequest(r *http.Request) (*tempopb.SearchTagValuesRequest, error) {
-	vars := mux.Vars(r)
-	tag, ok := vars[tagName]
-	if !ok {
-		return nil, errors.New("please provide a tag")
-	}
-
-	if _, err := traceql.ParseIdentifier(tag); err != nil {
-		return nil, fmt.Errorf("please provide a valid tag: %w", err)
-	}
-
-	req := &tempopb.SearchTagValuesRequest{
-		TagName: tag,
-	}
-
-	query, _ := extractQueryParam(r, urlParamQuery)
-	// if queryFound {
-	// 	TODO: Validation is left to the engine layer. Should we validate here?
-	//
-	// 	if query != "{}" { // TODO hacky fix: we don't validate {} since this isn't handled correctly yet
-	// 		if _, err := traceql.Parse(query); err != nil {
-	// 			return nil, fmt.Errorf("invalid TraceQL query: %w", err)
-	// 		}
-	// 	}
-	// }
-	req.Query = query
 
 	return req, nil
 }

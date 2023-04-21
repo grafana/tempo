@@ -8,7 +8,6 @@ import (
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/golang/protobuf/proto"  //nolint:all //ProtoReflect
-	"github.com/gorilla/mux"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
@@ -158,9 +157,42 @@ func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagsHandler")
 	defer span.Finish()
 
-	req := &tempopb.SearchTagsRequest{}
+	req, err := api.ParseSearchTagsRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	resp, err := q.SearchTags(ctx, req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	marshaller := &jsonpb.Marshaler{}
+	err = marshaller.Marshal(w, resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+}
+
+func (q *Querier) SearchTagsV2Handler(w http.ResponseWriter, r *http.Request) {
+	// Enforce the query timeout while querying backends
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
+	defer cancel()
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagsHandler")
+	defer span.Finish()
+
+	req, err := api.ParseSearchTagsRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	resp, err := q.SearchTagsV2(ctx, req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -183,14 +215,10 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagValuesHandler")
 	defer span.Finish()
 
-	vars := mux.Vars(r)
-	tagName, ok := vars["tagName"]
-	if !ok {
-		http.Error(w, "please provide a tagName", http.StatusBadRequest)
+	req, err := api.ParseSearchTagValuesRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
-	}
-	req := &tempopb.SearchTagValuesRequest{
-		TagName: tagName,
 	}
 
 	resp, err := q.SearchTagValues(ctx, req)
@@ -216,9 +244,10 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagValuesHandler")
 	defer span.Finish()
 
-	req, err := api.ParseSearchTagValuesRequest(r)
+	req, err := api.ParseSearchTagValuesRequestV2(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	resp, err := q.SearchTagValuesV2(ctx, req)
