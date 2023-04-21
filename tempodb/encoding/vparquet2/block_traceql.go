@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -648,6 +649,7 @@ func createSpanIterator(makeIter makeIterFn, conditions []traceql.Condition, req
 // one batch each. It builds on top of the span iterator, and turns the groups of spans and resource-level values into
 // spansets.  Spansets are returned that match any of the given conditions.
 func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, requireAtLeastOneMatchOverall, allConditions bool) (parquetquery.Iterator, error) {
+
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
@@ -786,6 +788,7 @@ func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetque
 }
 
 func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
+
 	if op == traceql.OpNone {
 		return nil, nil
 	}
@@ -799,9 +802,6 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 	s := operands[0].S
 
 	switch op {
-	case traceql.OpEqual:
-		return parquetquery.NewStringInPredicate([]string{s}), nil
-
 	case traceql.OpNotEqual:
 		return parquetquery.NewGenericPredicate(
 			func(v string) bool {
@@ -817,6 +817,58 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 
 	case traceql.OpRegex:
 		return parquetquery.NewRegexInPredicate([]string{s})
+
+	case traceql.OpEqual:
+		return parquetquery.NewStringInPredicate([]string{s}), nil
+
+	case traceql.OpGreater:
+		return parquetquery.NewGenericPredicate(
+			func(v string) bool {
+				return strings.Compare(v, s) > 0
+			},
+			func(min, max string) bool {
+				return strings.Compare(max, s) > 0
+			},
+			func(v parquet.Value) string {
+				return v.String()
+			},
+		), nil
+	case traceql.OpGreaterEqual:
+		return parquetquery.NewGenericPredicate(
+			func(v string) bool {
+				return strings.Compare(v, s) >= 0
+			},
+			func(min, max string) bool {
+				return strings.Compare(max, s) >= 0
+			},
+			func(v parquet.Value) string {
+				return v.String()
+			},
+		), nil
+	case traceql.OpLess:
+		return parquetquery.NewGenericPredicate(
+			func(v string) bool {
+				return strings.Compare(v, s) < 0
+			},
+			func(min, max string) bool {
+				return strings.Compare(min, s) < 0
+			},
+			func(v parquet.Value) string {
+				return v.String()
+			},
+		), nil
+	case traceql.OpLessEqual:
+		return parquetquery.NewGenericPredicate(
+			func(v string) bool {
+				return strings.Compare(v, s) <= 0
+			},
+			func(min, max string) bool {
+				return strings.Compare(min, s) <= 0
+			},
+			func(v parquet.Value) string {
+				return v.String()
+			},
+		), nil
 
 	default:
 		return nil, fmt.Errorf("operand not supported for strings: %+v", op)

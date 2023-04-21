@@ -168,6 +168,7 @@ func (o BinaryOperation) validate() error {
 
 	lhsT := o.LHS.impliedType()
 	rhsT := o.RHS.impliedType()
+
 	if !lhsT.isMatchingOperand(rhsT) {
 		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
 	}

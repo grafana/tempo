@@ -56,6 +56,7 @@ valid:
   - '{ duration > 1s * 2s }' 
   - '{ 1 * 1h = 1 }'     # combining float, int and duration can make sense, but can also be weird. we just accept it all
   - '{ 1 / 1.1 = 1 }'
+  - '{ .http.status >= "200" }'
   # spanset expressions
   - '{ true } && { true }'
   - '{ true } || { true }'
