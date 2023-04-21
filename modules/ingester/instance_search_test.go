@@ -267,6 +267,61 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	require.Equal(t, 2, len(resp.TagValues)) // Only two values of the form "bar123" fit in the 10 byte limit above.
 }
 
+// TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
+// partial results if the bytes of the found tag value exceeds the MaxBytesPerTagValuesQuery limit
+func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
+	limits, err := overrides.NewOverrides(overrides.Limits{
+		MaxBlocksPerTagValuesQuery: 1,
+	})
+	assert.NoError(t, err, "unexpected error creating limits")
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	tempDir := t.TempDir()
+
+	ingester, _, _ := defaultIngester(t, tempDir)
+	ingester.limiter = limiter
+	i, err := ingester.getOrCreateInstance("fake")
+	assert.NoError(t, err, "unexpected error creating new instance")
+
+	tagKey := "foo"
+
+	_, _ = writeTracesForSearch(t, i, tagKey, "bar", true)
+
+	// Cut the headblock
+	blockID, err := i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+	assert.NotEqual(t, blockID, uuid.Nil)
+
+	// Write more traces
+	_, _ = writeTracesForSearch(t, i, tagKey, "another-bar", true)
+
+	fmt.Println(i.headBlock, len(i.completingBlocks), len(i.completeBlocks))
+
+	userCtx := user.InjectOrgID(context.Background(), "fake")
+
+	respV1, err := i.SearchTagValues(userCtx, tagKey)
+	require.NoError(t, err)
+	assert.Equal(t, 100, len(respV1.TagValues))
+
+	respV2, err := i.SearchTagValuesV2(userCtx, &tempopb.SearchTagValuesRequest{TagName: fmt.Sprintf(".%s", tagKey)})
+	require.NoError(t, err)
+	assert.Equal(t, 100, len(respV2.TagValues))
+
+	// Now test with unlimited blocks
+	limits, err = overrides.NewOverrides(overrides.Limits{})
+	assert.NoError(t, err, "unexpected error creating limits")
+
+	i.limiter = NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	respV1, err = i.SearchTagValues(userCtx, tagKey)
+	require.NoError(t, err)
+	assert.Equal(t, 200, len(respV1.TagValues))
+
+	respV2, err = i.SearchTagValuesV2(userCtx, &tempopb.SearchTagValuesRequest{TagName: fmt.Sprintf(".%s", tagKey)})
+	require.NoError(t, err)
+	assert.Equal(t, 200, len(respV2.TagValues))
+}
+
 // writes traces to the given instance along with search data. returns
 // ids expected to be returned from a tag search and strings expected to
 // be returned from a tag value search
