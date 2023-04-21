@@ -155,6 +155,30 @@ func (e *Engine) ExecuteTagValues(
 	span.SetTag("pipeline", rootExpr.Pipeline)
 	span.SetTag("fetchSpansRequest", fetchSpansRequest)
 
+	var collectAttributeValue func(s Span) bool
+	switch wantAttr.Scope {
+	case AttributeScopeResource,
+		AttributeScopeSpan: // If tag is scoped, we can check the map directly
+		collectAttributeValue = func(s Span) bool {
+			if v, ok := s.Attributes()[wantAttr]; ok {
+				return cb(v)
+			}
+			return false
+		}
+	case AttributeScopeNone: // If tag is unscoped, let's check all scopes manually
+		collectAttributeValue = func(s Span) bool {
+			for _, scope := range []AttributeScope{AttributeScopeResource, AttributeScopeSpan} {
+				scopedAttr := Attribute{Scope: scope, Parent: wantAttr.Parent, Name: wantAttr.Name, Intrinsic: wantAttr.Intrinsic}
+				if v, ok := s.Attributes()[scopedAttr]; ok {
+					return cb(v)
+				}
+			}
+			return false
+		}
+	default:
+		return fmt.Errorf("unknown attribute scope: %s", wantAttr)
+	}
+
 	// set up the expression evaluation as a filter to reduce data pulled
 	fetchSpansRequest.Filter = func(inSS *Spanset) ([]*Spanset, error) {
 		if len(inSS.Spans) == 0 {
@@ -171,29 +195,10 @@ func (e *Engine) ExecuteTagValues(
 			return nil, nil
 		}
 
-		collectAttributeValue := func(s Span) bool {
-			switch wantAttr.Scope {
-			case AttributeScopeResource,
-				AttributeScopeSpan: // If tag is scoped, we can check the map directly
-				if v, ok := s.Attributes()[wantAttr]; ok {
-					return cb(v)
-				}
-			case AttributeScopeNone: // If tag is unscoped, let's check all scopes manually
-				for _, scope := range []AttributeScope{AttributeScopeResource, AttributeScopeSpan} {
-					scopedAttr := Attribute{Scope: scope, Parent: wantAttr.Parent, Name: wantAttr.Name, Intrinsic: wantAttr.Intrinsic}
-					if v, ok := s.Attributes()[scopedAttr]; ok {
-						return cb(v)
-					}
-				}
-			}
-			return false
-		}
-
-	evalLoop:
 		for _, ss := range evalSS {
 			for _, s := range ss.Spans {
 				if collectAttributeValue(s) {
-					break evalLoop // Exit early if we have enough data
+					return nil, io.EOF // Exit if we have exceeded max bytes
 				}
 			}
 		}
@@ -369,8 +374,17 @@ var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*
 // TODO: Merge into a single regular expression
 
 // Regex to extract selectors from a query string
-// This regular expression matches a string that contains a single selector and no OR `||` conditions.
-var singleSelectorRegexp = regexp.MustCompile(`^{[a-zA-Z._\s\-()&=<>~!0-9"]*}$`)
+// This regular expression matches a string that contains a single spanset filter and no OR `||` conditions.
+// Examples
+//
+//	Query                        |  Match
+//
+// { .bar = "foo" }                          |   Yes
+// { .bar = "foo" && .foo = "bar" }          |   Yes
+// { .bar = "foo" || .foo = "bar" }          |   No
+// { .bar = "foo" } && { .foo = "bar" }      |   No
+// { .bar = "foo" } || { .foo = "bar" }      |   No
+var singleFilterRegexp = regexp.MustCompile(`^{[a-zA-Z._\s\-()&=<>~!0-9"]*}$`)
 
 // extractMatchers extracts matchers from a query string and returns a string that can be parsed by the storage layer.
 func extractMatchers(query string) string {
@@ -380,8 +394,7 @@ func extractMatchers(query string) string {
 		return "{}"
 	}
 
-	// Match only queries with a single selector and AND `&&` conditions
-	selector := singleSelectorRegexp.FindString(query)
+	selector := singleFilterRegexp.FindString(query)
 	if len(selector) == 0 {
 		return "{}"
 	}

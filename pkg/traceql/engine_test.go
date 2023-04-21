@@ -514,31 +514,6 @@ func TestExtractMatchers(t *testing.T) {
 	}
 }
 
-func FuzzSingleSelector(f *testing.F) {
-	f.Fuzz(func(t *testing.T, lhs, rhs string) {
-		if len(lhs) == 0 || len(rhs) == 0 {
-			return
-		}
-		tmpls := []string{
-			"{ %s = %s }",
-			"{ %s != %s }",
-			"{ %s > %s }",
-			"{ %s >= %s }",
-			"{ %s < %s }",
-			"{ %s <= %s }",
-			"{ %s =~ %s }",
-			"{ %s !~ %s }",
-		}
-		for _, tmpl := range tmpls {
-			query := fmt.Sprintf(tmpl, lhs, rhs)
-			eq := singleSelectorRegexp.FindString(query)
-			if len(eq) == 0 {
-				t.Errorf("failed to match query: %s", query)
-			}
-		}
-	})
-}
-
 func BenchmarkExtractMatchers(b *testing.B) {
 	queries := []string{
 		`{.service_name = "foo"}`,

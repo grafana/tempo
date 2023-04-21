@@ -434,9 +434,6 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		maxBlocks = int32(limit)
 	}
 
-	i.blocksMtx.RLock()
-	defer i.blocksMtx.RUnlock()
-
 	searchBlock := func(s common.Searcher) error {
 		if anyErr.Load() != nil {
 			return nil // Early exit if any error has occurred
@@ -453,15 +450,18 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return engine.ExecuteTagValues(ctx, req, cb, fetcher)
 	}
 
-	// head block
-	if i.headBlock != nil {
+	i.blocksMtx.RLock()
+	defer i.blocksMtx.RUnlock()
+
+	// completed blocks
+	for _, b := range i.completeBlocks {
 		wg.Add(1)
-		go func() {
+		go func(b *localBlock) {
 			defer wg.Done()
-			if err := searchBlock(i.headBlock); err != nil {
-				anyErr.Store(fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err))
+			if err := searchBlock(b); err != nil {
+				anyErr.Store(fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err))
 			}
-		}()
+		}(b)
 	}
 
 	// completing blocks
@@ -475,15 +475,15 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		}(b)
 	}
 
-	// completed blocks
-	for _, b := range i.completeBlocks {
+	// head block
+	if i.headBlock != nil {
 		wg.Add(1)
-		go func(b *localBlock) {
+		go func() {
 			defer wg.Done()
-			if err := searchBlock(b); err != nil {
-				anyErr.Store(fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err))
+			if err := searchBlock(i.headBlock); err != nil {
+				anyErr.Store(fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err))
 			}
-		}(b)
+		}()
 	}
 
 	wg.Wait()
