@@ -8,6 +8,7 @@ import (
 
 type Config struct {
 	Bucket             string         `yaml:"bucket"`
+	Prefix             string         `yaml:"prefix"`
 	Endpoint           string         `yaml:"endpoint"`
 	Region             string         `yaml:"region"`
 	AccessKey          string         `yaml:"access_key"`

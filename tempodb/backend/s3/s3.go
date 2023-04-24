@@ -88,7 +88,7 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 
 	// try listing objects
 	if confirm {
-		_, err = core.ListObjects(cfg.Bucket, "", "", "/", 0)
+		_, err = core.ListObjects(cfg.Bucket, cfg.Prefix, "", "/", 0)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("unexpected error from ListObjects on %s: %w", cfg.Bucket, err)
 		}
@@ -119,6 +119,7 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 
 	span.SetTag("object", name)
 
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	objName := backend.ObjectFileName(keypath, name)
 
 	putObjectOptions := getPutObjectOptions(rw)
@@ -148,6 +149,7 @@ func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend
 	defer span.Finish()
 
 	var a appendTracker
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	objectName := backend.ObjectFileName(keypath, name)
 
 	options := getPutObjectOptions(rw)
@@ -222,6 +224,7 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 
 // List implements backend.Reader
 func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	var objects []string
 
@@ -256,6 +259,7 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "s3.Read")
 	defer span.Finish()
 
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	b, err := rw.readAll(derivedCtx, backend.ObjectFileName(keypath, name))
 	if err != nil {
 		return nil, 0, readError(err)
@@ -272,6 +276,7 @@ func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath back
 	})
 	defer span.Finish()
 
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	return readError(rw.readRange(derivedCtx, backend.ObjectFileName(keypath, name), int64(offset), buffer))
 }
 
