@@ -87,6 +87,8 @@ func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store stora
 		logger:           logger,
 		store:            store,
 		downstream:       retryWare.Wrap(next),
+		cfg:              cfg,
+		o:                o,
 	}, nil
 }
 
@@ -94,10 +96,12 @@ func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store stora
 func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
 	httpReq, err := api.BuildSearchRequest(nil, req)
 	if err != nil {
+		level.Error(q.logger).Log("msg", "build search request failed", "err", err)
 		return err // jpe all errors wrapped
 	}
 
-	if api.IsBackendSearch(httpReq) {
+	if !api.IsBackendSearch(httpReq) {
+		level.Error(q.logger).Log("msg", "start/end date not provided")
 		return errors.New("request must contain a start/end date for streaming search")
 	}
 
@@ -106,7 +110,7 @@ func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.Streaming
 
 	progressFn := func(ctx context.Context, limit, jobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
 		p = newSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes).(*searchProgress)
-		totalJobs = jobs
+		totalJobs = jobs // jpe make this a more robust object to do diffs and such
 		return p
 	}
 
@@ -114,12 +118,15 @@ func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.Streaming
 	rt := NewRoundTripper(q.downstream, newSearchSharder(q.store, q.o, q.cfg.Search.Sharder, q.cfg.Search.SLO, progressFn, q.logger))
 
 	// propagate context
-	ctx := srv.Context() // this is weird, does it work?
-	orgID, ctx, err := user.ExtractFromGRPCRequest(ctx)
+	ctx := srv.Context() // this is weird, does it work? jpe - confirm tenant id propagation
+	orgID, err := user.ExtractOrgID(ctx)
+	//orgID, ctx, err := user.ExtractFromGRPCRequest(ctx)
 	if err != nil {
+		level.Error(q.logger).Log("msg", "extract user id from grpc request failed", "err", err)
 		return err
 	}
 	httpReq = httpReq.WithContext(ctx)
+	httpReq.Header = http.Header{} // jpe is this needed? or does the tenant id propgate naturally?
 	httpReq.Header.Set(user.OrgIDHeaderName, orgID)
 
 	// initiate http pipeline
@@ -135,6 +142,10 @@ func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.Streaming
 		case <-srv.Context().Done():
 			return srv.Context().Err()
 		case <-time.After(time.Second):
+			if p == nil { // jpe - p is never not nil?
+				continue
+			}
+
 			result := p.result()
 
 			if result.err != nil {
