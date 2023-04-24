@@ -131,7 +131,6 @@ func TestFrontendBadConfigFails(t *testing.T) {
 }
 
 // jpe do something with this test?
-
 // var fakeGRPCAuthStreamMiddleware = func(srv interface{}, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 // 	ctx := user.InjectOrgID(ss.Context(), util.FakeTenantID)
 // 	return handler(srv, serverStream{
@@ -150,6 +149,9 @@ func TestFrontendBadConfigFails(t *testing.T) {
 // }
 
 // func TestFrontendStreamingSearch(t *testing.T) {
+// 	o, err := overrides.NewOverrides(overrides.Limits{})
+// 	require.NoError(t, err)
+
 // 	next := &mockNextTripperware{}
 // 	f, err := New(Config{
 // 		TraceByID: TraceByIDConfig{
@@ -163,7 +165,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 // 			},
 // 			SLO: testSLOcfg,
 // 		},
-// 	}, next, nil, nil, log.NewNopLogger(), nil)
+// 	}, next, o, nil, log.NewNopLogger(), nil)
 // 	require.NoError(t, err)
 
 // 	srv, err := server.New(server.Config{

@@ -128,10 +128,14 @@ func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.Streaming
 	httpReq = httpReq.WithContext(ctx)
 	httpReq.Header = http.Header{} // jpe is this needed? or does the tenant id propgate naturally?
 	httpReq.Header.Set(user.OrgIDHeaderName, orgID)
+	httpReq.Body = io.NopCloser(bytes.NewReader([]byte{})) // need an empty body for the grpc/http bridge
 
 	// initiate http pipeline
 	go func() {
-		_, _ = rt.RoundTrip(httpReq)
+		req, err := rt.RoundTrip(httpReq)
+		fmt.Println(err) // jpe - how to propagate errors here?
+		s, _ := io.ReadAll(req.Body)
+		fmt.Println(string(s))
 	}()
 
 	// collect and return results
@@ -142,7 +146,7 @@ func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.Streaming
 		case <-srv.Context().Done():
 			return srv.Context().Err()
 		case <-time.After(time.Second):
-			if p == nil { // jpe - p is never not nil?
+			if p == nil { // this prevents a race condition where the progressFn hasn't been called yet
 				continue
 			}
 
@@ -156,12 +160,15 @@ func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.Streaming
 				return fmt.Errorf("unexpected status code: %d", result.statusCode)
 			}
 
+			err = srv.Send(result.response) // jpe handle %age done?
+			if err != nil {
+				return err
+			}
+
 			// jpe - on success when does this loop exit?
 			if result.finishedRequests == totalJobs {
 				return nil
 			}
-
-			srv.Send(result.response) // jpe handle %age done?
 		}
 	}
 }
