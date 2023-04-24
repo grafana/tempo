@@ -15,13 +15,13 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
-	metricCallsTotal       = "traces_spanmetrics_calls_total"
-	metricDurationSeconds  = "traces_spanmetrics_latency"
-	metricSizeTotal        = "traces_spanmetrics_size_total"
-	metricFilterDropsTotal = "traces_spanmetrics_filter_drops_total"
+	metricCallsTotal      = "traces_spanmetrics_calls_total"
+	metricDurationSeconds = "traces_spanmetrics_latency"
+	metricSizeTotal       = "traces_spanmetrics_size_total"
 )
 
 type Processor struct {
@@ -29,18 +29,19 @@ type Processor struct {
 
 	registry registry.Registry
 
-	spanMetricsCallsTotal       registry.Counter
-	spanMetricsDurationSeconds  registry.Histogram
-	spanMetricsSizeTotal        registry.Counter
-	spanMetricsFilterDropsTotal registry.Counter
+	spanMetricsCallsTotal      registry.Counter
+	spanMetricsDurationSeconds registry.Histogram
+	spanMetricsSizeTotal       registry.Counter
 
 	filter *spanfilter.SpanFilter
+
+	discardCounter prometheus.Counter
 
 	// for testing
 	now func() time.Time
 }
 
-func New(cfg Config, registry registry.Registry) (gen.Processor, error) {
+func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.Counter) (gen.Processor, error) {
 	labels := make([]string, 0, 4+len(cfg.Dimensions))
 
 	if cfg.IntrinsicDimensions.Service {
@@ -79,13 +80,10 @@ func New(cfg Config, registry registry.Registry) (gen.Processor, error) {
 		return nil, err
 	}
 
-	if filter != nil {
-		p.spanMetricsFilterDropsTotal = registry.NewCounter(metricFilterDropsTotal, nil)
-	}
-
 	p.Cfg = cfg
 	p.registry = registry
 	p.now = time.Now
+	p.discardCounter = spanDiscardCounter
 	p.filter = filter
 	return p, nil
 }
@@ -115,7 +113,7 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 					p.aggregateMetricsForSpan(svcName, rs.Resource, span)
 					continue
 				}
-				p.spanMetricsFilterDropsTotal.Inc(nil, 1)
+				p.discardCounter.Inc()
 			}
 		}
 	}
