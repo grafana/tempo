@@ -267,16 +267,12 @@ func (a *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts 
 }
 
 // Search implements common.Searcher
-func (a *walBlock) SearchTags(ctx context.Context, cb common.TagCallback, opts common.SearchOptions) error {
+func (a *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, opts common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
 // SearchTagValues implements common.Searcher
 func (a *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
-	return common.ErrUnsupported
-}
-
-func (a *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 

@@ -129,6 +129,12 @@ For example, to find all traces where an `http.status_code` attribute in a span 
 { span.http.status_code >= 400 && span.http.status_code < 500 }
 ```
 
+This works for `http.status_code` values that are strings as well using lexographic ordering:
+
+```
+{ span.http.status_code >= "400"}
+```
+
 Find all traces where the `http.method` attribute is either `GET` or `DELETE`:
 
 ```
@@ -301,4 +307,10 @@ Find any trace where any span has an `http.method` attribute set to `GET` as wel
 
 ```
 { span.http.method = "GET" && status = ok } && { span.http.method = "DELETE" && status != ok }
+```
+
+Find any trace with a `deployment.environment` attribute that matches the regex `prod-.*` and `http.status_code` attribute set to `200`:
+
+```
+{ resource.deployment.environment =~ "prod-.*" && span.http.status_code = 200 }
 ```

@@ -1,10 +1,15 @@
 ## main / unreleased
 
+* [FEATURE] Add support for `q` query param in `/api/v2/search/<tag.name>/values` to filter results based on a TraceQL query [#2253](https://github.com/grafana/tempo/pull/2253) (@mapno)
+* [ENHANCEMENT] Add `scope` parameter to `/api/search/tags` [#2282](https://github.com/grafana/tempo/pull/2282) (@joe-elliott)
+  Create new endpoint `/api/v2/search/tags` that returns all tags organized by scope.
+* [ENHANCEMENT] Ability to toggle off latency or count metrics in metrics-generator [#2070](https://github.com/grafana/tempo/pull/2070) (@AlexDHoffer)
 * [ENHANCEMENT] Extend `/flush` to support flushing a single tenant [#2260](https://github.com/grafana/tempo/pull/2260) (@kvrhdn)
+* [ENHANCEMENT] Add override to limit number of blocks inspected in tag value search [#2358](https://github.com/grafana/tempo/pull/2358) (@mapno)
 * [ENHANCEMENT] Add synchronous read mode to vParquet and vParquet2 optionally enabled by env vars  [#2165](https://github.com/grafana/tempo/pull/2165) (@mdisibio)
+* [BUGFIX] tempodb integer divide by zero error [#2167](https://github.com/grafana/tempo/issues/2167) (@kroksys)
 
 ## v2.1.0-rc.0 / 2023-04-12
-* [BUGFIX] tempodb integer divide by zero error [#2167](https://github.com/grafana/tempo/issues/2167)
 * [CHANGE] Capture and update search metrics for TraceQL [#2087](https://github.com/grafana/tempo/pull/2087) (@electron0zero)
 * [CHANGE] tempo-mixin: disable auto refresh every 10 seconds [#2290](https://github.com/grafana/tempo/pull/2290) (@electron0zero)
 * [CHANGE] Update tempo-mixin to show request in Resources dashboard [#2281](https://github.com/grafana/tempo/pull/2281) (@electron0zero)
@@ -47,6 +52,7 @@
 * [BUGFIX] Correctly return unique spans when &&ing and ||ing spansets. [#2254](https://github.com/grafana/tempo/pull/2254) (@joe-elliott)
 * [BUGFIX] Support negative values on aggregate filters like `count() > -1`. [#2289](https://github.com/grafana/tempo/pull/2289) (@joe-elliott)
 * [BUGFIX] Support float as duration like `{duration > 1.5s}` [#2304]https://github.com/grafana/tempo/pull/2304 (@ie-pham)
+* [ENHANCEMENT] Supports ranger operators for strings in TraceQL [#2321]https://github.com/grafana/tempo/pull/2321 (@ie-pham)
 
 ## v2.0.1 / 2023-03-03
 

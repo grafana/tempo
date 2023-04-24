@@ -26,6 +26,7 @@ const (
 	MetricMaxGlobalTracesPerUser          = "max_global_traces_per_user"
 	MetricMaxBytesPerTrace                = "max_bytes_per_trace"
 	MetricMaxBytesPerTagValuesQuery       = "max_bytes_per_tag_values_query"
+	MetricMaxBlocksPerTagValuesQuery      = "max_blocks_per_tag_values_query"
 	MetricIngestionRateLimitBytes         = "ingestion_rate_limit_bytes"
 	MetricIngestionBurstSizeBytes         = "ingestion_burst_size_bytes"
 	MetricBlockRetention                  = "block_retention"
@@ -74,7 +75,8 @@ type Limits struct {
 	BlockRetention model.Duration `yaml:"block_retention" json:"block_retention"`
 
 	// Querier and Ingester enforced limits.
-	MaxBytesPerTagValuesQuery int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
+	MaxBytesPerTagValuesQuery  int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
+	MaxBlocksPerTagValuesQuery int `yaml:"max_blocks_per_tag_values_query" json:"max_blocks_per_tag_values_query"`
 
 	// QueryFrontend enforced limits
 	MaxSearchDuration model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
@@ -102,6 +104,7 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 
 	// Querier limits
 	f.IntVar(&l.MaxBytesPerTagValuesQuery, "querier.max-bytes-per-tag-values-query", 50e5, "Maximum size of response for a tag-values query. Used mainly to limit large the number of values associated with a particular tag")
+	f.IntVar(&l.MaxBlocksPerTagValuesQuery, "querier.max-blocks-per-tag-values-query", 0, "Maximum number of blocks to query for a tag-values query. 0 to disable.")
 
 	f.StringVar(&l.PerTenantOverrideConfig, "limits.per-user-override-config", "", "File name of per-user overrides.")
 	_ = l.PerTenantOverridePeriod.Set("10s")
@@ -117,6 +120,7 @@ func (l *Limits) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxGlobalTracesPerUser), MetricMaxGlobalTracesPerUser)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxBytesPerTrace), MetricMaxBytesPerTrace)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxBytesPerTagValuesQuery), MetricMaxBytesPerTagValuesQuery)
+	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.MaxBlocksPerTagValuesQuery), MetricMaxBlocksPerTagValuesQuery)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.IngestionRateLimitBytes), MetricIngestionRateLimitBytes)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.IngestionBurstSizeBytes), MetricIngestionBurstSizeBytes)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(l.BlockRetention), MetricBlockRetention)
