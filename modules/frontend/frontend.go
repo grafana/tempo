@@ -209,6 +209,7 @@ func newSearchMiddleware(cfg Config, o *overrides.Overrides, reader tempodb.Read
 func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream http.RoundTripper, store storage.Store, apiPrefix string, logger log.Logger) streamingSearchHandler {
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
+		// build search request and propagate context
 		httpReq, err := api.BuildSearchRequest(&http.Request{
 			URL: &url.URL{
 				Path: downstreamPath,
@@ -221,7 +222,10 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 			level.Error(logger).Log("msg", "build search request failed", "err", err)
 			return err // jpe all errors wrapped
 		}
+		ctx := srv.Context()
+		httpReq = httpReq.WithContext(ctx)
 
+		// streaming search only accepts requests with backend components
 		if !api.IsBackendSearch(httpReq) {
 			level.Error(logger).Log("msg", "start/end date not provided")
 			return errors.New("request must contain a start/end date for streaming search")
@@ -229,7 +233,6 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 
 		var p *searchProgress
 		var totalJobs int
-
 		progressFn := func(ctx context.Context, limit, jobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
 			p = newSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes).(*searchProgress)
 			totalJobs = jobs // jpe make this a more robust object to do diffs and such
@@ -239,16 +242,17 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 		// build roundtripper
 		rt := NewRoundTripper(downstream, newSearchSharder(store, o, cfg.Search.Sharder, cfg.Search.SLO, progressFn, logger))
 
-		// propagate context
-		ctx := srv.Context()
-		httpReq = httpReq.WithContext(ctx)
+		type roundTripResult struct {
+			resp *http.Response
+			err  error
+		}
+		resultChan := make(chan roundTripResult)
 
 		// initiate http pipeline
 		go func() {
-			req, err := rt.RoundTrip(httpReq)
-			fmt.Println(err) // jpe - how to propagate errors here?
-			s, _ := io.ReadAll(req.Body)
-			fmt.Println(string(s)) // jpe - look for all fmt.Println()
+			resp, err := rt.RoundTrip(httpReq)
+			resultChan <- roundTripResult{resp, err}
+			close(resultChan)
 		}()
 
 		// collect and return results
@@ -256,32 +260,40 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-srv.Context().Done():
-				return srv.Context().Err()
 			case <-time.After(500 * time.Millisecond):
-				if p == nil { // this prevents a race condition where the progressFn hasn't been called yet
+				if p == nil {
 					continue
 				}
-
 				result := p.result()
-
-				if result.err != nil {
-					return result.err
-				}
-
-				if result.statusCode != http.StatusOK {
-					return fmt.Errorf("unexpected status code: %d", result.statusCode)
+				if result.err != nil || result.statusCode != http.StatusOK { // ignore errors here, we'll get them in the resultChan
+					continue
 				}
 
 				err = srv.Send(result.response) // jpe handle %age done?
 				if err != nil {
 					return err
 				}
-
-				// jpe - on success when does this loop exit?
-				if result.finishedRequests == totalJobs {
-					return nil
+			case roundTripRes := <-resultChan:
+				// check for errors in the http response
+				if roundTripRes.err != nil {
+					return roundTripRes.err
 				}
+				if roundTripRes.resp != nil && roundTripRes.resp.StatusCode != http.StatusOK {
+					b, _ := io.ReadAll(roundTripRes.resp.Body)
+					return fmt.Errorf("http error: %d msg: %s", roundTripRes.resp.StatusCode, string(b))
+				}
+
+				// overall pipeline returned successfully, now grab the final results and send them
+				result := p.result()
+				if result.err != nil || result.statusCode != http.StatusOK {
+					return fmt.Errorf("result error: %d status: %d msg: %s", result.err, result.statusCode, result.statusMsg)
+				}
+				err = srv.Send(result.response) // jpe handle %age done?
+				if err != nil {
+					return err
+				}
+
+				return nil
 			}
 		}
 	}
