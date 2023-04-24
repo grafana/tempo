@@ -73,6 +73,9 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 			return ProcessorConfig{}, errors.Wrap(err, "fail to apply overrides")
 		}
 	}
+	if filterPolicies := o.MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID); filterPolicies != nil {
+		copyCfg.SpanMetrics.FilterPolicies = filterPolicies
+	}
 
 	return copyCfg, nil
 }
