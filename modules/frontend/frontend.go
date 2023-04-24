@@ -33,19 +33,17 @@ const (
 	searchOp    = "search"
 )
 
+type streamingSearchHandler func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
+
 type QueryFrontend struct {
 	TraceByIDHandler, SearchHandler http.Handler
+	streamingSearch                 streamingSearchHandler
 	logger                          log.Logger
 	store                           storage.Store
-
-	// saved so that we can call it in the Search grpc streaming method
-	downstream http.RoundTripper
-	cfg        Config
-	o          *overrides.Overrides
 }
 
 // New returns a new QueryFrontend
-func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store storage.Store, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
+func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store storage.Store, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
 	level.Info(logger).Log("msg", "creating middleware in query frontend")
 
 	if cfg.TraceByID.QueryShards < minQueryShards || cfg.TraceByID.QueryShards > maxQueryShards {
@@ -84,93 +82,15 @@ func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store stora
 	return &QueryFrontend{
 		TraceByIDHandler: newHandler(traces, traceByIDCounter, logger),
 		SearchHandler:    newHandler(search, searchCounter, logger),
+		streamingSearch:  newSearchStreamingHandler(cfg, o, retryWare.Wrap(next), store, apiPrefix, logger), // jpe prefix
 		logger:           logger,
 		store:            store,
-		downstream:       retryWare.Wrap(next),
-		cfg:              cfg,
-		o:                o,
 	}, nil
 }
 
 // jpe test this shit
 func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
-	httpReq, err := api.BuildSearchRequest(nil, req)
-	if err != nil {
-		level.Error(q.logger).Log("msg", "build search request failed", "err", err)
-		return err // jpe all errors wrapped
-	}
-
-	if !api.IsBackendSearch(httpReq) {
-		level.Error(q.logger).Log("msg", "start/end date not provided")
-		return errors.New("request must contain a start/end date for streaming search")
-	}
-
-	var p *searchProgress
-	var totalJobs int
-
-	progressFn := func(ctx context.Context, limit, jobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
-		p = newSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes).(*searchProgress)
-		totalJobs = jobs // jpe make this a more robust object to do diffs and such
-		return p
-	}
-
-	// build roundtripper
-	rt := NewRoundTripper(q.downstream, newSearchSharder(q.store, q.o, q.cfg.Search.Sharder, q.cfg.Search.SLO, progressFn, q.logger))
-
-	// propagate context
-	ctx := srv.Context() // this is weird, does it work? jpe - confirm tenant id propagation
-	orgID, err := user.ExtractOrgID(ctx)
-	//orgID, ctx, err := user.ExtractFromGRPCRequest(ctx)
-	if err != nil {
-		level.Error(q.logger).Log("msg", "extract user id from grpc request failed", "err", err)
-		return err
-	}
-	httpReq = httpReq.WithContext(ctx)
-	httpReq.Header = http.Header{} // jpe is this needed? or does the tenant id propgate naturally?
-	httpReq.Header.Set(user.OrgIDHeaderName, orgID)
-	httpReq.Body = io.NopCloser(bytes.NewReader([]byte{})) // need an empty body for the grpc/http bridge
-
-	// initiate http pipeline
-	go func() {
-		req, err := rt.RoundTrip(httpReq)
-		fmt.Println(err) // jpe - how to propagate errors here?
-		s, _ := io.ReadAll(req.Body)
-		fmt.Println(string(s))
-	}()
-
-	// collect and return results
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-srv.Context().Done():
-			return srv.Context().Err()
-		case <-time.After(time.Second):
-			if p == nil { // this prevents a race condition where the progressFn hasn't been called yet
-				continue
-			}
-
-			result := p.result()
-
-			if result.err != nil {
-				return result.err
-			}
-
-			if result.statusCode != http.StatusOK {
-				return fmt.Errorf("unexpected status code: %d", result.statusCode)
-			}
-
-			err = srv.Send(result.response) // jpe handle %age done?
-			if err != nil {
-				return err
-			}
-
-			// jpe - on success when does this loop exit?
-			if result.finishedRequests == totalJobs {
-				return nil
-			}
-		}
-	}
+	return q.streamingSearch(req, srv)
 }
 
 // newTraceByIDMiddleware creates a new frontend middleware responsible for handling get traces requests.
@@ -283,6 +203,97 @@ func newSearchMiddleware(cfg Config, o *overrides.Overrides, reader tempodb.Read
 			return ingesterSearchRT.RoundTrip(r)
 		})
 	})
+}
+
+func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream http.RoundTripper, store storage.Store, apiPrefix string, logger log.Logger) streamingSearchHandler {
+	downstreamPath := path.Join(apiPrefix, api.PathSearch)
+	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
+		httpReq, err := api.BuildSearchRequest(&http.Request{
+			URL: &url.URL{
+				Path: downstreamPath,
+			},
+		}, req)
+		if err != nil {
+			level.Error(logger).Log("msg", "build search request failed", "err", err)
+			return err // jpe all errors wrapped
+		}
+
+		if !api.IsBackendSearch(httpReq) {
+			level.Error(logger).Log("msg", "start/end date not provided")
+			return errors.New("request must contain a start/end date for streaming search")
+		}
+
+		var p *searchProgress
+		var totalJobs int
+
+		progressFn := func(ctx context.Context, limit, jobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
+			p = newSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes).(*searchProgress)
+			totalJobs = jobs // jpe make this a more robust object to do diffs and such
+			return p
+		}
+
+		// build roundtripper
+		rt := NewRoundTripper(downstream, newSearchSharder(store, o, cfg.Search.Sharder, cfg.Search.SLO, progressFn, logger))
+
+		// propagate context
+		ctx := srv.Context() // this is weird, does it work? jpe - confirm tenant id propagation
+		orgID, err := user.ExtractOrgID(ctx)
+		//orgID, ctx, err := user.ExtractFromGRPCRequest(ctx)
+		if err != nil {
+			level.Error(logger).Log("msg", "extract user id from grpc request failed", "err", err)
+			return err
+		}
+		httpReq = httpReq.WithContext(ctx)
+		httpReq.Header = http.Header{} // jpe is this needed? or does the tenant id propgate naturally?
+		httpReq.Header.Set(user.OrgIDHeaderName, orgID)
+
+		// manipulations to make the query work with the grpc/http bridge
+		httpReq.Body = io.NopCloser(bytes.NewReader([]byte{}))
+		httpReq.RequestURI = buildUpstreamRequestURI(downstreamPath, nil)
+		fmt.Println(httpReq.RequestURI) // jpe - look for all fmt.Println()
+
+		// initiate http pipeline
+		go func() {
+			req, err := rt.RoundTrip(httpReq)
+			fmt.Println(err) // jpe - how to propagate errors here?
+			s, _ := io.ReadAll(req.Body)
+			fmt.Println(string(s))
+		}()
+
+		// collect and return results
+		for {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-srv.Context().Done():
+				return srv.Context().Err()
+			case <-time.After(500 * time.Millisecond):
+				if p == nil { // this prevents a race condition where the progressFn hasn't been called yet
+					continue
+				}
+
+				result := p.result()
+
+				if result.err != nil {
+					return result.err
+				}
+
+				if result.statusCode != http.StatusOK {
+					return fmt.Errorf("unexpected status code: %d", result.statusCode)
+				}
+
+				err = srv.Send(result.response) // jpe handle %age done?
+				if err != nil {
+					return err
+				}
+
+				// jpe - on success when does this loop exit?
+				if result.finishedRequests == totalJobs {
+					return nil
+				}
+			}
+		}
+	}
 }
 
 // buildUpstreamRequestURI returns a uri based on the passed parameters
