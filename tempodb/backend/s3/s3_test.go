@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const getMethod = "GET"
+const putMethod = "PUT"
 const tagHeader = "X-Amz-Tagging"
 const storageClassHeader = "X-Amz-Storage-Class"
 
@@ -126,7 +128,7 @@ func fakeServerWithHeader(t *testing.T, obj *url.Values, testedHeaderName string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch method := r.Method; method {
-		case "PUT":
+		case putMethod:
 			// https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
 			switch testedHeaderValue := r.Header.Get(testedHeaderName); testedHeaderValue {
 			case "":
@@ -136,7 +138,7 @@ func fakeServerWithHeader(t *testing.T, obj *url.Values, testedHeaderName string
 				require.NoError(t, err)
 				*obj = value
 			}
-		case "GET":
+		case getMethod:
 			// return fake list response b/c it's the only call that has to succeed
 			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
 		<ListBucketResult>
@@ -206,7 +208,7 @@ func TestObjectWithPrefix(t *testing.T) {
 			keyPath:    backend.KeyPath{"test"},
 			httpHandler: func(t *testing.T) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
-					if r.Method == "GET" {
+					if r.Method == getMethod {
 						assert.Equal(t, r.URL.Query().Get("prefix"), "test_storage")
 
 						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
@@ -226,7 +228,7 @@ func TestObjectWithPrefix(t *testing.T) {
 			keyPath:    backend.KeyPath{"test"},
 			httpHandler: func(t *testing.T) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
-					if r.Method == "GET" {
+					if r.Method == getMethod {
 						assert.Equal(t, r.URL.Query().Get("prefix"), "")
 
 						_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
