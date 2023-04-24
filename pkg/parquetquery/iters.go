@@ -308,9 +308,10 @@ type SyncIterator struct {
 	rgsMax     []RowNumber // Exclusive, row number of next one past the row group
 	readSize   int
 	selectAs   string
-	filter     Predicate
+	filter     *InstrumentedPredicate
 
 	// Status
+	span            opentracing.Span
 	curr            RowNumber
 	currRowGroup    pq.RowGroup
 	currRowGroupMin RowNumber
@@ -341,7 +342,13 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		rn.Skip(rg.NumRows())
 	}
 
+	span, _ := opentracing.StartSpanFromContext(ctx, "syncIterator", opentracing.Tags{
+		"columnIndex": column,
+		"column":      columnName,
+	})
+
 	return &SyncIterator{
+		span:       span,
 		column:     column,
 		columnName: columnName,
 		rgs:        rgs,
@@ -349,7 +356,7 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		selectAs:   selectAs,
 		rgsMin:     rgsMin,
 		rgsMax:     rgsMax,
-		filter:     filter,
+		filter:     &InstrumentedPredicate{pred: filter},
 		curr:       EmptyRowNumber(),
 	}
 }
@@ -658,6 +665,14 @@ func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 
 func (c *SyncIterator) Close() {
 	c.closeCurrRowGroup()
+
+	c.span.SetTag("inspectedColumnChunks", c.filter.InspectedColumnChunks)
+	c.span.SetTag("inspectedPages", c.filter.InspectedPages)
+	c.span.SetTag("inspectedValues", c.filter.InspectedValues)
+	c.span.SetTag("keptColumnChunks", c.filter.KeptColumnChunks)
+	c.span.SetTag("keptPages", c.filter.KeptPages)
+	c.span.SetTag("keptValues", c.filter.KeptValues)
+	c.span.Finish()
 }
 
 // ColumnIterator asynchronously iterates through the given row groups and column. Applies
