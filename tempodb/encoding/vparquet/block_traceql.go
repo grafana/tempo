@@ -347,7 +347,7 @@ func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.Spanset, erro
 }
 
 func (i *mergeSpansetIterator) Close() {
-	// Close any oustanding iters
+	// Close any outstanding iters
 	for _, iter := range i.iters {
 		iter.Close()
 	}
