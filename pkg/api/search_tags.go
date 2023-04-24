@@ -43,8 +43,11 @@ func parseSearchTagValuesRequest(r *http.Request, enforceTraceQL bool) (*tempopb
 		}
 	}
 
+	query, _ := extractQueryParam(r, urlParamQuery)
+
 	req := &tempopb.SearchTagValuesRequest{
 		TagName: tagName,
+		Query:   query,
 	}
 
 	return req, nil

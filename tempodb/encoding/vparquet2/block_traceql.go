@@ -3,6 +3,7 @@ package vparquet2
 import (
 	"context"
 	"fmt"
+	"io"
 	"math"
 	"reflect"
 	"strings"
@@ -276,6 +277,9 @@ func (i *spansetIterator) Next() (*span, error) {
 		var filteredSpansets []*traceql.Spanset
 		if i.filter != nil {
 			filteredSpansets, err = i.filter(spanset)
+			if err == io.EOF {
+				return nil, nil
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -684,6 +688,10 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 
 		// Else: generic attribute lookup
 		genericConditions = append(genericConditions, cond)
+	}
+
+	for columnPath, predicates := range columnPredicates {
+		iters = append(iters, makeIter(columnPath, parquetquery.NewOrPredicate(predicates...), columnSelectAs[columnPath]))
 	}
 
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceAttrs,

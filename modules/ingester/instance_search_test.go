@@ -225,6 +225,61 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 	assert.Equal(t, expectedTagValues, srv.TagValues)
 }
 
+func TestInstanceSearchTagAndValuesV2(t *testing.T) {
+	i, _ := defaultInstance(t)
+
+	// add dummy search data
+	var (
+		tagKey                = "foo"
+		tagValue              = "bar"
+		queryThatMatches      = `{ .service.name = "test-service" }`
+		queryThatDoesNotMatch = `{ .uuuuu = "aaaaa" }`
+	)
+
+	_, expectedTagValues := writeTracesForSearch(t, i, tagKey, tagValue, true)
+
+	userCtx := user.InjectOrgID(context.Background(), "fake")
+
+	// Test after appending to WAL
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues) // Matches the expected tag values
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatDoesNotMatch, []string{})   // Does not match the expected tag values
+
+	// Test after cutting new headblock
+	blockID, err := i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+	assert.NotEqual(t, blockID, uuid.Nil)
+
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues)
+
+	// Test after completing a block
+	err = i.CompleteBlock(blockID)
+	require.NoError(t, err)
+
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues)
+}
+
+// nolint:revive,unparam
+func testSearchTagsAndValuesV2(t *testing.T, ctx context.Context, i *instance, tagName, query string, expectedTagValues []string) {
+	tagsResp, err := i.SearchTags(ctx, "none")
+	require.NoError(t, err)
+
+	tagValuesResp, err := i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+		TagName: fmt.Sprintf(".%s", tagName),
+		Query:   query,
+	})
+	require.NoError(t, err)
+
+	tagValues := make([]string, 0, len(tagValuesResp.TagValues))
+	for _, v := range tagValuesResp.TagValues {
+		tagValues = append(tagValues, v.Value)
+	}
+
+	sort.Strings(tagValues)
+	sort.Strings(expectedTagValues)
+	assert.Contains(t, tagsResp.TagNames, tagName)
+	assert.Equal(t, expectedTagValues, tagValues)
+}
+
 // TestInstanceSearchTagsSpecialCases tess that SearchTags errors on an unknown scope and
 // returns known instrinics for the "intrinsic" scope
 func TestInstanceSearchTagsSpecialCases(t *testing.T) {
@@ -294,8 +349,6 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 
 	// Write more traces
 	_, _ = writeTracesForSearch(t, i, tagKey, "another-bar", true)
-
-	fmt.Println(i.headBlock, len(i.completingBlocks), len(i.completeBlocks))
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 

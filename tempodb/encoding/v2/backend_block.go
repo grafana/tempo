@@ -153,10 +153,6 @@ func (b *BackendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 	return common.ErrUnsupported
 }
 
-func (b *BackendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
-	return common.ErrUnsupported
-}
-
 func (b *BackendBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.SearchOptions) (traceql.FetchSpansResponse, error) {
 	return traceql.FetchSpansResponse{}, common.ErrUnsupported
 }

@@ -127,6 +127,7 @@ message SearchTagsV2Scope {
 
 message SearchTagValuesRequest {
   string tagName = 1;
+  string query = 2; // TraceQL query
 }
 
 message SearchTagValuesResponse {

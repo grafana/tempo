@@ -67,7 +67,7 @@ func TestEngine_Execute(t *testing.T) {
 			},
 		},
 	}
-	response, err := e.Execute(context.Background(), req, &spanSetFetcher)
+	response, err := e.ExecuteSearch(context.Background(), req, &spanSetFetcher)
 
 	require.NoError(t, err)
 
@@ -388,6 +388,148 @@ func TestExamplesInEngine(t *testing.T) {
 			})
 			require.Error(t, err)
 			require.True(t, errors.As(err, &unsupportedError{}))
+		})
+	}
+}
+
+func TestExecuteTagValues(t *testing.T) {
+	now := time.Now()
+	e := Engine{}
+
+	req := &tempopb.SearchTagValuesRequest{
+		TagName: "resource.service.name",
+		Query:   "{}",
+	}
+
+	spanSetFetcher := MockSpanSetFetcher{
+		iterator: &MockSpanSetIterator{
+			results: []*Spanset{
+				{
+					TraceID:         []byte{1},
+					RootSpanName:    "HTTP GET",
+					RootServiceName: "my-service",
+					Spans: []Span{
+						&mockSpan{
+							id: []byte{1},
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"): NewStaticString("value"),
+								NewScopedAttribute(AttributeScopeResource, false, "service.name"): NewStaticString("my-service"),
+							},
+						},
+						&mockSpan{
+							id:                 []byte{2},
+							startTimeUnixNanos: uint64(now.UnixNano()),
+							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"): NewStaticString("value"),
+								NewAttribute("bar"): NewStaticString("value"),
+								NewScopedAttribute(AttributeScopeResource, false, "service.name"): NewStaticString("my-service"),
+							},
+						},
+					},
+				},
+				{
+					TraceID:         []byte{2},
+					RootSpanName:    "HTTP POST",
+					RootServiceName: "my-service",
+					Spans: []Span{
+						&mockSpan{
+							id: []byte{3},
+							attributes: map[Attribute]Static{
+								NewAttribute("bar"): NewStaticString("value"),
+								NewScopedAttribute(AttributeScopeResource, false, "service.name"): NewStaticString("my-service"),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](100, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	cb := func(v Static) bool { return distinctValues.Collect(tempopb.TagValue{Type: "String", Value: v.S}) }
+	assert.NoError(t, e.ExecuteTagValues(context.Background(), req, cb, &spanSetFetcher))
+
+	assert.Equal(t, []tempopb.TagValue{{Type: "String", Value: "my-service"}}, distinctValues.Values())
+}
+
+func TestExtractMatchers(t *testing.T) {
+	testCases := []struct {
+		name, query, expected string
+	}{
+		{
+			name:     "empty query",
+			query:    "",
+			expected: "{}",
+		},
+		{
+			name:     "empty query with spaces",
+			query:    " { } ",
+			expected: "{}",
+		},
+		{
+			name:     "simple query",
+			query:    `{.service_name = "foo"}`,
+			expected: `{.service_name = "foo"}`,
+		},
+		{
+			name:     "incomplete query",
+			query:    `{ .http.status_code = 200 && .http.method = }`,
+			expected: "{.http.status_code = 200}",
+		},
+		{
+			name:     "invalid query",
+			query:    "{ 2 = .b ",
+			expected: "{}",
+		},
+		{
+			name:     "long query",
+			query:    `{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET" && .cluster = }`,
+			expected: `{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET"}`,
+		},
+		{
+			name:     "query with duration a boolean",
+			query:    `{ duration > 5s && .success = true && .cluster = }`,
+			expected: `{duration > 5s && .success = true}`,
+		},
+		{
+			name:     "query with three selectors with AND",
+			query:    `{ .foo = "bar" && .baz = "qux" } && { duration > 1s } || { .foo = "bar" && .baz = "qux" }`,
+			expected: "{}",
+		},
+		{
+			name:     "query with OR conditions",
+			query:    `{ (.foo = "bar" || .baz = "qux") && duration > 1s }`,
+			expected: "{}",
+		},
+		{
+			name:     "query with multiple selectors and pipelines",
+			query:    `{ .foo = "bar" && .baz = "qux" } && { duration > 1s } || { .foo = "bar" && .baz = "qux" } | count() > 4`,
+			expected: "{}",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, extractMatchers(tc.query))
+		})
+	}
+}
+
+func BenchmarkExtractMatchers(b *testing.B) {
+	queries := []string{
+		`{.service_name = "foo"}`,
+		`{.service_name = "foo" && .http.status_code = 200}`,
+		`{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET"}`,
+		`{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET" && .http.url = "/foo"}`,
+		`{.service_name = "foo" && .cluster = }`,
+		`{.service_name = "foo" && .http.status_code = 200 && .cluster = }`,
+		`{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET" && .cluster = }`,
+		`{.service_name = "foo" && .http.status_code = 200 && .http.method = "GET" && .http.url = "/foo" && .cluster = }`,
+	}
+	for _, query := range queries {
+		b.Run(query, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				_ = extractMatchers(query)
+			}
 		})
 	}
 }
