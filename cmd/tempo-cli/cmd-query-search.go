@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -56,10 +57,14 @@ func (cmd *querySearchCmd) Run(_ *globalOptions) error {
 
 	for {
 		searchResp, err := resp.Recv()
+		if searchResp != nil {
+			printAsJSON(searchResp)
+		}
+		if err == io.EOF {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
-		// jpe - when to exit?
-		printAsJSON(searchResp)
 	}
 }

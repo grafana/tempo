@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path"
@@ -212,6 +213,9 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 			URL: &url.URL{
 				Path: downstreamPath,
 			},
+			Header:     http.Header{},
+			Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
+			RequestURI: buildUpstreamRequestURI(downstreamPath, nil),
 		}, req)
 		if err != nil {
 			level.Error(logger).Log("msg", "build search request failed", "err", err)
@@ -236,28 +240,15 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 		rt := NewRoundTripper(downstream, newSearchSharder(store, o, cfg.Search.Sharder, cfg.Search.SLO, progressFn, logger))
 
 		// propagate context
-		ctx := srv.Context() // this is weird, does it work? jpe - confirm tenant id propagation
-		orgID, err := user.ExtractOrgID(ctx)
-		//orgID, ctx, err := user.ExtractFromGRPCRequest(ctx)
-		if err != nil {
-			level.Error(logger).Log("msg", "extract user id from grpc request failed", "err", err)
-			return err
-		}
+		ctx := srv.Context()
 		httpReq = httpReq.WithContext(ctx)
-		httpReq.Header = http.Header{} // jpe is this needed? or does the tenant id propgate naturally?
-		httpReq.Header.Set(user.OrgIDHeaderName, orgID)
-
-		// manipulations to make the query work with the grpc/http bridge
-		httpReq.Body = io.NopCloser(bytes.NewReader([]byte{}))
-		httpReq.RequestURI = buildUpstreamRequestURI(downstreamPath, nil)
-		fmt.Println(httpReq.RequestURI) // jpe - look for all fmt.Println()
 
 		// initiate http pipeline
 		go func() {
 			req, err := rt.RoundTrip(httpReq)
 			fmt.Println(err) // jpe - how to propagate errors here?
 			s, _ := io.ReadAll(req.Body)
-			fmt.Println(string(s))
+			fmt.Println(string(s)) // jpe - look for all fmt.Println()
 		}()
 
 		// collect and return results
