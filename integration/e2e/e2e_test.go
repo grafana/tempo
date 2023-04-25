@@ -125,6 +125,12 @@ func TestAllInOne(t *testing.T) {
 			// search the backend. this works b/c we're passing a start/end AND setting query ingesters within min/max to 0
 			now := time.Now()
 			util.SearchAndAssertTraceBackend(t, apiClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
+
+			// find the trace with streaming
+			grpcClient, err := util.NewSearchGRPCClient(tempo.Endpoint(9095))
+			require.NoError(t, err)
+
+			util.SearchStreamAndAssertTrace(t, grpcClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
 		})
 	}
 }

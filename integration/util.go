@@ -3,7 +3,9 @@ package integration
 // Collection of utilities to share between our various load tests
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -58,6 +60,7 @@ func NewTempoAllInOne() *e2e.HTTPService {
 		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
 		3200,  // http all things
+		9095,  // grpc tempo
 		14250, // jaeger grpc ingest
 		9411,  // zipkin ingest (used by load)
 		4317,  // otlp grpc
@@ -217,6 +220,15 @@ func NewJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	return jaeger_grpc.NewReporter(conn, nil, logger), err
 }
 
+func NewSearchGRPCClient(endpoint string) (tempopb.StreamingQuerierClient, error) {
+	clientConn, err := grpc.DialContext(context.Background(), endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, err
+	}
+
+	return tempopb.NewStreamingQuerierClient(clientConn), nil
+}
+
 func SearchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
@@ -235,19 +247,7 @@ func SearchAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUti
 	resp, err := client.Search(attr.GetKey() + "=" + attr.GetValue().GetStringValue())
 	require.NoError(t, err)
 
-	hasHex := func(hexId string, resp *tempopb.SearchResponse) bool {
-		for _, s := range resp.Traces {
-			equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexId)
-			require.NoError(t, err)
-			if equal {
-				return true
-			}
-		}
-
-		return false
-	}
-
-	require.True(t, hasHex(info.HexID(), resp))
+	require.True(t, traceIDInResults(t, info.HexID(), resp))
 }
 
 func SearchTraceQLAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *tempoUtil.TraceInfo) {
@@ -260,19 +260,39 @@ func SearchTraceQLAndAssertTrace(t *testing.T, client *tempoUtil.Client, info *t
 	resp, err := client.SearchTraceQL(query)
 	require.NoError(t, err)
 
-	hasHex := func(hexId string, resp *tempopb.SearchResponse) bool {
-		for _, s := range resp.Traces {
-			equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexId)
-			require.NoError(t, err)
-			if equal {
-				return true
+	require.True(t, traceIDInResults(t, info.HexID(), resp))
+}
+
+func SearchStreamAndAssertTrace(t *testing.T, client tempopb.StreamingQuerierClient, info *tempoUtil.TraceInfo, start, end int64) {
+	expected, err := info.ConstructTraceFromEpoch()
+	require.NoError(t, err)
+
+	attr := tempoUtil.RandomAttrFromTrace(expected)
+	query := fmt.Sprintf(`{ .%s = "%s"}`, attr.GetKey(), attr.GetValue().GetStringValue())
+
+	resp, err := client.Search(context.Background(), &tempopb.SearchRequest{
+		Query: query,
+		Start: uint32(start),
+		End:   uint32(end),
+	})
+	require.NoError(t, err)
+
+	// drain the stream until everything is returned
+	found := false
+	for {
+		searchResp, err := resp.Recv()
+		if searchResp != nil {
+			found = traceIDInResults(t, info.HexID(), searchResp)
+			if found {
+				break
 			}
 		}
-
-		return false
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
 	}
-
-	require.True(t, hasHex(info.HexID(), resp))
+	require.True(t, found)
 }
 
 // by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
@@ -287,17 +307,17 @@ func SearchAndAssertTraceBackend(t *testing.T, client *tempoUtil.Client, info *t
 	resp, err := client.SearchWithRange(attr.GetKey()+"="+attr.GetValue().GetStringValue(), start, end)
 	require.NoError(t, err)
 
-	hasHex := func(hexId string, resp *tempopb.SearchResponse) bool {
-		for _, s := range resp.Traces {
-			equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexId)
-			require.NoError(t, err)
-			if equal {
-				return true
-			}
-		}
+	require.True(t, traceIDInResults(t, info.HexID(), resp))
+}
 
-		return false
+func traceIDInResults(t *testing.T, hexId string, resp *tempopb.SearchResponse) bool {
+	for _, s := range resp.Traces {
+		equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexId)
+		require.NoError(t, err)
+		if equal {
+			return true
+		}
 	}
 
-	require.True(t, hasHex(info.HexID(), resp))
+	return false
 }
