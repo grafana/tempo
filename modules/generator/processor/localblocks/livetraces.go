@@ -33,6 +33,10 @@ func (l *liveTraces) token(traceID []byte) uint64 {
 }
 
 func (l *liveTraces) Push(batch *v1.ResourceSpans) {
+	if len(batch.ScopeSpans) == 0 || len(batch.ScopeSpans[0].Spans) == 0 {
+		return
+	}
+
 	traceID := batch.ScopeSpans[0].Spans[0].TraceId
 	token := l.token(traceID)
 

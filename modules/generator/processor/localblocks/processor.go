@@ -14,6 +14,8 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/pkg/errors"
@@ -25,10 +27,11 @@ type Processor struct {
 	wal     *wal.WAL
 	closeCh chan struct{}
 
-	blocksMtx   sync.Mutex
-	headBlock   common.WALBlock
-	walBlocks   []common.WALBlock
-	lastCutTime time.Time
+	blocksMtx      sync.Mutex
+	headBlock      common.WALBlock
+	walBlocks      map[uuid.UUID]common.WALBlock
+	completeBlocks map[uuid.UUID]common.BackendBlock
+	lastCutTime    time.Time
 
 	liveTracesMtx sync.Mutex
 	liveTraces    *liveTraces
@@ -52,14 +55,18 @@ func New(cfg Config, tenant string) (*Processor, error) {
 	}
 
 	p := &Processor{
-		Cfg:        cfg,
-		tenant:     tenant,
-		wal:        wal,
-		liveTraces: NewLiveTraces(),
-		closeCh:    make(chan struct{}),
+		Cfg:            cfg,
+		tenant:         tenant,
+		wal:            wal,
+		walBlocks:      map[uuid.UUID]common.WALBlock{},
+		completeBlocks: map[uuid.UUID]common.BackendBlock{},
+		liveTraces:     NewLiveTraces(),
+		closeCh:        make(chan struct{}),
 	}
 
-	go p.loop()
+	go p.flushLoop()
+	go p.deleteLoop()
+	go p.completeLoop()
 
 	return p, nil
 }
@@ -82,7 +89,7 @@ func (p *Processor) Shutdown(ctx context.Context) {
 	close(p.closeCh)
 }
 
-func (p *Processor) loop() {
+func (p *Processor) flushLoop() {
 	flushTicker := time.NewTicker(p.Cfg.FlushCheckPeriod)
 	defer flushTicker.Stop()
 
@@ -108,6 +115,120 @@ func (p *Processor) loop() {
 			return
 		}
 	}
+}
+
+func (p *Processor) deleteLoop() {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			err := p.deleteOldBlocks()
+			if err != nil {
+				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to delete old blocks", "err", err)
+			}
+
+		case <-p.closeCh:
+			return
+		}
+	}
+}
+
+func (p *Processor) completeLoop() {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			err := p.completeBlock()
+			if err != nil {
+				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to complete a block", "err", err)
+			}
+
+		case <-p.closeCh:
+			return
+		}
+	}
+}
+
+func (p *Processor) completeBlock() error {
+	p.blocksMtx.Lock()
+	defer p.blocksMtx.Unlock()
+
+	var (
+		ctx    = context.Background()
+		enc    = encoding.DefaultEncoding()
+		reader = backend.NewReader(p.wal.LocalBackend())
+		writer = backend.NewWriter(p.wal.LocalBackend())
+		cfg    = &common.BlockConfig{
+			BloomFP:             0.05,
+			BloomShardSizeBytes: 100 * 1024,
+			RowGroupSizeBytes:   50 * 1024 * 1024,
+		}
+	)
+
+	for id, b := range p.walBlocks {
+
+		iter, err := b.Iterator()
+		if err != nil {
+			return err
+		}
+		defer iter.Close()
+
+		newMeta, err := enc.CreateBlock(ctx, cfg, b.BlockMeta(), iter, reader, writer)
+		if err != nil {
+			return err
+		}
+
+		newBlock, err := enc.OpenBlock(newMeta, reader)
+		if err != nil {
+			return err
+		}
+
+		p.completeBlocks[newMeta.BlockID] = newBlock
+
+		err = b.Clear()
+		if err != nil {
+			return err
+		}
+		delete(p.walBlocks, id)
+
+		// Only do 1 block per call
+		return nil
+	}
+
+	return nil
+}
+
+func (p *Processor) deleteOldBlocks() (err error) {
+	p.blocksMtx.Lock()
+	defer p.blocksMtx.Unlock()
+
+	before := time.Now().Add(-p.Cfg.CompleteBlockTimeout)
+
+	for id, b := range p.walBlocks {
+		if b.BlockMeta().EndTime.Before(before) {
+			err = b.Clear()
+			if err != nil {
+				return err
+			}
+			delete(p.walBlocks, id)
+		}
+	}
+
+	for id, b := range p.completeBlocks {
+		if b.BlockMeta().EndTime.Before(before) {
+			err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
+			if err != nil {
+				return err
+			}
+			delete(p.walBlocks, id)
+		}
+	}
+
+	return
 }
 
 func (p *Processor) cutIdleTraces(immediate bool) error {
@@ -172,7 +293,9 @@ func (p *Processor) writeHeadBlock(id common.ID, b []byte) error {
 		}
 	}
 
-	err := p.headBlock.Append(id, b, 0, 0)
+	now := uint32(time.Now().Unix())
+
+	err := p.headBlock.Append(id, b, now, now)
 	if err != nil {
 		return err
 	}
@@ -198,7 +321,7 @@ func (p *Processor) cutBlocks() error {
 		return nil
 	}
 
-	if time.Since(p.lastCutTime) < p.Cfg.MaxBlockDuration || p.headBlock.DataLength() < p.Cfg.MaxBlockBytes {
+	if time.Since(p.lastCutTime) < p.Cfg.MaxBlockDuration && p.headBlock.DataLength() < p.Cfg.MaxBlockBytes {
 		return nil
 	}
 
@@ -208,7 +331,7 @@ func (p *Processor) cutBlocks() error {
 		return fmt.Errorf("failed to flush head block: %w", err)
 	}
 
-	p.walBlocks = append(p.walBlocks, p.headBlock)
+	p.walBlocks[p.headBlock.BlockMeta().BlockID] = p.headBlock
 
 	err = p.resetHeadBlock()
 	if err != nil {

@@ -23,7 +23,7 @@ type Config struct {
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.FlushCheckPeriod = 5 * time.Second
 	cfg.MaxTraceIdle = 5 * time.Second
-	cfg.MaxBlockDuration = 15 * time.Minute
+	cfg.MaxBlockDuration = 1 * time.Minute
 	cfg.MaxBlockBytes = 500_000_000
-	cfg.CompleteBlockTimeout = time.Hour
+	cfg.CompleteBlockTimeout = 5 * time.Minute
 }
