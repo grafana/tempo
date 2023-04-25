@@ -47,7 +47,7 @@ type searchProgress struct {
 	mtx   sync.Mutex
 }
 
-func newSearchProgress(ctx context.Context, limit, _, totalBlocks, totalBlockBytes int) shardedSearchProgress {
+func newSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
 	return &searchProgress{
 		ctx:        ctx,
 		statusCode: http.StatusOK,
@@ -55,6 +55,7 @@ func newSearchProgress(ctx context.Context, limit, _, totalBlocks, totalBlockByt
 		resultsMetrics: &tempopb.SearchMetrics{
 			InspectedBlocks: uint32(totalBlocks),
 			TotalBlockBytes: uint64(totalBlockBytes),
+			TotalJobs:       uint32(totalJobs), // jpe - test
 		},
 		finishedRequests: 0,
 		resultsMap:       map[string]*tempopb.TraceSearchMetadata{},
@@ -91,6 +92,7 @@ func (r *searchProgress) addResponse(res *tempopb.SearchResponse) {
 	// purposefully ignoring InspectedBlocks as that value is set by the sharder
 	r.resultsMetrics.InspectedBytes += res.Metrics.InspectedBytes
 	r.resultsMetrics.InspectedTraces += res.Metrics.InspectedTraces
+	r.resultsMetrics.CompletedJobs++
 
 	// count this request as finished
 	r.finishedRequests++

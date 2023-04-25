@@ -232,10 +232,8 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 		}
 
 		var p *searchProgress
-		var totalJobs int
 		progressFn := func(ctx context.Context, limit, jobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
-			p = newSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes).(*searchProgress)
-			totalJobs = jobs // jpe make this a more robust object to do diffs and such
+			p = newSearchProgress(ctx, limit, jobs, totalBlocks, totalBlockBytes).(*searchProgress)
 			return p
 		}
 
