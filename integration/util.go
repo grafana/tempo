@@ -310,9 +310,9 @@ func SearchAndAssertTraceBackend(t *testing.T, client *tempoUtil.Client, info *t
 	require.True(t, traceIDInResults(t, info.HexID(), resp))
 }
 
-func traceIDInResults(t *testing.T, hexId string, resp *tempopb.SearchResponse) bool {
+func traceIDInResults(t *testing.T, hexID string, resp *tempopb.SearchResponse) bool {
 	for _, s := range resp.Traces {
-		equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexId)
+		equal, err := tempoUtil.EqualHexStringTraceIDs(s.TraceID, hexID)
 		require.NoError(t, err)
 		if equal {
 			return true
