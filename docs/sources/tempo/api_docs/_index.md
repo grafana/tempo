@@ -1,8 +1,8 @@
 ---
-title: Tempo API
+title: API
 description: Grafana Tempo exposes an API for pushing and querying traces, and operating the cluster itself.
-menuTitle: Tempo API
-weight: 700
+menuTitle: API
+weight: 800
 ---
 
 # Tempo API
@@ -26,6 +26,7 @@ These endpoints are exposed both when running Tempo in microservices and monolit
 | [Querying traces by id](#query) | Query-frontend |  HTTP | `GET /api/traces/<traceID>` |
 | [Searching traces](#search) | Query-frontend | HTTP | `GET /api/search?<params>` |
 | [Search tag names](#search-tags) | Query-frontend | HTTP | `GET /api/search/tags` |
+| [Search tag names V2](#search-tags-v2) | Query-frontend | HTTP | `GET /api/v2/search/tags` |
 | [Search tag values](#search-tag-values) | Query-frontend | HTTP | `GET /api/search/tag/<tag>/values` |
 | [Search tag values V2](#search-tag-values-v2) | Query-frontend | HTTP | `GET /api/v2/search/tag/<tag>/values` |
 | [Query Echo Endpoint](#query-echo-endpoint) | Query-frontend |  HTTP | `GET /api/echo` |
@@ -88,7 +89,7 @@ Agent, OpenTelemetry Collector, or Jaeger Agent.
 |  Jaeger | GRPC | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 |  Zipkin | HTTP | [Link](https://zipkin.io/zipkin-api/) |
 
-For information on how to use the Zipkin endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP]({{< relref "pushing-spans-with-http/" >}}).
+For information on how to use the Zipkin endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP]({{< relref "pushing-spans-with-http" >}}).
 
 ### Query
 
@@ -248,10 +249,11 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.nam
 Ingester configuration `complete_block_timeout` affects how long tags are available for search.
 
 This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
-a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
+a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. The tags endpoint takes a scope that controls the kinds 
+of tags or attributes returned. If nothing is provided, the endpoint will return all resource and span tags.
 
 ```
-GET /api/search/tags
+GET /api/search/tags?scope=<resource|span|intrinsic>
 ```
 
 #### Example
@@ -260,7 +262,7 @@ Example of how to query Tempo using curl.
 This query will return all discovered tag names.
 
 ```bash
-$ curl -G -s http://localhost:3200/api/search/tags  | jq
+$ curl -G -s http://localhost:3200/api/search/tags?scope=span  | jq
 {
   "tagNames": [
     "host.name",
@@ -270,16 +272,62 @@ $ curl -G -s http://localhost:3200/api/search/tags  | jq
     "ip",
     "load_generator.seq_num",
     "name",
-    "opencensus.exporterversion",
     "region",
-    "root.name",
-    "root.service.name",
     "root_cause_error",
     "sampler.param",
     "sampler.type",
     "service.name",
     "starter",
     "version"
+  ]
+}
+```
+
+### Search tags V2
+
+Ingester configuration `complete_block_timeout` affects how long tags are available for search.
+
+This endpoint retrieves all discovered tag names that can be used in search.  The endpoint is available in the query frontend service in
+a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. The tags endpoint takes a scope that controls the kinds 
+of tags or attributes returned. If nothing is provided, the endpoint will return all resource and span tags.
+
+```
+GET /api/v2/search/tags?scope=<resource|span|intrinsic>
+```
+
+#### Example
+
+Example of how to query Tempo using curl.
+This query will return all discovered tag names.
+
+```bash
+$ curl -G -s http://localhost:3200/api/v2/search/tags  | jq
+{
+  "scopes": [
+    {
+      "name": "span",
+      "tags": [
+        "article.count",
+        "http.flavor",
+        "http.method",
+      ]
+    },
+    {
+      "name": "resource",
+      "tags": [
+        "k6",
+        "service.name"
+      ]
+    },
+    {
+      "name": "intrinsic",
+      "tags": [
+        "duration",
+        "kind",
+        "name",
+        "status"
+      ]
+    }
   ]
 }
 ```
@@ -319,8 +367,18 @@ $ curl -G -s http://localhost:3200/api/search/tag/service.name/values  | jq
 This endpoint retrieves all discovered values and their data types for the given TraceQL identifier.  The endpoint is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. This endpoint is similar to `/api/search/tag/<tag>/values` but operates on TraceQL identifiers and types. See [TraceQL](../traceql/) documention for more information. The following request returns all discovered service names.
 
+The URL query parameters support the following values:
+
+- `q = (TraceQL query)`: Url encoded [TraceQL query](https://grafana.com/docs/tempo/latest/traceql/).
+  - If a query is provided, results are filtered down to only those traces that match the query.
+  - Queries can be incomplete (eg. `{ .cluster = }`).
+    Tempo will extract only the valid matchers and build a valid query.
+  - Only queries with a single selector `{}` and AND `&&` operators are supported.
+    - Example supported: `{ .cluster = "us-east-1" && .service = "frontend" }`
+    - Example unsupported: `{ .cluster = "us-east-1" || .service = "frontend" } && { .cluster = "us-east-2" }`
+
 ```
-GET /api/v2/search/tag/.service.name/values
+GET /api/v2/search/tag/.service.name/values?q="{span.http.method='GET'}"
 ```
 
 #### Example
@@ -373,6 +431,12 @@ GET,POST /flush
 ```
 
 Triggers a flush of all in-memory traces to the WAL. Useful at the time of rollout restarts and unexpected crashes.
+
+Specify the `tenant` parameter to flush data of a single tenant only.
+
+```
+GET,POST /flush?tenant=dev
+```
 
 ### Shutdown
 

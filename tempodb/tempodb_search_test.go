@@ -82,7 +82,7 @@ func testTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 				return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 			})
 
-			res, err := e.Execute(ctx, req, fetcher)
+			res, err := e.ExecuteSearch(ctx, req, fetcher)
 			require.NoError(t, err, "search request: %+v", req)
 			actual := actualForExpectedMeta(wantMeta, res)
 			require.NotNil(t, actual, "search request: %v", req)
@@ -95,7 +95,7 @@ func testTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 				return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 			})
 
-			res, err := e.Execute(ctx, req, fetcher)
+			res, err := e.ExecuteSearch(ctx, req, fetcher)
 			require.NoError(t, err, "search request: %+v", req)
 			require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
 		}
@@ -232,7 +232,7 @@ func testAdvancedTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 				return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 			})
 
-			res, err := e.Execute(ctx, req, fetcher)
+			res, err := e.ExecuteSearch(ctx, req, fetcher)
 			require.NoError(t, err, "search request: %+v", req)
 			actual := actualForExpectedMeta(wantMeta, res)
 			require.NotNil(t, actual, "search request: %v", req)
@@ -245,7 +245,7 @@ func testAdvancedTraceQLCompleteBlock(t *testing.T, blockVersion string) {
 				return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
 			})
 
-			res, err := e.Execute(ctx, req, fetcher)
+			res, err := e.ExecuteSearch(ctx, req, fetcher)
 			require.NoError(t, err, "search request: %+v", req)
 			require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
 		}
@@ -330,12 +330,13 @@ func runCompleteBlockSearchTest(t testing.TB, blockVersion string, runner runner
 	}, log.NewNopLogger())
 	require.NoError(t, err)
 
-	c.EnableCompaction(context.Background(), &CompactorConfig{
+	err = c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
 
 	r.EnablePolling(&mockJobSharder{})
 	rw := r.(*readerWriter)

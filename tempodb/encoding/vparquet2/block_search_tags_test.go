@@ -16,32 +16,52 @@ import (
 )
 
 func TestBackendBlockSearchTags(t *testing.T) {
-	traces, attrs := makeTraces()
+	traces, _, resourceAttrVals, spanAttrVals := makeTraces()
 	block := makeBackendBlockWithTraces(t, traces)
 
-	foundAttrs := map[string]struct{}{}
-
-	cb := func(s string) {
-		foundAttrs[s] = struct{}{}
-	}
-
-	ctx := context.Background()
-	err := block.SearchTags(ctx, cb, common.DefaultSearchOptions())
-	require.NoError(t, err)
-
-	// test that all attrs are in found attrs
-	for k := range attrs {
-		if k == LabelStatusCode {
-			continue
+	testVals := func(scope traceql.AttributeScope, attrs map[string]string) {
+		foundAttrs := map[string]struct{}{}
+		cb := func(s string) {
+			foundAttrs[s] = struct{}{}
 		}
-		_, ok := foundAttrs[k]
-		require.True(t, ok)
+
+		ctx := context.Background()
+		err := block.SearchTags(ctx, scope, cb, common.DefaultSearchOptions())
+		require.NoError(t, err)
+
+		// test that all attrs are in found attrs
+		for k := range attrs {
+			_, ok := foundAttrs[k]
+			require.True(t, ok, "attr: %s, scope: %s", k, scope)
+			delete(foundAttrs, k)
+		}
+		// if our scope is specific, we can also assert that SearchTags returned only exactly what we expected
+		if scope != traceql.AttributeScopeNone {
+			require.Len(t, foundAttrs, 0, "scope: %s", scope)
+		}
 	}
+
+	testVals(traceql.AttributeScopeNone, resourceAttrVals)
+	testVals(traceql.AttributeScopeResource, resourceAttrVals)
+	testVals(traceql.AttributeScopeNone, spanAttrVals)
+	testVals(traceql.AttributeScopeSpan, spanAttrVals)
 }
 
 func TestBackendBlockSearchTagValues(t *testing.T) {
-	traces, attrs := makeTraces()
+	traces, intrinsics, resourceAttrs, spanAttrs := makeTraces()
 	block := makeBackendBlockWithTraces(t, traces)
+
+	// concat all attrs and test
+	attrs := map[string]string{}
+	for k, v := range intrinsics {
+		attrs[k] = v
+	}
+	for k, v := range resourceAttrs {
+		attrs[k] = v
+	}
+	for k, v := range spanAttrs {
+		attrs[k] = v
+	}
 
 	ctx := context.Background()
 	for tag, val := range attrs {
@@ -119,7 +139,7 @@ func TestBackendBlockSearchTagValuesV2(t *testing.T) {
 			return false
 		}
 
-		err := block.SearchTagValuesV2(ctx, tc.tag, cb, common.DefaultSearchOptions())
+		err := block.searchTagValuesV2(ctx, tc.tag, cb, common.DefaultSearchOptions())
 		require.NoError(t, err, tc.tag)
 		require.Equal(t, tc.vals, got, tc.tag)
 	}
@@ -146,7 +166,7 @@ func BenchmarkBackendBlockSearchTags(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		err := block.SearchTags(ctx, d.Collect, opts)
+		err := block.SearchTags(ctx, traceql.AttributeScopeNone, d.Collect, opts)
 		require.NoError(b, err)
 	}
 }

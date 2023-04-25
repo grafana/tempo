@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"os"
+	"sort"
 	"testing"
 	"time"
 
@@ -145,6 +146,131 @@ func Test_instance_updateProcessors(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.Len(t, instance.processors, 0)
+	})
+
+	t.Run("add span-latency subprocessor", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			servicegraphs.Name:           {},
+			spanmetrics.Latency.String(): {},
+		}
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
+		var expectedConfig spanmetrics.Config
+		expectedConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+		expectedConfig.Dimensions = []string{"namespace"}
+		expectedConfig.IntrinsicDimensions.StatusMessage = true
+		expectedConfig.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
+		expectedConfig.Subprocessors[spanmetrics.Latency] = true
+		expectedConfig.Subprocessors[spanmetrics.Count] = false
+		expectedConfig.Subprocessors[spanmetrics.Size] = false
+
+		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
+
+		var expectedProcessors = []string{servicegraphs.Name, spanmetrics.Name}
+		actualProcessors := make([]string, 0, len(instance.processors))
+
+		for name := range instance.processors {
+			actualProcessors = append(actualProcessors, name)
+		}
+
+		sort.Strings(actualProcessors)
+
+		assert.Equal(t, expectedProcessors, actualProcessors)
+	})
+
+	t.Run("replace span-latency subprocessor with span-count", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			servicegraphs.Name:         {},
+			spanmetrics.Count.String(): {},
+		}
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
+		var expectedConfig spanmetrics.Config
+		expectedConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+		expectedConfig.Dimensions = []string{"namespace"}
+		expectedConfig.IntrinsicDimensions.StatusMessage = true
+		expectedConfig.HistogramBuckets = nil
+		expectedConfig.Subprocessors[spanmetrics.Latency] = false
+		expectedConfig.Subprocessors[spanmetrics.Count] = true
+		expectedConfig.Subprocessors[spanmetrics.Size] = false
+
+		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
+
+		var expectedProcessors = []string{servicegraphs.Name, spanmetrics.Name}
+		actualProcessors := make([]string, 0, len(instance.processors))
+
+		for name := range instance.processors {
+			actualProcessors = append(actualProcessors, name)
+		}
+
+		sort.Strings(actualProcessors)
+
+		assert.Equal(t, expectedProcessors, actualProcessors)
+	})
+
+	t.Run("use all three subprocessors at once", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			servicegraphs.Name:           {},
+			spanmetrics.Count.String():   {},
+			spanmetrics.Latency.String(): {},
+			spanmetrics.Size.String():    {},
+		}
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
+		var expectedConfig spanmetrics.Config
+		expectedConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+		expectedConfig.Dimensions = []string{"namespace"}
+		expectedConfig.IntrinsicDimensions.StatusMessage = true
+		expectedConfig.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
+		expectedConfig.Subprocessors[spanmetrics.Latency] = true
+		expectedConfig.Subprocessors[spanmetrics.Count] = true
+		expectedConfig.Subprocessors[spanmetrics.Size] = true
+
+		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
+
+		var expectedProcessors = []string{servicegraphs.Name, spanmetrics.Name}
+		actualProcessors := make([]string, 0, len(instance.processors))
+
+		for name := range instance.processors {
+			actualProcessors = append(actualProcessors, name)
+		}
+
+		sort.Strings(actualProcessors)
+
+		assert.Equal(t, expectedProcessors, actualProcessors)
+	})
+
+	t.Run("replace subprocessors with span-metrics processor", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			servicegraphs.Name: {},
+			spanmetrics.Name:   {},
+		}
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
+		var expectedConfig spanmetrics.Config
+		expectedConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+		expectedConfig.Dimensions = []string{"namespace"}
+		expectedConfig.IntrinsicDimensions.StatusMessage = true
+		expectedConfig.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
+		expectedConfig.Subprocessors[spanmetrics.Latency] = true
+		expectedConfig.Subprocessors[spanmetrics.Count] = true
+
+		assert.Equal(t, expectedConfig, instance.processors[spanmetrics.Name].(*spanmetrics.Processor).Cfg)
+
+		var expectedProcessors = []string{servicegraphs.Name, spanmetrics.Name}
+		actualProcessors := make([]string, 0, len(instance.processors))
+
+		for name := range instance.processors {
+			actualProcessors = append(actualProcessors, name)
+		}
+
+		sort.Strings(actualProcessors)
+
+		assert.Equal(t, expectedProcessors, actualProcessors)
 	})
 }
 

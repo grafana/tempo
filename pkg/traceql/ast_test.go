@@ -187,6 +187,72 @@ func TestSpansetFilterEvaluate(t *testing.T) {
 			},
 		},
 		{
+			"{ .http.status > `200` }",
+			[]*Spanset{
+				{Spans: []Span{
+					// First span should be dropped here
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("200")}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("201")}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("300")}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("301")}},
+				}},
+				{Spans: []Span{
+					// This entire spanset will be dropped
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("100")}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("201")}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("300")}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("301")}},
+				}},
+			},
+		},
+		{
+			"{ .http.status <= `300` }",
+			[]*Spanset{
+				{Spans: []Span{
+					// Last span should be dropped here
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("200")}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("201")}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("300")}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("301")}},
+				}},
+				{Spans: []Span{
+					// This entire spanset is valid
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("100")}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("200")}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("201")}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("300")}},
+				}},
+				{Spans: []Span{
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticString("100")}},
+				}},
+			},
+		},
+		{
+			"{ .http.status > `200` }",
+			[]*Spanset{
+				{Spans: []Span{
+					// This entire spanset will be dropped because mismatch type
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticInt(200)}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticInt(201)}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticInt(300)}},
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticInt(301)}},
+				}},
+				{Spans: []Span{
+					// This entire spanset will be dropped because mismatch type
+					&mockSpan{attributes: map[Attribute]Static{NewAttribute("http.status"): NewStaticInt(100)}},
+				}},
+			},
+			nil,
+		},
+		{
 			"{ .foo = 1 || (.foo >= 4 && .foo < 6) }",
 			[]*Spanset{
 				{Spans: []Span{

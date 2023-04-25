@@ -85,7 +85,7 @@ type Reader interface {
 }
 
 type Compactor interface {
-	EnableCompaction(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides)
+	EnableCompaction(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) error
 }
 
 type CompactorSharder interface {
@@ -376,7 +376,13 @@ func (rw *readerWriter) Shutdown() {
 }
 
 // EnableCompaction activates the compaction/retention loops
-func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) {
+func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConfig, c CompactorSharder, overrides CompactorOverrides) error {
+	// If compactor configuration is not as expected, no need to go any further
+	err := cfg.validate()
+	if err != nil {
+		return err
+	}
+
 	// Set default if needed. This is mainly for tests.
 	if cfg.RetentionConcurrency == 0 {
 		cfg.RetentionConcurrency = DefaultRetentionConcurrency
@@ -388,7 +394,7 @@ func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConf
 
 	if rw.cfg.BlocklistPoll == 0 {
 		level.Info(rw.logger).Log("msg", "polling cycle unset. compaction and retention disabled")
-		return
+		return nil
 	}
 
 	if cfg != nil {
@@ -396,6 +402,8 @@ func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConf
 		go rw.compactionLoop(ctx)
 		go rw.retentionLoop(ctx)
 	}
+
+	return nil
 }
 
 // EnablePolling activates the polling loop. Pass nil if this component

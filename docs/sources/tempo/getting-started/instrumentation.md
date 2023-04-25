@@ -15,7 +15,7 @@ Client instrumentation is the process of adding instrumentation points in the ap
 Check out these resources for help instrumenting tracing with your favorite languages.
 Most of these guides include complete end-to-end examples with Grafana, Loki, and Tempo.
 
-### Instrumentaiton frameworks
+### Instrumentation frameworks
 
 Most of the popular client instrumentation frameworks
 have SDKs in the most commonly used programming languages.
@@ -24,10 +24,6 @@ You should pick one according to your application needs.
 * [OpenTracing/Jaeger](https://www.jaegertracing.io/docs/latest/client-libraries/)
 * [Zipkin](https://zipkin.io/pages/tracers_instrumentation)
 * [OpenTelemetry](https://opentelemetry.io/docs/concepts/instrumenting/)
-
-
-> **Note**: Check out the [instrumentation references]({{< relref "./instrumentation" >}}) to learn how to instrument your
-> favorite language for distributed tracing.
 
 ### OpenTelemetry auto-instrumentation
 

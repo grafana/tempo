@@ -80,7 +80,11 @@ func binaryTypeValid(op Operator, t StaticType) bool {
 		return op == OpEqual ||
 			op == OpNotEqual ||
 			op == OpRegex ||
-			op == OpNotRegex
+			op == OpNotRegex ||
+			op == OpGreater ||
+			op == OpGreaterEqual ||
+			op == OpLess ||
+			op == OpLessEqual
 	case TypeNil:
 		fallthrough
 	case TypeStatus:

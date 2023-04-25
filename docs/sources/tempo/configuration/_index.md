@@ -1,15 +1,16 @@
 ---
-title: Configuration
+title: Configure
+menuTitle: Configure
 weight: 400
-alias:
+aliases:
 - /docs/tempo/latest/configuration/
 ---
 
-# Configuration
+# Configure Tempo
 
 This document explains the configuration options for Tempo as well as the details of what they impact. It includes:
 
-- [Configuration](#configuration)
+- [Configure Tempo](#configure-tempo)
   - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
   - [Server](#server)
   - [Distributor](#distributor)
@@ -29,7 +30,7 @@ This document explains the configuration options for Tempo as well as the detail
       - [Override strategies](#override-strategies)
   - [Usage-report](#usage-report)
 
-Additionally, you may wish to review [TLS]({{< relref "tls/" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
+Additionally, you can review [TLS]({{< relref "tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
 ## Use environment variables in the configuration
 
@@ -576,10 +577,10 @@ You can not use both local and object storage in the same Tempo deployment.
 The storage block is used to configure TempoDB.
 The following example shows common options. For further platform-specific information, refer to the following:
 
-* [GCS]({{< relref "gcs/" >}})
-* [S3]({{< relref "s3/" >}})
-* [Azure]({{< relref "azure/" >}})
-* [Parquet]({{< relref "parquet/" >}})
+* [GCS]({{< relref "gcs" >}})
+* [S3]({{< relref "s3" >}})
+* [Azure]({{< relref "azure" >}})
+* [Parquet]({{< relref "parquet" >}})
 
 ```yaml
 # Storage configuration for traces
@@ -1162,6 +1163,13 @@ overrides:
     # This override limit is used by the ingester and the querier.
     # A value of 0 disables the limit.
     [max_bytes_per_tag_values_query: <int> | default = 5000000 (5MB) ]
+
+    # Maximum number of blocks to be inspected for a tag values query. Tag-values
+    # query is used mainly to populate the autocomplete dropdown. This limit
+    # protects the system from long block lists in the ingesters.
+    # This override limit is used by the ingester.
+    # A value of 0 disables the limit.
+    [max_blocks_per_tag_values_query: <int> | default = 0 (disabled) ]
 
     # Generic forwarding configuration
 

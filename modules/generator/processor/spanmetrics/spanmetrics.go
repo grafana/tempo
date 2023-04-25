@@ -58,14 +58,20 @@ func New(cfg Config, registry registry.Registry) gen.Processor {
 		labels = append(labels, sanitizeLabelNameWithCollisions(d))
 	}
 
-	return &Processor{
-		Cfg:                        cfg,
-		registry:                   registry,
-		spanMetricsCallsTotal:      registry.NewCounter(metricCallsTotal, labels),
-		spanMetricsDurationSeconds: registry.NewHistogram(metricDurationSeconds, labels, cfg.HistogramBuckets),
-		spanMetricsSizeTotal:       registry.NewCounter(metricSizeTotal, labels),
-		now:                        time.Now,
+	p := &Processor{}
+	if cfg.Subprocessors[Latency] {
+		p.spanMetricsDurationSeconds = registry.NewHistogram(metricDurationSeconds, labels, cfg.HistogramBuckets)
 	}
+	if cfg.Subprocessors[Count] {
+		p.spanMetricsCallsTotal = registry.NewCounter(metricCallsTotal, labels)
+	}
+	if cfg.Subprocessors[Size] {
+		p.spanMetricsSizeTotal = registry.NewCounter(metricSizeTotal, labels)
+	}
+	p.Cfg = cfg
+	p.registry = registry
+	p.now = time.Now
+	return p
 }
 
 func (p *Processor) Name() string {
@@ -123,9 +129,19 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, rs *v1.Resource, spa
 
 	registryLabelValues := p.registry.NewLabelValues(labelValues)
 
-	p.spanMetricsCallsTotal.Inc(registryLabelValues, 1*spanMultiplier)
+	if p.Cfg.Subprocessors[Count] {
+		p.spanMetricsCallsTotal.Inc(registryLabelValues, 1*spanMultiplier)
+	}
+
 	p.spanMetricsSizeTotal.Inc(registryLabelValues, float64(span.Size())*spanMultiplier)
-	p.spanMetricsDurationSeconds.ObserveWithExemplar(registryLabelValues, latencySeconds, tempo_util.TraceIDToHexString(span.TraceId), spanMultiplier)
+
+	if p.Cfg.Subprocessors[Latency] {
+		p.spanMetricsDurationSeconds.ObserveWithExemplar(registryLabelValues, latencySeconds, tempo_util.TraceIDToHexString(span.TraceId), spanMultiplier)
+	}
+
+	if p.Cfg.Subprocessors[Size] {
+		p.spanMetricsSizeTotal.Inc(registryLabelValues, float64(span.Size()))
+	}
 }
 
 func sanitizeLabelNameWithCollisions(name string) string {
