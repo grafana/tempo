@@ -39,19 +39,10 @@ type Processor struct {
 
 var _ gen.Processor = (*Processor)(nil)
 
-func New(cfg Config, tenant string) (*Processor, error) {
-	if cfg.WAL == nil {
-		return nil, errors.New("wal config cannot be nil")
-	}
+func New(cfg Config, tenant string, wal *wal.WAL) (*Processor, error) {
 
-	// Copy the wal config. This is because it contains runtime properties
-	// that are set after creation like CompletedFilePath that break the
-	// automatic configuration drift detection higher up in the metrics
-	// generator module.
-	walCfg := *cfg.WAL
-	wal, err := wal.New(&walCfg)
-	if err != nil {
-		return nil, errors.Wrap(err, "creating local blocks processor wal")
+	if wal == nil {
+		return nil, errors.New("local blocks processor requires traces wal")
 	}
 
 	p := &Processor{
@@ -62,6 +53,11 @@ func New(cfg Config, tenant string) (*Processor, error) {
 		completeBlocks: map[uuid.UUID]common.BackendBlock{},
 		liveTraces:     NewLiveTraces(),
 		closeCh:        make(chan struct{}),
+	}
+
+	err := p.reloadBlocks()
+	if err != nil {
+		return nil, errors.Wrap(err, "replaying blocks")
 	}
 
 	go p.flushLoop()
@@ -162,11 +158,7 @@ func (p *Processor) completeBlock() error {
 		enc    = encoding.DefaultEncoding()
 		reader = backend.NewReader(p.wal.LocalBackend())
 		writer = backend.NewWriter(p.wal.LocalBackend())
-		cfg    = &common.BlockConfig{
-			BloomFP:             0.05,
-			BloomShardSizeBytes: 100 * 1024,
-			RowGroupSizeBytes:   50 * 1024 * 1024,
-		}
+		cfg    = p.Cfg.Block
 	)
 
 	for id, b := range p.walBlocks {
@@ -336,6 +328,74 @@ func (p *Processor) cutBlocks() error {
 	err = p.resetHeadBlock()
 	if err != nil {
 		return fmt.Errorf("failed to resetHeadBlock: %w", err)
+	}
+
+	return nil
+}
+
+func (p *Processor) reloadBlocks() error {
+	var (
+		ctx = context.Background()
+		t   = p.tenant
+		l   = p.wal.LocalBackend()
+		r   = backend.NewReader(l)
+	)
+
+	// ------------------------------------
+	// wal blocks
+	// ------------------------------------
+	walBlocks, err := p.wal.RescanBlocks(0, log.Logger)
+	if err != nil {
+		return err
+	}
+	for _, blk := range walBlocks {
+		meta := blk.BlockMeta()
+		if meta.TenantID == p.tenant {
+			p.walBlocks[blk.BlockMeta().BlockID] = blk
+		}
+	}
+
+	// ------------------------------------
+	// Complete blocks
+	// ------------------------------------
+
+	// This is a quirk, we shouldn't try to list blocks until after we've made
+	// sure the tenant folder exists.
+	tenants, err := r.Tenants(ctx)
+	if err != nil {
+		return err
+	}
+	if len(tenants) == 0 {
+		return nil
+	}
+
+	ids, err := r.Blocks(ctx, p.tenant)
+	if err != nil {
+		return err
+	}
+
+	for _, id := range ids {
+		meta, err := r.BlockMeta(ctx, id, t)
+
+		if err == backend.ErrDoesNotExist {
+			// Partially written block, delete and continue
+			err = l.ClearBlock(id, t)
+			if err != nil {
+				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to clear partially written block during replay", "err", err)
+			}
+			continue
+		}
+
+		if err != nil {
+			return err
+		}
+
+		blk, err := encoding.OpenBlock(meta, r)
+		if err != nil {
+			return err
+		}
+
+		p.completeBlocks[id] = blk
 	}
 
 	return nil

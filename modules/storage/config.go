@@ -19,13 +19,6 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
-const (
-	DefaultBloomFP              = .01
-	DefaultBloomShardSizeBytes  = 100 * 1024
-	DefaultIndexDownSampleBytes = 1024 * 1024
-	DefaultIndexPageSizeBytes   = 250 * 1024
-)
-
 // Config is the Tempo storage configuration
 type Config struct {
 	Trace tempodb.Config `yaml:"trace"`
@@ -48,21 +41,11 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Trace.WAL.IngestionSlack = 2 * time.Minute
 
 	cfg.Trace.Search = &tempodb.SearchConfig{}
-	cfg.Trace.Search.ChunkSizeBytes = tempodb.DefaultSearchChunkSizeBytes
-	cfg.Trace.Search.PrefetchTraceCount = tempodb.DefaultPrefetchTraceCount
-	cfg.Trace.Search.ReadBufferCount = tempodb.DefaultReadBufferCount
-	cfg.Trace.Search.ReadBufferSizeBytes = tempodb.DefaultReadBufferSize
+	cfg.Trace.Search.RegisterFlagsAndApplyDefaults(prefix, f)
 
 	cfg.Trace.Block = &common.BlockConfig{}
-	f.Float64Var(&cfg.Trace.Block.BloomFP, util.PrefixConfig(prefix, "trace.block.v2-bloom-filter-false-positive"), DefaultBloomFP, "Bloom Filter False Positive.")
-	f.IntVar(&cfg.Trace.Block.BloomShardSizeBytes, util.PrefixConfig(prefix, "trace.block.v2-bloom-filter-shard-size-bytes"), DefaultBloomShardSizeBytes, "Bloom Filter Shard Size in bytes.")
-	f.IntVar(&cfg.Trace.Block.IndexDownsampleBytes, util.PrefixConfig(prefix, "trace.block.v2-index-downsample-bytes"), DefaultIndexDownSampleBytes, "Number of bytes (before compression) per index record.")
-	f.IntVar(&cfg.Trace.Block.IndexPageSizeBytes, util.PrefixConfig(prefix, "trace.block.v2-index-page-size-bytes"), DefaultIndexPageSizeBytes, "Number of bytes per index page.")
 	cfg.Trace.Block.Version = encoding.DefaultEncoding().Version()
-	cfg.Trace.Block.Encoding = backend.EncZstd
-	cfg.Trace.Block.SearchEncoding = backend.EncSnappy
-	cfg.Trace.Block.SearchPageSizeBytes = 1024 * 1024 // 1 MB
-	cfg.Trace.Block.RowGroupSizeBytes = 100_000_000   // 100 MB
+	cfg.Trace.Block.RegisterFlagsAndApplyDefaults(prefix, f)
 
 	cfg.Trace.Azure = &azure.Config{}
 	f.StringVar(&cfg.Trace.Azure.StorageAccountName, util.PrefixConfig(prefix, "trace.azure.storage_account_name"), "", "Azure storage account name.")

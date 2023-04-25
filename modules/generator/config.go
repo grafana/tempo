@@ -11,6 +11,8 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
+	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/wal"
 )
 
 const (
@@ -27,6 +29,7 @@ type Config struct {
 	Processor ProcessorConfig `yaml:"processor"`
 	Registry  registry.Config `yaml:"registry"`
 	Storage   storage.Config  `yaml:"storage"`
+	TracesWAL wal.Config      `yaml:"traces_storage"`
 	// MetricsIngestionSlack is the max amount of time passed since a span's start time
 	// for the span to be considered in metrics generation
 	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
@@ -38,6 +41,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Processor.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Registry.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Storage.RegisterFlagsAndApplyDefaults(prefix, f)
+	cfg.TracesWAL.Version = encoding.DefaultEncoding().Version()
+
 	// setting default for max span age before discarding to 30s
 	cfg.MetricsIngestionSlack = 30 * time.Second
 }

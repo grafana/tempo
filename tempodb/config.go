@@ -2,6 +2,7 @@ package tempodb
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"time"
 
@@ -75,6 +76,13 @@ type SearchConfig struct {
 		ColumnIndex bool `yaml:"column_index"`
 		OffsetIndex bool `yaml:"offset_index"`
 	} `yaml:"cache_control"`
+}
+
+func (cfg *SearchConfig) RegisterFlagsAndApplyDefaults(_ string, f *flag.FlagSet) {
+	cfg.ChunkSizeBytes = DefaultSearchChunkSizeBytes
+	cfg.PrefetchTraceCount = DefaultPrefetchTraceCount
+	cfg.ReadBufferCount = DefaultReadBufferCount
+	cfg.ReadBufferSizeBytes = DefaultReadBufferSize
 }
 
 func (c SearchConfig) ApplyToOptions(o *common.SearchOptions) {

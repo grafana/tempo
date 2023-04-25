@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"sync"
 
 	"github.com/go-kit/log"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
+	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
 
 const (
@@ -251,7 +253,23 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 		return nil, err
 	}
 
-	inst, err := newInstance(g.cfg, id, g.overrides, wal, reg, g.logger)
+	// Create traces wal if configured
+	var tracesWAL *tempodb_wal.WAL
+
+	if g.cfg.TracesWAL.Filepath != "" {
+		// Create separate wals per tenant by prefixing path with tenant ID
+
+		tracesWALCfg := g.cfg.TracesWAL
+		tracesWALCfg.Filepath = path.Join(tracesWALCfg.Filepath, id)
+
+		tracesWAL, err = tempodb_wal.New(&tracesWALCfg)
+		if err != nil {
+			wal.Close()
+			return nil, err
+		}
+	}
+
+	inst, err := newInstance(g.cfg, id, g.overrides, wal, reg, g.logger, tracesWAL)
 	if err != nil {
 		wal.Close()
 		return nil, err

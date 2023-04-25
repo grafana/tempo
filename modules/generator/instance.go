@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/tempodb/wal"
 )
 
 var (
@@ -64,6 +65,8 @@ type instance struct {
 	registry *registry.ManagedRegistry
 	wal      storage.Storage
 
+	traceWAL *wal.WAL
+
 	// processorsMtx protects the processors map, not the processors itself
 	processorsMtx sync.RWMutex
 	// processors is a map of processor name -> processor, only one instance of a processor can be
@@ -76,7 +79,7 @@ type instance struct {
 	logger log.Logger
 }
 
-func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, reg prometheus.Registerer, logger log.Logger) (*instance, error) {
+func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, reg prometheus.Registerer, logger log.Logger, traceWAL *wal.WAL) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 
 	i := &instance{
@@ -86,6 +89,7 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 
 		registry: registry.New(&cfg.Registry, overrides, instanceID, wal, logger),
 		wal:      wal,
+		traceWAL: traceWAL,
 
 		processors: make(map[string]processor.Processor),
 
@@ -267,7 +271,7 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 	case servicegraphs.Name:
 		newProcessor = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger)
 	case localblocks.Name:
-		p, err := localblocks.New(cfg.LocalBlocks, i.instanceID)
+		p, err := localblocks.New(cfg.LocalBlocks, i.instanceID, i.traceWAL)
 		if err != nil {
 			return err
 		}
