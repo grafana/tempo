@@ -25,11 +25,15 @@ type mockStreamingServer struct {
 	lastResponse atomic.Pointer[*tempopb.SearchResponse]
 	responses    atomic.Int32
 	ctx          context.Context
+	cb           func(int, *tempopb.SearchResponse)
 }
 
 func (m *mockStreamingServer) Send(r *tempopb.SearchResponse) error {
 	m.lastResponse.Store(&r)
 	m.responses.Inc()
+	if m.cb != nil {
+		m.cb(int(m.responses.Load()), r)
+	}
 	return nil
 }
 func (m *mockStreamingServer) Context() context.Context     { return m.ctx }
@@ -39,9 +43,10 @@ func (m *mockStreamingServer) SendMsg(interface{}) error    { return nil }
 func (m *mockStreamingServer) RecvMsg(interface{}) error    { return nil }
 func (m *mockStreamingServer) SetTrailer(metadata.MD)       {}
 
-func newMockStreamingServer() *mockStreamingServer {
+func newMockStreamingServer(cb func(int, *tempopb.SearchResponse)) *mockStreamingServer {
 	return &mockStreamingServer{
 		ctx: user.InjectOrgID(context.Background(), "fake-tenant"),
+		cb:  cb,
 	}
 }
 
@@ -67,7 +72,7 @@ func TestStreamingSearchHandlerSucceeds(t *testing.T) {
 		}, nil
 	})
 
-	srv := newMockStreamingServer()
+	srv := newMockStreamingServer(nil)
 	handler := testHandler(t, next)
 	err := handler(&tempopb.SearchRequest{
 		Start: 1000,
@@ -91,10 +96,20 @@ func TestStreamingSearchHandlerSucceeds(t *testing.T) {
 }
 
 func TestStreamingSearchHandlerStreams(t *testing.T) {
+	traceResp := []*tempopb.TraceSearchMetadata{
+		{
+			TraceID:         "1234",
+			RootServiceName: "root",
+		},
+	}
+
 	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		time.Sleep(1 * time.Second) // forces the streaming responses to work
 
-		response := &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}
+		response := &tempopb.SearchResponse{
+			Traces:  traceResp,
+			Metrics: &tempopb.SearchMetrics{},
+		}
 		resString, err := (&jsonpb.Marshaler{}).MarshalToString(response)
 		require.NoError(t, err)
 
@@ -104,7 +119,37 @@ func TestStreamingSearchHandlerStreams(t *testing.T) {
 		}, nil
 	})
 
-	srv := newMockStreamingServer()
+	srv := newMockStreamingServer(
+		func(n int, r *tempopb.SearchResponse) {
+			if r.Metrics.CompletedJobs > 0 {
+				// if jobs are completed confirm we have some traces back
+				require.Equal(t, r,
+					&tempopb.SearchResponse{
+						Traces: traceResp,
+						Metrics: &tempopb.SearchMetrics{
+							InspectedBlocks: 1,
+							CompletedJobs:   r.Metrics.CompletedJobs,
+							TotalJobs:       2,
+							TotalBlockBytes: 209715200,
+						},
+					},
+				)
+			} else {
+				// if no jobs have completed confirm there are no traces
+				require.Equal(t, r,
+					&tempopb.SearchResponse{
+						Traces: nil,
+						Metrics: &tempopb.SearchMetrics{
+							InspectedBlocks: 1,
+							CompletedJobs:   r.Metrics.CompletedJobs,
+							TotalJobs:       2,
+							TotalBlockBytes: 209715200,
+						},
+					},
+				)
+			}
+		},
+	)
 	handler := testHandler(t, next)
 	err := handler(&tempopb.SearchRequest{
 		Start: 1000,
@@ -122,7 +167,7 @@ func TestStreamingSearchHandlerCancels(t *testing.T) {
 	})
 
 	var cancel context.CancelFunc
-	srv := newMockStreamingServer()
+	srv := newMockStreamingServer(nil)
 	srv.ctx, cancel = context.WithCancel(srv.ctx)
 
 	go func() {
@@ -147,7 +192,7 @@ func TestStreamingSearchHandlerFailsDueToStatusCode(t *testing.T) {
 		}, nil
 	})
 
-	srv := newMockStreamingServer()
+	srv := newMockStreamingServer(nil)
 	handler := testHandler(t, next)
 	err := handler(&tempopb.SearchRequest{
 		Start: 1000,
@@ -162,7 +207,7 @@ func TestStreamingSearchHandlerFailsDueToError(t *testing.T) {
 		return nil, errors.New("error!")
 	})
 
-	srv := newMockStreamingServer()
+	srv := newMockStreamingServer(nil)
 	handler := testHandler(t, next)
 	err := handler(&tempopb.SearchRequest{
 		Start: 1000,
