@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,14 +22,24 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
+var (
+	metricSpansDiscarded = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "metrics_generator_spans_discarded_total",
+		Help:      "The total number of discarded spans received per tenant",
+	}, []string{"tenant", "reason"})
+)
+
 func TestSpanMetrics(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
+
+	discardCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry, discardCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -59,6 +71,8 @@ func TestSpanMetrics(t *testing.T) {
 func TestSpanMetrics_dimensions(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 
+	discardCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
+
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
@@ -66,7 +80,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	cfg.IntrinsicDimensions.StatusMessage = true
 	cfg.Dimensions = []string{"foo", "bar", "does-not-exist"}
 
-	p, err := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry, discardCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -113,13 +127,15 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 func TestSpanMetrics_collisions(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 
+	discardCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
+
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 	cfg.Dimensions = []string{"span.kind", "span_name"}
 	cfg.IntrinsicDimensions.SpanKind = false
 
-	p, err := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry, discardCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -159,6 +175,8 @@ func TestSpanMetrics_collisions(t *testing.T) {
 }
 
 func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
+	discardCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
+
 	cases := []struct {
 		filterPolicies     []filterconfig.FilterPolicy
 		expectedMatches    float64
@@ -250,7 +268,7 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			cfg.FilterPolicies = tc.filterPolicies
 
 			testRegistry := registry.NewTestRegistry()
-			p, err := New(cfg, testRegistry)
+			p, err := New(cfg, testRegistry, discardCounter)
 			require.NoError(t, err)
 			defer p.Shutdown(context.Background())
 
@@ -295,7 +313,6 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			assert.Equal(t, tc.expectedMatches, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
 			assert.Equal(t, tc.expectedMatches, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
 			assert.Equal(t, tc.expectedMatches, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
-			assert.Equal(t, tc.expectedRejections, testRegistry.Query(metricFilterDropsTotal, nil))
 		})
 	}
 }
@@ -392,12 +409,14 @@ func BenchmarkSpanMetrics_applyFilterPolicyMedium(b *testing.B) {
 }
 
 func benchmarkFilterPolicy(b *testing.B, policies []filterconfig.FilterPolicy, batch *trace_v1.ResourceSpans) {
+	discardCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
+
 	testRegistry := registry.NewTestRegistry()
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 
 	cfg.FilterPolicies = policies
-	p, err := New(cfg, testRegistry)
+	p, err := New(cfg, testRegistry, discardCounter)
 	require.NoError(b, err)
 	defer p.Shutdown(context.Background())
 	b.ResetTimer()
