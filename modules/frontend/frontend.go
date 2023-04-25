@@ -219,15 +219,15 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 			RequestURI: buildUpstreamRequestURI(downstreamPath, nil),
 		}, req)
 		if err != nil {
-			level.Error(logger).Log("msg", "build search request failed", "err", err)
-			return err // jpe all errors wrapped
+			level.Error(logger).Log("msg", "search streaming: build search request failed", "err", err)
+			return fmt.Errorf("build search request failed: %w", err)
 		}
 		ctx := srv.Context()
 		httpReq = httpReq.WithContext(ctx)
 
 		// streaming search only accepts requests with backend components
 		if !api.IsBackendSearch(httpReq) {
-			level.Error(logger).Log("msg", "start/end date not provided")
+			level.Error(logger).Log("msg", "search streaming: start/end date not provided")
 			return errors.New("request must contain a start/end date for streaming search")
 		}
 
@@ -256,8 +256,10 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 		// collect and return results
 		for {
 			select {
+			// handles context canceled or other errors
 			case <-ctx.Done():
 				return ctx.Err()
+			// stream results as they come in
 			case <-time.After(500 * time.Millisecond):
 				if p == nil {
 					continue
@@ -269,8 +271,10 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 
 				err = srv.Send(result.response)
 				if err != nil {
-					return err
+					level.Error(logger).Log("msg", "search streaming: send failed", "err", err)
+					return fmt.Errorf("search streaming send failed: %w", err)
 				}
+			// final result is available
 			case roundTripRes := <-resultChan:
 				// check for errors in the http response
 				if roundTripRes.err != nil {
@@ -278,17 +282,21 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 				}
 				if roundTripRes.resp != nil && roundTripRes.resp.StatusCode != http.StatusOK {
 					b, _ := io.ReadAll(roundTripRes.resp.Body)
+
+					level.Error(logger).Log("msg", "search streaming: status != 200", "status", roundTripRes.resp.StatusCode, "body", string(b))
 					return fmt.Errorf("http error: %d msg: %s", roundTripRes.resp.StatusCode, string(b))
 				}
 
 				// overall pipeline returned successfully, now grab the final results and send them
 				result := p.result()
 				if result.err != nil || result.statusCode != http.StatusOK {
+					level.Error(logger).Log("msg", "search streaming: result status != 200", "err", result.err, "status", result.statusCode, "body", result.statusMsg)
 					return fmt.Errorf("result error: %d status: %d msg: %s", result.err, result.statusCode, result.statusMsg)
 				}
 				err = srv.Send(result.response)
 				if err != nil {
-					return err
+					level.Error(logger).Log("msg", "search streaming: send failed", "err", err)
+					return fmt.Errorf("search streaming send failed: %w", err)
 				}
 
 				return nil

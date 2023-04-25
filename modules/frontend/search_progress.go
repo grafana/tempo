@@ -55,7 +55,7 @@ func newSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks, total
 		resultsMetrics: &tempopb.SearchMetrics{
 			InspectedBlocks: uint32(totalBlocks),
 			TotalBlockBytes: uint64(totalBlockBytes),
-			TotalJobs:       uint32(totalJobs), // jpe - test
+			TotalJobs:       uint32(totalJobs),
 		},
 		finishedRequests: 0,
 		resultsMap:       map[string]*tempopb.TraceSearchMetadata{},
