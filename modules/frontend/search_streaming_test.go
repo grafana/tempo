@@ -29,7 +29,9 @@ type mockStreamingServer struct {
 }
 
 func (m *mockStreamingServer) Send(r *tempopb.SearchResponse) error {
-	m.lastResponse.Store(&r)
+	if r != nil && len(r.Traces) > 0 {
+		m.lastResponse.Store(&r)
+	}
 	m.responses.Inc()
 	if m.cb != nil {
 		m.cb(int(m.responses.Load()), r)
@@ -121,24 +123,11 @@ func TestStreamingSearchHandlerStreams(t *testing.T) {
 
 	srv := newMockStreamingServer(
 		func(n int, r *tempopb.SearchResponse) {
-			if r.Metrics.CompletedJobs > 0 {
-				// if jobs are completed confirm we have some traces back
+			if len(r.Traces) > 0 {
+				// if we have some traces confirm it's what is expected
 				require.Equal(t, r,
 					&tempopb.SearchResponse{
 						Traces: traceResp,
-						Metrics: &tempopb.SearchMetrics{
-							InspectedBlocks: 1,
-							CompletedJobs:   r.Metrics.CompletedJobs,
-							TotalJobs:       2,
-							TotalBlockBytes: 209715200,
-						},
-					},
-				)
-			} else {
-				// if no jobs have completed confirm there are no traces
-				require.Equal(t, r,
-					&tempopb.SearchResponse{
-						Traces: nil,
 						Metrics: &tempopb.SearchMetrics{
 							InspectedBlocks: 1,
 							CompletedJobs:   r.Metrics.CompletedJobs,
@@ -243,4 +232,119 @@ func testHandler(t *testing.T, next http.RoundTripper) streamingSearchHandler {
 	}, "", log.NewNopLogger())
 
 	return handler
+}
+
+func TestDiffSearchProgress(t *testing.T) {
+	ctx := context.Background()
+	diffProgress := newDiffSearchProgress(ctx, 0, 0, 0, 0)
+
+	// first request should be empty
+	require.Equal(t, &tempopb.SearchResponse{
+		Traces:  []*tempopb.TraceSearchMetadata{},
+		Metrics: &tempopb.SearchMetrics{},
+	}, diffProgress.result().response)
+
+	diffProgress.addResponse(&tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:         "1234",
+				RootServiceName: "root",
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			InspectedTraces: 1,
+			InspectedBytes:  2,
+		},
+	})
+
+	// now we should get the same metadata as above
+	require.Equal(t, &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:         "1234",
+				RootServiceName: "root",
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			CompletedJobs:   1,
+			InspectedTraces: 1,
+			InspectedBytes:  2,
+		},
+	}, diffProgress.result().response)
+
+	// metrics, but the trace hasn't change
+	require.Equal(t, &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{},
+		Metrics: &tempopb.SearchMetrics{
+			CompletedJobs:   1,
+			InspectedTraces: 1,
+			InspectedBytes:  2,
+		},
+	}, diffProgress.result().response)
+
+	// new traces
+	diffProgress.addResponse(&tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:         "5678",
+				RootServiceName: "root",
+			},
+			{
+				TraceID:         "9011",
+				RootServiceName: "root",
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			InspectedTraces: 1,
+			InspectedBytes:  2,
+		},
+	})
+
+	require.Equal(t, &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:         "5678",
+				RootServiceName: "root",
+			},
+			{
+				TraceID:         "9011",
+				RootServiceName: "root",
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			CompletedJobs:   2,
+			InspectedTraces: 2,
+			InspectedBytes:  4,
+		},
+	}, diffProgress.result().response)
+
+	// write over existing trace
+	diffProgress.addResponse(&tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:    "1234",
+				DurationMs: 100,
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			InspectedTraces: 1,
+			InspectedBytes:  2,
+		},
+	})
+
+	require.Equal(t, &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:         "1234",
+				RootServiceName: "root",
+				DurationMs:      100,
+			},
+		},
+		Metrics: &tempopb.SearchMetrics{
+			CompletedJobs:   3,
+			InspectedTraces: 3,
+			InspectedBytes:  6,
+		},
+	}, diffProgress.result().response)
+
 }

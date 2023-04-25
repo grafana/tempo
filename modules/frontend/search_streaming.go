@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -19,6 +20,77 @@ import (
 	"github.com/pkg/errors"
 )
 
+// diffSearchProgress only returns new and updated traces when result() is called
+// it uses a wrapped searchProgress to do all of the normal tracking as well as a map
+// to track if a trace was updated or not
+type diffSearchProgress struct {
+	progress shardedSearchProgress
+
+	seenTraces map[string]struct{}
+	mtx        sync.Mutex
+}
+
+func newDiffSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
+	return &diffSearchProgress{
+		seenTraces: map[string]struct{}{},
+		progress:   newSearchProgress(ctx, limit, totalJobs, totalBlocks, totalBlockBytes),
+	}
+}
+
+func (p *diffSearchProgress) setStatus(statusCode int, statusMsg string) {
+	p.progress.setStatus(statusCode, statusMsg)
+}
+
+func (p *diffSearchProgress) setError(err error) {
+	p.progress.setError(err)
+}
+
+func (p *diffSearchProgress) addResponse(res *tempopb.SearchResponse) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	// record modified traces
+	for _, trace := range res.Traces {
+		p.seenTraces[trace.TraceID] = struct{}{}
+	}
+	p.progress.addResponse(res)
+}
+
+// shouldQuit locks and checks if we should quit from current execution or not
+func (p *diffSearchProgress) shouldQuit() bool {
+	return p.progress.shouldQuit()
+}
+
+func (p *diffSearchProgress) result() *shardedSearchResults {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	res := p.progress.result()
+
+	// filter result down to only traces in seenTraces
+	if res.response != nil {
+		keepTraces := make([]*tempopb.TraceSearchMetadata, 0, len(res.response.Traces))
+		for _, trace := range res.response.Traces {
+			_, ok := p.seenTraces[trace.TraceID]
+			if ok {
+				keepTraces = append(keepTraces, trace)
+			}
+		}
+		res.response.Traces = keepTraces
+	}
+	// clear seen traces
+	p.seenTraces = map[string]struct{}{}
+
+	return res
+}
+
+// finalResult gives the user the ability to pull all results w/o filtering
+// to ensure that all results are sent to the caller
+func (p *diffSearchProgress) finalResult() *shardedSearchResults {
+	return p.progress.result()
+}
+
+// newSearchStreamingHandler returns a handler that streams results from the HTTP handler
 func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream http.RoundTripper, reader tempodb.Reader, apiPrefix string, logger log.Logger) streamingSearchHandler {
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
@@ -44,9 +116,9 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 			return errors.New("request must contain a start/end date for streaming search")
 		}
 
-		var p *searchProgress
+		var p *diffSearchProgress
 		progressFn := func(ctx context.Context, limit, jobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
-			p = newSearchProgress(ctx, limit, jobs, totalBlocks, totalBlockBytes).(*searchProgress)
+			p = newDiffSearchProgress(ctx, limit, jobs, totalBlocks, totalBlockBytes).(*diffSearchProgress)
 			return p
 		}
 
@@ -101,7 +173,7 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 				}
 
 				// overall pipeline returned successfully, now grab the final results and send them
-				result := p.result()
+				result := p.finalResult()
 				if result.err != nil || result.statusCode != http.StatusOK {
 					level.Error(logger).Log("msg", "search streaming: result status != 200", "err", result.err, "status", result.statusCode, "body", result.statusMsg)
 					return fmt.Errorf("result error: %d status: %d msg: %s", result.err, result.statusCode, result.statusMsg)
