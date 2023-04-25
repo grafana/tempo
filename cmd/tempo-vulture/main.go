@@ -202,6 +202,16 @@ func main() {
 					)
 				}
 				pushMetrics(searchMetrics)
+
+				// traceql query
+				traceqlSearchMetrics, err := searchTraceql(client, seed)
+				if err != nil {
+					metricErrorTotal.Inc()
+					log.Error("traceql query for metrics failed",
+						zap.Error(err),
+					)
+				}
+				pushMetrics(traceqlSearchMetrics)
 			}
 		}()
 	}
@@ -363,6 +373,69 @@ func searchTag(client *util.Client, seed time.Time) (traceMetrics, error) {
 	resp, err := client.SearchWithRange(fmt.Sprintf("%s=%s", attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to search traces with tag %s: %s", attr.Key, err.Error()))
+		tm.requestFailed++
+		return tm, err
+	}
+
+	if !traceInTraces(hexID, resp.Traces) {
+		tm.notFoundSearch++
+		return tm, fmt.Errorf("trace %s not found in search response: %+v", hexID, resp.Traces)
+	}
+
+	return tm, nil
+}
+
+func searchTraceql(client *util.Client, seed time.Time) (traceMetrics, error) {
+	tm := traceMetrics{
+		requested: 1,
+	}
+
+	info := util.NewTraceInfo(seed, tempoOrgID)
+	hexID := info.HexID()
+
+	// Get the expected
+	expected, err := info.ConstructTraceFromEpoch()
+	if err != nil {
+		logger.Error("unable to construct trace from epoch", zap.Error(err))
+		return traceMetrics{}, err
+	}
+
+	traceInTraces := func(traceID string, traces []*tempopb.TraceSearchMetadata) bool {
+		for _, t := range traces {
+			equal, err := util.EqualHexStringTraceIDs(t.TraceID, traceID)
+			if err != nil {
+				logger.Error("error comparing trace IDs", zap.Error(err))
+				continue
+			}
+
+			if equal {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	attr := util.RandomAttrFromTrace(expected)
+	fmt.Println("*****")
+	fmt.Println(attr)
+	if attr == nil {
+		tm.notFoundSearchAttribute++
+		return tm, fmt.Errorf("no search attr selected from trace")
+	}
+
+	logger := logger.With(
+		zap.Int64("seed", seed.Unix()),
+		zap.String("hexID", hexID),
+		zap.Duration("ago", time.Since(seed)),
+		zap.String("key", attr.Key),
+		zap.String("value", util.StringifyAnyValue(attr.Value)),
+	)
+	logger.Info("searching Tempo")
+
+	resp, err := client.SearchTraceQL(fmt.Sprintf(`{span.%s = "%s"}`, attr.Key, util.StringifyAnyValue(attr.Value)))
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to search traces with traceql %s: %s", attr.Key, err.Error()))
 		tm.requestFailed++
 		return tm, err
 	}
