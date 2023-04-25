@@ -57,7 +57,10 @@ func (cmd *querySearchCmd) Run(_ *globalOptions) error {
 	for {
 		searchResp, err := resp.Recv()
 		if searchResp != nil {
-			printAsJSON(searchResp)
+			err = printAsJSON(searchResp)
+			if err != nil {
+				return err
+			}
 		}
 		if err == io.EOF {
 			return nil

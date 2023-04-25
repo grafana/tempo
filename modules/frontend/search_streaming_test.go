@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -187,7 +187,7 @@ func TestStreamingSearchHandlerCancels(t *testing.T) {
 func TestStreamingSearchHandlerFailsDueToStatusCode(t *testing.T) {
 	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		return &http.Response{
-			Body:       io.NopCloser(strings.NewReader("error!")),
+			Body:       io.NopCloser(strings.NewReader("error")),
 			StatusCode: 500,
 		}, nil
 	})
@@ -204,7 +204,7 @@ func TestStreamingSearchHandlerFailsDueToStatusCode(t *testing.T) {
 
 func TestStreamingSearchHandlerFailsDueToError(t *testing.T) {
 	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		return nil, errors.New("error!")
+		return nil, errors.New("error")
 	})
 
 	srv := newMockStreamingServer(nil)

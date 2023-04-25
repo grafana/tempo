@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path"
@@ -29,7 +28,7 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 				Path: downstreamPath,
 			},
 			Header:     http.Header{},
-			Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
+			Body:       io.NopCloser(bytes.NewReader([]byte{})),
 			RequestURI: buildUpstreamRequestURI(downstreamPath, nil),
 		}, req)
 		if err != nil {
