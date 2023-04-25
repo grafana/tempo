@@ -22,7 +22,7 @@ const (
 	metricCallsTotal      = "traces_spanmetrics_calls_total"
 	metricDurationSeconds = "traces_spanmetrics_latency"
 	metricSizeTotal       = "traces_spanmetrics_size_total"
-	targetInfo            = "target_info"
+	targetInfo            = "traces_target_info"
 )
 
 type Processor struct {
