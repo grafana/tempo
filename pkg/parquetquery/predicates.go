@@ -385,9 +385,13 @@ func NewOrPredicate(preds ...Predicate) *OrPredicate {
 func (p *OrPredicate) String() string {
 	var preds string
 	for _, pred := range p.preds {
-		preds += pred.String() + ","
+		if pred != nil {
+			preds += pred.String() + ","
+		} else {
+			preds += "nil,"
+		}
 	}
-	return fmt.Sprintf("OrPredicate{%s}", p.preds)
+	return fmt.Sprintf("OrPredicate{%s}", preds)
 }
 
 func (p *OrPredicate) KeepColumnChunk(c pq.ColumnChunk) bool {
