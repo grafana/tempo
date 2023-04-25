@@ -53,7 +53,7 @@ func newSearchProgress(ctx context.Context, limit, totalJobs, totalBlocks, total
 		statusCode: http.StatusOK,
 		limit:      limit,
 		resultsMetrics: &tempopb.SearchMetrics{
-			InspectedBlocks: uint32(totalBlocks),
+			TotalBlocks:     uint32(totalBlocks),
 			TotalBlockBytes: uint64(totalBlockBytes),
 			TotalJobs:       uint32(totalJobs),
 		},
@@ -89,7 +89,7 @@ func (r *searchProgress) addResponse(res *tempopb.SearchResponse) {
 		}
 	}
 
-	// purposefully ignoring InspectedBlocks as that value is set by the sharder
+	// purposefully ignoring TotalBlocks as that value is set by the sharder
 	r.resultsMetrics.InspectedBytes += res.Metrics.InspectedBytes
 	r.resultsMetrics.InspectedTraces += res.Metrics.InspectedTraces
 	r.resultsMetrics.CompletedJobs++

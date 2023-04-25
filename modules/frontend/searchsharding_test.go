@@ -383,7 +383,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			response1:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
 			response2:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
 			expectedResponse: &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{
-				InspectedBlocks: 1,
+				TotalBlocks:     1,
 				CompletedJobs:   2,
 				TotalJobs:       2,
 				TotalBlockBytes: defaultTargetBytesPerRequest * 2,
@@ -441,7 +441,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 				},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 1,
-					InspectedBlocks: 2,
+					TotalBlocks:     2,
 					InspectedBytes:  3,
 				}},
 			status2: 200,
@@ -454,7 +454,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 				},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 5,
-					InspectedBlocks: 6,
+					TotalBlocks:     6,
 					InspectedBytes:  7,
 				}},
 			expectedStatus: 200,
@@ -471,7 +471,7 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 				},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 6,
-					InspectedBlocks: 1,
+					TotalBlocks:     1,
 					InspectedBytes:  10,
 					CompletedJobs:   2,
 					TotalJobs:       2,

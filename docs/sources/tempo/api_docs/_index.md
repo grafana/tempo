@@ -209,7 +209,7 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ status=error
     },
   ],
   "metrics": {
-    "inspectedBlocks": 13
+    "totalBlocks": 13
   }
 }
 ```
@@ -241,7 +241,7 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.nam
   "metrics": {
     "inspectedTraces": 3100,
     "inspectedBytes": "3811736",
-    "inspectedBlocks": 3
+    "totalBlocks": 3
   }
 }
 ```
@@ -554,7 +554,8 @@ Displays anonymous usage stats data that is reported back to Grafana Labs.
 Tempo uses GRPC to internally communicate with itself, but only has one externally supported client. The query-frontend component implements
 the streaming querier interface defined below. [See here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/) for the complete proto definition and generated code.
 
-Note that the below rpc call returns only traces that are new or have updated each time SearchResponse is returned.
+Note that the below rpc call returns only traces that are new or have updated each time SearchResponse is returned except for the last response. The
+final response sent is guaranteed to have the entire resultset.
 
 ```protobuf
 service StreamingQuerier {
@@ -601,7 +602,7 @@ message Span {
 message SearchMetrics {
   uint32 inspectedTraces = 1;
   uint64 inspectedBytes = 2;
-  uint32 inspectedBlocks = 3;
+  uint32 totalBlocks = 3;
   uint32 completedJobs = 4;
   uint32 totalJobs = 5;
   uint64 totalBlockBytes = 6;

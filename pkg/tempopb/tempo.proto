@@ -106,7 +106,7 @@ message Span {
 message SearchMetrics {
   uint32 inspectedTraces = 1;
   uint64 inspectedBytes = 2;
-  uint32 inspectedBlocks = 3;
+  uint32 totalBlocks = 3;
   uint32 completedJobs = 4;
   uint32 totalJobs = 5;
   uint64 totalBlockBytes = 6;
