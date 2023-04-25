@@ -83,7 +83,6 @@ func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, reader temp
 	}, nil
 }
 
-// jpe test this shit
 func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
 	return q.streamingSearch(req, srv)
 }
