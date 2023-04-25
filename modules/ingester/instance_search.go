@@ -91,7 +91,6 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			InspectedTraces: sr.TracesInspected(),
 			InspectedBytes:  sr.BytesInspected(),
 			InspectedBlocks: sr.BlocksInspected(),
-			SkippedBlocks:   sr.BlocksSkipped(),
 		},
 	}, nil
 }

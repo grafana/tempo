@@ -91,8 +91,6 @@ func (r *searchProgress) addResponse(res *tempopb.SearchResponse) {
 	// purposefully ignoring InspectedBlocks as that value is set by the sharder
 	r.resultsMetrics.InspectedBytes += res.Metrics.InspectedBytes
 	r.resultsMetrics.InspectedTraces += res.Metrics.InspectedTraces
-	r.resultsMetrics.SkippedBlocks += res.Metrics.SkippedBlocks
-	r.resultsMetrics.SkippedTraces += res.Metrics.SkippedTraces
 
 	// count this request as finished
 	r.finishedRequests++
