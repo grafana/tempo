@@ -110,7 +110,9 @@ func TestSearchProgressCombineResults(t *testing.T) {
 			Traces: []*tempopb.TraceSearchMetadata{
 				{TraceID: traceID, StartTimeUnixNano: uint64(start.UnixNano()), DurationMs: uint32(time.Hour.Milliseconds())},
 			},
-			Metrics: &tempopb.SearchMetrics{},
+			Metrics: &tempopb.SearchMetrics{
+				CompletedJobs: 1,
+			},
 		},
 		finishedRequests: 1,
 		statusCode:       200,

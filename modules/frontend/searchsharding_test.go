@@ -384,6 +384,8 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 			response2:      &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
 			expectedResponse: &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{
 				InspectedBlocks: 1,
+				CompletedJobs:   2,
+				TotalJobs:       2,
 				TotalBlockBytes: defaultTargetBytesPerRequest * 2,
 			}},
 		},
@@ -471,6 +473,8 @@ func TestSearchSharderRoundTrip(t *testing.T) {
 					InspectedTraces: 6,
 					InspectedBlocks: 1,
 					InspectedBytes:  10,
+					CompletedJobs:   2,
+					TotalJobs:       2,
 					TotalBlockBytes: defaultTargetBytesPerRequest * 2,
 				}},
 		},
@@ -680,7 +684,6 @@ func TestMaxDuration(t *testing.T) {
 	assert.Equal(t, 10*time.Minute, actual)
 }
 
-// jpe - super double check this works in prod before PRing. i.e. deploy to ops, test and then PR
 func TestSubRequestsCancelled(t *testing.T) {
 	totalJobs := 5
 

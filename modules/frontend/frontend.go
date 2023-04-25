@@ -83,7 +83,7 @@ func New(cfg Config, next http.RoundTripper, o *overrides.Overrides, store stora
 	return &QueryFrontend{
 		TraceByIDHandler: newHandler(traces, traceByIDCounter, logger),
 		SearchHandler:    newHandler(search, searchCounter, logger),
-		streamingSearch:  newSearchStreamingHandler(cfg, o, retryWare.Wrap(next), store, apiPrefix, logger), // jpe prefix
+		streamingSearch:  newSearchStreamingHandler(cfg, o, retryWare.Wrap(next), store, apiPrefix, logger),
 		logger:           logger,
 		store:            store,
 	}, nil
@@ -267,7 +267,7 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 					continue
 				}
 
-				err = srv.Send(result.response) // jpe handle %age done?
+				err = srv.Send(result.response)
 				if err != nil {
 					return err
 				}
@@ -286,7 +286,7 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 				if result.err != nil || result.statusCode != http.StatusOK {
 					return fmt.Errorf("result error: %d status: %d msg: %s", result.err, result.statusCode, result.statusMsg)
 				}
-				err = srv.Send(result.response) // jpe handle %age done?
+				err = srv.Send(result.response)
 				if err != nil {
 					return err
 				}

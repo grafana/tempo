@@ -21,7 +21,6 @@ type querySearchCmd struct {
 }
 
 func (cmd *querySearchCmd) Run(_ *globalOptions) error {
-	// jpe confirm this requires a date
 	startDate, err := time.Parse(time.RFC3339, cmd.Start)
 	if err != nil {
 		return err
