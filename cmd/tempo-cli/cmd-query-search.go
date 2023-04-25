@@ -46,7 +46,7 @@ func (cmd *querySearchCmd) Run(_ *globalOptions) error {
 
 	client := tempopb.NewStreamingQuerierClient(clientConn)
 
-	resp, err := client.Search(context.Background(), &tempopb.SearchRequest{
+	resp, err := client.Search(ctx, &tempopb.SearchRequest{
 		Query: cmd.TraceQL,
 		Start: uint32(start),
 		End:   uint32(end),
