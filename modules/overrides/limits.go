@@ -67,6 +67,7 @@ type Limits struct {
 	MetricsGeneratorForwarderWorkers                        int             `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets  []float64       `yaml:"metrics_generator_processor_service_graphs_histogram_buckets" json:"metrics_generator_processor_service_graphs_histogram_buckets"`
 	MetricsGeneratorProcessorServiceGraphsDimensions        []string        `yaml:"metrics_generator_processor_service_graphs_dimensions" json:"metrics_generator_processor_service_graphs_dimensions"`
+	MetricsGeneratorProcessorServiceGraphsPeerAttributes    []string        `yaml:"metrics_generator_processor_service_graphs_peer_attributes" json:"metrics_generator_processor_service_graphs_peer_attributes"`
 	MetricsGeneratorProcessorSpanMetricsHistogramBuckets    []float64       `yaml:"metrics_generator_processor_span_metrics_histogram_buckets" json:"metrics_generator_processor_span_metrics_histogram_buckets"`
 	MetricsGeneratorProcessorSpanMetricsDimensions          []string        `yaml:"metrics_generator_processor_span_metrics_dimensions" json:"metrics_generator_processor_span_metrics_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions map[string]bool `yaml:"metrics_generator_processor_span_metrics_intrinsic_dimensions" json:"metrics_generator_processor_span_metrics_intrinsic_dimensions"`

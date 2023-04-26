@@ -328,6 +328,10 @@ func (o *Overrides) MetricsGeneratorProcessorServiceGraphsDimensions(userID stri
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessorServiceGraphsDimensions
 }
 
+func (o *Overrides) MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string {
+	return o.getOverridesForUser(userID).MetricsGeneratorProcessorServiceGraphsPeerAttributes
+}
+
 // MetricsGeneratorProcessorSpanMetricsHistogramBuckets controls the histogram buckets to be used
 // by the span metrics processor.
 func (o *Overrides) MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID string) []float64 {
