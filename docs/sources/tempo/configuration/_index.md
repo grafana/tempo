@@ -651,6 +651,11 @@ storage:
             # a custom prefix to nest within a shared bucket.
             [bucket: <string>]
 
+            # Prefix name in s3
+            # Tempo has this additional option to support a custom prefix to nest all
+            # the objects withing a shared bucket.
+            [prefix: <string>]
+
             # api endpoint to connect to. use AWS S3 or any S3 compatible object storage endpoint.
             # Example: "endpoint: s3.dualstack.us-east-2.amazonaws.com"
             [endpoint: <string>]
