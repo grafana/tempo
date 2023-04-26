@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log"
@@ -116,9 +117,10 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 			return errors.New("request must contain a start/end date for streaming search")
 		}
 
-		var p *diffSearchProgress
+		progress := atomic.Pointer[*diffSearchProgress]{}
 		progressFn := func(ctx context.Context, limit, jobs, totalBlocks, totalBlockBytes int) shardedSearchProgress {
-			p = newDiffSearchProgress(ctx, limit, jobs, totalBlocks, totalBlockBytes).(*diffSearchProgress)
+			p := newDiffSearchProgress(ctx, limit, jobs, totalBlocks, totalBlockBytes).(*diffSearchProgress)
+			progress.Store(&p)
 			return p
 		}
 
@@ -146,6 +148,7 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 				return ctx.Err()
 			// stream results as they come in
 			case <-time.After(500 * time.Millisecond):
+				p := *progress.Load()
 				if p == nil {
 					continue
 				}
@@ -173,6 +176,7 @@ func newSearchStreamingHandler(cfg Config, o *overrides.Overrides, downstream ht
 				}
 
 				// overall pipeline returned successfully, now grab the final results and send them
+				p := *progress.Load()
 				result := p.finalResult()
 				if result.err != nil || result.statusCode != http.StatusOK {
 					level.Error(logger).Log("msg", "search streaming: result status != 200", "err", result.err, "status", result.statusCode, "body", result.statusMsg)
