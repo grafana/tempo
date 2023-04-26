@@ -108,6 +108,14 @@ Additionally, these intrinsic span attributes may be filtered upon:
 - `status` (code)
 - `kind`
 
+The following intrinsic kinds are available for filtering.
+
+- `SPAN_KIND_SERVER`
+- `SPAN_KIND_INTERNAL`
+- `SPAN_KIND_CLIENT`
+- `SPAN_KIND_PRODUCER`
+- `SPAN_KIND_CONSUMER`
+
 Intrinsic keys can be acted on directly when implementing a filter policy. For example:
 
 ```yaml
