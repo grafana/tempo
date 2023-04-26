@@ -134,7 +134,7 @@ steps:
   - echo $(./tools/image-tag) > .tags
   image: alpine/git:v2.30.2
   name: image-tag
-- image: plugins/manifest
+- image: plugins/manifest:1.4.0
   name: manifest-tempo
   settings:
     password:
@@ -143,7 +143,7 @@ steps:
     target: tempo
     username:
       from_secret: docker_username
-- image: plugins/manifest
+- image: plugins/manifest:1.4.0
   name: manifest-tempo-vulture
   settings:
     password:
@@ -152,7 +152,7 @@ steps:
     target: tempo-vulture
     username:
       from_secret: docker_username
-- image: plugins/manifest
+- image: plugins/manifest:1.4.0
   name: manifest-tempo-query
   settings:
     password:
@@ -422,6 +422,6 @@ kind: secret
 name: gpg_passphrase
 ---
 kind: signature
-hmac: d92429ebb30ec062362d88387f0e22d2b3c1dc9c6ac5ae5960494f4ab4089a7c
+hmac: 74e4a96646f3ac2ec0e6083b07f789920e5bfba90043ac1ed62cd1e7c60026e6
 
 ...
