@@ -328,6 +328,7 @@ func (o *Overrides) MetricsGeneratorProcessorServiceGraphsDimensions(userID stri
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessorServiceGraphsDimensions
 }
 
+// MetricsGeneratorProcessorServiceGraphsPeerAttributes controls the attributes that are used to build virtual nodes
 func (o *Overrides) MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string {
 	return o.getOverridesForUser(userID).MetricsGeneratorProcessorServiceGraphsPeerAttributes
 }
