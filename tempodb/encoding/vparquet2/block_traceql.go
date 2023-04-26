@@ -319,30 +319,30 @@ func (i *spansetIterator) Close() {
 // in order
 type mergeSpansetIterator struct {
 	iters []traceql.SpansetIterator
-	cur   int
 }
 
 var _ traceql.SpansetIterator = (*mergeSpansetIterator)(nil)
 
 func (i *mergeSpansetIterator) Next(ctx context.Context) (*traceql.Spanset, error) {
-	if i.cur >= len(i.iters) {
-		return nil, nil
+	for len(i.iters) > 0 {
+		spanset, err := i.iters[0].Next(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if spanset == nil {
+			// This iter is exhausted, pop it
+			i.iters[0].Close()
+			i.iters = i.iters[1:]
+			continue
+		}
+		return spanset, nil
 	}
 
-	iter := i.iters[i.cur]
-	spanset, err := iter.Next(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if spanset == nil {
-		i.cur++
-		return i.Next(ctx)
-	}
-
-	return spanset, nil
+	return nil, nil
 }
 
 func (i *mergeSpansetIterator) Close() {
+	// Close any outstanding iters
 	for _, iter := range i.iters {
 		iter.Close()
 	}

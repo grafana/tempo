@@ -202,12 +202,12 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 
 	for _, req := range searchesThatMatch {
 		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
-		require.NoError(t, err, "search request:", req)
+		require.NoError(t, err, "search request:%v", req)
 
 		found := false
 		for {
 			spanSet, err := resp.Results.Next(ctx)
-			require.NoError(t, err, "search request:", req)
+			require.NoError(t, err, "search request:%v", req)
 			if spanSet == nil {
 				break
 			}
@@ -216,7 +216,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 				break
 			}
 		}
-		require.True(t, found, "search request:", req)
+		require.True(t, found, "search request:%v", req)
 	}
 
 	searchesThatDontMatch := []traceql.FetchSpansRequest{

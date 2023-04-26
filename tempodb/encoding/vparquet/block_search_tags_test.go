@@ -141,7 +141,7 @@ func TestBackendBlockSearchTagValuesV2(t *testing.T) {
 
 		err := block.searchTagValuesV2(ctx, tc.tag, cb, common.DefaultSearchOptions())
 		require.NoError(t, err, tc.tag)
-		require.Equal(t, tc.vals, got, tc.tag)
+		require.Equal(t, tc.vals, got, "tag=%v", tc.tag)
 	}
 }
 

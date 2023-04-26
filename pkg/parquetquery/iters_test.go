@@ -2,12 +2,27 @@ package parquetquery
 
 import (
 	"context"
+	"math"
 	"os"
 	"testing"
 
 	"github.com/segmentio/parquet-go"
 	"github.com/stretchr/testify/require"
 )
+
+type makeTestIterFn func(pf *parquet.File, idx int, filter Predicate, selectAs string) Iterator
+
+var iterTestCases = []struct {
+	name     string
+	makeIter makeTestIterFn
+}{
+	{"async", func(pf *parquet.File, idx int, filter Predicate, selectAs string) Iterator {
+		return NewColumnIterator(context.TODO(), pf.RowGroups(), idx, selectAs, 1000, filter, selectAs)
+	}},
+	{"sync", func(pf *parquet.File, idx int, filter Predicate, selectAs string) Iterator {
+		return NewSyncIterator(context.TODO(), pf.RowGroups(), idx, selectAs, 1000, filter, selectAs)
+	}},
+}
 
 func TestRowNumber(t *testing.T) {
 	tr := EmptyRowNumber()
@@ -46,29 +61,43 @@ func TestCompareRowNumbers(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		require.Equal(t, tc.expected, CompareRowNumbers(5, tc.a, tc.b))
+		require.Equal(t, tc.expected, CompareRowNumbers(MaxDefinitionLevel, tc.a, tc.b))
+	}
+}
+
+func TestRowNumberPreceding(t *testing.T) {
+	testCases := []struct {
+		start, preceding RowNumber
+	}{
+		{RowNumber{1000, -1, -1, -1, -1, -1}, RowNumber{999, -1, -1, -1, -1, -1}},
+		{RowNumber{1000, 0, 0, 0, 0, 0}, RowNumber{999, math.MaxInt64, math.MaxInt64, math.MaxInt64, math.MaxInt64, math.MaxInt64}},
+	}
+
+	for _, tc := range testCases {
+		require.Equal(t, tc.preceding, tc.start.Preceding())
 	}
 }
 
 func TestColumnIterator(t *testing.T) {
-	type T struct{ A int }
-
-	rows := []T{}
-	count := 10_000
-	for i := 0; i < count; i++ {
-		rows = append(rows, T{i})
+	for _, tc := range iterTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			testColumnIterator(t, tc.makeIter)
+		})
 	}
+}
 
-	pf := createFileWith(t, rows)
+func testColumnIterator(t *testing.T, makeIter makeTestIterFn) {
+	count := 100_000
+	pf := createTestFile(t, count)
 
 	idx, _ := GetColumnIndexByPath(pf, "A")
-	iter := NewColumnIterator(context.TODO(), pf.RowGroups(), idx, "", 1000, nil, "A")
+	iter := makeIter(pf, idx, nil, "A")
 	defer iter.Close()
 
 	for i := 0; i < count; i++ {
 		res, err := iter.Next()
 		require.NoError(t, err)
-
+		require.NotNil(t, res, "i=%d", i)
 		require.Equal(t, RowNumber{int64(i), -1, -1, -1, -1, -1}, res.RowNumber)
 		require.Equal(t, int64(i), res.ToMap()["A"][0].Int64())
 	}
@@ -76,6 +105,74 @@ func TestColumnIterator(t *testing.T) {
 	res, err := iter.Next()
 	require.NoError(t, err)
 	require.Nil(t, res)
+}
+
+func TestColumnIteratorSeek(t *testing.T) {
+	for _, tc := range iterTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			testColumnIteratorSeek(t, tc.makeIter)
+		})
+	}
+}
+
+func testColumnIteratorSeek(t *testing.T, makeIter makeTestIterFn) {
+	count := 10_000
+	pf := createTestFile(t, count)
+
+	idx, _ := GetColumnIndexByPath(pf, "A")
+	iter := makeIter(pf, idx, nil, "A")
+	defer iter.Close()
+
+	seekTos := []int64{
+		100,
+		1234,
+		4567,
+		5000,
+		7890,
+	}
+
+	for _, seekTo := range seekTos {
+		rn := EmptyRowNumber()
+		rn[0] = seekTo
+		res, err := iter.SeekTo(rn, 0)
+		require.NoError(t, err)
+		require.NotNil(t, res, "seekTo=%v", seekTo)
+		require.Equal(t, RowNumber{seekTo, -1, -1, -1, -1, -1}, res.RowNumber)
+		require.Equal(t, seekTo, res.ToMap()["A"][0].Int64())
+	}
+}
+
+func TestColumnIteratorPredicate(t *testing.T) {
+	for _, tc := range iterTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			testColumnIteratorPredicate(t, tc.makeIter)
+		})
+	}
+}
+
+func testColumnIteratorPredicate(t *testing.T, makeIter makeTestIterFn) {
+	count := 10_000
+	pf := createTestFile(t, count)
+
+	pred := NewIntBetweenPredicate(7001, 7003)
+
+	idx, _ := GetColumnIndexByPath(pf, "A")
+	iter := makeIter(pf, idx, pred, "A")
+	defer iter.Close()
+
+	expectedResults := []int64{
+		7001,
+		7002,
+		7003,
+	}
+
+	for _, expectedResult := range expectedResults {
+		res, err := iter.Next()
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.Equal(t, RowNumber{expectedResult, -1, -1, -1, -1, -1}, res.RowNumber)
+		require.Equal(t, expectedResult, res.ToMap()["A"][0].Int64())
+	}
 }
 
 func TestColumnIteratorExitEarly(t *testing.T) {
@@ -159,39 +256,64 @@ func TestColumnIteratorExitEarly(t *testing.T) {
 }
 
 func BenchmarkColumnIterator(b *testing.B) {
-	type T struct{ A int }
-	rows := []T{}
-	count := 10_000
-	for i := 0; i < count; i++ {
-		rows = append(rows, T{i})
+	for _, tc := range iterTestCases {
+		b.Run(tc.name, func(b *testing.B) {
+			benchmarkColumnIterator(b, tc.makeIter)
+		})
 	}
+}
 
-	pf := createFileWith(b, rows)
+func benchmarkColumnIterator(b *testing.B, makeIter makeTestIterFn) {
+	count := 100_000
+	pf := createTestFile(b, count)
+
 	idx, _ := GetColumnIndexByPath(pf, "A")
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		iter := NewColumnIterator(context.TODO(), pf.RowGroups(), idx, "", 1000, nil, "A")
+		iter := makeIter(pf, idx, nil, "A")
+		actualCount := 0
 		for {
 			res, err := iter.Next()
 			require.NoError(b, err)
 			if res == nil {
 				break
 			}
+			actualCount++
 		}
 		iter.Close()
+		require.Equal(b, count, actualCount)
+		//fmt.Println(actualCount)
 	}
+}
+
+func createTestFile(t testing.TB, count int) *parquet.File {
+	type T struct{ A int }
+
+	rows := []T{}
+	for i := 0; i < count; i++ {
+		rows = append(rows, T{i})
+	}
+
+	pf := createFileWith(t, rows)
+	return pf
 }
 
 func createFileWith[T any](t testing.TB, rows []T) *parquet.File {
 	f, err := os.CreateTemp(t.TempDir(), "data.parquet")
 	require.NoError(t, err)
 
+	half := len(rows) / 2
+
 	w := parquet.NewGenericWriter[T](f)
-	count, err := w.Write(rows)
-	require.Equal(t, len(rows), count)
+	_, err = w.Write(rows[0:half])
 	require.NoError(t, err)
+	require.NoError(t, w.Flush())
+
+	_, err = w.Write(rows[half:])
+	require.NoError(t, err)
+	require.NoError(t, w.Flush())
 
 	require.NoError(t, w.Close())
 
