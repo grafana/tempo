@@ -129,7 +129,7 @@ local docker_build(arch, app) = {
 
 local docker_manifest(app) = {
   name: 'manifest-%s' % app,
-  image: 'plugins/manifest',
+  image: 'plugins/manifest:1.4.0',
   settings: {
     username: { from_secret: docker_username_secret.name },
     password: { from_secret: docker_password_secret.name },
