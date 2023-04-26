@@ -417,8 +417,6 @@ func searchTraceql(client *util.Client, seed time.Time) (traceMetrics, error) {
 	}
 
 	attr := util.RandomAttrFromTrace(expected)
-	fmt.Println("*****")
-	fmt.Println(attr)
 	if attr == nil {
 		tm.notFoundSearchAttribute++
 		return tm, fmt.Errorf("no search attr selected from trace")
