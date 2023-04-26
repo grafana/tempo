@@ -1,29 +1,26 @@
 ---
+depends_on: []
 kind: pipeline
 name: docker-amd64
-
 platform:
-  os: linux
   arch: amd64
-
+  os: linux
 steps:
-- name: image-tag
-  image: alpine/git:v2.30.2
-  commands:
+- commands:
   - apk --update --no-cache add bash
   - git fetch origin --tags
   - echo $(./tools/image-tag)-amd64 > .tags
-
-- name: build-tempo-binaries
-  image: golang:1.20-alpine
-  commands:
+  image: alpine/git:v2.30.2
+  name: image-tag
+- commands:
   - apk --update --no-cache add make git bash
   - COMPONENT=tempo GOARCH=amd64 make exe
   - COMPONENT=tempo-vulture GOARCH=amd64 make exe
   - COMPONENT=tempo-query GOARCH=amd64 make exe
-
-- name: build-tempo-image
-  image: plugins/docker
+  image: golang:1.20-alpine
+  name: build-tempo-binaries
+- image: plugins/docker
+  name: build-tempo-image
   settings:
     build_args:
     - TARGETARCH=amd64
@@ -33,9 +30,8 @@ steps:
     repo: grafana/tempo
     username:
       from_secret: docker_username
-
-- name: build-tempo-vulture-image
-  image: plugins/docker
+- image: plugins/docker
+  name: build-tempo-vulture-image
   settings:
     build_args:
     - TARGETARCH=amd64
@@ -45,9 +41,8 @@ steps:
     repo: grafana/tempo-vulture
     username:
       from_secret: docker_username
-
-- name: build-tempo-query-image
-  image: plugins/docker
+- image: plugins/docker
+  name: build-tempo-query-image
   settings:
     build_args:
     - TARGETARCH=amd64
@@ -57,40 +52,35 @@ steps:
     repo: grafana/tempo-query
     username:
       from_secret: docker_username
-
 trigger:
   ref:
   - refs/heads/main
   - refs/tags/v*
   - refs/heads/r?
   - refs/heads/r??
-
 ---
+depends_on: []
 kind: pipeline
 name: docker-arm64
-
 platform:
-  os: linux
   arch: arm64
-
+  os: linux
 steps:
-- name: image-tag
-  image: alpine/git:v2.30.2
-  commands:
+- commands:
   - apk --update --no-cache add bash
   - git fetch origin --tags
   - echo $(./tools/image-tag)-arm64 > .tags
-
-- name: build-tempo-binaries
-  image: golang:1.20-alpine
-  commands:
+  image: alpine/git:v2.30.2
+  name: image-tag
+- commands:
   - apk --update --no-cache add make git bash
   - COMPONENT=tempo GOARCH=arm64 make exe
   - COMPONENT=tempo-vulture GOARCH=arm64 make exe
   - COMPONENT=tempo-query GOARCH=arm64 make exe
-
-- name: build-tempo-image
-  image: plugins/docker
+  image: golang:1.20-alpine
+  name: build-tempo-binaries
+- image: plugins/docker
+  name: build-tempo-image
   settings:
     build_args:
     - TARGETARCH=arm64
@@ -100,9 +90,8 @@ steps:
     repo: grafana/tempo
     username:
       from_secret: docker_username
-
-- name: build-tempo-vulture-image
-  image: plugins/docker
+- image: plugins/docker
+  name: build-tempo-vulture-image
   settings:
     build_args:
     - TARGETARCH=arm64
@@ -112,9 +101,8 @@ steps:
     repo: grafana/tempo-vulture
     username:
       from_secret: docker_username
-
-- name: build-tempo-query-image
-  image: plugins/docker
+- image: plugins/docker
+  name: build-tempo-query-image
   settings:
     build_args:
     - TARGETARCH=arm64
@@ -124,32 +112,30 @@ steps:
     repo: grafana/tempo-query
     username:
       from_secret: docker_username
-
 trigger:
   ref:
   - refs/heads/main
   - refs/tags/v*
   - refs/heads/r?
   - refs/heads/r??
-
 ---
+depends_on:
+- docker-amd64
+- docker-arm64
 kind: pipeline
 name: manifest
-
 platform:
-  os: linux
   arch: amd64
-
+  os: linux
 steps:
-- name: image-tag
-  image: alpine/git:v2.30.2
-  commands:
+- commands:
   - apk --update --no-cache add bash
   - git fetch origin --tags
   - echo $(./tools/image-tag) > .tags
-
-- name: manifest-tempo
-  image: plugins/manifest:1.4.0
+  image: alpine/git:v2.30.2
+  name: image-tag
+- image: plugins/manifest:1.4.0
+  name: manifest-tempo
   settings:
     password:
       from_secret: docker_password
@@ -157,9 +143,8 @@ steps:
     target: tempo
     username:
       from_secret: docker_username
-
-- name: manifest-tempo-vulture
-  image: plugins/manifest:1.4.0
+- image: plugins/manifest:1.4.0
+  name: manifest-tempo-vulture
   settings:
     password:
       from_secret: docker_password
@@ -167,9 +152,8 @@ steps:
     target: tempo-vulture
     username:
       from_secret: docker_username
-
-- name: manifest-tempo-query
-  image: plugins/manifest:1.4.0
+- image: plugins/manifest:1.4.0
+  name: manifest-tempo-query
   settings:
     password:
       from_secret: docker_password
@@ -177,83 +161,91 @@ steps:
     target: tempo-query
     username:
       from_secret: docker_username
-
 trigger:
   ref:
   - refs/heads/main
   - refs/tags/v*
   - refs/heads/r?
   - refs/heads/r??
-
-depends_on:
-- docker-amd64
-- docker-arm64
-
 ---
+depends_on:
+- manifest
+image_pull_secrets:
+- dockerconfigjson
 kind: pipeline
 name: cd-to-dev-env
-
 platform:
-  os: linux
   arch: amd64
-
+  os: linux
 steps:
-- name: image-tag-for-cd
-  image: alpine/git:v2.30.2
-  commands:
+- commands:
   - apk --update --no-cache add bash
   - git fetch origin --tags
   - echo "grafana/tempo:$(./tools/image-tag)" > .tags-for-cd-tempo
   - echo "grafana/tempo-query:$(./tools/image-tag)" > .tags-for-cd-tempo_query
   - echo "grafana/tempo-vulture:$(./tools/image-tag)" > .tags-for-cd-tempo_vulture
-
-- name: update-dev-images
-  image: us.gcr.io/kubernetes-dev/drone/plugins/updater
+  image: alpine/git:v2.30.2
+  name: image-tag-for-cd
+- image: us.gcr.io/kubernetes-dev/drone/plugins/updater
+  name: update-dev-images
   settings:
-    config_json: "{\n  \"destination_branch\": \"master\",\n  \"pull_request_branch_prefix\": \"cd-tempo-dev\",\n  \"pull_request_enabled\": false,\n  \"pull_request_team_reviewers\": [\n    \"tempo\"\n  ],\n  \"repo_name\": \"deployment_tools\",\n  \"update_jsonnet_attribute_configs\": [\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo\",\n      \"jsonnet_value_file\": \".tags-for-cd-tempo\"\n    },\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo_query\",\n      \"jsonnet_value_file\": \".tags-for-cd-tempo_query\"\n    },\n    {\n      \"file_path\": \"ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet\",\n      \"jsonnet_key\": \"tempo_vulture\",\n      \"jsonnet_value_file\": \".tags-for-cd-tempo_vulture\"\n    }\n  ]\n}"
+    config_json: |-
+      {
+        "destination_branch": "master",
+        "pull_request_branch_prefix": "cd-tempo-dev",
+        "pull_request_enabled": false,
+        "pull_request_team_reviewers": [
+          "tempo"
+        ],
+        "repo_name": "deployment_tools",
+        "update_jsonnet_attribute_configs": [
+          {
+            "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+            "jsonnet_key": "tempo",
+            "jsonnet_value_file": ".tags-for-cd-tempo"
+          },
+          {
+            "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+            "jsonnet_key": "tempo_query",
+            "jsonnet_value_file": ".tags-for-cd-tempo_query"
+          },
+          {
+            "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+            "jsonnet_key": "tempo_vulture",
+            "jsonnet_value_file": ".tags-for-cd-tempo_vulture"
+          }
+        ]
+      }
     github_token:
       from_secret: gh_token
-
-image_pull_secrets:
-- dockerconfigjson
-
 trigger:
   ref:
   - refs/heads/main
-
-depends_on:
-- manifest
-
 ---
+depends_on: []
 kind: pipeline
 name: build-deploy-serverless
-
 platform:
-  os: linux
   arch: amd64
-
+  os: linux
 steps:
-- name: build-tempo-serverless
-  image: golang:1.20-alpine
-  commands:
+- commands:
   - apk add make git zip bash
   - ./tools/image-tag | cut -d, -f 1 | tr A-Z a-z > .tags
   - cd ./cmd/tempo-serverless
   - make build-docker-gcr-binary
   - make build-lambda-zip
-
-- name: deploy-tempo-serverless-gcr
-  image: plugins/gcr
+  image: golang:1.20-alpine
+  name: build-tempo-serverless
+- image: plugins/gcr
+  name: deploy-tempo-serverless-gcr
   settings:
     context: ./cmd/tempo-serverless/cloud-run
     dockerfile: ./cmd/tempo-serverless/cloud-run/Dockerfile
     json_key:
       from_secret: ops_tools_img_upload
     repo: ops-tools-1203/tempo-serverless
-
-- name: deploy-tempo-dev-serverless-lambda
-  image: amazon/aws-cli
-  commands:
+- commands:
   - cd ./cmd/tempo-serverless/lambda
   - aws s3 cp tempo-serverless*.zip s3://dev-tempo-fn-source
   environment:
@@ -262,10 +254,9 @@ steps:
     AWS_DEFAULT_REGION: us-east-2
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY-dev
-
-- name: deploy-tempo-prod-serverless-lambda
   image: amazon/aws-cli
-  commands:
+  name: deploy-tempo-dev-serverless-lambda
+- commands:
   - cd ./cmd/tempo-serverless/lambda
   - aws s3 cp tempo-serverless*.zip s3://prod-tempo-fn-source
   environment:
@@ -274,67 +265,72 @@ steps:
     AWS_DEFAULT_REGION: us-east-2
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY-prod
-
+  image: amazon/aws-cli
+  name: deploy-tempo-prod-serverless-lambda
 trigger:
   ref:
   - refs/heads/main
   - refs/tags/v*
   - refs/heads/r?
   - refs/heads/r??
-
 ---
+depends_on: []
 kind: pipeline
 name: release
-
 platform:
-  os: linux
   arch: amd64
-
+  os: linux
+services:
+- image: jrei/systemd-debian:12
+  name: systemd-debian
+  privileged: true
+  volumes:
+  - name: cgroup
+    path: /sys/fs/cgroup
+- image: jrei/systemd-centos:8
+  name: systemd-centos
+  privileged: true
+  volumes:
+  - name: cgroup
+    path: /sys/fs/cgroup
 steps:
-- name: fetch
-  image: docker:git
-  commands:
+- commands:
   - git fetch --tags
-
-- name: write-key
-  image: golang:1.20
-  commands:
+  image: docker:git
+  name: fetch
+- commands:
   - printf "%s" "$NFPM_SIGNING_KEY" > $NFPM_SIGNING_KEY_FILE
   environment:
     NFPM_SIGNING_KEY:
       from_secret: gpg_private_key
     NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
-
-- name: test release
   image: golang:1.20
-  commands:
+  name: write-key
+- commands:
   - make release-snapshot
   environment:
     NFPM_DEFAULT_PASSPHRASE:
       from_secret: gpg_passphrase
     NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
-
-- name: test deb package
-  image: docker
-  commands:
-  - ./tools/packaging/verify-deb-install.sh
-  privileged: true
-  volumes:
-  - name: docker
-    path: /var/run/docker.sock
-
-- name: test rpm package
-  image: docker
-  commands:
-  - ./tools/packaging/verify-rpm-install.sh
-  privileged: true
-  volumes:
-  - name: docker
-    path: /var/run/docker.sock
-
-- name: release
   image: golang:1.20
-  commands:
+  name: test release
+- commands:
+  - ./tools/packaging/verify-deb-install.sh
+  image: docker
+  name: test deb package
+  privileged: true
+  volumes:
+  - name: docker
+    path: /var/run/docker.sock
+- commands:
+  - ./tools/packaging/verify-rpm-install.sh
+  image: docker
+  name: test rpm package
+  privileged: true
+  volumes:
+  - name: docker
+    path: /var/run/docker.sock
+- commands:
   - make release
   environment:
     GITHUB_TOKEN:
@@ -342,128 +338,90 @@ steps:
     NFPM_DEFAULT_PASSPHRASE:
       from_secret: gpg_passphrase
     NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
+  image: golang:1.20
+  name: release
   when:
     event:
     - tag
-
-services:
-- name: systemd-debian
-  image: jrei/systemd-debian:12
-  privileged: true
-  volumes:
-  - name: cgroup
-    path: /sys/fs/cgroup
-
-- name: systemd-centos
-  image: jrei/systemd-centos:8
-  privileged: true
-  volumes:
-  - name: cgroup
-    path: /sys/fs/cgroup
-
-volumes:
-- name: cgroup
-  host:
-    path: /sys/fs/cgroup
-- name: docker
-  host:
-    path: /var/run/docker.sock
-
 trigger:
   event:
   - tag
   - pull_request
-
+volumes:
+- host:
+    path: /sys/fs/cgroup
+  name: cgroup
+- host:
+    path: /var/run/docker.sock
+  name: docker
 ---
+get:
+  name: username
+  path: infra/data/ci/docker_hub
 kind: secret
 name: docker_username
-
-get:
-  path: infra/data/ci/docker_hub
-  name: username
-
 ---
+get:
+  name: password
+  path: infra/data/ci/docker_hub
 kind: secret
 name: docker_password
-
-get:
-  path: infra/data/ci/docker_hub
-  name: password
-
 ---
+get:
+  name: .dockerconfigjson
+  path: secret/data/common/gcr
 kind: secret
 name: dockerconfigjson
-
-get:
-  path: secret/data/common/gcr
-  name: .dockerconfigjson
-
 ---
+get:
+  name: pat
+  path: infra/data/ci/github/grafanabot
 kind: secret
 name: gh_token
-
-get:
-  path: infra/data/ci/github/grafanabot
-  name: pat
-
 ---
+get:
+  name: credentials.json
+  path: infra/data/ci/tempo-ops-tools-function-upload
 kind: secret
 name: ops_tools_img_upload
-
-get:
-  path: infra/data/ci/tempo-ops-tools-function-upload
-  name: credentials.json
-
 ---
+get:
+  name: access_key_id
+  path: infra/data/ci/tempo-dev/aws-credentials-drone
 kind: secret
 name: AWS_ACCESS_KEY_ID-dev
-
-get:
-  path: infra/data/ci/tempo-dev/aws-credentials-drone
-  name: access_key_id
-
 ---
+get:
+  name: secret_access_key
+  path: infra/data/ci/tempo-dev/aws-credentials-drone
 kind: secret
 name: AWS_SECRET_ACCESS_KEY-dev
-
-get:
-  path: infra/data/ci/tempo-dev/aws-credentials-drone
-  name: secret_access_key
-
 ---
+get:
+  name: access_key_id
+  path: infra/data/ci/tempo-prod/aws-credentials-drone
 kind: secret
 name: AWS_ACCESS_KEY_ID-prod
-
-get:
-  path: infra/data/ci/tempo-prod/aws-credentials-drone
-  name: access_key_id
-
 ---
+get:
+  name: secret_access_key
+  path: infra/data/ci/tempo-prod/aws-credentials-drone
 kind: secret
 name: AWS_SECRET_ACCESS_KEY-prod
-
-get:
-  path: infra/data/ci/tempo-prod/aws-credentials-drone
-  name: secret_access_key
-
 ---
+get:
+  name: private-key
+  path: infra/data/ci/packages-publish/gpg
 kind: secret
 name: gpg_private_key
-
-get:
-  path: infra/data/ci/packages-publish/gpg
-  name: private-key
-
 ---
+get:
+  name: passphrase
+  path: infra/data/ci/packages-publish/gpg
 kind: secret
 name: gpg_passphrase
-
-get:
-  path: infra/data/ci/packages-publish/gpg
-  name: passphrase
-
 ---
 kind: signature
-hmac: ce3c396ef9a96c3b2321ef335ef2efa0566e604c3f5600c6185a728f13ffa5f7
+hmac: 74e4a96646f3ac2ec0e6083b07f789920e5bfba90043ac1ed62cd1e7c60026e6
 
 ...
