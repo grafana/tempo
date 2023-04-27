@@ -8,7 +8,7 @@ weight: 20
 # Monitor Tempo
 
 Tempo is instrumented to expose metrics, logs, and traces.
-Additionally, the Tempo repository has a [mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) that includes a
+Furthermore, the Tempo repository has a [mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) that includes a
 set of dashboards, rules, and alerts.
 Together, these can be used to monitor Tempo in production.
 
@@ -20,7 +20,7 @@ These can be collected to observe Tempo.
 ### Metrics
 
 Tempo is instrumented with [Prometheus metrics](https://prometheus.io/).
-It emits RED metrics for most services and backends.
+It emits RED metrics for most services and backends. (RED metrics are a standardized format for monitoring microservices, where R stands for requests, E stands for errors, and D stands for duration)
 
 The [Tempo mixin](#dashboards) provides several dashboards using these metrics.
 
@@ -47,7 +47,7 @@ JAEGER_SAMPLER_PARAM=1
 ## Dashboards
 
 The [Tempo mixin](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) has four Grafana dashboards in the `yamls` folder that you can download and import into your Grafana UI.
-At the moment, these work well when Tempo is run in a Kubernetes (k8s) environment and metrics scraped have the
+Currently, these work well when Tempo is run in a Kubernetes (k8s) environment and metrics scraped have the
 `cluster` and `namespace` labels.
 
 ### Tempo Reads dashboard
