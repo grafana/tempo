@@ -721,9 +721,13 @@ storage:
         azure:
 
             # store traces in this container.
-            # Tempo requires a dedicated bucket since it maintains a top-level object structure and does not support
-            # a custom prefix to nest within a shared bucket.
+            # Tempo requires bucket to  maintain a top-level object structure. You can use prefix option to nest all objects within a shared bucket
             [container_name: <string>]
+
+            # optional.
+            # Prefix for azure.
+            # Tempo has this additional option to support a custom prefix to nest all the objects withing a shared bucket.
+            [prefix: <string>]
 
             # optional.
             # Azure endpoint to use, defaults to Azure global(core.windows.net) for other
