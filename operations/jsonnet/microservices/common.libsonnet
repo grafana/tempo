@@ -33,6 +33,10 @@
         service.mixin.spec.withIpFamilies(['IPv6']),
       ingest_service+:
         service.mixin.spec.withIpFamilies(['IPv6']),
+      memcached+: {
+        service+:
+          service.mixin.spec.withIpFamilies(['IPv6']),
+      },
       tempo_config+:: {
         server+: {
           http_listen_address: '[::0]',
@@ -41,14 +45,11 @@
         ingester+: {
           lifecycler+: {
             enable_inet6: true,
-            address: '[::0]',
+            address: '::',
           },
         },
         memberlist+: {
-          bind_addr: ['[::0]'],
-        },
-        query_frontend+: {
-          enable_inet6: true,
+          bind_addr: ['::'],
         },
         compactor+: {
           ring+: {
