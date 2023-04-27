@@ -45,7 +45,6 @@
         ingester+: {
           lifecycler+: {
             enable_inet6: true,
-            address: '::',
           },
         },
         memberlist+: {
