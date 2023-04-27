@@ -85,6 +85,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.Trace.GCS = &gcs.Config{}
 	f.StringVar(&cfg.Trace.GCS.BucketName, util.PrefixConfig(prefix, "trace.gcs.bucket"), "", "gcs bucket to store traces in.")
+	f.StringVar(&cfg.Trace.GCS.Prefix, util.PrefixConfig(prefix, "trace.gcs.prefix"), "", "gcs bucket prefix to store traces in.")
 	cfg.Trace.GCS.ChunkBufferSize = 10 * 1024 * 1024
 	cfg.Trace.GCS.HedgeRequestsUpTo = 2
 

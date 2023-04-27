@@ -598,10 +598,14 @@ storage:
         gcs:
 
             # Bucket name in gcs
-            # Tempo requires a dedicated bucket since it maintains a top-level object structure and does not support
-            # a custom prefix to nest within a shared bucket.
+            # Tempo requires a bucket to maintain a top-level object structure. You can use prefix option with this to nest all objects within a shared bucket.
             # Example: "bucket_name: tempo"
             [bucket_name: <string>]
+
+            # optional.
+            # Prefix name in gcs
+            # Tempo has this additional option to support a custom prefix to nest all the objects withing a shared bucket.
+            [prefix: <string>]
 
             # Buffer size for reads. Default is 10MB
             # Example: "chunk_buffer_size: 5_000_000"
