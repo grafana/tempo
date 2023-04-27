@@ -14,36 +14,43 @@ func TestSearchProgressShouldQuit(t *testing.T) {
 	ctx := context.Background()
 
 	// brand-new response should not quit
-	sr := newSearchProgress(ctx, 10, 0, 0, 0)
+	sr := newSearchProgress()
+	sr.init(ctx, 10, 0, 0, 0)
 	assert.False(t, sr.shouldQuit())
 
 	// errored response should quit
-	sr = newSearchProgress(ctx, 10, 0, 0, 0)
+	sr = newSearchProgress()
+	sr.init(ctx, 10, 0, 0, 0)
 	sr.setError(errors.New("blerg"))
 	assert.True(t, sr.shouldQuit())
 
 	// happy status code should not quit
-	sr = newSearchProgress(ctx, 10, 0, 0, 0)
+	sr = newSearchProgress()
+	sr.init(ctx, 10, 0, 0, 0)
 	sr.setStatus(200, "")
 	assert.False(t, sr.shouldQuit())
 
 	// sad status code should quit
-	sr = newSearchProgress(ctx, 10, 0, 0, 0)
+	sr = newSearchProgress()
+	sr.init(ctx, 10, 0, 0, 0)
 	sr.setStatus(400, "")
 	assert.True(t, sr.shouldQuit())
 
-	sr = newSearchProgress(ctx, 10, 0, 0, 0)
+	sr = newSearchProgress()
+	sr.init(ctx, 10, 0, 0, 0)
 	sr.setStatus(500, "")
 	assert.True(t, sr.shouldQuit())
 
 	// cancelled context should quit
 	cancellableContext, cancel := context.WithCancel(ctx)
-	sr = newSearchProgress(cancellableContext, 10, 0, 0, 0)
+	sr = newSearchProgress()
+	sr.init(cancellableContext, 10, 0, 0, 0)
 	cancel()
 	assert.True(t, sr.shouldQuit())
 
 	// limit reached should quit
-	sr = newSearchProgress(ctx, 2, 0, 0, 0)
+	sr = newSearchProgress()
+	sr.init(ctx, 2, 0, 0, 0)
 	sr.addResponse(&tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
@@ -83,7 +90,8 @@ func TestSearchProgressCombineResults(t *testing.T) {
 	start := time.Date(1, 2, 3, 4, 5, 6, 7, time.UTC)
 	traceID := "traceID"
 
-	sr := newSearchProgress(context.Background(), 10, 0, 0, 0)
+	sr := newSearchProgress()
+	sr.init(context.Background(), 10, 0, 0, 0)
 	sr.addResponse(&tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
