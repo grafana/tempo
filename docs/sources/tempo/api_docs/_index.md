@@ -549,7 +549,7 @@ GET /status/usage-stats
 
 Displays anonymous usage stats data that is reported back to Grafana Labs.
 
-# Tempo GRPC API
+## Tempo GRPC API
 
 Tempo uses GRPC to internally communicate with itself, but only has one externally supported client. The query-frontend component implements
 the streaming querier interface defined below. [See here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/) for the complete proto definition and generated code.
