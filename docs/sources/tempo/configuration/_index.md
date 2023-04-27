@@ -647,13 +647,12 @@ storage:
         s3:
 
             # Bucket name in s3
-            # Tempo requires a dedicated bucket since it maintains a top-level object structure and does not support
-            # a custom prefix to nest within a shared bucket.
+            # Tempo requires a bucket to maintain a top-level object structure. You can use prefix option with this to nest all objects within a shared bucket.
             [bucket: <string>]
 
+            # optional.
             # Prefix name in s3
-            # Tempo has this additional option to support a custom prefix to nest all
-            # the objects withing a shared bucket.
+            # Tempo has this additional option to support a custom prefix to nest all the objects withing a shared bucket.
             [prefix: <string>]
 
             # api endpoint to connect to. use AWS S3 or any S3 compatible object storage endpoint.
