@@ -29,7 +29,7 @@ The metrics-generator processes traces and generates service graphs in the form 
 
 Service graphs work by inspecting traces and looking for spans with parent-children relationship that represent a request.
 The processor uses the [OpenTelemetry semantic conventions](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/README.md) to detect a myriad of requests.
-It currently supports the following requests:
+It currently supports detecting the following types of requests:
 - A direct request between two services where the outgoing and the incoming span must have [`span.kind`](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind), `client`, and `server`, respectively.
 - A request across a messaging system where the outgoing and the incoming span must have `span.kind`, `producer`, and `consumer` respectively.
 - A database request; in this case the processor looks for spans containing attributes `span.kind`=`client` as well as `db.name`.
@@ -37,7 +37,7 @@ It currently supports the following requests:
 Every span that can be paired up to form a request is kept in an in-memory store, until its corresponding pair span is received or the maximum waiting time has passed.
 When either of these conditions are reached, the request is recorded and removed from the local store.
 
-Each emitted metrics series have the `client` and `server` label corresponding with the service doing the request and the service receiving the request.
+Each emitted metric's series have the `client` and `server` label corresponding with the service doing the request and the service receiving the request.
 
 ```
   tempo_service_graph_request_total{client="app", server="db", connection_type="database"} 20
@@ -124,7 +124,7 @@ To enable service graphs in Tempo/GET, enable the metrics generator and add an o
 
 ### Grafana
 
-**Note** Since 9.0.4 service graphs have been enabled by default in Grafana. Prior to Grafana 9.0.4, service graphs were hidden
+**Note** Starting from version 9.0.4, service graphs are enabled by default in Grafana. Prior to Grafana 9.0.4, service graphs were hidden
 under the [feature toggle](https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana/#feature_toggles) `tempoServiceGraph`.
 
 Configure a Tempo data source's 'Service Graphs' by linking to the Prometheus backend where metrics are being sent:
