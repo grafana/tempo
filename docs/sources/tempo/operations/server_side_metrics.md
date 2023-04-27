@@ -9,14 +9,14 @@ weight: 15
 Server-side metrics is a feature that derive metrics from ingested traces.
 
 To generate metrics, it uses an additional component: the [metrics-generator]({{< relref "../metrics-generator" >}}).
-If present, the distributor will write received spans to both the ingester and the metrics-generator.
+If the metrics-generator is present, the distributor will write received spans to both the ingester and the metrics-generator.
 The metrics-generator processes spans and writes metrics to a Prometheus datasource using the Prometheus remote write protocol.
 
 ## Architecture
 
 Generating and writing metrics introduces a whole new domain to Tempo unlike any other functionality thus far.
 For this reason, a component, the metrics-generator, is dedicated to working with metrics.
-This results in a clean division of responsibility and limits the blast radius from a metrics processors or the Prometheus remote write exporter blowing up.
+This results in a clear separation of responsibilities and limits the impact of any issues with the metrics processors or the Prometheus remote write exporter.
 
 
 ```
@@ -53,4 +53,4 @@ This results in a clean division of responsibility and limits the blast radius f
 
 ## Configuration
 
-For a detailed view of all the config options for the metrics generator, visit [its config page]({{< relref "../configuration/#metrics-generator" >}}).
+For a detailed view of all the configuration options for the metrics generator, please refer to [its configuration page]({{< relref "../configuration/#metrics-generator" >}}).
