@@ -6,7 +6,7 @@ weight: 15
 
 # Server-side metrics architecture
 
-Server-side metrics is a feature that derive metrics from ingested traces.
+Server-side metrics is a feature that derives metrics from ingested traces.
 
 To generate metrics, it uses an additional component: the [metrics-generator]({{< relref "../metrics-generator" >}}).
 If present, the distributor will write received spans to both the ingester and the metrics-generator.
@@ -16,7 +16,7 @@ The metrics-generator processes spans and writes metrics to a Prometheus datasou
 
 Generating and writing metrics introduces a whole new domain to Tempo unlike any other functionality thus far.
 For this reason, a component, the metrics-generator, is dedicated to working with metrics.
-This results in a clean division of responsibility and limits the blast radius from a metrics processors or the Prometheus remote write exporter blowing up.
+This results in a clear separation of responsibilities and limits the impact of any issues with the metrics processors or the Prometheus remote write exporter.
 
 
 ```
