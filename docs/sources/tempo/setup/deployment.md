@@ -1,6 +1,6 @@
 ---
 title: Plan your Tempo deployment
-menuTitle: Plan your deployment
+menuTitle: Plan your Tempo deployment
 aliases:
   - /docs/tempo/deployment
   - /docs/tempo/deployment/deployment
@@ -28,7 +28,7 @@ descriptions of the components.
 
 To enable this mode, `-target=all` is used, which is the default.
 
-Find docker-compose deployment examples at:
+Find docker-compose deployment examples at the following links:
 
 - [https://github.com/grafana/tempo/tree/main/example/docker-compose/local](https://github.com/grafana/tempo/tree/main/example/docker-compose/local)
 - [https://github.com/grafana/tempo/tree/main/example/docker-compose/s3](https://github.com/grafana/tempo/tree/main/example/docker-compose/s3)
@@ -39,12 +39,11 @@ Monolithic mode can be horizontally scaled out.
 This scalable monolithic mode is similar to the monolithic mode in that all components are run within one process.
 Horizontal scale out is achieved by instantiating more than one process, with each having `-target` set to `scalable-single-binary`.
 
-This mode offers some flexibility of scaling without the configuration complexity of the full
-microservices deployment.
+This mode offers some scaling flexibility without the configuration complexity of the full microservices deployment.
 
 Each of the `queriers` perform a DNS lookup for the `frontend_address` and connect to the addresses found within the DNS record.
 
-Find a docker-compose deployment example at:
+Find a docker-compose deployment example at the following link:
 
 - [https://github.com/grafana/tempo/tree/main/example/docker-compose/scalable-single-binary](https://github.com/grafana/tempo/tree/main/example/docker-compose/scalable-single-binary)
 
