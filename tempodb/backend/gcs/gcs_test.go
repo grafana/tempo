@@ -224,3 +224,85 @@ func fakeServerWithObjectAttributes(t *testing.T, o *raw.Object) *httptest.Serve
 
 	return server
 }
+
+func TestObjectWithPrefix(t *testing.T) {
+
+	tests := []struct {
+		name        string
+		prefix      string
+		objectName  string
+		keyPath     backend.KeyPath
+		httpHandler func(t *testing.T) http.HandlerFunc
+	}{
+		{
+			name:       "with prefix",
+			prefix:     "test_storage",
+			objectName: "object",
+			keyPath:    backend.KeyPath{"test_path"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == "GET" {
+						_, _ = w.Write([]byte(`
+						{
+							"location": "US",
+							"storageClass": "STANDARD"
+						}
+						`))
+						return
+					}
+
+					assert.Equal(t, "/upload/storage/v1/b/blerg/o", r.URL.Path)
+					assert.True(t, r.URL.Query().Get("name") == "test_storage/test_path/object")
+					_, _ = w.Write([]byte(`{}`))
+				}
+			},
+		},
+		{
+			name:       "without prefix",
+			objectName: "object",
+			keyPath:    backend.KeyPath{"test_path"},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == "GET" {
+						_, _ = w.Write([]byte(`
+						{
+							"location": "US",
+							"storageClass": "STANDARD"
+						}
+						`))
+						return
+					}
+
+					assert.Equal(t, "/upload/storage/v1/b/blerg/o", r.URL.Path)
+					assert.True(t, r.URL.Query().Get("name") == "test_path/object")
+					_, _ = w.Write([]byte(`{}`))
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := testServer(t, tc.httpHandler(t))
+			_, w, _, err := New(&Config{
+				BucketName: "blerg",
+				Endpoint:   server.URL,
+				Insecure:   true,
+				Prefix:     tc.prefix,
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			err = w.Write(ctx, tc.objectName, tc.keyPath, bytes.NewReader([]byte{}), 0, false)
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func testServer(t *testing.T, httpHandler http.HandlerFunc) *httptest.Server {
+	t.Helper()
+	assert.NotNil(t, httpHandler)
+	server := httptest.NewServer(httpHandler)
+	t.Cleanup(server.Close)
+	return server
+}

@@ -13,6 +13,7 @@ type Config struct {
 	UseFederatedToken  bool           `yaml:"use_federated_token"`
 	UserAssignedID     string         `yaml:"user_assigned_id"`
 	ContainerName      string         `yaml:"container_name"`
+	Prefix             string         `yaml:"prefix"`
 	Endpoint           string         `yaml:"endpoint_suffix"`
 	MaxBuffers         int            `yaml:"max_buffers"`
 	BufferSize         int            `yaml:"buffer_size"`

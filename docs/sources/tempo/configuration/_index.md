@@ -598,10 +598,14 @@ storage:
         gcs:
 
             # Bucket name in gcs
-            # Tempo requires a dedicated bucket since it maintains a top-level object structure and does not support
-            # a custom prefix to nest within a shared bucket.
+            # Tempo requires a bucket to maintain a top-level object structure. You can use prefix option with this to nest all objects within a shared bucket.
             # Example: "bucket_name: tempo"
             [bucket_name: <string>]
+
+            # optional.
+            # Prefix name in gcs
+            # Tempo has this additional option to support a custom prefix to nest all the objects withing a shared bucket.
+            [prefix: <string>]
 
             # Buffer size for reads. Default is 10MB
             # Example: "chunk_buffer_size: 5_000_000"
@@ -647,13 +651,12 @@ storage:
         s3:
 
             # Bucket name in s3
-            # Tempo requires a dedicated bucket since it maintains a top-level object structure and does not support
-            # a custom prefix to nest within a shared bucket.
+            # Tempo requires a bucket to maintain a top-level object structure. You can use prefix option with this to nest all objects within a shared bucket.
             [bucket: <string>]
 
+            # optional.
             # Prefix name in s3
-            # Tempo has this additional option to support a custom prefix to nest all
-            # the objects withing a shared bucket.
+            # Tempo has this additional option to support a custom prefix to nest all the objects withing a shared bucket.
             [prefix: <string>]
 
             # api endpoint to connect to. use AWS S3 or any S3 compatible object storage endpoint.
@@ -721,9 +724,13 @@ storage:
         azure:
 
             # store traces in this container.
-            # Tempo requires a dedicated bucket since it maintains a top-level object structure and does not support
-            # a custom prefix to nest within a shared bucket.
+            # Tempo requires bucket to  maintain a top-level object structure. You can use prefix option to nest all objects within a shared bucket
             [container_name: <string>]
+
+            # optional.
+            # Prefix for azure.
+            # Tempo has this additional option to support a custom prefix to nest all the objects withing a shared bucket.
+            [prefix: <string>]
 
             # optional.
             # Azure endpoint to use, defaults to Azure global(core.windows.net) for other

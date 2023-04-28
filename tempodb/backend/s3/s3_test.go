@@ -217,7 +217,7 @@ func TestObjectWithPrefix(t *testing.T) {
 						return
 					}
 
-					assert.Equal(t, r.URL.String(), "/blerg/test_storage/test/object")
+					assert.Equal(t, "/blerg/test_storage/test/object", r.URL.String())
 				}
 			},
 		},
@@ -237,7 +237,7 @@ func TestObjectWithPrefix(t *testing.T) {
 						return
 					}
 
-					assert.Equal(t, r.URL.String(), "/blerg/test/object")
+					assert.Equal(t, "/blerg/test/object", r.URL.String())
 				}
 			},
 		},

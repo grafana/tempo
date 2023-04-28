@@ -77,6 +77,8 @@ func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWrite
 
 // Write implements backend.Writer
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ bool) error {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Write")
 	defer span.Finish()
 
@@ -85,6 +87,7 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 
 // Append implements backend.Writer
 func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	var a appendTracker
 	if tracker == nil {
 		a.Name = backend.ObjectFileName(keypath, name)
@@ -112,6 +115,8 @@ func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendT
 
 // List implements backend.Reader
 func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]string, error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
 	marker := blob.Marker{}
 	prefix := path.Join(keypath...)
 
@@ -145,6 +150,8 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 
 // Read implements backend.Reader
 func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ bool) (io.ReadCloser, int64, error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.Read")
 	defer span.Finish()
 
@@ -159,6 +166,8 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 
 // ReadRange implements backend.Reader
 func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ bool) error {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "azure.ReadRange", opentracing.Tags{
 		"len":    len(buffer),
 		"offset": offset,

@@ -6,6 +6,7 @@ import (
 
 type Config struct {
 	BucketName         string            `yaml:"bucket_name"`
+	Prefix             string            `yaml:"prefix"`
 	ChunkBufferSize    int               `yaml:"chunk_buffer_size"`
 	Endpoint           string            `yaml:"endpoint"`
 	HedgeRequestsAt    time.Duration     `yaml:"hedge_requests_at"`
