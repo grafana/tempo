@@ -683,8 +683,8 @@ storage:
             [insecure: <bool>]
 
             # optional.
-            # Set to true to disable verification of an TLS endpoint.  The default value is false.
-            [insecure_skip_verify: <bool>]
+            # Set to true to disable verification of a TLS endpoint.  The default value is false.
+            [tls_insecure_skip_verify: <bool>]
 
             # optional.
             # enable to use path-style requests.

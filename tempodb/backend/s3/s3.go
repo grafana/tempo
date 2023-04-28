@@ -372,8 +372,13 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		return nil, errors.Wrap(err, "create minio.DefaultTransport")
 	}
 
-	if cfg.InsecureSkipVerify {
-		customTransport.TLSClientConfig.InsecureSkipVerify = true
+	tlsConfig, err := cfg.GetTLSConfig()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create TLS config")
+	}
+
+	if tlsConfig != nil {
+		customTransport.TLSClientConfig = tlsConfig
 	}
 
 	// add instrumentation
