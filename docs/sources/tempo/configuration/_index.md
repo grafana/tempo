@@ -1182,6 +1182,11 @@ overrides:
     #   metrics_generator_ring_size * metrics_generator_max_active_series
     [metrics_generator_ring_size: <int>]
 
+    # Spans are stored in a queue in the distributor before being sent to the metrics-generators.
+    # The length of the queue and the amount of workers pulling from the queue can be configured.
+    [metrics_generator_forwarder_queue_size: <int> | default = 100]
+    [metrics_generator_forwarder_workers: <int> | default = 2]
+
     # Per-user configuration of the metrics-generator processors. The following processors are
     # supported:
     #  - service-graphs
