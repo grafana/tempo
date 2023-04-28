@@ -10,9 +10,11 @@
 * [ENHANCEMENT] Add synchronous read mode to vParquet and vParquet2 optionally enabled by env vars  [#2165](https://github.com/grafana/tempo/pull/2165) (@mdisibio)
 * [ENHANCEMENT] Add option to override metrics-generator ring port  [#2399](https://github.com/grafana/tempo/pull/2399) (@mdisibio)
 * [BUGFIX] tempodb integer divide by zero error [#2167](https://github.com/grafana/tempo/issues/2167) (@kroksys)
+
+## v2.1.1 / 2023-04-28
 * [BUGFIX] Fix issue where Tempo sometimes flips booleans from false->true at storage time. [#2400](https://github.com/grafana/tempo/issues/2400) (@joe-elliott)
 
-## v2.1.0-rc.0 / 2023-04-12
+## v2.1.0 / 2023-04-26
 * [CHANGE] Capture and update search metrics for TraceQL [#2087](https://github.com/grafana/tempo/pull/2087) (@electron0zero)
 * [CHANGE] tempo-mixin: disable auto refresh every 10 seconds [#2290](https://github.com/grafana/tempo/pull/2290) (@electron0zero)
 * [CHANGE] Update tempo-mixin to show request in Resources dashboard [#2281](https://github.com/grafana/tempo/pull/2281) (@electron0zero)
