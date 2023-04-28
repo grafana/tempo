@@ -22,6 +22,7 @@ type RingConfig struct {
 	InstanceID             string   `yaml:"instance_id"`
 	InstanceInterfaceNames []string `yaml:"instance_interface_names"`
 	InstanceAddr           string   `yaml:"instance_addr"`
+	InstancePort           int      `yaml:"instance_port"`
 
 	// Injected internally
 	ListenPort int `yaml:"-"`
@@ -62,7 +63,7 @@ func (cfg *RingConfig) toLifecyclerConfig() (ring.BasicLifecyclerConfig, error) 
 		return ring.BasicLifecyclerConfig{}, err
 	}
 
-	instancePort := cfg.ListenPort
+	instancePort := ring.GetInstancePort(cfg.InstancePort, cfg.ListenPort)
 
 	return ring.BasicLifecyclerConfig{
 		ID:              cfg.InstanceID,
