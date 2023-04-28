@@ -10,7 +10,7 @@ import (
 	"go.uber.org/atomic"
 )
 
-func Test_gauge(t *testing.T) {
+func Test_gaugeInc(t *testing.T) {
 	var seriesAdded int
 	onAdd := func(count uint32) bool {
 		seriesAdded++
@@ -25,12 +25,9 @@ func Test_gauge(t *testing.T) {
 	assert.Equal(t, 2, seriesAdded)
 
 	collectionTimeMs := time.Now().UnixMilli()
-	offsetCollectionTimeMs := time.UnixMilli(collectionTimeMs).Add(insertOffsetDuration).UnixMilli()
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, offsetCollectionTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, offsetCollectionTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 2),
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples, nil)
 
@@ -43,8 +40,42 @@ func Test_gauge(t *testing.T) {
 	expectedSamples = []sample{
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 4),
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-3"}, collectionTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-3"}, offsetCollectionTimeMs, 3),
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-3"}, collectionTimeMs, 3),
+	}
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 3, expectedSamples, nil)
+}
+
+func Test_gaugeSet(t *testing.T) {
+	var seriesAdded int
+	onAdd := func(count uint32) bool {
+		seriesAdded++
+		return true
+	}
+
+	c := newGauge("my_gauge", onAdd, nil)
+
+	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
+
+	assert.Equal(t, 2, seriesAdded)
+
+	collectionTimeMs := time.Now().UnixMilli()
+	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 2),
+	}
+	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples, nil)
+
+	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
+	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-3"}), 3.0)
+
+	assert.Equal(t, 3, seriesAdded)
+
+	collectionTimeMs = time.Now().UnixMilli()
+	expectedSamples = []sample{
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-3"}, collectionTimeMs, 3),
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, nil, 3, expectedSamples, nil)
 }
@@ -65,12 +96,9 @@ func Test_gauge_cantAdd(t *testing.T) {
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 
 	collectionTimeMs := time.Now().UnixMilli()
-	offsetCollectionTimeMs := time.UnixMilli(collectionTimeMs).Add(insertOffsetDuration).UnixMilli()
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, offsetCollectionTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, offsetCollectionTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 2),
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples, nil)
 
@@ -106,12 +134,9 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 	assert.Equal(t, 0, removedSeries)
 
 	collectionTimeMs := time.Now().UnixMilli()
-	offsetCollectionTimeMs := time.UnixMilli(collectionTimeMs).Add(insertOffsetDuration).UnixMilli()
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, offsetCollectionTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, offsetCollectionTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 2),
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, nil, 2, expectedSamples, nil)
 
@@ -139,12 +164,9 @@ func Test_gauge_externalLabels(t *testing.T) {
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 
 	collectionTimeMs := time.Now().UnixMilli()
-	offsetCollectionTimeMs := time.UnixMilli(collectionTimeMs).Add(insertOffsetDuration).UnixMilli()
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1", "external_label": "external_value"}, collectionTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1", "external_label": "external_value"}, offsetCollectionTimeMs, 1),
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2", "external_label": "external_value"}, collectionTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2", "external_label": "external_value"}, offsetCollectionTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1", "external_label": "external_value"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2", "external_label": "external_value"}, collectionTimeMs, 2),
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, map[string]string{"external_label": "external_value"}, 2, expectedSamples, nil)
 }
@@ -225,10 +247,8 @@ func Test_gauge_concurrencyCorrectness(t *testing.T) {
 	wg.Wait()
 
 	collectionTimeMs := time.Now().UnixMilli()
-	offsetCollectionTimeMs := time.UnixMilli(collectionTimeMs).Add(insertOffsetDuration).UnixMilli()
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, 0),
-		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, offsetCollectionTimeMs, float64(totalCount.Load())),
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, float64(totalCount.Load())),
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, nil, 1, expectedSamples, nil)
 }

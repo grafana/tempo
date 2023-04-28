@@ -27,11 +27,6 @@ type gaugeSeries struct {
 	labels      LabelPair
 	value       *atomic.Float64
 	lastUpdated *atomic.Int64
-	// firstSeries is used to track if this series is new to the gauge.  This
-	// is used to ensure that new gauges being with 0, and then are incremented
-	// to the desired value.  This avoids Prometheus throwing away the first
-	// value in the series, due to the transition from null -> x.
-	firstSeries *atomic.Bool
 }
 
 var _ Gauge = (*gauge)(nil)
@@ -39,14 +34,6 @@ var _ metric = (*gauge)(nil)
 
 const add = "add"
 const set = "set"
-
-func (gs *gaugeSeries) isNew() bool {
-	return gs.firstSeries.Load()
-}
-
-func (gs *gaugeSeries) registerSeenSeries() {
-	gs.firstSeries.Store(false)
-}
 
 func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) *gauge {
 	if onAddSeries == nil {
@@ -109,7 +96,6 @@ func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaug
 		labels:      labelValueCombo.getLabelPair(),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
-		firstSeries: atomic.NewBool(true),
 	}
 }
 
@@ -152,20 +138,6 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64, external
 		for i, name := range s.labels.names {
 			lb.Set(name, s.labels.values[i])
 		}
-
-		// If we are about to call Append for the first time on a series, we need
-		// to first insert a 0 value to allow Prometheus to start from a non-null
-		// value.
-		if s.isNew() {
-			_, err = appender.Append(0, lb.Labels(nil), timeMs, 0)
-			if err != nil {
-				return
-			}
-			// Increment timeMs to ensure that the next value is not at the same time.
-			t = t.Add(insertOffsetDuration)
-			s.registerSeenSeries()
-		}
-
 		_, err = appender.Append(0, lb.Labels(nil), t.UnixMilli(), s.value.Load())
 		if err != nil {
 			return
