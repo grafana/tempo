@@ -74,6 +74,10 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 }
 
 func internalNew(cfg *Config, confirm bool) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
+	if cfg == nil {
+		return nil, nil, nil, fmt.Errorf("config is nil")
+	}
+
 	l := log.Logger
 
 	core, err := createCore(cfg, false)
