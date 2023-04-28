@@ -828,7 +828,7 @@ func (col *booleanColumnBuffer) WriteValues(values []Value) (int, error) {
 func (col *booleanColumnBuffer) writeValues(rows sparse.Array, _ columnLevels) {
 	numBytes := bitpack.ByteCount(uint(col.numValues) + uint(rows.Len()))
 	if cap(col.bits) < numBytes {
-		col.bits = append(make([]byte, 0, 2*cap(col.bits)), col.bits...)
+		col.bits = append(make([]byte, 0, max(numBytes, 2*cap(col.bits))), col.bits...)
 	}
 	col.bits = col.bits[:numBytes]
 	i := 0
@@ -848,7 +848,7 @@ func (col *booleanColumnBuffer) writeValues(rows sparse.Array, _ columnLevels) {
 			}
 			x := uint(col.numValues) / 8
 			y := uint(col.numValues) % 8
-			col.bits[x] |= (b << y) | (col.bits[x] & ^(0xFF << y))
+			col.bits[x] = (b << y) | (col.bits[x] & ^(0xFF << y))
 			col.numValues += int32(i)
 		}
 
