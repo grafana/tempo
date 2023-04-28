@@ -2,6 +2,7 @@ package parquet
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"math/bits"
 	"reflect"
@@ -1579,7 +1580,25 @@ func (t *jsonType) EstimateDecodeSize(numValues int, src []byte, enc encoding.En
 }
 
 func (t *jsonType) AssignValue(dst reflect.Value, src Value) error {
-	return byteArrayType{}.AssignValue(dst, src)
+	// Assign value using ByteArrayType for BC...
+	switch dst.Kind() {
+	case reflect.String:
+		return byteArrayType{}.AssignValue(dst, src)
+	case reflect.Slice:
+		if dst.Type().Elem().Kind() == reflect.Uint8 {
+			return byteArrayType{}.AssignValue(dst, src)
+		}
+	}
+
+	// Otherwise handle with json.Unmarshal
+	b := src.byteArray()
+	val := reflect.New(dst.Type()).Elem()
+	err := json.Unmarshal(b, val.Addr().Interface())
+	if err != nil {
+		return err
+	}
+	dst.Set(val)
+	return nil
 }
 
 func (t *jsonType) ConvertValue(val Value, typ Type) (Value, error) {

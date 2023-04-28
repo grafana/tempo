@@ -502,19 +502,21 @@ func (i *byteArrayColumnIndexer) Reset() {
 
 func (i *byteArrayColumnIndexer) IndexPage(numValues, numNulls int64, min, max Value) {
 	i.observe(numValues, numNulls)
-	minValue := min.byteArray()
-	maxValue := max.byteArray()
-	if i.sizeLimit > 0 {
-		minValue = truncateLargeMinByteArrayValue(minValue, i.sizeLimit)
-		maxValue = truncateLargeMaxByteArrayValue(maxValue, i.sizeLimit)
-	}
-	i.minValues = plain.AppendByteArray(i.minValues, minValue)
-	i.maxValues = plain.AppendByteArray(i.maxValues, maxValue)
+	i.minValues = plain.AppendByteArray(i.minValues, min.byteArray())
+	i.maxValues = plain.AppendByteArray(i.maxValues, max.byteArray())
 }
 
 func (i *byteArrayColumnIndexer) ColumnIndex() format.ColumnIndex {
 	minValues := splitByteArrays(i.minValues)
 	maxValues := splitByteArrays(i.maxValues)
+	if sizeLimit := i.sizeLimit; sizeLimit > 0 {
+		for i, v := range minValues {
+			minValues[i] = truncateLargeMinByteArrayValue(v, sizeLimit)
+		}
+		for i, v := range maxValues {
+			maxValues[i] = truncateLargeMaxByteArrayValue(v, sizeLimit)
+		}
+	}
 	return i.columnIndex(
 		minValues,
 		maxValues,
@@ -675,20 +677,29 @@ func truncateLargeMinByteArrayValue(value []byte, sizeLimit int) []byte {
 	return value
 }
 
+// truncateLargeMaxByteArrayValue truncates the given byte array to the given size limit.
+// If the given byte array is truncated, it is incremented by 1 in place.
 func truncateLargeMaxByteArrayValue(value []byte, sizeLimit int) []byte {
-	if len(value) > sizeLimit && !isMaxByteArrayValue(value) {
+	if len(value) > sizeLimit {
 		value = value[:sizeLimit]
+		incrementByteArrayInplace(value)
 	}
 	return value
 }
 
-func isMaxByteArrayValue(value []byte) bool {
-	for i := range value {
-		if value[i] != 0xFF {
-			return false
+// incrementByteArray increments the given byte array by 1.
+// Reference: https://github.com/apache/parquet-mr/blob/master/parquet-column/src/main/java/org/apache/parquet/internal/column/columnindex/BinaryTruncator.java#L124
+func incrementByteArrayInplace(value []byte) {
+	for i := len(value) - 1; i >= 0; i-- {
+		value[i]++
+		if value[i] != 0 { // Did not overflow: 0xFF -> 0x00
+			return
 		}
 	}
-	return true
+	// Fully overflowed, so restore all to 0xFF
+	for i := range value {
+		value[i] = 0xFF
+	}
 }
 
 func splitByteArrays(data []byte) [][]byte {
