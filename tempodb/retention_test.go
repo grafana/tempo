@@ -43,12 +43,13 @@ func TestRetention(t *testing.T) {
 	assert.NoError(t, err)
 
 	ctx := context.Background()
-	c.EnableCompaction(ctx, &CompactorConfig{
+	err = c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
 
 	r.EnablePolling(&mockJobSharder{})
 
@@ -106,12 +107,13 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 
 	r.EnablePolling(&mockJobSharder{})
 
-	c.EnableCompaction(context.Background(), &CompactorConfig{
+	err = c.EnableCompaction(context.Background(), &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
 
 	wal := w.WAL()
 	assert.NoError(t, err)
@@ -175,12 +177,13 @@ func TestBlockRetentionOverride(t *testing.T) {
 	overrides := &mockOverrides{}
 
 	ctx := context.Background()
-	c.EnableCompaction(ctx, &CompactorConfig{
+	err = c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          time.Hour,
 		CompactedBlockRetention: 0,
 	}, &mockSharder{}, overrides)
+	require.NoError(t, err)
 
 	r.EnablePolling(&mockJobSharder{})
 

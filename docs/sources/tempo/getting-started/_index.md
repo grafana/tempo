@@ -1,6 +1,6 @@
 ---
 title: Get started
-menuTitle: Get started with Grafana Tempo
+menuTitle: Get started
 weight: 200
 aliases:
 - /docs/tempo/getting-started
@@ -43,7 +43,7 @@ a storage backend.
 The Grafana Agent also abstracts features like trace batching to a remote trace backend store, including retries on write failures.
 
 To learn more about the Grafana Agent and how to set it up for tracing with Tempo,
-refer to [this blog post](https://grafana.com/blog/2020/11/17/tracing-with-the-grafana-cloud-agent-and-grafana-tempo/).
+refer to [the Grafana Agent traces config docs](/docs/agent/latest/static/configuration/traces-config/).
 
 > **Note**: The [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector) / [Jaeger Agent](https://www.jaegertracing.io/docs/latest/deployment/) can also be used at the agent layer.
 > Refer to [this blog post](https://grafana.com/blog/2021/04/13/how-to-send-traces-to-grafana-clouds-tempo-service-with-opentelemetry-collector/)
@@ -58,7 +58,7 @@ Getting started with Tempo is easy.
 
 First, check out the [examples]({{< relref "example-demo-app.md" >}}) for ideas on how to get started with Tempo.
 
-Next, review the [Setup documentation]({{< relref "../setup/" >}}) for step-by-step instructions for setting up Tempo and creating a test application.
+Next, review the [Setup documentation]({{< relref "../setup" >}}) for step-by-step instructions for setting up Tempo and creating a test application.
 
 Tempo offers different deployment options, depending upon your needs. Refer to the [plan your deployment]({{< relref "../setup/deployment" >}}) section for more information
 
@@ -68,8 +68,6 @@ Tempo offers different deployment options, depending upon your needs. Refer to t
 ## Visualization (Grafana)
 
 Grafana has a built-in Tempo data source that can be used to query Tempo and visualize traces.
-For more information, refer to the [Tempo data source](https://grafana.com/docs/grafana/latest/datasources/tempo/) and the [Tempo in Grafana]({{< relref "./tempo-in-grafana/" >}}) topics.
+For more information, refer to the [Tempo data source](/docs/grafana/latest/datasources/tempo) and the [Tempo in Grafana]({{< relref "./tempo-in-grafana" >}}) topics.
 
-For details about Grafana configuration, refer to [querying configuration]({{< relref "../configuration/querying" >}}).
-
-For more information, refer to the [Tempo in Grafana]({{< relref "tempo-in-grafana" >}}) documentation.
+For more information, refer to the [Tempo in Grafana]({{< relref "./tempo-in-grafana" >}}) documentation.

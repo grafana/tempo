@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -23,8 +26,8 @@ func NewEngine() *Engine {
 	}
 }
 
-func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, spanSetFetcher SpansetFetcher) (*tempopb.SearchResponse, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.Execute")
+func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, spanSetFetcher SpansetFetcher) (*tempopb.SearchResponse, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteSearch")
 	defer span.Finish()
 
 	rootExpr, err := e.parseQuery(searchReq)
@@ -103,6 +106,125 @@ func (e *Engine) Execute(ctx context.Context, searchReq *tempopb.SearchRequest, 
 	}
 
 	return res, nil
+}
+
+func (e *Engine) ExecuteTagValues(
+	ctx context.Context,
+	req *tempopb.SearchTagValuesRequest,
+	cb func(v Static) bool,
+	fetcher SpansetFetcher,
+) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteTagValues")
+	defer span.Finish()
+
+	query := extractMatchers(req.Query)
+
+	span.SetTag("query", req.Query)
+	span.SetTag("sanitized query", query)
+
+	rootExpr, err := Parse(query)
+	if err != nil {
+		return err
+	}
+	if err := rootExpr.validate(); err != nil {
+		return err
+	}
+
+	searchReq := &tempopb.SearchRequest{
+		Start: 0, // TODO: Should add Start and End
+		End:   math.MaxUint32,
+	}
+
+	wantAttr, err := ParseIdentifier(req.TagName)
+	if err != nil {
+		return err
+	}
+
+	fetchSpansRequest := e.createFetchSpansRequest(searchReq, rootExpr.Pipeline)
+	// TODO: remove other conditions for the wantAttr we're searching for
+	// for _, cond := range fetchSpansRequest.Conditions {
+	// 	if cond.Attribute == wantAttr {
+	// 		return fmt.Errorf("cannot search for tag values for tag that is already used in query")
+	// 	}
+	// }
+	fetchSpansRequest.Conditions = append(fetchSpansRequest.Conditions, Condition{
+		Attribute: wantAttr,
+		Op:        OpNone,
+	})
+
+	span.SetTag("pipeline", rootExpr.Pipeline)
+	span.SetTag("fetchSpansRequest", fetchSpansRequest)
+
+	var collectAttributeValue func(s Span) bool
+	switch wantAttr.Scope {
+	case AttributeScopeResource,
+		AttributeScopeSpan: // If tag is scoped, we can check the map directly
+		collectAttributeValue = func(s Span) bool {
+			if v, ok := s.Attributes()[wantAttr]; ok {
+				return cb(v)
+			}
+			return false
+		}
+	case AttributeScopeNone: // If tag is unscoped, let's check all scopes manually
+		collectAttributeValue = func(s Span) bool {
+			for _, scope := range []AttributeScope{AttributeScopeResource, AttributeScopeSpan} {
+				scopedAttr := Attribute{Scope: scope, Parent: wantAttr.Parent, Name: wantAttr.Name, Intrinsic: wantAttr.Intrinsic}
+				if v, ok := s.Attributes()[scopedAttr]; ok {
+					return cb(v)
+				}
+			}
+			return false
+		}
+	default:
+		return fmt.Errorf("unknown attribute scope: %s", wantAttr)
+	}
+
+	// set up the expression evaluation as a filter to reduce data pulled
+	fetchSpansRequest.Filter = func(inSS *Spanset) ([]*Spanset, error) {
+		if len(inSS.Spans) == 0 {
+			return nil, nil
+		}
+
+		evalSS, err := rootExpr.Pipeline.evaluate([]*Spanset{inSS})
+		if err != nil {
+			span.LogKV("msg", "pipeline.evaluate", "err", err)
+			return nil, err
+		}
+
+		if len(evalSS) == 0 {
+			return nil, nil
+		}
+
+		for _, ss := range evalSS {
+			for _, s := range ss.Spans {
+				if collectAttributeValue(s) {
+					return nil, io.EOF // Exit if we have exceeded max bytes
+				}
+			}
+		}
+
+		return nil, nil // We don't want to fetch metadata
+	}
+
+	fetchSpansResponse, err := fetcher.Fetch(ctx, fetchSpansRequest)
+	if err != nil {
+		return err
+	}
+	iterator := fetchSpansResponse.Results
+	defer iterator.Close()
+
+	for {
+		spanset, err := iterator.Next(ctx)
+		if err != nil && err != io.EOF {
+			span.LogKV("msg", "iterator.Next", "err", err)
+			return err
+		}
+		if spanset == nil {
+			break
+		}
+	}
+
+	return nil
 }
 
 func (e *Engine) parseQuery(searchReq *tempopb.SearchRequest) (*RootExpr, error) {
@@ -237,4 +359,57 @@ func (s Static) asAnyValue() *common_v1.AnyValue {
 			StringValue: fmt.Sprintf("error formatting val: static has unexpected type %v", s.Type),
 		},
 	}
+}
+
+// Regex to extract matchers from a query string
+// This regular expression matches a string that contains three groups separated by operators.
+// The first group is a string of alphabetical characters, dots, and underscores.
+// The second group is a comparison operator, which can be one of several possibilities, including =, >, <, and !=.
+// The third group is one of several possible values: a string enclosed in double quotes,
+// a number with an optional time unit (such as "ns", "ms", "s", "m", or "h"),
+// a plain number, or the boolean values "true" or "false".
+// Example: "http.status_code = 200" from the query "{ .http.status_code = 200 && .http.method = }"
+var matchersRegexp = regexp.MustCompile(`[a-zA-Z._]+\s*[=|<=|>=|=~|!=|>|<|!~]\s*(?:"[a-zA-Z._-]+"|[0-9smh]+|true|false)`)
+
+// TODO: Merge into a single regular expression
+
+// Regex to extract selectors from a query string
+// This regular expression matches a string that contains a single spanset filter and no OR `||` conditions.
+// Examples
+//
+//	Query                        |  Match
+//
+// { .bar = "foo" }                          |   Yes
+// { .bar = "foo" && .foo = "bar" }          |   Yes
+// { .bar = "foo" || .foo = "bar" }          |   No
+// { .bar = "foo" } && { .foo = "bar" }      |   No
+// { .bar = "foo" } || { .foo = "bar" }      |   No
+var singleFilterRegexp = regexp.MustCompile(`^{[a-zA-Z._\s\-()&=<>~!0-9"]*}$`)
+
+// extractMatchers extracts matchers from a query string and returns a string that can be parsed by the storage layer.
+func extractMatchers(query string) string {
+	query = strings.TrimSpace(query)
+
+	if len(query) == 0 {
+		return "{}"
+	}
+
+	selector := singleFilterRegexp.FindString(query)
+	if len(selector) == 0 {
+		return "{}"
+	}
+
+	matchers := matchersRegexp.FindAllString(query, -1)
+
+	var q strings.Builder
+	q.WriteString("{")
+	for i, m := range matchers {
+		if i > 0 {
+			q.WriteString(" && ")
+		}
+		q.WriteString(m)
+	}
+	q.WriteString("}")
+
+	return q.String()
 }

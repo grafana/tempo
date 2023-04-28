@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"sync"
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -16,6 +18,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/weaveworks/common/user"
+	"go.uber.org/atomic"
 )
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
@@ -112,8 +115,8 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, sr
 		opts := common.DefaultSearchOptions()
 		if api.IsTraceQLQuery(req) {
 			// note: we are creating new engine for each wal block,
-			// and engine.Execute is parsing the query for each block
-			resp, err = traceql.NewEngine().Execute(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			// and engine.ExecuteSearch is parsing the query for each block
+			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 				return b.Fetch(ctx, req, opts)
 			}))
 		} else {
@@ -173,8 +176,8 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 			opts := common.DefaultSearchOptions()
 			if api.IsTraceQLQuery(req) {
 				// note: we are creating new engine for each wal block,
-				// and engine.Execute is parsing the query for each block
-				resp, err = traceql.NewEngine().Execute(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				// and engine.ExecuteSearch is parsing the query for each block
+				resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 					return e.Fetch(ctx, req, opts)
 				}))
 			} else {
@@ -202,10 +205,23 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 	}
 }
 
-func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse, error) {
+func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.SearchTagsResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	// check if it's the special intrinsic scope
+	if scope == api.ParamScopeIntrinsic {
+		return &tempopb.SearchTagsResponse{
+			TagNames: search.GetVirtualIntrinsicValues(),
+		}, nil
+	}
+
+	// parse for normal scopes
+	attributeScope := traceql.AttributeScopeFromString(scope)
+	if attributeScope == traceql.AttributeScopeUnknown {
+		return nil, fmt.Errorf("unknown scope: %s", scope)
 	}
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
@@ -218,7 +234,7 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 		if dv.Exceeded() {
 			return nil
 		}
-		err = s.SearchTags(ctx, dv.Collect, common.DefaultSearchOptions())
+		err = s.SearchTags(ctx, attributeScope, dv.Collect, common.DefaultSearchOptions())
 		if err != nil && err != common.ErrUnsupported {
 			return fmt.Errorf("unexpected error searching tags: %w", err)
 		}
@@ -253,6 +269,58 @@ func (i *instance) SearchTags(ctx context.Context) (*tempopb.SearchTagsResponse,
 	}, nil
 }
 
+// SearchTagsV2 calls SearchTags for each scope and returns the results.
+func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.SearchTagsV2Response, error) {
+	scopes := []string{scope}
+	if scope == "" {
+		// start with intrinsic scope and all traceql attribute scopes
+		atts := traceql.AllAttributeScopes()
+		scopes = make([]string, 0, len(atts)+1) // +1 for intrinsic
+
+		scopes = append(scopes, api.ParamScopeIntrinsic)
+		for _, att := range atts {
+			scopes = append(scopes, att.String())
+		}
+	}
+	resps := make([]*tempopb.SearchTagsResponse, len(scopes))
+
+	overallError := atomic.NewError(nil)
+	wg := sync.WaitGroup{}
+	for idx := range scopes {
+		resps[idx] = &tempopb.SearchTagsResponse{}
+
+		wg.Add(1)
+		go func(scope string, ret **tempopb.SearchTagsResponse) {
+			defer wg.Done()
+
+			resp, err := i.SearchTags(ctx, scope)
+			if err != nil {
+				overallError.Store(fmt.Errorf("error searching tags: %s, %w", scope, err))
+				return
+			}
+
+			*ret = resp
+		}(scopes[idx], &resps[idx])
+	}
+	wg.Wait()
+
+	err := overallError.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	// build response
+	resp := &tempopb.SearchTagsV2Response{}
+	for idx := range resps {
+		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
+			Name: scopes[idx],
+			Tags: resps[idx].TagNames,
+		})
+	}
+
+	return resp, nil
+}
+
 func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempopb.SearchTagValuesResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
@@ -262,13 +330,24 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := util.NewDistinctStringCollector(limit)
 
+	var inspectedBlocks, maxBlocks int
+	if limit := i.limiter.limits.MaxBlocksPerTagValuesQuery(userID); limit > 0 {
+		maxBlocks = limit
+	}
+
 	search := func(s common.Searcher, dv *util.DistinctStringCollector) error {
+		if maxBlocks > 0 && inspectedBlocks >= maxBlocks {
+			return nil
+		}
+
 		if s == nil {
 			return nil
 		}
 		if dv.Exceeded() {
 			return nil
 		}
+
+		inspectedBlocks++
 		err = s.SearchTagValues(ctx, tagName, dv.Collect, common.DefaultSearchOptions())
 		if err != nil && err != common.ErrUnsupported {
 			return fmt.Errorf("unexpected error searching tag values (%s): %w", tagName, err)
@@ -310,11 +389,6 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return nil, err
 	}
 
-	tag, err := traceql.ParseIdentifier(req.TagName)
-	if err != nil {
-		return nil, err
-	}
-
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
@@ -350,37 +424,72 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return distinctValues.Collect(tv)
 	}
 
-	search := func(s common.Searcher, dv *util.DistinctValueCollector[tempopb.TagValue]) error {
-		if s == nil || dv.Exceeded() {
+	engine := traceql.NewEngine()
+
+	wg := boundedwaitgroup.New(20) // TODO: Make configurable
+	var anyErr atomic.Error
+	var inspectedBlocks atomic.Int32
+	var maxBlocks int32
+	if limit := i.limiter.limits.MaxBlocksPerTagValuesQuery(userID); limit > 0 {
+		maxBlocks = int32(limit)
+	}
+
+	searchBlock := func(s common.Searcher) error {
+		if anyErr.Load() != nil {
+			return nil // Early exit if any error has occurred
+		}
+
+		if maxBlocks > 0 && inspectedBlocks.Load() >= maxBlocks {
 			return nil
 		}
 
-		err = s.SearchTagValuesV2(ctx, tag, cb, common.DefaultSearchOptions())
-		if err != nil && err != common.ErrUnsupported {
-			return fmt.Errorf("unexpected error searching tag values v2 (%s): %w", tag, err)
-		}
-		return nil
+		inspectedBlocks.Inc()
+		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return s.Fetch(ctx, req, common.DefaultSearchOptions())
+		})
+		return engine.ExecuteTagValues(ctx, req, cb, fetcher)
 	}
 
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
-	// head block
-	if err = search(i.headBlock, distinctValues); err != nil {
-		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
+
+	// completed blocks
+	for _, b := range i.completeBlocks {
+		wg.Add(1)
+		go func(b *localBlock) {
+			defer wg.Done()
+			if err := searchBlock(b); err != nil {
+				anyErr.Store(fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err))
+			}
+		}(b)
 	}
 
 	// completing blocks
 	for _, b := range i.completingBlocks {
-		if err = search(b, distinctValues); err != nil {
-			return nil, fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err)
-		}
+		wg.Add(1)
+		go func(b common.WALBlock) {
+			defer wg.Done()
+			if err := searchBlock(b); err != nil {
+				anyErr.Store(fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err))
+			}
+		}(b)
 	}
 
-	// completed blocks
-	for _, b := range i.completeBlocks {
-		if err = search(b, distinctValues); err != nil {
-			return nil, fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err)
-		}
+	// head block
+	if i.headBlock != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := searchBlock(i.headBlock); err != nil {
+				anyErr.Store(fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err))
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if err := anyErr.Load(); err != nil {
+		return nil, err
 	}
 
 	if distinctValues.Exceeded() {

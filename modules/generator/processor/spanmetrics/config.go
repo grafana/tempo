@@ -30,6 +30,10 @@ type Config struct {
 
 	// If enabled attribute value will be used for metric calculation
 	SpanMultiplierKey string `yaml:"span_multiplier_key"`
+
+	// Subprocessor options for this Processor include Latency, Count, Size
+	// These are metrics categories that exist under the umbrella of Span Metrics
+	Subprocessors map[Subprocessor]bool
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -38,6 +42,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.IntrinsicDimensions.SpanName = true
 	cfg.IntrinsicDimensions.SpanKind = true
 	cfg.IntrinsicDimensions.StatusCode = true
+	cfg.Subprocessors = make(map[Subprocessor]bool)
+	cfg.Subprocessors[Latency] = true
+	cfg.Subprocessors[Count] = true
+	cfg.Subprocessors[Size] = true
 }
 
 type IntrinsicDimensions struct {

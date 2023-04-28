@@ -1,5 +1,5 @@
 ---
-title: Parquet schema
+title: Apache Parquet schema
 menuTitle: Parquet schema
 weight: 75
 aliases:
@@ -12,7 +12,6 @@ Tempo 2.0 uses Apache Parquet as the default column-formatted block format.
 Refer to the [Parquet configuration options]({{< relref "../configuration/parquet.md" >}}) for more information.
 
 This document describes the schema used with the Parquet block format.
-
 
 ## Fully nested versus span-oriented schema
 

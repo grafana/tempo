@@ -61,6 +61,8 @@ const (
 var (
 	jsonMarshaler = new(jsonpb.Marshaler)
 
+	// todo: remove this when support for tag based search is removed. we only
+	// need the below mappings for tag name search
 	labelMappings = map[string]string{
 		LabelRootSpanName:     "RootSpanName",
 		LabelRootServiceName:  "RootServiceName",
@@ -78,6 +80,24 @@ var (
 		LabelHTTPUrl:          "rs.ils.Spans.HttpUrl",
 		LabelHTTPStatusCode:   "rs.ils.Spans.HttpStatusCode",
 		LabelStatusCode:       "rs.ils.Spans.StatusCode",
+	}
+	// the two below are used in tag name search. they only include
+	//  custom attributes that are mapped to parquet "special" columns
+	traceqlResourceLabelMappings = map[string]string{
+		LabelServiceName:      "rs.Resource.ServiceName",
+		LabelCluster:          "rs.Resource.Cluster",
+		LabelNamespace:        "rs.Resource.Namespace",
+		LabelPod:              "rs.Resource.Pod",
+		LabelContainer:        "rs.Resource.Container",
+		LabelK8sClusterName:   "rs.Resource.K8sClusterName",
+		LabelK8sNamespaceName: "rs.Resource.K8sNamespaceName",
+		LabelK8sPodName:       "rs.Resource.K8sPodName",
+		LabelK8sContainerName: "rs.Resource.K8sContainerName",
+	}
+	traceqlSpanLabelMappings = map[string]string{
+		LabelHTTPMethod:     "rs.ils.Spans.HttpMethod",
+		LabelHTTPUrl:        "rs.ils.Spans.HttpUrl",
+		LabelHTTPStatusCode: "rs.ils.Spans.HttpStatusCode",
 	}
 )
 

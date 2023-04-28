@@ -61,6 +61,8 @@ const (
 var (
 	jsonMarshaler = new(jsonpb.Marshaler)
 
+	// todo: remove this when support for tag based search is removed. we only
+	// need the below mappings for tag name search
 	labelMappings = map[string]string{
 		LabelRootSpanName:     "RootSpanName",
 		LabelRootServiceName:  "RootServiceName",
@@ -78,6 +80,24 @@ var (
 		LabelHTTPUrl:          "rs.list.element.ss.list.element.Spans.list.element.HttpUrl",
 		LabelHTTPStatusCode:   "rs.list.element.ss.list.element.Spans.list.element.HttpStatusCode",
 		LabelStatusCode:       "rs.list.element.ss.list.element.Spans.list.element.StatusCode",
+	}
+	// the two below are used in tag name search. they only include
+	//  custom attributes that are mapped to parquet "special" columns
+	traceqlResourceLabelMappings = map[string]string{
+		LabelServiceName:      "rs.list.element.Resource.ServiceName",
+		LabelCluster:          "rs.list.element.Resource.Cluster",
+		LabelNamespace:        "rs.list.element.Resource.Namespace",
+		LabelPod:              "rs.list.element.Resource.Pod",
+		LabelContainer:        "rs.list.element.Resource.Container",
+		LabelK8sClusterName:   "rs.list.element.Resource.K8sClusterName",
+		LabelK8sNamespaceName: "rs.list.element.Resource.K8sNamespaceName",
+		LabelK8sPodName:       "rs.list.element.Resource.K8sPodName",
+		LabelK8sContainerName: "rs.list.element.Resource.K8sContainerName",
+	}
+	traceqlSpanLabelMappings = map[string]string{
+		LabelHTTPMethod:     "rs.list.element.ss.list.element.Spans.list.element.HttpMethod",
+		LabelHTTPUrl:        "rs.list.element.ss.list.element.Spans.list.element.HttpUrl",
+		LabelHTTPStatusCode: "rs.list.element.ss.list.element.Spans.list.element.HttpStatusCode",
 	}
 )
 

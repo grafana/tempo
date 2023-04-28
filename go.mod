@@ -12,7 +12,6 @@ require (
 	github.com/alecthomas/kong v0.2.11
 	github.com/alicebob/miniredis/v2 v2.21.0
 	github.com/aws/aws-sdk-go v1.44.220
-	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/cespare/xxhash v1.1.0
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/cristalhq/hedgedhttp v0.7.0
@@ -102,6 +101,7 @@ require (
 require (
 	github.com/Azure/go-autorest/autorest v0.11.28
 	github.com/googleapis/gax-go/v2 v2.7.0
+	github.com/grafana/gomemcache v0.0.0-20230105173749-11f792309e1f
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	go.opentelemetry.io/collector/exporter v0.74.0
 	go.opentelemetry.io/collector/receiver v0.74.0

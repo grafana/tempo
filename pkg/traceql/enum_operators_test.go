@@ -85,7 +85,7 @@ func TestOperatorBinaryTypesValid(t *testing.T) {
 		{OpGreater, TypeStatus, false},
 		{OpLessEqual, TypeKind, false},
 		{OpGreaterEqual, TypeNil, false},
-		{OpLess, TypeString, false},
+		{OpLess, TypeString, true},
 		{OpLessEqual, TypeBoolean, false},
 		// string comparison
 		{OpRegex, TypeString, true},
