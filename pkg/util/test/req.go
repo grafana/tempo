@@ -22,23 +22,10 @@ func MakeSpan(traceID []byte) *v1_trace.Span {
 func MakeSpanWithAttributeCount(traceID []byte, count int) *v1_trace.Span {
 	attributes := make([]*v1_common.KeyValue, 0, count)
 	for i := 0; i < count; i++ {
-		switch rand.Intn(3) {
-		case 0:
-			attributes = append(attributes, &v1_common.KeyValue{
-				Key:   RandomString(),
-				Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: RandomString()}},
-			})
-		case 1:
-			attributes = append(attributes, &v1_common.KeyValue{
-				Key:   RandomString(),
-				Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: rand.Intn(2) == 0}},
-			})
-		case 2:
-			attributes = append(attributes, &v1_common.KeyValue{
-				Key:   RandomString(),
-				Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: int64(rand.Intn(100))}},
-			})
-		}
+		attributes = append(attributes, &v1_common.KeyValue{
+			Key:   RandomString(),
+			Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: RandomString()}},
+		})
 	}
 
 	now := time.Now()
