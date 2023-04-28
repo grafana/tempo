@@ -1,6 +1,8 @@
 ---
 title: Response larger than the max
 weight: 477
+aliases:
+- /docs/tempo/troubleshooting/response-too-large
 ---
 
 # Response too large

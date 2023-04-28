@@ -1,6 +1,8 @@
 ---
 title: Too many jobs in the queue
 weight: 474
+aliases:
+- /docs/tempo/troubleshooting/too-many-jobs-in-queue
 ---
 
 # Error message: ‘Too many jobs in the queue’
@@ -9,7 +11,7 @@ The error message might also be
 - `queue doesn't have room for 100 jobs`
 - `failed to add a job to work queue`
 
-You may see this error if the compactor isn’t running and the blocklist size has exploded. 
+You may see this error if the compactor isn’t running and the blocklist size has exploded.
 Possible reasons why the compactor may not be running are:
 
 - Insufficient permissions.
