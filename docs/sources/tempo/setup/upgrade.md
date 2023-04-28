@@ -22,8 +22,7 @@ Tempo 2.1 has two major considerations for any upgrade:
 * Support for search on v2 block is removed
 * Breaking changes to metric names
 
-For more information on other enhancements, read the Tempo 2.1 release notes.
-
+For more information on other enhancements, read the [Tempo 2.1 release notes]({{< relref "../release-notes/v2-1" >}}).
 
 ### Remove support for Search on v2 blocks
 
