@@ -548,14 +548,18 @@ func nodeOf(t reflect.Type, tag []string) Node {
 			}
 		}
 
-		n = Map(
-			makeNodeOf(t.Key(), t.Name(), []string{keyTag}),
-			makeNodeOf(t.Elem(), t.Name(), []string{valueTag}),
-		)
+		if strings.Contains(mapTag, "json") {
+			n = JSON()
+		} else {
+			n = Map(
+				makeNodeOf(t.Key(), t.Name(), []string{keyTag}),
+				makeNodeOf(t.Elem(), t.Name(), []string{valueTag}),
+			)
+		}
 
 		forEachTagOption([]string{mapTag}, func(option, args string) {
 			switch option {
-			case "":
+			case "", "json":
 				return
 			case "optional":
 				n = Optional(n)
