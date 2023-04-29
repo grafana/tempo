@@ -196,7 +196,7 @@ func checkConditions(conditions []traceql.Condition) error {
 		case traceql.OpEqual, traceql.OpNotEqual,
 			traceql.OpGreater, traceql.OpGreaterEqual,
 			traceql.OpLess, traceql.OpLessEqual,
-			traceql.OpRegex:
+			traceql.OpRegex, traceql.OpNotRegex:
 			if opCount != 1 {
 				return fmt.Errorf("operation %v must have exactly 1 argument. condition: %+v", cond.Op, cond)
 			}
@@ -825,6 +825,8 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 
 	case traceql.OpRegex:
 		return parquetquery.NewRegexInPredicate([]string{s})
+	case traceql.OpNotRegex:
+		return parquetquery.NewRegexNotInPredicate([]string{s})
 
 	case traceql.OpEqual:
 		return parquetquery.NewStringInPredicate([]string{s}), nil
