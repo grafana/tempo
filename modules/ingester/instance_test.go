@@ -540,6 +540,63 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestInstanceThrowsPartialErrorsForLargeTraces(t *testing.T) {
+	ctx := context.Background()
+	maxTotalTraceBytes := 1500
+	largeTraceSize := 800
+	smallTraceSize := 300
+
+	traceId := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 1}
+
+	limits, err := overrides.NewOverrides(overrides.Limits{
+		MaxBytesPerTrace: maxTotalTraceBytes,
+	})
+	require.NoError(t, err)
+	limiter := NewLimiter(limits, &ringCountMock{count: 1}, 1)
+
+	ingester, _, _ := defaultIngester(t, t.TempDir())
+	ingester.limiter = limiter
+	i, err := ingester.getOrCreateInstance(testTenantID)
+	require.NoError(t, err)
+
+	// large trace request 1
+	reqLargeTrace1 := makeRequestWithByteLimit(largeTraceSize, traceId)
+	reqLargeTrace1Size := 0
+	for _, b := range reqLargeTrace1.Traces {
+		reqLargeTrace1Size += len(b.Slice)
+	}
+
+	// Fill up so that large traces can no longer be added
+	err = i.PushBytesRequest(ctx, reqLargeTrace1)
+	require.NoError(t, err)
+
+	// Check large traces can no longer be added
+	err = i.PushBytesRequest(ctx, reqLargeTrace1)
+	require.Contains(t, err.Error(), (newTraceTooLargeError(traceId, i.instanceID, maxTotalTraceBytes, reqLargeTrace1Size)).Error())
+
+	// large trace request 2
+	reqLargeTrace2 := makeRequestWithByteLimit(largeTraceSize, traceId)
+	reqLargeTrace2Size := 0
+	for _, b := range reqLargeTrace2.Traces {
+		reqLargeTrace2Size += len(b.Slice)
+	}
+
+	// smaller trace
+	reqSmallTrace := makeRequestWithByteLimit(smallTraceSize, traceId)
+	smallTraceReqSize := 0
+	for _, b := range reqSmallTrace.Traces {
+		smallTraceReqSize += len(b.Slice)
+	}
+
+	mergedRequest := mergePushBytesRequest([]tempopb.PushBytesRequest{*reqLargeTrace1, *reqLargeTrace2, *reqSmallTrace})
+
+	// Pushing again fails partially, accepting smaller batch
+	err = i.PushBytesRequest(ctx, mergedRequest)
+	require.Contains(t, err.Error(), (newTraceTooLargeError(traceId, i.instanceID, maxTotalTraceBytes, reqLargeTrace1Size)).Error())
+	require.Contains(t, err.Error(), (newTraceTooLargeError(traceId, i.instanceID, maxTotalTraceBytes, reqLargeTrace2Size)).Error())
+	require.NotContains(t, err.Error(), (newTraceTooLargeError(traceId, i.instanceID, maxTotalTraceBytes, smallTraceReqSize)).Error())
+}
+
 func TestSortByteSlices(t *testing.T) {
 	numTraces := 100
 
@@ -721,5 +778,20 @@ func makePushBytesRequest(traceID []byte, batch *v1_trace.ResourceSpans) *tempop
 		Traces: []tempopb.PreallocBytes{{
 			Slice: buffer,
 		}},
+	}
+}
+
+func mergePushBytesRequest(requests []tempopb.PushBytesRequest) *tempopb.PushBytesRequest {
+	traceIds := []tempopb.PreallocBytes{}
+	traces := []tempopb.PreallocBytes{}
+
+	for _, req := range requests {
+		traceIds = append(traceIds, req.Ids...)
+		traces = append(traces, req.Traces...)
+	}
+
+	return &tempopb.PushBytesRequest{
+		Ids:    traceIds,
+		Traces: traces,
 	}
 }
