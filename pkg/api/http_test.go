@@ -31,16 +31,18 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 		{
 			name: "empty query",
 			expected: &tempopb.SearchRequest{
-				Tags:  map[string]string{},
-				Limit: defaultLimit,
+				Tags:            map[string]string{},
+				Limit:           defaultLimit,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
 		{
 			name:     "limit set",
 			urlQuery: "limit=10",
 			expected: &tempopb.SearchRequest{
-				Tags:  map[string]string{},
-				Limit: 10,
+				Tags:            map[string]string{},
+				Limit:           10,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
 		{
@@ -62,10 +64,11 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			name:     "minDuration and maxDuration",
 			urlQuery: "minDuration=10s&maxDuration=20s",
 			expected: &tempopb.SearchRequest{
-				Tags:          map[string]string{},
-				MinDurationMs: 10000,
-				MaxDurationMs: 20000,
-				Limit:         defaultLimit,
+				Tags:            map[string]string{},
+				MinDurationMs:   10000,
+				MaxDurationMs:   20000,
+				Limit:           defaultLimit,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
 		{
@@ -87,9 +90,10 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			name:     "traceql query",
 			urlQuery: "q=" + url.QueryEscape(`{ .foo="bar" }`),
 			expected: &tempopb.SearchRequest{
-				Query: `{ .foo="bar" }`,
-				Tags:  map[string]string{},
-				Limit: defaultLimit,
+				Query:           `{ .foo="bar" }`,
+				Tags:            map[string]string{},
+				Limit:           defaultLimit,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
 		{
@@ -109,7 +113,8 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Tags: map[string]string{
 					"limit": "five",
 				},
-				Limit: 5,
+				Limit:           5,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
 		{
@@ -124,7 +129,8 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Tags: map[string]string{
 					"service.name": "foo",
 				},
-				Limit: defaultLimit,
+				Limit:           defaultLimit,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
 		{
@@ -134,9 +140,10 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Tags: map[string]string{
 					"service.name": "foo",
 				},
-				Start: 10,
-				End:   20,
-				Limit: defaultLimit,
+				Start:           10,
+				End:             20,
+				Limit:           defaultLimit,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
 		{
@@ -151,17 +158,54 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Tags: map[string]string{
 					"service.name": "bar",
 				},
-				Limit: defaultLimit,
+				Limit:           defaultLimit,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
 		},
 		{
 			name:     "top-level tags with range specified are ignored",
 			urlQuery: "service.name=bar&start=10&end=20",
 			expected: &tempopb.SearchRequest{
-				Tags:  map[string]string{},
-				Start: 10,
-				End:   20,
-				Limit: defaultLimit,
+				Tags:            map[string]string{},
+				Start:           10,
+				End:             20,
+				Limit:           defaultLimit,
+				SpansPerSpanSet: defaultSpansPerSpanSet,
+			},
+		},
+		{
+			name:     "zero spansPerSpanSet",
+			urlQuery: "spansPerSpanSet=0",
+			err:      "invalid spansPerSpanSet: must be a positive number",
+		},
+		{
+			name:     "negative spansPerSpanSet",
+			urlQuery: "spansPerSpanSet=-2",
+			err:      "invalid spansPerSpanSet: must be a positive number",
+		},
+		{
+			name:     "non-numeric spansPerSpanSet",
+			urlQuery: "spansPerSpanSet=four",
+			err:      "invalid spansPerSpanSet: strconv.Atoi: parsing \"four\": invalid syntax",
+		},
+		{
+			name:     "only spansPerSpanSet",
+			urlQuery: "spansPerSpanSet=2",
+			expected: &tempopb.SearchRequest{
+				Tags:            map[string]string{},
+				Limit:           defaultLimit,
+				SpansPerSpanSet: 2,
+			},
+		},
+		{
+			name:     "tags with spansPerSpanSet",
+			urlQuery: "tags=" + url.QueryEscape("service.name=foo") + "&spansPerSpanSet=7",
+			expected: &tempopb.SearchRequest{
+				Tags: map[string]string{
+					"service.name": "foo",
+				},
+				Limit:           defaultLimit,
+				SpansPerSpanSet: 7,
 			},
 		},
 	}

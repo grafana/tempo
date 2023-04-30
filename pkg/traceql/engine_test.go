@@ -21,7 +21,7 @@ import (
 
 func TestEngine_Execute(t *testing.T) {
 	now := time.Now()
-	e := Engine{}
+	e := NewEngineWithSpansPerSpanSet(2)
 
 	req := &tempopb.SearchRequest{
 		Query: `{ .foo = .bar }`,
@@ -42,6 +42,33 @@ func TestEngine_Execute(t *testing.T) {
 						},
 						&mockSpan{
 							id:                 []byte{2},
+							startTimeUnixNanos: uint64(now.UnixNano()),
+							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"): NewStaticString("value"),
+								NewAttribute("bar"): NewStaticString("value"),
+							},
+						},
+						&mockSpan{
+							id:                 []byte{3},
+							startTimeUnixNanos: uint64(now.UnixNano()),
+							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"): NewStaticString("value"),
+								NewAttribute("bar"): NewStaticString("value"),
+							},
+						},
+						&mockSpan{
+							id:                 []byte{4},
+							startTimeUnixNanos: uint64(now.UnixNano()),
+							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
+							attributes: map[Attribute]Static{
+								NewAttribute("foo"): NewStaticString("value"),
+								NewAttribute("bar"): NewStaticString("diff"),
+							},
+						},
+						&mockSpan{
+							id:                 []byte{5},
 							startTimeUnixNanos: uint64(now.UnixNano()),
 							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
 							attributes: map[Attribute]Static{
@@ -114,7 +141,7 @@ func TestEngine_Execute(t *testing.T) {
 						},
 					},
 				},
-				Matched: 1,
+				Matched: 4,
 			},
 		},
 	}

@@ -205,6 +205,7 @@ type SearchRequest struct {
 	End           uint32            `protobuf:"varint,6,opt,name=end,proto3" json:"end,omitempty"`
 	// TraceQL query
 	Query string `protobuf:"bytes,8,opt,name=Query,proto3" json:"Query,omitempty"`
+	SpansPerSpanSet           uint32            `protobuf:"varint,9,opt,name=SpansPerSpanSet,proto3" json:"SpansPerSpanSet,omitempty"`
 }
 
 func (m *SearchRequest) Reset()         { *m = SearchRequest{} }
