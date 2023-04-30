@@ -561,10 +561,7 @@ func TestInstanceThrowsPartialErrorsForLargeTraces(t *testing.T) {
 
 	// large trace request 1
 	reqLargeTrace1 := makeRequestWithByteLimit(largeTraceSize, traceId)
-	reqLargeTrace1Size := 0
-	for _, b := range reqLargeTrace1.Traces {
-		reqLargeTrace1Size += len(b.Slice)
-	}
+	reqLargeTrace1Size := getPushBytesRequestSize(reqLargeTrace1)
 
 	// Fill up so that large traces can no longer be added
 	err = i.PushBytesRequest(ctx, reqLargeTrace1)
@@ -576,17 +573,11 @@ func TestInstanceThrowsPartialErrorsForLargeTraces(t *testing.T) {
 
 	// large trace request 2
 	reqLargeTrace2 := makeRequestWithByteLimit(largeTraceSize, traceId)
-	reqLargeTrace2Size := 0
-	for _, b := range reqLargeTrace2.Traces {
-		reqLargeTrace2Size += len(b.Slice)
-	}
+	reqLargeTrace2Size := getPushBytesRequestSize(reqLargeTrace2)
 
 	// smaller trace
 	reqSmallTrace := makeRequestWithByteLimit(smallTraceSize, traceId)
-	smallTraceReqSize := 0
-	for _, b := range reqSmallTrace.Traces {
-		smallTraceReqSize += len(b.Slice)
-	}
+	smallTraceReqSize := getPushBytesRequestSize(reqSmallTrace)
 
 	mergedRequest := mergePushBytesRequest([]tempopb.PushBytesRequest{*reqLargeTrace1, *reqLargeTrace2, *reqSmallTrace})
 
@@ -779,6 +770,16 @@ func makePushBytesRequest(traceID []byte, batch *v1_trace.ResourceSpans) *tempop
 			Slice: buffer,
 		}},
 	}
+}
+
+func getPushBytesRequestSize(request *tempopb.PushBytesRequest) int {
+	size := 0
+	if request != nil {
+		for _, b := range request.Traces {
+			size += len(b.Slice)
+		}
+	}
+	return size
 }
 
 func mergePushBytesRequest(requests []tempopb.PushBytesRequest) *tempopb.PushBytesRequest {
