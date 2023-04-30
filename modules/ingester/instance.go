@@ -146,8 +146,7 @@ func newInstance(instanceID string, limiter *Limiter, writer tempodb.Writer, l *
 func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) error {
 	var errs []error
 	for j := range req.Traces {
-		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
-		if err != nil {
+		if err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice); err != nil {
 			errs = append(errs, err)
 		}
 	}
