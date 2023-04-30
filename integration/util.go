@@ -27,7 +27,8 @@ import (
 )
 
 const (
-	image = "tempo:latest"
+	image      = "tempo:latest"
+	queryImage = "tempo-query:latest"
 )
 
 // GetExtraArgs returns the extra args to pass to the Docker command used to run Tempo.
@@ -148,7 +149,7 @@ func NewTempoQuerier(extraArgs ...string) *e2e.HTTPService {
 
 	s := e2e.NewHTTPService(
 		"querier",
-		image,
+		queryImage,
 		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
 		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
 		3200,
@@ -171,6 +172,25 @@ func NewTempoScalableSingleBinary(replica int, extraArgs ...string) *e2e.HTTPSer
 		3200,  // http all things
 		14250, // jaeger grpc ingest
 		// 9411,  // zipkin ingest (used by load)
+	)
+
+	s.SetBackoff(TempoBackoff())
+
+	return s
+}
+
+func NewTempoQuery() *e2e.HTTPService {
+	args := []string{
+		"--query.base-path=/",
+		"--grpc-storage-plugin.configuration-file=" + filepath.Join(e2e.ContainerSharedDir, "config-tempo-query.yaml"),
+	}
+
+	s := e2e.NewHTTPService(
+		"tempo-query",
+		queryImage,
+		e2e.NewCommandWithoutEntrypoint("/go/bin/query-linux", args...),
+		e2e.NewHTTPReadinessProbe(16686, "/", 200, 299),
+		16686,
 	)
 
 	s.SetBackoff(TempoBackoff())

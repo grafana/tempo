@@ -3,6 +3,7 @@ To run the integration tests, use the following commands
 ```
 # build latest image
 make docker-tempo
+make docker-tempo-query
 
 # run all tests
 go test -v ./integration/e2e/...
