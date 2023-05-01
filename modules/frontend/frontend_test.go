@@ -60,7 +60,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			SLO: testSLOcfg,
 		},
 	}, nil, nil, nil, log.NewNopLogger(), nil)
-	assert.EqualError(t, err, "frontend query shards should be between 2 and 256 (both inclusive)")
+	assert.EqualError(t, err, "frontend query shards should be between 2 and 100000 (both inclusive)")
 	assert.Nil(t, f)
 
 	f, err = New(Config{
@@ -76,7 +76,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			SLO: testSLOcfg,
 		},
 	}, nil, nil, nil, log.NewNopLogger(), nil)
-	assert.EqualError(t, err, "frontend query shards should be between 2 and 256 (both inclusive)")
+	assert.EqualError(t, err, "frontend query shards should be between 2 and 100000 (both inclusive)")
 	assert.Nil(t, f)
 
 	f, err = New(Config{

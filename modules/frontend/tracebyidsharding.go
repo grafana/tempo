@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -25,7 +26,7 @@ import (
 
 const (
 	minQueryShards = 2
-	maxQueryShards = 256
+	maxQueryShards = 100_000
 )
 
 func newTraceByIDSharder(queryShards, maxFailedBlocks int, sloCfg SLOConfig, logger log.Logger) Middleware {
@@ -259,14 +260,25 @@ func createBlockBoundaries(queryShards int) [][]byte {
 	for i := 0; i < queryShards+1; i++ {
 		blockBoundaries[i] = make([]byte, 16)
 	}
-	const MaxUint = uint64(^uint8(0))
+
+	// bucketSz is the min size for the bucket
+	bucketSz := (math.MaxUint64 / uint64(queryShards))
+	// numLarger is the number of buckets that have to be bumped by 1
+	numLarger := (math.MaxUint64 % uint64(queryShards))
+	boundary := uint64(0)
 	for i := 0; i < queryShards; i++ {
-		binary.LittleEndian.PutUint64(blockBoundaries[i][:8], (MaxUint/uint64(queryShards))*uint64(i))
-		binary.LittleEndian.PutUint64(blockBoundaries[i][8:], 0)
+		binary.BigEndian.PutUint64(blockBoundaries[i][:8], boundary)
+		binary.BigEndian.PutUint64(blockBoundaries[i][8:], 0)
+
+		boundary += bucketSz
+		if numLarger != 0 {
+			numLarger--
+			boundary++
+		}
 	}
-	const MaxUint64 = ^uint64(0)
-	binary.LittleEndian.PutUint64(blockBoundaries[queryShards][:8], MaxUint64)
-	binary.LittleEndian.PutUint64(blockBoundaries[queryShards][8:], MaxUint64)
+
+	binary.BigEndian.PutUint64(blockBoundaries[queryShards][:8], math.MaxUint64)
+	binary.BigEndian.PutUint64(blockBoundaries[queryShards][8:], math.MaxUint64)
 
 	return blockBoundaries
 }
