@@ -287,12 +287,14 @@ func TestDiffSearchProgress(t *testing.T) {
 	diffProgress.addResponse(&tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
-				TraceID:         "5678",
-				RootServiceName: "root",
+				TraceID:           "5678",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 1, // forces order
 			},
 			{
-				TraceID:         "9011",
-				RootServiceName: "root",
+				TraceID:           "9011",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 2,
 			},
 		},
 		Metrics: &tempopb.SearchMetrics{
@@ -304,12 +306,14 @@ func TestDiffSearchProgress(t *testing.T) {
 	require.Equal(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
-				TraceID:         "5678",
-				RootServiceName: "root",
+				TraceID:           "9011",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 2,
 			},
 			{
-				TraceID:         "9011",
-				RootServiceName: "root",
+				TraceID:           "5678",
+				RootServiceName:   "root",
+				StartTimeUnixNano: 1,
 			},
 		},
 		Metrics: &tempopb.SearchMetrics{

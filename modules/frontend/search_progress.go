@@ -92,7 +92,11 @@ func (r *searchProgress) addResponse(res *tempopb.SearchResponse) {
 		if _, ok := r.resultsMap[t.TraceID]; !ok {
 			r.resultsMap[t.TraceID] = t
 		} else {
-			search.CombineSearchResults(r.resultsMap[t.TraceID], t)
+			// combine into the incoming trace and then set in the map. this prevents
+			// race conditions on pointers to traces that we've already returned from
+			// .result()
+			search.CombineSearchResults(t, r.resultsMap[t.TraceID])
+			r.resultsMap[t.TraceID] = t
 		}
 	}
 
@@ -144,7 +148,15 @@ func (r *searchProgress) result() *shardedSearchResults {
 	}
 
 	searchRes := &tempopb.SearchResponse{
-		Metrics: r.resultsMetrics,
+		// clone search metrics to avoid race conditions on the pointer
+		Metrics: &tempopb.SearchMetrics{
+			InspectedTraces: r.resultsMetrics.InspectedTraces,
+			InspectedBytes:  r.resultsMetrics.InspectedBytes,
+			TotalBlocks:     r.resultsMetrics.TotalBlocks,
+			CompletedJobs:   r.resultsMetrics.CompletedJobs,
+			TotalJobs:       r.resultsMetrics.TotalJobs,
+			TotalBlockBytes: r.resultsMetrics.TotalBlockBytes,
+		},
 	}
 
 	for _, t := range r.resultsMap {
