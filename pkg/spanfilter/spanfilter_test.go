@@ -56,15 +56,68 @@ func TestSpanFilter_policyMatch(t *testing.T) {
 		resource *v1.Resource
 		span     *trace_v1.Span
 		expect   bool
+		testName string
 	}{
 		{
-			expect: true,
+			testName: "most basic span kind matching",
+			expect:   true,
 			policy: &config.PolicyMatch{
 				MatchType: config.Strict,
 				Attributes: []config.MatchPolicyAttribute{
 					{
 						Key:   "span.kind",
-						Value: "client",
+						Value: "SPAN_KIND_CLIENT",
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*common_v1.KeyValue{},
+			},
+			span: &trace_v1.Span{
+				Attributes: []*common_v1.KeyValue{
+					{
+						Key: "kind",
+						Value: &common_v1.AnyValue{
+							Value: &common_v1.AnyValue_StringValue{
+								StringValue: "SPAN_KIND_CLIENT",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			testName: "most basic intrinsic kind matching",
+			expect:   true,
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "kind",
+						Value: "SPAN_KIND_CLIENT",
+					},
+				},
+			},
+			resource: &v1.Resource{
+				Attributes: []*common_v1.KeyValue{},
+			},
+			span: &trace_v1.Span{
+				Kind: trace_v1.Span_SPAN_KIND_CLIENT,
+			},
+		},
+		{
+			testName: "simple matching",
+			expect:   true,
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "kind",
+						Value: "SPAN_KIND_CLIENT",
+					},
+					{
+						Key:   "span.status.code",
+						Value: "STATUS_CODE_OK",
 					},
 					{
 						Key:   "resource.location",
@@ -72,7 +125,7 @@ func TestSpanFilter_policyMatch(t *testing.T) {
 					},
 					{
 						Key:   "resource.name",
-						Value: "goodiegoodie",
+						Value: "test",
 					},
 					{
 						Key:   "resource.othervalue",
@@ -86,7 +139,7 @@ func TestSpanFilter_policyMatch(t *testing.T) {
 						Key: "name",
 						Value: &common_v1.AnyValue{
 							Value: &common_v1.AnyValue_StringValue{
-								StringValue: "goodiegoodie",
+								StringValue: "test",
 							},
 						},
 					},
@@ -109,12 +162,13 @@ func TestSpanFilter_policyMatch(t *testing.T) {
 				},
 			},
 			span: &trace_v1.Span{
+				Kind: trace_v1.Span_SPAN_KIND_CLIENT,
 				Attributes: []*common_v1.KeyValue{
 					{
-						Key: "kind",
+						Key: "status.code",
 						Value: &common_v1.AnyValue{
 							Value: &common_v1.AnyValue_StringValue{
-								StringValue: "client",
+								StringValue: "STATUS_CODE_OK",
 							},
 						},
 					},
@@ -127,46 +181,27 @@ func TestSpanFilter_policyMatch(t *testing.T) {
 				MatchType: config.Strict,
 				Attributes: []config.MatchPolicyAttribute{
 					{
-						Key:   "span.kind",
-						Value: "client",
+						Key:   "kind",
+						Value: "SPAN_KIND_CLIENT",
+					},
+					{
+						Key:   "status",
+						Value: "STATUS_CODE_OK",
 					},
 				},
 			},
 			resource: &v1.Resource{
-				Attributes: []*common_v1.KeyValue{
-					{
-						Key: "location",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
-								StringValue: "earth",
-							},
-						},
-					},
-					{
-						Key: "othervalue",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
-								StringValue: "somethinginteresting",
-							},
-						},
-					},
-				},
+				Attributes: []*common_v1.KeyValue{},
 			},
 			span: &trace_v1.Span{
-				Attributes: []*common_v1.KeyValue{
-					{
-						Key: "kind",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
-								StringValue: "client",
-							},
-						},
-					},
-				},
+				Kind:       trace_v1.Span_SPAN_KIND_CLIENT,
+				Status:     &trace_v1.Status{Message: "OK", Code: trace_v1.Status_STATUS_CODE_OK},
+				Attributes: []*common_v1.KeyValue{},
 			},
 		},
 		{
-			expect: true,
+			testName: "resource matching",
+			expect:   true,
 			policy: &config.PolicyMatch{
 				MatchType: config.Strict,
 				Attributes: []config.MatchPolicyAttribute{
@@ -201,23 +236,16 @@ func TestSpanFilter_policyMatch(t *testing.T) {
 				},
 			},
 			span: &trace_v1.Span{
-				Attributes: []*common_v1.KeyValue{
-					{
-						Key: "kind",
-						Value: &common_v1.AnyValue{
-							Value: &common_v1.AnyValue_StringValue{
-								StringValue: "client",
-							},
-						},
-					},
-				},
+				Attributes: []*common_v1.KeyValue{},
 			},
 		},
 	}
 
 	for _, tc := range cases {
-		r := policyMatch(getSplitPolicy(tc.policy), tc.resource, tc.span)
-		require.Equal(t, tc.expect, r)
+		t.Run(tc.testName, func(t *testing.T) {
+			r := policyMatch(getSplitPolicy(tc.policy), tc.resource, tc.span)
+			require.Equal(t, tc.expect, r)
+		})
 	}
 }
 
@@ -226,23 +254,25 @@ func TestSpanFilter_policyMatchIntrinsicAttrs(t *testing.T) {
 		policy *config.PolicyMatch
 		span   *trace_v1.Span
 		expect bool
+		name   string
 	}{
 		{
+			name:   "match on name, kind and status",
 			expect: true,
 			policy: &config.PolicyMatch{
 				MatchType: config.Strict,
 				Attributes: []config.MatchPolicyAttribute{
 					{
 						Key:   "kind",
-						Value: "SPAN_KIND_SERVER",
+						Value: trace_v1.Span_SPAN_KIND_SERVER,
 					},
 					{
 						Key:   "status",
-						Value: "STATUS_CODE_OK",
+						Value: trace_v1.Status_STATUS_CODE_OK,
 					},
 					{
 						Key:   "name",
-						Value: "goodiegoodie",
+						Value: "test",
 					},
 				},
 			},
@@ -251,25 +281,26 @@ func TestSpanFilter_policyMatchIntrinsicAttrs(t *testing.T) {
 				Status: &trace_v1.Status{
 					Code: trace_v1.Status_STATUS_CODE_OK,
 				},
-				Name: "goodiegoodie",
+				Name: "test",
 			},
 		},
 		{
+			name:   "unmatched name",
 			expect: false,
 			policy: &config.PolicyMatch{
 				MatchType: config.Strict,
 				Attributes: []config.MatchPolicyAttribute{
 					{
 						Key:   "kind",
-						Value: "SPAN_KIND_SERVER",
+						Value: trace_v1.Span_SPAN_KIND_SERVER,
 					},
 					{
 						Key:   "status",
-						Value: "STATUS_CODE_OK",
+						Value: trace_v1.Status_STATUS_CODE_OK,
 					},
 					{
 						Key:   "name",
-						Value: "goodiegoodie",
+						Value: "test",
 					},
 				},
 			},
@@ -278,52 +309,54 @@ func TestSpanFilter_policyMatchIntrinsicAttrs(t *testing.T) {
 				Status: &trace_v1.Status{
 					Code: trace_v1.Status_STATUS_CODE_OK,
 				},
-				Name: "goodiegoodie2",
+				Name: "test2",
 			},
 		},
 		{
+			name:   "unmatched status",
 			expect: false,
 			policy: &config.PolicyMatch{
 				MatchType: config.Strict,
 				Attributes: []config.MatchPolicyAttribute{
 					{
 						Key:   "kind",
-						Value: "SPAN_KIND_SERVER",
+						Value: trace_v1.Span_SPAN_KIND_CLIENT,
 					},
 					{
 						Key:   "status",
-						Value: "STATUS_CODE_OK",
+						Value: trace_v1.Status_STATUS_CODE_OK,
 					},
 					{
 						Key:   "name",
-						Value: "goodiegoodie",
+						Value: "test",
 					},
 				},
 			},
 			span: &trace_v1.Span{
-				Kind: trace_v1.Span_SPAN_KIND_SERVER,
+				Kind: trace_v1.Span_SPAN_KIND_CLIENT,
 				Status: &trace_v1.Status{
 					Code: trace_v1.Status_STATUS_CODE_ERROR,
 				},
-				Name: "goodiegoodie",
+				Name: "test",
 			},
 		},
 		{
+			name:   "unmatched kind",
 			expect: false,
 			policy: &config.PolicyMatch{
 				MatchType: config.Strict,
 				Attributes: []config.MatchPolicyAttribute{
 					{
 						Key:   "kind",
-						Value: "SPAN_KIND_SERVER",
+						Value: trace_v1.Span_SPAN_KIND_SERVER,
 					},
 					{
 						Key:   "status",
-						Value: "STATUS_CODE_OK",
+						Value: trace_v1.Status_STATUS_CODE_OK,
 					},
 					{
 						Key:   "name",
-						Value: "goodiegoodie",
+						Value: "test",
 					},
 				},
 			},
@@ -332,14 +365,88 @@ func TestSpanFilter_policyMatchIntrinsicAttrs(t *testing.T) {
 				Status: &trace_v1.Status{
 					Code: trace_v1.Status_STATUS_CODE_OK,
 				},
-				Name: "goodiegoodie",
+				Name: "test",
+			},
+		},
+		{
+			name:   "matched regex kind and status",
+			expect: true,
+			policy: &config.PolicyMatch{
+				MatchType: config.Regex,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "kind",
+						Value: ".*_KIND_.*",
+					},
+					{
+						Key:   "status",
+						Value: ".*_CODE_.*",
+					},
+				},
+			},
+			span: &trace_v1.Span{
+				Kind: trace_v1.Span_SPAN_KIND_SERVER,
+				Status: &trace_v1.Status{
+					Code: trace_v1.Status_STATUS_CODE_OK,
+				},
+				Name: "test",
+			},
+		},
+		{
+			name:   "unmatched regex kind",
+			expect: false,
+			policy: &config.PolicyMatch{
+				MatchType: config.Regex,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "kind",
+						Value: ".*_CLIENT",
+					},
+					{
+						Key:   "status",
+						Value: ".*_OK",
+					},
+				},
+			},
+			span: &trace_v1.Span{
+				Kind: trace_v1.Span_SPAN_KIND_SERVER,
+				Status: &trace_v1.Status{
+					Code: trace_v1.Status_STATUS_CODE_OK,
+				},
+				Name: "test",
+			},
+		},
+		{
+			name:   "unmatched regex status",
+			expect: false,
+			policy: &config.PolicyMatch{
+				MatchType: config.Regex,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "kind",
+						Value: ".*_SERVER",
+					},
+					{
+						Key:   "status",
+						Value: ".*_ERROR",
+					},
+				},
+			},
+			span: &trace_v1.Span{
+				Kind: trace_v1.Span_SPAN_KIND_SERVER,
+				Status: &trace_v1.Status{
+					Code: trace_v1.Status_STATUS_CODE_OK,
+				},
+				Name: "test",
 			},
 		},
 	}
 
 	for _, tc := range cases {
-		r := policyMatchIntrinsicAttrs(tc.policy, tc.span)
-		require.Equal(t, tc.expect, r)
+		t.Run(tc.name, func(t *testing.T) {
+			r := policyMatchIntrinsicAttrs(tc.policy, tc.span)
+			require.Equal(t, tc.expect, r)
+		})
 	}
 
 }
@@ -774,7 +881,7 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 						Key: "name",
 						Value: &common_v1.AnyValue{
 							Value: &common_v1.AnyValue_StringValue{
-								StringValue: "goodiegoodie",
+								StringValue: "test",
 							},
 						},
 					},
@@ -801,7 +908,7 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 				Status: &trace_v1.Status{
 					Code: trace_v1.Status_STATUS_CODE_OK,
 				},
-				Name: "goodiegoodie",
+				Name: "test",
 			},
 		},
 		{
@@ -831,7 +938,7 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 						Key: "name",
 						Value: &common_v1.AnyValue{
 							Value: &common_v1.AnyValue_StringValue{
-								StringValue: "goodiegoodie",
+								StringValue: "test",
 							},
 						},
 					},
@@ -858,7 +965,7 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 				Status: &trace_v1.Status{
 					Code: trace_v1.Status_STATUS_CODE_OK,
 				},
-				Name: "goodiegoodie",
+				Name: "test",
 			},
 		},
 		{
@@ -897,7 +1004,7 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 						Key: "name",
 						Value: &common_v1.AnyValue{
 							Value: &common_v1.AnyValue_StringValue{
-								StringValue: "goodiegoodie",
+								StringValue: "test",
 							},
 						},
 					},
@@ -924,7 +1031,7 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 				Status: &trace_v1.Status{
 					Code: trace_v1.Status_STATUS_CODE_OK,
 				},
-				Name: "goodiegoodie",
+				Name: "test",
 			},
 		},
 	}
@@ -967,6 +1074,83 @@ func TestSpanFilter_stringMatch(t *testing.T) {
 	for _, tc := range cases {
 		r := stringMatch(tc.matchType, tc.s, tc.pattern)
 		require.Equal(t, tc.expect, r)
+	}
+}
+
+func TestSpanFilter_getSplitPolicy(t *testing.T) {
+	cases := []struct {
+		policy *config.PolicyMatch
+		split  *splitPolicy
+		name   string
+	}{
+		{
+			name: "basic kind matching",
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "kind",
+						Value: "SPAN_KIND_CLIENT",
+					},
+				},
+			},
+			split: &splitPolicy{
+				IntrinsicMatch: &config.PolicyMatch{
+					MatchType: config.Strict,
+					Attributes: []config.MatchPolicyAttribute{
+						{
+							Key:   "kind",
+							Value: trace_v1.Span_SPAN_KIND_CLIENT,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "basic status matching",
+			policy: &config.PolicyMatch{
+				MatchType: config.Strict,
+				Attributes: []config.MatchPolicyAttribute{
+					{
+						Key:   "status",
+						Value: "STATUS_CODE_OK",
+					},
+				},
+			},
+			split: &splitPolicy{
+				IntrinsicMatch: &config.PolicyMatch{
+					MatchType: config.Strict,
+					Attributes: []config.MatchPolicyAttribute{
+						{
+							Key:   "status",
+							Value: trace_v1.Status_STATUS_CODE_OK,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := getSplitPolicy(tc.policy)
+
+			require.NotNil(t, s)
+			require.NotNil(t, s.IntrinsicMatch)
+			require.NotNil(t, s.SpanMatch)
+			require.NotNil(t, s.ResourceMatch)
+
+			if tc.split.IntrinsicMatch != nil {
+				require.Equal(t, tc.split.IntrinsicMatch, s.IntrinsicMatch)
+			}
+			if tc.split.SpanMatch != nil {
+				require.Equal(t, tc.split.SpanMatch, s.SpanMatch)
+			}
+			if tc.split.ResourceMatch != nil {
+				require.Equal(t, tc.split.ResourceMatch, s.ResourceMatch)
+			}
+
+		})
 	}
 }
 

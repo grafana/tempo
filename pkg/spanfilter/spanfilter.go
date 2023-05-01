@@ -101,6 +101,9 @@ func policyMatchIntrinsicAttrs(policy *config.PolicyMatch, span *v1_trace.Span) 
 	matches := 0
 
 	var attr traceql.Attribute
+	var spanKind, policyKind v1_trace.Span_SpanKind
+	var spanStatusCode, policyStatusCode v1_trace.Status_StatusCode
+
 	for _, pa := range policy.Attributes {
 		attr = traceql.MustParseIdentifier(pa.Key)
 		switch attr.Intrinsic {
@@ -113,13 +116,32 @@ func policyMatchIntrinsicAttrs(policy *config.PolicyMatch, span *v1_trace.Span) 
 			}
 			matches++
 		case traceql.IntrinsicStatus:
-			if !stringMatch(policy.MatchType, span.GetStatus().GetCode().String(), pa.Value.(string)) {
-				return false
+			switch pa.Value.(type) {
+			case v1_trace.Status_StatusCode:
+				spanStatusCode = span.GetStatus().GetCode()
+				policyStatusCode = pa.Value.(v1_trace.Status_StatusCode)
+				if policy.MatchType == config.Strict && spanStatusCode != policyStatusCode {
+					return false
+				}
+			default:
+				if !stringMatch(policy.MatchType, span.GetStatus().GetCode().String(), pa.Value.(string)) {
+					return false
+				}
 			}
 			matches++
 		case traceql.IntrinsicKind:
-			if !stringMatch(policy.MatchType, span.GetKind().String(), pa.Value.(string)) {
-				return false
+			switch pa.Value.(type) {
+			case v1_trace.Span_SpanKind:
+				spanKind = span.GetKind()
+				policyKind = pa.Value.(v1_trace.Span_SpanKind)
+				if policy.MatchType == config.Strict && spanKind != policyKind {
+					return false
+				}
+			default:
+				if !stringMatch(policy.MatchType, span.GetKind().String(), pa.Value.(string)) {
+					return false
+				}
+
 			}
 			matches++
 		}
@@ -219,6 +241,14 @@ func getSplitPolicy(policy *config.PolicyMatch) *splitPolicy {
 		}
 
 		if attr.Intrinsic > 0 {
+			if policy.MatchType == config.Strict {
+				switch attr.Intrinsic {
+				case traceql.IntrinsicStatus:
+					attribute.Value = v1_trace.Status_StatusCode(v1_trace.Status_StatusCode_value[pa.Value.(string)])
+				case traceql.IntrinsicKind:
+					attribute.Value = v1_trace.Span_SpanKind(v1_trace.Span_SpanKind_value[pa.Value.(string)])
+				}
+			}
 			intrinsicPolicy.Attributes = append(intrinsicPolicy.Attributes, attribute)
 		} else {
 			switch attr.Scope {
