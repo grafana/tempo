@@ -49,10 +49,10 @@ func TestCreateBlockBoundaries(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bb := createBlockBoundaries(tt.queryShards)
-			assert.Len(t, bb, len(tt.expected))
+			require.Len(t, bb, len(tt.expected))
 
 			for i := 0; i < len(bb); i++ {
-				assert.Equal(t, tt.expected[i], bb[i])
+				require.Equal(t, tt.expected[i], bb[i])
 			}
 		})
 	}
