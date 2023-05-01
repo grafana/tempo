@@ -10,14 +10,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var _ Predicate = (*mockPredicate)(nil)
-
 type mockPredicate struct {
 	ret         bool
 	valCalled   bool
 	pageCalled  bool
 	chunkCalled bool
 }
+
+type testDictString struct {
+	S string `parquet:",dict"`
+}
+
+var _ Predicate = (*mockPredicate)(nil)
 
 func newAlwaysTruePredicate() *mockPredicate {
 	return &mockPredicate{ret: true}
@@ -50,12 +54,10 @@ func TestSubstringPredicate(t *testing.T) {
 			keptPages:  1,
 			keptValues: 2,
 			writeData: func(w *parquet.Writer) { //nolint:all
-				type String struct {
-					S string `parquet:",dict"`
-				}
-				require.NoError(t, w.Write(&String{"abc"})) // kept
-				require.NoError(t, w.Write(&String{"bcd"})) // kept
-				require.NoError(t, w.Write(&String{"cde"})) // skipped
+
+				require.NoError(t, w.Write(&testDictString{"abc"})) // kept
+				require.NoError(t, w.Write(&testDictString{"bcd"})) // kept
+				require.NoError(t, w.Write(&testDictString{"cde"})) // skipped
 			},
 		},
 		{
@@ -65,14 +67,11 @@ func TestSubstringPredicate(t *testing.T) {
 			keptPages:  0,
 			keptValues: 0,
 			writeData: func(w *parquet.Writer) { //nolint:all
-				type dictString struct {
-					S string `parquet:",dict"`
-				}
-				require.NoError(t, w.Write(&dictString{"abc"}))
-				require.NoError(t, w.Write(&dictString{"abc"}))
-				require.NoError(t, w.Write(&dictString{"abc"}))
-				require.NoError(t, w.Write(&dictString{"abc"}))
-				require.NoError(t, w.Write(&dictString{"abc"}))
+				require.NoError(t, w.Write(&testDictString{"abc"}))
+				require.NoError(t, w.Write(&testDictString{"abc"}))
+				require.NoError(t, w.Write(&testDictString{"abc"}))
+				require.NoError(t, w.Write(&testDictString{"abc"}))
+				require.NoError(t, w.Write(&testDictString{"abc"}))
 			},
 		},
 	}
@@ -98,12 +97,9 @@ func TestNewRegexInPredicate(t *testing.T) {
 			keptPages:  1,
 			keptValues: 2,
 			writeData: func(w *parquet.Writer) { //nolint:all
-				type String struct {
-					S string `parquet:",dict"`
-				}
-				require.NoError(t, w.Write(&String{"abc"})) // kept
-				require.NoError(t, w.Write(&String{"acd"})) // kept
-				require.NoError(t, w.Write(&String{"cde"})) // skipped
+				require.NoError(t, w.Write(&testDictString{"abc"})) // kept
+				require.NoError(t, w.Write(&testDictString{"acd"})) // kept
+				require.NoError(t, w.Write(&testDictString{"cde"})) // skipped
 			},
 		},
 		{
@@ -118,11 +114,8 @@ func TestNewRegexInPredicate(t *testing.T) {
 			keptPages:  0,
 			keptValues: 0,
 			writeData: func(w *parquet.Writer) { //nolint:all
-				type dictString struct {
-					S string `parquet:",dict"`
-				}
-				require.NoError(t, w.Write(&dictString{"abc"}))
-				require.NoError(t, w.Write(&dictString{"abc"}))
+				require.NoError(t, w.Write(&testDictString{"abc"}))
+				require.NoError(t, w.Write(&testDictString{"abc"}))
 			},
 		},
 	}
@@ -148,13 +141,10 @@ func TestNewRegexNotInPredicate(t *testing.T) {
 			keptPages:  1,
 			keptValues: 2,
 			writeData: func(w *parquet.Writer) { //nolint:all
-				type String struct {
-					S string `parquet:",dict"`
-				}
-				require.NoError(t, w.Write(&String{"abc"})) // skipped
-				require.NoError(t, w.Write(&String{"acd"})) // skipped
-				require.NoError(t, w.Write(&String{"cde"})) // kept
-				require.NoError(t, w.Write(&String{"xde"})) // kept
+				require.NoError(t, w.Write(&testDictString{"abc"})) // skipped
+				require.NoError(t, w.Write(&testDictString{"acd"})) // skipped
+				require.NoError(t, w.Write(&testDictString{"cde"})) // kept
+				require.NoError(t, w.Write(&testDictString{"xde"})) // kept
 			},
 		},
 		{
@@ -169,11 +159,8 @@ func TestNewRegexNotInPredicate(t *testing.T) {
 			keptPages:  0,
 			keptValues: 0,
 			writeData: func(w *parquet.Writer) { //nolint:all
-				type dictString struct {
-					S string `parquet:",dict"`
-				}
-				require.NoError(t, w.Write(&dictString{"xyz"}))
-				require.NoError(t, w.Write(&dictString{"xyz"}))
+				require.NoError(t, w.Write(&testDictString{"xyz"}))
+				require.NoError(t, w.Write(&testDictString{"xyz"}))
 			},
 		},
 	}
