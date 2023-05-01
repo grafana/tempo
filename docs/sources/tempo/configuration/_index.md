@@ -357,11 +357,6 @@ query_frontend:
     # (default: 2)
     [max_retries: <int>]
 
-    # number of block queries that are tolerated to error before considering the entire query as failed
-    # numbers greater than 0 make possible for a read to return partial results
-    # (default: 0)
-    [tolerate_failed_blocks: <int>]
-
     search:
         # Maximum number of outstanding requests per tenant per frontend; requests beyond this error with HTTP 429.
         # (default: 2000)

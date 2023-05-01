@@ -40,7 +40,6 @@ message TraceByIDResponse {
 }
 
 message TraceByIDMetrics {
-  uint32 failedBlocks = 1;
 }
 
 // SearchRequest takes no block parameters and implies a "recent traces" search

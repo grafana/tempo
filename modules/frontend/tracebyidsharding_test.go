@@ -210,77 +210,24 @@ func TestShardingWareDoRequest(t *testing.T) {
 			err2:          errors.New("booo"),
 			expectedError: errors.New("booo"),
 		},
-		{
-			name:                "failedBlocks under: 200+200",
-			status1:             200,
-			trace1:              trace1,
-			status2:             200,
-			trace2:              trace2,
-			failedBlockQueries1: 1,
-			failedBlockQueries2: 1,
-			expectedStatus:      200,
-			expectedTrace:       splitTrace,
-		},
-		{
-			name:                "failedBlocks over: 200+200",
-			status1:             200,
-			trace1:              trace1,
-			status2:             200,
-			trace2:              trace2,
-			failedBlockQueries1: 0,
-			failedBlockQueries2: 5,
-			expectedError:       errors.New("too many failed block queries 5 (max 2)"),
-		},
-		{
-			name:                "failedBlocks under: 200+404",
-			status1:             200,
-			trace1:              trace1,
-			status2:             404,
-			failedBlockQueries1: 1,
-			failedBlockQueries2: 0,
-			expectedStatus:      200,
-			expectedTrace:       trace1,
-		},
-		{
-			name:                "failedBlocks under: 404+200",
-			status1:             200,
-			trace1:              trace1,
-			status2:             404,
-			failedBlockQueries1: 0,
-			failedBlockQueries2: 1,
-			expectedStatus:      200,
-			expectedTrace:       trace1,
-		},
-		{
-			name:                "failedBlocks over: 404+200",
-			status1:             200,
-			trace1:              trace1,
-			status2:             404,
-			failedBlockQueries1: 0,
-			failedBlockQueries2: 5,
-			expectedError:       errors.New("too many failed block queries 5 (max 2)"),
-		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			sharder := newTraceByIDSharder(2, 2, testSLOcfg, log.NewNopLogger())
+			sharder := newTraceByIDSharder(2, testSLOcfg, log.NewNopLogger())
 
 			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 				var testTrace *tempopb.Trace
 				var statusCode int
 				var err error
-				var failedBlockQueries int
 				if r.RequestURI == "/querier/api/traces/1234?mode=ingesters" {
 					testTrace = tc.trace1
 					statusCode = tc.status1
 					err = tc.err1
-					failedBlockQueries = tc.failedBlockQueries1
 				} else {
 					testTrace = tc.trace2
 					err = tc.err2
 					statusCode = tc.status2
-					failedBlockQueries = tc.failedBlockQueries2
 				}
 
 				if err != nil {
@@ -291,17 +238,13 @@ func TestShardingWareDoRequest(t *testing.T) {
 				if statusCode != 500 {
 					if testTrace != nil {
 						resBytes, err = proto.Marshal(&tempopb.TraceByIDResponse{
-							Trace: testTrace,
-							Metrics: &tempopb.TraceByIDMetrics{
-								FailedBlocks: uint32(failedBlockQueries),
-							},
+							Trace:   testTrace,
+							Metrics: &tempopb.TraceByIDMetrics{},
 						})
 						require.NoError(t, err)
 					} else {
 						resBytes, err = proto.Marshal(&tempopb.TraceByIDResponse{
-							Metrics: &tempopb.TraceByIDMetrics{
-								FailedBlocks: uint32(failedBlockQueries),
-							},
+							Metrics: &tempopb.TraceByIDMetrics{},
 						})
 						require.NoError(t, err)
 					}

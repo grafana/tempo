@@ -18,11 +18,10 @@ var (
 )
 
 type Config struct {
-	Config               v1.Config       `yaml:",inline"`
-	MaxRetries           int             `yaml:"max_retries,omitempty"`
-	TolerateFailedBlocks int             `yaml:"tolerate_failed_blocks,omitempty"`
-	Search               SearchConfig    `yaml:"search"`
-	TraceByID            TraceByIDConfig `yaml:"trace_by_id"`
+	Config     v1.Config       `yaml:",inline"`
+	MaxRetries int             `yaml:"max_retries,omitempty"`
+	Search     SearchConfig    `yaml:"search"`
+	TraceByID  TraceByIDConfig `yaml:"trace_by_id"`
 }
 
 type SearchConfig struct {
@@ -54,7 +53,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 
 	cfg.Config.MaxOutstandingPerTenant = 2000
 	cfg.MaxRetries = 2
-	cfg.TolerateFailedBlocks = 0
 	cfg.Search = SearchConfig{
 		Sharder: SearchSharderConfig{
 			QueryBackendAfter:     15 * time.Minute,

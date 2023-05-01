@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -28,7 +27,7 @@ const (
 	maxQueryShards = 256
 )
 
-func newTraceByIDSharder(queryShards, maxFailedBlocks int, sloCfg SLOConfig, logger log.Logger) Middleware {
+func newTraceByIDSharder(queryShards int, sloCfg SLOConfig, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return shardQuery{
 			next:            next,
@@ -36,7 +35,6 @@ func newTraceByIDSharder(queryShards, maxFailedBlocks int, sloCfg SLOConfig, log
 			sloCfg:          sloCfg,
 			logger:          logger,
 			blockBoundaries: createBlockBoundaries(queryShards - 1), // one shard will be used to query ingesters
-			maxFailedBlocks: uint32(maxFailedBlocks),
 		}
 	})
 }
@@ -47,7 +45,6 @@ type shardQuery struct {
 	sloCfg          SLOConfig
 	logger          log.Logger
 	blockBoundaries [][]byte
-	maxFailedBlocks uint32
 }
 
 // RoundTrip implements http.RoundTripper
@@ -78,7 +75,6 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	mtx := sync.Mutex{}
 
 	var overallError error
-	var totalFailedBlocks uint32
 	combiner := trace.NewCombiner()
 	combiner.Consume(&tempopb.Trace{}) // The query path returns a non-nil result even if no inputs (which is different than other paths which return nil for no inputs)
 	statusCode := http.StatusNotFound
@@ -139,14 +135,6 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 				return
 			}
 
-			if traceResp.Metrics != nil {
-				totalFailedBlocks += traceResp.Metrics.FailedBlocks
-				if totalFailedBlocks > s.maxFailedBlocks {
-					overallError = fmt.Errorf("too many failed block queries %d (max %d)", totalFailedBlocks, s.maxFailedBlocks)
-					return
-				}
-			}
-
 			// if not found bail
 			if resp.StatusCode == http.StatusNotFound {
 				return
@@ -163,10 +151,6 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	if overallError != nil {
 		return nil, overallError
-	}
-
-	if totalFailedBlocks > 0 {
-		_ = level.Warn(s.logger).Log("msg", "some blocks failed. returning success due to tolerate_failed_blocks", "failed", totalFailedBlocks, "tolerate_failed_blocks", s.maxFailedBlocks)
 	}
 
 	overallTrace, _ := combiner.Result()
@@ -186,10 +170,8 @@ func (s shardQuery) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	buff, err := proto.Marshal(&tempopb.TraceByIDResponse{
-		Trace: overallTrace,
-		Metrics: &tempopb.TraceByIDMetrics{
-			FailedBlocks: totalFailedBlocks,
-		},
+		Trace:   overallTrace,
+		Metrics: &tempopb.TraceByIDMetrics{},
 	})
 	if err != nil {
 		_ = level.Error(s.logger).Log("msg", "error marshalling response to proto", "err", err)

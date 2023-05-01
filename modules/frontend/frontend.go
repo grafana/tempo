@@ -92,7 +92,7 @@ func newTraceByIDMiddleware(cfg Config, logger log.Logger) Middleware {
 		rt := NewRoundTripper(
 			next,
 			newDeduper(logger),
-			newTraceByIDSharder(cfg.TraceByID.QueryShards, cfg.TolerateFailedBlocks, cfg.TraceByID.SLO, logger),
+			newTraceByIDSharder(cfg.TraceByID.QueryShards, cfg.TraceByID.SLO, logger),
 			newHedgedRequestWare(cfg.TraceByID.Hedging),
 		)
 
