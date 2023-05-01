@@ -3,6 +3,7 @@ package parquetquery
 import (
 	"context"
 	"math"
+	"math/rand"
 	"os"
 	"testing"
 
@@ -22,6 +23,23 @@ var iterTestCases = []struct {
 	{"sync", func(pf *parquet.File, idx int, filter Predicate, selectAs string) Iterator {
 		return NewSyncIterator(context.TODO(), pf.RowGroups(), idx, selectAs, 1000, filter, selectAs)
 	}},
+}
+
+// TestNext compares the unrolled Next() with the original nextSlow() to
+// prevent drift
+func TestNext(t *testing.T) {
+	rn1 := RowNumber{0, 0, 0, 0, 0, 0}
+	rn2 := RowNumber{0, 0, 0, 0, 0, 0}
+
+	for i := 0; i < 1000; i++ {
+		r := rand.Intn(6)
+		d := rand.Intn(6)
+
+		rn1.Next(r, d)
+		rn2.nextSlow(r, d)
+
+		require.Equal(t, rn1, rn2)
+	}
 }
 
 func TestRowNumber(t *testing.T) {
