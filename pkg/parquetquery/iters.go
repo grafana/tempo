@@ -92,17 +92,7 @@ func (t *RowNumber) Valid() bool {
 func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 	t[repetitionLevel]++
 
-	// the following is these loops unrolled:
-	// New children up through the definition level
-	// for i := repetitionLevel + 1; i <= definitionLevel; i++ {
-	// 	t[i] = 0
-	// }
-
-	// // Children past the definition level are undefined
-	// for i := definitionLevel + 1; i < len(t); i++ {
-	// 	t[i] = -1
-	// }
-
+	// the following is nextSlow() unrolled
 	switch repetitionLevel {
 	case 0:
 		switch definitionLevel {
@@ -282,6 +272,22 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 		case 4:
 			t[5] = -1
 		}
+	}
+}
+
+// nextSlow is the original implementation of next. it is kept to test against
+// the unrolled version above
+func (t *RowNumber) nextSlow(repetitionLevel, definitionLevel int) {
+	t[repetitionLevel]++
+
+	// New children up through the definition level
+	for i := repetitionLevel + 1; i <= definitionLevel; i++ {
+		t[i] = 0
+	}
+
+	// // Children past the definition level are undefined
+	for i := definitionLevel + 1; i < len(t); i++ {
+		t[i] = -1
 	}
 }
 
