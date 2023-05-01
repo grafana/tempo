@@ -93,8 +93,6 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		Metrics: &tempopb.SearchMetrics{
 			InspectedTraces: sr.TracesInspected(),
 			InspectedBytes:  sr.BytesInspected(),
-			InspectedBlocks: sr.BlocksInspected(),
-			SkippedBlocks:   sr.BlocksSkipped(),
 		},
 	}, nil
 }
@@ -439,11 +437,10 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			return nil // Early exit if any error has occurred
 		}
 
-		if maxBlocks > 0 && inspectedBlocks.Load() >= maxBlocks {
+		if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
 			return nil
 		}
 
-		inspectedBlocks.Inc()
 		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return s.Fetch(ctx, req, common.DefaultSearchOptions())
 		})

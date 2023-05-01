@@ -536,9 +536,7 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.Sea
 
 func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
 	results := &tempopb.SearchResponse{
-		Metrics: &tempopb.SearchMetrics{
-			InspectedBlocks: 1,
-		},
+		Metrics: &tempopb.SearchMetrics{},
 	}
 
 	for i, blockFlush := range b.readFlushes() {
