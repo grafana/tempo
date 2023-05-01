@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/segmentio/parquet-go"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -91,7 +90,8 @@ func TestNewRegexInPredicate(t *testing.T) {
 			testName: "all chunks/pages/values inspected",
 			predicate: func() Predicate {
 				pred, err := NewRegexInPredicate([]string{"a.*"})
-				assert.NoError(t, err)
+				require.NoError(t, err)
+
 				return pred
 			}(),
 			keptChunks: 1,
@@ -110,7 +110,8 @@ func TestNewRegexInPredicate(t *testing.T) {
 			testName: "dictionary in the page header allows for skipping a page",
 			predicate: func() Predicate {
 				pred, err := NewRegexInPredicate([]string{"x.*"})
-				assert.NoError(t, err)
+				require.NoError(t, err)
+
 				return pred
 			}(), // Not present in any values
 			keptChunks: 1,
@@ -139,7 +140,8 @@ func TestNewRegexNotInPredicate(t *testing.T) {
 			testName: "all chunks/pages/values inspected",
 			predicate: func() Predicate {
 				pred, err := NewRegexNotInPredicate([]string{"a.*"})
-				assert.NoError(t, err)
+				require.NoError(t, err)
+
 				return pred
 			}(),
 			keptChunks: 1,
@@ -159,7 +161,8 @@ func TestNewRegexNotInPredicate(t *testing.T) {
 			testName: "dictionary in the page header allows for skipping a page",
 			predicate: func() Predicate {
 				pred, err := NewRegexNotInPredicate([]string{"x.*"})
-				assert.NoError(t, err)
+				require.NoError(t, err)
+
 				return pred
 			}(), // Not present in any values
 			keptChunks: 1,
