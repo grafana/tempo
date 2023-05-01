@@ -5,7 +5,7 @@ menuTitle: API
 weight: 800
 ---
 
-# Tempo API
+# Tempo HTTP API
 
 Tempo exposes an API for pushing and querying traces, and operating the cluster itself.
 
@@ -14,6 +14,8 @@ These endpoints are exposed both when running Tempo in microservices and monolit
 
 - **microservices**: each service exposes its own endpoints
 - **monolithic**: the Tempo process exposes all API endpoints for the services running internally
+
+For externally support GRPC API [see below](#tempo-grpc-api)
 
 ## Endpoints
 
@@ -207,7 +209,7 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ status=error
     },
   ],
   "metrics": {
-    "inspectedBlocks": 13
+    "totalBlocks": 13
   }
 }
 ```
@@ -239,7 +241,7 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.nam
   "metrics": {
     "inspectedTraces": 3100,
     "inspectedBytes": "3811736",
-    "inspectedBlocks": 3
+    "totalBlocks": 3
   }
 }
 ```
@@ -546,3 +548,63 @@ GET /status/usage-stats
 ```
 
 Displays anonymous usage stats data that is reported back to Grafana Labs.
+
+## Tempo GRPC API
+
+Tempo uses GRPC to internally communicate with itself, but only has one externally supported client. The query-frontend component implements
+the streaming querier interface defined below. [See here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/) for the complete proto definition and generated code.
+
+The below `rpc` call returns only traces that are new or have updated each time `SearchResponse` is returned except for the last response. The
+final response sent is guaranteed to have the entire resultset.
+
+```protobuf
+service StreamingQuerier {
+  rpc Search(SearchRequest) returns (stream SearchResponse);
+}
+
+message SearchRequest {
+  map<string, string> Tags = 1
+  uint32 MinDurationMs = 2;
+  uint32 MaxDurationMs = 3;
+  uint32 Limit = 4;
+  uint32 start = 5;
+  uint32 end = 6;
+  string Query = 8;
+}
+
+message SearchResponse {
+  repeated TraceSearchMetadata traces = 1;
+  SearchMetrics metrics = 2;
+}
+
+message TraceSearchMetadata {
+  string traceID = 1;
+  string rootServiceName = 2;
+  string rootTraceName = 3;
+  uint64 startTimeUnixNano = 4;
+  uint32 durationMs = 5;
+  SpanSet spanSet = 6;
+}
+
+message SpanSet {
+  repeated Span spans = 1;
+  uint32 matched = 2;
+}
+
+message Span {
+  string spanID = 1;
+  string name = 2;
+  uint64 startTimeUnixNano = 3;
+  uint64 durationNanos = 4;
+  repeated tempopb.common.v1.KeyValue attributes = 5;
+}
+
+message SearchMetrics {
+  uint32 inspectedTraces = 1;
+  uint64 inspectedBytes = 2;
+  uint32 totalBlocks = 3;
+  uint32 completedJobs = 4;
+  uint32 totalJobs = 5;
+  uint64 totalBlockBytes = 6;
+}
+```
