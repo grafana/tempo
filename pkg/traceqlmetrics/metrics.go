@@ -65,7 +65,7 @@ func (m *latencyHistogram) Percentile(p float32) uint64 {
 
 	// Exponential interpolation between buckets
 	minDur := math.Pow(2, float64(bucket))
-	dur := minDur * math.Pow(2, float64(interp))
+	dur := minDur * math.Pow(2, interp)
 
 	return uint64(dur)
 }

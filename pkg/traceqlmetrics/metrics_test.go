@@ -56,14 +56,14 @@ func TestGetMetrics(t *testing.T) {
 		Spansets: []*traceql.Spanset{
 			{
 				Spans: []traceql.Span{
-					NewMockSpan(128, "span.foo", "1"),
-					NewMockSpan(128, "span.foo", "1"), // p50 for foo=1
-					NewMockSpan(256, "span.foo", "1"),
-					NewMockSpan(256, "span.foo", "1"),
-					NewMockSpan(256, "span.foo", "2"),
-					NewMockSpan(256, "span.foo", "2"), // p50 for foo=2
-					NewMockSpan(512, "span.foo", "2"),
-					NewMockSpan(512, "span.foo", "2"),
+					newMockSpan(128, "span.foo", "1"),
+					newMockSpan(128, "span.foo", "1"), // p50 for foo=1
+					newMockSpan(256, "span.foo", "1"),
+					newMockSpan(256, "span.foo", "1"),
+					newMockSpan(256, "span.foo", "2"),
+					newMockSpan(256, "span.foo", "2"), // p50 for foo=2
+					newMockSpan(512, "span.foo", "2"),
+					newMockSpan(512, "span.foo", "2"),
 				},
 			},
 		},

@@ -13,7 +13,7 @@ type mockSpan struct {
 
 var _ traceql.Span = (*mockSpan)(nil)
 
-func NewMockSpan(duration uint64, nameValuePairs ...string) *mockSpan {
+func newMockSpan(duration uint64, nameValuePairs ...string) *mockSpan {
 	m := &mockSpan{
 		duration: duration,
 		attrs:    map[traceql.Attribute]traceql.Static{},
