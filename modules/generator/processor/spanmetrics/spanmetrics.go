@@ -33,9 +33,8 @@ type Processor struct {
 	spanMetricsDurationSeconds registry.Histogram
 	spanMetricsSizeTotal       registry.Counter
 
-	filter *spanfilter.SpanFilter
-
-	discardCounter prometheus.Counter
+	filter               *spanfilter.SpanFilter
+	filteredSpansCounter prometheus.Counter
 
 	// for testing
 	now func() time.Time
@@ -83,7 +82,7 @@ func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.C
 	p.Cfg = cfg
 	p.registry = registry
 	p.now = time.Now
-	p.discardCounter = spanDiscardCounter
+	p.filteredSpansCounter = spanDiscardCounter
 	p.filter = filter
 	return p, nil
 }
@@ -113,7 +112,7 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 					p.aggregateMetricsForSpan(svcName, rs.Resource, span)
 					continue
 				}
-				p.discardCounter.Inc()
+				p.filteredSpansCounter.Inc()
 			}
 		}
 	}

@@ -33,13 +33,13 @@ var (
 func TestSpanMetrics(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 
-	discardCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 	cfg.HistogramBuckets = []float64{0.5, 1}
 
-	p, err := New(cfg, testRegistry, discardCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -71,7 +71,7 @@ func TestSpanMetrics(t *testing.T) {
 func TestSpanMetrics_dimensions(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 
-	discardCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -80,7 +80,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 	cfg.IntrinsicDimensions.StatusMessage = true
 	cfg.Dimensions = []string{"foo", "bar", "does-not-exist"}
 
-	p, err := New(cfg, testRegistry, discardCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -127,7 +127,7 @@ func TestSpanMetrics_dimensions(t *testing.T) {
 func TestSpanMetrics_collisions(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 
-	discardCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
@@ -135,7 +135,7 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	cfg.Dimensions = []string{"span.kind", "span_name"}
 	cfg.IntrinsicDimensions.SpanKind = false
 
-	p, err := New(cfg, testRegistry, discardCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
@@ -175,7 +175,7 @@ func TestSpanMetrics_collisions(t *testing.T) {
 }
 
 func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
-	discardCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	cases := []struct {
 		filterPolicies     []filterconfig.FilterPolicy
@@ -268,7 +268,7 @@ func TestSpanMetrics_applyFilterPolicy(t *testing.T) {
 			cfg.FilterPolicies = tc.filterPolicies
 
 			testRegistry := registry.NewTestRegistry()
-			p, err := New(cfg, testRegistry, discardCounter)
+			p, err := New(cfg, testRegistry, filteredSpansCounter)
 			require.NoError(t, err)
 			defer p.Shutdown(context.Background())
 
@@ -409,14 +409,14 @@ func BenchmarkSpanMetrics_applyFilterPolicyMedium(b *testing.B) {
 }
 
 func benchmarkFilterPolicy(b *testing.B, policies []filterconfig.FilterPolicy, batch *trace_v1.ResourceSpans) {
-	discardCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
 
 	testRegistry := registry.NewTestRegistry()
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", nil)
 
 	cfg.FilterPolicies = policies
-	p, err := New(cfg, testRegistry, discardCounter)
+	p, err := New(cfg, testRegistry, filteredSpansCounter)
 	require.NoError(b, err)
 	defer p.Shutdown(context.Background())
 	b.ResetTimer()

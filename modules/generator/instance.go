@@ -262,8 +262,8 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 	var err error
 	switch processorName {
 	case spanmetrics.Name:
-		discardCounter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonSpanMetricsFiltered)
-		newProcessor, err = spanmetrics.New(cfg.SpanMetrics, i.registry, discardCounter)
+		filteredSpansCounter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonSpanMetricsFiltered)
+		newProcessor, err = spanmetrics.New(cfg.SpanMetrics, i.registry, filteredSpansCounter)
 		if err != nil {
 			return err
 		}
