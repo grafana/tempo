@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
@@ -20,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/weaveworks/common/user"
+	"go.uber.org/atomic"
 )
 
 func TestCreateBlockBoundaries(t *testing.T) {
@@ -324,4 +326,53 @@ func TestShardingWareDoRequest(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConcurrentShards(t *testing.T) {
+	concurrency := 2
+
+	sharder := newTraceByIDSharder(&TraceByIDConfig{
+		QueryShards:      20,
+		ConcurrentShards: concurrency,
+		SLO:              testSLOcfg,
+	}, log.NewNopLogger())
+
+	sawMaxConcurrncy := atomic.NewBool(false)
+	currentlyExecuting := atomic.NewInt32(0)
+	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		current := currentlyExecuting.Inc()
+		if current > int32(concurrency) {
+			t.Fatal("too many concurrent requests")
+		}
+		if current == int32(concurrency) {
+			// future developer. i'm concerned under pressure this won't be set b/c only 1 request will be executed at a time
+			// feel free to remove
+			sawMaxConcurrncy.Store(true)
+		}
+
+		// force concurrency
+		time.Sleep(100 * time.Millisecond)
+		resBytes, err := proto.Marshal(&tempopb.TraceByIDResponse{
+			Trace:   &tempopb.Trace{},
+			Metrics: &tempopb.TraceByIDMetrics{},
+		})
+		require.NoError(t, err)
+
+		currentlyExecuting.Dec()
+		return &http.Response{
+			Body:       io.NopCloser(bytes.NewReader(resBytes)),
+			StatusCode: 200,
+		}, nil
+	})
+
+	testRT := NewRoundTripper(next, sharder)
+
+	req := httptest.NewRequest("GET", "/api/traces/1234", nil)
+	ctx := req.Context()
+	ctx = user.InjectOrgID(ctx, "blerg")
+	req = req.WithContext(ctx)
+
+	_, err := testRT.RoundTrip(req)
+	require.NoError(t, err)
+	require.True(t, sawMaxConcurrncy.Load())
 }
