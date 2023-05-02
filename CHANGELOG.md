@@ -7,6 +7,12 @@
   ```
 * [ENHANCEMENT] Add `prefix` configuration option to `storage.trace.azure` and `storage.trace.gcs` [#2362](https://github.com/grafana/tempo/pull/2386) (@kousikmitra)
 * [ENHANCEMENT] Add `prefix` configuration option to `storage.trace.s3` [#2362](https://github.com/grafana/tempo/pull/2362) (@kousikmitra)
+* [ENHANCEMENT] Add support for `concurrent_shards` under `trace_by_id` [#2416](https://github.com/grafana/tempo/pull/2416) (@joe-elliott)
+  ```
+  query_frontend:
+    trace_by_id:
+      concurrent_shards: 3
+  ```
 * [FEATURE] Add support for `q` query param in `/api/v2/search/<tag.name>/values` to filter results based on a TraceQL query [#2253](https://github.com/grafana/tempo/pull/2253) (@mapno)
 * [FEATURE] Add a GRPC streaming endpoint for traceql search [#2366](https://github.com/grafana/tempo/pull/2366) (@joe-elliott)
 * [ENHANCEMENT] Add `scope` parameter to `/api/search/tags` [#2282](https://github.com/grafana/tempo/pull/2282) (@joe-elliott)
