@@ -178,8 +178,7 @@ func (o BinaryOperation) validate() error {
 	}
 
 	switch o.Op {
-	case OpNotRegex,
-		OpSpansetChild,
+	case OpSpansetChild,
 		OpSpansetDescendant,
 		OpSpansetSibling:
 		return newUnsupportedError(fmt.Sprintf("binary operation (%v)", o.Op))
