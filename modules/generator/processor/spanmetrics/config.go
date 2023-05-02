@@ -3,6 +3,7 @@ package spanmetrics
 import (
 	"flag"
 
+	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -34,6 +35,9 @@ type Config struct {
 	// Subprocessor options for this Processor include Latency, Count, Size
 	// These are metrics categories that exist under the umbrella of Span Metrics
 	Subprocessors map[Subprocessor]bool
+
+	// FilterPolicies is a list of policies that will be applied to spans for inclusion or exlusion.
+	FilterPolicies []filterconfig.FilterPolicy `yaml:"filter_policies"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
