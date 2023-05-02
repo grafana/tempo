@@ -78,11 +78,11 @@ type SearchConfig struct {
 	} `yaml:"cache_control"`
 }
 
-func (cfg *SearchConfig) RegisterFlagsAndApplyDefaults(_ string, f *flag.FlagSet) {
-	cfg.ChunkSizeBytes = DefaultSearchChunkSizeBytes
-	cfg.PrefetchTraceCount = DefaultPrefetchTraceCount
-	cfg.ReadBufferCount = DefaultReadBufferCount
-	cfg.ReadBufferSizeBytes = DefaultReadBufferSize
+func (c *SearchConfig) RegisterFlagsAndApplyDefaults(_ string, f *flag.FlagSet) {
+	c.ChunkSizeBytes = DefaultSearchChunkSizeBytes
+	c.PrefetchTraceCount = DefaultPrefetchTraceCount
+	c.ReadBufferCount = DefaultReadBufferCount
+	c.ReadBufferSizeBytes = DefaultReadBufferSize
 }
 
 func (c SearchConfig) ApplyToOptions(o *common.SearchOptions) {

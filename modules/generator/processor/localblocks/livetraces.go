@@ -19,7 +19,7 @@ type liveTraces struct {
 	traces map[uint64]*liveTrace
 }
 
-func NewLiveTraces() *liveTraces {
+func newLiveTraces() *liveTraces {
 	return &liveTraces{
 		hash:   fnv.New64(),
 		traces: map[uint64]*liveTrace{},

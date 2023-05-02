@@ -51,7 +51,7 @@ func New(cfg Config, tenant string, wal *wal.WAL) (*Processor, error) {
 		wal:            wal,
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
 		completeBlocks: map[uuid.UUID]common.BackendBlock{},
-		liveTraces:     NewLiveTraces(),
+		liveTraces:     newLiveTraces(),
 		closeCh:        make(chan struct{}),
 	}
 

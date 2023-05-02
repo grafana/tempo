@@ -275,7 +275,11 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 		return nil, err
 	}
 
-	g.reg.Register(reg)
+	err = g.reg.Register(reg)
+	if err != nil {
+		wal.Close()
+		return nil, err
+	}
 
 	return inst, nil
 }
