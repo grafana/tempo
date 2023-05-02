@@ -27,6 +27,7 @@ type Config struct {
 
 type SearchConfig struct {
 	Sharder SearchSharderConfig `yaml:",inline"`
+	Hedging HedgingConfig       `yaml:",inline"`
 	SLO     SLOConfig           `yaml:",inline"`
 }
 

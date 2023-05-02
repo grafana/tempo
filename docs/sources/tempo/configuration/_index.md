@@ -410,6 +410,13 @@ query_frontend:
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_bytes_slo: <float> | default = 0 ]
 
+        # If set to a non-zero value, a second request will be issued at the provided duration.
+        # Recommended to be set to p99 of search requests to reduce long-tail latency.
+        [hedge_requests_at: <duration> | default = 0 ]
+
+        # The maximum number of requests to execute when hedging.
+        # Requires hedge_requests_at to be set. If hedge_requests_at is set then it must be greater than 0.
+        [hedge_requests_up_to: <int> | default = 0 ]
 
     # Trace by ID lookup configuration
     trace_by_id:
