@@ -146,7 +146,7 @@ distributor:
                 mirror_timeout: 2s
         heartbeat_period: 5s
         heartbeat_timeout: 5m0s
-        instance_id: Martins-MacBook-Pro.local
+        instance_id: hostname
         instance_interface_names:
             - eth0
             - en0
@@ -257,6 +257,8 @@ query_frontend:
         max_duration: 168h0m0s
         query_backend_after: 15m0s
         query_ingesters_until: 30m0s
+        hedge_requests_at: 0s
+        hedge_requests_up_to: 0
     trace_by_id:
         query_shards: 50
         hedge_requests_at: 2s
@@ -297,7 +299,7 @@ compactor:
         heartbeat_timeout: 1m0s
         wait_stability_min_duration: 1m0s
         wait_stability_max_duration: 5m0s
-        instance_id: Martins-MacBook-Pro.local
+        instance_id: hostname
         instance_interface_names:
             - eth0
             - en0
@@ -369,7 +371,7 @@ ingester:
         readiness_check_ring_health: true
         address: 127.0.0.1
         port: 0
-        id: Martins-MacBook-Pro.local
+        id: hostname
     concurrent_flushes: 4
     flush_check_period: 10s
     flush_op_timeout: 5m0s
@@ -412,7 +414,7 @@ metrics_generator:
                 mirror_timeout: 2s
         heartbeat_period: 5s
         heartbeat_timeout: 1m0s
-        instance_id: Martins-MacBook-Pro.local
+        instance_id: hostname
         instance_interface_names:
             - eth0
             - en0
@@ -521,6 +523,7 @@ storage:
             path: /tmp/tempo/traces
         gcs:
             bucket_name: ""
+            prefix: ""
             chunk_buffer_size: 10485760
             endpoint: ""
             hedge_requests_at: 0s
@@ -554,6 +557,7 @@ storage:
             use_federated_token: false
             user_assigned_id: ""
             container_name: ""
+            prefix: ""
             endpoint_suffix: blob.core.windows.net
             max_buffers: 4
             buffer_size: 3145728
