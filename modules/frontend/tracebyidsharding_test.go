@@ -95,7 +95,9 @@ func TestBuildShardedRequests(t *testing.T) {
 	queryShards := 2
 
 	sharder := &shardQuery{
-		queryShards:     queryShards,
+		cfg: &TraceByIDConfig{
+			QueryShards: queryShards,
+		},
 		blockBoundaries: createBlockBoundaries(queryShards - 1),
 	}
 
@@ -247,7 +249,10 @@ func TestShardingWareDoRequest(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			sharder := newTraceByIDSharder(2, testSLOcfg, log.NewNopLogger())
+			sharder := newTraceByIDSharder(&TraceByIDConfig{
+				QueryShards: 2,
+				SLO:         testSLOcfg,
+			}, log.NewNopLogger())
 
 			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 				var testTrace *tempopb.Trace

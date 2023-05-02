@@ -412,6 +412,10 @@ query_frontend:
         # (default: 50)
         [query_shards: <int>]
 
+        # The maximum number of shards to execute at once. If set to 0 query_shards is used.
+        # (default: 0)
+        [concurrent_shards: <int>]
+
         # If set to a non-zero value, a second request will be issued at the provided duration.
         # Recommended to be set to p99 of search requests to reduce long-tail latency.
         [hedge_requests_at: <duration> | default = 2s ]

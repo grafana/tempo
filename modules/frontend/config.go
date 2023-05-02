@@ -30,9 +30,10 @@ type SearchConfig struct {
 }
 
 type TraceByIDConfig struct {
-	QueryShards int           `yaml:"query_shards,omitempty"`
-	Hedging     HedgingConfig `yaml:",inline"`
-	SLO         SLOConfig     `yaml:",inline"`
+	QueryShards      int           `yaml:"query_shards,omitempty"`
+	ConcurrentShards int           `yaml:"concurrent_shards,omitempty"`
+	Hedging          HedgingConfig `yaml:",inline"`
+	SLO              SLOConfig     `yaml:",inline"`
 }
 
 type HedgingConfig struct {
