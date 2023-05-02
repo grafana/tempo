@@ -686,8 +686,32 @@ storage:
             [insecure: <bool>]
 
             # optional.
-            # Set to true to disable verification of an TLS endpoint.  The default value is false.
-            [insecure_skip_verify: <bool>]
+            # Path to the client certificate file.
+            [tls_cert_path: <string>]
+
+            # optional.
+            # Path to the private client key file.
+            [tls_key_path: <string>]
+
+            # optional.
+            # Path to the CA certificate file.
+            [tls_ca_path: <string>]
+
+            # optional.
+            # Path to the CA certificate file.
+            [tls_server_name: <string>]
+
+            # optional.
+            # Set to true to disable verification of a TLS endpoint.  The default value is false.
+            [tls_insecure_skip_verify: <bool>]
+
+            # optional.
+            # Override the default cipher suite list, separated by commas.
+            [tls_cipher_suites: <string>]
+
+            # optional.
+            # Override the default minimum TLS version. The default value is VersionTLS12.  Allowed values: VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13
+            [tls_min_version: <string>]
 
             # optional.
             # enable to use path-style requests.
