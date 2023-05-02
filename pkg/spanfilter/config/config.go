@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/pkg/errors"
 )
 
 type FilterPolicy struct {
@@ -38,18 +39,18 @@ type MatchPolicyAttribute struct {
 
 func ValidateFilterPolicy(policy FilterPolicy) error {
 	if policy.Include == nil && policy.Exclude == nil {
-		return fmt.Errorf("invalid filter policy: %v", policy)
+		return fmt.Errorf("invalid filter policy; policies must have at least an `include` or `exclude`: %v", policy)
 	}
 
 	if policy.Include != nil {
 		if err := ValidatePolicyMatch(policy.Include); err != nil {
-			return err
+			return errors.Wrap(err, "invalid include policy")
 		}
 	}
 
 	if policy.Exclude != nil {
 		if err := ValidatePolicyMatch(policy.Exclude); err != nil {
-			return err
+			return errors.Wrap(err, "invalid exclude policy")
 		}
 	}
 
