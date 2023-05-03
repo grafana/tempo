@@ -322,3 +322,17 @@ func (g *Generator) OnRingInstanceStopping(lifecycler *ring.BasicLifecycler) {
 // OnRingInstanceHeartbeat implements ring.BasicLifecyclerDelegate
 func (g *Generator) OnRingInstanceHeartbeat(lifecycler *ring.BasicLifecycler, ringDesc *ring.Desc, instanceDesc *ring.InstanceDesc) {
 }
+
+func (q *Generator) SpanSummary(ctx context.Context, req *tempopb.SpanSummaryRequest) (*tempopb.SpanSummaryResponse, error) {
+	instanceID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	instance, err := q.getOrCreateInstance(instanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return instance.spanSummary(ctx, req)
+}
