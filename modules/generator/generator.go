@@ -323,13 +323,13 @@ func (g *Generator) OnRingInstanceStopping(lifecycler *ring.BasicLifecycler) {
 func (g *Generator) OnRingInstanceHeartbeat(lifecycler *ring.BasicLifecycler, ringDesc *ring.Desc, instanceDesc *ring.InstanceDesc) {
 }
 
-func (q *Generator) SpanSummary(ctx context.Context, req *tempopb.SpanSummaryRequest) (*tempopb.SpanSummaryResponse, error) {
+func (g *Generator) SpanSummary(ctx context.Context, req *tempopb.SpanSummaryRequest) (*tempopb.SpanSummaryResponse, error) {
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	instance, err := q.getOrCreateInstance(instanceID)
+	instance, err := g.getOrCreateInstance(instanceID)
 	if err != nil {
 		return nil, err
 	}
