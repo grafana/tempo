@@ -52,6 +52,7 @@ The current team members are:
 - Mario Rodriguez - [mapno](https://github.com/mapno) ([Grafana Labs](https://grafana.com/))
 - Marty Disibio - [mdisibio](https://github.com/mdisibio) ([Grafana Labs](https://grafana.com/))
 - Zach Leslie - [zalegrala](https://github.com/zalegrala) ([Grafana Labs](https://grafana.com/))
+- Suraj Nath - [electron0zero](https://github.com/electron0zero) ([Grafana Labs](https://grafana.com/))
 
 ### Maintainers
 
