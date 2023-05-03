@@ -33,7 +33,6 @@ func (g *Generator) SpanSummaryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	marshaller := &jsonpb.Marshaler{}
-
 	err = marshaller.Marshal(w, resp)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
