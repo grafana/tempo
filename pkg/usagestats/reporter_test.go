@@ -5,7 +5,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -33,7 +32,7 @@ func Test_LeaderElection(t *testing.T) {
 		go func() {
 			r, leaderErr := NewReporter(Config{Leader: true, Enabled: true}, kv.Config{
 				Store: "inmemory",
-			}, objectClient, objectClient, log.NewLogfmtLogger(os.Stdout), nil)
+			}, objectClient, objectClient, log.NewNopLogger(), nil)
 			require.NoError(t, leaderErr)
 			r.init(context.Background())
 			result <- r.cluster
@@ -43,7 +42,7 @@ func Test_LeaderElection(t *testing.T) {
 		go func() {
 			r, nonLeaderError := NewReporter(Config{Leader: false, Enabled: true}, kv.Config{
 				Store: "inmemory",
-			}, objectClient, objectClient, log.NewLogfmtLogger(os.Stdout), nil)
+			}, objectClient, objectClient, log.NewNopLogger(), nil)
 			require.NoError(t, nonLeaderError)
 			r.init(context.Background())
 			result <- r.cluster
@@ -60,7 +59,7 @@ func Test_LeaderElection(t *testing.T) {
 	for _, uid := range UID {
 		require.Equal(t, first, uid)
 	}
-	kvClient, err := kv.NewClient(kv.Config{Store: "inmemory"}, JSONCodec, nil, log.NewLogfmtLogger(os.Stdout))
+	kvClient, err := kv.NewClient(kv.Config{Store: "inmemory"}, JSONCodec, nil, log.NewNopLogger())
 	require.NoError(t, err)
 	// verify that the ID found is also correctly stored in the kv store and not overridden by another leader.
 	data, err := kvClient.Get(context.Background(), seedKey)
@@ -89,7 +88,7 @@ func Test_LeaderElectionWithBrokenSeedFile(t *testing.T) {
 		go func() {
 			r, leaderErr := NewReporter(Config{Leader: true, Enabled: true}, kv.Config{
 				Store: "inmemory",
-			}, objectClient, objectClient, log.NewLogfmtLogger(os.Stdout), nil)
+			}, objectClient, objectClient, log.NewNopLogger(), nil)
 			require.NoError(t, leaderErr)
 			r.init(context.Background())
 			result <- r.cluster
@@ -99,7 +98,7 @@ func Test_LeaderElectionWithBrokenSeedFile(t *testing.T) {
 		go func() {
 			r, nonLeaderError := NewReporter(Config{Leader: false, Enabled: true}, kv.Config{
 				Store: "inmemory",
-			}, objectClient, objectClient, log.NewLogfmtLogger(os.Stdout), nil)
+			}, objectClient, objectClient, log.NewNopLogger(), nil)
 			require.NoError(t, nonLeaderError)
 			r.init(context.Background())
 			result <- r.cluster
@@ -116,7 +115,7 @@ func Test_LeaderElectionWithBrokenSeedFile(t *testing.T) {
 	for _, uid := range UID {
 		require.Equal(t, first, uid)
 	}
-	kvClient, err := kv.NewClient(kv.Config{Store: "inmemory"}, JSONCodec, nil, log.NewLogfmtLogger(os.Stdout))
+	kvClient, err := kv.NewClient(kv.Config{Store: "inmemory"}, JSONCodec, nil, log.NewNopLogger())
 	require.NoError(t, err)
 	// verify that the ID found is also correctly stored in the kv store and not overridden by another leader.
 	data, err := kvClient.Get(context.Background(), seedKey)
@@ -150,7 +149,7 @@ func Test_ReportLoop(t *testing.T) {
 
 	r, err := NewReporter(Config{Leader: true, Enabled: true}, kv.Config{
 		Store: "inmemory",
-	}, objectClient, objectClient, log.NewLogfmtLogger(os.Stdout), prometheus.NewPedanticRegistry())
+	}, objectClient, objectClient, log.NewNopLogger(), prometheus.NewPedanticRegistry())
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	r.initLeader(ctx)
@@ -211,7 +210,7 @@ func TestWrongKV(t *testing.T) {
 
 	r, err := NewReporter(Config{Leader: true, Enabled: true}, kv.Config{
 		Store: "",
-	}, objectClient, objectClient, log.NewLogfmtLogger(os.Stdout), prometheus.NewPedanticRegistry())
+	}, objectClient, objectClient, log.NewNopLogger(), prometheus.NewPedanticRegistry())
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
