@@ -49,6 +49,9 @@ const (
 	// search tags
 	urlParamScope = "scope"
 
+	// generator summary
+	urlParamGroupBy = "groupBy"
+
 	HeaderAccept         = "Accept"
 	HeaderContentType    = "Content-Type"
 	HeaderAcceptProtobuf = "application/protobuf"
@@ -316,7 +319,15 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 }
 
 func ParseSummaryRequest(r *http.Request) (*tempopb.SpanSummaryRequest, error) {
-	return nil, nil // TODO: (zalegrala)
+	req := &tempopb.SpanSummaryRequest{}
+
+	groupBy := r.URL.Query().Get(urlParamGroupBy)
+	req.GroupBy = groupBy
+
+	query := r.URL.Query().Get(urlParamQuery)
+	req.TagFilter = []string{query}
+
+	return req, nil
 }
 
 // BuildSearchRequest takes a tempopb.SearchRequest and populates the passed http.Request
