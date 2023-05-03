@@ -28,6 +28,11 @@ func newMockSpan(duration uint64, nameValuePairs ...string) *mockSpan {
 	return m
 }
 
+func (m *mockSpan) WithErr() *mockSpan {
+	m.attrs[traceql.NewIntrinsic(traceql.IntrinsicStatus)] = traceql.NewStaticStatus(traceql.StatusError)
+	return m
+}
+
 func (m *mockSpan) Attributes() map[traceql.Attribute]traceql.Static { return m.attrs }
 func (m *mockSpan) ID() []byte                                       { return nil }
 func (m *mockSpan) StartTimeUnixNanos() uint64                       { return 0 }

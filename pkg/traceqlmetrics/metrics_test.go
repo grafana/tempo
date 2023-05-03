@@ -63,7 +63,7 @@ func TestGetMetrics(t *testing.T) {
 					newMockSpan(256, "span.foo", "2"),
 					newMockSpan(256, "span.foo", "2"), // p50 for foo=2
 					newMockSpan(512, "span.foo", "2"),
-					newMockSpan(512, "span.foo", "2"),
+					newMockSpan(512, "span.foo", "2").WithErr(),
 				},
 			},
 		},
@@ -75,6 +75,9 @@ func TestGetMetrics(t *testing.T) {
 
 	one := traceql.NewStaticString("1")
 	two := traceql.NewStaticString("2")
+
+	require.Equal(t, 0, res.Errors[one])
+	require.Equal(t, 1, res.Errors[two])
 
 	require.NotNil(t, res.Series[one])
 	require.NotNil(t, res.Series[two])

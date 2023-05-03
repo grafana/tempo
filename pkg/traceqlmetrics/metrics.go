@@ -74,15 +74,27 @@ type MetricsResults struct {
 	Estimated bool
 	SpanCount int
 	Series    map[traceql.Static]*latencyHistogram
+	Errors    map[traceql.Static]int
 }
 
-func (m *MetricsResults) Record(durationNanos uint64, series traceql.Static) {
+func NewMetricsResults() *MetricsResults {
+	return &MetricsResults{
+		Series: map[traceql.Static]*latencyHistogram{},
+		Errors: map[traceql.Static]int{},
+	}
+}
+
+func (m *MetricsResults) Record(series traceql.Static, durationNanos uint64, err bool) {
 	s := m.Series[series]
 	if s == nil {
 		s = &latencyHistogram{}
 		m.Series[series] = s
 	}
 	s.Record(durationNanos)
+
+	if err {
+		m.Errors[series]++
+	}
 }
 
 // GetMetrics
@@ -97,7 +109,15 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 		return nil, errors.Wrap(err, "compiling query")
 	}
 
-	// Ensure that we select the span duration and group-by attribute
+	var (
+		duration  = traceql.NewIntrinsic(traceql.IntrinsicDuration)
+		status    = traceql.NewIntrinsic(traceql.IntrinsicStatus)
+		statusErr = traceql.NewStaticStatus(traceql.StatusError)
+		spanCount = 0
+		series    = NewMetricsResults()
+	)
+
+	// Ensure that we select the span duration, status, and group-by attribute
 	// if they are not already included in the query. These are fetched
 	// without filtering.
 	addConditionIfNotPresent := func(a traceql.Attribute) {
@@ -109,13 +129,9 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 
 		req.Conditions = append(req.Conditions, traceql.Condition{Attribute: a})
 	}
-	addConditionIfNotPresent(traceql.NewIntrinsic(traceql.IntrinsicDuration))
+	addConditionIfNotPresent(duration)
+	addConditionIfNotPresent(status)
 	addConditionIfNotPresent(groupByAttr)
-
-	spanCount := 0
-	series := &MetricsResults{
-		Series: map[traceql.Static]*latencyHistogram{},
-	}
 
 	// This filter callback processes the matching spans into the
 	// bucketed metrics.  It returns nil because we don't need any
@@ -130,7 +146,14 @@ func GetMetrics(ctx context.Context, query string, groupBy string, spanLimit int
 
 		for _, ss := range out {
 			for _, s := range ss.Spans {
-				series.Record(s.DurationNanos(), s.Attributes()[groupByAttr])
+
+				var (
+					attr  = s.Attributes()
+					group = attr[groupByAttr]
+					err   = attr[status] == statusErr
+				)
+
+				series.Record(group, s.DurationNanos(), err)
 
 				spanCount++
 				if spanCount >= spanLimit {
