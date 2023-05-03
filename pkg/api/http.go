@@ -54,7 +54,8 @@ const (
 	HeaderAcceptProtobuf = "application/protobuf"
 	HeaderAcceptJSON     = "application/json"
 
-	PathPrefixQuerier = "/querier"
+	PathPrefixQuerier   = "/querier"
+	PathPrefixGenerator = "/generator"
 
 	PathTraces          = "/api/traces/{traceID}"
 	PathSearch          = "/api/search"
@@ -62,6 +63,7 @@ const (
 	PathSearchTagValues = "/api/search/tag/{" + muxVarTagName + "}/values"
 	PathEcho            = "/api/echo"
 	PathUsageStats      = "/status/usage-stats"
+	PathSpanSummary     = "/api/span-summary"
 
 	PathSearchTagValuesV2 = "/api/v2/search/tag/{" + muxVarTagName + "}/values"
 	PathSearchTagsV2      = "/api/v2/search/tags"
@@ -311,6 +313,10 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 	req.FooterSize = uint32(footerSize)
 
 	return req, nil
+}
+
+func ParseSummaryRequest(r *http.Request) (*tempopb.SpanSummaryRequest, error) {
+	return nil, nil // TODO: (zalegrala)
 }
 
 // BuildSearchRequest takes a tempopb.SearchRequest and populates the passed http.Request
