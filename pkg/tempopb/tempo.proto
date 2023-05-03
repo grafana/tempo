@@ -14,6 +14,7 @@ service Pusher {
 
 service MetricsGenerator {
   rpc PushSpans(PushSpansRequest) returns (PushResponse) {};
+  rpc SpanSummary(SpanSummaryRequest) returns (SpanSummaryResponse) {};
 }
 
 service Querier {
@@ -180,4 +181,21 @@ message TraceBytes {
 // the required marshalling/unmarshalling functions.
 message LinkSlice {
   repeated tempopb.trace.v1.Span.Link links = 1;
+}
+
+message SpanSummaryRequest {
+  // tagFilter is a list of tags to filter on in the form of a traceql query, ie: tag=value
+  repeated string tagFilter = 1;
+  string groupBy = 2;
+}
+
+message SpanSummaryResponse {
+  repeated SpanSummaryGroup stats = 1;
+}
+
+message SpanSummaryGroup {
+  string name = 1;
+  int64 spanCount = 2;
+  int64 errorSpanCount = 3;
+  map<string, double> latencies = 4;
 }
