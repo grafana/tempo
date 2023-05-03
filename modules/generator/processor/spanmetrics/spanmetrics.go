@@ -10,10 +10,12 @@ import (
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
 	"github.com/grafana/tempo/modules/generator/registry"
+	"github.com/grafana/tempo/pkg/spanfilter"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -31,11 +33,14 @@ type Processor struct {
 	spanMetricsDurationSeconds registry.Histogram
 	spanMetricsSizeTotal       registry.Counter
 
+	filter               *spanfilter.SpanFilter
+	filteredSpansCounter prometheus.Counter
+
 	// for testing
 	now func() time.Time
 }
 
-func New(cfg Config, registry registry.Registry) gen.Processor {
+func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.Counter) (gen.Processor, error) {
 	labels := make([]string, 0, 4+len(cfg.Dimensions))
 
 	if cfg.IntrinsicDimensions.Service {
@@ -68,10 +73,18 @@ func New(cfg Config, registry registry.Registry) gen.Processor {
 	if cfg.Subprocessors[Size] {
 		p.spanMetricsSizeTotal = registry.NewCounter(metricSizeTotal, labels)
 	}
+
+	filter, err := spanfilter.NewSpanFilter(cfg.FilterPolicies)
+	if err != nil {
+		return nil, err
+	}
+
 	p.Cfg = cfg
 	p.registry = registry
 	p.now = time.Now
-	return p
+	p.filteredSpansCounter = spanDiscardCounter
+	p.filter = filter
+	return p, nil
 }
 
 func (p *Processor) Name() string {
@@ -95,7 +108,11 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
-				p.aggregateMetricsForSpan(svcName, rs.Resource, span)
+				if p.filter.ApplyFilterPolicy(rs.Resource, span) {
+					p.aggregateMetricsForSpan(svcName, rs.Resource, span)
+					continue
+				}
+				p.filteredSpansCounter.Inc()
 			}
 		}
 	}

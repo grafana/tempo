@@ -20,17 +20,17 @@ type Engine struct {
 	spansPerSpanSet int
 }
 
-func NewEngine() *Engine {
+func NewEngine(spss int) *Engine {
 	return &Engine{
-		spansPerSpanSet: 3, // TODO make configurable
+		spansPerSpanSet: spss,
 	}
 }
 
-func NewEngineWithSpansPerSpanSet(spansPerSpanSet int) *Engine {
+/*func NewEngineWithSpansPerSpanSet(spansPerSpanSet int) *Engine {
 	return &Engine{
 		spansPerSpanSet: spansPerSpanSet,
 	}
-}
+}*/
 
 func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchRequest, spanSetFetcher SpansetFetcher) (*tempopb.SearchResponse, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteSearch")

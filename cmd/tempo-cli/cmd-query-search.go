@@ -1,15 +1,19 @@
 package main
 
 import (
+	"context"
+	"io"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/weaveworks/common/user"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type querySearchCmd struct {
 	APIEndpoint string `arg:"" help:"tempo api endpoint"`
-	Tags        string `arg:"" optional:"" help:"tags in logfmt format"`
+	TraceQL     string `arg:"" optional:"" help:"traceql query"`
 	Start       string `arg:"" optional:"" help:"start time in ISO8601 format"`
 	End         string `arg:"" optional:"" help:"end time in ISO8601 format"`
 
@@ -17,37 +21,52 @@ type querySearchCmd struct {
 }
 
 func (cmd *querySearchCmd) Run(_ *globalOptions) error {
-	client := util.NewClient(cmd.APIEndpoint, cmd.OrgID)
-
-	var start, end int64
-
-	if cmd.Start != "" {
-		startDate, err := time.Parse(time.RFC3339, cmd.Start)
-		if err != nil {
-			return err
-		}
-		start = startDate.Unix()
+	startDate, err := time.Parse(time.RFC3339, cmd.Start)
+	if err != nil {
+		return err
 	}
+	start := startDate.Unix()
 
-	if cmd.End != "" {
-		endDate, err := time.Parse(time.RFC3339, cmd.End)
-		if err != nil {
-			return err
-		}
-		end = endDate.Unix()
+	endDate, err := time.Parse(time.RFC3339, cmd.End)
+	if err != nil {
+		return err
 	}
+	end := endDate.Unix()
 
-	var tagValues *tempopb.SearchResponse
-	var err error
-	if start == 0 && end == 0 {
-		tagValues, err = client.Search(cmd.Tags)
-	} else {
-		tagValues, err = client.SearchWithRange(cmd.Tags, start, end)
+	ctx := user.InjectOrgID(context.Background(), cmd.OrgID)
+	ctx, err = user.InjectIntoGRPCRequest(ctx)
+	if err != nil {
+		return err
 	}
-
+	clientConn, err := grpc.DialContext(ctx, cmd.APIEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return err
 	}
 
-	return printAsJSON(tagValues)
+	client := tempopb.NewStreamingQuerierClient(clientConn)
+
+	resp, err := client.Search(ctx, &tempopb.SearchRequest{
+		Query: cmd.TraceQL,
+		Start: uint32(start),
+		End:   uint32(end),
+	})
+	if err != nil {
+		return err
+	}
+
+	for {
+		searchResp, err := resp.Recv()
+		if searchResp != nil {
+			err = printAsJSON(searchResp)
+			if err != nil {
+				return err
+			}
+		}
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
 }

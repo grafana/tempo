@@ -30,7 +30,7 @@ const (
 	urlParamLimit           = "limit"
 	urlParamStart           = "start"
 	urlParamEnd             = "end"
-	urlParamSpansPerSpanSet = "spansPerSpanSet"
+	urlParamSpansPerSpanSet = "spss"
 
 	// backend search (querier/serverless)
 	urlParamStartPage     = "startPage"
@@ -209,12 +209,12 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 	if s, ok := extractQueryParam(r, urlParamSpansPerSpanSet); ok {
 		spansPerSpanSet, err := strconv.Atoi(s)
 		if err != nil {
-			return nil, fmt.Errorf("invalid spansPerSpanSet: %w", err)
+			return nil, fmt.Errorf("invalid spss: %w", err)
 		}
 		if spansPerSpanSet <= 0 {
-			return nil, errors.New("invalid spansPerSpanSet: must be a positive number")
+			return nil, errors.New("invalid spss: must be a positive number")
 		}
-		req.SpansPerSpanSet = uint32(spansPerSpanSet)
+		req.SpansPerSpanSet = uint8(spansPerSpanSet)
 	}
 
 	// start and end == 0 is fine

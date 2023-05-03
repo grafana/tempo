@@ -124,7 +124,6 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	if err != nil {
 		return nil, err
 	}
-	results.Metrics.InspectedBlocks++
 	results.Metrics.InspectedBytes += rr.BytesRead()
 	results.Metrics.InspectedTraces += uint32(b.meta.TotalObjects)
 

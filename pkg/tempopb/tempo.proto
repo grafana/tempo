@@ -26,6 +26,10 @@ service Querier {
   rpc SearchTagValuesV2(SearchTagValuesRequest) returns (SearchTagValuesV2Response) {};
 }
 
+service StreamingQuerier {
+  rpc Search(SearchRequest) returns (stream SearchResponse);
+}
+
 // Read
 message TraceByIDRequest {
   bytes traceID = 1;
@@ -54,7 +58,7 @@ message SearchRequest {
   uint32 end = 6;
   // TraceQL query
   string Query = 8;
-  uint32 SpansPerSpanSet = 9;
+  uint8 SpansPerSpanSet = 9;
 }
 
 // SearchBlockRequest takes SearchRequest parameters as well as all information necessary
@@ -103,9 +107,9 @@ message Span {
 message SearchMetrics {
   uint32 inspectedTraces = 1;
   uint64 inspectedBytes = 2;
-  uint32 inspectedBlocks = 3;
-  uint32 skippedBlocks = 4;
-  uint32 skippedTraces = 5;
+  uint32 totalBlocks = 3;
+  uint32 completedJobs = 4;
+  uint32 totalJobs = 5;
   uint64 totalBlockBytes = 6;
 }
 

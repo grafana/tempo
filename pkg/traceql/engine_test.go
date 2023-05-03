@@ -21,7 +21,7 @@ import (
 
 func TestEngine_Execute(t *testing.T) {
 	now := time.Now()
-	e := NewEngineWithSpansPerSpanSet(2)
+	e := NewEngine(2)
 
 	req := &tempopb.SearchRequest{
 		Query: `{ .foo = .bar }`,
@@ -204,7 +204,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 		},
 	}
 
-	e := NewEngine()
+	e := NewEngine(3)
 
 	traceSearchMetadata := e.asTraceSearchMetadata(spanSet)
 
@@ -378,7 +378,7 @@ func TestExamplesInEngine(t *testing.T) {
 	err = yaml.Unmarshal(b, queries)
 	require.NoError(t, err)
 
-	e := NewEngine()
+	e := NewEngine(3)
 
 	for _, q := range queries.Valid {
 		t.Run("valid - "+q, func(t *testing.T) {

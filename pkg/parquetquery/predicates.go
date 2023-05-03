@@ -82,21 +82,33 @@ func (p *StringInPredicate) KeepPage(page pq.Page) bool {
 	return p.helper.keepPage(page, p.KeepValue)
 }
 
-// RegexInPredicate checks for match against any of the given regexs.
-// Memoized and resets on each row group.
-type RegexInPredicate struct {
-	regs    []*regexp.Regexp
-	matches map[string]bool
+type regexPredicate struct {
+	regs        []*regexp.Regexp
+	matches     map[string]bool
+	shouldMatch bool
 
 	helper DictionaryPredicateHelper
 }
 
-var _ Predicate = (*RegexInPredicate)(nil)
+var _ Predicate = (*regexPredicate)(nil)
 
-func NewRegexInPredicate(regs []string) (*RegexInPredicate, error) {
-	p := &RegexInPredicate{
-		regs:    make([]*regexp.Regexp, 0, len(regs)),
-		matches: make(map[string]bool),
+// NewRegexInPredicate checks for match against any of the given regexs.
+// Memoized and resets on each row group.
+func NewRegexInPredicate(regs []string) (Predicate, error) {
+	return newRegexPredicate(regs, true)
+}
+
+// NewRegexNotInPredicate checks for values that not match against any of the given regexs.
+// Memoized and resets on each row group.
+func NewRegexNotInPredicate(regs []string) (Predicate, error) {
+	return newRegexPredicate(regs, false)
+}
+
+func newRegexPredicate(regs []string, shouldMatch bool) (Predicate, error) {
+	p := &regexPredicate{
+		regs:        make([]*regexp.Regexp, 0, len(regs)),
+		matches:     make(map[string]bool),
+		shouldMatch: shouldMatch,
 	}
 	for _, reg := range regs {
 		r, err := regexp.Compile(reg)
@@ -108,7 +120,7 @@ func NewRegexInPredicate(regs []string) (*RegexInPredicate, error) {
 	return p, nil
 }
 
-func (p *RegexInPredicate) String() string {
+func (p *regexPredicate) String() string {
 	var strings string
 	for _, s := range p.regs {
 		strings += fmt.Sprintf("%s, ", s.String())
@@ -116,9 +128,8 @@ func (p *RegexInPredicate) String() string {
 	return fmt.Sprintf("RegexInPredicate{%s}", strings)
 }
 
-func (p *RegexInPredicate) keep(v *pq.Value) bool {
+func (p *regexPredicate) keep(v *pq.Value) bool {
 	if v.IsNull() {
-		// Null
 		return false
 	}
 
@@ -129,7 +140,7 @@ func (p *RegexInPredicate) keep(v *pq.Value) bool {
 
 	matched := false
 	for _, r := range p.regs {
-		if r.MatchString(s) {
+		if r.MatchString(s) == p.shouldMatch {
 			matched = true
 			break
 		}
@@ -139,7 +150,7 @@ func (p *RegexInPredicate) keep(v *pq.Value) bool {
 	return matched
 }
 
-func (p *RegexInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
+func (p *regexPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 	p.helper.setNewRowGroup()
 
 	// Reset match cache on each row group change
@@ -149,11 +160,11 @@ func (p *RegexInPredicate) KeepColumnChunk(cc pq.ColumnChunk) bool {
 	return true
 }
 
-func (p *RegexInPredicate) KeepValue(v pq.Value) bool {
+func (p *regexPredicate) KeepValue(v pq.Value) bool {
 	return p.keep(&v)
 }
 
-func (p *RegexInPredicate) KeepPage(page pq.Page) bool {
+func (p *regexPredicate) KeepPage(page pq.Page) bool {
 	return p.helper.keepPage(page, p.KeepValue)
 }
 

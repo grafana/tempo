@@ -174,23 +174,23 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			},
 		},
 		{
-			name:     "zero spansPerSpanSet",
-			urlQuery: "spansPerSpanSet=0",
-			err:      "invalid spansPerSpanSet: must be a positive number",
+			name:     "zero spss",
+			urlQuery: "spss=0",
+			err:      "invalid spss: must be a positive number",
 		},
 		{
-			name:     "negative spansPerSpanSet",
-			urlQuery: "spansPerSpanSet=-2",
-			err:      "invalid spansPerSpanSet: must be a positive number",
+			name:     "negative spss",
+			urlQuery: "spss=-2",
+			err:      "invalid spss: must be a positive number",
 		},
 		{
-			name:     "non-numeric spansPerSpanSet",
-			urlQuery: "spansPerSpanSet=four",
-			err:      "invalid spansPerSpanSet: strconv.Atoi: parsing \"four\": invalid syntax",
+			name:     "non-numeric spss",
+			urlQuery: "spss=four",
+			err:      "invalid spss: strconv.Atoi: parsing \"four\": invalid syntax",
 		},
 		{
-			name:     "only spansPerSpanSet",
-			urlQuery: "spansPerSpanSet=2",
+			name:     "only spss",
+			urlQuery: "spss=2",
 			expected: &tempopb.SearchRequest{
 				Tags:            map[string]string{},
 				Limit:           defaultLimit,
@@ -198,8 +198,8 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			},
 		},
 		{
-			name:     "tags with spansPerSpanSet",
-			urlQuery: "tags=" + url.QueryEscape("service.name=foo") + "&spansPerSpanSet=7",
+			name:     "tags with spss",
+			urlQuery: "tags=" + url.QueryEscape("service.name=foo") + "&spss=7",
 			expected: &tempopb.SearchRequest{
 				Tags: map[string]string{
 					"service.name": "foo",

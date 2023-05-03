@@ -23,7 +23,6 @@ type Results struct {
 	tracesInspected atomic.Uint32
 	bytesInspected  atomic.Uint64
 	blocksInspected atomic.Uint32
-	blocksSkipped   atomic.Uint32
 }
 
 func NewResults() *Results {
@@ -146,12 +145,4 @@ func (sr *Results) AddBlockInspected() {
 
 func (sr *Results) BlocksInspected() uint32 {
 	return sr.blocksInspected.Load()
-}
-
-func (sr *Results) AddBlockSkipped() {
-	sr.blocksSkipped.Inc()
-}
-
-func (sr *Results) BlocksSkipped() uint32 {
-	return sr.blocksSkipped.Load()
 }

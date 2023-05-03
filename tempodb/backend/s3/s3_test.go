@@ -96,6 +96,14 @@ func TestHedge(t *testing.T) {
 	}
 }
 
+func TestNilConfig(t *testing.T) {
+	_, _, _, err := New(nil)
+	require.Error(t, err)
+
+	_, _, _, err = NewNoConfirm(nil)
+	require.Error(t, err)
+}
+
 func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.Server {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(returnIn)

@@ -93,8 +93,6 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		Metrics: &tempopb.SearchMetrics{
 			InspectedTraces: sr.TracesInspected(),
 			InspectedBytes:  sr.BytesInspected(),
-			InspectedBlocks: sr.BlocksInspected(),
-			SkippedBlocks:   sr.BlocksSkipped(),
 		},
 	}, nil
 }
@@ -116,7 +114,7 @@ func (i *instance) searchWAL(ctx context.Context, req *tempopb.SearchRequest, sr
 		if api.IsTraceQLQuery(req) {
 			// note: we are creating new engine for each wal block,
 			// and engine.ExecuteSearch is parsing the query for each block
-			resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			resp, err = traceql.NewEngine(int(req.SpansPerSpanSet)).ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 				return b.Fetch(ctx, req, opts)
 			}))
 		} else {
@@ -177,7 +175,7 @@ func (i *instance) searchLocalBlocks(ctx context.Context, req *tempopb.SearchReq
 			if api.IsTraceQLQuery(req) {
 				// note: we are creating new engine for each wal block,
 				// and engine.ExecuteSearch is parsing the query for each block
-				resp, err = traceql.NewEngine().ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				resp, err = traceql.NewEngine(int(req.SpansPerSpanSet)).ExecuteSearch(ctx, req, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 					return e.Fetch(ctx, req, opts)
 				}))
 			} else {
@@ -424,7 +422,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return distinctValues.Collect(tv)
 	}
 
-	engine := traceql.NewEngine()
+	engine := traceql.NewEngine(3)
 
 	wg := boundedwaitgroup.New(20) // TODO: Make configurable
 	var anyErr atomic.Error
@@ -439,11 +437,10 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			return nil // Early exit if any error has occurred
 		}
 
-		if maxBlocks > 0 && inspectedBlocks.Load() >= maxBlocks {
+		if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
 			return nil
 		}
 
-		inspectedBlocks.Inc()
 		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return s.Fetch(ctx, req, common.DefaultSearchOptions())
 		})

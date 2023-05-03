@@ -31,6 +31,7 @@ type RingConfig struct {
 	InstanceInterfaceNames []string `yaml:"instance_interface_names"`
 	InstancePort           int      `yaml:"instance_port" doc:"hidden"`
 	InstanceAddr           string   `yaml:"instance_addr" doc:"hidden"`
+	EnableInet6            bool     `yaml:"enable_inet6"`
 
 	// Injected internally
 	ListenPort int `yaml:"-"`

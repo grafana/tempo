@@ -52,7 +52,10 @@ var (
 	}, []string{"tenant", "reason"})
 )
 
-const reasonOutsideTimeRangeSlack = "outside_metrics_ingestion_slack"
+const (
+	reasonOutsideTimeRangeSlack = "outside_metrics_ingestion_slack"
+	reasonSpanMetricsFiltered   = "span_metrics_filtered"
+)
 
 type instance struct {
 	cfg *Config
@@ -256,9 +259,14 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 	level.Debug(i.logger).Log("msg", "adding processor", "processorName", processorName)
 
 	var newProcessor processor.Processor
+	var err error
 	switch processorName {
 	case spanmetrics.Name:
-		newProcessor = spanmetrics.New(cfg.SpanMetrics, i.registry)
+		filteredSpansCounter := metricSpansDiscarded.WithLabelValues(i.instanceID, reasonSpanMetricsFiltered)
+		newProcessor, err = spanmetrics.New(cfg.SpanMetrics, i.registry, filteredSpansCounter)
+		if err != nil {
+			return err
+		}
 	case servicegraphs.Name:
 		newProcessor = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger)
 	default:
