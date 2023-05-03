@@ -53,6 +53,7 @@ The current team members are:
 - Marty Disibio - [mdisibio](https://github.com/mdisibio) ([Grafana Labs](https://grafana.com/))
 - Zach Leslie - [zalegrala](https://github.com/zalegrala) ([Grafana Labs](https://grafana.com/))
 - Suraj Nath - [electron0zero](https://github.com/electron0zero) ([Grafana Labs](https://grafana.com/))
+- Kim Nylander - [knylander-grafana](https://github.com/knylander-grafana) ([Grafana Labs](https://grafana.com/))
 
 ### Maintainers
 
