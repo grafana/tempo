@@ -13,6 +13,7 @@ import (
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -26,6 +27,7 @@ type Processor struct {
 	Cfg     Config
 	wal     *wal.WAL
 	closeCh chan struct{}
+	wg      sync.WaitGroup
 
 	blocksMtx      sync.Mutex
 	headBlock      common.WALBlock
@@ -53,6 +55,7 @@ func New(cfg Config, tenant string, wal *wal.WAL) (*Processor, error) {
 		completeBlocks: map[uuid.UUID]common.BackendBlock{},
 		liveTraces:     newLiveTraces(),
 		closeCh:        make(chan struct{}),
+		wg:             sync.WaitGroup{},
 	}
 
 	err := p.reloadBlocks()
@@ -60,6 +63,7 @@ func New(cfg Config, tenant string, wal *wal.WAL) (*Processor, error) {
 		return nil, errors.Wrap(err, "replaying blocks")
 	}
 
+	p.wg.Add(3)
 	go p.flushLoop()
 	go p.deleteLoop()
 	go p.completeLoop()
@@ -77,15 +81,31 @@ func (p *Processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 	defer p.liveTracesMtx.Unlock()
 
 	for _, batch := range req.Batches {
-		p.liveTraces.Push(batch)
+		if batch = filterBatch(batch); batch != nil {
+			p.liveTraces.Push(batch)
+		}
 	}
 }
 
 func (p *Processor) Shutdown(ctx context.Context) {
 	close(p.closeCh)
+	p.wg.Wait()
+
+	// Immediately cut all traces from memory
+	err := p.cutIdleTraces(true)
+	if err != nil {
+		level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to cut remaining traces on shutdown", "err", err)
+	}
+
+	err = p.cutBlocks(true)
+	if err != nil {
+		level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to cut head block on shutdown", "err", err)
+	}
 }
 
 func (p *Processor) flushLoop() {
+	defer p.wg.Done()
+
 	flushTicker := time.NewTicker(p.Cfg.FlushCheckPeriod)
 	defer flushTicker.Stop()
 
@@ -97,23 +117,20 @@ func (p *Processor) flushLoop() {
 				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to cut idle traces", "err", err)
 			}
 
-			err = p.cutBlocks()
+			err = p.cutBlocks(false)
 			if err != nil {
-				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to cut idle traces", "err", err)
+				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to cut head block", "err", err)
 			}
 
 		case <-p.closeCh:
-			// Immediately cut all traces from memory
-			err := p.cutIdleTraces(true)
-			if err != nil {
-				level.Error(log.WithUserID(p.tenant, log.Logger)).Log("msg", "local blocks processor failed to cut idle traces", "err", err)
-			}
 			return
 		}
 	}
 }
 
 func (p *Processor) deleteLoop() {
+	defer p.wg.Done()
+
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
@@ -132,6 +149,8 @@ func (p *Processor) deleteLoop() {
 }
 
 func (p *Processor) completeLoop() {
+	defer p.wg.Done()
+
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
@@ -305,15 +324,15 @@ func (p *Processor) resetHeadBlock() error {
 	return nil
 }
 
-func (p *Processor) cutBlocks() error {
+func (p *Processor) cutBlocks(immediate bool) error {
 	p.blocksMtx.Lock()
 	defer p.blocksMtx.Unlock()
 
-	if p.headBlock == nil {
+	if p.headBlock == nil || p.headBlock.DataLength() == 0 {
 		return nil
 	}
 
-	if time.Since(p.lastCutTime) < p.Cfg.MaxBlockDuration && p.headBlock.DataLength() < p.Cfg.MaxBlockBytes {
+	if !immediate && time.Since(p.lastCutTime) < p.Cfg.MaxBlockDuration && p.headBlock.DataLength() < p.Cfg.MaxBlockBytes {
 		return nil
 	}
 
@@ -359,8 +378,8 @@ func (p *Processor) reloadBlocks() error {
 	// Complete blocks
 	// ------------------------------------
 
-	// This is a quirk, we shouldn't try to list blocks until after we've made
-	// sure the tenant folder exists.
+	// This is a quirk of the local backend, we shouldn't try to list
+	// blocks until after we've made sure the tenant folder exists.
 	tenants, err := r.Tenants(ctx)
 	if err != nil {
 		return err
@@ -396,6 +415,39 @@ func (p *Processor) reloadBlocks() error {
 		}
 
 		p.completeBlocks[id] = blk
+	}
+
+	return nil
+}
+
+// filterBatch to only spans with kind==server. Does not modify the input
+// but returns a new struct referencing the same input pointers. Returns nil
+// if there were no matching spans.
+func filterBatch(batch *v1.ResourceSpans) *v1.ResourceSpans {
+
+	var keepSS []*v1.ScopeSpans
+	for _, ss := range batch.ScopeSpans {
+
+		var keepSpans []*v1.Span
+		for _, s := range ss.Spans {
+			if s.Kind == v1.Span_SPAN_KIND_SERVER {
+				keepSpans = append(keepSpans, s)
+			}
+		}
+
+		if len(keepSpans) > 0 {
+			keepSS = append(keepSS, &v1.ScopeSpans{
+				Scope: ss.Scope,
+				Spans: keepSpans,
+			})
+		}
+	}
+
+	if len(keepSS) > 0 {
+		return &v1.ResourceSpans{
+			Resource:   batch.Resource,
+			ScopeSpans: keepSS,
+		}
 	}
 
 	return nil
